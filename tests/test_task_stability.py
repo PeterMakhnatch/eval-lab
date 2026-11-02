@@ -3,18 +3,28 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import logging
+import sys
+import types
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from evallab import task_stability
+from evallab import harbor_repeat_verifier, task_stability
 from evallab.harbor_repeat_verifier import (
     DEFAULT_REPEAT_N,
+    STDOUT_TAIL_BYTES,
     VERIFIER_IMPORT_PATH,
     RepeatVerifier,
     _coerce_repeat_n,
+    _ExecRecorder,
+    _harbor_version,
+    _scalar_reward,
+    _stdout_tail_digest,
+    _test_exit_code,
 )
 from evallab.task_stability import (
     collect_jobs,
@@ -48,6 +58,109 @@ def test_repeat_n_coerces_harbor_string_kwargs() -> None:
         _coerce_repeat_n("0")
     with pytest.raises(ValueError):
         _coerce_repeat_n("many")
+
+
+@pytest.mark.parametrize(
+    ("rewards", "expected"),
+    [
+        (None, None),
+        ({}, None),
+        ([], None),
+        ({"other": 2}, 2.0),
+        ({"other": 3, "reward": 1}, 1.0),
+        ({"reward": "not-a-number"}, None),
+        ({"reward": None}, None),
+    ],
+)
+def test_scalar_reward_handles_missing_odd_and_invalid_rewards(
+    rewards: object, expected: float | None,
+) -> None:
+    assert _scalar_reward(rewards) == expected
+
+
+def test_stdout_tail_digest_handles_absent_empty_and_long_output(tmp_path: Path) -> None:
+    path = tmp_path / "test-stdout.txt"
+    assert _stdout_tail_digest(path) is None
+    path.write_bytes(b"")
+    assert _stdout_tail_digest(path) is None
+
+    output = b"prefix" + bytes(range(256)) * 40 + b"suffix"
+    path.write_bytes(output)
+    assert _stdout_tail_digest(path) == hashlib.sha256(
+        output[-STDOUT_TAIL_BYTES:],
+    ).hexdigest()
+
+
+def test_harbor_version_is_none_when_harbor_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "harbor", None)
+    assert _harbor_version() is None
+
+
+def test_harbor_version_is_string_when_harbor_is_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harbor = types.ModuleType("harbor")
+    harbor.__version__ = "0.24.0"
+    monkeypatch.setitem(sys.modules, "harbor", harbor)
+    assert _harbor_version() == "0.24.0"
+
+
+def test_container_reward_paths_use_harbor_environment_layout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeEnvironmentPaths:
+        @classmethod
+        def for_os(cls, os: str) -> SimpleNamespace:
+            assert os == "linux"
+            return SimpleNamespace(
+                reward_text_path="/custom/reward.txt",
+                reward_json_path="/custom/reward.json",
+            )
+
+    path_module = types.ModuleType("harbor.models.trial.paths")
+    path_module.EnvironmentPaths = FakeEnvironmentPaths  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "harbor.models.trial.paths", path_module)
+    verifier = RepeatVerifier(
+        task=object(), trial_paths=object(), environment=SimpleNamespace(os="linux"),
+    )
+    assert verifier._container_reward_paths() == (
+        "/custom/reward.txt", "/custom/reward.json",
+    )
+
+
+def test_exec_recorder_passes_through_environment_attributes() -> None:
+    environment = SimpleNamespace(os="linux")
+    assert _ExecRecorder(environment).os == "linux"
+
+
+@pytest.mark.parametrize(
+    ("calls", "expected"),
+    [
+        ([], None),
+        (
+            [
+                {"command": " chmod +x /tests/test.sh", "return_code": 0},
+                {"command": "rm -f /logs/verifier/reward.txt", "return_code": 0},
+                {"command": " /tests/test.sh", "return_code": 7},
+            ],
+            7,
+        ),
+        ([{"command": "/tests/test.sh", "return_code": None}], None),
+        (
+            [
+                {"command": "chmod +x /tests/test.sh", "return_code": 3},
+                {"command": "rm -f /logs/verifier/reward.txt", "return_code": 4},
+            ],
+            4,
+        ),
+    ],
+)
+def test_test_exit_code_skips_preparation_and_handles_missing_codes(
+    calls: list[dict[str, object]], expected: int | None,
+) -> None:
+    assert _test_exit_code(calls) == expected
 
 
 def test_parse_stability_file_missing_is_none(tmp_path: Path) -> None:
@@ -314,6 +427,163 @@ def test_repeat_verifier_reraises_first_error_after_recording(tmp_path: Path) ->
 def test_repeat_verifier_default_repeats_three_times() -> None:
     verifier = RepeatVerifier(task=object(), trial_paths=object(), environment=object())
     assert verifier._repeat_n == DEFAULT_REPEAT_N
+
+
+def test_clear_reward_files_warns_for_exec_missing_path_and_unlink_errors(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class FailingEnvironment:
+        async def exec(self, command: str, **kwargs: object) -> None:
+            raise RuntimeError("container unavailable")
+
+    paths = SimpleNamespace(reward_text_path=tmp_path / "reward.txt")
+    paths.reward_text_path.mkdir()
+    verifier = RepeatVerifier(
+        task=object(), trial_paths=paths, environment=FailingEnvironment(), repeat_n=2,
+    )
+
+    with caplog.at_level(logging.WARNING, logger=harbor_repeat_verifier.__name__):
+        asyncio.run(verifier._clear_reward_files())
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert len(messages) == 3
+    assert messages[0] == "repeat verifier could not clear container rewards: container unavailable"
+    assert messages[1].startswith("repeat verifier could not clear host reward_text_path:")
+    assert messages[2] == (
+        "repeat verifier could not clear host reward_json_path: "
+        "'types.SimpleNamespace' object has no attribute 'reward_json_path'"
+    )
+
+
+def test_snapshot_and_restore_replace_stale_files_directories_and_symlinks(
+    tmp_path: Path,
+) -> None:
+    paths = _FakeTrialPaths(tmp_path)
+    top = paths.verifier_dir
+    top.mkdir(parents=True)
+    paths.reward_text_path.write_text("1")
+    (top / "nested").mkdir()
+    (top / "nested" / "result.txt").write_text("original")
+    (top / "stdout-link").symlink_to("reward.txt")
+    snapshot = top / "repeat" / "0"
+    snapshot.mkdir(parents=True)
+    (snapshot / "stale.txt").write_text("stale")
+    verifier = RepeatVerifier(task=object(), trial_paths=paths, environment=object())
+    snapshots_ok: set[int] = set()
+
+    verifier._snapshot_run(0, snapshots_ok)
+
+    assert snapshots_ok == {0}
+    assert not (snapshot / "stale.txt").exists()
+    assert (snapshot / "nested" / "result.txt").read_text() == "original"
+    assert (snapshot / "stdout-link").is_symlink()
+    assert (snapshot / "stdout-link").read_text() == "1"
+
+    (top / "nested" / "result.txt").write_text("changed")
+    (top / "obsolete").mkdir()
+    (top / "obsolete" / "old.txt").write_text("old")
+    verifier._restore_run(0, snapshots_ok)
+
+    assert not (top / "obsolete").exists()
+    assert (top / "nested" / "result.txt").read_text() == "original"
+    assert (top / "stdout-link").is_symlink()
+    assert (top / "stdout-link").read_text() == "1"
+
+
+def test_snapshot_oserror_warns_once_without_changing_reward_or_recorded_runs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    paths = _FakeTrialPaths(tmp_path)
+    verifier = RepeatVerifier(
+        task=object(), trial_paths=paths, environment=_FakeEnvironment(), repeat_n=2,
+        _inner_factory=_file_backed_inner(["1", "0"]),
+    )
+    real_copy2 = harbor_repeat_verifier.shutil.copy2
+
+    def fail_second_snapshot(src: object, dst: object, **kwargs: object) -> object:
+        if Path(str(dst)).parent.name == "1":
+            raise OSError("snapshot storage full")
+        return real_copy2(src, dst, **kwargs)
+
+    monkeypatch.setattr(harbor_repeat_verifier.shutil, "copy2", fail_second_snapshot)
+    with caplog.at_level(logging.WARNING, logger=harbor_repeat_verifier.__name__):
+        result = asyncio.run(verifier.verify())
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert messages == [
+        "repeat verifier could not snapshot run 1: snapshot storage full",
+    ]
+    assert result.rewards == {"reward": 1.0}
+    payload = json.loads((paths.verifier_dir / "stability.json").read_text())
+    assert payload["n_runs"] == 2
+    assert payload["first_reward"] == 1.0
+    assert [run["reward"] for run in payload["runs"]] == [1.0, 0.0]
+
+
+def test_restore_without_snapshot_warns_once_and_leaves_recorded_files_unchanged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+) -> None:
+    paths = _FakeTrialPaths(tmp_path)
+    paths.verifier_dir.mkdir(parents=True)
+    paths.reward_text_path.write_text("1")
+    stability = paths.verifier_dir / "stability.json"
+    stability.write_text(json.dumps({"runs": [{"reward": 1.0}]}))
+    verifier = RepeatVerifier(task=object(), trial_paths=paths, environment=object())
+
+    with caplog.at_level(logging.WARNING, logger=harbor_repeat_verifier.__name__):
+        verifier._restore_run(0, set())
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert messages == ["repeat verifier skips restore of run 0 (no snapshot)"]
+    assert paths.reward_text_path.read_text() == "1"
+    assert json.loads(stability.read_text())["runs"] == [{"reward": 1.0}]
+
+
+def test_restore_oserror_warns_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    paths = _FakeTrialPaths(tmp_path)
+    verifier = RepeatVerifier(task=object(), trial_paths=paths, environment=object())
+
+    def fail_iterdir(self: Path) -> object:
+        raise OSError("restore storage unavailable")
+
+    monkeypatch.setattr(Path, "iterdir", fail_iterdir)
+    with caplog.at_level(logging.WARNING, logger=harbor_repeat_verifier.__name__):
+        verifier._restore_run(0, {0})
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert messages == [
+        "repeat verifier could not restore run 0: restore storage unavailable",
+    ]
+
+
+def test_stability_write_oserror_warns_once_without_mutating_runs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    paths = _FakeTrialPaths(tmp_path)
+    verifier = RepeatVerifier(task=object(), trial_paths=paths, environment=object())
+    runs = [{"index": 0, "reward": 1.0}]
+
+    def fail_mkdir(self: Path, **kwargs: object) -> None:
+        raise OSError("stability output unavailable")
+
+    monkeypatch.setattr(Path, "mkdir", fail_mkdir)
+    with caplog.at_level(logging.WARNING, logger=harbor_repeat_verifier.__name__):
+        verifier._write_stability(runs)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert messages == [
+        "repeat verifier could not write stability.json: stability output unavailable",
+    ]
+    assert runs == [{"index": 0, "reward": 1.0}]
 
 
 def test_manifest_round_trip(tmp_path: Path) -> None:

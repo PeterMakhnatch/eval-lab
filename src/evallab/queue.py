@@ -122,6 +122,7 @@ from evallab.runner import (
     assert_no_secret_material,
     collected_secret_values,
     database_url_from_environment,
+    harbor_cli_pin_check,
     run_experiment,
     subscription_environment,
     tool_version,
@@ -3422,6 +3423,12 @@ class Executor:
         for command in ("harbor", "docker", "uv"):
             version = tool_version(command)
             checks.append((command, version is not None, version or "not found"))
+            if command == "harbor":
+                # Advisory: the CI pin lives in runner.HARBOR_CLI_PIN, and a
+                # local Harbor on another version silently produces jobs CI
+                # cannot reproduce (HAR-265). Doctor reports the mismatch
+                # without adding it to the required set.
+                checks.append(("harbor-pin", *harbor_cli_pin_check(version)))
         if shutil.which("docker"):
             try:
                 completed = subprocess.run(

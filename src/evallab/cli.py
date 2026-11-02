@@ -281,6 +281,9 @@ def _doctor(
     for name, ok, detail in checks:
         print(f"{'ok' if ok else 'FAIL':4}  {name:14} {detail}")
     print(doctor_disk_line(root))
+    # `harbor-pin` is advisory like `sync-primary`: local Harbor CLI drift from
+    # the CI pin is printed without joining this set, so it never changes the
+    # exit code (HAR-265).
     required = {
         "harbor",
         "docker",
@@ -3178,6 +3181,7 @@ def _harden_command(
             allow_degraded=args.allow_degraded,
             single_container=args.single_container,
             helpers=tuple(args.helper),
+            verifier_dockerfile=args.verifier_dockerfile,
         )
     except HardeningRefused as exc:
         print(f"refused: {exc}", file=sys.stderr)
@@ -3190,6 +3194,11 @@ def _harden_command(
     )
     for layer in manifest.layers:
         print(f"  {layer.layer} {layer.status}: {layer.mechanism}")
+    verifier = manifest.verifier
+    print(
+        f"  verifier gate_runtime {verifier.gate_runtime}"
+        + (f" ({verifier.dockerfile} {verifier.origin}, sha256 {verifier.dockerfile_sha256})" if verifier.dockerfile else "")
+    )
     for finding in manifest.findings:
         print(f"  finding {finding.kind} {finding.path}: {finding.detail} [{finding.action}]")
     print(f"  output: {manifest.output or '(audit only)'}")
@@ -7745,6 +7754,14 @@ def parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         help="Workspace path the grader trusts (L2); repeatable",
+    )
+    harden_parser.add_argument(
+        "--verifier-dockerfile",
+        type=Path,
+        help=(
+            "Verifier image for the separate verifier (harbor packages): copied byte-identical to "
+            "tests/Dockerfile; without it the gate runtime is recorded as unverified"
+        ),
     )
     harden_parser.add_argument("--json", action="store_true")
     harden_parser.set_defaults(func=_harden_command)

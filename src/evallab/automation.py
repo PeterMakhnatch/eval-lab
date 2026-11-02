@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import plistlib
 import re
@@ -774,6 +775,156 @@ def audit_launch_agents(
             for kind, missing_path in _launch_agent_missing_references(definition)
         )
     return LaunchAgentAudit(checked=checked, broken=broken)
+
+
+SYNC_STATUS_ENV = "EVALLAB_SYNC_STATUS"
+SYNC_INTERVAL_SECONDS_ENV = "EVALLAB_SYNC_INTERVAL_SECONDS"
+DEFAULT_SYNC_INTERVAL_SECONDS = 300
+SYNC_STALE_INTERVALS = 3
+
+
+@dataclass(frozen=True)
+class SyncPrimaryStatus:
+    """The primary checkout's last sync-timer run, as doctor reports it."""
+
+    ok: bool
+    outcome: str
+    reason: str
+    behind: int
+    age_seconds: int | None
+    detail: str
+
+
+def default_sync_status_path(home: Path) -> Path:
+    """The status file the sync timer writes under the installer's default state dir."""
+    return home / "Library/Application Support/evallab/sync-status.json"
+
+
+def _format_age(seconds: int) -> str:
+    if seconds < 60:
+        return f"{seconds}s"
+    if seconds < 3600:
+        return f"{seconds // 60}m"
+    if seconds < 86400:
+        hours, rest = divmod(seconds, 3600)
+        return f"{hours}h{rest // 60}m"
+    days, rest = divmod(seconds, 86400)
+    return f"{days}d{rest // 3600}h"
+
+
+def _status_text(value: object, fallback: str) -> str:
+    return value if isinstance(value, str) and value else fallback
+
+
+def _status_count(value: object) -> int:
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int | float):
+        return max(int(value), 0)
+    if isinstance(value, str):
+        try:
+            return max(int(value), 0)
+        except ValueError:
+            return 0
+    return 0
+
+
+def sync_primary_status(
+    home: Path,
+    *,
+    now: datetime | None = None,
+    status_path: Path | None = None,
+    interval_seconds: int | None = None,
+) -> SyncPrimaryStatus:
+    """Read the primary-checkout sync timer's status file; never write it.
+
+    ``scripts/sync-primary-checkout.sh`` records why each run synced or skipped
+    (dirty tree, off-branch, diverged, fetch failure) plus the ahead/behind
+    counts. Nothing else surfaces that file, so a timer that stopped running
+    or kept skipping a dirty checkout let the primary drift 848 commits behind
+    with only a rate-limited notification to say so.
+
+    The row is advisory: it reports ``ok`` when the timer ran within
+    ``SYNC_STALE_INTERVALS`` intervals and had nothing to do, and FAIL when the
+    file is missing or unreadable, the last run is older than that, the run
+    skipped while HEAD is still behind, or its fetch failed. Doctor's exit
+    code does not depend on it.
+
+    ``status_path`` or ``EVALLAB_SYNC_STATUS`` overrides the default location;
+    ``interval_seconds`` or ``EVALLAB_SYNC_INTERVAL_SECONDS`` overrides the
+    timer interval. Both exist so tests never read the real home or environment.
+    """
+    path = status_path or (
+        Path(os.environ[SYNC_STATUS_ENV]).expanduser()
+        if os.environ.get(SYNC_STATUS_ENV)
+        else default_sync_status_path(home)
+    )
+    if interval_seconds is None:
+        try:
+            interval_seconds = int(os.environ.get(SYNC_INTERVAL_SECONDS_ENV, ""))
+        except ValueError:
+            interval_seconds = 0
+        if interval_seconds <= 0:
+            interval_seconds = DEFAULT_SYNC_INTERVAL_SECONDS
+    stale_after = interval_seconds * SYNC_STALE_INTERVALS
+    moment = now or datetime.now(UTC)
+
+    def unreadable(reason: str, detail: str) -> SyncPrimaryStatus:
+        return SyncPrimaryStatus(
+            ok=False,
+            outcome="unreadable",
+            reason=reason,
+            behind=0,
+            age_seconds=None,
+            detail=detail,
+        )
+
+    try:
+        raw = json.loads(path.read_text())
+    except FileNotFoundError:
+        return SyncPrimaryStatus(
+            ok=False,
+            outcome="missing",
+            reason="missing",
+            behind=0,
+            age_seconds=None,
+            detail=f"missing {path} (the sync timer has not run here)",
+        )
+    except (OSError, ValueError) as exc:
+        return unreadable(type(exc).__name__, f"unreadable {path} ({type(exc).__name__})")
+    if not isinstance(raw, dict):
+        return unreadable("not-an-object", f"unreadable {path} (not a JSON object)")
+    try:
+        written = datetime.fromisoformat(str(raw.get("timestamp")))
+    except ValueError:
+        return unreadable("bad-timestamp", f"unreadable {path} (bad timestamp)")
+    if written.tzinfo is None:
+        written = written.replace(tzinfo=UTC)
+    age_seconds = max(int((moment - written).total_seconds()), 0)
+    outcome = _status_text(raw.get("outcome"), "unknown")
+    reason = _status_text(raw.get("reason"), "unknown")
+    behind = _status_count(raw.get("behind"))
+
+    problems: list[str] = []
+    if age_seconds > stale_after:
+        problems.append(
+            f"stale: last run {_format_age(age_seconds)} ago (limit {stale_after}s)"
+        )
+    if outcome == "skipped" and behind > 0:
+        problems.append(f"skipped while {behind} commits behind")
+    if raw.get("fetch_ok") is False:
+        problems.append("fetch failed")
+    detail = f"{outcome} ({reason}) behind {behind} age {_format_age(age_seconds)}"
+    if problems:
+        detail = "; ".join([detail, *problems])
+    return SyncPrimaryStatus(
+        ok=not problems,
+        outcome=outcome,
+        reason=reason,
+        behind=behind,
+        age_seconds=age_seconds,
+        detail=detail,
+    )
 
 
 class HeadlessDoctor:

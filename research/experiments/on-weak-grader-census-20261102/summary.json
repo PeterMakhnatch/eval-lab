@@ -1,0 +1,196 @@
+{
+  "total_gold_candidates": 50,
+  "eligible_tasks": 32,
+  "ineligible_tasks": 18,
+  "audited_tasks": 28,
+  "control_failed_tasks": 0,
+  "weak_tasks_count": 18,
+  "weak_task_rate_wilson": "18/28 = 64.3% (45.8-79.3)",
+  "weak_fraction": 0.6429,
+  "wilson_ci": [
+    0.45830306373230584,
+    0.792941705856417
+  ],
+  "total_mutants_generated": 74,
+  "total_mutants_applied": 73,
+  "total_mutants_survived": 22,
+  "mutant_survival_rate_wilson": "22/74 = 29.7% (20.5-40.9)",
+  "runner_breakdown": {
+    "pytest": {
+      "audited": 25,
+      "weak": 16,
+      "rate": "16/25 = 64.0% (44.5-79.8)"
+    },
+    "unittest": {
+      "audited": 3,
+      "weak": 2,
+      "rate": "2/3 = 66.7% (20.8-93.9)"
+    }
+  },
+  "repo_breakdown": {
+    "impedance": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "xdoctest": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "gymnasium": {
+      "audited": 1,
+      "weak": 0,
+      "rate": "0/1 = 0.0% (0.0-79.3)"
+    },
+    "src": {
+      "audited": 1,
+      "weak": 0,
+      "rate": "0/1 = 0.0% (0.0-79.3)"
+    },
+    "quantecon": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "theano": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "CHANGES": {
+      "audited": 1,
+      "weak": 0,
+      "rate": "0/1 = 0.0% (0.0-79.3)"
+    },
+    "c7n": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "AUTHORS": {
+      "audited": 1,
+      "weak": 0,
+      "rate": "0/1 = 0.0% (0.0-79.3)"
+    },
+    "ntfy": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "docs": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "fastavro": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "usaspending_api": {
+      "audited": 0,
+      "weak": 0,
+      "rate": "0/0"
+    },
+    "google": {
+      "audited": 1,
+      "weak": 0,
+      "rate": "0/1 = 0.0% (0.0-79.3)"
+    },
+    "redash": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "python": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "batch": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "can": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "llama_stack": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "localstack": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "marimo": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "bugbug": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "lib": {
+      "audited": 3,
+      "weak": 1,
+      "rate": "1/3 = 33.3% (6.1-79.2)"
+    },
+    "openwisp_radius": {
+      "audited": 1,
+      "weak": 0,
+      "rate": "0/1 = 0.0% (0.0-79.3)"
+    },
+    "pip_audit": {
+      "audited": 1,
+      "weak": 0,
+      "rate": "0/1 = 0.0% (0.0-79.3)"
+    },
+    "rotkehlchen": {
+      "audited": 1,
+      "weak": 1,
+      "rate": "1/1 = 100.0% (20.7-100.0)"
+    },
+    "miio": {
+      "audited": 1,
+      "weak": 0,
+      "rate": "0/1 = 0.0% (0.0-79.3)"
+    },
+    "sc3": {
+      "audited": 0,
+      "weak": 0,
+      "rate": "0/0"
+    },
+    "wagtail": {
+      "audited": 0,
+      "weak": 0,
+      "rate": "0/0"
+    },
+    "sucks": {
+      "audited": 0,
+      "weak": 0,
+      "rate": "0/0"
+    }
+  },
+  "spend": {
+    "approval": "Peter 2026-11-02 overnight A2: Modal cap $2.50",
+    "cap_usd": 2.5,
+    "ledger_reserved_usd": 2.496,
+    "ledger_reservations_count": 312,
+    "measured_spend_usd": 0.236,
+    "measured_cells_count": 106,
+    "cumulative_sandbox_seconds": 1428.2,
+    "cumulative_cells_count": 106,
+    "stopped_early": true,
+    "stop_reason": "Modal reservation cap ($2.50) reached across 312 QA executions ($2.496 reserved)"
+  },
+  "stretch_repaired": [],
+  "stretch_status": "not_triggered_cap_exhausted"
+}

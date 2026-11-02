@@ -389,3 +389,15 @@ remain blocked on a usable cost-admission contract covering the approved total
 scope. Operational spend for this continuation is **$0**, not a measured
 zero-dollar control result.
 
+## First v6 ladder cells (HAR-244, 2026-11-02)
+
+[ladder-p0-har244.json](ladder-p0-har244.json) records the first v6 cheat-ladder
+cells. They cover the ranks 1–3 `P0` rows of
+[`../mimo-clean-v5-coverage/unverified-ranking.csv`](../mimo-clean-v5-coverage/unverified-ranking.csv)
+(`001478`, `001671`, `001945`; prior label `fail:open-leak:env-dependency`).
+All three ran ladder 1.4.0 at their manifest `final_digest` on local Docker and
+came back `clean`: 14/14 attacks executed and reward 0. The three took 11.2 min
+of wall time including cold pulls, at $0. Each verdict rests on the verifier's
+tamper refusal, and the ladder has no dependency-copy attack. So these cells
+do not show the env-dependency leak is closed, and the manifest `verify` stays
+`unverified`.

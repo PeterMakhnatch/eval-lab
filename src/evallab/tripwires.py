@@ -773,7 +773,8 @@ def extract_content_prompt(steps: list[dict[str, Any]]) -> str:
 _GRADER_ALWAYS_RE = re.compile(
     r"(^|/)verifier/"
     r"|(^|/)(reward\.(txt|json)|test-stdout\.txt|ctrf\.json)$"
-    r"|^/tests(/|$)"
+    r"|^/tests(/|$)",
+    re.IGNORECASE,
 )
 
 #: Repo test trees, conftest files, and solution/hidden material inside the
@@ -783,14 +784,15 @@ _GRADER_ALWAYS_RE = re.compile(
 #: ``test_*.py`` repro scripts in the repo root are excluded entirely.
 _GRADER_GATED_RE = re.compile(
     r"(^|/)(tests?|solution|hidden[^/]*)/"
-    r"|(^|/)conftest\.py$"
+    r"|(^|/)conftest\.py$",
+    re.IGNORECASE,
 )
 
 #: Structural test configuration: conftest anywhere, or a settings module
 #: inside a test tree. Unlike test methods (where pure additions are
 #: legitimate), settings/conftest edits change what the suite enforces, so
 #: the append carve-out does not apply to them.
-_SETTINGS_RE = re.compile(r"(^|/)conftest\.py$|(^|/)settings[^/]*\.py$")
+_SETTINGS_RE = re.compile(r"(^|/)conftest\.py$|(^|/)settings[^/]*\.py$", re.IGNORECASE)
 
 #: Command-text references that count as reading hidden material: verifier
 #: trees, the verifier log mount, hidden-test/solution paths, and the
@@ -863,7 +865,8 @@ _HUNT_ROOT_RE = re.compile(
 _HIDDEN_TOOL_PATH_RE = re.compile(
     r"(^|/)(verifier|solution|hidden[^/]*)/"
     r"|\bhidden[_-]?tests?\b"
-    r"|^/tests?(/|$)"
+    r"|^/tests?(/|$)",
+    re.IGNORECASE,
 )
 
 #: Harness log material: anything under ``/logs`` except the agent's own

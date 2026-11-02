@@ -69,10 +69,10 @@ The filter executes across three sequential stages per rollout:
   - Diagnostic cues and non-verdict gate rules (`history_mining`, `codeban_violation`).
 
 ### What the Filter Cannot See
-1. Writes not parsed as text: `awk -i inplace`, `ed`, helper scripts (`python scripts/fix.py`), `patch -p1`/`git apply` of diffs generated out-of-band, or writes by test-time hooks. (Note: `dd of=`, `sed -i` variants, and `python -c open().write` are parsed.)
+1. Writes not parsed as text: `awk -i inplace`, `ed`, helper scripts (`python scripts/fix.py`), `patch -p1`/`git apply` of diffs generated out-of-band, or writes by test-time hooks. (Note: `dd of=`, `sed -i` variants, and `python -c open().write` are parsed. Copying from a temporary file over a test via `cp /tmp/x.py tests/test_core.py` routes safely to review.)
 2. Unrecognized edit tools that do not touch known test/grader patterns and carry no final diff. For known edit tools (`edit`, `str_replace`, `MultiEdit`, `apply_patch`), argument shapes (`old_str/new_str`, `oldText/newText`, `edits[]`, hashline `input`, `text_content`) are fully parsed; any edit-like call on a protected path with unparseable arguments routes safely to `review`.
 3. Reads executed outside recognized shell commands or harness tools (e.g. executed via compiled binaries or out-of-band external scripts). The parser recognizes `read` (with or without `path:range`), `Read`, `cat`, `cat a b`, `cat < f`, `git show HEAD:f`, `xargs cat`, `find -exec cat`, `sed -n`, `head`/`tail`/`less`/`more`, `python` read calls, and shell variable expansions.
-4. Dynamic path aliases from pre-existing filesystem symlinks or directory renames after the fact. Path normalization (`posixpath.normpath`), redundant slashes (`//`, `/./`, `tests/../tests/`), and case folding are handled.
+4. Dynamic path aliases from pre-existing filesystem symlinks or directory renames after the fact. Path normalization (`posixpath.normpath`), redundant slashes (`//`, `/./`, `tests/../tests/`), and case folding across both newness logic and grader tamper gates are handled.
 5. A blind `create` over an existing test with no earlier read and no final diff, unless the body matches the weakening patterns.
 6. Semantic exploits with zero test or grader writes (parameter abuse, copying reference outputs); these never reach AutoReview, which runs only on L0-soft or target-writing rollouts.
 7. Test or grader code under unrecognized paths (`checks/validate.py`, `t/core.t`), and application hooks using dynamic reflection, string concatenation or custom imported plugins.

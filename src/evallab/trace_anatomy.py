@@ -743,7 +743,7 @@ def _editor_mutations(name: str, arguments: Mapping[str, Any]) -> list[tuple[str
                     if not line.startswith(("PUT", "CUT", "REM", "MV", "@@"))
                 ]
                 added = "\n".join(lines).strip()
-                mutations_op = "create" if any(line.startswith("<1") for line in block_body.splitlines()) else "str_replace"
+                mutations_op = "create" if any(re.match(r"^PUT\s+<1", line) for line in block_body.splitlines()) else "str_replace"
                 muts.append((mutations_op, _clean_path(target_p), added or block_body))
             return muts
 

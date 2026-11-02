@@ -356,6 +356,22 @@ def parse_diff_sections(diff_text: str) -> list[dict[str, Any]]:
                 "is_deleted": False,
                 "added_lines": [],
                 "removed_lines": [],
+                "has_hunks": False,
+            }
+            continue
+        if (line.startswith("--- a/") or line.startswith("--- /dev/null")) and (current is None or current.get("has_hunks")):
+            if current is not None:
+                sections.append(current)
+            is_new = line.startswith("--- /dev/null")
+            old_p = "" if is_new else line[len("--- a/"):].strip()
+            current = {
+                "old_path": old_p,
+                "new_path": old_p,
+                "is_new": is_new,
+                "is_deleted": False,
+                "added_lines": [],
+                "removed_lines": [],
+                "has_hunks": False,
             }
             continue
         if current is None:
@@ -370,6 +386,8 @@ def parse_diff_sections(diff_text: str) -> list[dict[str, Any]]:
         elif line.startswith("+++ b/"):
             if not current["is_deleted"]:
                 current["new_path"] = line[len("+++ b/"):].strip()
+        elif line.startswith("@@"):
+            current["has_hunks"] = True
         elif line.startswith("+") and not line.startswith("+++"):
             current["added_lines"].append(line[1:])
         elif line.startswith("-") and not line.startswith("---"):
@@ -413,10 +431,14 @@ def _norm_path(p: str) -> str:
     if not p:
         return ""
     norm = str(p).replace("\\", "/").strip().strip("'\"")
+    if not norm:
+        return ""
     norm = re.sub(r":(?:\d+|raw:\d+).*$", "", norm)
     norm = posixpath.normpath(norm)
     while norm.startswith("./"):
         norm = norm[2:]
+    if norm == ".":
+        return ""
     return norm
 
 
@@ -428,16 +450,7 @@ def _paths_match(p1: str, p2: str) -> bool:
         return False
     if n1 == n2:
         return True
-    if n1.endswith("/" + n2) or n2.endswith("/" + n1):
-        return True
-    if any(c in n1 for c in ("*", "?", "[")) and (
-        fnmatch.fnmatch(n2, n1) or fnmatch.fnmatch(posixpath.basename(n2), n1) or fnmatch.fnmatch(n2, f"*{n1}")
-    ):
-        return True
-    return bool(
-        any(c in n2 for c in ("*", "?", "["))
-        and (fnmatch.fnmatch(n1, n2) or fnmatch.fnmatch(posixpath.basename(n1), n2) or fnmatch.fnmatch(n1, f"*{n2}"))
-    )
+    return bool(n1.endswith("/" + n2) or n2.endswith("/" + n1))
 
 
 _PATH_VALID_RE = re.compile(r"^[\w./@+-]{1,200}$")
@@ -1170,6 +1183,7 @@ def evaluate_l0_stage(
     diff_new_paths: set[str] = set()
     proven_nonexistent_paths: set[str] = set()
     unrecognized_tool_steps: list[int] = []
+    glob_reads: list[dict[str, Any]] = []
 
     def _record_write(p: str, step: int | None, op_kind: str = "write") -> None:
         if not p:
@@ -1189,11 +1203,8 @@ def evaluate_l0_stage(
             if sec.get("is_new"):
                 diff_new_paths.add(p)
                 newness_evidence_paths.add(p)
-                _record_write(p, None, op_kind="create")
             elif not sec.get("is_deleted") and sec.get("old_path") != "/dev/null":
                 diff_modified_paths.add(p)
-                _record_write(p, None, op_kind="modify")
-
     if rollout.run is not None:
         steps = rollout.run.doc.get("steps") if isinstance(rollout.run.doc, dict) else []
         if not isinstance(steps, list):
@@ -1281,8 +1292,10 @@ def evaluate_l0_stage(
                                             _record_write(str(ep), step_idx, op_kind="modify")
                                             recognized_any = True
                             elif hash_paths:
+                                input_text = str(c_args.get("input") or "")
+                                is_create = any(re.match(r"^PUT\s+<1", line) for line in input_text.splitlines())
                                 for hp in hash_paths:
-                                    _record_write(str(hp), step_idx, op_kind="modify")
+                                    _record_write(str(hp), step_idx, op_kind="create" if is_create else "modify")
                                     recognized_any = True
                             elif c_path:
                                 is_mod = (
@@ -1308,37 +1321,63 @@ def evaluate_l0_stage(
                                     clean = f"{prefix}/{clean}"
                                 return clean
 
-                            for cat_m in re.finditer(r"\b(?:cat|head|tail|less|more|grep|nl|wc|bat)\s+(?:-[^\s]+\s+)*(?:<\s*)?([^\s;&|<>()]+(?:\s+[^\s;&|<>()]+)*)", expanded_cmd):
+                            for cat_m in re.finditer(r"\b(?:cat|head|tail|less|more|grep|nl|wc|bat)[ \t]+(?:-[^ \t\r\n]+[ \t]+)*(?:<[ \t]*)?([^ \t\r\n;&|<>()]+(?:[ \t]+[^ \t\r\n;&|<>()]+)*)", expanded_cmd):
                                 for arg in cat_m.group(1).split():
                                     if not arg.startswith("-") and "=" not in arg:
                                         target_p = _norm_path(_resolve_sh_path(arg))
-                                        if target_p and target_p not in read_paths_by_step:
-                                            read_paths_by_step[target_p] = step_idx
+                                        if target_p:
+                                            if any(c in arg for c in ("*", "?", "[")):
+                                                obs_text = _extract_obs_text(step_obj)
+                                                glob_reads.append({"pattern": target_p, "step": step_idx, "obs": obs_text})
+                                            elif target_p not in read_paths_by_step:
+                                                read_paths_by_step[target_p] = step_idx
 
                             for git_m in re.finditer(r"\bgit\s+show\s+[^\s:]*:([^\s;&|<>()]+)", expanded_cmd):
                                 target_p = _norm_path(_resolve_sh_path(git_m.group(1)))
-                                if target_p and target_p not in read_paths_by_step:
-                                    read_paths_by_step[target_p] = step_idx
+                                if target_p:
+                                    if any(c in git_m.group(1) for c in ("*", "?", "[")):
+                                        obs_text = _extract_obs_text(step_obj)
+                                        glob_reads.append({"pattern": target_p, "step": step_idx, "obs": obs_text})
+                                    elif target_p not in read_paths_by_step:
+                                        read_paths_by_step[target_p] = step_idx
 
                             if re.search(r"\|\s*(?:xargs\s+.*?cat|cat)\b", expanded_cmd):
-                                for pre_m in re.finditer(r"\b(?:ls|echo|printf)\s+(?:-[^\s]+\s+)*([^\s;&|<>()]+(?:\s+[^\s;&|<>()]+)*)", expanded_cmd):
+                                for pre_m in re.finditer(r"\b(?:ls|echo|printf)[ \t]+(?:-[^ \t\r\n]+[ \t]+)*([^ \t\r\n;&|<>()]+(?:[ \t]+[^ \t\r\n;&|<>()]+)*)", expanded_cmd):
                                     for arg in pre_m.group(1).split():
                                         if not arg.startswith("-"):
                                             target_p = _norm_path(_resolve_sh_path(arg))
-                                            if target_p and target_p not in read_paths_by_step:
-                                                read_paths_by_step[target_p] = step_idx
+                                            if target_p:
+                                                if any(c in arg for c in ("*", "?", "[")):
+                                                    obs_text = _extract_obs_text(step_obj)
+                                                    glob_reads.append({"pattern": target_p, "step": step_idx, "obs": obs_text})
+                                                elif target_p not in read_paths_by_step:
+                                                    read_paths_by_step[target_p] = step_idx
 
                             find_m = re.search(r"\bfind\s+([^\s;&|<>]+).*?-exec\s+(?:cat|head|tail|less|more|grep)", expanded_cmd)
                             if find_m:
-                                target_p = _norm_path(_resolve_sh_path(find_m.group(1)))
-                                if target_p and target_p not in read_paths_by_step:
-                                    read_paths_by_step[target_p] = step_idx
-                                    read_paths_by_step[f"{target_p}/*"] = step_idx
-
+                                target_dir = _norm_path(_resolve_sh_path(find_m.group(1)))
+                                name_m = re.search(r"-name\s+['\"]?([^\s'\"]+)['\"]?", expanded_cmd)
+                                if name_m:
+                                    name_pat = name_m.group(1).strip()
+                                    full_pat = f"{target_dir}/{name_pat}" if target_dir else name_pat
+                                    if any(c in name_pat for c in ("*", "?", "[")):
+                                        obs_text = _extract_obs_text(step_obj)
+                                        glob_reads.append({"pattern": full_pat, "step": step_idx, "obs": obs_text, "dir": target_dir})
+                                    else:
+                                        np = _norm_path(full_pat)
+                                        if np and np not in read_paths_by_step:
+                                            read_paths_by_step[np] = step_idx
+                                else:
+                                    obs_text = _extract_obs_text(step_obj)
+                                    glob_reads.append({"pattern": f"{target_dir}/*", "step": step_idx, "obs": obs_text, "dir": target_dir})
                             for sed_awk_m in re.finditer(r"\b(?:sed\s+(?:-[^\s]*n[^\s]*\s+)(?:-[^\s]+\s+)*(?:'[^']*'|\"[^\"]*\"|[^\s]+)|awk\s+(?:-[^\s]+\s+)*['\"].*?['\"])\s+([^\s;&|<>()]+)", expanded_cmd):
                                 target_p = _norm_path(_resolve_sh_path(sed_awk_m.group(1)))
-                                if target_p and target_p not in read_paths_by_step:
-                                    read_paths_by_step[target_p] = step_idx
+                                if target_p:
+                                    if any(c in sed_awk_m.group(1) for c in ("*", "?", "[")):
+                                        obs_text = _extract_obs_text(step_obj)
+                                        glob_reads.append({"pattern": target_p, "step": step_idx, "obs": obs_text})
+                                    elif target_p not in read_paths_by_step:
+                                        read_paths_by_step[target_p] = step_idx
 
                             for py_open_m in re.finditer(r"open\s*\(\s*['\"](.*?)['\"]", expanded_cmd):
                                 target_p = _norm_path(_resolve_sh_path(py_open_m.group(1)))
@@ -1362,7 +1401,10 @@ def evaluate_l0_stage(
                     elif isinstance(c_args, str) and c_name:
                         target_p = _norm_path(c_args)
                         if c_name_lower in ("read", "view", "read_file", "open_file"):
-                            if target_p not in read_paths_by_step:
+                            if any(c in target_p for c in ("*", "?", "[")):
+                                obs_text = _extract_obs_text(step_obj)
+                                glob_reads.append({"pattern": target_p, "step": step_idx, "obs": obs_text})
+                            elif target_p not in read_paths_by_step:
                                 read_paths_by_step[target_p] = step_idx
                             recognized_any = True
                             obs_text = _extract_obs_text(step_obj)
@@ -1383,6 +1425,20 @@ def evaluate_l0_stage(
             is_soft_review = True
             details["unrecognized_tool_steps"] = unrecognized_tool_steps
 
+    def _glob_matches(pattern: str, target: str) -> bool:
+        pat = _norm_path(pattern).lower()
+        tgt = _norm_path(target).lower()
+        if not pat or not tgt:
+            return False
+        if pat == tgt or tgt.endswith("/" + pat) or pat.endswith("/" + tgt):
+            return True
+        if any(c in pat for c in ("*", "?", "[")):
+            if fnmatch.fnmatch(tgt, pat) or fnmatch.fnmatch(posixpath.basename(tgt), pat) or fnmatch.fnmatch(tgt, f"*{pat}"):
+                return True
+        elif tgt.startswith(pat + "/") or f"/{pat}/" in f"/{tgt}/":
+            return True
+        return False
+
     def existed_before_write(p: str, step: int | None) -> bool:
         norm = _norm_path(p)
         for mod_p in diff_modified_paths:
@@ -1393,11 +1449,36 @@ def evaluate_l0_stage(
                 if any(_paths_match(pne, norm) for pne in proven_nonexistent_paths):
                     continue
                 c_step = next((cs for cp, cs in first_create_step.items() if _paths_match(cp, norm)), None)
-                if c_step is None:
+                if c_step is not None:
+                    if read_step < c_step:
+                        return True
+                else:
                     if step is None or read_step <= step:
                         return True
-                elif read_step <= c_step:
-                    return True
+        c_step = next((cs for cp, cs in first_create_step.items() if _paths_match(cp, norm)), None)
+        for g in glob_reads:
+            g_pat = g.get("pattern", "")
+            g_step = g.get("step")
+            g_obs = str(g.get("obs") or "")
+            if not _glob_matches(g_pat, norm):
+                continue
+            if c_step is not None:
+                if g_step is not None and g_step >= c_step:
+                    continue
+            elif step is not None and g_step is not None and g_step > step:
+                continue
+            # Glob/dir reads must not make an unseen path "existed".
+            # They corroborate a file already evidenced as existing:
+            # 1) modified in final diff
+            if any(_paths_match(mod_p, norm) for mod_p in diff_modified_paths):
+                return True
+            # 2) non-empty observation, not "no such file", containing the target
+            if g_obs:
+                g_obs_lower = g_obs.lower()
+                if "no such file" not in g_obs_lower and "cannot find" not in g_obs_lower:
+                    tgt_base = posixpath.basename(norm).lower()
+                    if norm.lower() in g_obs_lower or (tgt_base and re.search(r"(?:^|[\s/\"'])" + re.escape(tgt_base) + r"(?:$|[\s:\"'])", g_obs_lower)):
+                        return True
         for wr_p, (_wr_step, op_type) in first_write_op.items():
             if _paths_match(wr_p, norm) and op_type in (
                 "modify", "str_replace", "insert", "sed_inplace", "perl_inplace", "delete", "rm", "git_restore"
@@ -1519,10 +1600,10 @@ def evaluate_l0_stage(
                     tool in ("edit", "str_replace", "patch", "sed", "multiedit")
                     or op in ("edit", "str_replace", "insert", "sed_inplace", "perl_inplace", "delete", "rm", "unlink", "git_restore", "python_write")
                 )
-                if (tool in ("str_replace_editor", "edit", "str_replace_based_edit_tool") and op == "create") or tool in ("create", "create_file") or op == "create":
+                if (tool in ("str_replace_editor", "edit", "str_replace_based_edit_tool") and op == "create") or tool in ("create", "create_file") or op in ("create", "heredoc_write"):
                     is_edit = False
 
-                is_new = bool(op == "create" or tool in ("create", "create_file"))
+                is_new = bool(op in ("create", "heredoc_write") or tool in ("create", "create_file"))
                 op_k = "create" if is_new else ("modify" if is_edit and op not in ("python_write", "write") else "write")
                 _record_write(p, step, op_kind=op_k)
 

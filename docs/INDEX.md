@@ -69,7 +69,7 @@ inputs:
   - path: docs/flight-recorder.md
     digest: sha256:0138627b7592e818cf17532f1541173916e68de1867935abfe6ab343f66475b8
   - path: docs/hack-drop.md
-    digest: sha256:dcf214e4fff6993b971aac4dd978329b1f8dd6452f26684b74273c3e0745ac6d
+    digest: sha256:14581b773b57ed406279a9ceb23887976928c9fb84654a6cda89e143d516f2f8
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
@@ -121,7 +121,7 @@ inputs:
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
-    digest: sha256:15920beae543ae241d6c2f77dd43019d5d60b57d49fff6792a116e70029a6ae5
+    digest: sha256:5d673a47c7f869c6075f9c0920faa162c5f32a5860434bd359b8610c79e4c3e4
   - path: docs/research/evaluation-factory-2026-08.md
     digest: sha256:f453a2f026c5b9240e90706d78030db1747af489df79a46b172ec85932a0dde8
   - path: docs/research/external-datasets.md
@@ -169,7 +169,7 @@ inputs:
   - path: docs/trial-treatment.md
     digest: sha256:1c6e4147cc2ba6cc215482e6315f53cb4a0aec7ec2ef768a72d8d87bb85b7023
   - path: docs/trust-engine.md
-    digest: sha256:331bd9d0f670af4aa45cc26fc42ab633d269253b7130f8710fdeffe78f076446
+    digest: sha256:29a26ff550930d1e3d75b4d8f0f356fd415f35d3519e1746e75608a98836ce1f
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md

@@ -15,6 +15,24 @@ Writes a markdown report to stdout and `runs/_speed/profile-report.{md,json}`
 uv run python scripts/profile/check_budgets.py runs/_speed/profile-report.json
 ```
 
+## A breach is re-measured once
+
+A median above `budget * (1 + tolerance_pct/100)` is not final. CI passes
+`--reprofile` to `check_budgets.py`, which then re-profiles **only the breached
+paths**, exactly once, with the same corpus pin, warmup and reps taken from the
+report under test (`--paths` on the harness), and fails the run only when that
+second median also exceeds the ceiling. A retry that clears prints a notice.
+Both medians are written into `profile-report.json` under `remeasure`
+(`first_median_ms`, `remeasure_median_ms`, `outcome`, `ceiling_ms`), so the
+uploaded artifact shows what happened either way. There is no loop: one attempt
+per breached path per run (`REMEASURE_PASSES`).
+
+The policy exists because shared-runner spikes, not regressions, were failing
+`main`: perf run 41147747627 measured `ingest` at 179 ms against a 172.5 ms
+ceiling while the other 29 recent `main` runs measured 46-111 ms (median 71).
+No budget value or tolerance changed; skip `--reprofile` to keep the strict
+first-measurement behaviour.
+
 ## The profiled corpus is pinned
 
 `harness.DEFAULT_CORPUS` names two Harbor job directories

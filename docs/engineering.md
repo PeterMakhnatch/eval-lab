@@ -281,6 +281,16 @@ command plus `--scratch-dir /dev/shm/evallab-speed` (see the 2026-10-29 note bel
 on Linux pass it locally too) in `.github/workflows/perf.yml` and fails when a median
 exceeds the committed budget by more than `tolerance_pct`.
 
+**One retry before a breach fails the run** (2026-11-01, HAR-247): the budget
+step passes `--reprofile`, so a median over its ceiling re-profiles **only the
+breached paths** once, with the corpus pin, warmup and reps recorded in the
+report, and fails only when that second median also exceeds the ceiling. Both
+medians go into `profile-report.json` under `remeasure`. No budget value or
+tolerance changed: shared-runner spikes, not regressions, were reddening `main`
+(perf run 41147747627 measured `ingest` at 179 ms against the 172.5 ms ceiling;
+the other 29 recent `main` runs measured 46-111 ms, median 71). There is no
+loop — one attempt per breached path per run.
+
 Its corpus is **pinned** (2026-08-16): `harness.DEFAULT_CORPUS` names the two
 `event-summary` control job directories rather than the directory
 `research/evidence/runs`, so promoting evidence cannot move the gate. See

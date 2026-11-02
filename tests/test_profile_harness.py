@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import sys
+import time
 from pathlib import Path
 
 from evallab.database import ingest, ingest_job
@@ -33,6 +34,8 @@ def _load_checker():
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    # dataclass field resolution looks the defining module up in sys.modules.
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -378,3 +381,345 @@ def test_a_vanished_pinned_corpus_entry_fails_loudly() -> None:
         assert "pinned corpus" in str(exc)
     else:
         raise AssertionError("a missing pinned corpus entry was silently ignored")
+
+
+def _fake_report(
+    *,
+    medians: dict[str, float] | None = None,
+    warmup: int = 1,
+    reps: int = 5,
+    **overrides,
+) -> dict:
+    """A synthetic report. No measurement, no host timing: medians are literals.
+
+    Paths without an explicit median sit at 60% of their committed budget, i.e.
+    inside the ceiling and above the "consider re-baselining" notice, so a test
+    only sees the notice it asked for.
+    """
+    checker = _load_checker()
+    budgets = checker.load_budgets(BUDGETS_PATH)
+    values = {name: 0.6 * float(budget) for name, budget in budgets["paths"].items()}
+    values.update(medians or {})
+    payload = {
+        "schema_version": 1,
+        "generated_at": "2026-11-01T00:00:00+00:00",
+        "machine": "fake-runner",
+        "python": "3.12.11",
+        "corpus_jobs": budgets["corpus"]["jobs"],
+        "corpus_result_json": budgets["corpus"]["result_json"],
+        "corpus_bytes": 1234,
+        "corpus_roots": list(budgets["corpus"]["roots"]),
+        "database_url_kind": "scratch-postgres",
+        "harbor_dispatch": "stubbed",
+        "warmup": warmup,
+        "reps": reps,
+        "scratch_dir": "/dev/shm/evallab-speed",
+        "tick_n": 100,
+        "paths": [
+            {
+                "path": name,
+                "median_ms": values[name],
+                "min_ms": values[name],
+                "max_ms": values[name],
+                "reps": reps,
+                "notes": "fake",
+            }
+            for name in checker.REQUIRED_PATHS
+        ],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_a_breach_that_clears_on_the_one_re_measure_passes_with_a_notice() -> None:
+    """perf run 41147747627: ingest 179.0 ms against a 172.5 ms ceiling, once."""
+    checker = _load_checker()
+    budgets = checker.load_budgets(BUDGETS_PATH)
+    asked: list[list[str]] = []
+
+    def remeasure(names: list[str]) -> dict:
+        asked.append(names)
+        return _fake_report(medians={"ingest": 71.0})
+
+    verdict = checker.judge(_fake_report(medians={"ingest": 179.0}), budgets, remeasure)
+
+    assert asked == [["ingest"]], "exactly the breached paths are re-measured, exactly once"
+    assert verdict.exit_code == 0
+    text = "\n".join(verdict.lines)
+    assert "notice: ingest:" in text
+    assert "179.000" in text and "71.000" in text
+    assert "172.500" in text
+    assert "one retry" in text
+    row = verdict.remeasurement["paths"][0]
+    assert (row["first_median_ms"], row["remeasure_median_ms"]) == (179.0, 71.0)
+    assert row["outcome"] == "cleared"
+    assert verdict.remeasurement["attempts"] == 1
+
+
+def test_a_breach_that_breaches_again_fails_naming_both_medians() -> None:
+    checker = _load_checker()
+    budgets = checker.load_budgets(BUDGETS_PATH)
+    verdict = checker.judge(
+        _fake_report(medians={"ingest": 179.0}),
+        budgets,
+        lambda names: _fake_report(medians={"ingest": 181.5}),
+    )
+
+    assert verdict.exit_code == 1
+    text = "\n".join(verdict.lines)
+    assert "perf budget exceeded on re-measure:" in text
+    assert "first median 179.000 ms" in text
+    assert "re-measured median 181.500 ms" in text
+    row = verdict.remeasurement["paths"][0]
+    assert (row["first_median_ms"], row["remeasure_median_ms"]) == (179.0, 181.5)
+    assert row["outcome"] == "still-exceeds"
+
+
+def test_only_the_breached_paths_are_re_measured_never_all_six() -> None:
+    checker = _load_checker()
+    budgets = checker.load_budgets(BUDGETS_PATH)
+    asked: list[list[str]] = []
+
+    def remeasure(names: list[str]) -> dict:
+        asked.append(names)
+        return _fake_report(medians={"ingest": 80.0, "facts": 9.0})
+
+    verdict = checker.judge(
+        _fake_report(medians={"ingest": 179.0, "facts": 19.0}),
+        budgets,
+        remeasure,
+    )
+
+    assert asked == [["ingest", "facts"]]
+    assert verdict.exit_code == 0, "both breaches cleared on the one re-measure"
+
+
+def test_a_clean_report_is_never_re_measured() -> None:
+    checker = _load_checker()
+    budgets = checker.load_budgets(BUDGETS_PATH)
+    asked: list[list[str]] = []
+    verdict = checker.judge(
+        _fake_report(),
+        budgets,
+        lambda names: asked.append(names) or _fake_report(),
+    )
+    assert asked == []
+    assert verdict.exit_code == 0
+    assert verdict.remeasurement is None
+    assert verdict.lines == ["perf budgets ok"]
+
+
+def test_re_measure_on_another_corpus_is_not_accepted_as_a_pass() -> None:
+    checker = _load_checker()
+    budgets = checker.load_budgets(BUDGETS_PATH)
+    elsewhere = _fake_report(medians={"ingest": 71.0}, corpus_roots=["research/evidence/runs"])
+    verdict = checker.judge(
+        _fake_report(medians={"ingest": 179.0}), budgets, lambda names: elsewhere
+    )
+
+    assert verdict.exit_code == 1
+    text = "\n".join(verdict.lines)
+    assert "not comparable" in text
+    assert "re-baseline sample" in text
+    assert verdict.remeasurement["problem"]
+    assert verdict.remeasurement["paths"][0]["outcome"] == "not-usable"
+
+
+def test_re_measure_with_a_different_warmup_or_rep_count_is_not_accepted() -> None:
+    checker = _load_checker()
+    budgets = checker.load_budgets(BUDGETS_PATH)
+    faster = _fake_report(medians={"ingest": 60.0}, reps=3)
+    verdict = checker.judge(
+        _fake_report(medians={"ingest": 179.0}), budgets, lambda names: faster
+    )
+
+    assert verdict.exit_code == 1
+    assert "warmup/reps 1/3 instead of 1/5" in "\n".join(verdict.lines)
+
+
+def test_an_unusable_re_measure_fails_the_run_on_the_first_breach() -> None:
+    checker = _load_checker()
+    budgets = checker.load_budgets(BUDGETS_PATH)
+    verdict = checker.judge(_fake_report(medians={"ingest": 179.0}), budgets, lambda names: None)
+
+    assert verdict.exit_code == 1
+    text = "\n".join(verdict.lines)
+    assert "first breach stands" in text
+    assert "179.000" in text
+    assert verdict.remeasurement["paths"][0]["outcome"] == "not-usable"
+
+
+def test_remeasure_command_replays_the_corpus_pin_warmup_reps_and_measurement_shape(
+    tmp_path: Path,
+) -> None:
+    checker = _load_checker()
+    budgets = checker.load_budgets(BUDGETS_PATH)
+    report = _fake_report(medians={"ingest": 179.0, "facts": 19.0})
+
+    command = checker.remeasure_command(
+        harness=ROOT / "scripts/profile/harness.py",
+        output_dir=tmp_path,
+        report=report,
+        names=["ingest", "facts"],
+        python="python3",
+    )
+
+    def values(flag: str) -> list[str]:
+        return [command[index + 1] for index, item in enumerate(command) if item == flag]
+
+    assert command[0] == "python3"
+    assert values("--corpus") == budgets["corpus"]["roots"], "same corpus pin, in order"
+    assert values("--warmup") == ["1"]
+    assert values("--reps") == ["5"]
+    assert values("--paths") == ["ingest", "facts"], "only the breached paths"
+    assert values("--scratch-dir") == ["/dev/shm/evallab-speed"]
+    assert values("--tick-n") == ["100"]
+    assert "--cpu-only" not in command
+
+    cpu_only = dict(report, database_url_kind="cpu-only-recording")
+    cpu_command = checker.remeasure_command(
+        harness=ROOT / "scripts/profile/harness.py",
+        output_dir=tmp_path,
+        report=cpu_only,
+        names=["ingest"],
+        python="python3",
+    )
+    assert "--cpu-only" in cpu_command, "a cpu-only report must re-measure cpu-only"
+
+
+def test_main_records_both_medians_in_the_uploaded_report(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    checker = _load_checker()
+    budgets = checker.load_budgets(BUDGETS_PATH)
+    report_path = tmp_path / "profile-report.json"
+    report_path.write_text(json.dumps(_fake_report(medians={"ingest": 179.0})))
+    budgets_path = tmp_path / "budgets.json"
+    budgets_path.write_text(json.dumps(budgets))
+    calls: list[dict] = []
+
+    def fake_remeasure(**kwargs):
+        calls.append(kwargs)
+        return _fake_report(medians={"ingest": 71.0})
+
+    monkeypatch.setattr(checker, "run_remeasure", fake_remeasure)
+    assert checker.main([str(report_path), "--budgets", str(budgets_path), "--reprofile"]) == 0
+    assert calls[0]["names"] == ["ingest"]
+
+    written = json.loads(report_path.read_text())
+    ingest = next(item for item in written["paths"] if item["path"] == "ingest")
+    assert ingest["median_ms"] == 179.0, "the first measurement is preserved"
+    row = written["remeasure"]["paths"][0]
+    assert (row["first_median_ms"], row["remeasure_median_ms"]) == (179.0, 71.0)
+    assert row["outcome"] == "cleared"
+    assert "notice: ingest:" in capsys.readouterr().out
+
+
+def test_main_without_reprofile_still_fails_on_the_first_breach(
+    tmp_path: Path, capsys
+) -> None:
+    checker = _load_checker()
+    budgets = checker.load_budgets(BUDGETS_PATH)
+    report_path = tmp_path / "profile-report.json"
+    report_path.write_text(json.dumps(_fake_report(medians={"ingest": 179.0})))
+    budgets_path = tmp_path / "budgets.json"
+    budgets_path.write_text(json.dumps(budgets))
+
+    assert checker.main([str(report_path), "--budgets", str(budgets_path)]) == 1
+    out = capsys.readouterr().out
+    assert "perf budget exceeded:" in out
+    assert "179.000" in out
+    assert json.loads(report_path.read_text()).get("remeasure") is None
+
+
+def test_a_corpus_mismatch_short_circuits_before_any_re_measure(
+    tmp_path: Path, capsys
+) -> None:
+    checker = _load_checker()
+    budgets = checker.load_budgets(BUDGETS_PATH)
+    report_path = tmp_path / "profile-report.json"
+    report = _fake_report(medians={"ingest": 179.0}, corpus_roots=["research/evidence/runs"])
+    report_path.write_text(json.dumps(report))
+    budgets_path = tmp_path / "budgets.json"
+    budgets_path.write_text(json.dumps(budgets))
+
+    assert (
+        checker.main(
+            [
+                str(report_path),
+                "--budgets",
+                str(budgets_path),
+                "--reprofile",
+                "--harness",
+                str(tmp_path / "no-such-harness.py"),
+            ]
+        )
+        == 1
+    )
+    out = capsys.readouterr().out
+    assert "perf corpus mismatch:" in out
+    assert "re-baseline sample" in out
+
+
+def test_a_hung_re_measure_is_killed_and_the_breach_stands(tmp_path: Path) -> None:
+    checker = _load_checker()
+    slow = tmp_path / "slow_harness.py"
+    slow.write_text("import time\n\ntime.sleep(30)\n")
+    started = time.monotonic()
+    second = checker.run_remeasure(
+        report=_fake_report(medians={"ingest": 179.0}),
+        harness=slow,
+        output_dir=tmp_path / "out",
+        names=["ingest"],
+        timeout=0.2,
+    )
+    assert second is None
+    assert time.monotonic() - started < 20, "the hung harness was not killed"
+
+
+def test_harness_profiles_only_the_named_paths_and_keeps_the_pin(tmp_path: Path) -> None:
+    harness = _load_harness()
+    report = harness.run_profile(
+        corpus_roots=_pinned_roots(harness),
+        warmup=1,
+        reps=5,
+        database_url=None,
+        admin_url="postgresql://unused.example/evallab",
+        cpu_only=True,
+        inject_ms={},
+        work_dir=tmp_path,
+        tick_n=5,
+        only=["digest"],
+    )
+    assert report.path_names() == ["digest"]
+    assert report.corpus_roots == list(harness.DEFAULT_CORPUS)
+    assert report.warmup == 1 and report.reps == 5
+    for unknown in (["nope"], []):
+        try:
+            harness.run_profile(
+                corpus_roots=_pinned_roots(harness),
+                warmup=1,
+                reps=5,
+                database_url=None,
+                admin_url="postgresql://unused.example/evallab",
+                cpu_only=True,
+                inject_ms={},
+                work_dir=tmp_path / "rejected",
+                tick_n=5,
+                only=unknown,
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"only={unknown} was accepted")
+
+
+def test_an_unknown_path_flag_is_rejected_by_the_harness_cli() -> None:
+    harness = _load_harness()
+    try:
+        harness.main(["--paths", "nope", "--cpu-only", "--output-dir", "/tmp/unused"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("the harness accepted an unknown --paths value")
+

@@ -12,6 +12,7 @@ and promotion helpers.
 - `scripts/setup-git.sh`: Local git hooks and repository configuration helper.
 - `scripts/promote_codex_bundle.py`: Sanitization and promotion utility for reviewed run evidence.
 - `scripts/profile/harness.py`: Performance profiling harness and latency budget check.
+- `scripts/review_pr.py`: Advisory independent PR review, fix verification, and served-model attestation ([usage](../docs/independent-review.md)).
 - `scripts/ops/`: System service units and continuous-operator daemon configurations.
 
 ## Invariants or rules
@@ -23,6 +24,7 @@ and promotion helpers.
 - `uv run pytest tests/test_quality_gates.py`
 - `uv run pytest tests/test_profile_harness.py`
 - `uv run pytest tests/test_promotion_opencode_r2.py`
+- `uv run pytest tests/test_independent_review_contract.py tests/test_review_pr.py`
 - `bash scripts/premerge.sh`
 
 ## What not to add here

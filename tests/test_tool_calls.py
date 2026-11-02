@@ -145,6 +145,10 @@ def test_bundle_shapes() -> None:
         "edit_notebook", {"file_path": "n.ipynb", "file_edit_payload": {"source": ["a = 1\n", "b = 2\n"]}}
     )
     assert (notebook.kind, notebook.text, notebook.path) == ("edit", "a = 1\nb = 2\n", "n.ipynb")
+    stripped = normalize_tool_call(
+        "edit_file", {"file_path": "n.ipynb", "file_edit_payload": {"source": ["# plan", "x = 1", ""]}}
+    )
+    assert stripped.text == "# plan\nx = 1\n"
 
 
 def test_unknown_calls_pass_through_unchanged() -> None:

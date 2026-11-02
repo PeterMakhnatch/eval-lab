@@ -116,8 +116,16 @@ full local reproduction:
    checks uv 0.9.24, performs the locked install (including `benchmarks` and `lance`
    dependency groups), runs static typecheck (`ty`) *before* pytest so type errors
    surface in seconds, runs all static gates, runs the complete pytest suite
-   (`uv run --no-sync pytest`), and runs the Docker-free runtime smoke test
-   (`uv run --no-sync python -m evallab.smoke --docker-free`).
+   (`uv run --no-sync pytest`), runs the Docker-free runtime smoke test
+   (`uv run --no-sync python -m evallab.smoke --docker-free`), and then runs CI's
+   native Harbor step: `uv sync --locked --no-group observability --group benchmarks
+   --group lance --extra laminar`, `python -c 'import harbor.job_diff'`, and
+   `pytest -n 0 -rA` on the `HARBOR_NATIVE_TESTS` list in `scripts/premerge.sh`,
+   so Harbor-gated tests that skip in the main suite run before a PR. The main
+   suite still runs first without the extra, as in CI; the next premerge sync
+   removes it. `tests/test_quality_gates.py::test_premerge_full_runs_ci_native_harbor_step_after_the_main_suite`
+   fails when that list differs from the file list of the `Native Harbor diff,
+   regrade and observability contracts` step in `.github/workflows/ci.yml` (HAR-264).
 4. **Full hosted CI gate on GitHub Actions**:
    The GitHub matrix additionally proves Python 3.14 across two shards. Green is a
    property of the exact pull-request head on GitHub Actions; local runs reproduce

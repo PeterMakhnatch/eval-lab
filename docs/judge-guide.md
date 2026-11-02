@@ -197,18 +197,27 @@ uv run evallab judge export --out ~/judge-verdicts.csv
   `--blind-order` for a seeded shuffle, `--keep-order` to keep file order, `--seed` to change the order, and `evallab judge plan` to see
   how many runs each group holds (this spoils the blind; do not run it before judging).
 - For native Harbor runs, pass the assembly line's `runs.jsonl` as `--local-runs`. Each row maps
-  `run_id` to `rollout_path` (a trial directory, or a single ATIF file such as `trajectory.json`)
-  and `sha256`. Before showing a run the station applies the DEV path gate to the path as written
-  (each directory level, so a link placed inside a forbidden directory is caught), to its real
-  path and to every file inside; refuses any symlink inside a trial (the line's digest cannot see
-  a linked directory, so a link could swap what is shown); refuses a `split` that is not `dev`
-  in the manifest row, the trajectory or the `result.json`, `config.json` and `run.json` files
-  (a document nested too deeply to read counts as not `dev`, and so does a sidecar that is not
-  valid JSON); refuses any task or trial name those files, the file or directory name, or the
-  run id give if the corpus registry assigns it to TEST; and verifies the digest. The station
-  needs the corpus registry to start with `--local-runs`. A refused run shows a fixed message
-  with no path, id or hash; the detail goes to the station's log under the run's blind id. Cloud
-  and CheatBench ids in the same queue still use their existing loaders.
+  `run_id` to `rollout_path` and `sha256`. The station admits a run only when it is exactly what
+  a Harbor trial looks like (`src/evallab/rollout_admission.py`; an allow-list, not a list of
+  known tricks):
+  - the path is the one the line wrote: absolute, canonical, printable ASCII (no `..`, trailing
+    slash, or Unicode look-alikes), and every folder on it is a real folder, never a symlink;
+  - it is a whole trial folder, or a single ATIF file that is not inside a trial (a file next to
+    `result.json`, `config.json` or `run.json`, or under `agent/`, is refused, as is the `agent`
+    folder itself);
+  - nothing inside is a symlink or a special file, and no file is a hard link to a file under
+    `research/answer-keys` (published trials are hard-linked copies, so a link count alone cannot
+    decide);
+  - every `split` key, in any letter case and at any depth, in the manifest row, the trajectories
+    and the `result.json`, `config.json`, `run.json` files is exactly `dev` (a blank or non-text
+    value, a document too deeply nested to read, and a file that is not valid JSON all refuse);
+  - no task, trial, run, file or folder name any of them gives, compared in NFKC, case-folded
+    form by segment, is assigned to TEST or sealed in the corpus registry;
+  - the digest matches the line's.
+
+  The station needs the corpus registry to start with `--local-runs`. A refused run shows a fixed
+  message with no path, id or hash; the detail goes to the station's log under the run's blind
+  id. Cloud and CheatBench ids in the same queue still use their existing loaders.
 - A local run's reward, queue reason, line decision (and whether it was a random audit) and
   detector/model verdicts stay hidden until submit, and the reveal then shows them. The reward
   appears as `pass` or `fail` like a cloud run's grader result; the corpus and model stay out of

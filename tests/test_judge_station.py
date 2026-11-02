@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import threading
 import urllib.error
@@ -18,6 +19,7 @@ import pytest
 from evallab.production import judge_station as js
 from evallab.production import judge_web
 from evallab.production.run_atlas import AtlasRun
+from evallab.rollout_admission import MAX_DEPTH
 
 SECRET_SOURCE = "cheatbench-actions-v1"
 
@@ -1109,15 +1111,35 @@ KEYSTROKES = "cd /testbed && python -m pytest tests/test_cli.py -q\n"
 
 
 class FakeRegistry:
-    """The registry seam: ids assigned to TEST, in any of the forms the loaders try."""
+    """The registry seam: ids assigned to TEST, sealed ids and sealed digests."""
 
-    def __init__(self, test_ids: tuple[str, ...] = ()) -> None:
+    def __init__(
+        self,
+        test_ids: tuple[str, ...] = (),
+        sealed: tuple[str, ...] = (),
+        sealed_digests: tuple[str, ...] = (),
+    ) -> None:
         self.test_ids = {t.casefold() for t in test_ids}
+        self.sealed = {s.casefold() for s in sealed}
+        self.sealed_digests = {d.casefold() for d in sealed_digests}
 
     def assigned_test_anywhere(
         self, *, item_id: str | None = None, task_id: str | None = None
     ) -> bool:
         return any(v and v.casefold() in self.test_ids for v in (item_id, task_id))
+
+    def sealed_identity(
+        self,
+        *,
+        item_id: str | None = None,
+        task_id: str | None = None,
+        task_digest: str | None = None,
+    ) -> str | None:
+        if any(v and v.casefold() in self.sealed for v in (item_id, task_id)):
+            return "task name"
+        if task_digest and task_digest.casefold() in self.sealed_digests:
+            return "task digest"
+        return None
 
 
 def _harbor_doc(task: str = "Implement the native task without changing its checker.") -> dict:
@@ -1186,8 +1208,11 @@ def _local_station(
     run_id: str = LOCAL_RUN,
     row: dict[str, Any] | None = None,
     test_ids: tuple[str, ...] = (),
+    sealed: tuple[str, ...] = (),
+    sealed_digests: tuple[str, ...] = (),
     reveal: dict[str, Any] | None = None,
     rollout: Path | None = None,
+    rollout_suffix: str = "",
 ) -> tuple[js.Station, Path, Path]:
     trial = _write_trial(tmp_path)
     if mutate is not None:
@@ -1202,7 +1227,7 @@ def _local_station(
         "task_id": "SECRET_TASK",
         "model": "SECRET_MODEL",
         "reward": 1.0,
-        "rollout_path": str(target),
+        "rollout_path": str(target) + rollout_suffix,
         "sha256": js._local_digest(target) if target.exists() else "0" * 64,
         **(row or {}),
     }
@@ -1225,7 +1250,12 @@ def _local_station(
         source="line",
     )
     station = js.Station(
-        js.LocalRunSource(manifest, FakeSource({}, {}, findings={}), FakeRegistry(test_ids)),
+        js.LocalRunSource(
+            manifest,
+            FakeSource({}, {}, findings={}),
+            FakeRegistry(test_ids, sealed, sealed_digests),
+            sealed_roots=[tmp_path / "answer-keys"],
+        ),
         {"line": [entry]},
         state_dir=tmp_path / "state",
         keep_order=True,
@@ -1394,9 +1424,80 @@ def _single_file(directory: str, filename: str) -> Any:
 
 def _too_deep(trial: Path) -> None:
     nested: dict[str, Any] = {"note": "no split key at all"}
-    for _ in range(js.MAX_SPLIT_DEPTH + 2):
+    for _ in range(MAX_DEPTH + 2):
         nested = {"inner": nested}
     _write_json(trial, "config.json", nested)
+
+
+def _file_in_trial(relative: str, rename: str | None = None) -> Any:
+    """Point the row at a file inside the trial (the sidecars stay next to it)."""
+
+    def mutate(trial: Path) -> Path:
+        if rename:
+            trial = trial.rename(trial.parent / rename)
+        target = trial / relative
+        if not target.exists():
+            target.write_text(json.dumps(_harbor_doc()), encoding="utf-8")
+        return target
+
+    return mutate
+
+
+def _folder_in_trial(trial: Path) -> Path:
+    return trial / "agent"
+
+
+def _decoy_agent_trajectory(trial: Path) -> None:
+    """agent/trajectory.json is valid JSON without steps; the root file is what gets served."""
+    (trial / "trajectory.json").write_text(
+        json.dumps({**_harbor_doc(), "split": "test"}), encoding="utf-8"
+    )
+    (trial / "agent" / "trajectory.json").write_text(
+        json.dumps({"note": "decoy"}), encoding="utf-8"
+    )
+
+
+def _answer_keys_is_a_link(trial: Path) -> Path:
+    clean = trial.parent.parent / "clean-dir"
+    trial.parent.rename(clean)
+    (trial.parent.parent / "answer-keys").symlink_to(clean, target_is_directory=True)
+    return trial.parent.parent / "answer-keys" / trial.name
+
+
+def _rollout_is_a_named_link(trial: Path) -> Path:
+    link = trial.parent.parent / "build-pmars__123"
+    link.symlink_to(trial, target_is_directory=True)
+    return link
+
+
+def _hardlink_from_answer_keys(trial: Path) -> None:
+    secret = trial.parent.parent / "answer-keys" / "secret.json"
+    secret.parent.mkdir()
+    secret.write_text(json.dumps(_harbor_doc("HARD LINKED")), encoding="utf-8")
+    (trial / "agent" / "trajectory.json").unlink()
+    os.link(secret, trial / "agent" / "trajectory.json")
+
+
+def _hardlink_final_diff(trial: Path) -> None:
+    secret = trial.parent.parent / "answer-keys" / "secret.diff"
+    secret.parent.mkdir()
+    secret.write_text(DIFF.replace("native", "ans_key"), encoding="utf-8")
+    os.link(secret, trial / "final.diff")
+
+
+def _fifo(trial: Path) -> None:
+    os.mkfifo(trial / "pipe")
+
+
+def _inside_folder(name: str) -> Any:
+    """Move the whole trial under a folder called ``name``."""
+
+    def mutate(trial: Path) -> Path:
+        folder = trial.parent.parent / name
+        folder.mkdir()
+        return trial.rename(folder / trial.name)
+
+    return mutate
 
 
 TEST_ID = ("build-pmars",)
@@ -1499,17 +1600,115 @@ REFUSALS: dict[str, dict[str, Any]] = {
     "path-under-answer-keys": {"move": True, "why": "answer-keys"},
     # integrity, availability
     "sha-mismatch": {"row": {"sha256": "ab" * 32}, "why": "sha256 expected"},
-    "missing-path": {"missing": True, "why": "missing"},
+    "missing-path": {"missing": True, "why": "cannot stat"},
     "no-trajectory": {"mutate": _remove_trajectory, "why": "no ATIF trajectory"},
 }
 
 
-@pytest.mark.parametrize("case", sorted(REFUSALS))
+ROUND3: dict[str, dict[str, Any]] = {
+    # a row may list only a whole trial, or a single file that is not inside one
+    "row-lists-agent-trajectory-inside-a-trial": {
+        "mutate": _file_in_trial("agent/trajectory.json"),
+        "why": "file inside a trial",
+    },
+    "row-lists-trajectory-at-the-trial-root": {
+        "mutate": _file_in_trial("trajectory.json"),
+        "why": "file inside a trial",
+    },
+    "agent-file-inside-a-test-named-trial": {
+        "mutate": _file_in_trial("agent/trajectory.json", rename="build-pmars__123"),
+        "test_ids": TEST_ID,
+        "why": "file inside a trial",
+    },
+    "row-lists-the-agent-folder": {"mutate": _folder_in_trial, "why": "folder inside a trial"},
+    "decoy-agent-trajectory-hides-the-served-one": {
+        "mutate": _decoy_agent_trajectory,
+        "why": "split declaration",
+    },
+    # links anywhere on the path, hard links, special files
+    "forbidden-folder-on-the-path-is-a-link": {
+        "mutate": _answer_keys_is_a_link,
+        "why": "symlink on the rollout path",
+    },
+    "rollout-itself-is-a-link-with-a-test-name": {
+        "mutate": _rollout_is_a_named_link,
+        "test_ids": TEST_ID,
+        "why": "symlink on the rollout path",
+    },
+    "hard-link-to-a-sealed-trajectory": {
+        "mutate": _hardlink_from_answer_keys,
+        "why": "hard link to sealed",
+    },
+    "hard-link-to-a-sealed-diff": {"mutate": _hardlink_final_diff, "why": "hard link to sealed"},
+    "special-file-inside-the-trial": {"mutate": _fifo, "why": "special file"},
+    # the path must be exactly what the line wrote
+    "trailing-slash-on-the-rollout-path": {"slash": True, "why": "not canonical"},
+    # canonical comparison with the registry
+    "trailing-slash-in-a-task-path": {
+        "mutate": lambda t: _set_json(
+            t, "config.json", {"task": {"path": "/runs/tb2/build-pmars/"}}
+        ),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "sealed-task-name-outside-the-test-assignments": {
+        "mutate": lambda t: _set_json(t, "result.json", {"task_name": "ctr-optimization"}),
+        "sealed": ("ctr-optimization",),
+        "why": "sealed identity",
+    },
+    "sealed-task-digest": {
+        "mutate": lambda t: _set_json(t, "result.json", {"task_checksum": "abc123"}),
+        "sealed_digests": ("abc123",),
+        "why": "sealed task digest",
+    },
+    "split-key-in-another-case": {
+        "mutate": lambda t: _set_json(t, "result.json", {"Split": "test"}),
+        "why": "split declaration",
+    },
+    "split-key-all-caps": {
+        "mutate": lambda t: _set_json(t, "config.json", {"SPLIT": "test"}),
+        "why": "split declaration",
+    },
+    "split-value-blank": {
+        "mutate": lambda t: _set_json(t, "config.json", {"split": "   "}),
+        "why": "split declaration",
+    },
+    "split-inside-a-list-of-tasks": {
+        "mutate": lambda t: _set_json(t, "result.json", {"tasks": [{"split": "test"}]}),
+        "why": "split declaration",
+    },
+    "uppercase-forbidden-folder": {
+        "mutate": _inside_folder("ANSWER-KEYS"),
+        "why": "answer-keys",
+    },
+    "unicode-hyphen-in-a-forbidden-folder": {
+        "mutate": _inside_folder("answer\u2010keys"),
+        "why": "not printable ASCII",
+    },
+    "fullwidth-hyphen-in-a-forbidden-folder": {
+        "mutate": _inside_folder("answer\uff0dkeys"),
+        "why": "not printable ASCII",
+    },
+    "cyrillic-letter-in-a-forbidden-folder": {
+        "mutate": _inside_folder("\u0430nswer-keys"),
+        "why": "not printable ASCII",
+    },
+    "fullwidth-hyphen-in-a-task-name": {
+        "mutate": lambda t: _set_json(t, "result.json", {"task_name": "build\uff0dpmars"}),
+        "test_ids": TEST_ID,
+        "why": "not printable ASCII",
+    },
+}
+ALL_REFUSALS = {**REFUSALS, **ROUND3}
+
+
+@pytest.mark.parametrize("case", sorted(ALL_REFUSALS))
 def test_local_run_is_refused_with_a_generic_body_that_leaks_nothing(
     tmp_path: Path, case: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    spec = dict(REFUSALS[case])
+    spec = dict(ALL_REFUSALS[case])
     move, missing, why = spec.pop("move", False), spec.pop("missing", False), spec.pop("why")
+    suffix = "/" if spec.pop("slash", False) else ""
     rollout = None
     if move:
         probe = _write_trial(tmp_path / "probe")
@@ -1518,7 +1717,9 @@ def test_local_run_is_refused_with_a_generic_body_that_leaks_nothing(
         rollout = tmp_path / "HAR-202-chrr1-h-cheat-002391-k1" / "gone__SECRET"
     run_id = spec.get("run_id", LOCAL_RUN)
     caplog.set_level("WARNING", logger=js.__name__)
-    station, manifest, trial = _local_station(tmp_path, rollout=rollout, **spec)
+    station, manifest, trial = _local_station(
+        tmp_path, rollout=rollout, rollout_suffix=suffix, **spec
+    )
     blind = js.blind_id(run_id)
     with _running(station) as (base, headers):
         status, body = _call(base, f"/api/run?queue=q1&id={blind}")
@@ -1557,6 +1758,18 @@ def test_a_refusal_is_logged_server_side_with_its_detail(
     with caplog.at_level("WARNING", logger=js.__name__), pytest.raises(js.JudgeError):
         station.run_view("q1", js.blind_id(LOCAL_RUN))
     assert js.blind_id(LOCAL_RUN) in caplog.text and "sha256 expected" in caplog.text
+
+
+def test_published_trials_are_hard_linked_copies_and_are_still_served(tmp_path: Path) -> None:
+    """Published results hold every file at st_nlink 2, so a link count cannot be the gate."""
+
+    def publish(trial: Path) -> None:
+        for file in [p for p in trial.rglob("*") if p.is_file()]:
+            os.link(file, file.with_name(file.name + ".origin"))
+
+    station, _, _ = _local_station(tmp_path, mutate=publish)
+    view = station.run_view("q1", js.blind_id(LOCAL_RUN))
+    assert view["card"]["asked"]["text"].startswith("Implement the native task")
 
 
 def test_a_directory_symlink_is_invisible_to_the_line_digest(tmp_path: Path) -> None:

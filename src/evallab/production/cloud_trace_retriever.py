@@ -67,6 +67,7 @@ Public contract:
 from __future__ import annotations
 
 import copy
+import functools
 import hashlib
 import re
 import sqlite3
@@ -148,6 +149,15 @@ def _mechanism(issue: Mapping[str, Any], steps: Any) -> str:
     return _clip(text, _MECHANISM_LIMIT)
 
 
+@functools.lru_cache(maxsize=256)
+def _term_pattern(terms: frozenset[str]) -> re.Pattern[str] | None:
+    """Whole-token matcher for casefolded ``terms``; scans text without tokenizing it."""
+    if not terms:
+        return None
+    alternatives = "|".join(re.escape(term) for term in sorted(terms, key=lambda t: (-len(t), t)))
+    return re.compile(rf"(?<!\w)(?:{alternatives})(?!\w)")
+
+
 def _step_excerpt(
     steps: Any, terms: Sequence[str], flagged_passage_steps: Any = (),
 ) -> str | None:
@@ -163,7 +173,7 @@ def _step_excerpt(
         index for index in flagged_passage_steps
         if isinstance(index, int) and not isinstance(index, bool)
     } if isinstance(flagged_passage_steps, (list, tuple, set, frozenset)) else set()
-    query_terms = {term.casefold() for term in terms}
+    pattern = _term_pattern(frozenset(term.casefold() for term in terms))
     best_text: str | None = None
     best_rank = (-1, -1, -1, -1)
     for step in steps:
@@ -175,7 +185,7 @@ def _step_excerpt(
             text = step.get(field_name)
             if not isinstance(text, str) or not text.strip():
                 continue
-            overlap = len(query_terms.intersection(_WORD.findall(text.casefold())))
+            overlap = len(set(pattern.findall(text.casefold()))) if pattern else 0
             rank = (
                 int(is_flagged), overlap, int(field_name == "command_or_action"),
                 int(index != 0),

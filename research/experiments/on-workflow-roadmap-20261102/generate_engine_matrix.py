@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""Generate engine comparison receipt for F6-ROADMAP."""
+
+import json
+from pathlib import Path
+
+ENGINE_DATA = {
+    "systems_evaluated": [
+        "DBOS",
+        "Temporal",
+        "Dagu",
+        "Restate",
+        "Prefect 3",
+        "Plain Scripts + launchd"
+    ],
+    "our_constraints": {
+        "hardware": "Single Apple Silicon Mac (macOS Darwin 25.5.0)",
+        "cloud_compute": "Modal for container sandboxes (no local Docker allowed)",
+        "agent_runtimes": "Subscription CLIs (Claude, Gemini, Devin, OMP)",
+        "docker_policy": "STRICTLY FORBIDDEN locally (EVALLAB_DISABLE_LOCAL_DOCKER=1)",
+        "human_availability": "Unattended overnight execution (~8 hours during human sleep)"
+    },
+    "kill_test_scorecard": {
+        "KT1_crash_durability": {
+            "DBOS": {"status": "PASS", "trials": "10/10 (100%)", "duplicated_effects": 0, "receipt": "F7: kt1_crash_trials.json"},
+            "Temporal": {"status": "PASS", "trials": "Verified in F3 & F4", "duplicated_effects": 0, "receipt": "F3: live_workflow_history.json, F4: test_summary.json"},
+            "Dagu": {"status": "PASS", "trials": "10/10 (100%)", "duplicated_effects": 0, "receipt": "F8: receipts/kt1/summary.json"},
+            "Plain Scripts": {"status": "FAIL", "trials": "0/1 (0%)", "duplicated_effects": "Re-runs entire squad from scratch or fails"}
+        },
+        "KT2_human_approval_across_reboot": {
+            "DBOS": {"status": "PASS", "downtime": "62.0s unassisted", "receipt": "F7: kt2_approval_restart.json"},
+            "Temporal": {"status": "PASS", "downtime": "Durable signals survive server/worker restart", "receipt": "F4: Scenario 7"},
+            "Dagu": {"status": "PASS", "downtime": "130s total (65s down + 65s post-restart)", "receipt": "F8: receipts/kt2/result.json"},
+            "Plain Scripts": {"status": "FAIL", "downtime": "In-process memory lost; file gates race-prone"}
+        },
+        "KT3_dynamic_quota_parking": {
+            "DBOS": {"status": "PASS", "attempts_before_T": 0, "resume_tolerance_sec": 0.243, "receipt": "F7: kt3_quota_parking.json"},
+            "Temporal": {"status": "PASS", "attempts_before_T": 0, "resume_tolerance_sec": "Timer backoff", "receipt": "F3: activities.py"},
+            "Dagu": {"status": "FAIL (Native)", "attempts_before_T": 6, "resume_tolerance_sec": "Requires custom Python wrapper", "receipt": "F8: receipts/kt3/summary.json"},
+            "Plain Scripts": {"status": "FAIL", "attempts_before_T": "Spins in sleep loops or exhausts retry counts"}
+        },
+        "KT4_live_code_change": {
+            "DBOS": {"status": "FAILS LOUDLY", "behavior": "Raises DBOSUnexpectedStepError immediately", "receipt": "F7: kt4_code_change.json"},
+            "Temporal": {"status": "FAILS LOUDLY", "behavior": "Non-determinism replay exception", "receipt": "F3: README.md"},
+            "Dagu": {"status": "RECOVERS", "behavior": "Pins immutable dag.json attempt snapshot", "receipt": "F8: receipts/kt4/summary.json"},
+            "Plain Scripts": {"status": "SILENT DIVERGENCE", "behavior": "Imports newly edited code on next iteration mid-run"}
+        },
+        "KT5_independent_caps": {
+            "DBOS": {"status": "PASS", "wall_clock_fired": True, "iteration_cap_fired": True, "leaked_pids": 0, "receipt": "F7: kt5_caps.json"},
+            "Temporal": {"status": "PASS", "wall_clock_fired": True, "budget_cap_fired": True, "leaked_pids": 0, "receipt": "F3: test_budget.py"},
+            "Dagu": {"status": "PASS", "wall_clock_fired": True, "iteration_cap_fired": True, "leaked_pids": 0, "receipt": "F8: receipts/kt5/summary.json"},
+            "Plain Scripts": {"status": "PARTIAL", "wall_clock_fired": True, "iteration_cap_fired": False, "leaked_pids": "Frequent zombies (.watch-state.json:39)"}
+        }
+    },
+    "operational_footprint": {
+        "DBOS": {
+            "loc_core": 663,
+            "processes_required": 1,
+            "network_ports": 0,
+            "storage_backend": "SQLite (.sqlite file)",
+            "external_binaries": "None (pure pip package)",
+            "web_ui": "None in OSS (CLI/DB queries only)",
+            "determinism_tax": "Step-boundary only (arbitrary Python inside steps)",
+            "multi_node": "Requires Postgres"
+        },
+        "Temporal": {
+            "loc_core": 1037,
+            "processes_required": 2,
+            "network_ports": "1-2 (gRPC 7233, Web UI 8233 or ephemeral)",
+            "storage_backend": "SQLite dev server (--db-filename)",
+            "external_binaries": "Downloads temporal dev server binary (~100 MB)",
+            "web_ui": "Full rich UI built-in (port 8233)",
+            "determinism_tax": "High (workflow sandbox forbids time.time, I/O, asyncio.wait)",
+            "multi_node": "Native enterprise clustering"
+        },
+        "Dagu": {
+            "loc_core": "YAML DAGs (120 lines) + runner",
+            "processes_required": "1-2 (Go binary: server + scheduler)",
+            "network_ports": "1 (Web UI 18081)",
+            "storage_backend": "Filesystem only (data/ directory)",
+            "external_binaries": "Precompiled Go binary (GPL-3.0)",
+            "web_ui": "Clean real-time DAG UI built-in",
+            "determinism_tax": "Zero (pure shell commands)",
+            "multi_node": "Requires external shared storage"
+        }
+    }
+}
+
+def main():
+    paths = [
+        Path("research/experiments/on-workflow-roadmap-20261102/receipts/engine_comparison.json"),
+        Path("/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F6-ROADMAP/receipts/engine_comparison.json"),
+        Path("/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F6-ROADMAP/receipts/engine_comparison.json"),
+    ]
+    for p in paths:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "w") as f:
+            json.dump(ENGINE_DATA, f, indent=2)
+        print(f"Wrote engine comparison to {p}")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,27 @@
+{
+  "detailed_evidence.json": {
+    "sha256": "b2a6ca3c47a2505a32529535841c70b48f676d17398986a747122da0867d6e40",
+    "sha256_12": "b2a6ca3c47a2",
+    "bytes": 16529
+  },
+  "engine_comparison.json": {
+    "sha256": "0b9259246ee093c3646cf076adc728a21582f7512547bb8e66b04e6dbe6dfb71",
+    "sha256_12": "0b9259246ee0",
+    "bytes": 5545
+  },
+  "evidence_summary.json": {
+    "sha256": "1d2f9edbe4bf8a1bce966c4b840983b1d4625006408c48b66e1eacf8fa44145f",
+    "sha256_12": "1d2f9edbe4bf",
+    "bytes": 1591
+  },
+  "manifest.json": {
+    "sha256": "280232304b667f0a341a0b49c67938239922103be558486f90fe0acd8fd44eb6",
+    "sha256_12": "280232304b66",
+    "bytes": 664
+  },
+  "summary.json": {
+    "sha256": "467be820465ec0345f10a7356dc0fc44b2f4a99d50e2fc4b15ac3baf8d6e5a7f",
+    "sha256_12": "467be820465e",
+    "bytes": 1148
+  }
+}

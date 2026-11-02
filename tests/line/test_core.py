@@ -314,3 +314,18 @@ def test_decision_recomputation_detects_nondeterministic_stage(
     result = read_json(batch / "check.json")
     assert not result["passed"]
     assert next(c for c in result["checks"] if c["name"] == "determinism")["status"] == "FAIL"
+
+
+def test_interrupted_check_never_publishes_pass(
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def interrupted(*_):
+        raise RuntimeError("interrupted before gates completed")
+
+    monkeypatch.setattr(core, "check_batch", interrupted)
+    with pytest.raises(RuntimeError, match="interrupted"):
+        core.run_line(fixture_spec, fixture_spec.parent)
+    spec = read_json(fixture_spec)
+    result = read_json(Path(spec["out_root"]) / spec["batch_id"] / "check.json")
+    assert not result["passed"]
+    assert {check["status"] for check in result["checks"]} == {"PENDING"}

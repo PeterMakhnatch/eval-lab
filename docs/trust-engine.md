@@ -127,6 +127,8 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    ```
    *Expected result:* Outputs hardened package directory with separate verifier architecture (`transform: full-hardening@1`). Note: `--expected-tests <N>` is required for pytest packages unless `--allow-degraded` is passed.
 
+   *Verifier image:* the L3 gate runs `python3` in the verifier. A separate verifier with no `tests/Dockerfile` is a copy of the environment image, which need not have `python3` (HAR-257: `query-optimize` was ungradable that way). Pass `--verifier-dockerfile <file>` to copy a verifier image byte-identical to `tests/Dockerfile`; the sibling `<out>.hardening-manifest.json` records it under `verifier` (`gate_runtime: declared`, `dockerfile_sha256`). Without one, a harbor package gets `gate_runtime: unverified` and a stderr warning; MiMo packages get their verifier image from `separate-verifier@10`.
+
    *Pipeline note for new packages:* Runbook 1 for arbitrary task packages currently ends at Step 3 (anatomy, STING mutation audit, and container hardening). Automated corpus-scale task package certification is not yet an operator-runnable feature on `main`; it is an active research target (see `gh pr list` for work in flight).
 
 4. **Step 4: Status of automated Gold Certification (Plan-only CLI; 8-task experiment runner):**

@@ -15,6 +15,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # uv retries index HTTP requests 3 times by default (HAR-252).
+  UV_HTTP_RETRIES: "5"
+
 jobs:
   scope:
     runs-on: ubuntu-latest
@@ -78,6 +82,15 @@ jobs:
         run: |
           uv python install 3.12
           echo "UV_PYTHON=3.12" >> $GITHUB_ENV
+      - name: Cache locked Python packages
+        if: needs.scope.outputs.profile == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2
+        with:
+          path: ~/.cache/uv
+          key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-perf-${{ hashFiles('uv.lock', '.github/workflows/perf.yml') }}
+          restore-keys: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-test-${{ hashFiles('uv.lock', '.github/workflows/ci.yml') }}
       - name: Install profiling dependencies
         if: needs.scope.outputs.profile == 'true'
         run: uv sync --locked --no-default-groups

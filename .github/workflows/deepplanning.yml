@@ -20,6 +20,8 @@ concurrency:
 
 env:
   HARBOR_TELEMETRY: "off"
+  # uv retries index HTTP requests 3 times by default (HAR-252).
+  UV_HTTP_RETRIES: "5"
 
 jobs:
   canary-controls:
@@ -27,6 +29,14 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Cache locked Python packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2
+        with:
+          path: ~/.cache/uv
+          key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-deepplanning-${{ hashFiles('uv.lock', '.github/workflows/deepplanning.yml') }}
+          restore-keys: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-test-${{ hashFiles('uv.lock', '.github/workflows/ci.yml') }}
       - name: Install uv and Python
         run: |
           python3 -m pip install --user uv==0.9.24

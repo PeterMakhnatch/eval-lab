@@ -1,0 +1,88 @@
+{
+  "cohort": {
+    "total_events": 88816,
+    "total_prefix_scores": 28490,
+    "total_runs": 404
+  },
+  "cost_projections_per_1k_runs": {
+    "cards_per_1k_runs": 403.5,
+    "claude_35_sonnet_reference_usd": 11.8599,
+    "gemini_38_flash_metered_usd": 2.2654,
+    "gemini_38_flash_subscription_usd": 0.0,
+    "gpt_4o_reference_usd": 9.1773,
+    "l0_trigger_rate": 0.4035
+  },
+  "crash_recovery": {
+    "control_queue_size": 17,
+    "control_served": 19,
+    "gate_verdict": "PASS",
+    "kills_executed": 3,
+    "queue_equality": true,
+    "recovered_queue_size": 17,
+    "recovered_served": 19,
+    "served_equality": true,
+    "zero_duplicate_queue": true,
+    "zero_duplicate_serves": true
+  },
+  "guards": {
+    "budget": "PASS",
+    "kill_switch": "PASS",
+    "rate_limit": "PASS"
+  },
+  "live_slice": {
+    "all_attested": true,
+    "cards_served": 11,
+    "mean_tokens_card": 6998.8,
+    "mean_usd_card": 0.005615,
+    "median_latency_seconds": 2.619,
+    "queue_size": 10,
+    "served_models": [
+      "google-antigravity/gemini-3.8-flash"
+    ],
+    "zero_fallbacks": true
+  },
+  "throughput_latency": {
+    "cycle_seconds_p50_cached": 0.129,
+    "cycle_seconds_p50_off": 0.058,
+    "events_per_min_cached": 17234.0,
+    "events_per_min_off": 17994.5,
+    "per_prefix_latency_p50_cached": 0.0005377500201575458,
+    "per_prefix_latency_p50_off": 0.0005557090044021606,
+    "runs_per_min_cached": 120.28,
+    "runs_per_min_off": 125.59,
+    "slowdown_l0_pct": 122.41
+  },
+  "triggers_and_queue": {
+    "cascade_stage1": {
+      "count": 147,
+      "rate": 0.3639,
+      "wilson_95": [
+        0.3184,
+        0.4119
+      ]
+    },
+    "l0_gate": {
+      "count": 163,
+      "rate": 0.4035,
+      "wilson_95": [
+        0.3568,
+        0.452
+      ]
+    },
+    "queue_priorities": {
+      "high_priority_2": 79,
+      "medium_priority_1": 48,
+      "normal_priority_0": 119
+    },
+    "queue_size": 246,
+    "target_surface": {
+      "count": 98,
+      "rate": 0.2426,
+      "wilson_95": [
+        0.2033,
+        0.2867
+      ]
+    },
+    "total_triggers": 408
+  }
+}

@@ -59,7 +59,14 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             print(render_scoreboard(value))
         elif args.line_command == "replay":
             print("Replay " + ("PASS" if code == 0 else "FAIL"))
-            for key in ("regressions", "changed_runs", "error"):
+            for key in (
+                "regressions",
+                "changed_runs",
+                "changed_runs_unavailable",
+                "inputs_changed",
+                "informational",
+                "error",
+            ):
                 if key in value:
                     print(f"{key}: {json.dumps(value[key], sort_keys=True)}")
         else:

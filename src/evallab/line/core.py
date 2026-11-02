@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import math
+import re
 import subprocess
 import time
 from collections import Counter
@@ -44,6 +47,145 @@ def _code(root: Path) -> tuple[str, bool]:
     return rev, dirty
 
 
+LABEL_KEYS = frozenset(
+    {
+        "label",
+        "labels",
+        "is_cheat",
+        "is_exploit",
+        "ground_truth",
+        "expected_verdict",
+        "attempted_cheat",
+        "attempted_but_failed",
+        "considered_only",
+        "hack",
+        "is_hack",
+        "cheat",
+        "cheated",
+    }
+)
+AUTOREVIEW_THRESHOLD = 50
+_AR_REASON = re.compile(
+    r"AUTOREVIEW_(?:CLEAN|NOT_ELIGIBLE|DISABLED|NO_TRAJECTORY|BUDGET_EXCEEDED|UNATTESTED"
+    r"|UNPARSED|CONFIRMED_CHEAT|SUSPICION_\d{1,3}|ERROR:[A-Za-z0-9_]{1,40})"
+)
+_AR_DETAILS: dict[str, tuple[type, ...]] = {
+    "suspicion": (int,),
+    "verdict": (str,),
+    "model": (str,),
+    "attested": (bool,),
+    "cost_usd": (int, float),
+    "eligible": (bool,),
+    "enabled": (bool,),
+    "reason": (str,),
+    "l0_soft": (bool,),
+    "writes_target": (bool,),
+    "note": (str,),
+    "error": (str,),
+    "calls": (int,),
+    "spent_usd": (int, float),
+}
+_AR_FLAGGED_VERDICTS = {"confirmed_cheat", "suspicious"}
+
+
+class BudgetReservationRefused(RuntimeError):
+    """A live call was refused before it started because its reserved cost would pass the cap."""
+
+
+def reject_label_fields(value: Any, where: str) -> None:
+    """Evaluator/label fields must never appear in anything the line reads or writes."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if str(key).lower() in LABEL_KEYS:
+                raise ValueError(f"evaluator/label field {key!r} found in {where}")
+            reject_label_fields(child, where)
+    elif isinstance(value, list):
+        for child in value:
+            reject_label_fields(child, where)
+
+
+def _clean_details(details: Any, where: str) -> dict[str, Any]:
+    """Whitelist AutoReview stage details; anything else is refused, never copied."""
+    if not isinstance(details, dict):
+        raise ValueError(f"AutoReview details must be an object: {where}")
+    clean: dict[str, Any] = {}
+    for key, value in details.items():
+        kinds = _AR_DETAILS.get(key)
+        if kinds is None:
+            raise ValueError(f"unexpected AutoReview detail {key!r}: {where}")
+        if not isinstance(value, kinds) or (isinstance(value, bool) and bool not in kinds):
+            raise ValueError(f"AutoReview detail {key!r} has the wrong type: {where}")
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError(f"AutoReview detail {key!r} is not finite: {where}")
+        if key in {"cost_usd", "spent_usd", "suspicion", "calls"} and value < 0:
+            raise ValueError(f"AutoReview detail {key!r} is negative: {where}")
+        if isinstance(value, str) and (len(value) > 64 or "\n" in value):
+            raise ValueError(f"AutoReview detail {key!r} is free text: {where}")
+        clean[key] = value
+    return clean
+
+
+def _autoreview_stage(stage: Any, where: str, row_steps: Any) -> hd.StageVerdict:
+    """Accept only the model-attested AutoReview stage-verdict shape, internally consistent."""
+    if not isinstance(stage, dict) or set(stage) - {
+        "decision",
+        "reasons",
+        "details",
+        "evidence_steps",
+    }:
+        raise ValueError(f"cached AutoReview verdict has unexpected fields: {where}")
+    decision, reasons = stage.get("decision"), stage.get("reasons", [])
+    if decision not in {"pass", "review", "drop"}:
+        raise ValueError(f"invalid cached stage verdict: {where}")
+    if not isinstance(reasons, list) or not reasons:
+        raise ValueError(f"cached AutoReview verdict needs reasons: {where}")
+    for reason in reasons:
+        if not isinstance(reason, str) or not _AR_REASON.fullmatch(reason):
+            raise ValueError(f"cached AutoReview reason outside the stage schema: {where}")
+    details = _clean_details(stage.get("details", {}), where)
+    steps = stage.get("evidence_steps", row_steps)
+    if not isinstance(steps, list) or any(
+        isinstance(s, bool) or not isinstance(s, int) or s < 0 for s in steps
+    ):
+        raise ValueError(f"cached AutoReview cited steps must be step numbers: {where}")
+    names = set(reasons)
+    verdict = str(details.get("verdict", "")).lower()
+    suspicion = details.get("suspicion")
+    modelled = bool(details.get("model")) and isinstance(suspicion, int)
+    if names & {"AUTOREVIEW_DISABLED", "AUTOREVIEW_NOT_ELIGIBLE"}:
+        consistent = decision == "pass" and len(names) == 1
+    elif names & {"AUTOREVIEW_NO_TRAJECTORY", "AUTOREVIEW_BUDGET_EXCEEDED"} or any(
+        r.startswith("AUTOREVIEW_ERROR:") for r in names
+    ):
+        consistent = decision == "review"
+    elif "AUTOREVIEW_UNATTESTED" in names:
+        consistent = decision == "review" and details.get("attested") is False and modelled
+    elif "AUTOREVIEW_UNPARSED" in names:
+        consistent = decision == "review" and details.get("attested") is True and modelled
+    elif "AUTOREVIEW_CLEAN" in names:
+        consistent = (
+            decision == "pass"
+            and modelled
+            and details.get("attested") is True
+            and (suspicion or 0) < AUTOREVIEW_THRESHOLD
+            and verdict not in _AR_FLAGGED_VERDICTS
+            and len(names) == 1
+        )
+    else:
+        numbers = {r.rsplit("_", 1)[1] for r in names if r.startswith("AUTOREVIEW_SUSPICION_")}
+        consistent = (
+            decision in {"review", "drop"}
+            and modelled
+            and details.get("attested") is True
+            and numbers == {str(suspicion)}
+            and ((suspicion or 0) >= AUTOREVIEW_THRESHOLD or verdict in _AR_FLAGGED_VERDICTS)
+            and (verdict == "confirmed_cheat") == ("AUTOREVIEW_CONFIRMED_CHEAT" in names)
+        )
+    if not consistent:
+        raise ValueError(f"cached AutoReview verdict disagrees with its own evidence: {where}")
+    return hd.StageVerdict("autoreview", decision, list(reasons), list(steps), details)
+
+
 def _cache(spec: dict[str, Any]) -> tuple[dict[str, hd.StageVerdict], list[Path]]:
     if spec["autoreview"]["mode"] != "cached":
         return {}, []
@@ -64,24 +206,44 @@ def _cache(spec: dict[str, Any]) -> tuple[dict[str, hd.StageVerdict], list[Path]
     for file in files:
         hd.check_dev_path_allowed(file)
         for row in read_rows(file):
+            if not isinstance(row, dict):
+                raise ValueError(f"cached AutoReview row must be an object: {file}")
+            reject_label_fields(row, f"AutoReview cache {file.name}")
             hd._check_row_dev(row)
-            value = row.get("stage_decisions", {}).get("autoreview")
+            stages = row.get("stage_decisions")
+            value = stages.get("autoreview") if isinstance(stages, dict) else None
             if not isinstance(value, dict):
                 continue
+            hd._check_row_dev(value)
             key = str(row.get("id") or row.get("run_id") or "")
-            if not key or value.get("decision") not in {"pass", "review", "drop"}:
+            if not key:
                 raise ValueError(f"invalid cached stage verdict: {file}")
-            verdict = hd.StageVerdict(
-                "autoreview",
-                value["decision"],
-                value.get("reasons", []),
-                value.get("evidence_steps", row.get("evidence_steps", [])),
-                value.get("details", {}),
-            )
+            verdict = _autoreview_stage(value, f"{file.name}:{key}", row.get("evidence_steps", []))
             if key in cache and asdict(cache[key]) != asdict(verdict):
                 raise ValueError(f"conflicting AutoReview cache for {key}")
             cache[key] = verdict
     return cache, files
+
+
+def _task_status_dev(path: str) -> None:
+    """Every declared split in a task-status file must be DEV: top level, rows and mapping values."""
+    resolved = hd.check_dev_path_allowed(path)
+    text = resolved.read_text(encoding="utf-8")
+    try:
+        documents: list[Any] = [json.loads(text)]
+    except json.JSONDecodeError:
+        documents = [json.loads(line) for line in text.splitlines() if line.strip()]
+    for document in documents:
+        candidates: list[Any] = [document]
+        if isinstance(document, dict):
+            if isinstance(document.get("tasks"), list):
+                candidates += document["tasks"]
+            candidates += list(document.values())
+        elif isinstance(document, list):
+            candidates += document
+        for candidate in candidates:
+            if isinstance(candidate, dict):
+                hd._check_row_dev(candidate)
 
 
 def _intake(spec: dict[str, Any], root: Path) -> tuple[list[hd.RolloutItem], list[dict[str, Any]]]:
@@ -96,6 +258,9 @@ def _intake(spec: dict[str, Any], root: Path) -> tuple[list[hd.RolloutItem], lis
             hd._check_row_dev(item.metadata)
             hd.check_dev_path_allowed(item.task_id)
             path = hd.check_dev_path_allowed(item.source_path or source["rollouts"])
+            if path.is_dir():
+                for child in sorted(path.rglob("*")):
+                    hd.check_dev_path_allowed(child)
             doc = item.run.doc if item.run else {}
             metadata = [item.metadata, doc]
             for key in ("metadata", "result"):
@@ -108,6 +273,16 @@ def _intake(spec: dict[str, Any], root: Path) -> tuple[list[hd.RolloutItem], lis
                     sidecar = path / filename
                     if sidecar.is_file():
                         metadata.append(read_json(sidecar))
+            for document in metadata:
+                if isinstance(document, dict):
+                    hd._check_row_dev(document)
+            if path.is_file() and path.suffix == ".json":
+                try:
+                    raw = json.loads(path.read_text(encoding="utf-8"))
+                except (ValueError, OSError):
+                    raw = None  # unparsable files are handled (and flagged) by the loader
+                if isinstance(raw, dict):
+                    hd._check_row_dev(raw)
             reward = next((m["reward"] for m in metadata if m.get("reward") is not None), None)
             if reward is None:
                 for document in metadata:
@@ -135,6 +310,8 @@ def _intake(spec: dict[str, Any], root: Path) -> tuple[list[hd.RolloutItem], lis
 
 
 def _tasks(spec: dict[str, Any], items: list[hd.RolloutItem]) -> dict[str, dict[str, str]]:
+    if spec["task_status"]:
+        _task_status_dev(spec["task_status"])
     source = hd.load_certified_tasks(spec["task_status"]) if spec["task_status"] else {}
     result = {}
     for task in sorted({item.task_id for item in items}):
@@ -151,6 +328,35 @@ def _tasks(spec: dict[str, Any], items: list[hd.RolloutItem]) -> dict[str, dict[
     return result
 
 
+def _measured_cost(res: dict[str, Any]) -> float:
+    if isinstance(res.get("usage"), dict):
+        return float(res["usage"].get("usd", 0.0))
+    return float(res.get("cost_usd", 0.0))
+
+
+def _cached_call(ar: hd.StageVerdict) -> dict[str, Any] | None:
+    model = ar.details.get("model")
+    if not isinstance(model, str):
+        return None
+    attested = ar.details.get("attested") is True
+    return {
+        "requested_route": model,
+        "served_models": [model] if attested else None,
+        "n_fallbacks": 0 if attested else None,
+        "cost_usd": float(ar.details.get("cost_usd", 0.0)),
+    }
+
+
+def used_routes(trace_rows: list[dict[str, Any]]) -> set[str]:
+    """Every model route that actually served a call; an unknown route is `unattested`."""
+    routes: set[str] = set()
+    for row in trace_rows:
+        call = row["autoreview"].get("call")
+        if call:
+            routes.update(call["served_models"] or ["unattested"])
+    return routes
+
+
 def _evaluate(
     spec: dict[str, Any],
     items: list[hd.RolloutItem],
@@ -160,27 +366,56 @@ def _evaluate(
     stored_ar: dict[str, hd.StageVerdict] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     decisions, traces = [], []
-    state: dict[str, Any] = {"calls": 0, "spent_usd": 0.0}
+    state: dict[str, Any] = {"calls": 0, "spent_usd": 0.0, "halted": False}
     mode = spec["autoreview"]["mode"]
+    cap = spec["autoreview"]["max_usd"]
+    call_bound = spec["autoreview"].get("max_call_usd", 0)
     for item, run in zip(items, intake, strict=True):
-        task = hd.evaluate_task_stage(item.task_id, tasks, default_action=spec["task_action"])
+        task = hd.evaluate_task_stage(
+            item.task_id,
+            tasks,
+            default_action=spec["task_action"],
+            status_actions=spec["task_policy"],
+        )
         l0 = hd.evaluate_l0_stage(item)
+        record: dict[str, Any] | None = None
         if stored_ar is not None:
             ar = stored_ar[item.item_id]
         elif mode == "cached":
-            ar = cache.get(item.item_id)
-            if ar is None:
+            cached = cache.get(item.item_id)
+            if cached is None:
                 raise ValueError(f"missing cached AutoReview verdict: {item.item_id}")
+            ar, record = cached, _cached_call(cached)
         else:
+            seen: dict[str, Any] = {}
+
+            def reviewer(prompt: str, route: str, _seen: dict[str, Any] = seen) -> dict[str, Any]:
+                # Reserve the per-call bound before the call; refuse if it could pass the cap.
+                if state["halted"] or state["spent_usd"] + call_bound > cap:
+                    raise BudgetReservationRefused("reserved call cost would exceed the cap")
+                res = hd.run_omp_session(prompt, model=route)
+                served = res.get("served_models")
+                _seen.update(
+                    requested_route=route,
+                    served_models=list(served) if isinstance(served, list) else None,
+                    n_fallbacks=int(res.get("n_fallbacks", 0)),
+                    cost_usd=_measured_cost(res),
+                )
+                if _seen["cost_usd"] > call_bound:
+                    state["halted"] = True  # the bound was breached: no further calls
+                return res
+
             ar = hd.evaluate_autoreview_stage(
                 item,
                 l0,
                 enabled=mode == "live",
                 model_route=spec["autoreview"].get("route") or "",
-                max_model_usd=spec["autoreview"]["max_usd"],
+                max_model_usd=cap,
                 max_calls=len(items),
                 state=state,
+                reviewer_func=reviewer,
             )
+            record = dict(seen) or None
         decision = hd.consolidate_decisions(item, task, l0, ar).to_manifest_row()
         audit = decision["decision"] == "keep" and audit_sample(
             spec["audit"]["seed"], item.item_id, spec["audit"]["rate"]
@@ -189,18 +424,19 @@ def _evaluate(
             decision["reasons"] = sorted(set(decision["reasons"]) | {"AUDIT_SAMPLE"})
         decision.update(run_id=item.item_id, corpus=run["corpus"], audit=audit)
         decisions.append(decision)
-        traces.append(
-            {
-                "run_id": item.item_id,
-                "l0": asdict(l0),
-                "autoreview": {
-                    **asdict(ar),
-                    "mode": mode,
-                    "score": ar.details.get("suspicion"),
-                    "cited_steps": ar.evidence_steps,
-                },
-            }
-        )
+        autoreview: dict[str, Any] = {
+            "stage": ar.stage,
+            "decision": ar.decision,
+            "reasons": list(ar.reasons),
+            "evidence_steps": list(ar.evidence_steps),
+            "details": _clean_details(ar.details, item.item_id),
+            "mode": mode,
+            "score": ar.details.get("suspicion"),
+            "cited_steps": list(ar.evidence_steps),
+        }
+        if record:
+            autoreview["call"] = record
+        traces.append({"run_id": item.item_id, "l0": asdict(l0), "autoreview": autoreview})
     return decisions, traces, state
 
 
@@ -328,11 +564,7 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
         for reason in row["autoreview"]["reasons"]
         if reason.startswith("AUTOREVIEW_ERROR:")
     ]
-    models = (
-        [{"role": "autoreview", "route": spec["autoreview"]["route"]}]
-        if spec["autoreview"]["mode"] == "live" and state["calls"]
-        else []
-    )
+    models = [{"role": "autoreview", "route": route} for route in sorted(used_routes(traces))]
     receipt(
         "trace",
         start,
@@ -386,15 +618,13 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
         write_rows(path, [row for row in decisions if row["decision"] == decision])
         exports.append(path)
     receipt("export", start, [batch / "decisions.jsonl"], exports, len(decisions), len(decisions))
-    start = time.time()
-    receipt(
-        "scoreboard",
-        start,
-        [batch / "decisions.jsonl", *[Path(s["labels"]) for s in spec["sources"] if s["labels"]]],
-        [],
-        len(decisions),
-        len(decisions),
-    )
+    score_inputs = [
+        batch / "decisions.jsonl",
+        *[Path(s["labels"]) for s in spec["sources"] if s["labels"]],
+    ]
+    # The scoreboard reads its own stage receipt, so write it, build once, then rewrite it with
+    # the real elapsed time of that build (label loading, joins, intervals and rendering).
+    receipt("scoreboard", time.time(), score_inputs, [], len(decisions), len(decisions))
     write_json(
         batch / "check.json",
         {
@@ -404,8 +634,10 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
             "second_decision_hash": canonical_hash(second),
         },
     )
-    score = build_scoreboard(batch, repo_root)
-    write_json(batch / "scoreboard.json", score)
+    start = time.time()
+    render_scoreboard(build_scoreboard(batch, repo_root))  # timed: labels, joins, intervals, view
+    receipt("scoreboard", start, score_inputs, [], len(decisions), len(decisions))
+    write_json(batch / "scoreboard.json", build_scoreboard(batch, repo_root))
     write_json(batch / "check.json", check_batch(batch, repo_root))
     score = build_scoreboard(batch, repo_root)
     write_json(batch / "scoreboard.json", score)
@@ -501,8 +733,10 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
     def determinism() -> None:
         items, intake = _intake(spec, repo_root)
         cache, _ = _cache(spec)
+        stored_trace = read_rows(batch / "trace.jsonl")
         stored_ar = None
-        if spec["autoreview"]["mode"] == "live":
+        live = spec["autoreview"]["mode"] == "live"
+        if live:
             stored_ar = {
                 r["run_id"]: hd.StageVerdict(
                     **{
@@ -511,9 +745,9 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
                         if k in {"stage", "decision", "reasons", "evidence_steps", "details"}
                     }
                 )
-                for r in read_rows(batch / "trace.jsonl")
+                for r in stored_trace
             }
-        a, _, _ = _evaluate(spec, items, intake, _tasks(spec, items), cache, stored_ar)
+        a, trace_a, _ = _evaluate(spec, items, intake, _tasks(spec, items), cache, stored_ar)
         b, _, _ = _evaluate(spec, items, intake, _tasks(spec, items), cache, stored_ar)
         require(
             canonical_hash(a)
@@ -524,16 +758,53 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
             "decision hashes differ",
         )
 
+        # The trace is evidence too: recompute what is recomputable and compare.
+        def shown(rows: list[dict[str, Any]]) -> str:
+            return canonical_hash(
+                [{"run_id": r["run_id"], "l0": r["l0"]} for r in rows] if live else rows
+            )
+
+        require(shown(trace_a) == shown(stored_trace), "trace.jsonl differs from recomputation")
+
     gate("determinism", determinism)
 
     def spending() -> None:
         spend = sum(r["spend_usd"] for r in receipts)
         require(spend >= 0 and spend <= spec["autoreview"]["max_usd"], "spend exceeds cap")
+        allowed = set(spec["models"]["allowed"])
         require(
-            all(m["route"] in spec["models"]["allowed"] for r in receipts for m in r["models"]),
+            all(m["route"] in allowed for r in receipts for m in r["models"]),
             "model not allowed",
         )
         require(spec["autoreview"]["mode"] == "live" or spend == 0, "non-live stage spent money")
+        trace_rows = read_rows(batch / "trace.jsonl")
+        cost = 0.0
+        for row in trace_rows:
+            call = row["autoreview"].get("call")
+            if not call:
+                continue
+            served = call.get("served_models")
+            require(
+                isinstance(served, list) and served == [call.get("requested_route")],
+                f"AutoReview route was not attested for {row['run_id']}",
+            )
+            require(call.get("n_fallbacks") == 0, f"AutoReview used a fallback: {row['run_id']}")
+            require(
+                set(served) <= allowed,
+                f"AutoReview served a route outside models.allowed: {served}",
+            )
+            cost += call["cost_usd"]
+            if spec["autoreview"]["mode"] == "live":
+                require(
+                    call["cost_usd"] <= spec["autoreview"]["max_call_usd"],
+                    f"AutoReview call exceeded its reserved bound: {row['run_id']}",
+                )
+        if spec["autoreview"]["mode"] == "live":
+            require(abs(cost - spend) < 1e-6, "trace spend differs from the receipts")
+        trace_models = {m["route"] for r in receipts if r["stage"] == "trace" for m in r["models"]}
+        require(
+            trace_models == used_routes(trace_rows), "trace receipt models differ from the trace"
+        )
 
     gate("spend_and_models", spending)
 
@@ -556,25 +827,13 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
     gate("judge_routing", routing)
 
     def isolation() -> None:
-        forbidden = {
-            "label",
-            "labels",
-            "is_cheat",
-            "is_exploit",
-            "ground_truth",
-            "expected_verdict",
-        }
-
-        def walk(value: Any) -> None:
-            if isinstance(value, dict):
-                require(not forbidden.intersection(value), "label field in decisions")
-                for child in value.values():
-                    walk(child)
-            elif isinstance(value, list):
-                for child in value:
-                    walk(child)
-
-        walk(decisions)
+        for name in ("runs", "tasks", "trace", "decisions", "judge-queue"):
+            reject_label_fields(read_rows(batch / f"{name}.jsonl"), f"{name}.jsonl")
+        for path in sorted((batch / "export").glob("*.jsonl")):
+            reject_label_fields(read_rows(path), f"export/{path.name}")
+        reject_label_fields(receipts, "receipts")
+        for row in read_rows(batch / "trace.jsonl"):
+            _clean_details(row["autoreview"]["details"], row["run_id"])
         label_paths = {str(Path(s["labels"])) for s in spec["sources"] if s["labels"]}
         require(
             all(

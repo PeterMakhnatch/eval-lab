@@ -40,9 +40,25 @@ def load_spec(path: Path) -> dict[str, Any]:
         source["rollouts"] = absolute(source.get("rollouts"))
         source["labels"] = absolute(source["labels"]) if source.get("labels") else None
     spec["task_status"] = absolute(spec["task_status"]) if spec.get("task_status") else None
+    explicit_action = spec.get("task_action")
     if spec.get("task_action", "review") not in ("review", "drop"):
         raise ValueError("task_action must be review or drop")
     spec.setdefault("task_action", "review")
+    policy = spec.setdefault("task_policy", {})
+    statuses = ("certified", "provisional", "weak", "uncertified")
+    if (
+        not isinstance(policy, dict)
+        or set(policy) - set(statuses)
+        or any(action not in ("pass", "review", "drop") for action in policy.values())
+    ):
+        raise ValueError(
+            "task_policy must map certified/provisional/weak/uncertified to pass, review or drop"
+        )
+    if explicit_action is not None and policy.get("weak", explicit_action) != explicit_action:
+        raise ValueError("task_action and task_policy.weak disagree; set only one")
+    policy.setdefault("weak", spec["task_action"])
+    for status in ("certified", "provisional", "uncertified"):
+        policy.setdefault(status, "pass")
     ar = spec.setdefault("autoreview", {"mode": "off"})
     if not isinstance(ar, dict) or ar.get("mode") not in ("off", "cached", "live"):
         raise ValueError("autoreview.mode must be off, cached or live")
@@ -60,13 +76,26 @@ def load_spec(path: Path) -> dict[str, Any]:
         not isinstance(route, str) or not route for route in allowed
     ):
         raise ValueError("models.allowed must be a list of route strings")
-    if ar["mode"] == "live" and (
-        not isinstance(ar.get("approval"), str)
-        or not ar["approval"].strip()
-        or cap <= 0
-        or ar.get("route") not in allowed
-    ):
-        raise ValueError("live AutoReview requires an allowed route, approval and positive max_usd")
+    if ar["mode"] == "live":
+        call_cap = ar.get("max_call_usd")
+        if (
+            not isinstance(ar.get("approval"), str)
+            or not ar["approval"].strip()
+            or cap <= 0
+            or ar.get("route") not in allowed
+        ):
+            raise ValueError(
+                "live AutoReview requires an allowed route, approval and positive max_usd"
+            )
+        if (
+            isinstance(call_cap, bool)
+            or not isinstance(call_cap, (int, float))
+            or not math.isfinite(call_cap)
+            or not 0 < call_cap <= cap
+        ):
+            raise ValueError(
+                "live AutoReview requires autoreview.max_call_usd, a per-call bound in (0, max_usd]"
+            )
     ar["cache"] = absolute(ar["cache"]) if ar.get("cache") else None
     if ar["mode"] == "cached" and not ar["cache"]:
         raise ValueError("cached AutoReview requires a cache path")

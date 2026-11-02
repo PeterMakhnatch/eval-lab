@@ -64,6 +64,13 @@ def _metric(group: dict[str, Any], name: str, denominator: str) -> tuple[int, in
     return k, n
 
 
+def _optional_metric(group: dict[str, Any], name: str, denominator: str) -> tuple[int, int] | None:
+    metrics = group.get("metrics")
+    if not isinstance(metrics, dict) or name not in metrics:
+        return None
+    return _metric(group, name, denominator)
+
+
 def _quality_failures(scoreboard: dict[str, Any]) -> list[dict[str, Any]]:
     checks = scoreboard.get("quality_checks")
     if (
@@ -101,11 +108,13 @@ def compare_baseline(
         raise ValueError("replay corpus cohort mismatch")
     if before.keys() != after.keys():
         raise ValueError("replay decision cohort mismatch")
-    if set(corpus for corpus, _ in before) != set(old_groups):
+    if not {corpus for corpus, _ in before} <= set(old_groups):
+        # Declared sources with zero rows legitimately have a group but no decisions.
         raise ValueError("replay decisions and scoreboard cohorts disagree")
     if previous.get("labels_policy") != current_scoreboard.get("labels_policy"):
         raise ValueError("replay labels policy mismatch")
     regressions = []
+    informational = []
     for corpus, old in old_groups.items():
         new = new_groups[corpus]
         if not isinstance(old, dict) or not isinstance(new, dict):
@@ -144,6 +153,19 @@ def compare_baseline(
                         "denominator": n,
                     }
                 )
+        # Clean reviews cost judge load, not harm: report them, never gate on them.
+        info_before = _optional_metric(old, "clean_drop_or_review_rate", "clean")
+        info_after = _optional_metric(new, "clean_drop_or_review_rate", "clean")
+        if info_before and info_after and info_before[1] and info_before[0] != info_after[0]:
+            informational.append(
+                {
+                    "corpus": corpus,
+                    "metric": "clean_drop_or_review_rate",
+                    "before_k": info_before[0],
+                    "after_k": info_after[0],
+                    "denominator": info_before[1],
+                }
+            )
     failures = _quality_failures(current_scoreboard)
     regressions.extend(
         {"check": check.get("name"), "details": check.get("details"), "kind": "quality_check"}
@@ -152,6 +174,7 @@ def compare_baseline(
     return {
         "passed": not regressions,
         "regressions": regressions,
+        "informational": informational,
         "changed_runs": _changed_runs(before, after),
     }
 
@@ -187,11 +210,23 @@ def replay(
     repo_root: Path,
     write_baseline: bool = False,
 ) -> tuple[dict[str, Any], int]:
-    """Rerun off/cached inputs without editing the spec or external judge queue."""
+    """Rerun off/cached inputs without editing the spec or external judge queue.
+
+    ``changed_runs`` is a list of decision changes versus the baseline, or ``None`` with
+    ``changed_runs_unavailable`` saying why no comparison happened; an empty list always
+    means "compared, nothing changed". When frozen spec/input bytes differ the zero-spend
+    batch still runs so changed runs are reported, ``inputs_changed`` is set, and the exit
+    stays 2.
+    """
     result: dict[str, Any] = {
         "schema": "evallab.line_replay/v1",
         "passed": False,
-        "changed_runs": [],
+        "changed_runs": None,
+        "changed_runs_unavailable": (
+            "changed decisions unavailable: no baseline comparison when writing a baseline"
+            if write_baseline
+            else "changed decisions unavailable: replay did not complete a comparison"
+        ),
         "regressions": [],
     }
     try:
@@ -204,13 +239,21 @@ def replay(
         frozen_hash = _frozen_hash(spec)
         input_hashes = _input_hashes(spec)
         stored = None if write_baseline else read_json(baseline)
+        mismatch = None
         if stored is not None:
+            result["inputs_changed"] = False
             if stored.get("schema") != BASELINE_SCHEMA:
                 raise ValueError("unsupported replay baseline schema")
             if stored.get("frozen_spec_hash") != frozen_hash:
-                raise ValueError("replay frozen spec mismatch; refresh the baseline explicitly")
-            if stored.get("input_hashes") != input_hashes:
-                raise ValueError("replay frozen input bytes mismatch")
+                mismatch = "replay frozen spec mismatch; refresh the baseline explicitly"
+            elif stored.get("input_hashes") != input_hashes:
+                mismatch = "replay frozen input bytes mismatch"
+            if mismatch:
+                # Still $0 (autoreview is off/cached): run the batch to report changed runs.
+                result["inputs_changed"] = True
+                result["changed_runs_unavailable"] = (
+                    "changed decisions unavailable: frozen inputs mismatch"
+                )
         # Source paths were resolved against the original spec, not this scratch file.
         replay_spec = deepcopy(spec)
         replay_spec["batch_id"] = f"{spec['batch_id']}-replay-{uuid4().hex}"
@@ -231,11 +274,15 @@ def replay(
             result["changed_runs"] = _changed_runs(
                 _decisions(stored.get("decisions", [])), _decisions(decisions)
             )
+            result.pop("changed_runs_unavailable", None)
         intake_hash = canonical_hash(
             sorted(read_rows(batch / "runs.jsonl"), key=lambda row: (row["corpus"], row["run_id"]))
         )
-        if stored is not None and stored.get("intake_hash") != intake_hash:
-            raise ValueError("replay frozen rollout cohort or bytes mismatch")
+        if mismatch is None and stored is not None and stored.get("intake_hash") != intake_hash:
+            mismatch = "replay frozen rollout cohort or bytes mismatch"
+            result["inputs_changed"] = True
+        if mismatch:
+            raise ValueError(mismatch)
         checks = check_batch(batch, repo_root)
         scoreboard["quality_checks"] = checks["checks"]
         result["frozen_spec_hash"] = frozen_hash

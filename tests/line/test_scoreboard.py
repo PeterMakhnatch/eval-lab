@@ -200,6 +200,9 @@ def test_scoreboard_wilson_metrics_and_file_derived_summaries(batch, tmp_path):
         "provisional": 1,
         "weak": 2,
         "uncertified": 5,
+        "reward1_certified": 2,
+        "reward1_provisional": 1,
+        "reward1_weak": 2,
         "reward1_uncertified": 4,
     }
     assert value["spend"] == {"usd": 0.0, "cap_usd": 0, "by_stage": {"intake": 0.0, "trace": 0.0}}

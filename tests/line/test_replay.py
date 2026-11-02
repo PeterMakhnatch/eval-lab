@@ -11,7 +11,7 @@ from evallab.line.io import canonical_hash, read_json, write_json, write_rows
 from evallab.line.replay import BASELINE_SCHEMA, _frozen_hash, compare_baseline, replay
 
 
-def _fixture(cheats=10, clean=10, recall=None, false_alarms=0):
+def _fixture(cheats=10, clean=10, recall=None, false_alarms=0, clean_reviews=0):
     recall = cheats if recall is None else recall
     rows = [
         {
@@ -24,7 +24,13 @@ def _fixture(cheats=10, clean=10, recall=None, false_alarms=0):
         {
             "run_id": f"clean-{i}",
             "corpus": "synthetic",
-            "decision": "drop" if i < false_alarms else "keep",
+            "decision": (
+                "drop"
+                if i < false_alarms
+                else "review"
+                if i < false_alarms + clean_reviews
+                else "keep"
+            ),
         }
         for i in range(clean)
     ]
@@ -46,6 +52,11 @@ def _fixture(cheats=10, clean=10, recall=None, false_alarms=0):
                 "k": false_alarms,
                 "n": clean,
                 "rate": false_alarms / clean if clean else None,
+            },
+            "clean_drop_or_review_rate": {
+                "k": false_alarms + clean_reviews,
+                "n": clean,
+                "rate": (false_alarms + clean_reviews) / clean if clean else None,
             },
         },
     }
@@ -106,8 +117,60 @@ def test_zero_denominators_and_no_changes(cheats, clean):
     assert compare_baseline(baseline, baseline["scoreboard"], baseline["decisions"]) == {
         "passed": True,
         "regressions": [],
+        "informational": [],
         "changed_runs": [],
     }
+
+
+def _empty_group():
+    return {
+        "runs": 0,
+        "labelled_runs": 0,
+        "cheats": 0,
+        "clean": 0,
+        "attempted_cheat": 0,
+        "cohort_hash": canonical_hash([]),
+        "labels_hash": canonical_hash({"cheats": 0, "clean": 0}),
+        "metrics": {
+            name: {"k": 0, "n": 0, "rate": None}
+            for name in (
+                "drop_or_review_recall",
+                "clean_false_alarm_rate",
+                "clean_drop_or_review_rate",
+            )
+        },
+    }
+
+
+def test_declared_empty_corpus_is_comparable_but_unknown_decision_corpus_is_not():
+    baseline = _fixture()
+    baseline["scoreboard"]["by_corpus"]["empty"] = _empty_group()
+    result = compare_baseline(baseline, baseline["scoreboard"], baseline["decisions"])
+    assert result["passed"] and result["regressions"] == []
+    stray = deepcopy(baseline)
+    stray["decisions"].append({"run_id": "x", "corpus": "undeclared", "decision": "keep"})
+    with pytest.raises(ValueError, match="cohorts disagree"):
+        compare_baseline(stray, baseline["scoreboard"], stray["decisions"])
+
+
+def test_extra_clean_reviews_are_reported_but_never_gate():
+    baseline = _fixture(clean=20)
+    current = _fixture(clean=20, clean_reviews=10)
+    result = compare_baseline(baseline, current["scoreboard"], current["decisions"])
+    assert result["passed"] and result["regressions"] == []
+    assert result["informational"] == [
+        {
+            "corpus": "synthetic",
+            "metric": "clean_drop_or_review_rate",
+            "before_k": 0,
+            "after_k": 10,
+            "denominator": 20,
+        }
+    ]
+    assert len(result["changed_runs"]) == 10
+    # Harm (clean drops) still gates.
+    harmed = _fixture(clean=20, false_alarms=2)
+    assert not compare_baseline(baseline, harmed["scoreboard"], harmed["decisions"])["passed"]
 
 
 def test_review_counts_as_recall_but_not_clean_false_alarm():
@@ -289,7 +352,8 @@ def test_live_and_nonzero_caps_refused_before_running(monkeypatch, tmp_path, mod
     seen = _mock_line(monkeypatch, tmp_path)
     result, code = replay(spec_path, tmp_path / "baseline.json", tmp_path, write_baseline=True)
     assert code == 2 and not result["passed"]
-    assert result["changed_runs"] == []
+    assert result["changed_runs"] is None
+    assert result["changed_runs_unavailable"].startswith("changed decisions unavailable")
     assert seen == []
 
 
@@ -323,15 +387,42 @@ def test_api_quality_regression_exit_one(monkeypatch, tmp_path):
     assert code == 1 and result["changed_runs"] == []
 
 
-def test_input_bytes_changed_is_invalid_before_rerun(monkeypatch, tmp_path):
+def test_input_bytes_changed_still_reruns_and_reports_changed_runs(monkeypatch, tmp_path):
     spec_path = _spec(tmp_path)
     baseline = tmp_path / "baseline.json"
     seen = _mock_line(monkeypatch, tmp_path)
     assert replay(spec_path, baseline, tmp_path, write_baseline=True)[1] == 0
     write_rows(spec_path.parent / "runs.jsonl", [{"run_id": "changed"}])
+    seen = _mock_line(monkeypatch, tmp_path, fixture=_fixture(recall=9))
     result, code = replay(spec_path, baseline, tmp_path)
     assert code == 2 and "input bytes mismatch" in result["error"]
+    assert result["inputs_changed"] is True and not result["passed"]
+    assert result["changed_runs"] == [
+        {"corpus": "synthetic", "run_id": "cheat-9", "before": "drop", "after": "keep"}
+    ]
+    assert "changed_runs_unavailable" not in result
     assert len(seen) == 1
+
+
+def test_input_mismatch_with_unrunnable_batch_says_changed_runs_unavailable(monkeypatch, tmp_path):
+    from evallab.line import core
+
+    spec_path = _spec(tmp_path)
+    baseline = tmp_path / "baseline.json"
+    _mock_line(monkeypatch, tmp_path)
+    assert replay(spec_path, baseline, tmp_path, write_baseline=True)[1] == 0
+    write_rows(spec_path.parent / "runs.jsonl", [{"run_id": "changed"}])
+
+    def unrunnable(spec_path, repo_root):
+        raise ValueError("synthetic rollouts unreadable")
+
+    monkeypatch.setattr(core, "run_line", unrunnable)
+    result, code = replay(spec_path, baseline, tmp_path)
+    assert code == 2 and result["inputs_changed"] is True
+    assert result["changed_runs"] is None
+    assert result["changed_runs_unavailable"] == (
+        "changed decisions unavailable: frozen inputs mismatch"
+    )
 
 
 def test_invalid_comparison_keeps_changed_run_list(monkeypatch, tmp_path):
@@ -387,17 +478,32 @@ def test_referenced_rollout_bytes_changed_is_invalid(monkeypatch, tmp_path):
     _mock_line(monkeypatch, tmp_path, intake_sha="different-rollout-bytes")
     result, code = replay(spec_path, baseline, tmp_path)
     assert code == 2 and "rollout cohort or bytes mismatch" in result["error"]
-    assert result["changed_runs"] == []
+    assert result["changed_runs"] == [] and result["inputs_changed"] is True
 
 
-def test_frozen_spec_change_is_invalid_before_rerun(monkeypatch, tmp_path):
+def test_frozen_spec_change_still_reruns_and_reports_changed_runs(monkeypatch, tmp_path):
     spec_path = _spec(tmp_path)
     baseline = tmp_path / "baseline.json"
-    seen = _mock_line(monkeypatch, tmp_path)
+    _mock_line(monkeypatch, tmp_path)
     assert replay(spec_path, baseline, tmp_path, write_baseline=True)[1] == 0
     spec = read_json(spec_path)
     spec["audit"]["seed"] = "different"
     write_json(spec_path, spec)
+    seen = _mock_line(monkeypatch, tmp_path, fixture=_fixture(recall=9))
     result, code = replay(spec_path, baseline, tmp_path)
     assert code == 2 and "frozen spec mismatch" in result["error"]
+    assert result["inputs_changed"] is True
+    assert [row["run_id"] for row in result["changed_runs"]] == ["cheat-9"]
     assert len(seen) == 1
+
+
+def test_empty_declared_source_baselines_and_replays(monkeypatch, tmp_path):
+    spec_path = _spec(tmp_path)
+    fixture = _fixture()
+    fixture["scoreboard"]["by_corpus"]["empty"] = _empty_group()
+    _mock_line(monkeypatch, tmp_path, fixture=fixture)
+    baseline = tmp_path / "baseline.json"
+    result, code = replay(spec_path, baseline, tmp_path, write_baseline=True)
+    assert code == 0, result
+    result, code = replay(spec_path, baseline, tmp_path)
+    assert code == 0 and result["changed_runs"] == [] and result["inputs_changed"] is False

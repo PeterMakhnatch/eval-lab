@@ -53,7 +53,8 @@ original spec's directory, not the shell's working directory.
   "audit": {"rate": 0.05, "seed": "dev-example"},
   "judge": {
     "queue": "~/Developer/eval-lab-results/line-judge-queue.jsonl",
-    "write": false
+    "write": false,
+    "verdicts": "~/Developer/eval-lab-results/line-judge-verdicts.jsonl"
   },
   "labels_policy": {"attempted_cheat": "exclude"},
   "out_root": "~/Developer/eval-lab-results/line"
@@ -64,8 +65,15 @@ original spec's directory, not the shell's working directory.
 label-dependent rates with zero denominators are unavailable, not measured as
 zero. Task status comes from the task-side manifest described in
 [hack-drop](hack-drop.md); rollout labels are not certification evidence.
-`task_action` controls review versus drop for weak tasks. Missing evidence is
-reported as `uncertified`, not promoted to certified.
+Every task carries its own decision reason: `TASK_CERTIFIED`, `TASK_PROVISIONAL`,
+`TASK_UNCERTIFIED` or `TASK_WEAK`; `TASK_STATUS_UNKNOWN` is reserved for a task
+absent from the manifest. `task_action` controls review versus drop for weak
+tasks. The optional `task_policy` maps each status (`certified`, `provisional`,
+`weak`, `uncertified`) to `pass`, `review` or `drop`; the defaults match today's
+behavior (weak follows `task_action`, everything else passes), so a training
+export can later require certified tasks by setting `"uncertified": "review"`.
+Setting both `task_action` and a different `task_policy.weak` is refused. Missing
+evidence is reported as `uncertified`, not promoted to certified.
 
 `labels_policy.attempted_cheat` must explicitly be `exclude`, `cheat` or `clean`.
 Attempted-but-failed cheats remain separately counted whichever policy is used.
@@ -76,9 +84,25 @@ output manifest or directory containing `kept.jsonl`, `dropped.jsonl` and
 `review.jsonl` with stored AutoReview stage verdicts. Every replayed run needs a
 cached verdict; the line does not fill gaps with a live model call.
 
+The cache is untrusted input. Only the AutoReview stage-verdict shape is
+accepted: decision, reasons from the AutoReview reason set, cited steps and a
+whitelisted details object (suspicion, verdict, model, attested, cost, and the
+eligibility and error notes). Any evaluator or label field anywhere in a cached
+row, a free-form reason, an unexpected field, a verdict that contradicts its own
+suspicion or attestation, or a non-DEV `split` stops the run before any batch,
+queue or export is written. Details are never copied wholesale into
+`trace.jsonl`. Each cached row's model is recorded as the route used and must be
+in `models.allowed`; an unattested cached call fails the spend/model check.
+
 Cached verdicts retain their historical model/score/evidence details. Reusing
-those bytes makes no new model call: this batch records zero spend and no
-executed model routes. Historical costs are not charged a second time.
+those bytes makes no new model call: this batch records zero spend. Historical
+costs are not charged a second time.
+
+For `live` AutoReview set `autoreview.max_call_usd`, a per-call bound in
+`(0, max_usd]`. Before each call the line reserves that bound and refuses the
+call if spent plus the bound would pass `max_usd`; a call that costs more than
+its bound stops all later calls and fails the spend check. This is a preventive
+reservation at the line's call boundary, not a provider-side hard stop.
 
 ```bash
 uv run evallab line run ~/Developer/eval-lab-results/line-inputs/dev-example.json --json
@@ -113,7 +137,8 @@ exit 2. Read the check details before using any exports.
 
 By default the verdict importer reads the Station's
 `~/.local/state/evallab-judge/verdicts.jsonl`. An optional `judge.verdicts` path
-selects a separate Station export/state file, useful for isolated local work.
+(see the example spec) selects a separate Station export/state file, useful for
+isolated local work. It is an extension of the contract's spec schema.
 The importer applies the Station's undo/latest-verdict rules and keeps only
 this batch's run IDs. If no file exists, `verdicts.jsonl` is empty; importing
 human verdicts never silently changes the detector's decisions or exports.
@@ -144,12 +169,12 @@ disk so a claim can be checked without trusting a terminal summary.
 | Check | What must hold |
 |---|---|
 | Conservation | Every intake run has exactly one decision; keep + drop + review equals intake; audits are a subset of keeps. |
-| DEV only | Sources, runs and tasks pass the existing DEV gates; no TEST or answer-key paths. |
+| DEV only | Sources, runs and tasks pass the existing DEV gates; no TEST or answer-key paths. A non-DEV `split` is refused wherever it is declared: manifest rows, direct JSON trajectories and their `metadata`, sidecar files, task-status files (top level and rows) and cached AutoReview rows. Every file in a rollout directory is path-checked. |
 | Provenance | Receipt input/output hashes match disk and the code revision is recorded. |
-| Determinism | Two in-process decision passes have the same hash; the checker verifies the saved decision identity again. |
-| Spend and models | Spend stays inside the spec cap and every used route is allow-listed; approval does not implicitly authorize a different model or budget. |
+| Determinism | Two in-process decision passes have the same hash; the checker verifies the saved decision identity again and recomputes `trace.jsonl` (L0 and AutoReview evidence) from the inputs. |
+| Spend and models | Spend stays inside the spec cap. Every AutoReview call records the route that actually served it and its fallback count in `trace.jsonl`; the route must equal the requested one, have zero fallbacks and be in `models.allowed`, and the trace receipt's model list must equal the routes in the trace. In live mode each call's cost stays within `max_call_usd`, and calls sum to the receipt spend. |
 | Judge routing | Every review and audit appears exactly once in the local queue; no other run appears. |
-| Label isolation | Decisions contain no label fields; label loading belongs to the scoreboard stage. |
+| Label isolation | No label or evaluator field (`label`, `is_cheat`, `ground_truth`, `expected_verdict`, `attempted_cheat`, `hack`, ...) appears, at any depth, in runs, tasks, trace, decisions, the queue, the exports or any receipt; trace AutoReview details match the stage schema; label loading belongs to the scoreboard stage. |
 | Scoreboard recompute | Re-deriving numbers from persisted decisions and shared-loader labels reproduces the scoreboard. |
 
 Any failed check blocks a successful run/check exit. These are evidence and
@@ -170,7 +195,8 @@ rate carries numerator `k`, denominator `n`, a rate and a Wilson 95% interval:
 - **Drop precision:** labelled cheats dropped / all labelled runs dropped.
 
 The scoreboard also shows stage rows in/out, seconds and errors; review-plus-audit
-load per 100 runs; runs on each task status; reward-1 runs on uncertified tasks;
+load per 100 runs; runs on each task status; reward-1 runs on every task status
+(`reward1_certified`, `reward1_provisional`, `reward1_weak`, `reward1_uncertified`);
 spend, used model routes and quality-check results. A successful reward is not
 proof of honest behavior, and `review` is not a confirmed cheat label. Corpus
 cohort and effective-label hashes make replay comparisons identity-aware.
@@ -211,12 +237,25 @@ The gate compares **each corpus**, not just the overall average:
   one clean run or 1 percentage point: `max(1 / clean, 0.01)`.
 - Any failed quality check is a regression, even if measured rates improve.
 
+The false-alarm gate deliberately watches clean *drops*, the harm of discarding
+good data. Clean runs that move from keep to review cost judge time instead; they
+never fail the gate but are listed under `informational` as `{corpus, metric:
+"clean_drop_or_review_rate", before_k, after_k, denominator}` so the extra judge
+load is visible. The gate is per corpus, as the contract says: there is no
+separate overall threshold.
+
 A change exactly at the allowance passes. A zero denominator has no rate to
-compare. Every result includes `changed_runs`, with corpus, run ID and before/
-after decisions; an unchanged replay has an empty list. Invalid comparisons
-retain changed decisions when a fresh batch could be read. Exit codes are
-**0 pass**, **1 regression**, **2 invalid input/comparison**. Ordinary replay
-never creates or refreshes a missing baseline implicitly.
+compare, and a declared corpus with no rows can be baselined and replayed.
+Replay never reports "no changes" by silence. `changed_runs` lists corpus, run
+ID and before/after decisions after a real comparison, and is an empty list only
+when nothing changed. It is `null` with `changed_runs_unavailable` set when no
+comparison ran, for example when writing a baseline, or when
+`changed decisions unavailable: frozen inputs mismatch` because the fresh batch
+could not be built. If frozen inputs or the spec changed, `inputs_changed` is
+`true`, the $0 batch still runs and its changed runs are reported, and the exit
+is 2. Exit codes are **0 pass**, **1 regression**, **2 invalid
+input/comparison**. Ordinary replay never creates or refreshes a missing
+baseline implicitly.
 
 ## Relationship to hack-drop and the production factory
 

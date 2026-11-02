@@ -795,6 +795,7 @@ def _read_bundle_files(path: Path) -> list[tuple[str, str]]:
             continue
         if child.suffix.lower() not in _TEXT_SUFFIXES and child.suffix != "":
             continue
+        check_dev_path_allowed(child)  # a nested answer-key path must never be read
         rel = child.relative_to(path).as_posix()
         found.append((rel, child.read_text(encoding="utf-8", errors="replace")))
     return found
@@ -1065,12 +1066,30 @@ def load_rollouts(
 # --------------------------------------------------------------------------- #
 
 
+TASK_STATUSES: frozenset[str] = frozenset(
+    {"weak", "exploitable", "gold", "hardened", "certified", "provisional", "uncertified"}
+)
+TASK_ACTIONS: tuple[str, ...] = ("pass", "review", "drop")
+
+
 def evaluate_task_stage(
     task_id: str,
     certified_tasks: dict[str, dict[str, str]] | None,
     default_action: str = "review",
+    *,
+    status_actions: Mapping[str, str] | None = None,
 ) -> StageVerdict:
-    """Stage 1: check task certification status."""
+    """Stage 1: check task certification status.
+
+    Each status has its own reason code (``TASK_CERTIFIED``, ``TASK_PROVISIONAL``,
+    ``TASK_UNCERTIFIED``, ``TASK_WEAK``, ``TASK_GOLD``, ...); ``TASK_STATUS_UNKNOWN`` means the
+    task is absent from the manifest. By default only ``weak``/``exploitable`` act
+    (``default_action``); ``status_actions`` overrides the action for any status.
+    """
+    overrides = dict(status_actions or {})
+    for key, action in overrides.items():
+        if key not in TASK_STATUSES or action not in TASK_ACTIONS:
+            raise ValueError(f"invalid task status action: {key!r} -> {action!r}")
     if certified_tasks is None:
         return StageVerdict(
             stage="task",
@@ -1103,28 +1122,15 @@ def evaluate_task_stage(
 
     status = task_info.get("status", "unknown").lower()
     reason_note = task_info.get("reason", "")
-
-    if status in ("weak", "exploitable"):
-        reason_code = f"TASK_{status.upper()}"
-        return StageVerdict(
-            stage="task",
-            decision=default_action,
-            reasons=[reason_code],
-            details={"status": status, "note": reason_note},
-        )
-
-    if status in ("gold", "hardened"):
-        return StageVerdict(
-            stage="task",
-            decision="pass",
-            reasons=[f"TASK_{status.upper()}"],
-            details={"status": status, "note": reason_note},
-        )
-
+    # A status the manifest does not define cannot be certified: report it as uncertified.
+    known = status in TASK_STATUSES
+    action = overrides.get(status)
+    if action is None:
+        action = default_action if status in ("weak", "exploitable") else "pass"
     return StageVerdict(
         stage="task",
-        decision="pass",
-        reasons=["TASK_STATUS_UNKNOWN"],
+        decision=action,
+        reasons=[f"TASK_{status.upper()}" if known else "TASK_UNCERTIFIED"],
         details={"status": status, "note": reason_note},
     )
 

@@ -186,16 +186,18 @@ def build_scoreboard(batch: Path, repo_root: Path) -> dict:
         if task_id in tasks and tasks[task_id] != status:
             raise ValueError(f"conflicting task statuses for {task_id!r}")
         tasks[task_id] = status
-    task_side = dict.fromkeys(("certified", "provisional", "weak", "uncertified"), 0)
-    reward1_uncertified = 0
+    statuses = ("certified", "provisional", "weak", "uncertified")
+    task_side = dict.fromkeys(statuses, 0)
+    reward1 = dict.fromkeys(statuses, 0)
     for run in runs:
         status = tasks.get(str(run["task_id"]), "uncertified")
         task_side[status] += 1
         reward = run.get("reward")
-        if status == "uncertified" and reward is not None:
+        if reward is not None:
             with suppress(TypeError, ValueError):
-                reward1_uncertified += float(reward) == 1.0
-    task_side["reward1_uncertified"] = reward1_uncertified
+                reward1[status] += float(reward) == 1.0
+    for status in statuses:
+        task_side[f"reward1_{status}"] = reward1[status]
     reviews = sum(row["decision"] == "review" for row in rows)
     audits = sum(row["decision"] == "keep" and bool(row.get("audit")) for row in rows)
     check_path = batch / "check.json"

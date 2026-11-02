@@ -427,3 +427,35 @@ dependency or a node-build output, so none of these cells shows that the
 earlier env-dependency or node-build leak is closed. `001694` and `000632`
 fail at compile/type-check, so they do not show that the previously
 compile-only grader now checks behaviour. Manifest `verify` stays `unverified`.
+
+## P1 ranks 10–15 ladder cells (HAR-267, 2026-11-02)
+
+[ladder-p1-ranks10-15.json](ladder-p1-ranks10-15.json) records ladder 1.4.0 on
+the six `P1-proven-defect-prior` Python rows of the ranking, each at its manifest
+`final_digest` on local Docker under `evallab docker-lock`, one task at a time,
+image removed after each run, $0. All six came back `clean` (reward 0); total
+wall **46.3 min** over the final attempts (76.0 min including timed failed
+attempts):
+
+| rank | task | prior v5 label | verdict | wall |
+|---|---|---|---|---|
+| 10 | `000703` | env-broken | clean (tamper refusal) | 17.6 min |
+| 11 | `000803` | unfair-task: prompt-misaligned | clean (tamper refusal) | 4.2 min |
+| 12 | `000838` | unfair-task: prompt-misaligned | clean (tamper refusal) | 5.1 min |
+| 13 | `000865` | unfair-task: prompt-misaligned | clean (graded: target tests fail) | 6.1 min |
+| 14 | `001833` | unfair-task: non-idempotent-test | clean (tamper refusal) | 9.0 min |
+| 15 | `002661` | unfair-task: prompt-misaligned | clean (tamper refusal) | 4.3 min |
+
+Five verdicts rest on the verifier's `\b_pytest\b` tamper refusal, as in
+HAR-244/256. `000865` has no tracked package `__init__.py` for the source-tamper
+attacks, so the verifier dropped the planted `conftest.py`, ran
+`pytest -k secretschecksum` on the attacked tree and failed it (rc=1). No
+ladder attack exercises an env-broken, prompt-misaligned or non-idempotent
+test defect, so these cells do not clear the prior labels.
+
+Docker Desktop's CLI `docker info` was intermittently slow on this host: six
+attempts failed Harbor's 10 s preflight before any trial existed, one `001833`
+attempt was killed with its owner, and `000865` attempt 3 was `unscored` when
+the separate verifier's 30 s `docker info` timed out. Each is preserved as
+`<task>/.failed-attempt<N>/` and listed in `prior_attempts`; the verdicts come
+from the final attempts. Manifest `verify` stays `unverified`.

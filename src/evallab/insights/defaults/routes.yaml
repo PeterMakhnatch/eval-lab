@@ -1,0 +1,53 @@
+# Which model serves each analyst role. Deterministic: the first route whose
+# provider is under the usage gate and not parked is used, and the pass records
+# the route, the reason and the model that actually served it (attestation).
+# These routes choose the ANALYSTS' models only; they never choose the models
+# an experiment evaluates.
+#
+# `independent_of`: the served model family must differ from the families
+# that wrote the inputs (the referee never grades its own family's cards).
+schema_version: 1
+lenses:
+  extractor:
+    routes: [anthropic/claude-sonnet-5-5]
+    thinking: medium
+    max_minutes: 20
+  skeptic:
+    routes: [anthropic/claude-opus-5-5, anthropic/claude-sonnet-5-5]
+    thinking: high
+    max_minutes: 30
+  connector:
+    routes: [anthropic/claude-opus-5-5, anthropic/claude-sonnet-5-5]
+    thinking: high
+    max_minutes: 30
+  anomaly:
+    routes: [anthropic/claude-sonnet-5-5, anthropic/claude-opus-5-5]
+    thinking: high
+    max_minutes: 30
+  theorist:
+    routes: [anthropic/claude-opus-5-5]
+    thinking: high
+    max_minutes: 30
+  ideator:
+    routes: [anthropic/claude-opus-5-5]
+    thinking: high
+    max_minutes: 30
+  referee:
+    routes:
+      - google-antigravity/gemini-3.8-flash
+      - openai-codex/gpt-6.1-terra
+      - kimi-code/k3.1-pro
+    thinking: high
+    max_minutes: 20
+    independent_of: [skeptic, connector, anomaly, theorist, ideator]
+  synthesizer:
+    routes: [anthropic/claude-opus-5-5]
+    thinking: high
+    max_minutes: 30
+  rederiver:
+    routes:
+      - openai-codex/gpt-6.1-terra
+      - google-antigravity/gemini-3.8-flash
+    thinking: medium
+    max_minutes: 20
+    independent_of: [extractor]

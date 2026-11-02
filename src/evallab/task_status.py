@@ -57,6 +57,9 @@ _FORBIDDEN_KEYS = frozenset(
         "success",
         "correct",
         "human_verdict",
+        "real_n",
+        "real_flipped",
+        "real_flip_rate",
     }
 )
 
@@ -77,17 +80,39 @@ class _Assessment:
     alternative_rejections: int = 0
 
 
-def _guard(value: Any) -> None:
+def _guard_paths(value: Any) -> None:
+    if isinstance(value, str):
+        check_dev_path_allowed(value)
+    elif isinstance(value, list):
+        for child in value:
+            _guard_paths(child)
+
+
+def _guard(value: Any, *, root: bool = True) -> None:
     """Inspect the whole document, including metadata ignored by parsers."""
     if isinstance(value, dict):
         _check_row_dev(value)
         for key, child in value.items():
             name = str(key).casefold().replace("-", "_")
+            admission_verdict = (
+                root and name == "verdict" and value.get("schema") == "evallab.task_admission/v1"
+            )
             if (
                 name in _FORBIDDEN_KEYS
-                or "label" in name
-                or "adjudicat" in name
-                or "submission" in name
+                or any(
+                    token in name
+                    for token in (
+                        "label",
+                        "adjudicat",
+                        "submission",
+                        "exploit",
+                        "rollout",
+                        "trajector",
+                        "decision",
+                    )
+                )
+                or "verdict" in name
+                and not admission_verdict
                 or name.endswith("run_id")
                 or name.startswith("run_")
                 or name.endswith(("outcome", "outcomes"))
@@ -95,19 +120,25 @@ def _guard(value: Any) -> None:
                 raise RefusedRun(
                     f"circular task-status evidence carries run outcomes or labels: {key}"
                 )
-            if name in {
-                "path",
-                "task",
-                "upgraded_package",
-                "package_dir",
-                "job_dir",
-                "source_path",
-            } and isinstance(child, str):
-                check_dev_path_allowed(child)
-            _guard(child)
+            if name in {"path", "task", "upgraded_package"} or name.endswith(
+                (
+                    "_path",
+                    "_paths",
+                    "_dir",
+                    "_dirs",
+                    "_file",
+                    "_files",
+                    "_record",
+                    "_records",
+                    "_patch",
+                    "_patches",
+                )
+            ):
+                _guard_paths(child)
+            _guard(child, root=False)
     elif isinstance(value, list):
         for child in value:
-            _guard(child)
+            _guard(child, root=False)
 
 
 def _digest(value: Any) -> str | None:
@@ -118,24 +149,77 @@ def _digest(value: Any) -> str | None:
     return "sha256:" + value.removeprefix("sha256:").lower()
 
 
+def _store_task_id(value: str) -> str | None:
+    """Recognize task-store layouts, never dataset namespaces or version dirs."""
+    parts = Path(value).parts
+    candidates: set[str] = set()
+    for index, part in enumerate(parts):
+        tail = parts[index + 1 :]
+        if part == "variants":
+            if len(tail) != 2 or not re.fullmatch(r"[0-9a-f]{12}(?:[0-9a-f]{52})?", tail[1], re.I):
+                raise RefusedRun(f"ambiguous task identity in variant path: {value}")
+            candidates.add(tail[0].rsplit("__", 1)[-1])
+        elif part == "tasks":
+            if (
+                not tail
+                or len(tail) > 2
+                or (
+                    len(tail) == 2
+                    and not re.fullmatch(r"r\d+|[0-9a-f]{12}|[0-9a-f]{64}", tail[1], re.I)
+                )
+            ):
+                raise RefusedRun(f"ambiguous task identity in task path: {value}")
+            candidates.add(tail[0])
+    if len(candidates) > 1 or "" in candidates:
+        raise RefusedRun(f"ambiguous task identity in package path: {value}")
+    return next(iter(candidates), None)
+
+
 def _task_id(value: Any) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError("task-side evidence needs a nonempty task identifier")
-    # Historical eight-task Gold summaries use six-digit MiMo shorthand.
+    value = value.strip()
     if re.fullmatch(r"\d{6}", value):
         return f"format-code-task-{value}"
-    # Admission records hold package paths (variants end in a package digest).
     if "/" in value:
-        parts = Path(value).parts
-        matches = [part for part in parts if re.fullmatch(r"format-code-task-\d+", part)]
-        if matches:
-            return matches[-1]
-        variant = next((part.split("__", 1)[1] for part in reversed(parts) if "__" in part), None)
-        if variant:
-            return variant
+        stored = _store_task_id(value)
+        if stored is not None:
+            return stored
         if value.startswith(("/", ".", "~")):
-            return Path(value).name
+            name = Path(value).name
+            if not name or re.fullmatch(r"r\d+|[0-9a-f]{12}|[0-9a-f]{64}", name, re.I):
+                raise RefusedRun(f"ambiguous task identity in package path: {value}")
+            return name
     return value
+
+
+def _identity_candidates(assessment: _Assessment, row: Mapping[str, Any]) -> set[str]:
+    candidates = {assessment.task_id}
+    canonical = assessment.task_id.rsplit("/", 1)[-1]
+    values: set[str] = set()
+    for value in (assessment.package, row.get("task_id"), row.get("task")):
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise ValueError("task/package identity must be a string")
+        values.add(value)
+        if "/" in value or value.startswith("~"):
+            values.add(str(Path(value).expanduser().resolve()))
+    for value in sorted(values):
+        candidates.add(value)
+        candidates.add(Path(value).name)
+        stored = _store_task_id(value) if "/" in value else None
+        if stored is not None:
+            candidates.add(stored)
+            if stored != canonical:
+                raise RefusedRun(f"ambiguous task identity: {assessment.task_id} versus {stored}")
+        if re.fullmatch(r"r\d+|[0-9a-f]{12}|[0-9a-f]{64}", Path(value).name, re.I):
+            candidates.add(Path(value).parent.name)
+    return (
+        candidates
+        | {candidate.split("__", 1)[0] for candidate in candidates}
+        | {candidate.rsplit("__", 1)[-1] for candidate in candidates}
+    )
 
 
 def _alternatives(row: Mapping[str, Any]) -> tuple[int, int | None] | None:
@@ -152,6 +236,37 @@ def _alternatives(row: Mapping[str, Any]) -> tuple[int, int | None] | None:
             "alternative solution counts need a nonnegative total and accepted <= total (null means unmeasured)"
         )
     return total, accepted
+
+
+def _validate_reward(value: Any) -> None:
+    if value is not None and (
+        isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1
+    ):
+        raise ValueError("reward must be a finite number in [0, 1], or null")
+
+
+def _gate7(row: Mapping[str, Any]) -> tuple[tuple[int, int | None] | None, int, bool]:
+    alternatives = _alternatives(row)
+    rewards = row.get("alternative_solution_rewards")
+    rejected = 0
+    if rewards is not None:
+        if not isinstance(rewards, dict):
+            raise ValueError("alternative_solution_rewards must be an object")
+        for reward in rewards.values():
+            _validate_reward(reward)
+        if rewards or alternatives is not None:
+            if alternatives is None or len(rewards) != alternatives[0]:
+                raise ValueError("alternative reward count disagrees with Gate 7 total")
+            rejected = sum(reward is not None and reward != 1 for reward in rewards.values())
+            if alternatives[1] is not None and (
+                any(reward is None for reward in rewards.values())
+                or sum(reward == 1 for reward in rewards.values()) != alternatives[1]
+            ):
+                raise ValueError("alternative rewards disagree with Gate 7 accepted count")
+    consistent = True
+    if alternatives is not None and alternatives[0] >= 2 and alternatives[0] == alternatives[1]:
+        consistent = row.get("gate7_alternatives_passed", True) is True
+    return alternatives, rejected, consistent
 
 
 def _count(row: Mapping[str, Any], key: str) -> int | None:
@@ -181,9 +296,18 @@ def _filtered_gold(row: dict[str, Any], evidence: dict[str, str]) -> _Assessment
     """
     task = _task_id(row["task_id"])
     package = row.get("package_dir")
+    digest = _digest(row.get("package_digest"))
+    alternatives, alternative_rejections, gate7_consistent = _gate7(row)
     gates, counts = row.get("gates"), row.get("counts")
     if gates is None or counts is None:
-        return _Assessment(task, None, package, evidence)
+        return _Assessment(
+            task,
+            digest,
+            package,
+            evidence,
+            alternatives=alternatives,
+            alternative_rejections=alternative_rejections,
+        )
     if not isinstance(gates, dict) or not isinstance(counts, dict):
         raise ValueError("filtered Gold receipt requires gates and counts objects")
     pairs = row.get("paired_eval_base_accepted", [])
@@ -199,10 +323,12 @@ def _filtered_gold(row: dict[str, Any], evidence: dict[str, str]) -> _Assessment
     # than a reward of 1; only explicitly observed survivors establish weak.
     return _Assessment(
         task,
-        None,
+        digest,
         package,
         evidence,
-        gates_pass=all(
+        gates_pass=row.get("accepted_test") is True
+        and gate7_consistent
+        and all(
             gates.get(key) is True
             for key in (
                 "reference_passed",
@@ -218,6 +344,8 @@ def _filtered_gold(row: dict[str, Any], evidence: dict[str, str]) -> _Assessment
         if survived
         else None,
         reference_failed=gates.get("reference_passed") is False,
+        alternatives=alternatives,
+        alternative_rejections=alternative_rejections,
     )
 
 
@@ -229,9 +357,9 @@ def _gold(
     package = row.get("upgraded_package")
     if package is not None and not isinstance(package, str):
         raise ValueError("upgraded_package must be a string")
-    alt = _alternatives(row)
     if not legacy and not batch and "env" in row and "accepted_test" in row:
         return _filtered_gold(row, evidence)
+    alt, alternative_rejections, gate7_consistent = _gate7(row)
     if batch:
         # The retained A4 batch stopped at reference validation. Aggregate
         # status/is_weak assertions cannot establish a successful attack.
@@ -296,6 +424,8 @@ def _gold(
     if not isinstance(extra_attacks, dict):
         raise ValueError("attack_rewards must be an object")
     probes.extend(extra_attacks.values())
+    for reward in [row.get("reference_reward"), row.get("nop_reward"), *probes]:
+        _validate_reward(reward)
     train_pass, _ = _mutation_pair(row, train_total, train_killed)
     eval_pass, eval_survived = _mutation_pair(row, eval_total, eval_killed)
     eval_rewards = row.get("eval_rewards")
@@ -323,25 +453,12 @@ def _gold(
         if rewards is not None:
             if not isinstance(rewards, dict):
                 raise ValueError(f"{key} must be an object")
+            for reward in rewards.values():
+                _validate_reward(reward)
             rewards_complete &= len(rewards) == row[total_key] and all(
                 value == 0 and not isinstance(value, bool) for value in rewards.values()
             )
-    alt_rewards = row.get("alternative_solution_rewards")
-    alternative_rejections = 0
-    if alt_rewards is not None:
-        if not isinstance(alt_rewards, dict):
-            raise ValueError("alternative_solution_rewards must be an object")
-        if alt_rewards or alt is not None:
-            if alt is None or len(alt_rewards) != alt[0]:
-                raise ValueError("alternative reward count disagrees with Gate 7 total")
-            alternative_rejections = sum(value == 0 for value in alt_rewards.values())
-            if alt[1] is not None and (
-                any(value is None for value in alt_rewards.values())
-                or sum(value == 1 for value in alt_rewards.values()) != alt[1]
-            ):
-                raise ValueError("alternative rewards disagree with Gate 7 accepted count")
-    if alt is not None and alt[0] >= 2 and alt[0] == alt[1]:
-        rewards_complete &= row.get("gate7_alternatives_passed", True) is True
+    rewards_complete &= gate7_consistent
     passed = (
         rewards_complete
         and row.get("reference_reward") == 1
@@ -368,6 +485,9 @@ def _gold(
 
 def _admission(row: dict[str, Any], evidence: dict[str, str]) -> _Assessment:
     record = AdmissionRecord.model_validate(row)
+    for raw_step in row.get("steps", []):
+        for reward in raw_step.get("rewards", []):
+            _validate_reward(reward)
     task = _task_id(record.task)
     digest = _digest(record.package_digest)
     steps = {step.name: step for step in record.steps}
@@ -445,14 +565,15 @@ def build_task_status(
     registry = _get_corpus_registry(root)
     assessments: dict[str, list[_Assessment]] = {}
     inputs: list[dict[str, str]] = []
-    seen: set[tuple[str, Path]] = set()
+    seen: dict[Path, str] = {}
     for kind, paths in (
         ("admission", admission),
         ("gold_certification", gold_results),
         ("alt_solution_replay", alt_replays),
     ):
         for raw in paths:
-            path = check_dev_path_allowed(raw)
+            expanded = Path(raw).expanduser()
+            path = check_dev_path_allowed(expanded if expanded.is_absolute() else root / expanded)
             files = (
                 sorted(path.rglob("admission-*.json"))
                 if path.is_dir() and kind == "admission"
@@ -462,11 +583,17 @@ def build_task_status(
                 raise ValueError(f"no admission records found: {path}")
             for file in files:
                 file = check_dev_path_allowed(file)
-                if (kind, file) in seen:
+                if file in seen:
+                    if seen[file] != kind:
+                        raise ValueError(
+                            f"same evidence file declared under multiple input kinds: {file}"
+                        )
                     continue
-                seen.add((kind, file))
-                if re.search(r"(?:label|rollout|trajectory)", file.name, re.I):
-                    raise RefusedRun(f"circular task-status evidence filename: {file}")
+                seen[file] = kind
+                if re.search(
+                    r"(?:label|rollout|trajector|submission|adjudicat)", file.as_posix(), re.I
+                ):
+                    raise RefusedRun(f"circular task-status evidence filename/path: {file}")
                 # Hash exactly the bytes parsed, once, to avoid a provenance/read race.
                 raw_bytes = file.read_bytes()
                 evidence = {
@@ -486,14 +613,18 @@ def build_task_status(
                         assessment = _admission(row, evidence)
                     else:
                         if kind == "alt_solution_replay" and (
-                            "alternative_solutions_total" not in row
+                            legacy
+                            or batch
+                            or "env" in row
+                            and "accepted_test" in row
+                            or "alternative_solutions_total" not in row
                             or "alternative_solutions_accepted" not in row
                         ):
                             raise ValueError(
                                 "alternative replay needs a TaskCertificationResult with Gate 7 counts"
                             )
                         assessment = _gold(row, evidence, legacy=legacy, batch=batch)
-                    identifiers = [assessment.task_id, assessment.task_id.split("__", 1)[0]]
+                    identifiers = _identity_candidates(assessment, row)
                     if any(
                         registry.assigned_test_anywhere(task_id=identifier)
                         or registry.assigned_test_anywhere(item_id=identifier)
@@ -547,13 +678,18 @@ def build_task_status(
             k, n = rejected
             reason = f"WRONG_REJECTION_{k}_OF_{n}: This grader rejected {k} of {n} independently correct alternative solutions."
         elif controls and all(item.gates_pass for item in controls):
-            total = max((total for total, _ in alternatives), default=0)
-            if total >= 2 and all(accepted is not None for _, accepted in alternatives):
+            measured_totals = [
+                total
+                for total, accepted in alternatives
+                if accepted is not None and accepted == total
+            ]
+            total = max(measured_totals, default=0)
+            if total >= 2:
                 status, reason = (
                     "certified",
                     "ALL_GATES_PASSED: Controls, attacks, mutation gates, and at least two correct alternatives passed.",
                 )
-            elif not alternatives or any(accepted is None for _, accepted in alternatives):
+            elif not measured_totals:
                 status, reason = (
                     "provisional",
                     "ALT_UNMEASURED: Task-side gates passed, but alternative correct solutions were not measured.",
@@ -588,13 +724,16 @@ def build_task_status(
 
 def run_build(args: argparse.Namespace, root: Path) -> int:
     """CLI handler: validate everything before creating the output."""
-    out = check_dev_path_allowed(root / args.out)
+    expanded_out = args.out.expanduser()
+    out = check_dev_path_allowed(
+        expanded_out if expanded_out.is_absolute() else root / expanded_out
+    )
     if out.exists():
         raise FileExistsError(f"refusing to overwrite task-status output: {out}")
     manifest = build_task_status(
-        admission=[root / path for path in args.admission],
-        gold_results=[root / path for path in args.gold_results],
-        alt_replays=[root / path for path in args.alt_replays],
+        admission=args.admission,
+        gold_results=args.gold_results,
+        alt_replays=args.alt_replays,
         repo_root=root,
     )
     if not manifest["inputs"]:

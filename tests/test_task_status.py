@@ -509,3 +509,399 @@ def test_cli_dev_output_refused_before_writing(root: Path) -> None:
         == 2
     )
     assert not out.exists()
+
+
+# Review regressions: real store layouts, outcome isolation, and Gate 7 edges.
+@pytest.mark.parametrize(
+    "task_path",
+    [
+        "/store/task-store/hf/Example__Dataset@abc123/tasks/private-task",
+        "/store/task-store/variants/private-task/abcdef123456",
+        "/store/task-store/variants/namespace__private-task/abcdef123456",
+    ],
+)
+def test_store_paths_cannot_bypass_registry(root: Path, task_path: str) -> None:
+    file = save(root, "admission.json", admission_record(task=task_path))
+    with pytest.raises(RefusedRun, match="assigned TEST"):
+        build(root, admission=[file])
+
+
+@pytest.mark.parametrize(
+    "task_path",
+    [
+        "/store/task-store/hf/Example__Dataset@abc123/tasks/sample-task",
+        "/store/task-store/variants/sample-task/abcdef123456",
+        "/store/task-store/variants/namespace__sample-task/abcdef123456",
+        "/store/tasks/sample-task/r2",
+        "/store/tasks/sample-task/abcdef123456",
+    ],
+)
+def test_store_paths_recover_task_identity(root: Path, task_path: str) -> None:
+    file = save(root, "admission.json", admission_record(task=task_path))
+    assert build(root, admission=[file])["tasks"][0]["task_id"] == "sample-task"
+
+
+def test_package_basename_is_checked_against_registry(root: Path) -> None:
+    with pytest.raises(RefusedRun, match="assigned TEST"):
+        status(root, gold(upgraded_package="/frozen/private-task"))
+
+
+@pytest.mark.parametrize(
+    "task_path",
+    [
+        "/store/variants/sample-task/not-a-package-digest",
+        "/store/tasks/first/tasks/second",
+        "/store/variants/sample-task/abcdef123456/tasks/other-task",
+        "/store/abcdef123456",
+    ],
+)
+def test_ambiguous_store_identity_is_refused(root: Path, task_path: str) -> None:
+    file = save(root, "admission.json", admission_record(task=task_path))
+    with pytest.raises(RefusedRun, match="ambiguous task identity"):
+        build(root, admission=[file])
+
+
+def test_explicit_task_and_structural_package_identity_must_agree(root: Path) -> None:
+    with pytest.raises(RefusedRun, match="ambiguous task identity"):
+        status(root, gold(upgraded_package="/store/tasks/other-task"))
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "is_exploit",
+        "expected_verdict",
+        "stage_decisions",
+        "l0_verdict",
+        "autoreview_verdict",
+        "judge_verdict",
+        "rollout_id",
+        "rollout_ids",
+        "trajectories",
+        "trajectory_id",
+        "real_n",
+        "real_flipped",
+        "real_flip_rate",
+        "verdicts",
+        "verdicts_gemini",
+    ],
+)
+def test_outcome_field_variants_are_refused(root: Path, key: str) -> None:
+    with pytest.raises(RefusedRun, match="circular"):
+        status(root, gold(metadata={key: 1}))
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "labels/summary.json",
+        "rollouts/summary.json",
+        "trajectories/summary.json",
+        "trajectories.json",
+        "real-submission/summary.json",
+        "adjudications/summary.json",
+    ],
+)
+def test_evidence_path_surfaces_are_refused(root: Path, name: str) -> None:
+    with pytest.raises(RefusedRun, match="circular"):
+        build(root, gold_results=[save(root, name, gold())])
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "package_path",
+        "certificate_path",
+        "reference_patch_path",
+        "report_path",
+        "cache_dir",
+        "source_file",
+        "variant_record",
+        "survivor_patches",
+        "reference_patches",
+        "mutant_patch",
+    ],
+)
+@pytest.mark.parametrize("as_list", [False, True])
+def test_secondary_evidence_paths_are_dev_gated(root: Path, key: str, as_list: bool) -> None:
+    value: Any = "/research/answer-keys/hidden.patch"
+    if as_list:
+        value = [value]
+    with pytest.raises(RefusedRun, match="forbidden"):
+        status(root, gold(**{key: value}))
+
+
+def test_admission_verdict_is_only_allowed_at_document_root(root: Path) -> None:
+    file = save(root, "admission.json", admission_record())
+    assert build(root, admission=[file])["tasks"][0]["status"] == "provisional"
+    with pytest.raises(RefusedRun, match="circular"):
+        status(root, gold(nested={"schema": "evallab.task_admission/v1", "verdict": "admitted"}))
+    with pytest.raises(RefusedRun, match="circular"):
+        status(root, gold(verdict="clean"))
+
+
+def filtered_receipt(**changes: Any) -> dict[str, Any]:
+    row = {
+        "task_id": "sample-task",
+        "env": {"workdir": "/testbed"},
+        "accepted_test": True,
+        "rounds_executed": 2,
+        "arm2_round": 2,
+        "package_dir": "/frozen/packages/sample-task/r2",
+        "gates": {
+            "reference_passed": True,
+            "nop_passed": True,
+            "witness_passed": True,
+            "exit0_passed": True,
+        },
+        "counts": {
+            "train_total": 2,
+            "train_killed": 2,
+            "probe_total": 2,
+            "probe_killed": 2,
+            "eval_total": 2,
+        },
+        "paired_eval_base_accepted": [{"arm2_killed": True}, {"arm2_killed": True}],
+    }
+    row.update(changes)
+    return row
+
+
+@pytest.mark.parametrize("kind", ["admission", "eight", "filtered"])
+def test_task_side_receipt_paths_and_verdicts_remain_usable(root: Path, kind: str) -> None:
+    paths = {
+        "reference_patch_path": "/evidence/patches/reference.patch",
+        "mutant_patch": "/evidence/patches/mutant.patch",
+        "survivor_patches": [],
+    }
+    if kind == "admission":
+        data = admission_record(variant_record="/evidence/variants/record.json")
+        data["steps"][0]["survivor_patches"] = []
+        file = save(root, "admission.json", data)
+        result = build(root, admission=[file])
+    elif kind == "filtered":
+        file = save(root, "a4b-r2.json", filtered_receipt(**paths))
+        result = build(root, gold_results=[file])
+    else:
+        row = {
+            "task": "000123",
+            "reference_reward": 1.0,
+            "nop_reward": 0.0,
+            "witness_rewards": [0.0],
+            "exit0_pth_reward": 0.0,
+            "gate1_ref": True,
+            "gate2_nop": True,
+            "gate3_wit": True,
+            "gate4_exit0": True,
+            "train_total": 2,
+            "train_killed": 2,
+            "eval_total": 2,
+            "eval_killed": 2,
+            **paths,
+        }
+        file = save(root, "summary.json", {"n_tasks": 1, "gate1_reference": "1/1", "tasks": [row]})
+        result = build(root, gold_results=[file])
+    assert result["tasks"][0]["status"] == "provisional"
+
+
+def test_fractional_alternative_is_known_wrong_rejection(root: Path) -> None:
+    row = status(
+        root,
+        gold(
+            alternative_solutions_total=2,
+            alternative_solutions_accepted=None,
+            alternative_solution_rewards={"one": 0.5, "two": None},
+        ),
+    )
+    assert row["status"] == "uncertified"
+    assert row["reason"].startswith("WRONG_REJECTION_1_OF_2:")
+
+
+@pytest.mark.parametrize("reward", [True, False, -1, 2, float("nan"), float("inf")])
+def test_invalid_alternative_reward_is_refused(root: Path, reward: Any) -> None:
+    with pytest.raises(ValueError, match="reward"):
+        status(
+            root,
+            gold(
+                alternative_solutions_total=2,
+                alternative_solutions_accepted=None,
+                alternative_solution_rewards={"one": reward, "two": None},
+            ),
+        )
+
+
+@pytest.mark.parametrize("key", ["reference_reward", "nop_reward", "witness_reward"])
+def test_boolean_control_rewards_are_invalid(root: Path, key: str) -> None:
+    with pytest.raises(ValueError, match="reward"):
+        status(root, gold(**{key: True}))
+
+
+def test_measured_gate7_supersedes_unknown_for_same_bound_package(root: Path) -> None:
+    shared = {"package_digest": "sha256:" + "e" * 64}
+    planned = save(
+        root,
+        "planned.json",
+        gold(
+            alternative_solutions_total=100,
+            alternative_solutions_accepted=None,
+            **shared,
+        ),
+    )
+    measured = save(
+        root,
+        "measured.json",
+        gold(
+            alternative_solutions_total=2,
+            alternative_solutions_accepted=2,
+            **shared,
+        ),
+    )
+    forward = build(root, gold_results=[planned], alt_replays=[measured])
+    assert forward["tasks"][0]["status"] == "certified"
+    assert forward == build(root, alt_replays=[measured], gold_results=[planned])
+    save(
+        root,
+        "measured.json",
+        gold(
+            alternative_solutions_total=1,
+            alternative_solutions_accepted=1,
+            **shared,
+        ),
+    )
+    assert build(root, gold_results=[planned], alt_replays=[measured])["tasks"][0][
+        "reason"
+    ].startswith("ALT_TOO_FEW_1:")
+    save(
+        root,
+        "planned.json",
+        gold(
+            alternative_solutions_total=2,
+            alternative_solutions_accepted=None,
+            alternative_solution_rewards={"one": 0.0, "two": None},
+            **shared,
+        ),
+    )
+    assert build(root, gold_results=[planned], alt_replays=[measured])["tasks"][0][
+        "reason"
+    ].startswith("WRONG_REJECTION_1_OF_2:")
+
+
+def test_filtered_receipt_preserves_gate7_and_requires_accepted_test(root: Path) -> None:
+    row = status(
+        root,
+        filtered_receipt(
+            alternative_solutions_total=2,
+            alternative_solutions_accepted=0,
+        ),
+    )
+    assert row["reason"].startswith("WRONG_REJECTION_2_OF_2:")
+    row = status(root, filtered_receipt(accepted_test=False))
+    assert row["status"] == "uncertified"
+    assert (
+        status(
+            root,
+            filtered_receipt(
+                alternative_solutions_total=2,
+                alternative_solutions_accepted=2,
+            ),
+        )["status"]
+        == "certified"
+    )
+
+
+@pytest.mark.parametrize("kind", ["eight", "first", "filtered"])
+def test_alt_flag_refuses_legacy_receipt_adapters(root: Path, kind: str) -> None:
+    counts = {"alternative_solutions_total": 2, "alternative_solutions_accepted": 2}
+    if kind == "filtered":
+        payload = filtered_receipt(**counts)
+    elif kind == "first":
+        payload = {
+            "schema_version": "gold-v1/manifest/v1",
+            "tasks": [
+                {
+                    "task_id": "sample-task",
+                    "gates": {"reference_passed": False},
+                    "counts": {},
+                    **counts,
+                }
+            ],
+        }
+    else:
+        payload = {
+            "n_tasks": 1,
+            "gate1_reference": "1/1",
+            "tasks": [
+                {
+                    "task": "000123",
+                    "reference_reward": 1.0,
+                    "nop_reward": 0.0,
+                    "witness_rewards": [0.0],
+                    "exit0_pth_reward": 0.0,
+                    "gate1_ref": True,
+                    "gate2_nop": True,
+                    "gate3_wit": True,
+                    "gate4_exit0": True,
+                    "train_total": 2,
+                    "train_killed": 2,
+                    "eval_total": 2,
+                    "eval_killed": 2,
+                    **counts,
+                }
+            ],
+        }
+    with pytest.raises(ValueError, match="TaskCertificationResult"):
+        build(root, alt_replays=[save(root, "replay.json", payload)])
+
+
+def test_duplicate_receipt_across_flags_is_explicitly_refused(root: Path) -> None:
+    file = save(
+        root,
+        "receipt.json",
+        gold(
+            package_digest="sha256:" + "e" * 64,
+            alternative_solutions_total=2,
+            alternative_solutions_accepted=2,
+        ),
+    )
+    with pytest.raises(ValueError, match="multiple input kinds"):
+        build(root, gold_results=[file], alt_replays=[file])
+
+
+def test_cli_expands_user_paths_before_root_join(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = root / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr("evallab.task_status._code_revision", lambda _: "a" * 40)
+    save(home, "receipt.json", gold())
+    assert (
+        run_cli(
+            [
+                "tasks",
+                "status",
+                "build",
+                "--gold-results",
+                "~/receipt.json",
+                "--out",
+                "~/status.json",
+            ],
+            workspace=root,
+        )
+        == 0
+    )
+    assert load_certified_tasks(home / "status.json")["sample-task"]["status"] == "provisional"
+
+
+@pytest.mark.parametrize("kind", ["admission", "gold"])
+def test_package_alias_cannot_hide_registry_identity(root: Path, kind: str) -> None:
+    target = root / "private-task"
+    target.mkdir()
+    alias = root / "ordinary-package"
+    alias.symlink_to(target, target_is_directory=True)
+    with pytest.raises(RefusedRun, match="assigned TEST"):
+        if kind == "admission":
+            file = save(root, "admission.json", admission_record(task=str(alias)))
+            build(root, admission=[file])
+        else:
+            status(root, gold(upgraded_package=str(alias)))

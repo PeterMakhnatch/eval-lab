@@ -316,8 +316,13 @@ Statuses use this precedence, first match wins:
 Old receipts lacking `alternative_solutions_total` and
 `alternative_solutions_accepted` mean **not measured**, never zero wrong
 rejections. A known total with `accepted: null` is also unmeasured; an observed
-wrong rejection still blocks certification. Counts are not summed across
-receipts, because the same solutions might have been replayed twice.
+wrong rejection still blocks certification, including a fractional reward below
+1. Boolean, nonnumeric, nonfinite, and out-of-range rewards are invalid.
+Counts are not summed across receipts, because the same solutions might have
+been replayed twice. For the **same explicit package digest**, a complete passing
+measurement supersedes an earlier unmeasured/planned Gate 7 count; planned
+totals do not increase the measured denominator. Any observed wrong rejection
+in either receipt still takes precedence, regardless of input order.
 
 Each row cites the exact input bytes with SHA-256. Conflicting package digests
 or unbound package versions abort: select the intended grader's receipts and
@@ -327,16 +332,27 @@ Gold manifests are readable in place. A4B shipped-round receipts are also
 readable, but their `upgraded_package_sha256` hashes only the supplementary test,
 so it is **not** promoted to `package_digest`; a baseline-accepted subset of
 held-out mutant pairs is not proof that the full mutation gate passed.
+These legacy adapters preserve Gate 7 evidence when supplied through
+`--gold-results`, but cannot be passed as `--alt-replays`; that flag requires
+the full TaskCertificationResult contract. A4B's `accepted_test` must be true.
 Precomputed `status`, `is_weak`, and prose claims never determine the result.
+Repeated files within one input kind are deduplicated; declaring the same file
+under different input kinds is invalid.
 
-The builder refuses label/rollout filenames and recursively rejects input
-fields carrying run IDs, outcomes, labels, or adjudications—even when nested
-beside a valid task-side receipt. A8/A8B real-submission replay reports are
-therefore **rejected inputs: carry run outcomes**. Their selected correct
-patches would need a separately approved task-side Gate 7 certification run.
-Paths, nested split declarations, and task IDs pass the same DEV/CorpusRegistry
-gates used by hack-drop. Output paths are DEV-gated too; existing output files
-are not overwritten. Invalid input exits 2 without creating an output.
+The builder refuses label/rollout/trajectory/submission/adjudication file and
+parent-directory names, and recursively rejects fields carrying run IDs,
+outcomes, labels, decisions, or adjudications—even when nested beside a valid
+task-side receipt. The only verdict-field exception is the top-level `verdict`
+of an `evallab.task_admission/v1` AdmissionRecord. A8/A8B real-submission replay
+reports are therefore **rejected inputs: carry run outcomes**. Their selected
+correct patches would need a separately approved task-side Gate 7 run.
+Nested path/dir/file/record fields and patch lists also pass the DEV path gate.
+Task-store paths are parsed structurally (`tasks/<name>` or
+`variants/<slug>/<digest>`); ambiguous identities fail closed. Every candidate
+identity, including package basenames and resolved aliases, is checked against
+CorpusRegistry TEST assignments, not just the displayed task ID. Output paths are DEV-gated too;
+`~` is expanded before resolving paths against the workspace, and existing
+output files are not overwritten. Invalid input exits 2 without creating output.
 
 `hack_drop.load_certified_tasks` reads the builder's output unchanged. Older
 dictionary/JSONL manifests and historical status strings (`gold`, `hardened`,

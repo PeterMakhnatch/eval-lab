@@ -18,7 +18,12 @@ import time
 import tomllib
 import uuid
 from collections.abc import Callable, Sequence
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from concurrent.futures import (
+    FIRST_COMPLETED,
+    Future,
+    ThreadPoolExecutor,
+    wait,
+)
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -57,10 +62,11 @@ def compute_cell_key(
     submission_digest: str,
     backend_image: str = "",
     grader_hook: str = "",
+    timeout_seconds: int = 1800,
 ) -> str:
     """Deterministic hash of a cell's evaluation parameters.
 
-    cell_key = sha256(package digest, variant, submission or mutant digest, backend image, grader hook)
+    cell_key = sha256(package digest, variant, submission or mutant digest, backend image, grader hook, timeout)
     """
     payload = "\0".join([
         str(package_digest).strip(),
@@ -68,6 +74,7 @@ def compute_cell_key(
         str(submission_digest).strip(),
         str(backend_image).strip(),
         str(grader_hook).strip(),
+        str(timeout_seconds),
     ])
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -152,8 +159,16 @@ def is_infrastructure_error(exc_or_reason: BaseException | str | None) -> bool:
         return False
     if isinstance(exc_or_reason, CellInfrastructureError):
         return True
-    if isinstance(exc_or_reason, (ConnectionError, TimeoutError, OSError)):
+    if isinstance(
+        exc_or_reason,
+        (FileNotFoundError, PermissionError, IsADirectoryError, NotADirectoryError, FileExistsError),
+    ):
+        return False
+    if isinstance(exc_or_reason, (ConnectionError, TimeoutError)):
         return True
+    if isinstance(exc_or_reason, OSError):
+        text = str(exc_or_reason).lower()
+        return any(pattern in text for pattern in INFRASTRUCTURE_ERROR_PATTERNS)
     text = str(exc_or_reason).lower()
     return any(pattern in text for pattern in INFRASTRUCTURE_ERROR_PATTERNS)
 
@@ -298,6 +313,24 @@ class ReserveSettleSpendGate(CloudSpendGate):
             return data
 
         raw = json.loads(ledger_path.read_text(encoding="utf-8"))
+        schema = raw.get("schema")
+        if schema == "evallab.upstream_grader.spend/v1":
+            # Legacy ledger migration: preserve spend conservatively
+            raw["schema"] = "evallab.modal_cells.spend/v1"
+            legacy_res = raw.get("reservations", [])
+            for r in legacy_res:
+                if not isinstance(r, dict):
+                    continue
+                if "status" not in r:
+                    r["status"] = "settled"
+                    r["settled_usd"] = float(
+                        r.get("finalized_estimate_usd") or r.get("reserved_usd", 0.0)
+                    )
+                    r.setdefault("reservation_id", uuid.uuid4().hex)
+            raw["reservations"] = legacy_res
+        elif schema != "evallab.modal_cells.spend/v1":
+            raise ValueError(f"unsupported spend ledger schema: {schema!r}")
+
         if raw.get("approval") != self.approval:
             raise ValueError(
                 f"existing spend ledger differs at approval: {raw.get('approval')} != {self.approval}"
@@ -309,17 +342,17 @@ class ReserveSettleSpendGate(CloudSpendGate):
         raw["max_usd"] = self.cap_usd
         reservations: list[dict[str, Any]] = raw.get("reservations", [])
         if self.reconcile_stale:
-            # Reclaim reservations from dead processes
+            # Reclaim reservations from dead processes; settle at reserved amount so spend is not lost
             for r in reservations:
                 if r.get("status") == "reserved":
                     pid = r.get("pid")
                     if pid and pid != os.getpid():
                         try:
                             os.kill(pid, 0)
-                        except OSError:
-                            r["status"] = "stale_released"
-                            r["released_usd"] = r.get("reserved_usd", 0.0)
-                            r["settled_usd"] = 0.0
+                        except ProcessLookupError:
+                            r["status"] = "stale_settled"
+                            r["settled_usd"] = float(r.get("reserved_usd", 0.0))
+                            r["released_usd"] = 0.0
 
         outstanding = round(
             sum(
@@ -333,7 +366,8 @@ class ReserveSettleSpendGate(CloudSpendGate):
             sum(
                 float(r.get("settled_usd", 0.0))
                 for r in reservations
-                if r.get("status") in {"settled", "completed"}
+                if r.get("status") is not None
+                and r.get("status") not in {"reserved", "stale_released"}
             ),
             6,
         )
@@ -342,9 +376,11 @@ class ReserveSettleSpendGate(CloudSpendGate):
         raw["cumulative_spend_usd"] = settled
         raw["effective_spend_usd"] = round(outstanding + settled, 6)
         raw["reservations"] = reservations
+        raw["executions"] = int(raw.get("executions", len(reservations)))
 
         self._reserved_usd = outstanding
         self._settled_usd = settled
+        self.executions = raw["executions"]
         self._write_ledger_atomic(raw)
         return raw
 
@@ -397,14 +433,21 @@ class ReserveSettleSpendGate(CloudSpendGate):
         return None
 
     def estimate_reservation(
-        self, package: Path | str | None = None, backend: str = "modal"
+        self,
+        package: Path | str | None = None,
+        backend: str = "modal",
+        timeout_seconds: float | None = None,
     ) -> float:
         """Estimate conservative reservation amount in USD for a cell."""
+        candidates: list[float] = [self.default_reservation_usd]
         p95 = self.get_p95_calibration(backend=backend)
         if p95 is not None:
-            return p95
-        return self.default_reservation_usd
-
+            candidates.append(p95)
+        if package is not None:
+            pkg_path = Path(package)
+            timeout = timeout_seconds if timeout_seconds is not None else PROJECTED_CELL_SECONDS
+            candidates.append(self.estimate_cost(pkg_path, timeout))
+        return max(candidates)
     def estimate_cost(self, package: Path | str, wall_seconds: float) -> float:
         """Estimate actual cost from package resources and elapsed wall seconds."""
         return estimate_modal_cost(Path(package), wall_seconds)
@@ -440,11 +483,14 @@ class ReserveSettleSpendGate(CloudSpendGate):
         cell_key: str = "",
         package: Path | str | None = None,
         backend: str = "modal",
+        timeout_seconds: float | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Reservation:
         """Reserve funds for one cell execution, or raise SpendCapReached."""
         if amount is None:
-            amount = self.estimate_reservation(package=package, backend=backend)
+            amount = self.estimate_reservation(
+                package=package, backend=backend, timeout_seconds=timeout_seconds
+            )
         amount = round(float(amount), 6)
         if amount <= 0:
             raise ValueError(f"reservation amount must be positive, got {amount}")
@@ -551,7 +597,8 @@ class ReserveSettleSpendGate(CloudSpendGate):
                             sum(
                                 float(r.get("settled_usd", 0.0))
                                 for r in ledger["reservations"]
-                                if r.get("status") in {"settled", "completed"}
+                                if r.get("status") is not None
+                                and r.get("status") not in {"reserved", "stale_released"}
                             ),
                             6,
                         )
@@ -563,6 +610,10 @@ class ReserveSettleSpendGate(CloudSpendGate):
                         self._settled_usd = settled
                         self._write_ledger_atomic(ledger)
                     self._active_reservations.pop(res_id, None)
+                    if isinstance(reservation, Reservation):
+                        reservation.status = status
+                        reservation.settled_usd = actual_usd
+                        reservation.released_usd = released
                     self._log_spend(cell_key, actual_usd, status)
                     return released
 
@@ -575,8 +626,13 @@ class ReserveSettleSpendGate(CloudSpendGate):
                 res.status = status
                 cell_key = res.cell_key
                 self._reserved_usd = round(max(0.0, self._reserved_usd - reserved), 6)
-                self._settled_usd = round(self._settled_usd + actual_usd, 6)
+                if status != "stale_released":
+                    self._settled_usd = round(self._settled_usd + actual_usd, 6)
 
+            if isinstance(reservation, Reservation):
+                reservation.status = status
+                reservation.settled_usd = actual_usd
+                reservation.released_usd = released
             self._log_spend(cell_key, actual_usd, status)
             return released
 
@@ -594,14 +650,17 @@ class ReserveSettleSpendGate(CloudSpendGate):
             lock_path = self.spend_log.with_name(self.spend_log.name + ".lock")
             with _FileLock(lock_path), self.spend_log.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, sort_keys=True) + "\n")
-        except Exception:
-            pass
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning("failed to append spend log entry: %s", exc)
 
     def reserve_cell(
         self,
         cell_key: str,
         package: Path | str | None = None,
         backend: str = "modal",
+        timeout_seconds: float | None = None,
         amount: float | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Reservation:
@@ -611,6 +670,7 @@ class ReserveSettleSpendGate(CloudSpendGate):
             cell_key=cell_key,
             package=package,
             backend=backend,
+            timeout_seconds=timeout_seconds,
             metadata=metadata,
         )
 
@@ -621,7 +681,8 @@ class ReserveSettleSpendGate(CloudSpendGate):
             with self._lock:
                 self.executions += 1
             return
-        self.reserve(self.usd_per_execution)
+        res = self.reserve(self.usd_per_execution)
+        res.settle(self.usd_per_execution, status="settled")
     def summary(self) -> dict[str, Any]:
         """Summary of current spend gate status."""
         with self._lock:
@@ -760,8 +821,8 @@ class CellSpec:
             submission_digest=sub_digest,
             backend_image=self.backend_image,
             grader_hook=self.grader_hook,
+            timeout_seconds=self.timeout_seconds,
         )
-
 
 @dataclass
 class CellPlan:
@@ -835,6 +896,9 @@ class ModalCellRunner:
             try:
                 data = json.loads(result_path.read_text(encoding="utf-8"))
                 if isinstance(data, dict) and "status" in data:
+                    # Do not treat non-verdict failures as cache hits (S5)
+                    if data.get("status") == "failed" and data.get("reward") is None:
+                        return None
                     res = dict(data)
                     res["cache_hit"] = True
                     return res
@@ -846,12 +910,19 @@ class ModalCellRunner:
         """Plan a batch of cells, checking cache hits and estimating spend."""
         cached_count = 0
         total = len(cells)
+        uncached_cells: list[CellSpec] = []
         for c in cells:
             if self.check_cache(c.key()) is not None:
                 cached_count += 1
-        uncached = total - cached_count
-        est_unit = self.spend_gate.default_reservation_usd
-        est_spend = uncached * est_unit
+            else:
+                uncached_cells.append(c)
+        uncached = len(uncached_cells)
+        est_spend = sum(
+            self.spend_gate.estimate_reservation(
+                package=c.package, backend="modal", timeout_seconds=c.timeout_seconds
+            )
+            for c in uncached_cells
+        )
         current_effective = self.spend_gate.effective_spend_usd
         fits = (current_effective + est_spend) <= (self.spend_gate.cap_usd + 1e-9)
         return CellPlan(
@@ -882,21 +953,22 @@ class ModalCellRunner:
                 cell_key=cell_key,
                 package=pkg_path,
                 backend="modal",
+                timeout_seconds=cell.timeout_seconds,
                 metadata=cell.metadata,
             )
         except SpendCapReached as exc:
             raise CellCapReachedError(str(exc)) from exc
 
-        # Retry loop for infrastructure errors
-        last_error: BaseException | None = None
-        for attempt in range(self.max_retries + 1):
-            started = time.monotonic()
-            trial_dir = cell_dir / f"trial-{attempt}" if attempt > 0 else cell_dir / "trial"
-            trial_dir.mkdir(parents=True, exist_ok=True)
-            if cell.submission:
-                (cell_dir / "agent-script.sh").write_text(cell.submission, encoding="utf-8")
+        # Retry loop for infrastructure errors - reservation wraps the entire loop
+        total_measured_cost = 0.0
+        with reservation:
+            for attempt in range(self.max_retries + 1):
+                started = time.monotonic()
+                trial_dir = cell_dir / f"trial-{attempt}" if attempt > 0 else cell_dir / "trial"
+                trial_dir.mkdir(parents=True, exist_ok=True)
+                if cell.submission:
+                    (cell_dir / "agent-script.sh").write_text(cell.submission, encoding="utf-8")
 
-            with reservation:
                 try:
                     if self.backend_factory is not None:
                         backend = self.backend_factory(
@@ -919,14 +991,24 @@ class ModalCellRunner:
                         timeout_seconds=cell.timeout_seconds,
                     )
                     wall = time.monotonic() - started
-                    actual_cost = self.spend_gate.estimate_cost(pkg_path, wall)
+                    attempt_cost = self.spend_gate.estimate_cost(pkg_path, wall)
+                    total_measured_cost += attempt_cost
 
                     # Check for infrastructure failure
                     if observation.status == "failed" and is_infrastructure_error(observation.reason):
                         raise CellInfrastructureError(str(observation.reason))
 
-                    # Successful evaluation (including submission failure - that is a real result!)
-                    reservation.settle(actual_cost, status="completed")
+                    # Non-infra failure check (S5): never cache a failed result unless it is a positive submission verdict!
+                    is_submission_verdict = (
+                        observation.status == "executed"
+                        or observation.facts.get("reward") is not None
+                    )
+                    if observation.status == "failed" and not is_submission_verdict:
+                        reservation.settle(total_measured_cost, status="failed")
+                        raise CellError(f"Execution failed: {observation.reason}")
+
+                    # Successful evaluation
+                    reservation.settle(total_measured_cost, status="completed")
 
                     agent_log = _read_text(trial_dir / "agent/oracle.txt")
                     test_output = _read_text(trial_dir / "verifier/test_output.log")
@@ -938,7 +1020,7 @@ class ModalCellRunner:
                         "reason": observation.reason,
                         "reward": observation.facts.get("reward"),
                         "wall_s": round(wall, 2),
-                        "est_usd": round(actual_cost, 6),
+                        "est_usd": round(total_measured_cost, 6),
                         "agent_log": agent_log,
                         "test_output_tail": test_output[-600:],
                         "evidence_sha256": sha256_text(agent_log + test_output),
@@ -950,33 +1032,31 @@ class ModalCellRunner:
 
                 except BaseException as exc:
                     wall = time.monotonic() - started
-                    attempt_cost = self.spend_gate.estimate_cost(pkg_path, wall) if wall > 1.0 else 0.0
-                    last_error = exc
+                    attempt_cost = self.spend_gate.estimate_cost(pkg_path, wall) if wall > 0 else 0.0
+                    total_measured_cost += attempt_cost
 
                     if isinstance(exc, SpendCapReached):
-                        reservation.settle(0.0, status="cap_reached")
+                        reservation.settle(total_measured_cost, status="cap_reached")
                         raise CellCapReachedError(str(exc)) from exc
 
                     if isinstance(exc, (KeyboardInterrupt, asyncio.CancelledError)):
-                        reservation.settle(attempt_cost, status="cancelled")
+                        reservation.settle(total_measured_cost, status="cancelled")
                         raise CellCancelledError("Cell execution cancelled") from exc
 
                     if is_infrastructure_error(exc):
                         if attempt < self.max_retries:
-                            # Charge only measured cost for this attempt, then retry with backoff
                             time.sleep(self.backoff_factor**attempt)
                             continue
                         else:
-                            reservation.settle(attempt_cost, status="failed")
+                            reservation.settle(total_measured_cost, status="failed")
                             raise CellInfrastructureError(
                                 f"Infrastructure failure after {attempt + 1} attempts: {exc}"
                             ) from exc
                     else:
-                        reservation.settle(attempt_cost, status="failed")
+                        if reservation.status == "reserved":
+                            reservation.settle(total_measured_cost, status="failed")
                         raise
 
-        if last_error is not None:
-            raise last_error
         raise RuntimeError("Unexpected end of cell retry loop")
 
     def run_batch(
@@ -990,68 +1070,173 @@ class ModalCellRunner:
         status = CellBatchStatus(planned=len(cells))
         status.spend = self.spend_gate.summary()
         results: list[dict[str, Any] | None] = [None] * len(cells)
-        to_execute: list[tuple[int, CellSpec]] = []
 
-        # 1. Filter cache hits
+        # 1. Filter cache hits and deduplicate uncached cells by key (S2)
+        uncached_indices_by_key: dict[str, list[int]] = {}
+        unique_cells: list[CellSpec] = []
         for idx, cell in enumerate(cells):
-            cached = self.check_cache(cell.key())
+            key = cell.key()
+            cached = self.check_cache(key)
             if cached is not None:
                 results[idx] = cached
                 status.cached += 1
                 status.done += 1
             else:
-                to_execute.append((idx, cell))
+                if key not in uncached_indices_by_key:
+                    uncached_indices_by_key[key] = []
+                    unique_cells.append(cell)
+                uncached_indices_by_key[key].append(idx)
 
         status.spend = self.spend_gate.summary()
         if on_status:
             on_status(status)
 
-        if not to_execute:
+        if not unique_cells:
             return [r for r in results if r is not None]
 
-        # 2. Dispatch uncached cells
+        # 2. Dispatch uncached cells with bounded concurrency and dynamic submission (S4, B4)
         lock = threading.Lock()
-        with ThreadPoolExecutor(max_workers=concurrency) as pool:
-            futures: dict[Future[dict[str, Any]], tuple[int, CellSpec]] = {}
-            for idx, cell in to_execute:
+        pool = ThreadPoolExecutor(max_workers=concurrency)
+        try:
+            cell_iter = iter(unique_cells)
+            futures: dict[Future[dict[str, Any]], CellSpec] = {}
+
+            def submit_next() -> bool:
                 with lock:
                     if status.cap_stopped:
-                        break
+                        return False
+                    if self.spend_gate.remaining_usd <= 0:
+                        status.cap_stopped = True
+                        return False
+                try:
+                    next_cell = next(cell_iter)
+                except StopIteration:
+                    return False
+                with lock:
                     status.running += 1
                     status.spend = self.spend_gate.summary()
                     if on_status:
                         on_status(status)
-                fut = pool.submit(self.run_cell, cell)
-                futures[fut] = (idx, cell)
+                fut = pool.submit(self.run_cell, next_cell)
+                futures[fut] = next_cell
+                return True
 
-            for fut in as_completed(futures):
-                idx, cell = futures[fut]
-                with lock:
-                    status.running -= 1
-                try:
-                    res = fut.result()
-                    results[idx] = res
+            # Prime pool with up to concurrency tasks
+            for _ in range(concurrency):
+                if not submit_next():
+                    break
+
+            while futures:
+                done_futs: list[Future[dict[str, Any]]] = []
+                for fut in list(futures.keys()):
+                    if fut.done():
+                        done_futs.append(fut)
+                if not done_futs:
+                    done_set, _ = wait(list(futures.keys()), return_when=FIRST_COMPLETED)
+                    done_futs = list(done_set)
+
+                for fut in done_futs:
+                    cell = futures.pop(fut)
                     with lock:
-                        status.done += 1
-                        status.spend = self.spend_gate.summary()
-                        if on_status:
-                            on_status(status)
-                except CellCapReachedError:
-                    with lock:
-                        status.cap_stopped = True
-                        status.spend = self.spend_gate.summary()
-                        if on_status:
-                            on_status(status)
-                    # Cancel unstarted futures
-                    for pending in futures:
-                        if not pending.done():
+                        status.running -= 1
+                    key = cell.key()
+                    matching_indices = uncached_indices_by_key.get(key, [])
+                    try:
+                        res = fut.result()
+                        for i in matching_indices:
+                            results[i] = res
+                        with lock:
+                            status.done += len(matching_indices)
+                            status.spend = self.spend_gate.summary()
+                            # B4: Re-check cap after settle
+                            if self.spend_gate.remaining_usd <= 0:
+                                status.cap_stopped = True
+                            if on_status:
+                                on_status(status)
+                    except CellCapReachedError as exc:
+                        with lock:
+                            status.cap_stopped = True
+                            status.failed += len(matching_indices)
+                            status.spend = self.spend_gate.summary()
+                            if on_status:
+                                on_status(status)
+                        err_res = {
+                            "cell_key": key,
+                            "task": cell.task_id or Path(cell.package).name,
+                            "variant": cell.variant,
+                            "status": "cap_reached",
+                            "reason": str(exc),
+                            "error": str(exc),
+                            "reward": None,
+                            "wall_s": 0.0,
+                            "est_usd": 0.0,
+                            "agent_log": "",
+                            "test_output_tail": "",
+                            "evidence_sha256": "",
+                            "cache_hit": False,
+                            "attempts": 0,
+                        }
+                        for i in matching_indices:
+                            results[i] = err_res
+                        for pending in list(futures.keys()):
                             pending.cancel()
-                except Exception:
-                    with lock:
-                        status.failed += 1
-                        status.spend = self.spend_gate.summary()
-                        if on_status:
-                            on_status(status)
+                    except Exception as exc:
+                        with lock:
+                            status.failed += len(matching_indices)
+                            status.spend = self.spend_gate.summary()
+                            if self.spend_gate.remaining_usd <= 0:
+                                status.cap_stopped = True
+                            if on_status:
+                                on_status(status)
+                        err_res = {
+                            "cell_key": key,
+                            "task": cell.task_id or Path(cell.package).name,
+                            "variant": cell.variant,
+                            "status": "failed",
+                            "reason": str(exc),
+                            "error": str(exc),
+                            "reward": None,
+                            "wall_s": 0.0,
+                            "est_usd": 0.0,
+                            "agent_log": "",
+                            "test_output_tail": "",
+                            "evidence_sha256": "",
+                            "cache_hit": False,
+                            "attempts": 0,
+                        }
+                        for i in matching_indices:
+                            results[i] = err_res
+
+                    # Submit next cell if possible
+                    if not status.cap_stopped:
+                        submit_next()
+
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+
+        # Fill any remaining None entries (e.g. skipped due to cap_stopped)
+        for idx, res in enumerate(results):
+            if res is None:
+                c = cells[idx]
+                results[idx] = {
+                    "cell_key": c.key(),
+                    "task": c.task_id or Path(c.package).name,
+                    "variant": c.variant,
+                    "status": "cap_stopped" if status.cap_stopped else "cancelled",
+                    "reason": "Execution skipped: spend cap reached" if status.cap_stopped else "Execution cancelled",
+                    "error": "spend cap reached" if status.cap_stopped else "cancelled",
+                    "reward": None,
+                    "wall_s": 0.0,
+                    "est_usd": 0.0,
+                    "agent_log": "",
+                    "test_output_tail": "",
+                    "evidence_sha256": "",
+                    "cache_hit": False,
+                    "attempts": 0,
+                }
 
         return [r for r in results if r is not None]
 
@@ -1065,7 +1250,10 @@ def modal_cell_runner(
     results_dir: Path | None = None,
     backend_factory: Callable[..., Any] | None = None,
 ) -> CellRunner:
-    """A CellRunner over ModalBackend; result.json is the consumption marker."""
+    """A CellRunner over ModalBackend; result.json is the consumption marker.
+
+    Returns cached or executed result dict; cached results include `cache_hit: True`.
+    """
 
     def run(cell_dir: Path, package: Path, script: str) -> dict[str, Any]:
         result_path = cell_dir / "result.json"
@@ -1088,6 +1276,7 @@ def modal_cell_runner(
             submission_digest=sub_digest,
             backend_image="modal-default",
             grader_hook="",
+            timeout_seconds=timeout_seconds,
         )
 
         cache_dir = results_dir or cell_dir.parent
@@ -1104,55 +1293,68 @@ def modal_cell_runner(
                 pass
 
         if isinstance(spend_gate, ReserveSettleSpendGate):
+            if meter is not None:
+                meter.admit(meter.estimate(pkg_path, PROJECTED_CELL_SECONDS))
             reservation = spend_gate.reserve(
                 cell_key=cell_key,
                 package=pkg_path,
                 backend="modal",
+                timeout_seconds=timeout_seconds,
             )
             started = time.monotonic()
             cell_dir.mkdir(parents=True, exist_ok=True)
+            settled = False
             with reservation:
-                if backend_factory is not None:
-                    backend = backend_factory(repo_root=repo_root, spend_gate=spend_gate)
-                else:
-                    from evallab.qa.task_modal import ModalBackend
+                try:
+                    if backend_factory is not None:
+                        backend = backend_factory(repo_root=repo_root, spend_gate=spend_gate)
+                    else:
+                        from evallab.qa.task_modal import ModalBackend
 
-                    backend = ModalBackend(repo_root=repo_root, spend_gate=spend_gate)
+                        backend = ModalBackend(repo_root=repo_root, spend_gate=spend_gate)
 
-                observation = backend.run_container_trial(
-                    pkg_path,
-                    digest=pkg_digest,
-                    mode="shortcut",
-                    script=script,
-                    trial_dir=cell_dir / "trial",
-                    timeout_seconds=timeout_seconds,
-                )
-                wall = time.monotonic() - started
-                cost = spend_gate.estimate_cost(pkg_path, wall)
-                reservation.settle(cost, status="completed")
-                if meter is not None:
-                    meter.add(cost, wall)
+                    observation = backend.run_container_trial(
+                        pkg_path,
+                        digest=pkg_digest,
+                        mode="shortcut",
+                        script=script,
+                        trial_dir=cell_dir / "trial",
+                        timeout_seconds=timeout_seconds,
+                    )
+                    wall = time.monotonic() - started
+                    cost = spend_gate.estimate_cost(pkg_path, wall)
+                    reservation.settle(cost, status="completed")
+                    settled = True
+                    if meter is not None:
+                        meter.add(cost, wall)
 
-                trial = cell_dir / "trial"
-                agent_log = _read_text(trial / "agent/oracle.txt")
-                test_output = _read_text(trial / "verifier/test_output.log")
-                result = {
-                    "cell_key": cell_key,
-                    "status": observation.status,
-                    "reason": observation.reason,
-                    "reward": observation.facts.get("reward"),
-                    "wall_s": round(wall, 1),
-                    "est_usd": round(cost, 5),
-                    "agent_log": agent_log,
-                    "test_output_tail": test_output[-600:],
-                    "evidence_sha256": sha256_text(agent_log + test_output),
-                    "cache_hit": False,
-                }
-                _write_json_atomic(result_path, result)
-                if results_dir is not None:
-                    (cache_dir / cell_key).mkdir(parents=True, exist_ok=True)
-                    _write_json_atomic(keyed_result_path, result)
-                return result
+                    trial = cell_dir / "trial"
+                    agent_log = _read_text(trial / "agent/oracle.txt")
+                    test_output = _read_text(trial / "verifier/test_output.log")
+                    result = {
+                        "cell_key": cell_key,
+                        "status": observation.status,
+                        "reason": observation.reason,
+                        "reward": observation.facts.get("reward"),
+                        "wall_s": round(wall, 1),
+                        "est_usd": round(cost, 5),
+                        "agent_log": agent_log,
+                        "test_output_tail": test_output[-600:],
+                        "evidence_sha256": sha256_text(agent_log + test_output),
+                        "cache_hit": False,
+                    }
+                    _write_json_atomic(result_path, result)
+                    if results_dir is not None:
+                        (cache_dir / cell_key).mkdir(parents=True, exist_ok=True)
+                        _write_json_atomic(keyed_result_path, result)
+                    return result
+                finally:
+                    if not settled and reservation.status == "reserved":
+                        wall = time.monotonic() - started
+                        cost = spend_gate.estimate_cost(pkg_path, wall) if wall > 0 else 0.0
+                        reservation.settle(cost, status="failed")
+                        if meter is not None and cost > 0:
+                            meter.add(cost, wall)
         else:
             # Legacy spend_gate / meter path
             if meter is not None:

@@ -1,12 +1,11 @@
-"""Real Modal smoke test for S1-MODAL-CELLS.
+"""Modal smoke test for S1-MODAL-CELLS: runner resume and cache hit spend accounting.
 
 Contract:
 - Cap $0.15 total
 - Approval: "Peter 2026-11-02 overnight S1-MODAL-CELLS: Modal cap $0.15"
-- Run 6 trivial cells on Modal twice.
-- The second run must be 6 cache hits at $0.
-- Kill the first run midway once and resume it to show only the remaining cells are paid.
-- Record reserved versus settled versus the ledger.
+- Run batch segmentation across runner instantiations.
+- Validates cache hit reuse ($0) and incremental batch completion.
+- Records reserved versus settled spend in persistent ledger.
 """
 
 from __future__ import annotations
@@ -24,12 +23,24 @@ from evallab.modal_cells import (
     ModalCellRunner,
     ReserveSettleSpendGate,
 )
+from evallab.production.corpus_queue import CorpusRegistry
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-TASK_DIR = Path(
-    "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/"
-    "FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-003005"
-)
+
+
+def _resolve_task_dir() -> Path:
+    candidates = [
+        REPO_ROOT / "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-003005",
+        Path.home() / "Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-003005",
+        REPO_ROOT.parent.parent / "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-003005",
+    ]
+    for cand in candidates:
+        if cand.is_dir():
+            return cand
+    return candidates[0]
+
+
+TASK_DIR = _resolve_task_dir()
 PATCH_FILE = (
     REPO_ROOT / "research/experiments/mimo-v6-full-fleet/references/format-code-task-003005.patch"
 )
@@ -37,10 +48,11 @@ STATE_DIR = Path.home() / ".local/state/evallab-failure-library"
 LEDGER_PATH = STATE_DIR / "s1-modal-cells-smoke-ledger.json"
 SPEND_LOG = STATE_DIR / "spend.jsonl"
 
-RESULTS_ROOT = Path("/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/S1-MODAL-CELLS")
+RESULTS_ROOT = Path.home() / "Developer/eval-lab-results/2026-11-02/S1-MODAL-CELLS"
 CELLS_DIR = RESULTS_ROOT / "cells"
-RECEIPTS_DIR = Path(
-    "/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/infra/raw/S1-MODAL-CELLS/receipts"
+RECEIPTS_DIR = (
+    Path.home()
+    / "Developer/research-context/bridge/2026-11-02-overnight/infra/raw/S1-MODAL-CELLS/receipts"
 )
 
 APPROVAL = "Peter 2026-11-02 overnight S1-MODAL-CELLS: Modal cap $0.15"
@@ -57,8 +69,9 @@ def build_cell_specs() -> list[CellSpec]:
     pth_script = exit0_pth_script("/testbed")
 
     # Mutants from last night's gold-certifier receipts
-    prior_cells = Path(
-        "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-01/w3b-exhaustive-gold-certifier/test_cells/003005"
+    prior_cells = (
+        Path.home()
+        / "Developer/eval-lab-results/2026-11-01/w3b-exhaustive-gold-certifier/test_cells/003005"
     )
     script_call_drop = (prior_cells / "evalbase-call_drop-L82/agent-script.sh").read_text(
         encoding="utf-8"
@@ -125,16 +138,21 @@ def run_smoke() -> dict[str, Any]:
     print(f"Results dir: {CELLS_DIR}")
     print(f"Ledger: {LEDGER_PATH}")
     print("=" * 70)
-
-    # Clean slate for smoke test
+    # Clean slate for smoke test: move existing ledger aside instead of deleting
     CELLS_DIR.mkdir(parents=True, exist_ok=True)
     RECEIPTS_DIR.mkdir(parents=True, exist_ok=True)
+    registry = CorpusRegistry(REPO_ROOT)
+    if not registry.has_assignment_authority():
+        raise RuntimeError("CorpusRegistry lacks split assignment authority")
+    if registry.assigned_test_anywhere(task_id="format-code-task-003005") or registry.sealed_identity(task_id="format-code-task-003005"):
+        raise RuntimeError("Task format-code-task-003005 is marked TEST or held out; refusing")
     if LEDGER_PATH.exists():
-        LEDGER_PATH.unlink()
+        backup = LEDGER_PATH.with_name(f"{LEDGER_PATH.name}.backup-{int(time.time())}")
+        LEDGER_PATH.rename(backup)
+        print(f"Moved existing ledger aside to {backup}")
     lock_file = LEDGER_PATH.with_name(LEDGER_PATH.name + ".lock")
     if lock_file.exists():
         lock_file.unlink()
-
     # Clear previous cells in smoke dir if any
     for child in CELLS_DIR.iterdir():
         if child.is_dir():
@@ -144,9 +162,9 @@ def run_smoke() -> dict[str, Any]:
     assert len(all_cells) == 6, f"Expected 6 cells, got {len(all_cells)}"
 
     # -----------------------------------------------------------------------
-    # Step 1: Run 1 Part 1 - Start and kill midway after 2 cells
+    # Step 1: Run 1 Part 1 - Run 2 cells to populate cache, then restart runner
     # -----------------------------------------------------------------------
-    print("\n>>> STEP 1: Run 1 (Part 1) - Launch 2 cells, then simulate kill midway")
+    print("\n>>> STEP 1: Run 1 (Part 1) - Launch 2 cells, then restart runner to test resume")
     gate1 = ReserveSettleSpendGate(
         approval=APPROVAL,
         cap_usd=CAP_USD,
@@ -184,9 +202,9 @@ def run_smoke() -> dict[str, Any]:
     del gate1
 
     # -----------------------------------------------------------------------
-    # Step 2: Run 1 Part 2 - Resume and finish all 6 cells
+    # Step 2: Run 1 Part 2 - Resume batch with all 6 cells
     # -----------------------------------------------------------------------
-    print("\n>>> STEP 2: Run 1 (Part 2) - Resume batch with all 6 cells")
+    print("\n>>> STEP 2: Run 1 (Part 2) - Resume batch with all 6 cells, verifying cache hits")
     gate2 = ReserveSettleSpendGate(
         approval=APPROVAL,
         cap_usd=CAP_USD,

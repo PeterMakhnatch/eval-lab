@@ -38,7 +38,15 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from evallab.modal_cells import CellRunner, SandboxMeter, modal_cell_runner
+from evallab.modal_cells import (
+    ESTIMATE_MARGIN,
+    MODAL_CPU_USD_PER_S,
+    MODAL_GIB_USD_PER_S,
+    PROJECTED_CELL_SECONDS,
+    CellRunner,
+    SandboxMeter,
+    modal_cell_runner,
+)
 
 #: Fixed operator priority; the first mutants of a task come from distinct operators in this order.
 MUTATOR_ORDER: tuple[str, ...] = (
@@ -55,13 +63,16 @@ DEFAULT_MUTANTS = 3
 APPLIED_MARKER = "MUTANT_APPLIED"
 PROBE_MARKER = "MUTANT_PROBE"
 PROBE_DONE_MARKER = "MUTANT_PROBE_DONE"
-#: Modal Sandbox rates (USD per CPU-second, per GiB-second), see docs/execution-tiers.md.
-MODAL_CPU_USD_PER_S = 0.00003942
-MODAL_GIB_USD_PER_S = 0.00000667
-#: Shared estimate margin over measured sandbox seconds.
-ESTIMATE_MARGIN = 1.25
-#: Wall seconds reserved per cell before it starts (cap admission).
-PROJECTED_CELL_SECONDS = 240
+#: Pricing constants re-exported from modal_cells
+__all__ = [
+    "CellRunner",
+    "ESTIMATE_MARGIN",
+    "MODAL_CPU_USD_PER_S",
+    "MODAL_GIB_USD_PER_S",
+    "PROJECTED_CELL_SECONDS",
+    "SandboxMeter",
+    "modal_cell_runner",
+]
 
 _COMPARE_FLIPS: dict[type[ast.cmpop], tuple[str, str, str]] = {
     ast.Lt: ("boundary_flip", "<", "<="),

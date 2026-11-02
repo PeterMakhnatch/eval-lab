@@ -15,6 +15,7 @@ and are not committed.
 | `local-controls.json` | Original event-summary oracle/nop matrix (kept; tests load it) |
 | `repaired-data-sft-v2/` | Evidence-bound clean/token-matched/correction data admission and named-arm task-paired analysis |
 | `mimo-defect-map-v1/` | Source-bound MiMo defect/repair lineage, exact-package Hackbook coverage and bounded screening-pool counts; static candidates are not semantic-clean certification or training admission |
+| `library-ladder-coverage/` | Regenerated package x ladder-generation matrix (`coverage.csv`) over committed library ladder evidence; `--check` makes missing/stale cells mechanical (HAR-243) |
 
 Validate the current ledger and its known-bad regression fixtures with:
 

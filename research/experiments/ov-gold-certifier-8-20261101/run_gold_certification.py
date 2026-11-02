@@ -450,12 +450,12 @@ def main() -> None:
 
     # 4. Run on Modal
     if args.run:
-        from evallab.regrade import CloudSpendGate
+        from evallab.modal_cells import ReserveSettleSpendGate
 
-        gate = CloudSpendGate(
+        gate = ReserveSettleSpendGate(
             approval=APPROVAL,
             cap_usd=CAP_USD,
-            usd_per_execution=0.003,
+            default_reservation_usd=0.003,
             spend_ledger=LEDGER,
             modal_app_name="t2-unified-harden",
             billing_tag="t2-unified-harden",

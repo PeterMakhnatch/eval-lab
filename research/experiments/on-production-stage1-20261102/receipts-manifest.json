@@ -1,0 +1,44 @@
+{
+  "experiment": "D9-PRODUCTION-STAGE1-CHEAP",
+  "cohort_size": 272,
+  "date": "2026-11-02",
+  "durable_root": "~/Developer/eval-lab-results/2026-11-02/D9",
+  "bridge_receipts_root": "loop/raw/D9-PRODUCTION-STAGE1-CHEAP/receipts",
+  "manifest": [
+    {
+      "file": "prereg.md",
+      "sha256": "2c45789ed77fb25ec3d7fb2515a65ce569453f99b08cc9bf1dcc8e6f792c65bc",
+      "cases": 272
+    },
+    {
+      "file": "production_stage1_results.json",
+      "sha256": "be5dfaa87458d048dc8551935e5c4a85c4225ffdda96f9767db3a3115dad7759",
+      "cases": 272
+    },
+    {
+      "file": "T1_teacher_today.jsonl",
+      "sha256": "79c7ec1315f9011819d2411826fdd3eacee0bc35df65be781748001266155099",
+      "cases": 272
+    },
+    {
+      "file": "T2_teacher_stored.jsonl",
+      "sha256": "8e60b18b90b08054cd6fe23c01673034de25d7ca8c45b2ba5201efa474dab112",
+      "cases": 80
+    },
+    {
+      "file": "C1_gemini_25_lite.jsonl",
+      "sha256": "ced2dcd75cb975c7dfd12194db55bc2847b25dd699b280daee61a5b0f1842d78",
+      "cases": 272
+    },
+    {
+      "file": "C2_gemini_31_lite.jsonl",
+      "sha256": "705fe302e9ce8e21ca63b00c9b2f1bec36295ae1a0b03149f8e2c4d2bb4d1e4a",
+      "cases": 272
+    },
+    {
+      "file": "manifest_stored_sha256.txt",
+      "sha256": "94ec5edc630edc569017279ef116d5549f075e229ba4040258abc4c454ad7b00",
+      "cases": 8187
+    }
+  ]
+}

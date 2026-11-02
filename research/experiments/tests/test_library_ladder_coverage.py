@@ -4,14 +4,17 @@
 relies on: the committed table is what the committed evidence currently
 produces, every `library/tasks` package has a row for every ladder generation
 (so a new package cannot silently vanish from the gap list), a package with no
-evidence still gets explicit `none` rows, verdicts follow the newest source, and
-digest freshness comes from evallab's own package digest.
+evidence still gets explicit `none` rows, verdicts follow the newest source,
+digest freshness comes from evallab's own package digest, and every
+`research/evidence/ladder-v*/cells.json` either reaches the matrix through the
+glob or fails the build.
 """
 
 from __future__ import annotations
 
 import csv
 import io
+import json
 import runpy
 from pathlib import Path
 
@@ -117,3 +120,96 @@ def test_digest_freshness_uses_evallab_package_digest(tmp_path: Path) -> None:
     assert rows["3.0.0"]["task_digest"] == current
     assert (rows["2.0.0"]["digest_current"], rows["2.0.0"]["digest_recorded"]) == ("no", "yes")
     assert (rows["1.4.0"]["digest_current"], rows["1.4.0"]["digest_recorded"]) == ("no", "no")
+
+
+def _ledger(root: Path, relative: str, payload: dict[str, object]) -> Path:
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def _ledger_payload(task_dir: str, verdict: object = "clean") -> dict[str, object]:
+    return {
+        "generated": "2026-11-02",
+        "ladder_version": "4.0.0",
+        "task_dir": task_dir,
+        "attacks": ["git_history"],
+        "cells": [
+            {
+                "task_id": "peter/task",
+                "scope": "full",
+                "ladder_version": "4.0.0",
+                "verdict": verdict,
+                "status": "executed",
+                "task_digest": "sha256:" + "a" * 64,
+            }
+        ],
+        "controls": [
+            {"agent": "oracle", "reward": 1.0},
+            {"agent": "nop", "reward": 0.0},
+        ],
+    }
+
+
+def test_every_committed_ladder_ledger_contributes_a_row() -> None:
+    # The card that produced the ledger does not get to edit build.py: a new
+    # ``research/evidence/ladder-v*`` directory must reach the matrix through the
+    # glob, and one no reader consumed fails the build instead of going stale.
+    packages = discover_packages(REPO_ROOT)
+    cells = MODULE["collect_cells"](REPO_ROOT, packages)
+    ledgers = sorted(
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in (REPO_ROOT / "research/evidence").glob("ladder-v*/cells.json")
+    )
+    assert ledgers, "committed ladder evidence directories disappeared"
+    assert MODULE["unread_ledgers"](REPO_ROOT, cells) == []
+
+
+def test_a_new_ladder_ledger_reaches_the_matrix_without_a_code_change(tmp_path: Path) -> None:
+    _package(tmp_path, "library/tasks/task", "peter/task")
+    _ledger(
+        tmp_path,
+        "research/evidence/ladder-v4-task-20261103/cells.json",
+        _ledger_payload("library/tasks/task"),
+    )
+    packages = discover_packages(tmp_path)
+    cells = MODULE["_ledger_cells"](tmp_path, {package.path: package for package in packages})
+
+    assert [(cell.source, cell.ladder_version, cell.verdict) for cell in cells] == [
+        ("research/evidence/ladder-v4-task-20261103/cells.json", "4.0.0", "clean")
+    ]
+    assert cells[0].task_digest == "sha256:" + "a" * 64
+    rows = {row["ladder_version"]: row for row in assemble(packages, cells, root=tmp_path)}
+    assert rows["4.0.0"]["verdict"] == "clean"
+    assert rows["4.0.0"]["n_cells"] == "1"
+    assert MODULE["unread_ledgers"](tmp_path, cells) == []
+
+
+def test_ledger_controls_gate_the_cell_verdict(tmp_path: Path) -> None:
+    # A ledger whose native nop scored 1.0 did not establish gradeability, so its
+    # cells are recorded evidence with no verdict -- not a clean row.
+    _package(tmp_path, "library/tasks/task", "peter/task")
+    payload = _ledger_payload("library/tasks/task")
+    payload["controls"] = [{"agent": "oracle", "reward": 1.0}, {"agent": "nop", "reward": 1.0}]
+    _ledger(tmp_path, "research/evidence/ladder-v4-task-20261103/cells.json", payload)
+    cells = MODULE["_ledger_cells"](
+        tmp_path, {"library/tasks/task": Package("library/tasks/task", "peter/task")}
+    )
+
+    assert [cell.verdict for cell in cells] == [None]
+    row = assemble([Package("library/tasks/task", "peter/task")], cells)[3]
+    assert (row["verdict"], row["n_cells"]) == ("none", "1")
+
+
+def test_an_unreadable_ladder_ledger_is_refused_not_skipped(tmp_path: Path) -> None:
+    # A ledger whose shape this builder cannot place contributes no row; that must
+    # fail loudly, because a silently skipped ledger is the stale-matrix bug.
+    _ledger(tmp_path, "research/evidence/ladder-v9-mystery/cells.json", {"cells": []})
+    cells = MODULE["_ledger_cells"](tmp_path, {})
+    assert cells == []
+    assert MODULE["unread_ledgers"](tmp_path, cells) == [
+        "research/evidence/ladder-v9-mystery/cells.json"
+    ]
+    with pytest.raises(MODULE["CoverageError"], match="ladder-v9-mystery"):
+        MODULE["require_read_ledgers"](tmp_path, cells)

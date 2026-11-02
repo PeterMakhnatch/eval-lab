@@ -206,13 +206,16 @@ class Recipe(ContractModel):
     ``count`` counts JSONL/JSON-array rows (optionally filtered by ``where``);
     ``value`` reads one JSON value by RFC 6901 ``pointer``; ``sum``/``mean``
     aggregate a numeric ``field`` over rows; ``distinct_count`` counts distinct
-    ``field`` values; ``ratio`` divides two sub-recipes. ``where`` maps a
-    dotted field path to an exact value, a list of allowed values, or an
+    ``field`` values; ``ratio`` divides two sub-recipes. ``target`` names the
+    stated quantity to compare: ``k``, ``n`` or scalar ``value``. Count recipes
+    default to ``k`` and ratio recipes to ``value``. ``where`` maps a dotted
+    field path to an exact value, a list of allowed values, or an
     operator object such as ``{"$ne": x}``, ``{"$in": [...]}``,
     ``{"$exists": true}``, ``{"$gt": n}``, ``{"$contains": "text"}``.
     """
 
     op: Literal["count", "value", "sum", "mean", "distinct_count", "ratio"]
+    target: Literal["k", "n", "value"] | None = None
     file: str | None = None
     pointer: str | None = None
     rows: str | None = None
@@ -377,6 +380,14 @@ class ComputedStat(ContractModel):
     result: dict[str, Any]
 
 
+class RecipeResult(ContractModel):
+    """A receipt value recomputed by ``q recipe`` and recorded on a card."""
+
+    recipe: Recipe
+    folder: str = Field(min_length=1)
+    value: float
+
+
 class PredictionSpec(ContractModel):
     statement: str = Field(min_length=8, max_length=500)
     metric: str | None = None
@@ -437,6 +448,7 @@ class InsightCard(ContractModel):
     why_not_obvious: str = Field(min_length=10, max_length=800)
     alternatives: list[str] = Field(min_length=1)
     computed: list[ComputedStat] = Field(default_factory=list)
+    recipes: list[RecipeResult] = Field(default_factory=list)
     predictions: list[PredictionSpec] = Field(default_factory=list)
     proposed_experiment: ProposedExperiment | None = None
     challenge: ChallengeSpec | None = None

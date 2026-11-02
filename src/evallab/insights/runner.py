@@ -10,7 +10,6 @@ import json
 import math
 import os
 import re
-import shlex
 import signal
 import subprocess
 import time
@@ -78,7 +77,7 @@ class _ChildProcess(Protocol):
 class _Popen(Protocol):
     def __call__(
         self, args: list[str], *, cwd: Path, env: dict[str, str], stdin: int,
-        stdout: BinaryIO, stderr: int, start_new_session: bool,
+        stdout: BinaryIO, stderr: BinaryIO | int, start_new_session: bool,
     ) -> _ChildProcess: ...
 
 
@@ -110,17 +109,28 @@ def _process_command(pid: int) -> str:
 
 class _ProcessHandle:
     def __init__(
-        self, pid: int, poll: Callable[[], int | None], *, grace_seconds: float = 5,
+        self,
+        pid: int,
+        poll: Callable[[], int | None],
+        *,
+        grace_seconds: float = 5,
+        verify: Callable[[], bool] | None = None,
     ) -> None:
         self.pid = pid
         self._poll = poll
         self._grace_seconds = grace_seconds
+        self._verify = verify
 
     def poll(self) -> int | None:
+        if self._verify is not None and not self._verify():
+            # A reused PID is not our worker. Unknown exit must never be success.
+            return 1
         return self._poll()
 
     def kill(self) -> None:
         if self.poll() is not None:
+            return
+        if self._verify is not None and not self._verify():
             return
         # Workers start new sessions, so PID is also the group ID. Never look up
         # a reused PID's group and accidentally signal the supervisor's group.
@@ -133,6 +143,8 @@ class _ProcessHandle:
             if self.poll() is not None:
                 return
             time.sleep(0.1)
+        if self._verify is not None and not self._verify():
+            return
         with suppress(ProcessLookupError):
             os.killpg(self.pid, signal.SIGKILL)
 
@@ -169,37 +181,50 @@ class OmpLauncher:
             f"@{spec.prompt_file.resolve()}",
         ]
         env = {
-            **os.environ,
+            **{key: value for key, value in os.environ.items() if key != "EVALLAB_INSIGHTS_STATE"},
             "HARBOR_TELEMETRY": "off",
             "EVALLAB_DISABLE_LOCAL_DOCKER": "1",
             "EVALLAB_INSIGHTS_PASS": spec.pass_id,
         }
-        # Closing the parent's descriptor is safe: Popen duplicated it for the child.
-        with (pass_dir / "worker.log").open("ab") as log:
+        # Closing the parent's descriptors is safe: Popen duplicated them for the child.
+        # Answer text and OMP diagnostics stay separate so prose about quotas can
+        # never be mistaken for a provider error.
+        with (pass_dir / "worker.log").open("ab") as log, (
+            pass_dir / "worker.stderr"
+        ).open("ab") as errors:
             child = self._popen(
                 argv, cwd=pass_dir, env=env, stdin=subprocess.DEVNULL,
-                stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+                stdout=log, stderr=errors, start_new_session=True,
             )
         return _ProcessHandle(child.pid, child.poll)
 
-    def adopt(self, pid: int, pass_dir: Path) -> WorkerHandle | None:
+    @staticmethod
+    def _matches_session(command: str, session: str) -> bool:
+        # ps output is not shell-quoted. Match the raw path (including spaces)
+        # with an argument boundary; also accept a quoted path for compatibility.
+        pattern = (
+            r"(?:^|\s)--session-dir(?:=|\s+)(?P<quote>['\"]?)"
+            + re.escape(session)
+            + r"(?P=quote)(?=$|\s)"
+        )
+        return re.search(pattern, command) is not None
+
+    def _adopted_command_matches(self, pid: int, session: str) -> bool:
         try:
-            if not _alive(pid):
-                return None
-            command = shlex.split(self._ps(pid))
-            session = str(pass_dir.resolve() / "session")
-            matches = any(
-                token == "--session-dir" and index + 1 < len(command)
-                and command[index + 1] == session
-                or token == f"--session-dir={session}"
-                for index, token in enumerate(command)
-            )
-            if not matches:
-                return None
+            return _alive(pid) and self._matches_session(self._ps(pid), session)
         except (OSError, ValueError, subprocess.SubprocessError):
+            return False
+
+    def adopt(self, pid: int, pass_dir: Path) -> WorkerHandle | None:
+        session = str(pass_dir.resolve() / "session")
+        if not self._adopted_command_matches(pid, session):
             return None
         # A non-child's exit code is unavailable. Never invent a successful exit.
-        return _ProcessHandle(pid, lambda: None if _alive(pid) else 1)
+        return _ProcessHandle(
+            pid,
+            lambda: None if _alive(pid) else 1,
+            verify=lambda: self._adopted_command_matches(pid, session),
+        )
 
 
 @dataclass(frozen=True)
@@ -210,6 +235,7 @@ class Attestation:
     error_records: int
     tokens: dict[str, int]
     model_changes: tuple[str, ...] = ()
+    diagnostics: str = ""
 
 
 def _object(value: object) -> dict[str, object]:
@@ -235,9 +261,17 @@ def _route(route: str) -> str:
 
 def attest_session(session_dir: Path, requested: str) -> Attestation:
     served: Counter[str] = Counter()
-    tokens = {"input": 0, "output": 0, "cacheRead": 0}
+    tokens = {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "reasoningTokens": 0,
+    }
     fallback_events = errors = 0
     changes: list[str] = []
+    diagnostics: list[str] = []
     for path in sorted(session_dir.rglob("*.jsonl")):
         try:
             with path.open(encoding="utf-8", errors="replace") as stream:
@@ -256,9 +290,12 @@ def attest_session(session_dir: Path, requested: str) -> Attestation:
                     if message.get("role") != "assistant":
                         if event.get("type") == "error":
                             errors += 1
+                            diagnostics.append(json.dumps(event, default=str))
                         continue
                     is_error = message.get("stopReason") == "error"
                     errors += int(is_error)
+                    if is_error:
+                        diagnostics.append(json.dumps(message, default=str))
                     provider, model = message.get("provider"), message.get("model")
                     if not is_error and isinstance(provider, str) and isinstance(model, str):
                         served[_route(f"{provider}/{model}")] += 1
@@ -272,7 +309,7 @@ def attest_session(session_dir: Path, requested: str) -> Attestation:
     return Attestation(
         served=dict(served), off_route=any(model != _route(requested) for model in served),
         fallback_events=fallback_events, error_records=errors, tokens=tokens,
-        model_changes=tuple(changes),
+        model_changes=tuple(changes), diagnostics="\n".join(diagnostics)[-20_000:],
     )
 
 
@@ -417,10 +454,10 @@ def host_ok(
     """Do not launch under macOS memory pressure; probe failures are not a veto."""
     try:
         swap = run(
-            ["sysctl", "-n", "vm.swapusage"], capture_output=True, text=True, timeout=5,
+            ["/usr/sbin/sysctl", "-n", "vm.swapusage"], capture_output=True, text=True, timeout=5,
         )
         memory = run(
-            ["sysctl", "-n", "kern.memorystatus_level"],
+            ["/usr/sbin/sysctl", "-n", "kern.memorystatus_level"],
             capture_output=True, text=True, timeout=5,
         )
         if swap.returncode != 0 or memory.returncode != 0:

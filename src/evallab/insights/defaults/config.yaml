@@ -1,6 +1,8 @@
 # Insight engine defaults. `evallab insights init` copies this file to the
 # state directory ($EVALLAB_INSIGHTS_STATE, default ~/.local/state/evallab-insights);
-# edit that copy, not this one, to tune a running engine.
+# edit that copy, not this one. A running engine re-reads it at the start of every
+# tick (a file that fails validation is reported in status and the previous
+# values stay in force); routes.yaml is read at start only.
 schema_version: 1
 
 # What the engine reads. Globs expand ~ and $VARS. Newer, higher-priority
@@ -74,11 +76,20 @@ lenses:
     batch_size: 10
     max_pack_chars: 80000
     # Backfill runs on two sources at once; each pass claims its own sections.
+    # (Only extractor and skeptic accept max_parallel > 1.)
     max_parallel: 2
+  # Systematic review: every experiment is read skeptically, not just "new claims".
+  # An experiment is queued when its current claims differ from what the skeptic
+  # last reviewed (new or changed), most open signals first, then most claims,
+  # then newest. Each pass takes up to experiments_per_pass experiments with all
+  # their non-failed claims (pack limits still apply) and their open signals.
+  # Coverage is recorded only when a pass succeeds; a failed pass leaves it alone.
+  # max_parallel > 1 runs passes on disjoint experiments at the same time.
   skeptic:
     cooldown_minutes: 30
     daily_cap: 16
-    min_new_claims: 4
+    experiments_per_pass: 3
+    max_parallel: 2
   connector:
     cooldown_minutes: 90
     daily_cap: 8

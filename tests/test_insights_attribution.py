@@ -257,3 +257,49 @@ def test_default_spec_cannot_follow_an_external_symlink(tmp_path: Path) -> None:
     (folder / "attribution.json").symlink_to(external)
     with pytest.raises(RecipeError, match="outside the experiment folder"):
         load_attribution(folder)
+
+
+@pytest.mark.parametrize(
+    ("truthy", "values", "expected"),
+    [
+        ([0], [0.0, 1.0, 0.0], 2),  # an int spec matches a float receipt
+        ([0.0], [0, 1, 0], 2),
+        ([1], ["1", "1.0", "0", 1], 3),  # CSV strings are numbers for a numeric spec
+        ([True], [True, 1, "true", False], 1),  # bool is not a number
+        (["yes"], ["yes", "Yes", 1], 1),
+        ([None], [None, 0, ""], 1),
+    ],
+)
+def test_truthy_values_use_recipe_equality(
+    truthy: list[object], values: list[object], expected: int,
+) -> None:
+    rows = [{"caught": value} for value in values]
+    result = build_attribution(rows, {"Review": {"field": "caught", "truthy": truthy}})
+    assert result.layers[0].k == expected
+
+
+def test_csv_case_files_match_numeric_truthy_values(tmp_path: Path) -> None:
+    (tmp_path / "cases.csv").write_text("id,reward_HS\na,0.0\nb,1.0\nc,0\n", encoding="utf-8")
+    (tmp_path / "attribution.json").write_text(json.dumps({
+        "cases_file": "cases.csv", "case_id_field": "id",
+        "layers": {"Hardening": {"field": "reward_HS", "truthy": [0], "role": "prevention"}},
+    }), encoding="utf-8")
+    report = load_attribution(tmp_path)
+    assert report is not None
+    assert (report.layers[0].k, report.n) == (2, 3)
+
+
+def test_equals_single_layer_needs_a_nonempty_union_and_several_layers() -> None:
+    nothing = build_attribution(
+        [{"a": False, "b": False}] * 3, {"A": {"field": "a"}, "B": {"field": "b"}},
+    )
+    assert nothing.union_k == 0 and nothing.equals_single_layer is None
+    empty = build_attribution([], {"A": {"field": "a"}, "B": {"field": "b"}})
+    assert empty.n == 0 and empty.equals_single_layer is None
+    single = build_attribution([{"a": True}, {"a": False}], {"A": {"field": "a"}})
+    assert single.union_k == 1 and single.equals_single_layer is None
+    paired = build_attribution(
+        [{"a": True, "b": False}, {"a": True, "b": True}],
+        {"A": {"field": "a"}, "B": {"field": "b"}},
+    )
+    assert paired.equals_single_layer == "A"

@@ -14,6 +14,7 @@ Analysts query through :meth:`InsightStore.open_readonly`.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
@@ -42,7 +43,7 @@ from evallab.insights.models import (
 
 STATE_ENV = "EVALLAB_INSIGHTS_STATE"
 DB_NAME = "insights.sqlite"
-SCHEMA_USER_VERSION = 1
+SCHEMA_USER_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta(
@@ -127,6 +128,8 @@ CREATE TABLE IF NOT EXISTS insights(
   pass_id TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  graded_at TEXT,
+  needs_recheck INTEGER NOT NULL DEFAULT 0,
   body TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS insights_status ON insights(status, created_at);
@@ -147,6 +150,21 @@ CREATE TABLE IF NOT EXISTS passes(
   body TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS passes_lens ON passes(lens, created_at);
+CREATE TABLE IF NOT EXISTS pass_inputs(
+  pass_id TEXT PRIMARY KEY,
+  lens TEXT NOT NULL,
+  inputs TEXT NOT NULL,
+  metadata TEXT NOT NULL,
+  content_digest TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS lens_coverage(
+  lens TEXT NOT NULL,
+  exp_id TEXT NOT NULL,
+  claims_digest TEXT NOT NULL,
+  pass_id TEXT NOT NULL,
+  reviewed_at TEXT NOT NULL,
+  PRIMARY KEY(lens, exp_id)
+);
 CREATE TABLE IF NOT EXISTS reviews(
   review_id TEXT PRIMARY KEY,
   insight_id TEXT NOT NULL,
@@ -269,8 +287,30 @@ class InsightStore:
 
     # ------------------------------------------------------------------ core
     def migrate(self) -> None:
+        version = int(self._conn.execute("PRAGMA user_version").fetchone()[0])
+        if version > SCHEMA_USER_VERSION:
+            raise RuntimeError(
+                f"insight ledger schema {version} is newer than supported {SCHEMA_USER_VERSION}"
+            )
         with self._conn:
+            # Views are replaced on every open so an older runtime cannot leave
+            # stale projections after the schema or a view definition changes.
+            for view in ("v_claims", "v_insights", "v_signals"):
+                self._conn.execute(f"DROP VIEW IF EXISTS {view}")
             self._conn.executescript(_SCHEMA)
+            columns = {
+                str(row[1]) for row in self._conn.execute("PRAGMA table_info(insights)").fetchall()
+            }
+            if "graded_at" not in columns:
+                self._conn.execute("ALTER TABLE insights ADD COLUMN graded_at TEXT")
+            if "needs_recheck" not in columns:
+                self._conn.execute(
+                    "ALTER TABLE insights ADD COLUMN needs_recheck INTEGER NOT NULL DEFAULT 0"
+                )
+            self._conn.execute(
+                "UPDATE insights SET graded_at = updated_at WHERE graded_at IS NULL "
+                "AND status IN ('refereed', 'needs_revision', 'rejected')"
+            )
             self._conn.execute(f"PRAGMA user_version={SCHEMA_USER_VERSION}")
 
     @contextmanager
@@ -366,7 +406,16 @@ class InsightStore:
             for section in sections:
                 previous = current.get(section.section_id)
                 unchanged = previous is not None and previous["sha256"] == section.sha256
-                status = previous["status"] if unchanged and previous is not None else "pending"
+                if previous is None:
+                    status = "pending"
+                elif unchanged:
+                    status = previous["status"]
+                elif previous["status"] == "in_flight":
+                    # Never hand an edited section to a second extractor. The
+                    # original pass compares its launch digest before import.
+                    status = "in_flight"
+                else:
+                    status = "pending"
                 if status == "pending":
                     pending.append(section.section_id)
                 conn.execute(
@@ -374,6 +423,8 @@ class InsightStore:
                     "updated_at, body) VALUES(?, ?, ?, ?, ?, ?, ?, ?) "
                     "ON CONFLICT(section_id) DO UPDATE SET ordinal = excluded.ordinal, "
                     "sha256 = excluded.sha256, as_of = excluded.as_of, status = excluded.status, "
+                    "attempts = CASE WHEN sections.sha256 != excluded.sha256 THEN 0 "
+                    "ELSE sections.attempts END, "
                     "updated_at = excluded.updated_at, body = excluded.body",
                     (
                         section.section_id,
@@ -394,6 +445,7 @@ class InsightStore:
             for section_id in set(current) - keep_ids:
                 conn.execute("DELETE FROM sections WHERE section_id = ?", (section_id,))
                 conn.execute("UPDATE claims SET stale = 1 WHERE section_id = ?", (section_id,))
+        self.flag_insights_for_recheck()
         return pending
 
     def get_section(self, section_id: str) -> SourceSection | None:
@@ -402,11 +454,35 @@ class InsightStore:
         ).fetchone()
         return None if row is None else _load(SourceSection, row["body"])
 
-    def pending_sections(self, *, limit: int = 100, max_attempts: int = 3) -> list[SourceSection]:
+    def pending_source_summaries(self, *, max_attempts: int = 3) -> list[dict[str, Any]]:
+        """One row per eligible source, without a recency-window prefilter."""
+        return self.query(
+            "SELECT source_id, COUNT(*) AS pending_count, "
+            "MAX(COALESCE(as_of, updated_at)) AS newest "
+            "FROM sections WHERE status = 'pending' AND attempts < ? "
+            "GROUP BY source_id",
+            (max_attempts,),
+        )
+
+    def pending_sections(
+        self,
+        *,
+        source_id: str | None = None,
+        limit: int | None = 100,
+        max_attempts: int = 3,
+    ) -> list[SourceSection]:
+        clauses = ["status = 'pending'", "attempts < ?"]
+        params: list[Any] = [max_attempts]
+        if source_id is not None:
+            clauses.append("source_id = ?")
+            params.append(source_id)
+        tail = "" if limit is None else " LIMIT ?"
+        if limit is not None:
+            params.append(limit)
         rows = self._conn.execute(
-            "SELECT body FROM sections WHERE status = 'pending' AND attempts < ? "
-            "ORDER BY COALESCE(as_of, updated_at) DESC, ordinal ASC LIMIT ?",
-            (max_attempts, limit),
+            "SELECT body FROM sections WHERE " + " AND ".join(clauses)
+            + " ORDER BY COALESCE(as_of, updated_at) DESC, ordinal ASC" + tail,
+            params,
         ).fetchall()
         return [_load(SourceSection, row["body"]) for row in rows]
 
@@ -417,7 +493,13 @@ class InsightStore:
         return {str(row["status"]): int(row["n"]) for row in rows}
 
     def mark_sections(
-        self, section_ids: Iterable[str], status: str, *, pass_id: str | None = None
+        self,
+        section_ids: Iterable[str],
+        status: str,
+        *,
+        pass_id: str | None = None,
+        count_attempt: bool = False,
+        reset_attempts: bool = False,
     ) -> None:
         if status not in {"pending", "in_flight", "extracted", "skipped", "failed"}:
             raise ValueError(f"unknown section status: {status}")
@@ -426,8 +508,8 @@ class InsightStore:
             for section_id in section_ids:
                 if status == "in_flight":
                     conn.execute(
-                        "UPDATE sections SET status = ?, attempts = attempts + 1, "
-                        "extracted_pass = ?, updated_at = ? WHERE section_id = ?",
+                        "UPDATE sections SET status = ?, extracted_pass = ?, updated_at = ? "
+                        "WHERE section_id = ?",
                         (status, pass_id, now, section_id),
                     )
                 elif status == "extracted":
@@ -437,10 +519,25 @@ class InsightStore:
                         (status, pass_id, now, section_id),
                     )
                 else:
+                    attempts = "0" if reset_attempts else (
+                        "attempts + 1" if count_attempt else "attempts"
+                    )
                     conn.execute(
-                        "UPDATE sections SET status = ?, updated_at = ? WHERE section_id = ?",
+                        f"UPDATE sections SET status = ?, attempts = {attempts}, updated_at = ? "
+                        "WHERE section_id = ?",
                         (status, now, section_id),
                     )
+
+    def mark_section_claims_stale(self, section_ids: Iterable[str]) -> None:
+        ids = list(section_ids)
+        if not ids:
+            return
+        with self.transaction() as conn:
+            conn.execute(
+                f"UPDATE claims SET stale = 1 WHERE section_id IN ({', '.join('?' for _ in ids)})",
+                ids,
+            )
+        self.flag_insights_for_recheck()
 
     # ----------------------------------------------------------- experiments
     def upsert_experiment(self, record: ExperimentRecord) -> None:
@@ -483,6 +580,10 @@ class InsightStore:
                     "section_sha256, fingerprint, as_of, stale, pass_id, created_at, body) "
                     "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                     "ON CONFLICT(claim_id) DO UPDATE SET status = excluded.status, "
+                    "experiment = excluded.experiment, kind = excluded.kind, "
+                    "metric = excluded.metric, subject = excluded.subject, "
+                    "dataset = excluded.dataset, fingerprint = excluded.fingerprint, "
+                    "source_id = excluded.source_id, section_id = excluded.section_id, "
                     "check_status = excluded.check_status, "
                     "recompute_status = excluded.recompute_status, "
                     "section_sha256 = excluded.section_sha256, as_of = excluded.as_of, "
@@ -512,6 +613,7 @@ class InsightStore:
                     ),
                 )
                 inserted += cursor.rowcount
+        self.flag_insights_for_recheck()
         return inserted
 
     def update_claim(self, record: ClaimRecord) -> None:
@@ -527,6 +629,7 @@ class InsightStore:
                     record.claim_id,
                 ),
             )
+        self.flag_insights_for_recheck()
 
     def get_claim(self, claim_id: str) -> ClaimRecord | None:
         row = self._conn.execute(
@@ -569,6 +672,58 @@ class InsightStore:
             "SELECT check_status, COUNT(*) AS n FROM claims WHERE stale = 0 GROUP BY check_status"
         ).fetchall()
         return {str(row["check_status"]): int(row["n"]) for row in rows}
+
+    def experiment_review_candidates(self) -> list[dict[str, Any]]:
+        """Digest every experiment's live claim ids and their section versions."""
+        rows = self._conn.execute(
+            "SELECT claim_id, experiment, section_sha256, check_status, as_of, created_at "
+            "FROM claims WHERE stale = 0 ORDER BY experiment, claim_id"
+        ).fetchall()
+        grouped: dict[str, list[sqlite3.Row]] = {}
+        for row in rows:
+            grouped.setdefault(str(row["experiment"]), []).append(row)
+        candidates: list[dict[str, Any]] = []
+        for exp_id, items in grouped.items():
+            digest_payload = [
+                [str(row["claim_id"]), str(row["section_sha256"])] for row in items
+            ]
+            candidates.append({
+                "exp_id": exp_id,
+                "claims_digest": hashlib.sha256(
+                    json.dumps(digest_payload, separators=(",", ":")).encode()
+                ).hexdigest(),
+                "claim_ids": [
+                    str(row["claim_id"]) for row in items if row["check_status"] != "fail"
+                ],
+                "claim_count": len(items),
+                "recency": max(str(row["as_of"] or row["created_at"]) for row in items),
+            })
+        return candidates
+
+    def coverage_digests(self, lens: str) -> dict[str, str]:
+        rows = self._conn.execute(
+            "SELECT exp_id, claims_digest FROM lens_coverage WHERE lens = ?", (lens,)
+        ).fetchall()
+        return {str(row["exp_id"]): str(row["claims_digest"]) for row in rows}
+
+    def record_coverage(
+        self, lens: str, pass_id: str, digests: dict[str, str], *, reviewed_at: datetime
+    ) -> None:
+        with self.transaction() as conn:
+            for exp_id, digest in digests.items():
+                conn.execute(
+                    "INSERT INTO lens_coverage(lens, exp_id, claims_digest, pass_id, reviewed_at) "
+                    "VALUES(?, ?, ?, ?, ?) ON CONFLICT(lens, exp_id) DO UPDATE SET "
+                    "claims_digest = excluded.claims_digest, pass_id = excluded.pass_id, "
+                    "reviewed_at = excluded.reviewed_at",
+                    (lens, exp_id, digest, pass_id, _iso(reviewed_at)),
+                )
+
+    def coverage_count(self, lens: str) -> int:
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM lens_coverage WHERE lens = ?", (lens,)
+        ).fetchone()
+        return int(row[0])
 
     # -------------------------------------------------------------- entities
     def upsert_entities(self, entities: Iterable[EntityRef]) -> None:
@@ -657,8 +812,8 @@ class InsightStore:
             for record in records:
                 cursor = conn.execute(
                     "INSERT OR IGNORE INTO insights(insight_id, lens, kind, status, check_status, "
-                    "rank, score, pass_id, created_at, updated_at, body) "
-                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "rank, score, pass_id, created_at, updated_at, graded_at, body) "
+                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         record.insight_id,
                         record.lens,
@@ -670,27 +825,50 @@ class InsightStore:
                         record.pass_id,
                         _iso(record.created_at),
                         now,
+                        now if record.status in {"refereed", "needs_revision", "rejected"} else None,
                         _dump(record),
                     ),
                 )
                 inserted += cursor.rowcount
         return inserted
 
-    def save_insight(self, record: InsightRecord) -> None:
+    def save_insight(self, record: InsightRecord, *, graded_at: datetime | None = None) -> None:
+        """Update a card; ``graded_at`` records when it first received a grade."""
+        now = _iso(utcnow())
         with self.transaction() as conn:
+            previous = conn.execute(
+                "SELECT graded_at FROM insights WHERE insight_id = ?", (record.insight_id,)
+            ).fetchone()
+            stamp = None if previous is None else previous["graded_at"]
+            if record.status in {"refereed", "needs_revision", "rejected"} and stamp is None:
+                stamp = now if graded_at is None else _iso(graded_at)
             conn.execute(
                 "UPDATE insights SET status = ?, check_status = ?, rank = ?, score = ?, "
-                "updated_at = ?, body = ? WHERE insight_id = ?",
+                "updated_at = ?, graded_at = ?, body = ? WHERE insight_id = ?",
                 (
                     record.status,
                     record.check.status,
                     record.rank,
                     record.score,
-                    _iso(utcnow()),
+                    now,
+                    stamp,
                     _dump(record),
                     record.insight_id,
                 ),
             )
+
+    def insights_needing_recheck(self) -> list[InsightRecord]:
+        rows = self._conn.execute(
+            "SELECT body FROM insights WHERE needs_recheck = 1 ORDER BY created_at, insight_id"
+        ).fetchall()
+        return [_load(InsightRecord, row["body"]) for row in rows]
+
+    def clear_recheck(self, insight_ids: Iterable[str]) -> None:
+        with self.transaction() as conn:
+            for insight_id in insight_ids:
+                conn.execute(
+                    "UPDATE insights SET needs_recheck = 0 WHERE insight_id = ?", (insight_id,)
+                )
 
     def get_insight(self, insight_id: str) -> InsightRecord | None:
         row = self._conn.execute(
@@ -704,6 +882,7 @@ class InsightStore:
         statuses: Sequence[InsightStatus] | None = None,
         lens: str | None = None,
         since: datetime | None = None,
+        graded_since: datetime | None = None,
         limit: int | None = None,
     ) -> list[InsightRecord]:
         clauses: list[str] = []
@@ -717,6 +896,9 @@ class InsightStore:
         if since is not None:
             clauses.append("created_at > ?")
             params.append(_iso(since))
+        if graded_since is not None:
+            clauses.append("graded_at > ?")
+            params.append(_iso(graded_since))
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         tail = "" if limit is None else f" LIMIT {int(limit)}"
         rows = self._conn.execute(
@@ -731,6 +913,27 @@ class InsightStore:
             "SELECT status, COUNT(*) AS n FROM insights GROUP BY status"
         ).fetchall()
         return {str(row["status"]): int(row["n"]) for row in rows}
+
+    def flag_insights_for_recheck(self) -> None:
+        """Flag every card that names a now-stale or failed claim.
+
+        The stored check remains visible for audit; board/status consumers can
+        exclude or explain ``needs_recheck`` without rewriting model history.
+        """
+        with self.transaction() as conn:
+            conn.execute(
+                "UPDATE insights SET needs_recheck = 1 WHERE needs_recheck = 0 "
+                "AND status != 'check_failed' AND EXISTS ("
+                "SELECT 1 FROM json_tree(insights.body) AS node "
+                "JOIN claims ON claims.claim_id = node.value "
+                "WHERE claims.stale = 1 OR claims.check_status = 'fail')"
+            )
+
+    def insight_recheck_count(self) -> int:
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM insights WHERE needs_recheck = 1"
+        ).fetchone()
+        return int(row[0])
 
     # ----------------------------------------------------------- predictions
     def insert_predictions(self, records: Iterable[PredictionRecord]) -> int:
@@ -779,6 +982,41 @@ class InsightStore:
         return [_load(PredictionRecord, row["body"]) for row in rows]
 
     # ---------------------------------------------------------------- passes
+    def save_pass_inputs(
+        self,
+        pass_id: str,
+        lens: str,
+        inputs: dict[str, Any],
+        metadata: dict[str, Any],
+        content_digest: str,
+    ) -> None:
+        with self.transaction() as conn:
+            conn.execute(
+                "INSERT INTO pass_inputs(pass_id, lens, inputs, metadata, content_digest) "
+                "VALUES(?, ?, ?, ?, ?)",
+                (
+                    pass_id,
+                    lens,
+                    json.dumps(inputs, sort_keys=True, separators=(",", ":")),
+                    json.dumps(metadata, sort_keys=True, separators=(",", ":")),
+                    content_digest,
+                ),
+            )
+
+    def pass_inputs(self, pass_id: str) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            "SELECT lens, inputs, metadata, content_digest FROM pass_inputs WHERE pass_id = ?",
+            (pass_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "lens": str(row["lens"]),
+            "inputs": json.loads(row["inputs"]),
+            "metadata": json.loads(row["metadata"]),
+            "content_digest": str(row["content_digest"]),
+        }
+
     def save_pass(self, record: PassRecord) -> None:
         with self.transaction() as conn:
             conn.execute(

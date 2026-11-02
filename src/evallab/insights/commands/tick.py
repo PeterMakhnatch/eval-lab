@@ -25,10 +25,20 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
 
 def _cmd(args: argparse.Namespace, root: Path, *, harbor: object | None = None) -> int:
     target = state_dir(args)
-    engine = Engine(target)
     if args.dry_run:
-        emit(engine.tick(dry_run=True).as_dict())
+        # A dry run must not create, migrate or write the ledger (even at a mistyped path).
+        try:
+            engine = Engine(target, readonly=True)
+        except FileNotFoundError as exc:
+            print(f"error: {exc}; run `evallab insights init` first", file=sys.stderr)
+            return 2
+        try:
+            emit(engine.tick(dry_run=True).as_dict())
+        finally:
+            engine.store.close()
         return 0
+    engine = Engine(target)
+
     try:
         with engine_lock(target):
             report = engine.tick()

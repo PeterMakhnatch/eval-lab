@@ -46,6 +46,8 @@ Copy the exact op, args, and returned result into a card's computed entry.
 Do not estimate a p-value, confidence interval, or corrected rate yourself.
 Quoted source numbers may be transcribed exactly; they are not independent verification.
 Use `./q recipe '<json>' --folder '<recorded-folder>'` to test a receipt computation.
+Use `./q locate --k K --n N --value V` to find receipt fields holding a claim's numbers; it
+proposes pointers and recipe templates. Always confirm the final recipe with `./q recipe`.
 A recipe is declarative JSON, never executable Python or shell.
 Receipt folders must already be registered on a ledger source.
 Use `./q schema` if a field or allowed value is unclear.
@@ -61,7 +63,8 @@ Use `./q schema` if a field or allowed value is unclear.
 8. Keep each statement atomic enough to check or refute independently.
 9. Copy a contiguous verbatim quote containing the numerical evidence.
 10. Do not splice distant sentences into a quote that never appeared in the source.
-11. Record k and n when available, value and unit when explicitly stated.
+11. Record k and n when available, value and unit when explicitly stated. k and n must be
+    two distinct numbers in the quote (not a percent, not a year, not the same token twice).
 12. Preserve baseline, k2/n2, discordant b/c, p_value, and comparison test when given.
 13. Preserve AUTHOR as author, REFUTED as refuted, CORRECTED as corrected.
 14. Use independent only when words and context identify an independent check.
@@ -74,17 +77,60 @@ Use `./q schema` if a field or allowed value is unclear.
 21. Capture experiment title, lane, PRs, models, datasets, folder, spend, and question if stated.
 22. Distinguish requested routes from served models in statements and caveats.
 23. If the section's folder has receipts, inspect the listed local receipt files.
-24. Write a minimal Recipe selecting the exact condition and aggregation.
-25. Test it with ./q recipe; do not emit an untested recipe as if it worked.
-26. A total count is not a numerator; ensure filters and denominator match the quote.
+    Receipts live under the folder recorded on the source. In an experiment bundle (several
+    experiments analysed together) the folder is the bundle root and each member experiment
+    is a subfolder: recipe `file` paths start with the member folder name, for example
+    `ov-c1-c5-live-rollouts-20261101/receipts/summary.json`. Use the member whose report
+    you are extracting, and set the experiment `folder` to that member, never to a sibling.
+    A pack may cut its receipt list: aggregate files (`summary*.json`, `metrics*.json`,
+    `report.json`, `rollouts.jsonl`) matter most, per-case directories carry little.
+24. Recipes are a hard rule. For every number-bearing claim whose folder has receipts, either
+    attach a tested recipe or write in the claim's caveats what you searched and why no recipe
+    fits ("searched summary.json and rollouts.jsonl; no field holds the 28-case denominator").
+    Start with `./q locate --k K --n N --value V` using the claim's own numbers: it proposes
+    receipt pointers and recipe templates. Verify the chosen one with `./q recipe`.
+25. Every recipe declares `target`, the claim quantity it reproduces: `k` (the numerator or
+    a plain count), `n` (the denominator), or `value` (the stated rate or scalar).
+    - Count 32 of 50 candidates: `count` or `value` recipe with `target: "k"`.
+    - Rate 32/50 = .64: a `ratio` recipe (numerator over denominator, target `value`), or a
+      `value` recipe on a receipt field that already holds the rate. Never target `value`
+      with a recipe that returns the count 32 or the total 50.
+    - Precision 15/15: true-positive drops over all drops, or the receipt's own precision
+      rate; never the raw drop count (`/counts/drop` is a count, not a precision).
+    - Seconds, USD, tokens: `value` recipe; record the number in the unit the quote prints.
+26. A total count is not a numerator; filters and denominator must match the quote.
+    A rate needs k from the right rows (the rows the claim counts), never the total row count.
 27. Never backsolve a receipt recipe from the desired headline value.
-28. If receipts cannot reproduce the statistic, omit the recipe and preserve the limitation.
+28. If receipts cannot reproduce the statistic, omit the recipe, say so in the claim's
+    caveats, and preserve the limitation. Test the final claim and recipe together with
+    `./q recipe`, and read the status it reports; an executable recipe is not yet a correct one.
 29. Statistical claims copied from prose remain author claims until independently checked.
 30. Skip scheduling chatter, greetings, handoff instructions, and “will run tomorrow” text.
+    PR state, branch names and auto-merge status are experiment metadata, not claims.
 31. Put process-only section ids in skipped_section_ids, not in made-up method claims.
 32. Every assigned section must either yield claims or be explicitly skipped.
 33. Keep extraction coverage honest even when the pack dropped sections for space.
 34. Retrieve omitted assigned sections with ./q section before marking them skipped.
+35. Coverage: list every headline number of each section before writing claims. Results
+    tables, attestation counts (requests served, fallbacks, models executed), costs, timings
+    and quota use are headlines, not a sample to thin out. Each listed number becomes a claim
+    (or is merged into a claim that states it, or is skipped with a reason). A table row with
+    recall, false alarms, cost and sample size yields separate claims, one per metric.
+36. Kind: `measurement` is any observed quantity, even when the prose around it explains;
+    `cost` is spend, quota or tokens consumed; `comparison` carries b/c, k2/n2 or a baseline;
+    `method` is how it was measured (procedure, assumptions, limits), never a measured count;
+    `qualitative` is an assertion without a number you can check. A count the author
+    measured (rows in a ledger, packages opened) is a measurement, not qualitative.
+37. Units: rates (k/n, precision, recall, false alarm) go in `value`, `ci_low` and `ci_high`
+    as fractions in [0, 1] with unit `fraction` (or all three as printed percent with unit `%`
+    and the same scale); never leave a percent scale without the unit. Seconds, USD, counts
+    and AUROC stay as printed with their unit. The `value` must appear in the quote after
+    converting the unit; a value that does not is a transcription error, not a fix.
+38. Correction state must match the text: a source that says CORRECTED, fixed or retracted
+    gets status `corrected` (kind `correction`), REFUTED gets `refuted`, even when the fix
+    author reports their own correction. Independent is a different axis and never replaces it.
+39. Split and in_sample describe the measured cohort only. Set split=dev when the source
+    states that exact cohort is DEV, not a neighbouring subset; use unknown otherwise.
 
 ## Failure modes
 Do not upgrade a proposed experiment into an experiment that ran.
@@ -104,6 +150,12 @@ Never invent numbers, identifiers, receipts, links, costs, or completed checks.
 Do not turn an inability to recompute into proof that the author is wrong.
 Do not hide a contradiction to make a cleaner story.
 An empty result with an honest explanation is better than a weak finding.
+Before finishing, run `./q recipe` once more on every final claim with a recipe, using the
+claim's own k, n and value, and read the receipt number it returns next to the stated one.
+A recipe that returns a count for a claim whose headline is a rate is wrong, not "close".
+Re-read every number-bearing sentence of each assigned section against your claims list; a
+headline number with neither a claim nor a stated reason to skip it is a coverage failure.
+Check each claim's `value`, `ci_low` and `ci_high` against the quote: same unit, same scale.
 
 ## Output contract
 Write exactly one file: `out/claims.json`.

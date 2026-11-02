@@ -8,7 +8,13 @@ from typing import Literal
 
 from pydantic import Field, field_validator
 
-from evallab.insights.recompute import RecipeError, json_pointer, load_recipe_file, row_matches
+from evallab.insights.recompute import (
+    RecipeError,
+    json_pointer,
+    load_recipe_file,
+    row_matches,
+    values_equal,
+)
 from evallab.insights.stats import (
     cases_for_layer_value,
     mcnemar_exact,
@@ -99,7 +105,7 @@ def build_attribution(
     for name, spec in specs.items():
         values = [_field(row, spec.field) for row in rows]
         catches[name] = [
-            any(type(value) is type(truth) and value == truth for truth in spec.truthy)
+            any(values_equal(value, truth) for truth in spec.truthy)
             for value in values
         ]
     n = len(rows)
@@ -141,8 +147,10 @@ def build_attribution(
     return AttributionReport(
         n=n, union_k=sum(union), union_ci=wilson(sum(union), n), layers=results,
         min_discordant_cases=minimum,
+        # "X alone equals the union" is only informative with several layers and a catch.
         equals_single_layer=next(
-            (name for name, values in catches.items() if values == union), None,
+            (name for name, values in catches.items()
+             if n > 0 and any(union) and len(catches) > 1 and values == union), None,
         ),
         prevention_k=role_counts["prevention"], detection_k=role_counts["detection"],
     )

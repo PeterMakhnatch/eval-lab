@@ -157,9 +157,14 @@ def test_recompute_ratio_printed_percent_and_tolerance_boundaries(tmp_path: Path
     result = recompute_claim(_claim(recipe), tmp_path)
     assert result is not None and result.status == "reproduced"
     assert result.value == pytest.approx(22 / 75)
-    for offset, status in ((0.00509, "reproduced"), (0.00511, "differs")):
-        result = recompute_claim(_claim(recipe, value=22 / 75 + offset), tmp_path)
-        assert result is not None and result.status == status
+    # The tolerance is half a unit of the digits the quote prints, not a fixed window.
+    for stated, quote, status in (
+        (0.293, "(29.3%)", "reproduced"),
+        (0.294, "(29.4%)", "differs"),
+        (0.2937, "(29.37%)", "differs"),
+    ):
+        result = recompute_claim(_claim(recipe, value=stated, quote=f"22 of 75 {quote}"), tmp_path)
+        assert result is not None and result.status == status, stated
     result = recompute_claim(_claim(recipe, value=None), tmp_path)
     assert result is not None and result.status == "reproduced"
 
@@ -172,7 +177,7 @@ def test_recompute_counts_exact_and_scalars_relative(tmp_path: Path) -> None:
         assert result is not None and result.status == status
     scalar = _json(tmp_path, 100, "scalar.json")
     value_recipe = Recipe(op="value", file=scalar, pointer="")
-    for stated, status in ((100.49, "reproduced"), (100.51, "differs")):
+    for stated, status in ((100.0, "reproduced"), (100.4, "differs")):
         result = recompute_claim(_claim(value_recipe, value=stated), tmp_path)
         assert result is not None and result.status == status
     assert recompute_claim(_claim(None), tmp_path) is None
@@ -186,12 +191,13 @@ def test_recompute_counts_exact_and_scalars_relative(tmp_path: Path) -> None:
 def test_recompute_proportion_value_recipes_use_printed_percent_tolerance(tmp_path: Path) -> None:
     file = _json(tmp_path, {"rate": 0.2981})
     recipe = Recipe(op="value", file=file, pointer="/rate")
+    # The quote prints 29.3%; 0.2981 is 29.8%.
     claim = _claim(recipe, k=None, n=None, unit="proportion", value=0.293)
     result = recompute_claim(claim, tmp_path)
-    assert result is not None and result.status == "reproduced"
-    scalar = _claim(recipe, k=None, n=None, unit=None, value=0.293)
-    result = recompute_claim(scalar, tmp_path)
     assert result is not None and result.status == "differs"
+    exact = _claim(recipe, k=None, n=None, unit="proportion", value=0.298, quote="rate 29.8%")
+    result = recompute_claim(exact, tmp_path)
+    assert result is not None and result.status == "reproduced"
 
 
 def test_recompute_count_fallback_is_exact_even_without_k(tmp_path: Path) -> None:
@@ -201,3 +207,144 @@ def test_recompute_count_fallback_is_exact_even_without_k(tmp_path: Path) -> Non
     assert result is not None and result.status == "reproduced"
     result = recompute_claim(_claim(recipe, k=None, value=3.001), tmp_path)
     assert result is not None and result.status == "differs"
+
+
+def test_printed_digit_tolerance_replaces_the_half_point_window(tmp_path: Path) -> None:
+    # 29.3% printed to a tenth of a point: 0.2981 is not 0.293 (the old +-0.51-point window
+    # called it reproduced); 0.2931 is, and so is 0.29349.
+    file = _json(tmp_path, {"rate": 0.2981, "near": 0.29349})
+    for pointer, status in (("/rate", "differs"), ("/near", "reproduced")):
+        recipe = Recipe(op="value", file=file, pointer=pointer)
+        claim = _claim(recipe, k=None, n=None, value=0.293, quote="The rate was 29.3%.")
+        result = recompute_claim(claim, tmp_path)
+        assert result is not None and result.status == status, pointer
+    # A whole printed percent keeps the half-point window: 29% reproduces 0.2949, not 0.2951.
+    for rate, status in ((0.2949, "reproduced"), (0.2951, "differs")):
+        file = _json(tmp_path, {"rate": rate}, "whole.json")
+        recipe = Recipe(op="value", file=file, pointer="/rate")
+        claim = _claim(recipe, k=None, n=None, value=0.29, quote="The rate was 29%.")
+        result = recompute_claim(claim, tmp_path)
+        assert result is not None and result.status == status, rate
+
+
+@pytest.mark.parametrize(
+    ("receipt", "stated", "unit", "quote", "status"),
+    [
+        (0.6429, 64.3, "%", "64.3% of rollouts", "reproduced"),
+        (64.29, 64.3, "%", "64.3% of rollouts", "reproduced"),
+        (64.29, 64.4, "%", "64.4% of rollouts", "differs"),
+        (3.24, 3.2, "s", "took 3.2 s", "reproduced"),
+        (3.3, 3.2, "s", "took 3.2 s", "differs"),
+        (0.243, 0.243, "s", "lag of 243ms", "reproduced"),
+        (243.0, 243, "ms", "lag of 243ms", "reproduced"),
+        (15.12, 15, "USD", "cost $15", "reproduced"),
+        (1_240_000, 1_234_567, None, "ran 1,234,567 tokens", "differs"),
+        (1_234_567, 1_234_567, None, "ran 1,234,567 tokens", "reproduced"),
+        (1_234_567.4, 1_234_567, None, "ran 1,234,567 tokens", "reproduced"),
+    ],
+)
+def test_recompute_compares_in_canonical_units(
+    tmp_path: Path, receipt: float, stated: float, unit: str | None, quote: str, status: str,
+) -> None:
+    file = _json(tmp_path, {"v": receipt})
+    recipe = Recipe(op="value", file=file, pointer="/v")
+    claim = _claim(recipe, k=None, n=None, value=stated, unit=unit, quote=quote)
+    result = recompute_claim(claim, tmp_path)
+    assert result is not None and result.status == status, result
+
+
+def test_large_scalar_tolerance_is_capped_relative_to_the_value(tmp_path: Path) -> None:
+    # "1.2e6" prints to 50,000 of precision; the cap keeps a 4% miss from reproducing.
+    file = _json(tmp_path, {"v": 1_250_000})
+    recipe = Recipe(op="value", file=file, pointer="/v")
+    claim = _claim(recipe, k=None, n=None, value=1_200_000, quote="about 1.2e6 tokens")
+    result = recompute_claim(claim, tmp_path)
+    assert result is not None and result.status == "differs"
+
+
+def _counts(tmp_path: Path) -> str:
+    return _json(tmp_path, {"weak_count": 18, "cohort_size": 28, "rate": 18 / 28}, "counts.json")
+
+
+def test_target_defaults_follow_the_operation_and_the_claim(tmp_path: Path) -> None:
+    file = _counts(tmp_path)
+    weak = Recipe(op="value", file=file, pointer="/weak_count")
+    # A claim that only has k (the C2 pattern) compares a value recipe with k.
+    only_k = _claim(weak, k=18, n=None, value=None, quote="18 weak rollouts")
+    result = recompute_claim(only_k, tmp_path)
+    assert result is not None and result.status == "reproduced"
+    wrong_k = _claim(weak, k=19, n=None, value=None, quote="19 weak rollouts")
+    result = recompute_claim(wrong_k, tmp_path)
+    assert result is not None and result.status == "differs"
+    # An explicit target is honoured, and n compares the denominator.
+    size = Recipe(op="value", file=file, pointer="/cohort_size", target="n")
+    result = recompute_claim(_claim(size, k=18, n=28, value=0.643, quote="18 of 28 (64.3%)"), tmp_path)
+    assert result is not None and result.status == "reproduced"
+    missing = recompute_claim(_claim(size, k=18, n=None, value=None, quote="18 weak"), tmp_path)
+    assert missing is not None and missing.status == "not_recomputable"
+    assert "no n" in missing.detail
+
+
+@pytest.mark.parametrize(
+    ("pointer", "k", "n", "value", "quote"),
+    [
+        ("/weak_count", 18, 28, 0.643, "18 of 28 (64.3%) were weak"),
+        ("/weak_count", 18, 28, 64.3, "18 of 28 (64.3%) were weak"),
+        ("/weak_count", 18, 28, None, "18 of 28 were weak"),
+    ],
+)
+def test_backtest_differs_pattern_count_recipe_for_a_rate(
+    tmp_path: Path, pointer: str, k: int, n: int, value: float | None, quote: str,
+) -> None:
+    """The six real backtest 'differs': a count recipe read as the stated rate."""
+    file = _counts(tmp_path)
+    unit = "%" if value is not None and value > 1 else None
+    untargeted = Recipe(op="value", file=file, pointer=pointer)
+    claim = _claim(untargeted, k=k, n=n, value=value, unit=unit, quote=quote)
+    result = recompute_claim(claim, tmp_path)
+    assert result is not None and result.status != "differs"
+    if value is not None:
+        # A count against a stated rate is a wrong target, not a disagreement with the source.
+        assert result.status == "not_recomputable"
+        assert "selects the count k" in result.detail and "target" in result.detail
+    # The rate with k/n reproduces from k when the recipe declares it ...
+    targeted = Recipe(op="value", file=file, pointer=pointer, target="k")
+    result = recompute_claim(claim.model_copy(update={"recipe": targeted}), tmp_path)
+    assert result is not None and result.status == "reproduced"
+    # ... from a count recipe (defaults to k) ...
+    rows = _json(tmp_path, [{"w": index < 18} for index in range(28)], "rows.json")
+    counted = Recipe(op="count", file=rows, where={"w": True})
+    result = recompute_claim(claim.model_copy(update={"recipe": counted}), tmp_path)
+    assert result is not None and result.status == "reproduced"
+    # ... and from a ratio recipe against the rate itself.
+    ratio = Recipe(
+        op="ratio", num=Recipe(op="value", file=file, pointer="/weak_count"),
+        den=Recipe(op="value", file=file, pointer="/cohort_size"),
+    )
+    result = recompute_claim(claim.model_copy(update={"recipe": ratio}), tmp_path)
+    assert result is not None and result.status == "reproduced"
+
+
+def test_precision_of_fifteen_of_fifteen_is_not_the_drop_count(tmp_path: Path) -> None:
+    file = _json(tmp_path, {"counts": {"drop": 15}, "evaluation": {"precision": {"rate": 1.0}}})
+    claim = _claim(
+        Recipe(op="value", file=file, pointer="/counts/drop"), k=15, n=15, value=1.0,
+        quote="drop precision 15/15=1.0", metric="precision",
+    )
+    result = recompute_claim(claim, tmp_path)
+    assert result is not None and result.status == "not_recomputable"
+    good = Recipe(op="value", file=file, pointer="/evaluation/precision/rate")
+    result = recompute_claim(claim.model_copy(update={"recipe": good}), tmp_path)
+    assert result is not None and result.status == "reproduced"
+    # A genuinely different rate is still a disagreement.
+    other = _json(tmp_path, {"evaluation": {"precision": {"rate": 0.8}}}, "other.json")
+    different = Recipe(op="value", file=other, pointer="/evaluation/precision/rate")
+    result = recompute_claim(claim.model_copy(update={"recipe": different}), tmp_path)
+    assert result is not None and result.status == "differs"
+
+
+def test_recipe_target_is_part_of_the_contract() -> None:
+    assert Recipe(op="count", file="a.json").target is None
+    assert Recipe(op="value", file="a.json", pointer="", target="n").target == "n"
+    with pytest.raises(ValueError):
+        Recipe.model_validate({"op": "count", "file": "a.json", "target": "rate"})

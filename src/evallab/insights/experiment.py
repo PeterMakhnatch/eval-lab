@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import time
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -69,6 +70,7 @@ class ReportClaim(ContractModel):
     dataset: str | None = None
     k: int | None = None
     n: int | None = None
+    recipe_backed: bool = False
 
 
 class ReportInsight(ContractModel):
@@ -203,7 +205,7 @@ def _from_record(record: ClaimRecord, store: InsightStore, folder: Path) -> Repo
         check_status=record.check.status,
         experiment=record.claim.experiment, metric=record.claim.metric,
         subject=record.claim.subject, dataset=record.claim.dataset,
-        k=record.claim.k, n=record.claim.n,
+        k=record.claim.k, n=record.claim.n, recipe_backed=record.claim.recipe is not None,
     )
 
 
@@ -229,22 +231,25 @@ def _numbers(value: object) -> Iterable[str | float | int]:
 
 
 def _cohort_findings(claims: list[ReportClaim], validity: ValidityReport) -> None:
-    groups: dict[tuple[str, str], list[ReportClaim]] = {}
+    # Claims without a subject are grouped within their experiment, so reports whose
+    # extractor left subject empty still expose pooling across datasets or sample sizes.
+    groups: dict[tuple[str, str, str], list[ReportClaim]] = {}
     for claim in claims:
         if (
             claim.check_status != "fail" and claim.k is not None and claim.n is not None
-            and claim.metric and claim.subject
+            and claim.metric
         ):
-            groups.setdefault((claim.metric, claim.subject), []).append(claim)
+            scope = claim.subject or f"experiment {claim.experiment or 'unknown'}"
+            groups.setdefault((claim.metric, claim.subject or "", scope), []).append(claim)
     mixed: list[str] = []
     mixed_ids: set[str] = set()
-    for (metric, subject), group in sorted(groups.items()):
+    for (metric, _subject, scope), group in sorted(groups.items()):
         datasets = {claim.dataset for claim in group}
         unknown_sizes = {claim.n for claim in group if claim.dataset is None}
         if len(datasets) < 2 and len(unknown_sizes) < 2:
             continue
         ids = sorted(claim.claim_id for claim in group)
-        mixed.append(f"{metric} for {subject} ({', '.join(ids)})")
+        mixed.append(f"{metric} for {scope} ({', '.join(ids)})")
         mixed_ids.update(ids)
     if mixed:
         validity.findings.append(ValidityFinding(
@@ -268,13 +273,29 @@ def _report_insight(record: InsightRecord) -> ReportInsight:
     )
 
 
+# A pass that fails this quickly died at startup (e.g. SQLITE_BUSY in the worker's own
+# state database), not during analysis: run it once more after a short pause.
+_RETRY_WITHIN_SECONDS = 30.0
+_RETRY_DELAY_SECONDS = 3.0
+
+
 def _run_pass(
     engine: EngineLike, lens: Lens, inputs: PassInputs, limitations: list[str],
 ) -> PassRecord | None:
-    try:
-        result = engine.run_lens(lens, wait=True, trigger="experiment", inputs=inputs)
-    except Exception as exc:
-        limitations.append(f"The {lens} pass failed ({type(exc).__name__}).")
+    for attempt in range(2):
+        started = time.monotonic()
+        error: Exception | None = None
+        result: PassRecord | None = None
+        try:
+            result = engine.run_lens(lens, wait=True, trigger="experiment", inputs=inputs)
+        except Exception as exc:
+            error = exc
+        failed = error is not None or (result is not None and result.status != "succeeded")
+        if not failed or attempt == 1 or time.monotonic() - started >= _RETRY_WITHIN_SECONDS:
+            break
+        time.sleep(_RETRY_DELAY_SECONDS)
+    if error is not None:
+        limitations.append(f"The {lens} pass failed ({type(error).__name__}).")
         return None
     if result is None or result.status != "succeeded":
         limitations.append(f"The {lens} pass did not complete successfully.")
@@ -371,6 +392,12 @@ def _report(
         lines.append(f"- {member.folder}: claims extracted{qualifier} "
                      f"{member.claims_extracted}; report files read {member.report_files_read} "
                      f"[{audit_id}].")
+    if agents_run:
+        backed = sum(claim.recipe_backed for claim in claims)
+        sampled_count = sum(claim.rederiver_sampled for claim in claims)
+        lines.append(f"- Recipe-backed claims: {backed} of {len(claims)}; independent "
+                     f"rederivation sampled {sampled_count} of {backed} recipe-backed claims "
+                     f"and {sampled_count} of {len(claims)} claims [{audit_id}].")
     lines.append("## What held")
     for claim in reproduced[:8]:
         lines.append(f"- {_short(claim.text)}: stated {_display_number(claim.stated_number)}, "
@@ -399,13 +426,20 @@ def _report(
     if attribution is not None:
         citation = attribution_id or audit_id
         lines.append("## Layer attribution")
-        lines.append(f"- Prevention means reward blocked; detection means run flagged; their "
-                     f"unions catch {attribution.prevention_k} and {attribution.detection_k} "
-                     f"of {attribution.n} cases, combined {attribution.union_k} "
+        lines.append(f"- Prevention means reward blocked; detection means run flagged. "
+                     f"Prevention layers together block {attribution.prevention_k} of "
+                     f"{attribution.n} cases, detection layers together flag "
+                     f"{attribution.detection_k}, combined {attribution.union_k} "
                      f"[{citation}].")
-        lines.append(f"- Stage-4 uses exact paired McNemar, p < 0.05: with {attribution.n} "
-                     f"cases a layer needs at least {attribution.min_discordant_cases} cases "
-                     f"only it catches, all in its favour [{citation}].")
+        if attribution.n < attribution.min_discordant_cases:
+            lines.append(f"- Stage-4 uses exact paired McNemar, p < 0.05: with {attribution.n} "
+                         f"cases no layer-value claim can be shown at any rate, because p < 0.05 "
+                         f"needs at least {attribution.min_discordant_cases} cases only one layer "
+                         f"catches [{citation}].")
+        else:
+            lines.append(f"- Stage-4 uses exact paired McNemar, p < 0.05: with {attribution.n} "
+                         f"cases a layer needs at least {attribution.min_discordant_cases} cases "
+                         f"only it catches, all in its favour [{citation}].")
         for layer in attribution.layers:
             low, high = layer.ci["low"], layer.ci["high"]
             interval = ("unavailable" if low is None or high is None else
@@ -435,14 +469,18 @@ def _report(
     ][:4]
     by_id = {claim.claim_id: claim for claim in claims}
     for item in challenges:
-        allowed = list(_numbers([
-            by_id[claim_id].model_dump() for claim_id in item.target_claim_ids if claim_id in by_id
-        ]))
-        title = f"{_short(item.title)}; " if not unsupported_numbers(item.title, allowed) else ""
+        targets = [by_id[claim_id] for claim_id in item.target_claim_ids if claim_id in by_id]
+        allowed = list(_numbers([claim.model_dump() for claim in targets]))
+        if not unsupported_numbers(item.title, allowed):
+            lead = f"{_short(item.title)}; "
+        else:
+            # The title's numbers are not in the cited claims, so state what the claims say.
+            about = " and ".join(_short(claim.text) for claim in targets[:2])
+            lead = f"about {about}; " if about else ""
         verdict = item.referee_verdict or "not yet refereed"
         citations = ", ".join([item.insight_id, *item.target_claim_ids])
         flaw = (item.flaw or "other").replace("_", " ")
-        lines.append(f"- {title}{flaw}; severity {item.severity}; "
+        lines.append(f"- {lead}{flaw}; severity {item.severity}; "
                      f"referee: {verdict} [{citations}].")
     if not challenges:
         lines.append(f"- No code-checked skeptic challenge is available [{audit_id}].")
@@ -625,6 +663,11 @@ def analyze_experiment(
         finding_id=audit_id, code="claim_summary", severity="info", count=len(claims),
         message=(
             f"Available claim statuses: {json.dumps(counts, sort_keys=True)}. "
+            f"Recipe-backed claims: {sum(claim.recipe_backed for claim in claims)} of "
+            f"{len(claims)}. Independent rederivation sampled "
+            f"{sum(claim.rederiver_sampled for claim in claims)} of "
+            f"{sum(claim.recipe_backed for claim in claims)} recipe-backed claims and "
+            f"{sum(claim.rederiver_sampled for claim in claims)} of {len(claims)} claims. "
             "Members reviewed: "
             f"{json.dumps([member.model_dump() for member in member_reviews], sort_keys=True)}. "
             f"Related folders: {', '.join(path.name for path in companions)}. "

@@ -94,6 +94,21 @@ def test_et_times_inherit_and_convert_with_path_date() -> None:
     assert sections[4].as_of == datetime(2026, 10, 27, 21, 14, tzinfo=UTC)
 
 
+def test_time_only_headings_roll_past_midnight_and_date_only_resets() -> None:
+    text = (
+        "# Log 2026-11-01\n## 11:30 PM ET\nBefore midnight.\n"
+        "## 12:40 AM ET\nAfter midnight.\n## 2026-11-02\nDate reset.\n"
+        "## 01:10 AM ET\nOn the reset date.\n"
+    )
+    sections = split_sections(
+        text, source_id="F-test", as_of_default=NOW, date_hint=None,
+    )
+    assert sections[1].as_of == datetime(2026, 11, 2, 4, 30, tzinfo=UTC)
+    assert sections[2].as_of == datetime(2026, 11, 2, 5, 40, tzinfo=UTC)
+    assert sections[3].as_of == datetime(2026, 11, 2, 5, 0, tzinfo=UTC)
+    assert sections[4].as_of == datetime(2026, 11, 2, 6, 10, tzinfo=UTC)
+
+
 def test_winter_time_and_invalid_time_are_safe() -> None:
     sections = split_sections(
         "# Update 12:15 AM ET\nBody.\n# Update 29:99 ET\nBody.\n",
@@ -113,6 +128,22 @@ def test_deeper_and_fenced_headings_stay_inside_sections() -> None:
     assert sections[1].heading == "Real > Next"
 
 
+def test_fence_closer_must_be_bare() -> None:
+    text = "# Real\n```\n```python\n# Still code\n```\n## Next\nText.\n"
+    sections = split_sections(text, source_id="F-test", as_of_default=NOW, date_hint=None)
+    assert [section.heading for section in sections] == ["Real", "Real > Next"]
+    assert sections[0].end_line == 5
+    assert sections[1].start_line == 6
+
+
+def test_heading_only_strips_space_delimited_closing_hashes() -> None:
+    sections = split_sections(
+        "# Notes on C#\nBody.\n# Closing ###\nBody.\n",
+        source_id="F-test", as_of_default=NOW, date_hint=None,
+    )
+    assert [section.heading for section in sections] == ["Notes on C#", "Closing"]
+
+
 def test_long_sections_split_without_losing_lines() -> None:
     text = "# Long\n" + ("x" * 3000 + "\n\n") * 10
     sections = split_sections(text, source_id="F-test", as_of_default=NOW, date_hint=None)
@@ -122,6 +153,18 @@ def test_long_sections_split_without_losing_lines() -> None:
     assert "".join("".join(lines[s.start_line - 1:s.end_line]) for s in sections) == text
     repeated = split_sections(text, source_id="F-test", as_of_default=NOW, date_hint=None)
     assert [s.section_id for s in repeated] == [s.section_id for s in sections]
+
+
+def test_blank_line_free_table_splits_only_at_row_boundaries() -> None:
+    rows = [f"| {index} | {'x' * 200} |\n" for index in range(200)]
+    text = "# Table\n" + "".join(rows)
+    sections = split_sections(text, source_id="F-test", as_of_default=NOW, date_hint=None)
+    assert len(sections) > 1
+    lines = text.splitlines(keepends=True)
+    assert "".join("".join(lines[s.start_line - 1:s.end_line]) for s in sections) == text
+    assert all(lines[section.end_line - 1].endswith("|\n") for section in sections[:-1])
+    repeated = split_sections(text, source_id="F-test", as_of_default=NOW, date_hint=None)
+    assert [section.section_id for section in repeated] == [section.section_id for section in sections]
 
 
 def test_override_freezes_lines_and_overrides_glob(tmp_path: Path) -> None:
@@ -169,6 +212,22 @@ def test_jsonl_limits_rows_and_reports_total_count(tmp_path: Path) -> None:
         assert "/30/k" not in text
         assert "/row_count = 35" in text
         assert len(store.pending_sections()) == 1
+
+
+def test_truncated_jsonl_counts_only_complete_rows_and_marks_cut(tmp_path: Path) -> None:
+    path = tmp_path / "receipt.jsonl"
+    path.write_text("\n".join(json.dumps({"index": index}) for index in range(100)) + "\n")
+    with InsightStore(tmp_path / "state.sqlite") as store:
+        result = scan(store, _config(path, max_bytes=1000), now=NOW)
+        assert result.refused == {"oversize": 1}
+        prefix = path.read_bytes()[:1000]
+        complete = prefix.splitlines(keepends=True)
+        assert not complete[-1].endswith(b"\n")
+        complete.pop()
+        expected = sum(bool(line.strip()) for line in complete)
+        assert expected > 30
+        text = read_source_text(store.list_sources()[0])
+        assert f"/row_count = >= {expected} (truncated)" in text
 
 
 def test_excludes_age_and_recursive_deduplication(tmp_path: Path) -> None:

@@ -54,8 +54,10 @@ class LensSchedule(ContractModel):
     min_pending: int = Field(default=0, ge=0)
     batch_size: int = Field(default=12, ge=1)
     max_pack_chars: int = Field(default=120_000, ge=1_000)
-    #: Passes of this lens allowed at once (extraction backfills from several sources).
+    #: Passes allowed at once. Only extraction and systematic skeptic review parallelize.
     max_parallel: int = Field(default=1, ge=1, le=8)
+    #: Experiments whose current claims are reviewed together by one skeptic pass.
+    experiments_per_pass: int = Field(default=3, ge=1, le=100)
 
 
 class RepoMirror(ContractModel):

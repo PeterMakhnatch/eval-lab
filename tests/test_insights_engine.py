@@ -8,6 +8,8 @@ routing and recovery without launching a model.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -15,29 +17,41 @@ from pathlib import Path
 
 import pytest
 
+from evallab.insights import engine as engine_mod
+from evallab.insights.commands.status import collect_status
 from evallab.insights.config import (
     EngineConfig,
     LensSchedule,
+    RepoMirror,
     RouteSpec,
     RouteTable,
+    SourceFamily,
     SourceOverride,
+    write_defaults,
 )
 from evallab.insights.engine import Engine, EngineBusy, engine_lock, rederive_sample
 from evallab.insights.models import (
     BoardEntry,
     BoardUpdate,
     ChallengeSpec,
+    CheckResult,
     ClaimExtraction,
+    ClaimRecord,
     EvidenceRef,
     ExtractedClaim,
     InsightBatch,
     InsightCard,
     Lens,
+    PassRecord,
     PredictionSpec,
     ProposedExperiment,
+    RecomputeResult,
+    RederiveBatch,
+    RederivedClaim,
     RefereeBatch,
     RefereeVerdict,
 )
+from evallab.insights.packs import PassInputs
 from evallab.insights.runner import WorkerSpec
 
 FINDINGS = """# Overnight findings
@@ -91,7 +105,13 @@ class FakeLauncher:
     served: dict[str, tuple[str, str]] = field(default_factory=dict)
     launched: list[WorkerSpec] = field(default_factory=list)
     hang: set[str] = field(default_factory=set)
+    #: omp's own stderr (the only place provider errors are read from)
     log_text: dict[str, str] = field(default_factory=dict)
+    #: the analyst's answer text (worker.log); must never be read as a failure
+    answer_text: dict[str, str] = field(default_factory=dict)
+    #: worker died at startup before any model response
+    no_session: dict[str, str] = field(default_factory=dict)
+    exit_after: dict[str, int] = field(default_factory=dict)
     next_pid: int = 4000
 
     def launch(self, spec: WorkerSpec) -> FakeHandle:
@@ -108,19 +128,27 @@ class FakeLauncher:
                 "role": "assistant",
                 "provider": provider,
                 "model": model,
-                "usage": {"input": 100, "output": 20, "cacheRead": 0},
+                "usage": {"input": 100, "output": 20, "cacheRead": 0, "cacheWrite": 7},
             },
         }
-        (session / "s.jsonl").write_text(json.dumps(record) + "\n", "utf-8")
+        if lens in self.no_session:
+            (spec.pass_dir / "worker.log").write_text(self.no_session[lens], "utf-8")
+        else:
+            (session / "s.jsonl").write_text(json.dumps(record) + "\n", "utf-8")
         if lens in self.log_text:
-            (spec.pass_dir / "worker.log").write_text(self.log_text[lens], "utf-8")
+            (spec.pass_dir / "worker.stderr").write_text(self.log_text[lens], "utf-8")
+        if lens in self.answer_text:
+            (spec.pass_dir / "worker.log").write_text(self.answer_text[lens], "utf-8")
         script = self.scripts.get(lens)
         output = None if script is None else script(spec, inputs)
         if output is not None:
             target = spec.pass_dir / "out" / _output_name(lens)
             target.write_text(output, "utf-8")
         self.next_pid += 1
-        return FakeHandle(pid=self.next_pid, polls_until_exit=10**6 if lens in self.hang else 0)
+        return FakeHandle(
+            pid=self.next_pid,
+            polls_until_exit=10**6 if lens in self.hang else self.exit_after.get(lens, 0),
+        )
 
     def adopt(self, pid: int, pass_dir: Path) -> FakeHandle | None:
         return None
@@ -489,9 +517,11 @@ def test_invalid_output_releases_sections_until_three_attempts(tmp_path: Path) -
     launcher = FakeLauncher(scripts={"extractor": lambda spec, inputs: "{not json"})
     engine = _engine(tmp_path, clock, launcher)
     statuses = []
-    for _ in range(4):
+    # A failing pass backs off exponentially on the same inputs, so give each
+    # round enough time for the backoff to lapse.
+    for _ in range(8):
         engine.tick()
-        clock.advance(1)
+        clock.advance(60)
         statuses.append(engine.store.section_status_counts())
     extractor_passes = [p for p in engine.store.list_passes() if p.lens == "extractor"]
     assert len(extractor_passes) == 3
@@ -546,7 +576,7 @@ def test_cooldown_and_daily_cap_hold_back_a_lens(tmp_path: Path) -> None:
         "utf-8",
     )
     report = engine.tick()  # new section -> extractor; skeptic has nothing new yet
-    assert report.waiting["skeptic"].startswith("waiting: 0 new claims")
+    assert report.waiting["skeptic"].startswith("waiting: 0 experiments not yet reviewed")
     clock.advance(1)
     report = engine.tick()  # new claims -> skeptic #2
     assert "skeptic" in [item["lens"] for item in report.launched]
@@ -603,3 +633,628 @@ def test_rederive_sample_is_stable_as_the_ledger_grows() -> None:
 def test_second_engine_on_the_same_state_is_refused(tmp_path: Path) -> None:
     with engine_lock(tmp_path), pytest.raises(EngineBusy), engine_lock(tmp_path):
         pass
+
+
+# --------------------------------------------------------------------------
+# Robustness: one bad pass, a failing mirror or a failing tick never stops the engine
+# --------------------------------------------------------------------------
+
+
+def _query(engine: Engine, sql: str) -> list[dict[str, object]]:
+    return engine.store.query(sql)
+
+
+def test_a_vanished_source_fails_one_pass_and_the_engine_keeps_ticking(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={"extractor": _extract}))
+    engine.tick()  # extractor starts and writes its output
+    (tmp_path / "FINDINGS.md").unlink()  # the report folder was moved away
+    clock.advance(1)
+    report = engine.tick()
+    extractor = next(p for p in engine.store.list_passes() if p.lens == "extractor")
+    assert extractor.status == "failed"
+    assert extractor.error is not None and "collect failed" in extractor.error
+    assert engine.store.list_passes(statuses=["planned", "running"]) == []
+    assert (tmp_path / "state" / "heartbeat.json").exists()
+    assert report.finished_at
+    # The next tick runs normally; nothing is stuck in flight.
+    clock.advance(1)
+    engine.tick()
+    assert engine.store.section_status_counts().get("in_flight", 0) == 0
+
+
+def test_a_failing_step_still_writes_the_heartbeat_with_the_error(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={}))
+
+    def boom() -> int:
+        raise OSError("signals exploded")
+
+    engine.refresh_signals = boom  # type: ignore[method-assign]
+    report = engine.tick()
+    assert any("signals failed" in error for error in report.errors)
+    heartbeat = json.loads((tmp_path / "state" / "heartbeat.json").read_text("utf-8"))
+    assert any("signals failed" in error for error in heartbeat["errors"])
+
+
+def test_watch_survives_a_failing_recovery_and_failing_ticks(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={}))
+
+    def boom(*_args: object, **_kwargs: object) -> None:
+        raise OSError("disk went away")
+
+    engine.recover = boom  # type: ignore[method-assign]
+    engine.tick = boom  # type: ignore[method-assign]
+    ticks = engine.watch(max_ticks=2, sleep=lambda _seconds: None)
+    assert ticks == 2
+    heartbeat = json.loads((tmp_path / "state" / "heartbeat.json").read_text("utf-8"))
+    assert any("tick failed" in error for error in heartbeat["errors"])
+    kinds = {event["kind"] for event in engine.store.events(limit=50)}
+    assert "tick_failed" in kinds
+
+
+def test_mirror_failure_backs_off_and_scanning_continues(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={"extractor": _extract}))
+    engine.config = engine.config.model_copy(
+        update={
+            "repo_mirror": RepoMirror(
+                repo=str(tmp_path / "repo"), path=str(tmp_path / "mirror"), refresh_minutes=60
+            )
+        }
+    )
+    calls: list[datetime] = []
+
+    def failing(repo: Path, mirror: Path) -> str:
+        calls.append(clock())
+        raise subprocess.CalledProcessError(128, ["git", "fetch"])
+
+    engine.mirror_refresher = failing
+    report = engine.tick()
+    assert any("mirror refresh failed" in error for error in report.errors)
+    assert [item["lens"] for item in report.launched] == ["extractor"]  # scanning went on
+    assert (tmp_path / "state" / "heartbeat.json").exists()
+    clock.advance(2)
+    engine.tick()
+    assert len(calls) == 1  # backing off, not retrying every tick
+    clock.advance(4)
+    engine.tick()
+    assert len(calls) == 2
+
+
+def test_mirror_git_calls_have_a_deadline_and_never_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[dict[str, object]] = []
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        seen.append(kwargs)
+        return subprocess.CompletedProcess(args, 0, "abc123\n", "")
+
+    monkeypatch.setattr(engine_mod.subprocess, "run", fake_run)
+    assert engine_mod._safe_mirror_refresh(tmp_path / "repo", tmp_path / "mirror") == "abc123"
+    assert seen and all(kwargs["timeout"] == engine_mod.MIRROR_GIT_TIMEOUT for kwargs in seen)
+    assert all(kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0" for kwargs in seen)  # type: ignore[index]
+
+
+def test_pack_json_is_never_trusted_and_tampering_fails_the_pass(tmp_path: Path) -> None:
+    clock = Clock()
+
+    def tamper(spec: WorkerSpec, inputs: dict[str, object]) -> str:
+        output = _extract(spec, inputs)
+        (spec.pass_dir / "pack.json").write_text(json.dumps({"lens": "skeptic"}), "utf-8")
+        return output
+
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={"extractor": tamper}))
+    engine.tick()
+    clock.advance(1)
+    engine.tick()
+    extractor = next(p for p in engine.store.list_passes() if p.lens == "extractor")
+    assert extractor.status == "failed"
+    assert extractor.error is not None and "changed after launch" in extractor.error
+    assert engine.store.list_claims(include_failed=True) == []
+    assert engine.store.section_status_counts().get("extracted", 0) == 0
+
+
+def test_dry_run_is_read_only_even_with_unreadable_sections(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={"extractor": _extract}))
+    engine.scan()
+    (tmp_path / "FINDINGS.md").unlink()
+    sections = "SELECT section_id, status, attempts FROM sections ORDER BY section_id"
+    before = _query(engine, sections)
+    report = engine.tick(dry_run=True)
+    assert _query(engine, sections) == before
+    assert report.waiting["extractor"].startswith("waiting: pending sections unreadable")
+    assert engine.store.list_passes() == []
+    with pytest.raises(FileNotFoundError):
+        Engine(tmp_path / "mistyped", readonly=True)
+    assert not (tmp_path / "mistyped").exists()
+
+
+def test_config_edits_are_picked_up_and_a_bad_edit_keeps_the_old_values(tmp_path: Path) -> None:
+    clock = Clock()
+    state = tmp_path / "state"
+    write_defaults(state)
+    engine = Engine(
+        state, routes=_routes(), launcher=FakeLauncher(scripts={}), usage=FixedUsage(),
+        host_check=lambda: True, clock=clock, mirror_refresher=lambda repo, mirror: "unused",
+    )
+    config_file = state / "config.yaml"
+    config_file.write_text(config_file.read_text("utf-8").replace("board_top_n: 12", "board_top_n: 5"))
+    engine.tick(dry_run=True)
+    assert engine.config.board_top_n == 5
+    config_file.write_text("schema_version: 1\nboard_top_n: -3\n")
+    report = engine.tick(dry_run=True)
+    assert any("config reload failed" in error for error in report.errors)
+    assert engine.config.board_top_n == 5
+
+
+# --------------------------------------------------------------------------
+# Scheduling: source priority over the whole backlog, failure classification, backoff
+# --------------------------------------------------------------------------
+
+
+def test_extractor_picks_the_highest_priority_source_over_the_whole_backlog(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={}))
+    low = tmp_path / "low.md"
+    high = tmp_path / "high.md"
+    # More than the old 500-row newest-first window, all newer than the priority source.
+    low.write_text("\n".join(f"## Low {n:04d}\nline {n}\n" for n in range(520)), "utf-8")
+    high.write_text("## High one\nthe important result 3/4\n\n## High two\nanother 1/2\n", "utf-8")
+    old = datetime(2026, 10, 1, tzinfo=UTC).timestamp()
+    os.utime(high, (old, old))
+    engine.config = engine.config.model_copy(
+        update={
+            "overrides": [],
+            "sources": [
+                SourceFamily(family="low", kind="report", globs=[str(low)], priority=10),
+                SourceFamily(family="high", kind="report", globs=[str(high)], priority=90),
+            ],
+        }
+    )
+    engine.scan()
+    inputs, why = engine.build_inputs("extractor", engine.config.schedule("extractor"))
+    assert inputs is not None
+    section = engine.store.get_section(inputs.section_ids[0])
+    assert section is not None
+    source = engine.store.get_source(section.source_id)
+    assert source is not None and source.path.endswith("high.md")
+    assert "522 report sections pending" in why
+
+
+def test_the_analysts_own_words_about_quotas_do_not_park_the_route(tmp_path: Path) -> None:
+    clock = Clock()
+    launcher = FakeLauncher(
+        scripts={"extractor": _extract},
+        answer_text={"skeptic": "n=429 trials hit the rate-limit; the daily quota ceiling was reached"},
+    )
+    engine = _engine(tmp_path, clock, launcher)
+    for _ in range(3):
+        engine.tick()
+        clock.advance(1)
+    skeptic = next(p for p in engine.store.list_passes() if p.lens == "skeptic")
+    assert skeptic.status == "failed"
+    assert skeptic.error is not None and "quota" not in skeptic.error
+    assert engine._parked() == {}
+
+
+def test_an_auth_error_parks_the_provider_and_blocked_routes_leave_no_pass_records(
+    tmp_path: Path,
+) -> None:
+    clock = Clock()
+    launcher = FakeLauncher(
+        scripts={"extractor": _extract}, log_text={"skeptic": "HTTP 401 invalid_grant"}
+    )
+    engine = _engine(tmp_path, clock, launcher)
+    for _ in range(8):
+        engine.tick()
+        clock.advance(1)
+    skeptic = [p for p in engine.store.list_passes() if p.lens == "skeptic"]
+    assert len(skeptic) == 1 and skeptic[0].status == "failed"
+    assert skeptic[0].error is not None and "authentication failed" in skeptic[0].error
+    assert "anthropic" in engine._parked()
+    report = engine.tick()
+    assert "no route available" in report.waiting["skeptic"] or "routes are blocked" in report.waiting["skeptic"]
+    assert len([p for p in engine.store.list_passes() if p.lens == "skeptic"]) == 1
+
+
+def test_no_route_waits_with_backoff_instead_of_a_failed_pass_every_tick(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={"extractor": _extract}))
+    engine.usage = FixedUsage({"anthropic/claude-sonnet-5-5": 99.0})
+    report = engine.tick()
+    for _ in range(4):
+        clock.advance(1)
+        report = engine.tick()
+    assert engine.store.list_passes() == []
+    assert "no route available" in report.waiting["extractor"]
+    assert len([e for e in engine.store.events(limit=50) if e["kind"] == "no_route"]) == 1
+
+
+def test_repeated_failures_with_the_same_inputs_back_off_exponentially(tmp_path: Path) -> None:
+    clock = Clock()
+    ref: list[Engine] = []
+    launcher = FakeLauncher(scripts={"extractor": _extract, "skeptic": lambda spec, inputs: "{not json"})
+    engine = _engine(tmp_path, clock, launcher)
+    ref.append(engine)
+    engine.tick()
+    clock.advance(1)
+    engine.tick()  # skeptic #1 launched
+    clock.advance(1)
+    report = engine.tick()  # #1 invalid -> one failure on these inputs
+    assert "backing off after 1 failures" in report.waiting["skeptic"]
+    state = engine._backoff_state()["skeptic"]
+    assert [entry["failures"] for entry in state.values()] == [1]
+    clock.advance(2)
+    engine.tick()  # backoff over: #2 launches
+    clock.advance(1)
+    report = engine.tick()  # #2 invalid -> two failures, twice the delay
+    assert "backing off after 2 failures" in report.waiting["skeptic"]
+    launched_before = len(launcher.launched)
+    clock.advance(1)
+    engine.tick()
+    assert len(launcher.launched) == launched_before  # still inside the longer delay
+
+
+def test_a_busy_omp_database_at_startup_is_retried_once_without_counting_a_failure(
+    tmp_path: Path,
+) -> None:
+    clock = Clock()
+    launcher = FakeLauncher(
+        scripts={"extractor": _extract},
+        no_session={"skeptic": "SQLiteError: Database agent.db: database is locked (SQLITE_BUSY)"},
+    )
+    engine = _engine(tmp_path, clock, launcher, skeptic=_schedule(cooldown_minutes=30))
+    engine.tick()
+    clock.advance(1)
+    engine.tick()  # skeptic #1
+    clock.advance(1)
+    report = engine.tick()  # #1 died at startup: transient
+    first = next(p for p in engine.store.list_passes(lens="skeptic"))
+    assert first.error is not None and "transient" in first.error
+    assert engine._backoff_state() == {}
+    assert "transient" in report.waiting["skeptic"]
+    clock.advance(1)
+    engine.tick()  # the one retry ignores the 30 minute cooldown
+    assert len(engine.store.list_passes(lens="skeptic")) == 2
+    clock.advance(1)
+    engine.tick()  # the same failure again is a real failure
+    second = max(engine.store.list_passes(lens="skeptic"), key=lambda p: p.created_at)
+    assert second.error is not None and second.error.startswith("no output file")
+    assert engine._backoff_state()
+
+
+def test_quota_and_timeout_failures_do_not_use_up_section_attempts(tmp_path: Path) -> None:
+    clock = Clock()
+    launcher = FakeLauncher(scripts={}, log_text={"extractor": "HTTP 429 quota exhausted"})
+    engine = _engine(tmp_path, clock, launcher)
+    engine.scan()
+    schedule = engine.config.schedule("extractor")
+    for _ in range(4):
+        inputs, _why = engine.build_inputs("extractor", schedule)
+        assert inputs is not None
+        record = engine.launch("extractor", inputs, trigger="test")
+        assert record.status == "running"
+        clock.advance(1)
+        engine.collect()
+        clock.advance(61)  # the parked route is free again
+    passes = [p for p in engine.store.list_passes() if p.lens == "extractor"]
+    assert [p.status for p in passes] == ["parked_quota"] * 4
+    assert {row["attempts"] for row in _query(engine, "SELECT attempts FROM sections")} == {0}
+    assert engine.store.section_status_counts().get("failed", 0) == 0
+
+
+def test_editing_a_section_resets_its_attempts(tmp_path: Path) -> None:
+    clock = Clock()
+    launcher = FakeLauncher(scripts={"extractor": lambda spec, inputs: "{not json"})
+    engine = _engine(tmp_path, clock, launcher)
+    engine.scan()
+    schedule = engine.config.schedule("extractor")
+    for _ in range(2):
+        inputs, _why = engine.build_inputs("extractor", schedule)
+        assert inputs is not None
+        engine.launch("extractor", inputs, trigger="test")
+        clock.advance(1)
+        engine.collect()
+    assert {row["attempts"] for row in _query(engine, "SELECT attempts FROM sections")} == {2}
+    (tmp_path / "FINDINGS.md").write_text(FINDINGS + "\nK7B follow-up: 3/4 repeated.\n", "utf-8")
+    engine.scan()
+    rows = _query(engine, "SELECT status, attempts FROM sections")
+    assert {"status": "pending", "attempts": 0} in rows
+
+
+def test_a_section_edited_mid_pass_is_not_given_to_a_second_extractor(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={"extractor": _extract}))
+    engine.tick()  # extractor running on the original text
+    in_flight = engine.store.section_status_counts().get("in_flight", 0)
+    assert in_flight >= 1
+    (tmp_path / "FINDINGS.md").write_text(FINDINGS + "\nA late edit to the same section.\n", "utf-8")
+    engine.scan()
+    assert engine.store.section_status_counts().get("in_flight", 0) == in_flight
+    launched, _waiting = engine.plan_and_launch()
+    assert [item for item in launched if item["lens"] == "extractor"] == []
+    clock.advance(1)
+    engine.collect()
+    # Claims read from the old text are not stored against the new text.
+    assert engine.store.list_claims(include_failed=True) == []
+    extractor = next(p for p in engine.store.list_passes() if p.lens == "extractor")
+    assert extractor.outputs["refused"] == 3
+    assert _query(engine, "SELECT 1 FROM sections WHERE status = 'pending' AND attempts = 0")
+
+
+def test_newly_graded_cards_are_counted_by_when_they_were_graded(tmp_path: Path) -> None:
+    clock = Clock()
+    ref: list[Engine] = []
+    launcher = FakeLauncher(scripts={"extractor": _extract, "skeptic": _skeptic(ref)})
+    engine = _engine(tmp_path, clock, launcher, referee=_schedule(enabled=False))
+    ref.append(engine)
+    for _ in range(3):
+        engine.tick()
+        clock.advance(1)
+    cards = engine.store.list_insights(statuses=["checked"])
+    assert cards
+    engine.store.save_pass(
+        PassRecord(
+            pass_id="P-seed-synthesizer", lens="synthesizer", route="anthropic/claude-opus-5-5",
+            trigger="seed", status="succeeded", pass_dir=str(tmp_path),
+            created_at=clock() + timedelta(minutes=5),
+        )
+    )
+    # Cards created before the synthesizer's last pass but graded after it still count.
+    for card in cards:
+        engine.store.save_insight(
+            card.model_copy(update={"status": "refereed"}), graded_at=clock() + timedelta(minutes=10)
+        )
+    inputs, why = engine.build_inputs("synthesizer", engine.config.schedule("synthesizer"))
+    assert inputs is not None and "newly graded" in why
+
+
+def test_a_rederiver_from_the_extractors_family_is_not_counted(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={"extractor": _extract}))
+    engine.tick()
+    clock.advance(1)
+    engine.tick()
+    claim = engine.store.list_claims()[0]
+    record = PassRecord(
+        pass_id="P-seed-rederiver", lens="rederiver", route="r/x", trigger="seed",
+        status="running", pass_dir=str(tmp_path), created_at=clock(),
+    )
+    inputs = PassInputs(lens="rederiver", claim_ids=(claim.claim_id,))
+    batch = RederiveBatch(
+        claims=[RederivedClaim(claim_id=claim.claim_id, not_recomputable_reason="no receipts")]
+    )
+    same = engine._import_rederivations(record, inputs, batch, claim.extracted_by)
+    assert same == {"rederived": 0, "agree": 0, "not_independent": 1}
+    other = engine._import_rederivations(record, inputs, batch, "google-antigravity/gemini-3.8-flash")
+    assert other["rederived"] == 1 and other["not_independent"] == 0
+
+
+def test_agreement_compares_values_within_printed_rounding() -> None:
+    agree = RecomputeResult(status="reproduced", value=48.0)
+    claim = ExtractedClaim(
+        local_id="c", experiment="E1", statement="48 packages were dropped overall.",
+        kind="measurement", k=48, value=48.0, quote="48 dropped", section_id="s",
+    )
+    # Same number, different status wording: values decide.
+    assert engine_mod._agreement(RecomputeResult(status="differs", value=48.0), agree, claim) is True
+    assert engine_mod._agreement(RecomputeResult(status="reproduced", value=47.0), agree, claim) is False
+    # One side failed, the other did not: disagreement.
+    failed = RecomputeResult(status="not_recomputable")
+    assert engine_mod._agreement(failed, agree, claim) is False
+    # Neither side produced a number: not comparable.
+    assert engine_mod._agreement(failed, RecomputeResult(status="not_recomputable"), claim) is None
+    assert engine_mod._agreement(None, agree, claim) is None
+
+
+def test_fast_cycle_collects_an_exited_worker_without_waiting_for_the_next_tick(
+    tmp_path: Path,
+) -> None:
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={"extractor": _extract}))
+    engine.config = engine.config.model_copy(update={"tick_seconds": 10})
+    states: list[list[str]] = []
+
+    def sleep(_seconds: float) -> None:
+        states.append([p.status for p in engine.store.list_passes(lens="extractor")])
+
+    engine.watch(max_ticks=2, sleep=sleep, collect_seconds=1)
+    assert states[0] == ["running"]
+    assert "succeeded" in states[1]  # collected one poll later, not a full tick later
+
+
+def test_status_explains_each_lens_in_plain_words(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={"extractor": _extract}))
+    for _ in range(3):
+        engine.tick()
+        clock.advance(1)
+    status = collect_status(tmp_path / "state", now=clock())
+    assert status["engine_alive"] is True
+    lenses = status["lenses"]
+    assert isinstance(lenses, dict)
+    assert "experiments reviewed" in lenses["skeptic"]["text"]
+    assert "no receipt-backed claims yet" in lenses["rederiver"]["text"]
+    assert "/" in lenses["theorist"]["text"]
+    coverage = status["coverage"]
+    assert isinstance(coverage, dict) and coverage["recipe_backed"] == 0
+    stale = collect_status(tmp_path / "state", now=clock() + timedelta(hours=2))
+    assert stale["engine_alive"] is False
+
+
+# --------------------------------------------------------------------------
+# Systematic skeptic coverage
+# --------------------------------------------------------------------------
+
+
+def _empty_skeptic(spec: WorkerSpec, inputs: dict[str, object]) -> str:
+    return InsightBatch(lens="skeptic", cards=[]).model_dump_json()
+
+
+def _seed_claims(engine: Engine, clock: Clock, counts: dict[str, int], *, tag: str = "a") -> None:
+    records = [
+        ClaimRecord(
+            claim_id=f"C-{exp}-{tag}{n:02d}", source_id="S-seed", section_sha256=f"sha-{exp}",
+            fingerprint=f"FP-{exp}-{tag}{n}", pass_id="P-seed",
+            extracted_by="anthropic/claude-sonnet-5-5", created_at=clock(),
+            claim=ExtractedClaim(
+                local_id=f"c{n}", experiment=exp, statement=f"{exp} claim {tag}{n} measured a rate",
+                kind="measurement", quote=f"quote {exp} {tag}{n}", section_id=f"sec-{exp}",
+            ),
+            check=CheckResult(status="pass"),
+        )
+        for exp, count in counts.items()
+        for n in range(count)
+    ]
+    engine.store.insert_claims(records)
+
+
+def _reviewed(engine: Engine, pass_id: str) -> list[str]:
+    stored = engine.store.pass_inputs(pass_id)
+    assert stored is not None
+    return list(stored["metadata"]["experiment_ids"])
+
+
+def _coverage_engine(tmp_path: Path, clock: Clock, launcher: FakeLauncher, **schedule: object) -> Engine:
+    return _engine(
+        tmp_path, clock, launcher,
+        extractor=_schedule(enabled=False),
+        skeptic=_schedule(experiments_per_pass=3, **schedule),
+    )
+
+
+def test_seven_experiments_are_fully_covered_by_three_skeptic_passes(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _coverage_engine(tmp_path, clock, FakeLauncher(scripts={"skeptic": _empty_skeptic}))
+    _seed_claims(engine, clock, {f"E{n}": n for n in range(1, 8)})
+    for _ in range(8):
+        engine.tick()
+        clock.advance(1)
+    passes = sorted(engine.store.list_passes(lens="skeptic"), key=lambda p: p.created_at)
+    assert [p.status for p in passes] == ["succeeded"] * 3
+    reviewed = [_reviewed(engine, p.pass_id) for p in passes]
+    assert [len(r) for r in reviewed] == [3, 3, 1]
+    assert set(reviewed[0]) == {"E7", "E6", "E5"}  # most claims first
+    assert sorted(e for r in reviewed for e in r) == [f"E{n}" for n in range(1, 8)]
+    assert engine.store.coverage_count("skeptic") == 7
+    report = engine.tick()
+    assert report.waiting["skeptic"].startswith("waiting: 0 experiments not yet reviewed")
+    assert "experiments not yet reviewed" in passes[0].trigger
+
+
+def test_a_changed_claim_requeues_only_its_experiment(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _coverage_engine(tmp_path, clock, FakeLauncher(scripts={"skeptic": _empty_skeptic}))
+    _seed_claims(engine, clock, {"E1": 2, "E2": 2, "E3": 2})
+    for _ in range(4):
+        engine.tick()
+        clock.advance(1)
+    assert engine.store.coverage_count("skeptic") == 3
+    _seed_claims(engine, clock, {"E2": 1}, tag="b")
+    report = engine.tick()
+    launched = [item for item in report.launched if item["lens"] == "skeptic"]
+    assert len(launched) == 1
+    assert _reviewed(engine, launched[0]["pass_id"]) == ["E2"]
+    clock.advance(1)
+    engine.tick()
+    assert engine.tick().waiting["skeptic"].startswith("waiting: 0 experiments not yet reviewed")
+
+
+def test_a_claim_added_while_a_pass_runs_is_reviewed_in_the_next_pass(tmp_path: Path) -> None:
+    clock = Clock()
+    launcher = FakeLauncher(scripts={"skeptic": _empty_skeptic}, exit_after={"skeptic": 1})
+    engine = _coverage_engine(tmp_path, clock, launcher)
+    _seed_claims(engine, clock, {"E1": 2})
+    engine.tick()  # pass #1 captures E1's digest at launch
+    _seed_claims(engine, clock, {"E1": 1}, tag="late")
+    clock.advance(1)
+    engine.tick()  # still running
+    clock.advance(1)
+    report = engine.tick()  # #1 collected with the launch-time digest; E1 changed since
+    assert [item["lens"] for item in report.launched] == ["skeptic"]
+
+
+def test_parallel_skeptic_passes_never_share_an_experiment(tmp_path: Path) -> None:
+    clock = Clock()
+    launcher = FakeLauncher(scripts={"skeptic": _empty_skeptic}, exit_after={"skeptic": 2})
+    engine = _coverage_engine(tmp_path, clock, launcher, max_parallel=2)
+    _seed_claims(engine, clock, {f"E{n}": n for n in range(1, 8)})
+    report = engine.tick()
+    first = [item["pass_id"] for item in report.launched if item["lens"] == "skeptic"]
+    assert len(first) == 2
+    assert not set(_reviewed(engine, first[0])) & set(_reviewed(engine, first[1]))
+    seen: list[set[str]] = []
+    for _ in range(10):
+        clock.advance(1)
+        engine.tick()
+        running = [
+            set(_reviewed(engine, p.pass_id))
+            for p in engine.store.list_passes(lens="skeptic", statuses=["running"])
+        ]
+        for index, group in enumerate(running):
+            assert all(not group & other for other in running[index + 1 :])
+        seen.extend(running)
+    assert engine.store.coverage_count("skeptic") == 7
+
+
+def test_a_failed_skeptic_pass_leaves_coverage_untouched(tmp_path: Path) -> None:
+    clock = Clock()
+    launcher = FakeLauncher(scripts={"skeptic": lambda spec, inputs: "{not json"})
+    engine = _coverage_engine(tmp_path, clock, launcher)
+    _seed_claims(engine, clock, {"E1": 1, "E2": 1, "E3": 1})
+    engine.tick()
+    clock.advance(1)
+    engine.tick()
+    failed = engine.store.list_passes(lens="skeptic")[0]
+    assert failed.status == "invalid_output"
+    assert engine.store.coverage_count("skeptic") == 0
+    assert engine.store.coverage_digests("skeptic") == {}
+    launcher.scripts["skeptic"] = _empty_skeptic
+    clock.advance(5)
+    engine.tick()
+    clock.advance(1)
+    engine.tick()
+    assert engine.store.coverage_count("skeptic") == 3
+
+
+def test_cards_citing_claims_that_went_stale_are_rechecked_and_fail(tmp_path: Path) -> None:
+    clock = Clock()
+    ref: list[Engine] = []
+    launcher = FakeLauncher(scripts={"extractor": _extract, "skeptic": _skeptic(ref)})
+    engine = _engine(tmp_path, clock, launcher, referee=_schedule(enabled=False))
+    ref.append(engine)
+    for _ in range(3):
+        engine.tick()
+        clock.advance(1)
+    assert {c.status for c in engine.store.list_insights()} == {"checked"}
+    # The report is rewritten: the cited claims' section changed, so those claims are stale.
+    (tmp_path / "FINDINGS.md").write_text(FINDINGS.replace("21/21", "20/21"), "utf-8")
+    engine.scan()
+    assert engine.store.insight_recheck_count() == 2
+    assert engine.recheck_insights() == 2
+    cards = engine.store.list_insights()
+    assert {c.status for c in cards} == {"check_failed"}
+    assert all("stale" in " ".join(c.check.notes) for c in cards)
+    assert engine.store.insight_recheck_count() == 0
+
+
+def test_status_command_prints_plain_words(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import argparse
+
+    from evallab.insights.commands import status as status_command
+
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={"extractor": _extract}))
+    engine.tick()
+    args = argparse.Namespace(state_dir=tmp_path / "state", json=False)
+    assert status_command._cmd(args, tmp_path) == 0
+    out = capsys.readouterr().out
+    assert "What each analyst is waiting for:" in out
+    assert "rederiver (independent receipt check)" in out
+    assert "Skeptic coverage:" in out

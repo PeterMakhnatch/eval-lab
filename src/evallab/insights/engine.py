@@ -22,7 +22,9 @@ import hashlib
 import json
 import math
 import os
+import re
 import secrets
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
@@ -36,6 +38,7 @@ from pydantic import BaseModel, ValidationError
 
 from evallab.insights import board as board_mod
 from evallab.insights import check as check_mod
+from evallab.insights import packs as packs_mod
 from evallab.insights import recompute as recompute_mod
 from evallab.insights import signals as signals_mod
 from evallab.insights import sources as sources_mod
@@ -52,6 +55,7 @@ from evallab.insights.models import (
     BoardUpdate,
     ClaimExtraction,
     ClaimRecord,
+    ExtractedClaim,
     InsightBatch,
     InsightRecord,
     InsightStatus,
@@ -62,6 +66,7 @@ from evallab.insights.models import (
     RederivationRecord,
     RederiveBatch,
     RefereeBatch,
+    SourceRecord,
     claim_fingerprint,
     claim_identity,
     insight_identity,
@@ -97,6 +102,14 @@ PLAN_ORDER: tuple[Lens, ...] = (
 WORKER_TOOLS = "read,bash,grep,glob,write"
 TIMEOUT_GRACE = timedelta(minutes=5)
 PARK_DEFAULT = timedelta(minutes=60)
+AUTH_PARK = timedelta(hours=24)
+BACKOFF_MAX = timedelta(hours=24)
+MIRROR_GIT_TIMEOUT = 60
+#: Between full ticks the watch loop polls worker handles this often (seconds).
+COLLECT_POLL_SECONDS = 5.0
+TRANSIENT_RETRY_DELAY = timedelta(seconds=45)
+#: omp startup failures that say nothing about the analysis (shared agent.db contention).
+TRANSIENT_STARTUP = re.compile(r"SQLITE_BUSY|database is locked|SQLiteError", re.IGNORECASE)
 ACTIVE_STATUSES = ("planned", "running")
 REDERIVE_FRACTION = 0.2
 _REFEREE_STATUS: dict[str, InsightStatus] = {
@@ -189,6 +202,19 @@ def _primary_model(served: Mapping[str, int]) -> str | None:
     return max(sorted(served), key=lambda model: served[model])
 
 
+def _safe_mirror_refresh(repo: Path, mirror: Path) -> str:
+    """Run every mirror git command with a deadline and no credential prompt."""
+    def run(
+        args: list[str], *, check: bool, capture_output: bool, text: bool
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            args, check=check, capture_output=capture_output, text=text,
+            timeout=MIRROR_GIT_TIMEOUT, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+
+    return sources_mod.refresh_mirror(repo, mirror, run=run)
+
+
 class Engine:
     def __init__(
         self,
@@ -202,11 +228,14 @@ class Engine:
         clock: Callable[[], datetime] | None = None,
         python_executable: str | None = None,
         mirror_refresher: Callable[[Path, Path], object] | None = None,
+        readonly: bool = False,
     ) -> None:
         self.state_root = state_root.expanduser()
-        self.state_root.mkdir(parents=True, exist_ok=True)
+        if not readonly:
+            self.state_root.mkdir(parents=True, exist_ok=True)
         self.db_path = self.state_root / DB_NAME
-        self.store = InsightStore(self.db_path)
+        self.store = InsightStore(self.db_path, readonly=readonly)
+        self._config_reload_enabled = config is None
         self.config = config if config is not None else load_config(self.state_root)
         self.routes = routes if routes is not None else load_routes(self.state_root)
         self.launcher: Launcher = launcher if launcher is not None else OmpLauncher()
@@ -216,30 +245,55 @@ class Engine:
         )
         self.clock = clock or utcnow
         self.python_executable = python_executable or sys.executable
-        self.mirror_refresher = mirror_refresher or sources_mod.refresh_mirror
+        self.mirror_refresher = mirror_refresher or _safe_mirror_refresh
         self._handles: dict[str, WorkerHandle] = {}
 
     # ------------------------------------------------------------------ tick
     def tick(self, *, dry_run: bool = False) -> TickReport:
         now = self.clock()
         report = TickReport(started_at=_iso(now))
-        if not dry_run:
-            report.collected = self.collect()
-            self._refresh_mirror_if_due(report)
+        if self._config_reload_enabled:
             try:
-                scan = self.scan()
-                report.scanned = dict(asdict(scan))
-            except (OSError, ValueError) as exc:
-                report.errors.append(f"scan failed: {exc}")
-            report.new_signals = self.refresh_signals()
-        report.launched, report.waiting = self.plan_and_launch(dry_run=dry_run)
+                self.config = load_config(self.state_root)
+            except (OSError, ValueError, ValidationError) as exc:
+                report.errors.append(f"config reload failed; keeping previous values: {exc}")
         if not dry_run:
-            self.render_board(report)
+            collected = self._step(report, "collect", self.collect)
+            report.collected = [] if collected is None else collected
+            self._step(report, "mirror refresh", lambda: self._refresh_mirror_if_due(report))
+            scan = self._step(report, "scan", self.scan)
+            if scan is not None:
+                report.scanned = dict(asdict(scan))
+            self._step(report, "card recheck", self.recheck_insights)
+            new_signals = self._step(report, "signals", self.refresh_signals)
+            report.new_signals = 0 if new_signals is None else new_signals
+        planned = self._step(report, "planning", lambda: self.plan_and_launch(dry_run=dry_run))
+        if planned is not None:
+            report.launched, report.waiting = planned
+        if not dry_run:
+            self._step(report, "board", lambda: self.render_board(report))
         report.finished_at = _iso(self.clock())
         if not dry_run:
-            self.store.set_meta("last_tick", json.dumps(report.as_dict(), sort_keys=True))
+            # The heartbeat is written even when steps failed: it carries the errors.
+            self._step(
+                report, "last tick", lambda: self.store.set_meta(
+                    "last_tick", json.dumps(report.as_dict(), sort_keys=True)
+                ),
+            )
             self._write_heartbeat(report)
         return report
+
+    def _step[ResultT](
+        self, report: TickReport, name: str, action: Callable[[], ResultT]
+    ) -> ResultT | None:
+        """Run one tick step; a failure becomes a report error, never an exception."""
+        try:
+            return action()
+        except Exception as exc:  # noqa: BLE001 - one broken step must not stop the others
+            error = f"{name} failed: {_short_error(exc)}"
+            report.errors.append(error)
+            self._log_event_safely("tick_step_failed", {"step": name, "error": error})
+            return None
 
     def scan(self) -> sources_mod.ScanResult:
         return sources_mod.scan(self.store, self.config, now=self.clock())
@@ -289,9 +343,9 @@ class Engine:
             if schedule is None or not schedule.enabled:
                 waiting[lens] = "disabled"
                 continue
-            # Only extraction runs in parallel: its inputs (pending sections) are
-            # claimed per pass, so two passes never see the same section.
-            allowed = schedule.max_parallel if lens == "extractor" else 1
+            # Extractor sections and skeptic experiments are claimed per pass;
+            # all other lenses remain single-flight.
+            allowed = schedule.max_parallel if lens in {"extractor", "skeptic"} else 1
             if running_by_lens.get(lens, 0) >= allowed:
                 waiting[lens] = "a pass of this lens is already running"
                 continue
@@ -300,9 +354,13 @@ class Engine:
                 waiting[lens] = reason
                 continue
             while running_by_lens.get(lens, 0) < allowed:
-                inputs, why = self.build_inputs(lens, schedule)
+                inputs, why = self.build_inputs(lens, schedule, dry_run=dry_run)
                 if inputs is None:
                     waiting.setdefault(lens, why)
+                    break
+                backoff = self._backoff_block(lens, self._input_content_digest(lens, inputs))
+                if backoff:
+                    waiting[lens] = backoff
                     break
                 if slots <= 0:
                     waiting[lens] = (
@@ -328,13 +386,122 @@ class Engine:
                 waiting.pop(lens, None)
         return launched, waiting
 
+    def _backoff_state(self) -> dict[str, dict[str, dict[str, object]]]:
+        raw = self.store.get_meta("lens_backoff")
+        if not raw:
+            return {}
+        try:
+            value = json.loads(raw)
+        except ValueError:
+            return {}
+        return value if isinstance(value, dict) else {}
+
+    def _backoff_block(self, lens: Lens, content_digest: str) -> str:
+        entry = self._backoff_state().get(lens, {}).get(content_digest)
+        if not entry:
+            return ""
+        retry_at = _parse_iso(str(entry.get("retry_at")))
+        now = self.clock()
+        if retry_at <= now:
+            return ""
+        failures = _as_int(entry.get("failures"), 1)
+        minutes = math.ceil((retry_at - now).total_seconds() / 60)
+        return f"backing off after {failures} failures of the same inputs ({minutes} min left)"
+
+    def _note_failure(self, lens: Lens, content_digest: str) -> None:
+        if not content_digest:
+            return
+        state = self._backoff_state()
+        per_lens = state.setdefault(lens, {})
+        previous = per_lens.get(content_digest, {})
+        failures = _as_int(previous.get("failures")) + 1
+        base_minutes = max(1.0, self.config.schedule(lens).cooldown_minutes)
+        delay = min(BACKOFF_MAX, timedelta(minutes=base_minutes * 2 ** (failures - 1)))
+        per_lens[content_digest] = {
+            "failures": failures,
+            "retry_at": _iso(self.clock() + delay),
+        }
+        # Bound metadata growth from one-off malformed inputs.
+        if len(per_lens) > 32:
+            oldest = sorted(per_lens, key=lambda key: str(per_lens[key].get("retry_at", "")))[0]
+            del per_lens[oldest]
+        self.store.set_meta("lens_backoff", json.dumps(state, sort_keys=True))
+
+    def _note_success(self, lens: Lens, content_digest: str) -> None:
+        state = self._backoff_state()
+        per_lens = state.get(lens, {})
+        if content_digest in per_lens:
+            del per_lens[content_digest]
+            self.store.set_meta("lens_backoff", json.dumps(state, sort_keys=True))
+
+    def _claim_transient_retry(self, lens: Lens, content_digest: str, now: datetime) -> bool:
+        """Allow one quick retry per input set after a startup failure that wasn't ours."""
+        key = f"transient:{lens}:{content_digest}"
+        if self.store.get_meta(key):
+            return False
+        self.store.set_meta(key, _iso(now))
+        self.store.set_meta(f"transient_until:{lens}", _iso(now + TRANSIENT_RETRY_DELAY))
+        self.store.log_event("transient_startup_failure", {"lens": lens})
+        return True
+
+    def _no_route_block(self, lens: Lens) -> str:
+        raw = self.store.get_meta(f"no_route:{lens}")
+        if not raw:
+            return ""
+        try:
+            entry = json.loads(raw)
+            retry_at = _parse_iso(str(entry["retry_at"]))
+        except (ValueError, KeyError):
+            return ""
+        now = self.clock()
+        if retry_at <= now:
+            return ""
+        minutes = math.ceil((retry_at - now).total_seconds() / 60)
+        return f"no route available; retry in {minutes} min ({entry.get('reason', '')})"
+
+    def _note_no_route(self, lens: Lens, reason: str) -> None:
+        key = f"no_route:{lens}"
+        previous: dict[str, object] = {}
+        raw = self.store.get_meta(key)
+        if raw:
+            try:
+                previous = json.loads(raw)
+            except ValueError:
+                previous = {}
+        failures = _as_int(previous.get("failures")) + 1
+        base = max(5.0, self.config.schedule(lens).cooldown_minutes)
+        delay = min(timedelta(hours=1), timedelta(minutes=base * 2 ** (failures - 1)))
+        now = self.clock()
+        self.store.set_meta(key, json.dumps({
+            "failures": failures,
+            "retry_at": _iso(now + delay),
+            "reason": reason,
+            "last_at": _iso(now),
+        }, sort_keys=True))
+        # Keep no-route events useful without crowding out real pass failures.
+        last_at = previous.get("last_at")
+        if not isinstance(last_at, str) or now - _parse_iso(last_at) >= timedelta(hours=1):
+            self.store.log_event("no_route", {"lens": lens, "reason": reason})
+
+    def _clear_no_route(self, lens: Lens) -> None:
+        self.store.set_meta(f"no_route:{lens}", "")
+
     def _schedule_block(self, lens: Lens, schedule: LensSchedule) -> str:
+        no_route = self._no_route_block(lens)
+        if no_route:
+            return no_route
+        transient_until = self.store.get_meta(f"transient_until:{lens}")
+        retry_due = False
+        if transient_until:
+            if _parse_iso(transient_until) > self.clock():
+                return "retrying shortly after a transient startup failure"
+            retry_due = True
         now = self.clock()
         recent = self.store.list_passes(lens=lens, since=now - timedelta(hours=24))
         started = [record for record in recent if record.started_at is not None]
         if len(started) >= schedule.daily_cap:
             return f"daily cap reached ({len(started)} of {schedule.daily_cap} in 24h)"
-        if recent:
+        if recent and not retry_due:
             last = recent[0].created_at
             ready_at = last + timedelta(minutes=schedule.cooldown_minutes)
             if ready_at > now:
@@ -350,10 +517,42 @@ class Engine:
         passes = self.store.list_passes(lens=lens, statuses=["succeeded"], limit=1)
         return passes[0].created_at if passes else None
 
-    def build_inputs(self, lens: Lens, schedule: LensSchedule) -> tuple[PassInputs | None, str]:
+    def _launch_metadata(self, lens: Lens, inputs: PassInputs) -> dict[str, object]:
+        if lens == "extractor":
+            shas: dict[str, str] = {}
+            for section_id in inputs.section_ids:
+                section = self.store.get_section(section_id)
+                if section is not None:
+                    shas[section_id] = section.sha256
+            return {"section_sha256": shas}
+        if lens == "skeptic":
+            selected = set(inputs.claim_ids)
+            coverage = {
+                str(candidate["exp_id"]): str(candidate["claims_digest"])
+                for candidate in self.store.experiment_review_candidates()
+                if selected.intersection(candidate["claim_ids"])
+            }
+            return {"coverage": coverage, "experiment_ids": sorted(coverage)}
+        return {}
+
+    @staticmethod
+    def _digest_of(inputs: PassInputs, metadata: Mapping[str, object]) -> str:
+        payload = {"inputs": asdict(inputs), "metadata": dict(metadata)}
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+
+    def _input_content_digest(self, lens: Lens, inputs: PassInputs) -> str:
+        return self._digest_of(inputs, self._launch_metadata(lens, inputs))
+
+    def build_inputs(
+        self, lens: Lens, schedule: LensSchedule, *, dry_run: bool = False
+    ) -> tuple[PassInputs | None, str]:
         """Pick the inputs for one pass of ``lens``; return (None, why) when not ready."""
         if lens == "extractor":
-            return self._extractor_inputs(schedule)
+            return self._extractor_inputs(schedule, dry_run=dry_run)
+        if lens == "skeptic":
+            return self._skeptic_inputs(schedule)
         if lens == "referee":
             checked = self.store.list_insights(statuses=["checked"])
             checked.sort(key=lambda record: (record.created_at, record.insight_id))
@@ -370,40 +569,36 @@ class Engine:
             return self._synthesizer_inputs(schedule)
         return self._analyst_inputs(lens, schedule)
 
-    def _extractor_inputs(self, schedule: LensSchedule) -> tuple[PassInputs | None, str]:
-        pending = self.store.pending_sections(limit=500)
-        if not pending:
+    def _extractor_inputs(
+        self, schedule: LensSchedule, *, dry_run: bool = False
+    ) -> tuple[PassInputs | None, str]:
+        summaries = self.store.pending_source_summaries()
+        if not summaries:
             return None, "waiting: no new report sections"
         priorities = {family.family: family.priority for family in self.config.sources}
         override_families = {override.family for override in self.config.overrides}
-        sources_by_id = {}
-        for section in pending:
-            if section.source_id not in sources_by_id:
-                sources_by_id[section.source_id] = self.store.get_source(section.source_id)
 
-        def source_rank(source_id: str) -> tuple[int, str]:
-            source = sources_by_id.get(source_id)
-            if source is None:
-                return (0, source_id)
-            priority = priorities.get(source.family, 100 if source.family in override_families else 0)
-            newest = max(
-                (_iso(s.as_of) for s in pending if s.source_id == source_id and s.as_of), default=""
+        def source_rank(row: dict[str, object]) -> tuple[int, str, str]:
+            source = self.store.get_source(str(row["source_id"]))
+            priority = 0 if source is None else priorities.get(
+                source.family, 100 if source.family in override_families else 0
             )
-            return (priority, newest)
+            return priority, str(row["newest"] or ""), str(row["source_id"])
 
-        source_id = max(sorted(sources_by_id), key=source_rank)
-        source = sources_by_id[source_id]
+        selected = max(summaries, key=source_rank)
+        source_id = str(selected["source_id"])
+        source = self.store.get_source(source_id)
         if source is None:
             return None, "waiting: pending sections lost their source"
+        pending = self.store.pending_sections(source_id=source_id, limit=None)
         chosen: list[str] = []
         budget = schedule.max_pack_chars
-        for section in sorted(
-            (s for s in pending if s.source_id == source_id), key=lambda s: s.ordinal
-        ):
+        for section in sorted(pending, key=lambda item: item.ordinal):
             try:
                 size = len(sources_mod.section_text(source, section))
             except OSError:
-                self.store.mark_sections([section.section_id], "failed")
+                if not dry_run:
+                    self._release_sections([section.section_id], count_attempt=True)
                 continue
             if chosen and size > budget:
                 break
@@ -413,9 +608,68 @@ class Engine:
                 break
         if not chosen:
             return None, "waiting: pending sections unreadable"
+        total = sum(int(row["pending_count"]) for row in summaries)
         return (
             PassInputs(lens="extractor", section_ids=tuple(chosen)),
-            f"{len(pending)} report sections pending; extracting {len(chosen)} from {source.path}",
+            f"{total} report sections pending; extracting {len(chosen)} from {source.path}",
+        )
+
+    def _skeptic_in_flight_experiments(self) -> set[str]:
+        claimed: set[str] = set()
+        for record in self.store.list_passes(lens="skeptic", statuses=ACTIVE_STATUSES):
+            stored = self.store.pass_inputs(record.pass_id)
+            if stored is None:
+                continue
+            experiment_ids = stored["metadata"].get("experiment_ids", [])
+            claimed.update(str(exp_id) for exp_id in experiment_ids)
+        return claimed
+
+    def _skeptic_inputs(self, schedule: LensSchedule) -> tuple[PassInputs | None, str]:
+        reviewed = self.store.coverage_digests("skeptic")
+        in_flight = self._skeptic_in_flight_experiments()
+        candidates = [
+            candidate
+            for candidate in self.store.experiment_review_candidates()
+            if candidate["claim_ids"]
+            and candidate["exp_id"] not in in_flight
+            and reviewed.get(str(candidate["exp_id"])) != candidate["claims_digest"]
+        ]
+        if not candidates:
+            return None, "waiting: 0 experiments not yet reviewed"
+        open_signals = self.store.list_signals(status="open", limit=10_000)
+        signal_counts: dict[str, int] = {}
+        for candidate in candidates:
+            claim_ids = set(candidate["claim_ids"])
+            signal_counts[str(candidate["exp_id"])] = sum(
+                bool(claim_ids.intersection(signal.claim_ids)) for signal in open_signals
+            )
+        candidates.sort(key=lambda candidate: str(candidate["exp_id"]))
+        candidates.sort(
+            key=lambda candidate: (
+                signal_counts[str(candidate["exp_id"])],
+                int(candidate["claim_count"]),
+                str(candidate["recency"]),
+            ),
+            reverse=True,
+        )
+        selected = candidates[: schedule.experiments_per_pass]
+        selected_ids = {str(candidate["exp_id"]) for candidate in selected}
+        claim_ids = sorted({
+            claim_id for candidate in selected for claim_id in candidate["claim_ids"]
+        })
+        selected_claims = set(claim_ids)
+        signals = [
+            signal for signal in open_signals if selected_claims.intersection(signal.claim_ids)
+        ]
+        graded = self.store.list_insights(statuses=["refereed"])
+        return (
+            PassInputs(
+                lens="skeptic",
+                claim_ids=tuple(claim_ids),
+                signal_ids=tuple(signal.signal_id for signal in signals),
+                insight_ids=tuple(record.insight_id for record in graded[:30]),
+            ),
+            f"{len(candidates)} experiments not yet reviewed; reviewing {len(selected_ids)}",
         )
 
     def _rederiver_inputs(self, schedule: LensSchedule) -> tuple[PassInputs | None, str]:
@@ -437,7 +691,9 @@ class Engine:
     def _synthesizer_inputs(self, schedule: LensSchedule) -> tuple[PassInputs | None, str]:
         last = self._last_pass_time("synthesizer")
         graded = self.store.list_insights(statuses=["refereed", "needs_revision", "rejected"])
-        fresh = [r for r in graded if last is None or r.created_at > last]
+        fresh = self.store.list_insights(
+            statuses=["refereed", "needs_revision", "rejected"], graded_since=last
+        )
         open_predictions = self.store.list_predictions(status="open")
         new_claims = self.store.list_claims(since=last) if last is not None else []
         need = max(1, schedule.min_new_insights)
@@ -460,7 +716,7 @@ class Engine:
         new_claims = [c for c in claims if last is None or c.created_at > last]
         open_signals = self.store.list_signals(status="open", limit=200)
         graded = self.store.list_insights(statuses=["refereed"])
-        new_graded = [r for r in graded if last is None or r.created_at > last]
+        new_graded = self.store.list_insights(statuses=["refereed"], graded_since=last)
         if not claims:
             return None, "waiting: the claim ledger is empty"
         if lens == "anomaly":
@@ -494,7 +750,7 @@ class Engine:
             )
         if len(new_claims) < max(1, schedule.min_new_claims):
             return None, f"waiting: {len(new_claims)} new claims (need {schedule.min_new_claims})"
-        focus = new_claims if lens == "skeptic" else claims
+        focus = claims
         return (
             PassInputs(
                 lens=lens,
@@ -573,10 +829,17 @@ class Engine:
             created_at=now,
         )
         if choice.route is None:
+            # Blocked routes are a waiting reason, not a pass: recording one failed
+            # pass per cooldown buried real failures. The plan retries with backoff.
+            reason = _route_reason(choice.reason, choice.skipped)
             record = record.model_copy(update={"status": "failed", "error": choice.reason})
-            self.store.save_pass(record)
-            self.store.log_event("no_route", {"lens": lens, "reason": choice.reason})
+            self._note_no_route(lens, reason)
             return record
+        self._clear_no_route(lens)
+        self.store.set_meta(f"transient_until:{lens}", "")
+        metadata = self._launch_metadata(lens, inputs)
+        digest = self._digest_of(inputs, metadata)
+        metadata["backoff_digest"] = digest
         try:
             directory = build_pass_dir(
                 self.store,
@@ -593,11 +856,15 @@ class Engine:
             )
             self.store.save_pass(record)
             self.store.log_event("pass_build_failed", {"lens": lens, "error": record.error})
+            self._note_failure(lens, digest)
             return record
         record = record.model_copy(
             update={"pass_dir": str(directory.path), "inputs_digest": directory.inputs_digest}
         )
         self.store.save_pass(record)
+        # The ledger, not the worker-writable pack.json, is authoritative for what
+        # this pass was given; inputs_digest only detects later tampering.
+        self.store.save_pass_inputs(pass_id, lens, asdict(inputs), metadata, directory.inputs_digest)
         if lens == "extractor":
             self.store.mark_sections(inputs.section_ids, "in_flight", pass_id=pass_id)
         worker = WorkerSpec(
@@ -611,11 +878,12 @@ class Engine:
         )
         try:
             handle = self.launcher.launch(worker)
-        except OSError as exc:
+        except (OSError, subprocess.SubprocessError, ValueError) as exc:
             record = record.model_copy(update={"status": "failed", "error": f"launch failed: {exc}"})
             self.store.save_pass(record)
             if lens == "extractor":
-                self.store.mark_sections(inputs.section_ids, "pending")
+                self._release_sections(inputs.section_ids)
+            self._note_failure(lens, digest)
             return record
         self._handles[pass_id] = handle
         record = record.model_copy(
@@ -660,40 +928,86 @@ class Engine:
         return self.collect()
 
     def collect(self, *, only: set[str] | None = None) -> list[dict[str, str]]:
+        """Finalize every finished pass; one bad pass never blocks the others."""
         done: list[dict[str, str]] = []
         for record in self.store.list_passes(statuses=ACTIVE_STATUSES):
             if only is not None and record.pass_id not in only:
                 continue
-            handle = self._handles.get(record.pass_id)
-            if handle is None and record.pid is not None:
-                adopted = self.launcher.adopt(record.pid, Path(record.pass_dir))
-                if adopted is not None:
-                    self._handles[record.pass_id] = adopted
-                    handle = adopted
-            exit_code: int | None = None
-            timed_out = False
-            if handle is not None:
-                exit_code = handle.poll()
-                if exit_code is None:
-                    spec = self.routes.lenses.get(record.lens)
-                    limit = timedelta(minutes=spec.max_minutes if spec else 30) + TIMEOUT_GRACE
-                    started = record.started_at or record.created_at
-                    if self.clock() - started <= limit:
-                        continue
-                    handle.kill()
-                    timed_out = True
-            finished = self.finalize(record, exit_code=exit_code, timed_out=timed_out)
-            self._handles.pop(record.pass_id, None)
-            done.append({"pass_id": finished.pass_id, "lens": finished.lens, "status": finished.status})
+            try:
+                finished = self._collect_one(record)
+            except Exception as exc:  # noqa: BLE001 - isolate the pass, keep the engine alive
+                finished = self._fail_pass(record, exc)
+            if finished is not None:
+                done.append(
+                    {"pass_id": finished.pass_id, "lens": finished.lens, "status": finished.status}
+                )
         return done
 
+    def _collect_one(self, record: PassRecord) -> PassRecord | None:
+        handle = self._handles.get(record.pass_id)
+        if handle is None and record.pid is not None:
+            adopted = self.launcher.adopt(record.pid, Path(record.pass_dir))
+            if adopted is not None:
+                self._handles[record.pass_id] = adopted
+                handle = adopted
+        exit_code: int | None = None
+        timed_out = False
+        if handle is not None:
+            exit_code = handle.poll()
+            if exit_code is None:
+                spec = self.routes.lenses.get(record.lens)
+                limit = timedelta(minutes=spec.max_minutes if spec else 30) + TIMEOUT_GRACE
+                started = record.started_at or record.created_at
+                if self.clock() - started <= limit:
+                    return None
+                handle.kill()
+                timed_out = True
+        finished = self.finalize(record, exit_code=exit_code, timed_out=timed_out)
+        self._handles.pop(record.pass_id, None)
+        return finished
+
+    def _fail_pass(self, record: PassRecord, exc: BaseException) -> PassRecord | None:
+        """Mark a pass whose collection raised as failed and release what it held."""
+        error = f"collect failed: {_short_error(exc)}"
+        try:
+            stored = self.store.pass_inputs(record.pass_id)
+            sections = [] if stored is None else list(stored["inputs"].get("section_ids", ()))
+            if record.lens == "extractor":
+                self._release_sections(sections)
+            finished = record.model_copy(
+                update={"status": "failed", "finished_at": self.clock(), "error": error}
+            )
+            self.store.save_pass(finished)
+            self.store.log_event(
+                "pass_collect_failed", {"pass_id": record.pass_id, "lens": record.lens, "error": error}
+            )
+            if stored is not None:
+                self._note_failure(record.lens, str(stored["metadata"].get("backoff_digest", "")))
+            self._handles.pop(record.pass_id, None)
+            return finished
+        except Exception as inner:  # noqa: BLE001 - never let the cleanup path kill the loop
+            self._log_event_safely(
+                "pass_collect_failed",
+                {"pass_id": record.pass_id, "error": error, "cleanup_error": _short_error(inner)},
+            )
+            return None
+
     def _inputs_of(self, record: PassRecord) -> PassInputs:
-        path = Path(record.pass_dir) / "pack.json"
-        if not path.exists():
-            return PassInputs(lens=record.lens)
-        raw = json.loads(path.read_text("utf-8"))
+        """Inputs come from the ledger row written at launch, never from worker-writable files."""
+        stored = self.store.pass_inputs(record.pass_id)
+        if stored is not None:
+            if stored["lens"] != record.lens:
+                raise ValueError(f"stored inputs are for lens {stored['lens']!r}, not {record.lens!r}")
+            raw = stored["inputs"]
+        else:
+            # A pass launched before inputs were stored in the ledger: read its
+            # pack.json once, but never let it change the lens.
+            path = Path(record.pass_dir) / "pack.json"
+            if not path.exists():
+                return PassInputs(lens=record.lens)
+            raw = json.loads(path.read_text("utf-8"))
         return PassInputs(
-            lens=raw["lens"],
+            lens=record.lens,
             section_ids=tuple(raw.get("section_ids", ())),
             claim_ids=tuple(raw.get("claim_ids", ())),
             insight_ids=tuple(raw.get("insight_ids", ())),
@@ -701,13 +1015,32 @@ class Engine:
             prediction_ids=tuple(raw.get("prediction_ids", ())),
         )
 
+    def _tamper_error(self, record: PassRecord, stored: dict[str, object] | None) -> str | None:
+        """pack.json and brief.md are worker-writable: only compare them with the launch digest.
+
+        Passes launched before inputs were stored in the ledger have no row and are
+        not checked (their digest predates the sealed pass directory).
+        """
+        if stored is None or not record.inputs_digest:
+            return None
+        try:
+            actual = packs_mod.pass_inputs_digest(Path(record.pass_dir))
+        except OSError:
+            return "pack.json or brief.md is missing; the pass directory was modified after launch"
+        if actual != record.inputs_digest:
+            return "pack.json or brief.md changed after launch; the pass output was not imported"
+        return None
+
     def finalize(
         self, record: PassRecord, *, exit_code: int | None, timed_out: bool = False
     ) -> PassRecord:
         now = self.clock()
         pass_dir = Path(record.pass_dir)
+        stored = self.store.pass_inputs(record.pass_id)
+        meta: dict[str, object] = {} if stored is None else dict(stored["metadata"])
         inputs = self._inputs_of(record)
         update: dict[str, object] = {"finished_at": now}
+        diagnostics = ""
         try:
             attestation = attest_session(pass_dir / "session", record.route)
             update.update(
@@ -716,35 +1049,86 @@ class Engine:
                 tokens=dict(attestation.tokens),
             )
             served_model = _primary_model(attestation.served)
+            diagnostics = attestation.diagnostics
         except (OSError, ValueError) as exc:
             served_model = None
             update["error"] = f"attestation failed: {exc}"
         output = pass_dir / "out" / OUTPUT_FILES[record.lens]
+        tamper = self._tamper_error(record, stored)
         status: str
-        if output.exists():
+        count_attempt = False
+        skip_backoff = False
+        if tamper is not None:
+            status = "failed"
+            update["error"] = tamper
+            self.store.log_event("pass_tampered", {"pass_id": record.pass_id, "detail": tamper})
+        elif output.exists():
             try:
-                counts = self._import_output(record, inputs, output, served_model=served_model)
+                counts = self._import_output(
+                    record, inputs, output, served_model=served_model, meta=meta
+                )
                 update["outputs"] = counts
                 status = "succeeded"
             except (ValidationError, ValueError) as exc:
                 status = "invalid_output"
+                count_attempt = True
                 update["error"] = _short_error(exc)
         else:
-            log_text = _tail(pass_dir / "worker.log")
-            kind, reset_at = classify_failure(log_text)
+            # Only the session's own error records and omp's stderr describe a
+            # provider failure. worker.log is the analyst's answer and may
+            # legitimately discuss quotas, 429s or rate limits. The one exception
+            # is a worker that never got a model response: nothing it printed can
+            # be analysis, so startup errors in worker.log (omp prints some there)
+            # are diagnostics.
+            startup_text = ""
+            if not update.get("served"):
+                startup_text = _tail(pass_dir / "worker.log", 4_000)
+            diagnostic_text = "\n".join(
+                (diagnostics, _tail(pass_dir / "worker.stderr"), startup_text)
+            )
+            kind, reset_at = classify_failure(diagnostic_text)
+            transient = (
+                not timed_out
+                and not update.get("served")
+                and TRANSIENT_STARTUP.search(diagnostic_text) is not None
+                and self._claim_transient_retry(record.lens, str(meta.get("backoff_digest", "")), now)
+            )
             if timed_out:
                 status = "timed_out"
                 update["error"] = "worker exceeded its time limit and was stopped"
+            elif transient:
+                status = "failed"
+                skip_backoff = True
+                update["error"] = "transient startup failure (omp database busy); retrying once"
             elif kind == "quota":
                 status = "parked_quota"
                 self._park(record.route, reset_at or now + PARK_DEFAULT)
                 update["error"] = f"quota exhausted on {record.route}"
+            elif kind == "auth":
+                status = "failed"
+                self._park(provider_of(record.route), now + AUTH_PARK)
+                update["error"] = (
+                    f"authentication failed on {record.route}; provider {provider_of(record.route)} "
+                    f"parked until {_iso(now + AUTH_PARK)}"
+                )
             else:
                 status = "failed"
+                count_attempt = exit_code == 0 or kind == "refusal"
                 code = "unknown" if exit_code is None else str(exit_code)
                 update["error"] = f"no output file ({kind}; exit {code})"
+        launch_sha = {str(k): str(v) for k, v in _object_map(meta.get("section_sha256")).items()}
         if record.lens == "extractor" and status != "succeeded":
-            self._release_sections(inputs.section_ids)
+            self._release_sections(
+                inputs.section_ids, count_attempt=count_attempt, launch_sha=launch_sha
+            )
+        digest = str(meta.get("backoff_digest", ""))
+        if status == "succeeded":
+            if record.lens == "skeptic":
+                coverage = {str(k): str(v) for k, v in _object_map(meta.get("coverage")).items()}
+                self.store.record_coverage("skeptic", record.pass_id, coverage, reviewed_at=now)
+            self._note_success(record.lens, digest)
+        elif status in {"failed", "invalid_output", "timed_out"} and not skip_backoff:
+            self._note_failure(record.lens, digest)
         if update.get("off_route"):
             # The gateway served a different model than requested: stop using this
             # route for a while so the next pass takes the next route in order.
@@ -768,25 +1152,53 @@ class Engine:
         )
         return finished
 
-    def _release_sections(self, section_ids: Sequence[str]) -> None:
-        retry: list[str] = []
-        failed: list[str] = []
+    def _release_sections(
+        self,
+        section_ids: Sequence[str],
+        *,
+        count_attempt: bool = False,
+        launch_sha: Mapping[str, str] | None = None,
+    ) -> None:
+        """Return sections to the queue; only content failures cost an attempt.
+
+        Quota, timeout, launch and infrastructure failures leave ``attempts``
+        alone. A section edited since launch has already had its attempts reset
+        and never counts against the new text.
+        """
         for section_id in section_ids:
-            row = self.store.query("SELECT attempts FROM sections WHERE section_id = ?", (section_id,))
+            row = self.store.query(
+                "SELECT attempts, sha256 FROM sections WHERE section_id = ?", (section_id,)
+            )
             if not row:
                 continue
-            (failed if int(row[0]["attempts"]) >= 3 else retry).append(section_id)
-        self.store.mark_sections(retry, "pending")
-        self.store.mark_sections(failed, "failed")
+            seen = None if launch_sha is None else launch_sha.get(section_id)
+            counted = count_attempt and (seen is None or seen == row[0]["sha256"])
+            attempts = int(row[0]["attempts"]) + (1 if counted else 0)
+            self.store.mark_sections(
+                [section_id],
+                "failed" if attempts >= 3 else "pending",
+                count_attempt=counted,
+            )
 
     # -------------------------------------------------------------- imports
     def _import_output(
-        self, record: PassRecord, inputs: PassInputs, output: Path, *, served_model: str | None
+        self,
+        record: PassRecord,
+        inputs: PassInputs,
+        output: Path,
+        *,
+        served_model: str | None,
+        meta: Mapping[str, object] | None = None,
     ) -> dict[str, int]:
         text = output.read_text("utf-8")
         lens = record.lens
         if lens == "extractor":
-            return self._import_claims(record, inputs, ClaimExtraction.model_validate_json(text), served_model)
+            launch_sha = {
+                str(k): str(v) for k, v in _object_map((meta or {}).get("section_sha256")).items()
+            }
+            return self._import_claims(
+                record, inputs, ClaimExtraction.model_validate_json(text), served_model, launch_sha
+            )
         if lens in ANALYST_LENSES:
             return self._import_cards(record, InsightBatch.model_validate_json(text), served_model)
         if lens == "referee":
@@ -805,12 +1217,15 @@ class Engine:
         inputs: PassInputs,
         extraction: ClaimExtraction,
         served_model: str | None,
+        launch_sha: Mapping[str, str] | None = None,
     ) -> dict[str, int]:
         allowed = set(inputs.section_ids)
+        launch_sha = launch_sha or {}
         now = self.clock()
         records: list[ClaimRecord] = []
         refused = 0
         with_claims: set[str] = set()
+        edited: set[str] = set()
         for claim in extraction.claims:
             if claim.section_id not in allowed:
                 refused += 1
@@ -818,6 +1233,13 @@ class Engine:
             section = self.store.get_section(claim.section_id)
             source = None if section is None else self.store.get_source(section.source_id)
             if section is None or source is None:
+                refused += 1
+                continue
+            seen = launch_sha.get(claim.section_id)
+            if seen is not None and seen != section.sha256:
+                # The section changed while the worker read the old text; its
+                # claims would be stored against text they never saw.
+                edited.add(claim.section_id)
                 refused += 1
                 continue
             text = sources_mod.section_text(source, section)
@@ -849,8 +1271,18 @@ class Engine:
             self.store.upsert_experiment(experiment)
         self.store.upsert_entities(extraction.entities)
         covered = (set(extraction.section_ids) | set(extraction.skipped_section_ids) | with_claims) & allowed
+        edited |= {
+            section_id
+            for section_id in allowed
+            if (current := self.store.get_section(section_id)) is not None
+            and launch_sha.get(section_id) not in (None, current.sha256)
+        }
+        covered -= edited
         self.store.mark_sections(sorted(covered), "extracted", pass_id=record.pass_id)
-        self._release_sections(sorted(allowed - covered))
+        # Edited sections go back to the queue without costing an attempt; sections
+        # the worker simply failed to cover count against the attempt limit.
+        self._release_sections(sorted(edited))
+        self._release_sections(sorted(allowed - covered - edited), count_attempt=True)
         failed_checks = sum(1 for claim in records if claim.check.status == "fail")
         return {
             "claims": len(records),
@@ -874,8 +1306,11 @@ class Engine:
             cited = {ref.claim_id for ref in card.evidence}
             if card.challenge is not None:
                 cited |= set(card.challenge.target_claim_ids)
-            claims = {cid: c for cid in cited if (c := self.store.get_claim(cid)) is not None}
-            checked = check_mod.check_card(card, claims=claims, known_insights=known)
+            claims, source_records, section_texts = self._card_context(cited)
+            checked = check_mod.check_card(
+                card, claims=claims, known_insights=known,
+                sources=source_records, section_texts=section_texts,
+            )
             insight_id = insight_identity(record.pass_id, card)
             records.append(
                 InsightRecord(
@@ -940,10 +1375,77 @@ class Engine:
                         "status": _REFEREE_STATUS[verdict.verdict],
                         "score": round(score, 3),
                     }
-                )
+                ),
+                graded_at=self.clock(),
             )
             applied += 1
         return {"verdicts": len(batch.verdicts), "applied": applied, "not_independent": not_independent}
+
+    def _card_context(
+        self, cited: Iterable[str]
+    ) -> tuple[dict[str, ClaimRecord], dict[str, SourceRecord], dict[str, str]]:
+        """Cited claims plus the source records and full section texts check_card uses."""
+        claims: dict[str, ClaimRecord] = {}
+        source_records: dict[str, SourceRecord] = {}
+        section_texts: dict[str, str] = {}
+        for claim_id in cited:
+            claim = self.store.get_claim(claim_id)
+            if claim is None:
+                continue
+            claims[claim_id] = claim
+            source = source_records.get(claim.source_id) or self.store.get_source(claim.source_id)
+            if source is not None:
+                source_records[claim.source_id] = source
+            section = self.store.get_section(claim.claim.section_id)
+            if source is not None and section is not None and claim.claim.section_id not in section_texts:
+                try:
+                    section_texts[claim.claim.section_id] = sources_mod.section_text(source, section)
+                except OSError:
+                    continue
+        return claims, source_records, section_texts
+
+    def recheck_insights(self) -> int:
+        """Re-run the card check for cards whose cited claims went stale or failed.
+
+        ``needs_recheck`` is set by the store whenever a claim becomes stale or
+        fails. A card that no longer passes moves to ``check_failed`` (so it
+        leaves the board and the referee queue); one that still passes keeps its
+        status. The flag is cleared either way.
+        """
+        known = {row["insight_id"] for row in self.store.query("SELECT insight_id FROM insights")}
+        flagged = self.store.insights_needing_recheck()
+        moved = 0
+        for insight in flagged:
+            card = insight.card
+            cited = {ref.claim_id for ref in card.evidence}
+            if card.challenge is not None:
+                cited |= set(card.challenge.target_claim_ids)
+            claims, source_records, section_texts = self._card_context(cited)
+            bad = sorted(
+                cid for cid in cited
+                if (record := self.store.get_claim(cid)) is None
+                or record.stale or record.check.status == "fail"
+            )
+            checked = check_mod.check_card(
+                card, claims=claims, known_insights=known,
+                sources=source_records, section_texts=section_texts,
+            )
+            if checked.status == "fail" or bad:
+                notes = list(checked.notes)
+                if bad:
+                    notes.append(f"Recheck: cited claims are stale, failed or missing: {', '.join(bad)}.")
+                self.store.save_insight(
+                    insight.model_copy(
+                        update={
+                            "status": "check_failed",
+                            "rank": None,
+                            "check": checked.model_copy(update={"status": "fail", "notes": notes}),
+                        }
+                    )
+                )
+                moved += 1
+            self.store.clear_recheck([insight.insight_id])
+        return moved
 
     def _import_board(self, record: PassRecord, update: BoardUpdate) -> dict[str, int]:
         now = self.clock()
@@ -1037,12 +1539,23 @@ class Engine:
     ) -> dict[str, int]:
         allowed = set(inputs.claim_ids)
         now = self.clock()
-        saved = agreed = 0
+        saved = agreed = not_independent = 0
+        rederiver_family = model_family(served_model) if served_model else None
         for item in batch.claims:
             if item.claim_id not in allowed:
                 continue
             stored = self.store.get_claim(item.claim_id)
             if stored is None:
+                continue
+            author_family = model_family(stored.extracted_by) if stored.extracted_by else None
+            if rederiver_family is not None and rederiver_family == author_family:
+                # Same-family agreement says nothing about independence: do not
+                # let it count toward the agreement rate.
+                not_independent += 1
+                self.store.log_event(
+                    "rederiver_not_independent",
+                    {"claim_id": stored.claim_id, "family": rederiver_family},
+                )
                 continue
             recomputed: RecomputeResult | None = None
             if item.recipe is not None:
@@ -1053,7 +1566,7 @@ class Engine:
                     recomputed = recompute_mod.recompute_claim(candidate, folder)
                 except (OSError, ValueError) as exc:
                     recomputed = RecomputeResult(status="not_recomputable", detail=_short_error(exc))
-            agrees = _agreement(stored.recompute, recomputed)
+            agrees = _agreement(stored.recompute, recomputed, stored.claim)
             self.store.save_rederivation(
                 RederivationRecord(
                     claim_id=item.claim_id,
@@ -1067,7 +1580,7 @@ class Engine:
             )
             saved += 1
             agreed += int(bool(agrees))
-        return {"rederived": saved, "agree": agreed}
+        return {"rederived": saved, "agree": agreed, "not_independent": not_independent}
 
     # ------------------------------------------------------------- watching
     def watch(
@@ -1076,27 +1589,78 @@ class Engine:
         max_ticks: int | None = None,
         stop: Callable[[], bool] | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        collect_seconds: float = COLLECT_POLL_SECONDS,
     ) -> int:
+        """Run ticks forever; no single failure may stop the loop.
+
+        Between ticks the engine polls its worker handles every ``collect_seconds``
+        and collects (and refills freed slots) as soon as one exits; the full scan
+        still runs once per ``tick_seconds``.
+        """
         ticks = 0
         with engine_lock(self.state_root):
-            self.store.log_event("engine_started", {"pid": os.getpid()})
-            self.recover()
+            self._log_event_safely("engine_started", {"pid": os.getpid()})
+            try:
+                self.recover()
+            except Exception as exc:  # noqa: BLE001 - a bad recovery must not crash-loop launchd
+                self._tick_failed(exc, phase="recover")
             while True:
                 try:
                     self.tick()
                 except Exception as exc:  # noqa: BLE001 - a tick failure must not stop the engine
-                    self.store.log_event("tick_failed", {"error": _short_error(exc)})
+                    self._tick_failed(exc, phase="tick")
                 ticks += 1
                 if max_ticks is not None and ticks >= max_ticks:
                     break
                 waited = 0.0
+                since_poll = 0.0
                 while waited < self.config.tick_seconds:
                     if stop is not None and stop():
-                        self.store.log_event("engine_stopped", {"ticks": ticks})
+                        self._log_event_safely("engine_stopped", {"ticks": ticks})
                         return ticks
                     sleep(1.0)
                     waited += 1.0
+                    since_poll += 1.0
+                    if since_poll >= collect_seconds:
+                        since_poll = 0.0
+                        self._fast_cycle()
         return ticks
+
+    def _log_event_safely(self, kind: str, detail: dict[str, object]) -> None:
+        # Logging must never be the thing that kills the loop.
+        with suppress(Exception):
+            self.store.log_event(kind, detail)
+
+    def _tick_failed(self, exc: BaseException, *, phase: str) -> None:
+        error = _short_error(exc)
+        self._log_event_safely("tick_failed", {"phase": phase, "error": error})
+        now = self.clock()
+        report = TickReport(
+            started_at=_iso(now), finished_at=_iso(now), errors=[f"{phase} failed: {error}"]
+        )
+        with suppress(Exception):
+            self.store.set_meta("last_tick", json.dumps(report.as_dict(), sort_keys=True))
+        with suppress(Exception):
+            self._write_heartbeat(report)
+
+    def _fast_cycle(self) -> None:
+        """Collect exited workers and refill their slots without a full scan."""
+        try:
+            if not any(handle.poll() is not None for handle in list(self._handles.values())):
+                return
+            collected = self.collect()
+            if not collected:
+                return
+            launched, _waiting = self.plan_and_launch()
+            now = self.clock()
+            self._write_heartbeat(
+                TickReport(
+                    started_at=_iso(now), finished_at=_iso(now), collected=collected,
+                    launched=launched,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - the next full tick retries everything
+            self._tick_failed(exc, phase="collect")
 
     def _refresh_mirror_if_due(self, report: TickReport) -> None:
         mirror = self.config.repo_mirror
@@ -1106,15 +1670,29 @@ class Engine:
         now = self.clock()
         if last and now - _parse_iso(last) < timedelta(minutes=mirror.refresh_minutes):
             return
+        retry_at = self.store.get_meta("mirror_retry_at")
+        if retry_at and now < _parse_iso(retry_at):
+            return
         try:
             head = self.mirror_refresher(
                 Path(mirror.repo).expanduser(), Path(mirror.path).expanduser()
             )
             self.store.set_meta("mirror_refreshed_at", _iso(now))
             self.store.set_meta("mirror_head", str(head))
-        except (OSError, ValueError, RuntimeError) as exc:
+            self.store.set_meta("mirror_failures", "0")
+            self.store.set_meta("mirror_retry_at", "")
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            # An unreachable origin must not stall scanning: keep the last mirror
+            # and retry with exponential backoff (5 min, 10, 20 ... up to the
+            # normal refresh interval).
+            failures = int(self.store.get_meta("mirror_failures") or "0") + 1
+            delay = min(timedelta(minutes=mirror.refresh_minutes), timedelta(minutes=5 * 2 ** (failures - 1)))
             report.errors.append(f"mirror refresh failed: {_short_error(exc)}")
-            self.store.set_meta("mirror_refreshed_at", _iso(now))
+            self.store.set_meta("mirror_failures", str(failures))
+            self.store.set_meta("mirror_retry_at", _iso(now + delay))
+            self.store.log_event(
+                "mirror_refresh_failed", {"error": _short_error(exc), "failures": failures}
+            )
 
     def _write_heartbeat(self, report: TickReport) -> None:
         running = self.store.list_passes(statuses=ACTIVE_STATUSES)
@@ -1123,6 +1701,7 @@ class Engine:
             {
                 "pid": os.getpid(),
                 "at": report.finished_at,
+                "tick_seconds": self.config.tick_seconds,
                 "running": [
                     {"pass_id": r.pass_id, "lens": r.lens, "route": r.route} for r in running
                 ],
@@ -1139,15 +1718,28 @@ def _route_reason(reason: str, skipped: Sequence[tuple[str, str]]) -> str:
     return f"{reason} Skipped {details}"
 
 
-def _agreement(original: RecomputeResult | None, rederived: RecomputeResult | None) -> bool | None:
+def _agreement(
+    original: RecomputeResult | None,
+    rederived: RecomputeResult | None,
+    claim: ExtractedClaim | None = None,
+) -> bool | None:
+    """Do two independent computations of one number agree?
+
+    Values decide whenever both sides produced one (within the claim's printed
+    rounding, the same tolerance ``recompute_claim`` uses). If only one side
+    produced a value, one side failed and the other did not: disagreement.
+    If neither did, the pair is not comparable: neither agree nor disagree.
+    """
     if original is None or rederived is None:
         return None
-    if original.status != rederived.status:
+    if original.value is not None and rederived.value is not None:
+        tolerance = max(1e-9, 1e-6 * max(abs(original.value), abs(rederived.value)))
+        if claim is not None:
+            tolerance = max(tolerance, check_mod.value_printed_tolerance(claim))
+        return abs(original.value - rederived.value) <= tolerance
+    if (original.value is None) != (rederived.value is None):
         return False
-    if original.value is None or rederived.value is None:
-        return original.value is None and rederived.value is None
-    tolerance = max(1e-9, 1e-6 * max(abs(original.value), abs(rederived.value)))
-    return abs(original.value - rederived.value) <= tolerance
+    return None
 
 
 def _short_error(exc: BaseException, limit: int = 600) -> str:
@@ -1167,3 +1759,15 @@ def _tail(path: Path, limit: int = 20_000) -> str:
 
 def model_dump_lines(records: Iterable[BaseModel]) -> list[str]:
     return [json.dumps(r.model_dump(mode="json"), sort_keys=True) for r in records]
+
+
+def _as_int(value: object, default: int = 0) -> int:
+    """A stored JSON number as an int; anything else is the default."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return default
+    return int(value)
+
+
+def _object_map(value: object) -> dict[str, object]:
+    """A stored JSON object; anything else is empty."""
+    return {str(k): v for k, v in value.items()} if isinstance(value, dict) else {}

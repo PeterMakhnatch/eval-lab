@@ -35,7 +35,7 @@ MIRROR_ROOT = Path.home() / "Developer/eval-lab/.worktrees/insights-readonly"
 _SECTION_CHARS = 12_000
 _DATE = re.compile(r"(?<!\d)(\d{4}-\d{2}-\d{2})(?!\d)")
 _TIME = re.compile(r"\b(\d{1,2}):(\d{2})\s*(AM|PM)?\s*ET\b", re.IGNORECASE)
-_HEADING = re.compile(r"^ {0,3}(#{1,3})\s+(.+?)\s*#*\s*$")
+_HEADING = re.compile(r"^ {0,3}(#{1,3})\s+(.+?)(?:\s+#+)?\s*$")
 _NEW_YORK = ZoneInfo("America/New_York")
 GitRunner = Callable[..., subprocess.CompletedProcess[str]]
 
@@ -77,8 +77,22 @@ def _heading_time(heading: str, hint: date | None) -> datetime | None:
     return datetime(day.year, day.month, day.day, hour, minute, tzinfo=_NEW_YORK).astimezone(UTC)
 
 
+def _line_parts(lines: list[str], start: int, end: int) -> Iterator[tuple[int, int]]:
+    """Split an oversized blank-delimited part without cutting a line."""
+    part_start = start
+    length = 0
+    for index in range(start, end):
+        if length and length + len(lines[index]) > 2 * _SECTION_CHARS:
+            yield part_start, index
+            part_start = index
+            length = 0
+        length += len(lines[index])
+    if part_start < end:
+        yield part_start, end
+
+
 def _parts(lines: list[str], start: int, end: int) -> Iterator[tuple[int, int]]:
-    """Cut only at blank lines, retaining every line exactly once."""
+    """Prefer blank lines, falling back to whole-line cuts for oversized parts."""
     part_start = start
     length = 0
     last_blank: int | None = None
@@ -88,13 +102,13 @@ def _parts(lines: list[str], start: int, end: int) -> Iterator[tuple[int, int]]:
         if not lines[index].strip():
             last_blank = index + 1
         if length >= _SECTION_CHARS and last_blank is not None and last_blank > part_start:
-            yield part_start, last_blank
+            yield from _line_parts(lines, part_start, last_blank)
             part_start = last_blank
             length = sum(len(line) for line in lines[part_start : index + 1])
             last_blank = None
         index += 1
     if part_start < end:
-        yield part_start, end
+        yield from _line_parts(lines, part_start, end)
 
 
 def split_sections(
@@ -111,6 +125,7 @@ def split_sections(
     boundaries: list[tuple[int, str, datetime | None]] = []
     stack: list[tuple[int, str]] = []
     as_of = as_of_default
+    last_time: datetime | None = None
     hint = date_hint
     fence: str | None = None
     for index, line in enumerate(lines):
@@ -120,15 +135,32 @@ def split_sections(
             marker = fence_match[1]
             if fence is None:
                 fence = marker
-            elif marker[0] == fence[0] and len(marker) >= len(fence):
+            elif (
+                marker[0] == fence[0]
+                and len(marker) >= len(fence)
+                and not stripped[fence_match.end() :].strip(" \t\r\n")
+            ):
                 fence = None
             continue
         match = None if fence is not None else _HEADING.match(line.rstrip("\r\n"))
         if match is None:
             continue
         level, heading = len(match[1]), match[2]
-        hint = _date_in(heading) or hint
-        as_of = _heading_time(heading, hint) or as_of
+        heading_date = _date_in(heading)
+        hint = heading_date or hint
+        stamp = _heading_time(heading, hint)
+        if stamp is not None:
+            if heading_date is None and last_time is not None and stamp < last_time:
+                # A time-only heading earlier than the previous stamp is the next day.
+                assert hint is not None
+                hint += timedelta(days=1)
+                stamp = _heading_time(heading, hint)
+            as_of = last_time = stamp
+        elif heading_date is not None and last_time is not None:
+            # A date-only heading after timed ones must not inherit their stale stamp.
+            as_of = last_time = datetime(
+                heading_date.year, heading_date.month, heading_date.day, tzinfo=_NEW_YORK
+            ).astimezone(UTC)
         while stack and stack[-1][0] >= level:
             stack.pop()
         stack.append((level, heading))
@@ -186,11 +218,16 @@ def _source_text(data: bytes, source: SourceRecord) -> str:
     text = data.decode("utf-8", errors="replace")
     suffix = Path(source.path).suffix.lower()
     if suffix == ".jsonl":
-        rows = [line for line in text.splitlines() if line.strip()]
+        cut = source.size > len(data)
+        lines = text.splitlines(keepends=True)
+        if cut and lines and not lines[-1].endswith(("\n", "\r")):
+            lines.pop()
+        rows = [line for line in lines if line.strip()]
         flattened: list[str] = []
         for index, row in enumerate(rows[:30]):
             flattened.extend(_flatten(json.loads(row), f"/{index}"))
-        flattened.append(f"/row_count = {len(rows)}")
+        count = f">= {len(rows)} (truncated)" if cut else str(len(rows))
+        flattened.append(f"/row_count = {count}")
         text = "\n".join(flattened)
     elif source.kind == "receipt" or suffix == ".json":
         text = "\n".join(_flatten(json.loads(text)))

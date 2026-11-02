@@ -583,3 +583,135 @@ def test_multiple_cohort_groups_emit_one_counted_warning(tmp_path: Path) -> None
     assert "stated 0.833, receipts give 0.833" in report
     assert "0.8333333333333334" not in report
     assert f"(count: 4) [{cohort[0]['finding_id']}]." in report
+
+
+@pytest.fixture(autouse=True)
+def _no_retry_pause(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(experiment_module, "_RETRY_DELAY_SECONDS", 0.0)
+
+
+def test_stage_four_says_plainly_when_the_sample_is_below_the_minimum(tmp_path: Path) -> None:
+    folder = tmp_path / "experiment"
+    _input(folder)
+    (folder / "cases.json").write_text(json.dumps([
+        {"id": str(index), "review": index < 3, "blocked": index < 2} for index in range(4)
+    ]), encoding="utf-8")
+    (folder / "attribution.json").write_text(json.dumps({
+        "cases_file": "cases.json", "case_id_field": "id", "layers": {
+            "Review": {"field": "review"},
+            "Container": {"field": "blocked", "role": "prevention"},
+        },
+    }), encoding="utf-8")
+    output = tmp_path / "output"
+    analyze_experiment(folder, output, now=NOW, run_agents=False)
+    report = (output / "REPORT.md").read_text("utf-8")
+    assert ("with 4 cases no layer-value claim can be shown at any rate, because p < 0.05 "
+            "needs at least 6 cases only one layer catches") in report
+    assert "a layer needs at least" not in report
+    assert "Prevention layers together block 2 of 4 cases, detection layers together flag 3" in report
+
+
+def test_a_transient_pass_failure_is_retried_once(tmp_path: Path) -> None:
+    class FlakyEngine(ChallengeEngine):
+        failures_left = 1
+
+        def run_lens(
+            self, lens: Lens, *, wait: bool, trigger: str, inputs: PassInputs | None = None,
+        ) -> PassRecord | None:
+            if lens == "skeptic" and self.failures_left:
+                self.failures_left -= 1
+                raise RuntimeError("SQLITE_BUSY")
+            return super().run_lens(lens, wait=wait, trigger=trigger, inputs=inputs)
+
+    folder = tmp_path / "experiment"
+    _input(folder)
+    engines: list[FlakyEngine] = []
+
+    def factory(state_root: Path, *, config: EngineConfig) -> FlakyEngine:
+        engines.append(FlakyEngine(state_root, config=config))
+        return engines[0]
+
+    output = tmp_path / "output"
+    analyze_experiment(folder, output, engine_factory=factory, now=NOW)
+    analysis = json.loads((output / "analysis.json").read_text("utf-8"))
+    assert not any("skeptic" in item for item in analysis["limitations"])
+    assert [lens for lens, _ in engines[0].calls].count("skeptic") == 1  # the retry reached it
+    assert analysis["insights"][0]["referee_verdict"] == "accept"
+
+
+@pytest.mark.parametrize(("window", "attempts"), [(30.0, 2), (0.0, 1)])
+def test_pass_retry_is_once_and_only_for_quick_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, window: float, attempts: int,
+) -> None:
+    monkeypatch.setattr(experiment_module, "_RETRY_WITHIN_SECONDS", window)
+    seen: list[str] = []
+
+    class AlwaysFails(ChallengeEngine):
+        def run_lens(
+            self, lens: Lens, *, wait: bool, trigger: str, inputs: PassInputs | None = None,
+        ) -> PassRecord | None:
+            if lens == "skeptic":
+                seen.append(lens)
+                raise RuntimeError("synthetic failure")
+            return super().run_lens(lens, wait=wait, trigger=trigger, inputs=inputs)
+
+    folder = tmp_path / "experiment"
+    _input(folder)
+    output = tmp_path / "output"
+    analyze_experiment(folder, output, engine_factory=AlwaysFails, now=NOW)
+    assert len(seen) == attempts
+    limitations = json.loads((output / "analysis.json").read_text("utf-8"))["limitations"]
+    assert sum("The skeptic pass failed" in item for item in limitations) == 1
+
+
+def test_cohort_mix_groups_by_experiment_when_subject_is_null(tmp_path: Path) -> None:
+    folder = tmp_path / "experiment"
+    _input(folder)
+    claims = [
+        ReportClaim(
+            claim_id=f"C-null-{index}", text="The reward rate was measured on this pool.",
+            file="report.md", status="not_recomputable", reason="No receipt recipe.",
+            experiment=experiment, metric="reward 1.0 rate", subject=None,
+            dataset=dataset, k=k, n=n,
+        )
+        for index, (experiment, dataset, k, n) in enumerate([
+            ("OV", "solvable", 6, 20), ("OV", "impossible", 0, 42), ("OTHER", "solvable", 5, 6),
+        ])
+    ]
+    (folder / "claims.jsonl").write_text(
+        "".join(claim.model_dump_json() + "\n" for claim in claims), encoding="utf-8",
+    )
+    output = tmp_path / "output"
+    analyze_experiment(folder, output, now=NOW, run_agents=False)
+    findings = json.loads((output / "validity.json").read_text("utf-8"))["findings"]
+    cohort = [finding for finding in findings if finding["code"] == "cohort_mix"]
+    assert len(cohort) == 1
+    # Only the experiment with two datasets is a mix; the other experiment is its own group.
+    assert cohort[0]["pointers"] == ["C-null-0", "C-null-1"]
+    assert "experiment OV" in cohort[0]["message"]
+
+
+def test_skeptic_bullet_keeps_its_substance_when_the_title_is_dropped(tmp_path: Path) -> None:
+    folder = tmp_path / "experiment"
+    _input(folder)
+    output = tmp_path / "output"
+    analyze_experiment(folder, output, engine_factory=ChallengeEngine, now=NOW)
+    bullet = next(
+        line for line in (output / "REPORT.md").read_text("utf-8").splitlines()
+        if "[I-challenge" in line and "severity major" in line
+    )
+    assert bullet.startswith("- about The detector caught 5 cheating cases; label validity;")
+    assert "987654" not in bullet
+
+
+def test_report_states_recipe_and_rederiver_coverage(tmp_path: Path) -> None:
+    folder = tmp_path / "experiment"
+    _input(folder)
+    output = tmp_path / "output"
+    analyze_experiment(folder, output, engine_factory=FakeEngine, now=NOW)
+    sampled = len(rederive_sample(f"C-case-{index}" for index in range(10)))
+    report = (output / "REPORT.md").read_text("utf-8")
+    assert (f"Recipe-backed claims: 10 of 10; independent rederivation sampled {sampled} of 10 "
+            f"recipe-backed claims and {sampled} of 10 claims") in report
+    ledger = (output / "validity.json").read_text("utf-8")
+    assert f"sampled {sampled} of 10 recipe-backed claims and {sampled} of 10 claims" in ledger

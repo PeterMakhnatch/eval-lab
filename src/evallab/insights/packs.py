@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
 import shlex
+import sqlite3
+import stat
 from dataclasses import asdict, dataclass
 from importlib import resources
 from pathlib import Path
@@ -16,6 +20,7 @@ from evallab.insights.models import (
     ClaimExtraction,
     ClaimRecord,
     InsightBatch,
+    InsightCard,
     Lens,
     RederiveBatch,
     RefereeBatch,
@@ -35,6 +40,31 @@ OUTPUT_FILES: dict[Lens, str] = {
     "synthesizer": "board.json",
     "rederiver": "rederive.json",
 }
+
+SNAPSHOT_NAME = "ledger.sqlite"
+PASS_MANIFEST_META = "evallab.insights.pass_manifest"
+PASS_DIGEST_META = "evallab.insights.pass_inputs_digest"
+
+# The rederiver may inspect claim measurements, but never whether the original
+# author's recipe reproduced. Keep this projection separate from the live view.
+_REDERIVER_V_CLAIMS = """
+CREATE VIEW v_claims AS
+SELECT claim_id, experiment, kind, metric, subject, dataset,
+       json_extract(body, '$.claim.condition') AS condition,
+       json_extract(body, '$.claim.k') AS k,
+       json_extract(body, '$.claim.n') AS n,
+       json_extract(body, '$.claim.value') AS value,
+       json_extract(body, '$.claim.unit') AS unit,
+       json_extract(body, '$.claim.comparison.p_value') AS p_value,
+       json_extract(body, '$.claim.split') AS split,
+       json_extract(body, '$.claim.in_sample') AS in_sample,
+       status, check_status,
+       json_extract(body, '$.claim.statement') AS statement,
+       json_extract(body, '$.claim.caveats') AS caveats,
+       json_extract(body, '$.claim.models') AS models,
+       fingerprint, as_of, source_id, section_id, created_at
+FROM claims WHERE stale = 0
+"""
 
 
 @dataclass(frozen=True)
@@ -67,6 +97,12 @@ def output_contract(lens: Lens) -> type[BaseModel]:
     return InsightBatch
 
 
+def card_claim_ids(card: InsightCard) -> set[str]:
+    """Return evidence and challenge targets, which are both cited evidence."""
+    targets = card.challenge.target_claim_ids if card.challenge is not None else []
+    return {ref.claim_id for ref in card.evidence} | set(targets)
+
+
 def _json(value: object) -> str:
     if isinstance(value, BaseModel):
         value = value.model_dump(mode="json")
@@ -77,22 +113,159 @@ def numbered(text: str, start: int = 1) -> str:
     return "\n".join(f"{index}: {line}" for index, line in enumerate(text.splitlines(), start))
 
 
+DATA_SUFFIXES = frozenset({".json", ".jsonl", ".csv"})
+_CODE_SUFFIXES = frozenset({".py", ".sh", ".sql"})
+_SKIP_DIRS = frozenset({".git", ".venv", "node_modules", "__pycache__"})
+_AGGREGATE_NAME = re.compile(
+    r"summary|metrics?|report|results?|rollouts?|scoreboard|aggregate|scores?|stats|totals?"
+    r"|manifest|labels?",
+    re.IGNORECASE,
+)
+_CODE_FIRST = re.compile(r"prepare|label|scor|grade|build|extract|metric|analy[sz]e",
+                         re.IGNORECASE)
+SCAN_LIMIT = 20000
+_COLLAPSE_AT = 8
+_LIST_LIMITS = {"aggregate": 40, "code": 25, "collapsed": 15, "other": 15}
+
+
+@dataclass(frozen=True)
+class ReceiptFile:
+    path: str
+    size: int
+
+    @property
+    def depth(self) -> int:
+        return self.path.count("/")
+
+    @property
+    def name(self) -> str:
+        return self.path.rsplit("/", 1)[-1]
+
+    @property
+    def suffix(self) -> str:
+        return Path(self.name).suffix.lower()
+
+
+@dataclass(frozen=True)
+class ReceiptScan:
+    files: tuple[ReceiptFile, ...]
+    truncated: bool
+    bundle_members: tuple[str, ...]
+
+
+def is_aggregate_name(name: str) -> bool:
+    return _AGGREGATE_NAME.search(Path(name).stem) is not None
+
+
+def scan_receipts(root: Path) -> ReceiptScan:
+    """Walk a receipt folder without following symlinks, stopping at ``SCAN_LIMIT`` files."""
+    files: list[ReceiptFile] = []
+    truncated = False
+    for directory, dirs, names in os.walk(root, followlinks=False):
+        base = Path(directory)
+        dirs[:] = sorted(name for name in dirs
+                         if name not in _SKIP_DIRS and not (base / name).is_symlink())
+        for name in sorted(names):
+            path = base / name
+            try:
+                info = path.lstat()
+            except OSError:
+                continue
+            if not stat.S_ISREG(info.st_mode):
+                continue
+            if len(files) >= SCAN_LIMIT:
+                truncated = True
+                break
+            files.append(ReceiptFile(path.relative_to(root).as_posix(), info.st_size))
+        if truncated:
+            break
+    members: tuple[str, ...] = ()
+    if root.name == ".bundle":
+        members = tuple(sorted({file.path.split("/", 1)[0] for file in files if "/" in file.path}))
+    return ReceiptScan(tuple(files), truncated, members)
+
+
 def receipt_listing(folder: str | None) -> str:
-    """List a bounded number of local receipt names; do not follow symlinks."""
+    """Aggregates first, then code, collapsed per-case directories, then everything else."""
     if folder is None:
         return "Receipts: no folder recorded."
     root = Path(folder).expanduser()
     if not root.is_dir():
         return "Receipts: recorded folder unavailable."
-    files = sorted(
-        (path for path in root.rglob("*") if path.is_file() and not path.is_symlink()),
-        key=lambda path: path.relative_to(root).as_posix(),
+    scan = scan_receipts(root)
+    offset = 1 if scan.bundle_members else 0
+
+    def shallow_first(file: ReceiptFile) -> tuple[int, str]:
+        return (max(file.depth - offset, 0), file.path)
+
+    data = [file for file in scan.files if file.suffix in DATA_SUFFIXES]
+    # Numbered or hashed names (result_007.json, 3fa9c1d2e4.json) are per-case files.
+    per_directory: dict[tuple[str, str, str], list[ReceiptFile]] = {}
+    for file in scan.files:
+        if file.suffix in _CODE_SUFFIXES:
+            continue
+        pattern = re.sub(r"[0-9a-f]{8,}|\d+", "*", Path(file.name).stem)
+        key = (file.path.rpartition("/")[0], file.suffix, pattern)
+        per_directory.setdefault(key, []).append(file)
+    collapsed = {key: group for key, group in per_directory.items()
+                 if len(group) > _COLLAPSE_AT and "*" in key[2]}
+    first_pass = {file.path for group in collapsed.values() for file in group}
+    remainder: dict[tuple[str, str, str], list[ReceiptFile]] = {}
+    for file in scan.files:
+        if (file.path in first_pass or file.suffix in _CODE_SUFFIXES
+                or is_aggregate_name(file.name)):
+            continue
+        remainder.setdefault((file.path.rpartition("/")[0], file.suffix, "*"), []).append(file)
+    collapsed.update({key: group for key, group in remainder.items()
+                      if len(group) > 3 * _COLLAPSE_AT})
+    collapsed_paths = {file.path for group in collapsed.values() for file in group}
+    aggregates = sorted(
+        (file for file in data
+         if is_aggregate_name(file.name) or max(file.depth - offset, 0) == 0),
+        key=shallow_first,
     )
-    lines = ["Receipts (relative path | bytes):"]
-    for path in files[:60]:
-        lines.append(f"{path.relative_to(root).as_posix()} | {path.stat().st_size}")
-    if len(files) > 60:
-        lines.append(f"{len(files) - 60} more receipt names omitted.")
+    aggregates = [file for file in aggregates if file.path not in collapsed_paths]
+    code = sorted(
+        (file for file in scan.files if file.suffix in _CODE_SUFFIXES),
+        key=lambda file: (_CODE_FIRST.search(file.name) is None, *shallow_first(file)),
+    )
+    shown = {file.path for file in aggregates} | {file.path for file in code} | collapsed_paths
+    other = sorted((file for file in scan.files if file.path not in shown), key=shallow_first)
+
+    lines: list[str] = []
+    if scan.bundle_members:
+        lines.append(
+            "Layout: analysis bundle (.bundle). Every path below starts with its member "
+            "folder and each member is one experiment folder copied unchanged. "
+            f"Members: {', '.join(scan.bundle_members)}. Pass the bundle folder shown above "
+            "to ./q recipe --folder, with the member folder inside the file path."
+        )
+    lines.append("Receipts (relative path | bytes):")
+
+    def section(title: str, kind: str, items: list[ReceiptFile]) -> None:
+        if not items:
+            return
+        lines.append(title)
+        lines.extend(f"{file.path} | {file.size}" for file in items[:_LIST_LIMITS[kind]])
+        if len(items) > _LIST_LIMITS[kind]:
+            lines.append(f"{len(items) - _LIST_LIMITS[kind]} more {kind} files omitted; "
+                         "use ./q locate or list the folder with bash.")
+
+    section("Aggregate and summary data (read these first):", "aggregate", aggregates)
+    section("Experiment code (labels, preparation, scoring):", "code", code)
+    if collapsed:
+        lines.append("Per-case directories (one line each: glob | files | bytes | examples):")
+        ordered = sorted(collapsed.items(), key=lambda item: (item[0][0].count("/"), item[0]))
+        for (directory, suffix, pattern), group in ordered[:_LIST_LIMITS["collapsed"]]:
+            prefix = f"{directory}/" if directory else ""
+            examples = ", ".join(file.name for file in group[:2])
+            lines.append(f"{prefix}{pattern}{suffix} | {len(group)} files | "
+                         f"{sum(file.size for file in group)} bytes | e.g. {examples}")
+        if len(ordered) > _LIST_LIMITS["collapsed"]:
+            lines.append(f"{len(ordered) - _LIST_LIMITS['collapsed']} more directories omitted.")
+    section("Other files:", "other", other)
+    if scan.truncated:
+        lines.append(f"Folder scan stopped after {SCAN_LIMIT} files; later files are not listed.")
     return "\n".join(lines)
 
 
@@ -103,6 +276,18 @@ def compact_claim(record: ClaimRecord) -> str:
         [record.claim_id, claim.experiment, claim.statement, f"{counts}; value={claim.value}",
          claim.status, f"check={record.check.status}", "; ".join(claim.caveats)]
     )
+
+
+def _layout_groups(store: InsightStore, claims: list[ClaimRecord], limit: int = 4) -> list[str]:
+    """One receipt layout per distinct experiment folder behind the input claims."""
+    folders: list[str] = []
+    for record in claims:
+        source = store.get_source(record.source_id)
+        if source is not None and source.folder is not None and source.folder not in folders:
+            folders.append(source.folder)
+        if len(folders) == limit:
+            break
+    return [f"## Receipt layout\nfolder={folder}\n{receipt_listing(folder)}" for folder in folders]
 
 
 def _groups(store: InsightStore, inputs: PassInputs) -> list[str]:
@@ -159,12 +344,29 @@ def _groups(store: InsightStore, inputs: PassInputs) -> list[str]:
             if insight is None:
                 raise ValueError(f"unknown input insight: {insight_id}")
             records = []
-            for ref in insight.card.evidence:
-                record = store.get_claim(ref.claim_id)
+            for claim_id in sorted(card_claim_ids(insight.card)):
+                record = store.get_claim(claim_id)
                 if record is None:
-                    raise ValueError(f"unknown cited claim: {ref.claim_id}")
-                records.append(record.model_dump(mode="json"))
-            groups.append(f"## Card and all cited claims\n{_json(insight)}\n{_json(records)}")
+                    raise ValueError(f"unknown cited claim: {claim_id}")
+                section = store.get_section(record.claim.section_id)
+                source = store.get_source(record.source_id)
+                if section is None or source is None:
+                    raise ValueError(f"missing source section for cited claim: {claim_id}")
+                records.append({
+                    "claim": record.model_dump(mode="json"),
+                    "source_section": {
+                        "source_id": source.source_id,
+                        "section_id": section.section_id,
+                        "text": numbered(section_text(source, section), section.start_line),
+                    },
+                })
+            # Author identity is not evidence. Include only the assigned id and card,
+            # plus every support/contradiction and challenge-target claim.
+            anonymous = {"insight_id": insight_id, "card": insight.card.model_dump(mode="json")}
+            groups.append(
+                f"## Card, cited claims, challenge targets, and source excerpts\n"
+                f"{_json(anonymous)}\n{_json(records)}"
+            )
         return groups
     if inputs.lens == "synthesizer":
         groups.extend(f"## Refereed insight\n{_json(record)}" for record in insights
@@ -217,6 +419,8 @@ def _groups(store: InsightStore, inputs: PassInputs) -> list[str]:
             groups.extend(group for signal, group in zip(signals, signal_groups, strict=True)
                           if signal.signal_id in selected)
         groups.extend(claim_groups)
+        if inputs.lens in {"skeptic", "anomaly"}:
+            groups.extend(_layout_groups(store, claims))
         groups.extend(group for signal, group in zip(signals, signal_groups, strict=True)
                       if inputs.lens != "anomaly" or signal.signal_id not in selected)
         groups.extend(board_groups)
@@ -245,6 +449,74 @@ def _bounded_pack(groups: list[str], lens: Lens, budget: int) -> str:
     return result
 
 
+def pass_inputs_digest(pass_dir: Path) -> str:
+    """Digest of the pack manifest and brief now on disk; compare with the recorded digest."""
+    text = (pass_dir / "pack.json").read_text("utf-8") + (pass_dir / "brief.md").read_text("utf-8")
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _redact_for_rederiver(target: sqlite3.Connection) -> None:
+    """Remove the original recipes and recompute outcomes from the snapshot copy."""
+    rows = target.execute("SELECT claim_id, body FROM claims").fetchall()
+    for claim_id, body in rows:
+        value = json.loads(body)
+        claim = value.get("claim")
+        if isinstance(claim, dict):
+            claim.pop("recipe", None)
+        value.pop("recompute", None)
+        target.execute(
+            "UPDATE claims SET body = ?, recompute_status = NULL WHERE claim_id = ?",
+            (_json(value), claim_id),
+        )
+    # Other rederivations and card-level recipe results would reveal the answer too.
+    target.execute("DELETE FROM rederivations")
+    target.execute("DELETE FROM pass_inputs")
+    for insight_id, body in target.execute("SELECT insight_id, body FROM insights").fetchall():
+        value = json.loads(body)
+        card = value.get("card")
+        if isinstance(card, dict) and "recipes" in card:
+            card.pop("recipes")
+            target.execute(
+                "UPDATE insights SET body = ? WHERE insight_id = ?", (_json(value), insight_id),
+            )
+    target.execute("DROP VIEW v_claims")
+    target.execute(_REDERIVER_V_CLAIMS)
+
+
+def _snapshot_ledger(
+    db_path: Path,
+    destination: Path,
+    *,
+    lens: Lens,
+    manifest: str,
+    digest: str,
+) -> None:
+    """Back up the committed ledger, then seal the tool manifest in the copy."""
+    source = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
+    target = sqlite3.connect(destination)
+    try:
+        source.backup(target)
+        # A rollback-journal file needs no -wal/-shm files, so mode=ro works on 0444.
+        target.execute("PRAGMA journal_mode=DELETE")
+        with target:
+            if lens == "rederiver":
+                _redact_for_rederiver(target)
+            target.execute(
+                "INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)",
+                (PASS_MANIFEST_META, manifest),
+            )
+            target.execute(
+                "INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)",
+                (PASS_DIGEST_META, digest),
+            )
+    except sqlite3.Error as exc:
+        raise OSError(f"ledger snapshot failed: {exc}") from exc
+    finally:
+        target.close()
+        source.close()
+    destination.chmod(0o444)
+
+
 def build_pass_dir(
     store: InsightStore,
     inputs: PassInputs,
@@ -268,11 +540,14 @@ def build_pass_dir(
     (path / "brief.md").write_text(brief, encoding="utf-8")
     (path / "pack.md").write_text(pack, encoding="utf-8")
     (path / "pack.json").write_text(input_json, encoding="utf-8")
+    snapshot = path / SNAPSHOT_NAME
+    _snapshot_ledger(db_path, snapshot, lens=inputs.lens, manifest=input_json, digest=digest)
     schema = output_contract(inputs.lens).model_json_schema()
     (path / "schema.json").write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n",
                                       encoding="utf-8")
-    wrapper = ("#!/bin/sh\nexec " + shlex.quote(python_executable)
-               + " -m evallab.insights.agent_tool --db " + shlex.quote(str(db_path.resolve()))
+    wrapper = ("#!/bin/sh\nunset EVALLAB_INSIGHTS_STATE\nexec "
+               + shlex.quote(python_executable)
+               + " -m evallab.insights.agent_tool --db " + shlex.quote(str(snapshot))
                + " --pass-dir " + shlex.quote(str(path)) + ' "$@"\n')
     q = path / "q"
     q.write_text(wrapper, encoding="utf-8")

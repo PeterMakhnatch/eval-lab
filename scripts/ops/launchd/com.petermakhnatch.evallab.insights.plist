@@ -31,7 +31,9 @@
     <key>HOME</key>
     <string>__HOME__</string>
     <key>PATH</key>
-    <string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
     <key>HARBOR_TELEMETRY</key>
     <string>off</string>
     <key>EVALLAB_DISABLE_LOCAL_DOCKER</key>

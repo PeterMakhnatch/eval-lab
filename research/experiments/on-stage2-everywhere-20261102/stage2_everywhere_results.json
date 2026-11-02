@@ -1,0 +1,743 @@
+{
+  "analysis_date": "2026-11-02",
+  "cohort_summary": {
+    "total_dev_covered": 272,
+    "report_split": 136,
+    "report_positives": 67,
+    "report_negatives": 69,
+    "tune_split": 136,
+    "tune_positives": 67,
+    "tune_negatives": 69
+  },
+  "policy_evaluation": {
+    "P0": {
+      "label": "P0: Production Reference (Stored S1+S2)",
+      "threshold": 18.0,
+      "auroc": 0.6661,
+      "auroc_ci": [
+        0.5964,
+        0.7348
+      ],
+      "recall": {
+        "tp": 20,
+        "n_pos": 67,
+        "rate": 0.2985,
+        "wilson": [
+          0.2023,
+          0.4166
+        ]
+      },
+      "false_alarms": {
+        "fp": 2,
+        "n_neg": 69,
+        "rate": 0.029,
+        "wilson": [
+          0.008,
+          0.0997
+        ]
+      },
+      "stage2_calls": {
+        "report_calls": 20,
+        "report_rate_pct": 14.71,
+        "dev_total_calls": 48,
+        "dev_rate_pct": 17.65
+      },
+      "economics": {
+        "avg_tokens_per_case": 14598.9,
+        "list_cost_per_case_usd": 0.00453,
+        "list_cost_per_1k_cases_usd": 4.53
+      },
+      "by_family": {
+        "c1c5": {
+          "n_pos": 3,
+          "n_neg": 5,
+          "auroc": 0.7667,
+          "ci95": [
+            0.3333,
+            1.0
+          ],
+          "tp": 2,
+          "recall": 0.6667,
+          "wilson": [
+            0.2077,
+            0.9385
+          ]
+        },
+        "cheatbench": {
+          "n_pos": 16,
+          "n_neg": 16,
+          "auroc": 0.6973,
+          "ci95": [
+            0.5684,
+            0.8301
+          ],
+          "tp": 6,
+          "recall": 0.375,
+          "wilson": [
+            0.1848,
+            0.6136
+          ]
+        },
+        "deep_swe": {
+          "n_pos": 12,
+          "n_neg": 12,
+          "auroc": 0.7083,
+          "ci95": [
+            0.5104,
+            0.8819
+          ],
+          "tp": 2,
+          "recall": 0.1667,
+          "wilson": [
+            0.047,
+            0.448
+          ]
+        },
+        "goodfire": {
+          "n_pos": 16,
+          "n_neg": 16,
+          "auroc": 0.5,
+          "ci95": [
+            0.5,
+            0.5
+          ],
+          "tp": 0,
+          "recall": 0.0,
+          "wilson": [
+            0.0,
+            0.1936
+          ]
+        },
+        "terminal_wrench": {
+          "n_pos": 20,
+          "n_neg": 20,
+          "auroc": 0.74,
+          "ci95": [
+            0.61,
+            0.8612
+          ],
+          "tp": 10,
+          "recall": 0.5,
+          "wilson": [
+            0.2993,
+            0.7007
+          ]
+        }
+      },
+      "without_goodfire": {
+        "n_pos": 51,
+        "n_neg": 53,
+        "auroc": 0.722,
+        "ci95": [
+          0.6389,
+          0.7995
+        ],
+        "tp": 20,
+        "recall": 0.3922,
+        "wilson": [
+          0.2703,
+          0.5291
+        ]
+      }
+    },
+    "P1": {
+      "label": "P1: Stage 2 Everywhere (Forced 100%)",
+      "threshold": 35.0,
+      "auroc": 0.6401,
+      "auroc_ci": [
+        0.5756,
+        0.7038
+      ],
+      "recall": {
+        "tp": 18,
+        "n_pos": 67,
+        "rate": 0.2687,
+        "wilson": [
+          0.1772,
+          0.3852
+        ]
+      },
+      "false_alarms": {
+        "fp": 3,
+        "n_neg": 69,
+        "rate": 0.0435,
+        "wilson": [
+          0.0149,
+          0.1202
+        ]
+      },
+      "stage2_calls": {
+        "report_calls": 136,
+        "report_rate_pct": 100.0,
+        "dev_total_calls": 272,
+        "dev_rate_pct": 100.0
+      },
+      "economics": {
+        "avg_tokens_per_case": 30101.1,
+        "list_cost_per_case_usd": 0.00925,
+        "list_cost_per_1k_cases_usd": 9.25
+      },
+      "by_family": {
+        "c1c5": {
+          "n_pos": 3,
+          "n_neg": 5,
+          "auroc": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "tp": 3,
+          "recall": 1.0,
+          "wilson": [
+            0.4385,
+            1.0
+          ]
+        },
+        "cheatbench": {
+          "n_pos": 16,
+          "n_neg": 16,
+          "auroc": 0.7305,
+          "ci95": [
+            0.5977,
+            0.8633
+          ],
+          "tp": 5,
+          "recall": 0.3125,
+          "wilson": [
+            0.1416,
+            0.556
+          ]
+        },
+        "deep_swe": {
+          "n_pos": 12,
+          "n_neg": 12,
+          "auroc": 0.5417,
+          "ci95": [
+            0.5,
+            0.625
+          ],
+          "tp": 0,
+          "recall": 0.0,
+          "wilson": [
+            0.0,
+            0.2425
+          ]
+        },
+        "goodfire": {
+          "n_pos": 16,
+          "n_neg": 16,
+          "auroc": 0.5,
+          "ci95": [
+            0.5,
+            0.5
+          ],
+          "tp": 0,
+          "recall": 0.0,
+          "wilson": [
+            0.0,
+            0.1936
+          ]
+        },
+        "terminal_wrench": {
+          "n_pos": 20,
+          "n_neg": 20,
+          "auroc": 0.725,
+          "ci95": [
+            0.5925,
+            0.8562
+          ],
+          "tp": 10,
+          "recall": 0.5,
+          "wilson": [
+            0.2993,
+            0.7007
+          ]
+        }
+      },
+      "without_goodfire": {
+        "n_pos": 51,
+        "n_neg": 53,
+        "auroc": 0.6863,
+        "ci95": [
+          0.6088,
+          0.761
+        ],
+        "tp": 18,
+        "recall": 0.3529,
+        "wilson": [
+          0.2363,
+          0.4901
+        ]
+      }
+    },
+    "P2": {
+      "label": "P2: L0-Only Trigger (Deterministic Gate)",
+      "threshold": 18.0,
+      "auroc": 0.6692,
+      "auroc_ci": [
+        0.5973,
+        0.7386
+      ],
+      "recall": {
+        "tp": 21,
+        "n_pos": 67,
+        "rate": 0.3134,
+        "wilson": [
+          0.2151,
+          0.432
+        ]
+      },
+      "false_alarms": {
+        "fp": 2,
+        "n_neg": 69,
+        "rate": 0.029,
+        "wilson": [
+          0.008,
+          0.0997
+        ]
+      },
+      "stage2_calls": {
+        "report_calls": 16,
+        "report_rate_pct": 11.76,
+        "dev_total_calls": 33,
+        "dev_rate_pct": 12.13
+      },
+      "economics": {
+        "avg_tokens_per_case": 13492.3,
+        "list_cost_per_case_usd": 0.00419,
+        "list_cost_per_1k_cases_usd": 4.19
+      },
+      "by_family": {
+        "c1c5": {
+          "n_pos": 3,
+          "n_neg": 5,
+          "auroc": 0.7667,
+          "ci95": [
+            0.3333,
+            1.0
+          ],
+          "tp": 2,
+          "recall": 0.6667,
+          "wilson": [
+            0.2077,
+            0.9385
+          ]
+        },
+        "cheatbench": {
+          "n_pos": 16,
+          "n_neg": 16,
+          "auroc": 0.6973,
+          "ci95": [
+            0.5684,
+            0.8301
+          ],
+          "tp": 6,
+          "recall": 0.375,
+          "wilson": [
+            0.1848,
+            0.6136
+          ]
+        },
+        "deep_swe": {
+          "n_pos": 12,
+          "n_neg": 12,
+          "auroc": 0.7604,
+          "ci95": [
+            0.5694,
+            0.9271
+          ],
+          "tp": 3,
+          "recall": 0.25,
+          "wilson": [
+            0.0889,
+            0.5323
+          ]
+        },
+        "goodfire": {
+          "n_pos": 16,
+          "n_neg": 16,
+          "auroc": 0.5,
+          "ci95": [
+            0.5,
+            0.5
+          ],
+          "tp": 0,
+          "recall": 0.0,
+          "wilson": [
+            0.0,
+            0.1936
+          ]
+        },
+        "terminal_wrench": {
+          "n_pos": 20,
+          "n_neg": 20,
+          "auroc": 0.7375,
+          "ci95": [
+            0.615,
+            0.85
+          ],
+          "tp": 10,
+          "recall": 0.5,
+          "wilson": [
+            0.2993,
+            0.7007
+          ]
+        }
+      },
+      "without_goodfire": {
+        "n_pos": 51,
+        "n_neg": 53,
+        "auroc": 0.7272,
+        "ci95": [
+          0.6419,
+          0.8039
+        ],
+        "tp": 21,
+        "recall": 0.4118,
+        "wilson": [
+          0.2875,
+          0.5483
+        ]
+      }
+    },
+    "P3": {
+      "label": "P3: Band-Only Trigger (25 <= susp <= 85)",
+      "threshold": 18.0,
+      "auroc": 0.6503,
+      "auroc_ci": [
+        0.5809,
+        0.7197
+      ],
+      "recall": {
+        "tp": 18,
+        "n_pos": 67,
+        "rate": 0.2687,
+        "wilson": [
+          0.1772,
+          0.3852
+        ]
+      },
+      "false_alarms": {
+        "fp": 2,
+        "n_neg": 69,
+        "rate": 0.029,
+        "wilson": [
+          0.008,
+          0.0997
+        ]
+      },
+      "stage2_calls": {
+        "report_calls": 6,
+        "report_rate_pct": 4.41,
+        "dev_total_calls": 21,
+        "dev_rate_pct": 7.72
+      },
+      "economics": {
+        "avg_tokens_per_case": 13453.9,
+        "list_cost_per_case_usd": 0.00418,
+        "list_cost_per_1k_cases_usd": 4.18
+      },
+      "by_family": {
+        "c1c5": {
+          "n_pos": 3,
+          "n_neg": 5,
+          "auroc": 0.7667,
+          "ci95": [
+            0.3333,
+            1.0
+          ],
+          "tp": 2,
+          "recall": 0.6667,
+          "wilson": [
+            0.2077,
+            0.9385
+          ]
+        },
+        "cheatbench": {
+          "n_pos": 16,
+          "n_neg": 16,
+          "auroc": 0.6973,
+          "ci95": [
+            0.5684,
+            0.8301
+          ],
+          "tp": 6,
+          "recall": 0.375,
+          "wilson": [
+            0.1848,
+            0.6136
+          ]
+        },
+        "deep_swe": {
+          "n_pos": 12,
+          "n_neg": 12,
+          "auroc": 0.6042,
+          "ci95": [
+            0.4167,
+            0.8056
+          ],
+          "tp": 0,
+          "recall": 0.0,
+          "wilson": [
+            0.0,
+            0.2425
+          ]
+        },
+        "goodfire": {
+          "n_pos": 16,
+          "n_neg": 16,
+          "auroc": 0.5,
+          "ci95": [
+            0.5,
+            0.5
+          ],
+          "tp": 0,
+          "recall": 0.0,
+          "wilson": [
+            0.0,
+            0.1936
+          ]
+        },
+        "terminal_wrench": {
+          "n_pos": 20,
+          "n_neg": 20,
+          "auroc": 0.74,
+          "ci95": [
+            0.61,
+            0.8612
+          ],
+          "tp": 10,
+          "recall": 0.5,
+          "wilson": [
+            0.2993,
+            0.7007
+          ]
+        }
+      },
+      "without_goodfire": {
+        "n_pos": 51,
+        "n_neg": 53,
+        "auroc": 0.7009,
+        "ci95": [
+          0.6176,
+          0.7788
+        ],
+        "tp": 18,
+        "recall": 0.3529,
+        "wilson": [
+          0.2363,
+          0.4901
+        ]
+      }
+    },
+    "P4": {
+      "label": "P4: Stage 1 Only (Stage 2 Never)",
+      "threshold": 18.0,
+      "auroc": 0.6762,
+      "auroc_ci": [
+        0.6048,
+        0.7446
+      ],
+      "recall": {
+        "tp": 21,
+        "n_pos": 67,
+        "rate": 0.3134,
+        "wilson": [
+          0.2151,
+          0.432
+        ]
+      },
+      "false_alarms": {
+        "fp": 2,
+        "n_neg": 69,
+        "rate": 0.029,
+        "wilson": [
+          0.008,
+          0.0997
+        ]
+      },
+      "stage2_calls": {
+        "report_calls": 0,
+        "report_rate_pct": 0.0,
+        "dev_total_calls": 0,
+        "dev_rate_pct": 0.0
+      },
+      "economics": {
+        "avg_tokens_per_case": 12150.0,
+        "list_cost_per_case_usd": 0.00378,
+        "list_cost_per_1k_cases_usd": 3.78
+      },
+      "by_family": {
+        "c1c5": {
+          "n_pos": 3,
+          "n_neg": 5,
+          "auroc": 0.7667,
+          "ci95": [
+            0.3333,
+            1.0
+          ],
+          "tp": 2,
+          "recall": 0.6667,
+          "wilson": [
+            0.2077,
+            0.9385
+          ]
+        },
+        "cheatbench": {
+          "n_pos": 16,
+          "n_neg": 16,
+          "auroc": 0.6973,
+          "ci95": [
+            0.5684,
+            0.8301
+          ],
+          "tp": 6,
+          "recall": 0.375,
+          "wilson": [
+            0.1848,
+            0.6136
+          ]
+        },
+        "deep_swe": {
+          "n_pos": 12,
+          "n_neg": 12,
+          "auroc": 0.7604,
+          "ci95": [
+            0.5694,
+            0.9271
+          ],
+          "tp": 3,
+          "recall": 0.25,
+          "wilson": [
+            0.0889,
+            0.5323
+          ]
+        },
+        "goodfire": {
+          "n_pos": 16,
+          "n_neg": 16,
+          "auroc": 0.5,
+          "ci95": [
+            0.5,
+            0.5
+          ],
+          "tp": 0,
+          "recall": 0.0,
+          "wilson": [
+            0.0,
+            0.1936
+          ]
+        },
+        "terminal_wrench": {
+          "n_pos": 20,
+          "n_neg": 20,
+          "auroc": 0.7562,
+          "ci95": [
+            0.63,
+            0.875
+          ],
+          "tp": 10,
+          "recall": 0.5,
+          "wilson": [
+            0.2993,
+            0.7007
+          ]
+        }
+      },
+      "without_goodfire": {
+        "n_pos": 51,
+        "n_neg": 53,
+        "auroc": 0.7362,
+        "ci95": [
+          0.6552,
+          0.813
+        ],
+        "tp": 21,
+        "recall": 0.4118,
+        "wilson": [
+          0.2875,
+          0.5483
+        ]
+      }
+    }
+  },
+  "mcnemar_tests_vs_p0": {
+    "P1": {
+      "b_p0_only": 3,
+      "c_px_only": 1,
+      "both": 17,
+      "neither": 46,
+      "p_value": 0.625
+    },
+    "P2": {
+      "b_p0_only": 0,
+      "c_px_only": 1,
+      "both": 20,
+      "neither": 46,
+      "p_value": 1.0
+    },
+    "P3": {
+      "b_p0_only": 2,
+      "c_px_only": 0,
+      "both": 18,
+      "neither": 47,
+      "p_value": 0.5
+    },
+    "P4": {
+      "b_p0_only": 0,
+      "c_px_only": 1,
+      "both": 20,
+      "neither": 46,
+      "p_value": 1.0
+    }
+  },
+  "noise_floor_48_cases": {
+    "n_cases": 48,
+    "n_pos": 22,
+    "suspicion_mae": 4.02,
+    "median_diff": 0.0,
+    "verdict_agreement_count": "45/48",
+    "verdict_agreement_rate": 0.9375,
+    "mcnemar_on_positives": {
+      "b_run1_only": 0,
+      "c_run2_only": 2,
+      "both": 5,
+      "neither": 15,
+      "p_value": 0.5
+    }
+  },
+  "recovered_cheats_analysis": {
+    "n_report_pos_untriggered_in_prod": 48,
+    "n_recovered_by_s2": 10
+  },
+  "pre_registered_decision_rules": {
+    "verdict": "RETAIN PRODUCTION TRIGGER",
+    "rule_1_stage2_everywhere": {
+      "p1_recall": 0.2687,
+      "p0_recall": 0.2985,
+      "recall_ratio": 0.9002,
+      "recall_threshold_1_25x": 0.3731,
+      "recall_criterion_met": false,
+      "mcnemar_b_p0_only": 3,
+      "mcnemar_c_p1_only": 1,
+      "mcnemar_p_value": 0.625,
+      "significance_criterion_met": false,
+      "p1_cost_usd": 0.00925,
+      "p0_cost_usd": 0.00453,
+      "cost_ratio": 2.0419,
+      "cost_criterion_met": true,
+      "overall_met": false
+    },
+    "rule_2_l0_only": {
+      "p2_recall": 0.3134,
+      "p0_recall": 0.2985,
+      "recall_ratio": 1.0499,
+      "recall_criterion_80pct_met": true,
+      "p2_calls": 16,
+      "p0_calls": 20,
+      "call_ratio": 0.8,
+      "call_criterion_60pct_met": false,
+      "overall_met": false
+    }
+  }
+}

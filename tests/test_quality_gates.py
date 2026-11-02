@@ -495,4 +495,184 @@ def test_workbench_certification_workflows_cadence_and_path_isolation() -> None:
         )
 
 
+WORKFLOW_DIR = ROOT / ".github/workflows"
+PREMERGE_SCRIPT = ROOT / "scripts/premerge.sh"
+# Harbor CLI pin shared by every workflow that runs `harbor run`. A bump must
+# change this constant and every workflow together; the test below refuses drift.
+HARBOR_VERSION = "0.21.0"
 
+_UV_VERSION_DECLARATION = re.compile(r'^readonly UV_VERSION="(?P<version>[^"]+)"\s*$', re.MULTILINE)
+_UV_PIN = re.compile(r"\buv==(?P<version>[0-9][\w.]*)")
+_UV_COMMAND = re.compile(
+    r"\b(?:uv\s+(?:run|sync|python|tool|pip|venv|lock|export|add|remove)\b|uvx\b)"
+)
+_INSTALLER = re.compile(r"\b(?:pip3?|pipx|uvx|uv\s+tool\s+install|uv\s+pip\s+install)\b")
+# A first package spec naming the Harbor CLI: `harbor`, `harbor==X`, `harbor[extra]`.
+_HARBOR_SPEC = re.compile(r"harbor(?=$|==|\[|@|>|<|~=)")
+_INSTALL_VERBS = frozenset({"install", "download", "add", "upgrade"})
+HARBOR_INSTALLER = "uv tool install"
+
+
+def _uv_version(premerge: Path) -> str:
+    match = _UV_VERSION_DECLARATION.search(premerge.read_text(encoding="utf-8"))
+    assert match is not None, f"{premerge} must declare a quoted readonly UV_VERSION"
+    return match.group("version")
+
+
+def _install_specs(line: str) -> list[tuple[str, str]]:
+    """Return (installer, first package spec) for every install command on the line.
+
+    Taking the first non-option token after the installer keeps file paths and
+    modules that merely contain "harbor" (e.g. `uvx ty@0.0.71 check
+    src/evallab/harbor_deepseek.py`) from reading as a Harbor installation.
+    """
+    specs: list[tuple[str, str]] = []
+    for installer in _INSTALLER.finditer(line):
+        for token in line[installer.end() :].split():
+            if token in _INSTALL_VERBS or token.startswith("-"):
+                continue
+            specs.append((" ".join(installer.group(0).split()), token.strip("'\"")))
+            break
+    return specs
+
+
+def _pin_findings(workflows_dir: Path, premerge: Path) -> list[str]:
+    """Return one message per workflow line that breaks the single uv/harbor pin.
+
+    `scripts/premerge.sh` declares UV_VERSION for the local premerge gate. A
+    workflow pinned to anything else silently splits hosted CI from local
+    premerge, so every `uv==X` there must equal it, and a workflow that invokes
+    uv at all must pin it. Harbor is only ever installed from PyPI through
+    `uv tool install "harbor==<pin>"`: a pip install (loca-lean.yml used
+    `python3 -m pip install harbor==0.21.0`) or a floating pin converges on a
+    different installer and version than the other benchmark workflows.
+    """
+    uv_version = _uv_version(premerge)
+    findings: list[str] = []
+    for workflow_path in sorted(workflows_dir.glob("*.yml")):
+        text = workflow_path.read_text(encoding="utf-8")
+        if _UV_COMMAND.search(text) and not _UV_PIN.search(text):
+            findings.append(
+                f"{workflow_path.name}: invokes uv without a uv=={uv_version} pin "
+                "(scripts/premerge.sh UV_VERSION)"
+            )
+        for line_number, raw in enumerate(text.splitlines(), 1):
+            if raw.strip().startswith("#"):
+                continue
+            for match in _UV_PIN.finditer(raw):
+                if match.group("version") != uv_version:
+                    findings.append(
+                        f"{workflow_path.name}:{line_number}: uv pin "
+                        f"{match.group('version')} != {uv_version} "
+                        "(scripts/premerge.sh UV_VERSION)"
+                    )
+            if "harbor" not in raw:
+                continue
+            for installer, spec in _install_specs(raw):
+                if not _HARBOR_SPEC.match(spec):
+                    continue
+                if installer != HARBOR_INSTALLER:
+                    findings.append(
+                        f"{workflow_path.name}:{line_number}: harbor must be installed with "
+                        f'uv tool install "harbor=={HARBOR_VERSION}", found '
+                        f"{installer} {spec}"
+                    )
+                elif spec != f"harbor=={HARBOR_VERSION}":
+                    findings.append(
+                        f"{workflow_path.name}:{line_number}: harbor pin {spec} "
+                        f"!= harbor=={HARBOR_VERSION}"
+                    )
+    return findings
+
+
+def test_every_workflow_pins_uv_and_harbor_to_one_version() -> None:
+    """CI and local premerge install one uv and one Harbor version (HAR-251).
+
+    Thirteen workflows copied `uv==0.9.24` from scripts/premerge.sh and seven
+    copied `harbor==0.21.0`, while loca-lean.yml ran `python3 -m pip install
+    harbor==0.21.0`. Nothing compared those literals, so a single bump split
+    hosted CI from local premerge. This gate makes the drift visible at review
+    time instead of at the first divergent run.
+    """
+    assert WORKFLOW_FILES, "no workflows found to check"
+    assert _pin_findings(WORKFLOW_DIR, PREMERGE_SCRIPT) == []
+
+    harbor_installs = {
+        workflow_path.name
+        for workflow_path in WORKFLOW_FILES
+        if any(
+            installer == HARBOR_INSTALLER and spec == f"harbor=={HARBOR_VERSION}"
+            for line in workflow_path.read_text(encoding="utf-8").splitlines()
+            for installer, spec in _install_specs(line)
+        )
+    }
+    assert "loca-lean.yml" in harbor_installs, (
+        "loca-lean.yml must install Harbor with uv tool install, not pip"
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        pytest.param(
+            "      - run: |\n"
+            "          python3 -m pip install --user uv==0.9.24\n"
+            '          uv tool install "harbor==0.21.0"\n',
+            None,
+            id="matching-pins",
+        ),
+        pytest.param(
+            "          python3 -m pip install --user uv==0.9.23\n",
+            "uv pin 0.9.23 != 0.9.24",
+            id="uv-version-drift",
+        ),
+        pytest.param(
+            "          python3 -m pip install --user uv==0.9.24\n"
+            '          uv tool install "harbor==0.20.0"\n',
+            "harbor pin harbor==0.20.0 != harbor==0.21.0",
+            id="harbor-version-drift",
+        ),
+        pytest.param(
+            "          python3 -m pip install --user uv==0.9.24\n"
+            "          python3 -m pip install --disable-pip-version-check harbor==0.21.0\n",
+            "harbor must be installed with uv tool install",
+            id="harbor-installed-with-pip",
+        ),
+        pytest.param(
+            "          python3 -m pip install --user uv==0.9.24\n"
+            "          uv tool install harbor\n",
+            "harbor pin harbor != harbor==0.21.0",
+            id="harbor-unpinned",
+        ),
+        pytest.param(
+            "          python3 -m pip install --user uv==0.9.24\n"
+            "          uvx --from harbor==0.21.0 harbor run --path .\n",
+            "harbor must be installed with uv tool install",
+            id="harbor-installed-by-uvx",
+        ),
+        pytest.param(
+            "          uv sync --locked\n",
+            "invokes uv without a uv==0.9.24 pin",
+            id="uv-invoked-without-pin",
+        ),
+        pytest.param(
+            "          python3 -m pip install --user uv==0.9.24\n"
+            "          uvx ty@0.0.71 check src/evallab/harbor_deepseek.py\n",
+            None,
+            id="harbor-in-a-file-path-is-not-an-install",
+        ),
+    ],
+)
+def test_pin_gate_rejects_workflow_drift(tmp_path: Path, body: str, expected: str | None) -> None:
+    """The gate must fail on drifted fixtures, not merely pass on this checkout."""
+    workflows = tmp_path / "workflows"
+    workflows.mkdir()
+    (workflows / "fixture.yml").write_text(f"jobs:\n  job:\n    steps:\n{body}", encoding="utf-8")
+    premerge = tmp_path / "premerge.sh"
+    premerge.write_text('readonly UV_VERSION="0.9.24"\n', encoding="utf-8")
+
+    findings = _pin_findings(workflows, premerge)
+    if expected is None:
+        assert findings == []
+    else:
+        assert any(expected in finding for finding in findings), findings

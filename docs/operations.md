@@ -1527,7 +1527,9 @@ write a small report with digests and a durable artifact URI once object storage
 is configured.
 ## CI: pinned uv via PyPI, not marketplace action
 
-The three quality workflows (`ci.yml`, `perf.yml`, `typecheck.yml`) install `uv==0.9.24` with `python3 -m pip install --user uv==0.9.24` followed by `uv python install <ver>` and `UV_PYTHON` export. This replaces the former `astral-sh/setup-uv` step.
+Every workflow installs `uv==0.9.24` with `python3 -m pip install --user uv==0.9.24` followed by `uv python install <ver>` and `UV_PYTHON` export where it needs an interpreter. This replaces the former `astral-sh/setup-uv` step.
+
+`scripts/premerge.sh` owns that version in its `UV_VERSION` constant; workflow literals are copies of it. Harbor comes from PyPI through `uv tool install "harbor==0.21.0"` — never `pip install harbor` — because `uv tool` gives each workflow the same isolated CLI plus resolved console script that local runs use. `tests/test_quality_gates.py::test_every_workflow_pins_uv_and_harbor_to_one_version` compares every `uv==` and Harbor install in `.github/workflows/` against those two pins, and rejects a workflow that invokes uv without pinning it, so a bump must change premerge, the workflows and the shared Harbor constant (HAR-251; loca-lean.yml previously ran `python3 -m pip install harbor==0.21.0`).
 
 Rationale (preserves the two invariants that existed before the outage):
 

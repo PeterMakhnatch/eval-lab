@@ -1,0 +1,250 @@
+{
+  "created_at": "2026-11-02T10:32:16.867044+00:00",
+  "cohort_size": 24,
+  "task_level": {
+    "n": 24,
+    "orig_weak_count": 17,
+    "orig_weak_rate": 0.7083,
+    "orig_weak_ci_95": [
+      0.5083,
+      0.8509
+    ],
+    "rep_weak_count": 8,
+    "rep_weak_rate": 0.3333,
+    "rep_weak_ci_95": [
+      0.1797,
+      0.5329
+    ],
+    "both_weak": 7,
+    "neither_weak": 6,
+    "b_repair_fixed": 10,
+    "c_repair_degraded": 1,
+    "mcnemar_p": 0.01171875
+  },
+  "mutant_level": {
+    "n": 64,
+    "orig_survivors_count": 21,
+    "orig_survivor_rate": 0.3281,
+    "orig_survivor_ci_95": [
+      0.2257,
+      0.45
+    ],
+    "rep_survivors_count": 8,
+    "rep_survivor_rate": 0.125,
+    "rep_survivor_ci_95": [
+      0.0647,
+      0.2277
+    ],
+    "both_survived": 7,
+    "neither_survived": 42,
+    "b_killed_by_repair": 14,
+    "c_accepted_by_repair_only": 1,
+    "mcnemar_p": 0.0009765625
+  },
+  "degraded_tasks_count": 1,
+  "degraded_tasks": [
+    {
+      "task_id": "format-code-task-000322",
+      "reasons": [
+        "Mutant boundary_flip at aiohttp/web_fileresponse.py:176 killed by original (0.0) but survived on repaired (1.0)",
+        "Repaired grader has more survivors (1) than original (0)"
+      ],
+      "orig_survivors_count": 0,
+      "rep_survivors_count": 1
+    }
+  ],
+  "pairs": [
+    {
+      "task_id": "format-code-task-000079",
+      "orig_weak": true,
+      "rep_weak": true,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 1,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-000081",
+      "orig_weak": true,
+      "rep_weak": false,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-000085",
+      "orig_weak": false,
+      "rep_weak": false,
+      "orig_survivors_count": 0,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-000212",
+      "orig_weak": false,
+      "rep_weak": false,
+      "orig_survivors_count": 0,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-000232",
+      "orig_weak": true,
+      "rep_weak": true,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 1,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-000256",
+      "orig_weak": true,
+      "rep_weak": true,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 1,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-000322",
+      "orig_weak": false,
+      "rep_weak": true,
+      "orig_survivors_count": 0,
+      "rep_survivors_count": 1,
+      "degraded": true
+    },
+    {
+      "task_id": "format-code-task-000682",
+      "orig_weak": true,
+      "rep_weak": false,
+      "orig_survivors_count": 2,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-000812",
+      "orig_weak": false,
+      "rep_weak": false,
+      "orig_survivors_count": 0,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-000847",
+      "orig_weak": true,
+      "rep_weak": false,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-000931",
+      "orig_weak": true,
+      "rep_weak": false,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-001205",
+      "orig_weak": false,
+      "rep_weak": false,
+      "orig_survivors_count": 0,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-001267",
+      "orig_weak": true,
+      "rep_weak": true,
+      "orig_survivors_count": 2,
+      "rep_survivors_count": 1,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-001338",
+      "orig_weak": true,
+      "rep_weak": false,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-001426",
+      "orig_weak": true,
+      "rep_weak": false,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-001431",
+      "orig_weak": true,
+      "rep_weak": true,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 1,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-001804",
+      "orig_weak": true,
+      "rep_weak": false,
+      "orig_survivors_count": 2,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-001809",
+      "orig_weak": true,
+      "rep_weak": true,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 1,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-001850",
+      "orig_weak": true,
+      "rep_weak": true,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 1,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-001985",
+      "orig_weak": true,
+      "rep_weak": false,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-002160",
+      "orig_weak": false,
+      "rep_weak": false,
+      "orig_survivors_count": 0,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-002535",
+      "orig_weak": true,
+      "rep_weak": false,
+      "orig_survivors_count": 1,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-002545",
+      "orig_weak": true,
+      "rep_weak": false,
+      "orig_survivors_count": 2,
+      "rep_survivors_count": 0,
+      "degraded": false
+    },
+    {
+      "task_id": "format-code-task-002609",
+      "orig_weak": false,
+      "rep_weak": false,
+      "orig_survivors_count": 0,
+      "rep_survivors_count": 0,
+      "degraded": false
+    }
+  ]
+}

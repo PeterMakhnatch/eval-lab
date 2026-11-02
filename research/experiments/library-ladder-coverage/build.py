@@ -48,6 +48,13 @@ digest_current=no``).
 Reproduce (repo root, locked environment):
 
     uv run python research/experiments/library-ladder-coverage/build.py --check
+
+``--check`` also compares ``gaps.csv``, the derived gap list: one row per
+``verdict=none`` coverage cell, with a mechanical ``reason`` (``no-cells``,
+``errored``, ``stale-digest``) and ``superseded_by`` naming the highest later
+ladder version that holds a non-none verdict on the package's current bytes.
+Superseded cells are not real gaps; the rows with empty ``superseded_by`` are
+the ladder work that remains.
 """
 
 from __future__ import annotations
@@ -73,6 +80,7 @@ if str(ROOT / "src") not in sys.path:
 TASKS_ROOT = "library/tasks"
 LADDER_VERSIONS = ("1.4.0", "2.0.0", "3.0.0", "4.0.0")
 COVERAGE_NAME = "coverage.csv"
+GAPS_NAME = "gaps.csv"
 
 CRACK_SWEEP = "research/evidence/library-crack-sweep-20261012/cells.json"
 V2_SWEEP = "research/evidence/ladder-v2-sweep-20261013/cells.json"
@@ -104,6 +112,13 @@ COLUMNS = (
     "digest_current",
     "digest_recorded",
     "superseded_verdicts",
+)
+
+GAP_COLUMNS = (
+    "package",
+    "ladder_version",
+    "reason",
+    "superseded_by",
 )
 
 
@@ -506,6 +521,52 @@ def coverage_gaps(
     ]
 
 
+def gap_rows(rows: Sequence[dict[str, str]]) -> list[dict[str, str]]:
+    """One gap row per ``verdict=none`` coverage row, with a mechanical reason.
+
+    ``reason`` is ``no-cells`` when nothing was ever recorded at that
+    generation, ``stale-digest`` when cells recorded a package digest that no
+    longer matches today's bytes, and ``errored`` otherwise (cells were
+    recorded but produced no verdict). ``superseded_by`` names the highest
+    later ladder version whose row holds a non-none verdict on the current
+    package digest -- the generation no longer needs to run because a newer
+    one already measured these bytes. An empty ``superseded_by`` is a real
+    gap.
+    """
+    by_package: dict[str, dict[str, dict[str, str]]] = defaultdict(dict)
+    for row in rows:
+        by_package[row["package"]][row["ladder_version"]] = row
+    gaps: list[dict[str, str]] = []
+    for row in rows:
+        if row["verdict"] != "none":
+            continue
+        if int(row["n_cells"]) == 0:
+            reason = "no-cells"
+        elif row["digest_recorded"] == "yes" and row["digest_current"] == "no":
+            reason = "stale-digest"
+        else:
+            reason = "errored"
+        later = LADDER_VERSIONS[LADDER_VERSIONS.index(row["ladder_version"]) + 1 :]
+        superseded_by = ""
+        for version in later:
+            candidate = by_package[row["package"]].get(version)
+            if (
+                candidate is not None
+                and candidate["verdict"] != "none"
+                and candidate["digest_current"] == "yes"
+            ):
+                superseded_by = version
+        gaps.append(
+            {
+                "package": row["package"],
+                "ladder_version": row["ladder_version"],
+                "reason": reason,
+                "superseded_by": superseded_by,
+            }
+        )
+    return gaps
+
+
 def build(root: Path = ROOT) -> list[dict[str, str]]:
     packages = discover_packages(root)
     cells = collect_cells(root, packages)
@@ -516,41 +577,59 @@ def build(root: Path = ROOT) -> list[dict[str, str]]:
     return rows
 
 
-def render(rows: Sequence[dict[str, str]]) -> str:
+def _render(rows: Sequence[dict[str, str]], columns: Sequence[str]) -> str:
     buffer = io.StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=COLUMNS, extrasaction="ignore", lineterminator="\n")
+    writer = csv.DictWriter(buffer, fieldnames=list(columns), extrasaction="ignore", lineterminator="\n")
     writer.writeheader()
     writer.writerows(rows)
     return buffer.getvalue()
 
 
+def render(rows: Sequence[dict[str, str]]) -> str:
+    return _render(rows, COLUMNS)
+
+
+def render_gaps(rows: Sequence[dict[str, str]]) -> str:
+    return _render(rows, GAP_COLUMNS)
+
+
+def _check(name: str, rebuilt: str) -> bool:
+    """Compare ``rebuilt`` against the committed file; True when it matches."""
+    target = HERE / name
+    committed = target.read_text(encoding="utf-8") if target.is_file() else ""
+    if committed == rebuilt:
+        print(f"{name}: reproduces from committed evidence")
+        return True
+    print(f"{name}: stale; rerun without --check to regenerate", file=sys.stderr)
+    diff = difflib.unified_diff(
+        committed.splitlines(),
+        rebuilt.splitlines(),
+        fromfile=f"{name} (committed)",
+        tofile=f"{name} (rebuilt)",
+        lineterm="",
+    )
+    for line in list(diff)[:40]:
+        print(line, file=sys.stderr)
+    return False
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
-        "--check", action="store_true", help="exit 1 if committed coverage.csv differs"
+        "--check",
+        action="store_true",
+        help="exit 1 if committed coverage.csv or gaps.csv differs",
     )
     args = parser.parse_args(argv)
     rows = build()
-    text = render(rows)
-    target = HERE / COVERAGE_NAME
+    gaps = gap_rows(rows)
     if args.check:
-        committed = target.read_text(encoding="utf-8") if target.is_file() else ""
-        if committed == text:
-            print(f"{COVERAGE_NAME}: reproduces from committed evidence")
-            return 0
-        print(f"{COVERAGE_NAME}: stale; rerun without --check to regenerate", file=sys.stderr)
-        diff = difflib.unified_diff(
-            committed.splitlines(),
-            text.splitlines(),
-            fromfile=f"{COVERAGE_NAME} (committed)",
-            tofile=f"{COVERAGE_NAME} (rebuilt)",
-            lineterm="",
-        )
-        for line in list(diff)[:40]:
-            print(line, file=sys.stderr)
-        return 1
-    target.write_text(text, encoding="utf-8")
-    print(f"wrote {COVERAGE_NAME}: {len(rows)} rows")
+        ok = _check(COVERAGE_NAME, render(rows))
+        ok = _check(GAPS_NAME, render_gaps(gaps)) and ok
+        return 0 if ok else 1
+    (HERE / COVERAGE_NAME).write_text(render(rows), encoding="utf-8")
+    (HERE / GAPS_NAME).write_text(render_gaps(gaps), encoding="utf-8")
+    print(f"wrote {COVERAGE_NAME}: {len(rows)} rows; {GAPS_NAME}: {len(gaps)} rows")
     return 0
 
 

@@ -536,6 +536,9 @@ def test_command_helper_uses_devnull_without_executing_command(
         (PR_NUMBER, {"timeout": -1}),
         (PR_NUMBER, {"deep_threshold": -1}),
         (PR_NUMBER, {"mode": "thorough"}),
+        (PR_NUMBER, {"lanes": []}),
+        (PR_NUMBER, {"lanes": ["gates", "gates"]}),
+        (PR_NUMBER, {"lanes": ["gates", "unknown"]}),
         (PR_NUMBER, {"model": "gemini-4-argon"}),
         (PR_NUMBER, {"model": "provider/has whitespace"}),
     ],
@@ -946,6 +949,86 @@ def test_deep_reviewer_launch_waits_for_all_worktrees_and_runs_all_lanes(harness
     assert harness.events[4:8] == ["reviewer"] * 4
     assert harness.events[8] == "head_recheck"
     assert harness.events[9:] == ["worktree_remove"] * 4
+
+
+# ---------------------------------------------------------------------- lane subsets
+
+
+def test_deep_two_lane_subset_passes_with_skipped_notice_and_isolated_briefs(
+    harness: ReviewHarness,
+) -> None:
+    requested = ["gates", "behaviour"]
+    receipt = harness.run(mode="deep", lanes=requested)
+
+    assert receipt["valid"] is True and receipt["verdict"] == "PASS"
+    assert receipt["coverage"] == {
+        "expected": requested, "complete": requested, "incomplete": {},
+    }
+    assert sorted(receipt["lanes"]) == sorted(requested)
+    assert sorted(receipt["worktrees"]) == sorted(requested)
+    assert sorted(receipt["commands"]) == sorted(requested)
+    assert len(harness.launches) == 2
+    assert sorted(launch["lane"] for launch in harness.launches) == sorted(requested)
+    assert len(harness.added) == len(harness.removed) == 2
+    assert {path.name for path in harness.added} == set(requested)
+    for skipped in ("adversarial", "tests_docs"):
+        assert not (harness.out / "reviewers" / skipped).exists()
+    report = harness.consolidated()
+    assert "- Lanes not run (operator chose a subset): adversarial, tests_docs\n" in report
+    assert "| gates | complete | PASS |" in report
+    assert "| behaviour | complete | PASS |" in report
+    assert "adversarial |" not in report and "tests_docs |" not in report
+    assert parse_review(report)["verdict"] == "PASS"
+    for lane, other in (("gates", "behaviour"), ("behaviour", "gates")):
+        brief = (harness.out / "reviewers" / lane / "brief.md").read_text(encoding="utf-8")
+        other_lanes = next(line for line in brief.splitlines() if "Other reviewers run" in line)
+        assert other in other_lanes
+        assert "adversarial" not in other_lanes and "tests_docs" not in other_lanes
+    harness.assert_receipt(receipt)
+
+
+def test_deep_single_lane_brief_has_no_other_reviewers(harness: ReviewHarness) -> None:
+    receipt = harness.run(mode="deep", lanes=("tests_docs",))
+
+    assert receipt["valid"] is True and receipt["verdict"] == "PASS"
+    assert receipt["coverage"]["expected"] == ["tests_docs"]
+    assert len(harness.launches) == 1 and len(harness.added) == 1
+    brief = (harness.out / "reviewers" / "tests_docs" / "brief.md").read_text(encoding="utf-8")
+    assert "Other reviewers run in parallel on the other lanes (none)" in brief
+    assert "- Lanes not run (operator chose a subset): gates, behaviour, adversarial\n" in (
+        harness.consolidated()
+    )
+
+
+def test_timeout_in_two_lane_subset_is_inconclusive_not_pass(harness: ReviewHarness) -> None:
+    harness.lane("behaviour").error = subprocess.TimeoutExpired(["omp"], 2400)
+    receipt = harness.run(mode="deep", lanes=["gates", "behaviour"], comment=True)
+
+    assert receipt["valid"] is True and receipt["verdict"] == "INCONCLUSIVE"
+    assert receipt["coverage"]["expected"] == ["gates", "behaviour"]
+    assert receipt["coverage"]["complete"] == ["gates"]
+    assert list(receipt["coverage"]["incomplete"]) == ["behaviour"]
+    assert len(harness.launches) == 2 and len(harness.added) == 2
+    report = harness.consolidated()
+    assert "PARTIAL (1 of 2 lanes)" in report
+    assert "- Lanes not run (operator chose a subset): adversarial, tests_docs\n" in report
+    assert not pass_lines(report)
+    harness.assert_no_comment()
+    harness.assert_receipt(receipt)
+
+
+def test_valid_lane_subset_is_ignored_in_shallow_mode(harness: ReviewHarness) -> None:
+    receipt = harness.run(mode="shallow", lanes=["gates"], comment=True)
+
+    assert receipt["valid"] is True and receipt["verdict"] == "PASS"
+    assert receipt["mode"] == "shallow"
+    assert receipt["worktree"] == str(harness.worktree_root / "checkout")
+    assert receipt["lanes"].keys() == {"review"}
+    assert receipt["commands"].keys() == {"review"}
+    assert len(harness.launches) == 1 and harness.launches[0]["lane"] == "review"
+    assert not (harness.out / "reviewers").exists()
+    assert "Lanes not run" not in harness.consolidated()
+    assert receipt["comment_posted"] is True
 
 
 # ------------------------------------------------------------------ real process group

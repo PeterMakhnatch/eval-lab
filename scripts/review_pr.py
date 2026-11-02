@@ -17,6 +17,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -152,6 +153,7 @@ def run_review(
     timeout: int | None = None,
     mode: str = "auto",
     deep_threshold: int = DEEP_THRESHOLD_LINES,
+    lanes: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Preserve evidence, refuse unattested verdicts, and remove every owned checkout.
 
@@ -163,6 +165,10 @@ def run_review(
     if not re.fullmatch(r"[^\s/]+/[^\s]+", model):
         raise ValueError("--model must be an exact provider/model route")
     choose_mode(mode, 0, deep_threshold)  # reject unknown modes before any side effect
+    unknown_lanes = [name for name in (lanes or ()) if name not in FOCUSES]
+    if unknown_lanes or (lanes is not None and (not lanes or len(set(lanes)) != len(lanes))):
+        raise ValueError(f"--lanes must be distinct names from {sorted(FOCUSES)}")
+    lane_names = list(lanes) if lanes else None
     out.mkdir(parents=True, exist_ok=False)
     out.chmod(0o700)
     receipt: dict[str, Any] = {
@@ -201,7 +207,8 @@ def run_review(
         worktree_root = Path(tempfile.mkdtemp(prefix=f"evallab-review-pr{pr_number}-", dir="/private/tmp"))
         if deep:
             lanes = [
-                Lane(name, name, worktree_root / name, out / "reviewers" / name) for name in FOCUSES
+                Lane(name, name, worktree_root / name, out / "reviewers" / name)
+                for name in (lane_names or FOCUSES)
             ]
         else:
             lanes = [Lane("review", None, worktree_root / "checkout", out)]
@@ -231,6 +238,7 @@ def run_review(
                 previous_review=previous_review, focus=lane.focus,
                 scratch=lane.scratch if deep else None,
                 budget_minutes=max(1, timeout // 60 - 3) if deep else None,
+                lanes=lane_names,
             )
             brief += (
                 f"\nThe pinned PR diff is saved at {diff_path}. Read it and inspect relevant source.\n"
@@ -316,7 +324,8 @@ def run_review(
                 for item in [assessed[lane.name]]
             ]
             consolidated = consolidate_reviews(
-                parts, pr_number=pr_number, head_sha=head, base_sha=base, model=model
+                parts, pr_number=pr_number, head_sha=head, base_sha=base, model=model,
+                skipped=[name for name in FOCUSES if lane_names and name not in lane_names],
             )
             review = consolidated["report"]
             (out / "REVIEW.md").write_text(review, encoding="utf-8")
@@ -395,6 +404,9 @@ def main(argv: list[str] | None = None) -> int:
         help="auto: deep when the PR changes more than --deep-threshold lines",
     )
     parser.add_argument("--deep-threshold", type=int, default=DEEP_THRESHOLD_LINES)
+    parser.add_argument(
+        "--lanes", help="comma-separated subset of deep lanes to run (default: all): " + ",".join(FOCUSES)
+    )
     parser.add_argument("--comment", action="store_true", help="publish a short advisory summary (default: local only)")
     parser.add_argument("--out", type=Path, help="new evidence directory; never overwritten")
     parser.add_argument(
@@ -413,6 +425,7 @@ def main(argv: list[str] | None = None) -> int:
             args.pr, repo=repo, out=out, model=args.model, contract=contract,
             previous_review=previous, comment=args.comment, timeout=args.timeout,
             mode=args.mode, deep_threshold=args.deep_threshold,
+            lanes=args.lanes.split(",") if args.lanes else None,
         )
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"Review refused: {error}", file=sys.stderr)

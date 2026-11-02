@@ -43,6 +43,9 @@ re-checked on the new head, not accepted on the author's word.
   whether tests notice, docs overclaims, third-party data). Deep reviewers get
   `read,bash,grep,glob,write,edit` only: no `task` or `eval` tool, so no sub-agent can run on another
   provider. `--timeout` is per reviewer (default 1800 s shallow, 2400 s deep).
+  `--lanes behaviour,adversarial` runs only a subset (useful on a loaded machine); the consolidated
+  report then says which lanes were not run, and coverage counts only the requested lanes. Lane names
+  must be distinct and valid; `--lanes` is ignored in shallow mode.
 
 Deep reviewers execute real commands in their own worktree, scratch directory and
 `TMPDIR`. This is a prompt- and tool-limited review, **not an OS security sandbox**: a reviewer

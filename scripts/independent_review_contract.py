@@ -323,6 +323,7 @@ def render_brief(
     focus: str | None = None,
     scratch: Path | None = None,
     budget_minutes: int | None = None,
+    lanes: Sequence[str] | None = None,
 ) -> str:
     """Render restrictions first; include supplied material as quoted evidence.
 
@@ -367,7 +368,7 @@ def render_brief(
         )
         lane = (
             f"\n## Your lane: {FOCUSES[focus]['title']}\n\n{FOCUSES[focus]['instructions']}\n\n"
-            f"Other reviewers run in parallel on the other lanes ({', '.join(n for n in FOCUSES if n != focus)}); "
+            f"Other reviewers run in parallel on the other lanes ({', '.join(n for n in (lanes or FOCUSES) if n != focus) or 'none'}); "
             "stay in your lane\nfor depth, but report any blocking defect you notice anywhere. "
             f"You have {budget_minutes} minutes in total and are killed after that. Write\n"
             "your report file early (as soon as you have any finding or after about a third of "
@@ -508,6 +509,7 @@ def consolidate_reviews(
     head_sha: str,
     base_sha: str,
     model: str,
+    skipped: Sequence[str] = (),
 ) -> dict:
     """Merge focused reviews into one parseable report; partial coverage never yields PASS.
 
@@ -575,7 +577,9 @@ def consolidate_reviews(
             notes += _quote(part["report"]) + "\n"
     report = (
         f"# Independent review of PR #{pr_number} (deep, {len(parts)} focused reviewers)\n\n"
-        f"- Head: `{head_sha}`\n- Base: `{base_sha}`\n- Model: `{model}`\n- Coverage: **{coverage}**\n\n"
+        f"- Head: `{head_sha}`\n- Base: `{base_sha}`\n- Model: `{model}`\n- Coverage: **{coverage}**\n"
+        + (f"- Lanes not run (operator chose a subset): {', '.join(skipped)}\n" if skipped else "")
+        + "\n"
         f"| Lane | Status | Lane verdict |\n|---|---|---|\n{rows}\n\n"
         f"## Blocking\n{chr(10).join(blocking_items) if blocking_items else 'None'}\n\n"
         f"## Should-fix\n{merged('should_fix')}\n\n"

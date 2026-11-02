@@ -1191,7 +1191,9 @@ def _local_station(
 ) -> tuple[js.Station, Path, Path]:
     trial = _write_trial(tmp_path)
     if mutate is not None:
-        mutate(trial)
+        replaced = mutate(trial)
+        if isinstance(replaced, Path):  # a mutator may hand back a different rollout to serve
+            trial = replaced
     target = rollout or trial
     manifest = tmp_path / "runs.jsonl"
     entry_row = {
@@ -1339,37 +1341,175 @@ def _remove_trajectory(trial: Path) -> None:
     (trial / "agent" / "trajectory.json").unlink()
 
 
+def _write_json(trial: Path, name: str, data: dict[str, Any]) -> None:
+    (trial / name).write_text(json.dumps(data), encoding="utf-8")
+
+
+def _agent_to_inner_dir(trial: Path) -> None:
+    """trial/agent becomes a link to trial/alt holding a different trajectory."""
+    alt = trial / "alt"
+    alt.mkdir()
+    (alt / "trajectory.json").write_text(json.dumps(_harbor_doc("SWAPPED")), encoding="utf-8")
+    (trial / "agent" / "trajectory.json").unlink()
+    (trial / "agent").rmdir()
+    (trial / "agent").symlink_to("alt", target_is_directory=True)
+
+
+def _verifier_to_inner_dir(trial: Path) -> None:
+    v2 = trial / "v2"
+    v2.mkdir()
+    (v2 / "agent.diff").write_text(DIFF.replace("native", "tampered"), encoding="utf-8")
+    (trial / "verifier" / "agent.diff").unlink()
+    (trial / "verifier").rmdir()
+    (trial / "verifier").symlink_to("v2", target_is_directory=True)
+
+
+def _inner_file_link(trial: Path) -> None:
+    (trial / "final.diff").symlink_to(trial / "verifier" / "agent.diff")
+
+
+def _link_inside_answer_keys(trial: Path) -> Path:
+    link = trial.parent.parent / "answer-keys" / "link"
+    link.parent.mkdir()
+    link.symlink_to(trial, target_is_directory=True)
+    return link
+
+
+def _rename_root(name: str) -> Any:
+    def mutate(trial: Path) -> Path:
+        return trial.rename(trial.parent / name)
+
+    return mutate
+
+
+def _single_file(directory: str, filename: str) -> Any:
+    def mutate(trial: Path) -> Path:
+        file = trial.parent.parent / directory / filename
+        file.parent.mkdir()
+        file.write_text(json.dumps(_harbor_doc()), encoding="utf-8")
+        return file
+
+    return mutate
+
+
+def _too_deep(trial: Path) -> None:
+    nested: dict[str, Any] = {"note": "no split key at all"}
+    for _ in range(js.MAX_SPLIT_DEPTH + 2):
+        nested = {"inner": nested}
+    _write_json(trial, "config.json", nested)
+
+
+TEST_ID = ("build-pmars",)
+
 REFUSALS: dict[str, dict[str, Any]] = {
     # Blocking 1: every split declaration form, and the registry TEST assignment
-    "registry-task-name": {"test_ids": ("format-code-task-000838",)},
-    "registry-run-id-stem": {"run_id": "build-pmars__123", "test_ids": ("build-pmars",)},
+    "registry-task-name": {"test_ids": ("format-code-task-000838",), "why": "assigned TEST"},
+    "registry-run-id-stem": {
+        "run_id": "build-pmars__123",
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "registry-trial-dir-name-masked-by-trial_name": {
+        "mutate": _rename_root("build-pmars__123"),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "registry-single-file-parent-dir": {
+        "mutate": _single_file("build-pmars__123", "trajectory.json"),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "registry-single-file-stem": {
+        "mutate": _single_file("singles", "build-pmars.json"),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "registry-trajectory-task_id": {
+        "mutate": lambda t: _set_json(t, "agent/trajectory.json", {"task_id": "build-pmars"}),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "registry-trajectory-metadata-trial_id": {
+        "mutate": lambda t: _set_json(
+            t, "agent/trajectory.json", {"metadata": {"trial_id": "build-pmars__123"}}
+        ),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "registry-trajectory-task-name": {
+        "mutate": lambda t: _set_json(
+            t, "agent/trajectory.json", {"task": {"name": "build-pmars"}}
+        ),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "registry-harbor-config-task-path": {
+        "mutate": lambda t: _set_json(t, "config.json", {"task": {"path": "/x/y/build-pmars"}}),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "registry-harbor-result-task_id-path": {
+        "mutate": lambda t: _set_json(t, "result.json", {"task_id": {"path": "/x/build-pmars"}}),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "registry-run-json-trial_id": {
+        "mutate": lambda t: _write_json(t, "run.json", {"trial_id": "build-pmars__123"}),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
     "top-level-trajectory-split": {
-        "mutate": lambda t: _set_json(t, "agent/trajectory.json", {"split": "test"})
+        "mutate": lambda t: _set_json(t, "agent/trajectory.json", {"split": "test"}),
+        "why": "split declaration",
     },
     "nested-result-split": {
-        "mutate": lambda t: _set_json(t, "result.json", {"metadata": {"split": "test"}})
+        "mutate": lambda t: _set_json(t, "result.json", {"metadata": {"split": "test"}}),
+        "why": "split declaration",
     },
-    "non-text-split": {"mutate": lambda t: _set_json(t, "config.json", {"split": ["test"]})},
-    "raw-bundle-split": {"mutate": _raw_bundle},
-    "malformed-sidecar": {"mutate": _break_sidecar},
-    "forbidden-task-id": {"row": {"task_id": "tasks/held-out/secret-task"}},
+    "non-text-split": {
+        "mutate": lambda t: _set_json(t, "config.json", {"split": ["test"]}),
+        "why": "split declaration",
+    },
+    "raw-bundle-split": {"mutate": _raw_bundle, "why": "split declaration"},
+    "manifest-row-nested-split": {
+        "row": {"split": "dev", "metadata": {"split": "test"}},
+        "why": "split declaration",
+    },
+    "manifest-row-list-split": {"row": {"split": ["test"]}, "why": "split declaration"},
+    "manifest-row-config-split": {
+        "row": {"config": {"split": "test"}},
+        "why": "split declaration",
+    },
+    "document-nested-past-the-depth-limit": {"mutate": _too_deep, "why": "split declaration"},
+    "malformed-sidecar": {"mutate": _break_sidecar, "why": "not JSON"},
+    "forbidden-task-id": {"row": {"task_id": "tasks/held-out/secret-task"}, "why": "held-out"},
     # Blocking 2: symlinks and real paths
-    "symlinked-agent-dir": {"mutate": _symlink_agent_dir},
-    "symlinked-final-diff": {"mutate": _symlink_final_diff},
-    "path-under-answer-keys": {"move": True},
+    "symlinked-agent-dir-outside": {"mutate": _symlink_agent_dir, "why": "symlink inside"},
+    "symlinked-final-diff-outside": {"mutate": _symlink_final_diff, "why": "symlink inside"},
+    "agent-dir-linked-to-inner-dir": {"mutate": _agent_to_inner_dir, "why": "symlink inside"},
+    "verifier-dir-linked-to-inner-dir": {
+        "mutate": _verifier_to_inner_dir,
+        "why": "symlink inside",
+    },
+    "inner-file-symlink": {"mutate": _inner_file_link, "why": "symlink inside"},
+    "rollout-path-link-inside-answer-keys": {
+        "mutate": _link_inside_answer_keys,
+        "why": "answer-keys",
+    },
+    "path-under-answer-keys": {"move": True, "why": "answer-keys"},
     # integrity, availability
-    "sha-mismatch": {"row": {"sha256": "ab" * 32}},
-    "missing-path": {"missing": True},
-    "no-trajectory": {"mutate": _remove_trajectory},
+    "sha-mismatch": {"row": {"sha256": "ab" * 32}, "why": "sha256 expected"},
+    "missing-path": {"missing": True, "why": "missing"},
+    "no-trajectory": {"mutate": _remove_trajectory, "why": "no ATIF trajectory"},
 }
 
 
 @pytest.mark.parametrize("case", sorted(REFUSALS))
 def test_local_run_is_refused_with_a_generic_body_that_leaks_nothing(
-    tmp_path: Path, case: str
+    tmp_path: Path, case: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     spec = dict(REFUSALS[case])
-    move, missing = spec.pop("move", False), spec.pop("missing", False)
+    move, missing, why = spec.pop("move", False), spec.pop("missing", False), spec.pop("why")
     rollout = None
     if move:
         probe = _write_trial(tmp_path / "probe")
@@ -1377,6 +1517,7 @@ def test_local_run_is_refused_with_a_generic_body_that_leaks_nothing(
     if missing:
         rollout = tmp_path / "HAR-202-chrr1-h-cheat-002391-k1" / "gone__SECRET"
     run_id = spec.get("run_id", LOCAL_RUN)
+    caplog.set_level("WARNING", logger=js.__name__)
     station, manifest, trial = _local_station(tmp_path, rollout=rollout, **spec)
     blind = js.blind_id(run_id)
     with _running(station) as (base, headers):
@@ -1406,6 +1547,7 @@ def test_local_run_is_refused_with_a_generic_body_that_leaks_nothing(
         status, body = _call(base, "/api/verdict", verdict, headers)
         assert status == 409 and str(tmp_path).lower() not in json.dumps(body).lower()
     assert station.read_verdicts() == []
+    assert why in caplog.text, (case, why)  # refused for the intended reason, logged server-side
 
 
 def test_a_refusal_is_logged_server_side_with_its_detail(
@@ -1417,13 +1559,16 @@ def test_a_refusal_is_logged_server_side_with_its_detail(
     assert js.blind_id(LOCAL_RUN) in caplog.text and "sha256 expected" in caplog.text
 
 
-def test_a_tree_without_symlinks_or_with_inner_symlinks_still_loads(tmp_path: Path) -> None:
-    def inner(trial: Path) -> None:
-        (trial / "final.diff").symlink_to(trial / "verifier" / "agent.diff")
-
-    station, _, _ = _local_station(tmp_path, mutate=inner)
-    view = station.run_view("q1", js.blind_id(LOCAL_RUN))
-    assert [f["path"] for f in view["card"]["wrote"]["patch_files"]] == ["src/native.py"]
+def test_a_directory_symlink_is_invisible_to_the_line_digest(tmp_path: Path) -> None:
+    """Why every symlink is refused: the line's digest cannot see a linked directory."""
+    trial = _write_trial(tmp_path)
+    (trial / "alt").mkdir()
+    (trial / "alt" / "x.txt").write_text("x", encoding="utf-8")
+    before = js._local_digest(trial)
+    (trial / "alias").symlink_to("alt", target_is_directory=True)
+    assert js._local_digest(trial) == before
+    (trial / "alt" / "x.txt").write_text("changed", encoding="utf-8")
+    assert js._local_digest(trial) != before  # real content is covered, the link is not
 
 
 def test_single_file_atif_named_trajectory_json_is_served(tmp_path: Path) -> None:

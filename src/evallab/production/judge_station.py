@@ -256,6 +256,7 @@ LOCAL_INTEGRITY = "local rollout failed its integrity check"
 LOCAL_SIDECARS = ("result.json", "config.json", "run.json")
 LOCAL_TRAJECTORIES = ("agent/trajectory.json", "trajectory.json")
 MAX_SPLIT_DEPTH = 8
+LOCAL_IDENTITY_KEYS = ("task_id", "task_name", "task", "trial_name", "trial_id", "id")
 
 
 class _LocalRefused(Exception):
@@ -271,10 +272,13 @@ def _declares_non_dev(value: Any, depth: int = 0) -> bool:
     """True when a ``split`` key anywhere in the nested mappings is not exactly ``dev``.
 
     Lists are not entered: the steps of a trajectory are agent-written text, not declarations.
-    A split that is not text is treated as non-DEV (fail closed).
+    A split that is not text, and a document nested deeper than ``MAX_SPLIT_DEPTH``, count as
+    non-DEV (fail closed).
     """
-    if not isinstance(value, Mapping) or depth > MAX_SPLIT_DEPTH:
+    if not isinstance(value, Mapping):
         return False
+    if depth > MAX_SPLIT_DEPTH:
+        return True
     for key, child in value.items():
         if key == "split":
             if child is None:
@@ -286,6 +290,23 @@ def _declares_non_dev(value: Any, depth: int = 0) -> bool:
         elif _declares_non_dev(child, depth + 1):
             return True
     return False
+
+
+def _identities(value: Any, depth: int = 0) -> list[str]:
+    """Every task or trial name a document declares, including the ``{"path": ...}`` and
+    ``{"name": ...}`` mappings Harbor writes for ``task`` and ``task_id``."""
+    found: list[str] = []
+    if not isinstance(value, Mapping) or depth > MAX_SPLIT_DEPTH:
+        return found
+    for key, child in value.items():
+        if key in LOCAL_IDENTITY_KEYS:
+            if isinstance(child, str):
+                found.append(child)
+            elif isinstance(child, Mapping):
+                found += [v for k in ("path", "name") if isinstance(v := child.get(k), str)]
+        if isinstance(child, Mapping):
+            found += _identities(child, depth + 1)
+    return found
 
 
 def _read_json_strict(path: Path) -> Any:
@@ -330,16 +351,33 @@ class LocalRunSource:
             self._rows[run_id] = row
 
     def _check_tree(self, root: Path) -> None:
-        """Every entry of the trial, by its real path, passes the path gate and stays inside."""
+        """No symlink anywhere in the trial, and every entry passes the path gate.
+
+        The line's digest cannot see a symlinked directory, so a trial that holds one could swap
+        what is served without changing its digest. Refusing every symlink keeps the station's
+        digest identical to the line's.
+        """
         from evallab import hack_drop as hd
 
         for directory, subdirectories, files in os.walk(root, followlinks=False):
             for name in (*subdirectories, *files):
                 entry = Path(directory) / name
-                real = entry.resolve()
-                if entry.is_symlink() and (not real.exists() or not real.is_relative_to(root)):
-                    raise _LocalRefused(LOCAL_NOT_ADMITTED, f"symlink leaves the trial: {entry}")
-                hd.check_dev_path_allowed(real)
+                if entry.is_symlink():
+                    raise _LocalRefused(LOCAL_NOT_ADMITTED, f"symlink inside the trial: {entry}")
+                hd.check_dev_path_allowed(entry)
+
+    @staticmethod
+    def _gate_unresolved(raw: str) -> None:
+        """The path gate on the manifest path as written, one prefix at a time.
+
+        ``check_dev_path_allowed`` resolves symlinks first, so a link inside ``answer-keys/``
+        that points elsewhere would pass; checking each lexical prefix catches the directory.
+        """
+        from evallab import hack_drop as hd
+
+        written = Path(os.path.abspath(Path(raw).expanduser()))
+        for prefix in (*reversed(written.parents), written):
+            hd.check_dev_path_allowed(prefix)
 
     def _refuse_registry_test(self, names: Iterable[Any]) -> None:
         for raw in names:
@@ -361,12 +399,11 @@ class LocalRunSource:
         row = self._rows[run_id]
         try:
             hd._check_row_dev(row)
+            self._gate_unresolved(str(row["rollout_path"]))
             root = Path(str(row["rollout_path"])).expanduser().resolve()
             hd.check_dev_path_allowed(root)
-            names: list[Any] = [run_id, row.get("task_id"), row.get("trial_name")]
-            task = row.get("task_id")
-            if isinstance(task, str) and task.strip():
-                hd.check_dev_path_allowed(task)
+            names: list[Any] = [run_id, root.name, root.stem]
+            documents: list[Any] = [row]
             if not root.exists():
                 raise _LocalRefused(LOCAL_UNREADABLE, f"missing: {root}")
             if root.is_dir():
@@ -375,14 +412,10 @@ class LocalRunSource:
             actual = _local_digest(root)
             if actual != expected:
                 raise _LocalRefused(LOCAL_INTEGRITY, f"sha256 expected {expected} got {actual}")
-            documents: list[Any] = []
             if root.is_dir():
                 for name in LOCAL_SIDECARS:
                     if (root / name).is_file():
-                        sidecar = _read_json_strict(root / name)
-                        documents.append(sidecar)
-                        if isinstance(sidecar, Mapping):
-                            names += [sidecar.get("task_name"), sidecar.get("trial_name")]
+                        documents.append(_read_json_strict(root / name))
                 trajectory = next(
                     (root / t for t in LOCAL_TRAJECTORIES if (root / t).is_file()), None
                 )
@@ -391,14 +424,13 @@ class LocalRunSource:
                     raise _LocalRefused(LOCAL_UNREADABLE, "no ATIF trajectory")
                 run, final_diff = item.run, item.diff_text
                 names += [item.item_id, item.task_id]
-                if item.task_id and item.task_id != "unknown":
-                    hd.check_dev_path_allowed(item.task_id)
                 if final_diff is None and (root / "verifier" / "agent.diff").is_file():
                     final_diff = (root / "verifier" / "agent.diff").read_text(
                         encoding="utf-8", errors="replace"
                     )
             else:
                 trajectory = root
+                names.append(root.parent.name)
                 run = load_atif_file(root)
                 final_diff = run.submission
             raw = _read_json_strict(trajectory)
@@ -407,6 +439,11 @@ class LocalRunSource:
                 documents += [trace for trace in raw["traces"] if isinstance(trace, Mapping)]
             if any(_declares_non_dev(document) for document in documents):
                 raise _LocalRefused(LOCAL_NOT_ADMITTED, "a split declaration is not dev")
+            for document in documents:
+                for identity in _identities(document):
+                    if identity.strip():
+                        hd.check_dev_path_allowed(identity)
+                        names.append(identity)
             self._refuse_registry_test(names)
         except hd.RefusedRun as error:
             raise _LocalRefused(LOCAL_NOT_ADMITTED, str(error)) from error

@@ -68,6 +68,8 @@ inputs:
     digest: sha256:d8336213e0fcebb651ae62fafcf74dc83ff6325678bfe2c7cf7e046cd42a77f7
   - path: docs/flight-recorder.md
     digest: sha256:0138627b7592e818cf17532f1541173916e68de1867935abfe6ab343f66475b8
+  - path: docs/hack-drop.md
+    digest: sha256:9806e0fda86ff316940b78e4638d06a17eca404dfbf58953ce9af5cb36d785c2
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
@@ -337,6 +339,7 @@ an operator can see what is archived.
 | `docs/deepseek-v4-flash-lane.md` | DeepSeek V4 Flash Harbor lane | `living` | `operator, runner` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
+| `docs/hack-drop.md` | evallab hack-drop | `living` | `runner, operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lora-sft-runbook.md` | LoRA SFT runbook: train, serve base + adapter, check parity, cost | `living` | `runner, operator` |
 | `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
@@ -389,6 +392,7 @@ an operator can see what is archived.
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
 | `docs/flight-recorder.md` | Flight recorder prototype | `living` | `builder, analyst, operator` |
+| `docs/hack-drop.md` | evallab hack-drop | `living` | `runner, operator` |
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
 | `docs/harbor-view.md` | Harbor viewer as the results surface (HAR-170) | `living` | `operator, analyst` |
 | `docs/judge-guide.md` | How to judge a run | `living` | `operator` |

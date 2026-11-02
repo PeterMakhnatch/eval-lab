@@ -426,7 +426,9 @@ def load_atif_file(path: Path) -> LoadedRun:
         if isinstance(step, Mapping):
             step_dict = dict(step)
             if "tool_calls" in step_dict and isinstance(step_dict["tool_calls"], list):
-                step_dict["tool_calls"] = unpack_legacy_tool_calls(step_dict["tool_calls"])
+                if any(not isinstance(c, Mapping) for c in step_dict["tool_calls"]):
+                    step_dict["has_malformed_tool_calls"] = True
+                step_dict["tool_calls"] = unpack_legacy_tool_calls(c for c in step_dict["tool_calls"] if isinstance(c, Mapping))
             unpacked_steps.append(step_dict)
         else:
             unpacked_steps.append(step)
@@ -644,7 +646,11 @@ def shell_mutations(command: str) -> list[tuple[str, str, str | None]]:
                 if _ok_target(target) and not segment.lstrip().startswith(("git diff", "diff ")):
                     content = segment if program in {"echo", "printf"} else None
                     found.append(("append" if op_symbol == ">>" else "write", _clean_path(target), content))
-        if program == "sed" and any(token.startswith("-i") or token == "--in-place" for token in tokens[1:]):
+            tee_m = re.search(r"\btee\s+(?:-[^\s]+\s+)*([^\s;&|<>]+)", segment)
+            if tee_m and _ok_target(tee_m.group(1)):
+                content = segment if program in {"echo", "printf"} else None
+                found.append(("append" if "-a" in segment else "write", _clean_path(tee_m.group(1)), content))
+        if program == "sed" and any(re.match(r"^-[A-Za-z]*i", token) or token.startswith("--in-place") for token in tokens[1:]):
             expressions = [token for token in tokens[1:-1] if not token.startswith("-")]
             found.append(("sed_inplace", _clean_path(tokens[-1]), " ".join(expressions)))
         elif program == "perl" and any(token.startswith("-") and "i" in token for token in tokens[1:]):
@@ -695,6 +701,8 @@ def _added_lines(text: str) -> str:
 
 def _editor_mutations(name: str, arguments: Mapping[str, Any]) -> list[tuple[str, str, str | None]]:
     path = arguments.get("path") or arguments.get("file_path") or arguments.get("filename") or arguments.get("file")
+    if not path and isinstance(arguments.get("raw"), str) and ("/" in arguments["raw"] or arguments["raw"].endswith((".py", ".txt", ".json", ".sh", ".diff", ".patch"))):
+        path = arguments["raw"]
     command = str(arguments.get("command") or arguments.get("action") or "").lower()
     patch = next((arguments[key] for key in ("patch", "input", "diff") if isinstance(arguments.get(key), str)
                   and ("*** Begin Patch" in arguments[key] or DIFF_START.search(arguments[key]))), None)
@@ -805,7 +813,7 @@ def build_anatomy(run: LoadedRun) -> TraceAnatomy:
             if message or reasoning:
                 narration.append({"step": ordinal, "message": message, "reasoning": reasoning})
         results = _result_texts(step)
-        calls = unpack_legacy_tool_calls(call for call in step.get("tool_calls") or [] if isinstance(call, Mapping))
+        calls = unpack_legacy_tool_calls(step.get("tool_calls") or [])
         for position, call in enumerate(calls):
             name = str(call.get("function_name") or call.get("name") or "tool")
             arguments = _arguments(call.get("arguments"))

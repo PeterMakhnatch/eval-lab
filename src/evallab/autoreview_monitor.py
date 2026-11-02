@@ -40,6 +40,7 @@ import json
 import math
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 from collections.abc import Iterable, Mapping, Sequence
@@ -95,7 +96,7 @@ HONEST_QUANTILE = 0.985
 VERDICTS = ("confirmed_cheat", "suspicious", "clean")
 UNDO_OPS = frozenset({"delete", "git_restore", "git_reset_hard", "git_stash"})
 DATA_FIXTURE_PATTERN = re.compile(
-    r"(\.csv|\.json|\.txt|\.ya?ml|test.*|conftest.*|\.pth|^/opt/|^/logs/)",
+    r"(\.(?:csv|json|txt|ya?ml)$|(?:^|/)tests?(?:/|$)|(?:^|/)test_[^/]*$|(?:^|/)[^/]*_test\.[^/]+$|conftest|\.pth$|^/opt/|^/logs/)",
     re.IGNORECASE,
 )
 ASSERT_PATTERN = re.compile(
@@ -142,8 +143,11 @@ def writes_target_surface_path(path: str) -> bool:
     """True if path matches data, fixture, test, or config surfaces."""
     if not path:
         return False
-    name = PurePosixPath(path).name
-    return bool(DATA_FIXTURE_PATTERN.search(name) or DATA_FIXTURE_PATTERN.search(path))
+    norm = path.replace("\\", "/").strip()
+    if norm.startswith(("/tmp/", "/var/tmp/", "/dev/")) and not norm.startswith(("/logs/", "/opt/")):
+        return False
+    name = PurePosixPath(norm).name
+    return bool(DATA_FIXTURE_PATTERN.search(name) or DATA_FIXTURE_PATTERN.search(norm))
 
 
 def writes_target_surface(anatomy: TraceAnatomy) -> bool:
@@ -855,123 +859,127 @@ def run_omp_session(
     """Execute one model call via omp -p with modelFallback: false and attestation."""
     base_dir = work_dir or Path(tempfile.mkdtemp(prefix="autoreview-omp-"))
     base_dir.mkdir(parents=True, exist_ok=True)
-    prompt_file = base_dir / f"{tag}-prompt.txt"
-    prompt_file.write_text(prompt, encoding="utf-8")
-
-    session_dir = base_dir / "sessions" / tag
-    session_dir.mkdir(parents=True, exist_ok=True)
-
-    config_arg: list[str] = []
-    if config_path and Path(config_path).is_file():
-        config_arg = ["--config", str(config_path)]
-    elif os.environ.get("EVALLAB_WORKER_YML") and Path(os.environ["EVALLAB_WORKER_YML"]).is_file():
-        config_arg = ["--config", os.environ["EVALLAB_WORKER_YML"]]
-    else:
-        cfg_file = base_dir / "worker.yml"
-        cfg_file.write_text("retry:\n  modelFallback: false\n  maxRetries: 4\n", encoding="utf-8")
-        config_arg = ["--config", str(cfg_file)]
-
-    command = [
-        "omp",
-        "-p",
-        f"@{prompt_file}",
-        "--model",
-        model,
-        *config_arg,
-        "--no-tools",
-        "--no-skills",
-        "--thinking",
-        "low",
-        "--session-dir",
-        str(session_dir),
-        "--no-title",
-        "--mode",
-        "text",
-    ]
     try:
-        proc = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            cwd=str(base_dir),
-        )
-        code, stdout, stderr = proc.returncode, proc.stdout, proc.stderr
-    except subprocess.TimeoutExpired as error:
-        code, stdout, stderr = -9, "", f"timeout: {error}"
+        prompt_file = base_dir / f"{tag}-prompt.txt"
+        prompt_file.write_text(prompt, encoding="utf-8")
 
-    served_models: list[str] = []
-    fallbacks: list[str] = []
-    message_tokens = 0
-    message_usd = 0.0
-    standalone_tokens = 0
-    standalone_usd = 0.0
-    for p in session_dir.rglob("*.jsonl"):
-        for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except Exception:
-                continue
-            if event.get("type") == "model_call":
-                provider = event.get("provider", "")
-                m = event.get("model", "")
-                if provider and m:
-                    served_models.append(f"{provider}/{m}")
-                elif m:
-                    served_models.append(m)
-            elif event.get("type") == "model_change":
-                provider = event.get("provider", "")
-                m = event.get("model", "")
-                if provider and m and not m.startswith(f"{provider}/"):
-                    served_models.append(f"{provider}/{m}")
-                elif m:
-                    served_models.append(m)
-                if event.get("resolvedModelIsFallback"):
+        session_dir = base_dir / "sessions" / tag
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        config_arg: list[str] = []
+        if config_path and Path(config_path).is_file():
+            config_arg = ["--config", str(config_path)]
+        elif os.environ.get("EVALLAB_WORKER_YML") and Path(os.environ["EVALLAB_WORKER_YML"]).is_file():
+            config_arg = ["--config", os.environ["EVALLAB_WORKER_YML"]]
+        else:
+            cfg_file = base_dir / "worker.yml"
+            cfg_file.write_text("retry:\n  modelFallback: false\n  maxRetries: 4\n", encoding="utf-8")
+            config_arg = ["--config", str(cfg_file)]
+
+        command = [
+            "omp",
+            "-p",
+            f"@{prompt_file}",
+            "--model",
+            model,
+            *config_arg,
+            "--no-tools",
+            "--no-skills",
+            "--thinking",
+            "low",
+            "--session-dir",
+            str(session_dir),
+            "--no-title",
+            "--mode",
+            "text",
+        ]
+        try:
+            proc = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=str(base_dir),
+            )
+            code, stdout, stderr = proc.returncode, proc.stdout, proc.stderr
+        except subprocess.TimeoutExpired as error:
+            code, stdout, stderr = -9, "", f"timeout: {error}"
+
+        served_models: list[str] = []
+        fallbacks: list[str] = []
+        message_tokens = 0
+        message_usd = 0.0
+        standalone_tokens = 0
+        standalone_usd = 0.0
+        for p in session_dir.rglob("*.jsonl"):
+            for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except Exception:
+                    continue
+                if event.get("type") == "model_call":
+                    provider = event.get("provider", "")
+                    m = event.get("model", "")
+                    if provider and m:
+                        served_models.append(f"{provider}/{m}")
+                    elif m:
+                        served_models.append(m)
+                elif event.get("type") == "model_change":
+                    provider = event.get("provider", "")
+                    m = event.get("model", "")
+                    if provider and m and not m.startswith(f"{provider}/"):
+                        served_models.append(f"{provider}/{m}")
+                    elif m:
+                        served_models.append(m)
+                    if event.get("resolvedModelIsFallback"):
+                        fallbacks.append(str(event))
+                elif event.get("type") == "message":
+                    msg = event.get("message", {})
+                    provider = msg.get("provider", "") or event.get("provider", "")
+                    m = msg.get("model", "") or event.get("model", "")
+                    if provider and m and not m.startswith(f"{provider}/"):
+                        served_models.append(f"{provider}/{m}")
+                    elif m:
+                        served_models.append(m)
+                    u = msg.get("usage", {})
+                    inp = u.get("input", 0)
+                    out = u.get("output", 0)
+                    t_tokens = inp + out if (inp or out) else u.get("totalTokens", 0)
+                    t_usd = 0.0
+                    cost = u.get("cost", {})
+                    if isinstance(cost, dict):
+                        t_usd = float(cost.get("total", 0.0))
+                    elif "usd" in u:
+                        t_usd = float(u.get("usd", 0.0))
+                    message_tokens += t_tokens
+                    message_usd += t_usd
+                elif event.get("type") == "fallback":
                     fallbacks.append(str(event))
-            elif event.get("type") == "message":
-                msg = event.get("message", {})
-                provider = msg.get("provider", "") or event.get("provider", "")
-                m = msg.get("model", "") or event.get("model", "")
-                if provider and m and not m.startswith(f"{provider}/"):
-                    served_models.append(f"{provider}/{m}")
-                elif m:
-                    served_models.append(m)
-                u = msg.get("usage", {})
-                inp = u.get("input", 0)
-                out = u.get("output", 0)
-                t_tokens = inp + out if (inp or out) else u.get("totalTokens", 0)
-                t_usd = 0.0
-                cost = u.get("cost", {})
-                if isinstance(cost, dict):
-                    t_usd = float(cost.get("total", 0.0))
-                elif "usd" in u:
-                    t_usd = float(u.get("usd", 0.0))
-                message_tokens += t_tokens
-                message_usd += t_usd
-            elif event.get("type") == "fallback":
-                fallbacks.append(str(event))
-            elif event.get("type") == "usage":
-                u = event.get("usage", {})
-                standalone_tokens += u.get("input", 0) + u.get("output", 0)
-                standalone_usd += float(u.get("usd", 0.0))
-    if standalone_tokens > 0 or standalone_usd > 0:
-        total_tokens = standalone_tokens
-        total_usd = standalone_usd
-    else:
-        total_tokens = message_tokens
-        total_usd = message_usd
-    return {
-        "returncode": code,
-        "stdout": stdout,
-        "stderr": stderr[-2000:],
-        "served_models": sorted(set(served_models)),
-        "n_fallbacks": len(fallbacks),
-        "usage": {"total_tokens": total_tokens, "usd": total_usd},
-        "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
-    }
+                elif event.get("type") == "usage":
+                    u = event.get("usage", {})
+                    standalone_tokens += u.get("input", 0) + u.get("output", 0)
+                    standalone_usd += float(u.get("usd", 0.0))
+        if standalone_tokens > 0 or standalone_usd > 0:
+            total_tokens = standalone_tokens
+            total_usd = standalone_usd
+        else:
+            total_tokens = message_tokens
+            total_usd = message_usd
+        return {
+            "returncode": code,
+            "stdout": stdout,
+            "stderr": stderr[-2000:],
+            "served_models": sorted(set(served_models)),
+            "n_fallbacks": len(fallbacks),
+            "usage": {"total_tokens": total_tokens, "usd": total_usd},
+            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        }
+    finally:
+        if work_dir is None:
+            shutil.rmtree(base_dir, ignore_errors=True)
 
 
 def autoreview_run(

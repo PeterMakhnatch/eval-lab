@@ -37,17 +37,22 @@ flowchart LR
    `config.yaml`. Markdown is split into sections; a section is extracted once
    and again only if its text changes.
 2. **Claims.** The extractor writes one claim per number-bearing statement with
-   a verbatim quote. Code then fails a claim whose quote is not in the section
-   or whose counts are not in the quote, warns on arithmetic that does not add
-   up (value vs k/n, Wilson interval, exact McNemar p), and, when the claim
-   carries a declarative `recipe`, recomputes the number from the experiment's
-   own receipts: `reproduced`, `differs` or `not_recomputable`.
-3. **Signals.** Deterministic statistics over every claim at once: the same
-   measurement disagreeing across experiments, extreme rates on small samples,
-   comparisons that cannot reach p < 0.05 at their sample size, nulls without
-   power, results that do not survive multiple-comparison correction,
-   corrections whose downstream claims were never revisited, and detector by
-   dataset cells nobody measured.
+   a verbatim quote. Code fails a claim whose quote is absent, whose stated
+   value or proportion disagrees with its k/n after unit normalization, or
+   whose proportion interval is reversed or outside [0,1]. It still warns when
+   a recomputed Wilson interval or exact McNemar p differs, and for split or
+   in-sample caveats. Percent, fraction, count, currency and duration units stay
+   distinct. A declarative `recipe` recomputes the number from receipts;
+   `recipe.target` says whether the receipt should produce k, n or value, and
+   the result is `reproduced`, `differs` or `not_recomputable`.
+3. **Signals.** Deterministic, precision-first statistics over the ledger:
+   only matching quantities and cohorts are compared, known reader aliases are
+   canonicalized, shared test identities are deduplicated, and multiplicity is
+   scoped to a comparison family. Signals cover genuine measurement drift,
+   stochastic extreme rates, underpowered tests, explicit result dependencies,
+   explicitly absent detector-by-dataset cells and receipt discrepancies.
+   Administrative counts, ambiguous units, independent reruns and bare nulls
+   do not become research alarms.
 4. **Analysts.** Each lens is a headless `omp -p` worker with a fixed brief
    (`src/evallab/insights/lenses/`), a bounded evidence pack and a read-only
    `./q` tool (SQL over the ledger, sources, statistics, recipe tests, output
@@ -59,13 +64,31 @@ flowchart LR
    - *theorist*: mechanisms with falsifiable predictions in untested regions;
    - *ideator*: new experiments, reanalysis of existing data first, with cost.
 5. **Quality control.** Code fails a card that cites an unknown, stale or
-   failed claim, a "connection" inside one experiment, or a statistic that does
-   not recompute, and lists numbers that appear in no cited claim. A referee
-   from a different model family grades support, novelty, falsifiability and
-   importance; a referee served by the authors' family is not applied. The
-   synthesizer ranks what survives, merges duplicates and resolves predictions
-   against later claims. Proposals are written to `proposals/` with
-   `execution_authorized: false`.
+   failed claim, a "connection" inside one experiment, or an unsupported number
+   in its title or statement. Other free-text fields warn on unsupported
+   numbers. Numbers may come from cited claims, source sections, checked
+   `computed` entries or card `recipes` re-run against receipts. A referee from
+   a different model family restates each cited claim, tests the inference and
+   its opposite, checks split/`in_sample` scope, and asks whether a proposed
+   check gives different outputs under rival hypotheses. `revise` is only for a
+   bounded repair to a sound central idea; there are no accept/reject quotas.
+   The referee pack hides author model, pass id, timestamps, rank and previous
+   grading, and batches by exact rendered size under `max_pack_chars`.
+   Deterministic normalized-text matching archives exact or near-exact
+   duplicates before grading; other cards receive nearest-card ids and scores.
+   The synthesizer ranks surviving public cards and resolves predictions.
+   Proposals always have `execution_authorized: false`.
+
+   The low-cadence *twinmaker* uses the extractor's route family to write
+   subtly corrupted twins of accepted cards (reversed conclusion, wrong unit,
+   contradicted connection, non-discriminating check, correlation as cause or
+   overclaimed scope), while keeping citations and numbers valid. Twins are
+   hidden canaries: they never appear on the board or in analyst inputs. They
+   are mixed without markers into referee batches beside their original
+   controls, whose ids are withheld from twin nearest-card hints. Verdicts feed
+   a 30-day calibration table; status and board report twin rejection and
+   original acceptance with Wilson intervals. Defaults are two passes a day, a
+   12-hour cooldown and at least four accepted source cards.
 6. **Acceptance.** Only a named human accepts or rejects an insight:
    `evallab insights review <insight_id> accepted --by "Peter Makhnatch"`
    (same vocabulary and human-actor rule as [verdicts](verdicts.md)).
@@ -105,6 +128,15 @@ is rejected if it contains a number that is not in the ledger.
   layer's field, matching values and role.
 - `--no-agents` only re-checks an existing `claims.jsonl` and the receipts.
 
+The validity scan treats only explicit split/answer-key markers and receipt data
+paths as held-out evidence; an arbitrary string containing `test` is not enough.
+`label_provenance` inventories label files, their producing code and shared
+`load_labels` use, while `scripted_positives` separates scripted controls from
+real positives. Missing label provenance counts only rows that actually carry a
+label. Access-denied/refusal checks inspect metadata error/status fields, not
+transcript or output content, to avoid mistaking analyzed text for an access
+failure.
+
 ```bash
 uv run evallab insights experiment research/experiments/ov-c1-c5-live-rollouts-20261101 \
   --with research/experiments/ov-safeguard-rollouts-20261031 \
@@ -125,41 +157,78 @@ State lives in `$EVALLAB_INSIGHTS_STATE` (default
 `heartbeat.json`. Claims quote reports that can name third-party runs, so the
 ledger is local runtime state and is never committed.
 
+### Worker evidence boundary
+
+Every pass gets a read-only SQLite snapshot and a sealed manifest of its inputs;
+`./q` reads that snapshot, not live engine state. Editing `pack.json` or the
+brief makes finalization fail. The rederiver's snapshot removes original
+recipes, prior recompute outcomes and earlier rederivations. `q sql` is
+read-only, bounded to 200 rows, 1 MB and about five seconds; `q locate` finds
+receipt JSON pointers and recipe templates for a k, n or value, which still
+need `q recipe` to verify.
+
+Workers may read their own pass, the configured source roots and the read-only
+mirror. `allowed_read_roots` adds optional roots. At finalize the engine scans
+non-write session tool calls, including bash command strings, for absolute or
+`~` paths outside those roots and for any access to live state or another pass.
+`scope_policy: flag` (the default) records `scope_violations` and adds a visible
+warning to imported claims/cards; `scope_policy: reject` fails the pass without
+importing its output. For a backtest, set `scope_policy: reject` with the
+snapshot as the only root.
+
 ## Scheduling and models
 
 Each tick collects finished passes, refreshes the engine-owned
 `.worktrees/insights-readonly` mirror of `origin/main` when due, scans sources,
-recomputes signals, starts what the schedule allows, and re-renders the board.
-A lens runs when its trigger is met (new claims, open signals, newly graded
-cards), its cooldown has passed and its 24-hour cap is not reached; grading and
-extraction come first when slots are scarce. A pass that failed does not move
-its lens's "new since last pass" watermark.
+rechecks affected cards, recomputes signals, starts what the schedule allows,
+and re-renders the board. Between full ticks the watcher polls every five
+seconds and collects/refills finished workers immediately. A lens runs when its
+trigger is met, cooldown passed and 24-hour cap not reached. The skeptic reviews
+every experiment systematically: a changed claims digest requeues it, each pass
+covers up to `experiments_per_pass` (default 3), and `max_parallel` passes claim
+disjoint experiments. Failed passes do not advance coverage or watermarks.
 
-Models are chosen by `routes.yaml`, never ad hoc: the first route whose
-provider is under `max_provider_used_percent`, not parked, and (for the
-referee and rederiver) not the input authors' family. Each pass records the
-route, why it was chosen, and which model actually served it from the session
-log. A quota error parks the route until its reset; a route that served a
-different model is parked for an hour. These routes choose the analysts'
-models only; they never choose the models an experiment evaluates.
+`evallab insights status` says in plain words what each lens has, needs and is
+waiting for. The engine reloads `config.yaml` at each tick, keeping the last
+valid values if an edit is broken; `routes.yaml` is read at start. Content
+failures back off exponentially per lens and input set. Quota parks a route
+until its reset, authentication failure parks its provider for 24 hours, and a
+route that served another model parks for an hour. A transient omp database
+startup failure gets one quick retry.
+
+Models are chosen by `routes.yaml`, never ad hoc: the first route whose provider
+is under `max_provider_used_percent`, not parked, and (for referee/rederiver)
+not the input authors' family. Each pass records the requested and attested
+served model. These routes choose analyst models only, never models an
+experiment evaluates. Twinmaker reuses the extractor route family.
+
+The host gate follows current macOS pressure, not allocated swap: critical
+pressure blocks; warn pressure blocks below `host_min_memory_level` free
+percent; and more than `host_max_swap_growth_gb` (default 2 GB) swap growth over
+an engine-measured five minutes blocks with that reason in status. Probe
+failures are non-blocking.
 
 ## What is checked by code and what is judged by a model
 
 | Checked by code | Judged by a model |
 |---|---|
-| quotes are verbatim; counts appear in the quote | whether a claim is load-bearing |
-| value vs k/n, Wilson intervals, exact McNemar p | whether a mechanism explains the data |
-| recipe recomputation from receipts | novelty, importance, falsifiability (referee) |
-| cited claims exist, are current and passed checks | ranking and merging (synthesizer) |
-| statistics in cards recompute | whether a prediction was resolved |
-| referee independence from the authors' family | |
+| verbatim quotes; value/k/n/unit and interval scale | whether a claim is load-bearing |
+| Wilson intervals and exact McNemar p (warnings) | whether cited claims license the inference or its opposite |
+| receipt recipes and explicit recipe targets | whether a mechanism explains the data |
+| cited claims exist, are current and passed checks | novelty, importance and falsifiability (referee) |
+| card numbers, computed statistics and card recipes | whether a proposed check separates rival hypotheses |
+| normalized-text duplicates and nearest-card scores | ranking and merging (synthesizer) |
+| worker read scope and referee independence | whether a prediction was resolved |
+| hidden-twin/original calibration rates with Wilson intervals | |
 
 ## Limits
 
 - Extraction quality bounds everything downstream; failed checks are visible
   on the claim, not silently dropped, and the rederiver measures agreement on a
   deterministic 20% sample of recipe-backed claims.
-- The referee is one model family; a strong card can still be wrong. Treat
-  the board as a ranked queue for human review, not as findings.
-- Signals compare claims that share metric, subject, dataset and condition
-  names; inconsistent naming hides drift until the entity registry catches up.
+- The referee is one model family; a strong card can still be wrong. Canary
+  rates measure this referee on planted corruption types, not universal truth.
+  Treat the board as a ranked queue for human review, not as findings.
+- Signals require compatible quantity types and cohort identities. Conservative
+  matching suppresses false alarms but inconsistent naming or missing quantity
+  metadata can still hide real drift until the entity registry catches up.

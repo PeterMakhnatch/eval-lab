@@ -32,6 +32,33 @@ def plain_count(k: int, n: int) -> str:
     return f"{k} of {n} ({k / n:.0%})" if n else "0 of 0 (not yet measured)"
 
 
+def _wilson_text(value: object) -> str:
+    if not isinstance(value, dict):
+        return "interval unavailable"
+    low, high = value.get("low"), value.get("high")
+    if not isinstance(low, (int, float)) or not isinstance(high, (int, float)):
+        return "interval unavailable"
+    return f"Wilson 95% [{low:.2f}, {high:.2f}]"
+
+
+def _calibration_text(store: InsightStore, now: datetime) -> tuple[str, dict[str, object]]:
+    rates = store.calibration_rates(now=now)
+    twin = rates["twin"]
+    original = rates["original"]
+    if not isinstance(twin, dict) or not isinstance(original, dict):
+        return "Referee calibration unavailable.", rates
+    tk, tn = int(twin["k"]), int(twin["n"])
+    ok, on = int(original["k"]), int(original["n"])
+    text = (
+        f"Referee calibration, last 30 days: referee caught {tk} of {tn} planted flawed cards "
+        f"({_wilson_text(twin['wilson'])}); accepted {ok} of {on} original controls "
+        f"({_wilson_text(original['wilson'])})."
+    )
+    if tn == 0:
+        text += " Referee uncalibrated: no planted cards graded yet."
+    return text, rates
+
+
 def _md_line(text: str) -> str:
     """Keep untrusted ledger text on one plain, non-structural Markdown line."""
     value = re.sub(r"\s+", " ", text).strip()
@@ -316,6 +343,12 @@ def render_board(
     report = health["last_tick_report"]
     if isinstance(report, dict) and isinstance(report.get("waiting"), dict):
         health_notes.extend(f"{lens}: {reason}" for lens, reason in report["waiting"].items())
+    health_notes.extend(
+        f"read scope: {record.pass_id} has {record.scope_violations.count} violation(s): "
+        + "; ".join(record.scope_violations.examples)
+        for record in recent if record.scope_violations.count
+    )
+    calibration_text, calibration = _calibration_text(store, now)
     updated = _display_time(now.isoformat())
     state_label = f"Ledger: {store.path.resolve()}. Render time is not source freshness."
     counts_text = " · ".join(f"{title}: {len(lanes[key])}" for key, title in LANES.items())
@@ -338,9 +371,11 @@ def render_board(
         + "</section>",
     ]
     lines.extend(["## Engine health", "", health_text,
+                  calibration_text,
                   f"Tick errors: {len(errors) if isinstance(errors, list) else 0}.",
                   *(_md_line(f"- {note}") for note in health_notes), ""])
-    sections.append("<h2>Engine health</h2><p>" + html.escape(health_text) + "</p>"
+    sections.append("<h2>Engine health</h2><p>" + html.escape(health_text) + "</p><p>"
+                    + html.escape(calibration_text) + "</p>"
                     + f"<details><summary>Tick errors: {len(errors) if isinstance(errors, list) else 0}"
                     + " · waiting reasons</summary>"
                     + _list_html(health_notes or ["No tick errors or waiting reasons recorded."])
@@ -514,6 +549,7 @@ def render_board(
         "signals_truncated": signal_total > len(signals),
         "prediction_scoreboard": prediction_scores, "lens_scoreboard": lens_scores,
         "recent_activity": activity,
+        "referee_calibration": calibration,
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = [out_dir / name for name in ("board.md", "board.html", "status.json")]

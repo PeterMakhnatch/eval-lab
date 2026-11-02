@@ -98,8 +98,10 @@ def test_migrate_upgrades_an_older_ledger_in_place_and_refuses_a_newer_one(tmp_p
         store.insert_insights([_card_record("C-one", status="refereed")])
     raw = sqlite3.connect(tmp_path / DB_NAME)
     raw.executescript(
-        "DROP TABLE lens_coverage; DROP TABLE pass_inputs;"
+        "DROP VIEW v_insights; DROP TABLE lens_coverage; DROP TABLE pass_inputs;"
+        "DROP TABLE referee_calibration;"
         "ALTER TABLE insights DROP COLUMN graded_at; ALTER TABLE insights DROP COLUMN needs_recheck;"
+        "ALTER TABLE insights DROP COLUMN hidden;"
         "DROP VIEW v_claims; CREATE VIEW v_claims AS SELECT claim_id FROM claims;"
         "PRAGMA user_version=1;"
     )

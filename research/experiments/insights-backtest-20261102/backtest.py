@@ -57,6 +57,7 @@ class Card:
     experiments: tuple[str, ...]
     created_at: datetime | None
     status: str
+    pass_id: str
 
 
 def _load_json(path: Path) -> Any:
@@ -117,7 +118,7 @@ def engine_cards(state_dir: Path, system: str) -> list[Card]:
             card_id=record["insight_id"], system=system, title=card["title"],
             text="\n".join(parts), experiments=tuple(cited),
             created_at=datetime.fromisoformat(record["created_at"]),
-            status=record["status"],
+            status=record["status"], pass_id=record["pass_id"],
         ))
     return cards
 
@@ -133,7 +134,7 @@ def baseline_cards(root: Path) -> list[Card]:
         cards.append(Card(
             card_id=f"B-{index:03d}", system="baseline", title=item["title"], text=text,
             experiments=tuple(item.get("experiments", [])), created_at=created,
-            status="baseline",
+            status="baseline", pass_id="baseline",
         ))
     return cards
 
@@ -335,7 +336,8 @@ def cmd_judge(root: Path, arms: dict[str, str], *, skip_baseline: bool) -> int:
 
 
 # ---------------------------------------------------------------- audit
-def _tool_calls(session_dir: Path) -> Iterable[str]:
+def _tool_calls(session_dir: Path) -> Iterable[tuple[str, str]]:
+    """Yield (tool name, JSON arguments) for every tool call in a session."""
     for path in session_dir.rglob("*.jsonl"):
         for line in path.read_text("utf-8", errors="replace").splitlines():
             try:
@@ -347,7 +349,7 @@ def _tool_calls(session_dir: Path) -> Iterable[str]:
                 continue
             for part in message.get("content") or []:
                 if isinstance(part, dict) and part.get("type") == "toolCall":
-                    yield json.dumps(part.get("arguments", {}))
+                    yield str(part.get("name", "")), json.dumps(part.get("arguments", {}))
 
 
 def _leak_patterns(root: Path) -> list[re.Pattern[str]]:
@@ -363,26 +365,41 @@ def _leak_patterns(root: Path) -> list[re.Pattern[str]]:
 
 
 def cmd_audit(root: Path, arms: dict[str, str]) -> dict[str, Any]:
+    """Flag tool calls that read outside the snapshot.
+
+    Writing a card whose text quotes an original path is not a read; any other
+    tool call that names an original folder or verifier output is. A pass with
+    such a read is contaminated and its cards are excluded from scoring.
+    """
     session_dirs: list[Path] = []
     for state in arms.values():
         session_dirs.extend(sorted((root / state / "passes").glob("*/session")))
     session_dirs.append(root / "baseline" / "session")
     patterns = _leak_patterns(root)
     flagged: list[dict[str, str]] = []
+    mentions = 0
     calls = 0
     for session in session_dirs:
         if not session.exists():
             continue
-        for arguments in _tool_calls(session):
+        for tool, arguments in _tool_calls(session):
             calls += 1
             outside = _SNAPSHOT_PATH.sub("", arguments)
             hits = [pattern.pattern for pattern in patterns if pattern.search(outside)]
-            if hits:
-                flagged.append({
-                    "pass": session.parent.name, "patterns": ",".join(hits),
-                    "call": arguments[:300],
-                })
-    result = {"sessions": len(session_dirs), "tool_calls": calls, "flagged": flagged}
+            if not hits:
+                continue
+            if tool == "write":
+                mentions += 1
+                continue
+            flagged.append({
+                "pass": session.parent.name, "tool": tool, "patterns": ",".join(hits),
+                "call": arguments[:300],
+            })
+    result = {
+        "sessions": len(session_dirs), "tool_calls": calls, "flagged": flagged,
+        "path_mentions_in_written_output": mentions,
+        "contaminated_passes": sorted({item["pass"] for item in flagged}),
+    }
     (root / "audit.json").write_text(json.dumps(result, indent=2), "utf-8")
     return result
 
@@ -406,10 +423,19 @@ def _judgments(root: Path, system: str) -> tuple[dict[str, dict[str, Any]], dict
 
 def _system_metrics(
     root: Path, system: str, cards: list[Card], gt: list[dict[str, Any]],
-    start: datetime | None, cutoff: datetime,
+    start: datetime | None, cutoff: datetime, contaminated: set[str],
 ) -> dict[str, Any]:
     matched, ratings = _judgments(root, system)
     by_id = {card.card_id: card for card in cards}
+    excluded_hits = 0
+    for item in matched.values():
+        # A match counts only through cards from passes that never read outside the snapshot.
+        clean = [cid for cid in item["card_ids"]
+                 if cid in by_id and by_id[cid].pass_id not in contaminated]
+        if item["match"] != "none" and not clean:
+            excluded_hits += 1
+            item["match"] = "none"
+        item["card_ids"] = clean
     full = [g for g in gt if matched.get(g["gt_id"], {}).get("match") == "full"]
     partial = [g for g in gt if matched.get(g["gt_id"], {}).get("match") == "partial"]
     hit_cards = {
@@ -439,6 +465,7 @@ def _system_metrics(
             1 for g in full + partial if g["anticipatable"] == "yes"
         ),
         "cards_matching_any_item": len(hit_cards & set(by_id)),
+        "hits_excluded_for_leakage": excluded_hits,
         "specific_cards": sum(1 for cid in by_id if ratings.get(cid) == "specific"),
         "rated_cards": sum(1 for cid in by_id if cid in ratings),
         "lead_minutes": sorted(leads),
@@ -486,6 +513,8 @@ def _claim_summary(con: sqlite3.Connection) -> dict[str, Any]:
 def cmd_report(root: Path, arms: dict[str, str]) -> int:
     gt = [item for item in _ground_truth(root) if item["anticipatable"] in SCORED]
     cutoff = _cutoff(root)
+    audit = cmd_audit(root, arms)
+    contaminated = set(audit["contaminated_passes"])
     result: dict[str, Any] = {"ground_truth_items": len(gt), "arms": {}}
     for name, state in arms.items():
         con = _ledger(root / state)
@@ -495,7 +524,7 @@ def cmd_report(root: Path, arms: dict[str, str]) -> int:
         end = max((datetime.fromisoformat(p["finished_at"]) for p in passes
                    if p.get("finished_at")), default=None)
         result["arms"][name] = {
-            "metrics": _system_metrics(root, name, cards, gt, start, cutoff),
+            "metrics": _system_metrics(root, name, cards, gt, start, cutoff, contaminated),
             "passes": _pass_summary(passes),
             "claims": _claim_summary(con),
             "wall_minutes": None if start is None or end is None
@@ -507,10 +536,11 @@ def cmd_report(root: Path, arms: dict[str, str]) -> int:
             (root / "baseline" / "prompt.md").stat().st_mtime, UTC
         )
         result["arms"]["baseline"] = {
-            "metrics": _system_metrics(root, "baseline", baseline, gt, base_start, cutoff),
+            "metrics": _system_metrics(root, "baseline", baseline, gt, base_start, cutoff,
+                                       contaminated),
             "receipt": _load_json(root / "baseline" / "receipt.json"),
         }
-    result["audit"] = cmd_audit(root, arms)
+    result["audit"] = audit
     (root / "results.json").write_text(json.dumps(result, indent=2, default=str), "utf-8")
     print(json.dumps({k: v for k, v in result.items() if k != "audit"}, indent=2, default=str))
     print(f"audit: {len(result['audit']['flagged'])} flagged of "

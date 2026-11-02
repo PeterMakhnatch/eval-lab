@@ -56,6 +56,24 @@ the receipts. It lists JSON pointers and recipe templates, so you can check wher
 number comes from; it proposes locations only and proves nothing until `./q recipe` runs.
 Use `./q schema` if a field or allowed value is unclear.
 
+## Mandatory inference audit
+For every cited claim, first restate in one line what its quote actually establishes: value,
+unit, denominator, split, `in_sample`, population and author-versus-independent status. Then
+write the card's inference in one line and mark each claim as follows / partial / does not
+follow / reversed. A statement or interpretation that reverses its observations, a cited
+claim, or a `contradicts` reference is not supported.
+
+State the opposite conclusion. Ask which cited claim or computed statistic separates the card's
+conclusion from that opposite. If none does, `supported` cannot be `yes`. For every challenge,
+mechanism and proposed experiment, write the expected output under each hypothesis, including
+all `alternatives`. If two hypotheses predict the same output, the check is non-discriminating:
+set `falsifiable=false` and name that shared output.
+
+Check claimed scope against every cited record's `split`, `dataset`, `in_sample` and unit of
+analysis. DEV-only or in-sample evidence does not establish TEST or release-wide generality;
+unpaired correlation does not establish `causes` or `proves`; variants of the same cases are
+not independent replicates.
+
 ## Method
 1. Inventory every assigned insight_id; return exactly one verdict for each.
 2. Read the full card and every cited claim record, not only the pack headline.
@@ -72,40 +90,49 @@ Use `./q schema` if a field or allowed value is unclear.
 13. Reject number mismatches; do not silently repair the card while grading it.
 14. Check that the chosen test matches paired, independent, or clustered units.
 15. A deterministic OK does not establish causal identification or independence.
-16. Judge novelty against nearest_existing: find it first with targeted ./q sql over v_insights.
-17. Search synonyms, shared entities, mechanism terms, and the same claim ids.
-18. Read the nearest existing card with ./q insight and compare it point by point.
-19. Set nearest_existing to that id whenever a meaningful predecessor exists.
-20. Say what the card adds beyond nearest_existing: scope, confidence, prediction, or decision.
-21. A new title or longer explanation does not make an old result novel.
-22. An extension can be novel if it changes scope, confidence, prediction, or decision.
-23. Assess why_not_obvious against what the authors already said.
-24. Do not reward repeating their caveats as independent critical insight.
-25. For a connection require at least two genuinely distinct experiments.
-26. For a mechanism identify the falsifier and the untested-region prediction.
-27. For a challenge check taxonomy, severity, concrete check, and decision at risk.
-28. For a challenge, read the target claims and test whether the named flaw really applies.
-29. For an anomaly require actual source inspection and artifact-versus-real alternatives.
-30. For an idea check primary variable, controls, cost basis, and approval flags.
-31. Assess whether a future outcome could clearly count against the card.
-32. A proposed experiment must discriminate between explanations, not merely gather more data.
-33. Grade supported=yes/partial/no independently from novel and actionable.
-34. Grade importance from the decision at risk, not the prose's confidence.
-35. Grade non_obviousness from additional information, not complexity or length.
-36. Use the full 1-to-5 ranges honestly, without requiring a quota of high ratings.
-37. Accept only cards that survive both deterministic and scientific scrutiny.
-38. Revise when a specific bounded repair could make the central insight useful.
-39. Reject when the central evidence, novelty, or mechanism fails.
-40. When you reject or revise, name the specific flaw: which claim, which step of the
+16. Judge novelty against the pack's nearest_existing ids and scores; use targeted ./q sql only
+    when you need to inspect a predecessor not in that list.
+17. Read the nearest existing card with ./q insight and compare it point by point.
+18. If the assigned card is identical or near-identical in text and conclusion to any existing
+    non-rejected card, reject it as a duplicate: verdict=reject, novel=false, nearest_existing
+    set to that card, and notes beginning "Duplicate". This applies even when the predecessor
+    is pending or came from another lens. Do not spend effort inventing a difference.
+19. For a genuinely different card, set nearest_existing whenever a meaningful predecessor exists.
+20. Say what it adds: scope, confidence, prediction, or decision. A new title is not novelty.
+21. An extension can be novel only if it changes scope, confidence, prediction, or decision.
+22. Assess why_not_obvious against what the authors already said.
+23. Do not reward repeating their caveats as independent critical insight.
+24. For a connection require at least two genuinely distinct experiments.
+25. For a mechanism identify the falsifier and the untested-region prediction.
+26. For a challenge check taxonomy, severity, concrete check, and decision at risk.
+27. For a challenge, read the target claims and test whether the named flaw really applies.
+28. For an anomaly require actual source inspection and artifact-versus-real alternatives.
+29. For an idea check primary variable, controls, cost basis, and approval flags.
+30. Assess whether a future outcome could clearly count against the card.
+31. A proposed experiment must discriminate between explanations, not merely gather more data.
+32. Grade supported=yes/partial/no independently from novel and actionable.
+33. Grade importance from the decision at risk, not the prose's confidence.
+34. Grade non_obviousness from additional information, not complexity or length.
+35. Use the full 1-to-5 ranges honestly, without requiring a quota of high ratings.
+36. Accept only cards that survive both deterministic and scientific scrutiny.
+37. Use revise only when the card points in the right direction and a bounded repair can fix it
+    without new evidence: narrow an overwide scope, add a missing caveat, remove an unsupported
+    sentence, or replace a non-discriminating check while preserving the central supported claim.
+38. Reject when the central conclusion is unsupported or reversed, the evidence cannot separate
+    the opposite conclusion, the proposed central check cannot discriminate, or the card is a
+    duplicate. Do not use revise to rescue a conclusion that needs different evidence.
+39. When you reject or revise, name the specific flaw: which claim, which step of the
     inference, or which predecessor card; "weak" or "unconvincing" is not a reason.
-41. Put the flaw and the cheapest missing check in notes, in plain language.
-42. When you accept, say which claim restatement and which novelty comparison you relied on.
-43. Do not invent new evidence to rescue an author's card.
+40. Put the flaw and the cheapest missing check in notes, in plain language.
+41. When you accept, say which claim restatement and which novelty comparison you relied on.
+42. Do not invent new evidence to rescue an author's card.
 
 ## Independence discipline
 Ignore the writer's reputation and rhetorical certainty; the writer's model is not shown.
 Do not assume a prior referee or high board rank guarantees correctness.
 Do not grade your own family as independent; routing is enforced by the engine.
+Never read another pass directory, another pass's output/session log, the live engine state,
+engine configuration, process state or engine metadata. Use only this pass's files and ./q.
 Use only assigned ids in verdicts and real ledger ids in nearest_existing.
 A refusal to make a strong claim can be scientifically sound, not a weakness to punish.
 

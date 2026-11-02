@@ -15,6 +15,7 @@ import yaml
 
 from evallab.insights import runner
 from evallab.insights.runner import (
+    MemoryGate,
     OmpLauncher,
     UsageGate,
     WorkerSpec,
@@ -364,20 +365,47 @@ def test_adopted_handle_never_signals_a_reused_pid(
 
 
 @pytest.mark.parametrize(
-    ("swap", "memory", "expected"),
-    [("used = 1024.00M", "50", True), ("used = 13000M", "50", False),
-     ("used = 1G", "10", False), ("used = 12G", "15", True),
-     ("unavailable", "bad", True)],
+    ("pressure", "free", "expected"),
+    [("1", "5", True), ("2", "50", True), ("2", "10", False),
+     ("4", "50", False), ("bad", "bad", True)],
 )
-def test_host_gate_uses_injected_probes(swap: str, memory: str, expected: bool) -> None:
+def test_host_gate_uses_current_pressure_not_absolute_swap(
+    pressure: str, free: str, expected: bool,
+) -> None:
     def run(
         args: list[str], *, capture_output: bool, text: bool, timeout: float,
     ) -> subprocess.CompletedProcess[str]:
         assert args[0] == "/usr/sbin/sysctl"  # not on launchd's minimal PATH otherwise
-        output = swap if args[-1] == "vm.swapusage" else memory
+        output = {
+            "vm.swapusage": "used = 28672.00M",
+            "kern.memorystatus_level": free,
+            "kern.memorystatus_vm_pressure_level": pressure,
+        }[args[-1]]
         return subprocess.CompletedProcess(args, 0, output, "")
 
-    assert host_ok(15, 12, run=run) is expected
+    assert host_ok(15, 2, run=run) is expected
+
+
+def test_host_gate_blocks_only_measured_swap_growth() -> None:
+    now = [0.0]
+    swap = [28.0]
+    def run(
+        args: list[str], *, capture_output: bool, text: bool, timeout: float,
+    ) -> subprocess.CompletedProcess[str]:
+        output = {
+            "vm.swapusage": f"used = {swap[0]}G",
+            "kern.memorystatus_level": "40",
+            "kern.memorystatus_vm_pressure_level": "2",
+        }[args[-1]]
+        return subprocess.CompletedProcess(args, 0, output, "")
+
+    gate = MemoryGate(run=run, clock=lambda: now[0])
+    assert gate.status(15, 2) is None
+    now[0] = 100
+    assert gate.status(15, 2) is None  # 28 GB allocated is not current pressure.
+    now[0] = 301
+    swap[0] = 31.1
+    assert gate.status(15, 2) == "swap grew 3.1 GB in 5 min"
 
 
 def test_host_probe_errors_allow_launch() -> None:

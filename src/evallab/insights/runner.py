@@ -448,25 +448,68 @@ class UsageGate:
         return self._usage.get((provider, None))
 
 
-def host_ok(
-    min_memory_level: int, max_swap_gb: float, run: _Run = subprocess.run,
-) -> bool:
-    """Do not launch under macOS memory pressure; probe failures are not a veto."""
-    try:
-        swap = run(
-            ["/usr/sbin/sysctl", "-n", "vm.swapusage"], capture_output=True, text=True, timeout=5,
-        )
-        memory = run(
-            ["/usr/sbin/sysctl", "-n", "kern.memorystatus_level"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if swap.returncode != 0 or memory.returncode != 0:
-            return True
-        matched = re.search(r"used\s*=\s*([\d.]+)([MG])", swap.stdout)
+class MemoryGate:
+    """Track current macOS pressure and swap growth between engine checks."""
+
+    def __init__(
+        self, *, run: _Run = subprocess.run, clock: Callable[[], float] = time.monotonic
+    ) -> None:
+        self._run = run
+        self._clock = clock
+        self._swap_samples: list[tuple[float, float]] = []
+
+    def _value(self, key: str) -> str | None:
+        try:
+            result = self._run(
+                ["/usr/sbin/sysctl", "-n", key], capture_output=True, text=True, timeout=5
+            )
+        except (OSError, ValueError, subprocess.SubprocessError):
+            return None
+        return result.stdout if result.returncode == 0 else None
+
+    @staticmethod
+    def _swap_gb(text: str | None) -> float | None:
+        if text is None:
+            return None
+        matched = re.search(r"used\s*=\s*([\d.]+)([MG])", text)
         if matched is None:
-            return True
-        used_gb = float(matched[1]) / (1024 if matched[2] == "M" else 1)
-        level = int(memory.stdout.strip())
-        return level >= min_memory_level and used_gb <= max_swap_gb
-    except (OSError, ValueError, subprocess.SubprocessError):
-        return True
+            return None
+        try:
+            return float(matched[1]) / (1024 if matched[2] == "M" else 1)
+        except ValueError:
+            return None
+
+    def status(self, min_memory_level: int, max_swap_growth_gb: float) -> str | None:
+        pressure_text = self._value("kern.memorystatus_vm_pressure_level")
+        free_text = self._value("kern.memorystatus_level")
+        swap_gb = self._swap_gb(self._value("vm.swapusage"))
+        try:
+            pressure = int(pressure_text.strip()) if pressure_text is not None else None
+            free = int(free_text.strip()) if free_text is not None else None
+        except ValueError:
+            pressure = free = None
+        if pressure == 4:
+            return "critical memory pressure"
+        if pressure == 2 and free is not None and free < min_memory_level:
+            return f"warn memory pressure with {free}% free memory (need {min_memory_level}%)"
+
+        now = self._clock()
+        if swap_gb is not None:
+            self._swap_samples.append((now, swap_gb))
+            self._swap_samples = [sample for sample in self._swap_samples if now - sample[0] <= 900]
+            cutoff = now - 300
+            earlier = [sample for sample in self._swap_samples[:-1] if sample[0] <= cutoff]
+            if earlier:
+                stamp, previous = earlier[-1]
+                growth = swap_gb - previous
+                elapsed_minutes = max(1, round((now - stamp) / 60))
+                if growth > max_swap_growth_gb:
+                    return f"swap grew {growth:.1f} GB in {elapsed_minutes} min"
+        return None
+
+
+def host_ok(
+    min_memory_level: int, max_swap_growth_gb: float, run: _Run = subprocess.run,
+) -> bool:
+    """One stateless probe; the engine uses MemoryGate to measure swap growth."""
+    return MemoryGate(run=run).status(min_memory_level, max_swap_growth_gb) is None

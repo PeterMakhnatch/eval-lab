@@ -20,13 +20,14 @@ import os
 import sqlite3
 from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
 
 from evallab.insights.models import (
+    CalibrationRecord,
     ClaimRecord,
     EntityRef,
     ExperimentRecord,
@@ -43,7 +44,7 @@ from evallab.insights.models import (
 
 STATE_ENV = "EVALLAB_INSIGHTS_STATE"
 DB_NAME = "insights.sqlite"
-SCHEMA_USER_VERSION = 2
+SCHEMA_USER_VERSION = 3
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta(
@@ -130,6 +131,7 @@ CREATE TABLE IF NOT EXISTS insights(
   updated_at TEXT NOT NULL,
   graded_at TEXT,
   needs_recheck INTEGER NOT NULL DEFAULT 0,
+  hidden INTEGER NOT NULL DEFAULT 0,
   body TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS insights_status ON insights(status, created_at);
@@ -181,6 +183,17 @@ CREATE TABLE IF NOT EXISTS rederivations(
   body TEXT NOT NULL,
   PRIMARY KEY(claim_id, pass_id)
 );
+CREATE TABLE IF NOT EXISTS referee_calibration(
+  canary_id TEXT NOT NULL,
+  insight_id TEXT NOT NULL,
+  pass_id TEXT NOT NULL,
+  arm TEXT NOT NULL,
+  verdict TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  body TEXT NOT NULL,
+  PRIMARY KEY(canary_id, insight_id, pass_id, arm)
+);
+CREATE INDEX IF NOT EXISTS referee_calibration_created ON referee_calibration(created_at, arm);
 CREATE TABLE IF NOT EXISTS events(
   event_id INTEGER PRIMARY KEY AUTOINCREMENT,
   at TEXT NOT NULL,
@@ -211,7 +224,7 @@ SELECT insight_id, lens, kind, status, check_status, rank, score,
        json_extract(body, '$.referee.verdict') AS referee_verdict,
        json_extract(body, '$.model_served') AS model_served,
        pass_id, created_at
-FROM insights;
+FROM insights WHERE hidden = 0;
 CREATE VIEW IF NOT EXISTS v_signals AS
 SELECT signal_id, kind, score, status,
        json_extract(body, '$.title') AS title,
@@ -306,6 +319,10 @@ class InsightStore:
             if "needs_recheck" not in columns:
                 self._conn.execute(
                     "ALTER TABLE insights ADD COLUMN needs_recheck INTEGER NOT NULL DEFAULT 0"
+                )
+            if "hidden" not in columns:
+                self._conn.execute(
+                    "ALTER TABLE insights ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0"
                 )
             self._conn.execute(
                 "UPDATE insights SET graded_at = updated_at WHERE graded_at IS NULL "
@@ -812,8 +829,8 @@ class InsightStore:
             for record in records:
                 cursor = conn.execute(
                     "INSERT OR IGNORE INTO insights(insight_id, lens, kind, status, check_status, "
-                    "rank, score, pass_id, created_at, updated_at, graded_at, body) "
-                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "rank, score, pass_id, created_at, updated_at, graded_at, hidden, body) "
+                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         record.insight_id,
                         record.lens,
@@ -826,6 +843,7 @@ class InsightStore:
                         _iso(record.created_at),
                         now,
                         now if record.status in {"refereed", "needs_revision", "rejected"} else None,
+                        int(record.hidden),
                         _dump(record),
                     ),
                 )
@@ -844,7 +862,7 @@ class InsightStore:
                 stamp = now if graded_at is None else _iso(graded_at)
             conn.execute(
                 "UPDATE insights SET status = ?, check_status = ?, rank = ?, score = ?, "
-                "updated_at = ?, graded_at = ?, body = ? WHERE insight_id = ?",
+                "updated_at = ?, graded_at = ?, hidden = ?, body = ? WHERE insight_id = ?",
                 (
                     record.status,
                     record.check.status,
@@ -852,6 +870,7 @@ class InsightStore:
                     record.score,
                     now,
                     stamp,
+                    int(record.hidden),
                     _dump(record),
                     record.insight_id,
                 ),
@@ -884,9 +903,12 @@ class InsightStore:
         since: datetime | None = None,
         graded_since: datetime | None = None,
         limit: int | None = None,
+        include_hidden: bool = False,
     ) -> list[InsightRecord]:
         clauses: list[str] = []
         params: list[Any] = []
+        if not include_hidden:
+            clauses.append("hidden = 0")
         if statuses:
             clauses.append(f"status IN ({', '.join('?' for _ in statuses)})")
             params.extend(statuses)
@@ -910,7 +932,7 @@ class InsightStore:
 
     def insight_counts(self) -> dict[str, int]:
         rows = self._conn.execute(
-            "SELECT status, COUNT(*) AS n FROM insights GROUP BY status"
+            "SELECT status, COUNT(*) AS n FROM insights WHERE hidden = 0 GROUP BY status"
         ).fetchall()
         return {str(row["status"]): int(row["n"]) for row in rows}
 
@@ -1121,6 +1143,75 @@ class InsightStore:
     def rederived_claim_ids(self) -> set[str]:
         rows = self._conn.execute("SELECT DISTINCT claim_id FROM rederivations").fetchall()
         return {str(row[0]) for row in rows}
+
+    # ---------------------------------------------------- referee calibration
+    def pending_canaries(self) -> list[InsightRecord]:
+        rows = self._conn.execute(
+            "SELECT body FROM insights WHERE hidden = 1 AND status = 'checked' "
+            "ORDER BY created_at, insight_id"
+        ).fetchall()
+        return [_load(InsightRecord, row["body"]) for row in rows]
+
+    def canary_source_ids(self) -> set[str]:
+        rows = self._conn.execute(
+            "SELECT DISTINCT json_extract(body, '$.canary_of') AS source_id "
+            "FROM insights WHERE hidden = 1"
+        ).fetchall()
+        return {str(row[0]) for row in rows if row[0] is not None}
+
+    def save_calibration(self, record: CalibrationRecord) -> None:
+        with self.transaction() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO referee_calibration("
+                "canary_id, insight_id, pass_id, arm, verdict, created_at, body) "
+                "VALUES(?, ?, ?, ?, ?, ?, ?)",
+                (
+                    record.canary_id, record.insight_id, record.pass_id, record.arm,
+                    record.verdict, _iso(record.created_at), _dump(record),
+                ),
+            )
+
+    def calibration_rates(self, *, now: datetime, days: int = 30) -> dict[str, object]:
+        from evallab.insights.stats import wilson
+
+        cutoff = now - timedelta(days=days)
+        rows = self._conn.execute(
+            "SELECT arm, verdict FROM referee_calibration WHERE created_at >= ?",
+            (_iso(cutoff),),
+        ).fetchall()
+        result: dict[str, object] = {"days": days}
+        for arm in ("twin", "original"):
+            verdicts = [str(row["verdict"]) for row in rows if row["arm"] == arm]
+            success = "reject" if arm == "twin" else "accept"
+            k = sum(verdict == success for verdict in verdicts)
+            result[arm] = {"k": k, "n": len(verdicts), "wilson": wilson(k, len(verdicts))}
+        return result
+
+    def mark_scope_warning(self, pass_id: str) -> None:
+        """Make a flagged pass's imported claims/cards visibly suspect."""
+        note = f"Read-scope warning from worker pass {pass_id}; verify cited evidence independently."
+        claim_rows = self._conn.execute(
+            "SELECT body FROM claims WHERE pass_id = ?", (pass_id,)
+        ).fetchall()
+        for row in claim_rows:
+            claim = _load(ClaimRecord, row["body"])
+            if note not in claim.check.notes:
+                check = claim.check.model_copy(update={
+                    "status": "warn" if claim.check.status == "pass" else claim.check.status,
+                    "notes": [*claim.check.notes, note],
+                })
+                self.update_claim(claim.model_copy(update={"check": check}))
+        insight_rows = self._conn.execute(
+            "SELECT body FROM insights WHERE pass_id = ?", (pass_id,)
+        ).fetchall()
+        for row in insight_rows:
+            insight = _load(InsightRecord, row["body"])
+            if note not in insight.check.notes:
+                check = insight.check.model_copy(update={
+                    "status": "warn" if insight.check.status == "pass" else insight.check.status,
+                    "notes": [*insight.check.notes, note],
+                })
+                self.save_insight(insight.model_copy(update={"check": check}))
 
 
 def _merge_experiment(old: ExperimentRecord, new: ExperimentRecord) -> ExperimentRecord:

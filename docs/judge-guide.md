@@ -173,6 +173,7 @@ type in the note box; `Ctrl+Enter` submits from there.
 uv run evallab judge build-packet     # once: the 18-case packet and the guide examples
 uv run evallab judge build-controls   # once: a queue of random controls
 uv run evallab judge serve            # then open http://127.0.0.1:8795/ (add --blind-order for the unanchored pass)
+uv run evallab judge serve --queue line=path/to/batch/judge-queue.jsonl --local-runs path/to/batch/runs.jsonl
 uv run evallab judge report           # how often you agree with the label and each detector
 uv run evallab judge export --out ~/judge-verdicts.csv
 ```
@@ -195,3 +196,11 @@ uv run evallab judge export --out ~/judge-verdicts.csv
   an AutoReview run), or one run id per line. Pass `--queue [NAME=]PATH` to serve any queue,
   `--blind-order` for a seeded shuffle, `--keep-order` to keep file order, `--seed` to change the order, and `evallab judge plan` to see
   how many runs each group holds (this spoils the blind; do not run it before judging).
+- For native Harbor runs, pass the assembly line's `runs.jsonl` as `--local-runs`. Each row maps
+  `run_id` to `rollout_path` and `sha256`. The station applies the DEV path/split gate and verifies
+  the file or directory digest before reading the ATIF trajectory; a missing trajectory or digest
+  mismatch is refused. The card uses the same task, step and final-diff anatomy as other runs.
+  Cloud and CheatBench ids in the same queue still use their existing loaders.
+- A local run's corpus, model, reward, queue reason, line decision and detector/model verdicts stay
+  hidden until submit. Local verdicts use the line's exact `run_id` and export through the normal
+  CSV/JSON commands, ready for `evallab line verdicts` to import.

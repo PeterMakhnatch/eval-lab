@@ -1101,3 +1101,164 @@ def test_undo_takes_back_a_verdict_written_before_ids_existed(tmp_path: Path) ->
     assert station.state()["queues"][0]["done"] == 0
     with pytest.raises(js.JudgeError, match="nothing to undo"):
         station.undo_last()
+
+
+def _local_station(tmp_path: Path, *, split: str = "dev") -> tuple[js.Station, Path, Path]:
+    trial = tmp_path / "native-trial"
+    (trial / "agent").mkdir(parents=True)
+    (trial / "verifier").mkdir()
+    doc = _doc("Implement the native task without changing its checker.")
+    doc["metadata"] = {"split": split}
+    (trial / "agent" / "trajectory.json").write_text(json.dumps(doc), encoding="utf-8")
+    (trial / "verifier" / "agent.diff").write_text(
+        "diff --git a/src/native.py b/src/native.py\n"
+        "--- a/src/native.py\n"
+        "+++ b/src/native.py\n"
+        "@@ -1 +1 @@\n"
+        "-old\n"
+        "+new\n",
+        encoding="utf-8",
+    )
+    run_id = "NATIVE_RUN_SECRET"
+    row = {
+        "run_id": run_id,
+        "corpus": "SECRET_CORPUS",
+        "task_id": "SECRET_TASK",
+        "model": "SECRET_MODEL",
+        "reward": 1,
+        "rollout_path": str(trial),
+        "sha256": js._local_digest(trial),
+    }
+    manifest = tmp_path / "runs.jsonl"
+    manifest.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    fallback = FakeSource({}, {}, findings={})
+    entry = js.QueueEntry(
+        run_id,
+        reason="LINE_REASON_SECRET",
+        reveal={
+            "decision": "LINE_DECISION_SECRET",
+            "audit": False,
+            "detectors": [
+                {
+                    "name": "MODEL_VERDICT_SECRET",
+                    "verdict": "alarm",
+                    "summary": "MODEL_SUMMARY_SECRET",
+                }
+            ],
+        },
+        source="line",
+    )
+    station = js.Station(
+        js.LocalRunSource(manifest, fallback),
+        {"line": [entry]},
+        state_dir=tmp_path / "state",
+        keep_order=True,
+    )
+    return station, manifest, trial
+
+
+def test_local_run_http_page_is_blind_and_verdict_exports_with_line_run_id(
+    tmp_path: Path,
+) -> None:
+    station, manifest, trial = _local_station(tmp_path)
+    run_id = "NATIVE_RUN_SECRET"
+    blind = js.blind_id(run_id)
+    hidden = [
+        run_id,
+        "SECRET_CORPUS",
+        "SECRET_TASK",
+        "SECRET_MODEL",
+        "LINE_REASON_SECRET",
+        "LINE_DECISION_SECRET",
+        "MODEL_VERDICT_SECRET",
+        "MODEL_SUMMARY_SECRET",
+        "No dataset label",
+        str(manifest),
+        str(trial),
+        "native-local",
+    ]
+    with _running(station) as (base, headers):
+        status, page = _call(base, "/")
+        assert status == 200
+        assert _call(base, "/api/state")[0] == 200
+        assert _call(base, "/api/queue?name=q1")[0] == 200
+        status, view = _call(base, f"/api/run?queue=q1&id={blind}")
+        assert status == 200
+        before = page.decode() + json.dumps(view)
+        for secret in hidden:
+            assert secret not in before, secret
+        assert "decision" not in view and "reveal" not in view and "label" not in view
+        assert view["card"]["asked"]["text"].startswith("Implement the native task")
+        assert [f["path"] for f in view["card"]["wrote"]["patch_files"]] == ["src/native.py"]
+        status, result = _call(
+            base,
+            "/api/verdict",
+            {"queue": "q1", "id": blind, "verdict": "legitimate", "confidence": 2},
+            headers,
+        )
+        assert status == 200
+    assert result["reveal"]["decision"] == "LINE_DECISION_SECRET"
+    assert result["reveal"]["queue_reason"] == "LINE_REASON_SECRET"
+    assert result["reveal"]["detectors"][0]["name"] == "MODEL_VERDICT_SECRET"
+    assert result["reveal"]["grader"] == "1"
+    out = tmp_path / "verdicts.json"
+    assert js.export_verdicts(station.verdicts_path, out, "json") == 1
+    (row,) = json.loads(out.read_text(encoding="utf-8"))
+    assert row["run_id"] == run_id and row["verdict"] == "legitimate"
+
+
+def test_local_run_sha256_mismatch_is_refused_before_a_verdict(tmp_path: Path) -> None:
+    _, manifest, _ = _local_station(tmp_path)
+    row = json.loads(manifest.read_text(encoding="utf-8"))
+    row["sha256"] = "0" * 64
+    manifest.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    station = js.Station(
+        js.LocalRunSource(manifest, FakeSource({}, {}, findings={})),
+        {"q": [js.QueueEntry("NATIVE_RUN_SECRET")]},
+        state_dir=tmp_path / "mismatch-state",
+    )
+    with pytest.raises(js.JudgeError, match="sha256 mismatch"):
+        station.run_view("q", js.blind_id("NATIVE_RUN_SECRET"))
+    assert station.read_verdicts() == []
+
+
+def test_local_run_dev_gate_refuses_non_dev_trajectory(tmp_path: Path) -> None:
+    station, _, _ = _local_station(tmp_path, split="TEST")
+    with pytest.raises(js.JudgeError, match="non-DEV split"):
+        station.run_view("q1", js.blind_id("NATIVE_RUN_SECRET"))
+    assert station.read_verdicts() == []
+
+
+def test_local_run_dev_gate_refuses_answer_key_path(tmp_path: Path) -> None:
+    _, manifest, trial = _local_station(tmp_path)
+    forbidden = tmp_path / "answer-keys" / "native-trial"
+    forbidden.parent.mkdir()
+    trial.rename(forbidden)
+    row = json.loads(manifest.read_text(encoding="utf-8"))
+    row["rollout_path"] = str(forbidden)
+    manifest.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    station = js.Station(
+        js.LocalRunSource(manifest, FakeSource({}, {}, findings={})),
+        {"q": [js.QueueEntry("NATIVE_RUN_SECRET")]},
+        state_dir=tmp_path / "forbidden-state",
+    )
+    with pytest.raises(js.JudgeError, match="answer-keys"):
+        station.run_view("q", js.blind_id("NATIVE_RUN_SECRET"))
+
+
+def test_local_source_leaves_cloud_and_cheatbench_fallback_unchanged(tmp_path: Path) -> None:
+    _, manifest, _ = _local_station(tmp_path)
+    cloud_id = "cloud-trace-id"
+    cloud = AtlasRun(cloud_id, "cloud", "DEV", "pass", _doc())
+    cheatbench = AtlasRun(CHEAT, SECRET_SOURCE, "DEV", "fail", _doc())
+    runs = {cloud_id: cloud, CHEAT: cheatbench}
+    labels = {
+        cloud_id: js.Label("clean", "CLOUD_LABEL"),
+        CHEAT: js.Label("cheat", "CHEATBENCH_LABEL"),
+    }
+    fallback = FakeSource(runs, labels, findings={})
+    source = js.LocalRunSource(manifest, fallback)
+    assert source.load_runs([cloud_id, CHEAT]) == (runs, {})
+    assert source.label(cloud_id) == labels[cloud_id]
+    assert source.label(CHEAT) == labels[CHEAT]
+    assert source.detectors([cloud_id, CHEAT]) == fallback.detectors([cloud_id, CHEAT])

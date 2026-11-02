@@ -46,9 +46,12 @@ def build_card(
     numbers: Sequence[int],
     *,
     hints: bool = True,
+    submission: str | None = None,
 ) -> dict[str, Any]:
     """Structured card for the blinded steps. ``numbers[i]`` is the timeline number of step ``i``."""
-    loaded = LoadedRun(run_id=run_id, loader="judge", doc={"steps": list(blind_steps)})
+    loaded = LoadedRun(
+        run_id=run_id, loader="judge", doc={"steps": list(blind_steps)}, submission=submission
+    )
     anatomy = build_anatomy(loaded)
     records = call_records(loaded)
     pm = anatomy.patch_and_mutations

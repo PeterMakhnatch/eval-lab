@@ -232,6 +232,98 @@ class LabSource:
         return read_findings(self._findings_paths, set(run_ids))
 
 
+def _local_digest(path: Path) -> str:
+    """The line's file digest, or its canonical sorted name/file-digest directory digest."""
+    if path.is_file():
+        with path.open("rb") as handle:
+            return hashlib.file_digest(handle, "sha256").hexdigest()
+    if path.is_dir():
+        rows = [
+            (child.relative_to(path).as_posix(), _local_digest(child))
+            for child in sorted(path.rglob("*"))
+            if child.is_file()
+        ]
+        encoded = json.dumps(rows, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        return hashlib.sha256(encoded.encode()).hexdigest()
+    raise FileNotFoundError(path)
+
+
+class LocalRunSource:
+    """Native Harbor trials pinned by a line ``runs.jsonl``, with cloud/CheatBench fallback."""
+
+    def __init__(self, manifest: Path, fallback: RunSource) -> None:
+        self.fallback = fallback
+        self._rows: dict[str, Mapping[str, Any]] = {}
+        for number, line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except ValueError as error:
+                raise JudgeError(f"{manifest}:{number}: not JSON ({error})") from error
+            if not isinstance(row, dict):
+                raise JudgeError(f"{manifest}:{number}: a local run row must be an object")
+            run_id, rollout, digest = row.get("run_id"), row.get("rollout_path"), row.get("sha256")
+            if not isinstance(run_id, str) or not run_id.strip():
+                raise JudgeError(f"{manifest}:{number}: run_id must be nonempty text")
+            if not isinstance(rollout, str) or not rollout.strip():
+                raise JudgeError(f"{manifest}:{number}: rollout_path must be nonempty text")
+            if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+                raise JudgeError(f"{manifest}:{number}: sha256 must be 64 hexadecimal characters")
+            run_id = run_id.strip()
+            if run_id in self._rows:
+                raise JudgeError(f"{manifest}:{number}: duplicate local run_id {run_id}")
+            self._rows[run_id] = row
+
+    def _load_local(self, run_id: str) -> Any:
+        from evallab import hack_drop as hd
+        from evallab.production.run_atlas import AtlasRun
+
+        row = self._rows[run_id]
+        hd._check_row_dev(row)
+        path = hd.check_dev_path_allowed(str(row["rollout_path"]))
+        expected = str(row["sha256"]).lower()
+        actual = _local_digest(path)
+        if actual != expected:
+            raise JudgeError(f"local rollout sha256 mismatch: expected {expected}, got {actual}")
+        item = hd._load_single_path_rollout(path)
+        if item.run is None:
+            raise JudgeError("local rollout has no readable ATIF trajectory")
+        doc = dict(item.run.doc)
+        final_diff = item.diff_text
+        if final_diff is None and path.is_dir() and (path / "verifier" / "agent.diff").is_file():
+            diff_path = hd.check_dev_path_allowed(path / "verifier" / "agent.diff")
+            final_diff = diff_path.read_text(encoding="utf-8", errors="replace")
+        if final_diff:
+            doc["submission"] = final_diff
+        reward = row.get("reward")
+        return AtlasRun(
+            run_id,
+            "native-local",
+            "DEV",
+            "unknown" if reward is None else str(reward),
+            doc,
+        )
+
+    def load_runs(self, run_ids: Sequence[str]) -> tuple[dict[str, Any], dict[str, str]]:
+        remote = [run_id for run_id in run_ids if run_id not in self._rows]
+        runs, unavailable = self.fallback.load_runs(remote) if remote else ({}, {})
+        for run_id in (run_id for run_id in run_ids if run_id in self._rows):
+            try:
+                runs[run_id] = self._load_local(run_id)
+            except (OSError, ValueError) as error:
+                unavailable[run_id] = f"local rollout: {error}"
+        return runs, unavailable
+
+    def label(self, run_id: str) -> Label:
+        if run_id in self._rows:
+            return Label("none", "No dataset label is recorded for this local run.")
+        return self.fallback.label(run_id)
+
+    def detectors(self, run_ids: Sequence[str]) -> dict[str, list[dict[str, Any]]]:
+        return self.fallback.detectors(run_ids)
+
+
 def read_findings(paths: Iterable[Path], wanted: set[str]) -> dict[str, list[dict[str, Any]]]:
     """Latest stored verdict per (run, detector, version, reader) for the wanted runs."""
     latest: dict[tuple[str, str, str, str], dict[str, Any]] = {}
@@ -666,7 +758,13 @@ class Station:
                 raise JudgeError(self._refused[entry.run_id]) from error
             try:
                 card = build_card(
-                    run.run_id, blind.steps, [s["n"] for s in steps], hints=self.show_hints
+                    run.run_id,
+                    blind.steps,
+                    [s["n"] for s in steps],
+                    hints=self.show_hints,
+                    submission=(
+                        run.doc.get("submission") if run.source == "native-local" else None
+                    ),
                 )
             except (ValueError, KeyError, TypeError, AttributeError) as error:
                 card = {
@@ -730,13 +828,17 @@ class Station:
         for note in extra.get("notes") or []:
             notes.append({"title": str(note.get("title")), "text": str(note.get("text"))[:1500]})
         outcome = str(getattr(run, "outcome", "unknown"))
-        return {
+        revealed = {
             "label": {"state": label.state, "text": label.text},
             "grader": None if outcome == "unknown" else outcome,
             "queue_reason": entry.reason,
             "detectors": detectors,
             "notes": notes,
         }
+        for key in ("decision", "audit"):
+            if key in extra:
+                revealed[key] = extra[key]
+        return revealed
 
     # -- drafts ----------------------------------------------------------- #
 
@@ -1191,6 +1293,11 @@ def register_parser(commands: Any) -> None:
         default=None,
         help="Detector findings JSONL (repeatable)",
     )
+    serve.add_argument(
+        "--local-runs",
+        type=Path,
+        help="Line runs.jsonl mapping native run_id to rollout_path and sha256",
+    )
     serve.add_argument("--open", action="store_true", help="Open the page in the default browser")
     serve.set_defaults(func=_serve)
 
@@ -1256,6 +1363,9 @@ def _serve(args: argparse.Namespace, root: Path, **_: Any) -> int:
 
     try:
         queues = discover_queues(args.state_dir, args.queue)
+        source: RunSource = LabSource(root, args.findings)
+        if args.local_runs:
+            source = LocalRunSource(args.local_runs, source)
     except (JudgeError, OSError) as error:
         print(f"judge: {error}")
         return 2
@@ -1263,7 +1373,7 @@ def _serve(args: argparse.Namespace, root: Path, **_: Any) -> int:
         print("judge: no queue found. Run `evallab judge build-packet`, or pass --queue FILE.")
         return 2
     station = Station(
-        LabSource(root, args.findings),
+        source,
         queues,
         judge=args.judge,
         state_dir=args.state_dir,

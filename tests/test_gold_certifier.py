@@ -14,6 +14,7 @@ from evallab.gold_certifier import (
     GoldMatrixSummary,
     TaskCertificationResult,
     _certify_gold_command,
+    build_certify_gold_parser,
     build_synthesis_prompt,
     exit0_pth_script,
     extract_code_block,
@@ -302,17 +303,21 @@ def test_cli_plan_offline(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     patch = tmp_path / "ref.patch"
     patch.write_text("--- a/foo.py\n+++ b/foo.py\n@@ -0,0 +1 @@\n+x = 1\n")
 
-    args = argparse.Namespace(
-        package=pkg,
-        reference_patch=patch,
-        out=None,
-        task_id="format-code-task-000079",
-        cap_usd=0.95,
-        limit=8,
-        model="google-antigravity/gemini-3.8-flash",
-        plan=True,
-        json=False,
+    top = argparse.ArgumentParser()
+    build_certify_gold_parser(top.add_subparsers())
+    args = top.parse_args(
+        [
+            "certify-gold",
+            "--package",
+            str(pkg),
+            "--reference-patch",
+            str(patch),
+            "--task-id",
+            "format-code-task-000079",
+            "--plan",
+        ]
     )
+    assert args.rounds == 1  # default keeps the one-round behavior
 
     rc = _certify_gold_command(args, tmp_path)
     assert rc == 0

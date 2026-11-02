@@ -39,7 +39,9 @@ flowchart TD
         pkg & ref --> am
         pkg --> hd
         hd --> certified["Hardened Task Package\n(Tamper-resistant verifier & tests)"]
-        am & hd -. Plan preview .-> cg
+        pkg & ref --> cg
+        cg --> gold_receipts["Certification receipts\n(7 gates; certified / provisional / failed)"]
+        cg --> certified
     end
 
     subgraph Execution["Agent Execution Environment"]
@@ -171,7 +173,7 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    - Gate 6 (Eval Mutants Killed): Reports held-out eval mutants killed out-of-sample (3/8 base survivors, 13/18 all mutants killed across 8 tasks; reports counts only).
    - Gate 7 (Wrong Rejection): Every repeatable `--alt-solution PATCH` is independently applied and graded by the **hardened** package. Every patch's reward is saved; rejection is visible and blocks certification. Operator-supplied patches must be independent correct solutions (the command rejects byte-identical duplicates and the reference itself, but cannot establish semantic independence).
 
-   `certified` requires reference = 1, nop / every witness / `.pth` = 0, nonempty train and held-out pools with all mutants killed, and at least two alternative correct solutions all accepted. With fewer than two alternatives, passing measured gates are only `provisional`. With none supplied, both alternative counters are `null` (not measured), never an implicit pass. Supplied but unmeasured alternatives have a known total, `accepted: null`, and per-patch `null` rewards; measured zero acceptances is `accepted: 0`. A failed gate exits 1; invalid input, missing approval, spend refusal and infrastructure exceptions exit 2 via the CLI error handler. `--plan` and nonfailed completed measurements exit 0, so consumers must read the status rather than equate exit 0 with certified.
+   `certified` requires reference = 1, nop / every witness / `.pth` = 0, nonempty train and held-out pools with all mutants killed, complete base-grader measurements for those held-out mutants, and at least two alternative correct solutions all accepted. With fewer than two alternatives, passing measured gates are only `provisional`. With none supplied, both alternative counters are `null` (not measured), never an implicit pass. Supplied but unmeasured alternatives have a known total, `accepted: null`, and per-patch `null` rewards; measured zero acceptances is `accepted: 0`. Failed measured gates or returned non-spend infrastructure failures exit 1. Invalid input, missing approval, propagated infrastructure exceptions, and spend refusals exit 2 via the CLI error handler. A backend-returned `SpendCapReached` refusal aborts immediately, is saved as `cells/<cell>/refusal.json` rather than a cached verdict, and leaves remaining gate rewards unmeasured in the failing certification receipt. `--plan` and nonfailed completed measurements exit 0, so consumers must read the status rather than equate exit 0 with certified.
 
    **Remaining execution gap:** fake-executor tests exercise this CLI, including a replay of the committed eight-task cell outcomes. A real Modal run of this new operator path still needs Peter's approval. No Modal run or new verifier-quality result is implied by this implementation.
 

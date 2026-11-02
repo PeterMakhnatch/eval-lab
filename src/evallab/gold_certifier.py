@@ -8,6 +8,7 @@ import difflib
 import hashlib
 import json
 import math
+import os
 import re
 import shutil
 import subprocess
@@ -388,6 +389,8 @@ class TaskCertificationResult:
             self.gate3_witness_passed, self.gate4_exit0_pth_passed,
             self.train_mutants_total > 0 and self.train_mutants_killed == self.train_mutants_total,
             self.eval_mutants_total > 0 and self.eval_mutants_killed == self.eval_mutants_total,
+            None not in self.eval_base_rewards.values()
+            and (not self.eval_rewards or self.eval_base_rewards.keys() == self.eval_rewards.keys()),
         )
         if (not all(gates) or self.gate7_alternatives_passed is False
                 or (self.alternative_solutions_total is not None and self.alternative_solutions_accepted is None)):
@@ -792,12 +795,59 @@ def summarize_certification(
     )
 
 
+STRIP_PATCH_FILES = re.compile(r"\.b64$|\.json$|(?:^|/)mimo_test_command\.sh$")
+MAX_PROMPT_SECTION = 40_000
+
+
+def _prompt_section(text: str) -> str:
+    return text if len(text) <= MAX_PROMPT_SECTION else text[:MAX_PROMPT_SECTION] + "\n[... truncated]\n"
+
+
+def patch_sections(patch: str, keep: Callable[[str], bool]) -> str:
+    """Filter diff sections and bound prompt text, as in the research runner.
+
+    Ordinary unified diffs are supported too: arbitrary packages need not use
+    Git's ``diff --git`` envelope.
+    """
+    if re.search(r"^diff --git ", patch, re.M):
+        sections = re.split(r"(?=^diff --git )", patch, flags=re.M)
+        header = r"diff --git a/(\S+) b/"
+    else:
+        sections = re.split(r"(?=^--- [^\n]+\n\+\+\+ )", patch, flags=re.M)
+        header = r"--- [^\n]+\n\+\+\+ (?:b/)?([^\s]+)"
+    return _prompt_section("".join(
+        section for section in sections
+        if (match := re.match(header, section)) and keep(match.group(1))
+    ))
+
+
+def _run_certification_cell(
+    run_cell: CellRunner, cell_dir: Path, package: Path, script: str,
+) -> dict[str, Any]:
+    """Unwrap backend spend refusals before they become ordinary failed grades."""
+    from evallab.regrade import SpendCapReached
+
+    result = run_cell(cell_dir, package, script)
+    reason = str(result.get("reason") or "")
+    if (result.get("status") == "failed" and "SpendCapReached" in reason
+            or result.get("status") in ("cap_reached", "cap_stopped")):
+        _write_certification_json(cell_dir / "refusal.json", result)
+        # A refusal is evidence, but never a cached submission verdict.
+        (cell_dir / "result.json").unlink(missing_ok=True)
+        raise SpendCapReached(reason or "spend cap reached")
+    _write_certification_json(cell_dir / "result.json", result)
+    return result
+
+
 def synthesize_contract(prompt: str, out_dir: Path, *, model: str) -> str:
     """Use the existing OMP subscription route, without task-specific bridge paths."""
+    prompt_path = out_dir / "prompt.txt"
+    prompt_path.write_text(prompt)
     proc = subprocess.run(
         ["omp", "-p", "--model", model, "--thinking", "high", "--no-tools", "--no-skills",
-         "--session-dir", str(out_dir / "sessions"), prompt],
-        capture_output=True, text=True, timeout=600, check=False,
+         "--session-dir", str(out_dir / "sessions"), f"@{prompt_path}"],
+        stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=600, check=False,
+        env={**os.environ, "OMP_NO_COLOR": "1"},
     )
     (out_dir / "synthesis.stdout").write_text(proc.stdout)
     (out_dir / "synthesis.stderr").write_text(proc.stderr)
@@ -818,6 +868,7 @@ def certify_task(
 ) -> TaskCertificationResult:
     """Probe, synthesize from train only, harden, execute and persist gate evidence."""
     from evallab.registry import task_directory_digest
+    from evallab.regrade import SpendCapReached
 
     package, out_dir = package.resolve(), out_dir.resolve()
     if out_dir == package or package in out_dir.parents:
@@ -834,10 +885,23 @@ def certify_task(
     _write_certification_json(out_dir / "inputs.json", provenance)
     wd = tomllib.loads((package / "task.toml").read_text())["environment"]["workdir"]
     probe_dir = out_dir / "cells" / "probe"
-    probe = run_cell(probe_dir, package, probe_script(
-        workdir=wd, reference_patch=reference_patch, targets=sorted(python_targets(reference_patch)),
-    ))
-    _write_certification_json(probe_dir / "result.json", probe)
+    try:
+        probe = _run_certification_cell(run_cell, probe_dir, package, probe_script(
+            workdir=wd, reference_patch=reference_patch, targets=sorted(python_targets(reference_patch)),
+        ))
+    except SpendCapReached:
+        # No hardened package or mutant split exists yet; all gates are unmeasured.
+        result = summarize_certification(
+            task_id=task_id, upgraded=out_dir / "package", test_lines=0,
+            cells=[
+                CertificationCell(f"alternative-{i}", "alternative", out_dir / "package", "",
+                                  "REFERENCE_APPLIED", hashlib.sha256(p.encode()).hexdigest())
+                for i, p in enumerate(alternatives)
+            ], outcomes={},
+        )
+        _write_certification_json(out_dir / "certification.json", result.summary())
+        _write_certification_json(out_dir / "summary.json", GoldMatrixSummary([result]).to_report_dict())
+        raise
     sources = parse_probe(probe.get("agent_log", ""))
     if probe.get("status") != "executed" or probe.get("reward") != 1.0 or not sources:
         raise RuntimeError("reference source probe failed; no certification")
@@ -852,19 +916,23 @@ def certify_task(
     hook = hook_command or extract_hook_command_from_test_sh((package / "tests/test.sh").read_text())
     code = contract_test
     if code is None:
-        hidden = "\n\n".join(
-            f"{p.name}:\n{p.read_text(errors='replace')}"
-            for p in sorted((package / "tests").rglob("*"))
+        hidden = _prompt_section("\n\n".join(
+            f"{p.name}:\n" + (
+                patch_sections(p.read_text(errors="replace"), lambda path: not STRIP_PATCH_FILES.search(path))
+                if p.suffix == ".patch" else _prompt_section(p.read_text(errors="replace"))
+            )
+            for p in sorted((package / "tests").rglob("*"),
+                            key=lambda path: (path.name != "test.patch", str(path)))
             if p.is_file() and p.suffix in (".py", ".patch", ".sh")
-        )
+        ))
         prompt = build_synthesis_prompt(
-            instruction=(package / "instruction.md").read_text(), hidden_tests=hidden,
-            reference_patch=reference_patch, train_mutants=train,
+            instruction=_prompt_section((package / "instruction.md").read_text()), hidden_tests=hidden,
+            reference_patch=patch_sections(reference_patch, lambda path: path.endswith(".py")),
+            train_mutants=train,
             train_diffs=[mutant_diff(m, sources[m.path]) for m in train],
             interpreter_command=hook, python_version=python_version,
         )
         assert_prompt_blind(prompt, [mutant_diff(m, sources[m.path]) for m in evals])
-        (out_dir / "prompt.txt").write_text(prompt)
         code = synthesize(prompt, out_dir)
     valid, reason = validate_contract_test(code)
     if not valid:
@@ -887,8 +955,7 @@ def certify_task(
             cell_dir = out_dir / "cells" / cell.name
             cell_dir.mkdir(parents=True, exist_ok=True)
             (cell_dir / "agent-script.sh").write_text(cell.script)
-            outcomes[cell.name] = run_cell(cell_dir, cell.package, cell.script)
-            _write_certification_json(cell_dir / "result.json", outcomes[cell.name])
+            outcomes[cell.name] = _run_certification_cell(run_cell, cell_dir, cell.package, cell.script)
     finally:
         result = summarize_certification(
             task_id=task_id, upgraded=upgraded, test_lines=len(code.splitlines()),
@@ -1011,12 +1078,14 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
         raise ValueError("Modal execution requires an explicit --max-usd")
     from evallab.regrade import CloudSpendGate
 
+    out_dir = args.out.resolve()
     gate = CloudSpendGate(
         approval=args.approval, cap_usd=args.max_usd,
         usd_per_execution=args.per_execution_usd,
-        spend_ledger=args.ledger or args.out.resolve().with_suffix(".spend.json"),
+        spend_ledger=args.ledger or out_dir.with_name(f"{out_dir.name}.spend.json"),
         modal_app_name=args.app_name, billing_tag=args.app_name,
     )
+    gate._check_ledger_location(package, out_dir)
     meter = SandboxMeter(args.max_usd)
     result = certify_task(
         task_id=task_id, package=package, reference_patch=patch, out_dir=args.out,

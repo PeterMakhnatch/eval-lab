@@ -7,6 +7,8 @@ import csv
 import json
 import re
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -73,19 +75,23 @@ def test_gate7_preserves_each_outcome(tmp_path, alt_rewards, expected, status):
         assert gold.GoldMatrixSummary([result]).to_report_dict()["gate7_alternative_solutions"]["accepted"] is None
 
 
-@pytest.mark.parametrize("arm", ["reference", "nop", "witness", "exit0_pth", "train", "eval"])
+@pytest.mark.parametrize("arm", ["reference", "nop", "witness", "exit0_pth", "train", "eval", "evalbase"])
 def test_each_gate_failure_blocks_certification(tmp_path, arm):
     cells, outcomes, upgraded = matrix(tmp_path, ["correct-a", "correct-b"])
     cell = next(c for c in cells if c.arm == arm)
-    outcomes[cell.name]["reward"] = 0.0 if arm == "reference" else 1.0
+    if arm == "evalbase":
+        outcomes[cell.name].update(status="failed", reward=None)
+    else:
+        outcomes[cell.name]["reward"] = 0.0 if arm == "reference" else 1.0
     result = summarize(cells, outcomes, upgraded)
     assert result.status == "failed"
 
 
 @pytest.mark.parametrize("bad", ["missing", "unapplied", "infra", "nan", "fraction", "boolean"])
-def test_bad_cell_never_counts_as_mutant_kill(tmp_path, bad):
-    cells, outcomes, upgraded = matrix(tmp_path)
-    cell = next(c for c in cells if c.arm == "eval")
+@pytest.mark.parametrize("arm", ["eval", "evalbase"])
+def test_bad_cell_never_counts_as_mutant_kill(tmp_path, bad, arm):
+    cells, outcomes, upgraded = matrix(tmp_path, ["correct-a", "correct-b"])
+    cell = next(c for c in cells if c.arm == arm)
     if bad == "missing":
         del outcomes[cell.name]
     elif bad == "unapplied":
@@ -95,8 +101,13 @@ def test_bad_cell_never_counts_as_mutant_kill(tmp_path, bad):
     else:
         outcomes[cell.name]["reward"] = {"nan": float("nan"), "fraction": 0.5, "boolean": False}[bad]
     result = summarize(cells, outcomes, upgraded)
-    assert result.eval_rewards[cell.key] is None
-    assert result.eval_mutants_killed == result.eval_mutants_total - 1
+    if arm == "eval":
+        assert result.eval_rewards[cell.key] is None
+        assert result.eval_mutants_killed == result.eval_mutants_total - 1
+    else:
+        assert result.eval_base_rewards[cell.key] is None
+        assert result.eval_mutants_base_accepted == result.eval_mutants_total - 1
+        assert result.eval_mutants_base_accepted_killed == result.eval_mutants_total - 1
     assert result.status == "failed"
 
 
@@ -344,3 +355,180 @@ def test_real_cli_missing_approval_has_same_exit_as_audit_mutants(tmp_path, caps
     assert "--approval" in capsys.readouterr().err
     assert run_cli(["audit-mutants", *common]) == 2
     assert "--approval" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("change", ["missing", "extra"])
+def test_evalbase_keys_must_match_heldout_mutants(tmp_path, change):
+    cells, outcomes, upgraded = matrix(tmp_path, ["correct-a", "correct-b"])
+    result = summarize(cells, outcomes, upgraded)
+    assert result.status == "certified"
+    if change == "missing":
+        del result.eval_base_rewards[next(iter(result.eval_base_rewards))]
+    else:
+        result.eval_base_rewards["unexpected"] = 0.0
+    assert result.status == "failed"
+
+
+def test_evalbase_measured_rejection_is_valid_not_infrastructure(tmp_path):
+    cells, outcomes, upgraded = matrix(tmp_path, ["correct-a", "correct-b"])
+    for cell in cells:
+        if cell.arm == "evalbase":
+            outcomes[cell.name]["reward"] = 0.0
+    result = summarize(cells, outcomes, upgraded)
+    assert result.status == "certified"
+    assert result.eval_mutants_base_accepted == 0
+
+
+@pytest.mark.parametrize("cap,refused_arm", [("0.012", "probe"), ("0.072", "witness"), ("0.147", "evalbase")])
+def test_real_modal_runner_unwraps_backend_cap_refusal(tmp_path, monkeypatch, capsys, cap, refused_arm):
+    from evallab.cli import run_cli
+
+    args = cli_args(tmp_path, "--approval", "approved synthetic cap test", "--max-usd", cap)
+    # Keep projected resource cost below the gate cap, so the native-style
+    # reservation refusal (not the independent sandbox meter) is exercised.
+    (args.package / "task.toml").write_text(
+        '[environment]\nworkdir = "/testbed"\ncpus = 0.1\nmemory_mb = 16\n'
+    )
+    contract = tmp_path / "contract.py"
+    contract.write_text(CODE)
+    alts = [tmp_path / f"correct-{i}.patch" for i in range(2)]
+    for i, path in enumerate(alts):
+        path.write_text(f"correct-{i}")
+    calls = []
+
+    class Backend:
+        def __init__(self, *, repo_root, spend_gate):
+            self.gate = spend_gate
+
+        def run_container_trial(self, package, *, script, trial_dir, **kwargs):
+            cell_dir = trial_dir.parent
+            calls.append(cell_dir.name)
+            try:
+                # Match the native adapter's three committed reservations per start.
+                for _ in range(3):
+                    self.gate.charge()
+            except SpendCapReached as exc:
+                return SimpleNamespace(status="failed", reason=f"SpendCapReached: {exc}", facts={})
+            result = fake_cell(cell_dir, package, script)
+            (trial_dir / "agent").mkdir(parents=True)
+            (trial_dir / "verifier").mkdir()
+            (trial_dir / "agent/oracle.txt").write_text(result["agent_log"])
+            (trial_dir / "verifier/test_output.log").write_text("synthetic")
+            return SimpleNamespace(status=result["status"], reason=None, facts={"reward": result["reward"]})
+
+    # Leave gold.modal_cell_runner and modal_cells.modal_cell_runner untouched.
+    # Only its documented backend dependency is replaced, without importing Harbor.
+    monkeypatch.setitem(sys.modules, "evallab.qa.task_modal", SimpleNamespace(ModalBackend=Backend))
+    real_certify = gold.certify_task
+    monkeypatch.setattr(gold, "certify_task", lambda **kw: real_certify(**kw, stage=fake_stage))
+    command = ["certify-gold", "--package", str(args.package), "--reference-patch", str(args.reference_patch),
+               "--out", str(args.out), "--approval", args.approval, "--max-usd", cap,
+               "--contract-test", str(contract), "--limit", "4",
+               "--alt-solution", str(alts[0]), "--alt-solution", str(alts[1])]
+    assert run_cli(command) == 2
+    assert "SpendCapReached" in capsys.readouterr().err
+    assert calls[-1].startswith(refused_arm)
+    assert len(set(calls)) == len(calls)
+    refusal = args.out / "cells" / calls[-1]
+    assert not (refusal / "result.json").exists()
+    assert json.loads((refusal / "refusal.json").read_text())["status"] == "failed"
+    receipt = json.loads((args.out / "certification.json").read_text())
+    assert receipt["status"] == "failed"
+    assert receipt["alternative_solutions_total"] == 2
+    assert receipt["alternative_solutions_accepted"] is None
+    assert set(receipt["alternative_solution_rewards"].values()) == {None}
+    assert json.loads((args.out / "summary.json").read_text())["tasks"][0] == receipt
+    # Partial pre-start reservations remain honest; no later cell consumes the remainder.
+    ledger = json.loads((tmp_path / "out.spend.json").read_text())
+    assert ledger["reserved_usd"] <= float(cap)
+    assert ledger["reserved_usd"] == pytest.approx(len(calls) * 0.015 - 0.005)
+
+
+def test_synthesis_closes_stdin_and_passes_large_prompt_by_file(tmp_path, monkeypatch):
+    prompt = "large synthetic prompt\n" * 40_000
+
+    def run(argv, **kwargs):
+        assert kwargs["stdin"] == subprocess.DEVNULL
+        assert kwargs["env"]["OMP_NO_COLOR"] == "1"
+        assert max(map(len, argv)) < 4096
+        assert argv[-1] == f"@{tmp_path / 'prompt.txt'}"
+        assert Path(argv[-1][1:]).read_text() == prompt
+        return SimpleNamespace(returncode=0, stdout=f"```python\n{CODE}```", stderr="")
+
+    monkeypatch.setattr(gold.subprocess, "run", run)
+    assert gold.synthesize_contract(prompt, tmp_path, model="synthetic") == CODE
+    assert (tmp_path / "synthesis.stdout").read_text().startswith("```python")
+
+
+def test_patch_sections_strips_fixtures_and_caps_code():
+    patch = "".join(
+        f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n@@ -0,0 +1 @@\n+{body}\n"
+        for name, body in [("fixture.json", "JSON_FIXTURE"), ("archive.b64", "BASE64_FIXTURE"),
+                           ("mimo_test_command.sh", "SHELL_FIXTURE"), ("test.py", "CODE_SENTINEL")]
+    )
+    cleaned = gold.patch_sections(patch, lambda path: not gold.STRIP_PATCH_FILES.search(path))
+    assert "CODE_SENTINEL" in cleaned
+    assert "JSON_FIXTURE" not in cleaned
+    assert "BASE64_FIXTURE" not in cleaned
+    assert "SHELL_FIXTURE" not in cleaned
+    assert gold.patch_sections(PATCH, lambda path: path.endswith(".py")) == PATCH
+    huge = patch + "x" * 600_000
+    bounded = gold.patch_sections(huge, lambda path: path.endswith(".py"))
+    assert len(bounded) <= gold.MAX_PROMPT_SECTION + 20
+    assert bounded.endswith("[... truncated]\n")
+
+
+def test_synthesis_prompt_filters_large_reference_and_hidden_fixtures(tmp_path):
+    base = package_at(tmp_path / "base")
+    fixture = "diff --git a/fixture.json b/fixture.json\n--- a/fixture.json\n+++ b/fixture.json\n@@ -0,0 +1 @@\n+"
+    hidden = "diff --git a/test_widget.py b/test_widget.py\n--- a/test_widget.py\n+++ b/test_widget.py\n@@ -0,0 +1 @@\n+HIDDEN_CODE_SENTINEL\n"
+    (base / "tests/test.patch").write_text(fixture + "HIDDEN_JSON_SENTINEL" * 30_000 + "\n" + hidden)
+    (base / "tests/extra.py").write_text("# bounded\n" * 30_000)
+    large_patch = "diff --git a/widget.py b/widget.py\n" + PATCH + fixture + "REFERENCE_JSON_SENTINEL" * 30_000
+    prompts = []
+
+    def synthesize(prompt, _out):
+        prompts.append(prompt)
+        assert "JSON_SENTINEL" not in prompt
+        assert len(prompt) < 100_000
+        assert "HIDDEN_CODE_SENTINEL" in prompt
+        assert "def positive(x)" in prompt
+        return CODE
+
+    gold.certify_task(task_id="synthetic", package=base, reference_patch=large_patch,
+                      out_dir=tmp_path / "out", run_cell=fake_cell, synthesize=synthesize, stage=fake_stage, limit=4)
+    assert len(prompts) == 1
+
+
+def test_dotted_output_directories_keep_distinct_default_ledgers(tmp_path, monkeypatch):
+    args = cli_args(tmp_path, "--approval", "approved synthetic ledger test", "--max-usd", "1")
+    ledgers = []
+
+    def runner(**kwargs):
+        ledgers.append(kwargs["spend_gate"].spend_ledger)
+        return fake_cell
+
+    real_certify = gold.certify_task
+    monkeypatch.setattr(gold, "modal_cell_runner", runner)
+    monkeypatch.setattr(gold, "certify_task", lambda **kw: real_certify(**kw, stage=fake_stage))
+    monkeypatch.setattr(gold, "synthesize_contract", lambda *_args, **_kwargs: CODE)
+    for name in ("gold-v1.1", "gold-v1.2"):
+        args.out = tmp_path / name
+        assert gold._certify_gold_command(args, tmp_path) == 0
+    assert ledgers == [tmp_path / "gold-v1.1.spend.json", tmp_path / "gold-v1.2.spend.json"]
+
+
+def test_ledger_inside_output_refused_before_executor_creation(tmp_path, monkeypatch):
+    args = cli_args(tmp_path, "--approval", "approved synthetic ledger test", "--max-usd", "1")
+    args.ledger = args.out / "spend.json"
+    monkeypatch.setattr(gold, "modal_cell_runner", lambda **_: pytest.fail("executor created"))
+    with pytest.raises(ValueError, match="outside"):
+        gold._certify_gold_command(args, tmp_path)
+    assert not args.out.exists()
+
+
+def test_trust_engine_diagram_describes_execution_not_plan_preview():
+    doc = (Path(__file__).resolve().parents[1] / "docs/trust-engine.md").read_text()
+    diagram = doc.split("```mermaid", 1)[1].split("```", 1)[0]
+    assert "Plan preview" not in diagram
+    assert "Certification receipts" in diagram

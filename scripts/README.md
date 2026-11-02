@@ -12,7 +12,7 @@ and promotion helpers.
 - `scripts/setup-git.sh`: Local git hooks and repository configuration helper.
 - `scripts/promote_codex_bundle.py`: Sanitization and promotion utility for reviewed run evidence.
 - `scripts/profile/harness.py`: Performance profiling harness and latency budget check.
-- `scripts/review_pr.py`: Advisory independent PR review, fix verification, and served-model attestation ([usage](../docs/independent-review.md)).
+- `scripts/review_pr.py`: Advisory independent PR review (shallow or parallel deep lanes), fix verification, and served-model attestation ([usage](../docs/independent-review.md)).
 - `scripts/ops/`: System service units and continuous-operator daemon configurations.
 
 ## Invariants or rules

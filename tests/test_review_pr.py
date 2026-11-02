@@ -1,11 +1,15 @@
-"""PR review orchestration is synthetic, head-pinned, and fails closed."""
+"""PR review orchestration is synthetic, head-pinned, and fails closed (shallow and deep)."""
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import shutil
+import signal
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -17,11 +21,15 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts import review_pr  # noqa: E402
+from scripts.independent_review_contract import FOCUSES, parse_review  # noqa: E402
 
 HEAD = "a" * 40
 BASE = "b" * 40
 OTHER_HEAD = "c" * 40
 PR_NUMBER = 42
+LANES = ("gates", "behaviour", "adversarial", "tests_docs")
+SMALL = "10\t5\texample.py\n"
+BIG = "400\t0\tbig.py\n"
 PASS_REVIEW = """# Independent review
 
 ## Blocking
@@ -38,6 +46,21 @@ VERDICT: PASS
 BLOCK_REVIEW = PASS_REVIEW.replace(
     "## Blocking\nNone", "## Blocking\n- `example.py:3`: Synthetic correctness defect."
 ).replace("VERDICT: PASS", "VERDICT: BLOCK")
+SHOULD_FIX_REVIEW = PASS_REVIEW.replace("## Should-fix\nNone", "## Should-fix\n- Synthetic style concern.")
+SHALLOW_TOOLS = {"read", "grep", "glob", "write"}
+DEEP_TOOLS = {"read", "bash", "grep", "glob", "write", "edit"}
+
+
+@dataclass
+class LaneBehavior:
+    """What the fake reviewer does for one lane ("review" is the shallow reviewer)."""
+
+    review: str | None = PASS_REVIEW
+    session_mode: str = "valid"
+    returncode: int = 0
+    error: Exception | None = None
+    dirty: str = ""
+    cleanup_error: Exception | None = None
 
 
 @dataclass
@@ -46,16 +69,18 @@ class ReviewHarness:
     out: Path
     worktree_root: Path
     commands: list[tuple[list[str], Path]] = field(default_factory=list)
-    processes: list[tuple[list[str], dict[str, Any]]] = field(default_factory=list)
+    launches: list[dict[str, Any]] = field(default_factory=list)
     events: list[str] = field(default_factory=list)
-    review: str | None = PASS_REVIEW
+    added: list[Path] = field(default_factory=list)
+    removed: list[Path] = field(default_factory=list)
+    statuses: list[Path] = field(default_factory=list)
+    behaviors: dict[str, LaneBehavior] = field(
+        default_factory=lambda: {name: LaneBehavior() for name in ("review", *LANES)}
+    )
+    numstat: str = SMALL
     fetched_head: str = HEAD
     current_head: str = HEAD
-    dirty: str = ""
-    returncode: int = 0
-    process_error: Exception | None = None
-    cleanup_error: Exception | None = None
-    session_mode: str = "valid"
+    add_fails_for: str | None = None
     metadata: dict[str, Any] = field(
         default_factory=lambda: {
             "number": PR_NUMBER,
@@ -65,16 +90,25 @@ class ReviewHarness:
         }
     )
 
-    @property
-    def checkout(self) -> Path:
-        return self.worktree_root / "checkout"
+    def lane(self, name: str) -> LaneBehavior:
+        return self.behaviors[name]
+
+    def all_lanes(self, **attributes: Any) -> None:
+        for name in LANES:
+            for key, value in attributes.items():
+                setattr(self.behaviors[name], key, value)
+
+    @staticmethod
+    def lane_of(worktree: Path) -> str:
+        return "review" if worktree.name == "checkout" else worktree.name
+
+    def lane_directory(self, name: str) -> Path:
+        return self.out if name == "review" else self.out / "reviewers" / name
 
     def command(self, argv: list[str], cwd: Path) -> str:
-        self.commands.append((list(argv), Path(cwd)))
-        if argv == [
-            "gh", "pr", "view", str(PR_NUMBER), "--json",
-            "number,headRefOid,baseRefOid,url",
-        ]:
+        cwd = Path(cwd)
+        self.commands.append((list(argv), cwd))
+        if argv == ["gh", "pr", "view", str(PR_NUMBER), "--json", "number,headRefOid,baseRefOid,url"]:
             assert cwd == self.repo
             return json.dumps(self.metadata)
         if argv == ["git", "fetch", "origin", f"refs/pull/{PR_NUMBER}/head"]:
@@ -86,31 +120,44 @@ class ReviewHarness:
         if argv == ["git", "fetch", "origin", BASE]:
             assert cwd == self.repo
             return ""
-        if argv == ["git", "worktree", "add", "--detach", str(self.checkout), HEAD]:
+        if argv == ["git", "diff", "--numstat", f"{BASE}...{HEAD}"]:
             assert cwd == self.repo
+            return self.numstat
+        if argv[:4] == ["git", "worktree", "add", "--detach"]:
+            assert cwd == self.repo and argv[5] == HEAD and len(argv) == 6
+            path = Path(argv[4])
+            assert path.parent == self.worktree_root
+            if self.lane_of(path) == self.add_fails_for:
+                raise subprocess.CalledProcessError(128, argv)
             self.events.append("worktree_add")
-            self.checkout.mkdir()
+            path.mkdir()
             for rule in review_pr.RULE_PATHS:
-                path = self.checkout / rule
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(f"Synthetic repository rule: {rule}\n", encoding="utf-8")
+                rule_path = path / rule
+                rule_path.parent.mkdir(parents=True, exist_ok=True)
+                rule_path.write_text(f"Synthetic repository rule: {rule}\n", encoding="utf-8")
+            self.added.append(path)
             return ""
         if argv == ["git", "diff", f"{BASE}...{HEAD}"]:
-            assert cwd == self.checkout
+            assert cwd == self.added[0]
             return "diff --git a/example.py b/example.py\n+synthetic_change = True\n"
         if argv == ["git", "status", "--porcelain", "--untracked-files=all"]:
-            assert cwd == self.checkout
-            return self.dirty
+            assert cwd in self.added
+            self.statuses.append(cwd)
+            return self.behaviors[self.lane_of(cwd)].dirty
         if argv == ["gh", "pr", "view", str(PR_NUMBER), "--json", "headRefOid"]:
             assert cwd == self.repo
             self.events.append("head_recheck")
             return json.dumps({"headRefOid": self.current_head})
-        if argv == ["git", "worktree", "remove", str(self.checkout)]:
+        if argv[:3] == ["git", "worktree", "remove"] and len(argv) == 4:
             assert cwd == self.repo
+            path = Path(argv[3])
+            assert path in self.added
             self.events.append("worktree_remove")
-            if self.cleanup_error is not None:
-                raise self.cleanup_error
-            shutil.rmtree(self.checkout)
+            error = self.behaviors[self.lane_of(path)].cleanup_error
+            if error is not None:
+                raise error
+            shutil.rmtree(path)
+            self.removed.append(path)
             return ""
         if argv == ["gh", "pr", "comment", str(PR_NUMBER), "--body-file", str(self.out / "comment.md")]:
             assert cwd == self.repo
@@ -119,38 +166,54 @@ class ReviewHarness:
             return "https://example.invalid/comment/1"
         raise AssertionError(f"Unexpected command: {argv!r}")
 
-    def process(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
-        assert argv[0] == "omp", "Only the fake reviewer may use subprocess.run"
-        self.processes.append((list(argv), kwargs))
-        self.events.append("reviewer")
-        if self.process_error is not None:
-            raise self.process_error
+    def reviewer(
+        self, argv: list[str], *, cwd: Path, env: dict[str, str], log_path: Path, timeout: int
+    ) -> int:
+        name = self.lane_of(Path(cwd))
         sessions = Path(argv[argv.index("--session-dir") + 1])
-        assert sessions == self.out / "sessions"
+        assert argv[0] == "omp"
+        assert sessions == self.lane_directory(name) / "sessions"
         assert sessions.is_dir()
-        if self.review is not None:
-            (sessions.parent / "REVIEW.md").write_text(self.review, encoding="utf-8")
-        if self.session_mode != "missing":
+        assert Path(cwd) in self.added
+        self.events.append("reviewer")
+        self.launches.append(
+            {"lane": name, "argv": list(argv), "cwd": Path(cwd), "env": dict(env),
+             "log_path": Path(log_path), "timeout": timeout}
+        )
+        behavior = self.behaviors[name]
+        Path(log_path).write_text(f"synthetic reviewer log for {name}\n", encoding="utf-8")
+        if behavior.review is not None:
+            (sessions.parent / "REVIEW.md").write_text(behavior.review, encoding="utf-8")
+        if behavior.session_mode != "missing":
             route = argv[argv.index("--model") + 1].removesuffix(":thinking")
             provider, model = route.split("/", 1)
             message: dict[str, Any] = {
                 "role": "assistant", "provider": provider, "model": model, "stopReason": "stop",
             }
             record: dict[str, Any] = {"type": "message", "message": message}
-            if self.session_mode == "fallback":
+            if behavior.session_mode == "fallback":
                 record["resolvedModelIsFallback"] = True
-            elif self.session_mode == "mismatch":
+            elif behavior.session_mode == "mismatch":
                 message["model"] = "unexpected-model"
-            elif self.session_mode == "aborted":
+            elif behavior.session_mode == "aborted":
                 message["stopReason"] = "aborted"
             session = sessions / "nested" / "review.jsonl"
-            session.parent.mkdir()
-            text = "{malformed session" if self.session_mode == "malformed" else json.dumps(record)
+            session.parent.mkdir(parents=True, exist_ok=True)
+            text = "{malformed session" if behavior.session_mode == "malformed" else json.dumps(record)
             session.write_text(text + "\n", encoding="utf-8")
-        return subprocess.CompletedProcess(argv, self.returncode)
+        if behavior.error is not None:
+            raise behavior.error
+        return behavior.returncode
 
     def run(self, **kwargs: Any) -> dict[str, Any]:
         return review_pr.run_review(PR_NUMBER, repo=self.repo, out=self.out, **kwargs)
+
+    def launch(self, lane: str) -> dict[str, Any]:
+        (found,) = [item for item in self.launches if item["lane"] == lane]
+        return found
+
+    def consolidated(self) -> str:
+        return (self.out / "REVIEW.md").read_text(encoding="utf-8")
 
     def assert_receipt(self, receipt: dict[str, Any]) -> None:
         persisted = json.loads((self.out / "receipt.json").read_text(encoding="utf-8"))
@@ -159,6 +222,16 @@ class ReviewHarness:
     def assert_no_comment(self) -> None:
         assert "comment" not in self.events
         assert not (self.out / "comment.md").exists()
+
+    def assert_withheld(self, receipt: dict[str, Any], text: str, finding: str) -> None:
+        """An invalid receipt whose report said PASS must read as refused, keeping the findings."""
+        reasons = " ".join("; ".join(receipt["errors"]).split())
+        first, _, rest = text.partition("\n")
+        assert first == f"> **REFUSED: no valid verdict was issued: {reasons}**"
+        assert not pass_lines(text)
+        assert text.rstrip().splitlines()[-1] == "VERDICT: BLOCK"
+        assert finding in text
+        assert rest.startswith("\n")
 
     def assert_rejected(self, receipt: dict[str, Any], *, removed: bool = True) -> None:
         assert receipt["valid"] is False
@@ -169,7 +242,12 @@ class ReviewHarness:
         self.assert_receipt(receipt)
         if removed:
             assert receipt["worktree_removed"] is True
+            assert sorted(self.removed) == sorted(self.added)
             assert not self.worktree_root.exists()
+
+
+def pass_lines(text: str) -> bool:
+    return any(line.strip() == "VERDICT: PASS" for line in text.splitlines())
 
 
 @pytest.fixture
@@ -184,10 +262,18 @@ def harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ReviewHarness:
         fake.worktree_root.mkdir()
         return str(fake.worktree_root)
 
+    def forbidden_subprocess(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("Orchestration must not spawn processes outside the fakes")
+
     monkeypatch.setattr(review_pr, "_command", fake.command)
-    monkeypatch.setattr(review_pr.subprocess, "run", fake.process)
+    monkeypatch.setattr(review_pr, "_run_reviewer", fake.reviewer)
+    monkeypatch.setattr(review_pr.subprocess, "run", forbidden_subprocess)
+    monkeypatch.setattr(review_pr.subprocess, "Popen", forbidden_subprocess)
     monkeypatch.setattr(review_pr.tempfile, "mkdtemp", mkdtemp)
     return fake
+
+
+# --------------------------------------------------------------------------- shallow
 
 
 def test_success_pins_head_preserves_evidence_and_removes_owned_checkout(harness: ReviewHarness) -> None:
@@ -195,6 +281,8 @@ def test_success_pins_head_preserves_evidence_and_removes_owned_checkout(harness
 
     assert receipt["valid"] is True
     assert receipt["verdict"] == "PASS"
+    assert receipt["mode"] == "shallow"
+    assert receipt["changed_lines"] == 15
     assert receipt["errors"] == []
     assert receipt["head_sha"] == HEAD
     assert receipt["base_sha"] == BASE
@@ -211,6 +299,7 @@ def test_success_pins_head_preserves_evidence_and_removes_owned_checkout(harness
     assert "Prior review evidence" in brief
     for rule in review_pr.RULE_PATHS:
         assert f"Synthetic repository rule: {rule}" in brief
+    assert (harness.out / "omp.log").is_file()
     assert harness.events == ["worktree_add", "reviewer", "head_recheck", "worktree_remove"]
     assert receipt["comment_posted"] is False
     harness.assert_no_comment()
@@ -218,7 +307,7 @@ def test_success_pins_head_preserves_evidence_and_removes_owned_checkout(harness
 
 
 @pytest.mark.parametrize("model", [review_pr.DEFAULT_MODEL, "google-antigravity/gemini-4-argon:thinking"])
-def test_reviewer_uses_exact_route_high_thinking_session_and_noninteractive_stdin(
+def test_shallow_reviewer_uses_exact_route_high_thinking_session_and_read_only_tools(
     harness: ReviewHarness, monkeypatch: pytest.MonkeyPatch, model: str,
 ) -> None:
     monkeypatch.setenv("SYNTHETIC_API_KEY", "not-a-real-key")
@@ -227,35 +316,37 @@ def test_reviewer_uses_exact_route_high_thinking_session_and_noninteractive_stdi
 
     assert receipt["valid"] is True
     assert receipt["requested_model"] == model
-    assert len(harness.processes) == 1
-    argv, kwargs = harness.processes[0]
-    assert argv == [
+    assert receipt["reviewer_timeout"] == 73
+    (launch,) = harness.launches
+    assert launch["argv"] == [
         "omp", "-p", "--model", model, "--thinking", "high",
         "--session-dir", str(harness.out / "sessions"),
         "--config", str(harness.out / "review-config.yml"),
         "--no-title", "--no-extensions", "--no-skills", "--no-rules", "--no-context-files",
         "--tools", "read,grep,glob,write", f"@{harness.out / 'brief.md'}",
     ]
-    assert receipt["command"] == argv
-    assert kwargs["cwd"] == harness.checkout
-    assert kwargs["stdin"] == subprocess.DEVNULL
-    assert kwargs["stderr"] == subprocess.STDOUT
-    assert kwargs["check"] is False
-    assert kwargs["timeout"] == 73
-    assert kwargs["stdout"].name == str(harness.out / "omp.log")
-    assert kwargs["stdout"].closed
-    assert not any(key.endswith("API_KEY") for key in kwargs["env"])
-    assert kwargs["env"]["SYNTHETIC_SESSION_LOGIN"] == "synthetic-login"
+    assert receipt["command"] == launch["argv"]
+    assert launch["cwd"] == harness.worktree_root / "checkout"
+    assert launch["log_path"] == harness.out / "omp.log"
+    assert launch["timeout"] == 73
+    assert not any(key.endswith("API_KEY") for key in launch["env"])
+    assert launch["env"]["SYNTHETIC_SESSION_LOGIN"] == "synthetic-login"
     assert (harness.out / "review-config.yml").read_text(encoding="utf-8") == (
         "retry:\n  modelFallback: false\n"
     )
+
+
+def test_default_timeouts_are_per_mode(harness: ReviewHarness) -> None:
+    shallow = harness.run()
+    assert shallow["reviewer_timeout"] == 1800
+    assert harness.launches[0]["timeout"] == 1800
 
 
 @pytest.mark.parametrize("review,verdict", [(PASS_REVIEW, "PASS"), (BLOCK_REVIEW, "BLOCK")])
 def test_comment_requires_opt_in_valid_evidence_and_successful_cleanup(
     harness: ReviewHarness, review: str, verdict: str,
 ) -> None:
-    harness.review = review
+    harness.lane("review").review = review
     receipt = harness.run(comment=True)
 
     assert receipt["valid"] is True
@@ -271,13 +362,25 @@ def test_comment_requires_opt_in_valid_evidence_and_successful_cleanup(
     harness.assert_receipt(receipt)
 
 
+def test_block_verdict_is_advisory_and_local_by_default(harness: ReviewHarness) -> None:
+    harness.lane("review").review = BLOCK_REVIEW
+    receipt = harness.run()
+
+    assert receipt["valid"] is True
+    assert receipt["verdict"] == "BLOCK"
+    assert receipt["comment_posted"] is False
+    assert receipt["worktree_removed"] is True
+    harness.assert_no_comment()
+    harness.assert_receipt(receipt)
+
+
 def test_fetch_race_rejects_before_checkout_or_reviewer(harness: ReviewHarness) -> None:
     harness.fetched_head = OTHER_HEAD
     receipt = harness.run(comment=True)
 
     harness.assert_rejected(receipt, removed=False)
     assert "fetch" in " ".join(receipt["errors"]).lower()
-    assert not harness.processes
+    assert not harness.launches
     assert not harness.worktree_root.exists()
     assert not (harness.out / "REVIEW.md").exists()
     assert "worktree_add" not in harness.events
@@ -290,18 +393,40 @@ def test_head_change_during_review_rejects_stale_report(harness: ReviewHarness) 
     harness.assert_rejected(receipt)
     assert "head changed" in " ".join(receipt["errors"]).lower()
     assert (harness.out / "REVIEW.md").exists()
+    harness.assert_withheld(receipt, (harness.out / "REVIEW.md").read_text(encoding="utf-8"), "## Nit")
 
 
 @pytest.mark.parametrize("session_mode", ["fallback", "mismatch", "missing", "malformed", "aborted"])
 def test_unattested_review_never_becomes_verdict_or_comment(
     harness: ReviewHarness, session_mode: str,
 ) -> None:
-    harness.session_mode = session_mode
+    harness.lane("review").review = SHOULD_FIX_REVIEW
+    harness.lane("review").session_mode = session_mode
     receipt = harness.run(comment=True)
 
     harness.assert_rejected(receipt)
     assert receipt["attestation"]["valid"] is False
-    assert (harness.out / "REVIEW.md").read_text(encoding="utf-8") == PASS_REVIEW
+    withheld = harness.out / "REVIEW.md"
+    harness.assert_withheld(receipt, withheld.read_text(encoding="utf-8"), "Synthetic style concern.")
+
+
+@pytest.mark.parametrize("session_mode", ["mismatch", "missing"])
+def test_rejected_blocking_report_is_left_untouched(harness: ReviewHarness, session_mode: str) -> None:
+    harness.lane("review").review = BLOCK_REVIEW
+    harness.lane("review").session_mode = session_mode
+    receipt = harness.run(comment=True)
+
+    harness.assert_rejected(receipt)
+    assert (harness.out / "REVIEW.md").read_text(encoding="utf-8") == BLOCK_REVIEW
+
+
+def test_rejected_pass_without_trailing_verdict_line_is_not_rewritten(harness: ReviewHarness) -> None:
+    report = PASS_REVIEW + "Additional trailing text\n"
+    harness.lane("review").review = report
+    receipt = harness.run(comment=True)
+
+    harness.assert_rejected(receipt)
+    assert (harness.out / "REVIEW.md").read_text(encoding="utf-8") == report
 
 
 @pytest.mark.parametrize(
@@ -316,12 +441,13 @@ def test_unattested_review_never_becomes_verdict_or_comment(
         PASS_REVIEW.replace("## Blocking\nNone", "## Blocking\nAn unresolved blocker."),
         "```markdown\n" + PASS_REVIEW + "```\n",
     ],
-    ids=["missing", "empty", "no-sections", "trailing-text", "duplicate-verdict", "missing-section", "pass-with-blocker", "fenced"],
+    ids=["missing", "empty", "no-sections", "trailing-text", "duplicate-verdict", "missing-section",
+         "pass-with-blocker", "fenced"],
 )
 def test_invalid_report_never_becomes_verdict_or_comment(
     harness: ReviewHarness, review: str | None,
 ) -> None:
-    harness.review = review
+    harness.lane("review").review = review
     receipt = harness.run(comment=True)
 
     harness.assert_rejected(receipt)
@@ -330,7 +456,7 @@ def test_invalid_report_never_becomes_verdict_or_comment(
 
 @pytest.mark.parametrize("dirty", [" M example.py", "?? unexpected.txt"])
 def test_checkout_mutation_rejects_review(harness: ReviewHarness, dirty: str) -> None:
-    harness.dirty = dirty
+    harness.lane("review").dirty = dirty
     receipt = harness.run(comment=True)
 
     harness.assert_rejected(receipt)
@@ -341,18 +467,21 @@ def test_checkout_mutation_rejects_review(harness: ReviewHarness, dirty: str) ->
 def test_reviewer_failure_cleans_checkout_and_preserves_failed_receipt(
     harness: ReviewHarness, failure: str,
 ) -> None:
+    behavior = harness.lane("review")
     if failure == "timeout":
-        harness.process_error = subprocess.TimeoutExpired(["omp"], 19)
+        behavior.error = subprocess.TimeoutExpired(["omp"], 19)
     elif failure == "launch-error":
-        harness.process_error = FileNotFoundError("synthetic missing omp")
+        behavior.error = FileNotFoundError("synthetic missing omp")
     else:
-        harness.returncode = 9
+        behavior.returncode = 9
     receipt = harness.run(comment=True, timeout=19)
 
     harness.assert_rejected(receipt)
-    assert len(harness.processes) == 1
-    assert harness.processes[0][1]["stdout"].closed
+    assert len(harness.launches) == 1
+    assert harness.launches[0]["timeout"] == 19
     assert harness.events[-1] == "worktree_remove"
+    if failure == "timeout":
+        assert "timed out" in " ".join(receipt["errors"])
     if failure == "nonzero":
         assert receipt["omp_returncode"] == 9
         assert receipt["attestation"]["valid"] is True
@@ -364,19 +493,24 @@ def test_cleanup_failure_withholds_verdict_and_comment_and_preserves_checkout(
     harness: ReviewHarness, failure: str,
 ) -> None:
     if failure == "command-failure":
-        harness.cleanup_error = subprocess.CalledProcessError(1, ["git", "worktree", "remove"])
+        error: Exception = subprocess.CalledProcessError(1, ["git", "worktree", "remove"])
     else:
-        harness.cleanup_error = OSError("synthetic cleanup error")
+        error = OSError("synthetic cleanup error")
+    harness.lane("review").cleanup_error = error
     receipt = harness.run(comment=True)
 
     harness.assert_rejected(receipt, removed=False)
+    checkout = harness.worktree_root / "checkout"
     assert receipt["worktree_removed"] is False
-    assert harness.checkout.exists()
+    assert checkout.exists()
     assert "cleanup failed" in " ".join(receipt["errors"])
-    assert str(harness.checkout) in " ".join(receipt["errors"])
+    assert str(checkout) in " ".join(receipt["errors"])
+    harness.assert_withheld(receipt, (harness.out / "REVIEW.md").read_text(encoding="utf-8"), "## Nit")
 
 
-def test_command_helper_uses_devnull_without_executing_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_command_helper_uses_devnull_without_executing_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
     calls: list[tuple[list[str], dict[str, Any]]] = []
 
     def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
@@ -393,18 +527,6 @@ def test_command_helper_uses_devnull_without_executing_command(monkeypatch: pyte
     ]
 
 
-def test_block_verdict_is_advisory_and_local_by_default(harness: ReviewHarness) -> None:
-    harness.review = BLOCK_REVIEW
-    receipt = harness.run()
-
-    assert receipt["valid"] is True
-    assert receipt["verdict"] == "BLOCK"
-    assert receipt["comment_posted"] is False
-    assert receipt["worktree_removed"] is True
-    harness.assert_no_comment()
-    harness.assert_receipt(receipt)
-
-
 @pytest.mark.parametrize(
     "pr_number,options",
     [
@@ -412,6 +534,8 @@ def test_block_verdict_is_advisory_and_local_by_default(harness: ReviewHarness) 
         (-1, {}),
         (PR_NUMBER, {"timeout": 0}),
         (PR_NUMBER, {"timeout": -1}),
+        (PR_NUMBER, {"deep_threshold": -1}),
+        (PR_NUMBER, {"mode": "thorough"}),
         (PR_NUMBER, {"model": "gemini-4-argon"}),
         (PR_NUMBER, {"model": "provider/has whitespace"}),
     ],
@@ -423,7 +547,7 @@ def test_invalid_invocation_is_rejected_before_commands_or_evidence(
         review_pr.run_review(pr_number, repo=harness.repo, out=harness.out, **options)
 
     assert not harness.commands
-    assert not harness.processes
+    assert not harness.launches
     assert not harness.out.exists()
     assert not harness.worktree_root.exists()
 
@@ -438,5 +562,477 @@ def test_existing_evidence_is_never_overwritten(harness: ReviewHarness) -> None:
 
     assert marker.read_text(encoding="utf-8") == "Earlier immutable evidence"
     assert not harness.commands
-    assert not harness.processes
+    assert not harness.launches
     assert not harness.worktree_root.exists()
+
+
+# ---------------------------------------------------------------------- mode selection
+
+
+@pytest.mark.parametrize(
+    "numstat,expected",
+    [
+        ("200\t100\tat_threshold.py\n", "shallow"),
+        ("200\t101\tover_threshold.py\n", "deep"),
+        ("150\t150\ta.py\n0\t1\tb.py\n", "deep"),
+        ("-\t-\tbinary.png\n", "shallow"),
+        ("", "shallow"),
+    ],
+    ids=["exactly-threshold", "one-over", "summed-over-files", "binary-counts-zero", "empty-diff"],
+)
+def test_auto_mode_is_deep_only_strictly_above_threshold(
+    harness: ReviewHarness, numstat: str, expected: str,
+) -> None:
+    harness.numstat = numstat
+    receipt = harness.run()
+
+    assert receipt["mode"] == expected
+    assert len(harness.launches) == (4 if expected == "deep" else 1)
+    assert receipt["valid"] is True and receipt["verdict"] == "PASS"
+    assert receipt["reviewer_timeout"] == (2400 if expected == "deep" else 1800)
+    assert {launch["timeout"] for launch in harness.launches} == {receipt["reviewer_timeout"]}
+
+
+def test_custom_deep_threshold_applies_to_auto_mode(harness: ReviewHarness) -> None:
+    harness.numstat = SMALL
+    receipt = harness.run(deep_threshold=14)
+    assert receipt["mode"] == "deep" and receipt["changed_lines"] == 15
+
+
+@pytest.mark.parametrize("numstat,mode", [(BIG, "shallow"), (SMALL, "deep")])
+def test_explicit_mode_overrides_size(harness: ReviewHarness, numstat: str, mode: str) -> None:
+    harness.numstat = numstat
+    receipt = harness.run(mode=mode)
+
+    assert receipt["mode"] == mode
+    assert len(harness.launches) == (4 if mode == "deep" else 1)
+    assert ("reviewers" in os.listdir(harness.out)) == (mode == "deep")
+
+
+def test_explicit_timeout_applies_to_every_deep_lane(harness: ReviewHarness) -> None:
+    receipt = harness.run(mode="deep", timeout=61)
+
+    assert receipt["reviewer_timeout"] == 61
+    assert [launch["timeout"] for launch in harness.launches] == [61] * 4
+
+
+# ----------------------------------------------------------------------------- deep
+
+
+def test_focus_lanes_are_the_documented_four() -> None:
+    assert set(FOCUSES) == set(LANES)
+
+
+def test_deep_launches_four_isolated_reviewers_and_preserves_per_lane_evidence(
+    harness: ReviewHarness, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SYNTHETIC_API_KEY", "not-a-real-key")
+    receipt = harness.run(mode="deep", contract="Synthetic acceptance contract")
+
+    assert receipt["valid"] is True and receipt["verdict"] == "PASS"
+    assert receipt["coverage"] == {"expected": list(FOCUSES), "complete": list(FOCUSES), "incomplete": {}}
+    assert sorted(launch["lane"] for launch in harness.launches) == sorted(LANES)
+    # One private worktree, session directory, brief and log per lane.
+    assert len({launch["cwd"] for launch in harness.launches}) == 4
+    assert {launch["cwd"] for launch in harness.launches} == {harness.worktree_root / lane for lane in LANES}
+    assert len({tuple(launch["argv"]) for launch in harness.launches}) == 4
+    assert len({launch["log_path"] for launch in harness.launches}) == 4
+    for lane in LANES:
+        launch = harness.launch(lane)
+        directory = harness.out / "reviewers" / lane
+        brief = directory / "brief.md"
+        assert launch["argv"] == [
+            "omp", "-p", "--model", review_pr.DEFAULT_MODEL, "--thinking", "high",
+            "--session-dir", str(directory / "sessions"),
+            "--config", str(harness.out / "review-config.yml"),
+            "--no-title", "--no-extensions", "--no-skills", "--no-rules", "--no-context-files",
+            "--tools", "read,bash,grep,glob,write,edit", f"@{brief}",
+        ]
+        assert set(launch["argv"][launch["argv"].index("--tools") + 1].split(",")) == DEEP_TOOLS
+        assert launch["log_path"] == directory / "omp.log"
+        assert launch["timeout"] == 2400
+        assert launch["env"]["TMPDIR"] == str(directory / "scratch")
+        assert not any(key.endswith("API_KEY") for key in launch["env"])
+        text = brief.read_text(encoding="utf-8")
+        assert str(harness.worktree_root / lane) in text
+        assert str(directory / "REVIEW.md") in text
+        assert FOCUSES[lane]["title"] in text
+        assert "Synthetic acceptance contract" in text
+        for other in LANES:
+            if other != lane:
+                assert str(harness.out / "reviewers" / other / "REVIEW.md") not in text
+                assert str(harness.worktree_root / other) not in text
+        # Evidence preserved after the worktree is gone.
+        for artifact in ("brief.md", "REVIEW.md", "omp.log", "sessions/nested/review.jsonl"):
+            assert (directory / artifact).is_file()
+        assert (directory / "scratch").is_dir()
+        assert receipt["lanes"][lane]["complete"] is True
+        assert receipt["commands"][lane] == launch["argv"]
+    assert (harness.out / "review-config.yml").read_text(encoding="utf-8") == (
+        "retry:\n  modelFallback: false\n"
+    )
+    assert receipt["attestation"]["valid"] is True
+    assert receipt["attestation"]["assistant_counts"] == {review_pr.DEFAULT_MODEL: 4}
+    assert len(receipt["attestation"]["files"]) == 4
+    assert sorted(harness.removed) == sorted(harness.added) and len(harness.added) == 4
+    assert not harness.worktree_root.exists()
+    assert receipt["worktree_removed"] is True
+    assert receipt["review_path"] == str(harness.out / "REVIEW.md")
+    assert parse_review(harness.consolidated())["verdict"] == "PASS"
+    harness.assert_receipt(receipt)
+
+
+def test_deep_tool_sets_never_include_task_or_eval(harness: ReviewHarness) -> None:
+    harness.run(mode="deep")
+    for launch in harness.launches:
+        tools = set(launch["argv"][launch["argv"].index("--tools") + 1].split(","))
+        assert tools == DEEP_TOOLS
+        assert not tools & {"task", "eval", "browser", "web_search"}
+    assert SHALLOW_TOOLS < DEEP_TOOLS
+
+
+def test_deep_exact_model_route_reaches_every_lane(harness: ReviewHarness) -> None:
+    model = "google-antigravity/gemini-4-argon:thinking"
+    receipt = harness.run(mode="deep", model=model)
+
+    assert receipt["valid"] is True
+    for launch in harness.launches:
+        assert launch["argv"][launch["argv"].index("--model") + 1] == model
+        assert launch["argv"][launch["argv"].index("--thinking") + 1] == "high"
+
+
+def test_all_lanes_pass_then_comment_posts_after_every_cleanup(harness: ReviewHarness) -> None:
+    receipt = harness.run(mode="deep", comment=True)
+
+    assert receipt["verdict"] == "PASS" and receipt["valid"] is True
+    assert receipt["comment_posted"] is True
+    assert harness.events[-5:] == ["worktree_remove"] * 4 + ["comment"]
+    body = (harness.out / "comment.md").read_text(encoding="utf-8")
+    assert "**PASS**" in body and HEAD in body
+    harness.assert_receipt(receipt)
+
+
+def test_deep_pass_keeps_lane_should_fix_findings_in_consolidated_report(harness: ReviewHarness) -> None:
+    harness.lane("behaviour").review = SHOULD_FIX_REVIEW
+    receipt = harness.run(mode="deep")
+
+    assert receipt["verdict"] == "PASS"
+    report = harness.consolidated()
+    assert "Synthetic style concern." in report and "[behaviour]" in report
+    parse_review(report)
+
+
+@pytest.mark.parametrize("lane", LANES)
+def test_one_blocking_lane_blocks_with_full_coverage(harness: ReviewHarness, lane: str) -> None:
+    harness.lane(lane).review = BLOCK_REVIEW
+    receipt = harness.run(mode="deep", comment=True)
+
+    assert receipt["valid"] is True
+    assert receipt["verdict"] == "BLOCK"
+    assert receipt["coverage"]["incomplete"] == {}
+    assert receipt["coverage"]["complete"] == list(FOCUSES)
+    report = harness.consolidated()
+    assert f"[{lane}]" in report and "Synthetic correctness defect." in report
+    assert parse_review(report)["verdict"] == "BLOCK"
+    # A BLOCK is a valid, attested result and may be commented, after cleanup.
+    assert receipt["comment_posted"] is True
+    assert harness.events[-1] == "comment" and harness.events[-2] == "worktree_remove"
+
+
+@pytest.mark.parametrize("partial", ["Working notes: found nothing yet", PASS_REVIEW])
+def test_one_lane_timeout_leaves_report_and_partial_coverage_never_pass(
+    harness: ReviewHarness, partial: str,
+) -> None:
+    harness.lane("adversarial").error = subprocess.TimeoutExpired(["omp"], 2400)
+    harness.lane("adversarial").review = partial
+    receipt = harness.run(mode="deep", comment=True)
+
+    assert receipt["valid"] is True
+    assert receipt["verdict"] == "INCONCLUSIVE"
+    assert receipt["verdict"] != "PASS"
+    assert receipt["coverage"]["expected"] == list(FOCUSES)
+    assert receipt["coverage"]["complete"] == ["gates", "behaviour", "tests_docs"]
+    assert list(receipt["coverage"]["incomplete"]) == ["adversarial"]
+    assert "timed out" in receipt["coverage"]["incomplete"]["adversarial"]
+    assert receipt["lanes"]["adversarial"]["complete"] is False
+    assert all(receipt["lanes"][lane]["complete"] for lane in ("gates", "behaviour", "tests_docs"))
+    report = harness.consolidated()
+    assert "COVERAGE INCOMPLETE" in report and "PARTIAL (3 of 4 lanes)" in report
+    assert "unvalidated" in report
+    first_partial_line = next(line for line in partial.splitlines() if line.strip())
+    assert f"> {first_partial_line}" in report
+    assert not pass_lines(report)
+    assert report.splitlines()[-1] == "VERDICT: BLOCK"
+    # Neither a comment nor a PASS-like claim leaves the machine for partial coverage.
+    assert receipt["comment_posted"] is False
+    harness.assert_no_comment()
+    assert not harness.worktree_root.exists()
+    harness.assert_receipt(receipt)
+
+
+def test_timeout_in_one_lane_does_not_hide_a_blocker_from_another(harness: ReviewHarness) -> None:
+    harness.lane("adversarial").error = subprocess.TimeoutExpired(["omp"], 2400)
+    harness.lane("tests_docs").review = BLOCK_REVIEW
+    receipt = harness.run(mode="deep", comment=True)
+
+    assert receipt["valid"] is True and receipt["verdict"] == "BLOCK"
+    assert list(receipt["coverage"]["incomplete"]) == ["adversarial"]
+    assert "Synthetic correctness defect." in harness.consolidated()
+    assert receipt["comment_posted"] is True
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["nonzero", "missing-report", "invalid-report", "dirty", "launch-error", "missing-session",
+     "malformed-session", "aborted-session"],
+)
+@pytest.mark.parametrize("lane", ["gates", "tests_docs"])
+def test_lane_failure_makes_only_that_lane_incomplete(
+    harness: ReviewHarness, lane: str, failure: str,
+) -> None:
+    behavior = harness.lane(lane)
+    if failure == "nonzero":
+        behavior.returncode = 7
+    elif failure == "missing-report":
+        behavior.review = None
+    elif failure == "invalid-report":
+        behavior.review = PASS_REVIEW + "Trailing text invalidates the report\n"
+    elif failure == "dirty":
+        behavior.dirty = " M tracked.py"
+    elif failure == "launch-error":
+        behavior.error = FileNotFoundError("synthetic missing omp")
+    else:
+        behavior.session_mode = failure.removesuffix("-session")
+    receipt = harness.run(mode="deep", comment=True)
+
+    others = [name for name in LANES if name != lane]
+    assert receipt["valid"] is True
+    assert receipt["verdict"] == "INCONCLUSIVE"
+    assert list(receipt["coverage"]["incomplete"]) == [lane]
+    assert receipt["coverage"]["complete"] == [name for name in LANES if name != lane]
+    assert receipt["lanes"][lane]["complete"] is False
+    assert all(receipt["lanes"][name]["complete"] for name in others)
+    report = harness.consolidated()
+    assert f"[{lane}] COVERAGE INCOMPLETE" in report
+    assert not pass_lines(report)
+    assert receipt["comment_posted"] is False
+    harness.assert_no_comment()
+    assert sorted(harness.removed) == sorted(harness.added)
+    assert len(harness.launches) == 4
+    if failure == "nonzero":
+        assert receipt["lanes"][lane]["returncode"] == 7
+    if failure == "dirty":
+        assert "modified the checkout" in receipt["coverage"]["incomplete"][lane]
+        assert harness.worktree_root / lane in harness.statuses
+    if failure == "invalid-report":
+        assert receipt["coverage"]["incomplete"][lane].startswith("report invalid")
+
+
+@pytest.mark.parametrize("session_mode", ["fallback", "mismatch"])
+@pytest.mark.parametrize("lane", LANES)
+def test_off_route_model_in_one_lane_refuses_the_whole_run(
+    harness: ReviewHarness, lane: str, session_mode: str,
+) -> None:
+    harness.lane(lane).session_mode = session_mode
+    receipt = harness.run(mode="deep", comment=True)
+
+    harness.assert_rejected(receipt)
+    assert "served model attestation failed" in " ".join(receipt["errors"])
+    assert receipt["attestation"]["valid"] is False
+    assert receipt["attestation"]["violations"]
+    assert all(item.startswith(f"[{lane}] ") for item in receipt["attestation"]["violations"])
+    expected_default = 4 if session_mode == "fallback" else 3
+    assert receipt["attestation"]["assistant_counts"][review_pr.DEFAULT_MODEL] == expected_default
+    assert receipt["coverage"]["complete"] == []
+    assert sorted(receipt["coverage"]["incomplete"]) == sorted(LANES)
+    report = harness.consolidated()
+    assert not pass_lines(report)
+    assert report.splitlines()[-1] == "VERDICT: BLOCK"
+    assert "PARTIAL (0 of 4 lanes)" in report
+
+
+@pytest.mark.parametrize("lane", ["gates", "adversarial"])
+def test_off_route_model_beats_a_blocking_report_in_another_lane(harness: ReviewHarness, lane: str) -> None:
+    other = "tests_docs"
+    harness.lane(other).review = BLOCK_REVIEW
+    harness.lane(lane).session_mode = "mismatch"
+    receipt = harness.run(mode="deep", comment=True)
+
+    harness.assert_rejected(receipt)
+    assert receipt["coverage"]["complete"] == []
+
+
+def test_head_change_during_deep_review_refuses_and_marks_all_lanes_incomplete(harness: ReviewHarness) -> None:
+    harness.current_head = OTHER_HEAD
+    receipt = harness.run(mode="deep", comment=True)
+
+    harness.assert_rejected(receipt)
+    assert "head changed" in " ".join(receipt["errors"]).lower()
+    assert receipt["coverage"]["complete"] == []
+    assert sorted(receipt["coverage"]["incomplete"]) == sorted(LANES)
+    assert all("head changed" in reason for reason in receipt["coverage"]["incomplete"].values())
+    assert not pass_lines(harness.consolidated())
+
+
+def test_deep_cleanup_failure_preserves_that_worktree_attempts_the_rest_and_withholds_verdict(
+    harness: ReviewHarness,
+) -> None:
+    harness.lane("gates").cleanup_error = subprocess.CalledProcessError(1, ["git", "worktree", "remove"])
+    receipt = harness.run(mode="deep", comment=True)
+
+    harness.assert_rejected(receipt, removed=False)
+    assert receipt["worktree_removed"] is False
+    assert (harness.worktree_root / "gates").exists()
+    assert sorted(harness.removed) == sorted(harness.worktree_root / lane for lane in LANES[1:])
+    assert harness.events.count("worktree_remove") == 4
+    assert "cleanup failed" in " ".join(receipt["errors"])
+    assert str(harness.worktree_root / "gates") in " ".join(receipt["errors"])
+    assert harness.worktree_root.exists()
+    for lane in LANES:
+        assert (harness.out / "reviewers" / lane / "REVIEW.md").is_file()
+    refused = harness.consolidated()
+    assert refused.startswith("> **REFUSED: no valid verdict was issued:")
+    assert "cleanup failed" in refused.splitlines()[0]
+    assert not pass_lines(refused)
+    assert refused.rstrip().splitlines()[-1] == "VERDICT: BLOCK"
+    assert "# Independent review of PR #42 (deep, 4 focused reviewers)" in refused
+    harness.assert_withheld(receipt, refused, "focused reviewers")
+
+
+def test_deep_blocking_lane_with_stray_heading_keeps_the_whole_blocking_section(
+    harness: ReviewHarness,
+) -> None:
+    harness.lane("adversarial").review = BLOCK_REVIEW.replace(
+        "- `example.py:3`: Synthetic correctness defect.",
+        "# Stray heading\n- `example.py:3`: Synthetic stray-heading defect.",
+    )
+    receipt = harness.run(mode="deep")
+
+    assert receipt["valid"] is True and receipt["verdict"] == "BLOCK"
+    assert receipt["coverage"]["incomplete"] == {}
+    report = harness.consolidated()
+    assert "# Stray heading" in report
+    assert "Synthetic stray-heading defect." in report
+    assert parse_review(report)["verdict"] == "BLOCK"
+    assert "Synthetic stray-heading defect." in parse_review(report)["blocking"]
+
+
+def test_deep_pass_with_content_after_a_stray_heading_in_blocking_is_incomplete(
+    harness: ReviewHarness,
+) -> None:
+    harness.lane("gates").review = PASS_REVIEW.replace(
+        "## Blocking\nNone", "## Blocking\nNone\n# Stray heading\nHidden blocker."
+    )
+    receipt = harness.run(mode="deep")
+
+    assert receipt["valid"] is True and receipt["verdict"] == "INCONCLUSIVE"
+    assert list(receipt["coverage"]["incomplete"]) == ["gates"]
+    assert receipt["coverage"]["incomplete"]["gates"].startswith("report invalid")
+
+
+def test_deep_worktree_creation_failure_removes_already_added_worktrees(harness: ReviewHarness) -> None:
+    harness.add_fails_for = "adversarial"
+    receipt = harness.run(mode="deep", comment=True)
+
+    harness.assert_rejected(receipt)
+    assert not harness.launches
+    assert [path.name for path in harness.removed] == ["gates", "behaviour"]
+
+
+def test_deep_reviewer_launch_waits_for_all_worktrees_and_runs_all_lanes(harness: ReviewHarness) -> None:
+    harness.run(mode="deep")
+
+    assert harness.events[:4] == ["worktree_add"] * 4
+    assert harness.events[4:8] == ["reviewer"] * 4
+    assert harness.events[8] == "head_recheck"
+    assert harness.events[9:] == ["worktree_remove"] * 4
+
+
+# ------------------------------------------------------------------ real process group
+
+CHILD_SPAWNS_GRANDCHILD = """
+import subprocess, sys, time
+grandchild = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+with open(sys.argv[1], "w") as handle:
+    handle.write(str(grandchild.pid))
+print("child-started", flush=True)
+time.sleep(120)
+"""
+CHILD_EXITS_LEAVING_GRANDCHILD = """
+import subprocess, sys
+grandchild = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+with open(sys.argv[1], "w") as handle:
+    handle.write(str(grandchild.pid))
+sys.exit(0)
+"""
+CHILD_CHECKS_STDIN = """
+import os, sys
+closed = os.path.samestat(os.fstat(0), os.stat(os.devnull)) and sys.stdin.buffer.read() == b""
+print("stdin-closed" if closed else "stdin-open", flush=True)
+sys.stderr.write("stderr-line\\n")
+sys.exit(3 if closed else 4)
+"""
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def test_run_reviewer_timeout_kills_the_whole_process_group_and_writes_log(tmp_path: Path) -> None:
+    pid_file = tmp_path / "grandchild.pid"
+    log = tmp_path / "omp.log"
+    started = time.monotonic()
+    try:
+        with pytest.raises(subprocess.TimeoutExpired):
+            review_pr._run_reviewer(
+                [sys.executable, "-c", CHILD_SPAWNS_GRANDCHILD, str(pid_file)],
+                cwd=tmp_path, env=dict(os.environ), log_path=log, timeout=2,
+            )
+        assert time.monotonic() - started < 60
+        grandchild = int(pid_file.read_text(encoding="utf-8"))
+        deadline = time.monotonic() + 10
+        while _alive(grandchild) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not _alive(grandchild), "grandchild survived the reviewer timeout"
+    finally:
+        if pid_file.exists():
+            with contextlib.suppress(ProcessLookupError, ValueError):
+                os.kill(int(pid_file.read_text(encoding="utf-8")), signal.SIGKILL)
+    assert "child-started" in log.read_text(encoding="utf-8")
+
+
+def test_run_reviewer_returns_exit_code_with_closed_stdin_and_merged_log(tmp_path: Path) -> None:
+    log = tmp_path / "omp.log"
+    code = review_pr._run_reviewer(
+        [sys.executable, "-c", CHILD_CHECKS_STDIN],
+        cwd=tmp_path, env=dict(os.environ), log_path=log, timeout=30,
+    )
+
+    assert code == 3
+    text = log.read_text(encoding="utf-8")
+    assert "stdin-closed" in text
+    assert "stderr-line" in text
+
+
+def test_run_reviewer_kills_background_children_after_a_normal_zero_exit(tmp_path: Path) -> None:
+    pid_file = tmp_path / "grandchild.pid"
+    log = tmp_path / "omp.log"
+    try:
+        code = review_pr._run_reviewer(
+            [sys.executable, "-c", CHILD_EXITS_LEAVING_GRANDCHILD, str(pid_file)],
+            cwd=tmp_path, env=dict(os.environ), log_path=log, timeout=30,
+        )
+        assert code == 0
+        grandchild = int(pid_file.read_text(encoding="utf-8"))
+        deadline = time.monotonic() + 10
+        while _alive(grandchild) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not _alive(grandchild), "background child survived a normal reviewer exit"
+    finally:
+        if pid_file.exists():
+            with contextlib.suppress(ProcessLookupError, ValueError):
+                os.kill(int(pid_file.read_text(encoding="utf-8")), signal.SIGKILL)

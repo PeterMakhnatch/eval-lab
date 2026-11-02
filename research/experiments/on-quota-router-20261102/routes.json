@@ -1,0 +1,191 @@
+{
+  "version": "2026-11-02",
+  "description": "Quota-aware route configuration with measured burn rates from 2026-11-02 overnight shift",
+  "default_hysteresis_band_pct": 5.0,
+  "pools": {
+    "devin": {
+      "display_name": "Devin Subscription",
+      "gate_percent": 80.0,
+      "metrics": {
+        "devin_daily": {
+          "label": "Daily Quota (Pro)",
+          "gate_percent": 80.0,
+          "measured_burn_pct_per_hour": 60.0,
+          "sample_size_hours": 0.1,
+          "sample_size_items": 2,
+          "confidence": "low",
+          "reset_period_hours": 24.0,
+          "notes": "Tonight 2 workers used 6% daily allowance in 3 min (0.1 worker-hours)"
+        },
+        "devin_wk": {
+          "label": "Weekly Quota (Pro)",
+          "gate_percent": 50.0,
+          "measured_burn_pct_per_hour": 30.0,
+          "sample_size_hours": 0.1,
+          "sample_size_items": 2,
+          "confidence": "low",
+          "reset_period_hours": 168.0,
+          "notes": "Tonight 2 workers used 3% weekly allowance in 3 min (0.1 worker-hours)"
+        }
+      }
+    },
+    "anthropic": {
+      "display_name": "Anthropic Direct",
+      "gate_percent": 30.0,
+      "metrics": {
+        "claude_7d": {
+          "label": "Claude 7 Day",
+          "gate_percent": 30.0,
+          "measured_burn_pct_per_hour": 0.96,
+          "sample_size_hours": 6.28,
+          "sample_size_items": 16,
+          "confidence": "medium-high",
+          "reset_period_hours": 168.0,
+          "notes": "Observed +6.0% delta over 6.28 worker-hours (5 lanes 278m + ver squad 99m = 377m)"
+        }
+      }
+    },
+    "google-antigravity-gemini": {
+      "display_name": "Google Antigravity (Gemini)",
+      "gate_percent": 60.0,
+      "metrics": {
+        "gemini_5h": {
+          "label": "Gemini (5 Hour)",
+          "gate_percent": 60.0,
+          "measured_burn_pct_per_hour": 1.09,
+          "sample_size_hours": 15.63,
+          "sample_size_items": 29,
+          "confidence": "high",
+          "reset_period_hours": 5.0,
+          "notes": "Observed +17.0% delta over 15.63 worker-hours (29 tasks across 5 squads = 938m)"
+        },
+        "gemini_wk": {
+          "label": "Gemini (Weekly)",
+          "gate_percent": 40.0,
+          "measured_burn_pct_per_hour": 0.59,
+          "sample_size_hours": 15.63,
+          "sample_size_items": 29,
+          "confidence": "high",
+          "reset_period_hours": 168.0,
+          "notes": "Observed +9.2% delta over 15.63 worker-hours (29 tasks across 5 squads = 938m)"
+        }
+      }
+    },
+    "google-antigravity-shared": {
+      "display_name": "Google Antigravity (Claude & GPT shared)",
+      "gate_percent": 85.0,
+      "metrics": {
+        "ag_shared_wk": {
+          "label": "Claude & GPT (shared) (Weekly)",
+          "gate_percent": 85.0,
+          "measured_burn_pct_per_hour": 8.0,
+          "sample_size_hours": 0.0,
+          "sample_size_items": 0,
+          "confidence": "low",
+          "reset_period_hours": 168.0,
+          "notes": "Unmeasured tonight; currently 88.1% used (above gate)"
+        }
+      }
+    },
+    "openai-codex": {
+      "display_name": "OpenAI Codex",
+      "gate_percent": 80.0,
+      "metrics": {
+        "codex_7d": {
+          "label": "OpenAI 7 days",
+          "gate_percent": 80.0,
+          "measured_burn_pct_per_hour": 5.0,
+          "sample_size_hours": 0.0,
+          "sample_size_items": 0,
+          "confidence": "low",
+          "reset_period_hours": 168.0,
+          "notes": "Unmeasured tonight; currently 87.0% used (above gate)"
+        }
+      }
+    },
+    "kimi": {
+      "display_name": "Kimi Code",
+      "gate_percent": 85.0,
+      "metrics": {
+        "kimi_monthly": {
+          "label": "Kimi Monthly total",
+          "gate_percent": 85.0,
+          "measured_burn_pct_per_hour": 5.0,
+          "sample_size_hours": 0.0,
+          "sample_size_items": 0,
+          "confidence": "low",
+          "reset_period_hours": 720.0,
+          "notes": "Unmeasured tonight; currently 90.1% used (above gate)"
+        }
+      }
+    },
+    "xai": {
+      "display_name": "XAI Grok",
+      "gate_percent": 85.0,
+      "metrics": {
+        "grok_wk": {
+          "label": "SuperGrok Weekly Credits",
+          "gate_percent": 85.0,
+          "measured_burn_pct_per_hour": 10.0,
+          "sample_size_hours": 0.0,
+          "sample_size_items": 0,
+          "confidence": "low",
+          "reset_period_hours": 168.0,
+          "notes": "Unmeasured tonight; currently 97.0% used (above gate)"
+        }
+      }
+    }
+  },
+  "routes": {
+    "devin/claude-sonnet-5-5": {
+      "pool": "devin",
+      "model": "claude-sonnet-5-5",
+      "provider": "devin"
+    },
+    "devin/claude-opus-4-1": {
+      "pool": "devin",
+      "model": "claude-opus-4-1",
+      "provider": "devin"
+    },
+    "anthropic/claude-sonnet-5-5": {
+      "pool": "anthropic",
+      "model": "claude-sonnet-5-5",
+      "provider": "anthropic"
+    },
+    "anthropic/claude-opus-4-1": {
+      "pool": "anthropic",
+      "model": "claude-opus-4-1",
+      "provider": "anthropic"
+    },
+    "google-antigravity/gemini-3.8-flash": {
+      "pool": "google-antigravity-gemini",
+      "model": "gemini-3.8-flash",
+      "provider": "google-antigravity"
+    },
+    "google-antigravity/gemini-2.5-pro": {
+      "pool": "google-antigravity-gemini",
+      "model": "gemini-2.5-pro",
+      "provider": "google-antigravity"
+    },
+    "google-antigravity/claude-sonnet-5-5": {
+      "pool": "google-antigravity-shared",
+      "model": "claude-sonnet-5-5",
+      "provider": "google-antigravity"
+    },
+    "openai-codex/gpt-5": {
+      "pool": "openai-codex",
+      "model": "gpt-5",
+      "provider": "openai-codex"
+    },
+    "kimi/kimi-k2": {
+      "pool": "kimi",
+      "model": "kimi-k2",
+      "provider": "kimi"
+    },
+    "xai/grok-4": {
+      "pool": "xai",
+      "model": "grok-4",
+      "provider": "xai"
+    }
+  }
+}

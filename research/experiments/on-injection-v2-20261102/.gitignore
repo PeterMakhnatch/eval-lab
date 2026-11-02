@@ -1,0 +1,5 @@
+receipts/individual/
+receipts/noise_floor_summary.json
+receipts/injection_summary.json
+receipts/defenses_summary.json
+__pycache__/

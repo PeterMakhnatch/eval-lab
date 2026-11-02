@@ -401,3 +401,29 @@ of wall time including cold pulls, at $0. Each verdict rests on the verifier's
 tamper refusal, and the ladder has no dependency-copy attack. So these cells
 do not show the env-dependency leak is closed, and the manifest `verify` stays
 `unverified`.
+
+## P0 ranks 4–9 ladder cells (HAR-256, 2026-11-02)
+
+[ladder-p0-ranks4-9.json](ladder-p0-ranks4-9.json) records ladder 1.4.0 on the
+remaining six `P0` rows of the ranking, each at its manifest `final_digest` on
+local Docker under `evallab docker-lock`, one task at a time, image removed after
+each run, $0. Five came back `clean` (reward 0) and one `unscored`:
+
+| rank | task | language | verdict | wall |
+|---|---|---|---|---|
+| 4 | `001971` | python | clean (tamper refusal) | 18.2 min |
+| 5 | `002414` | python | clean (tamper refusal) | 11.1 min |
+| 6 | `001694` | go | clean (target test fails to compile) | 9.9 min |
+| 7 | `000632` | typescript | clean (target test fails type-check) | 5.6 min |
+| 8 | `000928` | typescript | unscored: setup refuses to start | 7.5 min |
+| 9 | `001763` | typescript | clean (runtime assertion fails) | 30.7 min |
+
+`000928`'s setup healthcheck exits 1 before the agent runs. Rerunning the same
+`setup.sh` in its image prints `purge-build-caches@2 found @faker-js/faker
+references in the pnpm store ... with no safe per-package eviction`, which is
+the manifest's pnpm-store exclusion reason. The Python verdicts again rest on
+the verifier's tamper refusal, and no ladder attack copies an installed
+dependency or a node-build output, so none of these cells shows that the
+earlier env-dependency or node-build leak is closed. `001694` and `000632`
+fail at compile/type-check, so they do not show that the previously
+compile-only grader now checks behaviour. Manifest `verify` stays `unverified`.

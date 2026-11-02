@@ -1,0 +1,128 @@
+{
+  "candidate_count": 16,
+  "non_candidate_count": 5,
+  "total_score_stats": {
+    "min": 12,
+    "max": 21,
+    "mean": 16.25,
+    "median": 16.0
+  },
+  "dimension_stats": {
+    "failure_frequency": {
+      "mean": 2.188,
+      "median": 2.0,
+      "distribution": {
+        "0": 0,
+        "1": 2,
+        "2": 9,
+        "3": 5
+      }
+    },
+    "human_toil": {
+      "mean": 2.125,
+      "median": 2.0,
+      "distribution": {
+        "0": 0,
+        "1": 2,
+        "2": 10,
+        "3": 4
+      }
+    },
+    "cost_of_failure": {
+      "mean": 2.438,
+      "median": 2.0,
+      "distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 9,
+        "3": 7
+      }
+    },
+    "statefulness": {
+      "mean": 2.312,
+      "median": 2.0,
+      "distribution": {
+        "0": 0,
+        "1": 2,
+        "2": 7,
+        "3": 7
+      }
+    },
+    "need_for_retries_timers_signals": {
+      "mean": 2.312,
+      "median": 2.0,
+      "distribution": {
+        "0": 0,
+        "1": 2,
+        "2": 7,
+        "3": 7
+      }
+    },
+    "parallelism_limits": {
+      "mean": 2,
+      "median": 2.0,
+      "distribution": {
+        "0": 0,
+        "1": 5,
+        "2": 6,
+        "3": 5
+      }
+    },
+    "auditability": {
+      "mean": 2.875,
+      "median": 3.0,
+      "distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 2,
+        "3": 14
+      }
+    }
+  },
+  "incident_types_affected_workflows": {
+    "stalled_workers_and_timeout_kills": 7,
+    "quota_and_429_stops": 4,
+    "lost_tmp_receipts": 1,
+    "concurrency_and_claim_order_bugs": 11,
+    "merge_conflicts_and_train_failures": 3,
+    "reservation_cap_exhaustion": 2,
+    "manual_redispatch_and_route_stalls": 4
+  },
+  "top_5": [
+    {
+      "rank": 1,
+      "id": "WF-01",
+      "name": "Multi-Agent Squad Dispatch & Worker Lifecycle",
+      "total_score": 21,
+      "owner_today": "Overnight Coordinator / ds_squad.py daemon"
+    },
+    {
+      "rank": 2,
+      "id": "WF-03",
+      "name": "Corpus-Scale Certify-Gold & STING Mutation Pipeline",
+      "total_score": 20,
+      "owner_today": "CLI evallab certify-gold / overnight subagents"
+    },
+    {
+      "rank": 3,
+      "id": "WF-02",
+      "name": "Automated PR Merge Train & Spec Harmonization",
+      "total_score": 19,
+      "owner_today": "Research Coordinator / manual gh CLI loops"
+    },
+    {
+      "rank": 4,
+      "id": "WF-05",
+      "name": "Cloud Spend Gate & Dynamic Budget Ledger",
+      "total_score": 19,
+      "owner_today": "evallab.regrade.CloudSpendGate / spend.jsonl"
+    },
+    {
+      "rank": 5,
+      "id": "WF-04",
+      "name": "Continuous Causal Trace Ingestion & Outbox Relay",
+      "total_score": 18,
+      "owner_today": "LaunchAgent prod-factory / ContinuousWorkQueue"
+    }
+  ]
+}

@@ -59,7 +59,7 @@ inputs:
   - path: docs/docker-lock.md
     digest: sha256:643794b06ee82843f46f8360ff8b769e2b28ff9e6974fe9a6dc75b55889d331d
   - path: docs/engineering.md
-    digest: sha256:ad5deaf4f3e52070b7d478727197153e89ba0f6558052047f534426aa6b16ed4
+    digest: sha256:226a1b7e06ac6dddc051c14d672daeb249bc8408b4e89175bce3939052e2a0cd
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
@@ -105,11 +105,11 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:2a4097f812d17af1358f88259cca8a8f396d21015bd6f10e3644a20828c79f78
+    digest: sha256:32a641325c7afc6f960b28d1e6b8f68cb25b4d09d3d246f587ee9ab1c601846f
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/production-factory.md
-    digest: sha256:0bed5a3b44dd348532240b8e18030afb8294a606c4b0a34e927835cf9b63bd5b
+    digest: sha256:a7af38189cd6c7c5c929b096e7189f9ed2b4ee5c78a9a9240206dd6e08c119de
   - path: docs/qa-contract.md
     digest: sha256:7109b75163134eaca1db56c99cfafb07f6714777b27ef2b2d46d5c31f1d5d9d2
   - path: docs/qa-task.md

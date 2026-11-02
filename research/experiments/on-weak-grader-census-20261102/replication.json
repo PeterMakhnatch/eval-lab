@@ -1,0 +1,111 @@
+{
+  "overlapping_count": 12,
+  "agree_count": 12,
+  "disagree_count": 0,
+  "mcnemar": {
+    "b": 0,
+    "c": 0,
+    "both": 8,
+    "neither": 4,
+    "n": 12,
+    "p": 1.0
+  },
+  "pairs": [
+    {
+      "task_id": "format-code-task-000079",
+      "pilot_weak": true,
+      "current_weak": true,
+      "pilot_survivors": 1,
+      "current_survivors": 1,
+      "agree": true
+    },
+    {
+      "task_id": "format-code-task-000081",
+      "pilot_weak": true,
+      "current_weak": true,
+      "pilot_survivors": 1,
+      "current_survivors": 1,
+      "agree": true
+    },
+    {
+      "task_id": "format-code-task-000232",
+      "pilot_weak": true,
+      "current_weak": true,
+      "pilot_survivors": 1,
+      "current_survivors": 1,
+      "agree": true
+    },
+    {
+      "task_id": "format-code-task-000682",
+      "pilot_weak": true,
+      "current_weak": true,
+      "pilot_survivors": 2,
+      "current_survivors": 2,
+      "agree": true
+    },
+    {
+      "task_id": "format-code-task-000931",
+      "pilot_weak": true,
+      "current_weak": true,
+      "pilot_survivors": 1,
+      "current_survivors": 1,
+      "agree": true
+    },
+    {
+      "task_id": "format-code-task-001205",
+      "pilot_weak": false,
+      "current_weak": false,
+      "pilot_survivors": 0,
+      "current_survivors": 0,
+      "agree": true
+    },
+    {
+      "task_id": "format-code-task-001267",
+      "pilot_weak": true,
+      "current_weak": true,
+      "pilot_survivors": 2,
+      "current_survivors": 2,
+      "agree": true
+    },
+    {
+      "task_id": "format-code-task-001850",
+      "pilot_weak": true,
+      "current_weak": true,
+      "pilot_survivors": 1,
+      "current_survivors": 1,
+      "agree": true
+    },
+    {
+      "task_id": "format-code-task-001985",
+      "pilot_weak": true,
+      "current_weak": true,
+      "pilot_survivors": 1,
+      "current_survivors": 1,
+      "agree": true
+    },
+    {
+      "task_id": "format-code-task-002160",
+      "pilot_weak": false,
+      "current_weak": false,
+      "pilot_survivors": 0,
+      "current_survivors": 0,
+      "agree": true
+    },
+    {
+      "task_id": "format-code-task-002609",
+      "pilot_weak": false,
+      "current_weak": false,
+      "pilot_survivors": 0,
+      "current_survivors": 0,
+      "agree": true
+    },
+    {
+      "task_id": "format-code-task-002976",
+      "pilot_weak": false,
+      "current_weak": false,
+      "pilot_survivors": 0,
+      "current_survivors": 0,
+      "agree": true
+    }
+  ]
+}

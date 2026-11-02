@@ -1,0 +1,56 @@
+Usage · fetched 1ms ago
+
+Anthropic — 1 account
+  ● user@example.com · User · ✦ 1 saved reset · soonest expires in 28d21h (2026-12-01)
+      ● Claude 7 Day          ██░░░░░░░░░░░░░░░░░░░░░░░░░░  7.0% used · resets in 6d18h
+      ● Claude 7 Day (Fable)  ██░░░░░░░░░░░░░░░░░░░░░░░░░░  6.0% used · resets in 6d18h
+  capacity: 7d → 0.07/1 account used (0.93× quota left) · 7d (Fable) → 0.06/1 account used (0.94× quota left)
+
+Cursor — 0 accounts
+  ✗ OAuth account — disabled 15d14h ago: OAuthError: invalid_grant: Cursor ended this session (re-login to restore)
+
+Deepseek — 1 account
+  ● account 1
+      ● Balance (USD)  ····························  $0.85 left
+
+Devin — 1 account
+  Overage balance: $-2.43
+  ● user@example.com · devin-team$account-scrubbed · plan: Pro · fetched 1m39s ago
+      ● Daily Quota (Pro)   ███░░░░░░░░░░░░░░░░░░░░░░░░░  9.0% used · resets in 5m
+      ● Weekly Quota (Pro)  █░░░░░░░░░░░░░░░░░░░░░░░░░░░  4.0% used · resets in 6d
+  capacity: 1d → 0.09/1 account used (0.91× quota left) · 7d → 0.04/1 account used (0.96× quota left)
+
+Google Antigravity — 1 account
+  ● user@example.com · fetched 1m51s ago
+      ● Claude & GPT (shared) (Weekly)  █████████████████████████░░░  88.1% used · resets in 5d18h
+      ● Gemini (5 Hour)                 █████░░░░░░░░░░░░░░░░░░░░░░░  17.0% used · resets in 3h25m
+      ● Gemini (Weekly)                 ███░░░░░░░░░░░░░░░░░░░░░░░░░  9.2% used · resets in 5d19h
+      ● Claude & GPT (shared) (5 Hour)  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0.0% used · resets in 4h58m
+  capacity: 5h → 0.17/1 account used (0.83× quota left) · 7d → 0.88/1 account used (0.12× quota left)
+
+Kimi Code — 1 account
+  ● scrubbed-token · fetched 3m44s ago
+      ● 5h limit       ░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0.0% used · resets in 4h28m
+      ● Monthly total  █████████████████████████░░░  90.1% used · resets in 21d16h
+      ● Monthly code   █████████████████████████░░░  89.4% used · resets in 21d16h
+  capacity: 5h → 0.00/1 account used (1.00× quota left) · Monthly total → 0.90/1 account used (0.10× quota left) · Monthly code → 0.89/1 account used (0.11× quota left)
+
+Meta — 1 account
+  ● account 1
+      ● Spend today (ET) (0 calls)     ····························  $0.00 used · resets in 21h5m
+      ● Spend last 7 days (593 calls)  ····························  $0.00 used
+      ● Spend this month (0 calls)     ····························  $0.00 used · resets in 28d16h
+
+Openai Codex — 1 account
+  ● user@example.com · plan: prolite · ✦ 2 saved resets · fetched 4m3s ago
+      ● 7 days  ████████████████████████░░░░  87.0% used · resets in 1d22h
+  capacity: 7d (Chat) → 0.87/1 account used (0.13× quota left)
+
+Xai Oauth — 1 account
+  ● user2@example.com · fetched 3m40s ago
+      ● SuperGrok Weekly Credits  ███████████████████████████░  97.0% used · resets in 4d10h
+      ● Grok Build (Weekly)       ███████████████████████████░  97.0% used · resets in 4d10h
+  capacity: 7d → 0.97/1 account used (0.03× quota left)
+
+Zai — 1 account
+  ○ API key — no usage data

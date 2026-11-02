@@ -1,0 +1,90 @@
+{
+  "bool_flip": {
+    "generated": 10,
+    "applied": 10,
+    "survived": 4,
+    "survival_rate": 0.4,
+    "wilson_95_ci": [
+      0.1682,
+      0.6873
+    ],
+    "wilson_95_display": "4/10 = 40.0% (16.8-68.7)"
+  },
+  "boundary_flip": {
+    "generated": 6,
+    "applied": 6,
+    "survived": 3,
+    "survival_rate": 0.5,
+    "wilson_95_ci": [
+      0.1876,
+      0.8124
+    ],
+    "wilson_95_display": "3/6 = 50.0% (18.8-81.2)"
+  },
+  "call_drop": {
+    "generated": 19,
+    "applied": 19,
+    "survived": 6,
+    "survival_rate": 0.3158,
+    "wilson_95_ci": [
+      0.1536,
+      0.5399
+    ],
+    "wilson_95_display": "6/19 = 31.6% (15.4-54.0)"
+  },
+  "equality_flip": {
+    "generated": 11,
+    "applied": 10,
+    "survived": 4,
+    "survival_rate": 0.3636,
+    "wilson_95_ci": [
+      0.1517,
+      0.6462
+    ],
+    "wilson_95_display": "4/11 = 36.4% (15.2-64.6)"
+  },
+  "guard_drop": {
+    "generated": 12,
+    "applied": 12,
+    "survived": 2,
+    "survival_rate": 0.1667,
+    "wilson_95_ci": [
+      0.047,
+      0.448
+    ],
+    "wilson_95_display": "2/12 = 16.7% (4.7-44.8)"
+  },
+  "handler_drop": {
+    "generated": 4,
+    "applied": 4,
+    "survived": 1,
+    "survival_rate": 0.25,
+    "wilson_95_ci": [
+      0.0456,
+      0.6994
+    ],
+    "wilson_95_display": "1/4 = 25.0% (4.6-69.9)"
+  },
+  "int_shift": {
+    "generated": 4,
+    "applied": 4,
+    "survived": 0,
+    "survival_rate": 0.0,
+    "wilson_95_ci": [
+      0.0,
+      0.4899
+    ],
+    "wilson_95_display": "0/4 = 0.0% (0.0-49.0)"
+  },
+  "keyword_drop": {
+    "generated": 8,
+    "applied": 8,
+    "survived": 2,
+    "survival_rate": 0.25,
+    "wilson_95_ci": [
+      0.0715,
+      0.5907
+    ],
+    "wilson_95_display": "2/8 = 25.0% (7.1-59.1)"
+  }
+}

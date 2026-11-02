@@ -16,6 +16,12 @@ Sources (all committed, nothing is executed):
   ``2.0.0`` plus single-attack cells on the hardened shipped package.
 * ``ladder-v3-sheet-recalc-20261029`` -- ladder ``3.0.0`` on the two
   hand-authored packages.
+* every other ``research/evidence/ladder-v*/cells.json`` -- one directory per
+  ladder card in the 2026-11-02 layout (top-level ``task_dir``; ``cells``
+  records with ``scope``, ``ladder_version``, ``verdict``, ``status`` and
+  ``task_digest``), read by glob so a new card's evidence joins the matrix
+  without editing this file. A ledger in the glob that no reader can place is
+  refused rather than skipped.
 
 The row's ``verdict`` comes from the newest source date for that package and
 generation; an older, different verdict is reported in
@@ -71,6 +77,17 @@ CRACK_SWEEP = "research/evidence/library-crack-sweep-20261012/cells.json"
 V2_SWEEP = "research/evidence/ladder-v2-sweep-20261013/cells.json"
 HAR230_DIR = "research/evidence/har230-transaction-reconciliation-20261029"
 HAR231_CELLS = "research/evidence/ladder-v3-sheet-recalc-20261029/cells.json"
+
+#: One directory per committed ladder run; the generic ledger reader takes every
+#: file here that the dedicated readers above do not already own.
+LADDER_LEDGER_GLOB = "research/evidence/ladder-v*/cells.json"
+
+#: Ledgers predating the 2026-11-02 layout, read by their own readers above.
+DEDICATED_LEDGERS = (V2_SWEEP, HAR231_CELLS)
+
+#: ``scope`` values that ran the shipped package bytes; a variant scope would be
+#: a different measurement and must be admitted deliberately.
+LEDGER_SCOPES = ("full", "single")
 
 #: The frozen generation the 2026-10-12 sweep ran; v2 was introduced 2026-10-13.
 CRACK_SWEEP_LADDER = "1.4.0"
@@ -285,16 +302,109 @@ def _har231_cells(root: Path, by_name: dict[str, Package]) -> list[Cell]:
     return cells
 
 
+def _control_ok(controls: object) -> bool:
+    """The ledger's own native oracle passed (1.0) and nop failed (0.0)."""
+    rewards = {
+        str(control.get("agent") or ""): control.get("reward")
+        for control in controls or []
+        if isinstance(control, dict)
+    }
+    return rewards.get("oracle") == 1.0 and rewards.get("nop") == 0.0
+
+
+def _ledger_cells(root: Path, by_path: dict[str, Package]) -> list[Cell]:
+    """Read every ``ladder-v*`` ledger in the 2026-11-02 shipped-cells layout.
+
+    The layout is a top-level ``task_dir`` naming the package plus ``cells``
+    records carrying ``scope`` (``full``/``single``), ``ladder_version``,
+    ``verdict``, ``status`` and ``task_digest``. Reading the glob -- not a
+    hardcoded path per ladder card -- is what keeps the next card's evidence in
+    the matrix; a ledger that cannot be placed is refused by
+    :func:`unread_ledgers` instead of being skipped.
+    """
+    evidence = root / "research" / "evidence"
+    if not evidence.is_dir():
+        return []
+    cells: list[Cell] = []
+    for path in sorted(evidence.glob("ladder-v*/cells.json")):
+        source = path.relative_to(root).as_posix()
+        if source in DEDICATED_LEDGERS:
+            continue
+        data = _read_json(path)
+        records = data.get("cells")
+        package = by_path.get(str(data.get("task_dir") or ""))
+        if package is None or not isinstance(records, list):
+            continue
+        date = str(data.get("generated") or "")
+        control_ok = _control_ok(data.get("controls"))
+        for record in records:
+            if not isinstance(record, dict):
+                raise CoverageError(f"{source}: ladder cell is not an object")
+            scope = str(record.get("scope") or "")
+            if scope not in LEDGER_SCOPES:
+                raise CoverageError(
+                    f"{source}: cell scope {scope!r} is not one of {LEDGER_SCOPES}; "
+                    "a variant scope ran on other bytes and needs its own reader"
+                )
+            digest = record.get("task_digest")
+            cells.append(
+                Cell(
+                    package=package.path,
+                    ladder_version=_version(
+                        record.get("ladder_version") or data.get("ladder_version")
+                    ),
+                    verdict=(
+                        _verdict_or_none(record.get("verdict"))
+                        if control_ok and record.get("status") == "executed"
+                        else None
+                    ),
+                    task_digest=digest if isinstance(digest, str) else None,
+                    source=source,
+                    date=date,
+                )
+            )
+    return cells
+
+
+def unread_ledgers(root: Path, cells: Sequence[Cell]) -> list[str]:
+    """``ladder-v*`` ledgers that contributed no cell, so no row reads them."""
+    evidence = root / "research" / "evidence"
+    if not evidence.is_dir():
+        return []
+    read = {cell.source for cell in cells}
+    return sorted(
+        path.relative_to(root).as_posix()
+        for path in evidence.glob("ladder-v*/cells.json")
+        if path.relative_to(root).as_posix() not in read
+    )
+
+
+def require_read_ledgers(root: Path, cells: Sequence[Cell]) -> None:
+    """Refuse a ladder ledger in the glob that contributed no cell to a row."""
+    unread = unread_ledgers(root, cells)
+    if unread:
+        raise CoverageError(
+            f"{LADDER_LEDGER_GLOB} evidence contributes no coverage row: " + ", ".join(unread)
+        )
+
+
 def collect_cells(root: Path, packages: Sequence[Package]) -> list[Cell]:
-    """Read every committed ladder measurement that names a library package."""
+    """Read every committed ladder measurement that names a library package.
+
+    A ladder ledger in the glob that no reader consumed is an error: silently
+    dropping it is how a new ladder card goes stale in the matrix.
+    """
     by_name = {package.task: package for package in packages}
     by_path = {package.path: package for package in packages}
-    return [
+    cells = [
         *_crack_sweep_cells(root, by_path),
         *_v2_sweep_cells(root, by_name),
         *_har230_cells(root, by_path),
         *_har231_cells(root, by_name),
+        *_ledger_cells(root, by_path),
     ]
+    require_read_ledgers(root, cells)
+    return cells
 
 
 def _aggregate(cells: Sequence[Cell]) -> str:

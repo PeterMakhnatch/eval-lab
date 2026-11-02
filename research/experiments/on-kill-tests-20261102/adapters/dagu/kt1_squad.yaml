@@ -1,0 +1,38 @@
+description: KT1 test plan - 6 items in two dependency chains of 3, parallelism cap 2
+max_active_steps: 2
+
+params:
+  LEDGER: /Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F8/dagu/kt1/ledger.jsonl
+  REPORT_DIR: /Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F8/dagu/kt1/reports
+  ITEM_SECONDS: 20
+
+steps:
+  # Chain A
+  - id: A1
+    name: "A1"
+    run: python3 /Users/petermakhnatch/Developer/eval-lab/.worktrees/on-f8-dagu-trial-20261102/research/experiments/on-dagu-trial-20261102/fake_agent.py --id A1 --ledger "${LEDGER}" --report "${REPORT_DIR}/A1.md" --seconds ${ITEM_SECONDS}
+
+  - id: A2
+    name: "A2"
+    depends: [A1]
+    run: python3 /Users/petermakhnatch/Developer/eval-lab/.worktrees/on-f8-dagu-trial-20261102/research/experiments/on-dagu-trial-20261102/fake_agent.py --id A2 --ledger "${LEDGER}" --report "${REPORT_DIR}/A2.md" --seconds ${ITEM_SECONDS}
+
+  - id: A3
+    name: "A3"
+    depends: [A2]
+    run: python3 /Users/petermakhnatch/Developer/eval-lab/.worktrees/on-f8-dagu-trial-20261102/research/experiments/on-dagu-trial-20261102/fake_agent.py --id A3 --ledger "${LEDGER}" --report "${REPORT_DIR}/A3.md" --seconds ${ITEM_SECONDS}
+
+  # Chain B
+  - id: B1
+    name: "B1"
+    run: python3 /Users/petermakhnatch/Developer/eval-lab/.worktrees/on-f8-dagu-trial-20261102/research/experiments/on-dagu-trial-20261102/fake_agent.py --id B1 --ledger "${LEDGER}" --report "${REPORT_DIR}/B1.md" --seconds ${ITEM_SECONDS}
+
+  - id: B2
+    name: "B2"
+    depends: [B1]
+    run: python3 /Users/petermakhnatch/Developer/eval-lab/.worktrees/on-f8-dagu-trial-20261102/research/experiments/on-dagu-trial-20261102/fake_agent.py --id B2 --ledger "${LEDGER}" --report "${REPORT_DIR}/B2.md" --seconds ${ITEM_SECONDS}
+
+  - id: B3
+    name: "B3"
+    depends: [B2]
+    run: python3 /Users/petermakhnatch/Developer/eval-lab/.worktrees/on-f8-dagu-trial-20261102/research/experiments/on-dagu-trial-20261102/fake_agent.py --id B3 --ledger "${LEDGER}" --report "${REPORT_DIR}/B3.md" --seconds ${ITEM_SECONDS}

@@ -501,6 +501,190 @@ PREMERGE_SCRIPT = ROOT / "scripts/premerge.sh"
 # change this constant and every workflow together; the test below refuses drift.
 HARBOR_VERSION = "0.21.0"
 
+
+# HAR-252: mcp-wheelhouse-platform run 41387496649 on main failed with "Failed to
+# download pytz==2026.5 after 3 retries" -- uv's default UV_HTTP_RETRIES (3) at the
+# moment a single PyPI/index blip hit a job that fetched packages cold every run.
+# uv honours UV_HTTP_RETRIES (added in 0.7.21; the workflows pin 0.9.24) for sync,
+# `uv run`, `uv tool install`, `uv python install` and `uvx`, so one variable at job
+# or workflow scope bounds every download the job makes. The cache step removes the
+# download itself; retries cover the download that still happens (cache miss, new
+# lock hash, wheelhouse fetch).
+_UV_RETRY_FLOOR = 5
+_UV_CACHE_PATH = "~/.cache/uv"
+_UV_SYNC_LINE = re.compile(r"(?<![\w./-])uv\s+sync\b")
+_UV_RUN_LINE = re.compile(r"(?<![\w./-])uv\s+run\b")
+_UV_FETCH_LINE = re.compile(
+    r"(?<![\w./-])uv\s+(?:tool\s+install|python\s+install)\b|(?<![\w./-])uvx\b"
+)
+_UV_LOCK_HASH = re.compile(r"hashFiles\(\s*'uv\.lock'")
+
+
+def _step_runs(job: dict) -> list[tuple[int, str]]:
+    return [
+        (index, step["run"])
+        for index, step in enumerate(job.get("steps") or [])
+        if isinstance(step, dict) and isinstance(step.get("run"), str)
+    ]
+
+
+def _syncs_environment(run: str) -> bool:
+    """True when a run script resolves and installs the locked environment."""
+    for line in run.splitlines():
+        if _UV_SYNC_LINE.search(line):
+            return True
+        # `uv run` without --no-sync performs an implicit `uv sync`.
+        if _UV_RUN_LINE.search(line) and "--no-sync" not in line:
+            return True
+    return False
+
+
+def _downloads_from_index(run: str) -> bool:
+    return _syncs_environment(run) or bool(_UV_FETCH_LINE.search(run))
+
+
+def _uv_cache_steps(job: dict) -> list[tuple[int, dict]]:
+    found = []
+    for index, step in enumerate(job.get("steps") or []):
+        if not isinstance(step, dict):
+            continue
+        uses = step.get("uses") or ""
+        params = step.get("with") or {}
+        if (
+            isinstance(uses, str)
+            and uses.startswith("actions/cache@")
+            and _UV_CACHE_PATH in str(params.get("path", ""))
+        ):
+            found.append((index, step))
+    return found
+
+
+def _uv_retry_floor(workflow: dict, job: dict) -> int | None:
+    for scope in (job.get("env") or {}, workflow.get("env") or {}):
+        if isinstance(scope, dict) and "UV_HTTP_RETRIES" in scope:
+            try:
+                return int(str(scope["UV_HTTP_RETRIES"]))
+            except ValueError:
+                return None
+    return None
+
+
+def _uv_download_problems(workflow: dict) -> list[str]:
+    """Report jobs that reach an index without bounded retries or a warm cache."""
+    problems: list[str] = []
+    for job_name, job in (workflow.get("jobs") or {}).items():
+        if not isinstance(job, dict):
+            continue
+        runs = _step_runs(job)
+        sync_steps = [index for index, run in runs if _syncs_environment(run)]
+        if not sync_steps and not any(_downloads_from_index(run) for _, run in runs):
+            continue
+
+        retries = _uv_retry_floor(workflow, job)
+        if retries is None or retries < _UV_RETRY_FLOOR:
+            problems.append(
+                f"job '{job_name}' downloads packages with UV_HTTP_RETRIES="
+                f"{retries!r}; set UV_HTTP_RETRIES >= {_UV_RETRY_FLOOR}"
+            )
+
+        if not sync_steps:
+            continue
+        caches = _uv_cache_steps(job)
+        if not caches:
+            problems.append(
+                f"job '{job_name}' syncs the environment without an actions/cache "
+                f"step on {_UV_CACHE_PATH} keyed by hashFiles('uv.lock')"
+            )
+            continue
+        cache_index, cache_step = caches[0]
+        key = str((cache_step.get("with") or {}).get("key", ""))
+        if not _UV_LOCK_HASH.search(key):
+            problems.append(
+                f"job '{job_name}' cache key {key!r} is not keyed by "
+                "hashFiles('uv.lock'), so a changed lock reuses stale packages"
+            )
+        if cache_index > sync_steps[0]:
+            problems.append(
+                f"job '{job_name}' restores the uv cache after its first sync step, "
+                "so that sync cannot use it"
+            )
+    return problems
+
+
+@pytest.mark.parametrize("workflow_path", WORKFLOW_FILES, ids=lambda p: p.name)
+def test_uv_downloading_jobs_cache_packages_and_retry(workflow_path: Path) -> None:
+    """Every job that resolves packages must cache the uv cache and retry downloads.
+
+    A single PyPI blip reddened main (mcp-wheelhouse-platform run 41387496649) because
+    uv stops after 3 retries by default and only the quality/typecheck jobs restored
+    a package cache. `uv run` without --no-sync syncs implicitly, so those jobs are
+    covered too; a job that only installs a tool or an interpreter needs the retry
+    floor but no project cache.
+    """
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    problems = _uv_download_problems(workflow)
+    assert not problems, f"'{workflow_path.name}' violates HAR-252: " + "; ".join(problems)
+
+
+def _fixture_workflow(
+    *,
+    sync: str = "uv sync --locked",
+    has_cache: bool = True,
+    cache_before_sync: bool = True,
+    key: str = "uv-0.9.24-${{ runner.os }}-3.12-fixture-${{ hashFiles('uv.lock') }}",
+    retries: str | int | None = "5",
+) -> dict:
+    cache_step = {
+        "name": "Cache locked Python packages",
+        "uses": "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+        "with": {"path": "~/.cache/uv", "key": key},
+    }
+    steps: list[dict] = [{"uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262"}]
+    if has_cache and cache_before_sync:
+        steps.append(cache_step)
+    steps.append({"name": "Sync", "run": sync})
+    if has_cache and not cache_before_sync:
+        steps.append(cache_step)
+    workflow: dict = {
+        "jobs": {
+            "fixture": {"runs-on": "ubuntu-latest", "timeout-minutes": 10, "steps": steps}
+        }
+    }
+    if retries is not None:
+        workflow["env"] = {"UV_HTTP_RETRIES": retries}
+    return workflow
+
+
+@pytest.mark.parametrize(
+    ("fixture", "expected"),
+    [
+        ({}, None),
+        ({"retries": 5}, None),
+        ({"sync": "uv run --no-sync pytest -q", "has_cache": False}, None),
+        ({"retries": None}, "UV_HTTP_RETRIES"),
+        ({"retries": "3"}, "UV_HTTP_RETRIES"),
+        ({"has_cache": False}, "actions/cache"),
+        ({"sync": "uv run pytest -q", "has_cache": False}, "actions/cache"),
+        ({"cache_before_sync": False}, "after its first sync step"),
+        ({"key": "uv-cache-${{ runner.os }}"}, "hashFiles('uv.lock')"),
+    ],
+)
+def test_uv_download_governance_rejects_unprotected_fixture_jobs(
+    fixture: dict, expected: str | None
+) -> None:
+    """The gate must fail a uv-sync job missing the cache step or the retry floor.
+
+    A fixture keeps the failure mode independent of the repository's own workflows:
+    dropping the cache step, lowering the retry count, or restoring the cache after
+    the sync each has to fail here even after the real workflows are repaired.
+    """
+    problems = _uv_download_problems(_fixture_workflow(**fixture))
+    if expected is None:
+        assert problems == []
+    else:
+        assert any(expected in problem for problem in problems), problems
+
+
 _UV_VERSION_DECLARATION = re.compile(r'^readonly UV_VERSION="(?P<version>[^"]+)"\s*$', re.MULTILINE)
 _UV_PIN = re.compile(r"\buv==(?P<version>[0-9][\w.]*)")
 _UV_COMMAND = re.compile(

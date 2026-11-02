@@ -1,0 +1,97 @@
+{
+  "cohort": {
+    "total_events": 88808,
+    "total_prefix_scores": 28490,
+    "total_runs": 404
+  },
+  "cost_projections_per_1k_runs": {
+    "cards_per_1k_runs": 381.2,
+    "claude_35_sonnet_reference_usd": 10.3098,
+    "gemini_38_flash_metered_usd": 2.0323,
+    "gemini_38_flash_subscription_usd": 0.0,
+    "gpt_4o_reference_usd": 7.9779,
+    "l0_trigger_rate": 0.3812
+  },
+  "crash_recovery": {
+    "control_queue_size": 16,
+    "control_served": 16,
+    "gate_verdict": "PASS",
+    "kills_executed": 3,
+    "queue_equality": true,
+    "recovered_queue_size": 16,
+    "recovered_served": 16,
+    "served_equality": true,
+    "zero_duplicate_queue": true,
+    "zero_duplicate_serves": true,
+    "zero_lost_requests": true
+  },
+  "guards": {
+    "budget": "PASS",
+    "kill_switch": "PASS",
+    "rate_limit": "PASS"
+  },
+  "live_slice": {
+    "all_attested": true,
+    "cards_served": 9,
+    "mean_tokens_card": 6439.7,
+    "mean_usd_card": 0.005331,
+    "median_latency_seconds": 2.815,
+    "queue_size": 9,
+    "served_models": [
+      "google-antigravity/gemini-3.8-flash"
+    ],
+    "zero_fallbacks": true
+  },
+  "reviewer_scenarios": {
+    "all_passed": true,
+    "scenario_a_hourly_cap": true,
+    "scenario_b_kill_switch": true,
+    "scenario_c_queue_uncreatable": true,
+    "scenario_d_crash_journal_queue": true,
+    "scenario_e_hidden_verdict_queue": true
+  },
+  "throughput_latency": {
+    "cycle_seconds_p50_cached": 0.223,
+    "cycle_seconds_p50_off": 0.046,
+    "events_per_min_cached": 14907.4,
+    "events_per_min_off": 16988.6,
+    "per_prefix_latency_p50_cached": 0.0005332500149961561,
+    "per_prefix_latency_p50_off": 0.0005098750116303563,
+    "runs_per_min_cached": 104.04,
+    "runs_per_min_off": 118.57,
+    "slowdown_l0_pct": 384.78
+  },
+  "triggers_and_queue": {
+    "cascade_stage1": {
+      "count": 0,
+      "rate": 0.0,
+      "wilson_95": [
+        0.0,
+        0.0094
+      ]
+    },
+    "l0_gate": {
+      "count": 154,
+      "rate": 0.3812,
+      "wilson_95": [
+        0.3352,
+        0.4295
+      ]
+    },
+    "queue_priorities": {
+      "high_priority_2": 79,
+      "medium_priority_1": 75,
+      "normal_priority_0": 69
+    },
+    "queue_size": 223,
+    "target_surface": {
+      "count": 98,
+      "rate": 0.2426,
+      "wilson_95": [
+        0.2033,
+        0.2867
+      ]
+    },
+    "total_triggers": 252
+  }
+}

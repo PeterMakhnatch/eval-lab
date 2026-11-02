@@ -156,6 +156,41 @@ def test_queue_order_is_shuffled_not_file_order(tmp_path: Path) -> None:
     keep = js.Station(source, {"q": entries}, state_dir=tmp_path, keep_order=True)
     assert [e["id"] for e in keep.queue("q")] == in_file
 
+def test_queue_order_and_keys_independent_of_reveal_verdicts(tmp_path: Path) -> None:
+    source = FakeSource({}, {})
+    entry_cheat = js.QueueEntry(
+        f"{SECRET_SOURCE}:cheat_run",
+        reveal={"detectors": [{"verdict": "confirmed_cheat", "suspicion": 95}]},
+        priority=2,
+    )
+    entry_clean = js.QueueEntry(
+        f"{SECRET_SOURCE}:clean_run",
+        reveal={"detectors": [{"verdict": "clean", "suspicion": 0}]},
+        priority=0,
+    )
+    entry_cheat_swapped = js.QueueEntry(
+        f"{SECRET_SOURCE}:cheat_run",
+        reveal={"detectors": [{"verdict": "clean", "suspicion": 0}]},
+        priority=0,
+    )
+    entry_clean_swapped = js.QueueEntry(
+        f"{SECRET_SOURCE}:clean_run",
+        reveal={"detectors": [{"verdict": "confirmed_cheat", "suspicion": 95}]},
+        priority=2,
+    )
+    for i in range(50):
+        q_name = f"queue_{i}"
+        st1 = js.Station(source, {q_name: [entry_cheat, entry_clean]}, state_dir=tmp_path)
+        st2 = js.Station(source, {q_name: [entry_cheat_swapped, entry_clean_swapped]}, state_dir=tmp_path)
+        q1 = st1.queue(q_name)
+        q2 = st2.queue(q_name)
+        for row in q1 + q2:
+            assert "priority" not in row
+            assert "reveal" not in row
+            assert "verdict" not in row
+            assert set(row.keys()) == {"position", "id", "done", "refused"}
+        assert [row["id"] for row in q1] == [row["id"] for row in q2]
+
 
 def test_non_dev_or_unknown_runs_are_refused_and_never_labelled(station: js.Station) -> None:
     with pytest.raises(js.JudgeError, match="refused"):

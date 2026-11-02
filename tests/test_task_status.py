@@ -338,6 +338,41 @@ def test_deterministic_input_order_and_conflicting_versions(root: Path) -> None:
         build(root, gold_results=[one, bound])
 
 
+def test_same_task_order_is_deterministic_and_alternatives_are_not_summed(root: Path) -> None:
+    shared = {"package_digest": "sha256:" + "e" * 64}
+    one = save(
+        root,
+        "one.json",
+        gold(
+            alternative_solutions_total=1,
+            alternative_solutions_accepted=1,
+            **shared,
+        ),
+    )
+    two = save(
+        root,
+        "two.json",
+        gold(
+            alternative_solutions_total=1,
+            alternative_solutions_accepted=1,
+            **shared,
+        ),
+    )
+    assert build(root, gold_results=[one, two])["tasks"][0]["status"] == "provisional"
+    save(root, "one.json", gold(nop_reward=1.0, **shared))
+    save(root, "two.json", gold(witness_reward=1.0, **shared))
+    assert build(root, gold_results=[one, two]) == build(root, gold_results=[two, one])
+
+
+def test_unbound_receipts_cannot_mix_batches_even_at_same_path(root: Path) -> None:
+    one = save(root, "one.json", gold())
+    two = save(
+        root, "two.json", gold(alternative_solutions_total=2, alternative_solutions_accepted=2)
+    )
+    with pytest.raises(ValueError, match="unbound package versions"):
+        build(root, gold_results=[one, two])
+
+
 def test_separate_replay_reuses_gold_receipt_not_bare_counts(root: Path) -> None:
     receipt = save(
         root, "replay.json", gold(alternative_solutions_total=2, alternative_solutions_accepted=2)

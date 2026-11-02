@@ -511,16 +511,13 @@ def build_task_status(
                 f"conflicting package digests for {task}; build separate manifests per grader"
             )
         digest = next(iter(digests), None)
-        controls = items
-        packages = {item.package for item in controls if item.package}
-        if len(packages) > 1 and any(item.digest is None for item in controls):
-            raise ValueError(
-                f"unbound package versions for {task}; build separate manifests per grader"
-            )
+        controls = sorted(items, key=lambda item: (item.evidence["kind"], item.evidence["path"]))
         if len(controls) > 1 and digests and any(item.digest is None for item in controls):
             raise ValueError(
                 f"mixed bound and unbound receipts for {task}; build separate manifests per grader"
             )
+        if len(controls) > 1 and any(item.digest is None for item in controls):
+            raise ValueError(f"unbound package versions for {task}; select one receipt per grader")
         status, reason = (
             "uncertified",
             "NO_EVIDENCE: No qualifying task-side control evidence is available.",

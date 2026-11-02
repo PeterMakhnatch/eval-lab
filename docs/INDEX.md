@@ -105,7 +105,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:3c1ba0e1c05b8b78ca5f1a08a8f9c1cd46ba52f55874a206b642758e3b5065d3
+    digest: sha256:f05219303e83abbf1842af9fe5495ede38239c838d57a8ecaa991a278ba76c68
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/production-factory.md
@@ -169,7 +169,7 @@ inputs:
   - path: docs/trial-treatment.md
     digest: sha256:1c6e4147cc2ba6cc215482e6315f53cb4a0aec7ec2ef768a72d8d87bb85b7023
   - path: docs/trust-engine.md
-    digest: sha256:29a26ff550930d1e3d75b4d8f0f356fd415f35d3519e1746e75608a98836ce1f
+    digest: sha256:7e649a38421ce5ba324c225e8d787fe31aa8342d05c4464ab3fad14ec07b1210
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md

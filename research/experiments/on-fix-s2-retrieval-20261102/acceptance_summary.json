@@ -1,16 +1,17 @@
 {
   "prereg_sha256": "5bba4ddd30e3044e3e29405ec2195f73356e0bbc744f33aee6fd12ecdb52d7b7",
   "cohort_a": {
+    "note": "Cohort A contains 46 positive cheats and 2 clean runs selected by stored production trigger. Because it has only 2 negatives, it does not evaluate false alarm control; false alarms are evaluated on the 69 negatives of the 136-case report split.",
     "n_total": 48,
     "n_pos": 46,
     "n_neg": 2,
-    "tp_rep1": 29,
+    "tp_rep1": 30,
     "tp_rep2": 30,
     "fp_rep1": 1,
     "fp_rep2": 1,
     "ci_rep1": [
-      0.48600096310376883,
-      0.7547624549289894
+      0.5077005872759452,
+      0.773190067095606
     ],
     "ci_rep2": [
       0.5077005872759452,
@@ -19,12 +20,12 @@
   },
   "mcnemar": {
     "pat1_vs_a1": {
-      "b": 5,
+      "b": 6,
       "c": 0,
       "both": 24,
-      "neither": 17,
+      "neither": 16,
       "n": 46,
-      "p": 0.0625
+      "p": 0.03125
     },
     "pat2_vs_a1": {
       "b": 6,
@@ -35,12 +36,12 @@
       "p": 0.03125
     },
     "pat1_vs_a2": {
-      "b": 6,
+      "b": 7,
       "c": 0,
       "both": 23,
-      "neither": 17,
+      "neither": 16,
       "n": 46,
-      "p": 0.03125
+      "p": 0.015625
     },
     "pat2_vs_a2": {
       "b": 7,
@@ -51,12 +52,12 @@
       "p": 0.015625
     },
     "pat1_vs_b1_1": {
-      "b": 2,
+      "b": 3,
       "c": 4,
       "both": 27,
-      "neither": 13,
+      "neither": 12,
       "n": 46,
-      "p": 0.6875
+      "p": 1.0
     },
     "pat2_vs_b1_2": {
       "b": 3,
@@ -67,20 +68,106 @@
       "p": 1.0
     },
     "pat1_vs_stored": {
-      "b": 5,
-      "c": 6,
-      "both": 24,
-      "neither": 11,
+      "b": 7,
+      "c": 7,
+      "both": 23,
+      "neither": 9,
       "n": 46,
       "p": 1.0
     },
     "pat2_vs_stored": {
-      "b": 6,
-      "c": 6,
-      "both": 24,
-      "neither": 10,
+      "b": 7,
+      "c": 7,
+      "both": 23,
+      "neither": 9,
       "n": 46,
       "p": 1.0
+    }
+  },
+  "report_split_136": {
+    "n_total": 136,
+    "n_pos": 67,
+    "n_neg": 69,
+    "stored_cascade_comparison": {
+      "recall": "19-20 / 67 (28.4% - 29.9%)",
+      "fa": "2 / 69 (2.90%)"
+    },
+    "stage1_alone_d7_comparison": {
+      "recall": "21 / 67 (31.3%)",
+      "fa": "2 / 69 (2.90%)",
+      "end_to_end_gain_over_stage1": "nil (within noise)"
+    },
+    "rep1": {
+      "recall_tune_thresh": {
+        "tp": 22,
+        "n": 67,
+        "rate": 0.3284,
+        "wilson": [
+          0.2279,
+          0.4474
+        ]
+      },
+      "fa_tune_thresh": {
+        "fp": 2,
+        "n": 69,
+        "rate": 0.029,
+        "wilson": [
+          0.008,
+          0.0997
+        ]
+      },
+      "fixed_alert": {
+        "tp": 21,
+        "n_pos": 67,
+        "rate_recall": 0.3134,
+        "wilson_recall": [
+          0.2151,
+          0.432
+        ],
+        "fp": 2,
+        "n_neg": 69,
+        "rate_fa": 0.029,
+        "wilson_fa": [
+          0.008,
+          0.0997
+        ]
+      }
+    },
+    "rep2": {
+      "recall_tune_thresh": {
+        "tp": 22,
+        "n": 67,
+        "rate": 0.3284,
+        "wilson": [
+          0.2279,
+          0.4474
+        ]
+      },
+      "fa_tune_thresh": {
+        "fp": 2,
+        "n": 69,
+        "rate": 0.029,
+        "wilson": [
+          0.008,
+          0.0997
+        ]
+      },
+      "fixed_alert": {
+        "tp": 21,
+        "n_pos": 67,
+        "rate_recall": 0.3134,
+        "wilson_recall": [
+          0.2151,
+          0.432
+        ],
+        "fp": 2,
+        "n_neg": 69,
+        "rate_fa": 0.029,
+        "wilson_fa": [
+          0.008,
+          0.0997
+        ]
+      }
     }
   }
 }

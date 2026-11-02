@@ -16,8 +16,10 @@ from evallab.insights.models import (
 )
 from evallab.insights.stats import compute, mcnemar_exact, wilson
 
-_NUMBER_BODY = r"[-+]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)(?:[eE][-+]?\d+)?"
-_NUMBER = re.compile(rf"(?<![\w.])({_NUMBER_BODY})([ \t]*%)?(?!\w|\.\d)")
+_UNSIGNED = r"(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)(?:[eE][-+]?\d+)?"
+_NUMBER_BODY = rf"[-+]?{_UNSIGNED}"
+# A sign right after a percent sign or closing bracket is a range dash ("43.6%-97.0%").
+_NUMBER = re.compile(rf"(?<![\w.])((?:(?<![%)\]])[-+])?{_UNSIGNED})([ \t]*%)?(?!\w|\.\d)")
 _IDENTIFIER = re.compile(r"(?<![\w.])(?=[\w.-]*[A-Za-z])\w+(?:[.-]\w+)*(?!\w)")
 _EXEMPT = re.compile(r"(?<!\w)#\d+\b|\b\d{1,2}:\d{2}(?::\d{2})?\b|(?m:^\s*\d+[.)]\s+)")
 

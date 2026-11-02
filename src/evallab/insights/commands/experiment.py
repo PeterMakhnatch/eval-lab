@@ -15,6 +15,8 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     parser = subparsers.add_parser("experiment", help="Check a local experiment folder")
     parser.add_argument("folder", type=Path)
     parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument("--with", dest="related", type=Path, action="append", default=[])
+    parser.add_argument("--attribution", type=Path, default=None)
     parser.add_argument("--no-agents", action="store_true")
     parser.set_defaults(func=_cmd)
 
@@ -27,10 +29,10 @@ def _factory(state_root: Path, *, config: EngineConfig) -> EngineLike:
 
 def _cmd(args: argparse.Namespace, root: Path, *, harbor: object | None = None) -> int:
     folder = args.folder.resolve(strict=True)
-    output = args.out or experiment_output_dir(folder)
+    output = args.out or experiment_output_dir(folder, related=args.related)
     paths = analyze_experiment(
-        folder, output, engine_factory=_factory, now=datetime.now(UTC),
-        run_agents=not args.no_agents,
+        folder, output, related=args.related, attribution_spec=args.attribution,
+        engine_factory=_factory, now=datetime.now(UTC), run_agents=not args.no_agents,
     )
     print(json.dumps({"files": [str(path) for path in paths]}, indent=2, sort_keys=True))
     return 0

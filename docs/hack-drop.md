@@ -262,18 +262,86 @@ Example output on prototype development cohort (frozen B4 benchmark, IN-SAMPLE, 
 ```
 
 ### Certified Tasks Schema (`--certified-tasks`)
-JSON dictionary or JSONL entries mapping task identifiers to certification status:
+Build an evidence-backed DEV manifest without reading rollout outcomes or labels:
+
+```bash
+uv run evallab tasks status build \
+  --admission /path/to/admission-records/ \
+  --gold-results /path/to/certification.json /path/to/summary.json \
+  --out /path/to/task-status.json
+uv run evallab hack-drop manifest.jsonl --certified-tasks /path/to/task-status.json
+```
+
+`--admission` and `--gold-results` accept multiple paths and may be repeated.
+Admission directories discover `admission-*.json` recursively. Inputs are
+`evallab.task_admission/v1` AdmissionRecords and Gold `TaskCertificationResult`
+receipts (direct objects, JSONL, lists, or the existing matrix `tasks` wrapper).
+`--alt-replays` accepts **only full task-side TaskCertificationResult receipts
+with Gate 7 counts**, not a submission inventory or a real-run replay report.
+It uses the same receipt contract, not a second replay format.
+
+The manifest is `evallab.task_status/v1`, with `built_at`, `code_rev`,
+`inputs[].path/sha256/kind`, and `tasks`:
 
 ```json
 {
-  "tasks": [
-    {"task_id": "format-code-task-001804", "status": "weak", "reason": "pytest hook exploit possible"},
-    {"task_id": "terminal-bench/cad-model", "status": "gold", "reason": "certified with 6 gates"}
-  ]
+  "schema": "evallab.task_status/v1",
+  "built_at": "2026-11-02T12:00:00+00:00",
+  "code_rev": "<git revision>",
+  "inputs": [{"path": "/evidence/certification.json", "sha256": "<64 hex digits>", "kind": "gold_certification"}],
+  "tasks": [{
+    "task_id": "example-task",
+    "status": "provisional",
+    "reason": "ALT_UNMEASURED: Task-side gates passed, but alternative correct solutions were not measured.",
+    "package_digest": null,
+    "evidence": [{"path": "/evidence/certification.json", "sha256": "<64 hex digits>", "kind": "gold_certification"}]
+  }]
 }
 ```
 
-Accepted statuses: `gold`, `hardened`, `weak` (or `exploitable`), `unknown`.
+Statuses use this precedence, first match wins:
+
+1. **uncertified / REFERENCE_FAILED**: a measured reference fix does not score 1.
+2. **weak**: a nop, cheat attack, tamper witness, or `.pth` probe scored 1,
+   or a held-out mutant survived on this grader.
+3. **uncertified / WRONG_REJECTION_k_OF_n**: a known-correct alternative was rejected.
+4. **certified / ALL_GATES_PASSED**: reference = 1, nop = 0, every attack and
+   probe = 0, all mutation gates pass, and at least two operator-supplied
+   independent correct solutions were replayed with all accepted.
+5. **provisional / ALT_UNMEASURED** or **ALT_TOO_FEW_n**: all task-side gates
+   pass, but alternatives were unmeasured or fewer than two were tested.
+6. **uncertified / NO_EVIDENCE** or **INCOMPLETE_GATES**: no qualifying controls
+   or missing/failed gates. Unknown/infrastructure rewards never count as kills.
+
+Old receipts lacking `alternative_solutions_total` and
+`alternative_solutions_accepted` mean **not measured**, never zero wrong
+rejections. A known total with `accepted: null` is also unmeasured; an observed
+wrong rejection still blocks certification. Counts are not summed across
+receipts, because the same solutions might have been replayed twice.
+
+Each row cites the exact input bytes with SHA-256. Conflicting package digests
+or unbound package versions abort: select the intended grader's receipts and
+build separate manifests, never combine evidence from different batches into
+a stronger certificate. Legacy eight-task Gold summaries and failed first-batch
+Gold manifests are readable in place. A4B shipped-round receipts are also
+readable, but their `upgraded_package_sha256` hashes only the supplementary test,
+so it is **not** promoted to `package_digest`; a baseline-accepted subset of
+held-out mutant pairs is not proof that the full mutation gate passed.
+Precomputed `status`, `is_weak`, and prose claims never determine the result.
+
+The builder refuses label/rollout filenames and recursively rejects input
+fields carrying run IDs, outcomes, labels, or adjudications—even when nested
+beside a valid task-side receipt. A8/A8B real-submission replay reports are
+therefore **rejected inputs: carry run outcomes**. Their selected correct
+patches would need a separately approved task-side Gate 7 certification run.
+Paths, nested split declarations, and task IDs pass the same DEV/CorpusRegistry
+gates used by hack-drop. Output paths are DEV-gated too; existing output files
+are not overwritten. Invalid input exits 2 without creating an output.
+
+`hack_drop.load_certified_tasks` reads the builder's output unchanged. Older
+dictionary/JSONL manifests and historical status strings (`gold`, `hardened`,
+`weak`, `exploitable`, `unknown`) remain readable by that loader; new builders
+emit only `certified`, `provisional`, `weak`, and `uncertified`.
 
 ---
 

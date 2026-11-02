@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # Replay Proof and Crash Recovery on Fixed B1 Head (B2-REPLAY-PROOF-R2)
 
 This experiment re-evaluates the production factory opt-in AutoReview stage (HAR-B1-HOOK) at the fixed head of PR #1730 (`on/b1-hook-20261102`, commit `800c07e0344a8aa655abdc749ed9cba5a62ee603`). It addresses all findings from independent review `REVIEW-1730` and fix `FIX-B1-1730`, verifying crash recovery, operational guard deferral, reviewer scenarios (a)–(e), queue contract isolation, and throughput across 404 admitted DEV runs (304 Terminal Wrench DEV runs + 100 Goodfire deep_swe DEV runs).

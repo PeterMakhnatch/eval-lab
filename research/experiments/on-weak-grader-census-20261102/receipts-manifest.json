@@ -1,0 +1,19 @@
+{
+  "description": "Row-level files kept local per third-party data policy. Stored locally under ~/Developer/eval-lab-results/2026-11-02/A2/",
+  "files": [
+    {
+      "name": "census.json",
+      "sha256": "08d4b0b4936fb4e559fabf5904c613b0ceb4c2e5ac5475a1be8669d29cf54b7d",
+      "byte_size": 48009,
+      "row_count": 1457,
+      "description": "Census data containing per-task and per-mutant line numbers and diffs"
+    },
+    {
+      "name": "weak-tasks.json",
+      "sha256": "8735da6d4951cb67e5861f3d9b3351bc9e574464f5abf0da2634e5176dfc4acd",
+      "byte_size": 3192,
+      "row_count": 168,
+      "description": "Per-task records of weak tasks and surviving mutant operators"
+    }
+  ]
+}

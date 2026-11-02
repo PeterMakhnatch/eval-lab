@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # F11-FAIR-KILLTESTS: Fair Kill-Test Comparison
 
 Standardized, matched-protocol evaluation of 5 orchestration engines across 7 kill tests (KT1–KT7), incorporating the Phase 0 hardened baseline (`ds_squad_v2.py`) and real executions.

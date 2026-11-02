@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # on-asr-sweep-20261102 — adaptive attacker, L0 versus HS, strictly-DEV pytest packages
 
 Pre-registration: `research-context/bridge/2026-11-02-overnight/lanes/K7-raw/prereg.md`, sha256 `395c1db8a8c8…`

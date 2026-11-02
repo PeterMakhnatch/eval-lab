@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # MiMo Gold v1 Batch Certification (A4)
 
 This experiment evaluates and certifies the 32 executable DEV packages in the MiMo Gold universe using the hardened test synthesis feedback loop (`run_rounds` with fresh mutants), producing an immutable catalog: **"MiMo Gold v1"**.

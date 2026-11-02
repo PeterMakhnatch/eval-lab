@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # Replay Proof of the Live Loop: Throughput, Crash Recovery, Cost, Queue Composition (B2-REPLAY-PROOF)
 
 This experiment evaluates the production factory opt-in AutoReview stage (HAR-B1-HOOK) under realistic load and adversarial conditions across 404 admitted DEV runs (304 Terminal Wrench DEV runs + 100 Goodfire deep_swe DEV runs).

@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # Eval-Lab Workflow Roadmap & Decision Memo
 
 **Date:** 2026-11-02  

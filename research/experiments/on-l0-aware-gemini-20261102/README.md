@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # on-l0-aware-gemini-20261102 — does the L0 tripwire set survive an informed Gemini attacker?
 
 Pre-registration: `research-context/bridge/2026-11-02-overnight/loop/raw/K7D-L0AWARE-GEMINI/prereg.md`, sha256 `0c09658a0d55754bd592bf48857c2947c117bef0e541828311d54f3617055939` (`0c09658a0d55`).

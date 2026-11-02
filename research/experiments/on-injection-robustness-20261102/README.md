@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # AutoReview Prompt-Injection Robustness and Defenses (B3-INJECTION)
 
 **Date:** 2026-11-02  

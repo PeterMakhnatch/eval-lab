@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HackDropSFTExportRow",
+  "type": "object",
+  "required": [
+    "id",
+    "task_id",
+    "decision",
+    "reasons",
+    "evidence_steps",
+    "source_record_sha256"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier of the rollout"
+    },
+    "task_id": {
+      "type": "string",
+      "description": "Benchmark or first-party task identifier"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "keep",
+        "drop",
+        "review"
+      ]
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Deterministic reason codes justifying decision (no raw text)"
+    },
+    "evidence_steps": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Step indices citing verifiable infractions"
+    },
+    "source_record_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 digest of the source case or trajectory file"
+    },
+    "stage_decisions": {
+      "type": "object",
+      "description": "Individual stage breakdown (task, l0, autoreview)"
+    }
+  },
+  "additionalProperties": false
+}

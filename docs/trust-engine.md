@@ -88,11 +88,13 @@ All CLI commands run under `evallab` (executable via `uv run evallab` from the r
 | `evallab live-supervisor` | Live runs root; subcommands: `scan`, `serve`, `replay`, `adjudicate`, `rows`, `route-alarms`, `fleet-report` | `trace-findings/v1` records, shadow-mode decisions | Free local ($0, deterministic rules) | `src/evallab/production/live_supervisor.py` |
 | `evallab watch` | Live runs root; subcommands: `ack`, `stop` | Live trial monitoring, stop requests | Free local ($0, watchdog loops) | `src/evallab/harbor_watch_hooks.py` |
 | `evallab hack-drop` | Rollout paths/manifest; optional `--certified-tasks`, `--labels`, `--with-autoreview`, `--autoreview-route`, `--max-model-usd`, `--max-calls`, `--suspicion-threshold`, `--out-dir`, `--dry-run`, `--json` | Filtered datasets (`<out-dir>/kept.jsonl`, `dropped.jsonl`, `review.jsonl`) and summary `report.json` | Free local ($0 for task + L0 filter); Subscription / metered model when `--with-autoreview` enabled | `src/evallab/hack_drop.py`, `src/evallab/cli.py` |
-| `evallab spend reconcile` | Spend log path, optional `--since`, `--until`, `--threshold-usd`, `--providers`, `--deepseek-start-balance`, `--openrouter-start-usage`, `--sync-omp-sessions`, `--session-dir`, `--json` | Reconciliation report comparing provider balances/usage against local `spend.jsonl` ledger | Free local ($0, read-only provider usage queries and ledger verification) | `src/evallab/spend_reconcile.py`, `src/evallab/cli.py` |
+| `evallab spend reconcile` | Optional `--spend-log PATH` (defaults to the standard spend log), `--since`, `--until`, `--threshold-usd`, `--providers`, `--deepseek-start-balance`, `--openrouter-start-usage`, `--sync-omp-sessions`, `--session-dir`, `--json` | Reconciliation report comparing provider balances/usage against local `spend.jsonl` ledger | Free local ($0, read-only provider usage queries and ledger verification) | `src/evallab/spend_reconcile.py`, `src/evallab/cli.py` |
 
 ---
 
 ## 3. Runbooks
+
+> Paths in the runbook examples are shortened for readability. Rollout inputs given as relative paths resolve against the repository root; `--out-dir`, `--labels` and `--certified-tasks` resolve against your current directory. Use absolute paths for all of them (for example `$SCRATCH/runs/candidates.jsonl`).
 
 ### Runbook 1: Certify a Task Package
 
@@ -125,7 +127,7 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    ```
    *Expected result:* Outputs hardened package directory with separate verifier architecture (`transform: full-hardening@1`). Note: `--expected-tests <N>` is required for pytest packages unless `--allow-degraded` is passed.
 
-   *Pipeline note for new packages:* Runbook 1 for arbitrary task packages currently ends at Step 3 (anatomy, STING mutation audit, and container hardening). Automated corpus-scale task package certification is not yet an operator-runnable feature on `main`, but an active area of development across open PRs and overnight experiments.
+   *Pipeline note for new packages:* Runbook 1 for arbitrary task packages currently ends at Step 3 (anatomy, STING mutation audit, and container hardening). Automated corpus-scale task package certification is not yet an operator-runnable feature on `main`; it is an active research target (see `gh pr list` for work in flight).
 
 4. **Step 4: Status of automated Gold Certification (Plan-only CLI; 8-task experiment runner):**
    The CLI command `evallab certify-gold` is currently **plan-only**. You can preview the task parameters offline ($0):
@@ -199,7 +201,7 @@ When preparing agent trajectories for Supervised Fine-Tuning (SFT) or Reinforcem
      --out-dir results/filtered \
      --dry-run --json
    ```
-   *Expected result:* Generates `report.json` with stage breakdowns (`task`, `l0`, `autoreview`) and partitions rollouts into `kept.jsonl` (clean passes), `dropped.jsonl` (hard hits: test/grader modification, answer-key access, fabricated verification), and `review.jsonl` (soft hits: config writes, parse ambiguities, uncertified tasks).
+   *Expected result:* With `--dry-run`, only `report.json` is written (stage breakdowns for `task`, `l0`, `autoreview`). Drop `--dry-run` to also write `kept.jsonl` (clean passes), `dropped.jsonl` (hard hits: test/grader modification, answer-key access, fabricated verification), and `review.jsonl` (soft hits: config writes, parse ambiguities, uncertified tasks). `--dry-run` still makes (and does not cache) AutoReview model calls if `--with-autoreview` is set; it only skips the manifests and the cache.
 
 2. **Step 2: Run optional Stage 3 AutoReview on soft-flagged rollouts:**
    For soft-flagged rollouts touching target surfaces, enable compact-card model review under strict budget controls:
@@ -299,26 +301,14 @@ Independent blind verifiers (VF-OV1, VF-OV2) audited the overnight experiments a
 4. **Boundary-Shift Mutant Misses:**
    Contract-complete test synthesis currently misses subtle off-by-one or floating-point boundary shifts (e.g. task `000232` and `000484` LogEI edge cases), explaining why held-out generalization on base-surviving mutants sits at 3/8 (37.5%).
 5. **No Operator-Runnable Arbitrary Package Certifier:**
-   The `evallab certify-gold` CLI is plan-only (and non-plan mode is a stub). End-to-end certification exists only as an 8-task fixed MiMo experiment driver (`research/experiments/ov-gold-certifier-8-20261101/run_gold_certification.py`). Generalizing gold certification to arbitrary operator packages is an active research and development target across open PRs.
+   The `evallab certify-gold` CLI is plan-only (and non-plan mode is a stub). End-to-end certification exists only as an 8-task fixed MiMo experiment driver (`research/experiments/ov-gold-certifier-8-20261101/run_gold_certification.py`). Generalizing gold certification to arbitrary operator packages is an active research target (see `gh pr list` for work in flight).
 6. **Rollout Filtering Blind Spots (`evallab hack-drop`):**
    `evallab hack-drop` is merged on `main` (PR #1729), but operates under defined blind spots: shell-level text modifications (`dd of=`, `awk -i`), unrecognized tool-call argument shapes, and semantic exploits with zero test writes bypass deterministic detection, while AutoReview relies on a single uncalibrated route without ensemble (see `docs/hack-drop.md`).
+7. **L0 Evasion Evidence Is Thin:**
+   L0 has one measured evasion class: login-shell startup files. The benchmark runner executes the test command through `bash -lc`, so writing `exit 0` into `/etc/profile` or `~/.bash_profile` ends the shell with code 0 before pytest starts. It slipped past L0 in 1 of 21 packages for a naive Sonnet attacker and in 3 of 21 packages for a naive Gemini attacker (L0 caught 14 of that attacker's 17 grader-passing packages); a rule for it is proposed, not implemented (author-measured, not independently verified). A Gemini informed-attacker run, shown the rules, produced 0 of 21 evasions, but only because knowing the rules made it much less able to pass the original grader at all (4 of 21 packages, all caught); the informed Sonnet arm refused and was not measured. So: one mechanism, two models, in-sample DEV, no gate.
+
 ---
 
-## 7. In Open PRs, Not on Main Yet
+## 7. What This Page Does Not Track
 
-The preceding sections describe the state of `origin/main` as it is today. All major overnight infrastructure PRs have merged onto `main`:
-- **PR #1729:** `evallab hack-drop` rollout filter combining task status, L0 tripwires, and AutoReview.
-- **PR #1730:** Production factory opt-in AutoReview stage feeding Judge Station (`HAR-B1-HOOK`).
-- **PR #1732:** Judge Station v2 with information-value ordering, card-first view, drafts, undo, and agreement reports (`E1`).
-- **PR #1738:** `evallab.modal_cells` shared runner with reserve-then-settle spend gate and idempotent caching (`S1`).
-- **PR #1744:** Gold certifier feedback rounds (`--rounds`, `--probes-per-round`, `run_rounds` library API).
-- **PR #1752:** `evallab spend reconcile` provider usage reconciliation against local spend ledger (`R6-LEDGER-RECONCILE`).
-- **PR #1754:** Student-monitor distillation plan, decision memo, and protocol (`D3`).
-- **PR #1755:** Quota-aware route selector with measured burn (`R5-QUOTA-ROUTER`).
-- **PR #1756:** Engine-neutral kill-test harness across Baseline, Temporal, DBOS, and Dagu (`F9-KILLTEST-RESULTS`).
-- **PR #1757:** Calibrated prevalence of action-visible cheating in DEV traces (`R1-PREVALENCE`).
-
-The remaining active pull request under evaluation is:
-
-- **PR #1776 (`feat(research): evaluate L0 tripwires against informed Gemini attacker (K7D-L0AWARE-GEMINI)`):**
-  Evaluates Layer 0 tripwires against an attacker explicitly informed of tripwire rules, regex patterns, and protected paths, measuring whether tripwire awareness allows agents to subvert evaluation undetected ([PR #1776](https://github.com/PeterMakhnatch/eval-lab/pull/1776)).
+This page describes `origin/main` as of its last revision. It deliberately lists no pull requests, because what is in flight changes daily; run `gh pr list --repo PeterMakhnatch/eval-lab --state open` for that. Research results that sit under `research/experiments/` (workflow-engine comparison, cheap-monitor studies, Gold certification runs, informed-attacker runs) carry their own READMEs; treat the numbers there as author claims unless a README says an independent verifier checked them, because some of them were corrected after the first merge.

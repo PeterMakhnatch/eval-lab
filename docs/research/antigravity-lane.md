@@ -42,7 +42,7 @@ Harbor 0.21.0 provides two Antigravity agent adapters:
 ### How `agy` Manages Auth
 - On macOS/desktop, `agy` signs in via browser-based Google OAuth and stores credentials in the OS keyring and local application state under `~/.gemini/antigravity-cli/`.
 - Once authenticated, `agy` operates headlessly without prompting for credentials.
-- In containerized/headless environments (e.g. Docker), Harbor supports token injection via `AGY_AUTH_JSON_PATH` or `AGY_FORCE_AUTH_JSON=1`, copying `~/.gemini/antigravity-cli/antigravity-oauth-token` into `$HOME/.gemini/antigravity-cli/antigravity-oauth-token`.
+- In containerized/headless environments (e.g. Docker), the lab adapter (`evallab.harbor_antigravity.AntigravityCliCapture`) stages the host token: with `AGY_AUTH_JSON_PATH` naming a file, or `AGY_FORCE_AUTH_JSON=1` and the default host token present, it uploads that file, installs it at `$HOME/.gemini/antigravity-cli/antigravity-oauth-token` with mode 600, and removes both copies after the run. Harbor 0.21 staged the token inside `AntigravityCli`; Harbor 0.24 dropped that hook, so the adapter owns the staging and the stream sanitizer.
 
 ### Auth Mode & Probe Seam
 The lane uses `auth_mode="subscription-cli-session"` with `secret_source="cli:agy models"`.

@@ -1,20 +1,31 @@
 #!/bin/bash
 # Install the existing nightly label as a $0 refresh, without changing tick.
 # Source/interpreter snapshots survive feature-worktree retirement.
+#
+# Usage:
+#   install-nightly-refresh.sh [--load] [--backup] [--uninstall]
+#                              [--state-dir DIR] [--facts-root DIR] [--data-root DIR]
+#                              [--verdict-root DIR] [--queue-root DIR ...]
+#
+# --uninstall boots the label out of the user's launchd domain and removes the
+# plist, like the other evallab LaunchAgent installers; re-running it is a no-op.
+# The runtime snapshot and refresh state are kept, so evidence and Parquet output
+# survive an uninstall.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 STATE="$HOME/.local/state/evallab-nightly"
 FACTS="$HOME/.local/state/daily-report"
-COMMON="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)"
-DATA_ROOT="$(dirname "$COMMON")"
+DATA_ROOT=""
 VERDICT_ROOT=""
 LOAD=0
 BACKUP=0
+UNINSTALL=0
 QUEUE_ROOTS=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --load) LOAD=1; shift ;;
     --backup) BACKUP=1; shift ;;
+    --uninstall) UNINSTALL=1; shift ;;
     --state-dir) STATE="$2"; shift 2 ;;
     --facts-root) FACTS="$2"; shift 2 ;;
     --data-root) DATA_ROOT="$2"; shift 2 ;;
@@ -26,6 +37,16 @@ done
 LABEL=com.petermakhnatch.evallab.nightly
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOGS="$HOME/Library/Logs/evallab"
+# Uninstall before any git query, state creation or snapshot work: removal must
+# work from a dirty checkout and with nothing installed.
+if [ "$UNINSTALL" -eq 1 ]; then
+  launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+  rm -f "$DEST"
+  echo "removed: $DEST (runtime snapshot and state retained)"
+  exit 0
+fi
+COMMON="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)"
+DATA_ROOT="${DATA_ROOT:-$(dirname "$COMMON")}"
 mkdir -p "$STATE" "$LOGS" "$(dirname "$DEST")"
 if [ -e "$DEST" ] && [ ! -e "$DEST.bak-har199" ]; then
   cp -p "$DEST" "$DEST.bak-har199"

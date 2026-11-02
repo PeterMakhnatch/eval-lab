@@ -1029,6 +1029,31 @@ def _harbor_step_problems(
     return problems
 
 
+def test_full_suite_writes_junit_then_reports_skip_census() -> None:
+    workflow = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["test"]["steps"]
+    full_suite_index = next(
+        (
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict) and step.get("name") == "Full test suite"
+        ),
+        None,
+    )
+    assert full_suite_index is not None, "the test job must retain its Full test suite step"
+    full_suite_run = steps[full_suite_index].get("run") or ""
+    assert "--junitxml=full-suite.xml" in full_suite_run, (
+        "the full suite must write the JUnit report consumed by the skip census"
+    )
+
+    census = steps[full_suite_index + 1]
+    assert census.get("name") == "Full-suite skip reason census", (
+        "the skip census must immediately follow the full suite"
+    )
+    census_run = census.get("run") or ""
+    assert "scripts/ci/check_harbor_skips.py --report-only full-suite.xml" in census_run
+
+
 def test_native_harbor_step_checks_junit_skips_after_pytest() -> None:
     workflow = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
     run = _native_harbor_step(workflow).get("run") or ""

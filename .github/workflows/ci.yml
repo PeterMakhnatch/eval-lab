@@ -96,7 +96,9 @@ jobs:
       - name: Sync with benchmark and lance test dependencies (fastmcp, cryptography, lancedb)
         run: uv sync --locked --no-group observability --group benchmarks --group lance
       - name: Full test suite
-        run: uv run --no-sync pytest --shard ${{ matrix.shard }}
+        run: uv run --no-sync pytest --shard ${{ matrix.shard }} --junitxml=full-suite.xml
+      - name: Full-suite skip reason census
+        run: uv run --no-sync python scripts/ci/check_harbor_skips.py --report-only full-suite.xml
       - if: matrix.python-version == '3.12' && matrix.shard == '1/2'
         run: uv run --no-sync python -m evallab.smoke --docker-free
       - name: Native Harbor diff, regrade and observability contracts

@@ -375,6 +375,8 @@ class TaskCertificationResult:
 
     @property
     def gate7_alternatives_passed(self) -> bool | None:
+        if any(reward == 0.0 for reward in self.alternative_solution_rewards.values()):
+            return False
         if self.alternative_solutions_total is None or self.alternative_solutions_accepted is None:
             return None
         return self.alternative_solutions_accepted == self.alternative_solutions_total
@@ -467,7 +469,11 @@ class GoldMatrixSummary:
             },
             "gate7_alternative_solutions": {
                 "measured_tasks": sum(t.alternative_solutions_accepted is not None for t in self.tasks),
-                "accepted": sum(t.alternative_solutions_accepted or 0 for t in self.tasks),
+                "accepted": (
+                    None if any(t.alternative_solutions_total is not None
+                                and t.alternative_solutions_accepted is None for t in self.tasks)
+                    else sum(t.alternative_solutions_accepted or 0 for t in self.tasks)
+                ),
                 "total": sum(t.alternative_solutions_total or 0 for t in self.tasks),
             },
             "tasks": [t.summary() for t in self.tasks],

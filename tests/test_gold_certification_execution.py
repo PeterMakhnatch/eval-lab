@@ -54,6 +54,7 @@ def summarize(cells, outcomes, upgraded):
     ([1.0, 1.0], 2, "certified"), ([1.0, 0.0], 1, "failed"),
     ([], None, "provisional"), ([1.0], 1, "provisional"),
     ([None, None], None, "failed"), ([0.0, 0.0], 0, "failed"),
+    ([0.0, None], None, "failed"), ([1.0, None], None, "failed"),
 ])
 def test_gate7_preserves_each_outcome(tmp_path, alt_rewards, expected, status):
     cells, outcomes, upgraded = matrix(tmp_path, [f"correct-{i}" for i in range(len(alt_rewards))])
@@ -66,6 +67,10 @@ def test_gate7_preserves_each_outcome(tmp_path, alt_rewards, expected, status):
     assert result.status == status
     assert result.reference_reward == 1.0
     assert result.summary()["status"] == status
+    if 0.0 in alt_rewards:
+        assert result.gate7_alternatives_passed is False
+    if alt_rewards and None in alt_rewards:
+        assert gold.GoldMatrixSummary([result]).to_report_dict()["gate7_alternative_solutions"]["accepted"] is None
 
 
 @pytest.mark.parametrize("arm", ["reference", "nop", "witness", "exit0_pth", "train", "eval"])
@@ -248,6 +253,7 @@ def test_cli_success_uses_hardened_package_and_reports_wrong_rejection(tmp_path,
         return run
 
     monkeypatch.setattr(gold, "modal_cell_runner", runner)
+    monkeypatch.setattr(gold, "synthesize_contract", lambda *_a, **_kw: pytest.fail("unexpected model call"))
     monkeypatch.setattr(gold, "certify_task", lambda **kw: real_certify(**kw, stage=fake_stage))
     assert gold._certify_gold_command(args, tmp_path) == 1
     assert "WRONG REJECTION" in capsys.readouterr().out

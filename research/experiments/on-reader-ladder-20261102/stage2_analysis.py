@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import json
 import math
-from pathlib import Path
 import random
 import sys
+from pathlib import Path
 from typing import Any
 
 # Import stats
@@ -55,29 +55,34 @@ def get_threshold(scores: list[float], pct: float) -> float:
         return -math.inf
     return s[m]
 
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    with open(path, encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
+
+
+
 
 def main() -> None:
-    manifest = {r["case_id"]: r for r in map(json.loads, open(BENCH / "manifest.jsonl")) if r.get("label") is not None}
-    cohort = [json.loads(l) for l in open(D2 / "cohort.jsonl")]
+    manifest = {r["case_id"]: r for r in read_jsonl(BENCH / "manifest.jsonl") if r.get("label") is not None}
+    cohort = read_jsonl(D2 / "cohort.jsonl")
 
     # 1. Stored ar_g38
-    st_readings = {r["case_id"]: float(r["suspicion"]) for r in map(json.loads, open(BENCH / "readings/ar_g38.jsonl")) if r.get("suspicion") is not None}
+    st_readings = {r["case_id"]: float(r["suspicion"]) for r in read_jsonl(BENCH / "readings/ar_g38.jsonl") if r.get("suspicion") is not None}
 
     # 2. D2 gemini-3.8-flash (stage 1 re-read)
-    d2_ref = {r["case_id"]: float(r["suspicion"]) for r in map(json.loads, open(D2 / "gemini-3.8-flash.jsonl"))}
+    d2_ref = {r["case_id"]: float(r["suspicion"]) for r in read_jsonl(D2 / "gemini-3.8-flash.jsonl")}
 
     # 3. D2 gemini-2.5-flash-lite (cheapest rung)
-    d2_cheap = {r["case_id"]: float(r["suspicion"]) for r in map(json.loads, open(D2 / "gemini-2.5-flash-lite.jsonl"))}
+    d2_cheap = {r["case_id"]: float(r["suspicion"]) for r in read_jsonl(D2 / "gemini-2.5-flash-lite.jsonl")}
 
     # 4. D2 gemini-3.1-flash-lite (top rung)
-    d2_top = {r["case_id"]: float(r["suspicion"]) for r in map(json.loads, open(D2 / "gemini-3.1-flash-lite.jsonl"))}
+    d2_top = {r["case_id"]: float(r["suspicion"]) for r in read_jsonl(D2 / "gemini-3.1-flash-lite.jsonl")}
 
     # Source stage records
-    tw_rows = {r["run_id"]: r for r in map(json.loads, open(BRIDGE31 / "g38-flash/raw/W3-AUTOREVIEW-V2-TW/receipts/readings-tw.jsonl"))}
-    cb_rows = {r["blind_id"]: r for r in map(json.loads, open(BRIDGE31 / "g38-flash/raw/W2-AUTOREVIEW-INVESTIGATOR-R/receipts/readings-cheatbench.jsonl"))}
-    gf_rows = {r["blind_id"]: r for r in map(json.loads, open(BRIDGE31 / "g38-flash/raw/W2-AUTOREVIEW-INVESTIGATOR-R/receipts/readings-goodfire.jsonl"))}
-    ds_rows = {r["blind_id"]: r for r in map(json.loads, open(BRIDGE31 / "g38-flash/raw/W3-DEEPSWE-AUTOREVIEW/receipts/readings-arm2.jsonl"))}
-
+    tw_rows = {r["run_id"]: r for r in read_jsonl(BRIDGE31 / "g38-flash/raw/W3-AUTOREVIEW-V2-TW/receipts/readings-tw.jsonl")}
+    cb_rows = {r["blind_id"]: r for r in read_jsonl(BRIDGE31 / "g38-flash/raw/W2-AUTOREVIEW-INVESTIGATOR-R/receipts/readings-cheatbench.jsonl")}
+    gf_rows = {r["blind_id"]: r for r in read_jsonl(BRIDGE31 / "g38-flash/raw/W2-AUTOREVIEW-INVESTIGATOR-R/receipts/readings-goodfire.jsonl")}
+    ds_rows = {r["blind_id"]: r for r in read_jsonl(BRIDGE31 / "g38-flash/raw/W3-DEEPSWE-AUTOREVIEW/receipts/readings-arm2.jsonl")}
     cov = [c for c in cohort if c["case_id"] in st_readings]
     tune_cases = [c for c in cov if c["split"] == "tune"]
     report_cases = [c for c in cov if c["split"] == "report"]
@@ -257,10 +262,10 @@ def main() -> None:
     print(f"  - Uncertain band (25 <= susp <= 85): {triggers['uncertain_band']}")
     print(f"  - L0 gate card hit: {triggers['l0_hit']}")
     print("\nAUROC (Report Split, 67 pos, 69 neg):")
-    for arm_id, arm_data in auroc_results.items():
+    for _arm_id, arm_data in auroc_results.items():
         print(f"  {arm_data['label']:35s}: {arm_data['pooled_auroc']:.4f} {arm_data['pooled_ci95']}")
     print("\nRecall @ FA <= 2%:")
-    for arm_id, r in op_results["fa_2pct"]["pooled"].items():
+    for _arm_id, r in op_results["fa_2pct"]["pooled"].items():
         print(f"  {r['label']:35s}: thr={r['threshold']:4.1f} | rec={r['recall']['k']}/{r['recall']['n']} ({r['recall']['rate']*100:.1f}%) | fa={r['false_alarm']['k']}/{r['false_alarm']['n']} ({r['false_alarm']['rate']*100:.1f}%)")
     print("\nMcNemar Paired Comparisons @ FA <= 2% (Positives):")
     for pair_name, mc in op_results["fa_2pct"]["mcnemar"].items():

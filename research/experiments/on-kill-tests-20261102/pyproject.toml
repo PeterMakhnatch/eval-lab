@@ -1,0 +1,20 @@
+[project]
+name = "on-kill-tests-20261102"
+version = "0.1.0"
+description = "Engine-neutral kill-test harness across baseline, Temporal, DBOS, and Dagu"
+readme = "KILLTESTS.md"
+requires-python = ">=3.12"
+dependencies = [
+    "dbos>=3.4.0",
+    "temporalio>=1.35.0",
+    "pyyaml>=6.0.0",
+    "pytest>=8.0.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

@@ -1,0 +1,93 @@
+{
+  "cohort": 32,
+  "accepted_test": {
+    "k": 26,
+    "n": 32,
+    "fmt": "26/32 = 81.2% (64.7-91.1)"
+  },
+  "gold_structural_or_better": {
+    "k": 8,
+    "n": 32,
+    "fmt": "8/32 = 25.0% (13.3-42.1)"
+  },
+  "gold_heldout": {
+    "k": 1,
+    "n": 32,
+    "fmt": "1/32 = 3.1% (0.6-15.7)"
+  },
+  "status_counts": {
+    "not_gold": 18,
+    "gold_heldout": 1,
+    "gold_structural": 7,
+    "not_run": 6
+  },
+  "reason_counts": {
+    "train_mutants_survived": 9,
+    "ok": 1,
+    "heldout_insufficient_eval": 5,
+    "fewer_than_3_kept": 1,
+    "heldout_kill_rate_low": 2,
+    "gate_failed_exit0": 4,
+    "no_mutants_or_sources": 1,
+    "harness_error_qa_script": 1,
+    "harness_error_contract_import": 3,
+    "base_tests_fail_reference": 1,
+    "harness_error_cell": 1,
+    "probe_mutants_survived": 3
+  },
+  "functions": {
+    "asked_total": 312,
+    "kept_total": 290,
+    "tasks": 26
+  },
+  "eval_unseen_kill_pooled": {
+    "k": 12,
+    "n": 45,
+    "fmt": "12/45 = 26.7% (16.0-41.0)"
+  },
+  "a2": {
+    "a2_survivors_exercised": 18,
+    "a2_survivors_killed": 10,
+    "weak_tasks_with_accepted_test": 16,
+    "weak_demonstrated": 8,
+    "weak_demonstrated_ids": [
+      "format-code-task-000079",
+      "format-code-task-000081",
+      "format-code-task-000232",
+      "format-code-task-000682",
+      "format-code-task-000838",
+      "format-code-task-001985",
+      "format-code-task-002535",
+      "format-code-task-002545"
+    ],
+    "weak_cohort": 18,
+    "weak_fmt": "8/18 = 44.4% (24.6-66.3)",
+    "survivor_fmt": "10/18 = 55.6% (33.7-75.4)"
+  },
+  "rounds2_vs_1": {
+    "round2_measured_tasks": 22,
+    "round2_unmeasured_tasks": [
+      "format-code-task-001985",
+      "format-code-task-002139",
+      "format-code-task-002680",
+      "format-code-task-002976"
+    ],
+    "paired_all": {
+      "b": 0,
+      "c": 0,
+      "both": 11,
+      "neither": 25,
+      "n": 36,
+      "p": 1.0
+    },
+    "tasks_with_new_round2_test": 3,
+    "paired_new_round2_test": {
+      "b": 0,
+      "c": 0,
+      "both": 0,
+      "neither": 6,
+      "n": 6,
+      "p": 1.0
+    }
+  }
+}

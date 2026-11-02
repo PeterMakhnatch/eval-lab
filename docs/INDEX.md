@@ -82,6 +82,8 @@ inputs:
     digest: sha256:c334944474b3cee6cd9b3eee2ae9c84fbb1ccb7e58ea31b70b6d6a9c523e6265
   - path: docs/lancedb.md
     digest: sha256:e9bead9abe3e94658028e68f592ff3ef8cf4d43bb86b5199d8031fb19a2cbbe5
+  - path: docs/line.md
+    digest: sha256:698aa11095562b8bd3b302099c662c420906011a412cc17a685ad6578cc29a42
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md
@@ -219,6 +221,7 @@ an operator can see what is archived.
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
+| `docs/line.md` | Eval Lab assembly line | `living` | `builder, analyst, runner, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
 | `docs/live-supervisor.md` | Live Supervisor | `living` | `operator, builder` |
 | `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
@@ -284,6 +287,7 @@ an operator can see what is archived.
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
+| `docs/line.md` | Eval Lab assembly line | `living` | `builder, analyst, runner, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
 | `docs/live-watch.md` | Live watch: in-progress trial monitoring | `living` | `analyst, operator` |
 | `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
@@ -344,6 +348,7 @@ an operator can see what is archived.
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
 | `docs/hack-drop.md` | evallab hack-drop | `living` | `runner, operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
+| `docs/line.md` | Eval Lab assembly line | `living` | `builder, analyst, runner, operator` |
 | `docs/lora-sft-runbook.md` | LoRA SFT runbook: train, serve base + adapter, check parity, cost | `living` | `runner, operator` |
 | `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
@@ -400,6 +405,7 @@ an operator can see what is archived.
 | `docs/harbor-view.md` | Harbor viewer as the results surface (HAR-170) | `living` | `operator, analyst` |
 | `docs/judge-guide.md` | How to judge a run | `living` | `operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
+| `docs/line.md` | Eval Lab assembly line | `living` | `builder, analyst, runner, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
 | `docs/live-supervisor.md` | Live Supervisor | `living` | `operator, builder` |
 | `docs/live-watch.md` | Live watch: in-progress trial monitoring | `living` | `analyst, operator` |

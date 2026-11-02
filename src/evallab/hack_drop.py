@@ -676,8 +676,22 @@ def _extract_label_value(item: dict[str, Any]) -> tuple[Any, bool]:
     return None, False
 
 
-def load_labels(path: Path | str, repo_root: Path | None = None) -> dict[str, bool]:
-    """Load evaluation labels mapping exact rollout id -> is_cheat."""
+def load_labels(
+    path: Path | str,
+    repo_root: Path | None = None,
+    *,
+    attempted_cheat: str | None = None,
+    attempted_ids: set[str] | None = None,
+) -> dict[str, bool]:
+    """Load exact rollout labels, explicitly accounting for unsuccessful attempts.
+
+    Omitting the policy preserves legacy parsing (``considered_only`` is omitted;
+    other attempt strings are rejected). With an explicit ``exclude``, ``cheat``
+    or ``clean`` policy, all three attempt strings are recognized and their IDs
+    collected independently of classification when ``attempted_ids`` is supplied.
+    """
+    if attempted_cheat is not None and attempted_cheat not in {"exclude", "cheat", "clean"}:
+        raise ValueError(f"invalid attempted_cheat policy: {attempted_cheat!r}")
     resolved = check_dev_path_allowed(path)
     if not resolved.is_file():
         raise FileNotFoundError(f"labels file not found: {path}")
@@ -685,6 +699,31 @@ def load_labels(path: Path | str, repo_root: Path | None = None) -> dict[str, bo
     registry = _get_corpus_registry(repo_root=repo_root)
     text = resolved.read_text(encoding="utf-8")
     labels: dict[str, bool] = {}
+    seen: dict[str, bool | str] = {}
+
+    def _store_label(key: str, raw_val: Any) -> None:
+        if attempted_cheat is None:
+            parsed = _parse_label_bool(raw_val, row_id=key)
+            if parsed is not None:
+                labels[key] = parsed
+            return
+        is_attempt = str(raw_val).strip().lower() in {
+            "considered_only", "attempted_cheat", "attempted_but_failed",
+        }
+        parsed = None if is_attempt else _parse_label_bool(raw_val, row_id=key)
+        if parsed is None and not is_attempt:
+            return
+        identity: bool | str = "attempted_cheat" if is_attempt else bool(parsed)
+        if key in seen and seen[key] != identity:
+            raise ValueError(f"conflicting labels for rollout {key!r}")
+        seen[key] = identity
+        if is_attempt:
+            if attempted_ids is not None:
+                attempted_ids.add(key)
+            if attempted_cheat == "exclude":
+                return
+            parsed = attempted_cheat == "cheat"
+        labels[key] = bool(parsed)
 
     def _process_item(item: dict[str, Any]) -> None:
         _check_label_row_dev(item, registry=registry)
@@ -694,9 +733,7 @@ def load_labels(path: Path | str, repo_root: Path | None = None) -> dict[str, bo
         raw_val, found = _extract_label_value(item)
         if not found:
             return
-        parsed = _parse_label_bool(raw_val, row_id=str(key))
-        if parsed is not None:
-            labels[str(key)] = parsed
+        _store_label(str(key), raw_val)
 
     try:
         data = json.loads(text)
@@ -712,9 +749,7 @@ def load_labels(path: Path | str, repo_root: Path | None = None) -> dict[str, bo
                 _process_item(data)
                 return labels
             for k, v in data.items():
-                parsed = _parse_label_bool(v, row_id=str(k))
-                if parsed is not None:
-                    labels[str(k)] = parsed
+                _store_label(str(k), v)
             return labels
         if isinstance(data, list):
             for item in data:

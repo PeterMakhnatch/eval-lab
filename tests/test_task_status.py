@@ -9,7 +9,11 @@ from typing import Any
 import pytest
 
 from evallab.cli import run_cli
-from evallab.gold_certifier import TaskCertificationResult
+from evallab.gold_certifier import (
+    CertificationCell,
+    TaskCertificationResult,
+    summarize_certification,
+)
 from evallab.hack_drop import load_certified_tasks
 from evallab.task_admission import AdmissionRecord, AdmissionStepRecord, default_steps
 from evallab.task_status import build_task_status
@@ -905,3 +909,64 @@ def test_package_alias_cannot_hide_registry_identity(root: Path, kind: str) -> N
             build(root, admission=[file])
         else:
             status(root, gold(upgraded_package=str(alias)))
+
+
+@pytest.mark.parametrize(
+    ("alternative_rewards", "expected", "reason"),
+    [
+        ([], "provisional", "ALT_UNMEASURED:"),
+        ([1.0, 1.0], "certified", "ALL_GATES_PASSED:"),
+        ([0.0, 1.0], "uncertified", "WRONG_REJECTION_1_OF_2:"),
+    ],
+)
+def test_real_certifier_receipts_feed_builder(
+    root: Path,
+    alternative_rewards: list[float],
+    expected: str,
+    reason: str,
+) -> None:
+    upgraded = root / "upgraded"
+    upgraded.mkdir()
+    cells = [
+        CertificationCell("reference", "reference", upgraded, "", "REFERENCE_APPLIED"),
+        CertificationCell("nop", "nop", upgraded, "", "NOP_APPLIED"),
+        CertificationCell("exit0_pth", "exit0_pth", upgraded, "", "EXIT0_PTH_APPLIED"),
+        CertificationCell("witness-0", "witness", upgraded, "", "WITNESS_APPLIED", "default"),
+        CertificationCell("train-m1", "train", upgraded, "", "MUTANT_APPLIED train", "m1"),
+        CertificationCell("eval-m2", "eval", upgraded, "", "MUTANT_APPLIED eval", "m2"),
+        CertificationCell("evalbase-m2", "evalbase", upgraded, "", "MUTANT_APPLIED eval", "m2"),
+        *[
+            CertificationCell(
+                f"alternative-{index}",
+                "alternative",
+                upgraded,
+                "",
+                "REFERENCE_APPLIED",
+                f"alt-{index}",
+            )
+            for index in range(len(alternative_rewards))
+        ],
+    ]
+    outcomes = {
+        cell.name: {
+            "status": "executed",
+            "agent_log": cell.marker,
+            "reward": alternative_rewards[int(cell.name.rsplit("-", 1)[1])]
+            if cell.arm == "alternative"
+            else 1.0
+            if cell.arm in {"reference", "evalbase"}
+            else 0.0,
+        }
+        for cell in cells
+    }
+    receipt = summarize_certification(
+        task_id="sample-task",
+        upgraded=upgraded,
+        test_lines=12,
+        cells=cells,
+        outcomes=outcomes,
+    ).summary()
+    file = save(root, "certification.json", receipt)
+    row = build(root, gold_results=[file])["tasks"][0]
+    assert row["status"] == expected
+    assert row["reason"].startswith(reason)

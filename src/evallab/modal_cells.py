@@ -274,13 +274,15 @@ class ReserveSettleSpendGate(CloudSpendGate):
 
     def _lock_ledger(self) -> Any:
         assert self.spend_ledger is not None
-        lock_path = self.spend_ledger.with_name(self.spend_ledger.name + ".lock")
+        ledger_path = Path(self.spend_ledger)
+        lock_path = ledger_path.with_name(ledger_path.name + ".lock")
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         return _FileLock(lock_path)
 
     def _load_and_reconcile_ledger(self) -> dict[str, Any]:
         assert self.spend_ledger is not None
-        if not self.spend_ledger.exists():
+        ledger_path = Path(self.spend_ledger)
+        if not ledger_path.exists():
             data = {
                 "schema": "evallab.modal_cells.spend/v1",
                 "approval": self.approval,
@@ -295,7 +297,7 @@ class ReserveSettleSpendGate(CloudSpendGate):
             self._write_ledger_atomic(data)
             return data
 
-        raw = json.loads(self.spend_ledger.read_text(encoding="utf-8"))
+        raw = json.loads(ledger_path.read_text(encoding="utf-8"))
         if raw.get("approval") != self.approval:
             raise ValueError(
                 f"existing spend ledger differs at approval: {raw.get('approval')} != {self.approval}"
@@ -348,13 +350,14 @@ class ReserveSettleSpendGate(CloudSpendGate):
 
     def _write_ledger_atomic(self, data: dict[str, Any]) -> None:
         assert self.spend_ledger is not None
-        self.spend_ledger.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = self.spend_ledger.with_name(
-            f"{self.spend_ledger.name}.{uuid.uuid4().hex}.tmp"
+        ledger_path = Path(self.spend_ledger)
+        ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = ledger_path.with_name(
+            f"{ledger_path.name}.{uuid.uuid4().hex}.tmp"
         )
         try:
             temp_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-            temp_path.replace(self.spend_ledger)
+            temp_path.replace(ledger_path)
         finally:
             temp_path.unlink(missing_ok=True)
 
@@ -986,7 +989,7 @@ class ModalCellRunner:
         """Run a batch of cells with bounded concurrency, cache reuse, and live status."""
         status = CellBatchStatus(planned=len(cells))
         status.spend = self.spend_gate.summary()
-        results: list[dict[str, Any]] = [None] * len(cells)  # type: ignore[list-item]
+        results: list[dict[str, Any] | None] = [None] * len(cells)
         to_execute: list[tuple[int, CellSpec]] = []
 
         # 1. Filter cache hits
@@ -1004,7 +1007,7 @@ class ModalCellRunner:
             on_status(status)
 
         if not to_execute:
-            return results
+            return [r for r in results if r is not None]
 
         # 2. Dispatch uncached cells
         lock = threading.Lock()

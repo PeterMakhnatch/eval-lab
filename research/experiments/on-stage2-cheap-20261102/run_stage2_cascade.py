@@ -307,8 +307,7 @@ def run_arm(
         run = load_case_run(cid, manifest)
         anatomy = build_anatomy(run)
         view = am.build_compact_view(anatomy, run)
-        cand_steps = am.candidate_stage2_steps(anatomy)
-        target_steps = sorted(set(cand_steps) | set(s1_verdict.get("cited_steps", [])))
+        target_steps = am.candidate_stage2_steps(anatomy, stage1_verdict=s1_verdict, l0_hit_steps=l0_hits)
         prompt2 = am.stage2_prompt(view, run, target_steps)
 
         tag = f"{arm_name}-{cid}"
@@ -453,8 +452,7 @@ def run_noise_floor(
         run = load_case_run(cid, manifest)
         anatomy = build_anatomy(run)
         view = am.build_compact_view(anatomy, run)
-        cand_steps = am.candidate_stage2_steps(anatomy)
-        target_steps = sorted(set(cand_steps) | set(s1_verdict.get("cited_steps", [])))
+        target_steps = am.candidate_stage2_steps(anatomy, stage1_verdict=s1_verdict)
         prompt2 = am.stage2_prompt(view, run, target_steps)
 
         tag = f"noise-{cid}"

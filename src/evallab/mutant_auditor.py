@@ -442,13 +442,8 @@ def _is_text_constant(node: ast.expr) -> bool:
     )
 
 
-def _single_line(node: ast.AST) -> bool:
-    return (
-        getattr(node, "lineno", None) is not None
-        and node.lineno == getattr(node, "end_lineno", None)
-        and getattr(node, "col_offset", None) is not None
-        and getattr(node, "end_col_offset", None) is not None
-    )
+def _single_line(node: ast.expr | ast.stmt) -> bool:
+    return node.lineno == node.end_lineno and node.end_col_offset is not None
 
 
 def _binop_candidates(node: ast.BinOp, lines: list[bytes]) -> list[_Candidate]:
@@ -501,17 +496,16 @@ def _boolop_candidates(node: ast.BoolOp, lines: list[bytes]) -> list[_Candidate]
 
 def _negate_candidates(node: ast.If, lines: list[bytes]) -> list[_Candidate]:
     test = node.test
-    if not _single_line(test) or test.lineno != node.lineno:
+    end = test.end_col_offset
+    if end is None or not _single_line(test) or test.lineno != node.lineno:
         return []
-    text = lines[test.lineno - 1][test.col_offset : test.end_col_offset]
+    text = lines[test.lineno - 1][test.col_offset : end]
     return [
         _Candidate(
             "negate_condition",
             node.lineno,
             "negate `if` condition",
-            _replace_cols(
-                lines, test.lineno, test.col_offset, test.end_col_offset, b"not (" + text + b")"
-            ),
+            _replace_cols(lines, test.lineno, test.col_offset, end, b"not (" + text + b")"),
         )
     ]
 
@@ -520,14 +514,15 @@ def _return_candidates(node: ast.Return, lines: list[bytes]) -> list[_Candidate]
     value = node.value
     if value is None or not _single_line(node) or not _single_line(value):
         return []
-    if isinstance(value, ast.Constant) and value.value is None:
+    end = value.end_col_offset
+    if end is None or (isinstance(value, ast.Constant) and value.value is None):
         return []
     return [
         _Candidate(
             "return_none",
             node.lineno,
             "return value -> None",
-            _replace_cols(lines, node.lineno, value.col_offset, value.end_col_offset, b"None"),
+            _replace_cols(lines, node.lineno, value.col_offset, end, b"None"),
         )
     ]
 

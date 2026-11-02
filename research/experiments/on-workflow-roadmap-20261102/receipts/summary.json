@@ -1,32 +1,115 @@
 {
-  "title": "F6-ROADMAP: Workflow Roadmap & Decision Memo Summary",
+  "title": "F10-ROADMAP-FINAL: Workflow Roadmap & Decision Memo Summary",
   "date": "2026-11-02",
   "key_metrics": {
     "total_tonight_friction_items": 56,
     "total_census_documented_incidents": 28,
     "total_empirical_evidence_points": 84,
-    "friction_covered_by_candidate_workflows": 32,
-    "friction_coverage_ratio": "32/56 (57.1%)",
-    "friction_coverage_95_wilson": [
+    "tooling_environment_friction_count": 14,
+    "workflow_pain_points_count": 70,
+    "top_5_workflows_covered_pain_points": 48,
+    "top_5_workflows_pain_point_coverage_ratio": "48/70 (68.6%)",
+    "top_5_workflows_pain_point_coverage_95_wilson": [
+      0.57,
+      0.782
+    ],
+    "friction_covered_by_top_5": 32,
+    "friction_coverage_ratio_all": "32/56 (57.1%)",
+    "friction_coverage_all_95_wilson": [
+      0.441,
+      0.692
+    ],
+    "friction_coverage_ratio_workflow": "32/42 (76.2%)",
+    "friction_coverage_workflow_95_wilson": [
       0.615,
       0.865
     ],
-    "dbos_kt1_crash_survival_rate": "10/10 (100.0%)",
-    "dbos_kt1_95_wilson": [
-      0.722,
-      1.0
+    "census_covered_by_top_5": 16,
+    "census_coverage_ratio": "16/28 (57.1%)",
+    "census_coverage_95_wilson": [
+      0.391,
+      0.735
     ],
-    "dbos_quota_resume_tolerance_sec": 0.243,
-    "temporal_squad_loc_core": 1037,
-    "dbos_squad_loc_core": 663,
-    "loc_reduction_dbos_vs_temporal_pct": "36.1%",
-    "dagu_native_kt3_attempts_before_T": 6,
-    "dbos_native_kt3_attempts_before_T": 0
+    "kill_test_results": {
+      "dbos": {
+        "scorecard": "5/5 safe (4 pass + 1 loud fail)",
+        "kt1_crash_survival_rate": "10/10 (100.0%)",
+        "kt1_raw_executions": 68,
+        "kt1_duplicate_effects": 0,
+        "kt1_95_wilson": [
+          0.722,
+          1.0
+        ],
+        "kt2_approval_reboot": "PASS (survived 62s downtime via SQLite DBOS.recv)",
+        "kt3_quota_attempts_before_T": 0,
+        "kt3_resume_tolerance_sec": 0.631,
+        "kt4_code_mutation": "FAILS LOUDLY (DBOSUnexpectedStepError)",
+        "kt5_caps": "PASS (wall-clock killed-time, iteration cap DBOS Error 7, 0 leaked PIDs)"
+      },
+      "temporal": {
+        "scorecard": "4/5 (3 pass + 1 loud fail, 1 native FAIL on KT3)",
+        "kt1_crash_survival_rate": "10/10 (100.0%)",
+        "kt1_raw_executions": 60,
+        "kt1_duplicate_effects": 0,
+        "kt1_qualifier": "At-least-once: 2 starts if agent dies with worker per VF-F-WORKFLOWS S3; exactly-once if agent outlives worker",
+        "kt1_95_wilson": [
+          0.722,
+          1.0
+        ],
+        "kt2_approval_reboot": "PASS (survives dev server restart on SQLite)",
+        "kt3_quota_attempts_before_T": 3,
+        "kt3_verdict": "FAIL (3 blind continuation retries in <1.5s; 0 after T; exhausts retries)",
+        "kt4_code_mutation": "FAILS LOUDLY (NonDeterministicWorkflowError)",
+        "kt5_caps": "PASS (activity timeout cancelled, retry cap halted, 0 leaked PIDs)"
+      },
+      "dagu": {
+        "scorecard": "4/5 (3 pass + 1 recover, 1 native FAIL on KT3)",
+        "kt1_crash_survival_rate": "10/10 (100.0%)",
+        "kt1_raw_executions": 79,
+        "kt1_duplicate_effects": 0,
+        "kt1_95_wilson": [
+          0.722,
+          1.0
+        ],
+        "kt2_approval_reboot": "PASS (human.task state survives 65s downtime)",
+        "kt3_quota_attempts_before_T": 4,
+        "kt3_verdict": "FAIL Native (4 static retries before T; external wrapper required)",
+        "kt4_code_mutation": "RECOVERS (pins immutable dag.json attempt snapshot)",
+        "kt5_caps": "PASS (wall-clock cap fired at 2s, retry cap halted, 0 leaked PIDs)"
+      },
+      "baseline": {
+        "scorecard": "2/5 (2 pass, 2 fail, 1 silent divergence)",
+        "kt1_crash_survival_rate": "10/10 (100.0%)",
+        "kt1_raw_executions": 76,
+        "kt1_duplicate_executions": 16,
+        "kt1_duplicate_effects": 0,
+        "kt1_behavior": "Re-executes completed tasks from scratch on every crash",
+        "kt1_95_wilson": [
+          0.722,
+          1.0
+        ],
+        "kt2_approval_reboot": "FAIL (re-executes completed PREP step from scratch)",
+        "kt3_quota_attempts_before_T": 4,
+        "kt3_verdict": "FAIL (4 blind rapid retries in <3s; 0 after T)",
+        "kt4_code_mutation": "SILENT DIVERGENCE (dynamically reloads modified plan.json mid-run)",
+        "kt5_caps": "PASS (wall-clock killed-time, retry cap halted at 3 attempts, 0 leaked PIDs)"
+      }
+    },
+    "loc_comparison": {
+      "temporal_squad_loc_core": 1037,
+      "dbos_squad_loc_core": 663,
+      "loc_reduction_dbos_vs_temporal_pct": "36.1%",
+      "baseline_ds_squad_loc": 458
+    },
+    "phase_0_module_references": {
+      "s1_modal_cells_pr": "#1738 (OPEN)",
+      "r7_ds_harden_status": "ds_squad_v2.py (RUN/state.json, worker adoption, quota classifier, heartbeat, ledger rows)"
+    }
   },
   "recommendation": {
-    "primary_engine_choice": "DBOS on SQLite (embedded library)",
-    "secondary_engine_role": "Temporal for distributed multi-machine or rich UI requirements",
-    "dagu_role": "Static CLI batch DAGs only; rejected for dynamic agent squads",
-    "plain_scripts_role": "Phase 0 zero-infra hardening; rejected as long-term stateful supervisor"
+    "primary_engine_choice": "DBOS on SQLite (embedded library; zero daemons, zero ports, flawless 0-attempt KT3 quota parking)",
+    "secondary_engine_role": "Temporal dev-server (benchmark / distributed multi-machine agent fleet expansion)",
+    "dagu_role": "Static CLI batch DAGs and web approval forms only; rejected for dynamic agent loops",
+    "plain_scripts_role": "Phase 0 zero-infra hardening (R7-DS-HARDEN, S1 #1738); retire baseline ds_squad.py thereafter"
   }
 }

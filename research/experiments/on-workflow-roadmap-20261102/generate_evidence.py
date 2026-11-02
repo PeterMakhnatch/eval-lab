@@ -173,6 +173,8 @@ def main():
         Path("research/experiments/on-workflow-roadmap-20261102/receipts/evidence_summary.json"),
         Path("/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F6-ROADMAP/receipts/evidence_summary.json"),
         Path("/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F6-ROADMAP/receipts/evidence_summary.json"),
+        Path("/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F10-ROADMAP-FINAL/receipts/evidence_summary.json"),
+        Path("/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F10-ROADMAP-FINAL/receipts/evidence_summary.json"),
     ]
     for p in paths:
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -189,8 +191,11 @@ def main():
         Path("research/experiments/on-workflow-roadmap-20261102/receipts/detailed_evidence.json"),
         Path("/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F6-ROADMAP/receipts/detailed_evidence.json"),
         Path("/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F6-ROADMAP/receipts/detailed_evidence.json"),
+        Path("/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F10-ROADMAP-FINAL/receipts/detailed_evidence.json"),
+        Path("/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F10-ROADMAP-FINAL/receipts/detailed_evidence.json"),
     ]
     for p in detail_paths:
+        p.parent.mkdir(parents=True, exist_ok=True)
         with open(p, "w") as f:
             json.dump(detailed_evidence, f, indent=2)
         print(f"Wrote detailed evidence to {p}")

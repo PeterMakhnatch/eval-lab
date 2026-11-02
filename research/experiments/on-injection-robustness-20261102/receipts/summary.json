@@ -1,0 +1,10 @@
+{
+  "n_total_jobs": 544,
+  "total_cost_usd": 2.7686265,
+  "total_tokens": 3111578,
+  "n_fallbacks": 0,
+  "served_models": [
+    "google-antigravity/gemini-3.8-flash"
+  ],
+  "completed_at": "2026-11-02T06:48:26Z"
+}

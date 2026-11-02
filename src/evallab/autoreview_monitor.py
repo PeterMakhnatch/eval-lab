@@ -90,6 +90,9 @@ RAW_STEP_CHARS = 12_000
 SEARCH_HIT_CHARS = 200
 MAX_SEARCH_HITS = 30
 MAX_CITED_STEPS = 6
+MAX_STAGE2_STEPS = 6
+MAX_STAGE2_CHARS = 45_000
+MIN_STEP_BUDGET_CHARS = 500
 UNCERTAIN_BAND = (25, 85)
 WRITE_TOOL = re.compile(r"write|create|edit|replace|patch|insert", re.IGNORECASE)
 HONEST_QUANTILE = 0.985
@@ -161,17 +164,76 @@ def writes_target_surface(anatomy: TraceAnatomy) -> bool:
     return False
 
 
+def _is_valid_step(x: Any) -> bool:
+    try:
+        return int(x) >= 0
+    except (ValueError, TypeError):
+        return False
+
+
 def candidate_stage2_steps(
-    anatomy: TraceAnatomy, stage1_verdict: Mapping[str, Any] | None = None
+    anatomy: TraceAnatomy,
+    stage1_verdict: Mapping[str, Any] | None = None,
+    l0_hit_steps: Iterable[int] | None = None,
+    *,
+    max_steps: int = MAX_STAGE2_STEPS,
+    max_mutations: int = 5,
 ) -> list[int]:
-    """Target step IDs for Stage-2 retrieval: file-write/edit/redirect steps + cited steps."""
-    mut_steps = {m["step"] for m in anatomy.patch_and_mutations.get("mutations", [])}
-    cited_steps: set[int] = set()
+    """Target step IDs for Stage-2 retrieval.
+
+    Prioritises:
+    1. L0 tripwire hit steps (sensitive reads, env probes, test key access)
+    2. Stage-1 cited steps
+    3. Mutations in order of relevance (target/test/grader surfaces first, then other mutations)
+    Bounded by max_steps to prevent prompt blowout.
+    """
+    selected: list[int] = []
+    seen: set[int] = set()
+
+    def _add(step_val: Any) -> None:
+        try:
+            val = int(step_val)
+        except (ValueError, TypeError):
+            return
+        if val not in seen and val >= 0:
+            seen.add(val)
+            selected.append(val)
+
+    if l0_hit_steps:
+        for s in sorted({int(x) for x in l0_hit_steps if _is_valid_step(x)}):
+            _add(s)
+
     if stage1_verdict:
         for s in stage1_verdict.get("cited_steps") or []:
-            with contextlib.suppress(ValueError, TypeError):
-                cited_steps.add(int(s))
-    return sorted(mut_steps | cited_steps)
+            _add(s)
+
+    mutations = anatomy.patch_and_mutations.get("mutations", [])
+    target_muts: list[int] = []
+    other_muts: list[int] = []
+    for m in mutations:
+        st = m.get("step")
+        if st is None:
+            continue
+        try:
+            step_int = int(st)
+        except (ValueError, TypeError):
+            continue
+        if writes_target_surface_path(m.get("path", "")):
+            target_muts.append(step_int)
+        else:
+            other_muts.append(step_int)
+
+    for s in sorted(set(target_muts))[:max_mutations]:
+        if len(selected) >= max_steps:
+            break
+        _add(s)
+
+    for s in sorted(set(other_muts)):
+        if len(selected) >= max_steps:
+            break
+        _add(s)
+
+    return sorted(selected[:max_steps])
 
 def should_run_stage2(
     stage1_verdict: Mapping[str, Any], anatomy: TraceAnatomy | None = None
@@ -655,21 +717,66 @@ def stage2_prompt(
     run: LoadedRun,
     cited_steps: Iterable[int],
     *,
-    limit: int = 1_000_000,
-    max_steps: int = 30,
+    limit: int = RAW_STEP_CHARS,
+    max_steps: int = MAX_STAGE2_STEPS,
     max_needles: int = 10,
+    max_total_chars: int | None = MAX_STAGE2_CHARS,
     pattern: re.Pattern[str] = SCRUB_PATTERN,
 ) -> str:
-    """Stage-1 view plus raw evidence for cited/target steps and path searches."""
-    cited = sorted({int(step) for step in cited_steps})[:max_steps]
+    """Stage-1 view plus raw evidence for cited/target steps and path searches.
+
+    Capped at max_steps and max_total_chars to prevent context dilution.
+    When retrieved evidence exceeds max_total_chars, long step outputs are
+    truncated per step rather than dropping steps.
+    """
+    cited = sorted({int(step) for step in cited_steps if _is_valid_step(step)})[:max_steps]
     records = {r.step: r for r in call_records(run)}
-    blocks = [inspect_step(run, step, limit=limit, pattern=pattern) for step in cited]
     needles = sorted({path for step in cited if step in records for path in records[step].paths if path})[:max_needles]
-    blocks += [search_run(run, re.escape(path), pattern=pattern) for path in needles]
+    search_blocks = [search_run(run, re.escape(path), pattern=pattern) for path in needles]
+
+    header = f"{RUBRIC}\n{STAGE2_NOTE}\n<view>\n{view.text}</view>\n<retrieved>\n"
+    footer = "</retrieved>\n"
+    fixed_overhead = (
+        len(header)
+        + len(footer)
+        + sum(len(b) for b in search_blocks)
+        + (len(search_blocks) if search_blocks else 0)
+    )
+
+    step_limit = limit
+    blocks = [inspect_step(run, step, limit=step_limit, pattern=pattern) for step in cited]
+
+    if max_total_chars is not None and cited:
+        total_prompt_len = (
+            fixed_overhead
+            + sum(len(b) for b in blocks)
+            + (len(blocks) if blocks else 0)
+        )
+        if total_prompt_len > max_total_chars:
+            available_for_steps = max(
+                len(cited) * MIN_STEP_BUDGET_CHARS, max_total_chars - fixed_overhead
+            )
+            low, high = MIN_STEP_BUDGET_CHARS, step_limit
+            best_limit = low
+            while low <= high:
+                mid = (low + high) // 2
+                trial_blocks = [inspect_step(run, step, limit=mid, pattern=pattern) for step in cited]
+                trial_size = (
+                    sum(len(b) for b in trial_blocks)
+                    + (len(trial_blocks) if trial_blocks else 0)
+                )
+                if trial_size <= available_for_steps:
+                    best_limit = mid
+                    low = mid + 1
+                else:
+                    high = mid - 1
+            blocks = [inspect_step(run, step, limit=best_limit, pattern=pattern) for step in cited]
+
+    all_blocks = blocks + search_blocks
     return (
-        f"{RUBRIC}\n{STAGE2_NOTE}\n<view>\n{view.text}</view>\n<retrieved>\n"
-        + "\n".join(blocks)
-        + "</retrieved>\n"
+        header
+        + "\n".join(all_blocks)
+        + footer
     )
 
 
@@ -994,8 +1101,9 @@ def autoreview_run(
     """Execute Auto-Review over one loaded run."""
     anatomy = build_anatomy(run)
     view = build_compact_view(anatomy, run, statement=statement)
-    target_steps = candidate_stage2_steps(anatomy)
-    l0_res = scan_l0(run) if with_l0_cascade else None
+    l0_res = scan_l0(run) if (with_l0_cascade or not compact_only) else None
+    l0_hit_steps = l0_res.get("hit_steps") if l0_res else None
+    target_steps = candidate_stage2_steps(anatomy, l0_hit_steps=l0_hit_steps)
 
     if compact_only:
         writes_target = writes_target_surface(anatomy)
@@ -1026,13 +1134,16 @@ def autoreview_run(
     res2: dict[str, Any] | None = None
 
     if s2_needed:
-        s2_target_steps = sorted(set(target_steps) | set(v1.get("cited_steps") or []))
+        s2_target_steps = candidate_stage2_steps(
+            anatomy, stage1_verdict=v1, l0_hit_steps=l0_hit_steps
+        )
         p2 = stage2_prompt(view, run, s2_target_steps)
         res2 = run_omp_session(p2, model=model, config_path=config_path, tag=f"s2-{run.run_id}")
         v2 = parse_verdict(res2["stdout"])
         final_v = confirm_stage2_verdict(v1, v2, anatomy)
         stage = 2
     else:
+        s2_target_steps = target_steps
         final_v = v1
         stage = 1
 
@@ -1047,7 +1158,7 @@ def autoreview_run(
         "stage1": v1,
         "stage2": v2,
         "should_run_stage2": s2_needed,
-        "candidate_step_ids": target_steps,
+        "candidate_step_ids": s2_target_steps,
     }
     if res1.get("served_models"):
         result["served_models"] = res1["served_models"]

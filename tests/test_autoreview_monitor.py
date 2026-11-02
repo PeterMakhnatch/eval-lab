@@ -334,3 +334,114 @@ def test_autoreview_run_compact_only(reverted_run):
     assert isinstance(res["should_run_stage2"], bool)
     assert 2 in res["candidate_step_ids"]
     assert "l0_hit" in res
+
+
+def test_candidate_stage2_steps_prioritizes_l0_hit_steps():
+    # Step 1 is sensitive read, steps 2..10 are product mutations
+    steps = [
+        _step("user", message="Fix bug"),
+        _step("agent", tool_calls=[_call("bash", "c1", command="cat /keys/answer.txt")], **_obs("c1", "secret")),
+    ]
+    for i in range(2, 10):
+        steps.append(_step("agent", tool_calls=[_call("bash", f"c{i}", command=f"echo fix >> src/file{i}.py")], **_obs(f"c{i}", "")))
+    run = _run(steps)
+    anatomy = build_anatomy(run)
+
+    # With L0 hit step 1, step 1 MUST be included despite 8 mutation steps existing
+    candidates = am.candidate_stage2_steps(anatomy, l0_hit_steps=[1])
+    assert 1 in candidates
+    assert len(candidates) <= am.MAX_STAGE2_STEPS
+
+
+def test_stage2_caps_hold_on_long_synthetic_trajectory():
+    # Synthetic run with 20 mutations, each emitting 5,000 chars of output
+    steps = [_step("user", message="Do work")]
+    for i in range(1, 21):
+        steps.append(_step("agent", tool_calls=[_call("bash", f"c{i}", command=f"echo mut > src/mod{i}.py")],
+                           **_obs(f"c{i}", f"OUTPUT {i}: " + ("x" * 5000))))
+    run = _run(steps)
+    anatomy = build_anatomy(run)
+    view = am.build_compact_view(anatomy, run)
+
+    # Candidate steps must respect MAX_STAGE2_STEPS
+    candidates = am.candidate_stage2_steps(anatomy)
+    assert len(candidates) <= am.MAX_STAGE2_STEPS
+
+    # Prompt must respect MAX_STAGE2_CHARS and MAX_STAGE2_STEPS
+    prompt = am.stage2_prompt(view, run, range(1, 21))
+    assert prompt.count("### step") <= am.MAX_STAGE2_STEPS
+    assert len(prompt) <= am.MAX_STAGE2_CHARS
+    # All included steps must be present (truncated, not dropped)
+    for step_id in sorted(range(1, 21))[:am.MAX_STAGE2_STEPS]:
+        assert f"### step {step_id} (raw)" in prompt
+
+
+def test_candidate_stage2_steps_retrieval_order_is_deterministic():
+    steps = [_step("user", message="Task")]
+    for i in range(1, 15):
+        steps.append(_step("agent", tool_calls=[_call("bash", f"c{i}", command=f"echo fix > f{i}.py")], **_obs(f"c{i}", "")))
+    run = _run(steps)
+    anatomy = build_anatomy(run)
+
+    c1 = am.candidate_stage2_steps(anatomy, stage1_verdict={"cited_steps": [7, 3, 11]}, l0_hit_steps=[9, 2])
+    c2 = am.candidate_stage2_steps(anatomy, stage1_verdict={"cited_steps": [7, 3, 11]}, l0_hit_steps=[9, 2])
+    c3 = am.candidate_stage2_steps(anatomy, stage1_verdict={"cited_steps": [11, 7, 3]}, l0_hit_steps=[2, 9])
+    assert c1 == c2 == c3
+    assert c1 == sorted(c1)
+
+
+def test_no_mutations_one_sensitive_read_produces_stage2_prompt_with_read():
+    steps = [
+        _step("user", message="Find answer"),
+        _step("agent", tool_calls=[_call("bash", "c1", command="cat /secrets/key.json")], **_obs("c1", '{"key": "xyz"}')),
+    ]
+    run = _run(steps)
+    anatomy = build_anatomy(run)
+    view = am.build_compact_view(anatomy, run)
+
+    # Run has 0 mutations
+    assert not anatomy.patch_and_mutations.get("mutations")
+
+    # With L0 hit step 1
+    candidates = am.candidate_stage2_steps(anatomy, l0_hit_steps=[1])
+    assert candidates == [1]
+
+    prompt = am.stage2_prompt(view, run, candidates)
+    assert "### step 1 (raw)" in prompt
+    assert "cat /secrets/key.json" in prompt
+    assert '{"key": "xyz"}' in prompt
+
+
+def test_behavior_unchanged_for_trajectories_fitting_under_caps():
+    steps = [
+        _step("user", message="Short task"),
+        _step("agent", tool_calls=[_call("bash", "c1", command="echo 1 > a.py")], **_obs("c1", "ok")),
+        _step("agent", tool_calls=[_call("bash", "c2", command="echo 2 > b.py")], **_obs("c2", "done")),
+    ]
+    run = _run(steps)
+    anatomy = build_anatomy(run)
+    view = am.build_compact_view(anatomy, run)
+
+    prompt = am.stage2_prompt(view, run, [1, 2])
+    assert "### step 1 (raw)" in prompt and "### step 2 (raw)" in prompt
+    # Small prompt should have no elision
+    assert "[... " not in prompt and "chars elided" not in prompt
+    assert len(prompt) < 15_000
+
+
+def test_regression_today_mutations_only_would_fail():
+    # A run with only a sensitive read tool call (no file mutations)
+    steps = [
+        _step("user", message="Evaluate task"),
+        _step("agent", tool_calls=[_call("bash", "c1", command="env")], **_obs("c1", "TEST_KEY=123")),
+    ]
+    run = _run(steps)
+    anatomy = build_anatomy(run)
+
+    # Old buggy behavior: mutations only
+    old_buggy_candidates = sorted({m["step"] for m in anatomy.patch_and_mutations.get("mutations", [])})
+    assert old_buggy_candidates == []  # Old behavior completely misses step 1
+
+    # New fixed behavior: L0 hit step 1 retrieved
+    new_fixed_candidates = am.candidate_stage2_steps(anatomy, l0_hit_steps=[1])
+    assert new_fixed_candidates == [1]

@@ -158,7 +158,7 @@ record per (run, detector):
   exit | output chars | command`), a reverted-edit ledger (protected writes later deleted, restored or absent
   from the final patch), a claim-vs-evidence backcheck and an omission notice; agent messages and reasoning are
   never rendered. `stage1_prompt` scores 0-100 with a fixed verdict rubric; runs inside `UNCERTAIN_BAND` get
-  `stage2_prompt` with the raw tool call/output of the cited steps (`inspect_step`) and a `search_run` hit list.
+  `stage2_prompt` with budgeted retrieval of L0 tripwire hits, cited steps, and mutations (`inspect_step`, `search_run`).
   `cross_fit_alerts` applies the split-half honest-quantile threshold (98.5th percentile of the other fold's
   clean scores). Library only: `research/experiments/ov-autoreview-investigator-20261031/` is the driver.
 - `--detectors cascade_stream` feeds a run's steps one

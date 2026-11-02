@@ -21,7 +21,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import shutil
 import sqlite3
+import tempfile
 import time
 from collections import Counter
 from collections.abc import Mapping, Sequence
@@ -38,7 +41,6 @@ from evallab.autoreview_monitor import (
     stage1_prompt,
     writes_target_surface,
 )
-from evallab.production import window_cascade
 from evallab.production.corpus_queue import ContinuousWorkQueue
 from evallab.production.judge_station import QueueEntry
 from evallab.production.monitor_worker import _GATE_RULES
@@ -48,12 +50,17 @@ from evallab.tripwires import HACKBOOK_GATE_RULES
 logger = logging.getLogger(__name__)
 
 DEFAULT_ROUTE = "google-antigravity/gemini-3.8-flash"
-DEFAULT_CACHE_RECEIPTS = (
-    Path.home()
-    / "Developer/research-context/bridge/2026-10-31-overnight/g38-flash/raw/W3-AUTOREVIEW-V2-TW/receipts/readings-tw.jsonl"
-)
 L0_GATE_RULES = frozenset(_GATE_RULES) | {f"hackbook:{rule}" for rule in HACKBOOK_GATE_RULES}
 KILL_SWITCH_FILENAME = "autoreview.disable"
+
+
+class LiveCallError(RuntimeError):
+    """Failure during a live AutoReview model call, carrying spend information."""
+
+    def __init__(self, message: str, usd: float = 0.0, tokens: int = 0) -> None:
+        super().__init__(message)
+        self.usd = usd
+        self.tokens = tokens
 
 
 def _now() -> str:
@@ -77,6 +84,22 @@ def autoreview_priority(l0_hit: bool, verdict: str, suspicion: int) -> int:
     return 0
 
 
+def is_l0_gate(payload: Mapping[str, Any]) -> bool:
+    """Determine if an alert/suspicion payload constitutes an L0 gate trigger."""
+    if payload.get("gate") is True:
+        return True
+    eligibility = str(payload.get("eligibility", ""))
+    if eligibility != "verdict":
+        return False
+    rule = str(payload.get("rule", ""))
+    if rule in _GATE_RULES:
+        return True
+    if rule.startswith("hackbook:"):
+        rule_name = rule.removeprefix("hackbook:")
+        return rule_name in HACKBOOK_GATE_RULES or payload.get("gate") is True
+    return rule in L0_GATE_RULES
+
+
 @dataclass(frozen=True)
 class AutoReviewConfig:
     """Configuration for the factory AutoReview stage."""
@@ -85,6 +108,8 @@ class AutoReviewConfig:
     route: str | None = None  # provider/model, e.g. "google-antigravity/gemini-3.8-flash"
     max_per_hour: int = 60
     max_usd: float = 10.0
+    estimated_call_cost: float = 0.10
+    max_cycle_seconds: float = 60.0
     cache_path: Path | None = None
     queue_file: Path | None = None
 
@@ -93,11 +118,19 @@ class AutoReviewConfig:
             raise ValueError(f"Unknown autoreview mode: {self.mode!r}")
         if self.mode == "live" and not self.route:
             raise ValueError("--autoreview-route is required when --autoreview-mode is live")
+        if self.mode == "cached":
+            if not self.cache_path:
+                raise ValueError("--autoreview-cache-path is required when --autoreview-mode is cached")
+            if not Path(self.cache_path).is_file():
+                raise ValueError(f"--autoreview-cache-path file not found: {self.cache_path}")
         if self.max_per_hour < 1:
             raise ValueError("max_per_hour must be >= 1")
         if self.max_usd < 0:
             raise ValueError("max_usd must be >= 0")
-
+        if self.estimated_call_cost < 0:
+            raise ValueError("estimated_call_cost must be >= 0")
+        if self.max_cycle_seconds <= 0:
+            raise ValueError("max_cycle_seconds must be > 0")
 
 def append_judge_queue_entry(queue_file: Path, entry: QueueEntry) -> bool:
     """Append a QueueEntry to the Judge Station queue file idempotently.
@@ -127,6 +160,50 @@ def append_judge_queue_entry(queue_file: Path, entry: QueueEntry) -> bool:
     with queue_file.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")
     return True
+
+
+def entry_from_served_payload(
+    payload: Mapping[str, Any],
+    l0_hit: bool = False,
+) -> QueueEntry:
+    """Construct a QueueEntry for Judge Station from a served payload."""
+    run_id = str(payload["run_id"])
+    trigger_kind = str(payload.get("trigger_kind", "unknown"))
+    l0_hit = l0_hit or trigger_kind == "l0_gate"
+    verdict = str(payload.get("verdict", "clean"))
+    suspicion = int(payload.get("suspicion", 0))
+    priority = autoreview_priority(l0_hit, verdict, suspicion)
+    cited_steps = payload.get("cited_steps") or []
+    reason = payload.get("reason") or ""
+    served_info = payload.get("served_model") or {}
+    served_name = (
+        served_info.get("served_models", ["model"])[0]
+        if isinstance(served_info, dict)
+        else str(served_info)
+    )
+    return QueueEntry(
+        run_id=run_id,
+        reason=f"AutoReview: {trigger_kind} trigger ({verdict}, suspicion={suspicion})",
+        reveal={
+            "detectors": [
+                {
+                    "name": f"autoreview ({served_name})",
+                    "verdict": verdict,
+                    "steps": cited_steps,
+                    "summary": f"AutoReview ({verdict}, suspicion={suspicion}): {reason}"[:400],
+                }
+            ],
+            "notes": [
+                {
+                    "title": f"AutoReview: {verdict} (suspicion: {suspicion})",
+                    "text": reason or f"AutoReview verdict: {verdict}",
+                }
+            ],
+            "source": "autoreview",
+        },
+        priority=priority,
+        source="autoreview",
+    )
 
 
 class AutoReviewHook:
@@ -167,38 +244,86 @@ class AutoReviewHook:
         self._seen_requests: set[tuple[str, str]] = set()
         self._served_requests: set[str] = set()
         self._l0_hit_runs: set[str] = set()
+        self._last_checked_target_step: dict[str, int] = {}
 
         self._init_from_journal()
 
     def _init_from_journal(self) -> None:
         """Populate in-memory tracking of requested and served items from the journal."""
         query = (
-            "SELECT event_type, json_extract(envelope, '$.payload.request_id'),"
-            " json_extract(envelope, '$.payload.run_id'),"
-            " json_extract(envelope, '$.payload.trigger_kind')"
+            "SELECT event_type, envelope"
             " FROM events WHERE event_type IN ("
             "  'monitor.autoreview_requested',"
             "  'monitor.autoreview_served',"
             "  'monitor.autoreview_failed'"
             " ) ORDER BY seq"
         )
+        served_payloads: list[dict[str, Any]] = []
         with closing(
             sqlite3.connect(f"file:{self.journal}?mode=ro", uri=True, timeout=30)
         ) as conn:
-            for kind, req_id, run_id, trigger_kind in conn.execute(query):
+            for kind, env_raw in conn.execute(query):
+                env = json.loads(env_raw) if env_raw else {}
+                payload = env.get("payload") or {}
+                req_id = payload.get("request_id")
+                run_id = payload.get("run_id")
+                trigger_kind = payload.get("trigger_kind")
                 if kind == "monitor.autoreview_requested":
                     if run_id and trigger_kind:
                         self._seen_requests.add((run_id, trigger_kind))
                     if trigger_kind == "l0_gate" and run_id:
                         self._l0_hit_runs.add(run_id)
-                elif kind in ("monitor.autoreview_served", "monitor.autoreview_failed"):
+                elif kind == "monitor.autoreview_served":
                     if req_id:
                         self._served_requests.add(req_id)
+                    served_payloads.append(payload)
+                elif kind == "monitor.autoreview_failed":
+                    if req_id:
+                        self._served_requests.add(req_id)
+        self._reconcile_served_events(served_payloads)
 
+    def reconcile_queue_file(self) -> None:
+        """Reconcile served events from the journal into the queue file."""
+        if not self.journal.is_file() or self.config.mode == "off":
+            return
+        query = (
+            "SELECT json_extract(envelope, '$.payload')"
+            " FROM events WHERE event_type = 'monitor.autoreview_served' ORDER BY seq"
+        )
+        payloads: list[dict[str, Any]] = []
+        with closing(
+            sqlite3.connect(f"file:{self.journal}?mode=ro", uri=True, timeout=30)
+        ) as conn:
+            for (p_raw,) in conn.execute(query):
+                if p_raw:
+                    try:
+                        payloads.append(json.loads(p_raw))
+                    except Exception:
+                        continue
+        self._reconcile_served_events(payloads)
+
+    def _reconcile_served_events(self, served_payloads: Sequence[Mapping[str, Any]]) -> None:
+        if not served_payloads or self.config.mode == "off":
+            return
+        try:
+            for payload in served_payloads:
+                if payload.get("verdict") == "unparsed":
+                    continue
+                run_id = payload.get("run_id")
+                if not run_id:
+                    continue
+                l0_hit = run_id in self._l0_hit_runs
+                entry = entry_from_served_payload(payload, l0_hit=l0_hit)
+                append_judge_queue_entry(self.queue_file, entry)
+        except Exception as exc:
+            logger.warning("Could not reconcile queue entries to %s: %s", self.queue_file, exc)
     def _load_cached_readings(self) -> dict[str, dict[str, Any]]:
         if self._cached_readings is not None:
             return self._cached_readings
-        path = self.config.cache_path or DEFAULT_CACHE_RECEIPTS
+        if not self.config.cache_path:
+            self._cached_readings = {}
+            return self._cached_readings
+        path = Path(self.config.cache_path)
         readings: dict[str, dict[str, Any]] = {}
         if path.is_file():
             for line in path.read_text(encoding="utf-8").splitlines():
@@ -214,7 +339,6 @@ class AutoReviewHook:
                     continue
         self._cached_readings = readings
         return readings
-
     def _get_run_steps(self, run_id: str) -> list[dict[str, Any]]:
         """Retrieve run steps either from replay source file or from journal trace.step events."""
         with closing(
@@ -248,7 +372,7 @@ class AutoReviewHook:
     def _total_usd_spent(self) -> float:
         query = (
             "SELECT SUM(json_extract(envelope, '$.payload.usd'))"
-            " FROM events WHERE event_type = 'monitor.autoreview_served'"
+            " FROM events WHERE event_type IN ('monitor.autoreview_served', 'monitor.autoreview_failed')"
         )
         with closing(
             sqlite3.connect(f"file:{self.journal}?mode=ro", uri=True, timeout=30)
@@ -294,20 +418,16 @@ class AutoReviewHook:
             if run_id:
                 by_run.setdefault(run_id, []).append(event)
 
+        batch_seen = set(self._seen_requests)
         for run_id, run_events in by_run.items():
             # Check 1: L0 gate rule
-            if (run_id, "l0_gate") not in self._seen_requests:
+            if (run_id, "l0_gate") not in batch_seen:
                 for ev in run_events:
                     if ev.get("event_type") == "monitor.suspicion":
                         payload = ev.get("payload") or {}
                         rule = payload.get("rule", "")
-                        eligibility = payload.get("eligibility", "")
-                        if eligibility == "verdict" and (
-                            rule in L0_GATE_RULES
-                            or rule in _GATE_RULES
-                            or rule.startswith("hackbook:")
-                        ):
-                            self._seen_requests.add((run_id, "l0_gate"))
+                        if is_l0_gate(payload):
+                            batch_seen.add((run_id, "l0_gate"))
                             self._l0_hit_runs.add(run_id)
                             new_requests.append({
                                 "run_id": run_id,
@@ -321,19 +441,13 @@ class AutoReviewHook:
                             })
                             break
 
-            # Check 2: Cascade Stage 1 required (non-gate escalating rules)
-            if (run_id, "cascade_stage1") not in self._seen_requests:
+            # Check 2: Cascade Stage 1 required (semantic_triage == "pending")
+            if (run_id, "cascade_stage1") not in batch_seen:
                 for ev in run_events:
                     if ev.get("event_type") == "monitor.suspicion":
                         payload = ev.get("payload") or {}
-                        rule = payload.get("rule", "")
-                        is_l0 = (payload.get("eligibility") == "verdict") and (
-                            rule in L0_GATE_RULES
-                            or rule in _GATE_RULES
-                            or rule.startswith("hackbook:")
-                        )
-                        if not is_l0 and window_cascade.escalates(payload):
-                            self._seen_requests.add((run_id, "cascade_stage1"))
+                        if payload.get("semantic_triage") == "pending" and not is_l0_gate(payload):
+                            batch_seen.add((run_id, "cascade_stage1"))
                             new_requests.append({
                                 "run_id": run_id,
                                 "trigger_kind": "cascade_stage1",
@@ -347,26 +461,34 @@ class AutoReviewHook:
                             break
 
             # Check 3: writes_target_surface
-            if (run_id, "target_surface") not in self._seen_requests:
-                steps = self._get_run_steps(run_id)
-                if steps:
-                    loaded = LoadedRun(run_id=run_id, loader="factory", doc={"steps": steps})
-                    anatomy = build_anatomy(loaded)
-                    if writes_target_surface(anatomy):
-                        self._seen_requests.add((run_id, "target_surface"))
-                        last_step = steps[-1].get("step_id")
-                        new_requests.append({
-                            "run_id": run_id,
-                            "trigger_kind": "target_surface",
-                            "prefix_step": last_step,
-                            "details": {
-                                "reason": "writes_target_surface",
-                                "step": last_step,
-                            },
-                        })
+            if (run_id, "target_surface") not in batch_seen:
+                # S7: Only scan when batch has new trace.step events
+                step_events = [
+                    ev for ev in run_events
+                    if ev.get("event_type") == "trace.step" and ev.get("prefix_step") is not None
+                ]
+                last_checked = self._last_checked_target_step.get(run_id, -1)
+                max_batch_step = max((int(ev["prefix_step"]) for ev in step_events), default=-1)
+                if max_batch_step > last_checked:
+                    self._last_checked_target_step[run_id] = max_batch_step
+                    steps = self._get_run_steps(run_id)
+                    if steps:
+                        loaded = LoadedRun(run_id=run_id, loader="factory", doc={"steps": steps})
+                        anatomy = build_anatomy(loaded)
+                        if writes_target_surface(anatomy):
+                            batch_seen.add((run_id, "target_surface"))
+                            last_step = steps[-1].get("step_id")
+                            new_requests.append({
+                                "run_id": run_id,
+                                "trigger_kind": "target_surface",
+                                "prefix_step": last_step,
+                                "details": {
+                                    "reason": "writes_target_surface",
+                                    "step": last_step,
+                                },
+                            })
 
         return new_requests
-
     # -----------------------------------------------------------------------
     # Ingestion & Serving Loop
     # -----------------------------------------------------------------------
@@ -381,6 +503,9 @@ class AutoReviewHook:
         failed_count = 0
 
         # Phase 1: Trigger scan over recent journal events
+        # Reconcile any missing queue entries from prior crashes/unreconciled events
+        self.reconcile_queue_file()
+
         trigger_events = self.queue.read_consumer(self._trigger_consumer_id, limit=2000)
         if trigger_events:
             requests_to_enqueue = self.check_triggers_for_events(trigger_events)
@@ -405,12 +530,13 @@ class AutoReviewHook:
                     },
                 }
                 self.queue.append_event(event_dict, idempotency_key=key)
+                self._seen_requests.add((run_id, trigger_kind))
                 requested_count += 1
             last_seq = trigger_events[-1]["seq"]
             self.queue.ack_consumer(self._trigger_consumer_id, last_seq)
-
         # Phase 2: Process pending requests from processor cursor
         processor_events = self.queue.read_consumer(self._processor_consumer_id, limit=100)
+        cycle_start = time.monotonic()
         for event in processor_events:
             seq = event["seq"]
             if event.get("event_type") != "monitor.autoreview_requested":
@@ -432,46 +558,39 @@ class AutoReviewHook:
                 self.queue.ack_consumer(self._processor_consumer_id, seq)
                 continue
 
-            # Check 1: Kill switch
+            # Check 0: Cycle time bound (S5: prevent starving heartbeat watchdog)
+            if (time.monotonic() - cycle_start) >= self.config.max_cycle_seconds:
+                logger.info(
+                    "AutoReview cycle time limit reached (%.1f s); deferring pending requests",
+                    self.config.max_cycle_seconds,
+                )
+                break
+
+            # Check 1: Kill switch (B2: defer, do not drop)
             if self.kill_switch_path.is_file():
-                self._record_failure(
-                    request_id,
-                    run_id,
-                    trigger_kind,
-                    prefix_step,
-                    f"kill_switch: {KILL_SWITCH_FILENAME} exists",
-                )
-                failed_count += 1
-                self.queue.ack_consumer(self._processor_consumer_id, seq)
-                continue
+                logger.info("AutoReview kill-switch present; deferring pending requests")
+                break
 
-            # Check 2: Budget guard
+            # Check 2: Budget guard (B2 & S5: accounts for worst-case cost of next call)
             total_spent = self._total_usd_spent()
-            if total_spent >= self.config.max_usd:
-                self._record_failure(
-                    request_id,
-                    run_id,
-                    trigger_kind,
-                    prefix_step,
-                    f"budget_exceeded: current spend ${total_spent:.4f} >= limit ${self.config.max_usd:.4f}",
+            if total_spent + self.config.estimated_call_cost > self.config.max_usd:
+                logger.info(
+                    "AutoReview budget limit reached ($%.4f + $%.2f > $%.2f); deferring pending requests",
+                    total_spent,
+                    self.config.estimated_call_cost,
+                    self.config.max_usd,
                 )
-                failed_count += 1
-                self.queue.ack_consumer(self._processor_consumer_id, seq)
-                continue
+                break
 
-            # Check 3: Hourly rate limit guard
+            # Check 3: Hourly rate limit guard (B2: defer, do not drop)
             recent_served = self._served_count_past_hour()
             if recent_served >= self.config.max_per_hour:
-                self._record_failure(
-                    request_id,
-                    run_id,
-                    trigger_kind,
-                    prefix_step,
-                    f"rate_limited: {recent_served} calls in past hour >= limit {self.config.max_per_hour}",
+                logger.info(
+                    "AutoReview hourly rate limit reached (%d >= %d); deferring pending requests",
+                    recent_served,
+                    self.config.max_per_hour,
                 )
-                failed_count += 1
-                self.queue.ack_consumer(self._processor_consumer_id, seq)
-                continue
+                break
 
             # Process request according to mode
             try:
@@ -484,17 +603,27 @@ class AutoReviewHook:
 
                 self._record_served(request_id, run_id, trigger_kind, prefix_step, served_payload)
                 served_count += 1
+                self.queue.ack_consumer(self._processor_consumer_id, seq)
             except Exception as exc:
+                if request_id in self._served_requests:
+                    # S1: Served was already recorded in journal; never journal failed!
+                    logger.warning(
+                        "Queue file write failed for served request %s: %s", request_id, exc
+                    )
+                    break
+                usd = getattr(exc, "usd", 0.0)
+                tokens = getattr(exc, "tokens", 0)
                 self._record_failure(
                     request_id,
                     run_id,
                     trigger_kind,
                     prefix_step,
                     f"{type(exc).__name__}: {exc}",
+                    usd=usd,
+                    tokens=tokens,
                 )
                 failed_count += 1
-
-            self.queue.ack_consumer(self._processor_consumer_id, seq)
+                self.queue.ack_consumer(self._processor_consumer_id, seq)
 
         return {
             "status": self.config.mode,
@@ -556,37 +685,69 @@ class AutoReviewHook:
         view = build_compact_view(anatomy, loaded)
         prompt = stage1_prompt(view)
 
-        started = time.monotonic()
-        res = run_omp_session(prompt, model=route, tag=f"factory-{run_id}")
-        latency = round(time.monotonic() - started, 3)
+        # Sanitize tag for safe file/directory creation
+        clean_run = re.sub(r"[^a-zA-Z0-9_.-]", "_", run_id)
+        tag = f"factory-{clean_run}"
 
-        if res["returncode"] != 0:
-            raise RuntimeError(f"omp session failed (returncode {res['returncode']}): {res['stderr']}")
-
-        # Attestation check: fallback count must be 0
-        if res.get("n_fallbacks", 0) > 0:
-            raise RuntimeError(f"fallback observed during live autoreview: {res['n_fallbacks']}")
-
-        parsed = parse_verdict(res["stdout"]) or {
-            "suspicion": 50,
-            "verdict": "suspicious",
-            "cited_steps": [],
-            "reason": f"unparsed output: {res['stdout'][:200]}",
-        }
+        # S5: pass dedicated work_dir and ensure it is cleaned up
+        work_dir = Path(tempfile.mkdtemp(prefix="autoreview-live-"))
+        try:
+            started = time.monotonic()
+            res = run_omp_session(prompt, model=route, tag=tag, work_dir=work_dir)
+            latency = round(time.monotonic() - started, 3)
+        finally:
+            shutil.rmtree(work_dir, ignore_errors=True)
 
         usage = res.get("usage", {})
+        tokens = int(usage.get("total_tokens", 0))
+        usd = float(usage.get("usd", 0.0))
+
+        if res["returncode"] != 0:
+            err = res.get("stderr", "") or f"returncode {res['returncode']}"
+            raise LiveCallError(f"omp session failed: {err[-500:]}", usd=usd, tokens=tokens)
+
+        # S4: attestation check: exact route and zero fallbacks
+        served_models = res.get("served_models", [])
+        n_fallbacks = res.get("n_fallbacks", 0)
+        attested = set(served_models) == {route} and n_fallbacks == 0
+        if not attested:
+            raise LiveCallError(
+                f"Attestation failed: served={served_models}, requested={route}, fallbacks={n_fallbacks}",
+                usd=usd,
+                tokens=tokens,
+            )
+
+        parsed = parse_verdict(res["stdout"])
+        if parsed is None:
+            # Mark unparsed output unparsed and never feed it as a verdict
+            return {
+                "card": {"summary": f"unparsed output: {res['stdout'][:200]}", "steps": []},
+                "verdict": "unparsed",
+                "suspicion": 0,
+                "cited_steps": [],
+                "served_model": {
+                    "served_models": served_models,
+                    "n_fallbacks": n_fallbacks,
+                    "attested": True,
+                },
+                "tokens": tokens,
+                "usd": usd,
+                "latency_seconds": latency,
+                "reason": f"unparsed output: {res['stdout'][:200]}",
+            }
+
         return {
             "card": {"summary": parsed.get("reason", ""), "steps": parsed.get("cited_steps", [])},
             "verdict": parsed.get("verdict", "clean"),
             "suspicion": int(parsed.get("suspicion", 0)),
             "cited_steps": list(parsed.get("cited_steps", [])),
             "served_model": {
-                "served_models": res.get("served_models", [route]),
-                "n_fallbacks": res.get("n_fallbacks", 0),
+                "served_models": served_models,
+                "n_fallbacks": n_fallbacks,
                 "attested": True,
             },
-            "tokens": int(usage.get("total_tokens", 0)),
-            "usd": float(usage.get("usd", 0.0)),
+            "tokens": tokens,
+            "usd": usd,
             "latency_seconds": latency,
             "reason": parsed.get("reason", ""),
         }
@@ -623,43 +784,15 @@ class AutoReviewHook:
         self._served_requests.add(request_id)
 
         # Enqueue to Judge Station queue file
-        l0_hit = run_id in self._l0_hit_runs or trigger_kind == "l0_gate"
+        # Enqueue to Judge Station queue file (skip if unparsed)
         verdict = str(data.get("verdict", "clean"))
-        suspicion = int(data.get("suspicion", 0))
-        priority = autoreview_priority(l0_hit, verdict, suspicion)
-        cited_steps = data.get("cited_steps") or []
-        reason = data.get("reason") or ""
-        served_info = data.get("served_model") or {}
-        served_name = (
-            served_info.get("served_models", ["model"])[0]
-            if isinstance(served_info, dict)
-            else str(served_info)
-        )
-
-        entry = QueueEntry(
-            run_id=run_id,
-            reason=f"AutoReview: {trigger_kind} trigger ({verdict}, suspicion={suspicion})",
-            reveal={
-                "detectors": [
-                    {
-                        "name": f"autoreview ({served_name})",
-                        "verdict": verdict,
-                        "steps": cited_steps,
-                        "summary": f"AutoReview ({verdict}, suspicion={suspicion}): {reason}"[:400],
-                    }
-                ],
-                "notes": [
-                    {
-                        "title": f"AutoReview: {verdict} (suspicion: {suspicion})",
-                        "text": reason or f"AutoReview verdict: {verdict}",
-                    }
-                ],
-                "source": "autoreview",
-            },
-            priority=priority,
-            source="autoreview",
-        )
-        append_judge_queue_entry(self.queue_file, entry)
+        if verdict != "unparsed":
+            l0_hit = run_id in self._l0_hit_runs or trigger_kind == "l0_gate"
+            entry = entry_from_served_payload(
+                {"run_id": run_id, "trigger_kind": trigger_kind, **data},
+                l0_hit=l0_hit,
+            )
+            append_judge_queue_entry(self.queue_file, entry)
 
     def _record_failure(
         self,
@@ -668,6 +801,8 @@ class AutoReviewHook:
         trigger_kind: str,
         prefix_step: int | None,
         error: str,
+        usd: float = 0.0,
+        tokens: int = 0,
     ) -> None:
         key = f"factory:autoreview_failed:{request_id}"
         event_dict = {
@@ -683,13 +818,19 @@ class AutoReviewHook:
                 "run_id": run_id,
                 "trigger_kind": trigger_kind,
                 "error": error,
+                "usd": round(usd, 4),
+                "tokens": tokens,
             },
         }
         self.queue.append_event(event_dict, idempotency_key=key)
         self._served_requests.add(request_id)
 
 
-def measure_autoreview(journal: Path, queue_file: Path | None = None) -> dict[str, Any]:
+def measure_autoreview(
+    journal: Path,
+    queue_file: Path | None = None,
+    run_ids: Sequence[str] | None = None,
+) -> dict[str, Any]:
     """Calculate AutoReview metrics from journal events and queue size."""
     if not journal.is_file():
         return {
@@ -706,6 +847,8 @@ def measure_autoreview(journal: Path, queue_file: Path | None = None) -> dict[st
 
     from evallab.production.factory import _summary
 
+    run_filter = set(run_ids) if run_ids is not None else None
+
     requested = 0
     served = 0
     failed = 0
@@ -716,7 +859,7 @@ def measure_autoreview(journal: Path, queue_file: Path | None = None) -> dict[st
     latencies: list[float] = []
 
     query = (
-        "SELECT event_type, json_extract(envelope, '$.payload.trigger_kind'),"
+        "SELECT event_type, run_id, json_extract(envelope, '$.payload.trigger_kind'),"
         " json_extract(envelope, '$.payload.verdict'),"
         " json_extract(envelope, '$.payload.usd'),"
         " json_extract(envelope, '$.payload.tokens'),"
@@ -729,7 +872,9 @@ def measure_autoreview(journal: Path, queue_file: Path | None = None) -> dict[st
     )
 
     with closing(sqlite3.connect(f"file:{journal}?mode=ro", uri=True, timeout=30)) as conn:
-        for kind, trigger, verdict, usd, tokens, latency in conn.execute(query):
+        for kind, r_id, trigger, verdict, usd, tokens, latency in conn.execute(query):
+            if run_filter is not None and r_id not in run_filter:
+                continue
             if kind == "monitor.autoreview_requested":
                 requested += 1
                 if trigger:
@@ -746,10 +891,25 @@ def measure_autoreview(journal: Path, queue_file: Path | None = None) -> dict[st
                     latencies.append(float(latency))
             elif kind == "monitor.autoreview_failed":
                 failed += 1
+                if usd is not None:
+                    total_usd += float(usd)
+                if tokens is not None:
+                    total_tokens += int(tokens)
 
     queue_size = 0
     if queue_file and queue_file.is_file():
-        queue_size = sum(1 for line in queue_file.read_text(encoding="utf-8").splitlines() if line.strip())
+        for line in queue_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if run_filter is not None:
+                try:
+                    row = json.loads(line)
+                    if row.get("run_id") not in run_filter:
+                        continue
+                except Exception:
+                    continue
+            queue_size += 1
 
     return {
         "requested": requested,

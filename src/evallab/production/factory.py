@@ -708,7 +708,11 @@ def measure(
     from evallab.production.factory_autoreview import measure_autoreview
 
     q_file = queue_file or (root / "queues" / "autoreview.jsonl")
-    autoreview_metrics = measure_autoreview(journal, q_file)
+    autoreview_metrics = measure_autoreview(
+        journal,
+        q_file,
+        run_ids=runs if (first_runs is not None or dataset is not None) else None,
+    )
     return {
         "schema": SCHEMA,
         "dataset": dataset,
@@ -835,7 +839,8 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    parser = _parser()
+    args = parser.parse_args(argv)
     root: Path = args.root.expanduser()
     repo_root = _repo_root()
     if args.command == "seed":
@@ -883,7 +888,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         cache_path=args.autoreview_cache_path,
         queue_file=args.autoreview_queue_file,
     )
-    autoreview_cfg.validate()
+    try:
+        autoreview_cfg.validate()
+    except ValueError as err:
+        parser.error(str(err))
     with Factory(
         root,
         repo_root,

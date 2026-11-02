@@ -117,11 +117,8 @@ def load_queue(path: Path) -> list[QueueEntry]:
 
 
 def shuffled(name: str, entries: Sequence[QueueEntry]) -> list[QueueEntry]:
-    """Stable pseudo-random order within priority bands: leaks no labels within a band."""
-    return sorted(
-        entries,
-        key=lambda e: (-e.priority, hashlib.sha256(f"{name}:{e.run_id}".encode()).hexdigest()),
-    )
+    """Stable pseudo-random order: a queue built as 'clean first, cheats second' leaks labels."""
+    return sorted(entries, key=lambda e: hashlib.sha256(f"{name}:{e.run_id}".encode()).hexdigest())
 
 
 # --------------------------------------------------------------------------- #
@@ -436,7 +433,6 @@ class Station:
                 "id": blind_id(e.run_id),
                 "done": (self.judge, e.run_id) in done,
                 "refused": e.run_id in self._refused,
-                "priority": e.priority,
             }
             for index, e in enumerate(entries)
         ]

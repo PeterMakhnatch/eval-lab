@@ -1554,6 +1554,7 @@ class MisalignmentLiveWorker:
                 "kind": alert["kind"],
                 "origin": alert["origin"],
                 "eligibility": alert["eligibility"],
+                "gate": bool(alert.get("gate", False)),
                 "check_status": "hit",
                 "entry_ids": list(alert.get("entry_ids", ())),
                 "evidence": evidence,

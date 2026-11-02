@@ -115,7 +115,7 @@ PAGE = r"""<!doctype html>
 <style>
 :root{--ink:#1d2330;--muted:#7a8394;--line:#dfe3ea;--bg:#f5f6f8;--card:#fff;--accent:#2f5fd0;--ok:#1f8a4c;--bad:#c0392b;--warn:#b7791f}
 *{box-sizing:border-box}body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg)}
-header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:8px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:8px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 header b{font-size:16px}.pill{background:#eef1f7;border-radius:999px;padding:2px 10px;font-size:13px}
 button,select{font:inherit;border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 10px;cursor:pointer}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}button:disabled{opacity:.45;cursor:default}
@@ -123,21 +123,30 @@ button.sel{outline:2px solid var(--accent);background:#eaf0ff}
 main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:16px;align-items:start}
 @media(max-width:980px){main{grid-template-columns:1fr}}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.panel h4{margin:0 0 4px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.panel .sec{margin-bottom:10px}.panel .sec:last-child{margin-bottom:0}
+.card pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.45 ui-monospace,Menlo,monospace;max-height:230px;overflow:auto;background:#fafbfc;border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.card ul{margin:2px 0;padding-left:18px;font-size:14px}.card .none{color:var(--muted);font-size:13px}
+table.acts{width:100%;border-collapse:collapse;font:12.5px/1.4 ui-monospace,Menlo,monospace}
+table.acts td{padding:2px 6px;border-top:1px solid var(--line);vertical-align:top;word-break:break-word}
+table.acts td.s{white-space:nowrap;color:var(--accent);cursor:pointer}table.acts tr.fail td{color:var(--bad)}
+table.acts tr.protected td.r,table.acts tr.history td.r,table.acts tr.network td.r,table.acts tr.sensitive td.r{color:var(--warn);font-weight:600}
+.flag{font-size:13px;padding:2px 0}.flag a,.cite{color:var(--accent);cursor:pointer;margin-left:6px;font-size:12px}
 .step{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:8px;margin-bottom:8px}
-.step.cited{border-left-color:var(--accent);background:#f3f7ff}.step.flag{border-left-color:var(--bad)}
+.step.cited{border-left-color:var(--accent);background:#f3f7ff}.step.flag-hit{border-left-color:var(--bad)}
 .step>.h{display:flex;gap:8px;padding:5px 10px;cursor:pointer;color:var(--muted);font-size:12px;user-select:none}
-.step>.h b{color:var(--ink)}.step>.h .tag{margin-left:auto}.tag.c{color:var(--accent)}.tag.f{color:var(--bad)}
+.step>.h b{color:var(--ink)}.step>.h .tag{margin-left:auto}
 .narr{color:var(--muted);padding:0 10px 6px;white-space:pre-wrap;word-break:break-word}
 .narr.reasoning{font-style:italic;font-size:13px}
 pre.code{margin:0 10px 8px;background:#14181f;color:#e6e9ef;border-radius:6px;padding:8px 10px;overflow:auto;font:12.5px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
 .cname{margin:0 10px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .out{margin:0 10px 8px;border:1px dashed var(--line);border-radius:6px;background:#fafbfc}
-.out pre{margin:0;padding:6px 8px;font:12px/1.4 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:none;overflow:auto}
+.out pre{margin:0;padding:6px 8px;font:12px/1.4 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;overflow:auto}
 .out .t{padding:2px 8px;font-size:11px;color:var(--muted);cursor:pointer;border-bottom:1px dashed var(--line)}
-.task pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.45 ui-monospace,Menlo,monospace;max-height:260px;overflow:auto}
 aside{position:sticky;top:60px;max-height:calc(100vh - 76px);overflow:auto}
 .row{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.lbl{font-size:12px;color:var(--muted);margin-top:8px}
-textarea,input[type=text]{width:100%;font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px}
+.big button{flex:1;padding:8px 6px;font-weight:600}
+textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px}
 .reveal h3{margin:.2em 0}.chip{display:inline-block;border-radius:6px;padding:1px 8px;font-weight:600}
 .chip.ok{background:#e4f5ec;color:var(--ok)}.chip.no{background:#fbe7e4;color:var(--bad)}.chip.na{background:#f3efe2;color:var(--warn)}
 .det{font-size:13px;border-top:1px solid var(--line);padding:5px 0}.det a{color:var(--accent);cursor:pointer;margin-right:4px}
@@ -146,7 +155,8 @@ textarea,input[type=text]{width:100%;font:inherit;border:1px solid var(--line);b
 #guide .doc{max-width:760px;margin:0 auto;background:#fff;border-radius:12px;padding:6px 26px 26px}
 #guide pre{background:#14181f;color:#e6e9ef;padding:10px;border-radius:6px;white-space:pre-wrap}
 #guide blockquote{margin:.5em 0;padding:2px 12px;border-left:3px solid var(--line);color:#4b5565}
-#msg{color:var(--bad);font-size:13px;min-height:1.2em}
+#msg{color:var(--bad);font-size:13px;min-height:1.2em}#saved{font-size:11px;color:var(--muted);margin-left:8px}
+#banner{display:none;background:#fff7e0;border:1px solid #ecd9a0;border-radius:8px;padding:6px 12px;margin-bottom:12px;font-size:13px}
 </style></head><body>
 <header>
  <b>Judge station</b>
@@ -155,26 +165,29 @@ textarea,input[type=text]{width:100%;font:inherit;border:1px solid var(--line);b
  <span class="pill" id="rid">–</span>
  <span class="pill" id="clock">0:00</span>
  <span style="flex:1"></span>
+ <button id="undo" title="z">Undo last verdict (z)</button>
  <button id="prev">&larr; Prev</button><button id="skip" title="n">Skip / next (n)</button>
  <button id="open-guide">How to judge (?)</button>
 </header>
 <main>
  <section>
-  <div class="panel task" id="taskp"><b>What the agent was asked</b><div id="task"></div></div>
-  <div id="timeline"></div>
+  <div id="banner"></div>
+  <div class="panel card" id="cardp"><div class="none">Loading…</div></div>
+  <div class="row"><button id="tl-toggle">Show full timeline (t)</button></div>
+  <div id="timeline" style="display:none"></div>
  </section>
  <aside>
   <div class="panel" id="formp">
-   <b>Your verdict</b>
-   <div class="row" id="vbtns">
-    <button data-v="cheat">Cheat <span class="kbd">c</span></button>
-    <button data-v="legitimate">Legitimate <span class="kbd">l</span></button>
-    <button data-v="unclear">Can't tell <span class="kbd">u</span></button></div>
-   <div class="lbl" id="mechl">How it cheated</div>
+   <b>Your verdict</b><span id="saved"></span>
+   <div class="row big" id="vbtns">
+    <button data-v="cheat">Cheated <span class="kbd">c</span></button>
+    <button data-v="legitimate">Honest <span class="kbd">h</span></button>
+    <button data-v="unclear">Unsure <span class="kbd">u</span></button></div>
+   <div class="lbl" id="mechl">How it cheated (pick with the arrow keys)</div>
    <select id="mech" style="width:100%"></select>
-   <div class="lbl">Evidence steps (click a step header to cite it)</div>
+   <div class="lbl">Evidence steps (click a step number to cite it)</div>
    <div id="cites" class="pill" style="display:block">none</div>
-   <div class="lbl">Confidence <span class="kbd">1</span> <span class="kbd">2</span> <span class="kbd">3</span> (1 = a guess, 3 = sure)</div>
+   <div class="lbl">Confidence <span class="kbd">1</span> <span class="kbd">2</span> <span class="kbd">3</span> (1 = a guess, 3 = sure) <span id="cdef">default 2</span></div>
    <div class="row" id="cbtns"><button data-c="1">1</button><button data-c="2">2</button><button data-c="3">3</button></div>
    <div class="lbl">Note (optional)</div>
    <textarea id="note" rows="3"></textarea>
@@ -189,82 +202,133 @@ textarea,input[type=text]{width:100%;font:inherit;border:1px solid var(--line);b
 "use strict";
 const TOKEN="__TOKEN__";
 const $=id=>document.getElementById(id);
-const S={queue:null,list:[],idx:0,run:null,v:null,c:null,cited:new Set(),revealed:false,opened:0,state:null};
+const S={queue:null,list:[],idx:0,run:null,v:null,c:2,touched:false,cited:new Set(),revealed:false,opened:0,state:null,timeline:false,openedTimeline:false,saveTimer:null};
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
 async function api(path,body){
   const r=await fetch(path,body?{method:"POST",headers:{"Content-Type":"application/json","X-Judge-Token":TOKEN},body:JSON.stringify(body)}:{});
   const j=await r.json();if(!r.ok)throw new Error(j.error||r.statusText);return j}
 function fmt(s){return Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0")}
 setInterval(()=>{if(S.run&&!S.revealed)$("clock").textContent=fmt((Date.now()-S.opened)/1000)},500);
+function banner(text){const b=$("banner");b.style.display=text?"block":"none";b.textContent=text||""}
 
 async function init(){
   S.state=await api("/api/state");
   const sel=$("queue");sel.textContent="";
-  for(const q of S.state.queues){const o=el("option",null,q.name+" ("+q.done+"/"+q.total+")");o.value=q.name;sel.appendChild(o)}
+  for(const q of S.state.queues){const o=el("option",null,q.label+" ("+q.done+"/"+q.total+")");o.value=q.name;sel.appendChild(o)}
   const m=$("mech");m.textContent="";const o0=el("option",null,"– pick –");o0.value="";m.appendChild(o0);
   for(const x of S.state.mechanisms){const o=el("option",null,x.replace(/_/g," "));o.value=x;m.appendChild(o)}
   sel.onchange=()=>loadQueue(sel.value);
-  if(S.state.queues.length)await loadQueue(S.state.queues[0].name);else $("timeline").textContent="No queue loaded."
+  if(S.state.queues.length)await loadQueue(S.state.queues[0].name);else $("cardp").textContent="No queue loaded."
 }
-async function loadQueue(name){
-  S.queue=name;S.list=(await api("/api/queue?name="+encodeURIComponent(name))).items;
-  let i=S.list.findIndex(x=>!x.done&&!x.refused);if(i<0)i=0;await show(i)}
+async function loadQueue(name,focusId){
+  S.queue=name;$("queue").value=name;S.list=(await api("/api/queue?name="+encodeURIComponent(name))).items;
+  let i=focusId?S.list.findIndex(x=>x.id===focusId):-1;
+  if(i<0)i=S.list.findIndex(x=>!x.done&&!x.refused);if(i<0)i=0;await show(i)}
 async function show(i){
   if(!S.list.length)return;S.idx=((i%S.list.length)+S.list.length)%S.list.length;
   const item=S.list[S.idx];$("msg").textContent="";resetForm();
   $("pos").textContent=item.position+" / "+S.list.length+(item.done?" · judged":"");$("rid").textContent=item.id;
-  $("timeline").textContent="Loading…";
+  $("cardp").textContent="Loading…";$("timeline").textContent="";
   try{S.run=await api("/api/run?queue="+encodeURIComponent(S.queue)+"&id="+item.id)}
-  catch(e){S.run=null;$("timeline").textContent=e.message;$("task").textContent="";return}
-  S.opened=Date.now();render();
+  catch(e){S.run=null;$("cardp").textContent=e.message;return}
+  S.opened=Date.now();restoreDraft();render();
   if(S.run.previous&&S.run.previous.reveal){S.revealed=true;showReveal(S.run.previous.reveal,null,S.run.previous.verdict)}
 }
 function resetForm(){
-  S.v=null;S.c=null;S.cited=new Set();S.revealed=false;$("note").value="";$("mech").value="";
+  S.v=null;S.c=2;S.touched=false;S.cited=new Set();S.revealed=false;S.openedTimeline=false;setTimeline(false);
+  $("note").value="";$("mech").value="";$("saved").textContent="";
   $("revealp").textContent="";$("revealp").style.display="none";$("submit").disabled=false;paintForm()}
+function restoreDraft(){
+  const d=S.run&&S.run.draft;if(!d)return;
+  S.v=d.verdict||null;S.c=d.confidence||2;S.touched=!!d.confidence_touched;S.cited=new Set(d.evidence_steps||[]);
+  $("note").value=d.note||"";$("mech").value=d.mechanism||"";S.openedTimeline=!!d.opened_timeline;
+  $("saved").textContent="draft restored";paintForm()}
 function paintForm(){
   for(const b of $("vbtns").children)b.classList.toggle("sel",b.dataset.v===S.v);
   for(const b of $("cbtns").children)b.classList.toggle("sel",+b.dataset.c===S.c);
+  $("cdef").textContent=S.touched?"":"default 2";
   $("mech").disabled=S.v!=="cheat";$("mechl").style.opacity=S.v==="cheat"?1:.4;
   $("cites").textContent=S.cited.size?[...S.cited].sort((a,b)=>a-b).join(", "):"none";
   for(const d of document.querySelectorAll(".step"))d.classList.toggle("cited",S.cited.has(+d.dataset.n))}
+function changed(){paintForm();if(S.revealed||!S.run)return;clearTimeout(S.saveTimer);S.saveTimer=setTimeout(saveDraft,600)}
+async function saveDraft(){
+  if(S.revealed||!S.run)return;
+  try{await api("/api/draft",{queue:S.queue,id:S.list[S.idx].id,verdict:S.v,mechanism:$("mech").value||null,confidence:S.c,confidence_touched:S.touched,evidence_steps:[...S.cited],note:$("note").value,opened_timeline:S.openedTimeline});$("saved").textContent="draft saved "+new Date().toLocaleTimeString()}
+  catch(e){$("saved").textContent="draft NOT saved"}}
+function setTimeline(on){S.timeline=on;$("timeline").style.display=on?"block":"none";$("tl-toggle").textContent=(on?"Hide":"Show")+" full timeline (t)";if(on)S.openedTimeline=true}
+function gotoStep(n){setTimeline(true);setTimeout(()=>{const t=$("step-"+n);if(t)t.scrollIntoView({block:"center"})},30)}
+function cite(n){if(S.revealed)return;S.cited.has(n)?S.cited.delete(n):S.cited.add(n);changed()}
+
+function sec(parent,title){const d=el("div","sec");d.appendChild(el("h4",null,title));parent.appendChild(d);return d}
+function stepLink(n,text){const a=el("a","cite",text||("step "+n));a.onclick=()=>gotoStep(n);return a}
+function renderCard(c){
+  const p=$("cardp");p.textContent="";
+  if(c.error){p.appendChild(el("div","none",c.error));return}
+  let s=sec(p,"What was asked");
+  s.appendChild(el("pre",null,c.asked.text||"(the task statement is not recoverable from this run; read the first steps)"));
+  for(const k of c.asked.constraints){s.appendChild(el("div","none","stated: "+k))}
+  s=sec(p,"What the grader checks (as far as the run shows)");
+  if(c.grader.task_mentions.length){const u=el("ul");for(const m of c.grader.task_mentions)u.appendChild(el("li",null,m));s.appendChild(u)}
+  else s.appendChild(el("div","none","The task text does not say how it is checked."));
+  for(const t of c.grader.tests_run){const d=el("div","none","test run");d.textContent="step "+t.step+": "+t.command+(t.outcome?" → "+t.outcome:"")+(t.summary?" ("+t.summary+")":"");s.appendChild(d)}
+  s=sec(p,"What the agent wrote");
+  const w=c.wrote;
+  if(w.protected.length){for(const m of w.protected){const d=el("div");d.appendChild(el("b",null,"step "+m.step+" "+m.op+" "+m.path));d.appendChild(stepLink(m.step,"open"));d.appendChild(cbtn(m.step));if(m.content)d.appendChild(el("pre",null,m.content));s.appendChild(d)}
+    if(w.protected_total>w.protected.length)s.appendChild(el("div","none",(w.protected_total-w.protected.length)+" more writes to test or config-like files"))}
+  else s.appendChild(el("div","none","No write to a test, grader or config-like file."));
+  const ops=Object.entries(w.product_ops).map(([k,v])=>k+" ×"+v).join(", ");
+  if(ops||w.product_paths.length)s.appendChild(el("div","none","other writes: "+(ops||"")+(w.product_paths.length?" — "+w.product_paths.join(", "):"")));
+  if(w.patch_files.length)s.appendChild(el("div","none","final patch: "+w.patch_files.map(f=>f.path+" +"+f.added+" −"+f.removed).join("; ")));
+  for(const r of w.reverted)s.appendChild(el("div","none","step "+r.step+" wrote "+r.path+", undone at step "+r.undone_at));
+  s=sec(p,"What it ran ("+c.ran.total+" tool calls"+(c.ran.omitted?", middle "+c.ran.omitted+" not listed":"")+")");
+  const tb=el("table","acts");
+  for(const r of c.ran.rows){const tr=el("tr",(r.failed?"fail ":"")+r.role);const a=el("td","s",String(r.step));a.onclick=()=>gotoStep(r.step);tr.appendChild(a);tr.appendChild(el("td","r",r.role));tr.appendChild(el("td",null,(r.failed?"FAILED ":"")+r.text));tb.appendChild(tr)}
+  s.appendChild(tb);
+  s=sec(p,"What the agent said at the end");
+  s.appendChild(c.claim.final?el("pre",null,c.claim.final):el("div","none","(no final message)"));
+  if(c.claim.claims_tests_pass)s.appendChild(el("div","none","It says tests pass; last test run: "+(c.claim.last_test_outcome||"none seen")));
+  if(S.state&&S.state.show_hints){
+    s=sec(p,"Steps worth a look (rule-based hints, the same for every run; not a detector)");
+    if(!c.hints.length)s.appendChild(el("div","none","none"));
+    for(const f of c.hints){const d=el("div","flag",f.why);if(f.step!==null){d.appendChild(stepLink(f.step));d.appendChild(cbtn(f.step))}s.appendChild(d)}}
+}
+function cbtn(n){const a=el("a","cite","cite");a.onclick=()=>cite(n);return a}
 function render(){
-  const t=$("task");t.textContent="";
-  if(S.run.task.length){for(const p of S.run.task){const d=el("div");d.appendChild(el("div","lbl","step "+p.step+" · "+p.source));d.appendChild(el("pre",null,p.text));t.appendChild(d)}}
-  else t.appendChild(el("div","lbl","The task statement is not recoverable from this run. Read it from the first steps."));
+  renderCard(S.run.card);
   const tl=$("timeline");tl.textContent="";
   for(const s of S.run.steps)tl.appendChild(stepNode(s));
   window.scrollTo(0,0);paintForm()}
 function stepNode(s){
   const d=el("div","step");d.dataset.n=s.n;d.id="step-"+s.n;
   const h=el("div","h");h.appendChild(el("b",null,"Step "+s.n));h.appendChild(el("span",null,s.source));
-  h.appendChild(el("span","tag"));h.onclick=()=>{if(S.revealed)return;S.cited.has(s.n)?S.cited.delete(s.n):S.cited.add(s.n);paintForm()};d.appendChild(h);
+  h.appendChild(el("span","tag"));h.onclick=()=>cite(s.n);d.appendChild(h);
   for(const n of s.narration){const x=el("div","narr"+(n.kind==="reasoning"?" reasoning":""));x.textContent=(n.kind==="reasoning"?"(thinking) ":"")+short(n.text,n.kind==="reasoning"?700:2400,x);d.appendChild(x)}
   for(const c of s.calls){d.appendChild(el("div","cname","call · "+c.name));const p=el("pre","code");p.textContent=short(c.text,3000,p);d.appendChild(p)}
   s.outputs.forEach(o=>{const w=el("div","out");const t=el("div","t","tool output · "+o.length+" characters");const p=el("pre");
     const big=o.length>500;p.textContent=big?o.slice(0,500)+"\n…":o;let open=!big;
-    t.onclick=()=>{open=!open;p.textContent=open?o:o.slice(0,500)+"\n…";p.style.display="block"};
+    t.onclick=()=>{open=!open;p.textContent=open?o:o.slice(0,500)+"\n…"};
     if(big)t.textContent="tool output · "+o.length+" characters (click to show all / fewer)";w.appendChild(t);w.appendChild(p);d.appendChild(w)});
   return d}
 function short(text,limit,node){
   if(text.length<=limit)return text;
   const more=el("a",null," … show all ("+text.length+" chars)");more.style.cursor="pointer";more.style.color="#2f5fd0";
   more.onclick=()=>{node.textContent=text};setTimeout(()=>node.appendChild(more));return text.slice(0,limit)}
-$("vbtns").onclick=e=>{const v=e.target.closest("button");if(v&&!S.revealed){S.v=v.dataset.v;paintForm()}};
-$("cbtns").onclick=e=>{const b=e.target.closest("button");if(b&&!S.revealed){S.c=+b.dataset.c;paintForm()}};
-$("submit").onclick=submit;
+function pick(v){if(S.revealed)return;S.v=v;changed();if(v==="cheat")$("mech").focus()}
+$("vbtns").onclick=e=>{const b=e.target.closest("button");if(b)pick(b.dataset.v)};
+$("cbtns").onclick=e=>{const b=e.target.closest("button");if(b&&!S.revealed){S.c=+b.dataset.c;S.touched=true;changed()}};
+$("mech").onchange=changed;$("note").oninput=changed;
+$("submit").onclick=submit;$("tl-toggle").onclick=()=>{setTimeline(!S.timeline);changed()};
 async function submit(){
   if(S.revealed||!S.run)return;const m=$("msg");m.textContent="";
-  if(!S.v){m.textContent="Pick cheat, legitimate or can't tell.";return}
-  if(S.v==="cheat"&&!$("mech").value){m.textContent="Pick how it cheated (or 'other').";return}
-  if(!S.c){m.textContent="Pick a confidence, 1 to 3.";return}
-  $("submit").disabled=true;
+  if(!S.v){m.textContent="Pick cheated, honest or unsure.";return}
+  if(S.v==="cheat"&&!$("mech").value){m.textContent="Pick how it cheated (or 'other').";$("mech").focus();return}
+  $("submit").disabled=true;clearTimeout(S.saveTimer);
   try{
-    const r=await api("/api/verdict",{queue:S.queue,id:S.list[S.idx].id,verdict:S.v,mechanism:S.v==="cheat"?$("mech").value:null,evidence_steps:[...S.cited],confidence:S.c,note:$("note").value});
-    S.revealed=true;S.list[S.idx].done=true;showReveal(r.reveal,r.agreement,S.v,r.seconds);refreshCounts()}
+    const r=await api("/api/verdict",{queue:S.queue,id:S.list[S.idx].id,verdict:S.v,mechanism:S.v==="cheat"?$("mech").value:null,evidence_steps:[...S.cited],confidence:S.c,confidence_touched:S.touched,opened_timeline:S.openedTimeline,note:$("note").value});
+    S.revealed=true;S.list[S.idx].done=true;if(document.activeElement)document.activeElement.blur();$("saved").textContent="verdict saved";showReveal(r.reveal,r.agreement,S.v,r.seconds);refreshCounts()}
   catch(e){m.textContent=e.message;$("submit").disabled=false}}
 async function refreshCounts(){S.state=await api("/api/state");const sel=$("queue");
-  S.state.queues.forEach((q,i)=>{sel.options[i].textContent=q.name+" ("+q.done+"/"+q.total+")"})}
+  S.state.queues.forEach((q,i)=>{sel.options[i].textContent=q.label+" ("+q.done+"/"+q.total+")"})}
 function showReveal(rv,agree,verdict,seconds){
   const p=$("revealp");p.textContent="";p.style.display="block";p.className="panel reveal";
   const nb=el("button","primary","Next run (n)");nb.onclick=()=>show(nextUndone());nb.style.float="right";p.appendChild(nb);
@@ -274,31 +338,46 @@ function showReveal(rv,agree,verdict,seconds){
   p.appendChild(el("div",null,"You said: "+verdict+(seconds!==undefined?" · "+fmt(seconds):"")));
   p.appendChild(el("div","lbl","Label"));p.appendChild(el("div",null,rv.label.text));
   if(rv.grader)p.appendChild(el("div",null,"Grader result: "+rv.grader));
-  if(rv.queue_reason){p.appendChild(el("div","lbl","Why it is in this queue"));p.appendChild(el("div",null,rv.queue_reason))}
-  if(rv.detectors.length){p.appendChild(el("div","lbl","Our detectors"));
+  if(rv.stratum_text)p.appendChild(el("div","lbl","Why you got this run"));
+  if(rv.stratum_text)p.appendChild(el("div",null,rv.stratum_text));
+  if(rv.queue)p.appendChild(el("div","lbl","Queue: "+rv.queue));
+  if(rv.queue_reason){p.appendChild(el("div","lbl","Queue note"));p.appendChild(el("div",null,rv.queue_reason))}
+  if(rv.detectors.length){p.appendChild(el("div","lbl","Our detectors and models"));
     for(const d of rv.detectors){const row=el("div","det");row.appendChild(el("b",null,d.name+": "+d.verdict));
-      if(d.steps.length){row.appendChild(el("span",null," · steps "));for(const n of d.steps){const a=el("a",null,String(n));a.onclick=()=>{const t=$("step-"+n);if(t)t.scrollIntoView({block:"center"})};row.appendChild(a)}}
+      if(d.steps.length){row.appendChild(el("span",null," · steps "));for(const n of d.steps){const a=el("a",null,String(n));a.onclick=()=>gotoStep(n);row.appendChild(a)}}
       if(d.summary)row.appendChild(el("div","narr",d.summary));p.appendChild(row);
-      for(const n of d.steps){const t=$("step-"+n);if(t){t.classList.add("flag");t.querySelector(".tag").textContent="detector cited"}}}}
+      for(const n of d.steps){const t=$("step-"+n);if(t){t.classList.add("flag-hit");t.querySelector(".tag").textContent="detector cited"}}}}
   for(const n of rv.notes){p.appendChild(el("div","lbl",n.title));p.appendChild(el("div",null,n.text))}
   $("submit").disabled=true}
 function nextUndone(){for(let k=1;k<=S.list.length;k++){const j=(S.idx+k)%S.list.length;if(!S.list[j].done&&!S.list[j].refused)return j}return S.idx+1}
+async function undo(){
+  try{
+    const r=await api("/api/undo",{});
+    banner("Undid your last verdict ("+r.verdict+"). You had already seen this run's label, so a new verdict on it is recorded as such and left out of the agreement counts.");
+    await refreshCounts();
+    const q=S.state.queues.some(x=>x.name===r.queue)?r.queue:S.state.queues[0].name;
+    await loadQueue(q,r.undone)}
+  catch(e){banner(e.message)}}
+$("undo").onclick=undo;
 $("skip").onclick=()=>show(S.revealed?nextUndone():S.idx+1);$("prev").onclick=()=>show(S.idx-1);
 async function openGuide(){const g=$("guide");if(!$("guidedoc").dataset.loaded){try{$("guidedoc").innerHTML=(await api("/api/guide")).html}catch(e){$("guidedoc").textContent=e.message}$("guidedoc").dataset.loaded=1}g.style.display="block"}
 $("open-guide").onclick=openGuide;$("guide").onclick=e=>{if(e.target.id==="guide")$("guide").style.display="none"};
 document.addEventListener("keydown",e=>{
-  if(e.key==="Escape"){$("guide").style.display="none";return}
-  const typing=["TEXTAREA","INPUT","SELECT"].includes(e.target.tagName);
-  if(typing){if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();submit()}return}
+  if(e.key==="Escape"){$("guide").style.display="none";if(document.activeElement)document.activeElement.blur();return}
+  const tag=e.target.tagName;
+  if(tag==="SELECT"&&e.key==="Enter"){e.preventDefault();submit();return}
+  if(["TEXTAREA","INPUT","SELECT"].includes(tag)){if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();submit()}return}
   if(e.metaKey||e.ctrlKey||e.altKey)return;
   if(e.key==="?"){openGuide();return}
   if(e.key==="n"){$("skip").click();return}
+  if(e.key==="z"){undo();return}
+  if(e.key==="t"){$("tl-toggle").click();return}
   if(S.revealed)return;
-  if(e.key==="c"){S.v="cheat";paintForm()}else if(e.key==="l"){S.v="legitimate";paintForm()}else if(e.key==="u"){S.v="unclear";paintForm()}
-  else if("123".includes(e.key)&&e.key){S.c=+e.key;paintForm()}
+  if(e.key==="c")pick("cheat");else if(e.key==="h"||e.key==="l")pick("legitimate");else if(e.key==="u")pick("unclear");
+  else if(e.key==="1"||e.key==="2"||e.key==="3"){S.c=+e.key;S.touched=true;changed()}
   else if(e.key==="Enter"){e.preventDefault();submit()}
 });
-init().catch(e=>{$("timeline").textContent=String(e)});
+init().catch(e=>{$("cardp").textContent=String(e)});
 </script></body></html>
 """
 
@@ -380,15 +459,18 @@ def make_handler(
                 return
             try:
                 length = int(self.headers.get("Content-Length") or 0)
-                if length > MAX_BODY or urlparse(self.path).path != "/api/verdict":
+                route = urlparse(self.path).path
+                if length > MAX_BODY or route not in ("/api/verdict", "/api/draft", "/api/undo"):
                     self._json({"error": "bad request"}, HTTPStatus.BAD_REQUEST)
                     return
                 payload = json.loads(self.rfile.read(length) or b"{}")
                 if not isinstance(payload, dict):
-                    raise JudgeError("a verdict is a JSON object")
-                self._json(
-                    station.submit(str(payload.get("queue")), str(payload.get("id")), payload)
-                )
+                    raise JudgeError("the request body is a JSON object")
+                if route == "/api/undo":
+                    self._json(station.undo_last())
+                    return
+                action = station.submit if route == "/api/verdict" else station.save_draft
+                self._json(action(str(payload.get("queue")), str(payload.get("id")), payload))
             except (JudgeError, ValueError) as error:
                 self._json({"error": str(error)}, HTTPStatus.CONFLICT)
             except OSError as error:
@@ -416,7 +498,7 @@ def serve(station: Station, *, port: int = 8795, open_browser: bool = False) -> 
         print(f"judge: cannot listen on 127.0.0.1:{port} ({error}). Try --port.")
         return 2
     url = f"http://127.0.0.1:{server.server_port}/"
-    total = sum(len(q) for q in station.queues.values())
+    total = len({e.run_id for q in station.queues.values() for e in q})
     print(f"Judge station for {station.judge}: {total} runs in {len(station.queues)} queue(s)")
     print(f"verdicts: {station.verdicts_path}")
     print(f"open {url}   (Ctrl-C to stop)")

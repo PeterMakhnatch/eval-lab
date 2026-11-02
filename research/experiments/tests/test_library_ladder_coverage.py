@@ -1,13 +1,15 @@
-"""The library ladder coverage matrix must stay mechanical and complete.
+"""The library ladder coverage matrix and gap list stay mechanical and complete.
 
-`build.py` is the only writer of `coverage.csv`. These tests pin what a lane
-relies on: the committed table is what the committed evidence currently
-produces, every `library/tasks` package has a row for every ladder generation
-(so a new package cannot silently vanish from the gap list), a package with no
-evidence still gets explicit `none` rows, verdicts follow the newest source,
-digest freshness comes from evallab's own package digest, and every
-`research/evidence/ladder-v*/cells.json` either reaches the matrix through the
-glob or fails the build.
+`build.py` is the only writer of `coverage.csv` and `gaps.csv`. These tests pin
+what a lane relies on: the committed tables are what the committed evidence
+currently produces, every `library/tasks` package has a row for every ladder
+generation (so a new package cannot silently vanish from the gap list), a
+package with no evidence still gets explicit `none` rows, verdicts follow the
+newest source, digest freshness comes from evallab's own package digest, and
+every `research/evidence/ladder-v*/cells.json` either reaches the matrix
+through the glob or fails the build. For `gaps.csv` they pin the derived
+contract: one row per `verdict=none` cell, each of the three `reason` values,
+and the `superseded_by` rule.
 """
 
 from __future__ import annotations
@@ -31,7 +33,9 @@ assemble = MODULE["assemble"]
 build = MODULE["build"]
 coverage_gaps = MODULE["coverage_gaps"]
 discover_packages = MODULE["discover_packages"]
+gap_rows = MODULE["gap_rows"]
 render = MODULE["render"]
+render_gaps = MODULE["render_gaps"]
 
 
 def _rows() -> list[dict[str, str]]:
@@ -61,6 +65,98 @@ def test_every_library_package_has_one_row_per_ladder_version() -> None:
     assert len(rows) == len(packages) * len(LADDER_VERSIONS)
     keys = [(row["package"], row["ladder_version"]) for row in rows]
     assert len(keys) == len(set(keys)), "one row per package and generation"
+
+
+def test_committed_gaps_reproduces_from_evidence() -> None:
+    # gaps.csv is derived: a hand edit or a regenerated coverage.csv without a
+    # regenerated gaps.csv is drift, and --check fails until it is rebuilt.
+    committed = (EXPERIMENT / "gaps.csv").read_text(encoding="utf-8")
+    assert render_gaps(gap_rows(build())) == committed
+
+
+def test_gaps_csv_has_one_row_per_verdict_none_coverage_row() -> None:
+    coverage = _rows()
+    committed = list(
+        csv.DictReader(io.StringIO((EXPERIMENT / "gaps.csv").read_text(encoding="utf-8")))
+    )
+    none_rows = [row for row in coverage if row["verdict"] == "none"]
+    assert [(row["package"], row["ladder_version"]) for row in committed] == [
+        (row["package"], row["ladder_version"]) for row in none_rows
+    ]
+    assert {row["reason"] for row in committed} <= {"no-cells", "errored", "stale-digest"}
+
+
+def _coverage_row(
+    package: str,
+    version: str,
+    verdict: str = "none",
+    n_cells: str = "0",
+    digest_current: str = "no",
+    digest_recorded: str = "no",
+) -> dict[str, str]:
+    return {
+        "package": package,
+        "ladder_version": version,
+        "verdict": verdict,
+        "n_cells": n_cells,
+        "digest_current": digest_current,
+        "digest_recorded": digest_recorded,
+    }
+
+
+def test_gap_reason_no_cells_when_nothing_was_recorded() -> None:
+    rows = [_coverage_row("p", "1.4.0", n_cells="0")]
+    [gap] = gap_rows(rows)
+    assert (gap["reason"], gap["superseded_by"]) == ("no-cells", "")
+
+
+def test_gap_reason_errored_when_cells_recorded_no_verdict() -> None:
+    # tau3-retail-1's shape: a recorded cell whose controls/verdict yield none.
+    rows = [_coverage_row("p", "1.4.0", n_cells="1")]
+    [gap] = gap_rows(rows)
+    assert gap["reason"] == "errored"
+
+
+def test_gap_reason_stale_digest_beats_errored() -> None:
+    # Cells recorded a digest that no longer matches today's package bytes:
+    # "stale bytes" names the fix (re-run) better than "errored".
+    rows = [
+        _coverage_row(
+            "p", "1.4.0", n_cells="2", digest_recorded="yes", digest_current="no"
+        )
+    ]
+    [gap] = gap_rows(rows)
+    assert gap["reason"] == "stale-digest"
+
+
+def test_superseded_by_is_the_highest_later_verdict_on_the_current_digest() -> None:
+    rows = [
+        _coverage_row("p", "1.4.0"),
+        _coverage_row("p", "2.0.0"),
+        _coverage_row("p", "3.0.0", verdict="clean", n_cells="3", digest_current="no"),
+        _coverage_row(
+            "p", "4.0.0", verdict="clean", n_cells="4", digest_current="yes",
+            digest_recorded="yes",
+        ),
+    ]
+    gaps = {row["ladder_version"]: row for row in gap_rows(rows)}
+    # The stale-digest 3.0.0 verdict does not supersede; the current-digest
+    # 4.0.0 verdict does.
+    assert gaps["1.4.0"]["superseded_by"] == "4.0.0"
+    assert gaps["2.0.0"]["superseded_by"] == "4.0.0"
+
+
+def test_superseded_by_is_empty_without_a_current_later_verdict() -> None:
+    rows = [
+        _coverage_row("p", "1.4.0"),
+        _coverage_row("p", "3.0.0", verdict="clean", n_cells="3", digest_current="no"),
+        _coverage_row("p", "4.0.0"),
+    ]
+    gaps = {row["ladder_version"]: row for row in gap_rows(rows)}
+    # A later verdict on stale bytes does not close the earlier generation,
+    # and the last generation has no later version at all.
+    assert gaps["1.4.0"]["superseded_by"] == ""
+    assert gaps["4.0.0"]["superseded_by"] == ""
 
 
 def test_a_new_package_directory_gets_explicit_none_rows(tmp_path: Path) -> None:

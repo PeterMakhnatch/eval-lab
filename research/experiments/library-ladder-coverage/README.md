@@ -22,6 +22,25 @@ it. `research/experiments/tests/test_library_ladder_coverage.py` runs the same
 comparison, fails when a package directory has no coverage row, and fails when
 a `research/evidence/ladder-v*/cells.json` contributes no cell.
 
+## gaps.csv
+
+The builder also writes `gaps.csv` next to `coverage.csv`, derived row-by-row
+from it: one row per `verdict=none` cell, so hand edits and unregenerated
+coverage are caught by the same `--check`. Columns:
+
+| Column | Meaning |
+|---|---|
+| `package` | repo-relative package directory, as in `coverage.csv` |
+| `ladder_version` | the generation with no scored verdict |
+| `reason` | `no-cells` (nothing recorded at that generation), `errored` (cells recorded but no verdict — e.g. tau3-retail-1's infrastructure errors), or `stale-digest` (cells recorded a package digest that no longer matches today's bytes) |
+| `superseded_by` | the highest later ladder version whose row holds a non-`none` verdict on the package's current digest; empty when no later generation supersedes this one |
+
+Read the table bottom-up: a row with `superseded_by` set is not a real gap
+(a newer generation already measured these bytes); the rows with an empty
+`superseded_by` are the work the next ladder card has to pick up. Today that
+is 11 superseded cells and 10 real gaps (the four `deepplanning` cells,
+`query-optimize` at `3.0.0`/`4.0.0`, and the four `tau3-retail-1` cells).
+
 ## Inputs (all read-only)
 
 | Input | Generations it carries |

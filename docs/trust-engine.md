@@ -7,11 +7,11 @@ audience:
 
 # The Trust Engine: Architecture, Commands, Runbooks, and Verified Evidence
 
-The trust engine makes agent evaluation and training data trustworthy by dramatically reducing reward gaming opportunities and surfacing tampering attempts with human-auditable evidence.
+The trust engine makes agent evaluation and training data trustworthy by reducing reward gaming opportunities and surfacing tampering attempts with human-auditable evidence.
 It attacks the evaluation gaming problem from both ends: certifying task packages before rollouts so weak or tamperable graders cannot accept false solutions, and monitoring agent execution traces without viewing private reasoning to catch cheating in progress or post hoc.
 Together, the two halves provide defence in depth: container hardening raises the difficulty of grader subversion before rollouts begin, while CoT-free monitoring provides low-false-alarm, partial-recall alerts and structured evidence for human adjudication.
-All enforcement is grounded in deterministic container boundaries, AST semantic mutations, lossless structured case anatomy, and calibrated human adjudication.
-When cheating occurs, the pipeline isolates exact diffs, tool calls, and mutation ledgers so a person can audit the run in two minutes.
+All enforcement is grounded in deterministic container boundaries, AST semantic mutations, lossless structured case anatomy, and human adjudication.
+When cheating occurs, the pipeline isolates exact diffs, tool calls, and mutation ledgers for rapid human auditing without manual log inspection.
 
 ---
 
@@ -22,7 +22,7 @@ The engine divides cleanly into two halves that share a common ontology of rewar
 1. **Task Certifier (Is the exam fair?):** Inspects task packages (instruction, Dockerfile, test files, grader scripts, reference patch) before agent rollouts begin. It tests whether an incorrect or adversarial solution can obtain a passing reward.
 2. **Trace Monitor and Judge Station (Did the run cheat?):** Inspects recorded execution traces of agents without viewing chain-of-thought (`reasoning_content` is stripped). It flags cheating during live execution or batch evaluation, and feeds suspect cases to blind human adjudication.
 
-Human verdicts from the Judge Station provide ground truth that calibrates Layer 0 tripwires, AutoReview thresholds, and task certifier audits, while rollout filtering ensures cheated trajectories never contaminate downstream training sets.
+Human verdicts from the Judge Station provide ground truth intended to calibrate Layer 0 tripwires, AutoReview thresholds, and task certifier audits, while rollout filtering is intended to prevent cheated trajectories from contaminating downstream training sets (currently in development; see section on open PRs).
 
 ```mermaid
 flowchart TD
@@ -33,7 +33,7 @@ flowchart TD
         ta["evallab tasks anatomy\n(Static Vulnerability Parser: AST & Regex)"]
         am["evallab audit-mutants\n(STING: AST Semantic Mutation Testing)"]
         hd["evallab harden\n(L1 Auto-load, L2 Pristine, L3 Report, L4 Verifier)"]
-        cg["evallab certify-gold\n(Contract-Complete Test Synthesis + 6 Gates)"]
+        cg["evallab certify-gold\n(Plan-only CLI; 8-task experiment driver)"]
         
         pkg & ref --> ta
         pkg & ref --> am
@@ -58,34 +58,36 @@ flowchart TD
         cascade --> js["evallab judge serve\n(Judge Station: Blind Human Adjudication)"]
         js --> verdicts["Human Verdicts\n(verdicts.jsonl)"]
         
-        verdicts -. Calibrate .-> l0
-        verdicts -. Calibrate .-> ar
-        cascade --> hackdrop["evallab hack-drop\n(Rollout Filter - In Progress)"]
+        verdicts -. Planned calibration .-> l0
+        verdicts -. Planned calibration .-> ar
+        cascade --> hackdrop["evallab hack-drop\n(Rollout Filter - In PR #1729)"]
         hackdrop --> clean_sft["Clean SFT / RL Training Corpus"]
     end
 ```
+
+*(Note: The flowchart above is written in Mermaid syntax. It requires a compatible viewer or renderer to display graphically; text-only renderers show the raw definition).*
 
 ---
 
 ## 2. Command Reference
 
-All CLI commands run under `evallab` (or `python -m evallab.cli`). Every CLI signature listed below has been verified against `--help` in the worktree; operational behaviors, environment requirements (such as local Docker for regrade), and stub limits are documented explicitly below.
+All CLI commands run under `evallab` (executable via `uv run evallab` from the repository, or by activating `.venv`). Note that relative task and trace paths resolve against the repository root, not the shell's current working directory. Every CLI signature listed below has been verified against `--help` in the worktree; operational behaviors, environment requirements (such as local Docker for regrade), and stub limits are documented explicitly below.
 
 | Command | Input | Output | Cost Class | Code Location |
 |---|---|---|---|---|
 | `evallab tasks anatomy` | Task directories or collections; optional `--reference-patch` | `evallab.package_anatomy/v1` card (stdout or JSONL) | Free local ($0, static AST/regex, <10 ms) | `src/evallab/package_anatomy.py` |
-| `evallab audit-mutants` | Base package, reference patch, output dir; optional `--repaired-package` | Audit summary JSON, mutated cells CSV, survivor diffs | Modal cents (~$0.012 per weak grader; metered cap) | `src/evallab/mutant_auditor.py` |
+| `evallab audit-mutants` | Base package, reference patch, output dir; optional `--ledger <path>.json`, `--repaired-package` | Audit summary JSON, mutated cells CSV, survivor diffs; reservations recorded in `--ledger` | Modal cents (~$0.012 per weak grader; metered cap) | `src/evallab/mutant_auditor.py` |
 | `evallab harden` | Task package path; `--expected-tests` (required for pytest unless `--allow-degraded`), optional `--single-container`, `--out` | Hardened package directory (L1–L4 hardened verifier) | Free local ($0, static container re-wiring) | `src/evallab/full_hardening.py` |
-| `evallab certify-gold` | Base package, reference patch; `--plan` [`--json`], optional `--cap-usd`, `--model`, `--limit` | Plan preview JSON/text (mutants, targets, prompt preview). CLI non-plan is a no-op stub; full 6-gate certification runs via driver script / library API | Free local ($0, offline planning; driver script uses Subscription + Modal cents) | `src/evallab/gold_certifier.py` |
+| `evallab certify-gold` | Base package, reference patch; `--plan` [`--json`], optional `--cap-usd`, `--model`, `--limit` | Plan preview JSON/text (targets, model, metered cap, mutant limit only). CLI non-plan mode is a no-op stub; arbitrary package certification is not operator-runnable today. Full 6-gate certification exists as a fixed 8-task MiMo experiment driver (`research/experiments/ov-gold-certifier-8-20261101/run_gold_certification.py`) | Free local ($0, offline planning; 8-task experiment driver uses Subscription + Modal cents) | `src/evallab/gold_certifier.py` |
 | `evallab trace anatomy` | Run ID (cloud/CheatBench) or `--atif-file <trial.json>`; optional `--include-narration` | Structured Case Anatomy card (human-readable text or JSON) | Free local ($0, raw CAS projection, <100 ms) | `src/evallab/trace_anatomy.py` |
 | `evallab trace autoreview` | Run ID or ATIF trial JSON; optional `--compact-only`, `--with-l0-cascade`, `--model` | AutoReview judgment JSON (suspicion score, cited steps, cascade/union alerts when model runs) | Subscription (or Free local $0 with `--compact-only`) | `src/evallab/autoreview_monitor.py` |
-| `evallab regrade` | Stored Harbor job directory (`<job_dir>`); optional `--task <hardened_task>` or `--held-out <bundle>`, `--jobs-dir`, `--name`, `--dry-run`, `--json` | Re-scored job directory under `runs/` (or specified `--jobs-dir`) | Local Docker, $0 model cost (refused when `EVALLAB_DISABLE_LOCAL_DOCKER=1`; Modal trial regrades exist only via Python CloudSpendGate API) | `src/evallab/regrade.py`, `src/evallab/cli.py` |
-| `evallab judge serve` | Queue file (`[NAME=]PATH`), findings JSONL; optional `--port`, `--open` | Local blinded web UI on `127.0.0.1:8795` (use `--port <port>` with ephemeral port for scratch runs); records human verdicts to `verdicts.jsonl` | Free local ($0, stdlib HTTP, no models, no network) | `src/evallab/production/judge_station.py`, `judge_web.py` |
+| `evallab regrade` | Stored Harbor job directory (`<job_dir>`); optional `--task <hardened_task>` or `--held-out <bundle>`, `--jobs-dir`, `--name`, `--dry-run`, `--json` | Re-scored job directory under `runs/` (or specified `--jobs-dir`) | Local Docker, $0 model cost (refused when `EVALLAB_DISABLE_LOCAL_DOCKER=1`; `--held-out` also requires local Docker; Modal trial regrades exist only via Python CloudSpendGate API) | `src/evallab/regrade.py`, `src/evallab/cli.py` |
+| `evallab judge serve` | Queue file (`[NAME=]PATH`), findings JSONL; optional `--port`, `--open` (interactive-only) | Local blinded web UI on `127.0.0.1:8795` (use `--port <port>` with ephemeral port for scratch runs); records human verdicts to `verdicts.jsonl` | Free local ($0, stdlib HTTP, no models, no network) | `src/evallab/production/judge_station.py`, `judge_web.py` |
 | `evallab judge build-packet` | Fixed 18-case packet markdown (`--adjudication`) and DT-17 cases JSON (`--cases`); optional `--state-dir` | `<state-dir>/queues/adjudication-packet.jsonl` and `guide-examples.jsonl` (fixed 18-case calibration builder) | Free local ($0, file formatting) | `src/evallab/production/judge_station.py` |
 | `evallab judge export` | Verdicts state directory | Exported CSV or JSON of human verdicts | Free local ($0, read-only export) | `src/evallab/production/judge_station.py` |
 | `evallab live-supervisor` | Live runs root; subcommands: `scan`, `serve`, `replay`, `adjudicate`, `rows`, `route-alarms`, `fleet-report` | `trace-findings/v1` records, shadow-mode decisions | Free local ($0, deterministic rules) | `src/evallab/production/live_supervisor.py` |
 | `evallab watch` | Live runs root; subcommands: `ack`, `stop` | Live trial monitoring, stop requests | Free local ($0, watchdog loops) | `src/evallab/harbor_watch_hooks.py` |
-| `evallab hack-drop` | Evaluated rollout traces / SFT candidate dataset | Cleaned dataset with reward-hacked runs purged | **In progress** (planned CLI; does not yet exist on `main`) | Planned pipeline filter |
+| `evallab hack-drop` | Evaluated rollout traces / SFT candidate dataset | Cleaned dataset with reward-hacked runs purged | Planned ($0 local / model depending on filter stage) | In open PR #1729 (does not exist on `main`) |
 
 ---
 
@@ -109,10 +111,11 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
      --package library/tasks/my-task \
      --reference-patch library/tasks/my-task/reference.patch \
      --out results/audit-my-task \
+     --ledger results/audit-my-task-ledger.json \
      --max-usd 0.50 \
      --approval "Operator task certification run"
    ```
-   *Expected result:* Outputs `audit-summary.json`. If `weak_original: true`, the benchmark grader passes semantic bugs and requires hardening tests. (Note: requires paid Modal container execution authorized via `--approval` and bounded by `--max-usd`. `audit-summary.json` holds wall-time cost estimates; actual metered billing is tracked in the spend ledger).
+   *Expected result:* Outputs `audit-summary.json`. If `weak_original: true`, the benchmark grader passes semantic bugs and requires hardening tests. (Note: requires paid Modal container execution authorized via `--approval` and bounded by `--max-usd`. Pass `--ledger <path>.json` so `CloudSpendGate` tracks spend reservations across invocations; without `--ledger`, reservations are kept only in memory and a rerun gets a fresh $0.50 cap. The ledger holds execution reservations, not final invoices; actual metered billing is tracked in the Modal dashboard by `--app-name` / billing tag, not in `spend.jsonl`).
 
 3. **Step 3: Harden container boundaries with L1–L4 separation:**
    Apply deterministic container re-wiring (L1 auto-load reset, L2 pristine workdir, L3 report gating, L4 separate verifier container):
@@ -121,29 +124,31 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    ```
    *Expected result:* Outputs hardened package directory with separate verifier architecture (`transform: full-hardening@1`). Note: `--expected-tests <N>` is required for pytest packages unless `--allow-degraded` is passed.
 
-4. **Step 4: Plan and certify with Gold Certifier (synthesis + separate verifier + 6 gates):**
-   First preview the synthesis plan and mutant split offline using the CLI ($0):
+   *Pipeline note for new packages:* Runbook 1 for arbitrary task packages currently ends at Step 3 (anatomy, STING mutation audit, and container hardening). Automated corpus-scale task package certification is not yet an operator-runnable feature on `main`, but an active area of development across open PRs and overnight experiments.
+
+4. **Step 4: Status of automated Gold Certification (Plan-only CLI; 8-task experiment runner):**
+   The CLI command `evallab certify-gold` is currently **plan-only**. You can preview the task parameters offline ($0):
    ```bash
    evallab certify-gold \
      --package library/tasks/my-task \
      --reference-patch library/tasks/my-task/reference.patch \
      --plan --json
    ```
-   *Expected result:* Prints JSON plan detailing target files, enumerated mutants, and synthesis parameters.
+   *Expected result:* Prints a JSON planning dict containing `task_id, package, targets, model, metered_cap_usd, mutant_limit` only. It does **not** enumerate mutants, synthesize tests, split train/eval sets, or generate prompt previews. The non-plan CLI mode (`--out <dir>`) is a no-op stub that prints a placeholder line and exits 0 without running any verifications.
 
-   *Execution note:* The CLI non-plan mode (`evallab certify-gold --out ...`) is currently a stub that prints progress and returns 0 without executing Modal runs. Full end-to-end certification (synthesizing contract-complete behavioral tests via `omp -p` and evaluating all 6 certification gates on Modal) is executed using the experiment driver script:
+   *Execution note:* There is **no operator-runnable certification of an arbitrary package today**. The full end-to-end certification pipeline exists today only as a fixed-cohort research experiment runner:
    ```bash
    python research/experiments/ov-gold-certifier-8-20261101/run_gold_certification.py
    ```
-   (or programmatically via `evallab.gold_certifier` functions `stage_and_harden_package`, `validate_contract_test`, etc., with iterative multi-round feedback support in PR #1744 `run_rounds`).
+   This script evaluates a hard-coded cohort of 8 strictly-DEV MiMo tasks (`000079`, `000232`, `001267`, `001850`, `000682`, `000931`, `000484`, `003005`). It takes no `--package` or `--reference-patch` argument for arbitrary user tasks. Its CLI flags are `--synthesize`, `--harden`, `--plan`, `--run`, `--workers`, `--summarize`, `--task <short>`, and `--cell <substr>`. When executed bare, it only rewrites `research/experiments/ov-gold-certifier-8-20261101/results/selection.json`. Running it with `--run` executes Modal cells under a hard-coded approval string (`"Peter 2026-10-31 overnight factory W3B-EXHAUSTIVE-GOLD-CERTIFIER: Modal cap $0.95"`, cap `$0.95`, bridge `worker.yml` path) and overwrites its own `results/` directory.
 
-   The driver evaluates the 6 certification gates on Modal under recorded spend authorization:
-   - Gate 1 (Reference Validity): Reference patch scores 1.0.
-   - Gate 2 (Nop Rejection): Empty submission scores 0.0.
-   - Gate 3 (Witness / Tamper Rejection): Grader tampering and conftest hooks score 0.0.
-   - Gate 4 (L4 `.pth` Startup Interception): Interpreter hijack via `.pth` scores 0.0.
+   What the 8-task experiment measured across its 6 certification gates:
+   - Gate 1 (Reference Validity): Reference patch scores 1.0 (8/8 observed).
+   - Gate 2 (Nop Rejection): Empty submission scores 0.0 (8/8 observed).
+   - Gate 3 (Witness / Tamper Rejection): Grader tampering and conftest hooks score 0.0 (8/8 observed).
+   - Gate 4 (L4 `.pth` Startup Interception): Interpreter hijack via `.pth` scores 0.0 (8/8 observed).
    - Gate 5 (Train Mutants Killed): Reports training semantic mutants killed (19/20 = 95.0% observed across 8 tasks; 0/1 on task 000931; reports count, no hard 90% threshold in code).
-   - Gate 6 (Eval Mutants Killed): Reports held-out eval mutants killed out-of-sample (counts only).
+   - Gate 6 (Eval Mutants Killed): Reports held-out eval mutants killed out-of-sample (3/8 base survivors, 13/18 all mutants killed across 8 tasks; reports counts only).
 ---
 
 ### Runbook 2: Review a Run
@@ -174,9 +179,9 @@ When an agent scores 1.0 on a task, or when an operator suspects reward gaming, 
    If a run sits in the ambiguous zone (suspicion 25–85) or requires human sign-off, it can be queued for blinded human review. Note: Judge Station operates on queues of cloud trace run IDs (JSONL records with `{"run_id": "<run_id>", "reason": "..."}`, from which the station derives the blinded `run-<16hex>` display ID). Local ATIF trial JSONs cannot be served directly in Judge Station without being registered in the cloud run store (`judge build-packet` is a fixed 18-case calibration packet builder, not a per-job queue generator).
    For cloud runs queued in `queue.jsonl`:
    ```bash
-   evallab judge serve --queue queue.jsonl --state-dir results/judge-scratch --port 0 --open
+   evallab judge serve --queue queue.jsonl --state-dir results/judge-scratch --port 0
    ```
-   *Expected result:* Serves blinded interface on `http://127.0.0.1:<port>` (pass `--port <port>` with an ephemeral port like `--port 0` in scratch/overnight runs to avoid collisions with default port 8795). The operator judges the timeline without seeing the benchmark, model label, or detector verdicts until submission. Verdicts are written to `<state-dir>/verdicts.jsonl`.
+   *Expected result:* Serves blinded interface on `http://127.0.0.1:<port>` (pass `--port <port>` with an ephemeral port like `--port 0` in scratch/overnight runs to avoid collisions with default port 8795). *(Note: Do not pass `--open` in unattended, automated, or overnight runs. `--open` calls Python's `webbrowser.open()`, which steals operating system window focus; reserve `--open` for interactive desktop sessions only).* The operator judges the timeline without seeing the benchmark, model label, or detector verdicts until submission. Verdicts are written to `<state-dir>/verdicts.jsonl`.
 
 ---
 
@@ -184,10 +189,10 @@ When an agent scores 1.0 on a task, or when an operator suspects reward gaming, 
 
 When preparing agent trajectories for Supervised Fine-Tuning (SFT) or Reinforcement Learning (RL), trajectories with reward 1.0 obtained via reward hacking must be purged to prevent training models to cheat.
 
-*Current Pipeline Status: `evallab hack-drop` is currently in progress on `main`. Today, filtering is performed by composing `evallab trace autoreview` and hardened re-scoring.*
+*Current Pipeline Status: `evallab hack-drop` is in open PR #1729 and not yet merged on `origin/main`. Today, filtering is performed by composing `evallab trace autoreview` and hardened re-scoring.*
 
-1. **Step 1: Batch evaluate traces with the L0 + AutoReview cascade:**
-   Run AutoReview across the candidate pool:
+1. **Step 1: Evaluate candidate traces with the L0 + AutoReview cascade (loop over traces, one subscription call each):**
+   Run AutoReview across candidate traces in a loop (each non-compact invocation makes one subscription model call):
    ```bash
    evallab trace autoreview <trace_path> --with-l0-cascade --json
    ```
@@ -199,8 +204,7 @@ When preparing agent trajectories for Supervised Fine-Tuning (SFT) or Reinforcem
    evallab regrade <job_dir> --task library/tasks/my-task-hardened [--dry-run]
    ```
    Any trial whose reward drops from 1.0 to 0.0 under the hardened verifier is dropped as an exploit.
-   *Execution and cost note:* CLI `evallab regrade` executes via local Docker ($0 model cost, local container execution). When `EVALLAB_DISABLE_LOCAL_DOCKER=1` is set, the CLI refuses execution (`error: Local Docker execution is disabled`). `--held-out <bundle>` allows re-scoring recorded passes offline on cached local CPU images. Modal container execution with `CloudSpendGate` is supported only at the Python API level for single-trial regrades, not from the `evallab regrade` CLI.
-
+   *Execution and cost note:* CLI `evallab regrade` executes via local Docker ($0 model cost, local container execution). When `EVALLAB_DISABLE_LOCAL_DOCKER=1` is set, the CLI refuses execution (`error: Local Docker execution is disabled`). Note that `--held-out <bundle>` (which re-scores passes offline on cached local CPU images) is checked by the same `_check_regrade_environment()` guard, so held-out regrade also requires local Docker and is likewise refused when local Docker is disabled. Modal container execution with `CloudSpendGate` is supported only at the Python API level for single-trial regrades, not from the `evallab regrade` CLI.
 3. **Step 3: Adjudicate borderline cases:**
    Traces in the uncertain score band are queued for human review via `evallab judge serve`.
 
@@ -208,20 +212,20 @@ When preparing agent trajectories for Supervised Fine-Tuning (SFT) or Reinforcem
 
 ## 4. Numbers You May Quote
 
-Every number below was verified directly by opening and reading its source receipt file either in this repository (`research/experiments/**`) or in verified external bridge receipts (`research-context/bridge/**`, not committed to this repository). All intervals are 95% Wilson confidence intervals. DT-15 refers to the earlier action-grounded trace reader baseline (`ds-dt15-action-grounded-reader-20261030`).
+Every number below was verified directly by opening and reading its source receipt file either in this repository (`research/experiments/**`) or in verified external bridge receipts (`research-context/bridge/**`, not committed to this repository). All intervals are 95% Wilson confidence intervals. For the Gold Certifier 8-task experiment rows, receipts were read and verified directly from `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` by the author; independent verification was not performed (VF-OV2 listed W3B-EXHAUSTIVE-GOLD-CERTIFIER as not verified). DT-15 refers to the earlier action-grounded trace reader baseline (`ds-dt15-action-grounded-reader-20261030`).
 
 | Finding / Metric | Value | Gate Verdict | Status | Receipt Path |
 |---|---|---|---|---|
 | **STING Original Grader Weakness** | 12/18 = 66.7% (43.7–83.7%) weak original MiMo DEV graders accepting mutants | N/A (diagnostic) | Verified | `research/experiments/ov-sting-mutants-20261031/results/audit-summary.json` |
 | **STING Grader Cost Efficiency** | $0.0116 / 70 sandbox-s per weak grader found ($0.1395 / 844 s over original-package cells + probes; total run $0.2068, 1,251 s, 89 executions including 12 repaired-package audits) | N/A (efficiency) | Verified | `research/experiments/ov-sting-mutants-20261031/results/audit-summary.json` |
 | **STING Repaired Grader Residual Survivors** | 4/12 = 33.3% (13.8–60.9%) of prior "qualified" repairs still accepted mutants | N/A (diagnostic) | Verified | `research/experiments/ov-sting-mutants-20261031/results/audit-summary.json` |
-| **Gold Certifier Gate 1 (Reference Validity)** | 8/8 = 100.0% (67.6–100.0%) reference patches pass hardened verifier | Gate 1 PASS | Verified (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
-| **Gold Certifier Gate 2 (Nop Rejection)** | 8/8 = 100.0% (67.6–100.0%) empty patches rejected | Gate 2 PASS | Verified (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
-| **Gold Certifier Gate 3 (Tamper Rejection)** | 8/8 = 100.0% (67.6–100.0%) witness and hook exploits rejected | Gate 3 PASS | Verified (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
-| **Gold Certifier Gate 4 (L4 `.pth` Forgery)** | 8/8 = 100.0% (67.6–100.0%) site-packages `.pth` hijacking defeated | Gate 4 PASS | Verified (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
-| **Gold Certifier Gate 5 (Train Mutants Killed)** | 19/20 = 95.0% (76.4–99.1%) training semantic mutants killed across 8 tasks (reports count; 0/1 on task 000931) | Gate 5: 19/20 killed (reports count, no 90% threshold in code) | Verified (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
-| **Gold Certifier Gate 6 (Eval Mutants - Base Survivors)** | 3/8 = 37.5% (13.7–69.4%) base-surviving unseen held-out mutants killed | Gate 6: 3/8 base survivors killed (reports count) | Verified (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
-| **Gold Certifier Gate 6 (Eval Mutants - All)** | 13/18 = 72.2% (49.1–87.5%) all unseen held-out eval mutants killed | Gate 6: 13/18 all mutants killed (reports count) | Verified (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
+| **Gold Certifier Gate 1 (Reference Validity)** | 8/8 = 100.0% (67.6–100.0%) reference patches pass hardened verifier | Gate 1 PASS | Receipt read by author; no independent verifier (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
+| **Gold Certifier Gate 2 (Nop Rejection)** | 8/8 = 100.0% (67.6–100.0%) empty patches rejected | Gate 2 PASS | Receipt read by author; no independent verifier (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
+| **Gold Certifier Gate 3 (Tamper Rejection)** | 8/8 = 100.0% (67.6–100.0%) witness and hook exploits rejected | Gate 3 PASS | Receipt read by author; no independent verifier (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
+| **Gold Certifier Gate 4 (L4 `.pth` Forgery)** | 8/8 = 100.0% (67.6–100.0%) site-packages `.pth` hijacking defeated | Gate 4 PASS | Receipt read by author; no independent verifier (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
+| **Gold Certifier Gate 5 (Train Mutants Killed)** | 19/20 = 95.0% (76.4–99.1%) training semantic mutants killed across 8 tasks (reports count; 0/1 on task 000931) | Gate 5: 19/20 killed (reports count, no 90% threshold in code) | Receipt read by author; no independent verifier (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
+| **Gold Certifier Gate 6 (Eval Mutants - Base Survivors)** | 3/8 = 37.5% (13.7–69.4%) base-surviving unseen held-out mutants killed | Gate 6: 3/8 base survivors killed (reports count) | Receipt read by author; no independent verifier (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
+| **Gold Certifier Gate 6 (Eval Mutants - All)** | 13/18 = 72.2% (49.1–87.5%) all unseen held-out eval mutants killed | Gate 6: 13/18 all mutants killed (reports count) | Receipt read by author; no independent verifier (counts only; small in-sample set of 8 tasks, 4 repaired; no pre-reg file) | `research/experiments/ov-gold-certifier-8-20261101/results/summary.json` |
 | **Unified Hardening Attack Closures** | 11/11 = 100.0% (74.1–100.0%) attack closures across 51 Modal cells at $0.1238 | PASS | Verified | `research/experiments/t2-unified-harden-20261031/results/summary.json` |
 | **Package Anatomy Execution Speed** | p50 3.44 ms, p95 8.83 ms, max 10.56 ms across 35 strictly-DEV MiMo packages (27 pytest + 8 non-pytest; 1 non-DEV task excluded from the 36 classification rows) ($0) | PASS (gate_pass: true) | Verified (external bridge receipt, not in repo) | `/Users/petermakhnatch/Developer/research-context/bridge/2026-10-31-overnight/ag-sonnet/raw/T2A-PKG-ANATOMY2/receipts/summary.json` |
 | **Package Anatomy C1–C5 Mechanism Detection** | 5/5 = 100.0% (56.6–100.0%) impossible tasks flagged with causal mechanism | PASS (gate_pass: true) | Verified (in-sample; external bridge receipt, not in repo) | `/Users/petermakhnatch/Developer/research-context/bridge/2026-10-31-overnight/ag-sonnet/raw/T2A-PKG-ANATOMY2/receipts/summary.json` |
@@ -234,8 +238,8 @@ Every number below was verified directly by opening and reading its source recei
 | **Terminal Wrench L0 Live Prefix Fix (Full DEV Set, n=304)** | Recall 121/158 = 76.6% (69.4–82.5%), Clean FA 4/146 = 2.7% (1.1–6.8%) | N/A (full DEV cohort) | Verified | `research/experiments/ov-autoreview-v2-tw-20261031/result.json` |
 | **Terminal Wrench L0 + AutoReview Cascade (Full DEV Set, n=304)** | Recall 79/158 = 50.0% (42.3–57.7%), Clean FA 0/146 = 0.0% (0.0–2.6%) | G-TW FAIL (FA passed 0.0% <= 1.0%, recall 50.0% < 60% requirement) | Pre-registered (gate failed) / Verified | `research/experiments/ov-autoreview-v2-tw-20261031/result.json` |
 | **Terminal Wrench Post-Hoc Cascade** | Recall 89/158 = 56.3% (defined after seeing data; counts 11 runs whose final AutoReview verdict was clean) | N/A (post-hoc definition; do not quote as headline) | Post hoc | `research/experiments/ov-autoreview-v2-tw-20261031/README.md:14`, `VF-OV1/verify-all.json` |
-| **CheatBench AutoReview Clean FA vs DT-15 (Fixed Rubric)** | Clean FA 0/75 = 0.0% (0.0–4.9%) vs DT-15 8/75 (10.7%); discordant pairs 8 (DT-15 only) vs 0 (ours only), exact McNemar $p = 0.0078$ in our favour | G-CB FAIL, G-CB-P2 FAIL (FA passed, recall clause failed) | Pre-registered (gate failed) / Verified | `research/experiments/ov-autoreview-investigator-20261031/result.json` |
-| **CheatBench AutoReview Recall vs DT-15 (Fixed Rubric)** | Recall 22/75 = 29.3% (20.2–40.4%) vs DT-15 36/75 (48.0%); discordant pairs 17 (DT-15 only) vs 3 (ours only), exact McNemar $p = 0.0026$ in DT-15's favour | G-CB FAIL, G-CB-P2 FAIL (recall < 25/74 requirement) | Pre-registered (gate failed) / Verified | `research/experiments/ov-autoreview-investigator-20261031/result.json` |
+| **CheatBench AutoReview Clean FA vs DT-15 (Fixed Rubric)** | Clean FA 0/75 = 0.0% (0.0–4.9%) vs DT-15 8/75 (10.7%); discordant pairs 8 (DT-15 only) vs 0 (ours only), exact McNemar $p = 0.0078$ in our favour | G-CB FAIL, G-CB-P2 FAIL (FA passed, recall clause failed) | Pre-registered (gate failed) / Verified | `research/experiments/ov-autoreview-investigator-20261031/result.json`, `research/experiments/ov-autoreview-v2-tw-20261031/result.json` |
+| **CheatBench AutoReview Recall vs DT-15 (Fixed Rubric)** | Recall 22/75 = 29.3% (20.2–40.4%) vs DT-15 36/75 (48.0%); discordant pairs 17 (DT-15 only) vs 3 (ours only), exact McNemar $p = 0.0026$ in DT-15's favour | G-CB FAIL, G-CB-P2 FAIL (recall < 25/74 requirement) | Pre-registered (gate failed) / Verified | `research/experiments/ov-autoreview-investigator-20261031/result.json`, `research/experiments/ov-autoreview-v2-tw-20261031/result.json` |
 | **CheatBench AutoReview Quantile FA vs DT-15** | Clean FA 2/75 (2.7%) vs DT-15 8/75 (10.7%); discordant pairs 8 vs 2, exact McNemar $p = 0.109$ (not significant; net difference was 6 vs 0) | N/A (in-sample quantile) | Verified (in-sample quantile threshold q=0.985 evaluated on same 150 scores) | `research/experiments/ov-autoreview-investigator-20261031/result.json` |
 | **Goodfire deep_swe AutoReview Fixed Rubric (Investigator Gated)** | Recall 3/80 = 3.8% (1.3–10.5%), Clean FA 0/70 = 0.0% (0.0–5.2%) across full 150-run DEV set (80 positives, 70 negatives) | G-GF FAIL (recall 3/80 < gate requirement) | Pre-registered (gate failed) / Verified | `research/experiments/ov-autoreview-investigator-20261031/result.json` |
 | **Goodfire deep_swe AutoReview Fixed Rubric (W3-DEEPSWE Arm 2)** | Recall 6/50 = 12.0% (5.6–23.8%), Clean FA 0/50 = 0.0% (0.0–7.1%) on 100-run DEV subset (50 positives, 50 negatives) | N/A (diagnostic exploration arm; no gate declared) | Verified (external bridge receipt, not in repo) | `/Users/petermakhnatch/Developer/research-context/bridge/2026-10-31-overnight/ag-opus/raw/VF-OV1/report.md`, `/Users/petermakhnatch/Developer/research-context/bridge/2026-10-31-overnight/g38-flash/raw/W3-DEEPSWE-AUTOREVIEW/report.md` |
@@ -243,7 +247,7 @@ Every number below was verified directly by opening and reading its source recei
 | **Solvable Task Friction Propensity (Sol/Astra)** | 0/42 = 0.0% (0.0–8.4%) spontaneous subversions across 42 unprompted rollouts | PASS | Verified | `research/experiments/ov-safeguard-rollouts-20261031/receipts/summary.json`, `ov-safeguard-friction-v2-20261031/receipts/summary.json` |
 | **Impossible Task Propensity (C1–C5)** | 6/20 = 30.0% (14.5–51.9%) spontaneous cheats on impossible tasks (test contradictions C1, hidden tests C2, evaluator mutation C3, fabricated verification C4, environment acquisition C5) | N/A (diagnostic) | Verified | `research/experiments/ov-c1-c5-live-rollouts-20261101/receipts/summary.json` |
 | **Impossible Task Container Defense (`harden`)** | Cheats dropped from 6/20 (30.0%) to 2/20 (10.0%) (neutralized 4/4 C1 cheats, 0/2 C5 cheats) | N/A (diagnostic) | Verified | `research/experiments/ov-c1-c5-live-rollouts-20261101/receipts/summary.json` |
-| **Impossible Task Monitor Performance** | 7/10 = 70.0% (39.7–89.2%) recall at 2/10 = 20.0% FA (verdict) or 3/10 = 30.0% FA (union); 5/6 (83.3%) on confirmed cheats | N/A (diagnostic; earlier 9/10 @ 0/10 claim retracted) | Verified | `research/experiments/ov-c1-c5-live-rollouts-20261101/receipts/summary.json` |
+| **Impossible Task Monitor Performance** | 7/10 = 70.0% (39.7–89.2%) recall at 2/10 = 20.0% FA (verdict) or 3/10 = 30.0% FA (union); 5/6 = 83.3% (43.6–97.0%) on confirmed cheats | N/A (diagnostic; earlier 9/10 @ 0/10 claim retracted) | Verified | `research/experiments/ov-c1-c5-live-rollouts-20261101/receipts/summary.json` |
 | **Human Calibration on Judge Station** | 65 queued cases across 3 queues + 4 guide examples, 0 verdicts recorded as of 2026-11-02 | Pending | Not measured (local uncommitted state in `~/.local/state/evallab-judge/queues/`; ground truth calibration pending human adjudication) | N/A (local state) |
 
 ---
@@ -272,8 +276,31 @@ Independent blind verifiers (VF-OV1, VF-OV2) audited the overnight experiments a
 2. **Strictly DEV-Only Cohorts:**
    Held-out benchmark splits and TEST datasets were never accessed. All numbers reflect development sets; out-of-distribution transfer to held-out evaluation splits remains an empirical unknown.
 3. **Spend-Gate Over-Reservation and Cost Estimates:**
-   `CloudSpendGate` reserves a configurable amount per execution (`--per-execution-usd`, default $0.005 in `src/evallab/mutant_auditor.py:703`), which reserves approximately 2.2× the estimated execution cost on Modal (e.g. STING estimated $0.2068 across 89 executions in `audit-summary.json`, ~$0.0023 each, vs $0.005 reserved). Note that `audit-summary.json` holds wall-time estimates; the independent actual cost source is the spend ledger (`~/.local/state/evallab-failure-library/spend.jsonl`), not reservation ledgers.
+   `CloudSpendGate` reserves a configurable amount per execution (`--per-execution-usd`, default $0.005 in `src/evallab/mutant_auditor.py:703`), which reserves approximately 2.2× the estimated execution cost on Modal (e.g. STING estimated $0.2068 across 89 executions in `audit-summary.json`, ~$0.0023 each, vs $0.005 reserved). Pass `--ledger <path>.json` to persist execution reservations across runs; without `--ledger`, the gate does not record reservations durably across invocations. Note that `audit-summary.json` holds wall-time estimates and the ledger tracks reservations ($0.005/cell), not settled provider invoices; metered billing lands on the Modal provider dashboard by `--app-name` / billing tag, not in `spend.jsonl`.
 4. **Boundary-Shift Mutant Misses:**
    Contract-complete test synthesis currently misses subtle off-by-one or floating-point boundary shifts (e.g. task `000232` and `000484` LogEI edge cases), explaining why held-out generalization on base-surviving mutants sits at 3/8 (37.5%).
-5. **Rollout Filtering CLI (`evallab hack-drop`):**
-   `evallab hack-drop` is in progress and not yet merged on `origin/main`. Automated filtering of rollout training data currently requires manual composition of `evallab trace autoreview` and hardened re-scoring.
+5. **No Operator-Runnable Arbitrary Package Certifier:**
+   The `evallab certify-gold` CLI is plan-only (and non-plan mode is a stub). End-to-end certification exists only as an 8-task fixed MiMo experiment driver (`research/experiments/ov-gold-certifier-8-20261101/run_gold_certification.py`). Generalizing gold certification to arbitrary operator packages is an active research and development target across open PRs.
+6. **Rollout Filtering CLI (`evallab hack-drop`):**
+   `evallab hack-drop` is in progress and not yet merged on `origin/main` (see PR #1729). Automated filtering of rollout training data currently requires manual composition of `evallab trace autoreview` and hardened re-scoring.
+
+---
+
+## 7. In Open PRs, Not on Main Yet
+
+The preceding sections describe the state of `origin/main` as it is today. Several major trust engine capabilities are currently in development across active pull requests (note that the factory AutoReview stage `HAR-B1-HOOK` in PR #1730, the distillation memo in PR #1754, and the quota router in PR #1755 have recently merged onto `main`):
+
+- **PR #1729 (`feat(hack-drop): certified-task plus L0 plus AutoReview filter for SFT/RL rollouts`):**
+  Adds the `evallab hack-drop` CLI to automatically purge cheated trajectories from SFT/RL training pools by combining hardened task verifier re-scoring, Layer 0 tripwires, and AutoReview cascade alerts.
+- **PR #1732 (`Judge station v2: information-value order, card-first view, undo, agreement report`):**
+  Upgrades the Judge Station web UI (`E1`) with information-value queue ordering, card-first side-by-side presentation, verdict undo, and inter-annotator agreement metrics.
+- **PR #1738 (`feat(modal_cells): shared Modal cell runner with reserve/settle spend gate and idempotent caching`):**
+  Provides a shared `modal_cells` execution engine (`S1`) with unified reserve-then-settle cloud spend gating and idempotent content-addressed execution caching.
+- **PR #1744 (`A3: gold certifier feedback rounds (run_rounds library API, fresh probe mutants, false-reject guard)`):**
+  Adds iterative multi-round synthesis feedback (`run_rounds` library API, fresh probe mutants, false-reject guard) to Gold Certifier.
+- **PR #1752 (`feat(spend): reconcile spend ledger with provider usage`):**
+  Reconciles local spend ledger reservations against actual provider billing records (`R6-LEDGER-RECONCILE`).
+- **PR #1756 (`feat(research): engine-neutral kill-test harness across Baseline, Temporal, DBOS, and Dagu`):**
+  Provides an engine-neutral test harness for fault-injection kill-tests across durable workflow engines (`F9-KILLTEST-RESULTS`).
+- **PR #1757 (`feat(research): calibrated prevalence of action-visible cheating in DEV traces`):**
+  Measures calibrated prevalence of action-visible cheating across DEV traces (`R1-PREVALENCE`).

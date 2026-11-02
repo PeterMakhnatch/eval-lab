@@ -1029,6 +1029,30 @@ def _harbor_step_problems(
     return problems
 
 
+def test_native_harbor_step_checks_junit_skips_after_pytest() -> None:
+    workflow = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
+    run = _native_harbor_step(workflow).get("run") or ""
+    lines = run.splitlines()
+    pytest_command = next(
+        (index for index, line in enumerate(lines) if "uv run --no-sync pytest" in line),
+        None,
+    )
+    checker_command = next(
+        (
+            index
+            for index, line in enumerate(lines)
+            if "scripts/ci/check_harbor_skips.py" in line
+        ),
+        None,
+    )
+    assert pytest_command is not None and checker_command is not None, (
+        "the native Harbor step must run scripts/ci/check_harbor_skips.py after pytest"
+    )
+    assert checker_command > pytest_command, "the Harbor skip checker must run after pytest"
+    assert "--junitxml=harbor-native.xml" in run
+    assert "scripts/ci/check_harbor_skips.py harbor-native.xml" in run
+
+
 def test_every_harbor_gated_test_file_runs_in_the_native_harbor_step() -> None:
     workflow = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
     run = _native_harbor_step(workflow).get("run") or ""

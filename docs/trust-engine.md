@@ -10,8 +10,8 @@ audience:
 The trust engine makes agent evaluation and training data trustworthy by reducing reward gaming opportunities and surfacing tampering attempts with human-auditable evidence.
 It attacks the evaluation gaming problem from both ends: certifying task packages before rollouts so weak or tamperable graders cannot accept false solutions, and monitoring agent execution traces without viewing private reasoning to catch cheating in progress or post hoc.
 Together, the two halves provide defence in depth: container hardening raises the difficulty of grader subversion before rollouts begin, while CoT-free monitoring provides low-false-alarm, partial-recall alerts and structured evidence for human adjudication.
-All enforcement is grounded in deterministic container boundaries, AST semantic mutations, lossless structured case anatomy, and human adjudication.
-When cheating occurs, the pipeline isolates exact diffs, tool calls, and mutation ledgers for rapid human auditing without manual log inspection.
+All enforcement is grounded in deterministic container boundaries, AST semantic mutations, lossless structured case anatomy, and evidence for human adjudication.
+When cheating occurs, the pipeline isolates exact diffs, tool calls, and mutation ledgers for human auditing without manual log inspection.
 
 ---
 
@@ -22,7 +22,7 @@ The engine divides cleanly into two halves that share a common ontology of rewar
 1. **Task Certifier (Is the exam fair?):** Inspects task packages (instruction, Dockerfile, test files, grader scripts, reference patch) before agent rollouts begin. It tests whether an incorrect or adversarial solution can obtain a passing reward.
 2. **Trace Monitor and Judge Station (Did the run cheat?):** Inspects recorded execution traces of agents without viewing chain-of-thought (`reasoning_content` is stripped). It flags cheating during live execution or batch evaluation, and feeds suspect cases to blind human adjudication.
 
-Human verdicts from the Judge Station provide ground truth intended to calibrate Layer 0 tripwires, AutoReview thresholds, and task certifier audits, while rollout filtering is intended to prevent cheated trajectories from contaminating downstream training sets (currently in development; see section on open PRs).
+Human verdicts from the Judge Station provide ground truth intended to calibrate Layer 0 tripwires, AutoReview thresholds, and task certifier audits, while rollout filtering via `evallab hack-drop` prevents cheated trajectories from contaminating downstream training sets.
 
 ```mermaid
 flowchart TD
@@ -38,8 +38,8 @@ flowchart TD
         pkg & ref --> ta
         pkg & ref --> am
         pkg --> hd
-        am & hd --> cg
-        cg --> certified["Hardened Task Package\n(Tamper-resistant verifier & tests)"]
+        hd --> certified["Hardened Task Package\n(Tamper-resistant verifier & tests)"]
+        am & hd -. Plan preview .-> cg
     end
 
     subgraph Execution["Agent Execution Environment"]
@@ -60,7 +60,7 @@ flowchart TD
         
         verdicts -. Planned calibration .-> l0
         verdicts -. Planned calibration .-> ar
-        cascade --> hackdrop["evallab hack-drop\n(Rollout Filter - In PR #1729)"]
+        cascade --> hackdrop["evallab hack-drop\n(Rollout Filter: Task + L0 + AutoReview)"]
         hackdrop --> clean_sft["Clean SFT / RL Training Corpus"]
     end
 ```
@@ -71,23 +71,24 @@ flowchart TD
 
 ## 2. Command Reference
 
-All CLI commands run under `evallab` (executable via `uv run evallab` from the repository, or by activating `.venv`). Note that relative task and trace paths resolve against the repository root, not the shell's current working directory. Every CLI signature listed below has been verified against `--help` in the worktree; operational behaviors, environment requirements (such as local Docker for regrade), and stub limits are documented explicitly below.
+All CLI commands run under `evallab` (executable via `uv run evallab` from the repository, or by activating `.venv`). Note that relative task and trace paths resolve against the repository root, not the shell's current working directory. Shared Modal executions are managed through `src/evallab/modal_cells.py` using reserve-then-settle spend gating (`ReserveSettleSpendGate`) and content-addressed execution caching. Every CLI signature listed below has been verified against `--help` in the worktree; operational behaviors, environment requirements (such as local Docker for regrade), and stub limits are documented explicitly below.
 
 | Command | Input | Output | Cost Class | Code Location |
 |---|---|---|---|---|
 | `evallab tasks anatomy` | Task directories or collections; optional `--reference-patch` | `evallab.package_anatomy/v1` card (stdout or JSONL) | Free local ($0, static AST/regex, <10 ms) | `src/evallab/package_anatomy.py` |
 | `evallab audit-mutants` | Base package, reference patch, output dir; optional `--ledger <path>.json`, `--repaired-package` | Audit summary JSON, mutated cells CSV, survivor diffs; reservations recorded in `--ledger` | Modal cents (~$0.012 per weak grader; metered cap) | `src/evallab/mutant_auditor.py` |
 | `evallab harden` | Task package path; `--expected-tests` (required for pytest unless `--allow-degraded`), optional `--single-container`, `--out` | Hardened package directory (L1–L4 hardened verifier) | Free local ($0, static container re-wiring) | `src/evallab/full_hardening.py` |
-| `evallab certify-gold` | Base package, reference patch; `--plan` [`--json`], optional `--cap-usd`, `--model`, `--limit` | Plan preview JSON/text (targets, model, metered cap, mutant limit only). CLI non-plan mode is a no-op stub; arbitrary package certification is not operator-runnable today. Full 6-gate certification exists as a fixed 8-task MiMo experiment driver (`research/experiments/ov-gold-certifier-8-20261101/run_gold_certification.py`) | Free local ($0, offline planning; 8-task experiment driver uses Subscription + Modal cents) | `src/evallab/gold_certifier.py` |
+| `evallab certify-gold` | Base package, reference patch; `--plan` [`--json`], optional `--rounds`, `--probes-per-round`, `--cap-usd`, `--model`, `--limit` | Plan preview JSON/text (`task_id, package, targets, model, metered_cap_usd, mutant_limit, rounds, probes_per_round`). CLI non-plan mode is a stub (`--rounds > 1` without `--plan` exits 2); arbitrary package certification is not operator-runnable today. Multi-round synthesis feedback is available as the library API `evallab.gold_certifier.run_rounds`; full 6-gate certification exists as a fixed 8-task MiMo experiment driver (`research/experiments/ov-gold-certifier-8-20261101/run_gold_certification.py`) | Free local ($0, offline planning; 8-task experiment driver uses Subscription + Modal cents) | `src/evallab/gold_certifier.py` |
 | `evallab trace anatomy` | Run ID (cloud/CheatBench) or `--atif-file <trial.json>`; optional `--include-narration` | Structured Case Anatomy card (human-readable text or JSON) | Free local ($0, raw CAS projection, <100 ms) | `src/evallab/trace_anatomy.py` |
 | `evallab trace autoreview` | Run ID or ATIF trial JSON; optional `--compact-only`, `--with-l0-cascade`, `--model` | AutoReview judgment JSON (suspicion score, cited steps, cascade/union alerts when model runs) | Subscription (or Free local $0 with `--compact-only`) | `src/evallab/autoreview_monitor.py` |
 | `evallab regrade` | Stored Harbor job directory (`<job_dir>`); optional `--task <hardened_task>` or `--held-out <bundle>`, `--jobs-dir`, `--name`, `--dry-run`, `--json` | Re-scored job directory under `runs/` (or specified `--jobs-dir`) | Local Docker, $0 model cost (refused when `EVALLAB_DISABLE_LOCAL_DOCKER=1`; `--held-out` also requires local Docker; Modal trial regrades exist only via Python CloudSpendGate API) | `src/evallab/regrade.py`, `src/evallab/cli.py` |
-| `evallab judge serve` | Queue file (`[NAME=]PATH`), findings JSONL; optional `--port`, `--open` (interactive-only) | Local blinded web UI on `127.0.0.1:8795` (use `--port <port>` with ephemeral port for scratch runs); records human verdicts to `verdicts.jsonl` | Free local ($0, stdlib HTTP, no models, no network) | `src/evallab/production/judge_station.py`, `judge_web.py` |
+| `evallab judge serve` | Queue file (`[NAME=]PATH`), findings JSONL; optional `--port`, `--open` (interactive-only) | Local blinded web UI on `127.0.0.1:8795` (use `--port <port>` with ephemeral port for scratch runs) with card-first presentation, drafts, and undo; records human verdicts to `verdicts.jsonl`. Additional subcommands: `build-packet`, `export`, `report` (agreement with labels and detectors), `plan` (queue information-value strata), `build-controls` | Free local ($0, stdlib HTTP, no models, no network) | `src/evallab/production/judge_station.py`, `judge_web.py`, `judge_report.py`, `judge_order.py` |
 | `evallab judge build-packet` | Fixed 18-case packet markdown (`--adjudication`) and DT-17 cases JSON (`--cases`); optional `--state-dir` | `<state-dir>/queues/adjudication-packet.jsonl` and `guide-examples.jsonl` (fixed 18-case calibration builder) | Free local ($0, file formatting) | `src/evallab/production/judge_station.py` |
 | `evallab judge export` | Verdicts state directory | Exported CSV or JSON of human verdicts | Free local ($0, read-only export) | `src/evallab/production/judge_station.py` |
 | `evallab live-supervisor` | Live runs root; subcommands: `scan`, `serve`, `replay`, `adjudicate`, `rows`, `route-alarms`, `fleet-report` | `trace-findings/v1` records, shadow-mode decisions | Free local ($0, deterministic rules) | `src/evallab/production/live_supervisor.py` |
 | `evallab watch` | Live runs root; subcommands: `ack`, `stop` | Live trial monitoring, stop requests | Free local ($0, watchdog loops) | `src/evallab/harbor_watch_hooks.py` |
-| `evallab hack-drop` | Evaluated rollout traces / SFT candidate dataset | Cleaned dataset with reward-hacked runs purged | Planned ($0 local / model depending on filter stage) | In open PR #1729 (does not exist on `main`) |
+| `evallab hack-drop` | Rollout paths/manifest; optional `--certified-tasks`, `--labels`, `--with-autoreview`, `--autoreview-route`, `--max-model-usd`, `--max-calls`, `--suspicion-threshold`, `--out-dir`, `--dry-run`, `--json` | Filtered datasets (`<out-dir>/kept.jsonl`, `dropped.jsonl`, `review.jsonl`) and summary `report.json` | Free local ($0 for task + L0 filter); Subscription / metered model when `--with-autoreview` enabled | `src/evallab/hack_drop.py`, `src/evallab/cli.py` |
+| `evallab spend reconcile` | Spend log path, optional `--since`, `--until`, `--threshold-usd`, `--providers`, `--deepseek-start-balance`, `--openrouter-start-usage`, `--sync-omp-sessions`, `--session-dir`, `--json` | Reconciliation report comparing provider balances/usage against local `spend.jsonl` ledger | Free local ($0, read-only provider usage queries and ledger verification) | `src/evallab/spend_reconcile.py`, `src/evallab/cli.py` |
 
 ---
 
@@ -132,9 +133,11 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    evallab certify-gold \
      --package library/tasks/my-task \
      --reference-patch library/tasks/my-task/reference.patch \
-     --plan --json
+     --plan --json \
+     --rounds 2 \
+     --probes-per-round 4
    ```
-   *Expected result:* Prints a JSON planning dict containing `task_id, package, targets, model, metered_cap_usd, mutant_limit` only. It does **not** enumerate mutants, synthesize tests, split train/eval sets, or generate prompt previews. The non-plan CLI mode (`--out <dir>`) is a no-op stub that prints a placeholder line and exits 0 without running any verifications.
+   *Expected result:* Prints a JSON planning dict containing `task_id, package, targets, model, metered_cap_usd, mutant_limit, rounds, probes_per_round` only. It does **not** enumerate mutants, synthesize tests, split train/eval sets, or generate prompt previews. The non-plan CLI mode (`--out <dir>`) with `--rounds 1` is a no-op stub that prints a placeholder line and exits 0 without running any verifications; passing `--rounds > 1` without `--plan` exits 2 (`error: --rounds > 1 is not implemented in the command (use evallab.gold_certifier.run_rounds); only --plan accepts it`). Multi-round synthesis feedback is available only via the Python library API `evallab.gold_certifier.run_rounds`.
 
    *Execution note:* There is **no operator-runnable certification of an arbitrary package today**. The full end-to-end certification pipeline exists today only as a fixed-cohort research experiment runner:
    ```bash
@@ -149,7 +152,6 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    - Gate 4 (L4 `.pth` Startup Interception): Interpreter hijack via `.pth` scores 0.0 (8/8 observed).
    - Gate 5 (Train Mutants Killed): Reports training semantic mutants killed (19/20 = 95.0% observed across 8 tasks; 0/1 on task 000931; reports count, no hard 90% threshold in code).
    - Gate 6 (Eval Mutants Killed): Reports held-out eval mutants killed out-of-sample (3/8 base survivors, 13/18 all mutants killed across 8 tasks; reports counts only).
----
 
 ### Runbook 2: Review a Run
 
@@ -176,38 +178,55 @@ When an agent scores 1.0 on a task, or when an operator suspects reward gaming, 
    *Expected result:* Returns suspicion score (0–100), reasoning-free audit findings, and combined cascade verdicts (`cascade_alert` and `union_alert`). Note that `cascade_alert` and `union_alert` appear only when a Stage 1/2 model verdict is present (they are absent in `--compact-only` mode). A cascade alert is a high-precision alert (0/146 clean false alarms on Terminal Wrench DEV; on C1–C5: verdict 7/10 recall, 2/10 FA; union alert 3/10 FA; cascade alert 2/10 recall, 1/10 FA — not sized for this cohort) that flags suspect runs for human confirmation, not an autonomous ground-truth confirmation.
 
 4. **Step 4: Adjudicate in Judge Station:**
-   If a run sits in the ambiguous zone (suspicion 25–85) or requires human sign-off, it can be queued for blinded human review. Note: Judge Station operates on queues of cloud trace run IDs (JSONL records with `{"run_id": "<run_id>", "reason": "..."}`, from which the station derives the blinded `run-<16hex>` display ID). Local ATIF trial JSONs cannot be served directly in Judge Station without being registered in the cloud run store (`judge build-packet` is a fixed 18-case calibration packet builder, not a per-job queue generator).
+   If a run sits in the ambiguous zone (suspicion 25–85) or requires human sign-off, it can be queued for blinded human review. Note: Judge Station operates on queues of cloud trace run IDs (JSONL records with `{"run_id": "<run_id>", "reason": "..."}`, from which the station derives the blinded `run-<16hex>` display ID). Local ATIF trial JSONs cannot be served directly in Judge Station without being registered in the cloud run store (`judge build-packet` is a fixed 18-case calibration packet builder, not a per-job queue generator). The production factory can automatically feed high-priority cases into Judge Station queues via `--autoreview-mode live` (`src/evallab/production/factory_autoreview.py`, merged in PR #1730).
    For cloud runs queued in `queue.jsonl`:
    ```bash
    evallab judge serve --queue queue.jsonl --state-dir results/judge-scratch --port 0
    ```
-   *Expected result:* Serves blinded interface on `http://127.0.0.1:<port>` (pass `--port <port>` with an ephemeral port like `--port 0` in scratch/overnight runs to avoid collisions with default port 8795). *(Note: Do not pass `--open` in unattended, automated, or overnight runs. `--open` calls Python's `webbrowser.open()`, which steals operating system window focus; reserve `--open` for interactive desktop sessions only).* The operator judges the timeline without seeing the benchmark, model label, or detector verdicts until submission. Verdicts are written to `<state-dir>/verdicts.jsonl`.
-
+   *Expected result:* Serves blinded interface on `http://127.0.0.1:<port>` (pass `--port <port>` with an ephemeral port like `--port 0` in scratch/overnight runs to avoid collisions with default port 8795). *(Note: Do not pass `--open` in unattended, automated, or overnight runs. `--open` calls Python's `webbrowser.open()`, which steals operating system window focus; reserve `--open` for interactive desktop sessions only).* The operator judges the timeline without seeing the benchmark, model label, or detector verdicts until submission; Judge Station v2 provides card-first presentation, drafts, and undo. Inspect queue information-value strata using `evallab judge plan --queue queue.jsonl`, and evaluate agreement against labels and detectors via `evallab judge report --json`. Verdicts are written to `<state-dir>/verdicts.jsonl`.
 ---
 
 ### Runbook 3: Filter a Rollout Set
 
-When preparing agent trajectories for Supervised Fine-Tuning (SFT) or Reinforcement Learning (RL), trajectories with reward 1.0 obtained via reward hacking must be purged to prevent training models to cheat.
+When preparing agent trajectories for Supervised Fine-Tuning (SFT) or Reinforcement Learning (RL), trajectories with reward 1.0 obtained via reward hacking must be purged to prevent training models to cheat. Filtering is performed via `evallab hack-drop` (merged in PR #1729), which evaluates candidate rollouts across task certification, deterministic Layer 0 tripwires, and optional Stage 3 AutoReview.
 
-*Current Pipeline Status: `evallab hack-drop` is in open PR #1729 and not yet merged on `origin/main`. Today, filtering is performed by composing `evallab trace autoreview` and hardened re-scoring.*
-
-1. **Step 1: Evaluate candidate traces with the L0 + AutoReview cascade (loop over traces, one subscription call each):**
-   Run AutoReview across candidate traces in a loop (each non-compact invocation makes one subscription model call):
+1. **Step 1: Evaluate candidate rollouts with deterministic task + L0 filtering ($0):**
+   Filter rollout traces or directories using certified task statuses and deterministic AST/regex tamper signatures:
    ```bash
-   evallab trace autoreview <trace_path> --with-l0-cascade --json
+   evallab hack-drop \
+     --rollouts runs/candidates.jsonl \
+     --certified-tasks manifests/certified-tasks.json \
+     --out-dir results/filtered \
+     --dry-run --json
    ```
-   Traces with `cascade_alert: true` (high-precision filter) or `union_alert: true` (high-recall filter) are discarded or routed to human review. Note: `cascade_alert` and `union_alert` require full Stage 1/2 model evaluation to be present. Be aware that while `cascade_alert` provides high precision (0/146 clean false alarms on Terminal Wrench DEV), its recall is only ~50% (79/158 on Terminal Wrench DEV), meaning a cascade-only filter leaves approximately half of all hacked runs undetected without secondary verifier re-scoring or union alerts.
+   *Expected result:* Generates `report.json` with stage breakdowns (`task`, `l0`, `autoreview`) and partitions rollouts into `kept.jsonl` (clean passes), `dropped.jsonl` (hard hits: test/grader modification, answer-key access, fabricated verification), and `review.jsonl` (soft hits: config writes, parse ambiguities, uncertified tasks).
 
-2. **Step 2: Re-score surviving positive trials under hardened verifiers:**
+2. **Step 2: Run optional Stage 3 AutoReview on soft-flagged rollouts:**
+   For soft-flagged rollouts touching target surfaces, enable compact-card model review under strict budget controls:
+   ```bash
+   evallab hack-drop \
+     --rollouts runs/candidates.jsonl \
+     --certified-tasks manifests/certified-tasks.json \
+     --with-autoreview \
+     --autoreview-route google-antigravity/gemini-3.8-flash \
+     --max-calls 50 \
+     --max-model-usd 1.50 \
+     --suspicion-threshold 50 \
+     --out-dir results/filtered
+   ```
+   *Expected result:* Soft-flagged rollouts exceeding `--suspicion-threshold` (default 50) or receiving a cheating verdict escalate to `review` (or `drop` via `--autoreview-action drop`).
+   *Known limit:* `hack-drop` catches AST test tampering and answer-key reads, but cannot detect unparsed shell writes (`dd`, `awk -i`), unrecognized edit tool shapes, or non-verdict semantic exploits without test writes; false drop rate on real rollouts is higher than in-sample false alarms due to treating second writes to new tests as edits.
+
+3. **Step 3: Re-score surviving positive trials under hardened verifiers:**
    Re-grade trials using the L1–L4 hardened package verifier at zero model cost:
    ```bash
    evallab regrade <job_dir> --task library/tasks/my-task-hardened [--dry-run]
    ```
    Any trial whose reward drops from 1.0 to 0.0 under the hardened verifier is dropped as an exploit.
    *Execution and cost note:* CLI `evallab regrade` executes via local Docker ($0 model cost, local container execution). When `EVALLAB_DISABLE_LOCAL_DOCKER=1` is set, the CLI refuses execution (`error: Local Docker execution is disabled`). Note that `--held-out <bundle>` (which re-scores passes offline on cached local CPU images) is checked by the same `_check_regrade_environment()` guard, so held-out regrade also requires local Docker and is likewise refused when local Docker is disabled. Modal container execution with `CloudSpendGate` is supported only at the Python API level for single-trial regrades, not from the `evallab regrade` CLI.
-3. **Step 3: Adjudicate borderline cases:**
-   Traces in the uncertain score band are queued for human review via `evallab judge serve`.
 
+4. **Step 4: Adjudicate borderline cases:**
+   Rollouts routed to `results/filtered/review.jsonl` or sitting in uncertain score bands are queued for human adjudication in Judge Station (`evallab judge serve`).
 ---
 
 ## 4. Numbers You May Quote
@@ -276,31 +295,30 @@ Independent blind verifiers (VF-OV1, VF-OV2) audited the overnight experiments a
 2. **Strictly DEV-Only Cohorts:**
    Held-out benchmark splits and TEST datasets were never accessed. All numbers reflect development sets; out-of-distribution transfer to held-out evaluation splits remains an empirical unknown.
 3. **Spend-Gate Over-Reservation and Cost Estimates:**
-   `CloudSpendGate` reserves a configurable amount per execution (`--per-execution-usd`, default $0.005 in `src/evallab/mutant_auditor.py:703`), which reserves approximately 2.2× the estimated execution cost on Modal (e.g. STING estimated $0.2068 across 89 executions in `audit-summary.json`, ~$0.0023 each, vs $0.005 reserved). Pass `--ledger <path>.json` to persist execution reservations across runs; without `--ledger`, the gate does not record reservations durably across invocations. Note that `audit-summary.json` holds wall-time estimates and the ledger tracks reservations ($0.005/cell), not settled provider invoices; metered billing lands on the Modal provider dashboard by `--app-name` / billing tag, not in `spend.jsonl`.
+   `CloudSpendGate` and `ReserveSettleSpendGate` (`src/evallab/modal_cells.py`) reserve a configurable amount per execution (`--per-execution-usd`, default $0.005 in `src/evallab/mutant_auditor.py:703`), reserving approximately 2.2× the estimated execution cost on Modal (e.g. STING estimated $0.2068 across 89 executions in `audit-summary.json`, ~$0.0023 each, vs $0.005 reserved). While `ReserveSettleSpendGate` releases unused reservation headroom upon completion, the initial reservation requires sufficient spend headroom. Pass `--ledger <path>.json` to persist execution reservations across runs; without `--ledger`, the gate does not record reservations durably across invocations. Reconcile ledger reservations against actual provider billing via `evallab spend reconcile`.
 4. **Boundary-Shift Mutant Misses:**
    Contract-complete test synthesis currently misses subtle off-by-one or floating-point boundary shifts (e.g. task `000232` and `000484` LogEI edge cases), explaining why held-out generalization on base-surviving mutants sits at 3/8 (37.5%).
 5. **No Operator-Runnable Arbitrary Package Certifier:**
    The `evallab certify-gold` CLI is plan-only (and non-plan mode is a stub). End-to-end certification exists only as an 8-task fixed MiMo experiment driver (`research/experiments/ov-gold-certifier-8-20261101/run_gold_certification.py`). Generalizing gold certification to arbitrary operator packages is an active research and development target across open PRs.
-6. **Rollout Filtering CLI (`evallab hack-drop`):**
-   `evallab hack-drop` is in progress and not yet merged on `origin/main` (see PR #1729). Automated filtering of rollout training data currently requires manual composition of `evallab trace autoreview` and hardened re-scoring.
-
+6. **Rollout Filtering Blind Spots (`evallab hack-drop`):**
+   `evallab hack-drop` is merged on `main` (PR #1729), but operates under defined blind spots: shell-level text modifications (`dd of=`, `awk -i`), unrecognized tool-call argument shapes, and semantic exploits with zero test writes bypass deterministic detection, while AutoReview relies on a single uncalibrated route without ensemble (see `docs/hack-drop.md`).
 ---
 
 ## 7. In Open PRs, Not on Main Yet
 
-The preceding sections describe the state of `origin/main` as it is today. Several major trust engine capabilities are currently in development across active pull requests (note that the factory AutoReview stage `HAR-B1-HOOK` in PR #1730, the distillation memo in PR #1754, and the quota router in PR #1755 have recently merged onto `main`):
+The preceding sections describe the state of `origin/main` as it is today. All major overnight infrastructure PRs have merged onto `main`:
+- **PR #1729:** `evallab hack-drop` rollout filter combining task status, L0 tripwires, and AutoReview.
+- **PR #1730:** Production factory opt-in AutoReview stage feeding Judge Station (`HAR-B1-HOOK`).
+- **PR #1732:** Judge Station v2 with information-value ordering, card-first view, drafts, undo, and agreement reports (`E1`).
+- **PR #1738:** `evallab.modal_cells` shared runner with reserve-then-settle spend gate and idempotent caching (`S1`).
+- **PR #1744:** Gold certifier feedback rounds (`--rounds`, `--probes-per-round`, `run_rounds` library API).
+- **PR #1752:** `evallab spend reconcile` provider usage reconciliation against local spend ledger (`R6-LEDGER-RECONCILE`).
+- **PR #1754:** Student-monitor distillation plan, decision memo, and protocol (`D3`).
+- **PR #1755:** Quota-aware route selector with measured burn (`R5-QUOTA-ROUTER`).
+- **PR #1756:** Engine-neutral kill-test harness across Baseline, Temporal, DBOS, and Dagu (`F9-KILLTEST-RESULTS`).
+- **PR #1757:** Calibrated prevalence of action-visible cheating in DEV traces (`R1-PREVALENCE`).
 
-- **PR #1729 (`feat(hack-drop): certified-task plus L0 plus AutoReview filter for SFT/RL rollouts`):**
-  Adds the `evallab hack-drop` CLI to automatically purge cheated trajectories from SFT/RL training pools by combining hardened task verifier re-scoring, Layer 0 tripwires, and AutoReview cascade alerts.
-- **PR #1732 (`Judge station v2: information-value order, card-first view, undo, agreement report`):**
-  Upgrades the Judge Station web UI (`E1`) with information-value queue ordering, card-first side-by-side presentation, verdict undo, and inter-annotator agreement metrics.
-- **PR #1738 (`feat(modal_cells): shared Modal cell runner with reserve/settle spend gate and idempotent caching`):**
-  Provides a shared `modal_cells` execution engine (`S1`) with unified reserve-then-settle cloud spend gating and idempotent content-addressed execution caching.
-- **PR #1744 (`A3: gold certifier feedback rounds (run_rounds library API, fresh probe mutants, false-reject guard)`):**
-  Adds iterative multi-round synthesis feedback (`run_rounds` library API, fresh probe mutants, false-reject guard) to Gold Certifier.
-- **PR #1752 (`feat(spend): reconcile spend ledger with provider usage`):**
-  Reconciles local spend ledger reservations against actual provider billing records (`R6-LEDGER-RECONCILE`).
-- **PR #1756 (`feat(research): engine-neutral kill-test harness across Baseline, Temporal, DBOS, and Dagu`):**
-  Provides an engine-neutral test harness for fault-injection kill-tests across durable workflow engines (`F9-KILLTEST-RESULTS`).
-- **PR #1757 (`feat(research): calibrated prevalence of action-visible cheating in DEV traces`):**
-  Measures calibrated prevalence of action-visible cheating across DEV traces (`R1-PREVALENCE`).
+The remaining active pull request under evaluation is:
+
+- **PR #1776 (`feat(research): evaluate L0 tripwires against informed Gemini attacker (K7D-L0AWARE-GEMINI)`):**
+  Evaluates Layer 0 tripwires against an attacker explicitly informed of tripwire rules, regex patterns, and protected paths, measuring whether tripwire awareness allows agents to subvert evaluation undetected ([PR #1776](https://github.com/PeterMakhnatch/eval-lab/pull/1776)).

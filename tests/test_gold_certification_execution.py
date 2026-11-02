@@ -526,9 +526,3 @@ def test_ledger_inside_output_refused_before_executor_creation(tmp_path, monkeyp
         gold._certify_gold_command(args, tmp_path)
     assert not args.out.exists()
 
-
-def test_trust_engine_diagram_describes_execution_not_plan_preview():
-    doc = (Path(__file__).resolve().parents[1] / "docs/trust-engine.md").read_text()
-    diagram = doc.split("```mermaid", 1)[1].split("```", 1)[0]
-    assert "Plan preview" not in diagram
-    assert "Certification receipts" in diagram

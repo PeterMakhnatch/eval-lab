@@ -111,5 +111,8 @@ Findings that follow directly from the tables (report half; see `BASELINES.md` f
 
 * It does not rank monitors: baselines are stored readings from different readers and cohorts, and several readers cover a
   single family. D2/D3 are meant to add readers on all cases.
+* The stored baselines were produced before this split existed, on these same DEV cases: their prompts and rules were
+  developed while looking at some of them. Their `report` numbers are references, not held-out results. Only a monitor
+  whose prompt and cutoffs are chosen on `tune` (or on other data) gets a clean `report` number.
 * Terminal Wrench, `sol_astra` positives and `c1c5` are small or label-source-limited, as listed in `PREREGISTRATION.md`.
 * It is DEV only. No TEST, held or answer-key data is used.

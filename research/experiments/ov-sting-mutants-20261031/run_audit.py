@@ -190,19 +190,20 @@ def main() -> None:
     )
     if args.plan or not args.run:
         return
-    from evallab.regrade import CloudSpendGate
+    from evallab.modal_cells import ReserveSettleSpendGate
 
-    gate = CloudSpendGate(
+    gate = ReserveSettleSpendGate(
         approval=APPROVAL,
         cap_usd=CAP_USD,
-        usd_per_execution=0.005,
+        default_reservation_usd=0.005,
         spend_ledger=LEDGER,
         modal_app_name=TAG,
         billing_tag=TAG,
     )
     meter = SandboxMeter(CAP_USD)
     run_cell = spend_logging_runner(
-        modal_cell_runner(repo_root=REPO, spend_gate=gate, meter=meter), threading.Lock()
+        modal_cell_runner(repo_root=REPO, spend_gate=gate, meter=meter, timeout_seconds=240),
+        threading.Lock(),
     )
     records = []
     with (

@@ -37,14 +37,15 @@ try:
 except Exception:
     pass
 
+from run_gold_batch import (  # noqa: E402
+    GoldBatchDriver,
+    load_universe_tasks,
+)
+
 from evallab.modal_cells import (  # noqa: E402
     CellCancelledError,
     CellInfrastructureError,
     sha256_text,
-)
-from run_gold_batch import (  # noqa: E402
-    GoldBatchDriver,
-    load_universe_tasks,
 )
 
 

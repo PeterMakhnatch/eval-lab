@@ -7,9 +7,17 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
 
-from evallab.laminar import SIGNALS, LaminarExporter, apply_signals, compare_signals, trial_trace_id
+from evallab.laminar import (
+    SIGNALS,
+    LaminarExporter,
+    apply_signals,
+    compare_signals,
+    exporter_from_env,
+    trial_trace_id,
+)
 from evallab.live_watch import run_watch
 
 TRIAL = "task-1__abc"
@@ -87,7 +95,43 @@ def _write(runs: Path, steps: list[dict], result: dict | None = None) -> Path:
     return trial
 
 
+@pytest.mark.parametrize("switch", [None, "", "off", "0", "false", "yes", "on accidentally"])
+def test_key_alone_does_not_enable_live_export(tmp_path: Path, switch: str | None) -> None:
+    environ = {"LMNR_PROJECT_API_KEY": "fixture-key"}
+    if switch is not None:
+        environ["EVALLAB_LAMINAR"] = switch
+    assert exporter_from_env(tmp_path, environ=environ) is None
+
+
+@pytest.mark.parametrize("switch", ["1", "true", "TRUE", "on", " On "])
+def test_explicit_environment_opt_in_enables_live_export(tmp_path: Path, switch: str) -> None:
+    exporter = exporter_from_env(
+        tmp_path,
+        environ={"LMNR_PROJECT_API_KEY": "fixture-key", "EVALLAB_LAMINAR": switch},
+        secrets=[],
+    )
+    assert isinstance(exporter, LaminarExporter)
+    assert exporter._url == "https://api.lmnr.ai/v1/traces"
+
+
+@pytest.mark.parametrize("switch", [None, "off"])
+def test_explicit_cli_opt_in_does_not_require_environment_switch(
+    tmp_path: Path, switch: str | None
+) -> None:
+    environ = {"LMNR_PROJECT_API_KEY": "fixture-key"}
+    if switch is not None:
+        environ["EVALLAB_LAMINAR"] = switch
+    assert isinstance(exporter_from_env(tmp_path, environ=environ, enabled=True), LaminarExporter)
+
+
+def test_explicit_opt_in_still_requires_a_key(tmp_path: Path) -> None:
+    assert exporter_from_env(tmp_path, environ={"EVALLAB_LAMINAR": "on"}) is None
+    assert exporter_from_env(tmp_path, environ={}, enabled=True) is None
+
+
 def test_live_trial_exports_finished_steps_then_root_once(tmp_path: Path) -> None:
+
+
     runs, out, rec = tmp_path / "runs", tmp_path / "out", Recorder()
     _write(runs, STEPS[:3])
     _pass(runs, out, rec)

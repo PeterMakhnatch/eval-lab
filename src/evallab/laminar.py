@@ -47,7 +47,7 @@ from evallab.trace_store.laminar_quarantine import (
 LAMINAR_ENDPOINT = "https://api.lmnr.ai"
 LAMINAR_KEY_ENV = "LMNR_PROJECT_API_KEY"
 LAMINAR_ENDPOINT_ENV = "EVALLAB_LAMINAR_ENDPOINT"
-#: Set to ``off`` to keep auto-attached watches from exporting when a key is present.
+#: Live export requires explicit ``1``, ``true`` or ``on`` opt-in, even with a key.
 LAMINAR_SWITCH_ENV = "EVALLAB_LAMINAR"
 STATE_FILENAME = "laminar.json"
 MAX_VALUE_CHARS = 16_000
@@ -580,12 +580,17 @@ class LaminarExporter:
 
 
 def exporter_from_env(
-    out_dir: Path, environ: Mapping[str, str] | None = None, **kwargs: Any
+    out_dir: Path,
+    environ: Mapping[str, str] | None = None,
+    *,
+    enabled: bool = False,
+    **kwargs: Any,
 ) -> LaminarExporter | None:
-    """An exporter when ``LMNR_PROJECT_API_KEY`` is set and ``EVALLAB_LAMINAR`` is not ``off``."""
+    """Build an exporter only with a key and explicit environment or CLI opt-in."""
     env = os.environ if environ is None else environ
     key = env.get(LAMINAR_KEY_ENV, "").strip()
-    if not key or env.get(LAMINAR_SWITCH_ENV, "").strip().lower() == "off":
+    opted_in = enabled or env.get(LAMINAR_SWITCH_ENV, "").strip().lower() in {"1", "true", "on"}
+    if not key or not opted_in:
         return None
     endpoint = env.get(LAMINAR_ENDPOINT_ENV, "").strip() or LAMINAR_ENDPOINT
     return LaminarExporter(api_key=key, out_dir=out_dir, endpoint=endpoint, **kwargs)

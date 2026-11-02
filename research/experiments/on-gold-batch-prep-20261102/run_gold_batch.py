@@ -49,16 +49,6 @@ try:
 except Exception:
     pass
 
-from evallab.modal_cells import (  # noqa: E402
-    CellCancelledError,
-    CellCapReachedError,
-    CellSpec,
-    ModalCellRunner,
-    ReserveSettleSpendGate,
-    SandboxMeter,
-    sha256_text,
-)
-
 from evallab.gold_certifier import (  # noqa: E402
     DEFAULT_PROBES_PER_ROUND,
     Mutant,
@@ -71,6 +61,15 @@ from evallab.gold_certifier import (  # noqa: E402
     stage_and_harden_package,
     validate_contract_test,
     witness_script,
+)
+from evallab.modal_cells import (  # noqa: E402
+    CellCancelledError,
+    CellCapReachedError,
+    CellSpec,
+    ModalCellRunner,
+    ReserveSettleSpendGate,
+    SandboxMeter,
+    sha256_text,
 )
 from evallab.mutant_auditor import (  # noqa: E402
     mutant_script,

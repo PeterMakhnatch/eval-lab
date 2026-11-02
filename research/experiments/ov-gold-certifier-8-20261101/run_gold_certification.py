@@ -450,19 +450,19 @@ def main() -> None:
 
     # 4. Run on Modal
     if args.run:
-        from evallab.regrade import CloudSpendGate
+        from evallab.modal_cells import ReserveSettleSpendGate
 
-        gate = CloudSpendGate(
+        gate = ReserveSettleSpendGate(
             approval=APPROVAL,
             cap_usd=CAP_USD,
-            usd_per_execution=0.003,
+            default_reservation_usd=0.003,
             spend_ledger=LEDGER,
             modal_app_name="t2-unified-harden",
             billing_tag="t2-unified-harden",
         )
         meter = SandboxMeter(CAP_USD)
         run_cell = spend_logging_runner(
-            modal_cell_runner(repo_root=REPO, spend_gate=gate, meter=meter),
+            modal_cell_runner(repo_root=REPO, spend_gate=gate, meter=meter, timeout_seconds=240),
             threading.Lock(),
         )
 

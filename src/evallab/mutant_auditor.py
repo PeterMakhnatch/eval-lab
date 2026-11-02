@@ -31,14 +31,22 @@ import functools
 import hashlib
 import json
 import re
-import threading
-import time
 import tomllib
 from collections.abc import Callable, Iterable, Mapping
 from concurrent.futures import Future
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+from evallab.modal_cells import (
+    ESTIMATE_MARGIN,
+    MODAL_CPU_USD_PER_S,
+    MODAL_GIB_USD_PER_S,
+    PROJECTED_CELL_SECONDS,
+    CellRunner,
+    SandboxMeter,
+    modal_cell_runner,
+)
 
 #: Fixed operator priority; the first mutants of a task come from distinct operators in this order.
 MUTATOR_ORDER: tuple[str, ...] = (
@@ -55,13 +63,16 @@ DEFAULT_MUTANTS = 3
 APPLIED_MARKER = "MUTANT_APPLIED"
 PROBE_MARKER = "MUTANT_PROBE"
 PROBE_DONE_MARKER = "MUTANT_PROBE_DONE"
-#: Modal Sandbox rates (USD per CPU-second, per GiB-second), see docs/execution-tiers.md.
-MODAL_CPU_USD_PER_S = 0.00003942
-MODAL_GIB_USD_PER_S = 0.00000667
-#: Shared estimate margin over measured sandbox seconds.
-ESTIMATE_MARGIN = 1.25
-#: Wall seconds reserved per cell before it starts (cap admission).
-PROJECTED_CELL_SECONDS = 240
+#: Pricing constants re-exported from modal_cells
+__all__ = [
+    "CellRunner",
+    "ESTIMATE_MARGIN",
+    "MODAL_CPU_USD_PER_S",
+    "MODAL_GIB_USD_PER_S",
+    "PROJECTED_CELL_SECONDS",
+    "SandboxMeter",
+    "modal_cell_runner",
+]
 
 _COMPARE_FLIPS: dict[type[ast.cmpop], tuple[str, str, str]] = {
     ast.Lt: ("boundary_flip", "<", "<="),
@@ -646,86 +657,6 @@ def mutant_applied(agent_log: str, mutant: Mutant) -> bool:
 # --------------------------------------------------------------------------- execution
 
 
-class SandboxMeter:
-    """Cost estimate from measured sandbox seconds with the shared margin; the cap is enforced on it."""
-
-    def __init__(self, cap_usd: float):
-        self.cap, self.spent, self.cells, self.seconds = cap_usd, 0.0, 0, 0.0
-        self._lock = threading.Lock()
-
-    @staticmethod
-    def estimate(package: Path, wall_seconds: float) -> float:
-        env = tomllib.loads((package / "task.toml").read_text()).get("environment", {})
-        rate = (
-            int(env.get("cpus", 2)) * MODAL_CPU_USD_PER_S
-            + (int(env.get("memory_mb", 8192)) / 1024) * MODAL_GIB_USD_PER_S
-        )
-        return rate * wall_seconds * ESTIMATE_MARGIN
-
-    def admit(self, projected_usd: float) -> None:
-        with self._lock:
-            if self.spent + projected_usd > self.cap:
-                raise RuntimeError(
-                    f"Modal cap ${self.cap:.2f} would be passed (spent ${self.spent:.3f})"
-                )
-
-    def add(self, usd: float, wall_seconds: float) -> None:
-        with self._lock:
-            self.spent += usd
-            self.seconds += wall_seconds
-            self.cells += 1
-
-
-CellRunner = Callable[[Path, Path, str], dict[str, Any]]
-"""``(cell_dir, package, script) -> result`` with at least ``reward`` and ``agent_log``."""
-
-
-def modal_cell_runner(
-    *, repo_root: Path, spend_gate: Any, meter: SandboxMeter, timeout_seconds: int = 1800
-) -> CellRunner:
-    """A :data:`CellRunner` over ``ModalBackend``; ``result.json`` is the consumption marker."""
-
-    def run(cell_dir: Path, package: Path, script: str) -> dict[str, Any]:
-        result_path = cell_dir / "result.json"
-        if result_path.exists():
-            return json.loads(result_path.read_text())
-        from evallab.qa.task_modal import ModalBackend
-        from evallab.registry import task_directory_digest
-
-        meter.admit(meter.estimate(package, PROJECTED_CELL_SECONDS))
-        cell_dir.mkdir(parents=True, exist_ok=True)
-        backend = ModalBackend(repo_root=repo_root, spend_gate=spend_gate)
-        started = time.monotonic()
-        observation = backend.run_container_trial(
-            package,
-            digest=task_directory_digest(package),
-            mode="shortcut",
-            script=script,
-            trial_dir=cell_dir / "trial",
-            timeout_seconds=timeout_seconds,
-        )
-        wall = time.monotonic() - started
-        trial = cell_dir / "trial"
-        agent_log = _read_text(trial / "agent/oracle.txt")
-        test_output = _read_text(trial / "verifier/test_output.log")
-        cost = meter.estimate(package, wall)
-        meter.add(cost, wall)
-        result = {
-            "status": observation.status,
-            "reason": observation.reason,
-            "reward": observation.facts.get("reward"),
-            "wall_s": round(wall, 1),
-            "est_usd": round(cost, 5),
-            "agent_log": agent_log,
-            "test_output_tail": test_output[-600:],
-            "evidence_sha256": sha256_text(agent_log + test_output),
-        }
-        result_path.write_text(json.dumps(result, indent=2) + "\n")
-        return result
-
-    return run
-
-
 def _read_text(path: Path) -> str:
     return path.read_text(errors="replace") if path.exists() else ""
 
@@ -905,7 +836,7 @@ def _audit_mutants_command(args: Any, root: Path, *, harbor: Any = None) -> int:
         package=args.package,
         reference_patch=patch,
         out_dir=args.out,
-        run_cell=modal_cell_runner(repo_root=root, spend_gate=gate, meter=meter),
+        run_cell=modal_cell_runner(repo_root=root, spend_gate=gate, meter=meter, timeout_seconds=240),
         repaired_package=args.repaired_package,
         limit=args.limit,
     )

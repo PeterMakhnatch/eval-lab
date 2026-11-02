@@ -589,3 +589,52 @@ binary's printable strings; the binary was never executed. The host-session
 readings in the correction table above are timestamps and `used_percent` values
 only — no message text, no session identifier, and no path from that directory
 appears in this repository.
+
+## Spend ledger reconciliation (`evallab spend reconcile`)
+
+While `spend day` tracks daily allocated lab spend against policy caps, the spend ledger
+(`~/.local/state/evallab-failure-library/spend.jsonl`) can diverge from provider-reported
+actuals for several systematic reasons:
+
+1. **Untracked sessions:** Headless `omp -p` invocations from external scripts (e.g. `foreman`
+   workers, ad-hoc research evaluations) and interactive user sessions log detailed token and
+   cost records to session traces (`~/.omp/agent/sessions/`), but do not automatically append to
+   `spend.jsonl`.
+2. **Automatic fallback chains:** Rate limits on primary subscription models (Claude, OpenAI)
+   fall back transparently to paid routes (e.g. `deepseek/deepseek-flash:max`) as configured in
+   `~/.omp/agent/config.yml`.
+3. **Unpriced catalog variants:** Models introduced without explicit rate cards (such as
+   `muse-wonder-1.0-contributor`, which accounted for 593 calls logged at $0.00 in `stats.db`)
+   are recorded with $0 cost and marked `UNVERIFIABLE`.
+
+### Reconciliation command
+
+`evallab spend reconcile` verifies ledger sums against provider-reported balances and usage
+endpoints over a half-open window `[since, until)`:
+
+```bash
+# Check reconciliation against DeepSeek and OpenRouter endpoints
+evallab spend reconcile --since 2026-10-30T21:00:00Z --threshold-usd 1.00
+
+# Emit structured JSON report
+evallab spend reconcile --threshold-usd 2.00 --json
+
+# Scan OMP session traces and backfill missing paid per-call runs to spend.jsonl
+evallab spend scan-omp --since 2026-10-30T21:00:00Z --write
+```
+
+### Fail-closed and subscription invariants
+
+- **Fail-closed verdict (exit 3):** If any requested provider endpoint fails to fetch or no provider
+  reaches a numeric comparison, the command outputs `UNVERIFIED` and exits 3. Discrepancies strictly
+  exceeding `--threshold-usd` exit 1 (`FAIL`).
+- **Subscription notional separation:** Subscription OAuth routes (Anthropic Claude, OpenAI Codex, xAI)
+  report list-price estimates in OMP session traces ($0 marginal cash spend). They are excluded from cash
+  spend backfills by default to avoid corrupting shared ledger accounting.
+- **Lab-logged deduplication:** `scan-omp --write` matches session calls against existing ledger rows by
+  route, timestamp window, and token/cost matching, preventing double-counting of calls already logged by the lab harness.
+- **Cumulative counters and windows:** DeepSeek baseline ($16.00 at 2026-10-30T21:00:00Z) and OpenRouter lifetime
+  usage require explicit start values when querying non-baseline windows; missing baselines report "start unknown"
+  rather than fabricating drift.
+- **Modal infrastructure:** Modal rows are flagged `NOT MEASURED` (and excluded from totals) unless the live
+  billing API is queried.

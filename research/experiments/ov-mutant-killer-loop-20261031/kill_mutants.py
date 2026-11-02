@@ -709,7 +709,7 @@ def main() -> None:
         )
         meter = MA.SandboxMeter(CAP_USD)
         run_cell = spend_logging_runner(
-            MA.modal_cell_runner(repo_root=REPO, spend_gate=gate, meter=meter), threading.Lock()
+            MA.modal_cell_runner(repo_root=REPO, spend_gate=gate, meter=meter, timeout_seconds=240), threading.Lock()
         )
 
         def one(cell: dict[str, Any]) -> None:

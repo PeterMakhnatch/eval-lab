@@ -69,7 +69,7 @@ inputs:
   - path: docs/flight-recorder.md
     digest: sha256:0138627b7592e818cf17532f1541173916e68de1867935abfe6ab343f66475b8
   - path: docs/hack-drop.md
-    digest: sha256:affc3629ed1acc3a84925596f50d5d70fa7b59486bca40a020ae71023159c2f4
+    digest: sha256:8dcd1a202deb34a063888a7c2326308c368c4f402fc45d3f12bac26163f7e5ad
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
@@ -83,7 +83,7 @@ inputs:
   - path: docs/lancedb.md
     digest: sha256:e9bead9abe3e94658028e68f592ff3ef8cf4d43bb86b5199d8031fb19a2cbbe5
   - path: docs/line.md
-    digest: sha256:698aa11095562b8bd3b302099c662c420906011a412cc17a685ad6578cc29a42
+    digest: sha256:4d2c2e72b5d8cc075c891c2ea12bc407ab9487698a2a77d3a4d04115329af332
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md

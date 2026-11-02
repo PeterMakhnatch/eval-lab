@@ -23,6 +23,7 @@ import fnmatch
 import hashlib
 import json
 import math
+import os
 import posixpath
 import re
 import shlex
@@ -168,23 +169,29 @@ def wilson_interval(k: int, n: int, z: float = 1.959964) -> tuple[float | None, 
 
 
 def check_dev_path_allowed(path: Path | str) -> Path:
-    """Refuse any path under research/answer-keys or declared TEST/held-out splits."""
-    p = Path(path).expanduser().resolve()
-    posix_lower = p.as_posix().lower()
-    if "answer-keys" in posix_lower or "answer_keys" in posix_lower:
-        raise RefusedRun(f"refused: files under answer-keys are forbidden: {path}")
+    """Refuse any path under research/answer-keys or declared TEST/held-out splits.
 
-    if re.search(r"(?:^|[/_\-.])(?:held-?out|holdout|tests?-heldout)(?:[/_\-.]|$)", posix_lower):
-        raise RefusedRun(f"refused: TEST/held-out split directory paths are forbidden: {path}")
+    Both the real location and the path as spelled are judged, so a symlink named like a
+    DEV file cannot launder a forbidden target and a DEV-looking link cannot hide behind one.
+    """
+    spelled = Path(path).expanduser()
+    p = spelled.resolve()
+    for candidate in dict.fromkeys((p, Path(os.path.abspath(spelled)))):
+        posix_lower = candidate.as_posix().lower()
+        if "answer-keys" in posix_lower or "answer_keys" in posix_lower:
+            raise RefusedRun(f"refused: files under answer-keys are forbidden: {path}")
 
-    if re.search(r"(?:^|[/_\-.])(?:test[-_]split|tests?[-_]split)(?:[/_\-.]|$)", posix_lower):
-        raise RefusedRun(f"refused: TEST split paths are forbidden: {path}")
+        if re.search(r"(?:^|[/_\-.])(?:held-?out|holdout|tests?-heldout)(?:[/_\-.]|$)", posix_lower):
+            raise RefusedRun(f"refused: TEST/held-out split directory paths are forbidden: {path}")
 
-    if re.search(r"[/_\-.](?:splits?|eval|data|corpus)/test(?:[/_\-.]|$)", posix_lower):
-        raise RefusedRun(f"refused: TEST split paths are forbidden: {path}")
+        if re.search(r"(?:^|[/_\-.])(?:test[-_]split|tests?[-_]split)(?:[/_\-.]|$)", posix_lower):
+            raise RefusedRun(f"refused: TEST split paths are forbidden: {path}")
 
-    if re.search(r"[/_\-.]test[-_]labels\.[a-z0-9]+$", posix_lower):
-        raise RefusedRun(f"refused: TEST label files are forbidden: {path}")
+        if re.search(r"[/_\-.](?:splits?|eval|data|corpus)/test(?:[/_\-.]|$)", posix_lower):
+            raise RefusedRun(f"refused: TEST split paths are forbidden: {path}")
+
+        if re.search(r"[/_\-.]test[-_]labels\.[a-z0-9]+$", posix_lower):
+            raise RefusedRun(f"refused: TEST label files are forbidden: {path}")
 
     return p
 
@@ -727,7 +734,7 @@ def load_labels(
 
     def _process_item(item: dict[str, Any]) -> None:
         _check_label_row_dev(item, registry=registry)
-        key = item.get("id") or item.get("run_id") or item.get("task_id")
+        key = item.get("id") or item.get("run_id") or item.get("item_id") or item.get("task_id")
         if key is None:
             return
         raw_val, found = _extract_label_value(item)
@@ -738,6 +745,14 @@ def load_labels(
     try:
         data = json.loads(text)
         if isinstance(data, dict):
+            wrapper_meta = data.get("metadata")
+            _check_label_row_dev(
+                {
+                    "split": data.get("split"),
+                    "metadata": wrapper_meta if isinstance(wrapper_meta, dict) else {},
+                },
+                registry=registry,
+            )
             items_list = data.get("rows") or data.get("items") or data.get("labels")
             if isinstance(items_list, list):
                 for item in items_list:
@@ -749,6 +764,8 @@ def load_labels(
                 _process_item(data)
                 return labels
             for k, v in data.items():
+                # A flat {run_id: label} map needs the same registry TEST check as row formats.
+                _check_label_row_dev({"id": str(k)}, registry=registry)
                 _store_label(str(k), v)
             return labels
         if isinstance(data, list):

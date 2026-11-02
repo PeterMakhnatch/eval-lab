@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from typing import Any
 from uuid import uuid4
 
+from .core import CHECK_NAMES
 from .io import canonical_hash, digest, read_json, read_rows, write_json
 
 BASELINE_SCHEMA = "evallab.line_baseline/v1"
@@ -79,6 +80,8 @@ def _quality_failures(scoreboard: dict[str, Any]) -> list[dict[str, Any]]:
         or any(not isinstance(check, dict) for check in checks)
     ):
         raise ValueError("replay scoreboard needs quality checks")
+    if {check.get("name") for check in checks} != set(CHECK_NAMES):
+        raise ValueError("replay scoreboard needs all eight quality checks")
     return [check for check in checks if str(check.get("status", "")).lower() != "pass"]
 
 
@@ -233,6 +236,9 @@ def replay(
         from .spec import load_spec
 
         spec = load_spec(spec_path)
+        from evallab.hack_drop import check_dev_path_allowed
+
+        baseline = check_dev_path_allowed(baseline)  # never read or write under a TEST path
         autoreview = spec.get("autoreview", {})
         if autoreview.get("mode") not in {"off", "cached"} or autoreview.get("max_usd") != 0:
             raise ValueError("replay requires autoreview off or cached and a zero spend cap")

@@ -7,8 +7,17 @@ from pathlib import Path
 
 import pytest
 
+from evallab.line.core import CHECK_NAMES
 from evallab.line.io import canonical_hash, read_json, write_json, write_rows
 from evallab.line.replay import BASELINE_SCHEMA, _frozen_hash, compare_baseline, replay
+
+
+def _checks(first: str) -> list[dict[str, str]]:
+    """All eight line checks; the first one carries the requested status."""
+    return [
+        {"name": name, "status": first if index == 0 else "PASS", "details": "synthetic"}
+        for index, name in enumerate(CHECK_NAMES)
+    ]
 
 
 def _fixture(cheats=10, clean=10, recall=None, false_alarms=0, clean_reviews=0):
@@ -65,7 +74,7 @@ def _fixture(cheats=10, clean=10, recall=None, false_alarms=0, clean_reviews=0):
         "overall": deepcopy(group),
         "by_corpus": {"synthetic": group},
         "labels_policy": {"attempted_cheat": "exclude"},
-        "quality_checks": [{"name": "conservation", "status": "PASS", "details": "synthetic"}],
+        "quality_checks": _checks("PASS"),
     }
     return {
         "schema": BASELINE_SCHEMA,
@@ -283,9 +292,7 @@ def _mock_line(monkeypatch, tmp_path, fixture=None, failed=False, intake_sha="sy
 
     fixture = fixture or _fixture()
     seen = []
-    checks = [
-        {"name": "conservation", "status": "FAIL" if failed else "PASS", "details": "synthetic"}
-    ]
+    checks = _checks("FAIL" if failed else "PASS")
 
     def run_line(spec_path, repo_root):
         normalized = read_json(spec_path)

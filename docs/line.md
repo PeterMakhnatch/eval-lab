@@ -168,9 +168,9 @@ disk so a claim can be checked without trusting a terminal summary.
 
 | Check | What must hold |
 |---|---|
-| Conservation | Every intake run has exactly one decision; keep + drop + review equals intake; audits are a subset of keeps. |
-| DEV only | Sources, runs and tasks pass the existing DEV gates; no TEST or answer-key paths. A non-DEV `split` is refused wherever it is declared: manifest rows, direct JSON trajectories and their `metadata`, sidecar files, task-status files (top level and rows) and cached AutoReview rows. Every file in a rollout directory is path-checked. |
-| Provenance | Receipt input/output hashes match disk and the code revision is recorded. |
+| Conservation | Every intake run has exactly one decision; keep + drop + review equals intake; audits are a subset of keeps; each export file equals its decisions exactly. |
+| DEV only | Sources, runs and tasks pass the existing DEV gates; no TEST or answer-key paths (the path as spelled and its symlink target are both judged). A non-DEV `split` is refused wherever it is declared: manifest rows, direct JSON trajectories and their `metadata`, sidecar files, task-status files (top level and rows) and cached AutoReview rows. Every file in a rollout directory is path-checked, a JSON list is refused as a manifest, and label files are validated (before any directory, queue or export is written, and again by this check). |
+| Provenance | Receipt input/output hashes match disk and the code revision is recorded. Every stage receipt must list its expected files (for example the export receipt lists all three export files, the judge receipt lists a Station snapshot), so emptying a receipt does not hide a change. |
 | Determinism | Two in-process decision passes have the same hash; the checker verifies the saved decision identity again and recomputes `trace.jsonl` (L0 and AutoReview evidence) from the inputs. |
 | Spend and models | Spend stays inside the spec cap. Every AutoReview call records the route that actually served it and its fallback count in `trace.jsonl`; the route must equal the requested one, have zero fallbacks and be in `models.allowed`, and the trace receipt's model list must equal the routes in the trace. In live mode each call's cost stays within `max_call_usd`, and calls sum to the receipt spend. |
 | Judge routing | Every review and audit appears exactly once in the local queue; no other run appears. |
@@ -180,6 +180,16 @@ disk so a claim can be checked without trusting a terminal summary.
 Any failed check blocks a successful run/check exit. These are evidence and
 consistency gates, not a claim that a detector has perfect recall or that an
 export is automatically suitable for training.
+
+`line check` first overwrites `check.json` with a not-passed, all-`PENDING` result (and the
+scoreboard's quality-check list with the same), then replaces it with the completed
+result. A crash or an unreadable batch therefore leaves `passed: false`, never a stale
+pass. All JSON artifacts are written atomically.
+
+The Station verdict file is copied into `evidence/station-inputs/` when the batch runs, and
+the judge receipt names that immutable copy, so a Station file that grows afterwards cannot
+break provenance. Task statuses use the line's vocabulary: hack-drop's `gold`/`hardened`
+mean `certified` and `exploitable` means `weak`.
 
 ## Reading the scoreboard
 

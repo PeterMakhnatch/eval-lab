@@ -9,6 +9,7 @@ import re
 import subprocess
 import time
 from collections import Counter
+from contextlib import suppress
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,6 +30,18 @@ CHECK_NAMES = (
     "scoreboard_recompute",
 )
 STATUSES = {"certified", "provisional", "weak", "uncertified"}
+EXPECTED_REFS: dict[str, tuple[set[str], set[str]]] = {
+    "intake": ({"spec.json"}, {"runs.jsonl"}),
+    "task": ({"runs.jsonl"}, {"tasks.jsonl"}),
+    "trace": ({"runs.jsonl"}, {"trace.jsonl"}),
+    "decisions": ({"tasks.jsonl", "trace.jsonl"}, {"decisions.jsonl"}),
+    "judge": ({"decisions.jsonl"}, {"judge-queue.jsonl", "verdicts.jsonl"}),
+    "export": (
+        {"decisions.jsonl"},
+        {"export/kept.jsonl", "export/dropped.jsonl", "export/review.jsonl"},
+    ),
+    "scoreboard": ({"decisions.jsonl"}, set()),
+}
 
 
 def audit_sample(seed: str, run_id: str, rate: float) -> bool:
@@ -62,6 +75,8 @@ LABEL_KEYS = frozenset(
         "is_hack",
         "cheat",
         "cheated",
+        "behavior",
+        "verdict_enacted",
     }
 )
 AUTOREVIEW_THRESHOLD = 50
@@ -251,6 +266,17 @@ def _intake(spec: dict[str, Any], root: Path) -> tuple[list[hd.RolloutItem], lis
     rows = []
     seen: set[str] = set()
     for source in spec["sources"]:
+        manifest = Path(source["rollouts"])
+        if manifest.suffix == ".json" and manifest.is_file():
+            try:
+                top = json.loads(manifest.read_text(encoding="utf-8"))
+            except ValueError:
+                top = None  # not a manifest: the loader flags unparsable rollouts itself
+            if isinstance(top, list):
+                raise ValueError(
+                    f"a JSON list is not a rollout manifest (its rows would skip DEV checks): "
+                    f"{manifest.name}; use JSONL or an object with a rows list"
+                )
         for item in hd.load_rollouts([source["rollouts"]], repo_root=root):
             if item.item_id in seen:
                 raise ValueError(f"duplicate intake run_id: {item.item_id}")
@@ -322,8 +348,16 @@ def _tasks(spec: dict[str, Any], items: list[hd.RolloutItem]) -> dict[str, dict[
                 source.get(task.split("/")[-1], {"status": "uncertified", "reason": "NO_EVIDENCE"}),
             )
         )
-        if info.get("status") not in STATUSES:
+        status = str(info.get("status", "")).lower()
+        # hack-drop's own vocabulary maps onto the line's: gold/hardened are certified and
+        # exploitable is weak, never silently uncertified.
+        status = {"gold": "certified", "hardened": "certified", "exploitable": "weak"}.get(
+            status, status
+        )
+        if status not in STATUSES:
             info = {"status": "uncertified", "reason": info.get("reason") or "NO_EVIDENCE"}
+        else:
+            info = {**info, "status": status}
         result[task] = info
     return result
 
@@ -454,6 +488,45 @@ def _queue(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def snapshot_station(batch: Path, source: Path) -> Path:
+    """Copy Station bytes into the batch once; identical bytes reuse their snapshot."""
+    snapshots = batch / "evidence" / "station-inputs"
+    snapshots.mkdir(parents=True, exist_ok=True)
+    existing = sorted(snapshots.glob("*.jsonl"))
+    wanted = source.read_bytes() if source.is_file() else b""
+    for previous in existing:
+        if previous.read_bytes() == wanted:
+            return previous
+    target = snapshots / f"{len(existing) + 1:04d}.jsonl"
+    target.write_bytes(wanted)
+    return target
+
+
+def invalidate_check(batch: Path) -> None:
+    """Replace any earlier check result with PENDING/not-passed before a new check runs."""
+    pending = [{"name": name, "status": "PENDING", "details": ""} for name in CHECK_NAMES]
+    path = batch / "check.json"
+    try:
+        previous = read_json(path)
+    except (OSError, ValueError):
+        previous = {}
+    write_json(
+        path,
+        {
+            "checks": pending,
+            "passed": False,
+            "decision_hash": previous.get("decision_hash"),
+            "second_decision_hash": previous.get("second_decision_hash"),
+        },
+    )
+    try:
+        score = read_json(batch / "scoreboard.json")
+    except (OSError, ValueError):
+        return
+    score["quality_checks"] = pending
+    write_json(batch / "scoreboard.json", score)
+
+
 def run_line(spec_path: Path, repo_root: Path) -> Path:
     from evallab.line.scoreboard import build_scoreboard, render_scoreboard
     from evallab.production.factory_autoreview import append_judge_queue_entry
@@ -474,6 +547,11 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
         missing = sorted({item.item_id for item in items} - cache.keys())
         if missing:
             raise ValueError(f"missing cached AutoReview verdict: {missing[0]}")
+    # Labels are read only by the scoreboard, but a non-DEV label file must fail before any
+    # directory, queue or export exists.
+    from evallab.line.scoreboard import _load_labels
+
+    _load_labels(spec, repo_root, spec["labels_policy"]["attempted_cheat"])
     rev, dirty = _code(repo_root)
     batch.mkdir(parents=True)
     write_json(batch / "spec.json", spec)
@@ -593,20 +671,18 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
         for row in queue:
             append_judge_queue_entry(Path(spec["judge"]["queue"]), QueueEntry(**row))
     verdict_source = Path(spec["judge"].get("verdicts") or STATE_DIR / "verdicts.jsonl")
-    verdicts = (
-        [
-            row
-            for row in effective_records(load_rows(verdict_source))
-            if row.get("run_id") in {r["run_id"] for r in intake}
-        ]
-        if verdict_source.is_file()
-        else []
-    )
+    hd.check_dev_path_allowed(verdict_source)
+    # Freeze what the line read: a Station file that grows later must not break provenance.
+    snapshot = snapshot_station(batch, verdict_source)
+    admitted = {r["run_id"] for r in intake}
+    verdicts = [
+        row for row in effective_records(load_rows(snapshot)) if row.get("run_id") in admitted
+    ]
     write_rows(batch / "verdicts.jsonl", verdicts)
     receipt(
         "judge",
         start,
-        [batch / "decisions.jsonl", *([verdict_source] if verdict_source.is_file() else [])],
+        [batch / "decisions.jsonl", snapshot],
         [batch / "judge-queue.jsonl", batch / "verdicts.jsonl"],
         len(decisions),
         len(queue),
@@ -692,6 +768,12 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
                 ),
                 "audit sample changed",
             )
+        for decision, name in (("keep", "kept"), ("drop", "dropped"), ("review", "review")):
+            require(
+                read_rows(batch / "export" / f"{name}.jsonl")
+                == [d for d in decisions if d["decision"] == decision],
+                f"export/{name}.jsonl differs from decisions",
+            )
 
     gate("conservation", conservation)
 
@@ -707,6 +789,9 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
             "task source changed",
         )
         _cache(spec)
+        from evallab.line.scoreboard import _load_labels
+
+        _load_labels(spec, repo_root, spec["labels_policy"]["attempted_cheat"])
 
     gate("dev_only", dev)
 
@@ -722,9 +807,30 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
                 and bool(receipt.get("code_rev")),
                 "receipt missing revision/schema",
             )
+            wanted = EXPECTED_REFS.get(receipt["stage"])
+            require(wanted is not None, f"unknown receipt stage: {receipt['stage']}")
+            assert wanted is not None
+            root = batch.resolve()
+            for side, names in zip(("inputs", "outputs"), wanted, strict=True):
+                listed = set()
+                for ref in receipt[side]:
+                    with suppress(ValueError):
+                        listed.add(Path(ref["path"]).resolve().relative_to(root).as_posix())
+                require(
+                    names <= listed,
+                    f"{receipt['stage']} receipt does not list {sorted(names - listed)}",
+                )
+            if receipt["stage"] == "judge":
+                snapshots = (batch / "evidence" / "station-inputs").resolve()
+                require(
+                    any(
+                        Path(ref["path"]).resolve().parent == snapshots for ref in receipt["inputs"]
+                    ),
+                    "judge receipt does not hold an immutable Station snapshot",
+                )
             for ref in receipt["inputs"] + receipt["outputs"]:
                 path = Path(ref["path"])
-                require(digest(path) == ref["sha256"], f"hash mismatch: {path}")
+                require(path.exists() and digest(path) == ref["sha256"], f"hash mismatch: {path}")
                 if "rows" in ref:
                     require(len(read_rows(path)) == ref["rows"], f"row mismatch: {path}")
 

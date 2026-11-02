@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -27,10 +28,12 @@ def read_rows(path: Path) -> list[dict[str, Any]]:
 
 
 def write_json(path: Path, value: Any) -> None:
+    """Write atomically: a crash leaves the previous file or none, never a torn one."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8"
-    )
+    text = json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    scratch = path.with_name(f".{path.name}.tmp")
+    scratch.write_text(text, encoding="utf-8")
+    os.replace(scratch, path)
 
 
 def write_rows(path: Path, rows: list[dict[str, Any]]) -> None:

@@ -158,17 +158,13 @@ def _headroom_for(root: Path, *, agent: str) -> Headroom:
 
 
 def _configured_quota_ceiling(root: Path) -> float | None:
-    """The lab's `used_percent` refusal ceiling, wherever it currently lives.
+    """Read the lab's policy-controlled `used_percent` refusal ceiling.
 
-    `queue.REFUSE_BILLABLE_AT_USED_PERCENT` (queue.py:224-240) says its durable
-    home is `policy/standing-approvals.yaml`, and WS-E item 1 moves it there as
-    `StandingApprovalsPolicy.refuse_billable_at_used_percent`. Committed at 60
-    since the 2026-10-13 overnight subscription-agent work, so preferring the
-    policy and falling back to the constant is correct in every state of that
-    migration and never under-reports a ceiling that is actually set.
-
-    FOLLOW-UP: delete the `queue_module` fallback once the policy field lands.
-    Recorded in `agents/handoffs/preflight.md`.
+    `policy/standing-approvals.yaml` governs the ceiling through
+    `StandingApprovalsPolicy.refuse_billable_at_used_percent`. It is currently
+    committed at 80%, raised from the original 60% baseline introduced for the
+    2026-10-13 overnight subscription-agent work. The legacy module constant
+    is consulted only if the policy has no configured ceiling.
     """
     configured = getattr(
         load_policy(root / "policy/standing-approvals.yaml"),
@@ -651,8 +647,8 @@ def _approve_command(
         headroom = _headroom_for(root, agent=authorized.agent)
         print(render_headroom_notice(headroom, agent=authorized.agent, model=authorized.model))
         # The threshold is policy, not code: `refuse_billable_at_used_percent`
-        # in `policy/standing-approvals.yaml`, committed at 60. Loaded
-        # inline here, as `_digest_renderer` does at cli.py:1526.
+        # in `policy/standing-approvals.yaml` governs it (currently 80%, raised
+        # from the original 60% baseline). Load the configured value inline.
         ceiling = load_policy(
             root / "policy/standing-approvals.yaml"
         ).refuse_billable_at_used_percent

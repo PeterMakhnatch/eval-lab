@@ -252,8 +252,8 @@ QUOTA_STALENESS_NOTE = (
 #: The lab's refusal threshold on the account-wide `used_percent` lives in
 #: `policy/standing-approvals.yaml` as `refuse_billable_at_used_percent`, read
 #: through `StandingApprovalsPolicy` and passed to `lab_threshold_reached`.
-#: Committed at 60 since the 2026-10-13 overnight subscription-agent work
-#: (Peter approved the pause-above-60 rule).
+#: Currently committed at 80%, raised from the original 60% baseline introduced
+#: for the 2026-10-13 overnight subscription-agent work.
 #:
 #: It was an interim module constant here (PR #70) only because the schema field
 #: it needed could not be added in that PR: `StandingApprovalsPolicy` forbids
@@ -326,10 +326,11 @@ def lab_threshold_reached(headroom: Headroom, *, threshold: float | None) -> str
     """Whether a Sponsor-set `used_percent` threshold has been reached.
 
     `threshold` is `StandingApprovalsPolicy.refuse_billable_at_used_percent`,
-    committed unset, so this returns `None` in the shipped configuration. It is
-    passed in rather than read here: the value is policy, and a function that
-    loaded it itself would put a filesystem read inside a pure predicate
-    (`agents/CHECKS.md`, deterministic-test rule).
+    governed by `policy/standing-approvals.yaml` (currently committed at 80%,
+    raised from the original 60% baseline). It is passed in rather than read
+    here: the value is policy, and a function that loaded it itself would put a
+    filesystem read inside a pure predicate (`agents/CHECKS.md`,
+    deterministic-test rule).
 
     Keyword-only on purpose. A positional float would let a future caller pass
     the wrong number silently, and it makes every call site greppable.

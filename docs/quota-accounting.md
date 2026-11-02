@@ -222,14 +222,15 @@ Claude can refresh its reading without running a paid trial.
 
 The gate refreshes the Claude reading at dispatch and applies two boundaries:
 
-- **7-day window:** refuse at or above the committed
-  `refuse_billable_at_used_percent` ceiling, currently **60%**, under
-  `subscription_quota_ceiling`. This preserves the existing Codex gate's
-  inclusive boundary and the standing rule's weekly scope.
+- **7-day window:** refuse at or above the
+  `refuse_billable_at_used_percent` ceiling governed by
+  `policy/standing-approvals.yaml`, currently **80%**, raised from the original
+  **60%** baseline, under `subscription_quota_ceiling`. This preserves the
+  existing Codex gate's inclusive boundary and the standing rule's weekly scope.
 - **5-hour window:** record it on every reading and refuse at **100% or above**
-  under `subscription_quota_exhausted`. The standing 60% ceiling does not apply
-  to this window: Peter's rule names the weekly allowance. A tighter run-specific
-  approval still applies.
+  under `subscription_quota_exhausted`. The configured weekly ceiling does not
+  apply to this window: Peter's rule names the weekly allowance. A tighter
+  run-specific approval still applies.
 
 A refusal includes the relevant `resets_at`. Stop launching and wait for the
 window, then refresh before considering dispatch again. Never switch a paused
@@ -404,9 +405,10 @@ stray `remaining_percent` of 99 — and asserts the 99 never reaches the
 operator.
 
 The measurement supports refusal when the provider reports exhaustion and an
-account-wide ceiling below that limit, now committed at 60% weekly usage. That
-ceiling reserves shared account headroom; it is not a percentage budget for the
-lab, because the lab's share of the percentage remains unavailable.
+account-wide ceiling below that limit. `policy/standing-approvals.yaml` governs
+that ceiling, currently committed at 80% weekly usage, raised from the original
+60% baseline. It reserves shared account headroom; it is not a percentage budget
+for the lab, because the lab's share of the percentage remains unavailable.
 
 ## Surviving promotion: the R4 quota sidecar
 
@@ -567,9 +569,10 @@ evidence, reproducing #67's prototype figure exactly.
 What the gate sees changes with it: `Executor._repo_headroom` scans
 `default_roots`, so on a fresh clone `render_headroom_notice` now prints an
 observed 70.0 with its staleness and hard-stop instead of UNKNOWN. The provider
-refusal still triggers at 100.0, and since 2026-10-13 the lab's own ceiling
-refuses at or above 60 (`refuse_billable_at_used_percent` in
-`policy/standing-approvals.yaml`, reason code `subscription_quota_ceiling`).
+refusal still triggers at 100.0. Since 2026-10-13 the lab also has its own ceiling,
+governed by `refuse_billable_at_used_percent` in `policy/standing-approvals.yaml`,
+currently 80%, raised from the original 60% baseline. Dispatch refuses at or above
+that configured ceiling under reason code `subscription_quota_ceiling`.
 Once `resets_at 2026-08-20T18:32:49+00:00` passes, `quota_window_expired`
 treats the same committed reading as a window that no longer exists.
 

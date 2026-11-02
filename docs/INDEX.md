@@ -69,7 +69,7 @@ inputs:
   - path: docs/flight-recorder.md
     digest: sha256:0138627b7592e818cf17532f1541173916e68de1867935abfe6ab343f66475b8
   - path: docs/hack-drop.md
-    digest: sha256:1125505c35fefae6275b3420784ad0b106c98b1d157b75606af8210d0db4fe1e
+    digest: sha256:f794408c23d0dccac4a2b80cf8805546b5b34031677761bbf3c3d1307a11b1ed
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md

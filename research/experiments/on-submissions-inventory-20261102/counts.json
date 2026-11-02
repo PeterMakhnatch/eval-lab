@@ -1,0 +1,130 @@
+{
+  "schema_version": "submissions-inventory-counts/v1",
+  "counts": {
+    "total_trials": 691,
+    "trials_with_patch": 509,
+    "trials_with_reward": 604,
+    "trials_accepted_original_reward_1": 212,
+    "trials_rejected_original_reward_0": 392,
+    "trials_accepted_with_patch": 202,
+    "trials_rejected_with_patch": 280,
+    "strictly_dev_trials": 616,
+    "non_dev_trials": 75,
+    "usable_submissions_exported": 482
+  },
+  "gold_universe_join": {
+    "gold_ok_tasks": 32,
+    "gold_ok_with_ge_3_accepted": 2,
+    "gold_ok_with_ge_1_accepted": 5,
+    "coverage_fmt": "2/32 = 6.2% (1.7-20.1%)",
+    "coverage_tasks_ge_3": [
+      "format-code-task-002391",
+      "format-code-task-002552"
+    ]
+  },
+  "model_breakdown": {
+    "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B": {
+      "total_trials": 38,
+      "trials_with_patch": 36,
+      "trials_with_reward_1": 15,
+      "trials_with_reward_0": 23,
+      "accepted_with_patch": 15,
+      "dev_trials": 0,
+      "non_dev_trials": 38
+    },
+    "openrouter-metered/openai/gpt-oss-120b": {
+      "total_trials": 1,
+      "trials_with_patch": 0,
+      "trials_with_reward_1": 0,
+      "trials_with_reward_0": 1,
+      "accepted_with_patch": 0,
+      "dev_trials": 1,
+      "non_dev_trials": 0
+    },
+    "openrouter-metered/xiaomi/mimo-v2.6-flash": {
+      "total_trials": 1,
+      "trials_with_patch": 0,
+      "trials_with_reward_1": 0,
+      "trials_with_reward_0": 1,
+      "accepted_with_patch": 0,
+      "dev_trials": 1,
+      "non_dev_trials": 0
+    },
+    "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B": {
+      "total_trials": 442,
+      "trials_with_patch": 303,
+      "trials_with_reward_1": 120,
+      "trials_with_reward_0": 248,
+      "accepted_with_patch": 110,
+      "dev_trials": 415,
+      "non_dev_trials": 27
+    },
+    "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129": {
+      "total_trials": 21,
+      "trials_with_patch": 14,
+      "trials_with_reward_1": 1,
+      "trials_with_reward_0": 19,
+      "accepted_with_patch": 1,
+      "dev_trials": 21,
+      "non_dev_trials": 0
+    },
+    "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-a": {
+      "total_trials": 10,
+      "trials_with_patch": 10,
+      "trials_with_reward_1": 5,
+      "trials_with_reward_0": 5,
+      "accepted_with_patch": 5,
+      "dev_trials": 0,
+      "non_dev_trials": 10
+    },
+    "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-b": {
+      "total_trials": 69,
+      "trials_with_patch": 64,
+      "trials_with_reward_1": 35,
+      "trials_with_reward_0": 33,
+      "accepted_with_patch": 35,
+      "dev_trials": 69,
+      "non_dev_trials": 0
+    },
+    "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-c": {
+      "total_trials": 26,
+      "trials_with_patch": 26,
+      "trials_with_reward_1": 17,
+      "trials_with_reward_0": 9,
+      "accepted_with_patch": 17,
+      "dev_trials": 26,
+      "non_dev_trials": 0
+    },
+    "tinker/Qwen/Qwen3.6-35B-A3B": {
+      "total_trials": 19,
+      "trials_with_patch": 11,
+      "trials_with_reward_1": 3,
+      "trials_with_reward_0": 16,
+      "accepted_with_patch": 3,
+      "dev_trials": 19,
+      "non_dev_trials": 0
+    },
+    "zai/glm-5.3-flash": {
+      "total_trials": 64,
+      "trials_with_patch": 45,
+      "trials_with_reward_1": 16,
+      "trials_with_reward_0": 37,
+      "accepted_with_patch": 16,
+      "dev_trials": 64,
+      "non_dev_trials": 0
+    }
+  },
+  "cost_estimate_for_missing": {
+    "gold_ok_tasks_total": 32,
+    "gold_ok_tasks_ge_3": 2,
+    "gold_ok_tasks_lacking_ge_3": 30,
+    "gold_ok_tasks_zero_trials": 26,
+    "recommended_new_trials_per_lacking_task": 4,
+    "total_recommended_trials": 120,
+    "estimated_cost_per_trial_usd": 0.3,
+    "estimated_total_cost_usd": 36.0,
+    "note": "Re-running 4 frontier agent trials (e.g. Qwen-2.5-Coder-32B or MiMo) on Modal per lacking task provides >= 3 accepted solutions with 75% pass@4 assuming ~40-50% pass rate."
+  },
+  "submissions_inventory_sha256": "3d09fc895fe431adddb7d725393cb2031323827641204eaf424303b4cecb097e",
+  "patch_manifest_sha256": "8e035cfe780abb03b8b26cecdda7c3ce89050fae97f9cafe7ac319dd9c0f4bee"
+}

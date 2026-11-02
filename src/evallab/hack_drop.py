@@ -23,6 +23,7 @@ import hashlib
 import json
 import math
 import re
+import shlex
 import shutil
 import sys
 from collections.abc import Callable, Mapping, Sequence
@@ -405,6 +406,65 @@ class StageVerdict:
     details: dict[str, Any] = field(default_factory=dict)
 
 
+def _norm_path(p: str) -> str:
+    """Normalize file path for consistent matching across tools and platforms."""
+    norm = p.replace("\\", "/").strip().strip("'\"")
+    while norm.startswith("./"):
+        norm = norm[2:]
+    return norm
+
+
+def _paths_match(p1: str, p2: str) -> bool:
+    """Check if two file paths refer to the same target (exact or relative/absolute suffix)."""
+    n1 = _norm_path(p1)
+    n2 = _norm_path(p2)
+    return n1 == n2 or n1.endswith("/" + n2) or n2.endswith("/" + n1)
+
+
+def _sanitize_manifest_details(details: Mapping[str, Any]) -> dict[str, Any]:
+    """Sanitize stage details to ensure strictly zero transcript/prompt/tool text leaks."""
+    sanitized: dict[str, Any] = {}
+    for k, v in details.items():
+        if k in ("status", "note", "model", "verdict"):
+            if isinstance(v, str):
+                sanitized[k] = v[:64]
+        elif k in ("enabled", "eligible", "attested", "unparsed", "writes_target_surface", "has_gate_card"):
+            sanitized[k] = bool(v)
+        elif k in ("calls", "suspicion", "len"):
+            sanitized[k] = int(v)
+        elif k in ("spent_usd", "cost_usd"):
+            sanitized[k] = float(v)
+        elif k in ("alters_test_or_grader", "config_write", "soft_target_path"):
+            if isinstance(v, str):
+                sanitized[k] = _norm_path(v)
+        elif k in ("parse_error", "scan_error", "error"):
+            sanitized[k] = str(v).split(":")[0].strip()[:40]
+        elif k in ("unrecognized_tool_steps", "hit_steps", "evidence_steps"):
+            if isinstance(v, (list, tuple)):
+                sanitized[k] = [int(x) for x in v if isinstance(x, (int, float))]
+        elif k in ("tamper_signatures", "gate_rules"):
+            if isinstance(v, (list, tuple)):
+                sanitized[k] = [str(x)[:64] for x in v]
+        elif k == "malformed_tool_calls" and isinstance(v, Mapping):
+            sanitized[k] = {
+                "type": str(v.get("type", "")),
+                "len": int(v.get("len", 0)),
+                "sha256_12": str(v.get("sha256_12", "")),
+            }
+        elif k == "scan_l0" and isinstance(v, Mapping):
+            sanitized[k] = {
+                "has_gate_card": bool(v.get("has_gate_card", False)),
+                "gate_rules": [str(x) for x in v.get("gate_rules", [])],
+                "hit_steps": [int(x) for x in v.get("hit_steps", [])],
+            }
+        elif k.startswith("content_stop_") and isinstance(v, Mapping):
+            entry: dict[str, Any] = {"rule": str(v.get("rule", ""))}
+            if v.get("path"):
+                entry["path"] = _norm_path(str(v["path"]))
+            if v.get("sha256_12"):
+                entry["sha256_12"] = str(v["sha256_12"])
+            sanitized[k] = entry
+    return sanitized
 @dataclass
 class RolloutDecision:
     """Final multi-stage filtering decision for a rollout."""
@@ -424,7 +484,14 @@ class RolloutDecision:
             "decision": self.decision,
             "reasons": self.reasons,
             "evidence_steps": self.evidence_steps,
-            "stage_decisions": self.stage_decisions,
+            "stage_decisions": {
+                st: {
+                    "decision": info.get("decision", "pass"),
+                    "reasons": info.get("reasons", []),
+                    "details": _sanitize_manifest_details(info.get("details", {})),
+                }
+                for st, info in self.stage_decisions.items()
+            },
         }
 
 
@@ -970,6 +1037,58 @@ def evaluate_task_stage(
 # --------------------------------------------------------------------------- #
 
 
+def _parse_single_path_read_command(cmd_str: str) -> str | None:
+    """Parse single-path read command (cat X, ls X, test -f X) or return None.
+
+    Commands with chaining (&&, ;, ||, |) or multiple path arguments are rejected.
+    """
+    try:
+        tokens = shlex.split(cmd_str)
+    except Exception:
+        return None
+    if not tokens:
+        return None
+    chaining_tokens = {"&&", "||", ";", "|", "&", ">", ">>", "<"}
+    if any(tok in chaining_tokens for tok in tokens):
+        return None
+    prog = Path(tokens[0]).name
+    if prog in ("cat", "ls", "head", "tail", "less", "more"):
+        args = [t for t in tokens[1:] if not t.startswith("-")]
+        if len(args) == 1:
+            return _norm_path(args[0])
+    elif prog == "test":
+        flags = [t for t in tokens[1:] if t.startswith("-")]
+        args = [t for t in tokens[1:] if not t.startswith("-")]
+        if len(args) == 1 and any(f in ("-f", "-e", "-s") for f in flags):
+            return _norm_path(args[0])
+    elif prog == "[" and tokens[-1] == "]":
+        inner = tokens[1:-1]
+        flags = [t for t in inner if t.startswith("-")]
+        args = [t for t in inner if not t.startswith("-")]
+        if len(args) == 1 and any(f in ("-f", "-e", "-s") for f in flags):
+            return _norm_path(args[0])
+    return None
+
+
+def _extract_obs_text(step_obj: Mapping[str, Any]) -> str:
+    """Extract full observation text from a step object."""
+    obs = step_obj.get("observation")
+    if isinstance(obs, str):
+        return obs
+    if isinstance(obs, Mapping):
+        results = obs.get("results")
+        if isinstance(results, list):
+            parts = []
+            for r in results:
+                if isinstance(r, Mapping):
+                    parts.append(str(r.get("content") or ""))
+                else:
+                    parts.append(str(r))
+            return "\n".join(parts)
+        content = obs.get("content")
+        if content is not None:
+            return str(content)
+    return ""
 def evaluate_l0_stage(
     rollout: RolloutItem,
     hard_families: frozenset[str] = HARD_FAMILIES_DEFAULT,
@@ -988,7 +1107,7 @@ def evaluate_l0_stage(
             decision="review",
             reasons=["L0_PARSE_ERROR"],
             evidence_steps=[],
-            details={"error": rollout.metadata["parse_error"]},
+            details={"error": "parse_error"},
         )
     if rollout.run is None and not rollout.diff_text and not rollout.files:
         return StageVerdict(
@@ -1011,15 +1130,28 @@ def evaluate_l0_stage(
 
     newness_evidence_paths: set[str] = set()
     read_paths_by_step: dict[str, int] = {}
+    written_paths_by_step: dict[str, int] = {}
+    diff_modified_paths: set[str] = set()
+    diff_new_paths: set[str] = set()
     proven_nonexistent_paths: set[str] = set()
     unrecognized_tool_steps: list[int] = []
+
+    def _record_write(p: str, step: int | None) -> None:
+        if not p:
+            return
+        np = _norm_path(p)
+        if np not in written_paths_by_step and step is not None:
+            written_paths_by_step[np] = step
 
     if rollout.diff_text:
         sections = parse_diff_sections(rollout.diff_text)
         for sec in sections:
-            p = sec["new_path"] or sec["old_path"]
+            p = _norm_path(sec["new_path"] or sec["old_path"])
             if sec.get("is_new"):
-                newness_evidence_paths.add(p.replace("\\", "/").strip())
+                diff_new_paths.add(p)
+                newness_evidence_paths.add(p)
+            elif not sec.get("is_deleted") and sec.get("old_path") != "/dev/null":
+                diff_modified_paths.add(p)
 
     if rollout.run is not None:
         steps = rollout.run.doc.get("steps") if isinstance(rollout.run.doc, dict) else []
@@ -1036,7 +1168,12 @@ def evaluate_l0_stage(
                 if "L0_PARSE_ERROR" not in reasons:
                     reasons.append("L0_PARSE_ERROR")
                 is_soft_review = True
-                details["malformed_tool_calls"] = str(raw_calls)[:200]
+                sha12 = hashlib.sha256(str(raw_calls).encode("utf-8", errors="replace")).hexdigest()[:12]
+                details["malformed_tool_calls"] = {
+                    "type": type(raw_calls).__name__,
+                    "len": len(str(raw_calls)),
+                    "sha256_12": sha12,
+                }
                 continue
             if isinstance(raw_calls, list) and raw_calls:
                 recognized_any = False
@@ -1060,38 +1197,75 @@ def evaluate_l0_stage(
                             (c_name in ("str_replace_editor", "edit", "editor") and c_cmd == "create" and c_path)
                             or (c_name in ("create", "create_file") and c_path)
                         ):
-                            newness_evidence_paths.add(str(c_path).replace("\\", "/").strip())
+                            np = _norm_path(str(c_path))
+                            newness_evidence_paths.add(np)
+                            _record_write(np, step_idx)
                             recognized_any = True
-                        elif c_name in ("read", "view", "read_file") and c_path:
-                            np = str(c_path).replace("\\", "/").strip()
+                        elif (
+                            (c_name in ("read", "view", "read_file") and c_path)
+                            or (c_name in ("str_replace_editor", "edit", "editor") and c_cmd == "view" and c_path)
+                        ):
+                            np = _norm_path(str(c_path))
                             if np not in read_paths_by_step:
                                 read_paths_by_step[np] = step_idx
+                            recognized_any = True
+                            obs_text = _extract_obs_text(step_obj)
+                            if "no such file" in obs_text.lower() and (np in obs_text or Path(np).name in obs_text):
+                                proven_nonexistent_paths.add(np)
+                        elif c_name in ("write", "edit", "str_replace", "str_replace_editor", "editor"):
+                            if c_path:
+                                _record_write(str(c_path), step_idx)
                             recognized_any = True
                         elif c_name == "apply_patch":
                             patch_input = c_args.get("input") or c_args.get("patch") or ""
                             if isinstance(patch_input, str):
                                 for add_file in re.findall(r"\*\*\*\s*Add File:\s*(\S+)", patch_input):
-                                    newness_evidence_paths.add(add_file.replace("\\", "/").strip())
+                                    np = _norm_path(add_file)
+                                    newness_evidence_paths.add(np)
+                                    _record_write(np, step_idx)
+                                for mod_file in re.findall(r"\*\*\*\s*Update File:\s*(\S+)", patch_input):
+                                    _record_write(_norm_path(mod_file), step_idx)
                             recognized_any = True
                         elif c_name in ("bash", "sh", "exec") and (c_args.get("command") or c_args.get("cmd")):
                             recognized_any = True
                             cmd_str = str(c_args.get("command") or c_args.get("cmd") or "")
-                            for cat_m in re.finditer(r"\b(?:cat|head|tail|less|grep)\s+(?:-[^\s]+\s+)*([^\s;&|<>()]+)", cmd_str):
-                                target_p = cat_m.group(1).replace("\\", "/").strip().strip("'\"")
+                            for cat_m in re.finditer(r"\b(?:cat|head|tail|less|more|grep|nl|wc|bat)\s+(?:-[^\s]+\s+)*([^\s;&|<>()]+)", cmd_str):
+                                target_p = _norm_path(cat_m.group(1))
                                 if target_p not in read_paths_by_step:
                                     read_paths_by_step[target_p] = step_idx
-                            obs = str(step_obj.get("observation") or "")
-                            if "no such file or directory" in obs.lower() or "not found" in obs.lower():
-                                for target_p in list(read_paths_by_step.keys()):
-                                    if target_p in cmd_str:
-                                        proven_nonexistent_paths.add(target_p)
+                            for sed_awk_m in re.finditer(r"\b(?:sed\s+(?:-[^\s]+\s+)*['\"].*?['\"]|awk\s+(?:-[^\s]+\s+)*['\"].*?['\"])\s+([^\s;&|<>()]+)", cmd_str):
+                                target_p = _norm_path(sed_awk_m.group(1))
+                                if target_p not in read_paths_by_step:
+                                    read_paths_by_step[target_p] = step_idx
+                            for py_open_m in re.finditer(r"open\s*\(\s*['\"](.*?)['\"]", cmd_str):
+                                target_p = _norm_path(py_open_m.group(1))
+                                if target_p not in read_paths_by_step:
+                                    read_paths_by_step[target_p] = step_idx
+                            for _op, p_mut, _c_mut in shell_mutations(cmd_str):
+                                _record_write(p_mut, step_idx)
+                            single_p = _parse_single_path_read_command(cmd_str)
+                            if single_p:
+                                obs_text = _extract_obs_text(step_obj)
+                                if "no such file" in obs_text.lower() and (single_p in obs_text or Path(single_p).name in obs_text):
+                                    proven_nonexistent_paths.add(single_p)
                         elif c_name and c_name.lower() in ("bash", "sh", "exec", "write", "create", "create_file", "edit", "str_replace", "str_replace_editor", "patch", "apply_patch", "read", "view", "read_file", "python", "sed", "git", "grep", "file_editor"):
                             recognized_any = True
-                    elif isinstance(c_args, str) and c_name and c_name.lower() in ("bash", "sh", "exec", "write", "create", "create_file", "edit", "str_replace", "str_replace_editor", "patch", "apply_patch", "read", "view", "read_file", "python", "sed", "git", "grep", "file_editor"):
-                        target_p = c_args.replace("\\", "/").strip().strip("'\"")
-                        if c_name in ("read", "view"):
-                            read_paths_by_step[target_p] = step_idx
-                        recognized_any = True
+                    elif isinstance(c_args, str) and c_name:
+                        target_p = _norm_path(c_args)
+                        if c_name in ("read", "view", "read_file"):
+                            if target_p not in read_paths_by_step:
+                                read_paths_by_step[target_p] = step_idx
+                            recognized_any = True
+                            obs_text = _extract_obs_text(step_obj)
+                            if "no such file" in obs_text.lower() and (target_p in obs_text or Path(target_p).name in obs_text):
+                                proven_nonexistent_paths.add(target_p)
+                        elif c_name in ("bash", "sh", "exec"):
+                            recognized_any = True
+                            single_p = _parse_single_path_read_command(target_p)
+                            if single_p:
+                                obs_text = _extract_obs_text(step_obj)
+                                if "no such file" in obs_text.lower() and (single_p in obs_text or Path(single_p).name in obs_text):
+                                    proven_nonexistent_paths.add(single_p)
                 if not recognized_any:
                     unrecognized_tool_steps.append(step_idx)
 
@@ -1099,6 +1273,20 @@ def evaluate_l0_stage(
             reasons.append("L0_UNRECOGNIZED_TOOL_SHAPE")
             is_soft_review = True
             details["unrecognized_tool_steps"] = unrecognized_tool_steps
+
+    def existed_before_write(p: str, step: int | None) -> bool:
+        norm = _norm_path(p)
+        for read_p, read_step in read_paths_by_step.items():
+            if _paths_match(read_p, norm) and (step is None or read_step < step):
+                return True
+        for mod_p in diff_modified_paths:
+            if _paths_match(mod_p, norm):
+                return True
+        if step is not None:
+            for wr_p, wr_step in written_paths_by_step.items():
+                if _paths_match(wr_p, norm) and wr_step < step:
+                    return True
+        return False
 
     def _inspect_path_and_action(
         p: str,
@@ -1112,9 +1300,17 @@ def evaluate_l0_stage(
         nonlocal test_or_grader_path, unverified_test_write_path, config_path, soft_target_path
         if not p:
             return
-        norm_p = p.replace("\\", "/").strip()
-        if norm_p in proven_nonexistent_paths or norm_p in newness_evidence_paths:
-            is_new = True
+        norm_p = _norm_path(p)
+
+        existed = existed_before_write(norm_p, step)
+        if existed:
+            is_new = False
+            is_edit_op = True
+        else:
+            proven_nonexistent = any(_paths_match(pne, norm_p) for pne in proven_nonexistent_paths)
+            proven_in_diff = any(_paths_match(np, norm_p) for np in diff_new_paths)
+            has_newness = is_new or proven_nonexistent or proven_in_diff or any(_paths_match(nep, norm_p) for nep in newness_evidence_paths)
+            is_new = has_newness
 
         if CONFIG_SURFACE.search(norm_p):
             config_write_hit = True
@@ -1141,9 +1337,8 @@ def evaluate_l0_stage(
                     if step is not None:
                         evidence_steps.append(int(step))
             else:
-                was_read_earlier = (norm_p in read_paths_by_step and (step is None or read_paths_by_step[norm_p] < step))
                 weakens = has_test_weakening_or_tamper(content)
-                if was_read_earlier or weakens:
+                if weakens:
                     test_or_grader_write_hit = True
                     if not test_or_grader_path:
                         test_or_grader_path = norm_p
@@ -1165,7 +1360,8 @@ def evaluate_l0_stage(
         for sec in sections:
             p = sec["new_path"] or sec["old_path"]
             added = "\n".join(sec["added_lines"])
-            _inspect_path_and_action(p, is_new=sec["is_new"], is_deleted=sec["is_deleted"], content=added)
+            is_mod = (not sec["is_new"]) and (not sec["is_deleted"]) and (sec["old_path"] != "/dev/null")
+            _inspect_path_and_action(p, is_new=sec["is_new"], is_deleted=sec["is_deleted"], content=added, is_edit_op=is_mod)
 
     if rollout.run is not None:
         try:
@@ -1176,9 +1372,8 @@ def evaluate_l0_stage(
                 for sec in sections:
                     p = sec["new_path"] or sec["old_path"]
                     added = "\n".join(sec["added_lines"])
-                    if sec.get("is_new"):
-                        newness_evidence_paths.add(p.replace("\\", "/").strip())
-                    _inspect_path_and_action(p, is_new=sec["is_new"], is_deleted=sec["is_deleted"], content=added)
+                    is_mod = (not sec["is_new"]) and (not sec["is_deleted"]) and (sec["old_path"] != "/dev/null")
+                    _inspect_path_and_action(p, is_new=sec["is_new"], is_deleted=sec["is_deleted"], content=added, is_edit_op=is_mod)
             for m in anatomy.patch_and_mutations.get("mutations", []):
                 p = m.get("path", "")
                 op = str(m.get("op", "")).lower()
@@ -1186,6 +1381,7 @@ def evaluate_l0_stage(
                 content = m.get("content") or ""
                 cmd = m.get("command") or ""
                 step = m.get("step")
+                _record_write(p, step)
 
                 if cmd and "base64" in cmd:
                     b64_m = re.search(r"echo\s+([A-Za-z0-9+/=]+)\s*\|\s*base64\s+(?:-d|--decode)", cmd)
@@ -1221,7 +1417,7 @@ def evaluate_l0_stage(
         except Exception as exc:
             if "L0_PARSE_ERROR" not in reasons:
                 reasons.append("L0_PARSE_ERROR")
-            details["parse_error"] = f"{type(exc).__name__}: {exc}"
+            details["parse_error"] = type(exc).__name__
             is_soft_review = True
 
     if rollout.files:
@@ -1312,7 +1508,11 @@ def evaluate_l0_stage(
                     is_hard_drop = True
                 else:
                     is_soft_review = True
-                details[f"content_stop_{rule}"] = evidence
+                if isinstance(evidence, str) and ("/" in evidence or evidence.endswith(".py")):
+                    details[f"content_stop_{rule}"] = {"rule": rule, "path": _norm_path(evidence)}
+                else:
+                    ev_sha = hashlib.sha256(str(evidence).encode("utf-8", errors="replace")).hexdigest()[:12]
+                    details[f"content_stop_{rule}"] = {"rule": rule, "sha256_12": ev_sha}
     # 3. L0 gate rules on ATIF run
     if rollout.run is not None:
         try:
@@ -1347,7 +1547,7 @@ def evaluate_l0_stage(
         except Exception as exc:
             if "L0_PARSE_ERROR" not in reasons:
                 reasons.append("L0_PARSE_ERROR")
-            details["scan_error"] = f"{type(exc).__name__}: {exc}"
+            details["scan_error"] = type(exc).__name__
             is_soft_review = True
     # Deduplicate steps and reasons
     evidence_steps = sorted(set(evidence_steps))
@@ -1551,12 +1751,11 @@ def evaluate_autoreview_stage(
             },
         )
     except Exception as exc:
-        err_msg = str(exc)[:200]
         return StageVerdict(
             stage="autoreview",
             decision="review",
             reasons=[f"AUTOREVIEW_ERROR:{type(exc).__name__}"],
-            details={"error": err_msg},
+            details={"error": type(exc).__name__},
         )
 
 # --------------------------------------------------------------------------- #

@@ -45,7 +45,7 @@ inputs:
   - path: docs/context-packs.md
     digest: sha256:a5d8abe608dc3f0060230eda8d041ce021ce4aa38cf144c04a5aa0fc2e515905
   - path: docs/continuous-loop-operator.md
-    digest: sha256:b4e12204ffbf46d27b7ee00e2a3c69904f2b5fd6be2572b6ff3beaa29a310e6a
+    digest: sha256:d679e9331f4f8981dce17231a7ff7b9aba154824957e1e848f73bc5f4646c29e
   - path: docs/contracts.md
     digest: sha256:04eb119ba420b1f1a3ac202ad52e2654ff8642bc77df0898b6c210df4c83fefe
   - path: docs/craft.md
@@ -69,7 +69,7 @@ inputs:
   - path: docs/flight-recorder.md
     digest: sha256:0138627b7592e818cf17532f1541173916e68de1867935abfe6ab343f66475b8
   - path: docs/hack-drop.md
-    digest: sha256:e2b80c181c1e36d7b5772a21f12d67b0680dc9098d85c611d4939b4f94294ccd
+    digest: sha256:9c570fc96bbe94124ac9e295e042313abd3bee83044fbdcfc6b7e918bf6d8525
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
@@ -77,7 +77,7 @@ inputs:
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/judge-guide.md
-    digest: sha256:de255c6e4d581af3de7ee0f6afae7e469d99e78d7c5ea827901412e92b2b3d6d
+    digest: sha256:3666fad710de9ed452d403b35a86bf6253d5b3e256a692f42cbdcd1aa603c18a
   - path: docs/ladder.md
     digest: sha256:c334944474b3cee6cd9b3eee2ae9c84fbb1ccb7e58ea31b70b6d6a9c523e6265
   - path: docs/lancedb.md
@@ -117,7 +117,7 @@ inputs:
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
-    digest: sha256:ff68e24b50a8fc160c261f9795234849dcc8bd08de0f1cba0c59275daaecb472
+    digest: sha256:25d4b5911de2bf4f8292f33ecc65dd0a4800c19818a8d6c42e1828341f140f63
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

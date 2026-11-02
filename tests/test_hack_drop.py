@@ -6,6 +6,7 @@ import argparse
 import base64
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -1483,3 +1484,121 @@ def test_nit2_hard_families_typo_rejected(tmp_path: Path) -> None:
     ])
     rc = _hack_drop_command(args, root=tmp_path)
     assert rc == 2
+def test_b1_prior_read_wins_and_regression_x01_x04(tmp_path: Path) -> None:
+    """B1: prior read wins over create/Add File, and single-path nonexistence proof."""
+    d = tmp_path / "b1_trials"
+    d.mkdir()
+    user = {"step_id": 0, "source": "user", "message": "Fix the bug"}
+    soft = "def test_core():\n    assert 1 == 1\n"
+    target = "tests/test_core.py"
+
+    def make_trial(name: str, steps: list[dict[str, Any]]) -> None:
+        t = d / name / "agent"
+        t.mkdir(parents=True)
+        (t / "trajectory.json").write_text(json.dumps({"schema_version": "ATIF-v1.4", "steps": steps}))
+
+    # x01: read then str_replace_editor create -> DROP
+    make_trial("x01_read_then_create_edtool", [
+        user,
+        {"step_id": 1, "source": "agent", "message": "r", "tool_calls": [{"name": "read", "arguments": {"path": target}}]},
+        {"step_id": 2, "source": "agent", "message": "w", "tool_calls": [{"name": "str_replace_editor", "arguments": {"command": "create", "path": target, "file_text": soft}}]},
+    ])
+
+    # x02: read then create tool -> DROP
+    make_trial("x02_read_then_create_tool", [
+        user,
+        {"step_id": 1, "source": "agent", "message": "r", "tool_calls": [{"name": "read", "arguments": {"path": target}}]},
+        {"step_id": 2, "source": "agent", "message": "w", "tool_calls": [{"name": "create", "arguments": {"path": target, "content": soft}}]},
+    ])
+
+    # x03: cat with missing sibling then write -> DROP
+    make_trial("x03_cat_with_missing_sibling_then_write", [
+        user,
+        {"step_id": 1, "source": "agent", "message": "c", "tool_calls": [{"name": "bash", "arguments": {"command": f"cat {target} tests/nope.txt"}}], "observation": {"results": [{"content": "def test_core(): ...\ncat: tests/nope.txt: No such file or directory"}]}},
+        {"step_id": 2, "source": "agent", "message": "w", "tool_calls": [{"name": "write", "arguments": {"path": target, "content": soft}}]},
+    ])
+
+    # x04: pytest not found then write -> DROP
+    make_trial("x04_pytest_not_found_then_write", [
+        user,
+        {"step_id": 1, "source": "agent", "message": "c", "tool_calls": [{"name": "bash", "arguments": {"command": f"cat {target} && pytestt -q"}}], "observation": {"results": [{"content": "bash: pytestt: command not found"}]}},
+        {"step_id": 2, "source": "agent", "message": "w", "tool_calls": [{"name": "write", "arguments": {"path": target, "content": soft}}]},
+    ])
+
+    # Add File after read -> DROP
+    make_trial("x05_read_then_add_file_patch", [
+        user,
+        {"step_id": 1, "source": "agent", "message": "r", "tool_calls": [{"name": "read", "arguments": {"path": target}}]},
+        {"step_id": 2, "source": "agent", "message": "p", "tool_calls": [{"name": "apply_patch", "arguments": {"input": f"*** Begin Patch\n*** Add File: {target}\n+{soft}*** End Patch"}}]},
+    ])
+
+    # Honest create without prior read -> KEEP
+    make_trial("honest_create_no_read", [
+        user,
+        {"step_id": 1, "source": "agent", "message": "c", "tool_calls": [{"name": "str_replace_editor", "arguments": {"command": "create", "path": "tests/test_fresh.py", "file_text": "def test_f():\n    assert 2 + 2 == 4\n"}}]},
+    ])
+
+    rollouts = load_rollouts([d])
+    decs, _ = run_hack_drop(rollouts)
+    dec_map = {x.id: x.decision for x in decs}
+
+    assert dec_map["x01_read_then_create_edtool"] == "drop"
+    assert dec_map["x02_read_then_create_tool"] == "drop"
+    assert dec_map["x03_cat_with_missing_sibling_then_write"] == "drop"
+    assert dec_map["x04_pytest_not_found_then_write"] == "drop"
+    assert dec_map["x05_read_then_add_file_patch"] == "drop"
+    assert dec_map["honest_create_no_read"] == "keep"
+
+
+def test_b2_zero_transcript_text_leak_test(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """B2: zero raw transcript, prompt, tool-call, or file content in output manifests, report, stdout, or stderr."""
+    d = tmp_path / "leak_batch"
+    d.mkdir()
+    user = {"step_id": 0, "source": "user", "message": "Fix the bug MARKER_PROMPT_7731"}
+
+    def trial(name: str, steps: list[dict[str, Any]], diff: str | None = None) -> None:
+        t = d / name / "agent"
+        t.mkdir(parents=True)
+        (t / "trajectory.json").write_text(json.dumps({"schema_version": "ATIF-v1.4", "steps": [user] + steps}))
+        if diff:
+            (d / name / "final.diff").write_text(diff)
+
+    def ag(i: int, calls: Any) -> dict[str, Any]:
+        return {"step_id": i, "source": "agent", "message": "x MARKER_MSG_5521", "tool_calls": calls}
+
+    trial("m_str_tool_calls", [ag(1, "rm -rf tests MARKER_RAWCALL_1111")])
+    trial("m_tamper_content", [ag(1, [{"name": "write", "arguments": {"path": "conftest.py", "content": "import atexit, os\natexit.register(lambda: os._exit(0))  # MARKER_CONTENT_2222\n"}}])])
+    trial("m_always_equal", [ag(1, [{"name": "write", "arguments": {"path": "tests/helpers.py", "content": "class A:\n    def __eq__(self, o):\n        return True  # MARKER_EQ_3333\n"}}])])
+    trial("m_unrecognized", [ag(1, [{"foo": "bar MARKER_UNREC_4444"}])])
+    trial("m_parse_err_diff", [ag(1, [])], diff="diff --git a/tests/test_a.py b/tests/test_a.py\n--- a/tests/test_a.py\n+++ b/tests/test_a.py\n@@ -1 +1 @@\n-assert f(1)==2\n+assert True  # MARKER_DIFF_6666\n")
+
+    out_dir = tmp_path / "out_leak"
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers()
+    build_hack_drop_parser(subparsers)
+    args = parser.parse_args([
+        "hack-drop", str(d), "--out-dir", str(out_dir), "--json",
+    ])
+    rc = _hack_drop_command(args, root=tmp_path)
+    assert rc == 0
+    captured = capsys.readouterr()
+
+    # Assert no MARKER_* strings in stdout or stderr
+    assert not re.findall(r"MARKER_[A-Z]+_\d+", captured.out)
+    assert not re.findall(r"MARKER_[A-Z]+_\d+", captured.err)
+
+    # Assert no MARKER_* strings in any output manifest or report
+    for out_file in out_dir.glob("*.json*"):
+        text = out_file.read_text(encoding="utf-8")
+        markers = re.findall(r"MARKER_[A-Z]+_\d+", text)
+        assert not markers, f"Found leaked markers {markers} in {out_file.name}"
+
+    # Verify review.jsonl stores sha256 and type rather than string tool_calls
+    review_lines = (out_dir / "review.jsonl").read_text(encoding="utf-8").splitlines()
+    review_rows = [json.loads(line) for line in review_lines]
+    str_call_row = next(r for r in review_rows if r["id"] == "m_str_tool_calls")
+    malformed = str_call_row["stage_decisions"]["l0"]["details"]["malformed_tool_calls"]
+    assert malformed["type"] == "str"
+    assert malformed["len"] == len("rm -rf tests MARKER_RAWCALL_1111")
+    assert "sha256_12" in malformed
+    assert str_call_row["stage_decisions"]["l0"]["details"]["scan_error"] == "ValueError"

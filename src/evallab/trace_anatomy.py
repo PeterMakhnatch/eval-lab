@@ -646,7 +646,11 @@ def shell_mutations(command: str) -> list[tuple[str, str, str | None]]:
                 if _ok_target(target) and not segment.lstrip().startswith(("git diff", "diff ")):
                     content = segment if program in {"echo", "printf"} else None
                     found.append(("append" if op_symbol == ">>" else "write", _clean_path(target), content))
-        if program == "sed" and any(token.startswith("-i") or token == "--in-place" for token in tokens[1:]):
+            tee_m = re.search(r"\btee\s+(?:-[^\s]+\s+)*([^\s;&|<>]+)", segment)
+            if tee_m and _ok_target(tee_m.group(1)):
+                content = segment if program in {"echo", "printf"} else None
+                found.append(("append" if "-a" in segment else "write", _clean_path(tee_m.group(1)), content))
+        if program == "sed" and any(re.match(r"^-[A-Za-z]*i", token) or token.startswith("--in-place") for token in tokens[1:]):
             expressions = [token for token in tokens[1:-1] if not token.startswith("-")]
             found.append(("sed_inplace", _clean_path(tokens[-1]), " ".join(expressions)))
         elif program == "perl" and any(token.startswith("-") and "i" in token for token in tokens[1:]):

@@ -389,8 +389,8 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
     write_json(
         batch / "check.json",
         {
-            "checks": [{"name": name, "status": "PASS", "details": ""} for name in CHECK_NAMES],
-            "passed": True,
+            "checks": [{"name": name, "status": "PENDING", "details": ""} for name in CHECK_NAMES],
+            "passed": False,
             "decision_hash": canonical_hash(decisions),
             "second_decision_hash": canonical_hash(second),
         },

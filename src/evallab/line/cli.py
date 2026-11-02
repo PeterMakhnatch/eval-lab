@@ -40,8 +40,15 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             value = {"batch": str(batch), **result}
             code = 0 if result["passed"] else 2
         elif args.line_command == "check":
-            value = check_batch(args.path.expanduser().resolve(), root)
-            write_json(args.path / "check.json", value)
+            batch = args.path.expanduser().resolve()
+            value = check_batch(batch, root)
+            write_json(batch / "check.json", value)
+            if (batch / "scoreboard.json").is_file():
+                # Refresh only the QC view, never repair a mismatched metric.
+                score = read_json(batch / "scoreboard.json")
+                score["quality_checks"] = value["checks"]
+                write_json(batch / "scoreboard.json", score)
+                (batch / "SCOREBOARD.md").write_text(render_scoreboard(score), encoding="utf-8")
             code = 0 if value["passed"] else 2
         else:
             value = build_scoreboard(args.path.expanduser().resolve(), root)

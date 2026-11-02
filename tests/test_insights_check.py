@@ -245,3 +245,9 @@ def test_unsupported_numbers_percent_decimal_fraction_and_scientific_forms() -> 
     assert unsupported_numbers("The rate is 30.0%.", [0.293]) == ["30.0%"]
     assert unsupported_numbers("1,209 of 2,000 trials.", [1209, 2000]) == []
     assert unsupported_numbers("Rate 37%; count 37.", [37]) == ["37%"]
+
+
+def test_unsupported_numbers_reads_a_dash_after_a_percent_as_a_range() -> None:
+    # An interval printed as "43.6%–97.0%" is two positive numbers, not a negative one.
+    assert unsupported_numbers("Wilson 43.6%–97.0% and (2)-5 cases.", [0.4365, 0.9699, 2, 5]) == []
+    assert unsupported_numbers("The change is -3 points.", [3]) == ["-3"]

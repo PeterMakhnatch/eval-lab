@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ import pytest
 from evallab.insights.commands.stat import _cmd, register
 from evallab.insights.stats import (
     bh,
+    cases_for_layer_value,
     compute,
     fisher,
     mcnemar_exact,
@@ -79,6 +81,53 @@ def test_minimum_discordance_uses_strict_alpha() -> None:
     assert min_n_mcnemar(0.03125) == {"n": 7}
     assert mcnemar_exact(5, 0)["p_value"] >= 0.05
     assert mcnemar_exact(6, 0)["p_value"] < 0.05
+
+
+def test_layer_value_power_certain_rate_needs_minimum_discordance() -> None:
+    minimum = min_n_mcnemar()["n"]
+    assert cases_for_layer_value(1) == minimum
+    assert cases_for_layer_value(1, max_n=minimum) == minimum
+    assert cases_for_layer_value(1, max_n=minimum - 1) is None
+    assert cases_for_layer_value(1, alpha=0.03125) == min_n_mcnemar(0.03125)["n"]
+
+
+def test_layer_value_power_matches_brute_force_binomial() -> None:
+    minimum = min_n_mcnemar()["n"]
+    expected = next(
+        n for n in range(minimum, 100)
+        if sum(math.comb(n, k) for k in range(minimum, n + 1)) / 2**n >= 0.8
+    )
+    assert cases_for_layer_value(0.5) == expected
+    assert cases_for_layer_value(0.5, max_n=expected) == expected
+    assert cases_for_layer_value(0.5, max_n=expected - 1) is None
+
+
+@pytest.mark.parametrize("rate", [0, -0.5, 1e-300])
+def test_layer_value_power_unattainable_rate_returns_none(rate: float) -> None:
+    assert cases_for_layer_value(rate) is None
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"unique_rate": True},
+        {"unique_rate": "0.5"},
+        {"unique_rate": float("nan")},
+        {"unique_rate": float("inf")},
+        {"unique_rate": 1.1},
+        {"unique_rate": 0.5, "alpha": 0},
+        {"unique_rate": 0.5, "alpha": 1},
+        {"unique_rate": 0.5, "power": 0},
+        {"unique_rate": 0.5, "power": 1},
+        {"unique_rate": 0.5, "power": float("nan")},
+        {"unique_rate": 0.5, "max_n": -1},
+        {"unique_rate": 0.5, "max_n": True},
+        {"unique_rate": 0.5, "max_n": 10.5},
+    ],
+)
+def test_layer_value_power_refuses_invalid_parameters(kwargs: dict[str, object]) -> None:
+    with pytest.raises(ValueError):
+        cases_for_layer_value(**kwargs)
 
 
 @pytest.mark.parametrize(

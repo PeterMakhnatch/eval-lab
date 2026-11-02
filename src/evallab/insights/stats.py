@@ -112,6 +112,70 @@ def min_n_mcnemar(alpha: float = 0.05) -> dict[str, int]:
     return {"n": n}
 
 
+def cases_for_layer_value(
+    unique_rate: float,
+    *,
+    alpha: float = 0.05,
+    power: float = 0.8,
+    max_n: int = 100_000,
+) -> int | None:
+    """Smallest case count with the requested chance of sufficient unique catches.
+
+    This plug-in projection assumes independent cases and a constant unique-catch
+    rate. It uses the exact binomial lower tail, not a normal approximation.
+    """
+    _probability(alpha, "alpha", open_interval=True)
+    _probability(power, "power", open_interval=True)
+    _count(max_n, "max_n")
+    if (
+        not isinstance(unique_rate, (int, float))
+        or isinstance(unique_rate, bool)
+        or not math.isfinite(unique_rate)
+    ):
+        raise ValueError("unique_rate must be a finite number")
+    if unique_rate > 1:
+        raise ValueError("unique_rate must not exceed 1")
+    minimum = min_n_mcnemar(alpha)["n"]
+    if unique_rate <= 0 or max_n < minimum:
+        return None
+    if unique_rate == 1:
+        return minimum
+    log_rate = math.log(unique_rate)
+    log_miss = math.log1p(-unique_rate)
+    log_target = math.log1p(-power)
+
+    def reaches_power(n: int) -> bool:
+        # Anchor at the largest term in the lower tail so its recurrence cannot
+        # underflow before reaching a significant probability mass.
+        anchor = min(minimum - 1, int((n + 1) * unique_rate))
+        log_anchor = (
+            math.lgamma(n + 1) - math.lgamma(anchor + 1)
+            - math.lgamma(n - anchor + 1)
+            + anchor * log_rate + (n - anchor) * log_miss
+        )
+        scaled = 1.0
+        total = 1.0
+        for k in range(anchor, 0, -1):
+            scaled *= k / (n - k + 1) * ((1 - unique_rate) / unique_rate)
+            total += scaled
+        scaled = 1.0
+        for k in range(anchor + 1, minimum):
+            scaled *= (n - k + 1) / k * (unique_rate / (1 - unique_rate))
+            total += scaled
+        return log_anchor + math.log(total) <= log_target
+
+    if not reaches_power(max_n):
+        return None
+    low, high = minimum, max_n
+    while low < high:
+        middle = (low + high) // 2
+        if reaches_power(middle):
+            high = middle
+        else:
+            low = middle + 1
+    return low
+
+
 _OPERATIONS: dict[str, Callable[..., Any]] = {
     "wilson": wilson,
     "mcnemar": mcnemar_exact,

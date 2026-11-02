@@ -181,6 +181,13 @@ def _condition(actual: object, condition: object) -> bool:
     return True
 
 
+def row_matches(row: object, where: dict[str, Any] | None) -> bool:
+    """Apply exactly the validated field-filter semantics used by recipes."""
+    conditions = where or {}
+    _validate_where(conditions)
+    return all(_condition(_field(row, key), value) for key, value in conditions.items())
+
+
 def run_recipe(recipe: Recipe, folder: Path) -> float:
     """Evaluate a declarative recipe without executing code from a receipt."""
     if recipe.op == "ratio":

@@ -151,6 +151,7 @@ the verification gates in `agents/CHECKS.md`.
 | Platform, runner, queue, devloop, or CLI | `src/evallab/AGENTS.md`, the nearest scoped instructions, and the affected sections of `docs/architecture.md`. Read `docs/execution-tiers.md` before execution decisions. |
 | Storage, CAS, or projections | Storage/evidence scoped instructions and the relevant `docs/data-architecture.md` sections; follow their direct authority contracts. |
 | Analysis or interpretation | Analysis/interpretation scoped instructions and the relevant `docs/analysis-loop.md` sections; identify the actual corpus and consumer. |
+| Experiment results, claims, analyst agents | `docs/insights.md` (`evallab insights`: claim ledger, signals, analyst lenses, referee, board); state stays in `~/.local/state/evallab-insights`. |
 | Task authoring or registration | The task's own contract plus relevant `docs/task-workbench.md` / `docs/task-registry.md` sections; retain execution approval and immutable-version rules. |
 | MiMo RL code tasks (clean set, transforms, verification) | `docs/mimo/README.md`, then the page it links for the affected transform or check; the canonical manifest is `research/experiments/mimo-clean-v5/manifest.csv`. |
 

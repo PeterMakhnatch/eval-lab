@@ -1,14 +1,20 @@
-"""Paired, per-case attribution for cheat-detection layers."""
+"""Paired, per-case attribution for prevention and detection layers."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
-from evallab.insights.recompute import RecipeError, json_pointer, load_recipe_file
-from evallab.insights.stats import mcnemar_exact, min_n_mcnemar, wilson
+from evallab.insights.recompute import RecipeError, json_pointer, load_recipe_file, row_matches
+from evallab.insights.stats import (
+    cases_for_layer_value,
+    mcnemar_exact,
+    min_n_mcnemar,
+    wilson,
+)
 from evallab.schemas import ContractModel
 
 
@@ -18,6 +24,7 @@ def _default_truthy() -> list[str | int | float | bool | None]:
 
 class LayerSpec(ContractModel):
     field: str
+    role: Literal["prevention", "detection"] = "detection"
     truthy: list[str | int | float | bool | None] = Field(
         default_factory=_default_truthy, min_length=1,
     )
@@ -28,14 +35,24 @@ class AttributionSpec(ContractModel):
     rows: str = ""
     case_id_field: str
     layers: dict[str, LayerSpec]
+    where: dict[str, object] | None = None
+
+    @field_validator("where")
+    @classmethod
+    def validate_where(cls, value: dict[str, object] | None) -> dict[str, object] | None:
+        row_matches({}, value)
+        return value
 
 
 class LayerAttribution(ContractModel):
     name: str
+    role: Literal["prevention", "detection"]
     k: int
     n: int
     ci: dict[str, float | None]
     unique_catches: int
+    unique_rate: float | None
+    cases_for_80pct_power: int | None
     union_without_layer: int
     p_value: float | None
     min_discordant_cases: int
@@ -47,6 +64,10 @@ class AttributionReport(ContractModel):
     n: int
     union_k: int
     union_ci: dict[str, float | None]
+    min_discordant_cases: int
+    equals_single_layer: str | None
+    prevention_k: int
+    detection_k: int
     layers: list[LayerAttribution]
     caveat: str = (
         "These are paired results on the supplied cases, not proof of performance on new cases. "
@@ -90,6 +111,7 @@ def build_attribution(
             other[index] for other_name, other in catches.items() if other_name != name
         ) for index in range(n)]
         unique = sum(full and not reduced for full, reduced in zip(union, without, strict=True))
+        unique_rate = unique / n if n else None
         p_value = mcnemar_exact(unique, 0)["p_value"]
         shown = p_value is not None and p_value < 0.05
         noun = "catch" if unique == 1 else "catches"
@@ -100,20 +122,49 @@ def build_attribution(
             "are needed for p<0.05"
         )
         results.append(LayerAttribution(
-            name=name, k=sum(values), n=n, ci=wilson(sum(values), n),
-            unique_catches=unique, union_without_layer=sum(without), p_value=p_value,
+            name=name, role=specs[name].role, k=sum(values), n=n, ci=wilson(sum(values), n),
+            unique_catches=unique, unique_rate=unique_rate,
+            cases_for_80pct_power=(
+                cases_for_layer_value(unique_rate) if unique_rate is not None else None
+            ),
+            union_without_layer=sum(without), p_value=p_value,
             min_discordant_cases=minimum, adds_value=shown,
             verdict=f"{name} adds value: {'shown on these cases' if shown else 'not shown'} "
                     f"({detail})",
         ))
-    return AttributionReport(n=n, union_k=sum(union), union_ci=wilson(sum(union), n), layers=results)
+    role_counts = {
+        role: sum(any(
+            values[index] for name, values in catches.items() if specs[name].role == role
+        ) for index in range(n))
+        for role in ("prevention", "detection")
+    }
+    return AttributionReport(
+        n=n, union_k=sum(union), union_ci=wilson(sum(union), n), layers=results,
+        min_discordant_cases=minimum,
+        equals_single_layer=next(
+            (name for name, values in catches.items() if values == union), None,
+        ),
+        prevention_k=role_counts["prevention"], detection_k=role_counts["detection"],
+    )
 
 
-def load_attribution(folder: Path) -> AttributionReport | None:
-    """Read an optional attribution.json spec through the recipe confinement rules."""
-    if not (folder / "attribution.json").exists():
-        return None
-    spec = AttributionSpec.model_validate(load_recipe_file("attribution.json", folder))
+def load_attribution(
+    folder: Path, spec_path: Path | None = None,
+) -> AttributionReport | None:
+    """Load an operator spec, or the optional experiment-local attribution.json.
+
+    Only the explicitly supplied spec may live outside the experiment folder;
+    case receipts always retain the recipe loader's confinement.
+    """
+    if spec_path is None:
+        if not (folder / "attribution.json").exists():
+            return None
+        spec = AttributionSpec.model_validate(load_recipe_file("attribution.json", folder))
+    else:
+        try:
+            spec = AttributionSpec.model_validate_json(spec_path.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeError, ValueError) as exc:
+            raise RecipeError(f"cannot read attribution spec {spec_path}: {exc}") from exc
     document = load_recipe_file(spec.cases_file, folder)
     selected = json_pointer(document, spec.rows)
     if not isinstance(selected, list):
@@ -122,7 +173,8 @@ def load_attribution(folder: Path) -> AttributionReport | None:
     for row in selected:
         if not isinstance(row, dict):
             raise RecipeError("attribution rows must be an array of objects")
-        rows.append(row)
+        if row_matches(row, spec.where):
+            rows.append(row)
     identities = [str(_field(row, spec.case_id_field)) for row in rows]
     if len(set(identities)) != len(identities):
         raise RecipeError("attribution case ids must be unique")

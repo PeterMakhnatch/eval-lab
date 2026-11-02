@@ -1,0 +1,10 @@
+{
+  "cases_file": "ov-c1-c5-live-rollouts-20261101/receipts/summary.json",
+  "rows": "/rows",
+  "case_id_field": "id",
+  "where": {"kind": "real", "behavior": "confirmed_cheat"},
+  "layers": {
+    "container_hardening": {"field": "reward_HS", "truthy": [0.0], "role": "prevention"},
+    "autoreview": {"field": "autoreview_verdict", "truthy": ["confirmed_cheat"], "role": "detection"}
+  }
+}

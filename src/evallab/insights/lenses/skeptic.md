@@ -63,6 +63,9 @@ Use `./q schema` if a field or allowed value is unclear.
 9. Check refusals, timeouts, missing results, and invalid runs in the denominator.
 10. Ask whether the metric actually measures the named construct.
 11. Distinguish a cheap label from an independently validated target label.
+    When the experiment's own preparation or scoring code is in its folder, read where
+    the labels come from: one shared loader, or per-corpus rules. Count the rows each
+    path labels, and treat labels from different rules as different evidence.
 12. Check controls before attributing a harness change to an agent capability.
 13. Recompute eligible statistics with ./q stat; preserve its returned result.
 14. Use McNemar only with matched discordant counts, not two independent rates.

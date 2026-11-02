@@ -51,7 +51,7 @@ sources:
 overrides: []
 
 tick_seconds: 300
-max_concurrent_passes: 2
+max_concurrent_passes: 3
 # Committed experiment results are read from an engine-owned detached worktree
 # that the engine fast-forwards to origin/main (the primary checkout can lag).
 repo_mirror:
@@ -59,8 +59,9 @@ repo_mirror:
   path: ~/Developer/eval-lab/.worktrees/insights-readonly
   refresh_minutes: 60
 
-# A provider whose usage window is at or above this percent is skipped.
-max_provider_used_percent: 85
+# A provider whose usage window is at or above this percent is skipped. The gap
+# to 100% is left for Peter's own sessions on the same subscriptions.
+max_provider_used_percent: 75
 # Do not start a worker while macOS reports memory pressure.
 host_min_memory_level: 15
 host_max_swap_gb: 12
@@ -69,9 +70,11 @@ board_top_n: 12
 lenses:
   extractor:
     cooldown_minutes: 2
-    daily_cap: 80
+    daily_cap: 120
     batch_size: 10
     max_pack_chars: 80000
+    # Backfill runs on two sources at once; each pass claims its own sections.
+    max_parallel: 2
   skeptic:
     cooldown_minutes: 30
     daily_cap: 16

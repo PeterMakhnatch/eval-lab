@@ -15,6 +15,7 @@ DECLARED_UNIT_TEST_DIRS = (
     "research/analysis/tests",
     "research/calibration/tests",
     "research/experiments/tests",
+    "research/experiments/library-ladder-coverage",
 )
 
 

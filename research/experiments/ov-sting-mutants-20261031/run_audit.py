@@ -202,7 +202,8 @@ def main() -> None:
     )
     meter = SandboxMeter(CAP_USD)
     run_cell = spend_logging_runner(
-        modal_cell_runner(repo_root=REPO, spend_gate=gate, meter=meter), threading.Lock()
+        modal_cell_runner(repo_root=REPO, spend_gate=gate, meter=meter, timeout_seconds=240),
+        threading.Lock(),
     )
     records = []
     with (

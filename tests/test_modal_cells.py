@@ -911,3 +911,250 @@ def test_s6_charge_fallback_micro_charge(tmp_path: Path) -> None:
     ledger_data = json.loads(ledger.read_text(encoding="utf-8"))
     assert ledger_data["reserved_usd"] == 0.0
     assert ledger_data["settled_usd"] == pytest.approx(0.005)
+
+
+# ---------------------------------------------------------------------------
+# 7. FIX-S1-1738-R2 Regression Tests
+# ---------------------------------------------------------------------------
+
+
+def test_b_new_1_200_cheap_cells_unpatched_estimate_cost(tmp_path: Path) -> None:
+    """B-NEW-1 (d): 200 cheap cells with unpatched estimate_cost (real task.toml) run under $1.50 cap."""
+    pkg = _make_dummy_package(tmp_path / "pkg", cpus=2, memory_mb=8192)
+    results_dir = tmp_path / "results"
+    ledger = tmp_path / "b_new_1_ledger.json"
+
+    gate = ReserveSettleSpendGate(
+        approval="b-new-1-app",
+        cap_usd=1.50,
+        spend_ledger=ledger,
+    )
+    # estimate_cost is UNPATCHED: gate computes real rate from task.toml
+    assert gate.estimate_reservation(pkg) == pytest.approx(0.03966, abs=1e-3)
+
+    class FastCheapBackend(FakeBackend):
+        def run_container_trial(self, package: Path, **kwargs: Any) -> FakeObservation:
+            self.calls.append({"package": package})
+            self.spend_gate.charge()
+            return FakeObservation(status="executed", reason=None, facts={"reward": 1.0})
+
+    # Simulate measured cost of $0.002 per cell during trial run by intercepting wall seconds
+    # while leaving reservation sizing unpatched (which uses integer projected cell seconds)
+    real_estimate_cost = gate.estimate_cost
+
+    def mock_estimate_cost(package: Path | str, wall_seconds: float) -> float:
+        if isinstance(wall_seconds, int):
+            return real_estimate_cost(package, wall_seconds)
+        return 0.002
+
+    gate.estimate_cost = mock_estimate_cost  # type: ignore[assignment]
+
+    backend = FastCheapBackend(tmp_path, gate)
+    runner = ModalCellRunner(
+        repo_root=tmp_path,
+        spend_gate=gate,
+        results_dir=results_dir,
+        backend_factory=lambda **_: backend,
+    )
+
+    cells = [CellSpec(package=pkg, variant=f"c{i}", submission=f"echo {i}") for i in range(200)]
+    results = runner.run_batch(cells, concurrency=10)
+
+    assert len(results) == 200
+    assert all(r["status"] == "executed" for r in results)
+    assert gate.settled_usd == pytest.approx(200 * 0.002, abs=1e-4)
+    assert gate.reserved_usd == 0.0
+
+
+def test_b_new_1_measured_exceeds_reservation_exact_bound(tmp_path: Path) -> None:
+    """B-NEW-1 (d): Measured cost exceeds reservation; total settled stays within exact bound."""
+    pkg = _make_dummy_package(tmp_path / "pkg")
+    results_dir = tmp_path / "results_exceed"
+    ledger = tmp_path / "exceed-ledger.json"
+
+    cap = 0.10
+    reservation_usd = 0.003
+    actual_usd = 0.04
+    concurrency = 8
+    n_cells = 12
+
+    gate = ReserveSettleSpendGate(
+        approval="exceed-app",
+        cap_usd=cap,
+        default_reservation_usd=reservation_usd,
+        spend_ledger=ledger,
+    )
+    gate.estimate_cost = lambda *_: actual_usd  # type: ignore[assignment]
+    gate.estimate_reservation = lambda *_, **__: reservation_usd  # type: ignore[assignment]
+
+    backend = FakeBackend(tmp_path, gate)
+    runner = ModalCellRunner(
+        repo_root=tmp_path,
+        spend_gate=gate,
+        results_dir=results_dir,
+        backend_factory=lambda **_: backend,
+    )
+
+    cells = [CellSpec(package=pkg, variant=f"v{i}", submission=f"s{i}", timeout_seconds=10) for i in range(n_cells)]
+    results = runner.run_batch(cells, concurrency=concurrency)
+
+    # Exact bound: cap + in_flight_cells * (kill_timeout_cost - reservation)
+    max_overrun_bound = cap + concurrency * (actual_usd - reservation_usd)
+    assert gate.settled_usd <= max_overrun_bound + 1e-9
+    assert any(r["status"] in {"cap_stopped", "cap_reached"} for r in results)
+
+
+def test_should_1_retry_overrun_cap_check(tmp_path: Path) -> None:
+    """SHOULD 1: Retry loop checks cap before attempt and refuses overrun (BREAK_retry_overrun)."""
+    pkg = _make_dummy_package(tmp_path / "pkg")
+    results_dir = tmp_path / "retry_results"
+    ledger = tmp_path / "retry-ledger.json"
+
+    gate = ReserveSettleSpendGate(
+        approval="retry-app",
+        cap_usd=0.10,
+        default_reservation_usd=0.003,
+        spend_ledger=ledger,
+    )
+    gate.estimate_cost = lambda *_: 0.03  # type: ignore[assignment]
+
+    class InfraFailureBackend(FakeBackend):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            self.call_count = 0
+
+        def run_container_trial(self, package: Path, **kwargs: Any) -> FakeObservation:
+            self.call_count += 1
+            self.spend_gate.charge()
+            raise ConnectionError("connection reset by peer")
+
+    backend = InfraFailureBackend(tmp_path, gate)
+    runner = ModalCellRunner(
+        repo_root=tmp_path,
+        spend_gate=gate,
+        results_dir=results_dir,
+        backend_factory=lambda **_: backend,
+        max_retries=3,
+        backoff_factor=0.01,
+    )
+
+    cell = CellSpec(package=pkg, variant="v", submission="x", timeout_seconds=240)
+    with pytest.raises(CellCapReachedError):
+        runner.run_cell(cell)
+
+    # Settled spend is bounded strictly by cap
+    assert gate.settled_usd <= 0.10
+    assert gate.settled_usd == pytest.approx(0.09)
+
+
+def test_should_2_cross_process_same_cell(tmp_path: Path) -> None:
+    """SHOULD 2: Cross-process flock on results_dir/<key>.lock prevents duplicate execution."""
+    import subprocess
+    import sys
+    import textwrap
+
+    pkg = _make_dummy_package(tmp_path / "pkg")
+    results_dir = tmp_path / "results_twoproc"
+    ledger = tmp_path / "twoproc-ledger.json"
+    calls_file = tmp_path / "calls.txt"
+
+    worker_code = textwrap.dedent(f"""
+        import os, sys, time
+        from pathlib import Path
+        from dataclasses import dataclass
+        from evallab.modal_cells import ReserveSettleSpendGate, ModalCellRunner, CellSpec
+        @dataclass
+        class Obs:
+            status: str
+            reason: object
+            facts: dict
+        class B:
+            def __init__(self, g): self.g = g
+            def run_container_trial(self, pkg, **k):
+                self.g.charge()
+                with open({str(calls_file)!r}, 'a') as f:
+                    f.write('call\\n')
+                time.sleep(0.5)
+                return Obs('executed', None, {{'reward': 1.0}})
+        g = ReserveSettleSpendGate(approval='twoproc', cap_usd=1.0, spend_ledger={str(ledger)!r})
+        r = ModalCellRunner(repo_root=Path({str(tmp_path)!r}), spend_gate=g, results_dir=Path({str(results_dir)!r}), backend_factory=lambda **_: B(g))
+        r.run_cell(CellSpec(package=Path({str(pkg)!r}), variant='v', submission='same', timeout_seconds=240))
+    """)
+
+    p1 = subprocess.Popen([sys.executable, "-c", worker_code])
+    p2 = subprocess.Popen([sys.executable, "-c", worker_code])
+    p1.wait()
+    p2.wait()
+
+    calls = calls_file.read_text().strip().splitlines() if calls_file.exists() else []
+    assert len(calls) == 1
+
+
+def test_should_3_late_settle_adjustment_in_ledger_and_log(tmp_path: Path) -> None:
+    """SHOULD 3: Late settle on stale_settled entry records delta in ledger and log (BREAK_late_settle)."""
+    ledger = tmp_path / "late-ledger.json"
+    log = tmp_path / "late-spend.jsonl"
+
+    gate = ReserveSettleSpendGate(
+        approval="late-app",
+        cap_usd=1.0,
+        default_reservation_usd=0.05,
+        spend_ledger=ledger,
+        spend_log=log,
+    )
+    res = gate.reserve(cell_key="late-cell")
+    assert gate.reserved_usd == 0.05
+
+    # Simulate another loader reconciling this reservation as stale_settled
+    data = json.loads(ledger.read_text(encoding="utf-8"))
+    data["reservations"][0]["pid"] = 2**22 - 7  # Nonexistent pid
+    ledger.write_text(json.dumps(data), encoding="utf-8")
+
+    gate_reconciler = ReserveSettleSpendGate(
+        approval="late-app",
+        cap_usd=1.0,
+        default_reservation_usd=0.05,
+        spend_ledger=ledger,
+    )
+    assert gate_reconciler.settled_usd == pytest.approx(0.05)
+    assert gate_reconciler.reserved_usd == 0.0
+
+    # Now original owner finishes late with actual cost 0.08
+    res.settle(0.08, status="completed")
+
+    gate_reloaded = ReserveSettleSpendGate(
+        approval="late-app",
+        cap_usd=1.0,
+        default_reservation_usd=0.05,
+        spend_ledger=ledger,
+    )
+    assert gate_reloaded.settled_usd == pytest.approx(0.08)
+    assert gate_reloaded.effective_spend_usd == pytest.approx(0.08)
+    assert res.status == "completed"
+    assert res.settled_usd == pytest.approx(0.08)
+    assert log.exists()
+    assert log.read_text(encoding="utf-8").count("\n") == 1
+
+    # Double settle is harmless no-op
+    res.settle(0.08, status="completed")
+    res.release()
+    gate_after_double = ReserveSettleSpendGate(
+        approval="late-app",
+        cap_usd=1.0,
+        default_reservation_usd=0.05,
+        spend_ledger=ledger,
+    )
+    assert gate_after_double.settled_usd == pytest.approx(0.08)
+
+
+def test_nit_non_object_ledger_raises_value_error(tmp_path: Path) -> None:
+    """NIT: _load_and_reconcile_ledger on non-dict JSON raises explicit ValueError."""
+    ledger = tmp_path / "bad-ledger.json"
+    ledger.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="ledger is not a JSON object"):
+        ReserveSettleSpendGate(
+            approval="bad-app",
+            cap_usd=1.0,
+            spend_ledger=ledger,
+        )

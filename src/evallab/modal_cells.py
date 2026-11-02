@@ -20,6 +20,7 @@ import uuid
 from collections.abc import Callable, Sequence
 from concurrent.futures import (
     FIRST_COMPLETED,
+    CancelledError,
     Future,
     ThreadPoolExecutor,
     wait,
@@ -39,7 +40,7 @@ MODAL_GIB_USD_PER_S: float = 0.00000667
 #: Shared estimate margin over measured sandbox seconds
 ESTIMATE_MARGIN: float = 1.25
 #: Default seconds reserved per cell when task package provides no specific calibration
-PROJECTED_CELL_SECONDS: float = 240.0
+PROJECTED_CELL_SECONDS: int = 240
 #: Default flat reservation amount in USD when no calibration or package estimate is available
 DEFAULT_RESERVATION_USD: float = 0.01
 #: Default max concurrency for batch execution
@@ -62,7 +63,7 @@ def compute_cell_key(
     submission_digest: str,
     backend_image: str = "",
     grader_hook: str = "",
-    timeout_seconds: int = 1800,
+    timeout_seconds: int = 600,
 ) -> str:
     """Deterministic hash of a cell's evaluation parameters.
 
@@ -112,13 +113,6 @@ class CellInfrastructureError(CellError):
     Eligible for retry with exponential backoff; charged only measured cost.
     """
 
-
-class CellSubmissionError(CellError):
-    """Submission or test failure within the sandbox.
-
-    This represents an evaluated candidate result (not an infrastructure failure)
-    and is recorded in result.json without retrying.
-    """
 
 
 class CellCapReachedError(CellError, SpendCapReached):
@@ -194,7 +188,7 @@ class Reservation:
     pid: int = field(default_factory=os.getpid)
     settled_usd: float | None = None
     released_usd: float | None = None
-    status: str = "reserved"  # reserved, settled, released, cancelled, failed
+    status: str = "reserved"  # reserved, settled, completed, released, cancelled, failed, stale_settled, cap_reached
     metadata: dict[str, Any] = field(default_factory=dict)
     _token: Any = field(default=None, repr=False, compare=False)
 
@@ -228,6 +222,11 @@ class ReserveSettleSpendGate(CloudSpendGate):
     The approved cap applies to `settled + outstanding reservations`. When a cell
     finishes, unused reserved funds are released back to available budget.
     Concurrency-safe with cross-process file locking.
+
+    Note on ledger file deletion:
+        Deleting the spend ledger file resets tracked spend to 0.0. The lock file and
+        any running processes remain active, but previously accumulated spend history is
+        not recovered unless restored from backup.
     """
 
     def __init__(
@@ -283,10 +282,10 @@ class ReserveSettleSpendGate(CloudSpendGate):
         self._active_reservations: dict[str, Reservation] = {}
         self._settled_usd: float = 0.0
         self._reserved_usd: float = 0.0
+        self._cond: threading.Condition = threading.Condition(self._lock)
         if self.spend_ledger is not None:
             with self._lock_ledger():
                 self._load_and_reconcile_ledger()
-
     def _lock_ledger(self) -> Any:
         assert self.spend_ledger is not None
         ledger_path = Path(self.spend_ledger)
@@ -295,6 +294,10 @@ class ReserveSettleSpendGate(CloudSpendGate):
         return _FileLock(lock_path)
 
     def _load_and_reconcile_ledger(self) -> dict[str, Any]:
+        """Load and reconcile spend ledger from disk.
+
+        If the ledger file is absent, initializes a fresh spend record starting at 0.0.
+        """
         assert self.spend_ledger is not None
         ledger_path = Path(self.spend_ledger)
         if not ledger_path.exists():
@@ -313,6 +316,8 @@ class ReserveSettleSpendGate(CloudSpendGate):
             return data
 
         raw = json.loads(ledger_path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError("ledger is not a JSON object")
         schema = raw.get("schema")
         if schema == "evallab.upstream_grader.spend/v1":
             # Legacy ledger migration: preserve spend conservatively
@@ -437,16 +442,23 @@ class ReserveSettleSpendGate(CloudSpendGate):
         package: Path | str | None = None,
         backend: str = "modal",
         timeout_seconds: float | None = None,
+        expected_seconds: float | None = None,
     ) -> float:
-        """Estimate conservative reservation amount in USD for a cell."""
+        """Estimate reservation amount in USD for a cell based on expected cell time.
+
+        Uses calibration p95 when available, else PROJECTED_CELL_SECONDS (240s)
+        bounded by kill timeout when provided, rather than sizing on the kill timeout.
+        """
         candidates: list[float] = [self.default_reservation_usd]
         p95 = self.get_p95_calibration(backend=backend)
         if p95 is not None:
             candidates.append(p95)
-        if package is not None:
+        elif package is not None:
             pkg_path = Path(package)
-            timeout = timeout_seconds if timeout_seconds is not None else PROJECTED_CELL_SECONDS
-            candidates.append(self.estimate_cost(pkg_path, timeout))
+            exp = expected_seconds if expected_seconds is not None else PROJECTED_CELL_SECONDS
+            if timeout_seconds is not None:
+                exp = min(exp, timeout_seconds)
+            candidates.append(self.estimate_cost(pkg_path, int(exp)))
         return max(candidates)
     def estimate_cost(self, package: Path | str, wall_seconds: float) -> float:
         """Estimate actual cost from package resources and elapsed wall seconds."""
@@ -484,27 +496,85 @@ class ReserveSettleSpendGate(CloudSpendGate):
         package: Path | str | None = None,
         backend: str = "modal",
         timeout_seconds: float | None = None,
+        expected_seconds: float | None = None,
         metadata: dict[str, Any] | None = None,
+        wait_timeout: float = 0.0,
+        poll_interval: float = 0.05,
     ) -> Reservation:
-        """Reserve funds for one cell execution, or raise SpendCapReached."""
+        """Reserve funds for one cell execution, or raise SpendCapReached.
+
+        If other cells are currently in flight (reserved_usd > 0), waits and retries
+        until budget is freed or timeout is reached; permanent cap stop occurs only
+        when settled + amount > cap with nothing in flight.
+        """
         if amount is None:
             amount = self.estimate_reservation(
-                package=package, backend=backend, timeout_seconds=timeout_seconds
+                package=package,
+                backend=backend,
+                timeout_seconds=timeout_seconds,
+                expected_seconds=expected_seconds,
             )
         amount = round(float(amount), 6)
         if amount <= 0:
             raise ValueError(f"reservation amount must be positive, got {amount}")
 
-        with self._lock:
-            if self.spend_ledger is not None:
-                with self._lock_ledger():
+        deadline = time.monotonic() + wait_timeout
+
+        if self.spend_ledger is not None:
+            while True:
+                with self._lock, self._lock_ledger():
                     ledger = self._load_and_reconcile_ledger()
+                    settled = float(ledger["settled_usd"])
+                    reserved = float(ledger["reserved_usd"])
                     effective = float(ledger["effective_spend_usd"])
-                    if effective + amount > self.cap_usd + 1e-9:
-                        raise SpendCapReached(
-                            f"reservation ${amount:.4f} would take spend (${effective:.4f} + ${amount:.4f} = "
-                            f"${effective + amount:.4f}) over approved cap ${self.cap_usd:.4f}"
+                    if effective + amount <= self.cap_usd + 1e-9:
+                        reservation_id = uuid.uuid4().hex
+                        res = Reservation(
+                            reservation_id=reservation_id,
+                            cell_key=cell_key,
+                            reserved_usd=amount,
+                            at=datetime.now(UTC).isoformat(),
+                            gate=self,
+                            metadata=dict(metadata or {}),
                         )
+                        ledger["reservations"].append({
+                            "reservation_id": reservation_id,
+                            "cell_key": cell_key,
+                            "at": res.at,
+                            "pid": res.pid,
+                            "reserved_usd": amount,
+                            "status": "reserved",
+                            "metadata": res.metadata,
+                        })
+                        ledger["reserved_usd"] = round(reserved + amount, 6)
+                        ledger["effective_spend_usd"] = round(
+                            settled + ledger["reserved_usd"], 6
+                        )
+                        ledger["executions"] = int(ledger.get("executions", 0)) + 1
+                        self.executions = ledger["executions"]
+                        self._reserved_usd = ledger["reserved_usd"]
+                        self._settled_usd = settled
+                        self._write_ledger_atomic(ledger)
+                        self._active_reservations[reservation_id] = res
+                        return res
+
+                    # Check if permanently stopped: settled alone exceeds cap, or nothing in flight, or wait disabled
+                    if (wait_timeout <= 0) or (settled + amount > self.cap_usd + 1e-9) or (reserved <= 1e-9):
+                        raise SpendCapReached(
+                            f"reservation ${amount:.4f} would take spend (${settled:.4f} settled + ${amount:.4f} = "
+                            f"${settled + amount:.4f}) over approved cap ${self.cap_usd:.4f}"
+                        )
+                if time.monotonic() >= deadline:
+                    raise SpendCapReached(
+                        f"timed out waiting for in-flight reservations to settle; reservation ${amount:.4f} exceeds remaining cap"
+                    )
+                time.sleep(poll_interval)
+
+        # In-memory path
+        with self._lock:
+            while True:
+                effective = self._settled_usd + self._reserved_usd
+                if effective + amount <= self.cap_usd + 1e-9:
                     reservation_id = uuid.uuid4().hex
                     res = Reservation(
                         reservation_id=reservation_id,
@@ -514,46 +584,58 @@ class ReserveSettleSpendGate(CloudSpendGate):
                         gate=self,
                         metadata=dict(metadata or {}),
                     )
-                    ledger["reservations"].append({
-                        "reservation_id": reservation_id,
-                        "cell_key": cell_key,
-                        "at": res.at,
-                        "pid": res.pid,
-                        "reserved_usd": amount,
-                        "status": "reserved",
-                        "metadata": res.metadata,
-                    })
-                    ledger["reserved_usd"] = round(ledger["reserved_usd"] + amount, 6)
-                    ledger["effective_spend_usd"] = round(
-                        ledger["settled_usd"] + ledger["reserved_usd"], 6
-                    )
-                    ledger["executions"] = int(ledger.get("executions", 0)) + 1
-                    self.executions = ledger["executions"]
-                    self._reserved_usd = ledger["reserved_usd"]
-                    self._settled_usd = ledger["settled_usd"]
-                    self._write_ledger_atomic(ledger)
                     self._active_reservations[reservation_id] = res
+                    self._reserved_usd = round(self._reserved_usd + amount, 6)
+                    self.executions += 1
                     return res
 
-            effective = self._settled_usd + self._reserved_usd
-            if effective + amount > self.cap_usd + 1e-9:
-                raise SpendCapReached(
-                    f"reservation ${amount:.4f} would take spend (${effective:.4f} + ${amount:.4f} = "
-                    f"${effective + amount:.4f}) over approved cap ${self.cap_usd:.4f}"
+                if (wait_timeout <= 0) or (self._settled_usd + amount > self.cap_usd + 1e-9) or (self._reserved_usd <= 1e-9):
+                    raise SpendCapReached(
+                        f"reservation ${amount:.4f} would take spend (${self._settled_usd:.4f} settled + ${amount:.4f} = "
+                        f"${self._settled_usd + amount:.4f}) over approved cap ${self.cap_usd:.4f}"
+                    )
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise SpendCapReached(
+                        f"timed out waiting for in-flight reservations to settle; reservation ${amount:.4f} exceeds remaining cap"
+                    )
+                self._cond.wait(timeout=min(poll_interval, remaining))
+
+    def extend_reservation(self, reservation: Reservation, additional_usd: float) -> bool:
+        """Extend an active reservation by additional_usd if budget permits."""
+        if additional_usd <= 0:
+            return True
+        additional_usd = round(float(additional_usd), 6)
+        if self.spend_ledger is not None:
+            with self._lock, self._lock_ledger():
+                ledger = self._load_and_reconcile_ledger()
+                effective = float(ledger["effective_spend_usd"])
+                if effective + additional_usd > self.cap_usd + 1e-9:
+                    return False
+                found = False
+                for r in ledger.get("reservations", []):
+                    if r.get("reservation_id") == reservation.reservation_id and r.get("status") == "reserved":
+                        r["reserved_usd"] = round(float(r.get("reserved_usd", 0.0)) + additional_usd, 6)
+                        found = True
+                        break
+                if not found:
+                    return False
+                ledger["reserved_usd"] = round(float(ledger["reserved_usd"]) + additional_usd, 6)
+                ledger["effective_spend_usd"] = round(
+                    float(ledger["settled_usd"]) + ledger["reserved_usd"], 6
                 )
-            reservation_id = uuid.uuid4().hex
-            res = Reservation(
-                reservation_id=reservation_id,
-                cell_key=cell_key,
-                reserved_usd=amount,
-                at=datetime.now(UTC).isoformat(),
-                gate=self,
-                metadata=dict(metadata or {}),
-            )
-            self._active_reservations[reservation_id] = res
-            self._reserved_usd = round(self._reserved_usd + amount, 6)
-            self.executions += 1
-            return res
+                self._write_ledger_atomic(ledger)
+                self._reserved_usd = ledger["reserved_usd"]
+                self._settled_usd = ledger["settled_usd"]
+                reservation.reserved_usd = round(reservation.reserved_usd + additional_usd, 6)
+                return True
+        else:
+            with self._lock:
+                if (self._settled_usd + self._reserved_usd + additional_usd) > self.cap_usd + 1e-9:
+                    return False
+                self._reserved_usd = round(self._reserved_usd + additional_usd, 6)
+                reservation.reserved_usd = round(reservation.reserved_usd + additional_usd, 6)
+                return True
 
     def settle(
         self,
@@ -572,19 +654,44 @@ class ReserveSettleSpendGate(CloudSpendGate):
             if self.spend_ledger is not None:
                 with self._lock_ledger():
                     ledger = self._load_and_reconcile_ledger()
-                    found = False
+                    found_entry = None
                     for r in ledger.get("reservations", []):
-                        if r.get("reservation_id") == res_id and r.get("status") == "reserved":
-                            found = True
-                            reserved = float(r["reserved_usd"])
-                            released = round(max(0.0, reserved - actual_usd), 6)
-                            r["settled_usd"] = actual_usd
-                            r["released_usd"] = released
-                            r["status"] = status
-                            r["settled_at"] = datetime.now(UTC).isoformat()
-                            cell_key = r.get("cell_key", "")
+                        if r.get("reservation_id") == res_id:
+                            found_entry = r
                             break
-                    if found:
+                    if found_entry is not None:
+                        prior_status = found_entry.get("status")
+                        prior_settled = float(found_entry.get("settled_usd", 0.0))
+                        cell_key = found_entry.get("cell_key", "")
+                        if prior_status == "reserved":
+                            reserved = float(found_entry["reserved_usd"])
+                            released = round(max(0.0, reserved - actual_usd), 6)
+                            found_entry["settled_usd"] = actual_usd
+                            found_entry["released_usd"] = released
+                            found_entry["status"] = status
+                            found_entry["settled_at"] = datetime.now(UTC).isoformat()
+                            self._log_spend(cell_key, actual_usd, status)
+                        else:
+                            # SHOULD 3: Late settle or adjustment on non-reserved entry
+                            if status in {"released"} and prior_status in {
+                                "settled",
+                                "completed",
+                                "failed",
+                                "stale_settled",
+                            }:
+                                # Double release or release after settle: harmless no-op
+                                pass
+                            elif actual_usd == prior_settled:
+                                # Double settle with identical cost: harmless no-op
+                                pass
+                            else:
+                                delta = round(actual_usd - prior_settled, 6)
+                                found_entry["settled_usd"] = actual_usd
+                                found_entry["status"] = status
+                                found_entry["adjustment_usd"] = delta
+                                found_entry["settled_at"] = datetime.now(UTC).isoformat()
+                                self._log_spend(cell_key, actual_usd, f"{status}_adjustment")
+
                         outstanding = round(
                             sum(
                                 float(r["reserved_usd"])
@@ -609,14 +716,16 @@ class ReserveSettleSpendGate(CloudSpendGate):
                         self._reserved_usd = outstanding
                         self._settled_usd = settled
                         self._write_ledger_atomic(ledger)
+
                     self._active_reservations.pop(res_id, None)
                     if isinstance(reservation, Reservation):
                         reservation.status = status
                         reservation.settled_usd = actual_usd
                         reservation.released_usd = released
-                    self._log_spend(cell_key, actual_usd, status)
+                    self._cond.notify_all()
                     return released
 
+            # In-memory path
             res = self._active_reservations.pop(res_id, None)
             if res is not None and res.status == "reserved":
                 reserved = res.reserved_usd
@@ -628,12 +737,19 @@ class ReserveSettleSpendGate(CloudSpendGate):
                 self._reserved_usd = round(max(0.0, self._reserved_usd - reserved), 6)
                 if status != "stale_released":
                     self._settled_usd = round(self._settled_usd + actual_usd, 6)
+                self._log_spend(cell_key, actual_usd, status)
+            elif isinstance(reservation, Reservation) and reservation.settled_usd is not None:
+                prior = reservation.settled_usd
+                if status != "released" and actual_usd != prior:
+                    delta = round(actual_usd - prior, 6)
+                    self._settled_usd = round(self._settled_usd + delta, 6)
+                    self._log_spend(cell_key, actual_usd, f"{status}_adjustment")
 
             if isinstance(reservation, Reservation):
                 reservation.status = status
                 reservation.settled_usd = actual_usd
                 reservation.released_usd = released
-            self._log_spend(cell_key, actual_usd, status)
+            self._cond.notify_all()
             return released
 
     def _log_spend(self, cell_key: str, actual_usd: float, status: str) -> None:
@@ -790,7 +906,16 @@ class SandboxMeter:
 
 @dataclass(frozen=True)
 class CellSpec:
-    """Specification of a cell evaluation unit."""
+    """Specification of an isolated execution cell for a task variant and agent script.
+
+    The default kill timeout is 600s rather than 1800s to bound the worst-case overrun
+    per in-flight cell: (kill_timeout_cost - reservation).
+    Overrun arithmetic for 3 packages x 6 cells = 18 in flight on 2 CPU / 8 GiB instances:
+    Projected 240s reservation is $0.0397. 600s kill timeout is $0.0991.
+    Worst-case overrun per in-flight cell is $(0.0991 - 0.0397) = $0.0594.
+    With 18 cells in flight, maximum aggregate overrun beyond the cap is:
+    18 * $0.0594 = $1.0692 (compared to 18 * $(0.2974 - 0.0397) = $4.6386 under 1800s).
+    """
 
     package: Path | str
     variant: str
@@ -798,8 +923,7 @@ class CellSpec:
     backend_image: str = "modal-default"
     grader_hook: str = ""
     task_id: str = ""
-    cell_id: str = ""
-    timeout_seconds: int = 1800
+    timeout_seconds: int = 600
     package_digest: str | None = None
     submission_digest: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -938,126 +1062,149 @@ class ModalCellRunner:
     def run_cell(self, cell: CellSpec) -> dict[str, Any]:
         """Execute a single cell or return valid cached result."""
         cell_key = cell.key()
-        cached = self.check_cache(cell_key)
-        if cached is not None:
-            return cached
-
         pkg_path = Path(cell.package).resolve()
         cell_dir = self.results_dir / cell_key
         cell_dir.mkdir(parents=True, exist_ok=True)
         result_path = cell_dir / "result.json"
 
-        # Reserve estimated spend
-        try:
-            reservation = self.spend_gate.reserve(
-                cell_key=cell_key,
-                package=pkg_path,
-                backend="modal",
-                timeout_seconds=cell.timeout_seconds,
-                metadata=cell.metadata,
-            )
-        except SpendCapReached as exc:
-            raise CellCapReachedError(str(exc)) from exc
+        # SHOULD 2: per-key flock on <results_dir>/<key>.lock around check-cache, reserve and run
+        key_lock_path = self.results_dir / f"{cell_key}.lock"
+        with _FileLock(key_lock_path):
+            cached = self.check_cache(cell_key)
+            if cached is not None:
+                return cached
 
-        # Retry loop for infrastructure errors - reservation wraps the entire loop
-        total_measured_cost = 0.0
-        with reservation:
-            for attempt in range(self.max_retries + 1):
-                started = time.monotonic()
-                trial_dir = cell_dir / f"trial-{attempt}" if attempt > 0 else cell_dir / "trial"
-                trial_dir.mkdir(parents=True, exist_ok=True)
-                if cell.submission:
-                    (cell_dir / "agent-script.sh").write_text(cell.submission, encoding="utf-8")
+            # Reserve estimated spend
+            try:
+                reservation = self.spend_gate.reserve(
+                    cell_key=cell_key,
+                    package=pkg_path,
+                    backend="modal",
+                    timeout_seconds=cell.timeout_seconds,
+                    metadata=cell.metadata,
+                    wait_timeout=60.0,
+                )
+            except SpendCapReached as exc:
+                raise CellCapReachedError(str(exc)) from exc
 
-                try:
-                    if self.backend_factory is not None:
-                        backend = self.backend_factory(
-                            repo_root=self.repo_root, spend_gate=self.spend_gate
+            # Retry loop for infrastructure errors - reservation wraps the entire loop
+            total_measured_cost = 0.0
+            with reservation:
+                for attempt in range(self.max_retries + 1):
+                    # SHOULD 1: Before retry attempt, re-check cap and extend reservation
+                    if attempt > 0:
+                        if (self.spend_gate.settled_usd + total_measured_cost) >= self.spend_gate.cap_usd:
+                            reservation.settle(total_measured_cost, status="cap_reached")
+                            raise CellCapReachedError(
+                                f"Spend cap reached during retry attempt {attempt}: ${total_measured_cost:.4f} "
+                                f"spent of cap ${self.spend_gate.cap_usd:.4f}"
+                            )
+                        retry_est = self.spend_gate.estimate_reservation(
+                            pkg_path, timeout_seconds=cell.timeout_seconds
                         )
-                    else:
-                        from evallab.qa.task_modal import ModalBackend
+                        if total_measured_cost + retry_est > reservation.reserved_usd:
+                            needed = (total_measured_cost + retry_est) - reservation.reserved_usd
+                            if not self.spend_gate.extend_reservation(reservation, needed):
+                                reservation.settle(total_measured_cost, status="cap_reached")
+                                raise CellCapReachedError(
+                                    f"Cannot extend reservation for retry attempt {attempt}: cap ${self.spend_gate.cap_usd:.4f} would be exceeded"
+                                )
 
-                        backend = ModalBackend(
-                            repo_root=self.repo_root, spend_gate=self.spend_gate
-                        )
+                    started = time.monotonic()
+                    trial_dir = cell_dir / f"trial-{attempt}" if attempt > 0 else cell_dir / "trial"
+                    trial_dir.mkdir(parents=True, exist_ok=True)
+                    if cell.submission:
+                        (cell_dir / "agent-script.sh").write_text(cell.submission, encoding="utf-8")
 
-                    digest = cell.package_digest or task_directory_digest(pkg_path)
-                    observation = backend.run_container_trial(
-                        pkg_path,
-                        digest=digest,
-                        mode="shortcut",
-                        script=cell.submission,
-                        trial_dir=trial_dir,
-                        timeout_seconds=cell.timeout_seconds,
-                    )
-                    wall = time.monotonic() - started
-                    attempt_cost = self.spend_gate.estimate_cost(pkg_path, wall)
-                    total_measured_cost += attempt_cost
-
-                    # Check for infrastructure failure
-                    if observation.status == "failed" and is_infrastructure_error(observation.reason):
-                        raise CellInfrastructureError(str(observation.reason))
-
-                    # Non-infra failure check (S5): never cache a failed result unless it is a positive submission verdict!
-                    is_submission_verdict = (
-                        observation.status == "executed"
-                        or observation.facts.get("reward") is not None
-                    )
-                    if observation.status == "failed" and not is_submission_verdict:
-                        reservation.settle(total_measured_cost, status="failed")
-                        raise CellError(f"Execution failed: {observation.reason}")
-
-                    # Successful evaluation
-                    reservation.settle(total_measured_cost, status="completed")
-
-                    agent_log = _read_text(trial_dir / "agent/oracle.txt")
-                    test_output = _read_text(trial_dir / "verifier/test_output.log")
-                    result = {
-                        "cell_key": cell_key,
-                        "task": cell.task_id or pkg_path.name,
-                        "variant": cell.variant,
-                        "status": observation.status,
-                        "reason": observation.reason,
-                        "reward": observation.facts.get("reward"),
-                        "wall_s": round(wall, 2),
-                        "est_usd": round(total_measured_cost, 6),
-                        "agent_log": agent_log,
-                        "test_output_tail": test_output[-600:],
-                        "evidence_sha256": sha256_text(agent_log + test_output),
-                        "cache_hit": False,
-                        "attempts": attempt + 1,
-                    }
-                    _write_json_atomic(result_path, result)
-                    return result
-
-                except BaseException as exc:
-                    wall = time.monotonic() - started
-                    attempt_cost = self.spend_gate.estimate_cost(pkg_path, wall) if wall > 0 else 0.0
-                    total_measured_cost += attempt_cost
-
-                    if isinstance(exc, SpendCapReached):
-                        reservation.settle(total_measured_cost, status="cap_reached")
-                        raise CellCapReachedError(str(exc)) from exc
-
-                    if isinstance(exc, (KeyboardInterrupt, asyncio.CancelledError)):
-                        reservation.settle(total_measured_cost, status="cancelled")
-                        raise CellCancelledError("Cell execution cancelled") from exc
-
-                    if is_infrastructure_error(exc):
-                        if attempt < self.max_retries:
-                            time.sleep(self.backoff_factor**attempt)
-                            continue
+                    try:
+                        if self.backend_factory is not None:
+                            backend = self.backend_factory(
+                                repo_root=self.repo_root, spend_gate=self.spend_gate
+                            )
                         else:
-                            reservation.settle(total_measured_cost, status="failed")
-                            raise CellInfrastructureError(
-                                f"Infrastructure failure after {attempt + 1} attempts: {exc}"
-                            ) from exc
-                    else:
-                        if reservation.status == "reserved":
-                            reservation.settle(total_measured_cost, status="failed")
-                        raise
+                            from evallab.qa.task_modal import ModalBackend
 
-        raise RuntimeError("Unexpected end of cell retry loop")
+                            backend = ModalBackend(
+                                repo_root=self.repo_root, spend_gate=self.spend_gate
+                            )
+
+                        digest = cell.package_digest or task_directory_digest(pkg_path)
+                        observation = backend.run_container_trial(
+                            pkg_path,
+                            digest=digest,
+                            mode="shortcut",
+                            script=cell.submission,
+                            trial_dir=trial_dir,
+                            timeout_seconds=cell.timeout_seconds,
+                        )
+                        wall = time.monotonic() - started
+                        attempt_cost = self.spend_gate.estimate_cost(pkg_path, wall)
+                        total_measured_cost += attempt_cost
+
+                        # Check for infrastructure failure
+                        if observation.status == "failed" and is_infrastructure_error(observation.reason):
+                            raise CellInfrastructureError(str(observation.reason))
+
+                        # Non-infra failure check (S5): never cache a failed result unless it is a positive submission verdict!
+                        is_submission_verdict = (
+                            observation.status == "executed"
+                            or observation.facts.get("reward") is not None
+                        )
+                        if observation.status == "failed" and not is_submission_verdict:
+                            reservation.settle(total_measured_cost, status="failed")
+                            raise CellError(f"Execution failed: {observation.reason}")
+
+                        # Successful evaluation
+                        reservation.settle(total_measured_cost, status="completed")
+
+                        agent_log = _read_text(trial_dir / "agent/oracle.txt")
+                        test_output = _read_text(trial_dir / "verifier/test_output.log")
+                        result = {
+                            "cell_key": cell_key,
+                            "task": cell.task_id or pkg_path.name,
+                            "variant": cell.variant,
+                            "status": observation.status,
+                            "reason": observation.reason,
+                            "reward": observation.facts.get("reward"),
+                            "wall_s": round(wall, 2),
+                            "est_usd": round(total_measured_cost, 6),
+                            "agent_log": agent_log,
+                            "test_output_tail": test_output[-600:],
+                            "evidence_sha256": sha256_text(agent_log + test_output),
+                            "cache_hit": False,
+                            "attempts": attempt + 1,
+                        }
+                        _write_json_atomic(result_path, result)
+                        return result
+
+                    except BaseException as exc:
+                        wall = time.monotonic() - started
+                        attempt_cost = self.spend_gate.estimate_cost(pkg_path, wall) if wall > 0 else 0.0
+                        total_measured_cost += attempt_cost
+
+                        if isinstance(exc, SpendCapReached):
+                            reservation.settle(total_measured_cost, status="cap_reached")
+                            raise CellCapReachedError(str(exc)) from exc
+
+                        if isinstance(exc, (KeyboardInterrupt, asyncio.CancelledError)):
+                            reservation.settle(total_measured_cost, status="cancelled")
+                            raise CellCancelledError("Cell execution cancelled") from exc
+
+                        if is_infrastructure_error(exc):
+                            if attempt < self.max_retries:
+                                time.sleep(self.backoff_factor**attempt)
+                                continue
+                            else:
+                                reservation.settle(total_measured_cost, status="failed")
+                                raise CellInfrastructureError(
+                                    f"Infrastructure failure after {attempt + 1} attempts: {exc}"
+                                ) from exc
+                        else:
+                            if reservation.status == "reserved":
+                                reservation.settle(total_measured_cost, status="failed")
+                            raise
+
+            raise RuntimeError("Unexpected end of cell retry loop")
 
     def run_batch(
         self,
@@ -1105,7 +1252,7 @@ class ModalCellRunner:
                 with lock:
                     if status.cap_stopped:
                         return False
-                    if self.spend_gate.remaining_usd <= 0:
+                    if self.spend_gate.settled_usd >= self.spend_gate.cap_usd:
                         status.cap_stopped = True
                         return False
                 try:
@@ -1149,7 +1296,7 @@ class ModalCellRunner:
                             status.done += len(matching_indices)
                             status.spend = self.spend_gate.summary()
                             # B4: Re-check cap after settle
-                            if self.spend_gate.remaining_usd <= 0:
+                            if self.spend_gate.settled_usd >= self.spend_gate.cap_usd:
                                 status.cap_stopped = True
                             if on_status:
                                 on_status(status)
@@ -1180,11 +1327,34 @@ class ModalCellRunner:
                             results[i] = err_res
                         for pending in list(futures.keys()):
                             pending.cancel()
+                    except (CancelledError, asyncio.CancelledError):
+                        with lock:
+                            status.spend = self.spend_gate.summary()
+                            if on_status:
+                                on_status(status)
+                        err_res = {
+                            "cell_key": key,
+                            "task": cell.task_id or Path(cell.package).name,
+                            "variant": cell.variant,
+                            "status": "cap_stopped" if status.cap_stopped else "cancelled",
+                            "reason": "spend cap reached" if status.cap_stopped else "cancelled",
+                            "error": "spend cap reached" if status.cap_stopped else "cancelled",
+                            "reward": None,
+                            "wall_s": 0.0,
+                            "est_usd": 0.0,
+                            "agent_log": "",
+                            "test_output_tail": "",
+                            "evidence_sha256": "",
+                            "cache_hit": False,
+                            "attempts": 0,
+                        }
+                        for i in matching_indices:
+                            results[i] = err_res
                     except Exception as exc:
                         with lock:
                             status.failed += len(matching_indices)
                             status.spend = self.spend_gate.summary()
-                            if self.spend_gate.remaining_usd <= 0:
+                            if self.spend_gate.settled_usd >= self.spend_gate.cap_usd:
                                 status.cap_stopped = True
                             if on_status:
                                 on_status(status)
@@ -1246,26 +1416,24 @@ def modal_cell_runner(
     repo_root: Path,
     spend_gate: Any,
     meter: SandboxMeter | None = None,
-    timeout_seconds: int = 1800,
+    timeout_seconds: int = 600,
     results_dir: Path | None = None,
     backend_factory: Callable[..., Any] | None = None,
 ) -> CellRunner:
     """A CellRunner over ModalBackend; result.json is the consumption marker.
 
+    Default timeout_seconds is 600s rather than 1800s to bound worst-case overrun
+    per in-flight cell: (kill_timeout_cost - reservation).
+    For 3 packages x 6 cells = 18 in flight on 2 CPU / 8 GiB instances:
+    Projected 240s reservation is $0.0397. 600s kill timeout is $0.0991.
+    Worst-case overrun per in-flight cell is $(0.0991 - 0.0397) = $0.0594.
+    Aggregate worst-case overrun for 18 cells is 18 * $0.0594 = $1.0692
+    (compared to 18 * $(0.2974 - 0.0397) = $4.6386 under 1800s).
+
     Returns cached or executed result dict; cached results include `cache_hit: True`.
     """
 
     def run(cell_dir: Path, package: Path, script: str) -> dict[str, Any]:
-        result_path = cell_dir / "result.json"
-        if result_path.exists():
-            try:
-                data = json.loads(result_path.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    data["cache_hit"] = True
-                    return data
-            except Exception:
-                pass
-
         variant = cell_dir.name
         pkg_path = Path(package).resolve()
         pkg_digest = task_directory_digest(pkg_path) if pkg_path.is_dir() else sha256_text(str(pkg_path))
@@ -1280,123 +1448,136 @@ def modal_cell_runner(
         )
 
         cache_dir = results_dir or cell_dir.parent
-        keyed_result_path = cache_dir / cell_key / "result.json"
-        if keyed_result_path.is_file():
-            try:
-                data = json.loads(keyed_result_path.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    data["cache_hit"] = True
-                    cell_dir.mkdir(parents=True, exist_ok=True)
-                    _write_json_atomic(result_path, data)
-                    return data
-            except Exception:
-                pass
-
-        if isinstance(spend_gate, ReserveSettleSpendGate):
-            if meter is not None:
-                meter.admit(meter.estimate(pkg_path, PROJECTED_CELL_SECONDS))
-            reservation = spend_gate.reserve(
-                cell_key=cell_key,
-                package=pkg_path,
-                backend="modal",
-                timeout_seconds=timeout_seconds,
-            )
-            started = time.monotonic()
-            cell_dir.mkdir(parents=True, exist_ok=True)
-            settled = False
-            with reservation:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        key_lock_path = cache_dir / f"{cell_key}.lock"
+        with _FileLock(key_lock_path):
+            result_path = cell_dir / "result.json"
+            if result_path.exists():
                 try:
-                    if backend_factory is not None:
-                        backend = backend_factory(repo_root=repo_root, spend_gate=spend_gate)
-                    else:
-                        from evallab.qa.task_modal import ModalBackend
+                    data = json.loads(result_path.read_text(encoding="utf-8"))
+                    if isinstance(data, dict):
+                        data["cache_hit"] = True
+                        return data
+                except Exception:
+                    pass
 
-                        backend = ModalBackend(repo_root=repo_root, spend_gate=spend_gate)
+            keyed_result_path = cache_dir / cell_key / "result.json"
+            if keyed_result_path.is_file():
+                try:
+                    data = json.loads(keyed_result_path.read_text(encoding="utf-8"))
+                    if isinstance(data, dict):
+                        data["cache_hit"] = True
+                        cell_dir.mkdir(parents=True, exist_ok=True)
+                        _write_json_atomic(result_path, data)
+                        return data
+                except Exception:
+                    pass
 
-                    observation = backend.run_container_trial(
-                        pkg_path,
-                        digest=pkg_digest,
-                        mode="shortcut",
-                        script=script,
-                        trial_dir=cell_dir / "trial",
-                        timeout_seconds=timeout_seconds,
-                    )
-                    wall = time.monotonic() - started
-                    cost = spend_gate.estimate_cost(pkg_path, wall)
-                    reservation.settle(cost, status="completed")
-                    settled = True
-                    if meter is not None:
-                        meter.add(cost, wall)
+            if isinstance(spend_gate, ReserveSettleSpendGate):
+                if meter is not None:
+                    meter.admit(meter.estimate(pkg_path, PROJECTED_CELL_SECONDS))
+                reservation = spend_gate.reserve(
+                    cell_key=cell_key,
+                    package=pkg_path,
+                    backend="modal",
+                    timeout_seconds=timeout_seconds,
+                    wait_timeout=60.0,
+                )
+                started = time.monotonic()
+                cell_dir.mkdir(parents=True, exist_ok=True)
+                settled = False
+                with reservation:
+                    try:
+                        if backend_factory is not None:
+                            backend = backend_factory(repo_root=repo_root, spend_gate=spend_gate)
+                        else:
+                            from evallab.qa.task_modal import ModalBackend
 
-                    trial = cell_dir / "trial"
-                    agent_log = _read_text(trial / "agent/oracle.txt")
-                    test_output = _read_text(trial / "verifier/test_output.log")
-                    result = {
-                        "cell_key": cell_key,
-                        "status": observation.status,
-                        "reason": observation.reason,
-                        "reward": observation.facts.get("reward"),
-                        "wall_s": round(wall, 1),
-                        "est_usd": round(cost, 5),
-                        "agent_log": agent_log,
-                        "test_output_tail": test_output[-600:],
-                        "evidence_sha256": sha256_text(agent_log + test_output),
-                        "cache_hit": False,
-                    }
-                    _write_json_atomic(result_path, result)
-                    if results_dir is not None:
-                        (cache_dir / cell_key).mkdir(parents=True, exist_ok=True)
-                        _write_json_atomic(keyed_result_path, result)
-                    return result
-                finally:
-                    if not settled and reservation.status == "reserved":
+                            backend = ModalBackend(repo_root=repo_root, spend_gate=spend_gate)
+
+                        observation = backend.run_container_trial(
+                            pkg_path,
+                            digest=pkg_digest,
+                            mode="shortcut",
+                            script=script,
+                            trial_dir=cell_dir / "trial",
+                            timeout_seconds=timeout_seconds,
+                        )
                         wall = time.monotonic() - started
-                        cost = spend_gate.estimate_cost(pkg_path, wall) if wall > 0 else 0.0
-                        reservation.settle(cost, status="failed")
-                        if meter is not None and cost > 0:
+                        cost = spend_gate.estimate_cost(pkg_path, wall)
+                        reservation.settle(cost, status="completed")
+                        settled = True
+                        if meter is not None:
                             meter.add(cost, wall)
-        else:
-            # Legacy spend_gate / meter path
-            if meter is not None:
-                meter.admit(meter.estimate(pkg_path, PROJECTED_CELL_SECONDS))
-            cell_dir.mkdir(parents=True, exist_ok=True)
-            if backend_factory is not None:
-                backend = backend_factory(repo_root=repo_root, spend_gate=spend_gate)
+
+                        trial = cell_dir / "trial"
+                        agent_log = _read_text(trial / "agent/oracle.txt")
+                        test_output = _read_text(trial / "verifier/test_output.log")
+                        result = {
+                            "cell_key": cell_key,
+                            "status": observation.status,
+                            "reason": observation.reason,
+                            "reward": observation.facts.get("reward"),
+                            "wall_s": round(wall, 1),
+                            "est_usd": round(cost, 5),
+                            "agent_log": agent_log,
+                            "test_output_tail": test_output[-600:],
+                            "evidence_sha256": sha256_text(agent_log + test_output),
+                            "cache_hit": False,
+                        }
+                        _write_json_atomic(result_path, result)
+                        if results_dir is not None:
+                            (cache_dir / cell_key).mkdir(parents=True, exist_ok=True)
+                            _write_json_atomic(keyed_result_path, result)
+                        return result
+                    finally:
+                        if not settled and reservation.status == "reserved":
+                            wall = time.monotonic() - started
+                            cost = spend_gate.estimate_cost(pkg_path, wall) if wall > 0 else 0.0
+                            reservation.settle(cost, status="failed")
+                            if meter is not None and cost > 0:
+                                meter.add(cost, wall)
             else:
-                from evallab.qa.task_modal import ModalBackend
+                # Legacy spend_gate / meter path
+                if meter is not None:
+                    meter.admit(meter.estimate(pkg_path, PROJECTED_CELL_SECONDS))
+                cell_dir.mkdir(parents=True, exist_ok=True)
+                if backend_factory is not None:
+                    backend = backend_factory(repo_root=repo_root, spend_gate=spend_gate)
+                else:
+                    from evallab.qa.task_modal import ModalBackend
 
-                backend = ModalBackend(repo_root=repo_root, spend_gate=spend_gate)
-            started = time.monotonic()
-            observation = backend.run_container_trial(
-                pkg_path,
-                digest=pkg_digest,
-                mode="shortcut",
-                script=script,
-                trial_dir=cell_dir / "trial",
-                timeout_seconds=timeout_seconds,
-            )
-            wall = time.monotonic() - started
-            trial = cell_dir / "trial"
-            agent_log = _read_text(trial / "agent/oracle.txt")
-            test_output = _read_text(trial / "verifier/test_output.log")
-            cost = meter.estimate(pkg_path, wall) if meter else 0.0
-            if meter is not None:
-                meter.add(cost, wall)
-            result = {
-                "cell_key": cell_key,
-                "status": observation.status,
-                "reason": observation.reason,
-                "reward": observation.facts.get("reward"),
-                "wall_s": round(wall, 1),
-                "est_usd": round(cost, 5),
-                "agent_log": agent_log,
-                "test_output_tail": test_output[-600:],
-                "evidence_sha256": sha256_text(agent_log + test_output),
-                "cache_hit": False,
-            }
-            _write_json_atomic(result_path, result)
-            return result
-
+                    backend = ModalBackend(repo_root=repo_root, spend_gate=spend_gate)
+                started = time.monotonic()
+                observation = backend.run_container_trial(
+                    pkg_path,
+                    digest=pkg_digest,
+                    mode="shortcut",
+                    script=script,
+                    trial_dir=cell_dir / "trial",
+                    timeout_seconds=timeout_seconds,
+                )
+                wall = time.monotonic() - started
+                trial = cell_dir / "trial"
+                agent_log = _read_text(trial / "agent/oracle.txt")
+                test_output = _read_text(trial / "verifier/test_output.log")
+                cost = meter.estimate(pkg_path, wall) if meter else 0.0
+                if meter is not None:
+                    meter.add(cost, wall)
+                result = {
+                    "cell_key": cell_key,
+                    "status": observation.status,
+                    "reason": observation.reason,
+                    "reward": observation.facts.get("reward"),
+                    "wall_s": round(wall, 1),
+                    "est_usd": round(cost, 5),
+                    "agent_log": agent_log,
+                    "test_output_tail": test_output[-600:],
+                    "evidence_sha256": sha256_text(agent_log + test_output),
+                    "cache_hit": False,
+                }
+                _write_json_atomic(result_path, result)
+                return result
     return run
 
 

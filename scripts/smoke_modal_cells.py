@@ -150,9 +150,6 @@ def run_smoke() -> dict[str, Any]:
         backup = LEDGER_PATH.with_name(f"{LEDGER_PATH.name}.backup-{int(time.time())}")
         LEDGER_PATH.rename(backup)
         print(f"Moved existing ledger aside to {backup}")
-    lock_file = LEDGER_PATH.with_name(LEDGER_PATH.name + ".lock")
-    if lock_file.exists():
-        lock_file.unlink()
     # Clear previous cells in smoke dir if any
     for child in CELLS_DIR.iterdir():
         if child.is_dir():

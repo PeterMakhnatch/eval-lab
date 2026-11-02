@@ -669,7 +669,7 @@ def _audit_mutants_command(args: Any, root: Path, *, harbor: Any = None) -> int:
         package=args.package,
         reference_patch=patch,
         out_dir=args.out,
-        run_cell=modal_cell_runner(repo_root=root, spend_gate=gate, meter=meter),
+        run_cell=modal_cell_runner(repo_root=root, spend_gate=gate, meter=meter, timeout_seconds=240),
         repaired_package=args.repaired_package,
         limit=args.limit,
     )

@@ -604,11 +604,12 @@ the window resets, not an extra charge.
 
 `subscription_quota_ceiling` refuses a billable dispatch when the lab's own
 threshold is reached: `refuse_billable_at_used_percent` in
-`policy/standing-approvals.yaml`, committed at **60** since the 2026-10-13
-overnight subscription-agent work (Peter approved the pause-above-60 rule for
-the shared account). The two codes stay distinct so a lab policy is never
-recorded in `queue/reasons/` as the provider's statement. Lower the number to
-tighten; raising it or returning it to `null` is Peter's spend decision.
+`policy/standing-approvals.yaml` governs the ceiling, currently committed at
+**80%**, raised from the original **60%** baseline introduced for the 2026-10-13
+overnight subscription-agent work on the shared account. The two codes stay
+distinct so a lab policy is never recorded in `queue/reasons/` as the provider's
+statement. Lower the number to tighten; raising it or returning it to `null` is
+Peter's spend decision.
 
 Back-off on a rate-limit response is explicit: stop launching billable work,
 record the provider-stated `resets_at` from the refusal message, and resume
@@ -616,8 +617,9 @@ only after it. Never switch the job to an API to route around the window.
 
 Claude Code uses a fresh, free `omp usage -p anthropic --json -r` reading at
 dispatch rather than relying on its transcripts. The committed ceiling applies
-to its **7-day** window (at or above 60%); its **5-hour** window gates only at
-100% exhaustion. Both windows, reset times, status, and fetch time are recorded.
+to its **7-day** window (currently at or above 80%); its **5-hour** window
+gates only at 100% exhaustion. Both windows, reset times, status, and fetch
+time are recorded.
 `subscription_quota_unavailable` pauses Claude dispatch when either window is
 missing, malformed, or expired, including a failed or timed-out probe. The
 historical Codex bootstrap and stale-reading behavior described below applies
@@ -730,7 +732,8 @@ comparison spec is pooled into a single cohort; pooling can only overstate
 `n_tasks`, so a warning at the pooled `n` holds for any finer partition, while
 a clean bill of health at the pooled `n` does not. And no threshold for
 "useful" is committed — a spend judgement, like the quota ceiling was before
-it was set at 60. Supply one per invocation:
+its original 60% baseline (now raised to 80% in
+`policy/standing-approvals.yaml`). Supply one per invocation:
 
 ```bash
 uv run evallab preflight --useful-effect 0.15

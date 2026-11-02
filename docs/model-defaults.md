@@ -46,10 +46,11 @@ Limits we have hit or must respect:
   share cannot be measured. `docs/quota-accounting.md` has the evidence and
   the gate (`evallab.quota`), which refuses billable work when the provider
   reports the window exhausted — and since 2026-10-13 also at the lab's own
-  ceiling of 60% used (`subscription_quota_ceiling`).
+  ceiling governed by `policy/standing-approvals.yaml` (currently 80% used,
+  raised from the original 60% baseline; `subscription_quota_ceiling`).
 - **Claude Max:** live account headroom is readable for free with
   `omp usage -p anthropic --json -r`. Claude Code dispatch checks the 7-day
-  window against the committed 60% ceiling (refuse at or above 60%) and the
+  window against that committed ceiling (currently at or above 80%) and the
   5-hour window for exhaustion (refuse at or above 100%); unavailable or
   expired readings pause dispatch. The earlier fxtr judge projects ran about
   8M input tokens through the OMP gateway without a recorded rate limit;
@@ -95,7 +96,8 @@ trial's own rollout (`agent/sessions/2026/10/13/rollout-*.jsonl`,
 (`window_minutes` 10080, `resets_at` 2026-10-20T05:39:30Z, plan `pro`,
 credits balance 61259.43, `hard_stop` false). Before the batch the freshest
 local snapshot (2026-10-12 host session) read 21% in the previous window —
-both far below the 60% ceiling, so dispatch was never gated.
+both far below the original 60% ceiling (now raised to 80%), so dispatch was
+never gated.
 
 GEPA proposer proof the same night: `CodexTransport(...,
 model="codex/gpt-6-astra").preflight()` reports `codex-cli 0.162.1` on the
@@ -175,10 +177,11 @@ reading, with 7-day usage selected as the headline percentage; account ids,
 emails, raw responses, and model-specific limits are excluded.
 
 The dispatch gate refreshes that reading and refuses weekly usage at or above
-`policy/standing-approvals.yaml`'s `refuse_billable_at_used_percent` (currently
-60%) under `subscription_quota_ceiling`. The 5-hour window is recorded and
+`policy/standing-approvals.yaml`'s `refuse_billable_at_used_percent`. That file
+governs the ceiling, currently committed at 80%, raised from the original 60%
+baseline, under `subscription_quota_ceiling`. The 5-hour window is recorded and
 gates only at exhaustion, 100% or above (`subscription_quota_exhausted`): the
-standing 60% rule names the weekly window. Run-specific approvals can impose
+standing ceiling names the weekly window. Run-specific approvals can impose
 stricter limits. Missing, failed, timed-out, malformed, or expired readings
 pause dispatch with `subscription_quota_unavailable`; unavailable is never
 treated as remaining allowance. Keep the reset time, stop launching, and

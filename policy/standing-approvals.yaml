@@ -14,15 +14,14 @@
 # for the other. Preserve unknown charges and explicit per-trial limits.
 #
 # `refuse_billable_at_used_percent` is the lab's OWN threshold, below the
-# provider's limit. It was deliberately unset until the 2026-10-13 overnight
-# subscription-agent work, which Peter approved with an explicit pause rule:
-# billable dispatch refuses when the provider-reported weekly window is above
-# 60% used. 60 trades the risk of a mid-campaign lockout (the shared account,
-# ~5 other tabs, moves the same counter in whole points) against the certainty
-# of work that will not happen. Billable dispatch refuses at or above 60%
-# account-wide `used_percent` under reason code `subscription_quota_ceiling`,
-# kept distinct from the provider's own `subscription_quota_exhausted` so
-# `queue/reasons/` never records a lab policy as the provider's statement.
+# provider's limit. This file governs the ceiling, currently committed at 80%
+# after being raised from the original 60% baseline introduced for the
+# 2026-10-13 overnight subscription-agent work. The weekly window is shared
+# account-wide; the ceiling reserves headroom, not a quota budget for the lab.
+# Billable dispatch refuses at or above the configured account-wide
+# `used_percent` under reason code `subscription_quota_ceiling`, kept distinct
+# from the provider's own `subscription_quota_exhausted` so `queue/reasons/`
+# never records a lab policy as the provider's statement.
 # `0` is refused at load rather than accepted, because it reads as "off" while
 # meaning "refuse all paid work". Lower the number to tighten; raising it or
 # returning it to `null` is a spend decision for Peter.

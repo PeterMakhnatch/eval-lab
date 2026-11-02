@@ -95,7 +95,7 @@ inputs:
   - path: docs/model-capture.md
     digest: sha256:820a697afa3ffbf99e7b262f38cf26895f94f1df147167405fc944d7fc4484e6
   - path: docs/model-defaults.md
-    digest: sha256:405093d29c78f0f422e895abe055988952fb14f297d8c75fc0a2b46f3ab10adf
+    digest: sha256:08a27a9633edabdbf6c0feb27c45c6924b4171b8c6ac32f17e0672d4e1d2a864
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
@@ -105,7 +105,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:f05219303e83abbf1842af9fe5495ede38239c838d57a8ecaa991a278ba76c68
+    digest: sha256:07eb4a7a667b25e4469d192917b85fd54000e8e04bf5d682b4f2d8de5d1cf95b
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/production-factory.md
@@ -117,7 +117,7 @@ inputs:
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
-    digest: sha256:25d4b5911de2bf4f8292f33ecc65dd0a4800c19818a8d6c42e1828341f140f63
+    digest: sha256:0a91b482bfe19c2eebe5b65496b9926f0c97ef6320f1e479797ce95331b6d4d4
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

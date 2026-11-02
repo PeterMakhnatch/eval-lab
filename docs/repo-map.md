@@ -75,7 +75,7 @@ inputs:
   - path: src/evallab/cheatbench_fidelity.py
     digest: sha256:bdcd29dbaa70698b0bca0e3b2239788ac72f5f93b8b59dc9bfbb0d1639422c4e
   - path: src/evallab/cli.py
-    digest: sha256:c632f988a1235744034028d6e2ab690aaa76e3e5daf4c3a35cee45d66545024d
+    digest: sha256:31f2cbcb5543b42e460321f2ae775f04faabf295912ddd82ae156b35ee7f9c6f
   - path: src/evallab/codeban.py
     digest: sha256:a0f9ad6678295b0e2776f303d4c20dcbf48950cb613580693013a2bdfaf17a09
   - path: src/evallab/cohort.py
@@ -983,7 +983,7 @@ inputs:
   - path: src/evallab/quality_audit.py
     digest: sha256:a6c4c575c999c1eb58dd5ebc2059204a80a778f8f1014985a0a8a3e112d9a997
   - path: src/evallab/queue.py
-    digest: sha256:fc00c4185709803ecd95939270e4d047d22898525fb4926fcef942d0ec9e4823
+    digest: sha256:fbc4c9cc87a34f88309744638a9801a628a4b6b1d6c8d8599ab8f40470f4aa31
   - path: src/evallab/quota.py
     digest: sha256:0f7e97bfd03457e1d6a7e9a6cf8013fa6a12ee79612dc8e347cf078f68444ca2
   - path: src/evallab/readers/__init__.py

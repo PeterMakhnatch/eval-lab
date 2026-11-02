@@ -1103,39 +1103,113 @@ def test_undo_takes_back_a_verdict_written_before_ids_existed(tmp_path: Path) ->
         station.undo_last()
 
 
-def _local_station(tmp_path: Path, *, split: str = "dev") -> tuple[js.Station, Path, Path]:
-    trial = tmp_path / "native-trial"
+LOCAL_RUN = "NATIVE_RUN_SECRET"
+LOCAL_TASK = "mimo-v2.6-rl/format-code-task-000838"
+KEYSTROKES = "cd /testbed && python -m pytest tests/test_cli.py -q\n"
+
+
+class FakeRegistry:
+    """The registry seam: ids assigned to TEST, in any of the forms the loaders try."""
+
+    def __init__(self, test_ids: tuple[str, ...] = ()) -> None:
+        self.test_ids = {t.casefold() for t in test_ids}
+
+    def assigned_test_anywhere(
+        self, *, item_id: str | None = None, task_id: str | None = None
+    ) -> bool:
+        return any(v and v.casefold() in self.test_ids for v in (item_id, task_id))
+
+
+def _harbor_doc(task: str = "Implement the native task without changing its checker.") -> dict:
+    """A trajectory shaped like a real Terminus-2 Harbor run: no split metadata, shell calls
+    carried as ``bash_command`` with ``keystrokes`` and ``duration``."""
+    return {
+        "schema_version": "ATIF-v1.6",
+        "session_id": "sess",
+        "agent": {"name": "terminus-2", "version": "2.0.0", "model_name": "SECRET_MODEL"},
+        "steps": [
+            {"step_id": 1, "source": "user", "message": task},
+            {
+                "step_id": 2,
+                "source": "agent",
+                "message": "Run the tests.",
+                "tool_calls": [
+                    {
+                        "tool_call_id": "call_1_1",
+                        "function_name": "bash_command",
+                        "arguments": {"keystrokes": KEYSTROKES, "duration": 0.1},
+                    }
+                ],
+                "observation": {"results": [{"content": "2 passed in 0.1s\n"}]},
+            },
+            {"step_id": 3, "source": "agent", "message": "done", "tool_calls": []},
+        ],
+    }
+
+
+DIFF = (
+    "diff --git a/src/native.py b/src/native.py\n--- a/src/native.py\n+++ b/src/native.py\n"
+    "@@ -1 +1 @@\n-old\n+new\n"
+)
+
+
+def _write_trial(root: Path, doc: dict | None = None) -> Path:
+    """A real-shaped native trial: agent/trajectory.json, result.json, config.json, diff."""
+    trial = root / "HAR-202-chrr1-h-cheat-002391-k1" / "trial__SECRET"
     (trial / "agent").mkdir(parents=True)
     (trial / "verifier").mkdir()
-    doc = _doc("Implement the native task without changing its checker.")
-    doc["metadata"] = {"split": split}
-    (trial / "agent" / "trajectory.json").write_text(json.dumps(doc), encoding="utf-8")
-    (trial / "verifier" / "agent.diff").write_text(
-        "diff --git a/src/native.py b/src/native.py\n"
-        "--- a/src/native.py\n"
-        "+++ b/src/native.py\n"
-        "@@ -1 +1 @@\n"
-        "-old\n"
-        "+new\n",
+    (trial / "agent" / "trajectory.json").write_text(
+        json.dumps(doc or _harbor_doc()), encoding="utf-8"
+    )
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "uuid",
+                "task_name": LOCAL_TASK,
+                "trial_name": "trial__SECRET",
+                "verifier_result": {"rewards": {"reward": 1.0}},
+            }
+        ),
         encoding="utf-8",
     )
-    run_id = "NATIVE_RUN_SECRET"
-    row = {
+    (trial / "config.json").write_text(
+        json.dumps({"trial_name": "trial__SECRET"}), encoding="utf-8"
+    )
+    (trial / "verifier" / "agent.diff").write_text(DIFF, encoding="utf-8")
+    return trial
+
+
+def _local_station(
+    tmp_path: Path,
+    *,
+    mutate: Any = None,
+    run_id: str = LOCAL_RUN,
+    row: dict[str, Any] | None = None,
+    test_ids: tuple[str, ...] = (),
+    reveal: dict[str, Any] | None = None,
+    rollout: Path | None = None,
+) -> tuple[js.Station, Path, Path]:
+    trial = _write_trial(tmp_path)
+    if mutate is not None:
+        mutate(trial)
+    target = rollout or trial
+    manifest = tmp_path / "runs.jsonl"
+    entry_row = {
         "run_id": run_id,
         "corpus": "SECRET_CORPUS",
         "task_id": "SECRET_TASK",
         "model": "SECRET_MODEL",
-        "reward": 1,
-        "rollout_path": str(trial),
-        "sha256": js._local_digest(trial),
+        "reward": 1.0,
+        "rollout_path": str(target),
+        "sha256": js._local_digest(target) if target.exists() else "0" * 64,
+        **(row or {}),
     }
-    manifest = tmp_path / "runs.jsonl"
-    manifest.write_text(json.dumps(row) + "\n", encoding="utf-8")
-    fallback = FakeSource({}, {}, findings={})
+    manifest.write_text(json.dumps(entry_row) + "\n", encoding="utf-8")
     entry = js.QueueEntry(
         run_id,
         reason="LINE_REASON_SECRET",
-        reveal={
+        reveal=reveal
+        or {
             "decision": "LINE_DECISION_SECRET",
             "audit": False,
             "detectors": [
@@ -1149,7 +1223,7 @@ def _local_station(tmp_path: Path, *, split: str = "dev") -> tuple[js.Station, P
         source="line",
     )
     station = js.Station(
-        js.LocalRunSource(manifest, fallback),
+        js.LocalRunSource(manifest, FakeSource({}, {}, findings={}), FakeRegistry(test_ids)),
         {"line": [entry]},
         state_dir=tmp_path / "state",
         keep_order=True,
@@ -1161,10 +1235,9 @@ def test_local_run_http_page_is_blind_and_verdict_exports_with_line_run_id(
     tmp_path: Path,
 ) -> None:
     station, manifest, trial = _local_station(tmp_path)
-    run_id = "NATIVE_RUN_SECRET"
-    blind = js.blind_id(run_id)
+    blind = js.blind_id(LOCAL_RUN)
     hidden = [
-        run_id,
+        LOCAL_RUN,
         "SECRET_CORPUS",
         "SECRET_TASK",
         "SECRET_MODEL",
@@ -1175,6 +1248,7 @@ def test_local_run_http_page_is_blind_and_verdict_exports_with_line_run_id(
         "No dataset label",
         str(manifest),
         str(trial),
+        "HAR-202",
         "native-local",
     ]
     with _running(station) as (base, headers):
@@ -1198,52 +1272,174 @@ def test_local_run_http_page_is_blind_and_verdict_exports_with_line_run_id(
         )
         assert status == 200
     assert result["reveal"]["decision"] == "LINE_DECISION_SECRET"
+    assert result["reveal"]["audit"] is False
     assert result["reveal"]["queue_reason"] == "LINE_REASON_SECRET"
     assert result["reveal"]["detectors"][0]["name"] == "MODEL_VERDICT_SECRET"
-    assert result["reveal"]["grader"] == "1"
+    assert result["reveal"]["grader"] == "pass"  # normalised like a cloud run, not "1.0"
     out = tmp_path / "verdicts.json"
     assert js.export_verdicts(station.verdicts_path, out, "json") == 1
     (row,) = json.loads(out.read_text(encoding="utf-8"))
-    assert row["run_id"] == run_id and row["verdict"] == "legitimate"
+    assert row["run_id"] == LOCAL_RUN and row["verdict"] == "legitimate"
 
 
-def test_local_run_sha256_mismatch_is_refused_before_a_verdict(tmp_path: Path) -> None:
-    _, manifest, _ = _local_station(tmp_path)
-    row = json.loads(manifest.read_text(encoding="utf-8"))
-    row["sha256"] = "0" * 64
-    manifest.write_text(json.dumps(row) + "\n", encoding="utf-8")
-    station = js.Station(
-        js.LocalRunSource(manifest, FakeSource({}, {}, findings={})),
-        {"q": [js.QueueEntry("NATIVE_RUN_SECRET")]},
-        state_dir=tmp_path / "mismatch-state",
+def test_reveal_keeps_only_well_typed_line_decision_and_the_page_shows_it(tmp_path: Path) -> None:
+    station, _, _ = _local_station(
+        tmp_path, reveal={"decision": {"x": 1}, "audit": "yes", "notes": []}
     )
-    with pytest.raises(js.JudgeError, match="sha256 mismatch"):
-        station.run_view("q", js.blind_id("NATIVE_RUN_SECRET"))
+    blind = js.blind_id(LOCAL_RUN)
+    station.run_view("q1", blind)
+    revealed = station.submit("q1", blind, {"verdict": "unclear", "confidence": 1})["reveal"]
+    assert "decision" not in revealed and "audit" not in revealed
+    assert "rv.decision" in judge_web.PAGE and "Line decision" in judge_web.PAGE
+
+
+def _symlink_agent_dir(trial: Path) -> None:
+    outside = trial.parent.parent / "held-out" / "secret-trial" / "agent"
+    outside.mkdir(parents=True)
+    (outside / "trajectory.json").write_text(json.dumps(_harbor_doc("HELD OUT")), encoding="utf-8")
+    for child in (trial / "agent").iterdir():
+        child.unlink()
+    (trial / "agent").rmdir()
+    (trial / "agent").symlink_to(outside, target_is_directory=True)
+
+
+def _symlink_final_diff(trial: Path) -> None:
+    secret = trial.parent.parent / "answer-keys" / "secret.diff"
+    secret.parent.mkdir(parents=True)
+    secret.write_text(DIFF.replace("native", "ans_key"), encoding="utf-8")
+    (trial / "final.diff").symlink_to(secret)
+
+
+def _set_json(trial: Path, name: str, update: dict[str, Any]) -> None:
+    path = trial / name
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data.update(update)
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def _raw_bundle(trial: Path) -> None:
+    bundle = {
+        "traces": [{"nodes": [], "metadata": {"split": "test"}, "task": {"data": {"prompt": "x"}}}]
+    }
+    (trial / "agent" / "trajectory.json").write_text(json.dumps(bundle), encoding="utf-8")
+
+
+def _answer_key_trial(trial: Path) -> Path:  # not a mutator: moves the whole trial
+    moved = trial.parent.parent / "answer-keys" / "moved"
+    moved.parent.mkdir()
+    trial.rename(moved)
+    return moved
+
+
+def _break_sidecar(trial: Path) -> None:
+    (trial / "config.json").write_text("{not json", encoding="utf-8")
+
+
+def _remove_trajectory(trial: Path) -> None:
+    (trial / "agent" / "trajectory.json").unlink()
+
+
+REFUSALS: dict[str, dict[str, Any]] = {
+    # Blocking 1: every split declaration form, and the registry TEST assignment
+    "registry-task-name": {"test_ids": ("format-code-task-000838",)},
+    "registry-run-id-stem": {"run_id": "build-pmars__123", "test_ids": ("build-pmars",)},
+    "top-level-trajectory-split": {
+        "mutate": lambda t: _set_json(t, "agent/trajectory.json", {"split": "test"})
+    },
+    "nested-result-split": {
+        "mutate": lambda t: _set_json(t, "result.json", {"metadata": {"split": "test"}})
+    },
+    "non-text-split": {"mutate": lambda t: _set_json(t, "config.json", {"split": ["test"]})},
+    "raw-bundle-split": {"mutate": _raw_bundle},
+    "malformed-sidecar": {"mutate": _break_sidecar},
+    "forbidden-task-id": {"row": {"task_id": "tasks/held-out/secret-task"}},
+    # Blocking 2: symlinks and real paths
+    "symlinked-agent-dir": {"mutate": _symlink_agent_dir},
+    "symlinked-final-diff": {"mutate": _symlink_final_diff},
+    "path-under-answer-keys": {"move": True},
+    # integrity, availability
+    "sha-mismatch": {"row": {"sha256": "ab" * 32}},
+    "missing-path": {"missing": True},
+    "no-trajectory": {"mutate": _remove_trajectory},
+}
+
+
+@pytest.mark.parametrize("case", sorted(REFUSALS))
+def test_local_run_is_refused_with_a_generic_body_that_leaks_nothing(
+    tmp_path: Path, case: str
+) -> None:
+    spec = dict(REFUSALS[case])
+    move, missing = spec.pop("move", False), spec.pop("missing", False)
+    rollout = None
+    if move:
+        probe = _write_trial(tmp_path / "probe")
+        rollout = _answer_key_trial(probe)
+    if missing:
+        rollout = tmp_path / "HAR-202-chrr1-h-cheat-002391-k1" / "gone__SECRET"
+    run_id = spec.get("run_id", LOCAL_RUN)
+    station, manifest, trial = _local_station(tmp_path, rollout=rollout, **spec)
+    blind = js.blind_id(run_id)
+    with _running(station) as (base, headers):
+        status, body = _call(base, f"/api/run?queue=q1&id={blind}")
+        assert status == 409, (case, body)
+        text = json.dumps(body).lower()
+        for leak in (
+            str(tmp_path).lower(),
+            "har-202",
+            "chrr1",
+            "cheat",
+            "exploit",
+            "honest",
+            "answer-keys",
+            "held-out",
+            "secret",
+            "native_run",
+            run_id.lower(),
+            "ab" * 32,
+            "0" * 32,
+        ):
+            assert leak not in text, (case, leak)
+        assert body["error"].startswith("refused: local rollout")
+        queue_status, queue = _call(base, "/api/queue?name=q1")
+        assert queue_status == 200 and queue["items"][0]["refused"] is True
+        verdict = {"queue": "q1", "id": blind, "verdict": "unclear", "confidence": 1}
+        status, body = _call(base, "/api/verdict", verdict, headers)
+        assert status == 409 and str(tmp_path).lower() not in json.dumps(body).lower()
     assert station.read_verdicts() == []
 
 
-def test_local_run_dev_gate_refuses_non_dev_trajectory(tmp_path: Path) -> None:
-    station, _, _ = _local_station(tmp_path, split="TEST")
-    with pytest.raises(js.JudgeError, match="non-DEV split"):
-        station.run_view("q1", js.blind_id("NATIVE_RUN_SECRET"))
-    assert station.read_verdicts() == []
+def test_a_refusal_is_logged_server_side_with_its_detail(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    station, _, trial = _local_station(tmp_path, row={"sha256": "ab" * 32})
+    with caplog.at_level("WARNING", logger=js.__name__), pytest.raises(js.JudgeError):
+        station.run_view("q1", js.blind_id(LOCAL_RUN))
+    assert js.blind_id(LOCAL_RUN) in caplog.text and "sha256 expected" in caplog.text
 
 
-def test_local_run_dev_gate_refuses_answer_key_path(tmp_path: Path) -> None:
-    _, manifest, trial = _local_station(tmp_path)
-    forbidden = tmp_path / "answer-keys" / "native-trial"
-    forbidden.parent.mkdir()
-    trial.rename(forbidden)
-    row = json.loads(manifest.read_text(encoding="utf-8"))
-    row["rollout_path"] = str(forbidden)
-    manifest.write_text(json.dumps(row) + "\n", encoding="utf-8")
-    station = js.Station(
-        js.LocalRunSource(manifest, FakeSource({}, {}, findings={})),
-        {"q": [js.QueueEntry("NATIVE_RUN_SECRET")]},
-        state_dir=tmp_path / "forbidden-state",
-    )
-    with pytest.raises(js.JudgeError, match="answer-keys"):
-        station.run_view("q", js.blind_id("NATIVE_RUN_SECRET"))
+def test_a_tree_without_symlinks_or_with_inner_symlinks_still_loads(tmp_path: Path) -> None:
+    def inner(trial: Path) -> None:
+        (trial / "final.diff").symlink_to(trial / "verifier" / "agent.diff")
+
+    station, _, _ = _local_station(tmp_path, mutate=inner)
+    view = station.run_view("q1", js.blind_id(LOCAL_RUN))
+    assert [f["path"] for f in view["card"]["wrote"]["patch_files"]] == ["src/native.py"]
+
+
+def test_single_file_atif_named_trajectory_json_is_served(tmp_path: Path) -> None:
+    single = tmp_path / "single" / "trajectory.json"
+    single.parent.mkdir()
+    single.write_text(json.dumps(_harbor_doc()), encoding="utf-8")
+    station, _, _ = _local_station(tmp_path, rollout=single)
+    view = station.run_view("q1", js.blind_id(LOCAL_RUN))
+    assert view["card"]["asked"]["text"].startswith("Implement the native task")
+
+
+def test_local_source_requires_a_registry(tmp_path: Path) -> None:
+    manifest = tmp_path / "runs.jsonl"
+    manifest.write_text("", encoding="utf-8")
+    with pytest.raises(js.JudgeError, match="registry"):
+        js.LocalRunSource(manifest, FakeSource({}, {}), None)
 
 
 def test_local_source_leaves_cloud_and_cheatbench_fallback_unchanged(tmp_path: Path) -> None:
@@ -1257,8 +1453,24 @@ def test_local_source_leaves_cloud_and_cheatbench_fallback_unchanged(tmp_path: P
         CHEAT: js.Label("cheat", "CHEATBENCH_LABEL"),
     }
     fallback = FakeSource(runs, labels, findings={})
-    source = js.LocalRunSource(manifest, fallback)
+    source = js.LocalRunSource(manifest, fallback, FakeRegistry(("anything",)))
     assert source.load_runs([cloud_id, CHEAT]) == (runs, {})
     assert source.label(cloud_id) == labels[cloud_id]
     assert source.label(CHEAT) == labels[CHEAT]
     assert source.detectors([cloud_id, CHEAT]) == fallback.detectors([cloud_id, CHEAT])
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Terminus-2 bash_command carries the shell command in arguments.keystrokes; the card "
+    "and timeline do not read it yet. Fix = import the shared tool-call normaliser "
+    "(evallab.tool_calls.normalize_tool_call, L0Formats) once it is merged; no private parser.",
+)
+def test_terminus_keystrokes_reach_the_card_and_the_timeline(tmp_path: Path) -> None:
+    station, _, _ = _local_station(tmp_path)
+    view = station.run_view("q1", js.blind_id(LOCAL_RUN))
+    rows = view["card"]["ran"]["rows"]
+    assert any("pytest tests/test_cli.py" in row["text"] for row in rows)
+    assert view["card"]["grader"]["tests_run"]
+    call = next(c for s in view["steps"] for c in s["calls"])
+    assert call["text"].strip() == KEYSTROKES.strip()

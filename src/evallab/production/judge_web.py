@@ -347,6 +347,7 @@ function showReveal(rv,agree,verdict,seconds){
   p.appendChild(el("div",null,"You said: "+verdict+(seconds!==undefined?" · "+fmt(seconds):"")));
   p.appendChild(el("div","lbl","Label"));p.appendChild(el("div",null,rv.label.text));
   if(rv.grader)p.appendChild(el("div",null,"Grader result: "+rv.grader));
+  if(rv.decision!==undefined)p.appendChild(el("div",null,"Line decision: "+rv.decision+(rv.audit?" (random audit)":"")));
   if(rv.stratum_text)p.appendChild(el("div","lbl","Why you got this run"));
   if(rv.stratum_text)p.appendChild(el("div",null,rv.stratum_text));
   if(rv.queue)p.appendChild(el("div","lbl","Queue: "+rv.queue));

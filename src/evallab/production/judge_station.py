@@ -21,6 +21,7 @@ import fcntl
 import hashlib
 import io
 import json
+import logging
 import os
 import re
 import threading
@@ -248,11 +249,64 @@ def _local_digest(path: Path) -> str:
     raise FileNotFoundError(path)
 
 
-class LocalRunSource:
-    """Native Harbor trials pinned by a line ``runs.jsonl``, with cloud/CheatBench fallback."""
+LOCAL_LOG = logging.getLogger(__name__)
+LOCAL_NOT_ADMITTED = "local rollout is not an admitted DEV run"
+LOCAL_UNREADABLE = "local rollout is missing or unreadable"
+LOCAL_INTEGRITY = "local rollout failed its integrity check"
+LOCAL_SIDECARS = ("result.json", "config.json", "run.json")
+LOCAL_TRAJECTORIES = ("agent/trajectory.json", "trajectory.json")
+MAX_SPLIT_DEPTH = 8
 
-    def __init__(self, manifest: Path, fallback: RunSource) -> None:
+
+class _LocalRefused(Exception):
+    """A local run the station will not show. ``public`` is safe for the judge; ``detail`` is
+    logged server-side only because it can hold paths, hashes and ids."""
+
+    def __init__(self, public: str, detail: str = "") -> None:
+        super().__init__(public)
+        self.public, self.detail = public, detail
+
+
+def _declares_non_dev(value: Any, depth: int = 0) -> bool:
+    """True when a ``split`` key anywhere in the nested mappings is not exactly ``dev``.
+
+    Lists are not entered: the steps of a trajectory are agent-written text, not declarations.
+    A split that is not text is treated as non-DEV (fail closed).
+    """
+    if not isinstance(value, Mapping) or depth > MAX_SPLIT_DEPTH:
+        return False
+    for key, child in value.items():
+        if key == "split":
+            if child is None:
+                continue
+            if not isinstance(child, str):
+                return True
+            if child.strip() and child.strip().casefold() != "dev":
+                return True
+        elif _declares_non_dev(child, depth + 1):
+            return True
+    return False
+
+
+def _read_json_strict(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as error:
+        raise _LocalRefused(LOCAL_UNREADABLE, f"{path}: not JSON ({error})") from error
+
+
+class LocalRunSource:
+    """Native Harbor trials pinned by a line ``runs.jsonl``, with cloud/CheatBench fallback.
+
+    ``registry`` is the corpus registry (``assigned_test_anywhere``); it is required so that a
+    local run can never skip the TEST-split assignment check the other loaders apply.
+    """
+
+    def __init__(self, manifest: Path, fallback: RunSource, registry: Any) -> None:
+        if registry is None or not hasattr(registry, "assigned_test_anywhere"):
+            raise JudgeError("a corpus registry is required to admit local runs")
         self.fallback = fallback
+        self.registry = registry
         self._rows: dict[str, Mapping[str, Any]] = {}
         for number, line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):
             if not line.strip():
@@ -275,35 +329,91 @@ class LocalRunSource:
                 raise JudgeError(f"{manifest}:{number}: duplicate local run_id {run_id}")
             self._rows[run_id] = row
 
+    def _check_tree(self, root: Path) -> None:
+        """Every entry of the trial, by its real path, passes the path gate and stays inside."""
+        from evallab import hack_drop as hd
+
+        for directory, subdirectories, files in os.walk(root, followlinks=False):
+            for name in (*subdirectories, *files):
+                entry = Path(directory) / name
+                real = entry.resolve()
+                if entry.is_symlink() and (not real.exists() or not real.is_relative_to(root)):
+                    raise _LocalRefused(LOCAL_NOT_ADMITTED, f"symlink leaves the trial: {entry}")
+                hd.check_dev_path_allowed(real)
+
+    def _refuse_registry_test(self, names: Iterable[Any]) -> None:
+        for raw in names:
+            if not isinstance(raw, str) or not raw.strip():
+                continue
+            forms = {raw.strip(), raw.strip().rsplit("/", 1)[-1]}
+            forms |= {form.split("__")[0] for form in forms if "__" in form}
+            for form in forms:
+                if self.registry.assigned_test_anywhere(
+                    item_id=form
+                ) or self.registry.assigned_test_anywhere(task_id=form):
+                    raise _LocalRefused(LOCAL_NOT_ADMITTED, f"assigned TEST in registry: {form}")
+
     def _load_local(self, run_id: str) -> Any:
         from evallab import hack_drop as hd
-        from evallab.production.run_atlas import AtlasRun
+        from evallab.production.run_atlas import AtlasRun, outcome_from_reward
+        from evallab.trace_anatomy import load_atif_file
 
         row = self._rows[run_id]
-        hd._check_row_dev(row)
-        path = hd.check_dev_path_allowed(str(row["rollout_path"]))
-        expected = str(row["sha256"]).lower()
-        actual = _local_digest(path)
-        if actual != expected:
-            raise JudgeError(f"local rollout sha256 mismatch: expected {expected}, got {actual}")
-        item = hd._load_single_path_rollout(path)
-        if item.run is None:
-            raise JudgeError("local rollout has no readable ATIF trajectory")
-        doc = dict(item.run.doc)
-        final_diff = item.diff_text
-        if final_diff is None and path.is_dir() and (path / "verifier" / "agent.diff").is_file():
-            diff_path = hd.check_dev_path_allowed(path / "verifier" / "agent.diff")
-            final_diff = diff_path.read_text(encoding="utf-8", errors="replace")
+        try:
+            hd._check_row_dev(row)
+            root = Path(str(row["rollout_path"])).expanduser().resolve()
+            hd.check_dev_path_allowed(root)
+            names: list[Any] = [run_id, row.get("task_id"), row.get("trial_name")]
+            task = row.get("task_id")
+            if isinstance(task, str) and task.strip():
+                hd.check_dev_path_allowed(task)
+            if not root.exists():
+                raise _LocalRefused(LOCAL_UNREADABLE, f"missing: {root}")
+            if root.is_dir():
+                self._check_tree(root)
+            expected = str(row["sha256"]).lower()
+            actual = _local_digest(root)
+            if actual != expected:
+                raise _LocalRefused(LOCAL_INTEGRITY, f"sha256 expected {expected} got {actual}")
+            documents: list[Any] = []
+            if root.is_dir():
+                for name in LOCAL_SIDECARS:
+                    if (root / name).is_file():
+                        sidecar = _read_json_strict(root / name)
+                        documents.append(sidecar)
+                        if isinstance(sidecar, Mapping):
+                            names += [sidecar.get("task_name"), sidecar.get("trial_name")]
+                trajectory = next(
+                    (root / t for t in LOCAL_TRAJECTORIES if (root / t).is_file()), None
+                )
+                item = hd._load_single_path_rollout(root)
+                if item.run is None or trajectory is None:
+                    raise _LocalRefused(LOCAL_UNREADABLE, "no ATIF trajectory")
+                run, final_diff = item.run, item.diff_text
+                names += [item.item_id, item.task_id]
+                if item.task_id and item.task_id != "unknown":
+                    hd.check_dev_path_allowed(item.task_id)
+                if final_diff is None and (root / "verifier" / "agent.diff").is_file():
+                    final_diff = (root / "verifier" / "agent.diff").read_text(
+                        encoding="utf-8", errors="replace"
+                    )
+            else:
+                trajectory = root
+                run = load_atif_file(root)
+                final_diff = run.submission
+            raw = _read_json_strict(trajectory)
+            documents.append(raw)
+            if isinstance(raw, Mapping) and isinstance(raw.get("traces"), list):
+                documents += [trace for trace in raw["traces"] if isinstance(trace, Mapping)]
+            if any(_declares_non_dev(document) for document in documents):
+                raise _LocalRefused(LOCAL_NOT_ADMITTED, "a split declaration is not dev")
+            self._refuse_registry_test(names)
+        except hd.RefusedRun as error:
+            raise _LocalRefused(LOCAL_NOT_ADMITTED, str(error)) from error
+        doc = dict(run.doc)
         if final_diff:
             doc["submission"] = final_diff
-        reward = row.get("reward")
-        return AtlasRun(
-            run_id,
-            "native-local",
-            "DEV",
-            "unknown" if reward is None else str(reward),
-            doc,
-        )
+        return AtlasRun(run_id, "native-local", "DEV", outcome_from_reward(row.get("reward")), doc)
 
     def load_runs(self, run_ids: Sequence[str]) -> tuple[dict[str, Any], dict[str, str]]:
         remote = [run_id for run_id in run_ids if run_id not in self._rows]
@@ -311,8 +421,14 @@ class LocalRunSource:
         for run_id in (run_id for run_id in run_ids if run_id in self._rows):
             try:
                 runs[run_id] = self._load_local(run_id)
-            except (OSError, ValueError) as error:
-                unavailable[run_id] = f"local rollout: {error}"
+            except _LocalRefused as error:
+                LOCAL_LOG.warning("local run %s refused: %s", blind_id(run_id), error.detail)
+                unavailable[run_id] = error.public
+            except Exception as error:  # fail closed: nothing about the failure reaches the page
+                LOCAL_LOG.warning(
+                    "local run %s unreadable: %s: %s", blind_id(run_id), type(error).__name__, error
+                )
+                unavailable[run_id] = LOCAL_UNREADABLE
         return runs, unavailable
 
     def label(self, run_id: str) -> Label:
@@ -835,9 +951,11 @@ class Station:
             "detectors": detectors,
             "notes": notes,
         }
-        for key in ("decision", "audit"):
-            if key in extra:
-                revealed[key] = extra[key]
+        decision, audit = extra.get("decision"), extra.get("audit")
+        if isinstance(decision, str):
+            revealed["decision"] = decision[:200]
+        if isinstance(audit, bool):
+            revealed["audit"] = audit
         return revealed
 
     # -- drafts ----------------------------------------------------------- #
@@ -1365,8 +1483,10 @@ def _serve(args: argparse.Namespace, root: Path, **_: Any) -> int:
         queues = discover_queues(args.state_dir, args.queue)
         source: RunSource = LabSource(root, args.findings)
         if args.local_runs:
-            source = LocalRunSource(args.local_runs, source)
-    except (JudgeError, OSError) as error:
+            from evallab import hack_drop as hd
+
+            source = LocalRunSource(args.local_runs, source, hd._get_corpus_registry(root))
+    except (JudgeError, OSError, RuntimeError) as error:
         print(f"judge: {error}")
         return 2
     if not queues:

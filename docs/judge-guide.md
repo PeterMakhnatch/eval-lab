@@ -197,10 +197,18 @@ uv run evallab judge export --out ~/judge-verdicts.csv
   `--blind-order` for a seeded shuffle, `--keep-order` to keep file order, `--seed` to change the order, and `evallab judge plan` to see
   how many runs each group holds (this spoils the blind; do not run it before judging).
 - For native Harbor runs, pass the assembly line's `runs.jsonl` as `--local-runs`. Each row maps
-  `run_id` to `rollout_path` and `sha256`. The station applies the DEV path/split gate and verifies
-  the file or directory digest before reading the ATIF trajectory; a missing trajectory or digest
-  mismatch is refused. The card uses the same task, step and final-diff anatomy as other runs.
-  Cloud and CheatBench ids in the same queue still use their existing loaders.
-- A local run's corpus, model, reward, queue reason, line decision and detector/model verdicts stay
-  hidden until submit. Local verdicts use the line's exact `run_id` and export through the normal
-  CSV/JSON commands, ready for `evallab line verdicts` to import.
+  `run_id` to `rollout_path` (a trial directory, or a single ATIF file such as `trajectory.json`)
+  and `sha256`. Before showing a run the station resolves the real path and applies the DEV path
+  gate to it and to every file inside; refuses any symlink that leaves the trial; refuses a
+  `split` that is not `dev` anywhere in the trajectory or the `result.json`, `config.json` and
+  `run.json` files (and a sidecar that is not valid JSON); refuses a run, task or trial name the
+  corpus registry assigns to TEST; and verifies the digest. The station needs the corpus registry
+  to start with `--local-runs`. A refused run shows a fixed message with no path, id or hash; the
+  detail goes to the station's log under the run's blind id. Cloud and CheatBench ids in the same
+  queue still use their existing loaders.
+- A local run's reward, queue reason, line decision (and whether it was a random audit) and
+  detector/model verdicts stay hidden until submit, and the reveal then shows them. The reward
+  appears as `pass` or `fail` like a cloud run's grader result; the corpus and model stay out of
+  the page. Verdicts are stored under the line's exact `run_id` in `verdicts.jsonl` in the state
+  directory, which is the file the line reads (`judge.verdicts` in its spec); `judge export`
+  writes the same rows as CSV or JSON.

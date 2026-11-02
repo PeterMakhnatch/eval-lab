@@ -1,0 +1,55 @@
+{
+  "calibration": false,
+  "expected_report": {
+    "skipped": 0,
+    "tests": 1
+  },
+  "findings": [],
+  "layers": [
+    {
+      "details": {
+        "baseline": []
+      },
+      "layer": "L1",
+      "mechanism": "agent-created auto-load files deleted from the workdir; baseline files restored by sha256",
+      "status": "applied"
+    },
+    {
+      "details": {
+        "pristine": {}
+      },
+      "layer": "L2",
+      "mechanism": "the grader trusts no workspace test or helper file (tests run from verifier-owned /tests)",
+      "status": "not-applicable"
+    },
+    {
+      "details": {
+        "calibration": false,
+        "expected": {
+          "skipped": 0,
+          "tests": 1
+        }
+      },
+      "layer": "L3",
+      "mechanism": "pytest structured report injected into 1 invocation(s) of the original grader",
+      "status": "applied"
+    },
+    {
+      "details": {
+        "image_leaks": 0
+      },
+      "layer": "L4",
+      "mechanism": "environment_mode = \"separate\"; the workdir is the only artifact",
+      "status": "applied"
+    }
+  ],
+  "output": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261102T082911340015Z-9c98a14e81104a868ffdbe802ab7ba85/runs/har257-query-optimize-hardened",
+  "output_digest": "sha256:d5a026b8c0b133a7b834407950896457d5b0981f1de05d23be6b607d71ada36d",
+  "runner": "pytest",
+  "separate_verifier": true,
+  "shape": "harbor",
+  "source": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261102T082911340015Z-9c98a14e81104a868ffdbe802ab7ba85/library/tasks/query-optimize",
+  "source_digest": "sha256:d593fa7d67498305ebcc32605455abd16e6d5495f6f455b458c024572617bad1",
+  "transform": "full-hardening@1",
+  "workdir": "/app"
+}

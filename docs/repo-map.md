@@ -407,7 +407,7 @@ inputs:
   - path: src/evallab/hackbook/refcov.py
     digest: sha256:126b617d30db6381246386c3c5ae45885ad54f2dfa2cd589b88d186cbd7f670a
   - path: src/evallab/harbor_antigravity.py
-    digest: sha256:10e45b5e9d636280a900e4ac5ab3813dc75b80b4e737d2184810994a1e4143e0
+    digest: sha256:d6c42175db5ba9885849e69dd3e7d6d600e825a1fe2386d4e47ad84d2a81e5e1
   - path: src/evallab/harbor_cheat.py
     digest: sha256:9b696a903f59c10ed6538611165f272246c3481be970591ccebc64b9cd8511c5
   - path: src/evallab/harbor_codex.py

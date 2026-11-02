@@ -119,7 +119,7 @@ inputs:
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
-    digest: sha256:15920beae543ae241d6c2f77dd43019d5d60b57d49fff6792a116e70029a6ae5
+    digest: sha256:5d673a47c7f869c6075f9c0920faa162c5f32a5860434bd359b8610c79e4c3e4
   - path: docs/research/evaluation-factory-2026-08.md
     digest: sha256:f453a2f026c5b9240e90706d78030db1747af489df79a46b172ec85932a0dde8
   - path: docs/research/external-datasets.md

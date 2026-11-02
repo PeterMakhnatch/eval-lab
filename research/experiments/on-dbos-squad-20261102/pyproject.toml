@@ -1,0 +1,16 @@
+[project]
+name = "on-dbos-squad-20261102"
+version = "0.1.0"
+description = "DBOS-backed durable squad runner prototype evaluated under 5 kill tests"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "dbos>=3.4.0",
+    "pytest>=8.0.0",
+    "pyyaml>=6.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+pythonpath = ["src"]

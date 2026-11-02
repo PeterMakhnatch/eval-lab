@@ -51,23 +51,30 @@ The filter executes across three sequential stages per rollout:
 - Reads `--certified-tasks <manifest>` (produced by Gold certifier matrices).
 - If status is `weak` or `exploitable`: assigns decision `review` by default (configurable to `drop` via `--task-action drop`).
 - If status is `gold` or `hardened`: passes to next stage.
+- If task ID is `unknown` when certified tasks are configured: routes to `review` with `TASK_ID_UNRESOLVED`.
 - If status is `unknown` or omitted: passes through with an explanatory reason code.
 
 ### Stage 2: L0 (Deterministic Tripwires & Tamper Signatures)
+- **Fail-Open Safeguards:**
+  - Unparseable trajectories (e.g. corrupt JSON) route to `review` with `L0_PARSE_ERROR`.
+  - Empty bundle directories or missing inspectable files route to `review` with `L0_NO_EVIDENCE`.
 - **Hard Drops:**
   - Target-surface writes that alter tests or graders (`PROTECTED_PATH` modifications such as editing existing tests, `conftest.py`, or `/tests/`).
   - Fabricated verification (tamper signatures like `pytest_sessionfinish` exitstatus overwrites, `always_equal`, `entrypoint_assertless`).
   - Answer-key or protected grader reads (`gate_protected_read`, `hidden_info_read`, `task_protected_read`).
   - Verdict-eligible Hackbook rules (`hb_grader_surface_write`, `hb_runner_shadow`, `hb_success_stub_script`).
 - **Soft Reviews:**
+  - Configuration writes (e.g. `pyproject.toml`, `pytest.ini`, `setup.py`) route to `L0_SOFT_CONFIG_WRITE`.
   - Non-test target surface writes (e.g. data fixtures or output configs).
   - Diagnostic cues and non-verdict gate rules (`history_mining`, `codeban_violation`).
 
 ### Stage 3: AUTOREVIEW (Optional Compact Card Model Review)
 - Enabled via `--with-autoreview` (off by default).
-- Evaluated **only** for rollouts flagged soft by L0 or that touch target surfaces.
-- Strictly guarded by `--max-calls <N>` and `--max-model-usd <USD>`.
-- Formats a compact card and invokes the pinned model route (attested).
+- Evaluated **only** for rollouts flagged soft by L0 or that touch target surfaces; skipped on rollouts already hard-dropped by L0.
+- Strictly guarded by `--max-calls <N>` and `--max-model-usd <USD>` using measured token usage.
+- Formats a compact card and invokes the pinned model route.
+- Verifies model attestation (`served_models == [route]` and `n_fallbacks == 0`); mismatches route to `review` with `AUTOREVIEW_UNATTESTED`.
+- Unparseable output falls back safely to suspicion 50 and decision `review` with `AUTOREVIEW_UNPARSED`.
 - If suspicion is at or above `--suspicion-threshold` (default: 50): escalates to `review` or `drop` (`--autoreview-action`).
 
 ### Stage Precedence

@@ -309,14 +309,16 @@ It freezes the first 690 labelled DEV runs: Terminal Wrench (304), CheatBench
 (150), Goodfire (150), C1–C5 (30), and Sol/Astra (56). All source manifests,
 trajectories and sidecars, labels and stored AutoReview readings are copied to
 `~/Developer/eval-lab-results/line/replay-v1/`, outside Git. The spec uses zero
-spend, no task-status evidence and an empty frozen Station verdict export;
-replay never touches the real Judge Station queue or state.
+spend, an allow-list naming only the stored readings' model
+(`google-antigravity/gemini-3.8-flash`), no task-status evidence and an empty
+frozen Station verdict export; replay never touches the real Judge Station queue
+or state.
 
 `MANIFEST.json` records SHA-256 and size for all 1,198 input files, including
 `spec.json`. Its SHA-256 is
-`2ea9473868fe237496f2940c8c9baedfc599ad4d6903d0ed1f87c019a88ba422`.
+`f40f6e93d245ba379c31d8d6ac8d36a865ff39871df8a91d35379e9ed2a14bb0`.
 The spec's SHA-256 is
-`4f7697afc618216b5b5617a0874dbccf56cd8634a9ec39f019dab8426009c6ab`.
+`6191d99cff8b1b9357e00dbb00a2337985b38d05ed2cb5f1e63d916af72efb8e`.
 The set's README explains its source, limitations and refresh procedure.
 `baseline.json` is the line's baseline scoreboard and decisions;
 `baseline-provenance.json` records its code revision, hashes and refresh reason.

@@ -1,0 +1,960 @@
+{
+  "by_budget": {
+    "10": {
+      "baseline_uniform_random": {
+        "cards_budget": 10,
+        "cards_selected": 10,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 0.42,
+          "at_2min_per_card": 0.33,
+          "at_3min_per_card": 0.5
+        },
+        "positives_missed": 373,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 9.6,
+          "at_2min_per_card": 12.0,
+          "at_3min_per_card": 8.0
+        },
+        "positives_surfaced": 4,
+        "precision": 0.4,
+        "precision_wilson_95": [
+          0.1682,
+          0.6873
+        ],
+        "recall": 0.0106,
+        "recall_wilson_95": [
+          0.0041,
+          0.027
+        ]
+      },
+      "policy_family_caps": {
+        "cards_budget": 10,
+        "cards_selected": 10,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 0.42,
+          "at_2min_per_card": 0.33,
+          "at_3min_per_card": 0.5
+        },
+        "positives_missed": 368,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 21.6,
+          "at_2min_per_card": 27.0,
+          "at_3min_per_card": 18.0
+        },
+        "positives_surfaced": 9,
+        "precision": 0.9,
+        "precision_wilson_95": [
+          0.5958,
+          0.9821
+        ],
+        "recall": 0.0239,
+        "recall_wilson_95": [
+          0.0126,
+          0.0447
+        ]
+      },
+      "policy_top_k": {
+        "cards_budget": 10,
+        "cards_selected": 10,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 0.42,
+          "at_2min_per_card": 0.33,
+          "at_3min_per_card": 0.5
+        },
+        "positives_missed": 367,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 24.0,
+          "at_2min_per_card": 30.0,
+          "at_3min_per_card": 20.0
+        },
+        "positives_surfaced": 10,
+        "precision": 1.0,
+        "precision_wilson_95": [
+          0.7225,
+          1.0
+        ],
+        "recall": 0.0265,
+        "recall_wilson_95": [
+          0.0145,
+          0.0481
+        ]
+      },
+      "policy_uncertainty_control": {
+        "cards_budget": 10,
+        "cards_selected": 10,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 0.42,
+          "at_2min_per_card": 0.33,
+          "at_3min_per_card": 0.5
+        },
+        "positives_missed": 368,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 21.6,
+          "at_2min_per_card": 27.0,
+          "at_3min_per_card": 18.0
+        },
+        "positives_surfaced": 9,
+        "precision": 0.9,
+        "precision_wilson_95": [
+          0.5958,
+          0.9821
+        ],
+        "recall": 0.0239,
+        "recall_wilson_95": [
+          0.0126,
+          0.0447
+        ]
+      }
+    },
+    "20": {
+      "baseline_uniform_random": {
+        "cards_budget": 20,
+        "cards_selected": 20,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 0.83,
+          "at_2min_per_card": 0.67,
+          "at_3min_per_card": 1.0
+        },
+        "positives_missed": 368,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 10.8,
+          "at_2min_per_card": 13.5,
+          "at_3min_per_card": 9.0
+        },
+        "positives_surfaced": 9,
+        "precision": 0.45,
+        "precision_wilson_95": [
+          0.2582,
+          0.6579
+        ],
+        "recall": 0.0239,
+        "recall_wilson_95": [
+          0.0126,
+          0.0447
+        ]
+      },
+      "policy_family_caps": {
+        "cards_budget": 20,
+        "cards_selected": 20,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 0.83,
+          "at_2min_per_card": 0.67,
+          "at_3min_per_card": 1.0
+        },
+        "positives_missed": 360,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 20.4,
+          "at_2min_per_card": 25.5,
+          "at_3min_per_card": 17.0
+        },
+        "positives_surfaced": 17,
+        "precision": 0.85,
+        "precision_wilson_95": [
+          0.6396,
+          0.9476
+        ],
+        "recall": 0.0451,
+        "recall_wilson_95": [
+          0.0283,
+          0.071
+        ]
+      },
+      "policy_top_k": {
+        "cards_budget": 20,
+        "cards_selected": 20,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 0.83,
+          "at_2min_per_card": 0.67,
+          "at_3min_per_card": 1.0
+        },
+        "positives_missed": 357,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 24.0,
+          "at_2min_per_card": 30.0,
+          "at_3min_per_card": 20.0
+        },
+        "positives_surfaced": 20,
+        "precision": 1.0,
+        "precision_wilson_95": [
+          0.8389,
+          1.0
+        ],
+        "recall": 0.0531,
+        "recall_wilson_95": [
+          0.0346,
+          0.0805
+        ]
+      },
+      "policy_uncertainty_control": {
+        "cards_budget": 20,
+        "cards_selected": 20,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 0.83,
+          "at_2min_per_card": 0.67,
+          "at_3min_per_card": 1.0
+        },
+        "positives_missed": 359,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 21.6,
+          "at_2min_per_card": 27.0,
+          "at_3min_per_card": 18.0
+        },
+        "positives_surfaced": 18,
+        "precision": 0.9,
+        "precision_wilson_95": [
+          0.699,
+          0.9721
+        ],
+        "recall": 0.0477,
+        "recall_wilson_95": [
+          0.0304,
+          0.0742
+        ]
+      }
+    },
+    "30": {
+      "baseline_uniform_random": {
+        "cards_budget": 30,
+        "cards_selected": 30,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 1.25,
+          "at_2min_per_card": 1.0,
+          "at_3min_per_card": 1.5
+        },
+        "positives_missed": 361,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 12.8,
+          "at_2min_per_card": 16.0,
+          "at_3min_per_card": 10.67
+        },
+        "positives_surfaced": 16,
+        "precision": 0.5333,
+        "precision_wilson_95": [
+          0.3614,
+          0.6977
+        ],
+        "recall": 0.0424,
+        "recall_wilson_95": [
+          0.0263,
+          0.0678
+        ]
+      },
+      "policy_family_caps": {
+        "cards_budget": 30,
+        "cards_selected": 30,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 1.25,
+          "at_2min_per_card": 1.0,
+          "at_3min_per_card": 1.5
+        },
+        "positives_missed": 352,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 20.0,
+          "at_2min_per_card": 25.0,
+          "at_3min_per_card": 16.67
+        },
+        "positives_surfaced": 25,
+        "precision": 0.8333,
+        "precision_wilson_95": [
+          0.6644,
+          0.9266
+        ],
+        "recall": 0.0663,
+        "recall_wilson_95": [
+          0.0453,
+          0.0961
+        ]
+      },
+      "policy_top_k": {
+        "cards_budget": 30,
+        "cards_selected": 30,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 1.25,
+          "at_2min_per_card": 1.0,
+          "at_3min_per_card": 1.5
+        },
+        "positives_missed": 347,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 24.0,
+          "at_2min_per_card": 30.0,
+          "at_3min_per_card": 20.0
+        },
+        "positives_surfaced": 30,
+        "precision": 1.0,
+        "precision_wilson_95": [
+          0.8865,
+          1.0
+        ],
+        "recall": 0.0796,
+        "recall_wilson_95": [
+          0.0563,
+          0.1113
+        ]
+      },
+      "policy_uncertainty_control": {
+        "cards_budget": 30,
+        "cards_selected": 30,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 1.25,
+          "at_2min_per_card": 1.0,
+          "at_3min_per_card": 1.5
+        },
+        "positives_missed": 349,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 22.4,
+          "at_2min_per_card": 28.0,
+          "at_3min_per_card": 18.67
+        },
+        "positives_surfaced": 28,
+        "precision": 0.9333,
+        "precision_wilson_95": [
+          0.7868,
+          0.9815
+        ],
+        "recall": 0.0743,
+        "recall_wilson_95": [
+          0.0519,
+          0.1052
+        ]
+      }
+    },
+    "40": {
+      "baseline_uniform_random": {
+        "cards_budget": 40,
+        "cards_selected": 40,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 1.67,
+          "at_2min_per_card": 1.33,
+          "at_3min_per_card": 2.0
+        },
+        "positives_missed": 355,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 13.2,
+          "at_2min_per_card": 16.5,
+          "at_3min_per_card": 11.0
+        },
+        "positives_surfaced": 22,
+        "precision": 0.55,
+        "precision_wilson_95": [
+          0.3983,
+          0.6929
+        ],
+        "recall": 0.0584,
+        "recall_wilson_95": [
+          0.0388,
+          0.0868
+        ]
+      },
+      "policy_family_caps": {
+        "cards_budget": 40,
+        "cards_selected": 40,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 1.67,
+          "at_2min_per_card": 1.33,
+          "at_3min_per_card": 2.0
+        },
+        "positives_missed": 344,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 19.8,
+          "at_2min_per_card": 24.75,
+          "at_3min_per_card": 16.5
+        },
+        "positives_surfaced": 33,
+        "precision": 0.825,
+        "precision_wilson_95": [
+          0.6805,
+          0.9125
+        ],
+        "recall": 0.0875,
+        "recall_wilson_95": [
+          0.063,
+          0.1204
+        ]
+      },
+      "policy_top_k": {
+        "cards_budget": 40,
+        "cards_selected": 40,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 1.67,
+          "at_2min_per_card": 1.33,
+          "at_3min_per_card": 2.0
+        },
+        "positives_missed": 338,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 23.4,
+          "at_2min_per_card": 29.25,
+          "at_3min_per_card": 19.5
+        },
+        "positives_surfaced": 39,
+        "precision": 0.975,
+        "precision_wilson_95": [
+          0.8712,
+          0.9956
+        ],
+        "recall": 0.1034,
+        "recall_wilson_95": [
+          0.0766,
+          0.1383
+        ]
+      },
+      "policy_uncertainty_control": {
+        "cards_budget": 40,
+        "cards_selected": 40,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 1.67,
+          "at_2min_per_card": 1.33,
+          "at_3min_per_card": 2.0
+        },
+        "positives_missed": 339,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 22.8,
+          "at_2min_per_card": 28.5,
+          "at_3min_per_card": 19.0
+        },
+        "positives_surfaced": 38,
+        "precision": 0.95,
+        "precision_wilson_95": [
+          0.835,
+          0.9862
+        ],
+        "recall": 0.1008,
+        "recall_wilson_95": [
+          0.0743,
+          0.1353
+        ]
+      }
+    },
+    "50": {
+      "baseline_uniform_random": {
+        "cards_budget": 50,
+        "cards_selected": 50,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 2.08,
+          "at_2min_per_card": 1.67,
+          "at_3min_per_card": 2.5
+        },
+        "positives_missed": 349,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 13.44,
+          "at_2min_per_card": 16.8,
+          "at_3min_per_card": 11.2
+        },
+        "positives_surfaced": 28,
+        "precision": 0.56,
+        "precision_wilson_95": [
+          0.4231,
+          0.6884
+        ],
+        "recall": 0.0743,
+        "recall_wilson_95": [
+          0.0519,
+          0.1052
+        ]
+      },
+      "policy_family_caps": {
+        "cards_budget": 50,
+        "cards_selected": 50,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 2.08,
+          "at_2min_per_card": 1.67,
+          "at_3min_per_card": 2.5
+        },
+        "positives_missed": 338,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 18.72,
+          "at_2min_per_card": 23.4,
+          "at_3min_per_card": 15.6
+        },
+        "positives_surfaced": 39,
+        "precision": 0.78,
+        "precision_wilson_95": [
+          0.6476,
+          0.8725
+        ],
+        "recall": 0.1034,
+        "recall_wilson_95": [
+          0.0766,
+          0.1383
+        ]
+      },
+      "policy_top_k": {
+        "cards_budget": 50,
+        "cards_selected": 50,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 2.08,
+          "at_2min_per_card": 1.67,
+          "at_3min_per_card": 2.5
+        },
+        "positives_missed": 328,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 23.52,
+          "at_2min_per_card": 29.4,
+          "at_3min_per_card": 19.6
+        },
+        "positives_surfaced": 49,
+        "precision": 0.98,
+        "precision_wilson_95": [
+          0.895,
+          0.9965
+        ],
+        "recall": 0.13,
+        "recall_wilson_95": [
+          0.0997,
+          0.1677
+        ]
+      },
+      "policy_uncertainty_control": {
+        "cards_budget": 50,
+        "cards_selected": 50,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 2.08,
+          "at_2min_per_card": 1.67,
+          "at_3min_per_card": 2.5
+        },
+        "positives_missed": 330,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 22.56,
+          "at_2min_per_card": 28.2,
+          "at_3min_per_card": 18.8
+        },
+        "positives_surfaced": 47,
+        "precision": 0.94,
+        "precision_wilson_95": [
+          0.8378,
+          0.9794
+        ],
+        "recall": 0.1247,
+        "recall_wilson_95": [
+          0.0951,
+          0.1618
+        ]
+      }
+    },
+    "75": {
+      "baseline_uniform_random": {
+        "cards_budget": 75,
+        "cards_selected": 75,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 3.12,
+          "at_2min_per_card": 2.5,
+          "at_3min_per_card": 3.75
+        },
+        "positives_missed": 336,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 13.12,
+          "at_2min_per_card": 16.4,
+          "at_3min_per_card": 10.93
+        },
+        "positives_surfaced": 41,
+        "precision": 0.5467,
+        "precision_wilson_95": [
+          0.4345,
+          0.6543
+        ],
+        "recall": 0.1088,
+        "recall_wilson_95": [
+          0.0812,
+          0.1442
+        ]
+      },
+      "policy_family_caps": {
+        "cards_budget": 75,
+        "cards_selected": 75,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 3.12,
+          "at_2min_per_card": 2.5,
+          "at_3min_per_card": 3.75
+        },
+        "positives_missed": 323,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 17.28,
+          "at_2min_per_card": 21.6,
+          "at_3min_per_card": 14.4
+        },
+        "positives_surfaced": 54,
+        "precision": 0.72,
+        "precision_wilson_95": [
+          0.6096,
+          0.809
+        ],
+        "recall": 0.1432,
+        "recall_wilson_95": [
+          0.1115,
+          0.1822
+        ]
+      },
+      "policy_top_k": {
+        "cards_budget": 75,
+        "cards_selected": 75,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 3.12,
+          "at_2min_per_card": 2.5,
+          "at_3min_per_card": 3.75
+        },
+        "positives_missed": 303,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 23.68,
+          "at_2min_per_card": 29.6,
+          "at_3min_per_card": 19.73
+        },
+        "positives_surfaced": 74,
+        "precision": 0.9867,
+        "precision_wilson_95": [
+          0.9283,
+          0.9976
+        ],
+        "recall": 0.1963,
+        "recall_wilson_95": [
+          0.1593,
+          0.2394
+        ]
+      },
+      "policy_uncertainty_control": {
+        "cards_budget": 75,
+        "cards_selected": 75,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 3.12,
+          "at_2min_per_card": 2.5,
+          "at_3min_per_card": 3.75
+        },
+        "positives_missed": 310,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 21.44,
+          "at_2min_per_card": 26.8,
+          "at_3min_per_card": 17.87
+        },
+        "positives_surfaced": 67,
+        "precision": 0.8933,
+        "precision_wilson_95": [
+          0.8034,
+          0.945
+        ],
+        "recall": 0.1777,
+        "recall_wilson_95": [
+          0.1424,
+          0.2195
+        ]
+      }
+    },
+    "100": {
+      "baseline_uniform_random": {
+        "cards_budget": 100,
+        "cards_selected": 100,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 4.17,
+          "at_2min_per_card": 3.33,
+          "at_3min_per_card": 5.0
+        },
+        "positives_missed": 324,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 12.72,
+          "at_2min_per_card": 15.9,
+          "at_3min_per_card": 10.6
+        },
+        "positives_surfaced": 53,
+        "precision": 0.53,
+        "precision_wilson_95": [
+          0.4329,
+          0.6249
+        ],
+        "recall": 0.1406,
+        "recall_wilson_95": [
+          0.1091,
+          0.1793
+        ]
+      },
+      "policy_family_caps": {
+        "cards_budget": 100,
+        "cards_selected": 100,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 4.17,
+          "at_2min_per_card": 3.33,
+          "at_3min_per_card": 5.0
+        },
+        "positives_missed": 307,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 16.8,
+          "at_2min_per_card": 21.0,
+          "at_3min_per_card": 14.0
+        },
+        "positives_surfaced": 70,
+        "precision": 0.7,
+        "precision_wilson_95": [
+          0.6042,
+          0.7811
+        ],
+        "recall": 0.1857,
+        "recall_wilson_95": [
+          0.1497,
+          0.228
+        ]
+      },
+      "policy_top_k": {
+        "cards_budget": 100,
+        "cards_selected": 100,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 4.17,
+          "at_2min_per_card": 3.33,
+          "at_3min_per_card": 5.0
+        },
+        "positives_missed": 278,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 23.76,
+          "at_2min_per_card": 29.7,
+          "at_3min_per_card": 19.8
+        },
+        "positives_surfaced": 99,
+        "precision": 0.99,
+        "precision_wilson_95": [
+          0.9455,
+          0.9982
+        ],
+        "recall": 0.2626,
+        "recall_wilson_95": [
+          0.2207,
+          0.3093
+        ]
+      },
+      "policy_uncertainty_control": {
+        "cards_budget": 100,
+        "cards_selected": 100,
+        "judge_hours_required": {
+          "at_2_5min_per_card": 4.17,
+          "at_2min_per_card": 3.33,
+          "at_3min_per_card": 5.0
+        },
+        "positives_missed": 288,
+        "positives_per_judge_hour": {
+          "at_2_5min_per_card": 21.36,
+          "at_2min_per_card": 26.7,
+          "at_3min_per_card": 17.8
+        },
+        "positives_surfaced": 89,
+        "precision": 0.89,
+        "precision_wilson_95": [
+          0.8137,
+          0.9375
+        ],
+        "recall": 0.2361,
+        "recall_wilson_95": [
+          0.196,
+          0.2815
+        ]
+      }
+    }
+  },
+  "cohort_name": "trace_monitor_bench_full_scored",
+  "n_total": 776,
+  "positives_total": 377,
+  "significance_tests": {
+    "10": {
+      "topk_vs_family_caps": {
+        "b": 4,
+        "both": 6,
+        "c": 3,
+        "n": 776,
+        "neither": 763,
+        "p": 1.0
+      },
+      "topk_vs_uncertainty_control": {
+        "b": 10,
+        "both": 0,
+        "c": 9,
+        "n": 776,
+        "neither": 757,
+        "p": 1.0
+      },
+      "topk_vs_uniform_random": {
+        "b": 10,
+        "both": 0,
+        "c": 4,
+        "n": 776,
+        "neither": 762,
+        "p": 0.1795654296875
+      }
+    },
+    "20": {
+      "topk_vs_family_caps": {
+        "b": 14,
+        "both": 6,
+        "c": 11,
+        "n": 776,
+        "neither": 745,
+        "p": 0.6900379657745361
+      },
+      "topk_vs_uncertainty_control": {
+        "b": 20,
+        "both": 0,
+        "c": 18,
+        "n": 776,
+        "neither": 738,
+        "p": 0.8714146793645341
+      },
+      "topk_vs_uniform_random": {
+        "b": 20,
+        "both": 0,
+        "c": 9,
+        "n": 776,
+        "neither": 747,
+        "p": 0.06142834573984146
+      }
+    },
+    "30": {
+      "topk_vs_family_caps": {
+        "b": 23,
+        "both": 7,
+        "c": 18,
+        "n": 776,
+        "neither": 728,
+        "p": 0.5327092552361137
+      },
+      "topk_vs_uncertainty_control": {
+        "b": 30,
+        "both": 0,
+        "c": 28,
+        "n": 776,
+        "neither": 718,
+        "p": 0.8956832138895903
+      },
+      "topk_vs_uniform_random": {
+        "b": 28,
+        "both": 2,
+        "c": 14,
+        "n": 776,
+        "neither": 732,
+        "p": 0.04355852192384191
+      }
+    },
+    "40": {
+      "topk_vs_family_caps": {
+        "b": 26,
+        "both": 13,
+        "c": 20,
+        "n": 776,
+        "neither": 717,
+        "p": 0.4613911821367651
+      },
+      "topk_vs_uncertainty_control": {
+        "b": 39,
+        "both": 0,
+        "c": 38,
+        "n": 776,
+        "neither": 699,
+        "p": 1.0
+      },
+      "topk_vs_uniform_random": {
+        "b": 36,
+        "both": 3,
+        "c": 19,
+        "n": 776,
+        "neither": 718,
+        "p": 0.030028945411892494
+      }
+    },
+    "50": {
+      "topk_vs_family_caps": {
+        "b": 35,
+        "both": 14,
+        "c": 25,
+        "n": 776,
+        "neither": 702,
+        "p": 0.2450608330229457
+      },
+      "topk_vs_uncertainty_control": {
+        "b": 40,
+        "both": 9,
+        "c": 38,
+        "n": 776,
+        "neither": 689,
+        "p": 0.9099464518745243
+      },
+      "topk_vs_uniform_random": {
+        "b": 43,
+        "both": 6,
+        "c": 22,
+        "n": 776,
+        "neither": 705,
+        "p": 0.012502546136489849
+      }
+    },
+    "75": {
+      "topk_vs_family_caps": {
+        "b": 52,
+        "both": 22,
+        "c": 32,
+        "n": 776,
+        "neither": 670,
+        "p": 0.037529533634413165
+      },
+      "topk_vs_uncertainty_control": {
+        "b": 34,
+        "both": 40,
+        "c": 27,
+        "n": 776,
+        "neither": 675,
+        "p": 0.4426260049464714
+      },
+      "topk_vs_uniform_random": {
+        "b": 65,
+        "both": 9,
+        "c": 32,
+        "n": 776,
+        "neither": 670,
+        "p": 0.0010496073324912283
+      }
+    },
+    "100": {
+      "topk_vs_family_caps": {
+        "b": 60,
+        "both": 39,
+        "c": 31,
+        "n": 776,
+        "neither": 646,
+        "p": 0.0031126898483937607
+      },
+      "topk_vs_uncertainty_control": {
+        "b": 20,
+        "both": 79,
+        "c": 10,
+        "n": 776,
+        "neither": 667,
+        "p": 0.09873714670538902
+      },
+      "topk_vs_uniform_random": {
+        "b": 84,
+        "both": 15,
+        "c": 38,
+        "n": 776,
+        "neither": 639,
+        "p": 3.791880632913345e-05
+      }
+    }
+  },
+  "triggered_cases": 273,
+  "unthrottled_triggered": {
+    "cards_budget": 273,
+    "cards_selected": 273,
+    "judge_hours_required": {
+      "at_2_5min_per_card": 11.38,
+      "at_2min_per_card": 9.1,
+      "at_3min_per_card": 13.65
+    },
+    "positives_missed": 145,
+    "positives_per_judge_hour": {
+      "at_2_5min_per_card": 20.4,
+      "at_2min_per_card": 25.49,
+      "at_3min_per_card": 17.0
+    },
+    "positives_surfaced": 232,
+    "precision": 0.8498,
+    "precision_wilson_95": [
+      0.8026,
+      0.8873
+    ],
+    "recall": 0.6154,
+    "recall_wilson_95": [
+      0.5653,
+      0.6631
+    ]
+  }
+}

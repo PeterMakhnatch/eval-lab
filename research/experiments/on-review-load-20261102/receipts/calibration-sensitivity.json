@@ -1,0 +1,162 @@
+{
+  "interpretation": "The 69 pending verdicts provide empirical measurement of human judging speed tau and human-vs-label discordance delta_h. If human agreement is 90% (10% discordance) at 2.5 min/card, effective yield shifts from 24.0 to 21.6 TP/hr.",
+  "pending_calibration_queues": {
+    "adjudication_packet": 18,
+    "goodfire_action_gold": 23,
+    "goodfire_census": 24,
+    "guide_examples": 4,
+    "total_pending_verdicts": 69
+  },
+  "sensitivity_grid": [
+    {
+      "effective_precision": 1.0,
+      "effective_tp_per_hour": 40.0,
+      "human_discordance_rate": 0.0,
+      "judging_speed_min_per_card": 1.5
+    },
+    {
+      "effective_precision": 1.0,
+      "effective_tp_per_hour": 30.0,
+      "human_discordance_rate": 0.0,
+      "judging_speed_min_per_card": 2.0
+    },
+    {
+      "effective_precision": 1.0,
+      "effective_tp_per_hour": 24.0,
+      "human_discordance_rate": 0.0,
+      "judging_speed_min_per_card": 2.5
+    },
+    {
+      "effective_precision": 1.0,
+      "effective_tp_per_hour": 20.0,
+      "human_discordance_rate": 0.0,
+      "judging_speed_min_per_card": 3.0
+    },
+    {
+      "effective_precision": 1.0,
+      "effective_tp_per_hour": 15.0,
+      "human_discordance_rate": 0.0,
+      "judging_speed_min_per_card": 4.0
+    },
+    {
+      "effective_precision": 0.95,
+      "effective_tp_per_hour": 38.0,
+      "human_discordance_rate": 0.05,
+      "judging_speed_min_per_card": 1.5
+    },
+    {
+      "effective_precision": 0.95,
+      "effective_tp_per_hour": 28.5,
+      "human_discordance_rate": 0.05,
+      "judging_speed_min_per_card": 2.0
+    },
+    {
+      "effective_precision": 0.95,
+      "effective_tp_per_hour": 22.8,
+      "human_discordance_rate": 0.05,
+      "judging_speed_min_per_card": 2.5
+    },
+    {
+      "effective_precision": 0.95,
+      "effective_tp_per_hour": 19.0,
+      "human_discordance_rate": 0.05,
+      "judging_speed_min_per_card": 3.0
+    },
+    {
+      "effective_precision": 0.95,
+      "effective_tp_per_hour": 14.25,
+      "human_discordance_rate": 0.05,
+      "judging_speed_min_per_card": 4.0
+    },
+    {
+      "effective_precision": 0.9,
+      "effective_tp_per_hour": 36.0,
+      "human_discordance_rate": 0.1,
+      "judging_speed_min_per_card": 1.5
+    },
+    {
+      "effective_precision": 0.9,
+      "effective_tp_per_hour": 27.0,
+      "human_discordance_rate": 0.1,
+      "judging_speed_min_per_card": 2.0
+    },
+    {
+      "effective_precision": 0.9,
+      "effective_tp_per_hour": 21.6,
+      "human_discordance_rate": 0.1,
+      "judging_speed_min_per_card": 2.5
+    },
+    {
+      "effective_precision": 0.9,
+      "effective_tp_per_hour": 18.0,
+      "human_discordance_rate": 0.1,
+      "judging_speed_min_per_card": 3.0
+    },
+    {
+      "effective_precision": 0.9,
+      "effective_tp_per_hour": 13.5,
+      "human_discordance_rate": 0.1,
+      "judging_speed_min_per_card": 4.0
+    },
+    {
+      "effective_precision": 0.85,
+      "effective_tp_per_hour": 34.0,
+      "human_discordance_rate": 0.15,
+      "judging_speed_min_per_card": 1.5
+    },
+    {
+      "effective_precision": 0.85,
+      "effective_tp_per_hour": 25.5,
+      "human_discordance_rate": 0.15,
+      "judging_speed_min_per_card": 2.0
+    },
+    {
+      "effective_precision": 0.85,
+      "effective_tp_per_hour": 20.4,
+      "human_discordance_rate": 0.15,
+      "judging_speed_min_per_card": 2.5
+    },
+    {
+      "effective_precision": 0.85,
+      "effective_tp_per_hour": 17.0,
+      "human_discordance_rate": 0.15,
+      "judging_speed_min_per_card": 3.0
+    },
+    {
+      "effective_precision": 0.85,
+      "effective_tp_per_hour": 12.75,
+      "human_discordance_rate": 0.15,
+      "judging_speed_min_per_card": 4.0
+    },
+    {
+      "effective_precision": 0.8,
+      "effective_tp_per_hour": 32.0,
+      "human_discordance_rate": 0.2,
+      "judging_speed_min_per_card": 1.5
+    },
+    {
+      "effective_precision": 0.8,
+      "effective_tp_per_hour": 24.0,
+      "human_discordance_rate": 0.2,
+      "judging_speed_min_per_card": 2.0
+    },
+    {
+      "effective_precision": 0.8,
+      "effective_tp_per_hour": 19.2,
+      "human_discordance_rate": 0.2,
+      "judging_speed_min_per_card": 2.5
+    },
+    {
+      "effective_precision": 0.8,
+      "effective_tp_per_hour": 16.0,
+      "human_discordance_rate": 0.2,
+      "judging_speed_min_per_card": 3.0
+    },
+    {
+      "effective_precision": 0.8,
+      "effective_tp_per_hour": 12.0,
+      "human_discordance_rate": 0.2,
+      "judging_speed_min_per_card": 4.0
+    }
+  ]
+}

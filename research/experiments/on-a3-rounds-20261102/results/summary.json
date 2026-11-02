@@ -4,102 +4,115 @@
   "killed": "2/7 = 28.6% (8.2-64.1)"
  },
  "arm2_vs_arm1_all_eval_regardless_of_base": {
-  "a_kill": "10/12 = 83.3% (55.2-95.3)",
+  "a_kill": "13/18 = 72.2% (49.1-87.5)",
   "arm_a": "arm1",
   "arm_b": "arm2",
   "b": 0,
-  "b_kill": "10/12 = 83.3% (55.2-95.3)",
-  "both": 10,
+  "b_kill": "13/18 = 72.2% (49.1-87.5)",
+  "both": 13,
   "c": 0,
   "meaning": "b = killed only by arm 1; c = killed only by arm 2",
-  "n": 12,
-  "neither": 2,
+  "n": 18,
+  "neither": 5,
   "p": 1.0
  },
  "arm2_vs_arm1_base_accepted_eval_old_only": {
-  "a_kill": "1/3 = 33.3% (6.1-79.2)",
+  "a_kill": "1/4 = 25.0% (4.6-69.9)",
   "arm_a": "arm1",
   "arm_b": "arm2",
   "b": 0,
-  "b_kill": "1/3 = 33.3% (6.1-79.2)",
+  "b_kill": "1/4 = 25.0% (4.6-69.9)",
   "both": 1,
   "c": 0,
   "meaning": "b = killed only by arm 1; c = killed only by arm 2",
-  "n": 3,
-  "neither": 2,
+  "n": 4,
+  "neither": 3,
   "p": 1.0
  },
  "arm2_vs_arm1_base_accepted_tasks_where_round2_ran": {
-  "n": 0
+  "a_kill": "0/3 = 0.0% (0.0-56.1)",
+  "arm_a": "arm1",
+  "arm_b": "arm2",
+  "b": 0,
+  "b_kill": "0/3 = 0.0% (0.0-56.1)",
+  "both": 0,
+  "c": 0,
+  "meaning": "b = killed only by arm 1; c = killed only by arm 2",
+  "n": 3,
+  "neither": 3,
+  "p": 1.0
  },
  "arm3_vs_arm1_base_accepted": {
-  "a_kill": "2/4 = 50.0% (15.0-85.0)",
+  "a_kill": "2/7 = 28.6% (8.2-64.1)",
   "arm_a": "arm1",
   "arm_b": "arm3",
   "b": 0,
-  "b_kill": "2/4 = 50.0% (15.0-85.0)",
+  "b_kill": "2/7 = 28.6% (8.2-64.1)",
   "both": 2,
   "c": 0,
   "meaning": "b = killed only by arm 1; c = killed only by arm 3",
-  "n": 4,
-  "neither": 2,
+  "n": 7,
+  "neither": 5,
   "p": 1.0
  },
  "arm3_vs_arm2_base_accepted": {
-  "a_kill": "2/4 = 50.0% (15.0-85.0)",
+  "a_kill": "2/7 = 28.6% (8.2-64.1)",
   "arm_a": "arm2",
   "arm_b": "arm3",
   "b": 0,
-  "b_kill": "2/4 = 50.0% (15.0-85.0)",
+  "b_kill": "2/7 = 28.6% (8.2-64.1)",
   "both": 2,
   "c": 0,
   "meaning": "b = killed only by arm 2; c = killed only by arm 3",
-  "n": 4,
-  "neither": 2,
+  "n": 7,
+  "neither": 5,
   "p": 1.0
  },
  "attestation": {
   "other_or_fallback": 0,
-  "reported_model_cost_usd": 3.1002,
-  "served_equals_requested": 17
+  "reported_model_cost_usd": 4.5173,
+  "served_equals_requested": 19
  },
  "cost": {
   "est_usd_by_task": {
-   "000079": 0.4759,
+   "000079": 0.6562,
    "000232": 0.1491,
-   "000484": 0.1758,
-   "000682": 0.149,
-   "000931": 0.054,
+   "000484": 0.204,
+   "000682": 0.1975,
+   "000931": 0.0968,
    "001267": 0.2158,
-   "001850": 0.2401,
+   "001850": 0.2744,
    "003005": 0.041
   },
-  "est_usd_total": 1.5007,
+  "est_usd_total": 1.8349,
   "retired_infra_failed_cells": 113
  },
- "excluded_unmeasured_count": 19,
+ "excluded_unmeasured_count": 13,
  "false_reject_guard": {
   "passed": 2,
   "reference_rewards_after_accepted_rounds": [
    1.0,
    1.0,
    1.0,
+   1.0,
    1.0
   ],
-  "repaired": 2,
+  "repaired": 3,
   "reverted": 5
  },
  "gates": {},
  "per_task": [
   {
    "accepted_rounds": [
-    1
+    1,
+    2
    ],
-   "base_accepted": 0,
+   "base_accepted": 3,
    "eval_total": 6,
    "guard": {
     "1": "repaired",
-    "2": "reverted"
+    "2": "repaired",
+    "3": "reverted"
    },
    "kills": {
     "1": 0,
@@ -108,11 +121,12 @@
    },
    "reference_reward_by_round": {
     "1": 1.0,
-    "2": null
+    "2": 1.0,
+    "3": 0.0
    },
    "stop": "guard_reverted",
    "task": "000079",
-   "unmeasured": 6
+   "unmeasured": 0
   },
   {
    "accepted_rounds": [
@@ -148,7 +162,7 @@
     "3": 0
    },
    "reference_reward_by_round": {
-    "1": null
+    "1": 0.0
    },
    "stop": "guard_reverted",
    "task": "000484",
@@ -167,7 +181,7 @@
     "3": 0
    },
    "reference_reward_by_round": {
-    "1": null
+    "1": 0.0
    },
    "stop": "guard_reverted",
    "task": "000682",
@@ -186,7 +200,7 @@
     "3": 0
    },
    "reference_reward_by_round": {
-    "1": null
+    "1": 0.0
    },
    "stop": "guard_reverted",
    "task": "000931",
@@ -226,7 +240,7 @@
     "3": 0
    },
    "reference_reward_by_round": {
-    "1": null
+    "1": 0.0
    },
    "stop": "guard_reverted",
    "task": "001850",
@@ -254,17 +268,21 @@
    "unmeasured": 0
   }
  ],
+ "post_hoc_fit_of_shown_survivors": {
+  "killed": "2/2 = 100.0% (34.2-100.0)",
+  "label": "POST-HOC, not in the prereg: does round r's test kill the round r-1 survivors shown to it"
+ },
  "primary_arm2_vs_arm1_base_accepted_all_eval": {
-  "a_kill": "2/4 = 50.0% (15.0-85.0)",
+  "a_kill": "2/7 = 28.6% (8.2-64.1)",
   "arm_a": "arm1",
   "arm_b": "arm2",
   "b": 0,
-  "b_kill": "2/4 = 50.0% (15.0-85.0)",
+  "b_kill": "2/7 = 28.6% (8.2-64.1)",
   "both": 2,
   "c": 0,
   "meaning": "b = killed only by arm 1; c = killed only by arm 2",
-  "n": 4,
-  "neither": 2,
+  "n": 7,
+  "neither": 5,
   "p": 1.0
  },
  "probes_by_round": {
@@ -276,6 +294,13 @@
    "unmeasured": 6
   },
   "2": {
+   "killed": 1,
+   "probes": 2,
+   "survived": 1,
+   "tasks": 1,
+   "unmeasured": 0
+  },
+  "3": {
    "killed": 0,
    "probes": 2,
    "survived": 0,
@@ -284,9 +309,9 @@
   }
  },
  "probes_total": {
-  "killed": 4,
-  "measured": 6,
-  "survived": 2,
+  "killed": 5,
+  "measured": 8,
+  "survived": 3,
   "unmeasured": 8
  },
  "tasks": [

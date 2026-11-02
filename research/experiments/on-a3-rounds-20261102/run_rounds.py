@@ -63,13 +63,13 @@ RAW = Path(
     "/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/lanes/A3-raw"
 )
 STATE = Path.home() / ".local/state/evallab-failure-library"
-LEDGER = STATE / "a3-rounds-20261102-ledger-v3.json"
+LEDGER = STATE / "a3f-rounds-20261102-ledger.json"
 SPEND_LOG = STATE / "spend.jsonl"
-APPROVAL = "Peter 2026-11-02 overnight A3: Modal cap $1.50"
-CAP_USD = (
-    1.50  # real cap, enforced on the measured estimate across processes (see Cells.already_usd)
-)
-GATE_CAP_USD = 0.45  # ledger v3 cap: the remaining budget when v3 was opened (v1/v2 saturated at $1.50 of units)
+APPROVAL = "Peter 2026-11-02 overnight A3F: Modal cap $1.00"  # A3 used "Peter 2026-11-02 overnight A3: Modal cap $1.50"
+PRIOR_USD = 1.5007  # measured estimate of the A3 run (cells present when A3F started)
+A3F_CAP_USD = 1.00  # additional cap for the A3F re-measurement only
+CAP_USD = PRIOR_USD + A3F_CAP_USD  # cumulative measured cap (see Cells.already_usd)
+GATE_CAP_USD = A3F_CAP_USD  # persisted ledger of this campaign
 USD_PER_EXECUTION = (
     0.002  # the gate books about 3 units per cell; 3 x 0.002 is about half a measured cell ($0.012)
 )
@@ -185,8 +185,14 @@ class Cells:
         if done_path.exists():
             cached = json.loads(done_path.read_text())
             reason = cached.get("reason") or ""
-            if cached["status"] == "failed" and (
-                "Deployment failed" in reason or "SpendCapReached" in reason
+            if cached["status"] == "failed" and any(
+                text in reason
+                for text in (
+                    "Deployment failed",
+                    "SpendCapReached",
+                    "reservation exceeds",
+                    "would reserve",
+                )
             ):
                 # the sandbox never started (workspace app limit or spend-gate refusal): keep the evidence, run again
                 retired = OUT / "retired-infra-failed" / short / name.replace("/", "__")
@@ -477,6 +483,26 @@ def read_base(short: str, task: dict) -> dict[str, float | None]:
     return out
 
 
+def stage_fit(cohort: dict, shorts: list[str], cells: Cells) -> None:
+    """POST-HOC (not in the prereg): does round r's test kill the probes that survived round r-1 and were shown to it?"""
+    for short in shorts:
+        rec_path = OUT / "rounds" / f"{short}.json"
+        if not rec_path.exists():
+            continue
+        rec = json.loads(rec_path.read_text())
+        task = cohort[short]
+        pool = {m.sha256: m for m in task["pools"].probe_pool}
+        for previous, current in zip(rec["rounds"], rec["rounds"][1:], strict=False):
+            key = rec["keys"].get(str(current["round"]))
+            if key is None or current["guard"] not in ("passed", "repaired"):
+                continue
+            package = OUT / "packages" / short / key
+            for sha_ in previous["survivors"]:
+                m = pool[sha_]
+                out = mutant_cell(cells, task, short, f"{key}/fit-{mutant_tag(m)}", package, m)
+                print(f"fit {short} {key} {mutant_tag(m)} -> {out['reward']}", flush=True)
+
+
 def stage_gates(cohort: dict, shorts: list[str], cells: Cells) -> None:
     jobs = []
     for short in shorts:
@@ -538,7 +564,7 @@ def status() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("stage", choices=["prepare", "base", "rounds", "gates", "status"])
+    parser.add_argument("stage", choices=["prepare", "base", "rounds", "gates", "fit", "status"])
     parser.add_argument("--tasks", default="")
     args = parser.parse_args()
     if args.stage == "status":
@@ -557,6 +583,8 @@ def main() -> None:
             list(pool.map(lambda s: run_task(s, cohort[s], cells, read_base(s, cohort[s])), shorts))
     elif args.stage == "gates":
         stage_gates(cohort, shorts, cells)
+    elif args.stage == "fit":
+        stage_fit(cohort, shorts, cells)
     print(
         json.dumps(
             {"meter_est_usd": round(cells.meter.spent, 4), "cells_this_process": cells.meter.cells}

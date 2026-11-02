@@ -221,6 +221,14 @@ def main() -> None:
             (p.parent.parent.name, p.parent.name, r["reward"])
         )
     summary["gates"] = gates
+    fit = [
+        json.loads(p.read_text()).get("reward")
+        for p in (OUT / "cells").glob("*/*/fit-*/result.json")
+    ]
+    summary["post_hoc_fit_of_shown_survivors"] = {
+        "label": "POST-HOC, not in the prereg: does round r's test kill the round r-1 survivors shown to it",
+        "killed": stats.fmt(sum(r == 0.0 for r in fit), len(fit)),
+    }
 
     cost_by_task: dict[str, float] = {}
     total = 0.0

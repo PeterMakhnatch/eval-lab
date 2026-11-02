@@ -6,6 +6,9 @@ No Docker, no network: contenders are threads in this process (or plain
 
 from __future__ import annotations
 
+import argparse
+import contextlib
+import json
 import os
 import socket
 import threading
@@ -14,10 +17,13 @@ from pathlib import Path
 
 import pytest
 
+import evallab.docker_lock as docker_lock
 from evallab.docker_lock import (
+    ENV_DIR,
     ENV_SLOTS,
     DockerLock,
     DockerLockTimeout,
+    _docker_lock_status_command,
     _write_queue_file,
     default_slots,
     docker_slot,
@@ -330,3 +336,220 @@ def test_acquire_timeout_raises_and_removes_waiter(tmp_path: Path) -> None:
     finally:
         holder.release()
         waiter.release()
+
+
+# (h) A peer can prune our entry while we are paused; the waiter rejoins at the back.
+
+
+def test_try_step_rejoins_when_peer_pruned_own_entry(tmp_path: Path) -> None:
+    now = 1_000.0
+    peer = {
+        "ticket": "peer-ticket",
+        "pid": 424_242,
+        "host": socket.gethostname(),
+        "label": "peer",
+        "cwd": str(tmp_path),
+        "enqueued_at": now,
+        "started_at": now,
+        "heartbeat_at": now,
+    }
+    lock = DockerLock(
+        "pruned",
+        slots=1,
+        state_dir=tmp_path,
+        clock=lambda: now,
+        is_alive=lambda _pid: True,
+    )
+    lock.enqueue()
+    # A peer pruned our entry (e.g. while this process was paused).
+    _write_queue_file(queue_path(state_dir=tmp_path), [peer])
+    try:
+        acquired, position, total, holders = lock.try_acquire_step()
+        assert acquired is False
+        assert (position, total) == (2, 2)
+        assert [entry["ticket"] for entry in holders] == [peer["ticket"]]
+        assert [entry["ticket"] for entry in read_queue(state_dir=tmp_path)] == [
+            peer["ticket"],
+            lock.ticket,
+        ]
+        assert lock.try_acquire_step()[:3] == (False, 2, 2)
+    finally:
+        lock.release()
+
+
+# (i) The heartbeat refreshes its entry, then stops once that entry vanishes.
+
+
+def test_heartbeat_updates_entry_then_stops_when_ticket_disappears(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = 500.0
+    lock = DockerLock(
+        "beating",
+        state_dir=tmp_path,
+        heartbeat_interval=0.01,
+        clock=lambda: now,
+        is_alive=lambda _pid: True,
+    )
+    lock.enqueue()
+    beat = threading.Event()
+    real_locked_queue = docker_lock._locked_queue
+
+    @contextlib.contextmanager
+    def spy(name: str, state_dir: Path | None):
+        with real_locked_queue(name, state_dir) as pair:
+            yield pair
+        beat.set()
+
+    monkeypatch.setattr(docker_lock, "_locked_queue", spy)
+    lock._start_heartbeat()
+    thread = lock._heartbeat_thread
+    assert thread is not None
+    try:
+        assert beat.wait(timeout=5.0), "heartbeat never touched the queue"
+        assert read_queue(state_dir=tmp_path)[0]["heartbeat_at"] == now
+        with real_locked_queue(docker_lock.DEFAULT_NAME, tmp_path) as (_, entries):
+            entries.clear()
+        thread.join(timeout=5.0)
+        assert not thread.is_alive()
+        assert lock._stop_heartbeat.is_set()
+    finally:
+        lock.release()
+
+
+# (j) An unreadable queue file does not kill the heartbeat; it retries.
+
+
+def test_heartbeat_continues_after_oserror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = 600.0
+    lock = DockerLock(
+        "flaky",
+        state_dir=tmp_path,
+        heartbeat_interval=0.01,
+        clock=lambda: now,
+        is_alive=lambda _pid: True,
+    )
+    lock.enqueue()
+    # No entry remains, so the first successful pass stops the heartbeat.
+    _write_queue_file(queue_path(state_dir=tmp_path), [])
+    real_locked_queue = docker_lock._locked_queue
+    calls = 0
+
+    @contextlib.contextmanager
+    def flaky(name: str, state_dir: Path | None):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("mutex unavailable")
+        with real_locked_queue(name, state_dir) as pair:
+            yield pair
+
+    monkeypatch.setattr(docker_lock, "_locked_queue", flaky)
+    lock._start_heartbeat()
+    thread = lock._heartbeat_thread
+    assert thread is not None
+    try:
+        thread.join(timeout=5.0)
+        assert not thread.is_alive()
+        assert calls >= 2
+        assert lock._stop_heartbeat.is_set()
+    finally:
+        lock.release()
+
+
+# (k) `docker-lock status` text rendering of holders and waiters.
+
+
+def _status_args(*, name: str = "docker", as_json: bool = False) -> argparse.Namespace:
+    return argparse.Namespace(name=name, json=as_json)
+
+
+def test_status_command_prints_empty_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv(ENV_DIR, str(tmp_path))
+    code = _docker_lock_status_command(_status_args(name="other"), tmp_path)
+    assert code == 0
+    assert (
+        capsys.readouterr().out.strip()
+        == "docker-lock 'other': no holders or waiters"
+    )
+
+
+def test_status_command_prints_holders_and_waiters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    now = 1_000.0
+    host = socket.gethostname()
+    entries = [
+        {
+            "ticket": "holder-full",
+            "pid": 101,
+            "host": host,
+            "label": "full-holder",
+            "cwd": str(tmp_path / "full"),
+            "enqueued_at": now - 50.0,
+            "started_at": now - 20.0,
+            "heartbeat_at": now,
+        },
+        {
+            "ticket": "holder-bare",
+            "pid": 102,
+            "host": host,
+            "label": "bare-holder",
+            "cwd": str(tmp_path / "bare"),
+            "enqueued_at": None,
+            "started_at": "unknown",
+            "heartbeat_at": now,
+        },
+        {
+            "ticket": "waiter-aged",
+            "pid": 103,
+            "host": host,
+            "label": "aged-waiter",
+            "cwd": str(tmp_path / "aged"),
+            "enqueued_at": now - 7.0,
+            "started_at": None,
+            "heartbeat_at": now,
+        },
+        {
+            "ticket": "waiter-bare",
+            "pid": 104,
+            "host": host,
+            "label": "bare-waiter",
+            "cwd": str(tmp_path / "bare-waiter"),
+            "enqueued_at": None,
+            "started_at": None,
+            "heartbeat_at": now,
+        },
+    ]
+    monkeypatch.setenv(ENV_DIR, str(tmp_path))
+    _write_queue_file(queue_path(state_dir=tmp_path), entries)
+    real_get_status = docker_lock.get_status
+
+    def fixed_status(*, name: str) -> dict:
+        return real_get_status(name, clock=lambda: now, is_alive=lambda _pid: True)
+
+    monkeypatch.setattr(docker_lock, "get_status", fixed_status)
+    code = _docker_lock_status_command(_status_args(), tmp_path)
+    assert code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        f"holder  full-holder pid=101 cwd={tmp_path / 'full'} age=50s running=20s",
+        f"holder  bare-holder pid=102 cwd={tmp_path / 'bare'}",
+        f"waiter1  aged-waiter pid=103 cwd={tmp_path / 'aged'} waiting=7s",
+        f"waiter2  bare-waiter pid=104 cwd={tmp_path / 'bare-waiter'} waiting=?",
+    ]
+
+
+def test_status_command_emits_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv(ENV_DIR, str(tmp_path))
+    code = _docker_lock_status_command(_status_args(as_json=True), tmp_path)
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["name"] == "docker"
+    assert payload["holders"] == []
+    assert payload["waiters"] == []

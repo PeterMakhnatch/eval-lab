@@ -370,57 +370,119 @@ def evaluate_decision_rule(
     # Gate 1: Headroom Gate (X >= 8.5 percentage points)
     # Condition: Best cheap rung loses at least 8.5 points recall at FA <= 1% against teacher
     # in families where teacher has signal.
-    # Where teacher has signal: sol_astra ONLY.
-    # In sol_astra: teacher recall = 4/4 (100%). Cheap rungs (gemini-3.1-flash-lite, 2.5-flash-lite) = 4/4 (100%).
-    # Headroom = 0.0 percentage points.
-    gate1_passed = False
+    signal_fams = [fam for fam, data in family_ladder.items() if data["teacher_has_demonstrable_signal"]]
+    headroom_gaps = {}
+    for fam in signal_fams:
+        t_rec1 = family_ladder[fam]["teacher_summary"]["rec_fa1"]["rate"]
+        cheap_rec1 = max(
+            family_ladder[fam]["rungs"]["gemini-3.1-flash-lite"]["rec_fa1"]["rate"],
+            family_ladder[fam]["rungs"]["gemini-2.5-flash-lite"]["rec_fa1"]["rate"],
+        )
+        headroom_gaps[fam] = t_rec1 - cheap_rec1
+
+    max_headroom = max(headroom_gaps.values()) if headroom_gaps else 0.0
+    gate1_passed = bool(max_headroom >= 0.085)
     gate1_reason = (
-        "Headroom Gate FAILS: In the only family where the teacher has demonstrable signal (sol_astra: AUROC 1.000 [1.000, 1.000]), "
-        "the best cheap rung (gemini-3.1-flash-lite) achieves 4/4 (100.0%) recall, matching the teacher exactly (headroom X = 0.0%). "
-        "In the other 5 families (c1c5, cheatbench, terminal_wrench, goodfire, deep_swe), the teacher's AUROC 95% CI includes 0.50, "
-        "meaning the teacher operates at chance and provides zero valid signal to distill."
+        f"Headroom Gate {'PASSES' if gate1_passed else 'FAILS'}: Max headroom across families with teacher signal "
+        f"is {max_headroom*100:.1f}% (required >= 8.5%). In the only family where Stage-1 teacher has demonstrable signal "
+        "(sol_astra: AUROC 1.000 [1.000, 1.000]), cheap rungs (gemini-3.1-flash-lite, 2.5-flash-lite) achieve 4/4 (100.0%) "
+        "recall at FA <= 1%, matching the teacher exactly (headroom X = 0.0%). In the other 5 families (c1c5, cheatbench, "
+        "terminal_wrench, goodfire, deep_swe), the Stage-1 teacher's AUROC 95% CI includes 0.50, providing zero valid signal to distill."
     )
 
     # Gate 2: Data Sufficiency Gate (N >= 62 positive cases per family)
-    # Check verified positive counts per family
+    # Stated rule: trustworthy families (container_verified and publisher classes: c1c5, sol_astra, cheatbench, terminal_wrench).
+    # publisher_cot_judged (goodfire, deep_swe) are excluded.
     full_inv = inventory["full_benchmark"]
+    n_pos_req = power["n_pos_needed_per_family_wilson_precision_10pct"]
     failing_fams = []
-    for fam in FAMILIES:
-        if full_inv[fam]["pos"] < power["n_pos_needed_per_family_wilson_precision_10pct"]:
-            failing_fams.append(f"{fam} (pos={full_inv[fam]['pos']} < 62)")
-
-    gate2_passed = len(failing_fams) == 0
+    passing_fams = []
+    for fam, f_data in full_inv.items():
+        is_trustworthy = f_data.get("is_trustworthy_for_training", fam in ("c1c5", "sol_astra", "cheatbench", "terminal_wrench"))
+        if is_trustworthy:
+            pos_val = f_data.get("pos", 0)
+            if pos_val >= n_pos_req:
+                passing_fams.append(f"{fam} (pos={pos_val} >= {n_pos_req})")
+            else:
+                failing_fams.append(f"{fam} (pos={pos_val} < {n_pos_req})")
+    gate2_passed = bool(len(failing_fams) == 0 and len(passing_fams) > 0)
     gate2_reason = (
-        f"Data Sufficiency Gate FAILS: Required N_pos >= {power['n_pos_needed_per_family_wilson_precision_10pct']} per family for 10% Wilson half-width. "
-        f"Failing families: {', '.join(failing_fams)}. "
-        "Furthermore, human-calibrated labels = 0 (69 Judge Station verdicts pending), and publisher_cot_judged cases "
-        "(goodfire, deep_swe: 250 cases) exhibit structural reader blindness on CoT-free cards and cannot be used."
+        f"Data Sufficiency Gate {'PASSES' if gate2_passed else 'FAILS'}: Required N_pos >= {n_pos_req} trustworthy cases per family. "
+        f"Among trustworthy families: {', '.join(passing_fams)} meet the threshold, but {', '.join(failing_fams)} do not. "
+        "DeepSWE (pos=50) also falls below 62 and, along with Goodfire (pos=80), belongs to publisher_cot_judged where "
+        "CoT-class label noise is not identified and compact cards lack CoT traces. Human-calibrated labels = 0 (69 Judge Station verdicts pending)."
     )
 
     # Gate 3: Economic Breakeven Gate (Savings >= 2.0 * Training Cost)
-    # Comparing Recipe A ($0.612/1k) against off-the-shelf options:
-    # Against Gemini subscription ($0.00 marginal), Recipe A increases operating costs.
-    # Against Ling-3.0-Flash ($0.19/1k), Recipe A is 3.2x more expensive per case.
-    gate3_passed = False
+    # Cost basis 1: Subscription $0 (teacher marginal cost = $0.00 / 1k)
+    # Cost basis 2: List price $6.97 / 1k (teacher gemini-3.8-flash list price)
+    # Student Recipe A (7B LoRA on Modal A10G): $0.612 / 1k traces
+    # Training + eval cost: $30.00 -> Required savings: $60.00
+    train_cost = economics.get("one_off_training_and_eval_estimates_usd", {}).get("recipe_a_lora_7b", 30.00)
+    req_savings = 2.0 * train_cost
+    student_serving_per_1k = economics.get("unit_costs_per_1k_usd", {}).get("recipe_a_lora_7b_modal", 0.612)
+
+    # Volume scenarios (10k traces)
+    vol = 10_000
+    # Subscription basis:
+    teacher_sub_per_1k = 0.00
+    savings_sub_10k = (vol / 1000.0) * (teacher_sub_per_1k - student_serving_per_1k)
+    gate3_passed_subscription = bool(savings_sub_10k >= req_savings)
+
+    # List price basis:
+    teacher_list_per_1k = 6.97
+    savings_list_per_1k = teacher_list_per_1k - student_serving_per_1k
+    savings_list_10k = (vol / 1000.0) * savings_list_per_1k
+    gate3_passed_list_price = bool(savings_list_10k >= req_savings)
+    breakeven_volume_list = math.ceil(req_savings / (savings_list_per_1k / 1000.0))
+
+    # Overall Gate 3 status (depends on basis)
+    gate3_passed = gate3_passed_subscription  # Fails under production subscription basis
     gate3_reason = (
-        "Economic Breakeven Gate FAILS: A self-hosted 7B LoRA student on Modal A10G costs ~$0.612 per 1,000 cases to serve. "
-        "This is 3.2x MORE EXPENSIVE than off-the-shelf Ling-3.0-Flash ($0.19/1k) and infinitely more expensive than "
-        "Gemini 3.1 Flash-Lite ($0.00 marginal subscription cost). Distillation yields negative net economic value."
+        f"Economic Breakeven Gate {'PASSES' if gate3_passed else 'FAILS'} on subscription basis ($0.00 marginal teacher cost: "
+        f"student serving ${student_serving_per_1k:.3f}/1k increases operating costs by ${abs(savings_sub_10k):.2f} at 10k traces). "
+        f"Under list price basis (teacher list ${teacher_list_per_1k:.2f}/1k), savings are ${savings_list_10k:.2f} at 10k traces "
+        f"(exceeding 2x training cost ${req_savings:.2f}), reaching break-even at ~{breakeven_volume_list:,} traces."
     )
 
+    # Verdict
     verdict = "DO NOT DISTILL (DO X FIRST)"
     recommendation = (
-        "DO NOT DISTILL. Complete the 69 pending human adjudication verdicts in Judge Station (docs/judge-guide.md) first "
-        "at $0 model cost to calibrate ground truth, and test L0 tripwire / action-sequence feature representations "
+        "DO NOT DISTILL. Distillation fails Gate 1 (zero headroom on working families) and Gate 2 (c1c5 pos=6 and sol_astra pos=8 "
+        "fail the N_pos >= 62 threshold). Gate 3 fails under subscription pricing and passes only under list pricing. "
+        "Complete the 69 pending human adjudication verdicts in Judge Station (docs/judge-guide.md) first at $0 model cost "
+        "to resolve whether publisher CoT-judged labels hold, and test L0 tripwire / action-sequence feature representations "
         "before considering any model training."
     )
 
     return {
         "verdict": verdict,
         "gates": {
-            "gate1_headroom": {"passed": gate1_passed, "rule": "Delta Recall >= 8.5% where teacher has signal", "reason": gate1_reason},
-            "gate2_data_sufficiency": {"passed": gate2_passed, "rule": f"N_pos >= {power['n_pos_needed_per_family_wilson_precision_10pct']} trustworthy cases per family", "reason": gate2_reason},
-            "gate3_economic_breakeven": {"passed": gate3_passed, "rule": "Net savings >= 2.0x training cost", "reason": gate3_reason},
+            "gate1_headroom": {
+                "passed": gate1_passed,
+                "rule": "Delta Recall >= 8.5% where teacher has signal",
+                "max_headroom": round(max_headroom, 4),
+                "headroom_by_family": {fam: round(val, 4) for fam, val in headroom_gaps.items()},
+                "signal_families": signal_fams,
+                "reason": gate1_reason,
+            },
+            "gate2_data_sufficiency": {
+                "passed": gate2_passed,
+                "rule": f"N_pos >= {n_pos_req} trustworthy cases per family",
+                "passing_families": passing_fams,
+                "failing_families": failing_fams,
+                "reason": gate2_reason,
+            },
+            "gate3_economic_breakeven": {
+                "passed": gate3_passed,
+                "passed_subscription_basis": gate3_passed_subscription,
+                "passed_list_price_basis": gate3_passed_list_price,
+                "breakeven_volume_traces_list_price": breakeven_volume_list,
+                "savings_at_10k_subscription_usd": round(savings_sub_10k, 2),
+                "savings_at_10k_list_price_usd": round(savings_list_10k, 2),
+                "rule": "Net savings >= 2.0x training cost ($60.00 vs $30.00 one-off)",
+                "reason": gate3_reason,
+            },
         },
         "recommendation": recommendation,
     }

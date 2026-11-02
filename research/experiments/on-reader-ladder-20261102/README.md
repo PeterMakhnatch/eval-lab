@@ -1,7 +1,15 @@
 # D2-READER-LADDER: Cheap-Reader Ladder on TraceMonitor-Bench DEV v1
+## What Changed (Independent Verifier Corrections)
+Following blind verification in VF-D-BENCH (`/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/ver/raw/VF-D-BENCH/report.md`, see `VERIFIER-CORRECTIONS.md`):
+1. **Headline Context:** Clarified that the reference model (`gemini-3.8-flash`) operates near chance on Stage-1 cards (AUROC 0.511 [0.443, 0.580], recall 6/71 = 8.5%). Matching reference performance reflects matching a baseline near chance, not high detection capability. Four Gemini rungs have tune threshold 0, functioning essentially as binary detectors.
+2. **Attestation Record:** Corrected attestation to 2,389 of 2,400 calls with recorded served models; 11 calls lacked a served model (2 for `gemini-2.5-flash-lite`, 9 for `mistral-nemo` due to returncode 1 or timeout). 0 fallbacks, 0 `gemini-4-argon`.
+3. **Threshold Artefact:** Documented that `gemini-3.5-flash-lite`'s 1% operating threshold (50, yielding recall 5/71) is an artefact of a single tune negative that defaulted to 50 on parse failure; without it the threshold is 0 and recall is 6/71 matching the 2% operating point.
+4. **Receipt Hashes:** Corrected `spend.jsonl` SHA256 to `97d9c55ccf8e` and `verify_recompute.py` SHA256 to `133d0a37df85`.
+5. **Storage Policy:** Clarified that per-case rung JSONLs are stored in `~/Developer/eval-lab-results/2026-11-02/D2/` and bridge receipts, omitted from git per third-party data policy.
+
 
 ## Headline Answer
-Cheaper readers can match production AutoReview (`google-antigravity/gemini-3.8-flash`) detection performance at fixed low false-alarm budgets ($\le 1\%$ and $\le 2\%$) while drastically cutting latency and cost. Specifically:
+Cheaper readers can match production AutoReview (`google-antigravity/gemini-3.8-flash`) detection performance at fixed low false-alarm budgets ($\le 1\%$ and $\le 2\%$) while drastically cutting latency and cost. However, the reference model itself operates near chance on Stage-1 anatomy cards (AUROC 0.511 [0.443, 0.580], recall 6/71 = 8.5%), and four Gemini rungs have tune threshold 0 (acting essentially as binary detectors). Matching reference performance means matching a baseline that lacks strong Stage-1 discriminative signal, not that cheaper models are effective cheat detectors. Specifically:
 - **`gemini-3.1-flash-lite`** is the top overall candidate: **$0.00** marginal subscription cost, **2.18 s** median latency (**2.3x faster** than reference 5.07 s), 1/300 parse failures (0.33%), and **9.9% recall [4.9%, 19.0%]** at $\le 2\%$ false alarm rate (vs 8.5% [3.9%, 17.2%] for `gemini-3.8-flash`). In paired exact McNemar testing vs reference, $b=3, c=2, p=1.000$ (statistically indistinguishable).
 - **`gemini-2.5-flash-lite`** achieves **12.7% recall [6.8%, 22.4%]** and highest AUROC (0.557 [0.522, 0.600]) at $0.00 cost, with paired McNemar $b=4, c=1, p=0.375$.
 - Among paid OpenRouter candidates, **`inclusionai/ling-3.0-flash`** is the cheapest model that functions as an effective reader: **$0.19 per 1,000 cases**, matching reference recall (8.5% [3.9%, 17.2%], McNemar $b=1, c=1, p=1.000$).
@@ -12,7 +20,7 @@ Given $N_{\text{pos}} = 71$ report positives, "statistically indistinguishable" 
 ## Gate Verdict
 - **Gate: PASS.**
 - All 8 rungs evaluated on the exact preregistered 300-case cohort (150 tune, 150 report).
-- Full attestation verified: 300/300 requested == served models for every rung, 0 fallbacks across all 2,400 sessions.
+- Attestation verified: 2,389 of 2,400 calls had recorded served models; 11 calls lacked a served model record (2 for `gemini-2.5-flash-lite`, 9 for `mistral-nemo` due to returncode 1 or timeout). 0 fallbacks, 0 `gemini-4-argon` across all sessions.
 - Ladder table complete with cost/1k, p50 latency, parse failure rates, recall at FA $\le 1\%$ and $\le 2\%$ with 95% Wilson intervals, bootstrap AUROC, and exact paired McNemar comparisons.
 
 ## Ladder Summary Table
@@ -33,6 +41,7 @@ Given $N_{\text{pos}} = 71$ report positives, "statistically indistinguishable" 
 - Operating point thresholds are chosen on 79 `tune` split negatives and evaluated on 71 `report` split positives and 79 `report` split negatives.
 - Measured false-alarm rates on `report` negatives at the 2% operating point: `gemini-2.5-flash-lite`: 1/79 (1.3%); `gemini-3.1-flash-lite`: 2/79 (2.5%); `gemini-2.5-flash`: 1/79 (1.3%); `gemini-3.5-flash-lite`: 0/79 (0.0%); `gemini-3.8-flash`: 0/79 (0.0%); `ling-3.0-flash`: 4/79 (5.1%); `mistral-nemo`: 0/79 (0.0%); `gpt-oss-120b`: 0/79 (0.0%).
 - Length-matched report AUROCs (142 cases, 71 pos / 71 neg matched on log token size): `gemini-2.5-flash-lite`: 0.557; `gemini-3.5-flash-lite`: 0.542; `gemini-2.5-flash`: 0.536; `gemini-3.1-flash-lite`: 0.535; `ling-3.0-flash`: 0.528; `gemini-3.8-flash`: 0.526; `mistral-nemo`: 0.499; `gpt-oss-120b`: 0.488.
+- `gemini-3.5-flash-lite` 1% threshold artefact: recall @ FA $\le 1\%$ is 5/71 because its 1% threshold (50) is set by a single tune negative parse-failure default score (50). Excluding that parse failure, the threshold is 0 and recall is 6/71 (matching the 2% FA rate).
 
 ## Question -> What Ran -> Number -> Meaning
 
@@ -52,7 +61,7 @@ Can we replace the heavy Stage-1 AutoReview reader (`gemini-3.8-flash`) with lig
   7. `openrouter/mistralai/mistral-nemo` (OpenRouter paid, cap $1.50)
   8. `openrouter/openai/gpt-oss-120b` (OpenRouter paid, cap $1.50)
 - **Spend**: Total OpenRouter spend across all paid calls was **$0.2095** ($0.0568 for ling, $0.0492 for nemo, $0.1035 for gpt-oss), logged in real-time to `~/.local/state/evallab-failure-library/spend.jsonl` and local `spend.jsonl`.
-- **Attestation**: Every call verified from session `.jsonl`. 300/300 calls per rung served the exact requested model. Fallback count = 0 across all 2,400 runs.
+- **Attestation**: 2,389 of 2,400 calls had recorded served models; 11 calls lacked a served model record (2 for `gemini-2.5-flash-lite`, 9 for `mistral-nemo` due to returncode 1 or timeout). Fallback count = 0, zero `gemini-4-argon` across all 2,400 runs.
 
 ### 3. Key Numbers
 - **Cheapest Indistinguishable Subscription Rung**: `gemini-3.1-flash-lite` ($0.00 marginal cost, 2.18 s p50 latency, 9.9% recall [4.9%, 19.0%] vs reference 8.5% [3.9%, 17.2%], paired McNemar $p = 1.000$).
@@ -79,10 +88,10 @@ Can we replace the heavy Stage-1 AutoReview reader (`gemini-3.8-flash`) with lig
 | Rung: ling-3.0-flash | `research-context/bridge/2026-11-02-overnight/train/raw/D2-READER-LADDER/receipts/ling-3.0-flash.jsonl` | `fc92399a1fe9` |
 | Rung: mistral-nemo | `research-context/bridge/2026-11-02-overnight/train/raw/D2-READER-LADDER/receipts/mistral-nemo.jsonl` | `802ed041f473` |
 | Rung: gpt-oss-120b | `research-context/bridge/2026-11-02-overnight/train/raw/D2-READER-LADDER/receipts/gpt-oss-120b.jsonl` | `a10241e6c4fa` |
-| OpenRouter Spend Log | `research-context/bridge/2026-11-02-overnight/train/raw/D2-READER-LADDER/receipts/spend.jsonl` | `5c85b5ca77a3` |
+| OpenRouter Spend Log | `research-context/bridge/2026-11-02-overnight/train/raw/D2-READER-LADDER/receipts/spend.jsonl` | `97d9c55ccf8e` |
 
-Durable copies exist identically in `~/Developer/eval-lab-results/2026-11-02/D2/` and `research/experiments/on-reader-ladder-20261102/`.
-Recompute verification script: `research/experiments/on-reader-ladder-20261102/verify_recompute.py` (SHA256: `18ad371bb190`).
+Durable copies of aggregates exist in `research/experiments/on-reader-ladder-20261102/`. Per-case rung `.jsonl` files and cohort files are stored durably under `~/Developer/eval-lab-results/2026-11-02/D2/` and bridge receipts, but are excluded from git per the project third-party data policy.
+Recompute verification script: `research/experiments/on-reader-ladder-20261102/verify_recompute.py` (SHA256: `133d0a37df85`).
 
 ## Honest Limits
 - **Sample Power**: With 71 positives in the report split, the minimum detectable gap at $\alpha = 0.05$ with exact McNemar is ~8.5 percentage points. Differences within $\pm 5$ detections between the Gemini models cannot be distinguished from sampling variation.

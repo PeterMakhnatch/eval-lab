@@ -1,0 +1,90 @@
+[
+  {
+    "rank": 1,
+    "name": "Merge Train with Auto-Doc-Regeneration (PR Merge Queue)",
+    "hours_saved_per_night": 15.0,
+    "effort": "S",
+    "evidence_bullets": 80,
+    "evidence_items": 49,
+    "prerequisites": "evallab.repomap, evallab.docindex, gh CLI",
+    "first_step": "Promote tools/merge_train.py into src/evallab/merge_train.py and integrate into CI / on_watch.py loop.",
+    "category": "git_rebase_docs_conflict"
+  },
+  {
+    "rank": 2,
+    "name": "Automated Review-Fix-Review Orchestrator (Multi-Pass Code Verification)",
+    "hours_saved_per_night": 12.0,
+    "effort": "M",
+    "evidence_bullets": 49,
+    "evidence_items": 18,
+    "prerequisites": "Independent reviewer model route (Claude Sonnet), git worktree manager",
+    "first_step": "Standardize BLOCKER schema in review reports and build automated parser that spawns FIX worktree with checklist.",
+    "category": "review_fix_loop"
+  },
+  {
+    "rank": 3,
+    "name": "Dynamic Spend Reservation & Two-Phase Settlement Gate",
+    "hours_saved_per_night": 5.0,
+    "effort": "S",
+    "evidence_bullets": 25,
+    "evidence_items": 21,
+    "prerequisites": "spend.jsonl or SQLite failure library ledger",
+    "first_step": "Patch modal_cells.py to size reservations from requested timeout rather than 1800s default; release unused reservations immediately.",
+    "category": "spend_accounting_stalls"
+  },
+  {
+    "rank": 4,
+    "name": "Output-Advancement Dead-Man Watchdog (Hang Detection)",
+    "hours_saved_per_night": 4.0,
+    "effort": "S",
+    "evidence_bullets": 5,
+    "evidence_items": 5,
+    "prerequisites": "Subprocess pipe streaming in runner",
+    "first_step": "Add stdout/stderr activity timestamp check in evallab/runner.py to terminate tasks that produce 0 output for >300s.",
+    "category": "hang_detection_visibility"
+  },
+  {
+    "rank": 5,
+    "name": "Preflight Model Canary & Attestation Router",
+    "hours_saved_per_night": 3.5,
+    "effort": "S",
+    "evidence_bullets": 20,
+    "evidence_items": 17,
+    "prerequisites": "Model API credentials store",
+    "first_step": "Add mandatory 1-call preflight probe before batch sweeps to check model alias, safety refusal, and attestation logging.",
+    "category": "attestation_model_routing"
+  },
+  {
+    "rank": 6,
+    "name": "Event-Driven DAG Dependency Bus (Replacing Filesystem Markers)",
+    "hours_saved_per_night": 3.0,
+    "effort": "M",
+    "evidence_bullets": 17,
+    "evidence_items": 14,
+    "prerequisites": "Runner state event publisher",
+    "first_step": "Replace gates/<ITEM>-done polling with SQLite state notifications or event bus publisher.",
+    "category": "gate_dependency_waiting"
+  },
+  {
+    "rank": 7,
+    "name": "Pre-PR Third-Party Data Policy Boundary Linter",
+    "hours_saved_per_night": 2.5,
+    "effort": "S",
+    "evidence_bullets": 11,
+    "evidence_items": 11,
+    "prerequisites": "evallab.governance",
+    "first_step": "Add third-party trace / card signature regex scanner to evallab.governance check.",
+    "category": "data_policy_leakage"
+  },
+  {
+    "rank": 8,
+    "name": "Dynamic Plan & Brief Subscription Bus (Live Worker Configuration)",
+    "hours_saved_per_night": 2.0,
+    "effort": "M",
+    "evidence_bullets": 10,
+    "evidence_items": 9,
+    "prerequisites": "Headless worker control channel",
+    "first_step": "Add versioned brief hash check to worker loop that gracefully pauses or updates configuration when brief changes.",
+    "category": "brief_drift_dynamic_config"
+  }
+]

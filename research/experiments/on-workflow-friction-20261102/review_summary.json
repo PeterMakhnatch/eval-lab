@@ -1,0 +1,214 @@
+[
+  {
+    "review_id": "REVIEW-1726-R2",
+    "pr_number": 1726,
+    "round": 2,
+    "blocker_count": 2,
+    "blocker_descriptions": [
+      "Real mode certify-gold is stub",
+      "Inaccurate cost/mode claims"
+    ],
+    "report_path": "ver/raw/REVIEW-1726-R2/report.md"
+  },
+  {
+    "review_id": "REVIEW-1726-R3",
+    "pr_number": 1726,
+    "round": 3,
+    "blocker_count": 1,
+    "blocker_descriptions": [
+      "Experiment driver cannot certify operator package"
+    ],
+    "report_path": "ver/raw/REVIEW-1726-R3/report.md"
+  },
+  {
+    "review_id": "REVIEW-1726-R4",
+    "pr_number": 1726,
+    "round": 4,
+    "blocker_count": 1,
+    "blocker_descriptions": [
+      "Stale against origin/main; doc conflict with merged #1744"
+    ],
+    "report_path": "ver/raw/REVIEW-1726-R4/report.md"
+  },
+  {
+    "review_id": "REVIEW-1726",
+    "pr_number": 1726,
+    "round": 1,
+    "blocker_count": 6,
+    "blocker_descriptions": [
+      "Docs stub instead of implementation",
+      "Selective p-value quoting",
+      "Third-party per-run label",
+      "Nonexistent JSON field",
+      "Invalid command",
+      "Unverified prereg labels"
+    ],
+    "report_path": "ver/raw/REVIEW-1726/report.md"
+  },
+  {
+    "review_id": "REVIEW-1729-R2",
+    "pr_number": 1729,
+    "round": 2,
+    "blocker_count": 3,
+    "blocker_descriptions": [
+      "Real-omp attestation missing",
+      "Honest code handling flaws",
+      "Label inversion edge cases"
+    ],
+    "report_path": "ver/raw/REVIEW-1729-R2/report.md"
+  },
+  {
+    "review_id": "REVIEW-1729-R3",
+    "pr_number": 1729,
+    "round": 3,
+    "blocker_count": 3,
+    "blocker_descriptions": [
+      "Branch no longer merges with main",
+      "Test-file rule keyed on tool verb dropping honest tests",
+      "DEV admission ignores rollout task id"
+    ],
+    "report_path": "ver/raw/REVIEW-1729-R3/report.md"
+  },
+  {
+    "review_id": "REVIEW-1729-R4",
+    "pr_number": 1729,
+    "round": 4,
+    "blocker_count": 2,
+    "blocker_descriptions": [
+      "Existing test read in trajectory can be overwritten and kept",
+      "Transcript text leaked into manifest (data policy violation)"
+    ],
+    "report_path": "ver/raw/REVIEW-1729-R4/report.md"
+  },
+  {
+    "review_id": "REVIEW-1729-R5",
+    "pr_number": 1729,
+    "round": 5,
+    "blocker_count": 1,
+    "blocker_descriptions": [
+      "Docs/PR-body contradicts verb-only create implementation"
+    ],
+    "report_path": "ver/raw/REVIEW-1729-R5/report.md"
+  },
+  {
+    "review_id": "REVIEW-1729",
+    "pr_number": 1729,
+    "round": 1,
+    "blocker_count": 5,
+    "blocker_descriptions": [
+      "AutoReview stage was no-op",
+      "Real ATIF trial dirs cannot be kept",
+      "DEV-only refusal swallowed",
+      "Label parser inverts not_cheat",
+      "In-sample B4 cohort"
+    ],
+    "report_path": "ver/raw/REVIEW-1729/report.md"
+  },
+  {
+    "review_id": "REVIEW-1730-R2",
+    "pr_number": 1730,
+    "round": 2,
+    "blocker_count": 0,
+    "blocker_descriptions": [],
+    "report_path": "ver/raw/REVIEW-1730-R2/report.md"
+  },
+  {
+    "review_id": "REVIEW-1730",
+    "pr_number": 1730,
+    "round": 1,
+    "blocker_count": 2,
+    "blocker_descriptions": [
+      "Judge Station verdict leaked in queue",
+      "Guard paths drop unserved requests"
+    ],
+    "report_path": "ver/raw/REVIEW-1730/report.md"
+  },
+  {
+    "review_id": "REVIEW-1732-R2",
+    "pr_number": 1732,
+    "round": 2,
+    "blocker_count": 0,
+    "blocker_descriptions": [],
+    "report_path": "ver/raw/REVIEW-1732-R2/report.md"
+  },
+  {
+    "review_id": "REVIEW-1732",
+    "pr_number": 1732,
+    "round": 1,
+    "blocker_count": 0,
+    "blocker_descriptions": [],
+    "report_path": "ver/raw/REVIEW-1732/report.md"
+  },
+  {
+    "review_id": "REVIEW-1738-R2",
+    "pr_number": 1738,
+    "round": 2,
+    "blocker_count": 1,
+    "blocker_descriptions": [
+      "Reservations sized from 1800s default stall batch at 5 cells ($2.97 reserved vs $0.01 spent)"
+    ],
+    "report_path": "ver/raw/REVIEW-1738-R2/report.md"
+  },
+  {
+    "review_id": "REVIEW-1738-R3",
+    "pr_number": 1738,
+    "round": 3,
+    "blocker_count": 1,
+    "blocker_descriptions": [
+      "Mechanical merge conflict / lint error against origin/main"
+    ],
+    "report_path": "ver/raw/REVIEW-1738-R3/report.md"
+  },
+  {
+    "review_id": "REVIEW-1738",
+    "pr_number": 1738,
+    "round": 1,
+    "blocker_count": 4,
+    "blocker_descriptions": [
+      "Spend gate accounts incorrectly in ledger mode",
+      "Migration resets existing caller ledgers",
+      "Default 1800s timeout over-reserves",
+      "Missing settle cleanup"
+    ],
+    "report_path": "ver/raw/REVIEW-1738/report.md"
+  },
+  {
+    "review_id": "REVIEW-1744-R2",
+    "pr_number": 1744,
+    "round": 2,
+    "blocker_count": 0,
+    "blocker_descriptions": [],
+    "report_path": "ver/raw/REVIEW-1744-R2/report.md"
+  },
+  {
+    "review_id": "REVIEW-1744",
+    "pr_number": 1744,
+    "round": 1,
+    "blocker_count": 1,
+    "blocker_descriptions": [
+      "Unmeasured reference treated as failed reference"
+    ],
+    "report_path": "ver/raw/REVIEW-1744/report.md"
+  },
+  {
+    "review_id": "REVIEW-1752-R2",
+    "pr_number": 1752,
+    "round": 2,
+    "blocker_count": 0,
+    "blocker_descriptions": [],
+    "report_path": "ver/raw/REVIEW-1752-R2/report.md"
+  },
+  {
+    "review_id": "REVIEW-1752",
+    "pr_number": 1752,
+    "round": 1,
+    "blocker_count": 4,
+    "blocker_descriptions": [
+      "Back-fill writes subscription-notional dollars into ledger",
+      "Duplicate rows written to shared ledger",
+      "Reconcile verdict passes with nothing verified",
+      "Unchecked provider API errors"
+    ],
+    "report_path": "ver/raw/REVIEW-1752/report.md"
+  }
+]

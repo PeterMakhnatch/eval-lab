@@ -24,6 +24,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: false
 
+env:
+  # uv retries index HTTP requests 3 times by default; a single PyPI blip must
+  # not fail a sync (HAR-252, mcp-wheelhouse-platform run 41387496649).
+  UV_HTTP_RETRIES: "5"
+
 jobs:
   lint:
     runs-on: ubuntu-latest

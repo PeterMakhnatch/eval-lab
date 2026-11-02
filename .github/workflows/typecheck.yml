@@ -31,6 +31,8 @@ concurrency:
 env:
   # Zero-diagnostic gate. Any ty diagnostic fails the job.
   TY_BASELINE: 0
+  # uv retries index HTTP requests 3 times by default (HAR-252).
+  UV_HTTP_RETRIES: "5"
 
 jobs:
   ty:

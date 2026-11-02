@@ -20,6 +20,8 @@ concurrency:
 
 env:
   HARBOR_TELEMETRY: "off"
+  # uv retries index HTTP requests 3 times by default (HAR-252).
+  UV_HTTP_RETRIES: "5"
 
 jobs:
   canary:

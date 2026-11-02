@@ -1539,3 +1539,36 @@ Rationale (preserves the two invariants that existed before the outage):
 `uv` lands in `$HOME/.local/bin` (added to `$GITHUB_PATH`) and `uv python install` provisions the exact matrix interpreters (3.12, 3.14) so downstream `uv sync`/`uv run` continue to honour `UV_PYTHON` exactly as before. No cache step was added; correctness over convenience. No other job steps or commands were altered.
 
 This change was made because a single throttled codeload path made every job unrunnable even when the rest of the pipeline was healthy. The PyPI path is a different CDN and has never exhibited the same 429/502/503 cascade in our runs. The PR that introduced it will itself run the modified workflows; a green result on that PR is the verification that the jobs remain executable.
+
+## CI: uv package cache and bounded download retries (HAR-252)
+
+`mcp-wheelhouse-platform` run 41387496649 failed on `main` on 2026-11-02 with
+`Failed to download pytz==2026.5 after 3 retries`. uv stops after its default three
+HTTP retries, and only `ci.yml` and `typecheck.yml` restored a package cache, so the
+other ten jobs re-downloaded the lock on every run. That is one such failure in the
+last 300 `main` runs, and it failed a required workflow.
+
+Every workflow job that resolves packages now:
+
+- restores `~/.cache/uv` through `actions/cache` (the `v6.1.0` SHA that `ci.yml`
+  already pins) before its first sync, keyed by
+  `hashFiles('uv.lock', '.github/workflows/<file>')` with `restore-keys` falling back
+  to the `ci.yml` test cache, and `SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2` so a slow restore
+  yields to a plain download; and
+- sets `UV_HTTP_RETRIES: "5"` in the workflow `env`, above uv's default of 3.
+  `UV_HTTP_RETRIES` exists since uv 0.7.21 and the workflows pin uv 0.9.24: a local
+  index answering 503 failed immediately with `UV_HTTP_RETRIES=0`, reported
+  `Request failed after 3 retries` at 3 and `after 5 retries` at 5.
+
+`uv run` without `--no-sync` syncs implicitly, so those jobs carry the same cover. Jobs
+that only run `uv tool install`, `uv python install` or `uvx` need the retry floor but
+no project cache.
+`tests/test_quality_gates.py::test_uv_downloading_jobs_cache_packages_and_retry`
+enforces both properties, and its fixture cases fail a job that drops the cache step,
+restores it after the sync, keys it without `uv.lock`, or lowers the retry count.
+
+Cache trust: entries hold only wheels and index responses, the artifacts
+`uv sync --locked` already verifies against the lock hashes. A cache saved by a pull
+request is scoped to that pull request, so `main` restores only entries created on
+`main` or by its own runs. This adds no new third-party trust root beyond the
+SHA-pinned `actions/cache` the quality and typecheck jobs already used.

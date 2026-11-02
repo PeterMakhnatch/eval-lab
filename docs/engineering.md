@@ -174,11 +174,14 @@ current test census; observe live collection with `uv run pytest --collect-only 
 The bounded four-worker default keeps every test and Hypothesis setting in the
 lane.
 
-CI dependency installation is narrowed by job instead of cached: quality jobs
-omit the observability group, and performance installs only project runtime
-dependencies. Typecheck installs the default development and observability
-groups because it analyzes every source module, including optional integrations.
-`docs/operations.md` records why no cache trust root is added.
+CI dependency installation is narrowed by job and cached: every job that resolves
+packages restores `~/.cache/uv` from a key hashed out of `uv.lock` and sets
+`UV_HTTP_RETRIES` to at least 5 (uv's default is 3), so one index failure retries
+instead of reddening `main`. Quality jobs omit the observability group, and
+performance installs only project runtime dependencies. Typecheck installs the
+default development and observability groups because it analyzes every source
+module, including optional integrations. `tests/test_quality_gates.py` enforces the
+cache step and the retry floor; `docs/operations.md` records the cache trust posture.
 
 ### Application paths
 

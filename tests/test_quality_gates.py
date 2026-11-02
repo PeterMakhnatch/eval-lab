@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -388,6 +389,78 @@ def test_required_gate_workflows_never_cancel_a_running_run() -> None:
         )
 
     assert gate_workflows == {"ci.yml", "typecheck.yml"}
+
+_PYTHON_RUN_LINE = re.compile(r"(?<![\w./-])python3?\b")
+# Bootstrapping uv via `python3 -m pip install --user uv==...` is interpreter-version
+# agnostic: the uv wheel lands under ~/.local/bin on PATH regardless of which CPython
+# the runner image ships. Every other python/python3 invocation must come after the
+# job pins its interpreter, or a runner-image bump (ubuntu-26.04 shipping no system
+# 3.12) silently changes what the code runs on.
+_UV_BOOTSTRAP_LINE = re.compile(r"python3?\s+-m\s+pip\s+install\b")
+
+
+@pytest.mark.parametrize("workflow_path", WORKFLOW_FILES, ids=lambda p: p.name)
+def test_every_job_declares_timeout_minutes(workflow_path: Path) -> None:
+    """Every job must cap its wall time explicitly.
+
+    A job without timeout-minutes inherits GitHub's 6 h default, so a hung step
+    burns runner minutes for hours before anyone notices (HAR-245; the
+    linux-cp312-wheelhouse job in mcp-wheelhouse-platform.yml carried no bound).
+    """
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    jobs = workflow.get("jobs") or {}
+    assert jobs, f"Workflow '{workflow_path.name}' declares no jobs."
+    for job_name, job in jobs.items():
+        assert isinstance(job, dict) and isinstance(job.get("timeout-minutes"), (int, float)), (
+            f"Job '{job_name}' in '{workflow_path.name}' must declare a numeric "
+            "timeout-minutes so a hung runner cannot burn the 6 h GitHub default."
+        )
+
+
+@pytest.mark.parametrize("workflow_path", WORKFLOW_FILES, ids=lambda p: p.name)
+def test_python_run_steps_follow_an_interpreter_pin(workflow_path: Path) -> None:
+    """Bare python/python3 invocations must come after the job pins an interpreter.
+
+    tau-knowledge-lean failed three runs on 2026-10-29 (runs 40937083639 and
+    40802303644) when ubuntu-latest moved to 26.04: bare python3 resolved to a
+    different interpreter and the wheelhouse path lost 3.12. Every job that
+    executes python code must first pin the interpreter with
+    actions/setup-python or `uv python install`.
+
+    Exempted: `python3 -m pip install --user uv==...` bootstrap lines, which are
+    version-agnostic (uv is a self-contained binary on PATH), and the
+    `uv python install` line itself, which is the pin. Invocation is checked per
+    run-script line so a pin earlier in the same script still counts.
+    """
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    jobs = workflow.get("jobs") or {}
+    for job_name, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        steps = job.get("steps") or []
+        pinned = False
+        for index, step in enumerate(steps):
+            if not isinstance(step, dict):
+                continue
+            uses = step.get("uses") or ""
+            run = step.get("run") or ""
+            if "actions/setup-python" in uses:
+                pinned = True
+            for line in run.splitlines():
+                if "uv python install" in line:
+                    pinned = True
+                    continue
+                if _UV_BOOTSTRAP_LINE.search(line):
+                    continue
+                if _PYTHON_RUN_LINE.search(line):
+                    assert pinned, (
+                        f"Job '{job_name}' in '{workflow_path.name}' invokes a bare "
+                        f"python interpreter at step {index} "
+                        f"({step.get('name') or '<unnamed>'}) before pinning one. "
+                        "Add an earlier actions/setup-python step or run "
+                        "`uv python install <version>` first (HAR-245; bare python3 "
+                        "broke tau-knowledge-lean when ubuntu-latest moved to 26.04)."
+                    )
 
 
 def test_workbench_certification_workflows_cadence_and_path_isolation() -> None:

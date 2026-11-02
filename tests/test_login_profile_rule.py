@@ -2,17 +2,11 @@
 
 from __future__ import annotations
 
-import posixpath
 import pytest
 
-from evallab.hack_drop import RolloutItem, StageVerdict, evaluate_l0_stage
+from evallab.hack_drop import RolloutItem, evaluate_l0_stage
 from evallab.trace_anatomy import LoadedRun
-from evallab.tripwires import (
-    HACKBOOK_GATE_RULES,
-    is_login_profile_path,
-    scan_trace,
-    to_findings,
-)
+from evallab.tripwires import is_login_profile_path, scan_trace, to_findings
 
 
 def _bash_step(step_id: int, cmd: str) -> dict:

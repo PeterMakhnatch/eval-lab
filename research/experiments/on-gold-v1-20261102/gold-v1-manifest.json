@@ -1,0 +1,1154 @@
+{
+  "schema_version": "gold-v1/manifest/v1",
+  "created_at": "2026-11-02T10:08:29.813903+00:00",
+  "approval": "Peter 2026-11-02 overnight A4: Modal cap $3.00",
+  "cap_usd": 3.0,
+  "meter_settled_usd": 0.073668,
+  "total_cells_executed": 56,
+  "cohort_size": 32,
+  "metrics": {
+    "gold_structural": {
+      "count": 0,
+      "rate": 0.0,
+      "formatted": "0/32 = 0.0% (0.0-10.7%)"
+    },
+    "gold_heldout": {
+      "count": 0,
+      "rate": 0.0,
+      "formatted": "0/32 = 0.0% (0.0-10.7%)"
+    },
+    "demonstrated_weak_graders": {
+      "count": 0,
+      "cohort": 18,
+      "formatted": "0/18 = 0.0% (0.0-17.6%)"
+    },
+    "mean_unseen_eval_kill_rate": 0.0,
+    "total_settled_cost_usd": 0.073668,
+    "total_cells_executed": 56
+  },
+  "failure_taxonomy": {
+    "ref_failed_no_repair": 32
+  },
+  "tasks": [
+    {
+      "task_id": "format-code-task-000682",
+      "priority_rank": 1,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.016238,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-001267",
+      "priority_rank": 2,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.004544,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-001804",
+      "priority_rank": 3,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.003174,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-002545",
+      "priority_rank": 4,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.016358,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-000079",
+      "priority_rank": 5,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.006198,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-000081",
+      "priority_rank": 6,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.002016,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-000232",
+      "priority_rank": 7,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.009826,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-000256",
+      "priority_rank": 8,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.002986,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-000838",
+      "priority_rank": 9,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.001484,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-000847",
+      "priority_rank": 10,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.00193,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-000931",
+      "priority_rank": 11,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.004106,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-001338",
+      "priority_rank": 12,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.001874,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-001426",
+      "priority_rank": 13,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.005062,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-001431",
+      "priority_rank": 14,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.00294,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-001809",
+      "priority_rank": 15,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.002618,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-001850",
+      "priority_rank": 16,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.005506,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-001985",
+      "priority_rank": 17,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.005652,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-002535",
+      "priority_rank": 18,
+      "is_weak": true,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.004782,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-000085",
+      "priority_rank": 19,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.001946,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-000212",
+      "priority_rank": 20,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.004432,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-000322",
+      "priority_rank": 21,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.003692,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-000812",
+      "priority_rank": 22,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.003482,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-000945",
+      "priority_rank": 23,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.0071,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-001205",
+      "priority_rank": 24,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.001798,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-002139",
+      "priority_rank": 25,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 0,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.0,
+      "cells_executed": 0,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "Execution failed: QA script exited 1"
+    },
+    {
+      "task_id": "format-code-task-002160",
+      "priority_rank": 26,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.010412,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-002391",
+      "priority_rank": 27,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 0,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.0,
+      "cells_executed": 0,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "Execution failed: QA script exited 1"
+    },
+    {
+      "task_id": "format-code-task-002552",
+      "priority_rank": 28,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.001654,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-002609",
+      "priority_rank": 29,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 0,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.0,
+      "cells_executed": 0,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "Execution failed: QA script exited 1"
+    },
+    {
+      "task_id": "format-code-task-002680",
+      "priority_rank": 30,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 0,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.0,
+      "cells_executed": 0,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "Execution failed: QA script exited 1"
+    },
+    {
+      "task_id": "format-code-task-002976",
+      "priority_rank": 31,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.003394,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    },
+    {
+      "task_id": "format-code-task-003007",
+      "priority_rank": 32,
+      "is_weak": false,
+      "status": "not_gold",
+      "reason": "ref_failed_no_repair",
+      "rounds_executed": 1,
+      "accepted_round": null,
+      "counts": {
+        "train_total": 0,
+        "train_killed": 0,
+        "probe_total": 0,
+        "probe_killed": 0,
+        "eval_total": 0,
+        "eval_killed": 0,
+        "eval_base_accepted": 0,
+        "eval_base_accepted_killed": 0
+      },
+      "gates": {
+        "reference_passed": false,
+        "nop_passed": false,
+        "witness_passed": false,
+        "exit0_passed": false
+      },
+      "demonstrated_non_equivalence": {
+        "a2_survivors_exercised": 0,
+        "a2_survivors_killed": 0,
+        "demonstrated_weak_grader": false
+      },
+      "cost_usd": 0.003784,
+      "cells_executed": 2,
+      "upgraded_package_sha256": null,
+      "certificate_path": null,
+      "stop_reason": "guard_reverted"
+    }
+  ]
+}

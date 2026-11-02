@@ -106,8 +106,10 @@ jobs:
           # Every file listed here skips (or covers only its stubs) when Harbor is
           # absent, so the main pytest step cannot exercise it. HAR-260:
           # tests/test_quality_gates.py::test_every_harbor_gated_test_file_runs_in_the_native_harbor_step
-          # fails when a Harbor-gated test file is missing from this list.
-          uv run --no-sync pytest --shard ${{ matrix.shard }} -n 0 -v \
+          # fails when a Harbor-gated test file is missing from this list. `-rA`
+          # puts every test's PASSED/SKIPPED status in the log: dots plus one
+          # aggregate count cannot show that a gated file really ran.
+          uv run --no-sync pytest --shard ${{ matrix.shard }} -n 0 -rA \
             tests/test_job_diff.py tests/test_regrade.py \
             tests/test_harbor_laminar.py tests/test_mimoagent_worker.py \
             tests/test_mimoagent_stops.py tests/test_mimoagent_trajectory.py \

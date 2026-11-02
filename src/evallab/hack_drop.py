@@ -1168,7 +1168,7 @@ def _terminal_shell_input(keystrokes: str, *, shell_ready: bool) -> str | None:
     text = re.sub(r"(?:^|\s)Enter\s*$", "", text).rstrip("\r\n")
     if not submitted or not text.strip():
         return None
-    if re.search(r"\b(?:C-[A-Za-z]|M-[A-Za-z]|Escape|BSpace|Up|Down|Left|Right|Tab)\b", text):
+    if text.strip() in {"C-c", "C-u", "M-x", "Escape", "BSpace", "Up", "Down", "Left", "Right", "Tab", "Enter"}:
         return None
     if any(ord(char) < 32 and char not in "\n\t" for char in text):
         return None
@@ -1235,7 +1235,7 @@ def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
                         paths = [posixpath.join(part, pattern) for part in paths]
                     adapted_name = "bash"
                     adapted_args = {"command": "ls " + " ".join(shlex.quote(part) for part in paths)}
-            elif name in ("shell", "bash_command") and isinstance(arguments, Mapping) and "command" in arguments:
+            elif name == "shell" and isinstance(arguments, Mapping) and "command" in arguments:
                 command = arguments.get("command")
                 # Bundle exports duplicate direct shell commands into keystrokes;
                 # unlike Terminus these are not input into a persistent terminal.
@@ -1247,13 +1247,19 @@ def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
                 if isinstance(payload, Mapping) and isinstance(path, str) and path:
                     content = payload.get("source")
                     if isinstance(content, list) and all(isinstance(line, str) for line in content):
-                        content = "\n".join(content)
+                        content = "".join(content)
                     if isinstance(content, str):
                         adapted_name, adapted_args = "edit", {"path": path, "command": "edit", "content": content}
             elif name == "text_editor" and isinstance(arguments, Mapping):
                 command = arguments.get("command")
                 path = arguments.get("path")
-                if isinstance(path, str) and path and command in ("view", "create", "str_replace", "insert", "undo_edit"):
+                valid_payload = (
+                    command in ("view", "undo_edit")
+                    or (command == "create" and isinstance(arguments.get("file_text"), str))
+                    or (command == "str_replace" and all(isinstance(arguments.get(key), str) for key in ("old_str", "new_str")))
+                    or (command == "insert" and isinstance(arguments.get("new_str"), str))
+                )
+                if isinstance(path, str) and path and valid_payload:
                     adapted_name = "str_replace_editor"
                     if command == "undo_edit":
                         # Undo is a modification even when no replacement text exists.
@@ -1291,6 +1297,7 @@ def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
         steps.append({**step, "tool_calls": normalized_calls})
         if terminal_calls:
             observation = _TERMINAL_ESCAPE.sub("", _extract_obs_text(step)).replace("\r", "")
+            observation = re.sub(r"\n*Are you sure you want to mark the task as complete\?[^\n]*\s*$", "", observation)
             shell_ready = bool(_SHELL_PROMPT.search(observation))
     return replace(rollout, run=replace(rollout.run, doc={**rollout.run.doc, "steps": steps}))
 

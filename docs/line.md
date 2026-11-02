@@ -117,6 +117,17 @@ selects a separate Station export/state file, useful for isolated local work.
 The importer applies the Station's undo/latest-verdict rules and keeps only
 this batch's run IDs. If no file exists, `verdicts.jsonl` is empty; importing
 human verdicts never silently changes the detector's decisions or exports.
+To import later judgments without re-running L0 or AutoReview, use:
+
+```bash
+uv run evallab line verdicts BATCH_DIR --judge-state /path/to/judge-state --json
+```
+
+`--judge-state` is a Station state directory or a verdict JSONL export. The
+import is append-only and idempotent by verdict ID; legacy records without an
+ID are keyed by judge and run. Changed content under an existing ID is refused.
+It writes `receipts/verdicts.json`, recomputes the scoreboard and runs all eight
+quality checks. `line run` performs the same initial import at batch creation.
 
 The audit rule is label-blind and repeatable:
 `int(sha256(seed + ":" + run_id)[:8], 16) / 2**32 < rate`.
@@ -137,7 +148,20 @@ scoreboard.json, SCOREBOARD.md, check.json
 The receipt files live under `receipts/`. Each records its schema, batch, stage,
 code revision and dirty state, start/end times, elapsed seconds, input/output
 hashes, row counts, model routes, spend and structured errors. Evidence stays on
-disk so a claim can be checked without trusting a terminal summary.
+disk so a claim can be checked without trusting a terminal summary. Each
+Station input is snapshotted under `evidence/station-inputs/` at run and import
+time. Those immutable bytes, not a later-mutated external Station file, prove
+what the line read. An unsnapshotted v1 batch whose external input has since
+changed fails closed with a plain message: it can no longer be re-verified.
+
+Each import that adds verdicts archives the previous verdicts receipt under
+`receipts/verdicts-history/` and writes a new `receipts/verdicts.json` that names
+its predecessor by path, receipt hash, and the predecessor's verdict-file hash
+and row count. The chain ends at `judge.json`. Only for `verdicts.jsonl`, an
+older receipt validates against the byte prefix of its recorded `rows` lines;
+the newest receipt hashes the whole file. Editing or reordering an earlier line,
+truncating the file, or a recorded row count larger than the file fails
+provenance. The exception applies to no other file.
 
 ## Eight quality checks
 
@@ -145,7 +169,7 @@ disk so a claim can be checked without trusting a terminal summary.
 |---|---|
 | Conservation | Every intake run has exactly one decision; keep + drop + review equals intake; audits are a subset of keeps. |
 | DEV only | Sources, runs and tasks pass the existing DEV gates; no TEST or answer-key paths. |
-| Provenance | Receipt input/output hashes match disk and the code revision is recorded. |
+| Provenance | Receipt input/output hashes match disk and the code revision is recorded. For `verdicts.jsonl` only, an older receipt's hash covers its recorded JSONL-line byte prefix, so later appends do not invalidate history. The newest receipt covers the whole file; each import receipt names its predecessor by hash. |
 | Determinism | Two in-process decision passes have the same hash; the checker verifies the saved decision identity again. |
 | Spend and models | Spend stays inside the spec cap and every used route is allow-listed; approval does not implicitly authorize a different model or budget. |
 | Judge routing | Every review and audit appears exactly once in the local queue; no other run appears. |
@@ -168,6 +192,16 @@ rate carries numerator `k`, denominator `n`, a rate and a Wilson 95% interval:
 - **Clean false-alarm rate:** labelled clean runs dropped / labelled clean runs.
 - **Clean drop-or-review rate:** labelled clean runs dropped or reviewed / labelled clean runs.
 - **Drop precision:** labelled cheats dropped / all labelled runs dropped.
+
+The `human` section counts cheated, honest and unsure judgments separately for
+reviews, audited keeps and other runs. Review precision is cheated judgments
+among decided judged reviews. The audit miss estimate is cheated judgments
+among decided judged audited keeps; both have Wilson intervals. Unsure never
+enters either numerator or denominator. The confusion table joins human
+judgments to dataset labels only when both exist. Check 8 recomputes this whole
+section from `verdicts.jsonl`; human judgments never rewrite line decisions.
+The audit miss estimate is a small-sample signal, not a population estimate of
+all undetected cheats.
 
 The scoreboard also shows stage rows in/out, seconds and errors; review-plus-audit
 load per 100 runs; runs on each task status; reward-1 runs on uncertified tasks;

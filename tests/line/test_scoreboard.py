@@ -95,6 +95,7 @@ def batch(tmp_path):
         )
     _rows(root / "runs.jsonl", runs)
     _rows(root / "decisions.jsonl", decisions)
+    _rows(root / "verdicts.jsonl", [])
     _rows(
         root / "judge-queue.jsonl",
         [

@@ -16,7 +16,7 @@ from evallab.line.scoreboard import build_scoreboard, render_scoreboard
 def build_line_parser(subparsers: Any) -> None:
     parser = subparsers.add_parser("line", help="Run and audit the DEV assembly line")
     commands = parser.add_subparsers(dest="line_command", required=True)
-    for name in ("run", "check", "scoreboard", "replay"):
+    for name in ("run", "check", "scoreboard", "replay", "verdicts"):
         command = commands.add_parser(name)
         command.add_argument(
             "path", type=Path, help="spec JSON" if name in ("run", "replay") else "batch directory"
@@ -25,6 +25,8 @@ def build_line_parser(subparsers: Any) -> None:
         if name == "replay":
             command.add_argument("--baseline", type=Path, required=True)
             command.add_argument("--write-baseline", action="store_true")
+        if name == "verdicts":
+            command.add_argument("--judge-state", type=Path, required=True)
         command.set_defaults(func=_command)
 
 
@@ -32,7 +34,14 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
     del harbor
     value: dict[str, Any]
     try:
-        if args.line_command == "replay":
+        if args.line_command == "verdicts":
+            from evallab.line.verdicts import import_verdicts
+
+            value = import_verdicts(
+                args.path.expanduser().resolve(), args.judge_state.expanduser().resolve(), root
+            )
+            code = 0 if value["passed"] else 2
+        elif args.line_command == "replay":
             value, code = replay(args.path, args.baseline, root, args.write_baseline)
         elif args.line_command == "run":
             batch = run_line(args.path, root)
@@ -57,6 +66,8 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             print(json.dumps(value, indent=2, sort_keys=True))
         elif args.line_command == "scoreboard":
             print(render_scoreboard(value))
+        elif args.line_command == "verdicts":
+            print(json.dumps(value, sort_keys=True))
         elif args.line_command == "replay":
             print("Replay " + ("PASS" if code == 0 else "FAIL"))
             for key in ("regressions", "changed_runs", "error"):

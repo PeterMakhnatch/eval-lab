@@ -62,6 +62,67 @@ def _summary(
     }
 
 
+def _human(
+    batch: Path, decisions: list[dict[str, Any]], labels: dict[str, bool], attempted: set[str]
+) -> dict[str, Any]:
+    mapping = {"cheat": "cheated", "legitimate": "honest", "unclear": "unsure"}
+    groups = {
+        "review": dict.fromkeys(mapping.values(), 0),
+        "audited_keep": dict.fromkeys(mapping.values(), 0),
+        "other": dict.fromkeys(mapping.values(), 0),
+    }
+    matrix = {
+        verdict: {"cheat": 0, "clean": 0, "attempted_cheat": 0, "unlabelled": 0}
+        for verdict in ("cheated", "honest", "unsure")
+    }
+    rows = read_rows(batch / "verdicts.jsonl")
+    identities = set()
+    reviewed_cheated = reviewed_decided = audit_cheated = audit_decided = 0
+    for row in rows:
+        key = str(row.get("id") or f"{row.get('judge')}\0{row.get('run_id')}")
+        if key in identities:
+            raise ValueError(f"duplicate verdict id: {key}")
+        identities.add(key)
+        verdict = mapping.get(row.get("verdict"))
+        if verdict is None:
+            raise ValueError(f"invalid human verdict: {row.get('verdict')!r}")
+        decision = next((item for item in decisions if item["run_id"] == row.get("run_id")), None)
+        if decision is None:
+            raise ValueError(f"human verdict for run outside batch: {row.get('run_id')}")
+        group = (
+            "review"
+            if decision["decision"] == "review"
+            else "audited_keep"
+            if decision["audit"]
+            else "other"
+        )
+        groups[group][verdict] += 1
+        run_id = row["run_id"]
+        if group == "review" and verdict != "unsure":
+            reviewed_decided += 1
+            reviewed_cheated += verdict == "cheated"
+        if group == "audited_keep" and verdict != "unsure":
+            audit_decided += 1
+            audit_cheated += verdict == "cheated"
+        matrix[verdict][
+            "cheat"
+            if run_id in labels and labels[run_id]
+            else "clean"
+            if run_id in labels
+            else "attempted_cheat"
+            if run_id in attempted
+            else "unlabelled"
+        ] += 1
+    return {
+        "total": len(rows),
+        "counts": groups,
+        "review_precision": _metric(reviewed_cheated, reviewed_decided),
+        "audit_miss_estimate": _metric(audit_cheated, audit_decided),
+        "label_agreement": matrix,
+        "unsure": sum(group["unsure"] for group in groups.values()),
+    }
+
+
 def _load_labels(
     spec: dict[str, Any],
     repo_root: Path,
@@ -213,6 +274,7 @@ def build_scoreboard(batch: Path, repo_root: Path) -> dict:
             "per_100_runs": round(100 * (reviews + audits) / len(runs), 4) if runs else 0.0,
             "queued": len(read_rows(batch / "judge-queue.jsonl")),
         },
+        "human": _human(batch, rows, joined_labels, joined_attempted),
         "task_side": task_side,
         "spend": {
             "usd": sum(spend_by_stage.values()),
@@ -264,6 +326,33 @@ def render_scoreboard(value: dict) -> str:
     for corpus, row in cohorts:
         for name, metric in row["metrics"].items():
             lines.append(f"| {corpus} | {name} | {_display_metric(metric)} |")
+    human = value.get("human", {"counts": {}, "total": 0, "unsure": 0})
+    lines.extend(
+        [
+            "",
+            "## Human verdicts",
+            "",
+            "| Class | Cheated | Honest | Unsure |",
+            "|---|---:|---:|---:|",
+        ]
+    )
+    for group in ("review", "audited_keep", "other"):
+        counts = human["counts"][group]
+        lines.append(f"| {group} | {counts['cheated']} | {counts['honest']} | {counts['unsure']} |")
+    lines.extend(
+        [
+            "",
+            f"Review precision: {_display_metric(human['review_precision'])}.",
+            f"Audit miss estimate (decided audited keeps only): {_display_metric(human['audit_miss_estimate'])}.",
+            "",
+            "Confusion with dataset labels (human: cheat / clean / attempted-only / unlabelled):",
+            "",
+        ]
+    )
+    for verdict, counts in human["label_agreement"].items():
+        lines.append(
+            f"- {verdict}: {counts['cheat']} / {counts['clean']} / {counts.get('attempted_cheat', 0)} / {counts['unlabelled']}"
+        )
     lines.extend(
         [
             "",

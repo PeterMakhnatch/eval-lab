@@ -229,6 +229,7 @@ def _mock_line(monkeypatch, tmp_path, fixture=None, failed=False, intake_sha="sy
         batch = Path(normalized["out_root"]) / normalized["batch_id"]
         write_json(batch / "scoreboard.json", fixture["scoreboard"])
         write_rows(batch / "decisions.jsonl", fixture["decisions"])
+        write_rows(batch / "verdicts.jsonl", [])
         write_rows(
             batch / "runs.jsonl",
             [

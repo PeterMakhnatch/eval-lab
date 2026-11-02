@@ -361,6 +361,9 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
         for row in queue:
             append_judge_queue_entry(Path(spec["judge"]["queue"]), QueueEntry(**row))
     verdict_source = Path(spec["judge"].get("verdicts") or STATE_DIR / "verdicts.jsonl")
+    from evallab.line.verdicts import snapshot_station
+
+    station_snapshot = snapshot_station(batch, verdict_source)
     verdicts = (
         [
             row
@@ -374,7 +377,7 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
     receipt(
         "judge",
         start,
-        [batch / "decisions.jsonl", *([verdict_source] if verdict_source.is_file() else [])],
+        [batch / "decisions.jsonl", station_snapshot],
         [batch / "judge-queue.jsonl", batch / "verdicts.jsonl"],
         len(decisions),
         len(queue),
@@ -479,12 +482,66 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
     gate("dev_only", dev)
 
     def provenance() -> None:
+        receipts_dir = batch / "receipts"
+        verdicts_file = batch / "verdicts.jsonl"
+        top = [(p, read_json(p)) for p in sorted(receipts_dir.glob("*.json"))]
+        current_path = receipts_dir / "verdicts.json"
+        # The verdict receipts form a hash-linked chain: newest -> ... -> judge.json.
+        archived: list[tuple[Path, dict[str, Any]]] = []
+        if current_path.is_file():
+            node_path = current_path
+            seen: set[Path] = set()
+            node = read_json(node_path)
+            while node.get("stage") != "judge":
+                require(node_path not in seen, "verdict receipt chain loops")
+                seen.add(node_path)
+                require(node.get("stage") == "verdicts", "unexpected stage in verdict chain")
+                link = node.get("previous")
+                require(isinstance(link, dict), "verdict receipt has no predecessor link")
+                assert isinstance(link, dict)
+                relative = str(link.get("path", ""))
+                require(
+                    relative == "receipts/judge.json"
+                    or (
+                        relative.startswith("receipts/verdicts-history/")
+                        and relative.endswith(".json")
+                        and ".." not in Path(relative).parts
+                    ),
+                    f"verdict receipt link leaves its history: {relative}",
+                )
+                node_path = batch / relative
+                require(node_path.is_file(), f"missing verdict chain receipt: {relative}")
+                require(
+                    digest(node_path) == link.get("sha256"),
+                    f"verdict chain receipt was changed: {relative}",
+                )
+                predecessor = read_json(node_path)
+                output = next(
+                    (
+                        item
+                        for item in predecessor.get("outputs", [])
+                        if Path(item["path"]) == verdicts_file
+                    ),
+                    None,
+                )
+                require(output is not None, f"verdict chain receipt lacks verdicts: {relative}")
+                assert output is not None
+                require(
+                    link.get("verdicts_sha256") == output["sha256"]
+                    and link.get("verdicts_rows") == output["rows"],
+                    f"verdict chain link disagrees with its predecessor: {relative}",
+                )
+                node = predecessor
+                if node_path.parent.name == "verdicts-history":
+                    archived.append((node_path, node))
+        newest = current_path if current_path.is_file() else receipts_dir / "judge.json"
+        expected_stages = {"intake", "task", "trace", "decisions", "judge", "export", "scoreboard"}
+        stages = {r["stage"] for _, r in top}
         require(
-            {r["stage"] for r in receipts}
-            == {"intake", "task", "trace", "decisions", "judge", "export", "scoreboard"},
+            stages in (expected_stages, expected_stages | {"verdicts"}),
             "missing stage receipts",
         )
-        for receipt in receipts:
+        for receipt_path, receipt in [*top, *archived]:
             require(
                 receipt.get("schema") == "evallab.line_receipt/v1"
                 and bool(receipt.get("code_rev")),
@@ -492,7 +549,27 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
             )
             for ref in receipt["inputs"] + receipt["outputs"]:
                 path = Path(ref["path"])
-                require(digest(path) == ref["sha256"], f"hash mismatch: {path}")
+                if path == verdicts_file and receipt_path != newest:
+                    # Older receipts hash only the first `rows` lines: later appends are fine,
+                    # edits, truncation or an inflated row count are not.
+                    lines = path.read_bytes().splitlines(keepends=True)
+                    require(
+                        isinstance(ref.get("rows"), int) and 0 <= ref["rows"] <= len(lines),
+                        f"receipt claims more verdict rows than the file has: {receipt_path.name}",
+                    )
+                    require(
+                        hashlib.sha256(b"".join(lines[: ref["rows"]])).hexdigest() == ref["sha256"],
+                        f"earlier verdict lines were changed: {receipt_path.name}",
+                    )
+                    continue
+                if not path.exists() or digest(path) != ref["sha256"]:
+                    inside = batch.resolve() in path.resolve().parents
+                    require(
+                        inside,
+                        "an external Station input changed after this batch was created and was "
+                        f"never snapshotted, so it cannot be re-verified: {path}",
+                    )
+                    raise ValueError(f"hash mismatch: {path}")
                 if "rows" in ref:
                     require(len(read_rows(path)) == ref["rows"], f"row mismatch: {path}")
 

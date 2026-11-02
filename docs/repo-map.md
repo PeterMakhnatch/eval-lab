@@ -659,7 +659,7 @@ inputs:
   - path: src/evallab/music_prefetch.py
     digest: sha256:1ea5759587bd77ffee12d759672fbe72da450dfc1c1d33d9debc8fc30ee8f123
   - path: src/evallab/mutant_auditor.py
-    digest: sha256:0b1faf392e02b8c521e123921d10158df9b8e8fad5f8a80776e82b4e8e33a18b
+    digest: sha256:7d46dbed15d257e8355c11c1be7dd1bdae0b2a57a66efa50992336833c7d0d68
   - path: src/evallab/native_telemetry.py
     digest: sha256:d9fae1d34da598ff63645ae0e404374da9b103feca28c5b5b80f72900548ed43
   - path: src/evallab/nightly_refresh.py

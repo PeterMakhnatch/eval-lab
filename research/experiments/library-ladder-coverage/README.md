@@ -18,7 +18,7 @@ uv run python research/experiments/library-ladder-coverage/build.py           # 
 
 `--check` compares the rebuilt CSV byte-for-byte and prints a diff on drift, so
 any hand edit of `coverage.csv` fails the check until the builder regenerates
-it. `research/experiments/tests/test_library_ladder_coverage.py` runs the same
+it. `test_library_ladder_coverage.py` (this directory) runs the same
 comparison, fails when a package directory has no coverage row, and fails when
 a `research/evidence/ladder-v*/cells.json` contributes no cell.
 

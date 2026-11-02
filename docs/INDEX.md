@@ -107,7 +107,7 @@ inputs:
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/production-factory.md
-    digest: sha256:0bed5a3b44dd348532240b8e18030afb8294a606c4b0a34e927835cf9b63bd5b
+    digest: sha256:a7af38189cd6c7c5c929b096e7189f9ed2b4ee5c78a9a9240206dd6e08c119de
   - path: docs/qa-contract.md
     digest: sha256:7109b75163134eaca1db56c99cfafb07f6714777b27ef2b2d46d5c31f1d5d9d2
   - path: docs/qa-task.md

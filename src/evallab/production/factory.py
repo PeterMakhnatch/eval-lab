@@ -216,6 +216,7 @@ def seed(
     reasons: Counter[str] = Counter()
     steps = payload_bytes = 0
     started = time.monotonic()
+    database.parent.mkdir(parents=True, exist_ok=True)
     with ContinuousWorkQueue(database, registry=registry) as queue:
         jobs_before = _replay_job_count(database)
         for path in selected:
@@ -383,7 +384,9 @@ class Factory:
         *,
         port: int | None = CONTROL_PLANE_PORT,
         batch_limit: int = MONITOR_BATCH_LIMIT,
+        autoreview: Any = None,
     ) -> None:
+        self.autoreview = autoreview
         self.root = root
         self.repo_root = repo_root
         self.journal = root / JOURNAL
@@ -447,6 +450,13 @@ class Factory:
             monitor_batch_limit=self._batch_limit,
         )
         self._stack.callback(self.supervisor.close)
+        if self.autoreview and getattr(self.autoreview, "mode", "off") != "off":
+            from evallab.production.factory_autoreview import AutoReviewHook
+
+            self.autoreview_hook = AutoReviewHook(
+                self.root, self.queue, self.autoreview, self.repo_root
+            )
+            self.hooks.add("autoreview", self.autoreview_hook.run_once)
         if self._port:
             self._serve_control_plane()
         return self
@@ -618,7 +628,11 @@ def _events(
 
 
 def measure(
-    root: Path, *, first_runs: int | None = None, dataset: str | None = None
+    root: Path,
+    *,
+    first_runs: int | None = None,
+    dataset: str | None = None,
+    queue_file: Path | None = None,
 ) -> dict[str, Any]:
     """Throughput, per-run latency and failure classes from the journal and cycle log.
 
@@ -691,6 +705,14 @@ def measure(
     event_total = 0
     with closing(sqlite3.connect(f"file:{journal}?mode=ro", uri=True, timeout=30)) as connection:
         event_total = connection.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+    from evallab.production.factory_autoreview import measure_autoreview
+
+    q_file = queue_file or (root / "queues" / "autoreview.jsonl")
+    autoreview_metrics = measure_autoreview(
+        journal,
+        q_file,
+        run_ids=runs if (first_runs is not None or dataset is not None) else None,
+    )
     return {
         "schema": SCHEMA,
         "dataset": dataset,
@@ -721,6 +743,7 @@ def measure(
         "cycle_seconds": _summary(cycle_seconds),
         "host_load1": _summary(loads),
         "failures_by_class": dict(cycle_errors),
+        "autoreview": autoreview_metrics,
     }
 
 
@@ -767,6 +790,38 @@ def _parser() -> argparse.ArgumentParser:
         "heartbeat granularity",
     )
     run_cmd.add_argument("--max-steps", type=int, help="stop after N steps (smoke runs)")
+    run_cmd.add_argument(
+        "--autoreview-mode",
+        choices=("off", "cached", "live"),
+        default="off",
+        help="opt-in AutoReview hook mode (default off)",
+    )
+    run_cmd.add_argument(
+        "--autoreview-route",
+        help="model route for live autoreview (e.g. google-antigravity/gemini-3.8-flash)",
+    )
+    run_cmd.add_argument(
+        "--autoreview-max-per-hour",
+        type=int,
+        default=60,
+        help="maximum autoreview calls per hour (default 60)",
+    )
+    run_cmd.add_argument(
+        "--autoreview-max-usd",
+        type=float,
+        default=10.0,
+        help="maximum autoreview spend in USD (default 10.0)",
+    )
+    run_cmd.add_argument(
+        "--autoreview-cache-path",
+        type=Path,
+        help="path to cached autoreview readings (for cached mode)",
+    )
+    run_cmd.add_argument(
+        "--autoreview-queue-file",
+        type=Path,
+        help="Judge Station queue file to append served runs into",
+    )
     watch_cmd = commands.add_parser(
         "watchdog", help="exit 0 when the heartbeat is fresh, 2 otherwise"
     )
@@ -778,12 +833,14 @@ def _parser() -> argparse.ArgumentParser:
     measure_cmd.add_argument(
         "--dataset", help="only runs of this seeded dataset id (e.g. goodfire-reward-hack-data)"
     )
+    measure_cmd.add_argument("--queue-file", type=Path, help="judge queue file for autoreview queue size")
     measure_cmd.add_argument("--out", type=Path)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    parser = _parser()
+    args = parser.parse_args(argv)
     root: Path = args.root.expanduser()
     repo_root = _repo_root()
     if args.command == "seed":
@@ -807,7 +864,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(verdict, sort_keys=True))
         return 0 if verdict["status"] == "ok" else 2
     if args.command == "measure":
-        report = measure(root, first_runs=args.first_runs, dataset=args.dataset)
+        report = measure(
+            root,
+            first_runs=args.first_runs,
+            dataset=args.dataset,
+            queue_file=args.queue_file,
+        )
         text = json.dumps(report, sort_keys=True, indent=2)
         if args.out:
             _write_json_atomic(args.out, report)
@@ -816,7 +878,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     stop = threading.Event()
     for number in (signal.SIGINT, signal.SIGTERM):
         signal.signal(number, lambda *_: stop.set())
-    with Factory(root, repo_root, port=args.port or None, batch_limit=args.batch_limit) as factory:
+    from evallab.production.factory_autoreview import AutoReviewConfig
+
+    autoreview_cfg = AutoReviewConfig(
+        mode=args.autoreview_mode,
+        route=args.autoreview_route,
+        max_per_hour=args.autoreview_max_per_hour,
+        max_usd=args.autoreview_max_usd,
+        cache_path=args.autoreview_cache_path,
+        queue_file=args.autoreview_queue_file,
+    )
+    try:
+        autoreview_cfg.validate()
+    except ValueError as err:
+        parser.error(str(err))
+    with Factory(
+        root,
+        repo_root,
+        port=args.port or None,
+        batch_limit=args.batch_limit,
+        autoreview=autoreview_cfg,
+    ) as factory:
         steps = 0
         while not stop.is_set():
             line = factory.step()

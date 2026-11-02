@@ -302,6 +302,59 @@ is 2. Exit codes are **0 pass**, **1 regression**, **2 invalid
 input/comparison**. Ordinary replay never creates or refreshes a missing
 baseline implicitly.
 
+## Standard replay set
+
+Use **`replay-v1`** for every detector change instead of inventing a new baseline.
+It freezes the first 690 labelled DEV runs: Terminal Wrench (304), CheatBench
+(150), Goodfire (150), C1–C5 (30), and Sol/Astra (56). All source manifests,
+trajectories and sidecars, labels and stored AutoReview readings are copied to
+`~/Developer/eval-lab-results/line/replay-v1/`, outside Git. The spec uses zero
+spend, no task-status evidence and an empty frozen Station verdict export;
+replay never touches the real Judge Station queue or state.
+
+`MANIFEST.json` records SHA-256 and size for all 1,198 input files, including
+`spec.json`. Its SHA-256 is
+`2ea9473868fe237496f2940c8c9baedfc599ad4d6903d0ed1f87c019a88ba422`.
+The spec's SHA-256 is
+`4f7697afc618216b5b5617a0874dbccf56cd8634a9ec39f019dab8426009c6ab`.
+The set's README explains its source, limitations and refresh procedure.
+`baseline.json` is the line's baseline scoreboard and decisions;
+`baseline-provenance.json` records its code revision, hashes and refresh reason.
+
+```bash
+uv run python scripts/line-replay.py
+# Select a different complete local copy of the frozen set:
+EVALLAB_LINE_REPLAY_SET=/absolute/path/to/replay-v1 \
+  uv run python scripts/line-replay.py
+```
+
+`EVALLAB_LINE_REPLAY_SET` defaults to the location above; `--set PATH` overrides
+it. Frozen specs have absolute input paths: selecting a set is not an automatic
+relocation. The wrapper checks every input hash, then prints per-corpus
+drop-or-review recall and honest-run drops before versus after, the count of
+changed decisions, and the verdict. Detailed changed decisions remain in the
+new replay batch, whose path is printed. Recall includes unreadable runs routed
+to review; that alone is not evidence of a real cheat detection. This is a DEV
+regression set, not a held-out detector-quality claim.
+
+The wrapper preserves the gate's **0 pass / 1 regression / 2 invalid** statuses.
+Absent private data (set, spec, manifest or baseline) produces an explicit
+**SKIP** and status **77**, never a silent pass. A missing or altered input
+listed in the manifest is invalid (2). CI without this private set must report
+the skip separately; its synthetic replay tests still run normally.
+
+**Baseline refresh rule:** only Peter or the assembly-line coordinator acting
+for him may authorize a refresh, with the reason recorded. Detector authors
+must first inspect the comparison and changed decisions, not overwrite the
+baseline to turn a failure green. Archive the old baseline and provenance under
+`baseline-history/<UTC timestamp>/`, then run the explicit
+`evallab line replay ... --write-baseline` command shown above from a clean
+merged-main checkout. Record the authorizer, reason, merged code revision,
+replay batch and baseline/spec/manifest hashes in `baseline-provenance.json`
+(`baseline_sha256` and `manifest_sha256` bind the two files). The initial baseline
+is also written explicitly, from merged main after #1815. Changed inputs,
+cohorts, labels or policies need a new replay-set version, not an in-place edit.
+
 ## Relationship to hack-drop and the production factory
 
 [hack-drop](hack-drop.md) owns the loaders, task/L0/AutoReview stage functions,

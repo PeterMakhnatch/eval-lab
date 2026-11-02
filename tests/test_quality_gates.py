@@ -1,4 +1,8 @@
-"""Exercise gate failures without installing dependencies or invoking host tools."""
+"""Exercise gate failures against repository text without invoking host tools.
+
+The Harbor CLI pin is imported from ``evallab.runner`` rather than copied here,
+so the gate and doctor compare workflow installs with the same constant.
+"""
 
 from __future__ import annotations
 
@@ -12,6 +16,8 @@ from pathlib import Path
 
 import pytest
 import yaml
+
+from evallab.runner import HARBOR_CLI_PIN
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -498,9 +504,9 @@ def test_workbench_certification_workflows_cadence_and_path_isolation() -> None:
 
 WORKFLOW_DIR = ROOT / ".github/workflows"
 PREMERGE_SCRIPT = ROOT / "scripts/premerge.sh"
-# Harbor CLI pin shared by every workflow that runs `harbor run`. A bump must
-# change this constant and every workflow together; the test below refuses drift.
-HARBOR_VERSION = "0.21.0"
+# The Harbor CLI pin has one home: evallab.runner.HARBOR_CLI_PIN, which doctor
+# also compares the local CLI against (HAR-265). A bump changes that constant
+# and every workflow together; the test below refuses drift.
 
 
 # HAR-252: mcp-wheelhouse-platform run 41387496649 on main failed with "Failed to
@@ -759,13 +765,13 @@ def _pin_findings(workflows_dir: Path, premerge: Path) -> list[str]:
                 if installer != HARBOR_INSTALLER:
                     findings.append(
                         f"{workflow_path.name}:{line_number}: harbor must be installed with "
-                        f'uv tool install "harbor=={HARBOR_VERSION}", found '
+                        f'uv tool install "harbor=={HARBOR_CLI_PIN}", found '
                         f"{installer} {spec}"
                     )
-                elif spec != f"harbor=={HARBOR_VERSION}":
+                elif spec != f"harbor=={HARBOR_CLI_PIN}":
                     findings.append(
                         f"{workflow_path.name}:{line_number}: harbor pin {spec} "
-                        f"!= harbor=={HARBOR_VERSION}"
+                        f"!= harbor=={HARBOR_CLI_PIN}"
                     )
     return findings
 
@@ -786,7 +792,7 @@ def test_every_workflow_pins_uv_and_harbor_to_one_version() -> None:
         workflow_path.name
         for workflow_path in WORKFLOW_FILES
         if any(
-            installer == HARBOR_INSTALLER and spec == f"harbor=={HARBOR_VERSION}"
+            installer == HARBOR_INSTALLER and spec == f"harbor=={HARBOR_CLI_PIN}"
             for line in workflow_path.read_text(encoding="utf-8").splitlines()
             for installer, spec in _install_specs(line)
         )
@@ -802,7 +808,7 @@ def test_every_workflow_pins_uv_and_harbor_to_one_version() -> None:
         pytest.param(
             "      - run: |\n"
             "          python3 -m pip install --user uv==0.9.24\n"
-            '          uv tool install "harbor==0.21.0"\n',
+            f'          uv tool install "harbor=={HARBOR_CLI_PIN}"\n',
             None,
             id="matching-pins",
         ),
@@ -814,7 +820,7 @@ def test_every_workflow_pins_uv_and_harbor_to_one_version() -> None:
         pytest.param(
             "          python3 -m pip install --user uv==0.9.24\n"
             '          uv tool install "harbor==0.20.0"\n',
-            "harbor pin harbor==0.20.0 != harbor==0.21.0",
+            f"harbor pin harbor==0.20.0 != harbor=={HARBOR_CLI_PIN}",
             id="harbor-version-drift",
         ),
         pytest.param(
@@ -826,7 +832,7 @@ def test_every_workflow_pins_uv_and_harbor_to_one_version() -> None:
         pytest.param(
             "          python3 -m pip install --user uv==0.9.24\n"
             "          uv tool install harbor\n",
-            "harbor pin harbor != harbor==0.21.0",
+            f"harbor pin harbor != harbor=={HARBOR_CLI_PIN}",
             id="harbor-unpinned",
         ),
         pytest.param(

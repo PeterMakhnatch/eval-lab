@@ -23,6 +23,12 @@ Layers, recorded per package in a :class:`HardeningManifest`:
   in the agent's site directory never runs in the grading interpreter; ``COPY``/``ADD`` of test, oracle or harness
   files into the agent image is stripped from ``environment/Dockerfile``.
 
+A separate verifier only grades if its image can run the gate. ``--verifier-dockerfile`` carries a verifier image
+into the candidate as ``tests/Dockerfile`` (byte-identical, sha256 recorded), and every manifest records
+``verifier.gate_runtime``: ``native`` (the gate runs in the task image), ``declared`` (the candidate ships or was given
+a verifier image), or ``unverified`` — a separate verifier with no ``tests/Dockerfile`` copies the environment image,
+which need not provide ``python3``; that candidate is written with a stderr warning.
+
 Not closed, by design: a semantic verifier requirement (C4 fabricated verification, C5 environment acquisition) is a
 task-design property, and instruction text that funnels the agent to tests is flagged for the author, never rewritten.
 """
@@ -36,6 +42,7 @@ import posixpath
 import re
 import shlex
 import shutil
+import sys
 import tomllib
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -50,6 +57,15 @@ from evallab.task_variants import VariantInvalid
 TRANSFORM_ID = "full-hardening@1"
 BUNDLE_REL = "tests/_evallab"
 MANIFEST_NAME = "hardening-manifest.json"
+#: Harbor builds the separate verifier from ``tests/Dockerfile`` when the package has one.
+VERIFIER_DOCKERFILE = "tests/Dockerfile"
+
+UNVERIFIED_GATE_WARNING = (
+    f"{TRANSFORM_ID}: verifier gate runtime unverified. The separate verifier copies the "
+    "environment image, and no tests/Dockerfile declares python3, so the L3 gate can abort "
+    "before the task's own grader runs (evidence: research/experiments/query-optimize-crack). "
+    "Pass --verifier-dockerfile with a verifier image that provides python3."
+)
 
 #: ``case`` pattern of the MiMo L1 block: the grader-hardening@1 set plus JavaScript runner configs.
 MIMO_L1_PATTERN = (
@@ -106,6 +122,16 @@ class Finding:
 
 
 @dataclass
+class VerifierGate:
+    """Where the L3 gate runs: ``native`` (task image), ``declared`` (a verifier image), ``unverified``."""
+
+    gate_runtime: str
+    dockerfile: str | None = None
+    dockerfile_sha256: str | None = None
+    origin: str | None = None  # flag | transform | package
+
+
+@dataclass
 class HardeningManifest:
     transform: str
     shape: str
@@ -118,6 +144,7 @@ class HardeningManifest:
     calibration: bool
     layers: list[Layer]
     findings: list[Finding]
+    verifier: VerifierGate
     output: str | None = None
     output_digest: str | None = None
 
@@ -530,10 +557,18 @@ def plan_hardening(
     allow_degraded: bool = False,
     single_container: bool = False,
     helpers: tuple[str, ...] = (),
+    verifier_dockerfile: Path | str | None = None,
 ) -> tuple[HardeningManifest, dict[str, bytes | None]]:
     """The manifest and the ``{relative path: bytes or None (delete)}`` changes; reads the package, writes nothing."""
     package = Path(package)
     shape = detect_shape(package)
+    supplied_dockerfile = Path(verifier_dockerfile) if verifier_dockerfile is not None else None
+    if supplied_dockerfile is not None and shape != "harbor":
+        raise HardeningRefused(
+            f"{TRANSFORM_ID_V10} owns the MiMo verifier image; --verifier-dockerfile applies to harbor packages"
+        )
+    if supplied_dockerfile is not None and not supplied_dockerfile.is_file():
+        raise HardeningRefused(f"verifier Dockerfile is not a file: {supplied_dockerfile}")
     entries, docker_workdir = dockerfile_copies(package)
     workdir = _workdir(package, docker_workdir)
     findings = funnel_findings(package)
@@ -721,6 +756,29 @@ def plan_hardening(
             {"image_leaks": sum(len(leaked) for _, leaked, _ in leaks)},
         )
     )
+    planned_dockerfile = changes.get(VERIFIER_DOCKERFILE)
+    if supplied_dockerfile is not None:
+        planned_dockerfile = supplied_dockerfile.read_bytes()
+        changes[VERIFIER_DOCKERFILE] = planned_dockerfile
+        verifier = VerifierGate(
+            "declared", VERIFIER_DOCKERFILE, _sha(planned_dockerfile), "flag"
+        )
+    elif isinstance(planned_dockerfile, bytes):
+        verifier = VerifierGate(
+            "declared", VERIFIER_DOCKERFILE, _sha(planned_dockerfile), "transform"
+        )
+    elif (package / VERIFIER_DOCKERFILE).is_file():
+        verifier = VerifierGate(
+            "declared",
+            VERIFIER_DOCKERFILE,
+            _sha((package / VERIFIER_DOCKERFILE).read_bytes()),
+            "package",
+        )
+    elif separate:
+        verifier = VerifierGate("unverified")
+        print(UNVERIFIED_GATE_WARNING, file=sys.stderr)
+    else:
+        verifier = VerifierGate("native")
     manifest = HardeningManifest(
         transform=TRANSFORM_ID,
         shape=shape,
@@ -733,6 +791,7 @@ def plan_hardening(
         calibration=calibrate,
         layers=layers,
         findings=findings,
+        verifier=verifier,
     )
     return manifest, changes
 
@@ -791,6 +850,7 @@ __all__ = [
     "HardeningManifest",
     "HardeningRefused",
     "Layer",
+    "VerifierGate",
     "detect_runner",
     "detect_shape",
     "dockerfile_copies",

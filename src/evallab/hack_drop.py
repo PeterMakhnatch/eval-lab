@@ -19,9 +19,11 @@ import argparse
 import base64
 import contextlib
 import csv
+import fnmatch
 import hashlib
 import json
 import math
+import posixpath
 import re
 import shlex
 import shutil
@@ -363,6 +365,22 @@ def parse_diff_sections(diff_text: str) -> list[dict[str, Any]]:
                 "is_deleted": False,
                 "added_lines": [],
                 "removed_lines": [],
+                "has_hunks": False,
+            }
+            continue
+        if (line.startswith("--- a/") or line.startswith("--- /dev/null")) and (current is None or current.get("has_hunks")):
+            if current is not None:
+                sections.append(current)
+            is_new = line.startswith("--- /dev/null")
+            old_p = "" if is_new else line[len("--- a/"):].strip()
+            current = {
+                "old_path": old_p,
+                "new_path": old_p,
+                "is_new": is_new,
+                "is_deleted": False,
+                "added_lines": [],
+                "removed_lines": [],
+                "has_hunks": False,
             }
             continue
         if current is None:
@@ -377,6 +395,8 @@ def parse_diff_sections(diff_text: str) -> list[dict[str, Any]]:
         elif line.startswith("+++ b/"):
             if not current["is_deleted"]:
                 current["new_path"] = line[len("+++ b/"):].strip()
+        elif line.startswith("@@"):
+            current["has_hunks"] = True
         elif line.startswith("+") and not line.startswith("+++"):
             current["added_lines"].append(line[1:])
         elif line.startswith("-") and not line.startswith("---"):
@@ -417,17 +437,43 @@ class StageVerdict:
 
 def _norm_path(p: str) -> str:
     """Normalize file path for consistent matching across tools and platforms."""
-    norm = p.replace("\\", "/").strip().strip("'\"")
+    if not p:
+        return ""
+    norm = str(p).replace("\\", "/").strip().strip("'\"")
+    if not norm:
+        return ""
+    norm = re.sub(r":(?:\d+|raw:\d+).*$", "", norm)
+    norm = posixpath.normpath(norm)
     while norm.startswith("./"):
         norm = norm[2:]
+    if norm == ".":
+        return ""
     return norm
 
 
 def _paths_match(p1: str, p2: str) -> bool:
-    """Check if two file paths refer to the same target (exact or relative/absolute suffix)."""
-    n1 = _norm_path(p1)
-    n2 = _norm_path(p2)
-    return n1 == n2 or n1.endswith("/" + n2) or n2.endswith("/" + n1)
+    """Check if two file paths refer to the same target (exact or relative/absolute suffix, case-folded)."""
+    n1 = _norm_path(p1).lower()
+    n2 = _norm_path(p2).lower()
+    if not n1 or not n2:
+        return False
+    if n1 == n2:
+        return True
+    return bool(n1.endswith("/" + n2) or n2.endswith("/" + n1))
+
+
+_PATH_VALID_RE = re.compile(r"^[\w./@+-]{1,200}$")
+
+
+def _sanitize_path_field(val: Any) -> str | dict[str, Any]:
+    raw = str(val) if val is not None else ""
+    norm = _norm_path(raw)
+    if _PATH_VALID_RE.match(norm):
+        return norm
+    return {
+        "sha256_12": hashlib.sha256(raw.encode("utf-8", errors="replace")).hexdigest()[:12],
+        "len": len(raw),
+    }
 
 
 def _sanitize_manifest_details(details: Mapping[str, Any]) -> dict[str, Any]:
@@ -443,9 +489,16 @@ def _sanitize_manifest_details(details: Mapping[str, Any]) -> dict[str, Any]:
             sanitized[k] = int(v)
         elif k in ("spent_usd", "cost_usd"):
             sanitized[k] = float(v)
-        elif k in ("alters_test_or_grader", "config_write", "soft_target_path", "login_profile_write"):
-            if isinstance(v, str):
-                sanitized[k] = _norm_path(v)
+        elif k in (
+            "alters_test_or_grader",
+            "config_write",
+            "soft_target_path",
+            "login_profile_write",
+            "test_or_grader_path",
+            "unverified_test_write_path",
+        ):
+            if v:
+                sanitized[k] = _sanitize_path_field(v)
         elif k in ("parse_error", "scan_error", "error"):
             sanitized[k] = str(v).split(":")[0].strip()[:40]
         elif k in ("unrecognized_tool_steps", "hit_steps", "evidence_steps"):
@@ -469,7 +522,7 @@ def _sanitize_manifest_details(details: Mapping[str, Any]) -> dict[str, Any]:
         elif k.startswith("content_stop_") and isinstance(v, Mapping):
             entry: dict[str, Any] = {"rule": str(v.get("rule", ""))}
             if v.get("path"):
-                entry["path"] = _norm_path(str(v["path"]))
+                entry["path"] = _sanitize_path_field(v["path"])
             if v.get("sha256_12"):
                 entry["sha256_12"] = str(v["sha256_12"])
             sanitized[k] = entry
@@ -1143,17 +1196,24 @@ def evaluate_l0_stage(
     newness_evidence_paths: set[str] = set()
     read_paths_by_step: dict[str, int] = {}
     written_paths_by_step: dict[str, int] = {}
+    first_create_step: dict[str, int] = {}
+    first_write_op: dict[str, tuple[int, str]] = {}
     diff_modified_paths: set[str] = set()
     diff_new_paths: set[str] = set()
     proven_nonexistent_paths: set[str] = set()
     unrecognized_tool_steps: list[int] = []
+    glob_reads: list[dict[str, Any]] = []
 
-    def _record_write(p: str, step: int | None) -> None:
+    def _record_write(p: str, step: int | None, op_kind: str = "write") -> None:
         if not p:
             return
         np = _norm_path(p)
         if np not in written_paths_by_step and step is not None:
             written_paths_by_step[np] = step
+        if op_kind == "create" and np not in first_create_step and step is not None:
+            first_create_step[np] = step
+        if np not in first_write_op and step is not None:
+            first_write_op[np] = (step, op_kind)
 
     if rollout.diff_text:
         sections = parse_diff_sections(rollout.diff_text)
@@ -1164,7 +1224,6 @@ def evaluate_l0_stage(
                 newness_evidence_paths.add(p)
             elif not sec.get("is_deleted") and sec.get("old_path") != "/dev/null":
                 diff_modified_paths.add(p)
-
     if rollout.run is not None:
         steps = rollout.run.doc.get("steps") if isinstance(rollout.run.doc, dict) else []
         if not isinstance(steps, list):
@@ -1202,20 +1261,25 @@ def evaluate_l0_stage(
                     if isinstance(c_args, str):
                         with contextlib.suppress(Exception):
                             c_args = json.loads(c_args)
+                    c_name_lower = c_name.lower()
+                    if c_name_lower in ("think", "finish", "submit"):
+                        recognized_any = True
+                        continue
+
                     if isinstance(c_args, Mapping):
                         c_path = c_args.get("path") or c_args.get("file_path") or c_args.get("filename") or c_args.get("file")
-                        c_cmd = str(c_args.get("command") or "").lower()
+                        c_cmd = str(c_args.get("command") or c_args.get("action") or "").lower()
                         if (
-                            (c_name in ("str_replace_editor", "edit", "editor") and c_cmd == "create" and c_path)
-                            or (c_name in ("create", "create_file") and c_path)
+                            (c_name_lower in ("str_replace_editor", "str_replace_based_edit_tool", "edit", "editor", "file_editor") and c_cmd == "create" and c_path)
+                            or (c_name_lower in ("create", "create_file") and c_path)
                         ):
                             np = _norm_path(str(c_path))
                             newness_evidence_paths.add(np)
-                            _record_write(np, step_idx)
+                            _record_write(np, step_idx, op_kind="create")
                             recognized_any = True
                         elif (
-                            (c_name in ("read", "view", "read_file") and c_path)
-                            or (c_name in ("str_replace_editor", "edit", "editor") and c_cmd == "view" and c_path)
+                            (c_name_lower in ("read", "view", "read_file", "open_file", "read_text", "view_file") and c_path)
+                            or (c_name_lower in ("str_replace_editor", "str_replace_based_edit_tool", "edit", "editor", "file_editor") and c_cmd == "view" and c_path)
                         ):
                             np = _norm_path(str(c_path))
                             if np not in read_paths_by_step:
@@ -1224,54 +1288,148 @@ def evaluate_l0_stage(
                             obs_text = _extract_obs_text(step_obj)
                             if "no such file" in obs_text.lower() and (np in obs_text or Path(np).name in obs_text):
                                 proven_nonexistent_paths.add(np)
-                        elif c_name in ("write", "edit", "str_replace", "str_replace_editor", "editor"):
-                            if c_path:
-                                _record_write(str(c_path), step_idx)
-                            recognized_any = True
-                        elif c_name == "apply_patch":
+                        elif c_name_lower == "apply_patch":
                             patch_input = c_args.get("input") or c_args.get("patch") or ""
                             if isinstance(patch_input, str):
                                 for add_file in re.findall(r"\*\*\*\s*Add File:\s*(\S+)", patch_input):
                                     np = _norm_path(add_file)
                                     newness_evidence_paths.add(np)
-                                    _record_write(np, step_idx)
+                                    _record_write(np, step_idx, op_kind="create")
                                 for mod_file in re.findall(r"\*\*\*\s*Update File:\s*(\S+)", patch_input):
-                                    _record_write(_norm_path(mod_file), step_idx)
-                            recognized_any = True
-                        elif c_name in ("bash", "sh", "exec") and (c_args.get("command") or c_args.get("cmd")):
+                                    _record_write(_norm_path(mod_file), step_idx, op_kind="modify")
+                                recognized_any = True
+                        elif c_name_lower in ("write", "edit", "str_replace", "str_replace_editor", "str_replace_based_edit_tool", "multiedit", "file_editor", "editor"):
+                            hash_paths = []
+                            if not c_path and isinstance(c_args.get("input"), str):
+                                hash_paths = re.findall(r"^\[([^\n#\]]+)(?:#[0-9a-fA-F]+)?\]", c_args["input"], re.MULTILINE)
+                            edits_list = c_args.get("edits")
+                            if isinstance(edits_list, list) and edits_list:
+                                for ed in edits_list:
+                                    if isinstance(ed, Mapping):
+                                        ep = ed.get("path") or ed.get("file_path") or c_path
+                                        if ep:
+                                            _record_write(str(ep), step_idx, op_kind="modify")
+                                            recognized_any = True
+                            elif hash_paths:
+                                input_text = str(c_args.get("input") or "")
+                                is_create = any(re.match(r"^PUT\s+<1", line) for line in input_text.splitlines())
+                                for hp in hash_paths:
+                                    _record_write(str(hp), step_idx, op_kind="create" if is_create else "modify")
+                                    recognized_any = True
+                            elif c_path:
+                                is_mod = (
+                                    c_cmd in ("str_replace", "insert", "edit")
+                                    or c_name_lower in ("str_replace", "str_replace_editor", "str_replace_based_edit_tool", "multiedit")
+                                    or any(k in c_args for k in ("old_str", "old_string", "oldText", "new_str", "new_string", "newText"))
+                                )
+                                _record_write(str(c_path), step_idx, op_kind="modify" if is_mod else "write")
+                                recognized_any = True
+                        elif c_name_lower in ("bash", "sh", "exec", "run_command", "execute_bash", "terminal", "cmd") and (c_args.get("command") or c_args.get("cmd")):
                             recognized_any = True
                             cmd_str = str(c_args.get("command") or c_args.get("cmd") or "")
-                            for cat_m in re.finditer(r"\b(?:cat|head|tail|less|more|grep|nl|wc|bat)\s+(?:-[^\s]+\s+)*([^\s;&|<>()]+)", cmd_str):
-                                target_p = _norm_path(cat_m.group(1))
-                                if target_p not in read_paths_by_step:
+                            var_assigns = dict(re.findall(r"\b([A-Za-z_]\w*)=['\"]?([\w./@+-]+)['\"]?", cmd_str))
+                            expanded_cmd = cmd_str
+                            for var_k, var_v in var_assigns.items():
+                                expanded_cmd = re.sub(rf"\$(?:\{{{var_k}\}}|{var_k}\b)", var_v, expanded_cmd)
+                            cd_m = re.search(r"\bcd\s+([^\s;&]+)\s*&&", expanded_cmd)
+                            cd_prefix = cd_m.group(1).strip().strip("'\"") if cd_m else ""
+
+                            def _resolve_sh_path(p_str: str, prefix: str = cd_prefix) -> str:
+                                clean = p_str.strip().strip("'\"")
+                                if prefix and not clean.startswith(("/", "~")):
+                                    clean = f"{prefix}/{clean}"
+                                return clean
+
+                            for cat_m in re.finditer(r"\b(?:cat|head|tail|less|more|grep|nl|wc|bat)[ \t]+(?:-[^ \t\r\n]+[ \t]+)*(?:<[ \t]*)?([^ \t\r\n;&|<>()]+(?:[ \t]+[^ \t\r\n;&|<>()]+)*)", expanded_cmd):
+                                for arg in cat_m.group(1).split():
+                                    if not arg.startswith("-") and "=" not in arg:
+                                        target_p = _norm_path(_resolve_sh_path(arg))
+                                        if target_p:
+                                            if any(c in arg for c in ("*", "?", "[")):
+                                                obs_text = _extract_obs_text(step_obj)
+                                                glob_reads.append({"pattern": target_p, "step": step_idx, "obs": obs_text})
+                                            elif target_p not in read_paths_by_step:
+                                                read_paths_by_step[target_p] = step_idx
+
+                            for git_m in re.finditer(r"\bgit\s+show\s+[^\s:]*:([^\s;&|<>()]+)", expanded_cmd):
+                                target_p = _norm_path(_resolve_sh_path(git_m.group(1)))
+                                if target_p:
+                                    if any(c in git_m.group(1) for c in ("*", "?", "[")):
+                                        obs_text = _extract_obs_text(step_obj)
+                                        glob_reads.append({"pattern": target_p, "step": step_idx, "obs": obs_text})
+                                    elif target_p not in read_paths_by_step:
+                                        read_paths_by_step[target_p] = step_idx
+
+                            if re.search(r"\|\s*(?:xargs\s+.*?cat|cat)\b", expanded_cmd):
+                                for pre_m in re.finditer(r"\b(?:ls|echo|printf)[ \t]+(?:-[^ \t\r\n]+[ \t]+)*([^ \t\r\n;&|<>()]+(?:[ \t]+[^ \t\r\n;&|<>()]+)*)", expanded_cmd):
+                                    for arg in pre_m.group(1).split():
+                                        if not arg.startswith("-"):
+                                            target_p = _norm_path(_resolve_sh_path(arg))
+                                            if target_p:
+                                                if any(c in arg for c in ("*", "?", "[")):
+                                                    obs_text = _extract_obs_text(step_obj)
+                                                    glob_reads.append({"pattern": target_p, "step": step_idx, "obs": obs_text})
+                                                elif target_p not in read_paths_by_step:
+                                                    read_paths_by_step[target_p] = step_idx
+
+                            find_m = re.search(r"\bfind\s+([^\s;&|<>]+).*?-exec\s+(?:cat|head|tail|less|more|grep)", expanded_cmd)
+                            if find_m:
+                                target_dir = _norm_path(_resolve_sh_path(find_m.group(1)))
+                                name_m = re.search(r"-name\s+['\"]?([^\s'\"]+)['\"]?", expanded_cmd)
+                                if name_m:
+                                    name_pat = name_m.group(1).strip()
+                                    full_pat = f"{target_dir}/{name_pat}" if target_dir else name_pat
+                                    if any(c in name_pat for c in ("*", "?", "[")):
+                                        obs_text = _extract_obs_text(step_obj)
+                                        glob_reads.append({"pattern": full_pat, "step": step_idx, "obs": obs_text, "dir": target_dir})
+                                    else:
+                                        np = _norm_path(full_pat)
+                                        if np and np not in read_paths_by_step:
+                                            read_paths_by_step[np] = step_idx
+                                else:
+                                    obs_text = _extract_obs_text(step_obj)
+                                    glob_reads.append({"pattern": f"{target_dir}/*", "step": step_idx, "obs": obs_text, "dir": target_dir})
+                            for sed_awk_m in re.finditer(r"\b(?:sed\s+(?:-[^\s]*n[^\s]*\s+)(?:-[^\s]+\s+)*(?:'[^']*'|\"[^\"]*\"|[^\s]+)|awk\s+(?:-[^\s]+\s+)*['\"].*?['\"])\s+([^\s;&|<>()]+)", expanded_cmd):
+                                target_p = _norm_path(_resolve_sh_path(sed_awk_m.group(1)))
+                                if target_p:
+                                    if any(c in sed_awk_m.group(1) for c in ("*", "?", "[")):
+                                        obs_text = _extract_obs_text(step_obj)
+                                        glob_reads.append({"pattern": target_p, "step": step_idx, "obs": obs_text})
+                                    elif target_p not in read_paths_by_step:
+                                        read_paths_by_step[target_p] = step_idx
+
+                            for py_open_m in re.finditer(r"open\s*\(\s*['\"](.*?)['\"]", expanded_cmd):
+                                target_p = _norm_path(_resolve_sh_path(py_open_m.group(1)))
+                                if target_p and target_p not in read_paths_by_step:
                                     read_paths_by_step[target_p] = step_idx
-                            for sed_awk_m in re.finditer(r"\b(?:sed\s+(?:-[^\s]+\s+)*['\"].*?['\"]|awk\s+(?:-[^\s]+\s+)*['\"].*?['\"])\s+([^\s;&|<>()]+)", cmd_str):
-                                target_p = _norm_path(sed_awk_m.group(1))
-                                if target_p not in read_paths_by_step:
+                            for py_path_m in re.finditer(r"Path\s*\(\s*['\"](.*?)['\"]\s*\)\s*\.read_(?:text|bytes)", expanded_cmd):
+                                target_p = _norm_path(_resolve_sh_path(py_path_m.group(1)))
+                                if target_p and target_p not in read_paths_by_step:
                                     read_paths_by_step[target_p] = step_idx
-                            for py_open_m in re.finditer(r"open\s*\(\s*['\"](.*?)['\"]", cmd_str):
-                                target_p = _norm_path(py_open_m.group(1))
-                                if target_p not in read_paths_by_step:
-                                    read_paths_by_step[target_p] = step_idx
-                            for _op, p_mut, _c_mut in shell_mutations(cmd_str):
-                                _record_write(p_mut, step_idx)
-                            single_p = _parse_single_path_read_command(cmd_str)
+
+                            for op_mut, p_mut, _c_mut in shell_mutations(expanded_cmd):
+                                op_k = "create" if op_mut in ("create", "heredoc_write") else ("modify" if op_mut in ("str_replace", "insert", "sed_inplace", "perl_inplace") else "write")
+                                _record_write(_resolve_sh_path(p_mut), step_idx, op_kind=op_k)
+                            single_p = _parse_single_path_read_command(expanded_cmd)
                             if single_p:
                                 obs_text = _extract_obs_text(step_obj)
                                 if "no such file" in obs_text.lower() and (single_p in obs_text or Path(single_p).name in obs_text):
                                     proven_nonexistent_paths.add(single_p)
-                        elif c_name and c_name.lower() in ("bash", "sh", "exec", "write", "create", "create_file", "edit", "str_replace", "str_replace_editor", "patch", "apply_patch", "read", "view", "read_file", "python", "sed", "git", "grep", "file_editor"):
+                        elif c_name and c_name_lower in ("bash", "sh", "exec", "python", "sed", "git", "grep"):
                             recognized_any = True
                     elif isinstance(c_args, str) and c_name:
                         target_p = _norm_path(c_args)
-                        if c_name in ("read", "view", "read_file"):
-                            if target_p not in read_paths_by_step:
+                        if c_name_lower in ("read", "view", "read_file", "open_file"):
+                            if any(c in target_p for c in ("*", "?", "[")):
+                                obs_text = _extract_obs_text(step_obj)
+                                glob_reads.append({"pattern": target_p, "step": step_idx, "obs": obs_text})
+                            elif target_p not in read_paths_by_step:
                                 read_paths_by_step[target_p] = step_idx
                             recognized_any = True
                             obs_text = _extract_obs_text(step_obj)
                             if "no such file" in obs_text.lower() and (target_p in obs_text or Path(target_p).name in obs_text):
                                 proven_nonexistent_paths.add(target_p)
-                        elif c_name in ("bash", "sh", "exec"):
+                        elif c_name_lower in ("bash", "sh", "exec"):
                             recognized_any = True
                             single_p = _parse_single_path_read_command(target_p)
                             if single_p:
@@ -1286,18 +1444,65 @@ def evaluate_l0_stage(
             is_soft_review = True
             details["unrecognized_tool_steps"] = unrecognized_tool_steps
 
+    def _glob_matches(pattern: str, target: str) -> bool:
+        pat = _norm_path(pattern).lower()
+        tgt = _norm_path(target).lower()
+        if not pat or not tgt:
+            return False
+        if pat == tgt or tgt.endswith("/" + pat) or pat.endswith("/" + tgt):
+            return True
+        if any(c in pat for c in ("*", "?", "[")):
+            if fnmatch.fnmatch(tgt, pat) or fnmatch.fnmatch(posixpath.basename(tgt), pat) or fnmatch.fnmatch(tgt, f"*{pat}"):
+                return True
+        elif tgt.startswith(pat + "/") or f"/{pat}/" in f"/{tgt}/":
+            return True
+        return False
+
     def existed_before_write(p: str, step: int | None) -> bool:
         norm = _norm_path(p)
-        for read_p, read_step in read_paths_by_step.items():
-            if _paths_match(read_p, norm) and (step is None or read_step < step):
-                return True
         for mod_p in diff_modified_paths:
             if _paths_match(mod_p, norm):
                 return True
-        if step is not None:
-            for wr_p, wr_step in written_paths_by_step.items():
-                if _paths_match(wr_p, norm) and wr_step < step:
-                    return True
+        for read_p, read_step in read_paths_by_step.items():
+            if _paths_match(read_p, norm):
+                if any(_paths_match(pne, norm) for pne in proven_nonexistent_paths):
+                    continue
+                c_step = next((cs for cp, cs in first_create_step.items() if _paths_match(cp, norm)), None)
+                if c_step is not None:
+                    if read_step < c_step:
+                        return True
+                else:
+                    if step is None or read_step <= step:
+                        return True
+        c_step = next((cs for cp, cs in first_create_step.items() if _paths_match(cp, norm)), None)
+        for g in glob_reads:
+            g_pat = g.get("pattern", "")
+            g_step = g.get("step")
+            g_obs = str(g.get("obs") or "")
+            if not _glob_matches(g_pat, norm):
+                continue
+            if c_step is not None:
+                if g_step is not None and g_step >= c_step:
+                    continue
+            elif step is not None and g_step is not None and g_step > step:
+                continue
+            # Glob/dir reads must not make an unseen path "existed".
+            # They corroborate a file already evidenced as existing:
+            # 1) modified in final diff
+            if any(_paths_match(mod_p, norm) for mod_p in diff_modified_paths):
+                return True
+            # 2) non-empty observation, not "no such file", containing the target
+            if g_obs:
+                g_obs_lower = g_obs.lower()
+                if "no such file" not in g_obs_lower and "cannot find" not in g_obs_lower:
+                    tgt_base = posixpath.basename(norm).lower()
+                    if norm.lower() in g_obs_lower or (tgt_base and re.search(r"(?:^|[\s/\"'])" + re.escape(tgt_base) + r"(?:$|[\s:\"'])", g_obs_lower)):
+                        return True
+        for wr_p, (_wr_step, op_type) in first_write_op.items():
+            if _paths_match(wr_p, norm) and op_type in (
+                "modify", "str_replace", "insert", "sed_inplace", "perl_inplace", "delete", "rm", "git_restore"
+            ):
+                return True
         return False
 
     def _inspect_path_and_action(
@@ -1324,6 +1529,8 @@ def evaluate_l0_stage(
             proven_in_diff = any(_paths_match(np, norm_p) for np in diff_new_paths)
             has_newness = is_new or proven_nonexistent or proven_in_diff or any(_paths_match(nep, norm_p) for nep in newness_evidence_paths)
             is_new = has_newness
+            if is_new:
+                is_edit_op = False
 
         if is_login_profile_path(norm_p):
             if _is_login_profile_hard(content):
@@ -1406,7 +1613,6 @@ def evaluate_l0_stage(
                 content = m.get("content") or ""
                 cmd = m.get("command") or ""
                 step = m.get("step")
-                _record_write(p, step)
 
                 if cmd and "base64" in cmd:
                     b64_m = re.search(r"echo\s+([A-Za-z0-9+/=]+)\s*\|\s*base64\s+(?:-d|--decode)", cmd)
@@ -1414,7 +1620,7 @@ def evaluate_l0_stage(
                         with contextlib.suppress(Exception):
                             content = base64.b64decode(b64_m.group(1)).decode("utf-8", errors="replace")
                 elif cmd and not content and ("echo " in cmd or "printf " in cmd):
-                    echo_m = re.search(r"(?:echo|printf)\s+(?:-[^\s]+\s+)?['\"](.*?)['\"]\s*>", cmd)
+                    echo_m = re.search(r"(?:echo|printf)\s+(?:-[^\s]+\s+)?['\"](.*?)['\"]\s*(?:>|\|)", cmd)
                     if echo_m:
                         content = echo_m.group(1)
                 elif cmd and not content and "open(" in cmd:
@@ -1423,13 +1629,15 @@ def evaluate_l0_stage(
                         content = open_m.group(1)
 
                 is_edit = (
-                    tool in ("edit", "str_replace", "patch", "sed")
-                    or op in ("edit", "str_replace", "insert", "sed_inplace", "perl_inplace", "delete", "rm", "unlink", "git_restore")
+                    tool in ("edit", "str_replace", "patch", "sed", "multiedit")
+                    or op in ("edit", "str_replace", "insert", "sed_inplace", "perl_inplace", "delete", "rm", "unlink", "git_restore", "python_write")
                 )
-                if (tool in ("str_replace_editor", "edit") and op == "create") or tool in ("create", "create_file") or op == "create":
+                if (tool in ("str_replace_editor", "edit", "str_replace_based_edit_tool") and op == "create") or tool in ("create", "create_file") or op in ("create", "heredoc_write"):
                     is_edit = False
 
-                is_new = bool(op == "create" or tool in ("create", "create_file"))
+                is_new = bool(op in ("create", "heredoc_write") or tool in ("create", "create_file"))
+                op_k = "create" if is_new else ("modify" if is_edit and op not in ("python_write", "write") else "write")
+                _record_write(p, step, op_kind=op_k)
 
                 _inspect_path_and_action(
                     p,

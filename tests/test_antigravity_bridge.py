@@ -52,8 +52,9 @@ def test_subscription_environment_forces_agy_auth():
 
 
 def test_antigravity_cli_capture_stages_and_scrubs_token(tmp_path: pathlib.Path) -> None:
-    """The repo-owned AntigravityCliCapture reuses the installed adapter's OAuth
-    token staging and scrub.  No token material leaks into command strings.
+    """The repo-owned AntigravityCliCapture stages the host OAuth token where agy
+    reads it and scrubs token material from the recorded commands.  No token
+    material leaks into command strings.
     """
     interpreter = _harbor_interpreter()
     if interpreter is None:
@@ -101,7 +102,6 @@ def test_antigravity_cli_capture_stages_and_scrubs_token(tmp_path: pathlib.Path)
                 model_name="google/gemini-3.7-flash-low",
             )
             env = FakeEnv()
-            await agent._seed_oauth_token(env)
             try:
                 await agent.run("Reply with exactly: BRIDGE_OK", env, AgentContext())
             except RuntimeError:
@@ -140,5 +140,6 @@ def test_antigravity_cli_capture_stages_and_scrubs_token(tmp_path: pathlib.Path)
     assert 'mkdir -p "$HOME/.gemini/antigravity-cli"' in commands
     assert "chmod 600" in commands
     assert 'rm -f "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"' in commands
+    assert "rm -f /tmp/.agy-auth.json" in commands
     assert fake_secret not in commands
     assert fake_secret not in json.dumps(result)

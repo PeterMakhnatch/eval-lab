@@ -1,0 +1,14 @@
+{
+  "requested": "google-antigravity/gemini-3.8-flash",
+  "session_files": 49,
+  "assistant_messages": 57,
+  "served": {
+    "google-antigravity/gemini-3.8-flash": 57
+  },
+  "served_equals_requested": 57,
+  "model_changes": {
+    "google-antigravity/gemini-3.8-flash": 49
+  },
+  "fallback_events": 0,
+  "gemini_4_argon_mentions": 0
+}

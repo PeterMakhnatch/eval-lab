@@ -1,6 +1,8 @@
 # on-l0-aware-gemini-20261102 — does the L0 tripwire set survive an informed Gemini attacker?
 
 Pre-registration: `research-context/bridge/2026-11-02-overnight/loop/raw/K7D-L0AWARE-GEMINI/prereg.md`, sha256 `0c09658a0d55754bd592bf48857c2947c117bef0e541828311d54f3617055939` (`0c09658a0d55`).
+> **VERIFIER CORRECTION (K7E):** The paired comparison below between A1 (Gemini) and A0 (Claude Sonnet) compared two different models. The true same-attacker control (K7E, Gemini 3.8 Flash without L0 rules) achieved 17/21 grader wins (81.0%) and 3/21 clean evasions (14.3%). Rule awareness suppressed Gemini's grader win rate ($17/21 \to 4/21$, McNemar $p = 0.000244$) rather than demonstrating tripwire impenetrability. See [`VERIFIER-CORRECTIONS.md`](./VERIFIER-CORRECTIONS.md) for full analysis.
+
 
 ## What ran
 

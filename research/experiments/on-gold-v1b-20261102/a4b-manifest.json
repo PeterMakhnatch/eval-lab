@@ -1,0 +1,978 @@
+[
+  {
+    "task_id": "format-code-task-000079",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "train_mutants_survived",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 9,
+      "repair_used": true
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 6,
+      "train_killed": 4,
+      "probe_total": 2,
+      "probe_killed": 1,
+      "eval_total": 6,
+      "eval_base_accepted": 3,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 2,
+    "stop_reason": "rounds_complete",
+    "a2_survivors_exercised": 1,
+    "a2_survivors_killed": 1,
+    "upgraded_package_sha256": "ed0bc63cd5d61df5502cb447666ecd0df768835ebc573ced945075a01f098550"
+  },
+  {
+    "task_id": "format-code-task-000081",
+    "is_weak": true,
+    "status": "gold_heldout",
+    "reason": "ok",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 11,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 4,
+      "probe_total": 2,
+      "probe_killed": 2,
+      "eval_total": 6,
+      "eval_base_accepted": 3,
+      "eval_base_accepted_killed_arm2": 3,
+      "eval_base_accepted_killed_arm1": 3
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 1,
+    "a2_survivors_killed": 1,
+    "upgraded_package_sha256": "1ff88406b42e793ee56673b6c6ebf24371235c2e9548198529528c3c60ba8d92"
+  },
+  {
+    "task_id": "format-code-task-000085",
+    "is_weak": false,
+    "status": "gold_structural",
+    "reason": "heldout_insufficient_eval",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 11,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 4,
+      "probe_total": 2,
+      "probe_killed": 2,
+      "eval_total": 6,
+      "eval_base_accepted": 2,
+      "eval_base_accepted_killed_arm2": 1,
+      "eval_base_accepted_killed_arm1": 1
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "ea2fe5bed08e223f57d5ca45066675b41482bcee9833e970bf288d21b3ee00e6"
+  },
+  {
+    "task_id": "format-code-task-000212",
+    "is_weak": false,
+    "status": "not_gold",
+    "reason": "fewer_than_3_kept",
+    "accepted_test": false,
+    "functions": {
+      "asked": 12,
+      "kept": 0,
+      "repair_used": true
+    },
+    "gates": null,
+    "counts": null,
+    "round2_measured": true,
+    "shipped_round": null,
+    "stop_reason": null,
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": null
+  },
+  {
+    "task_id": "format-code-task-000232",
+    "is_weak": true,
+    "status": "gold_structural",
+    "reason": "heldout_kill_rate_low",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 4,
+      "probe_total": 2,
+      "probe_killed": 2,
+      "eval_total": 6,
+      "eval_base_accepted": 3,
+      "eval_base_accepted_killed_arm2": 1,
+      "eval_base_accepted_killed_arm1": 1
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 1,
+    "a2_survivors_killed": 1,
+    "upgraded_package_sha256": "86844ff06a1dae53bf185f69bd49a2b0dfb79ab52e06c489effe5d2f633b572d"
+  },
+  {
+    "task_id": "format-code-task-000256",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "train_mutants_survived",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 10,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 2,
+      "probe_total": 2,
+      "probe_killed": 2,
+      "eval_total": 6,
+      "eval_base_accepted": 3,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 1,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "2be2d473ed5c0a9d77e9c712ebf99b7464109c004fca4ff9d9af56e182e91e4a"
+  },
+  {
+    "task_id": "format-code-task-000322",
+    "is_weak": false,
+    "status": "not_gold",
+    "reason": "train_mutants_survived",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 3,
+      "probe_total": 2,
+      "probe_killed": 2,
+      "eval_total": 6,
+      "eval_base_accepted": 1,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "ae06c2e279817cd03c773d530c42d39b95ead564a4a46b99507a3df476cf81f9"
+  },
+  {
+    "task_id": "format-code-task-000682",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "gate_failed_exit0",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": false
+    },
+    "counts": {
+      "train_total": 2,
+      "train_killed": 2,
+      "probe_total": 1,
+      "probe_killed": 1,
+      "eval_total": 1,
+      "eval_base_accepted": 1,
+      "eval_base_accepted_killed_arm2": 1,
+      "eval_base_accepted_killed_arm1": 1
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 2,
+    "a2_survivors_killed": 2,
+    "upgraded_package_sha256": "f20b4d900206e5ea7e4b8d7ada638ac9f56075123a94fadc2deff5800ae1df54"
+  },
+  {
+    "task_id": "format-code-task-000812",
+    "is_weak": false,
+    "status": "gold_structural",
+    "reason": "heldout_insufficient_eval",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 1,
+      "train_killed": 1,
+      "probe_total": 1,
+      "probe_killed": 1,
+      "eval_total": 0,
+      "eval_base_accepted": 0,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "593dac606d5da044c2c8688b1473dceb817def6ce2c75a63c1af4a7fb7ad8f10"
+  },
+  {
+    "task_id": "format-code-task-000838",
+    "is_weak": true,
+    "status": "gold_structural",
+    "reason": "heldout_insufficient_eval",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 3,
+      "train_killed": 3,
+      "probe_total": 1,
+      "probe_killed": 1,
+      "eval_total": 1,
+      "eval_base_accepted": 1,
+      "eval_base_accepted_killed_arm2": 1,
+      "eval_base_accepted_killed_arm1": 1
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 1,
+    "a2_survivors_killed": 1,
+    "upgraded_package_sha256": "ac3c56b2e048e05fd87e0a2a207d1622a3070acd510735b7d78dbda1d72a12c7"
+  },
+  {
+    "task_id": "format-code-task-000847",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "train_mutants_survived",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 11,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 3,
+      "probe_total": 2,
+      "probe_killed": 2,
+      "eval_total": 6,
+      "eval_base_accepted": 3,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 1,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "b19e2a4a18b010fecda283a50667a4053c22a989a26ca05ecedbe2c00ac8d2a1"
+  },
+  {
+    "task_id": "format-code-task-000931",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "gate_failed_exit0",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 9,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": false
+    },
+    "counts": {
+      "train_total": 2,
+      "train_killed": 0,
+      "probe_total": 0,
+      "probe_killed": 0,
+      "eval_total": 1,
+      "eval_base_accepted": 1,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 2,
+    "stop_reason": "rounds_complete",
+    "a2_survivors_exercised": 1,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "215d8f352a0c4e53283524ff142283d6c5cb568c14fbf71c6c9db372e9dfaad5"
+  },
+  {
+    "task_id": "format-code-task-000945",
+    "is_weak": false,
+    "status": "not_run",
+    "reason": "no_mutants_or_sources",
+    "accepted_test": false,
+    "functions": {
+      "asked": null,
+      "kept": null,
+      "repair_used": null
+    },
+    "gates": null,
+    "counts": null,
+    "round2_measured": true,
+    "shipped_round": null,
+    "stop_reason": null,
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": null
+  },
+  {
+    "task_id": "format-code-task-001205",
+    "is_weak": false,
+    "status": "not_run",
+    "reason": "harness_error_qa_script",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": true
+    },
+    "gates": null,
+    "counts": null,
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": null,
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "adca28d6542b150d4f8493cd997551d43d6af97ac52450807dea430f1df004eb"
+  },
+  {
+    "task_id": "format-code-task-001267",
+    "is_weak": true,
+    "status": "not_run",
+    "reason": "harness_error_contract_import",
+    "accepted_test": false,
+    "functions": {
+      "asked": 12,
+      "kept": 0,
+      "repair_used": true
+    },
+    "gates": null,
+    "counts": null,
+    "round2_measured": true,
+    "shipped_round": null,
+    "stop_reason": null,
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": null
+  },
+  {
+    "task_id": "format-code-task-001338",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "base_tests_fail_reference",
+    "accepted_test": false,
+    "functions": {
+      "asked": 12,
+      "kept": 0,
+      "repair_used": false
+    },
+    "gates": null,
+    "counts": null,
+    "round2_measured": true,
+    "shipped_round": null,
+    "stop_reason": null,
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": null
+  },
+  {
+    "task_id": "format-code-task-001426",
+    "is_weak": true,
+    "status": "not_run",
+    "reason": "harness_error_cell",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 8,
+      "repair_used": false
+    },
+    "gates": null,
+    "counts": null,
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": null,
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "fd71af2517075d5dd3b0fee7bea3340d9d2fba49cbce4195835fc765fc5c48a8"
+  },
+  {
+    "task_id": "format-code-task-001431",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "train_mutants_survived",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 11,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 3,
+      "probe_total": 2,
+      "probe_killed": 2,
+      "eval_total": 6,
+      "eval_base_accepted": 0,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 1,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "fafb9971937f31e76d268db091fa4a4ec2faf860e3bfe2c01d09ac958ff926b7"
+  },
+  {
+    "task_id": "format-code-task-001804",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "train_mutants_survived",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 7,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 5,
+      "train_killed": 1,
+      "probe_total": 0,
+      "probe_killed": 0,
+      "eval_total": 3,
+      "eval_base_accepted": 2,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 2,
+    "stop_reason": "rounds_complete",
+    "a2_survivors_exercised": 2,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "745a9b9a067acdd5dc3948961d187e73dc97d7dbbdd12f6dc2aff627e76e628f"
+  },
+  {
+    "task_id": "format-code-task-001809",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "train_mutants_survived",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 3,
+      "probe_total": 2,
+      "probe_killed": 2,
+      "eval_total": 2,
+      "eval_base_accepted": 0,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 1,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "b3ea9025fa54b1d13d1d4ee1727b96e092ad5a61e1e9e178d80cfde5c8dd524b"
+  },
+  {
+    "task_id": "format-code-task-001850",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "train_mutants_survived",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 2,
+      "probe_total": 2,
+      "probe_killed": 1,
+      "eval_total": 6,
+      "eval_base_accepted": 4,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "synthesis_failed",
+    "a2_survivors_exercised": 1,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "bf1e86767ea462063e6a23d65c462cf883fb16ffea04210137af4be0aaf044c6"
+  },
+  {
+    "task_id": "format-code-task-001985",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "probe_mutants_survived",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 4,
+      "probe_total": 2,
+      "probe_killed": 1,
+      "eval_total": 6,
+      "eval_base_accepted": 4,
+      "eval_base_accepted_killed_arm2": 1,
+      "eval_base_accepted_killed_arm1": 1
+    },
+    "round2_measured": false,
+    "shipped_round": 1,
+    "stop_reason": "rounds_complete",
+    "a2_survivors_exercised": 1,
+    "a2_survivors_killed": 1,
+    "upgraded_package_sha256": "3fdb0d6203597f0fbe59d117df086774f6a99e076c61bf09314183888ebcef0a"
+  },
+  {
+    "task_id": "format-code-task-002139",
+    "is_weak": false,
+    "status": "not_gold",
+    "reason": "probe_mutants_survived",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 4,
+      "probe_total": 2,
+      "probe_killed": 1,
+      "eval_total": 6,
+      "eval_base_accepted": 2,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": false,
+    "shipped_round": 1,
+    "stop_reason": "rounds_complete",
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "894a9f1feab7e42a0fb51b0eb55e09a86ee2cebde804f6483ba2e3b29639665d"
+  },
+  {
+    "task_id": "format-code-task-002160",
+    "is_weak": false,
+    "status": "not_run",
+    "reason": "harness_error_contract_import",
+    "accepted_test": false,
+    "functions": {
+      "asked": 12,
+      "kept": 0,
+      "repair_used": true
+    },
+    "gates": null,
+    "counts": null,
+    "round2_measured": true,
+    "shipped_round": null,
+    "stop_reason": null,
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": null
+  },
+  {
+    "task_id": "format-code-task-002391",
+    "is_weak": false,
+    "status": "gold_structural",
+    "reason": "heldout_insufficient_eval",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 11,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 4,
+      "probe_total": 2,
+      "probe_killed": 2,
+      "eval_total": 5,
+      "eval_base_accepted": 1,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "f9262a4e9d7cf46f8e1f22af111b378132ebdedbc4e945eedffe971089550557"
+  },
+  {
+    "task_id": "format-code-task-002535",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "gate_failed_exit0",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": false
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 4,
+      "probe_total": 1,
+      "probe_killed": 1,
+      "eval_total": 6,
+      "eval_base_accepted": 2,
+      "eval_base_accepted_killed_arm2": 2,
+      "eval_base_accepted_killed_arm1": 2
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 1,
+    "a2_survivors_killed": 1,
+    "upgraded_package_sha256": "aa6092bb820ef278f01b3a9428b12b6232307e12f6c5babde893e8c3f2cfed95"
+  },
+  {
+    "task_id": "format-code-task-002545",
+    "is_weak": true,
+    "status": "not_gold",
+    "reason": "train_mutants_survived",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": true
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 3,
+      "probe_total": 1,
+      "probe_killed": 1,
+      "eval_total": 6,
+      "eval_base_accepted": 3,
+      "eval_base_accepted_killed_arm2": 2,
+      "eval_base_accepted_killed_arm1": 2
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 2,
+    "a2_survivors_killed": 2,
+    "upgraded_package_sha256": "15cdf3ba3589785c6455cc3532a7f40f5cdb8f32db658fefe52e4d4e2374bce8"
+  },
+  {
+    "task_id": "format-code-task-002552",
+    "is_weak": false,
+    "status": "gold_structural",
+    "reason": "heldout_insufficient_eval",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 1,
+      "train_killed": 1,
+      "probe_total": 2,
+      "probe_killed": 2,
+      "eval_total": 1,
+      "eval_base_accepted": 0,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "836bb004e9eed5fdd1c2a9b60a3f6651fdbbca98aa228f0b38b480dba781a6e9"
+  },
+  {
+    "task_id": "format-code-task-002609",
+    "is_weak": false,
+    "status": "gold_structural",
+    "reason": "heldout_kill_rate_low",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 4,
+      "probe_total": 2,
+      "probe_killed": 2,
+      "eval_total": 6,
+      "eval_base_accepted": 3,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": true,
+    "shipped_round": 1,
+    "stop_reason": "all_probes_killed",
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "66ab24fa0d22c86b2452fedad6fd89a2bbbf05adfd5b0255680ead8f917eb4ab"
+  },
+  {
+    "task_id": "format-code-task-002680",
+    "is_weak": false,
+    "status": "not_gold",
+    "reason": "probe_mutants_survived",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": false
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": true
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 4,
+      "probe_total": 2,
+      "probe_killed": 1,
+      "eval_total": 6,
+      "eval_base_accepted": 2,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": false,
+    "shipped_round": 1,
+    "stop_reason": "rounds_complete",
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "c1b069f8aea20ed9533d4a01350a2748a78e7181e7f6e39e33964689627efa2d"
+  },
+  {
+    "task_id": "format-code-task-002976",
+    "is_weak": false,
+    "status": "not_gold",
+    "reason": "gate_failed_exit0",
+    "accepted_test": true,
+    "functions": {
+      "asked": 12,
+      "kept": 12,
+      "repair_used": true
+    },
+    "gates": {
+      "reference_passed": true,
+      "nop_passed": true,
+      "witness_passed": true,
+      "exit0_passed": false
+    },
+    "counts": {
+      "train_total": 4,
+      "train_killed": 4,
+      "probe_total": 2,
+      "probe_killed": 1,
+      "eval_total": 6,
+      "eval_base_accepted": 1,
+      "eval_base_accepted_killed_arm2": 0,
+      "eval_base_accepted_killed_arm1": 0
+    },
+    "round2_measured": false,
+    "shipped_round": 1,
+    "stop_reason": "rounds_complete",
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": "cd1e9da80985913ee587b50e2969671fccd869d316e0712d3cd581241aeb7823"
+  },
+  {
+    "task_id": "format-code-task-003007",
+    "is_weak": false,
+    "status": "not_run",
+    "reason": "harness_error_contract_import",
+    "accepted_test": false,
+    "functions": {
+      "asked": 12,
+      "kept": 0,
+      "repair_used": true
+    },
+    "gates": null,
+    "counts": null,
+    "round2_measured": true,
+    "shipped_round": null,
+    "stop_reason": null,
+    "a2_survivors_exercised": 0,
+    "a2_survivors_killed": 0,
+    "upgraded_package_sha256": null
+  }
+]

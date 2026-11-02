@@ -1,0 +1,204 @@
+{
+  "created_at": "2026-11-02T10:32:16.867044+00:00",
+  "cohort_overlap_size": 27,
+  "contingency_table_2x2": {
+    "repair_qual_and_gold": 0,
+    "repair_qual_and_not_gold": 27,
+    "not_repair_qual_and_gold": 0,
+    "not_repair_qual_and_not_gold": 0
+  },
+  "gold_certified_status_reasons": {
+    "ref_failed_no_repair": 27
+  },
+  "overlap_tasks": [
+    {
+      "task_id": "format-code-task-000079",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-000081",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-000085",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-000212",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-000232",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-000256",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-000322",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-000682",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-000812",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-000847",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-000931",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-000945",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-001205",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-001267",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-001338",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-001426",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-001431",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-001804",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-001809",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-001850",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-001985",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-002160",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-002535",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-002545",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-002609",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-002976",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    },
+    {
+      "task_id": "format-code-task-003007",
+      "repair_qualified": true,
+      "gold_certified": false,
+      "gold_certified_status": "not_gold",
+      "gold_taxonomy_code": "ref_failed_no_repair"
+    }
+  ]
+}

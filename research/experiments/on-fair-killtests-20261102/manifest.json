@@ -1,0 +1,65 @@
+{
+  "kt1_summary.json": {
+    "sha256": "6a5f6c623cbb64994b3e2375e8015ce429c771a46d202f4140bfb4a0b202ce70",
+    "sha12": "6a5f6c623cbb",
+    "size_bytes": 151249,
+    "bridge_path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F11-FAIR-KILLTESTS/receipts/kt1_summary.json",
+    "results_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F11-FAIR-KILLTESTS/receipts/kt1_summary.json"
+  },
+  "kt2_summary.json": {
+    "sha256": "cc3e638ca9316d93d368b07ac7b04fc014b6e1ee2e4400c1c72dd0e98cbdce10",
+    "sha12": "cc3e638ca931",
+    "size_bytes": 4077,
+    "bridge_path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F11-FAIR-KILLTESTS/receipts/kt2_summary.json",
+    "results_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F11-FAIR-KILLTESTS/receipts/kt2_summary.json"
+  },
+  "kt3_summary.json": {
+    "sha256": "38ebc0ab4c5a01db385e01b5f8c3388a8d85b6509fd6bab1810e78501f95b283",
+    "sha12": "38ebc0ab4c5a",
+    "size_bytes": 1620,
+    "bridge_path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F11-FAIR-KILLTESTS/receipts/kt3_summary.json",
+    "results_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F11-FAIR-KILLTESTS/receipts/kt3_summary.json"
+  },
+  "kt4_summary.json": {
+    "sha256": "318de75f3f51e5b14b925031f5d1f24d4a1d2ad0f63f3c41a67f97174b58e99e",
+    "sha12": "318de75f3f51",
+    "size_bytes": 3544,
+    "bridge_path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F11-FAIR-KILLTESTS/receipts/kt4_summary.json",
+    "results_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F11-FAIR-KILLTESTS/receipts/kt4_summary.json"
+  },
+  "kt5_summary.json": {
+    "sha256": "305499bd5fab2a9069abdd4956a52a3ed4e8ed5015c069fb11a21f070a9bb2e8",
+    "sha12": "305499bd5fab",
+    "size_bytes": 1427,
+    "bridge_path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F11-FAIR-KILLTESTS/receipts/kt5_summary.json",
+    "results_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F11-FAIR-KILLTESTS/receipts/kt5_summary.json"
+  },
+  "kt6_summary.json": {
+    "sha256": "a9bc3bbeefebfb4907fd5eda39a58627d1dd634f9781da5905aabf18bef9e021",
+    "sha12": "a9bc3bbeefeb",
+    "size_bytes": 1216,
+    "bridge_path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F11-FAIR-KILLTESTS/receipts/kt6_summary.json",
+    "results_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F11-FAIR-KILLTESTS/receipts/kt6_summary.json"
+  },
+  "kt7_summary.json": {
+    "sha256": "f766c96d3a34e576615881cf5030d742718d9d108bb4d222f71fb8cb03f24fa5",
+    "sha12": "f766c96d3a34",
+    "size_bytes": 6187,
+    "bridge_path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F11-FAIR-KILLTESTS/receipts/kt7_summary.json",
+    "results_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F11-FAIR-KILLTESTS/receipts/kt7_summary.json"
+  },
+  "all_killtests_summary.json": {
+    "sha256": "ef7f58d72940255f78459a2fcfe3c8dcb1735b8761e2d01209ff84ceeea259a3",
+    "sha12": "ef7f58d72940",
+    "size_bytes": 5403,
+    "bridge_path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F11-FAIR-KILLTESTS/receipts/all_killtests_summary.json",
+    "results_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F11-FAIR-KILLTESTS/receipts/all_killtests_summary.json"
+  },
+  "prereg.md": {
+    "sha256": "ae9ecb1b794b5392baf860252ab52ecab512e0be30a13688289eb72980dd712c",
+    "sha12": "ae9ecb1b794b",
+    "size_bytes": 9418,
+    "bridge_path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/wf/raw/F11-FAIR-KILLTESTS/receipts/prereg.md",
+    "results_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/F11-FAIR-KILLTESTS/receipts/prereg.md"
+  }
+}

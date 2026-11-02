@@ -1,0 +1,200 @@
+[
+  {
+    "opaque_id": "MUT-01",
+    "operator": "call_drop",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-06",
+    "operator": "bool_flip",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-09",
+    "operator": "equality_flip",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-11",
+    "operator": "call_drop",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-15",
+    "operator": "boundary_flip",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-29",
+    "operator": "guard_drop",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-31",
+    "operator": "call_drop",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-35",
+    "operator": "bool_flip",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-40",
+    "operator": "keyword_drop",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-41",
+    "operator": "call_drop",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-42",
+    "operator": "bool_flip",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-44",
+    "operator": "guard_drop",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-47",
+    "operator": "call_drop",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-48",
+    "operator": "bool_flip",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-49",
+    "operator": "boundary_flip",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-50",
+    "operator": "boundary_flip",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-53",
+    "operator": "keyword_drop",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-54",
+    "operator": "equality_flip",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-58",
+    "operator": "call_drop",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-63",
+    "operator": "handler_drop",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-64",
+    "operator": "equality_flip",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  },
+  {
+    "opaque_id": "MUT-70",
+    "operator": "equality_flip",
+    "satisfies_definition_A": true,
+    "satisfies_definition_B": true,
+    "satisfies_definition_C": true,
+    "judge_1_verdict": "behavior_changing",
+    "judge_2_verdict": "behavior_changing"
+  }
+]

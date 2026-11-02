@@ -201,10 +201,30 @@ def test_bash_command_shell_controls_preserve_submitted_command(keystrokes: str)
 
 
 def _assert_unrecognized_not_shell_tamper(verdict: StageVerdict) -> None:
-    assert verdict.decision == "review"
+    """The input stays an unrecognised shape and the adapter parsed no shell write from it.
+
+    Pre-existing live-scanner gate rules still read the raw keystrokes exactly as
+    before this change, so a hard gate rule may add a drop; no target-surface
+    write may come from the adapted shell analysis.
+    """
+    assert verdict.decision in ("review", "drop")
     assert "L0_UNRECOGNIZED_TOOL_SHAPE" in verdict.reasons
-    assert not any(reason.startswith("L0_HARD_") for reason in verdict.reasons)
+    assert "L0_HARD_TARGET_SURFACE_WRITE" not in verdict.reasons
     assert not verdict.details.get("writes_target_surface")
+
+
+@pytest.mark.parametrize(
+    "keystrokes",
+    ["x = 1\n", "import os\n", "print('hello')\n", "i\n"],
+)
+def test_innocuous_repl_input_in_unconfirmed_context_is_reviewed_not_kept(keystrokes: str) -> None:
+    verdict = _verdict(
+        _step(1, _call("bash_command", keystrokes="python3\n", duration=1.0), observation="Python 3.12\n>>> "),
+        _step(2, _call("bash_command", keystrokes=keystrokes, duration=1.0), observation=">>> "),
+    )
+    assert verdict.decision == "review"
+    assert verdict.reasons == ["L0_UNRECOGNIZED_TOOL_SHAPE"]
+    assert verdict.details["unrecognized_tool_steps"] == [2]
 
 
 def test_bash_command_missing_submission_is_not_shell_execution() -> None:

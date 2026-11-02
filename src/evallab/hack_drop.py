@@ -43,6 +43,7 @@ from evallab.autoreview_monitor import (
     writes_target_surface_path,
 )
 from evallab.production.corpus_queue import CorpusRegistry
+from evallab.tool_calls import call_name_and_arguments, normalize_tool_call, terminal_shell_ready
 from evallab.trace_anatomy import (
     PROTECTED_PATH,
     LoadedRun,
@@ -1153,41 +1154,12 @@ def _extract_obs_text(step_obj: Mapping[str, Any]) -> str:
     return ""
 
 
-_TERMINAL_ESCAPE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))")
-_SHELL_PROMPT = re.compile(r"(?:^|\n)(?:\([^\n()]+\)\s*)?[\w.-]+@[\w.-]+:[^\n]*[#$]\s*$")
-
-
-def _terminal_shell_input(keystrokes: str, *, shell_ready: bool) -> str | None:
-    """Decode submitted Terminus input, never treating interactive text as shell."""
-    if not shell_ready:
-        return None
-    text = keystrokes
-    # tmux names are keys only at input boundaries, not inside quoted payloads.
-    text = re.sub(r"^(?:(?:C-c|C-u)\s*|\x03|\x15)+", "", text)
-    submitted = text.endswith(("\n", "\r")) or bool(re.search(r"(?:^|\s)Enter\s*$", text))
-    text = re.sub(r"(?:^|\s)Enter\s*$", "", text).rstrip("\r\n")
-    if not submitted or not text.strip():
-        return None
-    if text.strip() in {"C-c", "C-u", "M-x", "Escape", "BSpace", "Up", "Down", "Left", "Right", "Tab", "Enter"}:
-        return None
-    if any(ord(char) < 32 and char not in "\n\t" for char in text):
-        return None
-    # A split heredoc, editor, or REPL is not a new shell command. Even complete
-    # heredocs stay unknown: their literal bodies must not enter shell tripwires.
-    if "<<" in text or "\n" in text or text.rstrip().endswith("\\"):
-        return None
-    try:
-        shlex.split(text)
-    except ValueError:
-        return None
-    return text
-
-
 def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
     """Adapt transport formats once, then use the existing L0 analysis engines.
 
-    This is an ephemeral projection; loader evidence and AutoReview inputs remain
-    unchanged. Ambiguous terminal input is deliberately left unrecognized.
+    Mapping is delegated to ``evallab.tool_calls``. This is an ephemeral
+    projection; loader evidence and AutoReview inputs remain unchanged. Ambiguous
+    terminal input is deliberately left unrecognized.
     """
     if rollout.run is None:
         return rollout
@@ -1197,10 +1169,7 @@ def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
     steps: list[Any] = []
     shell_ready = True  # Terminus starts a shell; subsequent prompts must attest it.
     for step in raw_steps:
-        if not isinstance(step, Mapping):
-            steps.append(step)
-            continue
-        calls = step.get("tool_calls")
+        calls = step.get("tool_calls") if isinstance(step, Mapping) else None
         if not isinstance(calls, list):
             steps.append(step)
             continue
@@ -1210,95 +1179,28 @@ def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
             if not isinstance(call, Mapping):
                 normalized_calls.append(call)
                 continue
-            function = call.get("function")
-            source = function if isinstance(function, Mapping) else call
-            name = str(source.get("name") or source.get("function_name") or "").lower()
-            arguments = source.get("arguments")
-            if isinstance(arguments, str):
-                with contextlib.suppress(ValueError):
-                    arguments = json.loads(arguments)
-            adapted_name: str | None = None
-            adapted_args = arguments
-            if name in ("mark_task_complete", "task_complete") and (
-                arguments in (None, {}) or arguments == {"input": "{}"}
-            ):
-                adapted_name, adapted_args = "finish", {}
-            elif name in ("sleep", "wait", "close_file", "submit_final_answer", "exit", "todowrite", "toolsearch"):
-                if isinstance(arguments, Mapping):
-                    adapted_name, adapted_args = "think", {}
-            elif name == "glob" and isinstance(arguments, Mapping):
-                path = arguments.get("path", ".")
-                pattern = arguments.get("pattern")
-                if isinstance(path, str) and (pattern is None or isinstance(pattern, str)):
-                    paths = [part for part in path.split(";") if part] or ["."]
-                    if pattern:
-                        paths = [posixpath.join(part, pattern) for part in paths]
-                    adapted_name = "bash"
-                    adapted_args = {"command": "ls " + " ".join(shlex.quote(part) for part in paths)}
-            elif name == "shell" and isinstance(arguments, Mapping) and "command" in arguments:
-                command = arguments.get("command")
-                # Bundle exports duplicate direct shell commands into keystrokes;
-                # unlike Terminus these are not input into a persistent terminal.
-                if isinstance(command, str) and command and arguments.get("keystrokes", command) == command:
-                    adapted_name, adapted_args = "bash", {"command": command}
-            elif name in ("edit_file", "edit_notebook") and isinstance(arguments, Mapping):
-                payload = arguments.get("file_edit_payload")
-                path = arguments.get("file_path") or arguments.get("filepath")
-                if isinstance(payload, Mapping) and isinstance(path, str) and path:
-                    content = payload.get("source")
-                    if isinstance(content, list) and all(isinstance(line, str) for line in content):
-                        content = "".join(content)
-                    if isinstance(content, str):
-                        adapted_name, adapted_args = "edit", {"path": path, "command": "edit", "content": content}
-            elif name == "text_editor" and isinstance(arguments, Mapping):
-                command = arguments.get("command")
-                path = arguments.get("path")
-                valid_payload = (
-                    command in ("view", "undo_edit")
-                    or (command == "create" and isinstance(arguments.get("file_text"), str))
-                    or (command == "str_replace" and all(isinstance(arguments.get(key), str) for key in ("old_str", "new_str")))
-                    or (command == "insert" and isinstance(arguments.get("new_str"), str))
-                )
-                if isinstance(path, str) and path and valid_payload:
-                    adapted_name = "str_replace_editor"
-                    if command == "undo_edit":
-                        # Undo is a modification even when no replacement text exists.
-                        adapted_name = "edit"
-                        adapted_args = {**arguments, "command": "edit"}
-            elif name == "bash_command" and isinstance(arguments, Mapping):
+            name, arguments = call_name_and_arguments(call)
+            action = normalize_tool_call(name, arguments, shell_ready=shell_ready)
+            if action.terminal:
                 terminal_calls += 1
-                keystrokes = arguments.get("keystrokes")
-                if isinstance(keystrokes, str):
-                    if not keystrokes:
-                        adapted_name, adapted_args = "think", {}
-                    else:
-                        command = _terminal_shell_input(keystrokes, shell_ready=shell_ready)
-                        if command is not None:
-                            adapted_name, adapted_args = "bash", {"command": command}
-                        else:
-                            # The live scanner also accepts raw keystrokes. Hide
-                            # ambiguous input from it while retaining an unknown
-                            # shape, so REPL/editor text cannot become shell code.
-                            adapted_name, adapted_args = "unrecognized_terminal_input", {}
-                        shell_ready = False
-            if adapted_name is not None:
-                adapted_call = {**call, "arguments": adapted_args}
-                if isinstance(function, Mapping):
-                    adapted_call["function"] = {**function, "name": adapted_name, "arguments": adapted_args}
-                elif "function_name" in call:
-                    adapted_call["function_name"] = adapted_name
-                    if "name" in call:
-                        adapted_call["name"] = adapted_name
-                else:
-                    adapted_call["name"] = adapted_name
-                normalized_calls.append(adapted_call)
+                shell_ready = action.shell_after
+            if action.kind == "unknown" and action.name == name:
+                normalized_calls.append(call)  # unsupported shape: leave untouched, fail safe
+                continue
+            adapted_call = {**call, "arguments": dict(action.arguments)}
+            function = call.get("function")
+            if isinstance(function, Mapping):
+                adapted_call["function"] = {**function, "name": action.name, "arguments": dict(action.arguments)}
+            elif "function_name" in call:
+                adapted_call["function_name"] = action.name
+                if "name" in call:
+                    adapted_call["name"] = action.name
             else:
-                normalized_calls.append(call)
+                adapted_call["name"] = action.name
+            normalized_calls.append(adapted_call)
         steps.append({**step, "tool_calls": normalized_calls})
         if terminal_calls:
-            observation = _TERMINAL_ESCAPE.sub("", _extract_obs_text(step)).replace("\r", "")
-            observation = re.sub(r"\n*Are you sure you want to mark the task as complete\?[^\n]*\s*$", "", observation)
-            shell_ready = bool(_SHELL_PROMPT.search(observation))
+            shell_ready = terminal_shell_ready(_extract_obs_text(step))
     return replace(rollout, run=replace(rollout.run, doc={**rollout.run.doc, "steps": steps}))
 
 

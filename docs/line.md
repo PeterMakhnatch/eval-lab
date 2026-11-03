@@ -324,7 +324,7 @@ The set's README explains its source, limitations and refresh procedure.
 `baseline-provenance.json` records its code revision, hashes and refresh reason.
 
 ```bash
-uv run python scripts/line-replay.py
+make line-replay        # same as: uv run python scripts/line-replay.py
 # Select a different complete local copy of the frozen set:
 EVALLAB_LINE_REPLAY_SET=/absolute/path/to/replay-v1 \
   uv run python scripts/line-replay.py

@@ -89,6 +89,7 @@ def test_clean_checker_passes_and_diagnostics_fail(tmp_path: Path, surface: str)
 def test_missing_checker_is_not_a_clean_result(tmp_path: Path, surface: str) -> None:
     assert _gate(tmp_path, _environment(tmp_path, None), surface).returncode == 127
 
+
 @pytest.mark.parametrize(
     ("workflow_file", "job", "result_names"),
     [
@@ -117,7 +118,6 @@ def test_required_gate_rejects_every_non_success_prerequisite(
         for result in ("failure", "cancelled", "skipped", "neutral", "", "unknown"):
             assert run({**successful, name: result}) != 0, (name, result)
         assert run({key: value for key, value in successful.items() if key != name}) != 0
-
 
 
 def _git(root: Path, *args: str) -> str:
@@ -309,7 +309,6 @@ def test_dispatch_only_workflows_exemption_list() -> None:
     assert list(DISPATCH_ONLY_WORKFLOW_EXEMPTIONS.keys()) == []
 
 
-
 @pytest.mark.parametrize("workflow_path", WORKFLOW_FILES, ids=lambda p: p.name)
 def test_workflows_with_pr_or_push_declare_cancel_in_progress_concurrency(
     workflow_path: Path,
@@ -396,6 +395,7 @@ def test_required_gate_workflows_never_cancel_a_running_run() -> None:
         )
 
     assert gate_workflows == {"ci.yml", "typecheck.yml"}
+
 
 _PYTHON_RUN_LINE = re.compile(r"(?<![\w./-])python3?\b")
 # Bootstrapping uv via `python3 -m pip install --user uv==...` is interpreter-version
@@ -485,9 +485,7 @@ def test_workbench_certification_workflows_cadence_and_path_isolation() -> None:
         assert isinstance(triggers, dict), f"{filename} triggers must be a mapping"
 
         # No schedule trigger is declared (no new schedules as implied authorization).
-        assert triggers.get("schedule") is None, (
-            f"{filename} must not declare a schedule trigger"
-        )
+        assert triggers.get("schedule") is None, f"{filename} must not declare a schedule trigger"
 
         # task_workbench paths are preserved for automatic coverage.
         found_task_workbench = False
@@ -653,9 +651,7 @@ def _fixture_workflow(
     if has_cache and not cache_before_sync:
         steps.append(cache_step)
     workflow: dict = {
-        "jobs": {
-            "fixture": {"runs-on": "ubuntu-latest", "timeout-minutes": 10, "steps": steps}
-        }
+        "jobs": {"fixture": {"runs-on": "ubuntu-latest", "timeout-minutes": 10, "steps": steps}}
     }
     if retries is not None:
         workflow["env"] = {"UV_HTTP_RETRIES": retries}
@@ -964,9 +960,7 @@ def _native_harbor_step(workflow: dict) -> dict:
 
 def _native_harbor_step_files(workflow: dict) -> list[str]:
     run = _native_harbor_step(workflow).get("run") or ""
-    executable = "\n".join(
-        line for line in run.splitlines() if not line.lstrip().startswith("#")
-    )
+    executable = "\n".join(line for line in run.splitlines() if not line.lstrip().startswith("#"))
     return [Path(match).name for match in _STEP_TEST_FILE.findall(executable)]
 
 
@@ -1019,8 +1013,7 @@ def _harbor_step_problems(
             problems.append(f"native Harbor step exemption {name!r} has no written reason")
         if name not in gated:
             problems.append(
-                f"native Harbor step exemption {name!r} is stale: the file has no "
-                "Harbor skip guard"
+                f"native Harbor step exemption {name!r} is stale: the file has no Harbor skip guard"
             )
         elif name in listed:
             problems.append(
@@ -1052,6 +1045,56 @@ def test_full_suite_writes_junit_then_reports_skip_census() -> None:
     )
     census_run = census.get("run") or ""
     assert "scripts/ci/check_harbor_skips.py --report-only full-suite.xml" in census_run
+
+
+def _live_postgres_problems(job: dict) -> list[str]:
+    """Report what keeps the full suite from running its live-PostgreSQL tests (HAR-297)."""
+    problems: list[str] = []
+    postgres = (job.get("services") or {}).get("postgres")
+    if not isinstance(postgres, dict):
+        problems.append("the test job must declare a services.postgres container")
+    else:
+        if not str(postgres.get("image", "")).startswith("postgres:18.4"):
+            problems.append(
+                "services.postgres must use the Postgres 18.4 image pinned in compose.yaml"
+            )
+        if "54329:5432" not in [str(port) for port in postgres.get("ports") or []]:
+            problems.append("services.postgres must publish 54329:5432, the default DSN port")
+        if "pg_isready" not in str(postgres.get("options", "")):
+            problems.append("services.postgres must wait for pg_isready before steps run")
+    step = next(
+        (
+            s
+            for s in job.get("steps", [])
+            if isinstance(s, dict) and s.get("name") == "Full test suite"
+        ),
+        {},
+    )
+    env = step.get("env") or {}
+    if str(env.get("EVALLAB_RUN_POSTGRES_TESTS")) != "1":
+        problems.append("Full test suite must set EVALLAB_RUN_POSTGRES_TESTS=1")
+    if ":54329/" not in str(env.get("DATABASE_URL", "")):
+        problems.append("Full test suite must set DATABASE_URL to the service on port 54329")
+    return problems
+
+
+def test_full_suite_runs_live_postgres_tests_against_a_service() -> None:
+    workflow = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
+    assert _live_postgres_problems(workflow["jobs"]["test"]) == []
+
+
+def test_live_postgres_gate_rejects_missing_service_or_opt_in() -> None:
+    job = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))["jobs"]["test"]
+    no_service = {**job, "services": {}}
+    assert any("services.postgres" in p for p in _live_postgres_problems(no_service))
+    steps = [
+        {**s, "env": {k: v for k, v in s["env"].items() if k != "EVALLAB_RUN_POSTGRES_TESTS"}}
+        if s.get("name") == "Full test suite"
+        else s
+        for s in job["steps"]
+    ]
+    no_opt_in = {**job, "steps": steps}
+    assert any("EVALLAB_RUN_POSTGRES_TESTS" in p for p in _live_postgres_problems(no_opt_in))
 
 
 def _full_suite_inspect_problems(steps: list[dict]) -> list[str]:
@@ -1129,8 +1172,7 @@ def test_full_suite_inspect_gate_rejects_dropping_the_group() -> None:
         {"name": "Full test suite", "run": "uv run --no-sync pytest"},
     ]
     assert _full_suite_inspect_problems(shadowed), (
-        "a later sync without --group inspect prunes the group the earlier "
-        "dedicated step installed"
+        "a later sync without --group inspect prunes the group the earlier dedicated step installed"
     )
 
 
@@ -1143,11 +1185,7 @@ def test_native_harbor_step_checks_junit_skips_after_pytest() -> None:
         None,
     )
     checker_command = next(
-        (
-            index
-            for index, line in enumerate(lines)
-            if "scripts/ci/check_harbor_skips.py" in line
-        ),
+        (index for index, line in enumerate(lines) if "scripts/ci/check_harbor_skips.py" in line),
         None,
     )
     assert pytest_command is not None and checker_command is not None, (
@@ -1186,17 +1224,15 @@ def test_native_harbor_step_syncs_the_pinned_xiaomi_interpreter() -> None:
     """
     workflow = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
     run = _native_harbor_step(workflow).get("run") or ""
-    executable = "\n".join(
-        line for line in run.splitlines() if not line.lstrip().startswith("#")
-    )
+    executable = "\n".join(line for line in run.splitlines() if not line.lstrip().startswith("#"))
     sync = "uv sync --project tools/mimoagent-harbor --locked"
     assert sync in executable, (
         "the native Harbor step must install the pinned Xiaomi interpreter "
         f"with {sync!r} before pytest, or tests/test_mimoagent_worker.py skips"
     )
-    assert "mimoagent-harbor/uv.lock" in (
-        (WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8")
-    ), "tools/mimoagent-harbor/uv.lock must be part of the uv cache key"
+    assert "mimoagent-harbor/uv.lock" in ((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8")), (
+        "tools/mimoagent-harbor/uv.lock must be part of the uv cache key"
+    )
     assert executable.index(sync) < executable.index("pytest"), (
         "the mimoagent-harbor uv sync must run before the step's pytest command"
     )
@@ -1246,8 +1282,7 @@ def test_harbor_step_gate_rejects_a_gated_file_missing_from_the_list(tmp_path: P
         ["test_plain.py"],
         {"test_gated.py": "probe", "test_absent.py": "probe"},
     ) == [
-        "native Harbor step exemption 'test_absent.py' is stale: the file has no "
-        "Harbor skip guard"
+        "native Harbor step exemption 'test_absent.py' is stale: the file has no Harbor skip guard"
     ]
 
 
@@ -1272,7 +1307,5 @@ def test_harbor_step_gate_rejects_a_gated_file_missing_from_the_list(tmp_path: P
         pytest.param('pytest.skip("unrelated")', False, id="unrelated-skip"),
     ],
 )
-def test_harbor_skip_detection_uses_module_and_named_reason(
-    source: str, expected: bool
-) -> None:
+def test_harbor_skip_detection_uses_module_and_named_reason(source: str, expected: bool) -> None:
     assert (_harbor_skip_evidence(source) is not None) is expected

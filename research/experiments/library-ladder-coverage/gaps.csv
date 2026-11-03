@@ -1,9 +1,8 @@
 package,ladder_version,reason,superseded_by
 library/tasks/event-summary,3.0.0,no-cells,4.0.0
-library/tasks/experimental/deepplanning-v1/travel-lisbon-002,1.4.0,no-cells,
-library/tasks/experimental/deepplanning-v1/travel-lisbon-002,2.0.0,no-cells,
-library/tasks/experimental/deepplanning-v1/travel-lisbon-002,3.0.0,no-cells,
-library/tasks/experimental/deepplanning-v1/travel-lisbon-002,4.0.0,no-cells,
+library/tasks/experimental/deepplanning-v1/travel-lisbon-002,1.4.0,no-cells,4.0.0
+library/tasks/experimental/deepplanning-v1/travel-lisbon-002,2.0.0,no-cells,4.0.0
+library/tasks/experimental/deepplanning-v1/travel-lisbon-002,3.0.0,no-cells,4.0.0
 library/tasks/experimental/syn-funcdag-easy,3.0.0,no-cells,4.0.0
 library/tasks/experimental/syn-funcdag-hard,3.0.0,no-cells,4.0.0
 library/tasks/experimental/syn-funcdag-medium,3.0.0,no-cells,4.0.0

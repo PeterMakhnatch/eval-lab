@@ -1196,3 +1196,52 @@ def test_harbor_skip_detection_uses_module_and_named_reason(
     source: str, expected: bool
 ) -> None:
     assert (_harbor_skip_evidence(source) is not None) is expected
+
+
+def _native_harbor_commands(workflow: dict) -> list[str]:
+    """The native Harbor step as one shell command per line, comments dropped."""
+    run = _native_harbor_step(workflow).get("run") or ""
+    lines = [line for line in run.splitlines() if not line.lstrip().startswith("#")]
+    return [command.strip() for command in "\n".join(lines).replace("\\\n", " ").splitlines()]
+
+
+def test_premerge_full_runs_ci_native_harbor_step_after_the_main_suite(tmp_path: Path) -> None:
+    """`premerge --full` must run exactly the file list of CI's native Harbor step (HAR-264).
+
+    Every Harbor-gated test skips in the main suite, so a premerge that skipped
+    the native step passed locally and failed only in CI. The main suite must
+    still run first, without the laminar extra, to keep skip paths faithful.
+    """
+    workflow = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
+    ci = _native_harbor_commands(workflow)
+    ci_sync = next(command for command in ci if command.startswith("uv sync"))
+    ci_import = next(command for command in ci if "python -c" in command)
+    ci_files = _native_harbor_step_files(workflow)
+    assert "test_job_diff.py" in ci_files
+
+    env = _environment(tmp_path, "exit 0\n")
+    log = tmp_path / "uv.log"
+    _executable(
+        tmp_path / "bin/uv",
+        'if [ "$1" = "--version" ]; then echo "uv 0.9.24"; exit 0; fi\n'
+        f'printf "%s\\n" "uv $*" >> "{log}"\n',
+    )
+    result = subprocess.run(
+        [BASH, str(PREMERGE_SCRIPT), "--full"],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    calls = log.read_text(encoding="utf-8").splitlines()
+
+    main_suite = calls.index("uv run --no-sync pytest")
+    sync = calls.index(ci_sync)
+    import_check = calls.index(ci_import.replace("'", ""))
+    harbor_runs = [call for call in calls[import_check:] if " pytest " in call]
+    assert main_suite < sync < import_check, calls
+    assert len(harbor_runs) == 1, calls
+    assert "-n 0" in harbor_runs[0]
+    assert [Path(match).name for match in _STEP_TEST_FILE.findall(harbor_runs[0])] == ci_files

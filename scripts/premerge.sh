@@ -45,6 +45,29 @@ readonly UV_VERSION="0.9.24"
 readonly TY_VERSION="0.0.71"
 readonly TY_BASELINE="0"
 readonly TY_OUTPUT="runs/_premerge/ty.txt"
+# The files CI's "Native Harbor diff, regrade and observability contracts" step
+# runs after installing the laminar extra (.github/workflows/ci.yml). They skip in
+# the main suite because Harbor is absent there. tests/test_quality_gates.py fails
+# when this list and ci.yml's differ (HAR-264); change both together.
+readonly -a HARBOR_NATIVE_TESTS=(
+  tests/test_job_diff.py tests/test_regrade.py
+  tests/test_harbor_laminar.py tests/test_mimoagent_worker.py
+  tests/test_mimoagent_stops.py tests/test_mimoagent_trajectory.py
+  tests/test_execution_contracts.py
+  tests/test_native_telemetry.py tests/test_credential_bridge.py
+  tests/test_harbor_docker.py tests/test_harbor_modal.py tests/test_egress_lock.py
+  tests/test_ref_subset_modal.py tests/test_qa_task_modal.py tests/test_upstream_grader.py
+  tests/test_heldout_v7_native.py tests/test_phase2_native_generation.py
+  tests/test_candidate_runner.py tests/test_candidate_port.py
+  tests/test_harbor_trace_inputs.py
+  tests/test_harbor_host_isolation.py tests/test_host_isolation_compose.py
+  tests/test_agent_network_policy.py
+  tests/test_cloud_trace_export.py tests/test_harbor_analyze_reader.py
+  tests/test_heldout_v7_rounds.py tests/test_campaign_execution.py
+  tests/test_mimoagent_clean_options.py tests/test_harbor024_agent_kwargs.py
+  tests/test_auditor_sft_data.py tests/test_antigravity_bridge.py
+  tests/test_task_workbench.py tests/test_tb4_fingerprints.py
+)
 
 if [[ "$(uv --version)" != "uv ${UV_VERSION}"* ]]; then
   echo "error: premerge requires uv ${UV_VERSION}; found $(uv --version)" >&2
@@ -84,8 +107,14 @@ case "${mode}" in
     echo "focused checks passed: Python ${PYTHON_FLOOR}; full suite and runtime smoke not run; not CI green"
     ;;
   full)
+    # CI order: the main suite and smoke run without Harbor so the skip paths stay
+    # faithful; only then does the native Harbor step install the laminar extra.
+    # The next premerge sync drops the extra again.
     uv run --no-sync pytest
     uv run --no-sync python -m evallab.smoke --docker-free
-    echo "premerge green: Python ${PYTHON_FLOOR}; ty 0 <= ${TY_BASELINE}"
+    uv sync --locked --no-group observability --group benchmarks --group lance --extra laminar
+    uv run --no-sync python -c 'import harbor.job_diff'
+    uv run --no-sync pytest -n 0 -rA "${HARBOR_NATIVE_TESTS[@]}"
+    echo "premerge green: Python ${PYTHON_FLOOR}; ty 0 <= ${TY_BASELINE}; native Harbor step passed"
     ;;
 esac

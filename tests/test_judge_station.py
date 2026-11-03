@@ -1783,6 +1783,17 @@ ROUND4: dict[str, dict[str, Any]] = {
         "test_ids": TEST_ID,
         "why": "folder inside a trial",
     },
+    "job-config-above-the-trial-lists-a-test-task": {
+        "mutate": lambda t: _write_json(
+            t.parent, "config.json", {"job_name": "j", "tasks": [{"path": "/x/build-pmars"}]}
+        ),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "job-provenance-above-the-trial-declares-a-test-split": {
+        "mutate": lambda t: _write_json(t.parent, "provenance.json", {"Split": "test"}),
+        "why": "split declaration",
+    },
     "folder-rollout-in-a-test-trial-with-no-agent-folder-or-root-trajectory": {
         "mutate": _agent_renamed_to_logs,
         "test_ids": TEST_ID,

@@ -293,3 +293,92 @@ def test_a_job_folder_with_a_trial_shaped_result_is_not_a_job(tmp_path: Path) ->
     (job / "result.json").write_text(json.dumps({"trial_name": "t"}), encoding="utf-8")
     with pytest.raises(ra.AdmissionRefused, match="folder inside a trial"):
         ra.admit_rollout(str(_trial(job)), registry=Registry())
+
+
+class SealedRegistry(Registry):
+    def sealed_identity(self, *, item_id=None, task_id=None, task_digest=None):
+        return "digest" if task_digest == "sealed-digest" else None
+
+
+def _neutral_trial(tmp: Path, sidecars: dict[str, object]) -> Path:
+    """A trial whose folder name spells nothing, as in real Harbor (``<job>__<id>``): the task
+    lives only in its sidecars, and the row lists a folder inside it."""
+    trial = tmp / "har120-000838-a1__YSe3G7t"
+    (trial / "logs").mkdir(parents=True)
+    (trial / "logs" / "trajectory.json").write_text(json.dumps({"steps": []}), encoding="utf-8")
+    for name, document in sidecars.items():
+        (trial / name).write_text(json.dumps(document), encoding="utf-8")
+    return trial / "logs"
+
+
+@pytest.mark.parametrize(
+    "sidecars",
+    [
+        {"result.json": {"Task_Name": "tb2/build-pmars"}},  # mixed-case key
+        {"result.json": {"TASK_ID": {"Path": "/x/build-pmars"}}},
+        {"result.json": {"Split": "test"}},
+        {"result.json": {"split": "test"}},  # only a split
+        {"config.json": {"task_id": "build-pmars"}},  # only an identity
+        {"result.json": {"task_checksum": "sealed-digest"}},
+        {"result.json": {}},  # empty mapping: fail closed
+        {"RESULT.JSON": {"split": "test"}},  # file name in another case
+        {"provenance.json": {"task": "build-pmars"}},
+    ],
+)
+def test_a_folder_in_a_neutrally_named_trial_is_held_to_the_trials_sidecars(
+    tmp_path: Path, sidecars: dict[str, object]
+) -> None:
+    folder = _neutral_trial(tmp_path, sidecars)
+    with pytest.raises(ra.AdmissionRefused):
+        ra.admit_rollout(str(folder), registry=SealedRegistry())
+
+
+@pytest.mark.parametrize(
+    ("sidecars", "why"),
+    [
+        (
+            {"config.json": {"job_name": "j", "tasks": [{"path": "/x/build-pmars"}]}},
+            "assigned TEST",
+        ),
+        ({"config.json": {"jobs_dir": "/x", "TASKS": ["build-pmars"]}}, "assigned TEST"),
+        ({"result.json": {"n_total_trials": 4, "stats": {}, "Split": "test"}}, "split"),
+        ({"provenance.json": {"scope": {"split": "held-out"}}}, "split"),
+        ({"CONFIG.JSON": {"tasks": [{"name": "build-pmars"}]}}, "assigned TEST"),
+        (
+            {"run.json": {"invocations": [], "task_digest": "sealed-digest"}},
+            "sealed|inside a trial",
+        ),
+        ({"result.json": "[1, 2"}, "not JSON|inside a trial"),
+    ],
+)
+def test_a_job_above_a_trial_is_held_to_the_same_checks_as_the_trial(
+    tmp_path: Path, sidecars: dict[str, object], why: str
+) -> None:
+    """A job-shaped sidecar is not a free pass: a TEST identity or split above still refuses."""
+    job = tmp_path / "job"
+    job.mkdir()
+    for name, document in sidecars.items():
+        text = document if isinstance(document, str) else json.dumps(document)
+        (job / name).write_text(text, encoding="utf-8")
+    with pytest.raises(ra.AdmissionRefused, match=why):
+        ra.admit_rollout(str(_trial(job)), registry=SealedRegistry())
+
+
+def test_ancestor_sidecars_of_an_honest_job_pass(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    job.mkdir()
+    (job / "config.json").write_text(
+        json.dumps({"job_name": "j", "tasks": [{"path": "/x/fine-task"}]}), encoding="utf-8"
+    )
+    (job / "result.json").write_text(json.dumps(JOB_RESULT), encoding="utf-8")
+    (job / "provenance.json").write_text(json.dumps({"scope": {"split": "dev"}}), encoding="utf-8")
+    assert ra.admit_rollout(str(_trial(job)), registry=SealedRegistry()).kind == "trial"
+
+
+def test_mixed_case_keys_are_shape_keys_and_an_empty_sidecar_is_a_trial(tmp_path: Path) -> None:
+    for index, document in enumerate(({"Trial_Name": "t"}, {}, {"TASK_CHECKSUM": "x"})):
+        job = tmp_path / f"job{index}"
+        job.mkdir()
+        (job / "result.json").write_text(json.dumps(document), encoding="utf-8")
+        with pytest.raises(ra.AdmissionRefused, match="folder inside a trial"):
+            ra.admit_rollout(str(_trial(job)), registry=Registry())

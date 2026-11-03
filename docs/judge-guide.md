@@ -210,21 +210,26 @@ uv run evallab judge export --out ~/judge-verdicts.csv
     when it is named `agent` or `verifier`, holds `agent`, `verifier`, `trajectory.json`,
     `final.diff` or `trial.log`, or holds a `result.json` (keys such as `trial_name`, `task_name`,
     `verifier_result`), `config.json` (`trial_name`, `task`), `run.json` or `grade.json` with a
-    trial's keys, or one that cannot be read. A job folder's own `result.json` (`stats`,
+    trial's keys or a task id or digest, or one that is empty, not an object or cannot be read
+    (keys compared case-insensitively). A job folder's own `result.json` (`stats`,
     `n_total_trials`) and `config.json` (`job_name`, `tasks`) do not make it a trial, so the trials
     below it still admit. For a single file the check is stricter: any ancestor holding `agent`,
-    `verifier` or any of those four sidecars refuses (names compared case-insensitively). A row
-    cannot point inside a trial to skip its sidecars;
+    `verifier` or any sidecar refuses (names compared case-insensitively). A row cannot point
+    inside a trial to skip its sidecars;
+  - shape is only a classifier, never the protection: the `result.json`, `config.json`,
+    `run.json`, `grade.json` and `provenance.json` (any letter case) of EVERY folder above the
+    rollout are read and held to the same checks as the rollout's own files, below. An honest job
+    above a trial passes; a job or trial folder above it that names a TEST or sealed task (a job
+    config's `tasks` list included) or declares a non-`dev` split refuses it;
   - nothing inside is a symlink or a special file, and no file is a hard link to a file under
     `research/answer-keys` (published trials are hard-linked copies, so a link count alone cannot
     decide; a link into some other folder is caught by the checks that read the content below);
   - every `split` key, in any letter case and at any depth, in the manifest row, the trajectories
-    and the `result.json`, `config.json`, `run.json`, `grade.json` files is exactly `dev` (a blank
-    or non-text value, a document too deeply nested to read, and a file that is not valid JSON all
-    refuse);
-  - no task, trial, run, path segment, file or folder name any of them gives, compared in NFKC,
-    case-folded form by segment, stem and extension, is assigned to TEST or sealed in the corpus
-    registry;
+    and those sidecar files is exactly `dev` (a blank or non-text value, a document too deeply
+    nested to read, and a file that is not valid JSON all refuse);
+  - no task, trial, run, path segment, file or folder name any of them gives (keys compared
+    case-insensitively), compared in NFKC, case-folded form by segment, stem and extension, is
+    assigned to TEST or sealed in the corpus registry, nor is any task digest they give;
   - the digest matches the line's, computed on the very bytes the station reads: every file is
     read once into memory, hashed, and the card is built from that copy, so a change on disk after
     the check changes nothing the judge sees;

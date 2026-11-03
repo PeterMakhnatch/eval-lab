@@ -18,11 +18,16 @@ list of known-bad tricks is needed:
 * a rollout is never inside a trial. Trials are told from job folders by shape (``TRIAL_SHAPE``,
   measured on the real Harbor results): an ancestor is a trial when it is named ``agent`` or
   ``verifier``, holds ``agent``, ``verifier``, ``trajectory.json``, ``final.diff`` or
-  ``trial.log``, or holds a ``result.json``/``config.json``/``run.json``/``grade.json`` with a
-  trial's keys (or one that cannot be read). A job folder's own sidecars carry job keys, so the
-  trials below it still admit. A single file is stricter: any ancestor holding ``agent``,
+  ``trial.log``, or holds a sidecar with a trial's keys (or one empty, not a mapping or
+  unreadable; keys compared case-insensitively). A job folder's own sidecars carry job keys, so
+  the trials below it still admit. A single file is stricter: any ancestor holding ``agent``,
   ``verifier`` or any sidecar refuses. A directory is a whole trial. Files are indexed by
   case-folded relative path, so ``Result.json`` is a sidecar too;
+* shape is not what keeps a TEST trial out: the sidecars (``result.json``, ``config.json``,
+  ``run.json``, ``grade.json``, ``provenance.json``, any letter case) of EVERY ancestor folder
+  are read and held to the same checks as the rollout's own documents (split, task and trial
+  names, digests, ``tasks`` lists), so an honest job above a trial passes and a TEST declaration
+  anywhere above refuses;
 * every trajectory and sidecar is read once, into memory, together with the hash of every file;
   the digest is checked on those same bytes and the parsed documents are what the caller serves,
   so nothing is read again after it is verified;
@@ -53,7 +58,7 @@ from typing import Any
 from evallab import hack_drop as hd
 from evallab.line.io import canonical_hash
 
-SIDECARS = ("result.json", "config.json", "run.json", "grade.json")
+SIDECARS = ("result.json", "config.json", "run.json", "grade.json", "provenance.json")
 TRAJECTORIES = ("agent/trajectory.json", "trajectory.json")
 DIFFS = ("final.diff", "verifier/agent.diff")
 TRIAL_FOLDERS = frozenset({"agent", "verifier"})
@@ -227,6 +232,13 @@ def declares_non_dev(value: Any, depth: int = 0) -> bool:
     return False
 
 
+def _get_folded(mapping: Mapping[Any, Any], wanted: str) -> Any:
+    for key, value in mapping.items():
+        if isinstance(key, str) and canonical(key) == wanted:
+            return value
+    return None
+
+
 def identities(value: Any, depth: int = 0) -> tuple[list[str], list[str]]:
     """``(names, digests)`` a document declares, including Harbor's ``{"path": ...}`` and
     ``{"name": ...}`` mappings for ``task`` and ``task_id``."""
@@ -240,12 +252,23 @@ def identities(value: Any, depth: int = 0) -> tuple[list[str], list[str]]:
     elif isinstance(value, list):
         children = (("", child) for child in value)
     for key, child in children:
-        if isinstance(key, str) and key in IDENTITY_KEYS:
+        folded = canonical(key) if isinstance(key, str) else ""
+        if folded in IDENTITY_KEYS:
             if isinstance(child, str):
                 names.append(child)
             elif isinstance(child, Mapping):
-                names += [v for k in ("path", "name") if isinstance(v := child.get(k), str)]
-        elif isinstance(key, str) and key in DIGEST_KEYS and isinstance(child, str):
+                names += [
+                    v for k in ("path", "name") if isinstance(v := _get_folded(child, k), str)
+                ]
+        elif folded == "tasks" and isinstance(child, list):  # a job config lists its tasks
+            for task in child:
+                if isinstance(task, str):
+                    names.append(task)
+                elif isinstance(task, Mapping):
+                    names += [
+                        v for k in ("path", "name") if isinstance(v := _get_folded(task, k), str)
+                    ]
+        elif folded in DIGEST_KEYS and isinstance(child, str):
             digests.append(child)
         if key not in OPAQUE_KEYS and isinstance(child, Mapping | list):
             sub_names, sub_digests = identities(child, depth + 1)
@@ -290,20 +313,23 @@ def _refuse_test_identity(registry: Any, names: Iterable[str], digests: Iterable
 # holds task_name/trial_name/trial_uri/agent_result/verifier_result and its config.json holds
 # trial_name/task; a job's result.json holds n_total_trials/stats and its config.json holds
 # job_name/tasks. A c1c5 run.json/grade.json holds task/case_id; a job-level run.json does not.
+_IDENTITY_SHAPE = frozenset({"task_id", "task_checksum", "task_digest", "package_digest"})
 TRIAL_SHAPE = {
     "result.json": frozenset(
         {"task_name", "trial_name", "trial_uri", "agent_result", "verifier_result"}
-    ),
-    "config.json": frozenset({"trial_name", "task"}),
-    "run.json": frozenset({"task", "case_id", "trial", "trial_id", "trial_name"}),
-    "grade.json": frozenset({"task", "case_id", "trial_id", "trial_name"}),
+    )
+    | _IDENTITY_SHAPE,
+    "config.json": frozenset({"trial_name", "task"}) | _IDENTITY_SHAPE,
+    "run.json": frozenset({"task", "case_id", "trial", "trial_id", "trial_name"}) | _IDENTITY_SHAPE,
+    "grade.json": frozenset({"task", "case_id", "trial_id", "trial_name"}) | _IDENTITY_SHAPE,
 }
 TRIAL_ONLY = frozenset({"agent", "verifier", "trajectory.json", "final.diff", "trial.log"})
 
 
 def _trial_shaped(folder: Path, listing: Mapping[str, str]) -> bool:
     """Whether ``folder`` is a trial by shape: it holds a trial-only file or folder, or a sidecar
-    with a trial's keys. A sidecar that cannot be read counts as trial-shaped (fail closed)."""
+    with a trial's keys (compared case-insensitively). A sidecar that cannot be read, is not a
+    mapping, or is empty counts as trial-shaped (fail closed)."""
     if TRIAL_ONLY & listing.keys():
         return True
     for sidecar, keys in TRIAL_SHAPE.items():
@@ -313,7 +339,9 @@ def _trial_shaped(folder: Path, listing: Mapping[str, str]) -> bool:
             document = json.loads((folder / listing[sidecar]).read_bytes().decode("utf-8"))
         except (OSError, ValueError, RecursionError):
             return True
-        if not isinstance(document, Mapping) or keys & document.keys():
+        if not isinstance(document, Mapping) or not document:
+            return True
+        if keys & {canonical(key) for key in document if isinstance(key, str)}:
             return True
     return False
 
@@ -338,6 +366,29 @@ def _inside_a_trial(path: Path, *, folder_rollout: bool) -> bool:
         elif listing.keys() & ({"agent", "verifier"} | set(SIDECARS)):
             return True
     return False
+
+
+def _ancestor_documents(root: Path) -> list[Any]:
+    """The sidecars of every ancestor folder, parsed, so a folder above the rollout (a trial
+    above a folder rollout, or a job above a trial) is held to the same checks as the rollout's
+    own documents. An ancestor sidecar that cannot be read refuses (fail closed)."""
+    found: list[Any] = []
+    for folder in root.parents:
+        try:
+            listing = {canonical(name): name for name in os.listdir(folder)}
+        except OSError:
+            continue
+        for sidecar in SIDECARS:
+            if sidecar in listing:
+                path = folder / listing[sidecar]
+                try:
+                    data = path.read_bytes()
+                except OSError as error:
+                    raise AdmissionRefused(
+                        f"cannot read {path}: {error}", unreadable=True
+                    ) from error
+                found.append(_parse(path, data))
+    return found
 
 
 def admit_rollout(
@@ -392,6 +443,7 @@ def admit_rollout(
             f"sha256 expected {expected_sha256.lower()} got {digest}", integrity=True
         )
     documents += [_parse(path, data) for path, data in sidecars]
+    documents += _ancestor_documents(root)
     served: tuple[Path, Any] | None = None
     for path, data in candidates:
         document = _parse(path, data)

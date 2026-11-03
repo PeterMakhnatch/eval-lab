@@ -1101,7 +1101,7 @@ inputs:
   - path: src/evallab/rollout.py
     digest: sha256:edfc1dd043c7d6755e6e82e59a88f08a13b9ce6bbef18e564b26adebc8e726d0
   - path: src/evallab/rollout_admission.py
-    digest: sha256:ff2b9a40aefe56b4185533c5d86c42501e1882adaf694259332063258816125b
+    digest: sha256:5f730f8b52ee4ee2fc8aecf4f6e0334bf6f44c7505b630cc7f2ce1af5d60a396
   - path: src/evallab/roster.py
     digest: sha256:580eb3a4ce08953ade65471162763ddc902de0bada93b9c61b224ddbda80e16a
   - path: src/evallab/run_preflight.py

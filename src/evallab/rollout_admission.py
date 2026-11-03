@@ -170,6 +170,7 @@ class _Tree:
     names: list[str]
     texts: dict[str, bytes]  # relative path -> bytes, every file a caller may serve
     inodes: frozenset[tuple[int, int]]  # (device, inode) of every file in the trial
+    documents: list[Any]  # every .json file that is not a sidecar or a trajectory, parsed
 
 
 def _open(path: Path, expected: os.stat_result) -> Any:
@@ -177,7 +178,10 @@ def _open(path: Path, expected: os.stat_result) -> Any:
 
     A path swapped for a link or another file after the walk's ``lstat`` is refused, not read.
     """
-    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError as error:  # a link swapped in after the walk (ELOOP), or the file vanished
+        raise AdmissionRefused(f"file changed while it was being admitted: {path}") from error
     try:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode) or (info.st_dev, info.st_ino) != (
@@ -195,7 +199,10 @@ def _read_whole(path: Path, expected: os.stat_result) -> bytes:
     if expected.st_size > MAX_READ_BYTES:
         raise AdmissionRefused(f"file is larger than {MAX_READ_BYTES} bytes: {path}")
     with _open(path, expected) as handle:
-        return handle.read()
+        data = handle.read(MAX_READ_BYTES + 1)  # a file that grew in place is still bounded
+    if len(data) > MAX_READ_BYTES:
+        raise AdmissionRefused(f"file is larger than {MAX_READ_BYTES} bytes: {path}")
+    return data
 
 
 def _read_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> _Tree:
@@ -205,6 +212,7 @@ def _read_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> _Tree:
     held: dict[str, tuple[Path, bytes]] = {}
     texts: dict[str, bytes] = {}
     inodes: set[tuple[int, int]] = set()
+    others: list[Any] = []
     seen: dict[str, Path] = {}
     names: list[str] = []
     pending = [root]
@@ -242,7 +250,12 @@ def _read_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> _Tree:
                         if needed:
                             held[relative] = (path, data)
                         if is_json:
-                            _refuse_document(original, _parse(path, data))
+                            document = _parse(path, data)
+                            _refuse_document(
+                                original, document, trajectory=relative in TRAJECTORIES
+                            )
+                            if not needed:  # sidecars and trajectories are read by the caller
+                                others.append(document)
                         files.append((path, hashlib.sha256(data).hexdigest()))
                     else:
                         with _open(path, mode) as handle:
@@ -252,7 +265,7 @@ def _read_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> _Tree:
     # the line's own digest of a folder, computed from the hashes of the bytes read here
     ordered = sorted(files)
     digest = canonical_hash([(p.relative_to(root).as_posix(), d) for p, d in ordered])
-    return _Tree(digest, held, names, texts, frozenset(inodes))
+    return _Tree(digest, held, names, texts, frozenset(inodes), others)
 
 
 def _parse(path: Path, data: bytes) -> Any:
@@ -284,15 +297,23 @@ def declares_non_dev(value: Any, depth: int = 0) -> bool:
     return False
 
 
-def label_key(value: Any, depth: int = 0, tools: bool = False, names: bool = False) -> str | None:
+def label_key(
+    value: Any,
+    depth: int = 0,
+    tools: bool = False,
+    names: bool = False,
+    *,
+    trajectory: bool = True,
+) -> str | None:
     """The first evaluator/label key (``LABEL_KEYS``, any case) in a document, or ``None``.
 
     Exactly two parts of a document are not searched, both provably not a declaration:
 
-    * the value of a top-level ``steps`` list: what the agent wrote and what its tools returned;
-    * the parameter names under a ``properties`` mapping inside a top-level ``tools`` list: a tool
-      schema may name a parameter ``label``. Their values (the parameter schemas) and every other
-      key of a tool entry are searched.
+    * the value of a top-level ``steps`` list of a trajectory file: what the agent wrote and what
+      its tools returned (any other file of a rollout is searched whole);
+    * the parameter names under a ``properties`` mapping inside a top-level ``tools`` list whose
+      value is a parameter schema (a mapping): a tool schema may name a parameter ``label``.
+      Their values (the parameter schemas) and every other key of a tool entry are searched.
 
     Everything else is searched at every depth, including a trajectory's ``nodes`` and the
     remaining ``tools`` keys. A document nested past ``DOCUMENT_DEPTH`` is not searched here:
@@ -302,12 +323,19 @@ def label_key(value: Any, depth: int = 0, tools: bool = False, names: bool = Fal
         return None
     if isinstance(value, Mapping):
         for key, child in value.items():
-            if not names and isinstance(key, str) and key.lower() in LABEL_KEYS:
+            if (
+                (not names or not isinstance(child, Mapping))
+                and isinstance(key, str)
+                and key.lower() in LABEL_KEYS
+            ):
                 return key
-            if depth == 0 and key == "steps" and isinstance(child, list):
+            if trajectory and depth == 0 and key == "steps" and isinstance(child, list):
                 continue
             found = label_key(
-                child, depth + 1, tools or (depth == 0 and key == "tools"), tools and key == "properties"
+                child,
+                depth + 1,
+                tools or (depth == 0 and key == "tools" and isinstance(child, list)),
+                tools and key == "properties" and isinstance(child, Mapping),
             )
             if found is not None:
                 return found
@@ -319,12 +347,13 @@ def label_key(value: Any, depth: int = 0, tools: bool = False, names: bool = Fal
     return None
 
 
-def _refuse_document(relative: str, document: Any) -> None:
+def _refuse_document(relative: str, document: Any, *, trajectory: bool) -> None:
     """Refuse a parsed JSON file of the rollout that declares a split other than dev or holds an
-    evaluator/label field. Every ``.json`` file of a rollout goes through this."""
+    evaluator/label field. Every ``.json`` file of a rollout goes through this; only a
+    trajectory file may keep its ``steps`` unsearched."""
     if declares_non_dev(document):
         raise AdmissionRefused(f"{relative}: a split declaration is not dev")
-    key = label_key(document)
+    key = label_key(document, trajectory=trajectory)
     if key is not None:
         raise AdmissionRefused(f"{relative}: evaluator/label field {key!r}")
 
@@ -465,11 +494,16 @@ def _inside_a_trial(path: Path, *, folder_rollout: bool) -> bool:
     return False
 
 
-def _ancestor_documents(root: Path) -> list[Any]:
+def _ancestor_documents(
+    root: Path, sealed: frozenset[tuple[int, int]]
+) -> tuple[list[Any], frozenset[tuple[int, int]]]:
     """The sidecars of every ancestor folder, parsed, so a folder above the rollout (a trial
     above a folder rollout, or a job above a trial) is held to the same checks as the rollout's
-    own documents. An ancestor sidecar that cannot be read refuses (fail closed)."""
+    own documents: read without following a link, bounded, never a hard link to sealed
+    material, and refused for a non-dev split or an evaluator/label field. An ancestor sidecar
+    that cannot be read refuses (fail closed). Also returns the (device, inode) of each."""
     found: list[Any] = []
+    inodes: set[tuple[int, int]] = set()
     for folder in root.parents:
         try:
             listing = {canonical(name): name for name in os.listdir(folder)}
@@ -479,13 +513,21 @@ def _ancestor_documents(root: Path) -> list[Any]:
             if sidecar in listing:
                 path = folder / listing[sidecar]
                 try:
-                    data = path.read_bytes()
+                    info = os.lstat(path)
+                    if not stat.S_ISREG(info.st_mode):
+                        raise AdmissionRefused(f"ancestor sidecar is not a regular file: {path}")
+                    if (info.st_dev, info.st_ino) in sealed:
+                        raise AdmissionRefused(f"hard link to sealed material: {path}")
+                    data = _read_whole(path, info)
                 except OSError as error:
                     raise AdmissionRefused(
                         f"cannot read {path}: {error}", unreadable=True
                     ) from error
-                found.append(_parse(path, data))
-    return found
+                document = _parse(path, data)
+                _refuse_document(str(path), document, trajectory=False)
+                inodes.add((info.st_dev, info.st_ino))
+                found.append(document)
+    return found, frozenset(inodes)
 
 
 def admit_rollout(
@@ -530,6 +572,7 @@ def admit_rollout(
                 diff_bytes = tree.held[name][1]
                 break
         held, inodes = tree.texts, tree.inodes
+        documents += tree.documents  # every other .json file names its task and trial too
     elif stat.S_ISREG(top):
         info = _lstat(root)
         if (info.st_dev, info.st_ino) in sealed:
@@ -540,7 +583,7 @@ def admit_rollout(
         kind, digest = "file", hashlib.sha256(data).hexdigest()
         if root.suffix.casefold() == ".json" or require_trajectory:
             candidates = [(root.name, root, data)]
-            _refuse_document(root.name, _parse(root, data))
+            _refuse_document(root.name, _parse(root, data), trajectory=True)
         held, inodes = {root.name: data}, frozenset({(info.st_dev, info.st_ino)})
     else:
         raise AdmissionRefused(f"rollout is neither a folder nor a regular file: {root}")
@@ -550,7 +593,9 @@ def admit_rollout(
         )
     parsed_sidecars = tuple((name, _parse(path, data)) for name, path, data in sidecars)
     documents += [document for _, document in parsed_sidecars]
-    documents += _ancestor_documents(root)
+    ancestors, ancestor_inodes = _ancestor_documents(root, sealed)
+    documents += ancestors
+    inodes = inodes | ancestor_inodes
     served: tuple[Path, Any] | None = None
     trajectories: list[tuple[str, Any]] = []
     for name, path, data in candidates:

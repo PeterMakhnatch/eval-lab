@@ -247,7 +247,7 @@ RECEIPT_TAMPERS: list[tuple[str, str, Callable[[dict[str, Any]], None], str]] = 
         lambda r: r["counts"].update(rows_out=9999),
         "export receipt totals differ from the batch files",
     ),
-    ("intake", "rows deleted", _drop_rows, "intake receipt lists an output without a row count"),
+    ("intake", "rows deleted", _drop_rows, "intake receipt outputs are not exactly"),
     (
         "decisions",
         "one code_rev",

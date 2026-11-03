@@ -68,7 +68,14 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 score = read_json(batch / "scoreboard.json")
                 score["quality_checks"] = value["checks"]
                 write_json(batch / "scoreboard.json", score)
-                (batch / "SCOREBOARD.md").write_text(render_scoreboard(score), encoding="utf-8")
+                try:
+                    view = render_scoreboard(score)
+                except (AttributeError, KeyError, TypeError, ValueError):
+                    # A scoreboard that cannot be rendered is not the same shape the line writes:
+                    # scoreboard_recompute has already failed on it, so the view is left alone.
+                    view = None
+                if view is not None:
+                    (batch / "SCOREBOARD.md").write_text(view, encoding="utf-8")
             code = 0 if value["passed"] else 2
         else:
             batch = _batch(args.path)

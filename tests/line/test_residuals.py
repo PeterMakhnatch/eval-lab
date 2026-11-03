@@ -120,6 +120,7 @@ def test_missing_cache_row_is_a_miss_only_when_the_run_needs_a_reading(
     assert read_json(quiet / "scoreboard.json")["autoreview"] == {"cache_misses": 0}
     spec = read_json(fixture_spec)
     spec["batch_id"] = "needs-reading"
+    spec["judge"]["queue"] = str(fixture_spec.parent / "second-queue.jsonl")  # not queued twice
     write_json(fixture_spec, spec)
     _soft_l0(monkeypatch, {"weak-run"})
     batch = core.run_line(fixture_spec, fixture_spec.parent)
@@ -328,7 +329,7 @@ def test_an_absolute_receipt_path_to_an_answer_key_is_not_read(
 ) -> None:
     batch = core.run_line(fixture_spec, fixture_spec.parent)
     secret = _secret(tmp_path)
-    ref = {"path": str(secret), "sha256": digest(secret), "rows": 1}
+    ref = {"path": str(secret), "sha256": digest(secret)}
     _edit_receipt(batch, "decisions", lambda r: r["inputs"].append(ref))
     result = _check(batch, fixture_spec.parent, "provenance")
     assert result["status"] == "FAIL" and "declared" in result["details"]
@@ -426,7 +427,7 @@ def test_a_hard_link_to_a_label_file_inside_a_batch_is_refused(fixture_spec: Pat
 def test_a_stage_may_list_only_its_own_batch_files(fixture_spec: Path) -> None:
     batch = core.run_line(fixture_spec, fixture_spec.parent)
     # runs.jsonl is a real batch file, but the decisions stage does not read it.
-    ref = {"path": "runs.jsonl", "sha256": digest(batch / "runs.jsonl"), "rows": 2}
+    ref = {"path": "runs.jsonl", "sha256": digest(batch / "runs.jsonl")}
     _edit_receipt(batch, "decisions", lambda r: r["inputs"].append(ref))
     result = _check(batch, fixture_spec.parent, "provenance")
     assert result["status"] == "FAIL" and "unexpected files" in result["details"]
@@ -672,7 +673,7 @@ def test_each_declared_input_swapped_for_a_link_is_refused(fixture_spec: Path, w
     shutil.copy(target, copy)
     target.unlink()
     target.symlink_to(copy)
-    with pytest.raises(ValueError, match="no longer canonical"):
+    with pytest.raises(ValueError, match="declared input is a symlink"):
         core.check_batch(batch, fixture_spec.parent)
 
 

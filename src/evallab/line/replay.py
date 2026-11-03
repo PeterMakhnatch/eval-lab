@@ -254,6 +254,19 @@ def replay(
     repo_root: Path,
     write_baseline: bool = False,
 ) -> tuple[dict[str, Any], int]:
+    """See :func:`_replay`. Everything it reads is read through the line's reader."""
+    from .core import declared_scope
+
+    with declared_scope(repo_root):
+        return _replay(spec_path, baseline, repo_root, write_baseline)
+
+
+def _replay(
+    spec_path: Path,
+    baseline: Path,
+    repo_root: Path,
+    write_baseline: bool = False,
+) -> tuple[dict[str, Any], int]:
     """Rerun off/cached inputs without editing the spec or external judge queue.
 
     ``changed_runs`` is a list of decision changes versus the baseline, or ``None`` with
@@ -277,9 +290,10 @@ def replay(
         from .spec import load_spec
 
         spec = load_spec(spec_path)
-        from evallab.hack_drop import check_dev_path_allowed
+        from evallab.hack_drop import check_declared_path
 
-        baseline = check_dev_path_allowed(baseline)  # never read or write under a TEST path
+        # never read or write under a TEST path, and never through a link
+        baseline = check_declared_path(baseline)
         autoreview = spec.get("autoreview", {})
         if autoreview.get("mode") not in {"off", "cached"} or autoreview.get("max_usd") != 0:
             raise ValueError("replay requires autoreview off or cached and a zero spend cap")

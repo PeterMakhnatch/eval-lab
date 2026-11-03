@@ -244,6 +244,23 @@ def _refuse_non_dev_split(document: Mapping[str, Any], what: str) -> None:
         raise RefusedRun(f"{what} declares a non-DEV split")
 
 
+def check_declared_path(path: Path | str) -> Path:
+    """``check_dev_path_allowed`` for a declared input of the assembly line.
+
+    Inside the line's declared reader a final symlink is refused BEFORE the path is resolved
+    (``check_dev_path_allowed`` resolves it, which would hide the link from the no-follow
+    reader). Outside it the behaviour is unchanged.
+    """
+    if _DECLARED_READER.get() is not None:
+        try:
+            mode = os.lstat(Path(path).expanduser()).st_mode
+        except OSError:
+            mode = 0
+        if (mode & 0o170000) == 0o120000:
+            raise RefusedRun(f"declared input is a symlink: {path}")
+    return check_dev_path_allowed(path)
+
+
 def check_dev_path_allowed(path: Path | str) -> Path:
     """Refuse any path under research/answer-keys or declared TEST/held-out splits.
 
@@ -695,9 +712,26 @@ class RolloutDecision:
 # --------------------------------------------------------------------------- #
 
 
+def _record_task(mapping: dict[str, dict[str, str]], entry: Any) -> None:
+    """Add one task-status row. A row that is not an object is refused, and so is a task given
+    two different statuses: which one counts must never depend on the order of the rows."""
+    if not isinstance(entry, dict):
+        raise ValueError(f"task status row is not an object: {str(entry)[:60]!r}")
+    if "task_id" not in entry:
+        return
+    t_id = str(entry["task_id"])
+    row = {
+        "status": str(entry.get("status", "unknown")).lower(),
+        "reason": str(entry.get("reason", "")),
+    }
+    if t_id in mapping and mapping[t_id] != row:
+        raise ValueError(f"task status repeats {t_id!r} with a different status")
+    mapping[t_id] = row
+
+
 def load_certified_tasks(path: Path | str) -> dict[str, dict[str, str]]:
     """Load certified tasks manifest mapping task_id -> {status, reason}."""
-    resolved = check_dev_path_allowed(path)
+    resolved = check_declared_path(path)
     if not resolved.is_file():
         raise FileNotFoundError(f"certified tasks file not found: {path}")
 
@@ -709,12 +743,7 @@ def load_certified_tasks(path: Path | str) -> dict[str, dict[str, str]]:
         if isinstance(data, dict):
             if "tasks" in data and isinstance(data["tasks"], list):
                 for entry in data["tasks"]:
-                    if isinstance(entry, dict) and "task_id" in entry:
-                        t_id = str(entry["task_id"])
-                        mapping[t_id] = {
-                            "status": str(entry.get("status", "unknown")).lower(),
-                            "reason": str(entry.get("reason", "")),
-                        }
+                    _record_task(mapping, entry)
             else:
                 for k, v in data.items():
                     if isinstance(v, dict):
@@ -726,25 +755,14 @@ def load_certified_tasks(path: Path | str) -> dict[str, dict[str, str]]:
                         mapping[str(k)] = {"status": v.lower(), "reason": ""}
         elif isinstance(data, list):
             for entry in data:
-                if isinstance(entry, dict) and "task_id" in entry:
-                    t_id = str(entry["task_id"])
-                    mapping[t_id] = {
-                        "status": str(entry.get("status", "unknown")).lower(),
-                        "reason": str(entry.get("reason", "")),
-                    }
+                _record_task(mapping, entry)
     except json.JSONDecodeError:
         # Try JSONL
         for line in text.splitlines():
             line = line.strip()
             if not line:
                 continue
-            entry = strict_json_loads(line)
-            if isinstance(entry, dict) and "task_id" in entry:
-                t_id = str(entry["task_id"])
-                mapping[t_id] = {
-                    "status": str(entry.get("status", "unknown")).lower(),
-                    "reason": str(entry.get("reason", "")),
-                }
+            _record_task(mapping, strict_json_loads(line))
 
     return mapping
 
@@ -784,16 +802,25 @@ def _parse_label_bool(val: Any, row_id: str | None = None) -> bool | None:
 def _check_label_row_dev(item: dict[str, Any], registry: CorpusRegistry | None = None) -> None:
     _refuse_non_dev_split(item, "label row")
     if registry is not None:
-        task_id = item.get("task_id")
-        item_id = item.get("item_id") or item.get("id") or item.get("run_id")
-        if task_id and registry.assigned_test_anywhere(task_id=str(task_id)):
-            raise RefusedRun(f"label row task is assigned TEST in corpus registry: {task_id}")
-        if item_id and registry.assigned_test_anywhere(item_id=str(item_id)):
-            raise RefusedRun(f"label row item is assigned TEST in corpus registry: {item_id}")
-        if item_id and "__" in str(item_id):
-            stem = str(item_id).split("__")[0]
-            if stem and (registry.assigned_test_anywhere(task_id=stem) or registry.assigned_test_anywhere(item_id=stem)):
-                raise RefusedRun(f"label row item stem is assigned TEST in corpus registry: {stem}")
+        # Every identity the row carries, not only the first: the label is stored under the
+        # first of id/run_id/item_id/task_id, so a harmless item_id must not mask a TEST id.
+        task_ids = {str(item[k]) for k in ("task_id", "task") if item.get(k)}
+        item_ids = {str(item[k]) for k in ("item_id", "id", "run_id") if item.get(k)}
+        for task_id in sorted(task_ids):
+            if registry.assigned_test_anywhere(task_id=task_id):
+                raise RefusedRun(f"label row task is assigned TEST in corpus registry: {task_id}")
+        for item_id in sorted(item_ids):
+            if registry.assigned_test_anywhere(item_id=item_id):
+                raise RefusedRun(f"label row item is assigned TEST in corpus registry: {item_id}")
+            if "__" in item_id:
+                stem = item_id.split("__")[0]
+                if stem and (
+                    registry.assigned_test_anywhere(task_id=stem)
+                    or registry.assigned_test_anywhere(item_id=stem)
+                ):
+                    raise RefusedRun(
+                        f"label row item stem is assigned TEST in corpus registry: {stem}"
+                    )
 
 
 def _extract_label_value(item: dict[str, Any]) -> tuple[Any, bool]:
@@ -823,7 +850,7 @@ def load_labels(
     """
     if attempted_cheat is not None and attempted_cheat not in {"exclude", "cheat", "clean"}:
         raise ValueError(f"invalid attempted_cheat policy: {attempted_cheat!r}")
-    resolved = check_dev_path_allowed(path)
+    resolved = check_declared_path(path)
     if not resolved.is_file():
         raise FileNotFoundError(f"labels file not found: {path}")
 
@@ -869,14 +896,8 @@ def load_labels(
     try:
         data = strict_json_loads(text)
         if isinstance(data, dict):
-            wrapper_meta = data.get("metadata")
-            _check_label_row_dev(
-                {
-                    "split": data.get("split"),
-                    "metadata": wrapper_meta if isinstance(wrapper_meta, dict) else {},
-                },
-                registry=registry,
-            )
+            # The whole wrapper, any key case, any depth: not only a top-level split/metadata.
+            _refuse_non_dev_split(data, "label file")
             # An explicit empty list is still a rows container, not a run named "rows" -- unless
             # the object is itself one row (it carries a row id), whose "labels" is just a tag list.
             is_single_row = any(k in data for k in ("id", "run_id", "task_id", "item_id"))
@@ -971,6 +992,7 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
         if path.suffix == ".json" and path.name not in _SKIP_FILE_NAMES:
             try:
                 run = load_atif_file(path)
+                parse_error = None
             except RefusedRun:
                 raise
             except Exception as exc:
@@ -981,6 +1003,7 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
             if cand.is_file():
                 try:
                     run = load_atif_file(cand)
+                    parse_error = None
                     break
                 except RefusedRun:
                     raise
@@ -1046,6 +1069,7 @@ def rollout_from_admitted(path: Path, admitted: Any) -> RolloutItem:
         for name, document in admitted.trajectories:
             try:
                 run = atif_run(document, str(path / name) if is_dir else str(path))
+                parse_error = None
                 break
             except RefusedRun:
                 raise
@@ -1163,17 +1187,41 @@ def _check_row_dev(row: Mapping[str, Any]) -> None:
 def load_rollouts(
     inputs: Sequence[Path | str],
     repo_root: Path | None = None,
-    loader: Callable[[Path], RolloutItem] | None = None,
+    loader: Callable[..., RolloutItem] | None = None,
+    *,
+    admitted_only: bool = False,
 ) -> list[RolloutItem]:
     """Discover and load candidate rollouts from paths, directories, or JSON/JSONL manifests.
 
     ``loader`` reads one rollout (a file or a trial folder); the assembly line passes one that
-    admits the rollout and builds it from the bytes it admitted. Without it the rollout's files
-    are read here, one by one.
+    admits the rollout and builds it from the bytes it admitted. A manifest row is passed to it
+    as ``row=`` with its ``id`` as ``run_id=``. Without it the rollout's files are read here,
+    one by one. With ``admitted_only`` every rollout must be a file or folder on disk: a
+    manifest row without a ``path`` (an inline rollout, or a run looked up by id) is refused
+    instead of being carried past admission.
     """
-    load_one = loader or _load_single_path_rollout
+    load_one = loader or (lambda path, **_: _load_single_path_rollout(path))
     items: list[RolloutItem] = []
     root = repo_root or Path.cwd()
+    no_path_message = (
+        "rollout manifest row has no path: the assembly line admits only rollouts on disk"
+    )
+
+    def from_row(row: dict[str, Any], row_task: str) -> RolloutItem:
+        row_path = Path(row["path"])
+        check_dev_path_allowed(row_path)
+        sub = load_one(row_path, row=row, run_id=str(row["id"]) if row.get("id") else None)
+        # what loading found wrong with the rollout travels with the row
+        meta = {**row, **{k: v for k, v in sub.metadata.items() if k in ("parse_error", "run_meta")}}
+        return RolloutItem(
+            item_id=str(row.get("id") or sub.item_id),
+            task_id=row_task or sub.task_id,
+            run=sub.run,
+            files=sub.files,
+            diff_text=sub.diff_text,
+            source_path=str(row_path),
+            metadata=meta,
+        )
 
     for inp in inputs:
         p = Path(inp) if not isinstance(inp, Path) else inp
@@ -1181,6 +1229,8 @@ def load_rollouts(
         check_dev_path_allowed(p)
 
         if not p.exists():
+            if admitted_only:
+                raise FileNotFoundError(f"input path not found: {p}")
             str_inp = str(inp)
             try:
                 run = load_run(str_inp, repo_root=root)
@@ -1205,35 +1255,23 @@ def load_rollouts(
                     row = strict_json_loads(line)
                     if not isinstance(row, dict):
                         raise ValueError(f"rollout manifest row is not an object: {line[:60]!r}")
-                    if isinstance(row, dict):
-                        _check_row_dev(row)
-                        if "path" in row:
-                            row_path = Path(row["path"])
-                            check_dev_path_allowed(row_path)
-                            sub = load_one(row_path)
-                            row_id = str(row.get("id") or sub.item_id)
-                            row_task = str(row.get("task_id") or row.get("task") or row.get("pair") or sub.task_id)
-                            items.append(
-                                RolloutItem(
-                                    item_id=row_id,
-                                    task_id=row_task,
-                                    run=sub.run,
-                                    files=sub.files,
-                                    diff_text=sub.diff_text,
-                                    source_path=str(row_path),
-                                    metadata=row,
-                                )
-                            )
-                        elif "run_id" in row or "steps" in row or "id" in row:
-                            run_id = str(row.get("run_id") or row.get("id") or "run")
-                            task_id = str(row.get("task_id") or "unknown")
-                            run_obj = None
-                            if "steps" in row:
-                                run_obj = LoadedRun(run_id, "manifest-doc", row)
-                            else:
-                                with contextlib.suppress(Exception):
-                                    run_obj = load_run(run_id, repo_root=root)
-                            items.append(RolloutItem(item_id=run_id, task_id=task_id, run=run_obj, metadata=row))
+                    _check_row_dev(row)
+                    if "path" in row:
+                        items.append(
+                            from_row(row, str(row.get("task_id") or row.get("task") or row.get("pair") or ""))
+                        )
+                    elif admitted_only:
+                        raise ValueError(no_path_message)
+                    elif "run_id" in row or "steps" in row or "id" in row:
+                        run_id = str(row.get("run_id") or row.get("id") or "run")
+                        task_id = str(row.get("task_id") or "unknown")
+                        run_obj = None
+                        if "steps" in row:
+                            run_obj = LoadedRun(run_id, "manifest-doc", row)
+                        else:
+                            with contextlib.suppress(Exception):
+                                run_obj = load_run(run_id, repo_root=root)
+                        items.append(RolloutItem(item_id=run_id, task_id=task_id, run=run_obj, metadata=row))
             elif p.suffix == ".json":
                 try:
                     data = strict_json_loads(read_declared_text(p))
@@ -1246,25 +1284,15 @@ def load_rollouts(
 
                 if isinstance(data, dict) and "rows" in data and isinstance(data["rows"], list):
                     for row in data["rows"]:
-                        if isinstance(row, dict):
-                            _check_row_dev(row)
-                            if "path" in row:
-                                row_path = Path(row["path"])
-                                check_dev_path_allowed(row_path)
-                                sub = load_one(row_path)
-                                row_id = str(row.get("id") or sub.item_id)
-                                row_task = str(row.get("pair") or row.get("task_id") or row.get("task") or sub.task_id)
-                                items.append(
-                                    RolloutItem(
-                                        item_id=row_id,
-                                        task_id=row_task,
-                                        run=sub.run,
-                                        files=sub.files,
-                                        diff_text=sub.diff_text,
-                                        source_path=str(row_path),
-                                        metadata=row,
-                                    )
-                                )
+                        if not isinstance(row, dict):
+                            raise ValueError(f"rollout manifest row is not an object: {str(row)[:60]!r}")
+                        _check_row_dev(row)
+                        if "path" in row:
+                            items.append(
+                                from_row(row, str(row.get("pair") or row.get("task_id") or row.get("task") or ""))
+                            )
+                        elif admitted_only:
+                            raise ValueError(no_path_message)
                 elif isinstance(data, dict) and ("steps" in data or "traces" in data):
                     items.append(load_one(p))
                 else:

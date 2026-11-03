@@ -9,7 +9,7 @@ from typing import Any
 
 from evallab import hack_drop
 
-from .core import resolve_ref
+from .core import declared_scope, resolve_ref
 from .io import canonical_hash, read_json, read_rows
 
 # Version 1 (no field): the shape written by #1815. Version 2 adds ``schema_version`` and the
@@ -129,6 +129,13 @@ def stored_version(stored: dict[str, Any]) -> int:
 
 
 def build_scoreboard(batch: Path, repo_root: Path, version: int = SCOREBOARD_VERSION) -> dict:
+    """Recompute every metric from persisted batch files, never changing decisions; the labels
+    are read through the line's reader (no-follow, bounded, never sealed material)."""
+    with declared_scope(repo_root):
+        return _build_scoreboard(batch, repo_root, version)
+
+
+def _build_scoreboard(batch: Path, repo_root: Path, version: int = SCOREBOARD_VERSION) -> dict:
     """Recompute every metric from persisted batch files, never changing decisions.
 
     ``version`` selects which sections to derive, so a saved scoreboard is compared only on

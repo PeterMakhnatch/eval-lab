@@ -11,7 +11,8 @@ import stat
 import subprocess
 import time
 from collections import Counter
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -173,7 +174,13 @@ def _autoreview_stage(stage: Any, where: str, row_steps: Any) -> hd.StageVerdict
         "AUTOREVIEW_BUDGET_EXCEEDED",
         "AUTOREVIEW_CACHE_MISS",
     } or any(r.startswith("AUTOREVIEW_ERROR:") for r in names):
-        consistent = decision == "review"
+        # An outcome that is not a reading carries none: one reason, and no score, verdict, model
+        # or cost that a later stage or the scoreboard could mistake for a model's judgment.
+        consistent = (
+            decision == "review"
+            and len(names) == 1
+            and not details.keys() & {"model", "suspicion", "verdict", "cost_usd", "attested"}
+        )
     elif "AUTOREVIEW_UNATTESTED" in names:
         consistent = decision == "review" and details.get("attested") is False and modelled
     elif "AUTOREVIEW_UNPARSED" in names:
@@ -205,7 +212,7 @@ def _autoreview_stage(stage: Any, where: str, row_steps: Any) -> hd.StageVerdict
 def _cache(spec: dict[str, Any]) -> tuple[dict[str, hd.StageVerdict], list[Path]]:
     if spec["autoreview"]["mode"] != "cached":
         return {}, []
-    path = hd.check_dev_path_allowed(spec["autoreview"]["cache"])
+    path = hd.check_declared_path(spec["autoreview"]["cache"])
     files = (
         [path]
         if path.is_file()
@@ -243,7 +250,7 @@ def _cache(spec: dict[str, Any]) -> tuple[dict[str, hd.StageVerdict], list[Path]
 
 def _task_status_dev(path: str) -> None:
     """Every declared split in a task-status file must be DEV: top level, rows and mapping values."""
-    resolved = hd.check_dev_path_allowed(path)
+    resolved = hd.check_declared_path(path)
     text = hd.read_declared_text(resolved)
     try:
         documents: list[Any] = [hd.strict_json_loads(text)]
@@ -301,10 +308,19 @@ def _admit_sources(spec: dict[str, Any], root: Path) -> Intake:
     sealed = sealed_set()
     admitted: dict[str, Any] = {}
 
-    def load(path: Path) -> hd.RolloutItem:
+    def load(
+        path: Path, *, row: dict[str, Any] | None = None, run_id: str | None = None
+    ) -> hd.RolloutItem:
         real = os.path.realpath(path)
         try:
-            result = admit_rollout(real, registry=registry, sealed=sealed, require_trajectory=False)
+            result = admit_rollout(
+                real,
+                registry=registry,
+                row=row,
+                run_id=run_id,
+                sealed=sealed,
+                require_trajectory=False,
+            )
         except AdmissionRefused as error:
             raise hd.RefusedRun(f"rollout not admitted: {error.detail}") from error
         admitted[real] = result
@@ -328,7 +344,10 @@ def _admit_sources(spec: dict[str, Any], root: Path) -> Intake:
                     f"a JSON list is not a rollout manifest (its rows would skip DEV checks): "
                     f"{manifest.name}; use JSONL or an object with a rows list"
                 )
-        for item in hd.load_rollouts([source["rollouts"]], repo_root=root, loader=load):
+        loaded = hd.load_rollouts(
+            [source["rollouts"]], repo_root=root, loader=load, admitted_only=True
+        )
+        for item in loaded:
             if item.item_id in seen:
                 raise ValueError(f"duplicate intake run_id: {item.item_id}")
             seen.add(item.item_id)
@@ -336,16 +355,13 @@ def _admit_sources(spec: dict[str, Any], root: Path) -> Intake:
             hd.check_dev_path_allowed(item.task_id)
             sidecars: dict[str, Any] = {}
             if item.source_path is None:
-                # Rows carried by the manifest itself: the manifest is the rollout.
-                path = hd.check_dev_path_allowed(source["rollouts"])
-                sha256 = strict_digest(path)
-            else:
-                path = Path(os.path.realpath(item.source_path))
-                hit = admitted.get(str(path))
-                if hit is None:
-                    raise ValueError(f"rollout was not admitted: {item.source_path}")
-                sha256, sidecars = hit.sha256, dict(hit.sidecars)
-                inodes |= hit.inodes
+                raise ValueError(f"rollout {item.item_id} has no file or folder to admit")
+            path = Path(os.path.realpath(item.source_path))
+            hit = admitted.get(str(path))
+            if hit is None:
+                raise ValueError(f"rollout was not admitted: {item.source_path}")
+            sha256, sidecars = hit.sha256, dict(hit.sidecars)
+            inodes |= hit.inodes
             doc = item.run.doc if item.run else {}
             metadata = [item.metadata, doc]
             for key in ("metadata", "result"):
@@ -599,8 +615,12 @@ def invalidate_check(batch: Path) -> None:
 
     The batch is validated first, so a missing, linked or tampered directory is refused before
     anything in it is rewritten (a hard link must not be silently replaced by a fresh file).
+    The saved ``SCOREBOARD.md`` is compared with the view rendered from the saved scoreboard
+    BEFORE either is rewritten: re-rendering first would repair a tampered or deleted view and
+    let the check pass. The outcome is carried in the pending ``check.json`` for the
+    ``scoreboard_recompute`` gate.
     """
-    from evallab.line.scoreboard import render_scoreboard
+    from evallab.line.scoreboard import render_scoreboard, stored_version
 
     preflight_batch(batch)
     pending = [{"name": name, "status": "PENDING", "details": ""} for name in CHECK_NAMES]
@@ -609,6 +629,20 @@ def invalidate_check(batch: Path) -> None:
         previous = read_json(path)
     except (OSError, ValueError):
         previous = {}
+    try:
+        score: dict[str, Any] | None = read_json(batch / "scoreboard.json")
+    except (OSError, ValueError):
+        score = None
+    view = "ok"
+    if score is not None:
+        try:
+            if stored_version(score) >= 3:
+                saved = read_bytes(batch / "SCOREBOARD.md").decode("utf-8")
+                view = "ok" if saved == render_scoreboard(score) else "differs"
+        except FileNotFoundError:
+            view = "missing"
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            view = "unreadable"
     write_json(
         path,
         {
@@ -617,15 +651,18 @@ def invalidate_check(batch: Path) -> None:
             "determinism_verified": False,
             "decision_hash": previous.get("decision_hash"),
             "second_decision_hash": previous.get("second_decision_hash"),
+            "scoreboard_view": view,
         },
     )
-    try:
-        score = read_json(batch / "scoreboard.json")
-    except (OSError, ValueError):
+    if score is None:
         return
     score["quality_checks"] = pending
     write_json(batch / "scoreboard.json", score)
-    (batch / "SCOREBOARD.md").write_text(render_scoreboard(score), encoding="utf-8")
+    try:
+        rendered = render_scoreboard(score)
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return  # a scoreboard that cannot be rendered fails its gate; it must not crash the check
+    (batch / "SCOREBOARD.md").write_text(rendered, encoding="utf-8")
 
 
 def _evaluate_twice(
@@ -732,6 +769,14 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
     if spec["autoreview"]["mode"] != "live":
         prepared = _evaluate_twice(spec, items, intake, tasks, cache)
         _refuse_unallowed_readings(spec, prepared[1])
+    # The shared queue is read (and so refused if it is sealed or a link) before a directory
+    # exists; runs already in it are refused too, but only a batch that will append is told so.
+    _refuse_queue(
+        spec,
+        [row["run_id"] for row in _queue(prepared[0])]
+        if prepared is not None and spec["judge"]["write"]
+        else [],
+    )
     rev, dirty = _code(repo_root)
     batch.mkdir(parents=True)
     write_json(batch / "spec.json", spec)
@@ -891,9 +936,15 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
     )
     if result["passed"] and spec["judge"]["write"]:
         # Only a batch that passed every check may touch the shared Judge queue.
-        for row in queue:
-            append_judge_queue_entry(Path(spec["judge"]["queue"]), QueueEntry(**row))
-        problem = _external_queue_problem(spec, decisions)
+        try:
+            _refuse_queue(spec, [row["run_id"] for row in queue])
+            problem = None
+        except (ValueError, OSError) as error:
+            problem = str(error)
+        if problem is None:
+            for row in queue:
+                append_judge_queue_entry(Path(spec["judge"]["queue"]), QueueEntry(**row))
+            problem = _external_queue_problem(spec, decisions)
         if problem:
             for check in result["checks"]:
                 if check["name"] == "judge_routing":
@@ -1029,6 +1080,27 @@ def _station_verdicts(data: bytes, admitted: set[str]) -> list[dict[str, Any]]:
     return [row for row in effective_records(rows) if row.get("run_id") in admitted]
 
 
+def _refuse_queue(spec: dict[str, Any], run_ids: list[str]) -> None:
+    """Read the external Judge queue before anything is written.
+
+    It is read through the one reader (no link followed, bounded, never another name for sealed
+    material). Every row must be an object with a ``run_id``, and none of ``run_ids`` (the runs
+    this batch is about to queue) may already appear twice: the append skips a queued run, so
+    a doubled one could never be verified afterwards, and the file has to be fixed first.
+    """
+    queue = Path(spec["judge"]["queue"])
+    if not os.path.lexists(queue):
+        return
+    seen = Counter()
+    for row in read_rows(queue):
+        if not isinstance(row.get("run_id"), str):
+            raise ValueError(f"external Judge queue row has no run_id: {queue}")
+        seen[row["run_id"]] += 1
+    twice = sorted(run for run in set(run_ids) if seen[run] > 1)
+    if twice:
+        raise ValueError(f"external Judge queue holds a run twice: {', '.join(twice[:5])}")
+
+
 def _external_queue_problem(spec: dict[str, Any], decisions: list[dict[str, Any]]) -> str | None:
     queue = Path(spec["judge"]["queue"])
     external = Counter(r["run_id"] for r in read_rows(queue)) if queue.is_file() else Counter()
@@ -1135,12 +1207,21 @@ def _validate_live_trace(
         if names & {"AUTOREVIEW_BUDGET_EXCEEDED", "AUTOREVIEW_NO_TRAJECTORY"}:
             raise ValueError(f"live reading skipped without cause: {where}")
         errors = [r for r in names if r.startswith("AUTOREVIEW_ERROR:")]
+        # Before a call the line reserves ``max_call_usd``; with that reservation over the cap
+        # (or after a breach) the reviewer is never reached, so no reading can exist here.
+        refusable = halted or spent + bound > cap
+        if refusable and not errors:
+            raise ValueError(f"live reading where the budget walk required a refusal: {where}")
         if errors:
             error = errors[0].split(":", 1)[1]
             if (
                 len(names) != 1
                 or details != {"error": error}
-                or (error == "BudgetReservationRefused" and not (halted or spent + bound > cap))
+                or (error == "BudgetReservationRefused" and not refusable)
+                # A refused or never-started call has no call record; one that did run is on
+                # the one route the spec allows.
+                or (call and (refusable or error == "BudgetReservationRefused"))
+                or (call and call["requested_route"] != route)
             ):
                 raise ValueError(f"live error reading is not what the run could produce: {where}")
         else:
@@ -1162,6 +1243,15 @@ def _validate_live_trace(
 
 def _declared_text(path: Path) -> str:
     return read_bytes(path).decode("utf-8")
+
+
+@contextmanager
+def declared_scope(repo_root: Path) -> Iterator[None]:
+    """Every declared input read inside is opened without following a link, bounded, and never
+    another name for sealed material. ``run``, ``check``, ``scoreboard`` and ``replay`` all
+    read through it; a nested scope reuses the outer one."""
+    with sealed_scope(repo_root), hd.declared_reader(_declared_text):
+        yield
 
 
 def check_batch(
@@ -1325,8 +1415,8 @@ def _check_batch(
         }
         trace_errors = _trace_errors(read_rows(batch / "trace.jsonl"))
         require(
-            len({r.get("code_rev") for r in receipts}) == 1,
-            "receipts come from different code revisions",
+            len({(r.get("code_rev"), r.get("code_dirty")) for r in receipts}) == 1,
+            "receipts come from different code revisions or working-tree states",
         )
         for receipt in receipts:
             stage = receipt["stage"]
@@ -1334,6 +1424,25 @@ def _check_batch(
                 set(receipt) == RECEIPT_KEYS, f"{stage} receipt has unexpected or missing fields"
             )
             require(receipt["batch_id"] == spec["batch_id"], f"{stage} receipt names another batch")
+            require(
+                isinstance(receipt["code_dirty"], bool), f"{stage} receipt has a bad code_dirty"
+            )
+            for side, shape in (
+                ("inputs", {"path", "sha256"}),
+                ("outputs", {"path", "sha256", "rows"}),
+            ):
+                refs = receipt[side]
+                require(
+                    isinstance(refs, list)
+                    and all(isinstance(ref, dict) and set(ref) == shape for ref in refs)
+                    and all(isinstance(ref["path"], str) for ref in refs)
+                    and all(isinstance(ref["sha256"], str) for ref in refs),
+                    f"{stage} receipt {side} are not exactly {sorted(shape)} each",
+                )
+                require(
+                    len({ref["path"] for ref in refs}) == len(refs),
+                    f"{stage} receipt lists a file twice in {side}",
+                )
             require(
                 receipt["counts"] == dict(zip(("rows_in", "rows_out"), counts[stage], strict=True)),
                 f"{stage} receipt totals differ from the batch files",
@@ -1348,7 +1457,10 @@ def _check_batch(
                     f"{stage} receipt records model use or spend",
                 )
             require(
-                all(isinstance(ref.get("rows"), int) for ref in receipt["outputs"]),
+                all(
+                    isinstance(ref["rows"], int) and not isinstance(ref["rows"], bool)
+                    for ref in receipt["outputs"]
+                ),
                 f"{stage} receipt lists an output without a row count",
             )
         for receipt in receipts:
@@ -1396,6 +1508,16 @@ def _check_batch(
                         for ref in receipt["inputs"]
                     ),
                     "judge receipt does not hold an immutable Station snapshot",
+                )
+                listed_snapshots = {
+                    resolve_ref(batch, ref["path"]).resolve()
+                    for ref in receipt["inputs"]
+                    if resolve_ref(batch, ref["path"]).resolve().parent == snapshots
+                }
+                on_disk = {p.resolve() for p in snapshots.iterdir()}
+                require(
+                    on_disk == listed_snapshots,
+                    "evidence/station-inputs holds a file the judge receipt does not list",
                 )
             # A closed set: every output is the batch's own file, and a stage lists exactly the
             # outside inputs the spec (or the verified intake) declares for it: omissions and
@@ -1608,6 +1730,11 @@ def _check_batch(
             "scoreboard differs from recomputation",
         )
         if version >= 3:  # older batches rendered the view from memory, in another key order
+            carried = previous.get("scoreboard_view", "ok")
+            require(
+                carried == "ok",
+                f"SCOREBOARD.md was {carried} before this check (compared with scoreboard.json)",
+            )
             require(
                 read_bytes(batch / "SCOREBOARD.md").decode("utf-8") == render_scoreboard(stored),
                 "SCOREBOARD.md differs from scoreboard.json",

@@ -459,3 +459,31 @@ attempt was killed with its owner, and `000865` attempt 3 was `unscored` when
 the separate verifier's 30 s `docker info` timed out. Each is preserved as
 `<task>/.failed-attempt<N>/` and listed in `prior_attempts`; the verdicts come
 from the final attempts. Manifest `verify` stays `unverified`.
+
+## Ladder progress table (HAR-286)
+
+[ladder-progress.csv](ladder-progress.csv) joins the ranking in
+`../mimo-clean-v5-coverage/unverified-ranking.csv` (ranks 1–100, one row each)
+with every `ladder-*.json` here of schema `evallab.mimo-v6-ladder-cells/v1`
+(other schemas are ignored; a re-run of a rank supersedes the earlier cell by
+`finished_utc`). `basis` names what the verdict rests on, from the cell's
+`verifier_decision`: `tamper-refusal` (tamper signature in the agent diff, so
+a refusal rather than a graded run), `graded` (`rc=` from the task's own
+runner), `unscored` (neither), or `none` (no committed cell; verdict `none`).
+
+```bash
+uv run python research/experiments/mimo-clean-v6/ladder_progress.py          # regenerate
+uv run python research/experiments/mimo-clean-v6/ladder_progress.py --check  # exit 1 on drift
+```
+
+Basis counts in the committed table (100 ranks, 15 covered; Docker-free):
+
+| basis | ranks |
+|---|---:|
+| `tamper-refusal` | 10 |
+| `graded` | 4 |
+| `unscored` | 1 (`000928`, rank 8) |
+| `none` | 85 |
+
+Ten of the 14 `clean` verdicts so far are tamper refusals, so the refusal rate
+among clean ladder verdicts is 10/14 (71%); only four rest on a graded run.

@@ -629,7 +629,7 @@ inputs:
   - path: src/evallab/line/core.py
     digest: sha256:711e859979ac99b03ee82a398a237699f610ea9f3945735b28774e8208a26d59
   - path: src/evallab/line/io.py
-    digest: sha256:2015026634edf28daee50c8dc5c42081670b4292a9c885480435ad01c2a1df7c
+    digest: sha256:a74f638d40464bd79500119a69d8a43e1cddb5ef16692266ecbcc4a109adcdc3
   - path: src/evallab/line/replay.py
     digest: sha256:37a43005e4da258e18db84d5f31c85ceb54abb4795e5abbceff08dd822d37128
   - path: src/evallab/line/scoreboard.py

@@ -80,18 +80,20 @@ def canonical_hash(value: Any) -> str:
 
 
 def digest(path: Path) -> str:
-    """Hash a file's bytes (never through a final symlink), or a directory's names and hashes."""
-    if path.is_dir() and not path.is_symlink():
+    """Hash bytes, or a directory's sorted relative names and file hashes.
+
+    This follows links, as it always has: it is what producers record and what other callers
+    (Judge Station) hash. ``line check`` verifies recorded hashes through ``read_bytes`` instead.
+    """
+    if path.is_file():
+        with path.open("rb") as handle:
+            return hashlib.file_digest(handle, "sha256").hexdigest()
+    if path.is_dir():
         return canonical_hash(
             [
-                (p.relative_to(path).as_posix(), _tree_file_digest(p))
+                (p.relative_to(path).as_posix(), digest(p))
                 for p in sorted(path.rglob("*"))
                 if p.is_file()
             ]
         )
-    return hashlib.sha256(read_bytes(path)).hexdigest()
-
-
-def _tree_file_digest(path: Path) -> str:
-    with path.open("rb") as handle:
-        return hashlib.file_digest(handle, "sha256").hexdigest()
+    raise FileNotFoundError(path)

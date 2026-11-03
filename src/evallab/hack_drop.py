@@ -62,10 +62,17 @@ from evallab.tripwires import (
     evaluate_content_rules,
     extract_content_files,
     extract_content_prompt,
+    hackbook_hits,
+    hackbook_rule_ids,
     is_login_profile_path,
-    scan_trace,
     tamper_signature_hit,
 )
+
+#: Hackbook rules whose hits the L0 stage reads: every verdict rule, plus the diagnostic
+#: login-profile write it reports as a soft review.
+_L0_HACKBOOK_RULES: frozenset[str] = hackbook_rule_ids(eligibility="verdict") | {
+    "hb_login_profile_write"
+}
 
 # --------------------------------------------------------------------------- #
 # Hard vs soft rule classifications
@@ -1919,22 +1926,23 @@ def evaluate_l0_stage(
                         reasons.append(f"L0_SOFT_GATE_RULE:{rule}")
                         is_soft_review = True
 
-            # Scan trace content and hackbook verdict hits
+            # Hackbook hits read below: verdict rules and the login-profile write. Each rule is
+            # independent, so scanning only these gives their hits exactly as a full trace scan.
             steps = rollout.run.doc.get("steps") or []
             if isinstance(steps, list) and steps:
                 dict_steps = [dict(s) for s in steps if isinstance(s, Mapping)]
                 if dict_steps:
-                    trace_report = scan_trace(dict_steps)
-                    for hit in trace_report.get("hackbook") or []:
-                        if isinstance(hit, dict):
-                            r_name = hit.get("rule", "unknown")
-                            if hit.get("eligibility") == "verdict":
-                                reasons.append(f"L0_HARD_HACKBOOK:{r_name}")
-                                is_hard_drop = True
-                            elif r_name == "hb_login_profile_write":
-                                reasons.append("L0_SOFT_LOGIN_PROFILE_WRITE")
-                                is_soft_review = True
-                                details["login_profile_write"] = _norm_path(str(hit.get("evidence") or ""))
+                    for hit in hackbook_hits(
+                        dict_steps, whole_trace=True, only=_L0_HACKBOOK_RULES
+                    ):
+                        r_name = hit.get("rule", "unknown")
+                        if hit.get("eligibility") == "verdict":
+                            reasons.append(f"L0_HARD_HACKBOOK:{r_name}")
+                            is_hard_drop = True
+                        elif r_name == "hb_login_profile_write":
+                            reasons.append("L0_SOFT_LOGIN_PROFILE_WRITE")
+                            is_soft_review = True
+                            details["login_profile_write"] = _norm_path(str(hit.get("evidence") or ""))
         except Exception as exc:
             if "L0_PARSE_ERROR" not in reasons:
                 reasons.append("L0_PARSE_ERROR")

@@ -25,6 +25,13 @@ def build_line_parser(subparsers: Any) -> None:
         if name == "replay":
             command.add_argument("--baseline", type=Path, required=True)
             command.add_argument("--write-baseline", action="store_true")
+        if name == "check":
+            command.add_argument(
+                "--fast",
+                action="store_true",
+                help="skip the determinism recompute; the result says determinism is not "
+                "verified, exits 3 at best, and leaves check.json and the scoreboard untouched",
+            )
         command.set_defaults(func=_command)
 
 
@@ -39,6 +46,11 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             result = read_json(batch / "check.json")
             value = {"batch": str(batch), **result}
             code = 0 if result["passed"] else 2
+        elif args.line_command == "check" and args.fast:
+            # A read-only look: it must never overwrite a verified check.json or scoreboard.
+            value = check_batch(args.path.expanduser().resolve(), root, fast=True)
+            failed = any(check["status"] == "FAIL" for check in value["checks"])
+            code = 2 if failed else 3
         elif args.line_command == "check":
             batch = args.path.expanduser().resolve()
             invalidate_check(batch)  # a crash below must never leave a stale PASS on disk

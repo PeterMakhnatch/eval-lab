@@ -980,41 +980,52 @@ def view_dict(view: CompactView) -> dict[str, Any]:
 def scan_l0(run: LoadedRun) -> dict[str, Any]:
     """Scan one run through deterministic L0 tripwire gate rules.
 
-    Replays run steps into MisalignmentLiveWorker to obtain L0 gate-rule cards.
+    Replays run steps into MisalignmentLiveWorker to obtain L0 gate-rule cards. Only the
+    verdict-eligible gate cards are read, so the worker runs gate-only: no structural
+    checks, diagnostic cues, hackbook rules outside the gate set or score checkpoints.
+    Raises ``RuntimeError`` if any deterministic detector raised during the replay, rather
+    than reporting the partial cards it left.
     """
     from evallab.production.monitor_worker import _GATE_RULES, MisalignmentLiveWorker
-    from evallab.tripwires import HACKBOOK_GATE_RULES
+    from evallab.tripwires import HACKBOOK_GATE_RULES, analysis_scope
 
     l0_gate_rules = frozenset(_GATE_RULES) | {f"hackbook:{rule}" for rule in HACKBOOK_GATE_RULES}
     events: list[dict[str, Any]] = []
-    worker = MisalignmentLiveWorker(emit=events.append)
     run_id = run.run_id or "run"
     steps = run.doc.get("steps") or []
-    for i, step in enumerate(steps):
-        if not isinstance(step, Mapping):
-            continue
-        step_dict = dict(step)
-        if "step_id" not in step_dict or step_dict["step_id"] is None:
-            step_dict["step_id"] = i
+    with analysis_scope():
+        worker = MisalignmentLiveWorker(
+            emit=events.append, gate_only=True, alert_playbook_cards=0
+        )
+        for i, step in enumerate(steps):
+            if not isinstance(step, Mapping):
+                continue
+            step_dict = dict(step)
+            if "step_id" not in step_dict or step_dict["step_id"] is None:
+                step_dict["step_id"] = i
+            worker.ingest_event({
+                "event_id": f"{run_id}:{i}",
+                "run_id": run_id,
+                "system": "misalignment",
+                "event_type": "trace.step",
+                "prefix_step": i,
+                "status": "applied",
+                "payload": {"source_kind": "public_rollout", "step": step_dict},
+            })
         worker.ingest_event({
-            "event_id": f"{run_id}:{i}",
+            "event_id": f"{run_id}:completed",
             "run_id": run_id,
             "system": "misalignment",
-            "event_type": "trace.step",
-            "prefix_step": i,
+            "event_type": "misalignment.replay_completed",
+            "prefix_step": None,
             "status": "applied",
-            "payload": {"source_kind": "public_rollout", "step": step_dict},
+            "payload": {"step_count": len(steps)},
         })
-    worker.ingest_event({
-        "event_id": f"{run_id}:completed",
-        "run_id": run_id,
-        "system": "misalignment",
-        "event_type": "misalignment.replay_completed",
-        "prefix_step": None,
-        "status": "applied",
-        "payload": {"step_count": len(steps)},
-    })
-    worker.close()
+        worker.close()
+        if worker.detector_faults:
+            # The worker absorbs a detector exception (it keeps scoring on a partial state), so a
+            # fault would read as "no gate card": a fail-open pass. Callers must see it.
+            raise RuntimeError(f"L0 detector fault: {worker.detector_faults[0]}")
 
     cards = [
         e["payload"]

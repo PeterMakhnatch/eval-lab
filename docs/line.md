@@ -132,7 +132,9 @@ exit 2. Read the check details before using any exports.
    `certified`, `provisional`, `weak` and `uncertified`; certification belongs to
    the task-evidence producer, not the line.
 3. **Trace evidence:** reuse hack-drop's deterministic L0 stage and optional
-   cached AutoReview verdicts. The line does not invent a second detector.
+   cached AutoReview verdicts. The line does not invent a second detector. An exception in any
+   detector the L0 stage reads makes the run `L0_PARSE_ERROR` review, never a pass; diagnostic
+   sections no L0 decision reads are not run, so a fault inside one cannot change a decision.
 4. **Decisions:** reuse hack-drop's consolidation precedence: drop wins over
    review, which wins over keep. Persist decisions before loading labels.
 5. **Judge routing:** queue every review and a deterministic sample of keeps.
@@ -201,7 +203,7 @@ paths that leave the batch.
 | Conservation | Every intake run has exactly one decision; keep + drop + review equals intake; audits are a subset of keeps; each export file equals its decisions exactly. |
 | DEV only | Sources, runs and tasks pass the existing DEV gates; no TEST or answer-key paths (the path as spelled and its symlink target are both judged). A non-DEV `split` is refused wherever it is declared: manifest rows, direct JSON trajectories and their `metadata`, sidecar files, task-status files (top level and rows) and cached AutoReview rows. Every file in a rollout directory is path-checked, a JSON list is refused as a manifest, and label files are validated (before any directory, queue or export is written, and again by this check). |
 | Provenance | Receipt input/output hashes match disk and the code revision is recorded. Every stage receipt must list its expected files (for example the export receipt lists all three export files, the judge receipt lists a Station snapshot), so emptying a receipt does not hide a change. |
-| Determinism | Two in-process decision passes have the same hash; the checker verifies the saved decision identity again and recomputes `trace.jsonl` (L0 and AutoReview evidence) from the inputs. |
+| Determinism | `line run` computes the decisions twice in-process and the two hashes must match; its closing check reuses those two passes. A later `line check` recomputes the decisions once and compares them with the stored decisions and both recorded hashes, and recomputes `trace.jsonl` (L0 and AutoReview evidence) from the inputs. |
 | Spend and models | Spend stays inside the spec cap. Every AutoReview call records the route that actually served it and its fallback count in `trace.jsonl`; the route must equal the requested one, have zero fallbacks and be in `models.allowed`, and the trace receipt's model list must equal the routes in the trace. In live mode each call's cost stays within `max_call_usd`, and calls sum to the receipt spend. |
 | Judge routing | Every review and audit appears exactly once in the local queue; no other run appears. |
 | Label isolation | No label or evaluator field (`label`, `is_cheat`, `ground_truth`, `expected_verdict`, `attempted_cheat`, `hack`, ...) appears, at any depth, in runs, tasks, trace, decisions, the queue, the exports or any receipt; trace AutoReview details match the stage schema; label loading belongs to the scoreboard stage. |
@@ -215,6 +217,12 @@ export is automatically suitable for training.
 scoreboard's quality-check list with the same), then replaces it with the completed
 result. A crash or an unreadable batch therefore leaves `passed: false`, never a stale
 pass. All JSON artifacts are written atomically.
+
+`line check --fast` skips the determinism recompute (the slowest part). It reports that gate as
+`SKIPPED` with "determinism not verified", sets `determinism_verified: false`, never counts as
+a pass (exit 3 when nothing failed, 2 when a check failed), and does not touch `check.json` or
+the scoreboard. Use it for a quick look at a batch; the replay gate and every acceptance claim
+use the full check.
 
 The Station verdict file is copied into `evidence/station-inputs/` when the batch runs, and
 the judge receipt names that immutable copy, so a Station file that grows afterwards cannot

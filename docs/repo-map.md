@@ -633,7 +633,7 @@ inputs:
   - path: src/evallab/line/replay.py
     digest: sha256:37a43005e4da258e18db84d5f31c85ceb54abb4795e5abbceff08dd822d37128
   - path: src/evallab/line/scoreboard.py
-    digest: sha256:bec6729a640ce8aa5500d5d6fb699cc20f007dd1a51f599f4a9b4cbdf8ed0c0a
+    digest: sha256:2c7deec44ef1888c45e0baef64f92dde62751f938ffd906af30074757574f331
   - path: src/evallab/line/spec.py
     digest: sha256:769a5069e04bf182d4ec0d0a06fee77af24987e95d8525017bb863059d99d1af
   - path: src/evallab/lineage.py

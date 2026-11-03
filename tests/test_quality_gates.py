@@ -1054,6 +1054,61 @@ def test_full_suite_writes_junit_then_reports_skip_census() -> None:
     assert "scripts/ci/check_harbor_skips.py --report-only full-suite.xml" in census_run
 
 
+def _live_postgres_problems(job: dict) -> list[str]:
+    """Report what keeps the full suite from running its live-PostgreSQL tests (HAR-297)."""
+    problems: list[str] = []
+    postgres = (job.get("services") or {}).get("postgres")
+    if not isinstance(postgres, dict):
+        problems.append("the test job must declare a services.postgres container")
+    else:
+        if not str(postgres.get("image", "")).startswith("postgres:18.4"):
+            problems.append(
+                "services.postgres must use the Postgres 18.4 image pinned in compose.yaml"
+            )
+        if "54329:5432" not in [str(port) for port in postgres.get("ports") or []]:
+            problems.append("services.postgres must publish 54329:5432, the default DSN port")
+        if "pg_isready" not in str(postgres.get("options", "")):
+            problems.append("services.postgres must wait for pg_isready before steps run")
+    step = next(
+        (
+            s
+            for s in job.get("steps", [])
+            if isinstance(s, dict) and s.get("name") == "Full test suite"
+        ),
+        {},
+    )
+    env = step.get("env") or {}
+    if str(env.get("EVALLAB_RUN_POSTGRES_TESTS")) != "1":
+        problems.append("Full test suite must set EVALLAB_RUN_POSTGRES_TESTS=1")
+    if ":54329/" not in str(env.get("DATABASE_URL", "")):
+        problems.append("Full test suite must set DATABASE_URL to the service on port 54329")
+    steps = [s for s in job.get("steps", []) if isinstance(s, dict)]
+    init_index = next((i for i, s in enumerate(steps) if "evallab db init" in str(s.get("run"))), None)
+    suite_index = next((i for i, s in enumerate(steps) if s.get("name") == "Full test suite"), None)
+    if init_index is None or suite_index is None or init_index > suite_index:
+        problems.append("evallab db init must run before the Full test suite step")
+    return problems
+
+
+def test_full_suite_runs_live_postgres_tests_against_a_service() -> None:
+    workflow = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
+    assert _live_postgres_problems(workflow["jobs"]["test"]) == []
+
+
+def test_live_postgres_gate_rejects_missing_service_or_opt_in() -> None:
+    job = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))["jobs"]["test"]
+    no_service = {**job, "services": {}}
+    assert any("services.postgres" in p for p in _live_postgres_problems(no_service))
+    steps = [
+        {**s, "env": {k: v for k, v in s["env"].items() if k != "EVALLAB_RUN_POSTGRES_TESTS"}}
+        if s.get("name") == "Full test suite"
+        else s
+        for s in job["steps"]
+    ]
+    no_opt_in = {**job, "steps": steps}
+    assert any("EVALLAB_RUN_POSTGRES_TESTS" in p for p in _live_postgres_problems(no_opt_in))
+
+
 def _full_suite_inspect_problems(steps: list[dict]) -> list[str]:
     """Report when the environment the full suite runs in cannot have `inspect`.
 

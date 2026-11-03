@@ -13,6 +13,7 @@ import json
 import os
 import re
 import subprocess
+import time
 from collections import Counter
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -38,6 +39,10 @@ _TIME = re.compile(r"\b(\d{1,2}):(\d{2})\s*(AM|PM)?\s*ET\b", re.IGNORECASE)
 _HEADING = re.compile(r"^ {0,3}(#{1,3})\s+(.+?)(?:\s+#+)?\s*$")
 _NEW_YORK = ZoneInfo("America/New_York")
 GitRunner = Callable[..., subprocess.CompletedProcess[str]]
+#: Every mirror git command runs under a deadline (60 s in the engine); a command
+#: killed at that deadline leaves git's ``index.lock`` behind and every later
+#: checkout fails with exit 128. A lock older than this belongs to no live refresh.
+STALE_INDEX_LOCK_SECONDS = 600
 
 
 @dataclass(frozen=True)
@@ -272,7 +277,12 @@ def refresh_mirror(
     if mirror.exists():
         run(["git", "-C", str(repo), "fetch", "-q", "origin"], check=True,
             capture_output=True, text=True)
-        run(["git", "-C", str(mirror), "checkout", "-q", "--detach", "origin/main"],
+        git_dir = run(["git", "-C", str(mirror), "rev-parse", "--absolute-git-dir"],
+                      check=True, capture_output=True, text=True).stdout.strip()
+        _clear_stale_index_lock(Path(git_dir) / "index.lock")
+        # Forced: the mirror is engine-owned and read-only, and a checkout killed
+        # mid-write leaves files a plain checkout refuses to overwrite.
+        run(["git", "-C", str(mirror), "checkout", "-q", "-f", "--detach", "origin/main"],
             check=True, capture_output=True, text=True)
     else:
         run(["git", "-C", str(repo), "worktree", "add", "--detach", str(mirror), "origin/main"],
@@ -280,6 +290,15 @@ def refresh_mirror(
     result = run(["git", "-C", str(mirror), "rev-parse", "HEAD"],
                  check=True, capture_output=True, text=True)
     return result.stdout.strip()
+
+
+def _clear_stale_index_lock(lock: Path) -> None:
+    try:
+        age = time.time() - lock.stat().st_mtime
+    except FileNotFoundError:
+        return
+    if age > STALE_INDEX_LOCK_SECONDS:
+        lock.unlink(missing_ok=True)
 
 
 @dataclass(frozen=True)

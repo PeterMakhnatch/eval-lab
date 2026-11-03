@@ -295,16 +295,59 @@ def test_refresh_mirror_only_updates_designated_worktree(tmp_path: Path, exists:
     def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         assert kwargs == {"check": True, "capture_output": True, "text": True}
         calls.append(command)
-        return subprocess.CompletedProcess(command, 0, stdout="abc123\n", stderr="")
+        stdout = f"{tmp_path / 'gitdir'}\n" if "--absolute-git-dir" in command else "abc123\n"
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
 
     assert refresh_mirror(repo, mirror, run=run) == "abc123"
     expected = (
         [["git", "-C", str(repo), "fetch", "-q", "origin"],
-         ["git", "-C", str(mirror), "checkout", "-q", "--detach", "origin/main"]]
+         ["git", "-C", str(mirror), "rev-parse", "--absolute-git-dir"],
+         ["git", "-C", str(mirror), "checkout", "-q", "-f", "--detach", "origin/main"]]
         if exists else
         [["git", "-C", str(repo), "worktree", "add", "--detach", str(mirror), "origin/main"]]
     )
     assert calls == [*expected, ["git", "-C", str(mirror), "rev-parse", "HEAD"]]
+
+
+def _git(cwd: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(cwd), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+
+
+@pytest.mark.parametrize("lock_age_seconds", [None, 3600, 5])
+def test_refresh_mirror_recovers_from_a_killed_checkout(
+    tmp_path: Path, lock_age_seconds: int | None
+) -> None:
+    # A checkout killed at its deadline leaves index.lock and half-written files;
+    # the next refresh must still land on origin/main unless a live git holds the lock.
+    origin, repo, mirror = tmp_path / "origin", tmp_path / "repo", tmp_path / "mirror"
+    origin.mkdir()
+    _git(origin, "init", "-q", "-b", "main")
+    (origin / "RESULTS.md").write_text("old\n")
+    _git(origin, "add", "RESULTS.md")
+    _git(origin, "commit", "-q", "-m", "old")
+    _git(tmp_path, "clone", "-q", str(origin), str(repo))
+    refresh_mirror(repo, mirror)
+    (origin / "RESULTS.md").write_text("new\n")
+    _git(origin, "commit", "-q", "-am", "new")
+    (mirror / "RESULTS.md").write_text("new\n")  # written before the kill
+    lock = Path(_git(mirror, "rev-parse", "--absolute-git-dir")) / "index.lock"
+    if lock_age_seconds is not None:
+        lock.touch()
+        stamp = datetime.now().timestamp() - lock_age_seconds
+        os.utime(lock, (stamp, stamp))
+
+    if lock_age_seconds is not None and lock_age_seconds < sources.STALE_INDEX_LOCK_SECONDS:
+        with pytest.raises(subprocess.CalledProcessError):
+            refresh_mirror(repo, mirror)
+        assert lock.exists()
+        return
+    head = refresh_mirror(repo, mirror)
+    assert head == _git(repo, "rev-parse", "origin/main")
+    assert not lock.exists()
+    assert _git(mirror, "status", "--porcelain") == ""
 
 
 def test_oversize_prefix_hash_and_unreadable_count(tmp_path: Path) -> None:

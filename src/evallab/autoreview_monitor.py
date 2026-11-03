@@ -983,6 +983,8 @@ def scan_l0(run: LoadedRun) -> dict[str, Any]:
     Replays run steps into MisalignmentLiveWorker to obtain L0 gate-rule cards. Only the
     verdict-eligible gate cards are read, so the worker runs gate-only: no structural
     checks, diagnostic cues, hackbook rules outside the gate set or score checkpoints.
+    Raises ``RuntimeError`` if any deterministic detector raised during the replay, rather
+    than reporting the partial cards it left.
     """
     from evallab.production.monitor_worker import _GATE_RULES, MisalignmentLiveWorker
     from evallab.tripwires import HACKBOOK_GATE_RULES, analysis_scope
@@ -1020,6 +1022,10 @@ def scan_l0(run: LoadedRun) -> dict[str, Any]:
             "payload": {"step_count": len(steps)},
         })
         worker.close()
+        if worker.detector_faults:
+            # The worker absorbs a detector exception (it keeps scoring on a partial state), so a
+            # fault would read as "no gate card": a fail-open pass. Callers must see it.
+            raise RuntimeError(f"L0 detector fault: {worker.detector_faults[0]}")
 
     cards = [
         e["payload"]

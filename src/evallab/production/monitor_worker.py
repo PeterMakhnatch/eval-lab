@@ -865,6 +865,9 @@ class MisalignmentLiveWorker:
         #: Offline replays that read only verdict gate cards: scores without structural checks,
         #: diagnostic cues, non-gate hackbook rules, prefilter cues or checkpoint events.
         self._gate_only = gate_only
+        #: Every deterministic-detector exception `_score` absorbed (it reports a coverage gap
+        #: and keeps going); an offline replay that must not fail open reads this.
+        self._detector_faults: list[str] = []
         self._sink = emit
         self._registry = registry
         self._judge = judge
@@ -1005,6 +1008,11 @@ class MisalignmentLiveWorker:
         self._finished.move_to_end(run_id)
         while len(self._finished) > self._finished_capacity:
             self._finished.popitem(last=False)
+
+    @property
+    def detector_faults(self) -> tuple[str, ...]:
+        """Deterministic-detector exceptions absorbed so far (``type: message``), in order."""
+        return tuple(self._detector_faults)
 
     @property
     def resident_runs(self) -> dict[str, int]:
@@ -1492,6 +1500,7 @@ class MisalignmentLiveWorker:
             alerts, structural = detection.alerts, detection.structural
         except Exception as exc:
             run.detector_valid = False
+            self._detector_faults.append(f"{type(exc).__name__}: {exc}"[:300])
             alerts = []
             coverage["gaps"].append("deterministic_detector_unavailable")
             coverage["detector_error"] = f"{type(exc).__name__}: {exc}"[:300]

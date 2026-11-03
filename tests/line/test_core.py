@@ -372,6 +372,7 @@ def test_interrupted_check_never_publishes_pass(
     result = read_json(Path(spec["out_root"]) / spec["batch_id"] / "check.json")
     assert not result["passed"]
     assert {check["status"] for check in result["checks"]} == {"PENDING"}
+    assert result["determinism_verified"] is False
 
 
 def test_scoreboard_receipt_times_the_scoreboard_build(

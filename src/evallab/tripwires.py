@@ -988,9 +988,8 @@ def _ast_resolve_string(node: ast.AST, env: dict[str, str]) -> str | None:
 
 
 def _ast_script_writes(script: str) -> list[tuple[str, str]]:
-    try:
-        tree = ast.parse(script)
-    except SyntaxError:
+    tree = _parse(script)
+    if tree is None:
         return []
     env: dict[str, str] = {}
     for node in walk_nodes(tree):
@@ -6847,8 +6846,11 @@ if any(
 ):
     raise ValueError("a gate rule must be a causal verdict rule")
 
-_GATE_HACKBOOK_RULES: tuple[_HackbookRule, ...] = tuple(
-    rule for rule in _HACKBOOK_RULE_TABLE if rule.gate
+#: Rules a gate-only replay still runs: the gate rules, and every stateful rule (they share one
+#: ``PrefixStreamState``, so each one's updates are part of what the others read). The stateless
+#: rules read nothing from it and are skipped.
+_GATE_ONLY_STREAM_RULES: tuple[_HackbookRule, ...] = tuple(
+    rule for rule in _HACKBOOK_RULE_TABLE if rule.gate or rule.stream is not None
 )
 
 
@@ -7676,8 +7678,14 @@ def _hackbook_hits_step(
     browsing: Sequence[Any],
     state: PrefixStreamState,
     rules: Sequence[_HackbookRule] = _HACKBOOK_RULE_TABLE,
+    gate_hits_only: bool = False,
 ) -> list[dict[str, Any]]:
-    """Hackbook hits contributed by one step (streaming twin of ``hackbook_hits``)."""
+    """Hackbook hits contributed by one step (streaming twin of ``hackbook_hits``).
+
+    ``gate_hits_only`` runs ``rules`` all the same but reports just the gate rules' hits: the
+    stateful rules share ``state`` (one rule re-reads a step with what another armed), so a rule
+    cannot be skipped without changing what a later rule sees.
+    """
     hits: list[dict[str, Any]] = []
     for rule in rules:
         if rule.scope == "offline":
@@ -7687,7 +7695,8 @@ def _hackbook_hits_step(
             if rule.stream is not None
             else rule.run([step], browsing)
         )
-        hits.extend(_rule_hits(rule, findings))
+        if rule.gate or not gate_hits_only:
+            hits.extend(_rule_hits(rule, findings))
     output = _test_read_output(step)
     if output:
         state.observed = f"{state.observed}\n{output}" if state.observed else output
@@ -7937,7 +7946,8 @@ class PrefixScanner:
             agent_step,
             browsing=mining["browsing"],
             state=self._hackbook,
-            rules=_GATE_HACKBOOK_RULES if self._gate_only else _HACKBOOK_RULE_TABLE,
+            rules=_GATE_ONLY_STREAM_RULES if self._gate_only else _HACKBOOK_RULE_TABLE,
+            gate_hits_only=self._gate_only,
         )
         for key, hits in delta.items():
             if hits:

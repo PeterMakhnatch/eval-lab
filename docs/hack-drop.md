@@ -50,9 +50,10 @@ The filter executes across three sequential stages per rollout:
 ### Stage 1: TASK (Task Certification)
 - Reads `--certified-tasks <manifest>` (produced by Gold certifier matrices).
 - If status is `weak` or `exploitable`: assigns decision `review` by default (configurable to `drop` via `--task-action drop`).
-- If status is `gold` or `hardened`: passes to next stage.
+- If status is `gold`, `hardened` or `certified`: passes to the next stage with `TASK_GOLD`, `TASK_HARDENED` or `TASK_CERTIFIED`.
+- If status is `provisional` or `uncertified` (or any status not defined above): passes with `TASK_PROVISIONAL` or `TASK_UNCERTIFIED`. Only a task missing from the manifest reports `TASK_STATUS_UNKNOWN`.
 - If task ID is `unknown` when certified tasks are configured: routes to `review` with `TASK_ID_UNRESOLVED`.
-- If status is `unknown` or omitted: passes through with an explanatory reason code.
+- Each status can be given its own action through the `status_actions` argument of `evaluate_task_stage` (the batch line exposes it as `task_policy`); the defaults are the behavior above.
 
 ### Stage 2: L0 (Deterministic Tripwires & Tamper Signatures)
 - **Fail-Open Safeguards:**
@@ -299,6 +300,7 @@ The manifest is `evallab.task_status/v1`, with `built_at`, `code_rev`,
 }
 ```
 
+<<<<<<< HEAD
 Statuses use this precedence, first match wins:
 
 1. **uncertified / REFERENCE_FAILED**: a measured reference fix does not score 1.
@@ -357,7 +359,9 @@ output files are not overwritten. Invalid input exits 2 without creating output.
 `hack_drop.load_certified_tasks` reads the builder's output unchanged. Older
 dictionary/JSONL manifests and historical status strings (`gold`, `hardened`,
 `weak`, `exploitable`, `unknown`) remain readable by that loader; new builders
-emit only `certified`, `provisional`, `weak`, and `uncertified`.
+emit only `certified`, `provisional`, `weak`, and `uncertified`. The task stage reports a
+per-status reason (`TASK_CERTIFIED`, `TASK_PROVISIONAL`, `TASK_UNCERTIFIED`, `TASK_WEAK`,
+`TASK_GOLD`, ...); a status outside the known list is treated as `uncertified`.
 
 ---
 

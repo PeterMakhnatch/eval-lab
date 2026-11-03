@@ -23,6 +23,7 @@ import fnmatch
 import hashlib
 import json
 import math
+import os
 import posixpath
 import re
 import shlex
@@ -168,23 +169,29 @@ def wilson_interval(k: int, n: int, z: float = 1.959964) -> tuple[float | None, 
 
 
 def check_dev_path_allowed(path: Path | str) -> Path:
-    """Refuse any path under research/answer-keys or declared TEST/held-out splits."""
-    p = Path(path).expanduser().resolve()
-    posix_lower = p.as_posix().lower()
-    if "answer-keys" in posix_lower or "answer_keys" in posix_lower:
-        raise RefusedRun(f"refused: files under answer-keys are forbidden: {path}")
+    """Refuse any path under research/answer-keys or declared TEST/held-out splits.
 
-    if re.search(r"(?:^|[/_\-.])(?:held-?out|holdout|tests?-heldout)(?:[/_\-.]|$)", posix_lower):
-        raise RefusedRun(f"refused: TEST/held-out split directory paths are forbidden: {path}")
+    Both the real location and the path as spelled are judged, so a symlink named like a
+    DEV file cannot launder a forbidden target and a DEV-looking link cannot hide behind one.
+    """
+    spelled = Path(path).expanduser()
+    p = spelled.resolve()
+    for candidate in dict.fromkeys((p, Path(os.path.abspath(spelled)))):
+        posix_lower = candidate.as_posix().lower()
+        if "answer-keys" in posix_lower or "answer_keys" in posix_lower:
+            raise RefusedRun(f"refused: files under answer-keys are forbidden: {path}")
 
-    if re.search(r"(?:^|[/_\-.])(?:test[-_]split|tests?[-_]split)(?:[/_\-.]|$)", posix_lower):
-        raise RefusedRun(f"refused: TEST split paths are forbidden: {path}")
+        if re.search(r"(?:^|[/_\-.])(?:held-?out|holdout|tests?-heldout)(?:[/_\-.]|$)", posix_lower):
+            raise RefusedRun(f"refused: TEST/held-out split directory paths are forbidden: {path}")
 
-    if re.search(r"[/_\-.](?:splits?|eval|data|corpus)/test(?:[/_\-.]|$)", posix_lower):
-        raise RefusedRun(f"refused: TEST split paths are forbidden: {path}")
+        if re.search(r"(?:^|[/_\-.])(?:test[-_]split|tests?[-_]split)(?:[/_\-.]|$)", posix_lower):
+            raise RefusedRun(f"refused: TEST split paths are forbidden: {path}")
 
-    if re.search(r"[/_\-.]test[-_]labels\.[a-z0-9]+$", posix_lower):
-        raise RefusedRun(f"refused: TEST label files are forbidden: {path}")
+        if re.search(r"[/_\-.](?:splits?|eval|data|corpus)/test(?:[/_\-.]|$)", posix_lower):
+            raise RefusedRun(f"refused: TEST split paths are forbidden: {path}")
+
+        if re.search(r"[/_\-.]test[-_]labels\.[a-z0-9]+$", posix_lower):
+            raise RefusedRun(f"refused: TEST label files are forbidden: {path}")
 
     return p
 
@@ -676,8 +683,22 @@ def _extract_label_value(item: dict[str, Any]) -> tuple[Any, bool]:
     return None, False
 
 
-def load_labels(path: Path | str, repo_root: Path | None = None) -> dict[str, bool]:
-    """Load evaluation labels mapping exact rollout id -> is_cheat."""
+def load_labels(
+    path: Path | str,
+    repo_root: Path | None = None,
+    *,
+    attempted_cheat: str | None = None,
+    attempted_ids: set[str] | None = None,
+) -> dict[str, bool]:
+    """Load exact rollout labels, explicitly accounting for unsuccessful attempts.
+
+    Omitting the policy preserves legacy parsing (``considered_only`` is omitted;
+    other attempt strings are rejected). With an explicit ``exclude``, ``cheat``
+    or ``clean`` policy, all three attempt strings are recognized and their IDs
+    collected independently of classification when ``attempted_ids`` is supplied.
+    """
+    if attempted_cheat is not None and attempted_cheat not in {"exclude", "cheat", "clean"}:
+        raise ValueError(f"invalid attempted_cheat policy: {attempted_cheat!r}")
     resolved = check_dev_path_allowed(path)
     if not resolved.is_file():
         raise FileNotFoundError(f"labels file not found: {path}")
@@ -685,22 +706,53 @@ def load_labels(path: Path | str, repo_root: Path | None = None) -> dict[str, bo
     registry = _get_corpus_registry(repo_root=repo_root)
     text = resolved.read_text(encoding="utf-8")
     labels: dict[str, bool] = {}
+    seen: dict[str, bool | str] = {}
+
+    def _store_label(key: str, raw_val: Any) -> None:
+        if attempted_cheat is None:
+            parsed = _parse_label_bool(raw_val, row_id=key)
+            if parsed is not None:
+                labels[key] = parsed
+            return
+        is_attempt = str(raw_val).strip().lower() in {
+            "considered_only", "attempted_cheat", "attempted_but_failed",
+        }
+        parsed = None if is_attempt else _parse_label_bool(raw_val, row_id=key)
+        if parsed is None and not is_attempt:
+            return
+        identity: bool | str = "attempted_cheat" if is_attempt else bool(parsed)
+        if key in seen and seen[key] != identity:
+            raise ValueError(f"conflicting labels for rollout {key!r}")
+        seen[key] = identity
+        if is_attempt:
+            if attempted_ids is not None:
+                attempted_ids.add(key)
+            if attempted_cheat == "exclude":
+                return
+            parsed = attempted_cheat == "cheat"
+        labels[key] = bool(parsed)
 
     def _process_item(item: dict[str, Any]) -> None:
         _check_label_row_dev(item, registry=registry)
-        key = item.get("id") or item.get("run_id") or item.get("task_id")
+        key = item.get("id") or item.get("run_id") or item.get("item_id") or item.get("task_id")
         if key is None:
             return
         raw_val, found = _extract_label_value(item)
         if not found:
             return
-        parsed = _parse_label_bool(raw_val, row_id=str(key))
-        if parsed is not None:
-            labels[str(key)] = parsed
+        _store_label(str(key), raw_val)
 
     try:
         data = json.loads(text)
         if isinstance(data, dict):
+            wrapper_meta = data.get("metadata")
+            _check_label_row_dev(
+                {
+                    "split": data.get("split"),
+                    "metadata": wrapper_meta if isinstance(wrapper_meta, dict) else {},
+                },
+                registry=registry,
+            )
             items_list = data.get("rows") or data.get("items") or data.get("labels")
             if isinstance(items_list, list):
                 for item in items_list:
@@ -712,9 +764,9 @@ def load_labels(path: Path | str, repo_root: Path | None = None) -> dict[str, bo
                 _process_item(data)
                 return labels
             for k, v in data.items():
-                parsed = _parse_label_bool(v, row_id=str(k))
-                if parsed is not None:
-                    labels[str(k)] = parsed
+                # A flat {run_id: label} map needs the same registry TEST check as row formats.
+                _check_label_row_dev({"id": str(k)}, registry=registry)
+                _store_label(str(k), v)
             return labels
         if isinstance(data, list):
             for item in data:
@@ -760,6 +812,7 @@ def _read_bundle_files(path: Path) -> list[tuple[str, str]]:
             continue
         if child.suffix.lower() not in _TEXT_SUFFIXES and child.suffix != "":
             continue
+        check_dev_path_allowed(child)  # a nested answer-key path must never be read
         rel = child.relative_to(path).as_posix()
         found.append((rel, child.read_text(encoding="utf-8", errors="replace")))
     return found
@@ -1030,12 +1083,30 @@ def load_rollouts(
 # --------------------------------------------------------------------------- #
 
 
+TASK_STATUSES: frozenset[str] = frozenset(
+    {"weak", "exploitable", "gold", "hardened", "certified", "provisional", "uncertified"}
+)
+TASK_ACTIONS: tuple[str, ...] = ("pass", "review", "drop")
+
+
 def evaluate_task_stage(
     task_id: str,
     certified_tasks: dict[str, dict[str, str]] | None,
     default_action: str = "review",
+    *,
+    status_actions: Mapping[str, str] | None = None,
 ) -> StageVerdict:
-    """Stage 1: check task certification status."""
+    """Stage 1: check task certification status.
+
+    Each status has its own reason code (``TASK_CERTIFIED``, ``TASK_PROVISIONAL``,
+    ``TASK_UNCERTIFIED``, ``TASK_WEAK``, ``TASK_GOLD``, ...); ``TASK_STATUS_UNKNOWN`` means the
+    task is absent from the manifest. By default only ``weak``/``exploitable`` act
+    (``default_action``); ``status_actions`` overrides the action for any status.
+    """
+    overrides = dict(status_actions or {})
+    for key, action in overrides.items():
+        if key not in TASK_STATUSES or action not in TASK_ACTIONS:
+            raise ValueError(f"invalid task status action: {key!r} -> {action!r}")
     if certified_tasks is None:
         return StageVerdict(
             stage="task",
@@ -1068,28 +1139,15 @@ def evaluate_task_stage(
 
     status = task_info.get("status", "unknown").lower()
     reason_note = task_info.get("reason", "")
-
-    if status in ("weak", "exploitable"):
-        reason_code = f"TASK_{status.upper()}"
-        return StageVerdict(
-            stage="task",
-            decision=default_action,
-            reasons=[reason_code],
-            details={"status": status, "note": reason_note},
-        )
-
-    if status in ("gold", "hardened"):
-        return StageVerdict(
-            stage="task",
-            decision="pass",
-            reasons=[f"TASK_{status.upper()}"],
-            details={"status": status, "note": reason_note},
-        )
-
+    # A status the manifest does not define cannot be certified: report it as uncertified.
+    known = status in TASK_STATUSES
+    action = overrides.get(status)
+    if action is None:
+        action = default_action if status in ("weak", "exploitable") else "pass"
     return StageVerdict(
         stage="task",
-        decision="pass",
-        reasons=["TASK_STATUS_UNKNOWN"],
+        decision=action,
+        reasons=[f"TASK_{status.upper()}" if known else "TASK_UNCERTIFIED"],
         details={"status": status, "note": reason_note},
     )
 

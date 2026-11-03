@@ -334,7 +334,9 @@ EVALLAB_LINE_REPLAY_SET=/absolute/path/to/replay-v1 \
 it. Frozen specs have absolute input paths: selecting a set is not an automatic
 relocation. The wrapper checks every input hash, then prints per-corpus
 drop-or-review recall and honest-run drops before versus after, the count of
-changed decisions, and the verdict. Detailed changed decisions remain in the
+changed decisions, and the verdict. A full run took about 29 minutes of compute
+on 2026-11-02 and each run leaves a new batch under `batches/`; run it through
+the machine's heavy-job lock if one is in force. Detailed changed decisions remain in the
 new replay batch, whose path is printed. Recall includes unreadable runs routed
 to review; that alone is not evidence of a real cheat detection. This is a DEV
 regression set, not a held-out detector-quality claim.

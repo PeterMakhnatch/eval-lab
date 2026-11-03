@@ -6,7 +6,7 @@ library/tasks/event-summary,local-lab/event-summary,4.0.0,clean,17,research/evid
 library/tasks/experimental/deepplanning-v1/travel-lisbon-002,deepplanning-v1/travel-lisbon-002,1.4.0,none,0,,,no,no,
 library/tasks/experimental/deepplanning-v1/travel-lisbon-002,deepplanning-v1/travel-lisbon-002,2.0.0,none,0,,,no,no,
 library/tasks/experimental/deepplanning-v1/travel-lisbon-002,deepplanning-v1/travel-lisbon-002,3.0.0,none,0,,,no,no,
-library/tasks/experimental/deepplanning-v1/travel-lisbon-002,deepplanning-v1/travel-lisbon-002,4.0.0,none,0,,,no,no,
+library/tasks/experimental/deepplanning-v1/travel-lisbon-002,deepplanning-v1/travel-lisbon-002,4.0.0,clean,1,research/evidence/ladder-v4-travel-lisbon-002-20261103/cells.json,sha256:45610e3dcd4dc277b8ce34a0d1028619510b2bab38f1c974d945a514c288d81c,yes,yes,
 library/tasks/experimental/syn-funcdag-easy,evallab/syn-funcdag-easy,1.4.0,clean,1,research/evidence/library-crack-sweep-20261012/cells.json,,no,no,
 library/tasks/experimental/syn-funcdag-easy,evallab/syn-funcdag-easy,2.0.0,clean,1,research/evidence/ladder-v2-sweep-20261013/cells.json,,no,no,
 library/tasks/experimental/syn-funcdag-easy,evallab/syn-funcdag-easy,3.0.0,none,0,,,no,no,

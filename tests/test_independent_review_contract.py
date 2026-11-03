@@ -591,7 +591,7 @@ def test_incomplete_lane_without_reason_still_explains_the_gap():
     review() + "VERDICT: BLOCK\n",
     review().replace("## Nit", "## Other"),
     "## Blocking\n- real\n\n## Should-fix\nNone\n\n## Nit\nNone\n\nVERDICT: PASS\n",
-    "## Blocking\nNone\n\n## Should-fix\nNone\n\n## Nit\nNone\nVERDICT: PASS in prose\n\nVERDICT: PASS\n",
+    "## Blocking\nNone\n\n## Should-fix\nNone\n\n## Nit\nNone\nVERDICT: PASS\n\nVERDICT: PASS\n",
 ])
 def test_complete_lane_with_invalid_report_is_incomplete_not_passing(report):
     result = consolidate(lane("gates", report), lane("tests", review()))
@@ -818,7 +818,7 @@ def test_spoofed_head_after_the_binding_block_cannot_replace_it(body):
 
 
 def test_first_binding_line_in_the_leading_block_wins():
-    text = f"> Reviewed head: `{HEAD}`\n> Reviewed head: `{OTHER}`\n\n" + review()
+    text = f"> Reviewed head: `{HEAD}`\n> Reviewed head: `{OTHER}`\n> Coverage: complete.\n\n" + review()
     assert contract.reviewed_head(text) == HEAD
 
 
@@ -914,8 +914,8 @@ def test_review_item_3_reproducers_are_all_rejected():
     doc(pre="## BLOCKING\n- x\n\n"),
     doc(pre="## Blocking\u200b\n- x\n\n"),
     doc(pre="## Blocking:\n- x\n\n"),
-    doc(pre="### Blocking\n- x\n\n"),
     doc(pre="## **Blocking**\n- x\n\n"),
+    doc(pre="# Blocking\n- x\n\n"),
     doc(pre="#Blocking\n"),
     doc(nit="## Should fix\n- x"),
     doc(nit="## Should_fix\n- x"),
@@ -925,17 +925,38 @@ def test_review_item_3_reproducers_are_all_rejected():
     doc(nit="##  Blocking"),
     doc(nit="## Blocking ##"),
     doc(nit="## \uff22locking"),
+    doc(nit="## \u0392locking"),  # Greek capital Beta
+    doc(nit="## \u0412locking"),  # Cyrillic capital Ve
+    doc(nit="## \u0405hould-fix"),  # Cyrillic capital Dze
+    doc(nit="## \u039dit"),  # Greek capital Nu
+    doc(nit="## N\u0456t"),  # Cyrillic i
     doc(nit="Blocking\n---"),
     doc(nit="Should-fix\n==="),
     doc(nit="  Nit\n  ---"),
+    doc(nit="Bl\u043ecking\n==="),
+    doc(nit="    ```\n## Blocking"),
+])
+def test_disguised_required_headings_are_rejected(text):
+    with pytest.raises(ValueError):
+        contract.parse_review(text)
+
+
+@pytest.mark.parametrize("text", [
+    doc(pre="### Blocking\n- x\n\n"),
+    doc(nit="### Blocking\n- audit note\n### Should-fix\n- another\n#### Nit"),
     doc(pre="# R\u00e9sum\u00e9\n\n"),
     doc(nit="## R\u00e9sum\u00e9"),
     doc(nit="## \u0411\u043b\u043e\u043a\u0438\u043d\u0433"),
-    doc(nit="    ```\n## Blocking"),
+    doc(pre="# Independent review \u2014 PR #1817\n\n"),
+    doc(pre="# Review \u2013 \u201cquoted\u201d \u2192 done\n\n"),
+    doc(nit="## Blocking findings recap"),
+    doc(nit="## Nit picks"),
+    doc(nit="Blocking items are listed above.\n---"),
+    doc(nit="- Blocking\n---"),
+    doc(nit="> Blocking\n---"),
 ])
-def test_disguised_or_unsafe_headings_are_rejected(text):
-    with pytest.raises(ValueError):
-        contract.parse_review(text)
+def test_other_headings_and_punctuation_are_plain_text(text):
+    assert contract.parse_review(text)["verdict"] == "PASS"
 
 
 @pytest.mark.parametrize("line", [
@@ -943,12 +964,28 @@ def test_disguised_or_unsafe_headings_are_rejected(text):
     "| VERDICT: BLOCK |", "`VERDICT: BLOCK`", "## VERDICT: BLOCK", "> > **Verdict**: pass",
     "V\u0395RDICT: BLOCK", "\u0412ERDICT: BLOCK", "VERDICT\u200b: BLOCK", "VERDICT : BLOCK",
     "\uff36\uff25\uff32\uff24\uff29\uff23\uff34: \uff22\uff2c\uff2f\uff23\uff2b",
-    "Verdict: block", "verdict: PASS", "VERDICT: PASS", "VERDICT: BLOCK  ",
-    "Result: PASS", "pytest: pass", "  VERDICT: BLOCK",
+    "Verdict: block", "verdict: PASS", "Result: PASS", "pytest: pass", "  VERDICT: BLOCK",
+    "- Result: PASS", "- Expected: BLOCK", "  - Actual: PASS", "- `test_foo`: PASS",
+    "- **Result**: PASS", "- Verdict: passing in CI", "- Verdict: blocked by missing fixture",
+    "- Verdict: blocker #1 is fixed", "- Verdict: PASS on all lanes after fix",
+    "VERDICT: PASS extra", "VERDICT: pass", "VERDICT:PASS",
 ])
-def test_any_other_verdict_like_line_is_rejected(line):
+def test_verdict_like_text_that_is_not_an_exact_line_is_plain_text(line):
+    assert contract.parse_review(doc(nit=line))["verdict"] == "PASS"
+
+
+@pytest.mark.parametrize("line", ["VERDICT: PASS", "VERDICT: BLOCK", "VERDICT: BLOCK  ", "VERDICT: PASS\t"])
+def test_a_second_exact_verdict_line_is_a_contradiction(line):
     with pytest.raises(ValueError):
         contract.parse_review(doc(nit=line))
+    with pytest.raises(ValueError):
+        contract.parse_review(doc(blocking=line, tail="VERDICT: BLOCK\n"))
+
+
+def test_a_homoglyph_final_verdict_is_not_a_verdict():
+    for tail in ("V\u0395RDICT: PASS\n", "VERDICT: PA\u0405S\n", "VERDICT: PASS\u200b\n"):
+        with pytest.raises(ValueError):
+            contract.parse_review(doc(tail=tail))
 
 
 @pytest.mark.parametrize("nit", [
@@ -1041,12 +1078,13 @@ def test_partial_note_ending_in_a_verdict_line_cannot_break_the_consolidated_rep
     assert result["report"].count("VERDICT:") == 1
 
 
-def test_every_verdict_like_line_inside_a_partial_note_is_omitted():
+def test_only_exact_verdict_lines_inside_a_partial_note_are_omitted():
     partial = "work\nVERDICT: BLOCK\nV\u0395RDICT: BLOCK\n**Verdict**: pass\n- verdict: block\nplain"
     result = consolidate(lane("gates", partial, complete=False, reason="stalled"), lane("tests", review()))
     assert contract.parse_review(result["report"])["verdict"] == "BLOCK"
-    assert result["report"].count("(verdict line omitted)") == 4
-    assert "> work" in result["report"] and "> plain" in result["report"]
+    assert result["report"].count("(verdict line omitted)") == 1
+    for kept in ("> work", "> V\u0395RDICT: BLOCK", "> **Verdict**: pass", "> - verdict: block", "> plain"):
+        assert kept in result["report"]
 
 
 def test_control_characters_in_partial_notes_and_reasons_cannot_break_the_report():
@@ -1296,7 +1334,7 @@ def test_reviewed_head_checks_the_pr_number_only_when_given():
     for other in (8, 70, 0):
         with pytest.raises(ValueError):
             contract.reviewed_head(bound, other)
-    missing = f"> Reviewed head: `{HEAD}` (base `{'b' * 40}`).\n\n" + review()
+    missing = f"> Reviewed head: `{HEAD}` (base `{'b' * 40}`).\n> Coverage: complete.\n\n" + review()
     with pytest.raises(ValueError):
         contract.reviewed_head(missing, 7)
     assert contract.reviewed_head(missing) == HEAD
@@ -1353,19 +1391,19 @@ def write_session(directory: Path, marker: str) -> Path:
 
 def build_evidence(
     root: Path, *, mode: str = "shallow", verdict: str = "PASS", model: str = ROUTE,
-    previous: str | None = None, moved_to: str | None = None,
+    previous: str | None = None, moved_to: str | None = None, lane_report: str | None = None,
 ) -> Path:
     root.mkdir(parents=True)
     if mode == "shallow":
         attestation = contract.attest_sessions([write_session(root / "sessions", "shallow")], model)
-        report = review(BLOCKER, "BLOCK") if verdict == "BLOCK" else review()
+        report = lane_report or (review(BLOCKER, "BLOCK") if verdict == "BLOCK" else review())
         coverage = None
     else:
         parts, attested = [], {}
         for name in contract.FOCUSES:
             lane_dir = root / "reviewers" / name
             attested[name] = contract.attest_sessions([write_session(lane_dir / "sessions", name)], model)
-            text = review(BLOCKER, "BLOCK") if verdict == "BLOCK" and name == "gates" else review()
+            text = lane_report or (review(BLOCKER, "BLOCK") if verdict == "BLOCK" and name == "gates" else review())
             (lane_dir / "REVIEW.md").write_text(text, encoding="utf-8")
             parts.append(lane(name, text))
         consolidated = consolidate(*parts)
@@ -1803,3 +1841,183 @@ def test_receipt_cannot_drop_the_delta_or_moved_head_notes_the_report_carries(tm
             contract.verify_evidence(path)
         edit_receipt(path, previous_head_sha=PREVIOUS, head_moved=True, pr_head_after=OTHER)
         assert contract.verify_evidence(path)["verdict"] == "PASS"
+
+
+# ------------------------------------------- round 2: honest reports, verbatim sections
+
+NESTED_FENCE = (
+    '1. **Bug**\n   - **Reproducer:**\n     ```python\n     s = """\n## Blocking\nNone\n"""\n     ```'
+)
+
+
+@pytest.mark.parametrize("text, verdict", [
+    (doc(nit="- Result: PASS"), "PASS"),
+    (doc(nit="Result: PASS\n- Status: PASS\n- Outcome: BLOCK\n- Gate: PASS\n- Check: PASS"), "PASS"),
+    (doc(blocking="- gate.py:1: bypass\n  - Expected: BLOCK\n  - Actual: PASS", tail="VERDICT: BLOCK\n"), "BLOCK"),
+    (doc(nit="- `test_foo`: PASS\n- **Result**: PASS\n`VERDICT: PASS`"), "PASS"),
+    (doc(nit="- Verdict: blocked by missing fixture\n- Verdict: passing in CI\n- Verdict: blocker #1 is fixed"), "PASS"),
+    (doc(pre="# Independent review \u2014 PR #1817\n\n"), "PASS"),
+    (doc(blocking=NESTED_FENCE, tail="VERDICT: BLOCK\n"), "BLOCK"),
+    (doc(nit="### Blocking\n- audit note: fixed\n### Should-fix\n- audit note: fixed"), "PASS"),
+])
+def test_honest_reports_from_the_round_2_review_are_accepted(text, verdict):
+    assert contract.parse_review(text)["verdict"] == verdict
+
+
+def test_nested_heredoc_example_keeps_its_unindented_heading_inside_the_blocking_text():
+    parsed = contract.parse_review(doc(blocking=NESTED_FENCE, tail="VERDICT: BLOCK\n"))
+    assert '     s = """\n## Blocking\nNone\n"""' in parsed["blocking"]
+    assert parsed["should_fix"] == "None" and parsed["nit"] == "None"
+
+
+@pytest.mark.parametrize("nit", [
+    "- item\n    ```\n## Blocking\nNone\n    ```",
+    "1. item\n\n     ```py\n## Blocking\n     ```",
+    "- a\n    - b\n        ```\n## Nit\n## Blocking\n        ```",
+    "- item\n    ~~~\n## Blocking\n~~~",
+    "- item\n    ````\n```\n## Blocking\n  ````",
+    "* item\n\t```\n## Blocking\n\t```",
+    "- item\n    ```\nVERDICT: BLOCK\n```",
+])
+def test_fences_indented_inside_list_items_swallow_their_content(nit):
+    assert contract.parse_review(doc(nit=nit))["verdict"] == "PASS"
+
+
+@pytest.mark.parametrize("nit", [
+    "- item\nplain\n    ```\n## Blocking",
+    "text\n    ```\n## Blocking",
+    "- item\n    ```\nstuff",
+    "- item\n    ```\n    ``` x",
+    "- item\n    ```\n    ~~~",
+    "- item\n    ```\n  ``",
+    "1. x\n     ```",
+    "- item\n    ```py```\n## Blocking",
+    "- item\n\n## Heading\n    ```\n## Blocking",
+])
+def test_list_fence_boundaries_stay_structural(nit):
+    with pytest.raises(ValueError):
+        contract.parse_review(doc(nit=nit))
+
+
+def test_a_list_fence_that_swallows_the_final_verdict_is_malformed():
+    with pytest.raises(ValueError):
+        contract.parse_review(doc(nit="- item\n    ```", tail="VERDICT: PASS\n"))
+
+
+def test_sections_are_verbatim_except_for_whitespace_only_edge_lines():
+    parsed = contract.parse_review(doc(
+        blocking="\n  \n    indented first\nsecond  \n\t\n",
+        should_fix="  two\n",
+        nit="\n  \n    tail  ",
+        tail="VERDICT: BLOCK\n",
+    ))
+    assert parsed["blocking"] == "    indented first\nsecond  "
+    assert parsed["should_fix"] == "  two"
+    assert parsed["nit"] == "    tail  "
+
+
+def test_pass_none_check_ignores_surrounding_whitespace_but_not_an_empty_section():
+    assert contract.parse_review(doc(blocking="  None.  "))["blocking"] == "  None.  "
+    with pytest.raises(ValueError):
+        contract.parse_review(doc(blocking="  \n  "))
+
+
+LANE_REPORTS = [
+    (doc(nit="    VERDICT: BLOCK\n    ## Blocking"), "PASS", "### [gates]\n    VERDICT: BLOCK\n    ## Blocking"),
+    (doc(nit="    ```\n    code\n    ```"), "PASS", "### [gates]\n    ```\n    code\n    ```"),
+    (doc(should_fix="    ## Should-fix\n    indented"), "PASS", "### [gates]\n    ## Should-fix\n    indented"),
+    (doc(blocking="    code first\nsecond", tail="VERDICT: BLOCK\n"), "BLOCK", "### [gates]\n    code first\nsecond"),
+    (doc(nit="- item\n    ```py\n## Blocking\nNone\n    ```"), "PASS", "### [gates]\n- item\n    ```py\n## Blocking"),
+    (doc(blocking=NESTED_FENCE, tail="VERDICT: BLOCK\n"), "BLOCK", "### [gates]\n1. **Bug**\n   - **Reproducer:**"),
+    (doc(nit="\tVERDICT: BLOCK\n\t## Nit"), "PASS", "### [gates]\n\tVERDICT: BLOCK\n\t## Nit"),
+]
+
+
+@pytest.mark.parametrize("report, verdict, embedded", LANE_REPORTS)
+def test_indented_section_starts_survive_consolidation(report, verdict, embedded):
+    result = consolidate(lane("gates", report), lane("tests", review()))
+    assert result["verdict"] == verdict
+    assert embedded in result["report"]
+    assert contract.parse_review(result["report"])["verdict"] == verdict
+    assert result["coverage"]["incomplete"] == {}
+
+
+@pytest.mark.parametrize("mode", ["shallow", "deep"])
+@pytest.mark.parametrize("report, verdict, embedded", LANE_REPORTS)
+def test_indented_section_starts_survive_evidence_verification(tmp_path, mode, report, verdict, embedded):
+    path = build_evidence(tmp_path / "evidence", mode=mode, verdict=verdict, lane_report=report)
+    assert contract.verify_evidence(path)["verdict"] == verdict
+
+
+def test_quoted_partial_notes_keep_their_indentation_verbatim():
+    partial = "    indented\n\tfoo\n  two\nVERDICT: BLOCK"
+    result = consolidate(lane("gates", partial, complete=False, reason="stalled"), lane("tests", review()))
+    assert "\n>     indented\n> \tfoo\n>   two\n> (verdict line omitted)" in result["report"]
+    assert contract.parse_review(result["report"])["verdict"] == "BLOCK"
+
+
+# ------------------------------------------- round 2: records carrying a message
+
+
+@pytest.mark.parametrize("kind", ["message_end", "agent_end", "turn_end", "assistant_message", "custom"])
+@pytest.mark.parametrize("wrong", [
+    {"provider": "anthropic", "model": "claude-opus-4-6"},
+    {"model": "other"},
+    {"provider": "other"},
+])
+def test_wrong_model_assistant_in_any_record_type_is_a_violation(tmp_path, kind, wrong):
+    entry = {"role": "assistant", "provider": "synthetic", "model": "reviewer", "stopReason": "stop"} | wrong
+    result = contract.attest_sessions([session(tmp_path, {"type": kind, "message": entry}, assistant())], ROUTE)
+    assert not result["valid"] and result["violations"]
+
+
+@pytest.mark.parametrize("kind", ["message_end", "agent_end", "turn_end", "custom"])
+def test_right_model_assistant_in_another_record_type_is_valid_and_not_counted(tmp_path, kind):
+    entry = {"role": "assistant", "provider": "synthetic", "model": "reviewer", "stopReason": "stop"}
+    path = session(tmp_path, assistant(), {"type": kind, "message": entry})
+    result = contract.attest_sessions([path], ROUTE)
+    assert result["valid"] and result["assistant_counts"] == {ROUTE: 1}
+
+
+def test_a_record_type_other_than_message_never_supplies_the_usable_assistant(tmp_path):
+    entry = {"role": "assistant", "provider": "synthetic", "model": "reviewer", "stopReason": "stop"}
+    result = contract.attest_sessions([session(tmp_path, {"type": "message_end", "message": entry})], ROUTE)
+    assert not result["valid"] and result["assistant_counts"] == {}
+
+
+def test_non_assistant_or_malformed_messages_in_other_record_types_are_ignored(tmp_path):
+    records = [
+        assistant(),
+        {"type": "message_end", "message": {"role": "user", "provider": "x", "model": "y"}},
+        {"type": "turn_end", "message": "text"},
+        {"type": "turn_end", "message": {"provider": "x", "model": "y"}},
+        {"type": "turn_end"},
+    ]
+    result = contract.attest_sessions([session(tmp_path, *records)], ROUTE)
+    assert result["valid"] and result["assistant_counts"] == {ROUTE: 1}
+
+
+def test_unidentified_assistant_in_another_record_type_is_an_error_not_a_violation(tmp_path):
+    record = {"type": "message_end", "message": {"role": "assistant", "model": "reviewer"}}
+    result = contract.attest_sessions([session(tmp_path, assistant(), record)], ROUTE)
+    assert not result["valid"] and result["violations"] == []
+
+
+# ------------------------------------------------ round 2: reviewed_head coverage line
+
+
+def test_reviewed_head_requires_the_complete_coverage_line_in_the_leading_block():
+    without = f"> Reviewed head: `{HEAD}` (PR #7, base `{'b' * 40}`).\n> This verdict covers only that commit.\n\n" + review()
+    for pr in (None, 7):
+        with pytest.raises(ValueError, match="complete-coverage"):
+            contract.reviewed_head(without, pr)
+    body_only = without + "> Coverage: complete.\n"
+    with pytest.raises(ValueError, match="complete-coverage"):
+        contract.reviewed_head(body_only)
+    with_line = without.replace("\n\n", "\n> Coverage: complete.\n\n", 1)
+    assert contract.reviewed_head(with_line, 7) == HEAD
+
+
+def test_reviewed_head_of_an_unbound_report_needs_no_coverage_line():
+    assert contract.reviewed_head(review()) is None
+    assert contract.reviewed_head("> quoted note\n\n" + review()) is None

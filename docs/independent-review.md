@@ -58,6 +58,12 @@ or commits into it loses that lane's verdict (see below).
 
 Each reviewer writes a `REVIEW.md` with `## Blocking`, `## Should-fix`, `## Nit` and a final
 `VERDICT: PASS` or `VERDICT: BLOCK`; PASS is rejected when the blocking section is not `None`.
+The format is strict and narrow: the verdict is only the last non-empty line, exact and unindented
+and outside code fences (a second exact verdict line is malformed); each required heading appears
+exactly once, in exact ASCII and order, and a level 1-2 heading that merely looks like one
+(case, zero-width or look-alike letters) is malformed; fences follow CommonMark. Everything else
+is ordinary text, so findings may say `Expected: BLOCK` or `Verdict: passing in CI`, use em dashes
+in titles, and nest code fences in lists. Anything malformed is never a PASS.
 In deep mode the tool consolidates the lane reports into `REVIEW.md` in the evidence directory,
 **always**, even when a lane timed out or crashed:
 

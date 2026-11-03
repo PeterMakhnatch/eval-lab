@@ -223,10 +223,13 @@ def attest_sessions(paths: Sequence[Path], requested_route: str) -> dict:
                 ):
                     errors.append(f"{location}: resolvedModelIsFallback must be boolean")
             # Assistant messages embedded in lists (agent_end, ...) prove identity, never usage:
-            # they repeat the session's own message records.
+            # they repeat the session's own message records. The same holds for the message of
+            # any non-"message" record (message_end, turn_end, ...); only type "message" counts.
             for item in listed:
                 if item.get("role") == "assistant":
                     _check_identity(item, location, expected, errors, violations)
+            if record["type"] != "message" and containers and containers[0].get("role") == "assistant":
+                _check_identity(containers[0], location, expected, errors, violations)
 
             if record["type"] == "model_change":
                 model = record.get("model")
@@ -301,35 +304,30 @@ def merge_attestations(parts: Mapping[str, Mapping[str, object]], requested_rout
 
 
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+_LOOSE_FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 _ATX = re.compile(r"^ {0,3}(#{1,6})(.*)$")
 _SETEXT = re.compile(r"^ {0,3}(?:=+|-+)[ \t]*$")
+_LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])(?:\s|$)")
 _FINAL_VERDICT = re.compile(r"VERDICT: (PASS|BLOCK)[ \t]*")
-_VERDICT_LEAD = re.compile(r"^(?:[>\s*_`#|+-]|\d+[.)](?=\s))*")
-_VERDICT_LONG = re.compile(r"^verdict\s*:\s*(?:pass|block)")
-_VERDICT_SHORT = re.compile(r"^\W*\S{0,12}\s*:\s*\**(?:pass|block)\**\W*$")
-_SECTION_NAMES = ("blocking", "should-fix", "nit")
+_SECTION_SKELETONS = ("blocking", "shouldfix", "nit")
+# Lower-case Greek/Cyrillic/Latin letters that render like Latin ones (after NFKC and casefold).
+_CONFUSABLES = str.maketrans({
+    "α": "a", "β": "b", "ε": "e", "ι": "i", "κ": "k", "ν": "n", "ο": "o", "ρ": "p", "τ": "t",
+    "υ": "u", "χ": "x", "γ": "y", "ϲ": "c",
+    "а": "a", "в": "b", "с": "c", "е": "e", "н": "h", "і": "i", "ј": "j", "к": "k", "м": "m",
+    "о": "o", "р": "p", "ѕ": "s", "т": "t", "у": "y", "х": "x", "ԁ": "d", "һ": "h", "ӏ": "l",
+    "ı": "i", "ɡ": "g",
+})
 
 
-def _normalise(text: str) -> str:
-    """NFKC and casefold with format (Cf) characters removed, to see through look-alikes."""
+def _skeleton(text: str) -> str:
+    """Letters and digits of ``text`` as a reader would see them, look-alikes folded to Latin."""
 
     def strip(value: str) -> str:
         return "".join(char for char in value if unicodedata.category(char) != "Cf")
 
-    return strip(unicodedata.normalize("NFKC", strip(text))).casefold()
-
-
-def _verdict_like(line: str) -> bool:
-    """True for any line that could be read as a verdict, however it is dressed up."""
-    text = _VERDICT_LEAD.sub("", _normalise(line))
-    return _VERDICT_LONG.match(text) is not None or _VERDICT_SHORT.match(text) is not None
-
-
-def _section_name(text: str) -> str:
-    """Normalised heading text, for spotting disguised Blocking/Should-fix/Nit headings."""
-    text = re.sub(r"\s#+\s*$", "", _normalise(text))
-    text = re.sub(r"^[\s*_`]+|[\s*_`:]+$", "", text)
-    return re.sub(r"should[\s_-]*fix", "should-fix", text)
+    folded = strip(unicodedata.normalize("NFKC", strip(text))).casefold().translate(_CONFUSABLES)
+    return "".join(char for char in folded if "a" <= char <= "z" or "0" <= char <= "9")
 
 
 def _indent(line: str) -> int:
@@ -344,13 +342,29 @@ def _indent(line: str) -> int:
     return width
 
 
+def _trim_edges(lines: Sequence[str]) -> str:
+    """Join lines, dropping only whitespace-only lines at the edges (indentation is content)."""
+    start, end = 0, len(lines)
+    while start < end and not lines[start].strip():
+        start += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return "\n".join(lines[start:end])
+
+
 def parse_review(text: str) -> dict[str, str]:
     """Strictly validate a report; return its ``blocking``, ``should_fix``, ``nit``, ``verdict``.
 
+    The verdict is the last non-empty line, exactly ``VERDICT: PASS|BLOCK`` (trailing blanks
+    allowed), unindented and outside any fence; a second such line is a contradiction. Every
+    other line, including quoted, bold or ``Result: PASS`` style lines, is plain text.
     CRLF is normalised; lone CR, control characters and Unicode line/paragraph separators are
-    rejected. Fences follow CommonMark 4.5 and 4-column indented lines are code, never structure.
-    The last non-empty line must be the only ``VERDICT: PASS|BLOCK`` line, and no other
-    verdict-like line or disguised Blocking/Should-fix/Nit heading may appear outside fences.
+    rejected. Fences follow CommonMark 4.5; a fence opened four or more columns in, inside a
+    list item, is a fence that any same-character closer ends, while elsewhere 4-column lines
+    are inert code. The three required headings must each appear once, in order, in exact
+    ASCII, outside fences; a level 1-2 heading that merely looks like one of them (case,
+    punctuation, zero-width or look-alike letters) is malformed. Sections are returned verbatim
+    except for whitespace-only edge lines.
     """
     text = text.replace("\r\n", "\n")
     if "\r" in text:
@@ -368,12 +382,16 @@ def parse_review(text: str) -> dict[str, str]:
         raise ValueError("require exactly one final standalone VERDICT: PASS or VERDICT: BLOCK")
 
     headings: dict[str, list[int]] = {heading: [] for heading in _REQUIRED_HEADINGS}
-    fence: tuple[str, int] | None = None
+    fence: tuple[str, int, bool] | None = None  # character, length, closes with any indent
     previous: str | None = None  # last ordinary text line, a possible setext heading
+    in_list = False
     for index, line in enumerate(lines):
         indent = _indent(line)
         if fence is not None:
-            closer = _FENCE.match(line) if indent < 4 else None
+            if fence[2]:
+                closer = _LOOSE_FENCE.match(line)
+            else:
+                closer = _FENCE.match(line) if indent < 4 else None
             if (
                 closer is not None
                 and closer.group(1)[0] == fence[0]
@@ -382,33 +400,42 @@ def parse_review(text: str) -> dict[str, str]:
             ):
                 fence = None
             continue
-        if not line.strip() or indent >= 4:
+        if not line.strip():
             previous = None
             continue
+        listed = _LIST_ITEM.match(line) is not None
+        if indent >= 4:
+            opener = _LOOSE_FENCE.match(line) if in_list else None
+            if opener is not None and not (opener.group(1)[0] == "`" and "`" in opener.group(2)):
+                fence = (opener.group(1)[0], len(opener.group(1)), True)
+            previous = None
+            continue
+        if listed:
+            in_list = True
+        elif indent == 0:
+            in_list = False
         opener = _FENCE.match(line)
         if opener is not None and not (opener.group(1)[0] == "`" and "`" in opener.group(2)):
-            fence = (opener.group(1)[0], len(opener.group(1)))
+            fence = (opener.group(1)[0], len(opener.group(1)), False)
             previous = None
             continue
-        if index != last and _verdict_like(line):
-            raise ValueError(f"line {index + 1} is a second or disguised verdict line")
+        if index != last and _FINAL_VERDICT.fullmatch(line):
+            raise ValueError(f"line {index + 1} is a second verdict line")
         atx = _ATX.match(line)
         if atx is not None:
             exact = line.rstrip(" \t")
             if exact in headings:
                 headings[exact].append(index)
-            elif _section_name(atx.group(2)) in _SECTION_NAMES:
+            elif len(atx.group(1)) <= 2 and _skeleton(atx.group(2)) in _SECTION_SKELETONS:
                 raise ValueError(f"line {index + 1} is a disguised review section heading")
-            elif len(atx.group(1)) <= 2 and not line.isascii():
-                raise ValueError(f"line {index + 1} is a non-ASCII level 1-2 heading")
             previous = None
             continue
         if _SETEXT.match(line) and previous is not None:
-            if _section_name(previous) in _SECTION_NAMES:
+            if _skeleton(previous) in _SECTION_SKELETONS:
                 raise ValueError(f"line {index} is a disguised review section heading")
             previous = None
             continue
-        previous = line
+        previous = None if listed or line.startswith(">") else line
     if fence is not None:
         raise ValueError("review has an unclosed code fence")
     if any(len(positions) != 1 for positions in headings.values()):
@@ -416,14 +443,14 @@ def parse_review(text: str) -> dict[str, str]:
     blocking, should_fix, nit = (headings[heading][0] for heading in _REQUIRED_HEADINGS)
     if not blocking < should_fix < nit < last:
         raise ValueError("review sections must appear in Blocking, Should-fix, Nit order")
-    blocking_text = "\n".join(lines[blocking + 1:should_fix]).strip()
+    blocking_text = _trim_edges(lines[blocking + 1:should_fix])
     verdict = final.group(1)
-    if verdict == "PASS" and not re.fullmatch(r"none\.?", blocking_text, flags=re.IGNORECASE):
+    if verdict == "PASS" and not re.fullmatch(r"none\.?", blocking_text.strip(), flags=re.IGNORECASE):
         raise ValueError("PASS requires the Blocking section to say None")
     return {
         "blocking": blocking_text,
-        "should_fix": "\n".join(lines[should_fix + 1:nit]).strip(),
-        "nit": "\n".join(lines[nit + 1:last]).strip(),
+        "should_fix": _trim_edges(lines[should_fix + 1:nit]),
+        "nit": _trim_edges(lines[nit + 1:last]),
         "verdict": verdict,
     }
 
@@ -644,7 +671,7 @@ def _clean(text: str) -> str:
 def _quote(text: str, limit: int = 8000) -> str:
     shown = text if len(text) <= limit else text[:limit] + "\n[... truncated ...]"
     lines = [
-        "> (verdict line omitted)" if _verdict_like(line) else f"> {_clean(line)}"
+        "> (verdict line omitted)" if _FINAL_VERDICT.fullmatch(line.strip()) else f"> {_clean(line)}"
         for line in shown.splitlines()
     ]
     return "\n".join(lines) or "> (empty)"
@@ -815,6 +842,8 @@ def reviewed_head(report: str, pr_number: int | None = None) -> str | None:
     for line in leading:
         found = _BOUND_HEAD.match(line)
         if found:
+            if "> Coverage: complete." not in leading:
+                raise ValueError("the earlier review is not a complete-coverage review")
             if pr_number is not None:
                 bound_pr = _BOUND_PR.search(line)
                 if bound_pr is None or int(bound_pr.group(1)) != pr_number:

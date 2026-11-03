@@ -47,6 +47,7 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
+from evallab.evidence.atif import command_exit_code
 from evallab.labels import ReviewQueueItem, select_review_queue
 from evallab.registry import TaskRegistry
 from evallab.schemas import ANALYSIS_SIDECAR_FILENAME, TrialAnalysisSidecar
@@ -506,8 +507,8 @@ def _trajectory_view(trial_dir: Path) -> TrajectoryView | Labeled:
             if not isinstance(call_ref, str):
                 continue
             key = (segment_position, call_ref)
-            exit_code = obs.get("command_exit_code")
-            if isinstance(exit_code, int):
+            exit_code = command_exit_code(obs)
+            if exit_code is not None:
                 exit_by_call[key] = exit_code
             if "content" in obs:
                 content_by_call[key] = content_label(

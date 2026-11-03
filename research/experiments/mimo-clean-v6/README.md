@@ -587,6 +587,7 @@ the commands, the exclusivity method and the monitor finding.
 
 The 1.4.0 verdict files above are unchanged, and manifest `verify` stays
 `unverified`. The subset file uses its own schema
-(`evallab.mimo-v6-ladder-subset-cells/v1`), so the HAR-286 progress table
-ignores it. That table still shows all three rows on `tamper-refusal`, because
-their full-ladder cells rest on a refusal.
+(`evallab.mimo-v6-ladder-subset-cells/v1`), so the HAR-286 progress table keeps
+all three rows on `basis` `tamper-refusal`, because their full-ladder cells rest
+on a refusal; its HAR-294 `subset_verdict`/`subset_reward` columns show
+`graded-clean` / `0.0` for all three.

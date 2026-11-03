@@ -74,7 +74,11 @@ def _harbor_version() -> tuple[int, ...]:
         return ()
     parts: list[int] = []
     for piece in raw.split(".")[:3]:
-        digits = "".join(ch for ch in piece if ch.isdigit())
+        digits = ""
+        for ch in piece:
+            if not ch.isdigit():
+                break
+            digits += ch
         if not digits:
             break
         parts.append(int(digits))

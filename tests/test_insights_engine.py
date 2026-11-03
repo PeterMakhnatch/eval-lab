@@ -1478,6 +1478,77 @@ def test_referee_batches_by_rendered_size_not_card_count(tmp_path: Path) -> None
     assert len(pack) <= budget and "more omitted" not in pack
 
 
+def test_oversized_card_is_graded_alone_with_a_trimmed_pack(tmp_path: Path) -> None:
+    clock = Clock()
+    ref: list[Engine] = []
+    launcher = FakeLauncher(scripts={
+        "extractor": _extract, "skeptic": _skeptic(ref), "referee": _referee,
+    })
+    engine = _engine(tmp_path, clock, launcher)
+    ref.append(engine)
+    small, big = _checked_cards(engine)
+    long_text = "a very long observation " * 4000
+    big = big.model_copy(update={"card": big.card.model_copy(update={
+        "observations": [long_text], "interpretation": "Long. " + long_text[:1400],
+    })})
+    engine.store.save_insight(big)
+    budget = referee_pack_size(engine.store, [small.insight_id]) * 2
+    assert referee_pack_size(engine.store, [big.insight_id]) > budget
+    engine.config.lenses["referee"] = engine.config.schedule("referee").model_copy(
+        update={"max_pack_chars": budget}
+    )
+    packs: dict[str, str] = {}
+    for _ in range(3):
+        inputs, _why = engine.build_inputs("referee", engine.config.schedule("referee"))
+        if inputs is None:
+            break
+        record = engine.run_lens("referee", inputs=inputs, poll_seconds=0, sleep=lambda _: None)
+        assert record is not None and record.status == "succeeded"
+        pack = (Path(record.pass_dir) / "pack.md").read_text()
+        assert len(pack) <= budget
+        for insight_id in inputs.insight_ids:
+            packs[insight_id] = pack
+    assert {c.status for c in engine.store.list_insights()} == {"refereed"}
+    assert "[trimmed" in packs[big.insight_id] and big.insight_id in packs[big.insight_id]
+    assert "more omitted" not in packs[big.insight_id]
+    for ref_ in big.card.evidence:
+        assert ref_.claim_id in packs[big.insight_id]
+    # Normal batching is unchanged: the card that fits is never trimmed.
+    assert "[trimmed" not in packs[small.insight_id]
+    assert engine.store.referee_too_large() == {}
+
+
+def test_card_that_cannot_fit_even_trimmed_is_visibly_marked(tmp_path: Path) -> None:
+    clock = Clock()
+    ref: list[Engine] = []
+    launcher = FakeLauncher(scripts={
+        "extractor": _extract, "skeptic": _skeptic(ref), "referee": _referee,
+    })
+    engine = _engine(tmp_path, clock, launcher)
+    ref.append(engine)
+    cards = _checked_cards(engine)
+    schedule = engine.config.schedule("referee").model_copy(update={"max_pack_chars": 1000})
+    engine.config.lenses["referee"] = schedule
+    for _ in range(2):  # re-planning must not repeat the event
+        inputs, why = engine.build_inputs("referee", schedule)
+        assert inputs is None and "too large to referee" in why
+    assert set(engine.store.referee_too_large()) == {c.insight_id for c in cards}
+    events = [e for e in engine.store.events(limit=100) if e["kind"] == "referee_too_large"]
+    assert len(events) == len(cards)
+    assert {c.status for c in engine.store.list_insights()} == {"checked"}
+    engine.render_board()
+    board = (tmp_path / "state" / "board" / "board.md").read_text()
+    assert "too large to referee" in board
+    assert all(c.insight_id in board for c in cards)
+    status = collect_status(tmp_path / "state", now=clock())
+    assert set(status["referee_too_large"]) == {c.insight_id for c in cards}  # type: ignore[arg-type]
+    # Raising the limit clears the mark once the cards are graded.
+    engine.config.lenses["referee"] = schedule.model_copy(update={"max_pack_chars": 240_000})
+    inputs, _why = engine.build_inputs("referee", engine.config.schedule("referee"))
+    assert inputs is not None
+    assert engine.store.referee_too_large() == {}
+
+
 def test_exact_and_near_duplicates_are_archived_before_refereeing(tmp_path: Path) -> None:
     clock = Clock()
     ref: list[Engine] = []

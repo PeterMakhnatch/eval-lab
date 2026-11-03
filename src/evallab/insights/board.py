@@ -349,6 +349,10 @@ def render_board(
         + "; ".join(record.scope_violations.examples)
         for record in recent if record.scope_violations.count
     )
+    health_notes.extend(
+        f"too large to referee: {insight_id} still renders {size} chars after trimming"
+        for insight_id, size in sorted(store.referee_too_large().items())
+    )
     calibration_text, calibration = _calibration_text(store, now)
     updated = _display_time(now.isoformat())
     state_label = f"Ledger: {store.path.resolve()}. Render time is not source freshness."

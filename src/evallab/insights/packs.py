@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from importlib import resources
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -297,7 +298,90 @@ def _layout_groups(store: InsightStore, claims: list[ClaimRecord], limit: int = 
     return [f"## Receipt layout\nfolder={folder}\n{receipt_listing(folder)}" for folder in folders]
 
 
-def _groups(store: InsightStore, inputs: PassInputs) -> list[str]:
+_PROTECTED_KEYS = frozenset({
+    "claim_id", "insight_id", "source_id", "section_id", "local_id", "kind", "role",
+    "status", "metric", "experiment",
+})
+_TRIM_FLOOR = 120
+_PACK_HEADER = "# referee evidence pack\n\n"
+
+
+def _referee_group(anonymous: dict[str, Any], records: list[Any]) -> str:
+    return (
+        "## Card, cited claims, challenge targets, and source excerpts\n"
+        f"{_json(anonymous)}\n{_json(records)}"
+    )
+
+
+_Entry = tuple[dict[str, Any], list[Any]]
+
+
+def _string_slots(value: object, key: object = None) -> list[tuple[Any, Any]]:
+    """(container, key) of every unprotected string, in document order."""
+    slots: list[tuple[Any, Any]] = []
+    if isinstance(value, dict):
+        for child_key, child in value.items():
+            if child_key in _PROTECTED_KEYS:
+                continue
+            if isinstance(child, str):
+                slots.append((value, child_key))
+            else:
+                slots.extend(_string_slots(child, child_key))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            if isinstance(child, str):
+                slots.append((value, index))
+            else:
+                slots.extend(_string_slots(child, key))
+    return slots
+
+
+def _trim_entry(
+    entry: _Entry, limit: int,
+) -> None:
+    """Shrink the longest strings, marking each cut, until the group fits ``limit``.
+
+    Ids, roles and numbers are never touched, so every cited claim stays in the pack.
+    """
+    while True:
+        excess = len(_referee_group(*entry)) - limit
+        if excess <= 0:
+            return
+        best: tuple[Any, Any] | None = None
+        best_length = _TRIM_FLOOR + 40
+        for container, key in _string_slots(entry[0]) + _string_slots(entry[1]):
+            length = len(container[key])
+            if length > best_length:
+                best, best_length = (container, key), length
+        if best is None:
+            return
+        container, key = best
+        text: str = container[key]
+        keep = max(_TRIM_FLOOR, len(text) - excess - 30)
+        container[key] = f"{text[:keep]}[trimmed {len(text) - keep} chars]"
+
+
+def _fit_referee_groups(
+    entries: list[_Entry], budget: int,
+    header_len: int = len(_PACK_HEADER),
+) -> list[str]:
+    """Render referee cards; only when the pack exceeds ``budget`` shrink the oversized ones.
+
+    Each card gets an equal share of the budget, so a batch that already fits is untouched.
+    """
+    groups = [_referee_group(*entry) for entry in entries]
+    overhead = header_len + 1 + 2 * max(0, len(groups) - 1)
+    if not entries or overhead + sum(map(len, groups)) <= budget:
+        return groups
+    share = max(0, (budget - overhead) // len(entries))
+    for index, entry in enumerate(entries):
+        if len(groups[index]) > share:
+            _trim_entry(entry, share)
+            groups[index] = _referee_group(*entry)
+    return groups
+
+
+def _groups(store: InsightStore, inputs: PassInputs, budget: int | None = None) -> list[str]:
     """Return highest-priority groups first; a group is never cut mid-record."""
     groups: list[str] = []
     claims = []
@@ -347,6 +431,7 @@ def _groups(store: InsightStore, inputs: PassInputs) -> list[str]:
     public_insights = [record for record in insights if not record.hidden]
     by_id = {record.insight_id: record for record in insights}
     if inputs.lens in {"referee", "twinmaker"}:
+        entries: list[_Entry] = []
         for insight_id in inputs.insight_ids:
             insight = by_id.get(insight_id)
             if insight is None:
@@ -381,10 +466,12 @@ def _groups(store: InsightStore, inputs: PassInputs) -> list[str]:
                 anonymous["nearest_existing"] = nearest_cards(
                     insight.card, public_insights, withheld=withheld
                 )
-            groups.append(
-                f"## Card, cited claims, challenge targets, and source excerpts\n"
-                f"{_json(anonymous)}\n{_json(records)}"
-            )
+            entries.append((anonymous, records))
+        if budget is not None:
+            header = len(f"# {inputs.lens} evidence pack\n\n")
+            groups.extend(_fit_referee_groups(entries, budget, header))
+        else:
+            groups.extend(_referee_group(*entry) for entry in entries)
         return groups
     if inputs.lens == "synthesizer":
         groups.extend(f"## Refereed insight\n{_json(record)}" for record in insights
@@ -447,10 +534,14 @@ def _groups(store: InsightStore, inputs: PassInputs) -> list[str]:
     return groups
 
 
-def referee_pack_size(store: InsightStore, insight_ids: Sequence[str]) -> int:
-    """Exact rendered size, so scheduling never relies on a card-count proxy."""
-    groups = _groups(store, PassInputs(lens="referee", insight_ids=tuple(insight_ids)))
-    return len("# referee evidence pack\n\n" + "\n\n".join(groups) + "\n")
+def referee_pack_size(
+    store: InsightStore, insight_ids: Sequence[str], *, trim_to: int | None = None,
+) -> int:
+    """Exact rendered size; with ``trim_to`` oversized cards shrink exactly as at build time."""
+    groups = _groups(
+        store, PassInputs(lens="referee", insight_ids=tuple(insight_ids)), trim_to,
+    )
+    return len(_PACK_HEADER + "\n\n".join(groups) + "\n")
 
 
 def _bounded_pack(groups: list[str], lens: Lens, budget: int) -> str:
@@ -556,7 +647,7 @@ def build_pass_dir(
     brief = resources.files("evallab.insights").joinpath("lenses", f"{inputs.lens}.md").read_text(
         encoding="utf-8"
     )
-    pack = _bounded_pack(_groups(store, inputs), inputs.lens, max_pack_chars)
+    pack = _bounded_pack(_groups(store, inputs, max_pack_chars), inputs.lens, max_pack_chars)
     input_json = _json(asdict(inputs)) + "\n"
     digest = hashlib.sha256((input_json + brief).encode()).hexdigest()
     path = (state_root / "passes" / pass_id).resolve()

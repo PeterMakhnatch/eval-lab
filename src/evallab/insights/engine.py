@@ -111,6 +111,8 @@ PLAN_ORDER: tuple[Lens, ...] = (
     "twinmaker",
 )
 WORKER_TOOLS = "read,bash,grep,glob,write"
+#: Ledger meta key listing cards whose pack cannot fit even after trimming.
+TOO_LARGE_META = "referee_too_large"
 TIMEOUT_GRACE = timedelta(minutes=5)
 PARK_DEFAULT = timedelta(minutes=60)
 AUTH_PARK = timedelta(hours=24)
@@ -644,6 +646,8 @@ class Engine:
         units.sort(key=lambda item: (item[0], item[1]))
         chosen: list[str] = []
         oversized = 0
+        too_large: dict[str, int] = {}
+        budget = schedule.max_pack_chars
         for _, unit in units:
             if any(insight_id in chosen for insight_id in unit):
                 continue
@@ -653,18 +657,47 @@ class Engine:
             except ValueError:
                 oversized += 1
                 continue
-            if size <= schedule.max_pack_chars:
+            if size <= budget:
                 chosen = candidate
-            else:
-                oversized += 1
+                continue
+            oversized += 1
+            if chosen:
+                continue  # It leads a later pass, where it may be trimmed.
+            try:
+                trimmed = packs_mod.referee_pack_size(self.store, unit, trim_to=budget)
+            except ValueError:
+                continue
+            if trimmed <= budget:
+                # Graded alone; build_pass_dir shrinks it the same deterministic way.
+                chosen = list(unit)
+                break
+            too_large.update({insight_id: trimmed for insight_id in unit})
+        self._record_too_large(too_large, {i for _, unit in units for i in unit} - set(chosen))
         if not chosen:
-            return None, f"waiting: {oversized} card(s) exceed max_pack_chars"
+            note = f"; {len(too_large)} too large to referee" if too_large else ""
+            return None, f"waiting: {oversized} card(s) exceed max_pack_chars{note}"
         waiting = len(units) - (1 if chosen else 0)
         return (
             PassInputs(lens="referee", insight_ids=tuple(chosen)),
             f"{len(ordinary)} checked cards plus calibration controls; "
             f"size-batched {len(chosen)} cards ({oversized} did not fit; {waiting} units waiting)",
         )
+
+    def _record_too_large(self, found: dict[str, int], pending: set[str]) -> None:
+        """Persist cards no trimming can fit, so status and the board say so; event once each."""
+        if self.store.readonly:
+            return
+        previous = self.store.referee_too_large()
+        current = {k: v for k, v in previous.items() if k in pending}
+        current.update(found)
+        for insight_id in sorted(set(current) - set(previous)):
+            self.store.log_event(
+                "referee_too_large",
+                {"insight_id": insight_id, "trimmed_chars": current[insight_id],
+                 "max_pack_chars": self.config.schedule("referee").max_pack_chars},
+            )
+        if current != previous:
+            self.store.set_meta(TOO_LARGE_META, json.dumps(current, sort_keys=True))
 
     def _twinmaker_inputs(self, schedule: LensSchedule) -> tuple[PassInputs | None, str]:
         accepted = self.store.list_insights(statuses=["refereed"])

@@ -1187,6 +1187,14 @@ class InsightStore:
             result[arm] = {"k": k, "n": len(verdicts), "wilson": wilson(k, len(verdicts))}
         return result
 
+    def referee_too_large(self) -> dict[str, int]:
+        """Cards whose referee pack cannot fit even after trimming (id -> trimmed size)."""
+        raw = self.get_meta("referee_too_large")
+        try:
+            return {str(k): int(v) for k, v in json.loads(raw).items()} if raw else {}
+        except (ValueError, AttributeError, TypeError):
+            return {}
+
     def mark_scope_warning(self, pass_id: str) -> None:
         """Make a flagged pass's imported claims/cards visibly suspect."""
         note = f"Read-scope warning from worker pass {pass_id}; verify cited evidence independently."

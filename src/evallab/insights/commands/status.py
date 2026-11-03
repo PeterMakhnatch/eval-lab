@@ -225,6 +225,7 @@ def collect_status(root: Path, *, now: datetime) -> dict[str, object]:
             "insights": store.insight_counts(),
             "insights_needing_recheck": store.insight_recheck_count(),
             "referee_calibration": store.calibration_rates(now=now),
+            "referee_too_large": sorted(store.referee_too_large()),
             "predictions": {
                 status: len(store.list_predictions(status=status))
                 for status in ("open", "hit", "miss", "untestable")
@@ -275,6 +276,9 @@ def _cmd(args: argparse.Namespace, root: Path, *, harbor: object | None = None) 
         f"Open signals: {status['open_signals']}."
     )
     print(f"Report sections: {_counts(status['sections'])}. Predictions: {_counts(status['predictions'])}.")
+    too_large = status["referee_too_large"]
+    if isinstance(too_large, list) and too_large:
+        print(f"Too large to referee even after trimming: {', '.join(too_large)}.")
     calibration = status["referee_calibration"]
     if isinstance(calibration, dict):
         twin, original = calibration["twin"], calibration["original"]

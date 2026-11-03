@@ -255,9 +255,18 @@ failures are non-blocking.
 - Extraction quality bounds everything downstream; failed checks are visible
   on the claim, not silently dropped, and the rederiver measures agreement on a
   deterministic 20% sample of recipe-backed claims.
-- The referee is one model family; a strong card can still be wrong. Canary
-  rates measure this referee on planted corruption types, not universal truth.
-  Treat the board as a ranked queue for human review, not as findings.
+- The referee is one model family and checks a card against its cited claims,
+  not against the receipts. On 118 real backtest cards it accepted all 15 that
+  a blind receipt-recomputing audit rated only partly right, and each of the 7
+  it did not accept was rated correct. A referee accept is therefore no
+  evidence that a card is right. Canary rates measure the referee on planted
+  corruption types only. Treat the board as a ranked queue for human review,
+  not as findings.
+- Measured quality, from two overnight backtests: the engine matched about half
+  of what verifiers found later, the same as one strong single-session review,
+  and the two found different items; 87% of its cards were fully correct
+  against 66% for the single session
+  ([backtest results](../research/experiments/insights-backtest-20261102/README.md)).
 - Signals require compatible quantity types and cohort identities. Conservative
   matching suppresses false alarms but inconsistent naming or missing quantity
   metadata can still hide real drift until the entity registry catches up.

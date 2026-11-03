@@ -9,15 +9,25 @@ list of known-bad tricks is needed:
   ``Agent`` for ``agent``);
 * every component of the path, the top one included, is a real directory or file by ``lstat``:
   a symlink on the path or inside the trial is refused, so a link cannot redirect to, or hide,
-  forbidden content. ``allowed_roots`` names the folders the operator trusts: operating-system
-  links *above* a root (macOS ``/tmp`` is a link) are fine, links at or below it never are;
+  forbidden content. The caller passes the canonical path (``os.path.realpath(p) == p``; macOS
+  ``/tmp`` must be given as ``/private/tmp``) and every check runs on that one path, so a link
+  above it can hide nothing because nothing else is ever examined;
 * every file inside is regular and is not a hard link to sealed material: published trials are
   themselves hard-linked copies (``st_nlink`` 2), so a link count cannot decide, but the inode
   of every file under the caller's sealed folders is known, and a match is refused;
-* a directory is a whole trial (never ``agent`` or ``verifier``); a single file is accepted only
-  when no ancestor is ``agent``/``verifier`` and no ancestor folder holds a sidecar or an
-  ``agent`` folder, so a row cannot point inside a trial to skip its sidecars. Files are indexed
-  by case-folded relative path, so ``Result.json`` is a sidecar too;
+* a rollout is never inside a trial. Trials are told from job folders by shape (``TRIAL_SHAPE``,
+  measured on the real Harbor results): an ancestor is a trial when it is named ``agent`` or
+  ``verifier``, holds ``agent``, ``verifier``, ``trajectory.json``, ``final.diff`` or
+  ``trial.log``, or holds a sidecar with a trial's keys (or one empty, not a mapping or
+  unreadable; keys compared case-insensitively). A job folder's own sidecars carry job keys, so
+  the trials below it still admit. A single file is stricter: any ancestor holding ``agent``,
+  ``verifier`` or any sidecar refuses. A directory is a whole trial. Files are indexed by
+  case-folded relative path, so ``Result.json`` is a sidecar too;
+* shape is not what keeps a TEST trial out: the sidecars (``result.json``, ``config.json``,
+  ``run.json``, ``grade.json``, ``provenance.json``, any letter case) of EVERY ancestor folder
+  are read and held to the same checks as the rollout's own documents (split, task and trial
+  names, digests, ``tasks`` lists), so an honest job above a trial passes and a TEST declaration
+  anywhere above refuses;
 * every trajectory and sidecar is read once, into memory, together with the hash of every file;
   the digest is checked on those same bytes and the parsed documents are what the caller serves,
   so nothing is read again after it is verified;
@@ -40,7 +50,7 @@ import os
 import re
 import stat
 import unicodedata
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -48,7 +58,7 @@ from typing import Any
 from evallab import hack_drop as hd
 from evallab.line.io import canonical_hash
 
-SIDECARS = ("result.json", "config.json", "run.json", "grade.json")
+SIDECARS = ("result.json", "config.json", "run.json", "grade.json", "provenance.json")
 TRAJECTORIES = ("agent/trajectory.json", "trajectory.json")
 DIFFS = ("final.diff", "verifier/agent.diff")
 TRIAL_FOLDERS = frozenset({"agent", "verifier"})
@@ -106,33 +116,24 @@ def _lstat(path: Path) -> os.stat_result:
         raise AdmissionRefused(f"cannot stat {path}: {error}", unreadable=True) from error
 
 
-def _trusted_parts(root: Path, allowed_roots: Sequence[str | Path]) -> int:
-    """How many leading components of ``root`` are trusted (0 without ``allowed_roots``)."""
-    if not allowed_roots:
-        return 0
-    for allowed in allowed_roots:
-        base = Path(allowed)
-        if base.is_absolute() and root.parts[: len(base.parts)] == base.parts:
-            return len(base.parts)
-    raise AdmissionRefused(f"rollout path is not under an allowed root: {root}")
-
-
-def _walk_path(listed: str, allowed_roots: Sequence[str | Path]) -> Path:
-    """The listed path, validated component by component without following any link."""
+def _walk_path(listed: str) -> Path:
+    """The listed path, which must be canonical: absolute, ASCII, spelled as on disk, and with
+    no link anywhere (``os.path.realpath(listed) == listed``, so macOS ``/tmp`` is refused and
+    ``/private/tmp`` is what a caller passes). Every check below runs on this one path."""
     _ascii(listed, "rollout path")
     root = Path(listed)
     if not root.is_absolute() or str(root) != listed or ".." in root.parts or "." in root.parts:
         raise AdmissionRefused(f"rollout path is not canonical and absolute: {listed}")
-    trusted = _trusted_parts(root, allowed_roots)
     prefix = Path(root.anchor)
-    for index, part in enumerate(root.parts[1:], start=2):
+    for part in root.parts[1:]:
         parent, prefix = prefix, prefix / part
-        mode = _lstat(prefix).st_mode
-        if stat.S_ISLNK(mode) and index > trusted:
+        if stat.S_ISLNK(_lstat(prefix).st_mode):
             raise AdmissionRefused(f"symlink on the rollout path: {prefix}")
         if part not in os.listdir(parent):
             raise AdmissionRefused(f"path case does not match the filesystem: {prefix}")
-        _gate(prefix)  # a link-free prefix resolves to itself, so the gate sees what is written
+        _gate(prefix)
+    if os.path.realpath(listed) != listed:
+        raise AdmissionRefused(f"rollout path is not its own real path: {listed}")
     return root
 
 
@@ -231,6 +232,13 @@ def declares_non_dev(value: Any, depth: int = 0) -> bool:
     return False
 
 
+def _get_folded(mapping: Mapping[Any, Any], wanted: str) -> Any:
+    for key, value in mapping.items():
+        if isinstance(key, str) and canonical(key) == wanted:
+            return value
+    return None
+
+
 def identities(value: Any, depth: int = 0) -> tuple[list[str], list[str]]:
     """``(names, digests)`` a document declares, including Harbor's ``{"path": ...}`` and
     ``{"name": ...}`` mappings for ``task`` and ``task_id``."""
@@ -244,12 +252,23 @@ def identities(value: Any, depth: int = 0) -> tuple[list[str], list[str]]:
     elif isinstance(value, list):
         children = (("", child) for child in value)
     for key, child in children:
-        if isinstance(key, str) and key in IDENTITY_KEYS:
+        folded = canonical(key) if isinstance(key, str) else ""
+        if folded in IDENTITY_KEYS:
             if isinstance(child, str):
                 names.append(child)
             elif isinstance(child, Mapping):
-                names += [v for k in ("path", "name") if isinstance(v := child.get(k), str)]
-        elif isinstance(key, str) and key in DIGEST_KEYS and isinstance(child, str):
+                names += [
+                    v for k in ("path", "name") if isinstance(v := _get_folded(child, k), str)
+                ]
+        elif folded == "tasks" and isinstance(child, list):  # a job config lists its tasks
+            for task in child:
+                if isinstance(task, str):
+                    names.append(task)
+                elif isinstance(task, Mapping):
+                    names += [
+                        v for k in ("path", "name") if isinstance(v := _get_folded(task, k), str)
+                    ]
+        elif folded in DIGEST_KEYS and isinstance(child, str):
             digests.append(child)
         if key not in OPAQUE_KEYS and isinstance(child, Mapping | list):
             sub_names, sub_digests = identities(child, depth + 1)
@@ -290,18 +309,86 @@ def _refuse_test_identity(registry: Any, names: Iterable[str], digests: Iterable
             raise AdmissionRefused("sealed task digest in registry")
 
 
-def _inside_a_trial(file: Path) -> bool:
-    """Whether any ancestor is a trial folder or holds a trial's sidecars (case-insensitively)."""
-    for folder in file.parents:
+# Real Harbor shapes (8,386 jobs and 8,395 trials under eval-lab-results): a trial's result.json
+# holds task_name/trial_name/trial_uri/agent_result/verifier_result and its config.json holds
+# trial_name/task; a job's result.json holds n_total_trials/stats and its config.json holds
+# job_name/tasks. A c1c5 run.json/grade.json holds task/case_id; a job-level run.json does not.
+_IDENTITY_SHAPE = frozenset({"task_id", "task_checksum", "task_digest", "package_digest"})
+TRIAL_SHAPE = {
+    "result.json": frozenset(
+        {"task_name", "trial_name", "trial_uri", "agent_result", "verifier_result"}
+    )
+    | _IDENTITY_SHAPE,
+    "config.json": frozenset({"trial_name", "task"}) | _IDENTITY_SHAPE,
+    "run.json": frozenset({"task", "case_id", "trial", "trial_id", "trial_name"}) | _IDENTITY_SHAPE,
+    "grade.json": frozenset({"task", "case_id", "trial_id", "trial_name"}) | _IDENTITY_SHAPE,
+}
+TRIAL_ONLY = frozenset({"agent", "verifier", "trajectory.json", "final.diff", "trial.log"})
+
+
+def _trial_shaped(folder: Path, listing: Mapping[str, str]) -> bool:
+    """Whether ``folder`` is a trial by shape: it holds a trial-only file or folder, or a sidecar
+    with a trial's keys (compared case-insensitively). A sidecar that cannot be read, is not a
+    mapping, or is empty counts as trial-shaped (fail closed)."""
+    if TRIAL_ONLY & listing.keys():
+        return True
+    for sidecar, keys in TRIAL_SHAPE.items():
+        if sidecar not in listing:
+            continue
+        try:
+            document = json.loads((folder / listing[sidecar]).read_bytes().decode("utf-8"))
+        except (OSError, ValueError, RecursionError):
+            return True
+        if not isinstance(document, Mapping) or not document:
+            return True
+        if keys & {canonical(key) for key in document if isinstance(key, str)}:
+            return True
+    return False
+
+
+def _inside_a_trial(path: Path, *, folder_rollout: bool) -> bool:
+    """Whether any ancestor of ``path`` is a trial, compared case-insensitively.
+
+    An ancestor named ``agent``/``verifier`` always is. A folder rollout is also inside a trial
+    when an ancestor is trial-shaped (a job folder above many trials is not: its own sidecars
+    have job keys). A single file is inside a trial when an ancestor holds ``agent``/``verifier``
+    or any sidecar, which is stricter because a file's own folder holds its sidecars."""
+    for folder in path.parents:
         if canonical(folder.name) in TRIAL_FOLDERS:
             return True
         try:
-            listing = {canonical(name) for name in os.listdir(folder)}
+            listing = {canonical(name): name for name in os.listdir(folder)}
         except OSError:
             continue
-        if listing & {"agent", *SIDECARS}:
+        if folder_rollout:
+            if _trial_shaped(folder, listing):
+                return True
+        elif listing.keys() & ({"agent", "verifier"} | set(SIDECARS)):
             return True
     return False
+
+
+def _ancestor_documents(root: Path) -> list[Any]:
+    """The sidecars of every ancestor folder, parsed, so a folder above the rollout (a trial
+    above a folder rollout, or a job above a trial) is held to the same checks as the rollout's
+    own documents. An ancestor sidecar that cannot be read refuses (fail closed)."""
+    found: list[Any] = []
+    for folder in root.parents:
+        try:
+            listing = {canonical(name): name for name in os.listdir(folder)}
+        except OSError:
+            continue
+        for sidecar in SIDECARS:
+            if sidecar in listing:
+                path = folder / listing[sidecar]
+                try:
+                    data = path.read_bytes()
+                except OSError as error:
+                    raise AdmissionRefused(
+                        f"cannot read {path}: {error}", unreadable=True
+                    ) from error
+                found.append(_parse(path, data))
+    return found
 
 
 def admit_rollout(
@@ -312,17 +399,16 @@ def admit_rollout(
     run_id: str | None = None,
     expected_sha256: str | None = None,
     sealed: frozenset[tuple[int, int]] = frozenset(),
-    allowed_roots: Sequence[str | Path] = (),
     require_trajectory: bool = True,
 ) -> Admitted:
     """Admit the rollout at exactly ``listed`` or raise :class:`AdmissionRefused`.
 
     ``expected_sha256`` is the line's digest of the rollout; it is checked on the bytes read
     here, before anything is parsed. With ``require_trajectory=False`` a rollout without an ATIF
-    trajectory (a patch or code bundle) is admitted with ``document=None``. Paths must be
-    absolute; ``allowed_roots`` trusts links above (never at or below) the named folders.
+    trajectory (a patch or code bundle) is admitted with ``document=None``. ``listed`` must be
+    the canonical path (``os.path.realpath(listed) == listed``); nothing else is examined.
     """
-    root = _walk_path(listed, allowed_roots)
+    root = _walk_path(listed)
     top = _lstat(root).st_mode
     documents: list[Any] = [dict(row)] if row is not None else []
     names: list[str] = [name for name in (run_id, str(root)) if name]
@@ -330,7 +416,7 @@ def admit_rollout(
     sidecars: list[tuple[Path, bytes]] = []
     diff_bytes: bytes | None = None
     if stat.S_ISDIR(top):
-        if canonical(root.name) in TRIAL_FOLDERS:
+        if canonical(root.name) in TRIAL_FOLDERS or _inside_a_trial(root, folder_rollout=True):
             raise AdmissionRefused(f"a folder inside a trial is not a trial: {root}")
         tree = _read_tree(root, sealed)
         kind, digest, names = "trial", tree.digest, names + tree.names
@@ -344,7 +430,7 @@ def admit_rollout(
         info = _lstat(root)
         if (info.st_dev, info.st_ino) in sealed:
             raise AdmissionRefused(f"hard link to sealed material: {root}")
-        if _inside_a_trial(root):
+        if _inside_a_trial(root, folder_rollout=False):
             raise AdmissionRefused(f"a file inside a trial is not a rollout: {root}")
         data = root.read_bytes()
         kind, digest = "file", hashlib.sha256(data).hexdigest()
@@ -357,6 +443,7 @@ def admit_rollout(
             f"sha256 expected {expected_sha256.lower()} got {digest}", integrity=True
         )
     documents += [_parse(path, data) for path, data in sidecars]
+    documents += _ancestor_documents(root)
     served: tuple[Path, Any] | None = None
     for path, data in candidates:
         document = _parse(path, data)

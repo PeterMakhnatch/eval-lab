@@ -122,7 +122,7 @@ def _default_run_watch(*, runs_dirs: list[Path], out_dir: Path) -> dict[str, Any
     from evallab.live_watch import WatchThresholds, run_watch
     from evallab.watch_stop import stop_mode_from_env
 
-    # Laminar export is on whenever LMNR_PROJECT_API_KEY is set (EVALLAB_LAMINAR=off disables).
+    # Laminar export requires a key and explicit EVALLAB_LAMINAR=1/true/on opt-in.
     # The stop mode defaults to dry-run (record would-stop, never request).
     return run_watch(
         runs_dirs=runs_dirs,

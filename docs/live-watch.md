@@ -677,9 +677,10 @@ routine pip installs).
 
 ## Laminar (`--laminar`)
 
-`evallab watch --laminar` (and every auto-attached watch when
-`LMNR_PROJECT_API_KEY` is set; `EVALLAB_LAMINAR=off` disables it) uses one
-Cloud trace per trial:
+Live export is off by default, even when `LMNR_PROJECT_API_KEY` is present.
+`evallab watch --laminar` explicitly opts in; auto-attached watches additionally
+require `EVALLAB_LAMINAR=1`, `true`, or `on` (case-insensitive). Both paths
+require `LMNR_PROJECT_API_KEY` and use one Cloud trace per trial:
 
 - Native live-SDK trials reuse the actual UUID and root span ID in
   `laminar-trace.json`. Watch never projects duplicate roots, LLM calls or

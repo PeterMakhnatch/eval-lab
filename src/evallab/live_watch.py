@@ -2039,7 +2039,7 @@ def _watch_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
     if getattr(args, "laminar", False):
         from evallab.laminar import LAMINAR_KEY_ENV, exporter_from_env
 
-        laminar = exporter_from_env(out_dir)
+        laminar = exporter_from_env(out_dir, enabled=True)
         if laminar is None:
             print(f"watch: --laminar needs {LAMINAR_KEY_ENV} (use `keys run --`)", file=sys.stderr)
             return 2

@@ -254,6 +254,9 @@ def run_recipe(recipe: Recipe, folder: Path) -> float:
 
 _RELATIVE_CAP = 0.005
 _CAP_FROM = 1000.0
+# A printed value that was rounded twice (4 decimals, then 3) can sit up to 0.55 of a unit
+# in its last digit from the receipt: half a unit plus half a unit of the digit below.
+_ROUNDING_BAND = 1.1
 
 
 def recipe_target(claim: ExtractedClaim, recipe: Recipe) -> Literal["k", "n", "value"]:
@@ -271,14 +274,31 @@ def _not_recomputable(detail: str, *, stated: float | None = None) -> RecomputeR
     return RecomputeResult(status="not_recomputable", stated=stated, detail=detail)
 
 
+def _gap_text(gap: float, claim: ExtractedClaim, counted: bool) -> str:
+    """A gap spelled in compared units and, where one exists, in the claim's own unit."""
+    # Lazy: check.py imports run_recipe at module level for card recipes.
+    from evallab.insights.check import is_proportion_claim
+
+    if counted:
+        return f"{gap:g}"
+    if is_proportion_claim(claim):
+        return f"{gap:.3g} ({gap * 100:.3g} percentage points)"
+    factor = canonical_value(1.0, claim.unit)
+    if claim.unit and factor not in (0.0, 1.0):
+        return f"{gap:.3g} ({gap / factor:.3g} {claim.unit})"
+    return f"{gap:.3g} {claim.unit}" if claim.unit else f"{gap:.3g}"
+
+
 def recompute_claim(claim: ExtractedClaim, folder: Path | None) -> RecomputeResult | None:
     """Compare a recipe's result with the claim quantity named by ``recipe.target``.
 
     Counts are compared as exact integers. A scalar is compared in canonical units
     (percent/100, durations in seconds) within half a unit of its last printed digit,
-    capped at 0.5% of a large value. A receipt may hold a quantity either in canonical
-    units or in the claim's printed unit. A count recipe against a stated rate is a
-    wrong target, not a disagreement with the source, so it is not recomputable.
+    capped at 0.5% of a large value; a gap of up to 0.55 of that unit (a value rounded
+    twice) is still reproduced and carries the note ``rounding``. A receipt may hold a
+    quantity either in canonical units or in the claim's printed unit. A count recipe
+    against a stated rate is a wrong target, not a disagreement with the source, so it
+    is not recomputable. Every ``differs`` records the size of the gap.
     """
     # Lazy: check.py imports run_recipe at module level for card recipes.
     from evallab.insights.check import is_proportion_claim, value_printed_tolerance
@@ -304,8 +324,11 @@ def recompute_claim(claim: ExtractedClaim, folder: Path | None) -> RecomputeResu
         value = run_recipe(recipe, folder)
     except (RecipeError, OverflowError) as exc:
         return _not_recomputable(str(exc), stated=stated)
-    detail = f"Receipt gives {value:g}; claim {target} states {stated:g}."
-    if target in {"k", "n"} or recipe.op in {"count", "distinct_count"}:
+    note: Literal["rounding"] | None = None
+    detail = f"Receipt gives {value:g}; claim {target} states {stated:g}"
+    counted = target in {"k", "n"} or recipe.op in {"count", "distinct_count"}
+    if counted:
+        gap = abs(value - stated)
         matches = value == stated
     else:
         factor = canonical_value(1.0, claim.unit)
@@ -314,10 +337,19 @@ def recompute_claim(claim: ExtractedClaim, folder: Path | None) -> RecomputeResu
         tolerance = 1e-9 if derived else value_printed_tolerance(claim)
         if abs(stated_canonical) >= _CAP_FROM:
             tolerance = min(tolerance, _RELATIVE_CAP * abs(stated_canonical))
-        readings = {value, value * factor}
-        matches = any(abs(reading - stated_canonical) <= tolerance + 1e-12 for reading in readings)
+        gap = min(abs(reading - stated_canonical) for reading in (value, value * factor))
+        matches = gap <= tolerance + 1e-12
+        if not matches and not derived and gap <= tolerance * _ROUNDING_BAND + 1e-12:
+            matches, note = True, "rounding"
+    gap_text = _gap_text(gap, claim, counted)
     if matches:
-        return RecomputeResult(status="reproduced", value=value, stated=stated, detail=detail)
+        if note is not None:
+            detail += (f"; the gap of {gap_text} is within the rounding of the printed "
+                       "value (rounding)")
+        return RecomputeResult(
+            status="reproduced", value=value, stated=stated, detail=detail + ".", note=note,
+            difference=gap if note else None, difference_text=gap_text if note else "",
+        )
     if target == "value" and is_proportion_claim(claim):
         selected = next(
             (name for name, count in (("k", claim.k), ("n", claim.n))
@@ -331,4 +363,7 @@ def recompute_claim(claim: ExtractedClaim, folder: Path | None) -> RecomputeResu
                 "set target to k or n, or use a ratio recipe.",
                 stated=stated,
             )
-    return RecomputeResult(status="differs", value=value, stated=stated, detail=detail)
+    return RecomputeResult(
+        status="differs", value=value, stated=stated, detail=f"{detail}; differs by {gap_text}.",
+        difference=gap, difference_text=gap_text,
+    )

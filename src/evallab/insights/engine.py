@@ -22,7 +22,6 @@ import hashlib
 import json
 import math
 import os
-import re
 import secrets
 import subprocess
 import sys
@@ -66,6 +65,7 @@ from evallab.insights.models import (
     Lens,
     PassRecord,
     PredictionRecord,
+    Recipe,
     RecomputeResult,
     RederivationRecord,
     RederiveBatch,
@@ -80,6 +80,9 @@ from evallab.insights.models import (
 from evallab.insights.packs import OUTPUT_FILES, PassInputs, build_pass_dir, card_claim_ids
 from evallab.insights.routes import choose_route
 from evallab.insights.runner import (
+    TRANSIENT_ERROR,
+    TRANSIENT_RETRY_DELAY,
+    TRANSIENT_STARTUP,
     Launcher,
     MemoryGate,
     OmpLauncher,
@@ -113,9 +116,6 @@ BACKOFF_MAX = timedelta(hours=24)
 MIRROR_GIT_TIMEOUT = 60
 #: Between full ticks the watch loop polls worker handles this often (seconds).
 COLLECT_POLL_SECONDS = 5.0
-TRANSIENT_RETRY_DELAY = timedelta(seconds=45)
-#: omp startup failures that say nothing about the analysis (shared agent.db contention).
-TRANSIENT_STARTUP = re.compile(r"SQLITE_BUSY|database is locked|SQLiteError", re.IGNORECASE)
 ACTIVE_STATUSES = ("planned", "running")
 REDERIVE_FRACTION = 0.2
 _REFEREE_STATUS: dict[str, InsightStatus] = {
@@ -1192,7 +1192,7 @@ class Engine:
             elif transient:
                 status = "failed"
                 skip_backoff = True
-                update["error"] = "transient startup failure (omp database busy); retrying once"
+                update["error"] = TRANSIENT_ERROR
             elif kind == "quota":
                 status = "parked_quota"
                 self._park(record.route, reset_at or now + PARK_DEFAULT)
@@ -1735,7 +1735,7 @@ class Engine:
                     recomputed = recompute_mod.recompute_claim(candidate, folder)
                 except (OSError, ValueError) as exc:
                     recomputed = RecomputeResult(status="not_recomputable", detail=_short_error(exc))
-            agrees = _agreement(stored.recompute, recomputed, stored.claim)
+            agrees = _agreement(stored.recompute, recomputed, stored.claim, item.recipe)
             self.store.save_rederivation(
                 RederivationRecord(
                     claim_id=item.claim_id,
@@ -1897,17 +1897,27 @@ def _agreement(
     original: RecomputeResult | None,
     rederived: RecomputeResult | None,
     claim: ExtractedClaim | None = None,
+    rederived_recipe: Recipe | None = None,
 ) -> bool | None:
     """Do two independent computations of one number agree?
 
-    Values decide whenever both sides produced one (within the claim's printed
-    rounding, the same tolerance ``recompute_claim`` uses). If only one side
-    produced a value, one side failed and the other did not: disagreement.
+    When both recipes compare the same claim quantity, values decide whenever both
+    sides produced one (within the claim's printed rounding, the same tolerance
+    ``recompute_claim`` uses). When they compare different quantities (a count
+    against a ratio, k against n), their values are not comparable, so agreement is
+    whether each side reproduces the claim: both do, or neither does. If only one
+    side produced a value, one side failed and the other did not: disagreement.
     If neither did, the pair is not comparable: neither agree nor disagree.
     """
     if original is None or rederived is None:
         return None
     if original.value is not None and rederived.value is not None:
+        if (
+            claim is not None and claim.recipe is not None and rederived_recipe is not None
+            and recompute_mod.recipe_target(claim, claim.recipe)
+            != recompute_mod.recipe_target(claim, rederived_recipe)
+        ):
+            return (original.status == "reproduced") == (rederived.status == "reproduced")
         tolerance = max(1e-9, 1e-6 * max(abs(original.value), abs(rederived.value)))
         if claim is not None:
             tolerance = max(tolerance, check_mod.value_printed_tolerance(claim))

@@ -19,6 +19,7 @@ import pytest
 
 from evallab.insights import duplicates as duplicates_mod
 from evallab.insights import engine as engine_mod
+from evallab.insights import recompute as recompute_mod
 from evallab.insights import scope as scope_mod
 from evallab.insights.commands.status import collect_status
 from evallab.insights.config import (
@@ -48,6 +49,7 @@ from evallab.insights.models import (
     PassRecord,
     PredictionSpec,
     ProposedExperiment,
+    Recipe,
     RecomputeResult,
     RederiveBatch,
     RederivedClaim,
@@ -1070,6 +1072,51 @@ def test_agreement_compares_values_within_printed_rounding() -> None:
     # Neither side produced a number: not comparable.
     assert engine_mod._agreement(failed, RecomputeResult(status="not_recomputable"), claim) is None
     assert engine_mod._agreement(None, agree, claim) is None
+
+
+def test_agreement_compares_a_count_recipe_with_a_ratio_recipe_by_the_claim(
+    tmp_path: Path,
+) -> None:
+    rows = [{"cheat": index < 4, "case": index} for index in range(10)]
+    (tmp_path / "rows.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8",
+    )
+    claim = ExtractedClaim(
+        local_id="c", experiment="E1", statement="The agent cheated in 4 of 10 cases (0.4).",
+        kind="measurement", k=4, n=10, value=0.4, quote="4 of 10 cases (0.4)", section_id="s",
+    )
+
+    def recomputed(recipe: Recipe) -> tuple[ExtractedClaim, RecomputeResult]:
+        candidate = claim.model_copy(update={"recipe": recipe})
+        result = recompute_mod.recompute_claim(candidate, tmp_path)
+        assert result is not None
+        return candidate, result
+
+    count = Recipe(op="count", target="k", file="rows.jsonl", where={"cheat": True})
+    ratio = Recipe(
+        op="ratio", target="value",
+        num=Recipe(op="count", file="rows.jsonl", where={"cheat": True}),
+        den=Recipe(op="count", file="rows.jsonl"),
+    )
+    original_claim, original = recomputed(count)
+    _, rederived = recomputed(ratio)
+    assert (original.status, original.value) == ("reproduced", 4.0)
+    assert (rederived.status, rederived.value) == ("reproduced", 0.4)
+    # 4 against 0.4 is a unit mismatch, not a disagreement: each side reproduces the claim.
+    assert engine_mod._agreement(original, rederived, original_claim, ratio) is True
+    # A rederivation that reproduces the claim differently is still checked on its own side.
+    wrong_ratio = Recipe(
+        op="ratio", target="value",
+        num=Recipe(op="count", file="rows.jsonl", where={"cheat": False}),
+        den=Recipe(op="count", file="rows.jsonl"),
+    )
+    _, off = recomputed(wrong_ratio)
+    assert off.status == "differs"
+    assert engine_mod._agreement(original, off, original_claim, wrong_ratio) is False
+    # Same target on both sides keeps comparing the numbers themselves.
+    other_count = Recipe(op="count", target="k", file="rows.jsonl", where={"cheat": False})
+    _, other = recomputed(other_count)
+    assert engine_mod._agreement(original, other, original_claim, other_count) is False
 
 
 def test_fast_cycle_collects_an_exited_worker_without_waiting_for_the_next_tick(

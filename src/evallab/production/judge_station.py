@@ -21,6 +21,7 @@ import fcntl
 import hashlib
 import io
 import json
+import logging
 import os
 import re
 import threading
@@ -232,6 +233,127 @@ class LabSource:
         return read_findings(self._findings_paths, set(run_ids))
 
 
+LOCAL_LOG = logging.getLogger(__name__)
+LOCAL_NOT_ADMITTED = "local rollout is not an admitted DEV run"
+LOCAL_UNREADABLE = "local rollout is missing or unreadable"
+LOCAL_INTEGRITY = "local rollout failed its integrity check"
+
+
+class _LocalRefused(Exception):
+    """A local run the station will not show. ``public`` is safe for the judge; ``detail`` is
+    logged server-side only because it can hold paths, hashes and ids."""
+
+    def __init__(self, public: str, detail: str = "") -> None:
+        super().__init__(public)
+        self.public, self.detail = public, detail
+
+
+class LocalRunSource:
+    """Native Harbor trials pinned by a line ``runs.jsonl``, with cloud/CheatBench fallback.
+
+    ``registry`` is the corpus registry (``assigned_test_anywhere``); it is required so that a
+    local run can never skip the TEST-split assignment check the other loaders apply.
+    ``sealed_roots`` are folders of sealed material (the answer keys): no served file may be a
+    hard link to a file inside them.
+    """
+
+    def __init__(
+        self,
+        manifest: Path,
+        fallback: RunSource,
+        registry: Any,
+        sealed_roots: Sequence[Path] = (),
+    ) -> None:
+        if registry is None or not hasattr(registry, "assigned_test_anywhere"):
+            raise JudgeError("a corpus registry is required to admit local runs")
+        self.fallback = fallback
+        self.registry = registry
+        self.sealed_roots = tuple(sealed_roots)
+        self._rows: dict[str, Mapping[str, Any]] = {}
+        paths: set[str] = set()
+        for number, line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except ValueError as error:
+                raise JudgeError(f"{manifest}:{number}: not JSON ({error})") from error
+            if not isinstance(row, dict):
+                raise JudgeError(f"{manifest}:{number}: a local run row must be an object")
+            run_id, rollout, digest = row.get("run_id"), row.get("rollout_path"), row.get("sha256")
+            if not isinstance(run_id, str) or not run_id.strip():
+                raise JudgeError(f"{manifest}:{number}: run_id must be nonempty text")
+            if not isinstance(rollout, str) or not rollout.strip():
+                raise JudgeError(f"{manifest}:{number}: rollout_path must be nonempty text")
+            if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+                raise JudgeError(f"{manifest}:{number}: sha256 must be 64 hexadecimal characters")
+            run_id = run_id.strip()
+            if run_id in self._rows:
+                raise JudgeError(f"{manifest}:{number}: duplicate local run_id {run_id}")
+            location = rollout.strip().casefold()
+            if location in paths:
+                raise JudgeError(
+                    f"{manifest}:{number}: rollout_path already listed for another run_id"
+                )
+            paths.add(location)
+            self._rows[run_id] = row
+
+    def _load_local(self, run_id: str) -> Any:
+        from evallab.production.run_atlas import AtlasRun, outcome_from_reward
+        from evallab.rollout_admission import AdmissionRefused, admit_rollout, sealed_inodes
+        from evallab.trace_anatomy import atif_run
+
+        row = self._rows[run_id]
+        try:
+            admitted = admit_rollout(
+                str(row["rollout_path"]),
+                registry=self.registry,
+                row=row,
+                run_id=run_id,
+                expected_sha256=str(row["sha256"]),
+                sealed=sealed_inodes(*self.sealed_roots),
+            )
+        except AdmissionRefused as error:
+            public = (
+                LOCAL_INTEGRITY
+                if error.integrity
+                else LOCAL_UNREADABLE
+                if error.unreadable
+                else LOCAL_NOT_ADMITTED
+            )
+            raise _LocalRefused(public, error.detail) from error
+        # built from the document the digest covered; nothing is read from disk again
+        run = atif_run(admitted.document, str(admitted.trajectory))
+        doc = dict(run.doc)
+        if submission := admitted.diff or run.submission:
+            doc["submission"] = submission
+        return AtlasRun(run_id, "native-local", "DEV", outcome_from_reward(row.get("reward")), doc)
+
+    def load_runs(self, run_ids: Sequence[str]) -> tuple[dict[str, Any], dict[str, str]]:
+        remote = [run_id for run_id in run_ids if run_id not in self._rows]
+        runs, unavailable = self.fallback.load_runs(remote) if remote else ({}, {})
+        for run_id in (run_id for run_id in run_ids if run_id in self._rows):
+            try:
+                runs[run_id] = self._load_local(run_id)
+            except _LocalRefused as error:
+                LOCAL_LOG.warning("local run %s refused: %s", blind_id(run_id), error.detail)
+                unavailable[run_id] = error.public
+            except Exception as error:  # fail closed: nothing about the failure reaches the page
+                LOCAL_LOG.warning(
+                    "local run %s unreadable: %s: %s", blind_id(run_id), type(error).__name__, error
+                )
+                unavailable[run_id] = LOCAL_UNREADABLE
+        return runs, unavailable
+
+    def label(self, run_id: str) -> Label:
+        if run_id in self._rows:
+            return Label("none", "No dataset label is recorded for this local run.")
+        return self.fallback.label(run_id)
+
+    def detectors(self, run_ids: Sequence[str]) -> dict[str, list[dict[str, Any]]]:
+        return self.fallback.detectors(run_ids)
+
+
 def read_findings(paths: Iterable[Path], wanted: set[str]) -> dict[str, list[dict[str, Any]]]:
     """Latest stored verdict per (run, detector, version, reader) for the wanted runs."""
     latest: dict[tuple[str, str, str, str], dict[str, Any]] = {}
@@ -304,7 +426,63 @@ def _clip(text: str) -> str:
     return text[:MAX_TEXT] + f"\n[... {len(text) - MAX_TEXT} more characters not shown ...]"
 
 
+KEYSTROKE_KEYS = frozenset({"keystrokes", "duration", "timeout", "timeout_sec", "is_blocking"})
+TASK_COMPLETE = "mark_task_complete"
+
+
+def _visible(typed: str) -> str:
+    """What was typed, character for character: newlines and tabs stay, every other control
+    character is shown (carriage return as ``␍``, the rest as ``\\xNN``)."""
+    return "".join(
+        ch
+        if ch in "\n\t" or (ord(ch) >= 32 and ord(ch) != 127)
+        else "␍"
+        if ch == "\r"
+        else f"\\x{ord(ch):02x}"
+        for ch in typed
+    )
+
+
+def _display_call(call: Mapping[str, Any]) -> Mapping[str, Any]:
+    """The call as the judge reads it. Terminus-2 types ``arguments.keystrokes`` into a
+    terminal: shown verbatim as the command (no parsing), and ``mark_task_complete`` is a
+    visible step with its arguments verbatim."""
+    arguments = call.get("arguments")
+    if not isinstance(arguments, Mapping):
+        return call
+    name = str(call.get("function_name") or call.get("name") or "")
+    if name == TASK_COMPLETE:
+        shown = json.dumps(arguments, ensure_ascii=False, sort_keys=True, default=str)
+        text = "agent marked task complete" + (f"\n{shown}" if arguments else "")
+        return {**call, "arguments": {"command": text}}
+    typed = arguments.get("keystrokes")
+    if (
+        isinstance(typed, str)
+        and not isinstance(arguments.get("command"), str)
+        and set(arguments) <= KEYSTROKE_KEYS
+    ):
+        return {**call, "arguments": {"command": _visible(typed)}}
+    return call
+
+
+def display_steps(steps: Sequence[Any]) -> list[Any]:
+    """``steps`` with every tool call in its display form (what the card is built from)."""
+    return [
+        {
+            **step,
+            "tool_calls": [
+                _display_call(call) if isinstance(call, Mapping) else call
+                for call in step["tool_calls"]
+            ],
+        }
+        if isinstance(step, Mapping) and isinstance(step.get("tool_calls"), list)
+        else step
+        for step in steps
+    ]
+
+
 def _call_text(call: Mapping[str, Any]) -> tuple[str, str]:
+    call = _display_call(call)
     name = str(call.get("function_name") or call.get("name") or "tool")
     arguments = call.get("arguments")
     if isinstance(arguments, Mapping):
@@ -666,7 +844,13 @@ class Station:
                 raise JudgeError(self._refused[entry.run_id]) from error
             try:
                 card = build_card(
-                    run.run_id, blind.steps, [s["n"] for s in steps], hints=self.show_hints
+                    run.run_id,
+                    display_steps(blind.steps),
+                    [s["n"] for s in steps],
+                    hints=self.show_hints,
+                    submission=(
+                        run.doc.get("submission") if run.source == "native-local" else None
+                    ),
                 )
             except (ValueError, KeyError, TypeError, AttributeError) as error:
                 card = {
@@ -730,13 +914,19 @@ class Station:
         for note in extra.get("notes") or []:
             notes.append({"title": str(note.get("title")), "text": str(note.get("text"))[:1500]})
         outcome = str(getattr(run, "outcome", "unknown"))
-        return {
+        revealed = {
             "label": {"state": label.state, "text": label.text},
             "grader": None if outcome == "unknown" else outcome,
             "queue_reason": entry.reason,
             "detectors": detectors,
             "notes": notes,
         }
+        decision, audit = extra.get("decision"), extra.get("audit")
+        if isinstance(decision, str):
+            revealed["decision"] = decision[:200]
+        if isinstance(audit, bool):
+            revealed["audit"] = audit
+        return revealed
 
     # -- drafts ----------------------------------------------------------- #
 
@@ -1191,6 +1381,11 @@ def register_parser(commands: Any) -> None:
         default=None,
         help="Detector findings JSONL (repeatable)",
     )
+    serve.add_argument(
+        "--local-runs",
+        type=Path,
+        help="Line runs.jsonl mapping native run_id to rollout_path and sha256",
+    )
     serve.add_argument("--open", action="store_true", help="Open the page in the default browser")
     serve.set_defaults(func=_serve)
 
@@ -1256,14 +1451,24 @@ def _serve(args: argparse.Namespace, root: Path, **_: Any) -> int:
 
     try:
         queues = discover_queues(args.state_dir, args.queue)
-    except (JudgeError, OSError) as error:
+        source: RunSource = LabSource(root, args.findings)
+        if args.local_runs:
+            from evallab import hack_drop as hd
+
+            source = LocalRunSource(
+                args.local_runs,
+                source,
+                hd._get_corpus_registry(root),
+                sealed_roots=[root / "research" / "answer-keys"],
+            )
+    except (JudgeError, OSError, RuntimeError) as error:
         print(f"judge: {error}")
         return 2
     if not queues:
         print("judge: no queue found. Run `evallab judge build-packet`, or pass --queue FILE.")
         return 2
     station = Station(
-        LabSource(root, args.findings),
+        source,
         queues,
         judge=args.judge,
         state_dir=args.state_dir,

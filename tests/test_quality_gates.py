@@ -1082,6 +1082,11 @@ def _live_postgres_problems(job: dict) -> list[str]:
         problems.append("Full test suite must set EVALLAB_RUN_POSTGRES_TESTS=1")
     if ":54329/" not in str(env.get("DATABASE_URL", "")):
         problems.append("Full test suite must set DATABASE_URL to the service on port 54329")
+    steps = [s for s in job.get("steps", []) if isinstance(s, dict)]
+    init_index = next((i for i, s in enumerate(steps) if "evallab db init" in str(s.get("run"))), None)
+    suite_index = next((i for i, s in enumerate(steps) if s.get("name") == "Full test suite"), None)
+    if init_index is None or suite_index is None or init_index > suite_index:
+        problems.append("evallab db init must run before the Full test suite step")
     return problems
 
 

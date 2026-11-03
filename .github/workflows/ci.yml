@@ -112,6 +112,13 @@ jobs:
           key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python-version }}-test-${{ hashFiles('uv.lock', 'tools/mimoagent-harbor/uv.lock', '.github/workflows/ci.yml') }}
       - name: Sync with benchmark, lance and inspect test dependencies (fastmcp, cryptography, lancedb, inspect-ai)
         run: uv sync --locked --no-group observability --group benchmarks --group lance --group inspect
+      - name: Initialise live catalog schema
+        # Beyond the fixtures' throwaway databases, some live tests (attach, verdicts,
+        # dashboard queries) read the default catalog database, which is empty on a
+        # fresh service container.
+        env:
+          DATABASE_URL: postgresql://evallab:local-development-only@localhost:54329/evallab
+        run: uv run --no-sync evallab db init
       - name: Full test suite
         env:
           DATABASE_URL: postgresql://evallab:local-development-only@localhost:54329/evallab

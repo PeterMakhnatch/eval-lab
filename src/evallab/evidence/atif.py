@@ -530,7 +530,8 @@ def _document_validation(
     return ("invalid" if error else "valid"), validator, error
 
 
-def _command_exit_code(result: JsonObject) -> int | None:
+def command_exit_code(result: JsonObject) -> int | None:
+    """Exit code a command observation records in ``extra.{exit_code,returncode,return_code}``."""
     extra = result.get("extra")
     if not isinstance(extra, dict):
         return None
@@ -650,7 +651,7 @@ def _project_payload(
                     content_sha256=_digest_bytes(content),
                     subagent_ref_count=len(references),
                     subagent_refs_sha256=_digest_json(references) if references else None,
-                    command_exit_code=_command_exit_code(result),
+                    command_exit_code=command_exit_code(result),
                 )
             )
 

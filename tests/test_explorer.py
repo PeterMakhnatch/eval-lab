@@ -8,8 +8,6 @@ import shlex
 import shutil
 from pathlib import Path
 
-import pytest
-
 from evallab.evidence.atif import project_trial
 from evallab.evidence.facts import write_analysis_review
 from evallab.explorer import (
@@ -85,7 +83,7 @@ def test_tool_loop_is_detected_as_repeated_signatures():
 def test_the_fixture_records_exit_codes_where_the_validated_shape_puts_them():
     """The exit codes are in the document, and `atif` reads all four of them.
 
-    `atif._command_exit_code` (`src/evallab/evidence/atif.py:446-454`) takes an exit code
+    `atif.command_exit_code` takes an exit code
     from `observation.results[].extra.{exit_code,returncode,return_code}` and
     projects it as the derived column `command_exit_code`. Asserting it here
     fixes the fact that the data *is* in the fixture, so the explorer's
@@ -103,20 +101,6 @@ def test_the_fixture_records_exit_codes_where_the_validated_shape_puts_them():
     ) == [("L0", 2), ("L1", 2), ("L2", 2), ("L3", 2)]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "OPEN SOURCE DEFECT, the same class PR #66 fixed and did not finish: "
-        "explorer.py:428 reads `obs.get('command_exit_code')` from the raw observation. "
-        "`command_exit_code` is a derived projection column (atif.py:132, atif.py:744); "
-        "no ATIF document carries it. A raw observation carries extra.exit_code, which is "
-        "what atif.py:446-454 reads and what tests/test_truth.py writes. This assertion "
-        "only ever passed because tests/fixtures/explorer invented the key, so the "
-        "explorer has never shown an exit code for a real trajectory. The fix is a src "
-        "change outside this mission's lease; strict xfail so the suite fails the moment "
-        "explorer.py starts reading the field a real document has."
-    ),
-)
 def test_explorer_shows_the_exit_code_of_a_failing_command():
     trajectory = index().trials["job-fail/t1"].trajectory
     assert isinstance(trajectory, TrajectoryView)

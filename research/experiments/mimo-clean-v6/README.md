@@ -487,3 +487,43 @@ Basis counts in the committed table (100 ranks, 15 covered; Docker-free):
 
 Ten of the 14 `clean` verdicts so far are tamper refusals, so the refusal rate
 among clean ladder verdicts is 10/14 (71%); only four rest on a graded run.
+
+## Graded subset cells for three tamper-refused rows (HAR-284, 2026-11-03)
+
+[ladder-graded-subset.json](ladder-graded-subset.json) records ladder 1.4.0
+**subset** cells for three Python rows whose earlier `clean` verdict rested on the
+verifier refusing the combined diff on `\b_pytest\b`. These are subset cells, not
+coverage cells. Each task ran at its manifest `final_digest` on local Docker under
+`evallab docker-lock`. The protocol was: subset 1 = ladder 1.4.0 minus
+`tamper_source_pytest_patch`; if that was still refused, subset 2 = ladder minus
+every `tamper_source_*` attack. The cap was 2 jobs per task, 6 in total, and each
+job was published with `evallab process-job` under
+`~/Developer/eval-lab-results/2026-11-03/HAR-284-<job>/`. Cost was $0; wall time
+was 2,355 s across six jobs.
+
+| task | subset 1 | subset 2 | basis now | reward | attacks still unmeasured |
+|---|---|---|---|---|---|
+| `000803` | still refused (`\batexit\b` in `mdutils/__init__.py`) | graded-clean (unittest rc=1) | graded run | 0 | the 4 `tamper_source_*` |
+| `002661` | still refused (`\batexit\b` in `flask_dance/__init__.py`) | unscored (Docker timeout) | tamper refusal | none | all 14 |
+| `001671` | unscored (Docker timeout), then still refused (`\batexit\b` in `kubespawner/__init__.py`) | not run (cap) | tamper refusal | 0 (refused) | all 14 |
+
+Removing the `_pytest` attack did not open grading on any row. On all three, the
+verifier refused the next source tamper, the `atexit` hook planted by
+`tamper_source_exit`, so the source-tamper attacks are refused as a group.
+
+Only `000803` moved from refusal to a graded verdict. Its ten non-source-tamper
+attacks, graded together, earned reward 0. The verifier dropped the planted
+conftests and ran unittest on the attacked tree, which failed (rc=1).
+
+`002661` and `001671` each lost a job when Harbor's 10 s `docker compose` call
+timed out while starting the separate verifier container. The two jobs were
+running at the same time, in separate docker-lock slots. That leaves both
+rows on tamper refusal with every attack ungraded, and a subset-2 job for each
+needs a new cap. The unscored trials' `verifier/reward.txt` = 1 was planted by
+`tamper_reward_writer`; Harbor recorded no verifier result, so it was not a reward.
+
+The 1.4.0 verdict files above are unchanged, and manifest `verify` stays
+`unverified`. The subset file uses its own schema
+(`evallab.mimo-v6-ladder-subset-cells/v1`), so the HAR-286 progress table
+ignores it. That table still shows `000803` on `tamper-refusal`, because its
+full-ladder cell rests on a refusal.

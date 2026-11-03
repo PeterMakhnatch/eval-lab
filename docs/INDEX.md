@@ -74,6 +74,8 @@ inputs:
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
     digest: sha256:cba8fe1c0e3885ac2bbaf365529c79c9e0370ca76cea90e66245e1601fb70f07
+  - path: docs/independent-review.md
+    digest: sha256:e8dd4ad2aa408375f6f74b17392f79efb18191b12751938be3d569102ec58fd0
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/judge-guide.md
@@ -403,6 +405,7 @@ an operator can see what is archived.
 | `docs/hack-drop.md` | evallab hack-drop | `living` | `runner, operator` |
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
 | `docs/harbor-view.md` | Harbor viewer as the results surface (HAR-170) | `living` | `operator, analyst` |
+| `docs/independent-review.md` | Independent PR review | `living` | `operator` |
 | `docs/judge-guide.md` | How to judge a run | `living` | `operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/line.md` | Eval Lab assembly line | `living` | `builder, analyst, runner, operator` |

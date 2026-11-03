@@ -216,6 +216,9 @@ def build_scoreboard(batch: Path, repo_root: Path) -> dict:
             "queued": len(read_rows(batch / "judge-queue.jsonl")),
         },
         "task_side": task_side,
+        "autoreview": {
+            "cache_misses": sum("AUTOREVIEW_CACHE_MISS" in row.get("reasons", []) for row in rows)
+        },
         "spend": {
             "usd": sum(spend_by_stage.values()),
             "cap_usd": spec.get("autoreview", {}).get("max_usd", 0),
@@ -295,6 +298,7 @@ def render_scoreboard(value: dict) -> str:
     )
     for name, count in value["task_side"].items():
         lines.append(f"- {name}: {count}")
+    lines.append(f"- autoreview_cache_misses: {value.get('autoreview', {}).get('cache_misses', 0)}")
     lines.extend(
         [
             "",

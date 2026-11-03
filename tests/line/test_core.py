@@ -109,30 +109,6 @@ def test_cached_stage_verdicts_and_queue_idempotence(fixture_spec: Path) -> None
     assert len(read_rows(Path(spec["judge"]["queue"]))) == 2
 
 
-def test_missing_cached_verdict_refuses(fixture_spec: Path) -> None:
-    spec = read_json(fixture_spec)
-    cache = fixture_spec.parent / "cache"
-    write_rows(
-        cache / "review.jsonl",
-        [
-            {
-                "id": "clean-run",
-                "stage_decisions": {
-                    "autoreview": {
-                        "decision": "pass",
-                        "reasons": ["AUTOREVIEW_NOT_ELIGIBLE"],
-                        "details": {"eligible": False},
-                    }
-                },
-            }
-        ],
-    )
-    spec["autoreview"] = {"mode": "cached", "cache": str(cache), "max_usd": 0}
-    write_json(fixture_spec, spec)
-    with pytest.raises(ValueError, match="missing cached"):
-        core.run_line(fixture_spec, fixture_spec.parent)
-
-
 @pytest.mark.parametrize(
     "mutation",
     [

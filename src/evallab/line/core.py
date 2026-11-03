@@ -417,9 +417,25 @@ def _evaluate(
             ar = stored_ar[item.item_id]
         elif mode == "cached":
             cached = cache.get(item.item_id)
-            if cached is None:
-                raise ValueError(f"missing cached AutoReview verdict: {item.item_id}")
-            ar, record = cached, _cached_call(cached)
+            # "No reading" means no stored verdict, or a pass that never involved a model
+            # (NOT_ELIGIBLE/DISABLED under the L0 that produced the cache).
+            unread = cached is None or (cached.decision == "pass" and "model" not in cached.details)
+            if unread and hd.autoreview_eligible(l0):
+                # The current L0 wants a reading the cache cannot supply: never pass silently.
+                ar = hd.StageVerdict(
+                    "autoreview", "review", ["AUTOREVIEW_CACHE_MISS"], [], {"eligible": True}
+                )
+                record = None
+            elif cached is None:
+                ar = hd.StageVerdict(
+                    "autoreview",
+                    "pass",
+                    ["AUTOREVIEW_NOT_ELIGIBLE"],
+                    [],
+                    {"eligible": False},
+                )
+            else:
+                ar, record = cached, _cached_call(cached)
         else:
             seen: dict[str, Any] = {}
 
@@ -488,6 +504,24 @@ def _queue(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def batch_ref(batch: Path, path: Path) -> str:
+    """A receipt path: relative inside the batch (so a byte copy still verifies), else absolute."""
+    try:
+        return path.relative_to(batch).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def resolve_ref(batch: Path, raw: str) -> Path:
+    """Resolve a receipt path against the batch being checked; relative paths cannot escape it."""
+    path = Path(raw)
+    if path.is_absolute():
+        return path
+    if ".." in path.parts:
+        raise ValueError(f"receipt path leaves its batch: {raw}")
+    return batch / path
+
+
 def snapshot_station(batch: Path, source: Path) -> Path:
     """Copy Station bytes into the batch once; identical bytes reuse their snapshot."""
     snapshots = batch / "evidence" / "station-inputs"
@@ -543,10 +577,8 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
     task_started = time.time()
     tasks = _tasks(spec, items)
     cache, cache_files = _cache(spec)
-    if spec["autoreview"]["mode"] == "cached":
-        missing = sorted({item.item_id for item in items} - cache.keys())
-        if missing:
-            raise ValueError(f"missing cached AutoReview verdict: {missing[0]}")
+    # A run without a stored reading is not an error here: ``_evaluate`` sends it to review as
+    # AUTOREVIEW_CACHE_MISS when the current L0 makes it eligible, and the scoreboard counts it.
     # Labels are read only by the scoreboard, but a non-DEV label file must fail before any
     # directory, queue or export exists.
     from evallab.line.scoreboard import _load_labels
@@ -580,9 +612,12 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
                 "started_at": datetime.fromtimestamp(started, UTC).isoformat(),
                 "finished_at": datetime.fromtimestamp(finished, UTC).isoformat(),
                 "seconds": finished - started,
-                "inputs": [{"path": str(p), "sha256": digest(p)} for p in dict.fromkeys(inputs)],
+                "inputs": [
+                    {"path": batch_ref(batch, p), "sha256": digest(p)}
+                    for p in dict.fromkeys(inputs)
+                ],
                 "outputs": [
-                    {"path": str(p), "sha256": digest(p), "rows": len(read_rows(p))}
+                    {"path": batch_ref(batch, p), "sha256": digest(p), "rows": len(read_rows(p))}
                     for p in outputs
                 ],
                 "counts": {"rows_in": rows_in, "rows_out": rows_out},
@@ -815,21 +850,34 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
                 listed = set()
                 for ref in receipt[side]:
                     with suppress(ValueError):
-                        listed.add(Path(ref["path"]).resolve().relative_to(root).as_posix())
-                require(
-                    names <= listed,
-                    f"{receipt['stage']} receipt does not list {sorted(names - listed)}",
-                )
+                        listed.add(
+                            resolve_ref(batch, ref["path"]).resolve().relative_to(root).as_posix()
+                        )
+                missing = names - listed
+                if missing:
+                    elsewhere = any(
+                        Path(ref["path"]).is_absolute()
+                        and Path(ref["path"]).name in {Path(name).name for name in missing}
+                        for ref in receipt[side]
+                    )
+                    require(
+                        not elsewhere,
+                        f"{receipt['stage']} receipt records this batch's files by absolute "
+                        "paths of another location (a batch written before batches were "
+                        "relocatable, then copied); re-run the line to regenerate it",
+                    )
+                    require(False, f"{receipt['stage']} receipt does not list {sorted(missing)}")
             if receipt["stage"] == "judge":
                 snapshots = (batch / "evidence" / "station-inputs").resolve()
                 require(
                     any(
-                        Path(ref["path"]).resolve().parent == snapshots for ref in receipt["inputs"]
+                        resolve_ref(batch, ref["path"]).resolve().parent == snapshots
+                        for ref in receipt["inputs"]
                     ),
                     "judge receipt does not hold an immutable Station snapshot",
                 )
             for ref in receipt["inputs"] + receipt["outputs"]:
-                path = Path(ref["path"])
+                path = resolve_ref(batch, ref["path"])
                 require(path.exists() and digest(path) == ref["sha256"], f"hash mismatch: {path}")
                 if "rows" in ref:
                     require(len(read_rows(path)) == ref["rows"], f"row mismatch: {path}")

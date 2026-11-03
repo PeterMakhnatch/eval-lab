@@ -23,8 +23,9 @@ def _refresh_receipt(batch: Path, stage: str) -> None:
     path = batch / "receipts" / f"{stage}.json"
     receipt = read_json(path)
     for ref in receipt["outputs"]:
-        ref["sha256"] = digest(Path(ref["path"]))
-        ref["rows"] = len(read_rows(Path(ref["path"])))
+        target = core.resolve_ref(batch, ref["path"])
+        ref["sha256"] = digest(target)
+        ref["rows"] = len(read_rows(target))
     write_json(path, receipt)
 
 

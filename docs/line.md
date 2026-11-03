@@ -81,8 +81,15 @@ All labels pass through the shared `hack_drop.load_labels` loader.
 
 For `cached` AutoReview, supply `autoreview.cache` as an existing hack-drop
 output manifest or directory containing `kept.jsonl`, `dropped.jsonl` and
-`review.jsonl` with stored AutoReview stage verdicts. Every replayed run needs a
-cached verdict; the line does not fill gaps with a live model call.
+`review.jsonl` with stored AutoReview stage verdicts. Every run that needs a model reading
+needs a stored one; the line does not fill gaps with a live model call.
+
+A stored verdict that is only "not eligible"/"disabled" (or missing) is not a reading. If
+the current L0 makes a run AutoReview-eligible but the cache holds no actual reading for
+it, the run is never passed silently: it goes to `review` with `AUTOREVIEW_CACHE_MISS`,
+and the scoreboard reports `autoreview.cache_misses`, so a measurement of an L0 change
+cannot hide runs the cache could not judge. A run that needs no reading and has no cache
+row is simply not eligible.
 
 The cache is untrusted input. Only the AutoReview stage-verdict shape is
 accepted: decision, reasons from the AutoReview reason set, cited steps and a
@@ -163,6 +170,13 @@ The receipt files live under `receipts/`. Each records its schema, batch, stage,
 code revision and dirty state, start/end times, elapsed seconds, input/output
 hashes, row counts, model routes, spend and structured errors. Evidence stays on
 disk so a claim can be checked without trusting a terminal summary.
+
+Receipts name the batch's own files relative to the batch directory (`tasks.jsonl`,
+`export/kept.jsonl`); inputs outside the batch stay absolute with their SHA-256. A byte
+copy of a batch therefore passes `line check` from its new location, and tampering with
+the copy fails. Batches written before this change recorded absolute paths: they still
+verify in place, but a copy of one fails with a plain "another location" message and
+must be regenerated.
 
 ## Eight quality checks
 

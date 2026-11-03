@@ -143,3 +143,51 @@ def test_harbor_plan_locks_agent_and_keeps_verifier_public() -> None:
     )
     assert plan.agent_phase.network_mode == harbor_models.NetworkMode.NO_NETWORK
     assert plan.verifier_phase.network_mode == harbor_models.NetworkMode.PUBLIC
+
+
+@pytest.mark.parametrize("header", ["[agent]  # agent phase", "[ agent ]", "  [agent]\t# note"])
+def test_commented_or_spaced_agent_header_lands_mode(header: str) -> None:
+    text = PARENT_TASK_TOML.replace("[agent]", header)
+    new_text = build_task_toml(text)
+    expected = tomllib.loads(text)
+    expected["agent"]["network_mode"] = AGENT_NETWORK_MODE
+    assert tomllib.loads(new_text) == expected
+    assert header in new_text
+
+
+def test_header_without_trailing_newline_still_lands_mode() -> None:
+    new_text = build_task_toml("[agent]  # x")
+    assert tomllib.loads(new_text) == {"agent": {"network_mode": AGENT_NETWORK_MODE}}
+
+
+@pytest.mark.parametrize(
+    ("agent_lines", "form"),
+    [
+        ("agent = { timeout_sec = 600 }\n", "inline table"),
+        ("agent.timeout_sec = 600\n", "dotted keys"),
+    ],
+)
+def test_inline_and_dotted_agent_tables_refused_by_form(agent_lines: str, form: str) -> None:
+    with pytest.raises(VariantInvalid, match=form):
+        build_task_toml('schema_version = "1.4"\n' + agent_lines)
+
+
+def test_agent_header_inside_multiline_string_is_never_edited() -> None:
+    text = 'note = """\n[agent]\n"""\n[agent]\ntimeout_sec = 1\n'
+    new_text = build_task_toml(text)
+    config = tomllib.loads(new_text)
+    assert config["note"] == "[agent]\n"
+    assert config["agent"] == {"timeout_sec": 1, "network_mode": AGENT_NETWORK_MODE}
+    assert new_text.startswith('note = """\n[agent]\n"""\n')
+
+
+def test_agent_header_only_inside_multiline_string_appends_table() -> None:
+    text = 'note = """\n[agent]\n"""\n'
+    config = tomllib.loads(build_task_toml(text))
+    assert config["note"] == "[agent]\n"
+    assert config["agent"] == {"network_mode": AGENT_NETWORK_MODE}
+
+
+def test_agent_subtable_only_gets_agent_table_appended() -> None:
+    config = tomllib.loads(build_task_toml('[agent.env]\nX = "1"\n'))
+    assert config["agent"] == {"env": {"X": "1"}, "network_mode": AGENT_NETWORK_MODE}

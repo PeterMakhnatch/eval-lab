@@ -510,6 +510,18 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py          # r
 uv run python research/experiments/mimo-clean-v6/ladder_progress.py --check  # exit 1 on drift
 ```
 
+Two trailing columns join the graded-subset cells (schema
+`evallab.mimo-v6-ladder-subset-cells/v1`; coverage readers ignore that schema
+and the subset reader ignores coverage schemas): `subset_verdict` is the
+verdict of the task's highest-numbered subset (a repeated subset number: last
+listed wins) — `still-refused`, `graded-clean`, `graded-cracked`, `unscored`,
+or `none` when no subset cell covers the task — and `subset_reward` is that
+subset's reward, empty when none was recorded. A subset verdict is evidence for
+the refusal row, not a ladder coverage verdict: `subset_1` drops
+`tamper_source_pytest_patch` and `subset_2` drops every `tamper_source_*`
+attack, so `graded-clean` there does not clear the full-ladder `clean`/`basis`
+columns.
+
 Basis counts in the committed table (100 ranks, 21 covered; Docker-free):
 
 | basis | ranks |

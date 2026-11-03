@@ -274,20 +274,31 @@ label policy or denominators makes the comparison invalid. Refresh intentionally
 only after understanding such a change; a quality-failing batch cannot create
 or replace a baseline.
 
-The gate compares **each corpus**, not just the overall average:
+The gate compares **each corpus** and then **all corpora pooled** (when at least two have
+the denominator). A change of at most `max(1 run, n / divisor)` runs passes, where `n` is
+the metric's denominator:
 
-- Recall (drop-or-review) must not fall by **more than** the larger of one cheat
-  run or 2 percentage points: `max(1 / cheats, 0.02)`.
-- Clean false alarms (drop only) must not rise by **more than** the larger of
-  one clean run or 1 percentage point: `max(1 / clean, 0.01)`.
-- Any failed quality check is a regression, even if measured rates improve.
+| Metric | Bad direction | Per corpus | Pooled |
+|---|---|---|---|
+| Drop-or-review recall | falls | 2 points | 1 point |
+| Drop recall | falls | 5 points | 2 points |
+| Clean false-alarm rate (clean drops) | rises | 1 point | not gated |
+| Clean drop-or-review rate (clean reviews included) | rises | 5 points | 2 points |
 
-The false-alarm gate deliberately watches clean *drops*, the harm of discarding
-good data. Clean runs that move from keep to review cost judge time instead; they
-never fail the gate but are listed under `informational` as `{corpus, metric:
-"clean_drop_or_review_rate", before_k, after_k, denominator}` so the extra judge
-load is visible. The gate is per corpus, as the contract says: there is no
-separate overall threshold.
+Any failed quality check is a regression, even if measured rates improve. A corpus that
+the baseline has but the run lacks is a regression (`kind: corpus_missing`), not an invalid
+comparison; a corpus the baseline lacks is invalid.
+
+Why these gates exist: drop-or-review recall alone lets every drop quietly become a review
+(drop recall is gated), lets "send everything to review" score 100% recall with no clean
+drops (the clean drop-or-review rate is gated, so extra judge load is bounded), and lets
+several corpora each slip within their own allowance (the pooled rows). Drop recall and
+review load have the looser 5-point per-corpus allowance because moving a cheat from drop
+to review is cautious rather than a miss and a detector that reads more formats may
+legitimately shift runs between those two decisions; the pooled rows are tighter than the sum
+of the per-corpus allowances. Honest runs that stay within the review allowance are still
+listed under `informational` as `{corpus, metric: "clean_drop_or_review_rate", before_k,
+after_k, denominator}`. Fewer reviews or higher recall than the baseline never fail.
 
 A change exactly at the allowance passes. A zero denominator has no rate to
 compare, and a declared corpus with no rows can be baselined and replayed.
@@ -315,47 +326,55 @@ frozen Station verdict export; replay never touches the real Judge Station queue
 or state.
 
 `MANIFEST.json` records SHA-256 and size for all 1,198 input files, including
-`spec.json`. Its SHA-256 is
-`f40f6e93d245ba379c31d8d6ac8d36a865ff39871df8a91d35379e9ed2a14bb0`.
-The spec's SHA-256 is
-`6191d99cff8b1b9357e00dbb00a2337985b38d05ed2cb5f1e63d916af72efb8e`.
-The set's README explains its source, limitations and refresh procedure.
-`baseline.json` is the line's baseline scoreboard and decisions;
-`baseline-provenance.json` records its code revision, hashes and refresh reason.
+`spec.json`. `baseline.json` is the line's baseline scoreboard and decisions;
+`baseline-provenance.json` records its code revision, hashes, authorizer and reason.
+The set's README explains its source and limitations.
+
+**The set is pinned in git.** `src/evallab/line/replay_sets.json` records the SHA-256 of
+the set's `MANIFEST.json`, `spec.json` and `baseline.json` and the code revision that
+wrote the baseline. The script refuses (exit 2) when any of them differs, when
+`baseline-provenance.json` is missing or disagrees with the pin (hashes, code revision,
+a clean checkout, authorizer, reason), when the set holds a file the manifest does not
+list or any symlink, or when a spec path (rollout manifests and their rows, labels,
+cache, task status, Station verdicts, output folders) does not resolve inside the set,
+compared after resolving symlinks and `..`. A frozen set therefore cannot be edited, and
+a baseline cannot be replaced, without a pull request that changes the pin.
 
 ```bash
 make line-replay        # same as: uv run python scripts/line-replay.py
-# Select a different complete local copy of the frozen set:
-EVALLAB_LINE_REPLAY_SET=/absolute/path/to/replay-v1 \
-  uv run python scripts/line-replay.py
+# Another pinned set (its absolute spec paths must point inside it):
+EVALLAB_LINE_REPLAY_SET=/absolute/path/to/replay-v2 \
+  uv run python scripts/line-replay.py --name replay-v2
 ```
 
 `EVALLAB_LINE_REPLAY_SET` defaults to the location above; `--set PATH` overrides
-it. Frozen specs have absolute input paths: selecting a set is not an automatic
-relocation. The wrapper checks every input hash, then prints per-corpus
-drop-or-review recall and honest-run drops before versus after, the count of
-changed decisions, and the verdict. A full run took about 29 minutes of compute
-on 2026-11-02 and each run leaves a new batch under `batches/`; run it through
-the machine's heavy-job lock if one is in force. Detailed changed decisions remain in the
-new replay batch, whose path is printed. Recall includes unreadable runs routed
-to review; that alone is not evidence of a real cheat detection. This is a DEV
-regression set, not a held-out detector-quality claim.
+it. The spec stores absolute paths, so a copy of a set is refused rather than silently
+replaying the original; a set is used where its spec says it lives. The wrapper prints
+per-corpus drop-or-review recall and clean drops before versus after, the regression
+reasons, the number of changed decisions (or why they are unavailable), and the verdict.
+A full run took about 29 minutes of compute on 2026-11-02 and each run leaves a new
+batch under `batches/`; run it through the machine's heavy-job lock if one is in force.
+Changed decisions are written to `changed-decisions.json` in that batch, whose path is
+printed. Recall includes unreadable runs routed to review; that alone is not evidence of
+a real cheat detection. This is a DEV regression set, not a held-out detector-quality
+claim.
 
-The wrapper preserves the gate's **0 pass / 1 regression / 2 invalid** statuses.
-Absent private data (set, spec, manifest or baseline) produces an explicit
-**SKIP** and status **77**, never a silent pass. A missing or altered input
-listed in the manifest is invalid (2). CI without this private set must report
-the skip separately; its synthetic replay tests still run normally.
+Exit codes: **0 pass / 1 regression / 2 invalid** (a broken or tampered set, bad replay
+input, or a summary that could not be produced). **77 SKIP** is returned only when the set
+directory itself is absent, and prints that nothing was checked; an existing but incomplete
+set is exit 2. CI without the private set reports the skip separately; the synthetic replay
+tests that run the real replay on tiny sets still run normally.
 
 **Baseline refresh rule:** only Peter or the assembly-line coordinator acting
 for him may authorize a refresh, with the reason recorded. Detector authors
 must first inspect the comparison and changed decisions, not overwrite the
-baseline to turn a failure green. Archive the old baseline and provenance under
-`baseline-history/<UTC timestamp>/`, then run the explicit
-`evallab line replay ... --write-baseline` command shown above from a clean
-merged-main checkout. Record the authorizer, reason, merged code revision,
-replay batch and baseline/spec/manifest hashes in `baseline-provenance.json`
-(`baseline_sha256` and `manifest_sha256` bind the two files). The initial baseline
+baseline to turn a failure green. A refresh is a pull request: archive the old
+baseline and provenance under `baseline-history/<UTC timestamp>/`, run the explicit
+`evallab line replay ... --write-baseline` command from a clean merged-main checkout,
+record the authorizer, reason, merged code revision, replay batch and baseline, spec and
+manifest hashes in `baseline-provenance.json`, and update `replay_sets.json` in the same
+PR with the new hashes and code revision. The PR description states the reason and
+authorization. The initial baseline
 was written explicitly on 2026-11-02 from merged main `d711f652e` (#1815): keep /
 drop / review 100 / 252 / 338, 302 of 332 cheats dropped or reviewed, 40 of 358
 honest runs dropped. Only 250 of those 302 are real detections; 52 reach review

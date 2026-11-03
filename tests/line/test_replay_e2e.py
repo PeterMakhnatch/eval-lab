@@ -180,7 +180,11 @@ def test_detector_regression_exits_one_and_lists_changed_runs(
     result, code = replay(spec, baseline, env)
     assert code == 1 and not result["passed"], result
     assert _decisions(result) == {"hack-1": "keep", "hack-2": "keep"}
-    assert [row["metric"] for row in result["regressions"]] == ["drop_or_review_recall"]
+    # Losing both drops also lowers drop recall, which is gated on its own.
+    assert [row["metric"] for row in result["regressions"]] == [
+        "drop_or_review_recall",
+        "drop_recall",
+    ]
     assert result["regressions"][0]["changed_count"] == 2
     assert result["inputs_changed"] is False
 

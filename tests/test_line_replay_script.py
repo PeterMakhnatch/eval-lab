@@ -31,7 +31,9 @@ def _group(recall=(2, 4), alarms=(1, 5)):
 
 @pytest.fixture
 def replay_case(tmp_path, monkeypatch):
-    module_spec = importlib.util.spec_from_file_location("line_replay_script", ROOT / "scripts/line-replay.py")
+    module_spec = importlib.util.spec_from_file_location(
+        "line_replay_script", ROOT / "scripts/line-replay.py"
+    )
     assert module_spec is not None and module_spec.loader is not None
     module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(module)
@@ -44,7 +46,14 @@ def replay_case(tmp_path, monkeypatch):
     files = []
     for name in ("spec.json", "rollouts.jsonl"):
         data = (root / name).read_bytes()
-        files.append({"path": name, "sha256": sha256(data).hexdigest(), "size": len(data), "kind": "synthetic"})
+        files.append(
+            {
+                "path": name,
+                "sha256": sha256(data).hexdigest(),
+                "size": len(data),
+                "kind": "synthetic",
+            }
+        )
     manifest = {
         "schema": "evallab.line_replay_manifest/v1",
         "files": files,
@@ -58,8 +67,14 @@ def replay_case(tmp_path, monkeypatch):
     _write_json(batch / "scoreboard.json", scoreboard)
     result = {"batch": str(batch), "passed": True, "changed_runs": []}
     case = SimpleNamespace(
-        module=module, root=root, batch=batch, manifest=manifest,
-        result=result, scoreboard=scoreboard, calls=[], status=0,
+        module=module,
+        root=root,
+        batch=batch,
+        manifest=manifest,
+        result=result,
+        scoreboard=scoreboard,
+        calls=[],
+        status=0,
     )
 
     def fake_replay(spec_path, baseline, repo_root):
@@ -138,7 +153,9 @@ def test_missing_listed_input_is_invalid_not_skip(replay_case, capsys):
     assert not case.calls
 
 
-@pytest.mark.parametrize("path", ["../outside.jsonl", "/tmp/outside.jsonl", "nested/../../outside.jsonl"])
+@pytest.mark.parametrize(
+    "path", ["../outside.jsonl", "/tmp/outside.jsonl", "nested/../../outside.jsonl"]
+)
 def test_manifest_path_traversal_is_rejected(replay_case, path, capsys):
     case = replay_case
     case.manifest["files"][1]["path"] = path
@@ -173,7 +190,13 @@ def test_malformed_manifest_file_metadata_is_invalid(replay_case, field, value):
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("schema", "unknown"), ("files", {}), ("input_files", 999), ("run_count", True), ("corpora", {"synthetic": 8})],
+    [
+        ("schema", "unknown"),
+        ("files", {}),
+        ("input_files", 999),
+        ("run_count", True),
+        ("corpora", {"synthetic": 8}),
+    ],
 )
 def test_malformed_manifest_structure_is_invalid(replay_case, field, value):
     case = replay_case
@@ -237,7 +260,8 @@ def test_optional_provenance_is_checked_when_present(replay_case):
     provenance = {
         "baseline_sha256": sha256((case.root / "baseline.json").read_bytes()).hexdigest(),
         "manifest_sha256": sha256((case.root / "MANIFEST.json").read_bytes()).hexdigest(),
-        "code_rev": "synthetic-revision", "reason": "synthetic fixture",
+        "code_rev": "synthetic-revision",
+        "reason": "synthetic fixture",
     }
     _write_json(case.root / "baseline-provenance.json", provenance)
     assert case.module.main([]) == 0

@@ -130,7 +130,7 @@ def _rate(group: dict[str, Any], metric: str, denominator: str) -> str:
 
 
 def _summary(result: dict[str, Any], baseline: dict[str, Any], status: int) -> None:
-    print(f"Verdict: { {0: 'PASS', 1: 'REGRESSION', 2: 'INVALID'}[status]}")
+    print(f"Verdict: { {0: 'PASS', 1: 'REGRESSION', 2: 'INVALID'}[status] }")
     if result.get("error"):
         print(f"Replay error: {result['error']}", file=sys.stderr)
     batch_value = result.get("batch")
@@ -144,7 +144,9 @@ def _summary(result: dict[str, Any], baseline: dict[str, Any], status: int) -> N
     print(f"Changed decisions: {len(changes)}")
     if changes:
         report = batch / "changed-decisions.json"
-        report.write_text(json.dumps(changes, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        report.write_text(
+            json.dumps(changes, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
         print(f"Changed decision report: {report}")
     previous = baseline["scoreboard"]["by_corpus"]
     current = _object(batch / "scoreboard.json")["by_corpus"]
@@ -167,14 +169,23 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         root = (
-            args.replay_set
-            if args.replay_set is not None
-            else Path(os.environ.get(
-                "EVALLAB_LINE_REPLAY_SET",
-                str(Path.home() / "Developer/eval-lab-results/line/replay-v1"),
-            ))
-        ).expanduser().resolve()
-        required = [root, *(root / name for name in ("spec.json", "MANIFEST.json", "baseline.json"))]
+            (
+                args.replay_set
+                if args.replay_set is not None
+                else Path(
+                    os.environ.get(
+                        "EVALLAB_LINE_REPLAY_SET",
+                        str(Path.home() / "Developer/eval-lab-results/line/replay-v1"),
+                    )
+                )
+            )
+            .expanduser()
+            .resolve()
+        )
+        required = [
+            root,
+            *(root / name for name in ("spec.json", "MANIFEST.json", "baseline.json")),
+        ]
         missing = [str(path) for path in required if not path.exists()]
         if missing:
             print(f"SKIP: standard line replay data missing: {', '.join(missing)}", file=sys.stderr)

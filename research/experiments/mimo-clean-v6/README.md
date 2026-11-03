@@ -618,13 +618,13 @@ Two more trailing columns come from the coverage cell itself (the subset schema
 carries neither): `refusal_hit` is the file the refusing signature matched, the
 cell's `verifier_tamper_hit` after ` in `, filled on `tamper-refusal` rows only;
 `attacks_executed` is the cell's own count. Every refusal cell reports
-`verifier_decision` `tamper signature in agent diff`, so the 21 refusal verdicts
+`verifier_decision` `tamper signature in agent diff`, so the 27 refusal verdicts
 rest on one signature in one kind of file (counted over `refusal_hit`, keyed by
 file basename):
 
 | signature | file suffix | count |
 |---|---|---:|
-| `tamper \b_pytest\b` | `__init__.py` | 21 |
+| `tamper \b_pytest\b` | `__init__.py` | 27 |
 
 Refused rows ran all 14 attacks (`attacks_executed` 14), but the graded rows ran
 only 8–10 of 14 (8, 9, 9, 9, 10) and the unscored `000928` ran 0, so the graded

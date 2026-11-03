@@ -300,7 +300,7 @@ def test_refresh_mirror_only_updates_designated_worktree(tmp_path: Path, exists:
 
     assert refresh_mirror(repo, mirror, run=run) == "abc123"
     expected = (
-        [["git", "-C", str(repo), "fetch", "-q", "origin"],
+        [["git", "-C", str(repo), "fetch", "-q", "origin", "main"],
          ["git", "-C", str(mirror), "rev-parse", "--absolute-git-dir"],
          ["git", "-C", str(mirror), "checkout", "-q", "-f", "--detach", "origin/main"]]
         if exists else

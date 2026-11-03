@@ -275,7 +275,9 @@ def refresh_mirror(
 ) -> str:
     """Update only the designated detached worktree; never the main checkout."""
     if mirror.exists():
-        run(["git", "-C", str(repo), "fetch", "-q", "origin"], check=True,
+        # Only main: a full `fetch origin` races the primary-checkout sync timer
+        # and every agent worktree for the same remote-tracking ref locks.
+        run(["git", "-C", str(repo), "fetch", "-q", "origin", "main"], check=True,
             capture_output=True, text=True)
         git_dir = run(["git", "-C", str(mirror), "rev-parse", "--absolute-git-dir"],
                       check=True, capture_output=True, text=True).stdout.strip()

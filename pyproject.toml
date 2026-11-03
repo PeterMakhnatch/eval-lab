@@ -53,6 +53,9 @@ benchmarks = [
     "cryptography>=41,<51",
     "fastmcp==3.4.7",
 ]
+# Inspect log adapter and METR scout reader test dependencies. Out of the base
+# install for the same reason as `benchmarks`; the CI test matrix syncs this
+# group so the Inspect-gated tests run instead of skipping (HAR-287).
 inspect = [
     "inspect-ai==0.3.276",
     "inspect-harbor==1.0.0",

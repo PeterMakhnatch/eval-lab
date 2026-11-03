@@ -1054,6 +1054,86 @@ def test_full_suite_writes_junit_then_reports_skip_census() -> None:
     assert "scripts/ci/check_harbor_skips.py --report-only full-suite.xml" in census_run
 
 
+def _full_suite_inspect_problems(steps: list[dict]) -> list[str]:
+    """Report when the environment the full suite runs in cannot have `inspect`.
+
+    uv sync prunes group packages the command does not name, so the gate looks at
+    the LAST sync step before "Full test suite": it must pass `--group inspect`.
+    An earlier dedicated inspect sync cannot survive a later sync without it.
+    """
+    problems: list[str] = []
+    full_suite_index = next(
+        (
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict) and step.get("name") == "Full test suite"
+        ),
+        None,
+    )
+    if full_suite_index is None:
+        problems.append("the test job must retain its Full test suite step")
+        return problems
+    syncs = [
+        (index, run)
+        for index, run in _step_runs({"steps": steps[:full_suite_index]})
+        if _syncs_environment(run)
+    ]
+    if not syncs:
+        problems.append(
+            "no uv sync step runs before Full test suite, so the inspect "
+            "dependency group cannot be installed"
+        )
+        return problems
+    index, last_sync = syncs[-1]
+    if "--group inspect" not in last_sync:
+        problems.append(
+            f"the last uv sync before Full test suite (step {index}) omits "
+            "--group inspect, so the ~25 Inspect-gated tests in "
+            "test_scout_metr.py, test_inspect_adapter.py and "
+            "test_inspect_storage.py skip (HAR-287)"
+        )
+    return problems
+
+
+def test_full_suite_sync_step_installs_the_inspect_group() -> None:
+    """The Inspect-gated suites run in the full suite; its env must install them.
+
+    tests/test_scout_metr.py guards on HAVE_INSPECT and test_inspect_adapter.py /
+    test_inspect_storage.py importorskip inspect_ai: without `--group inspect` in
+    the sync the census logged 23 'inspect dependency group' plus 2 'optional
+    Inspect dependency group is not installed' skips per shard (HAR-287).
+    """
+    workflow = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["test"]["steps"]
+    assert _full_suite_inspect_problems(steps) == []
+
+
+def test_full_suite_inspect_gate_rejects_dropping_the_group() -> None:
+    """Dropping --group inspect from the effective sync reddens the gate."""
+    dropped = [
+        {"run": "uv sync --locked --no-group observability --group benchmarks --group lance"},
+        {"name": "Full test suite", "run": "uv run --no-sync pytest"},
+    ]
+    assert _full_suite_inspect_problems(dropped) == [
+        "the last uv sync before Full test suite (step 0) omits --group inspect, "
+        "so the ~25 Inspect-gated tests in test_scout_metr.py, "
+        "test_inspect_adapter.py and test_inspect_storage.py skip (HAR-287)"
+    ]
+    assert _full_suite_inspect_problems([{"name": "Full test suite", "run": "pytest"}]) == [
+        "no uv sync step runs before Full test suite, so the inspect dependency "
+        "group cannot be installed"
+    ]
+    shadowed = [
+        {"run": "uv sync --locked --group inspect"},
+        {"run": "uv sync --locked --group benchmarks"},
+        {"name": "Full test suite", "run": "uv run --no-sync pytest"},
+    ]
+    assert _full_suite_inspect_problems(shadowed), (
+        "a later sync without --group inspect prunes the group the earlier "
+        "dedicated step installed"
+    )
+
+
 def test_native_harbor_step_checks_junit_skips_after_pytest() -> None:
     workflow = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
     run = _native_harbor_step(workflow).get("run") or ""

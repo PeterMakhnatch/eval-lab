@@ -58,7 +58,7 @@ trigger and dependency handling fail closed, including merge-group support.
 
 | Gate | Command | Version / interpreter |
 |---|---|---|
-| Locked install | `uv sync --locked` (tests: `--no-group observability --group benchmarks --group lance`) | uv 0.9.24; Python 3.12 and 3.14; `observability` stays opt-in, `lance` is an opt-in group for lancedb contract tests |
+| Locked install | `uv sync --locked` (tests: `--no-group observability --group benchmarks --group lance --group inspect`) | uv 0.9.24; Python 3.12 and 3.14; `observability` stays opt-in, `lance` is an opt-in group for lancedb contract tests, `inspect` is an opt-in group for the Inspect log adapter and METR scout reader tests (HAR-287) |
 | Lint | `uv run ruff check .` | locked Ruff; Python 3.12 |
 | Doc index freshness | `uv run python -m evallab.docindex check` | locked; Python 3.12 |
 | Repository map freshness | `uv run python -m evallab.repomap check` | locked; Python 3.12 |

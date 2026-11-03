@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-try:  # The reader needs the inspect dependency group; CI's default env lacks it.
+try:  # The reader needs the inspect dependency group; dev envs may lack it.
     from inspect_ai.model import GenerateConfig, ResponseSchema
 
     from evallab.readers.scout_metr import (

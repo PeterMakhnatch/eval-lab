@@ -93,8 +93,8 @@ jobs:
         with:
           path: ~/.cache/uv
           key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python-version }}-test-${{ hashFiles('uv.lock', 'tools/mimoagent-harbor/uv.lock', '.github/workflows/ci.yml') }}
-      - name: Sync with benchmark and lance test dependencies (fastmcp, cryptography, lancedb)
-        run: uv sync --locked --no-group observability --group benchmarks --group lance
+      - name: Sync with benchmark, lance and inspect test dependencies (fastmcp, cryptography, lancedb, inspect-ai)
+        run: uv sync --locked --no-group observability --group benchmarks --group lance --group inspect
       - name: Full test suite
         run: uv run --no-sync pytest --shard ${{ matrix.shard }} --junitxml=full-suite.xml
       - name: Full-suite skip reason census

@@ -262,6 +262,73 @@ def test_decision_recomputation_detects_nondeterministic_stage(
     assert next(c for c in result["checks"] if c["name"] == "determinism")["status"] == "FAIL"
 
 
+def _count_evaluations(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    calls: list[int] = []
+    real = core._evaluate
+
+    def counting(*args: object, **kwargs: object) -> object:
+        calls.append(1)
+        return real(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(core, "_evaluate", counting)
+    return calls
+
+
+def test_run_computes_twice_and_standalone_check_once(
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _count_evaluations(monkeypatch)
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    assert len(calls) == 2  # the two in-process passes; the trailing check reuses both
+    assert read_json(batch / "check.json")["passed"]
+    calls.clear()
+    assert core.check_batch(batch, fixture_spec.parent)["passed"]
+    assert len(calls) == 1  # one fresh recompute against the stored decisions
+
+
+def test_standalone_check_catches_a_stage_that_changed_since_the_run(
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    monkeypatch.setattr(hd, "evaluate_l0_stage", lambda _: hd.StageVerdict("l0", "drop"))
+    result = core.check_batch(batch, fixture_spec.parent)
+    assert not result["passed"]
+    assert next(c for c in result["checks"] if c["name"] == "determinism")["status"] == "FAIL"
+
+
+def test_fast_check_never_claims_determinism(
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    calls = _count_evaluations(monkeypatch)
+    result = core.check_batch(batch, fixture_spec.parent, fast=True)
+    assert calls == []
+    assert result["determinism_verified"] is False
+    assert not result["passed"]
+    determinism = next(c for c in result["checks"] if c["name"] == "determinism")
+    assert determinism["status"] == "SKIPPED"
+    assert "determinism not verified" in determinism["details"]
+    assert {c["status"] for c in result["checks"] if c["name"] != "determinism"} == {"PASS"}
+
+
+def test_fast_check_exits_three_and_leaves_the_verified_artifacts(
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from evallab import cli
+
+    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    before = {name: digest(batch / name) for name in ("check.json", "scoreboard.json")}
+    code = cli.run_cli(
+        ["line", "check", str(batch), "--fast", "--json"], workspace=fixture_spec.parent
+    )
+    assert code == 3
+    assert "determinism not verified" in capsys.readouterr().out
+    assert before == {name: digest(batch / name) for name in before}
+    write_rows(batch / "judge-queue.jsonl", [])
+    assert cli.run_cli(["line", "check", str(batch), "--fast"], workspace=fixture_spec.parent) == 2
+
+
 @pytest.mark.parametrize("reward,expected", [(1.0, 1.0), (0.0, 0.0), (None, None)])
 def test_native_harbor_reward_and_unknown(
     fixture_spec: Path, reward: float | None, expected: float | None
@@ -295,7 +362,7 @@ def test_native_harbor_reward_and_unknown(
 def test_interrupted_check_never_publishes_pass(
     fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def interrupted(*_):
+    def interrupted(*_args: object, **_kwargs: object) -> None:
         raise RuntimeError("interrupted before gates completed")
 
     monkeypatch.setattr(core, "check_batch", interrupted)

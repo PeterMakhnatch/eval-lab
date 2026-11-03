@@ -455,11 +455,14 @@ class IncrementalPrefixState:
         baselines: Sequence[Any] | None = None,
         structural_context: Mapping[str, Any] | None = None,
         thresholds: WatchThresholds | None = None,
+        gate_only: bool = False,
     ) -> None:
+        self.gate_only = gate_only
         self.scanner = PrefixScanner(
             task_manifest=task_manifest,
             baselines=baselines,
             structural_context=structural_context,
+            gate_only=gate_only,
         )
         self._thresholds = thresholds or WatchThresholds()
         self._command: str | None = None
@@ -781,6 +784,7 @@ class _Run:
             task_manifest=self.task_manifest,
             baselines=self.baselines,
             structural_context=self.structural_context,
+            gate_only=self.prefix_state.gate_only,
         )
         for number in sorted(self.steps):
             state.advance(self.steps[number])
@@ -794,6 +798,7 @@ class _Run:
             task_manifest=self.task_manifest,
             baselines=self.baselines,
             structural_context=self.structural_context,
+            gate_only=self.prefix_state.gate_only,
         )
         self.canon_bytes.clear()
         self.frozen_steps.clear()
@@ -847,6 +852,7 @@ class MisalignmentLiveWorker:
         judge_pass_through: bool = False,
         cascade_version: str = window_cascade.CASCADE_VERSION,
         finished_run_capacity: int = DEFAULT_FINISHED_RUN_CAPACITY,
+        gate_only: bool = False,
     ) -> None:
         if alert_playbook_cards < 0 or stage2_playbook_cards < 0:
             raise ValueError("playbook card counts must be nonnegative")
@@ -856,6 +862,9 @@ class MisalignmentLiveWorker:
             raise ValueError("control_ttl_seconds must be finite and positive")
         if not math.isfinite(latency_target_seconds) or latency_target_seconds <= 0:
             raise ValueError("latency_target_seconds must be finite and positive")
+        #: Offline replays that read only verdict gate cards: scores without structural checks,
+        #: diagnostic cues, non-gate hackbook rules, prefilter cues or checkpoint events.
+        self._gate_only = gate_only
         self._sink = emit
         self._registry = registry
         self._judge = judge
@@ -975,7 +984,9 @@ class MisalignmentLiveWorker:
             context = copy.deepcopy(self._structural_context)
             run = _Run(
                 structural_context=context,
-                prefix_state=IncrementalPrefixState(structural_context=context),
+                prefix_state=IncrementalPrefixState(
+                    structural_context=context, gate_only=self._gate_only
+                ),
             )
             self._runs[run_id] = run
         return run
@@ -1484,7 +1495,12 @@ class MisalignmentLiveWorker:
             alerts = []
             coverage["gaps"].append("deterministic_detector_unavailable")
             coverage["detector_error"] = f"{type(exc).__name__}: {exc}"[:300]
-        alerts = [*alerts, *self._prefilter_alerts(run, step, replay=replay)]
+        if self._gate_only:
+            # Offline replays read only verdict-eligible cards: no diagnostic cues, structural
+            # records, score checkpoints or coverage events are produced for them.
+            alerts = [alert for alert in alerts if alert["eligibility"] == "verdict"]
+        else:
+            alerts = [*alerts, *self._prefilter_alerts(run, step, replay=replay)]
         if structural is not None:
             coverage["structural"] = structural
             if structural["context_supplied"] and structural["unavailable"]:
@@ -1596,6 +1612,9 @@ class MisalignmentLiveWorker:
                 cards.append(card)
         if self._judge is None and cards:
             coverage["gaps"].append("semantic_triage_unavailable")
+        if self._gate_only:
+            self._release_deferred(run_id, run, prefix, frozen_steps)
+            return output
         elapsed = time.monotonic() - started
         # Diagnostic and task-structure cues are reported, never a misconduct verdict.
         behavioral = [a for a in alerts if a["eligibility"] == "verdict"]

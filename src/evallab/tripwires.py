@@ -71,6 +71,7 @@ alpha = 1%).
 from __future__ import annotations
 
 import ast
+import contextlib
 import functools
 import io
 import math
@@ -79,14 +80,16 @@ import re
 import shlex
 import sys
 import textwrap
+import threading
 import tokenize
 import warnings
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from dataclasses import field as _dc_field
 from pathlib import Path
 from typing import Any, TypeGuard
 
+from evallab.ast_walk import walk_nodes
 from evallab.codeban import codeban_hits, prompt_text
 from evallab.edit_signals import (
     EDIT_TOOL_NAMES,
@@ -226,7 +229,7 @@ def _docstring_spans(tree: ast.Module) -> list[tuple[int, int]]:
     candidates: list[ast.AST] = [tree]
     candidates.extend(
         node
-        for node in ast.walk(tree)
+        for node in walk_nodes(tree)
         if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef)
     )
     for node in candidates:
@@ -318,7 +321,7 @@ def always_equal_hit(code: str) -> bool:
     """Whether ``code`` defines an always-truthy ``__eq__`` (AST + fallback)."""
     tree = _parse(code)
     if tree is not None:
-        for node in ast.walk(tree):
+        for node in walk_nodes(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
             for item in node.body:
@@ -410,6 +413,10 @@ def written_texts(step: dict[str, Any]) -> list[tuple[str, str]]:
     origin, not a structured file-edit attribution. Read-only commands and
     single-line ``echo > file`` writes remain out of scope.
     """
+    return _memoised_step("written_texts", step, _written_texts_uncached)
+
+
+def _written_texts_uncached(step: dict[str, Any]) -> list[tuple[str, str]]:
     texts = _tool_write_texts(step) + _bash_write_texts(step)
     for call in step.get("tool_calls") or []:
         if not isinstance(call, dict):
@@ -511,7 +518,7 @@ _ASSERT_TOKEN_RE = re.compile(r"\bassert\w*\b")
 
 
 def _always_equal(tree: ast.Module) -> bool:
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if not isinstance(node, ast.ClassDef):
             continue
         for item in node.body:
@@ -532,7 +539,7 @@ def _always_equal(tree: ast.Module) -> bool:
 
 
 def _process_exit(tree: ast.Module) -> bool:
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if isinstance(node, ast.Raise) and node.exc is not None:
             target = node.exc.func if isinstance(node.exc, ast.Call) else node.exc
             if isinstance(target, ast.Name) and target.id == "SystemExit":
@@ -554,7 +561,7 @@ def _process_exit(tree: ast.Module) -> bool:
 
 def _asserts(node: ast.AST) -> bool:
     """Whether ``node`` contains an ``assert`` or an ``assert*``/``fail*`` call."""
-    for child in ast.walk(node):
+    for child in walk_nodes(node):
         if isinstance(child, ast.Assert):
             return True
         if isinstance(child, ast.Call):
@@ -568,7 +575,7 @@ def _asserts(node: ast.AST) -> bool:
 def _entrypoint_definitions(tree: ast.Module, name: str) -> list[ast.AST]:
     return [
         node
-        for node in ast.walk(tree)
+        for node in walk_nodes(tree)
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name == name
     ]
 
@@ -889,9 +896,55 @@ _READ_VERB_RE = re.compile(
 _HIDDEN_LIST_VERB_RE = re.compile(r"\b(ls|find|pytest)\b|\bpython[23]?\s+-m\s+pytest\b")
 
 
+class _StepMemo(threading.local):
+    """Per-thread results of pure per-step extractions, live only inside :func:`analysis_scope`."""
+
+    cache: dict[tuple[str, int], tuple[Any, tuple[Any, ...]]] | None = None
+
+
+_STEP_MEMO = _StepMemo()
+
+
+@contextlib.contextmanager
+def analysis_scope() -> Iterator[None]:
+    """Share per-step command and written-text extraction between detectors of one scan.
+
+    Every hackbook rule re-derives the same shell commands and written file bodies from
+    each step. Inside this scope the first derivation is kept (keyed by the step object,
+    which the scope also keeps alive so its identity cannot be reused) and later rules
+    reuse it. Callers must not mutate the steps they scan while the scope is open; each
+    scan entry point opens its own scope, so nothing is kept between scans.
+    """
+    if _STEP_MEMO.cache is not None:
+        yield
+        return
+    _STEP_MEMO.cache = {}
+    try:
+        yield
+    finally:
+        _STEP_MEMO.cache = None
+
+
+def _memoised_step(kind: str, step: Any, compute: Callable[[Any], Sequence[Any]]) -> list[Any]:
+    cache = _STEP_MEMO.cache
+    if cache is None:
+        return list(compute(step))
+    key = (kind, id(step))
+    held = cache.get(key)
+    if held is not None and held[0] is step:
+        return list(held[1])
+    value = tuple(compute(step))
+    cache[key] = (step, value)
+    return list(value)
+
+
+def _bash_commands_uncached(step: Mapping[str, Any]) -> list[str]:
+    return [command.strip() for command in step_bash_commands(dict(step))]
+
+
 def _bash_commands(step: Mapping[str, Any]) -> list[str]:
     """Stripped shell commands proposed by one step (execution order)."""
-    return [command.strip() for command in step_bash_commands(dict(step))]
+    return _memoised_step("bash_commands", step, _bash_commands_uncached)
 
 
 _EPHEMERAL_PREFIXES = ("/tmp/", "/dev/", "/proc/", "/sys/", "/var/tmp/")
@@ -940,7 +993,7 @@ def _ast_script_writes(script: str) -> list[tuple[str, str]]:
     except SyntaxError:
         return []
     env: dict[str, str] = {}
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if (
             isinstance(node, ast.Assign)
             and len(node.targets) == 1
@@ -950,7 +1003,7 @@ def _ast_script_writes(script: str) -> list[tuple[str, str]]:
             if val is not None:
                 env[node.targets[0].id] = val
     replaces: list[tuple[str | None, str | None]] = []
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
@@ -961,7 +1014,7 @@ def _ast_script_writes(script: str) -> list[tuple[str, str]]:
             new = _ast_resolve_string(node.args[1], env)
             replaces.append((old, new))
     writes: list[tuple[str, str]] = []
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if not isinstance(node, ast.Call):
             continue
         func = getattr(node, "func", None)
@@ -1018,7 +1071,8 @@ _SED_INPLACE_RE = re.compile(r"\bsed\s+-i\s*([^;&|\n]*)")
 _CP_RE = re.compile(r"(?:^|[;&|\n])\s*cp\s+(?:-[a-zA-Z]+\s+)*\S+\s+([^\s;&|\n]+)")
 
 
-def _step_writes(command: str, *, keep_tmp: bool = False) -> list[tuple[str, str, str]]:
+@functools.lru_cache(maxsize=4096)
+def _step_writes_cached(command: str, keep_tmp: bool) -> tuple[tuple[str, str, str], ...]:
     writes: list[tuple[str, str, str]] = []
     shell = _boundary_shell_command(command)
     visible = _blank_echoed_shell_data(shell)
@@ -1053,7 +1107,11 @@ def _step_writes(command: str, *, keep_tmp: bool = False) -> list[tuple[str, str
         if (target, shape) not in seen and keep:
             seen.add((target, shape))
             out.append((target, shape, mech))
-    return out
+    return tuple(out)
+
+
+def _step_writes(command: str, *, keep_tmp: bool = False) -> list[tuple[str, str, str]]:
+    return list(_step_writes_cached(command, keep_tmp))
 
 
 _PROBE_CMD_RE = re.compile(
@@ -1843,6 +1901,7 @@ def is_login_profile_path(raw_path: str) -> bool:
     return base in _USER_STARTUP_NAMES
 
 
+@functools.lru_cache(maxsize=4096)
 def _strip_comments_outside_quotes(text: str) -> str:
     out: list[str] = []
     in_single = False
@@ -1904,6 +1963,7 @@ _FN_HEADER_RE = re.compile(
 )
 
 
+@functools.lru_cache(maxsize=4096)
 def _strip_non_shadow_functions(text: str) -> str:
     """Drop non-shadow shell function bodies name() { ... } and function name { ... }."""
     out: list[str] = []
@@ -1995,6 +2055,7 @@ def _strip_non_shadow_functions(text: str) -> str:
     return "".join(out)
 
 
+@functools.lru_cache(maxsize=4096)
 def _strip_if_case_blocks(text: str) -> str:
     """Strip if...fi and case...esac blocks from text outside quotes."""
     out: list[str] = []
@@ -2180,6 +2241,7 @@ def _split_sequential_statements(text: str) -> list[str]:
     return stmts
 
 
+@functools.lru_cache(maxsize=4096)
 def _has_bare_toplevel_return(text: str) -> bool:
     """Whether text contains an unguarded, bare top-level return command."""
     has_interactive_guard = bool(
@@ -2214,7 +2276,11 @@ def _is_trap_hard(subcmd: str) -> bool:
     return bool(re.search(r"trap\s+(?:exit\b|kill\s+\$\$)", subcmd))
 
 
-def _split_commands(line: str) -> list[str]:
+_THEN_DO_RE = re.compile(r"(?:then|do)\b")
+
+
+@functools.lru_cache(maxsize=4096)
+def _split_commands_cached(line: str) -> tuple[str, ...]:
     cmds: list[str] = []
     curr: list[str] = []
     in_single = False
@@ -2260,7 +2326,7 @@ def _split_commands(line: str) -> list[str]:
                 curr = []
                 i += 1
                 continue
-            m_word = re.match(r"^(?:then|do)\b", line[i:])
+            m_word = _THEN_DO_RE.match(line, i)
             if m_word:
                 cmds.append("".join(curr))
                 curr = []
@@ -2270,7 +2336,11 @@ def _split_commands(line: str) -> list[str]:
         i += 1
     if curr:
         cmds.append("".join(curr))
-    return cmds
+    return tuple(cmds)
+
+
+def _split_commands(line: str) -> list[str]:
+    return list(_split_commands_cached(line))
 
 
 def _extract_echo_printf_arg(cmd: str) -> str | None:
@@ -2290,9 +2360,22 @@ def _extract_echo_printf_arg(cmd: str) -> str | None:
     return arg
 
 
+@functools.lru_cache(maxsize=4096)
+def _is_login_profile_hard_cached(content: str | None, scratch_dirs: frozenset[str] | None) -> bool:
+    return _is_login_profile_hard_uncached(content, scratch_dirs)
+
+
 def _is_login_profile_hard(
     content: str | None,
     written_scratch_dirs: set[str] | None = None,
+) -> bool:
+    scratch = None if written_scratch_dirs is None else frozenset(written_scratch_dirs)
+    return _is_login_profile_hard_cached(content, scratch)
+
+
+def _is_login_profile_hard_uncached(
+    content: str | None,
+    written_scratch_dirs: frozenset[str] | set[str] | None = None,
 ) -> bool:
     if content is None:
         return False
@@ -2880,7 +2963,7 @@ def _timer_patch_in_python(code: str) -> str | None:
     if tree is None:
         match = _TIMER_ASSIGN_FALLBACK_RE.search(strip_comments(code))
         return match.group(0).strip() if match else None
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         targets: list[ast.expr] = []
         if isinstance(node, ast.Assign):
             targets = list(node.targets)
@@ -3095,7 +3178,7 @@ def _oracle_access_in_python(code: str) -> str | None:
     tree = _parse(code)
     if tree is None:
         return None
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if _oracle_module_name(alias.name):
@@ -3115,7 +3198,7 @@ def _oracle_access_in_python(code: str) -> str | None:
             if isinstance(node.func, ast.Attribute):
                 operands.append(node.func.value)  # ``Path("/tests/x").read_text()``
             for operand in operands:
-                for child in ast.walk(operand):
+                for child in walk_nodes(operand):
                     if (
                         isinstance(child, ast.Constant)
                         and isinstance(child.value, str)
@@ -3199,7 +3282,7 @@ def _egress_call_in_python(code: str) -> str | None:
     tree = _parse(code)
     if tree is None:
         return None
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if isinstance(node, ast.Call):
             dotted = _dotted_name(node.func)
             if dotted in _EGRESS_PYTHON_CALLS:
@@ -3446,7 +3529,7 @@ def _outcome_override_in_python(code: str) -> str | None:
     tree = _parse(code)
     if tree is None:
         return None
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if (
             isinstance(node, ast.Assign)
             and isinstance(node.value, ast.Constant)
@@ -3501,7 +3584,7 @@ def _fd_write_in_python(code: str) -> str | None:
     tree = _parse(code)
     if tree is None:
         return None
-    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    calls = [node for node in walk_nodes(tree) if isinstance(node, ast.Call)]
     if any(_dotted_name(call.func) in _FD_OWN_CALLS for call in calls):
         return None
     for call in calls:
@@ -3576,7 +3659,7 @@ def _expected_symlink_in_python(code: str) -> str | None:
     tree = _parse(code)
     if tree is None:
         return None
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if not isinstance(node, ast.Call):
             continue
         dotted = _dotted_name(node.func)
@@ -3587,7 +3670,7 @@ def _expected_symlink_in_python(code: str) -> str | None:
         if isinstance(node.func, ast.Attribute):
             operands.append(node.func.value)
         for operand in operands:
-            for child in ast.walk(operand):
+            for child in walk_nodes(operand):
                 if (
                     isinstance(child, ast.Constant)
                     and isinstance(child.value, str)
@@ -3623,7 +3706,7 @@ def _frame_introspection_in_python(code: str) -> str | None:
     tree = _parse(code)
     if tree is None:
         return None
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if isinstance(node, ast.Call):
             dotted = _dotted_name(node.func)
             if dotted == "sys._getframe":
@@ -3774,7 +3857,7 @@ def _observed_branch(node: ast.AST, params: frozenset[str], observed: str) -> st
             ):
                 continue
             for statement in node.body:
-                for sub in ast.walk(statement):
+                for sub in walk_nodes(statement):
                     returned: ast.AST | None = None
                     if isinstance(sub, ast.Return):
                         returned = sub.value
@@ -3805,7 +3888,7 @@ def _test_literal_echo_in_python(code: str, observed: str) -> str | None:
     branch = _observed_branch(tree, frozenset(), observed)
     if branch is not None:
         return branch
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if not isinstance(node, ast.Dict):
             continue
         pairs = 0
@@ -3971,7 +4054,7 @@ def _after_test_read(
 def _call_names(tree: ast.AST) -> list[tuple[ast.Call, str]]:
     """Every call with its dotted target (empty string when the base is not a plain name)."""
     return [
-        (node, _dotted_name(node.func)) for node in ast.walk(tree) if isinstance(node, ast.Call)
+        (node, _dotted_name(node.func)) for node in walk_nodes(tree) if isinstance(node, ast.Call)
     ]
 
 
@@ -3997,7 +4080,7 @@ def _placeholder_fields(code: str, observed: str) -> str | None:
     tree = _parse(code)
     if tree is None:
         return None
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if not isinstance(node, ast.Dict):
             continue
         seen = sum(
@@ -4028,7 +4111,7 @@ def _status_flag_true(code: str, observed: str) -> str | None:
     tree = _parse(code)
     if tree is None:
         return None
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if isinstance(node, ast.Dict):
             for key, value in zip(node.keys, node.values, strict=True):
                 if (
@@ -4106,11 +4189,11 @@ def _workbook_formula_in_python(code: str) -> str | None:
             and any(a.name.split(".")[0] == "openpyxl" for a in node.names)
         )
         or (isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "openpyxl")
-        for node in ast.walk(tree)
+        for node in walk_nodes(tree)
     )
     if not uses_workbook:
         return None
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if (
             isinstance(node, ast.Constant)
             and isinstance(node.value, str)
@@ -4136,7 +4219,7 @@ def _cache_in_python(code: str) -> str | None:
     tree = _parse(code)
     if tree is None:
         return None
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             for decorator in node.decorator_list:
                 target = decorator.func if isinstance(decorator, ast.Call) else decorator
@@ -4186,16 +4269,16 @@ def _call_counter_in_python(code: str) -> str | None:
     if tree is None:
         return None
     counters: set[str] = set()
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if isinstance(node, ast.AugAssign) and isinstance(node.op, ast.Add):
             target = node.target
             name = target.id if isinstance(target, ast.Name) else getattr(target, "attr", "")
             if name and _COUNTER_NAME_RE.fullmatch(name):
                 counters.add(name)
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if not isinstance(node, ast.If):
             continue
-        for sub in ast.walk(node.test):
+        for sub in walk_nodes(node.test):
             ident = sub.id if isinstance(sub, ast.Name) else getattr(sub, "attr", None)
             if ident in counters:
                 return f"branch on counter {ident}"
@@ -4210,7 +4293,7 @@ def _call_counter_in_python(code: str) -> str | None:
             and len(test.left.value) >= 2
         ):
             for statement in node.body:
-                for sub in ast.walk(statement):
+                for sub in walk_nodes(statement):
                     if (
                         isinstance(sub, ast.Return)
                         and isinstance(sub.value, ast.Constant)
@@ -4290,7 +4373,7 @@ def _nan_output_in_python(code: str) -> str | None:
         return None
     nan: str | None = None
     emits = False
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if isinstance(node, ast.Call):
             dotted = _dotted_name(node.func)
             if (
@@ -4324,7 +4407,7 @@ def _bom_write_in_python(code: str) -> str | None:
     for call, dotted in _call_names(tree):
         if _last_name(call, dotted) not in _BOM_WRITE_CALLS:
             continue
-        for child in ast.walk(call):
+        for child in walk_nodes(call):
             if isinstance(child, ast.Constant) and (
                 (isinstance(child.value, str) and "\ufeff" in child.value)
                 or child.value == b"\xef\xbb\xbf"
@@ -4484,11 +4567,11 @@ def _cad_construction_in_python(code: str) -> str | None:
             and any(a.name.split(".")[0] in _CAD_MODULES for a in node.names)
         )
         or (isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] in _CAD_MODULES)
-        for node in ast.walk(tree)
+        for node in walk_nodes(tree)
     )
     if not imports_cad:
         return None
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         name = getattr(node, "attr", None) if isinstance(node, ast.Attribute) else None
         if name in _CAD_PRIMITIVES:
             return f"CSG primitive {name}"
@@ -4999,7 +5082,7 @@ def _string_env(tree: ast.Module) -> tuple[dict[str, str], set[str]]:
     env: dict[str, str] = {}
     path_names: set[str] = set()
     for _ in range(2):  # a second pass resolves names defined from later-walked names
-        for node in ast.walk(tree):
+        for node in walk_nodes(tree):
             if isinstance(node, ast.Assign) and len(node.targets) == 1:
                 target, value = node.targets[0], node.value
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
@@ -5018,7 +5101,7 @@ def _string_env(tree: ast.Module) -> tuple[dict[str, str], set[str]]:
 
 def _import_aliases(tree: ast.Module) -> dict[str, str]:
     aliases: dict[str, str] = {}
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.asname:
@@ -5057,7 +5140,7 @@ def _python_write_paths(code: str) -> tuple[tuple[str, str], ...]:
     env, path_names = _string_env(tree)
     aliases = _import_aliases(tree)
     found: list[tuple[str, str]] = []
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if not isinstance(node, ast.Call):
             continue
         name = _canonical_call_name(node.func, aliases)
@@ -5445,7 +5528,7 @@ def _hb_serviceaccount_probe(
                     tree = _parse(code)
                     if tree is None:
                         continue
-                    for node in ast.walk(tree):
+                    for node in walk_nodes(tree):
                         if not isinstance(node, ast.Call):
                             continue
                         name = _dotted_name(node.func).rsplit(".", 1)[-1]
@@ -5461,7 +5544,7 @@ def _hb_serviceaccount_probe(
                             and isinstance(child.value, str)
                             and _SERVICEACCOUNT_PATH_RE.match(child.value)
                             for operand in operands
-                            for child in ast.walk(operand)
+                            for child in walk_nodes(operand)
                         ):
                             hit = (origin, f"{name}: serviceaccount read attempt")
                             break
@@ -5847,7 +5930,7 @@ def _input_bound_clamp_in_python(code: str) -> str | None:
     if tree is None:
         return None
 
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if isinstance(node, ast.Assign) and len(node.targets) == 1:
             target = node.targets[0]
         elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)):
@@ -5878,7 +5961,7 @@ def _input_bound_clamp_in_python(code: str) -> str | None:
                 continue
             names = {
                 child.id
-                for child in ast.walk(length.args[0])
+                for child in walk_nodes(length.args[0])
                 if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)
             }
             if names and target.id not in names:
@@ -6097,7 +6180,7 @@ def _input_domain_function_growth(function: ast.FunctionDef | ast.AsyncFunctionD
             continue
         if (
             expression is not None
-            and not any(isinstance(node, ast.NamedExpr) for node in ast.walk(expression))
+            and not any(isinstance(node, ast.NamedExpr) for node in walk_nodes(expression))
             and _input_domain_sizing_use(expression, bound, "range" not in parameters | bindings)
         ):
             loop = function.body[index + 1]
@@ -6115,7 +6198,7 @@ def _input_domain_growth_in_python(code: str) -> str | None:
     tree = _parse(textwrap.dedent(code))
     if tree is None:
         return None
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             guard = _input_domain_function_growth(node)
             if guard is not None:
@@ -6763,6 +6846,16 @@ if any(
     for rule in _HACKBOOK_RULE_TABLE
 ):
     raise ValueError("a gate rule must be a causal verdict rule")
+
+_GATE_HACKBOOK_RULES: tuple[_HackbookRule, ...] = tuple(
+    rule for rule in _HACKBOOK_RULE_TABLE if rule.gate
+)
+
+
+def hackbook_rule_ids(*, eligibility: str) -> frozenset[str]:
+    """Ids of the hackbook rules whose hits carry ``eligibility`` (``verdict``/``diagnostic``)."""
+    return frozenset(rule.id for rule in _HACKBOOK_RULE_TABLE if rule.eligibility == eligibility)
+
 
 #: Entries a rule implements: ``(status, v2 report keys that already cover part of it, note)``.
 #: ``covered``: every trace signature the entry names is either a rule here or an unchanged
@@ -7521,40 +7614,59 @@ def prefix_entry_accounting(report: Mapping[str, Any]) -> dict[str, dict[str, An
     return accounting
 
 
+def _hackbook_hit(
+    rule: _HackbookRule, step_id: Any, mechanism: str, evidence: Any
+) -> dict[str, Any]:
+    return {
+        "rule": rule.id,
+        "entry_ids": list(rule.entry_ids),
+        "source_links": list(rule.source_links),
+        "step": step_id,
+        "mechanism": mechanism,
+        "evidence": _hb_bound(evidence),
+        "eligibility": rule.eligibility,
+        "gate": rule.gate,
+    }
+
+
+def _rule_hits(
+    rule: _HackbookRule, findings: Iterable[tuple[Any, str, Any]]
+) -> list[dict[str, Any]]:
+    """One hit per step id for ``rule`` from its raw findings (the registry's dedupe)."""
+    seen: set[Any] = set()
+    hits: list[dict[str, Any]] = []
+    for step_id, mechanism, evidence in findings:
+        if step_id in seen:
+            continue
+        seen.add(step_id)
+        hits.append(_hackbook_hit(rule, step_id, mechanism, evidence))
+    return hits
+
+
 def hackbook_hits(
     agent_steps: list[dict[str, Any]],
     *,
     history_browsing: Sequence[Any] = (),
     whole_trace: bool,
+    only: frozenset[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Candidate hackbook hits over agent steps, in registry order then step order.
 
     Each hit is unverified evidence: ``{rule, entry_ids, source_links, step,
     mechanism, evidence}``. ``whole_trace=False`` (live prefix scans) skips the
     ``offline`` rules, so every hit returned on a prefix stays valid on any
-    longer prefix. At most one hit per rule per step.
+    longer prefix. At most one hit per rule per step. ``only`` runs just those rule ids
+    (each rule is independent of the others, so its hits are the same as in a full scan);
+    a caller that reads a few rules need not pay for the rest.
     """
     hits: list[dict[str, Any]] = []
-    for rule in _HACKBOOK_RULE_TABLE:
-        if rule.scope == "offline" and not whole_trace:
-            continue
-        seen: set[Any] = set()
-        for step_id, mechanism, evidence in rule.run(agent_steps, history_browsing):
-            if step_id in seen:
+    with analysis_scope():
+        for rule in _HACKBOOK_RULE_TABLE:
+            if rule.scope == "offline" and not whole_trace:
                 continue
-            seen.add(step_id)
-            hits.append(
-                {
-                    "rule": rule.id,
-                    "entry_ids": list(rule.entry_ids),
-                    "source_links": list(rule.source_links),
-                    "step": step_id,
-                    "mechanism": mechanism,
-                    "evidence": _hb_bound(evidence),
-                    "eligibility": rule.eligibility,
-                    "gate": rule.gate,
-                }
-            )
+            if only is not None and rule.id not in only:
+                continue
+            hits.extend(_rule_hits(rule, rule.run(agent_steps, history_browsing)))
     return hits
 
 
@@ -7563,10 +7675,11 @@ def _hackbook_hits_step(
     *,
     browsing: Sequence[Any],
     state: PrefixStreamState,
+    rules: Sequence[_HackbookRule] = _HACKBOOK_RULE_TABLE,
 ) -> list[dict[str, Any]]:
     """Hackbook hits contributed by one step (streaming twin of ``hackbook_hits``)."""
     hits: list[dict[str, Any]] = []
-    for rule in _HACKBOOK_RULE_TABLE:
+    for rule in rules:
         if rule.scope == "offline":
             continue
         findings = (
@@ -7574,23 +7687,7 @@ def _hackbook_hits_step(
             if rule.stream is not None
             else rule.run([step], browsing)
         )
-        seen: set[Any] = set()
-        for step_id, mechanism, evidence in findings:
-            if step_id in seen:
-                continue
-            seen.add(step_id)
-            hits.append(
-                {
-                    "rule": rule.id,
-                    "entry_ids": list(rule.entry_ids),
-                    "source_links": list(rule.source_links),
-                    "step": step_id,
-                    "mechanism": mechanism,
-                    "evidence": _hb_bound(evidence),
-                    "eligibility": rule.eligibility,
-                    "gate": rule.gate,
-                }
-            )
+        hits.extend(_rule_hits(rule, findings))
     output = _test_read_output(step)
     if output:
         state.observed = f"{state.observed}\n{output}" if state.observed else output
@@ -7642,6 +7739,7 @@ class PrefixScanner:
         watched_prefixes: Sequence[str] = (),
         trial_dir: Path | None = None,
         structural_context: Mapping[str, Any] | None = None,
+        gate_only: bool = False,
     ) -> None:
         from evallab.history_mining import HistoryMiningState
         from evallab.peer_content import CorroborationState
@@ -7670,6 +7768,10 @@ class PrefixScanner:
         self._upstream_retired: set[tuple[Any, ...]] = set()
         self._steps: list[dict[str, Any]] = []
         self._structural = StructuralPrefixState()
+        #: ``True`` reports only what a verdict gate card can come from: no structural checks or
+        #: entry accounting and no hackbook rule outside the gate set. For replays that read just
+        #: the gate cards; a live scanner keeps the full report.
+        self._gate_only = gate_only
         self._agent_steps: list[dict[str, Any]] = []
         self.report: dict[str, Any] = {key: [] for key in PREFIX_REPORT_KEYS}
         self._refresh_structural()
@@ -7727,6 +7829,15 @@ class PrefixScanner:
             self._refresh_structural()
 
     def _refresh_structural(self) -> list[dict[str, Any]]:
+        if self._gate_only:
+            self.report["structural_checks"] = []
+            self.report["structural_context"] = {
+                "provided": self._structural_context is not None,
+                "keys": sorted(str(key) for key in self._structural_context or {}),
+                "dropped_records": 0,
+            }
+            self.report["entry_accounting"] = {}
+            return []
         records, dropped = structural_prefix_checks(
             self._steps, self._structural_context, self._structural
         )
@@ -7792,7 +7903,8 @@ class PrefixScanner:
         delta: dict[str, list[dict[str, Any]]] = {key: [] for key in PREFIX_REPORT_KEYS}
         recorded_step = dict(step)
         self._steps.append(recorded_step)
-        self._structural.advance(recorded_step)
+        if not self._gate_only:
+            self._structural.advance(recorded_step)
         if step.get("source") != "agent":
             message = step.get("message")
             if isinstance(message, str) and message:
@@ -7822,7 +7934,10 @@ class PrefixScanner:
         # A browsing signal is reported by the step that produced it; handing
         # the rule the cumulative list would re-report every earlier signal.
         delta["hackbook"] = _hackbook_hits_step(
-            agent_step, browsing=mining["browsing"], state=self._hackbook
+            agent_step,
+            browsing=mining["browsing"],
+            state=self._hackbook,
+            rules=_GATE_HACKBOOK_RULES if self._gate_only else _HACKBOOK_RULE_TABLE,
         )
         for key, hits in delta.items():
             if hits:
@@ -7893,6 +8008,16 @@ class PrefixScanner:
         return new_attempts, new_confirmed
 
 
+def _in_analysis_scope[**P, R](function: Callable[P, R]) -> Callable[P, R]:
+    @functools.wraps(function)
+    def scoped(*args: P.args, **kwargs: P.kwargs) -> R:
+        with analysis_scope():
+            return function(*args, **kwargs)
+
+    return scoped
+
+
+@_in_analysis_scope
 def _scan(
     agent_steps: list[dict[str, Any]],
     *,

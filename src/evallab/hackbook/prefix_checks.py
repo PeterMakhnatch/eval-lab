@@ -61,6 +61,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, TypeGuard
 
+from evallab.ast_walk import walk_nodes
 from evallab.edit_signals import EDIT_TOOL_NAMES, SHELL_TOOL_NAMES, tool_bash_commands
 
 _QUOTE_LIMIT = 240
@@ -1162,11 +1163,11 @@ def _last(name: str) -> str:
 
 
 def _funcs(tree: ast.AST) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
-    return [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef)]
+    return [n for n in walk_nodes(tree) if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef)]
 
 
 def _calls(tree: ast.AST) -> list[ast.Call]:
-    return [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
+    return [n for n in walk_nodes(tree) if isinstance(n, ast.Call)]
 
 
 def _const_str(node: ast.AST | None) -> str | None:
@@ -1192,7 +1193,7 @@ def _is_number(value: Any) -> TypeGuard[int | float]:
 
 def _parents(tree: ast.AST) -> dict[int, ast.AST]:
     parents: dict[int, ast.AST] = {}
-    for parent in ast.walk(tree):
+    for parent in walk_nodes(tree):
         for child in ast.iter_child_nodes(parent):
             parents[id(child)] = parent
     return parents
@@ -1381,7 +1382,7 @@ def _flag_assert(test: ast.AST) -> str | None:
 
 
 def _substantive_checks(fn: ast.AST, skip: set[int]) -> bool:
-    for node in ast.walk(fn):
+    for node in walk_nodes(fn):
         if id(node) in skip:
             continue
         if isinstance(node, ast.Compare):
@@ -1415,12 +1416,12 @@ def _ts01_003(view: _View) -> _Res:
                 continue
             flags = [
                 (node, key)
-                for node in ast.walk(fn)
+                for node in walk_nodes(fn)
                 if isinstance(node, ast.Assert) and (key := _flag_assert(node.test)) is not None
             ]
             if not flags:
                 continue
-            skip = {id(n) for node, _ in flags for n in ast.walk(node.test)}
+            skip = {id(n) for node, _ in flags for n in walk_nodes(node.test)}
             if not _substantive_checks(fn, skip):
                 node, key = flags[0]
                 return _hit(
@@ -1620,7 +1621,7 @@ def _ts01_006(view: _View) -> _Res:
             ]
             asserts = [
                 n
-                for n in ast.walk(fn)
+                for n in walk_nodes(fn)
                 if isinstance(n, ast.Assert) and _SPEEDUP_RE.search(ast.unparse(n.test))
             ]
             if setup and asserts:
@@ -1666,7 +1667,7 @@ def _preserving_assert(node: ast.Assert) -> bool:
     test = node.test
     if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
         return False
-    for sub in ast.walk(test):
+    for sub in walk_nodes(test):
         if isinstance(sub, ast.Compare) and any(isinstance(op, ast.In | ast.Eq) for op in sub.ops):
             return True
         if isinstance(sub, ast.Call) and _last(_dotted(sub.func)) in (
@@ -1692,7 +1693,7 @@ def _ts01_008(view: _View) -> _Res:
     for art, tree in view.py_graders():
         attack: list[ast.For] = []
         clean: list[ast.For] = []
-        for node in ast.walk(tree):
+        for node in walk_nodes(tree):
             if not isinstance(node, ast.For):
                 continue
             iterable = ast.unparse(node.iter)
@@ -1703,11 +1704,11 @@ def _ts01_008(view: _View) -> _Res:
         if not attack or not clean:
             continue
         applicable = True
-        attack_asserts = [a for loop in attack for a in ast.walk(loop) if isinstance(a, ast.Assert)]
+        attack_asserts = [a for loop in attack for a in walk_nodes(loop) if isinstance(a, ast.Assert)]
         clean_preserves = [
             a
             for loop in clean
-            for a in ast.walk(loop)
+            for a in walk_nodes(loop)
             if isinstance(a, ast.Assert) and _preserving_assert(a)
         ]
         if (
@@ -1814,7 +1815,7 @@ def _ts01_010(view: _View) -> _Res:
         for fn in _funcs(tree):
             if not _CHECKER_FN_RE.search(fn.name):
                 continue
-            for node in ast.walk(fn):
+            for node in walk_nodes(fn):
                 if (
                     isinstance(node, ast.If)
                     and isinstance(node.test, ast.Call)
@@ -1871,7 +1872,7 @@ def _is_abs_call(node: ast.AST) -> bool:
 
 def _fail_body(body: Sequence[ast.stmt]) -> bool:
     for stmt in body:
-        for node in ast.walk(stmt):
+        for node in walk_nodes(stmt):
             if isinstance(node, ast.Raise):
                 return True
             if (
@@ -1909,14 +1910,14 @@ def _ts02_001(view: _View) -> _Res:
         for fn in _funcs(tree):
             abs_names = {
                 t.id
-                for node in ast.walk(fn)
+                for node in walk_nodes(fn)
                 if isinstance(node, ast.Assign) and _is_abs_call(node.value)
                 for t in node.targets
                 if isinstance(t, ast.Name)
             }
             if _NAN_GUARD_RE.search(ast.unparse(fn)):
                 continue
-            for node in ast.walk(fn):
+            for node in walk_nodes(fn):
                 open_test: ast.Compare | None = None
                 body_fails = False
                 if isinstance(node, ast.If) and isinstance(node.test, ast.Compare):
@@ -1960,7 +1961,7 @@ def _destroys_decimal_point(call: ast.Call) -> bool:
         return _const_str(call.args[0]) == "." and _const_str(call.args[1]) == ""
     if last == "translate" and call.args:
         arg = call.args[0]
-        for sub in ast.walk(arg):
+        for sub in walk_nodes(arg):
             if isinstance(sub, ast.Attribute) and sub.attr == "punctuation":
                 return True
             text = _const_str(sub)
@@ -2129,7 +2130,7 @@ def _ts04_007(view: _View) -> _Res:
     for art, tree in graders:
         if _SEALED_HASH_RE.search(art.text) or not _READ_CALL_RE.search(art.text):
             continue
-        for node in ast.walk(tree):
+        for node in walk_nodes(tree):
             path = _const_str(node)
             if (
                 path is not None
@@ -2187,7 +2188,7 @@ def _ts04_008(view: _View) -> _Res:
             )
         write_ends = {
             t.elts[1].id
-            for n in ast.walk(tree)
+            for n in walk_nodes(tree)
             if isinstance(n, ast.Assign)
             and isinstance(n.value, ast.Call)
             and _dotted(n.value.func) == "os.pipe"
@@ -2196,7 +2197,7 @@ def _ts04_008(view: _View) -> _Res:
         }
         pids = {
             t.id
-            for n in ast.walk(tree)
+            for n in walk_nodes(tree)
             if isinstance(n, ast.Assign)
             and isinstance(n.value, ast.Call)
             and _dotted(n.value.func) == "os.fork"
@@ -2204,7 +2205,7 @@ def _ts04_008(view: _View) -> _Res:
             if isinstance(t, ast.Name)
         }
         child: ast.If | None = None
-        for n in ast.walk(tree):
+        for n in walk_nodes(tree):
             if (
                 isinstance(n, ast.If)
                 and isinstance(n.test, ast.Compare)
@@ -2220,7 +2221,7 @@ def _ts04_008(view: _View) -> _Res:
             raise _Unavailable(
                 "fork/pipe protocol present but the pipe write end or child branch is not recognisable"
             )
-        nodes = [sub for stmt in child.body for sub in ast.walk(stmt)]
+        nodes = [sub for stmt in child.body for sub in walk_nodes(stmt)]
         closes = [
             _pos(c)
             for c in nodes
@@ -2265,7 +2266,7 @@ def _alnum(text: str) -> str:
 def _asserted_literals(tree: ast.AST) -> list[tuple[str, ast.AST]]:
     """Keys read from a result-like object and routes requested, as ``(literal, node)``."""
     found: list[tuple[str, ast.AST]] = []
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         key: str | None = None
         base = ""
         if isinstance(node, ast.Subscript):
@@ -2512,7 +2513,7 @@ class _Cmp:
 
 def _grader_compares(tree: ast.AST) -> list[_Cmp]:
     out: list[_Cmp] = []
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if (
             isinstance(node, ast.Assert)
             and isinstance(node.test, ast.UnaryOp)
@@ -2641,7 +2642,7 @@ def _sort_directions(
         if tree is None:
             continue
         parents = _parents(tree)
-        for node in ast.walk(tree):
+        for node in walk_nodes(tree):
             direction: str | None = None
             if isinstance(node, ast.Call) and _last(_dotted(node.func)) in ("sorted", "sort"):
                 reverse = next((k.value for k in node.keywords if k.arg == "reverse"), None)
@@ -2744,7 +2745,7 @@ def _ts07_002(view: _View) -> _Res:
         raise _Unavailable("the reference artifact adds no def/class (not a patch with + lines)")
     instruction_text = "\n".join(a.text for a in instructions)
     for art, tree in graders:
-        for node in ast.walk(tree):
+        for node in walk_nodes(tree):
             if not isinstance(node, ast.ImportFrom):
                 continue
             for alias in node.names:
@@ -2793,7 +2794,7 @@ def _ts07_003(view: _View) -> _Res:
         for fn in _funcs(tree):
             normalised_names = {
                 t.id
-                for n in ast.walk(fn)
+                for n in walk_nodes(fn)
                 if isinstance(n, ast.Assign)
                 and any(_last(_dotted(c.func)) in _NORMALISERS for c in _calls(n.value))
                 for t in n.targets
@@ -2801,12 +2802,12 @@ def _ts07_003(view: _View) -> _Res:
             }
             raw_names = {
                 t.id
-                for n in ast.walk(fn)
+                for n in walk_nodes(fn)
                 if isinstance(n, ast.Assign) and _RAW_SOURCE_RE.search(ast.unparse(n.value))
                 for t in n.targets
                 if isinstance(t, ast.Name)
             } - normalised_names
-            for node in ast.walk(fn):
+            for node in walk_nodes(fn):
                 if not isinstance(node, ast.Assert) or not isinstance(node.test, ast.Compare):
                     continue
                 test = node.test
@@ -3204,9 +3205,9 @@ def _marker_gated_empty(
     tree: ast.AST, read_text: str, asymmetric: bool
 ) -> tuple[ast.If, str] | None:
     """An ``if`` returning empty on a literal that is an attack marker or taken from the read."""
-    for node in ast.walk(tree):
+    for node in walk_nodes(tree):
         if isinstance(node, ast.If) and node.body and _empty_return(node.body[0]):
-            for sub in ast.walk(node.test):
+            for sub in walk_nodes(node.test):
                 text = _const_str(sub)
                 if text is None or len(text) < 4:
                     continue
@@ -3220,20 +3221,20 @@ def _marker_gated_empty(
 def _counter_gated(tree: ast.AST) -> ast.If | None:
     for fn in _funcs(tree):
         globals_ = {
-            n for g in ast.walk(fn) if isinstance(g, ast.Global | ast.Nonlocal) for n in g.names
+            n for g in walk_nodes(fn) if isinstance(g, ast.Global | ast.Nonlocal) for n in g.names
         }
         bumped = {
             t.id
-            for a in ast.walk(fn)
+            for a in walk_nodes(fn)
             if isinstance(a, ast.AugAssign) and isinstance(a.op, ast.Add)
             for t in [a.target]
             if isinstance(t, ast.Name) and t.id in globals_
         }
         if not bumped:
             continue
-        for node in ast.walk(fn):
+        for node in walk_nodes(fn):
             if isinstance(node, ast.If) and any(
-                isinstance(n, ast.Name) and n.id in bumped for n in ast.walk(node.test)
+                isinstance(n, ast.Name) and n.id in bumped for n in walk_nodes(node.test)
             ):
                 return node
     return None
@@ -3488,13 +3489,13 @@ def _ts01_013(view: _View) -> _Res:
         applicable = True
         if _WHOLE_DIGEST_RE.search(art.text):
             continue
-        for node in ast.walk(tree):
+        for node in walk_nodes(tree):
             if (
                 isinstance(node, ast.Compare)
                 and any(isinstance(op, ast.Eq | ast.NotEq) for op in node.ops)
                 and any(
                     isinstance(s, ast.Subscript) and isinstance(s.slice, ast.Slice)
-                    for s in ast.walk(node)
+                    for s in walk_nodes(node)
                 )
             ):
                 return _hit([_ev_node(art, node)], basis="artifact")

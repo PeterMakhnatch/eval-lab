@@ -584,6 +584,7 @@ def invalidate_check(batch: Path) -> None:
         {
             "checks": pending,
             "passed": False,
+            "determinism_verified": False,
             "decision_hash": previous.get("decision_hash"),
             "second_decision_hash": previous.get("second_decision_hash"),
         },
@@ -697,7 +698,7 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
         )
         for row in traces
     }
-    second, _, _ = _evaluate(
+    second, second_traces, _ = _evaluate(
         spec,
         items,
         intake,
@@ -776,6 +777,7 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
         {
             "checks": [{"name": name, "status": "PENDING", "details": ""} for name in CHECK_NAMES],
             "passed": False,
+            "determinism_verified": False,
             "decision_hash": canonical_hash(decisions),
             "second_decision_hash": canonical_hash(second),
         },
@@ -784,15 +786,33 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
     render_scoreboard(build_scoreboard(batch, repo_root))  # timed: labels, joins, intervals, view
     receipt("scoreboard", start, score_inputs, [], len(decisions), len(decisions))
     write_json(batch / "scoreboard.json", build_scoreboard(batch, repo_root))
-    write_json(batch / "check.json", check_batch(batch, repo_root))
+    write_json(
+        batch / "check.json",
+        check_batch(batch, repo_root, evaluated=(decisions, second_traces, second)),
+    )
     score = build_scoreboard(batch, repo_root)
     write_json(batch / "scoreboard.json", score)
     (batch / "SCOREBOARD.md").write_text(render_scoreboard(score), encoding="utf-8")
     return batch
 
 
-def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
-    """Re-derive all eight gates; any missing/corrupt evidence fails closed."""
+def check_batch(
+    batch: Path,
+    repo_root: Path,
+    *,
+    fast: bool = False,
+    evaluated: tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]
+    | None = None,
+) -> dict[str, Any]:
+    """Re-derive all eight gates; any missing/corrupt evidence fails closed.
+
+    Determinism recomputes the decisions once and compares them with the stored decisions and
+    the hashes ``line run`` recorded from its own two in-process passes, so one recompute in a
+    new process proves the same input still gives the same answer. ``line run`` hands its own
+    two passes as ``evaluated`` (first decisions, second-pass traces, second decisions) instead
+    of paying for a third. ``fast`` skips the recompute: that gate is then ``SKIPPED``, the
+    result says determinism is not verified, and it is never a pass.
+    """
     from evallab.line.scoreboard import build_scoreboard, stored_version
 
     checks = []
@@ -975,32 +995,35 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
     gate("provenance", provenance)
 
     def determinism() -> None:
-        items, intake = verified_intake()
-        cache, _ = _cache(spec)
         stored_trace = read_rows(batch / "trace.jsonl")
-        stored_ar = None
         live = spec["autoreview"]["mode"] == "live"
-        if live:
-            stored_ar = {
-                r["run_id"]: hd.StageVerdict(
-                    **{
-                        k: v
-                        for k, v in r["autoreview"].items()
-                        if k in {"stage", "decision", "reasons", "evidence_steps", "details"}
-                    }
-                )
-                for r in stored_trace
-            }
-        a, trace_a, _ = _evaluate(spec, items, intake, _tasks(spec, items), cache, stored_ar)
-        b, _, _ = _evaluate(spec, items, intake, _tasks(spec, items), cache, stored_ar)
-        require(
-            canonical_hash(a)
-            == canonical_hash(b)
-            == canonical_hash(decisions)
-            == previous.get("decision_hash")
-            == previous.get("second_decision_hash"),
-            "decision hashes differ",
-        )
+        hashes: list[Any]
+        if evaluated is not None:
+            a, trace_a, b = evaluated
+            hashes = [canonical_hash(a), canonical_hash(b)]
+        else:
+            items, intake = verified_intake()
+            cache, _ = _cache(spec)
+            stored_ar = None
+            if live:
+                stored_ar = {
+                    r["run_id"]: hd.StageVerdict(
+                        **{
+                            k: v
+                            for k, v in r["autoreview"].items()
+                            if k in {"stage", "decision", "reasons", "evidence_steps", "details"}
+                        }
+                    )
+                    for r in stored_trace
+                }
+            a, trace_a, _ = _evaluate(spec, items, intake, _tasks(spec, items), cache, stored_ar)
+            hashes = [canonical_hash(a)]
+        hashes += [
+            canonical_hash(decisions),
+            previous.get("decision_hash"),
+            previous.get("second_decision_hash"),
+        ]
+        require(len(set(hashes)) == 1, "decision hashes differ")
 
         # The trace is evidence too: recompute what is recomputable and compare.
         def shown(rows: list[dict[str, Any]]) -> str:
@@ -1010,7 +1033,16 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
 
         require(shown(trace_a) == shown(stored_trace), "trace.jsonl differs from recomputation")
 
-    gate("determinism", determinism)
+    if fast:
+        checks.append(
+            {
+                "name": "determinism",
+                "status": "SKIPPED",
+                "details": "determinism not verified (--fast skips the recompute)",
+            }
+        )
+    else:
+        gate("determinism", determinism)
 
     def spending() -> None:
         spend = sum(r["spend_usd"] for r in receipts)
@@ -1102,6 +1134,7 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
     return {
         "checks": checks,
         "passed": all(c["status"] == "PASS" for c in checks),
+        "determinism_verified": not fast,
         "decision_hash": previous.get("decision_hash"),
         "second_decision_hash": previous.get("second_decision_hash"),
     }

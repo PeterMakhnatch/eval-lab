@@ -167,19 +167,42 @@ def test_a_name_that_differs_only_by_case_from_the_disk_is_refused(tmp_path: Pat
 def test_links_above_an_allowed_root_are_fine_and_links_inside_it_never_are(
     tmp_path: Path,
 ) -> None:
-    real = tmp_path / "real"
-    real.mkdir()
-    trial = _trial(real)
-    (tmp_path / "top").symlink_to(real, target_is_directory=True)  # an OS-level link above
-    (real / "inner").symlink_to(trial, target_is_directory=True)  # a link inside the root
-    allowed = [tmp_path / "top"]
-    listed = str(tmp_path / "top" / trial.name)
+    base = tmp_path / "base"
+    runs = base / "runs"
+    runs.mkdir(parents=True)
+    trial = _trial(runs)
+    (tmp_path / "top").symlink_to(base, target_is_directory=True)  # an OS-level link above
+    (runs / "inner").symlink_to(trial, target_is_directory=True)  # a link inside the root
+    allowed = [tmp_path / "top" / "runs"]
+    listed = str(tmp_path / "top" / "runs" / trial.name)
     assert ra.admit_rollout(listed, registry=Registry(), allowed_roots=allowed).kind == "trial"
     with pytest.raises(ra.AdmissionRefused, match="symlink on the rollout path"):
         ra.admit_rollout(listed, registry=Registry())  # no trusted root: every link refuses
     with pytest.raises(ra.AdmissionRefused, match="symlink on the rollout path"):
         ra.admit_rollout(
-            str(tmp_path / "top" / "inner"), registry=Registry(), allowed_roots=allowed
+            str(tmp_path / "top" / "runs" / "inner"), registry=Registry(), allowed_roots=allowed
         )
     with pytest.raises(ra.AdmissionRefused, match="not under an allowed root"):
         ra.admit_rollout(str(trial), registry=Registry(), allowed_roots=allowed)
+
+
+def test_an_allowed_root_that_is_itself_a_link_is_refused(tmp_path: Path) -> None:
+    (tmp_path / "real").mkdir()
+    trial = _trial(tmp_path / "real")
+    link = tmp_path / "link-root"
+    link.symlink_to(trial.parent, target_is_directory=True)
+    with pytest.raises(ra.AdmissionRefused, match="symlink on the rollout path"):
+        ra.admit_rollout(str(link / trial.name), registry=Registry(), allowed_roots=[link])
+
+
+def test_a_link_above_an_allowed_root_cannot_hide_a_test_name_on_its_target(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "build-pmars"  # a TEST task name, reached only through a link
+    (target / "runs").mkdir(parents=True)
+    trial = _trial(target / "runs")
+    (tmp_path / "top").symlink_to(target, target_is_directory=True)
+    listed = str(tmp_path / "top" / "runs" / trial.name)
+    allowed = [tmp_path / "top" / "runs"]
+    with pytest.raises(ra.AdmissionRefused, match="assigned TEST"):
+        ra.admit_rollout(listed, registry=Registry(), allowed_roots=allowed)

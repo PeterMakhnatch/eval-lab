@@ -10,7 +10,8 @@ list of known-bad tricks is needed:
 * every component of the path, the top one included, is a real directory or file by ``lstat``:
   a symlink on the path or inside the trial is refused, so a link cannot redirect to, or hide,
   forbidden content. ``allowed_roots`` names the folders the operator trusts: operating-system
-  links *above* a root (macOS ``/tmp`` is a link) are fine, links at or below it never are;
+  links *above* a root (macOS ``/tmp`` is a link) are fine, links at or below it never are, and
+  the resolved path is registry-checked too so a link above a root cannot hide names;
 * every file inside is regular and is not a hard link to sealed material: published trials are
   themselves hard-linked copies (``st_nlink`` 2), so a link count cannot decide, but the inode
   of every file under the caller's sealed folders is known, and a match is refused;
@@ -128,7 +129,7 @@ def _walk_path(listed: str, allowed_roots: Sequence[str | Path]) -> Path:
     for index, part in enumerate(root.parts[1:], start=2):
         parent, prefix = prefix, prefix / part
         mode = _lstat(prefix).st_mode
-        if stat.S_ISLNK(mode) and index > trusted:
+        if stat.S_ISLNK(mode) and index >= trusted:  # the allowed root itself is not trusted
             raise AdmissionRefused(f"symlink on the rollout path: {prefix}")
         if part not in os.listdir(parent):
             raise AdmissionRefused(f"path case does not match the filesystem: {prefix}")
@@ -325,7 +326,8 @@ def admit_rollout(
     root = _walk_path(listed, allowed_roots)
     top = _lstat(root).st_mode
     documents: list[Any] = [dict(row)] if row is not None else []
-    names: list[str] = [name for name in (run_id, str(root)) if name]
+    # a link above an allowed root hides names on its target: the resolved path is checked too
+    names: list[str] = [name for name in (run_id, str(root), str(root.resolve())) if name]
     candidates: list[tuple[Path, bytes]] = []
     sidecars: list[tuple[Path, bytes]] = []
     diff_bytes: bytes | None = None

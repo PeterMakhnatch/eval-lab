@@ -541,7 +541,7 @@ inputs:
   - path: src/evallab/insights/signals.py
     digest: sha256:ead94238c29bc3d297f56a08f41efa5fbd09d2da81d895f94329ba1fd873b285
   - path: src/evallab/insights/sources.py
-    digest: sha256:097a5a4372dd9db23c1a17a5dcebeeecef15f9d1aa430a0ef7f827f0c666d943
+    digest: sha256:481cdab2881b7fd5634ee2852b73ebb26e3d4eb2ba4ec1164bc4cf9fdc7cbf44
   - path: src/evallab/insights/stats.py
     digest: sha256:1fd61fd73a90a9167e046f2afb21e7c93254a3607f0048b0b681ebf9f0ef3541
   - path: src/evallab/insights/store.py

@@ -345,7 +345,11 @@ class TestTokenBudgetAndTruncation:
 
     def test_pack_under_budget_is_byte_identical_to_unbudgeted(self) -> None:
         res_unlimited = build_context_pack("builder", token_budget=None)
-        res_large_budget = build_context_pack("builder", token_budget=200_000)
+        # Any budget above the pack's own size must leave it untouched; a fixed number
+        # would start truncating as the repository's living docs grow.
+        res_large_budget = build_context_pack(
+            "builder", token_budget=res_unlimited.estimated_tokens + 1_000
+        )
 
         assert res_large_budget.markdown == res_unlimited.markdown
         assert res_large_budget.content_hash == res_unlimited.content_hash

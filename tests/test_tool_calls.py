@@ -327,6 +327,7 @@ def test_glob_and_notebook_shapes() -> None:
     glob = normalize_tool_call("glob", {"path": "src", "pattern": "*.py", "i": "list"})
     assert (glob.kind, glob.text, glob.path) == ("read", "ls -- 'src/*.py'", "src/*.py")
     assert normalize_tool_call("glob", {"path": "."}).text == "ls -- ."
+    assert normalize_tool_call("glob", {"pattern": "**/*"}).kind == "read"
     notebook = normalize_tool_call(
         "edit_notebook", {"file_path": "n.ipynb", "file_edit_payload": {"source": ["a = 1\n", "b = 2\n"]}}
     )

@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from evallab.line.io import digest as line_digest
 from evallab.production import judge_station as js
 from evallab.production import judge_web
 from evallab.production.run_atlas import AtlasRun
@@ -1228,7 +1229,7 @@ def _local_station(
         "model": "SECRET_MODEL",
         "reward": 1.0,
         "rollout_path": str(target) + rollout_suffix,
-        "sha256": js._local_digest(target) if target.exists() else "0" * 64,
+        "sha256": line_digest(target) if target.exists() else "0" * 64,
         **(row or {}),
     }
     manifest.write_text(json.dumps(entry_row) + "\n", encoding="utf-8")
@@ -1500,6 +1501,33 @@ def _inside_folder(name: str) -> Any:
     return mutate
 
 
+def _capital_agent(final: str) -> Any:
+    """Rename the trial to a TEST name and its ``agent`` folder to ``Agent``; list what is
+    inside (``final``) or the folder itself (empty)."""
+
+    def mutate(trial: Path) -> Path:
+        trial = trial.rename(trial.parent / "build-pmars__123")
+        (trial / "agent").rename(trial / "agent-tmp")
+        (trial / "agent-tmp").rename(trial / "Agent")
+        return trial / "Agent" / final if final else trial / "Agent"
+
+    return mutate
+
+
+def _capital_sidecar(trial: Path) -> None:
+    (trial / "result.json").rename(trial / "result-tmp.json")
+    (trial / "result-tmp.json").rename(trial / "Result.json")
+    (trial / "Result.json").write_text(json.dumps({"split": "test"}), encoding="utf-8")
+
+
+def _file_in_subfolder(trial: Path) -> Path:
+    trial = trial.rename(trial.parent / "build-pmars__123")
+    (trial / "sub").mkdir()
+    target = trial / "sub" / "trajectory.json"
+    target.write_text(json.dumps(_harbor_doc()), encoding="utf-8")
+    return target
+
+
 TEST_ID = ("build-pmars",)
 
 REFUSALS: dict[str, dict[str, Any]] = {
@@ -1699,7 +1727,54 @@ ROUND3: dict[str, dict[str, Any]] = {
         "why": "not printable ASCII",
     },
 }
-ALL_REFUSALS = {**REFUSALS, **ROUND3}
+ROUND4: dict[str, dict[str, Any]] = {
+    # case tricks: the folder is called Agent on disk (any filesystem), the trial is a TEST one
+    "file-inside-a-capitalised-agent-folder": {
+        "mutate": _capital_agent("trajectory.json"),
+        "test_ids": TEST_ID,
+        "why": "file inside a trial",
+    },
+    "capitalised-agent-folder-as-the-rollout": {
+        "mutate": _capital_agent(""),
+        "test_ids": TEST_ID,
+        "why": "folder inside a trial",
+    },
+    "capitalised-sidecar-declares-a-test-split": {
+        "mutate": _capital_sidecar,
+        "why": "split declaration",
+    },
+    "grade-json-sidecar-declares-a-test-split": {
+        "mutate": lambda t: _write_json(t, "grade.json", {"split": "test"}),
+        "why": "split declaration",
+    },
+    # any ancestor counts, not only the parent folder
+    "file-inside-the-verifier-folder": {
+        "mutate": _file_in_trial("verifier/trajectory.json"),
+        "why": "file inside a trial",
+    },
+    "file-in-a-plain-subfolder-of-a-test-named-trial": {
+        "mutate": _file_in_subfolder,
+        "test_ids": TEST_ID,
+        "why": "file inside a trial",
+    },
+    # every path segment and every name inside the trial meets the registry
+    "ancestor-folder-named-like-a-test-task": {
+        "mutate": _inside_folder("build-pmars__123"),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "inner-file-named-like-a-test-task": {
+        "mutate": lambda t: (t / "build-pmars.txt").write_text("x", encoding="utf-8"),
+        "test_ids": TEST_ID,
+        "why": "assigned TEST",
+    },
+    "inner-folder-named-like-a-sealed-task": {
+        "mutate": lambda t: (t / "ctr-optimization").mkdir(),
+        "sealed": ("ctr-optimization",),
+        "why": "sealed identity",
+    },
+}
+ALL_REFUSALS = {**REFUSALS, **ROUND3, **ROUND4}
 
 
 @pytest.mark.parametrize("case", sorted(ALL_REFUSALS))
@@ -1777,11 +1852,40 @@ def test_a_directory_symlink_is_invisible_to_the_line_digest(tmp_path: Path) -> 
     trial = _write_trial(tmp_path)
     (trial / "alt").mkdir()
     (trial / "alt" / "x.txt").write_text("x", encoding="utf-8")
-    before = js._local_digest(trial)
+    before = line_digest(trial)
     (trial / "alias").symlink_to("alt", target_is_directory=True)
-    assert js._local_digest(trial) == before
+    assert line_digest(trial) == before
     (trial / "alt" / "x.txt").write_text("changed", encoding="utf-8")
-    assert js._local_digest(trial) != before  # real content is covered, the link is not
+    assert line_digest(trial) != before  # real content is covered, the link is not
+
+
+def test_rows_the_line_itself_wrote_are_served_and_verified(tmp_path: Path) -> None:
+    """The line's own intake produces the runs.jsonl row; the station verifies its digest."""
+    from evallab.line.core import _intake
+
+    trial = _write_trial(tmp_path)
+    repo = Path(__file__).resolve().parents[1]
+    _, rows = _intake({"sources": [{"corpus": "native", "rollouts": str(trial)}]}, repo)
+    (row,) = rows
+    assert row["sha256"] == line_digest(trial) and row["rollout_path"] == str(trial)
+    manifest = tmp_path / "line-runs.jsonl"
+    manifest.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    station = js.Station(
+        js.LocalRunSource(manifest, FakeSource({}, {}, findings={}), FakeRegistry()),
+        {"line": [js.QueueEntry(row["run_id"], source="line")]},
+        state_dir=tmp_path / "state",
+        keep_order=True,
+    )
+    view = station.run_view("q1", js.blind_id(row["run_id"]))
+    assert view["card"]["asked"]["text"].startswith("Implement the native task")
+    (trial / "verifier" / "agent.diff").write_text(DIFF + "\n# edited\n", encoding="utf-8")
+    with pytest.raises(js.JudgeError, match="integrity"):
+        js.Station(
+            js.LocalRunSource(manifest, FakeSource({}, {}, findings={}), FakeRegistry()),
+            {"line": [js.QueueEntry(row["run_id"], source="line")]},
+            state_dir=tmp_path / "state2",
+            keep_order=True,
+        ).run_view("q1", js.blind_id(row["run_id"]))
 
 
 def test_single_file_atif_named_trajectory_json_is_served(tmp_path: Path) -> None:
@@ -1818,17 +1922,70 @@ def test_local_source_leaves_cloud_and_cheatbench_fallback_unchanged(tmp_path: P
     assert source.detectors([cloud_id, CHEAT]) == fallback.detectors([cloud_id, CHEAT])
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Terminus-2 bash_command carries the shell command in arguments.keystrokes; the card "
-    "and timeline do not read it yet. Fix = import the shared tool-call normaliser "
-    "(evallab.tool_calls.normalize_tool_call, L0Formats) once it is merged; no private parser.",
-)
 def test_terminus_keystrokes_reach_the_card_and_the_timeline(tmp_path: Path) -> None:
+    """Terminus-2 types ``arguments.keystrokes``: shown verbatim, controls visible, no parser."""
+    typed = "cat > /app/x.py <<'EOF'\rprint(1)\nEOF\n\x03\x7f"
+
+    def retype(trial: Path) -> None:
+        doc = _harbor_doc()
+        doc["steps"][2]["tool_calls"] = [
+            {
+                "tool_call_id": "c2",
+                "function_name": "bash_command",
+                "arguments": {"keystrokes": typed, "duration": 1.0},
+            },
+            {"tool_call_id": "c3", "function_name": "mark_task_complete", "arguments": {}},
+        ]
+        (trial / "agent" / "trajectory.json").write_text(json.dumps(doc), encoding="utf-8")
+
+    station, _, _ = _local_station(tmp_path, mutate=retype)
+    view = station.run_view("q1", js.blind_id(LOCAL_RUN))
+    calls = [c for s in view["steps"] for c in s["calls"]]
+    assert calls[0]["text"].strip() == KEYSTROKES.strip()
+    shown = "cat > /app/x.py <<'EOF'␍print(1)\nEOF\n\\x03\\x7f"
+    assert calls[1]["text"] == shown
+    assert calls[2]["text"] == "agent marked task complete"
+    rows = [row["text"] for row in view["card"]["ran"]["rows"]]
+    assert any("pytest tests/test_cli.py" in text for text in rows)
+    assert any("␍print(1) EOF \\x03\\x7f" in text for text in rows)
+    assert any("agent marked task complete" in text for text in rows)
+    assert view["card"]["grader"]["tests_run"]
+
+
+def test_task_complete_arguments_are_shown_verbatim() -> None:
+    call = {"function_name": "mark_task_complete", "arguments": {"summary": "done <b>"}}
+    assert js._call_text(call) == (
+        "mark_task_complete",
+        'agent marked task complete\n{"summary": "done <b>"}',
+    )
+
+
+def test_what_is_served_is_what_the_digest_covered_even_if_the_file_changes_after(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nothing is read from disk after admission: a swap right after it changes nothing."""
+    from evallab import rollout_admission as ra
+
+    admit = ra.admit_rollout
+
+    def swap_after(*args: Any, **kwargs: Any) -> Any:
+        admitted = admit(*args, **kwargs)
+        admitted.trajectory.write_text(
+            json.dumps(_harbor_doc("SWAPPED TEST TRAJECTORY")), encoding="utf-8"
+        )
+        return admitted
+
+    monkeypatch.setattr(ra, "admit_rollout", swap_after)
     station, _, _ = _local_station(tmp_path)
     view = station.run_view("q1", js.blind_id(LOCAL_RUN))
-    rows = view["card"]["ran"]["rows"]
-    assert any("pytest tests/test_cli.py" in row["text"] for row in rows)
-    assert view["card"]["grader"]["tests_run"]
-    call = next(c for s in view["steps"] for c in s["calls"])
-    assert call["text"].strip() == KEYSTROKES.strip()
+    assert view["card"]["asked"]["text"].startswith("Implement the native task")
+    assert "SWAPPED" not in json.dumps(view)
+
+
+def test_the_same_rollout_cannot_be_listed_under_two_run_ids(tmp_path: Path) -> None:
+    _, manifest, _ = _local_station(tmp_path)
+    row = json.loads(manifest.read_text(encoding="utf-8"))
+    twin = {**row, "run_id": "other-run", "rollout_path": row["rollout_path"].upper()}
+    manifest.write_text(json.dumps(row) + "\n" + json.dumps(twin) + "\n", encoding="utf-8")
+    with pytest.raises(js.JudgeError, match="already listed"):
+        js.LocalRunSource(manifest, FakeSource({}, {}, findings={}), FakeRegistry())

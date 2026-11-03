@@ -233,22 +233,6 @@ class LabSource:
         return read_findings(self._findings_paths, set(run_ids))
 
 
-def _local_digest(path: Path) -> str:
-    """The line's file digest, or its canonical sorted name/file-digest directory digest."""
-    if path.is_file():
-        with path.open("rb") as handle:
-            return hashlib.file_digest(handle, "sha256").hexdigest()
-    if path.is_dir():
-        rows = [
-            (child.relative_to(path).as_posix(), _local_digest(child))
-            for child in sorted(path.rglob("*"))
-            if child.is_file()
-        ]
-        encoded = json.dumps(rows, sort_keys=True, separators=(",", ":"), allow_nan=False)
-        return hashlib.sha256(encoded.encode()).hexdigest()
-    raise FileNotFoundError(path)
-
-
 LOCAL_LOG = logging.getLogger(__name__)
 LOCAL_NOT_ADMITTED = "local rollout is not an admitted DEV run"
 LOCAL_UNREADABLE = "local rollout is missing or unreadable"
@@ -286,6 +270,7 @@ class LocalRunSource:
         self.registry = registry
         self.sealed_roots = tuple(sealed_roots)
         self._rows: dict[str, Mapping[str, Any]] = {}
+        paths: set[str] = set()
         for number, line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):
             if not line.strip():
                 continue
@@ -305,21 +290,18 @@ class LocalRunSource:
             run_id = run_id.strip()
             if run_id in self._rows:
                 raise JudgeError(f"{manifest}:{number}: duplicate local run_id {run_id}")
+            location = rollout.strip().casefold()
+            if location in paths:
+                raise JudgeError(
+                    f"{manifest}:{number}: rollout_path already listed for another run_id"
+                )
+            paths.add(location)
             self._rows[run_id] = row
-
-    @staticmethod
-    def _digest_check(row: Mapping[str, Any]) -> Callable[[Path], None]:
-        def verify(root: Path) -> None:
-            expected, actual = str(row["sha256"]).lower(), _local_digest(root)
-            if actual != expected:
-                raise _LocalRefused(LOCAL_INTEGRITY, f"sha256 expected {expected} got {actual}")
-
-        return verify
 
     def _load_local(self, run_id: str) -> Any:
         from evallab.production.run_atlas import AtlasRun, outcome_from_reward
         from evallab.rollout_admission import AdmissionRefused, admit_rollout, sealed_inodes
-        from evallab.trace_anatomy import load_atif_file
+        from evallab.trace_anatomy import atif_run
 
         row = self._rows[run_id]
         try:
@@ -328,13 +310,20 @@ class LocalRunSource:
                 registry=self.registry,
                 row=row,
                 run_id=run_id,
-                verify=self._digest_check(row),
+                expected_sha256=str(row["sha256"]),
                 sealed=sealed_inodes(*self.sealed_roots),
             )
         except AdmissionRefused as error:
-            public = LOCAL_UNREADABLE if error.unreadable else LOCAL_NOT_ADMITTED
+            public = (
+                LOCAL_INTEGRITY
+                if error.integrity
+                else LOCAL_UNREADABLE
+                if error.unreadable
+                else LOCAL_NOT_ADMITTED
+            )
             raise _LocalRefused(public, error.detail) from error
-        run = load_atif_file(admitted.trajectory)
+        # built from the document the digest covered; nothing is read from disk again
+        run = atif_run(admitted.document, str(admitted.trajectory))
         doc = dict(run.doc)
         if submission := admitted.diff or run.submission:
             doc["submission"] = submission
@@ -437,7 +426,63 @@ def _clip(text: str) -> str:
     return text[:MAX_TEXT] + f"\n[... {len(text) - MAX_TEXT} more characters not shown ...]"
 
 
+KEYSTROKE_KEYS = frozenset({"keystrokes", "duration", "timeout", "timeout_sec", "is_blocking"})
+TASK_COMPLETE = "mark_task_complete"
+
+
+def _visible(typed: str) -> str:
+    """What was typed, character for character: newlines and tabs stay, every other control
+    character is shown (carriage return as ``␍``, the rest as ``\\xNN``)."""
+    return "".join(
+        ch
+        if ch in "\n\t" or (ord(ch) >= 32 and ord(ch) != 127)
+        else "␍"
+        if ch == "\r"
+        else f"\\x{ord(ch):02x}"
+        for ch in typed
+    )
+
+
+def _display_call(call: Mapping[str, Any]) -> Mapping[str, Any]:
+    """The call as the judge reads it. Terminus-2 types ``arguments.keystrokes`` into a
+    terminal: shown verbatim as the command (no parsing), and ``mark_task_complete`` is a
+    visible step with its arguments verbatim."""
+    arguments = call.get("arguments")
+    if not isinstance(arguments, Mapping):
+        return call
+    name = str(call.get("function_name") or call.get("name") or "")
+    if name == TASK_COMPLETE:
+        shown = json.dumps(arguments, ensure_ascii=False, sort_keys=True, default=str)
+        text = "agent marked task complete" + (f"\n{shown}" if arguments else "")
+        return {**call, "arguments": {"command": text}}
+    typed = arguments.get("keystrokes")
+    if (
+        isinstance(typed, str)
+        and not isinstance(arguments.get("command"), str)
+        and set(arguments) <= KEYSTROKE_KEYS
+    ):
+        return {**call, "arguments": {"command": _visible(typed)}}
+    return call
+
+
+def display_steps(steps: Sequence[Any]) -> list[Any]:
+    """``steps`` with every tool call in its display form (what the card is built from)."""
+    return [
+        {
+            **step,
+            "tool_calls": [
+                _display_call(call) if isinstance(call, Mapping) else call
+                for call in step["tool_calls"]
+            ],
+        }
+        if isinstance(step, Mapping) and isinstance(step.get("tool_calls"), list)
+        else step
+        for step in steps
+    ]
+
+
 def _call_text(call: Mapping[str, Any]) -> tuple[str, str]:
+    call = _display_call(call)
     name = str(call.get("function_name") or call.get("name") or "tool")
     arguments = call.get("arguments")
     if isinstance(arguments, Mapping):
@@ -800,7 +845,7 @@ class Station:
             try:
                 card = build_card(
                     run.run_id,
-                    blind.steps,
+                    display_steps(blind.steps),
                     [s["n"] for s in steps],
                     hints=self.show_hints,
                     submission=(

@@ -201,23 +201,37 @@ uv run evallab judge export --out ~/judge-verdicts.csv
   a Harbor trial looks like (`src/evallab/rollout_admission.py`; an allow-list, not a list of
   known tricks):
   - the path is the one the line wrote: absolute, canonical, printable ASCII (no `..`, trailing
-    slash, or Unicode look-alikes), and every folder on it is a real folder, never a symlink;
-  - it is a whole trial folder, or a single ATIF file that is not inside a trial (a file next to
-    `result.json`, `config.json` or `run.json`, or under `agent/`, is refused, as is the `agent`
-    folder itself);
+    slash, or Unicode look-alikes), each component spelled exactly as on disk (a case-insensitive
+    disk would otherwise take `Agent` for `agent`), and every folder on it is a real folder, never
+    a symlink. The station trusts no folder above the path: where a deployment lists rows under a
+    root such as `/tmp` (a link on macOS), the shared gate takes `allowed_roots`, which trusts links
+    above a root and never at or below it;
+  - it is a whole trial folder (never `agent` or `verifier`), or a single ATIF file with no
+    ancestor named `agent` or `verifier` and no ancestor folder holding `result.json`,
+    `config.json`, `run.json`, `grade.json` or an `agent` folder (names compared case-insensitively),
+    so a row cannot point inside a trial to skip its sidecars;
   - nothing inside is a symlink or a special file, and no file is a hard link to a file under
     `research/answer-keys` (published trials are hard-linked copies, so a link count alone cannot
-    decide);
+    decide; a link into some other folder is caught by the checks that read the content below);
   - every `split` key, in any letter case and at any depth, in the manifest row, the trajectories
-    and the `result.json`, `config.json`, `run.json` files is exactly `dev` (a blank or non-text
-    value, a document too deeply nested to read, and a file that is not valid JSON all refuse);
-  - no task, trial, run, file or folder name any of them gives, compared in NFKC, case-folded
-    form by segment, is assigned to TEST or sealed in the corpus registry;
-  - the digest matches the line's.
+    and the `result.json`, `config.json`, `run.json`, `grade.json` files is exactly `dev` (a blank
+    or non-text value, a document too deeply nested to read, and a file that is not valid JSON all
+    refuse);
+  - no task, trial, run, path segment, file or folder name any of them gives, compared in NFKC,
+    case-folded form by segment, stem and extension, is assigned to TEST or sealed in the corpus
+    registry;
+  - the digest matches the line's, computed on the very bytes the station reads: every file is
+    read once into memory, hashed, and the card is built from that copy, so a change on disk after
+    the check changes nothing the judge sees;
+  - no two rows list the same `rollout_path` (compared ignoring case).
 
   The station needs the corpus registry to start with `--local-runs`. A refused run shows a fixed
   message with no path, id or hash; the detail goes to the station's log under the run's blind
   id. Cloud and CheatBench ids in the same queue still use their existing loaders.
+- Terminus-2 runs type `arguments.keystrokes` into a terminal. The card and timeline show those
+  keystrokes exactly as typed (newlines and tabs kept, `␍` for a carriage return, other control
+  characters as `\xNN`) and `mark_task_complete` as "agent marked task complete" with its
+  arguments; nothing is parsed or interpreted.
 - A local run's reward, queue reason, line decision (and whether it was a random audit) and
   detector/model verdicts stay hidden until submit, and the reveal then shows them. The reward
   appears as `pass` or `fail` like a cloud run's grader result; the corpus and model stay out of

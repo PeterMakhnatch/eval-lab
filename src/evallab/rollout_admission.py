@@ -4,44 +4,54 @@ A rollout is admitted only when everything about it is what a Harbor trial looks
 list of known-bad tricks is needed:
 
 * the path is absolute, canonical text made of printable ASCII, and exactly what the caller
-  listed (no ``..``, no trailing separator, no Unicode look-alikes, no case folding of the
-  listed form);
+  listed: no ``..``, no trailing separator, no Unicode look-alikes, and every component equals
+  the name on disk letter for letter (a case-insensitive filesystem would otherwise accept
+  ``Agent`` for ``agent``);
 * every component of the path, the top one included, is a real directory or file by ``lstat``:
-  a symlink anywhere on the path or inside the trial is refused, so a link cannot redirect to,
-  or hide, forbidden content;
+  a symlink on the path or inside the trial is refused, so a link cannot redirect to, or hide,
+  forbidden content. ``allowed_roots`` names the folders the operator trusts: operating-system
+  links *above* a root (macOS ``/tmp`` is a link) are fine, links at or below it never are;
 * every file inside is regular and is not a hard link to sealed material: published trials are
   themselves hard-linked copies (``st_nlink`` 2), so a link count cannot decide, but the inode
   of every file under the caller's sealed folders is known, and a match is refused;
-* a directory is a whole trial; a single file is accepted only when it is not inside one (its
-  folder holds no ``result.json``/``config.json``/``run.json`` and no ``agent`` folder), so a
-  row cannot point at ``<trial>/agent/trajectory.json`` to skip the trial's sidecars;
-* every trajectory and sidecar is read; a ``split`` key (any case, any depth, lists included
-  except the agent-written ``steps``/``nodes``) must be exactly ``dev``, a document nested past
-  ``MAX_DEPTH`` is refused, and malformed JSON is refused;
-* every task, trial and run name found anywhere (documents, file and folder names, the run id)
-  is compared in canonical form (NFKC, case-folded, each path segment and ``__`` stem) with the
-  corpus registry's TEST assignments and sealed identities.
+* a directory is a whole trial (never ``agent`` or ``verifier``); a single file is accepted only
+  when no ancestor is ``agent``/``verifier`` and no ancestor folder holds a sidecar or an
+  ``agent`` folder, so a row cannot point inside a trial to skip its sidecars. Files are indexed
+  by case-folded relative path, so ``Result.json`` is a sidecar too;
+* every trajectory and sidecar is read once, into memory, together with the hash of every file;
+  the digest is checked on those same bytes and the parsed documents are what the caller serves,
+  so nothing is read again after it is verified;
+* a ``split`` key (any case, any depth, lists included except the agent-written
+  ``steps``/``nodes``) must be exactly ``dev``, a document nested past ``MAX_DEPTH`` is refused,
+  and malformed JSON is refused;
+* every task, trial and run name found anywhere (documents, every path segment, every file and
+  folder name in the trial, the run id) is compared in canonical form (NFKC, case-folded, each
+  path segment and ``__`` stem) with the corpus registry's TEST assignments and sealed
+  identities.
 
 ``AdmissionRefused.detail`` may hold paths and ids: log it, never show it to a judge.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 import stat
 import unicodedata
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from evallab import hack_drop as hd
+from evallab.line.io import canonical_hash
 
-SIDECARS = ("result.json", "config.json", "run.json")
+SIDECARS = ("result.json", "config.json", "run.json", "grade.json")
 TRAJECTORIES = ("agent/trajectory.json", "trajectory.json")
 DIFFS = ("final.diff", "verifier/agent.diff")
+TRIAL_FOLDERS = frozenset({"agent", "verifier"})
 IDENTITY_KEYS = frozenset(
     {"task_id", "task_name", "task", "trial_name", "trial_id", "id", "item_id", "record_id"}
 )
@@ -50,24 +60,27 @@ OPAQUE_KEYS = frozenset({"steps", "nodes"})  # agent-written content, not declar
 MAX_DEPTH = 8
 _PRINTABLE_ASCII = re.compile(r"[\x20-\x7e]+")
 _SEPARATORS = re.compile(r"[\\/]+")
+_EXTENSION = re.compile(r"\.[a-z0-9]{1,8}$")
 
 
 class AdmissionRefused(ValueError):
-    """The rollout is not admitted. ``unreadable`` marks a missing or malformed file, as opposed
-    to one that is readable and forbidden."""
+    """The rollout is not admitted. ``unreadable`` marks a missing or malformed file and
+    ``integrity`` a digest mismatch, as opposed to a readable, forbidden rollout."""
 
-    def __init__(self, detail: str, *, unreadable: bool = False) -> None:
+    def __init__(self, detail: str, *, unreadable: bool = False, integrity: bool = False) -> None:
         super().__init__(detail)
-        self.detail, self.unreadable = detail, unreadable
+        self.detail, self.unreadable, self.integrity = detail, unreadable, integrity
 
 
 @dataclass(frozen=True)
 class Admitted:
     root: Path
     kind: str  # "trial" | "file"
-    trajectory: Path  # the one trajectory file to serve
+    trajectory: Path | None  # the file the served document came from
+    document: Any  # that file, parsed from the bytes the digest covered (None: no trajectory)
     diff: str | None
     names: tuple[str, ...]
+    sha256: str  # the line's digest of what was read
 
 
 def canonical(text: str) -> str:
@@ -93,18 +106,32 @@ def _lstat(path: Path) -> os.stat_result:
         raise AdmissionRefused(f"cannot stat {path}: {error}", unreadable=True) from error
 
 
-def _walk_path(listed: str) -> Path:
+def _trusted_parts(root: Path, allowed_roots: Sequence[str | Path]) -> int:
+    """How many leading components of ``root`` are trusted (0 without ``allowed_roots``)."""
+    if not allowed_roots:
+        return 0
+    for allowed in allowed_roots:
+        base = Path(allowed)
+        if base.is_absolute() and root.parts[: len(base.parts)] == base.parts:
+            return len(base.parts)
+    raise AdmissionRefused(f"rollout path is not under an allowed root: {root}")
+
+
+def _walk_path(listed: str, allowed_roots: Sequence[str | Path]) -> Path:
     """The listed path, validated component by component without following any link."""
     _ascii(listed, "rollout path")
     root = Path(listed)
     if not root.is_absolute() or str(root) != listed or ".." in root.parts or "." in root.parts:
         raise AdmissionRefused(f"rollout path is not canonical and absolute: {listed}")
+    trusted = _trusted_parts(root, allowed_roots)
     prefix = Path(root.anchor)
-    for part in root.parts[1:]:
-        prefix = prefix / part
+    for index, part in enumerate(root.parts[1:], start=2):
+        parent, prefix = prefix, prefix / part
         mode = _lstat(prefix).st_mode
-        if stat.S_ISLNK(mode):
+        if stat.S_ISLNK(mode) and index > trusted:
             raise AdmissionRefused(f"symlink on the rollout path: {prefix}")
+        if part not in os.listdir(parent):
+            raise AdmissionRefused(f"path case does not match the filesystem: {prefix}")
         _gate(prefix)  # a link-free prefix resolves to itself, so the gate sees what is written
     return root
 
@@ -120,9 +147,24 @@ def sealed_inodes(*roots: Path) -> frozenset[tuple[int, int]]:
     return frozenset(found)
 
 
-def _walk_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> list[Path]:
-    """Every file below ``root``; refuses links, sealed hard links and special files."""
-    files: list[Path] = []
+def _needed(relative: str) -> bool:
+    return relative in {*SIDECARS, *TRAJECTORIES, *DIFFS}
+
+
+@dataclass
+class _Tree:
+    digest: str
+    held: dict[str, tuple[Path, bytes]]  # casefolded relative path -> (path, bytes read)
+    names: list[str]
+
+
+def _read_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> _Tree:
+    """Walk the trial once: refuse links, sealed hard links and special files; hash every file;
+    keep the bytes of the files the caller needs."""
+    files: list[tuple[Path, str]] = []
+    held: dict[str, tuple[Path, bytes]] = {}
+    seen: dict[str, Path] = {}
+    names: list[str] = []
     pending = [root]
     while pending:
         directory = pending.pop()
@@ -130,6 +172,7 @@ def _walk_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> list[Path]:
             for entry in sorted(entries, key=lambda e: e.name):
                 path = Path(entry.path)
                 _ascii(entry.name, "file name")
+                names.append(entry.name)
                 mode = entry.stat(follow_symlinks=False)
                 if stat.S_ISLNK(mode.st_mode):
                     raise AdmissionRefused(f"symlink inside the trial: {path}")
@@ -141,16 +184,29 @@ def _walk_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> list[Path]:
                         raise AdmissionRefused(
                             f"hard link to sealed material inside the trial: {path}"
                         )
-                    files.append(path)
+                    relative = path.relative_to(root).as_posix().casefold()
+                    if relative in seen:
+                        raise AdmissionRefused(f"two files differ only by case: {path}")
+                    seen[relative] = path
+                    if _needed(relative):
+                        data = path.read_bytes()
+                        held[relative] = (path, data)
+                        files.append((path, hashlib.sha256(data).hexdigest()))
+                    else:
+                        with path.open("rb") as handle:
+                            files.append((path, hashlib.file_digest(handle, "sha256").hexdigest()))
                 else:
                     raise AdmissionRefused(f"special file inside the trial: {path}")
-    return files
+    # the line's own digest of a folder, computed from the hashes of the bytes read here
+    ordered = sorted(files)
+    digest = canonical_hash([(p.relative_to(root).as_posix(), d) for p, d in ordered])
+    return _Tree(digest, held, names)
 
 
-def _read_json(path: Path) -> Any:
+def _parse(path: Path, data: bytes) -> Any:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
+        return json.loads(data.decode("utf-8"))
+    except (ValueError, RecursionError) as error:
         raise AdmissionRefused(f"{path}: not JSON ({error})", unreadable=True) from error
 
 
@@ -204,22 +260,24 @@ def identities(value: Any, depth: int = 0) -> tuple[list[str], list[str]]:
 
 def name_forms(raw: str) -> set[str]:
     """Every form of a name worth comparing: whole, each path segment, each ``__`` stem, and
-    each without a ``.json``/``.jsonl`` suffix."""
+    each of those without a file extension (``.json``, ``.txt``, ``.tar.gz`` one at a time)."""
     text = canonical(raw)
     forms = {text.strip("/\\")}
     for segment in _SEPARATORS.split(text):
         if segment:
-            forms.add(segment)
-            forms.add(segment.split("__")[0])
-            forms.add(re.sub(r"\.jsonl?$", "", segment))
+            for form in (
+                segment,
+                _EXTENSION.sub("", segment),
+                _EXTENSION.sub("", _EXTENSION.sub("", segment)),
+            ):
+                forms.add(form)
+                forms.add(form.split("__")[0])
     return {form for form in forms if form}
 
 
 def _refuse_test_identity(registry: Any, names: Iterable[str], digests: Iterable[str]) -> None:
     sealed = getattr(registry, "sealed_identity", None)
     for raw in names:
-        _ascii(raw, "task or trial name")
-        _gate("/" + raw.strip().lstrip("/\\"))  # the path gate, without the cwd
         for form in name_forms(raw):
             if registry.assigned_test_anywhere(item_id=form) or registry.assigned_test_anywhere(
                 task_id=form
@@ -233,12 +291,17 @@ def _refuse_test_identity(registry: Any, names: Iterable[str], digests: Iterable
 
 
 def _inside_a_trial(file: Path) -> bool:
-    folder = file.parent
-    return (
-        folder.name == "agent"
-        or (folder / "agent").exists()
-        or any((folder / sidecar).exists() for sidecar in SIDECARS)
-    )
+    """Whether any ancestor is a trial folder or holds a trial's sidecars (case-insensitively)."""
+    for folder in file.parents:
+        if canonical(folder.name) in TRIAL_FOLDERS:
+            return True
+        try:
+            listing = {canonical(name) for name in os.listdir(folder)}
+        except OSError:
+            continue
+        if listing & {"agent", *SIDECARS}:
+            return True
+    return False
 
 
 def admit_rollout(
@@ -247,60 +310,76 @@ def admit_rollout(
     registry: Any,
     row: Mapping[str, Any] | None = None,
     run_id: str | None = None,
-    verify: Callable[[Path], None] | None = None,
+    expected_sha256: str | None = None,
     sealed: frozenset[tuple[int, int]] = frozenset(),
+    allowed_roots: Sequence[str | Path] = (),
+    require_trajectory: bool = True,
 ) -> Admitted:
     """Admit the rollout at exactly ``listed`` or raise :class:`AdmissionRefused`.
 
-    ``verify(root)`` runs after the structure is accepted and before any content is read (the
-    caller's integrity check); anything it raises propagates.
+    ``expected_sha256`` is the line's digest of the rollout; it is checked on the bytes read
+    here, before anything is parsed. With ``require_trajectory=False`` a rollout without an ATIF
+    trajectory (a patch or code bundle) is admitted with ``document=None``. Paths must be
+    absolute; ``allowed_roots`` trusts links above (never at or below) the named folders.
     """
-    root = _walk_path(listed)
+    root = _walk_path(listed, allowed_roots)
     top = _lstat(root).st_mode
     documents: list[Any] = [dict(row)] if row is not None else []
-    names: list[str] = [name for name in (run_id, root.name, root.stem, root.parent.name) if name]
-    diff_files: list[Path] = []
+    names: list[str] = [name for name in (run_id, str(root)) if name]
+    candidates: list[tuple[Path, bytes]] = []
+    sidecars: list[tuple[Path, bytes]] = []
+    diff_bytes: bytes | None = None
     if stat.S_ISDIR(top):
-        if root.name == "agent":
+        if canonical(root.name) in TRIAL_FOLDERS:
             raise AdmissionRefused(f"a folder inside a trial is not a trial: {root}")
-        files = _walk_tree(root, sealed)
-        present = set(files)
-        kind = "trial"
-        candidates = [root / name for name in TRAJECTORIES if root / name in present]
-        sidecars = [root / name for name in SIDECARS if root / name in present]
-        diff_files = [root / name for name in DIFFS if root / name in present]
+        tree = _read_tree(root, sealed)
+        kind, digest, names = "trial", tree.digest, names + tree.names
+        candidates = [tree.held[name] for name in TRAJECTORIES if name in tree.held]
+        sidecars = [tree.held[name] for name in SIDECARS if name in tree.held]
+        for name in DIFFS:
+            if name in tree.held:
+                diff_bytes = tree.held[name][1]
+                break
     elif stat.S_ISREG(top):
         info = _lstat(root)
         if (info.st_dev, info.st_ino) in sealed:
             raise AdmissionRefused(f"hard link to sealed material: {root}")
         if _inside_a_trial(root):
             raise AdmissionRefused(f"a file inside a trial is not a rollout: {root}")
-        kind, candidates, sidecars = "file", [root], []
+        data = root.read_bytes()
+        kind, digest = "file", hashlib.sha256(data).hexdigest()
+        if root.suffix.casefold() == ".json" or require_trajectory:
+            candidates = [(root, data)]
     else:
         raise AdmissionRefused(f"rollout is neither a folder nor a regular file: {root}")
-    if verify is not None:
-        verify(root)
-    documents += [_read_json(path) for path in sidecars]
-    served: Path | None = None
-    for candidate in candidates:
-        document = _read_json(candidate)
+    if expected_sha256 is not None and digest != expected_sha256.lower():
+        raise AdmissionRefused(
+            f"sha256 expected {expected_sha256.lower()} got {digest}", integrity=True
+        )
+    documents += [_parse(path, data) for path, data in sidecars]
+    served: tuple[Path, Any] | None = None
+    for path, data in candidates:
+        document = _parse(path, data)
         documents.append(document)
         if isinstance(document, Mapping) and isinstance(document.get("traces"), list):
             documents += [trace for trace in document["traces"] if isinstance(trace, Mapping)]
-            served = served or candidate
+            served = served or (path, document)
         elif isinstance(document, Mapping) and isinstance(document.get("steps"), list):
-            served = served or candidate
-    if served is None:
+            served = served or (path, document)
+    if served is None and require_trajectory:
         raise AdmissionRefused("no ATIF trajectory", unreadable=True)
     if any(declares_non_dev(document) for document in documents):
         raise AdmissionRefused("a split declaration is not dev")
     digests: list[str] = []
     for document in documents:
         found_names, found_digests = identities(document)
-        names += found_names
+        for identity in found_names:
+            if identity.strip():
+                _ascii(identity, "task or trial name")
+                _gate("/" + identity.strip().lstrip("/\\"))  # the path gate, without the cwd
+                names.append(identity)
         digests += found_digests
     _refuse_test_identity(registry, names, digests)
-    diff = None
-    if diff_files:
-        diff = diff_files[0].read_text(encoding="utf-8", errors="replace")
-    return Admitted(root, kind, served, diff, tuple(names))
+    diff = diff_bytes.decode("utf-8", errors="replace") if diff_bytes is not None else None
+    path, document = served if served else (None, None)
+    return Admitted(root, kind, path, document, diff, tuple(names), digest)

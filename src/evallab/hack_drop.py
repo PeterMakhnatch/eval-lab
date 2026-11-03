@@ -754,10 +754,20 @@ def load_labels(
                 },
                 registry=registry,
             )
-            # An explicit empty list is still a rows container, not a run named "rows".
-            items_list = next(
-                (data[key] for key in ("rows", "items", "labels") if isinstance(data.get(key), list)),
-                None,
+            # An explicit empty list is still a rows container, not a run named "rows" -- unless
+            # the object is itself one row (it carries a row id), whose "labels" is just a tag list.
+            is_single_row = any(k in data for k in ("id", "run_id", "task_id", "item_id"))
+            items_list = (
+                None
+                if is_single_row
+                else next(
+                    (
+                        data[key]
+                        for key in ("rows", "items", "labels")
+                        if isinstance(data.get(key), list)
+                    ),
+                    None,
+                )
             )
             if isinstance(items_list, list):
                 for item in items_list:

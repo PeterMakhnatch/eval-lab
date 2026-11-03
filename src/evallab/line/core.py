@@ -80,9 +80,12 @@ LABEL_KEYS = frozenset(
     }
 )
 AUTOREVIEW_THRESHOLD = 50
+AUTOREVIEW_UNREAD = frozenset(
+    {"AUTOREVIEW_NOT_ELIGIBLE", "AUTOREVIEW_DISABLED", "AUTOREVIEW_CACHE_MISS"}
+)
 _AR_REASON = re.compile(
-    r"AUTOREVIEW_(?:CLEAN|NOT_ELIGIBLE|DISABLED|NO_TRAJECTORY|BUDGET_EXCEEDED|UNATTESTED"
-    r"|UNPARSED|CONFIRMED_CHEAT|SUSPICION_\d{1,3}|ERROR:[A-Za-z0-9_]{1,40})"
+    r"AUTOREVIEW_(?:CLEAN|NOT_ELIGIBLE|DISABLED|NO_TRAJECTORY|BUDGET_EXCEEDED|CACHE_MISS"
+    r"|UNATTESTED|UNPARSED|CONFIRMED_CHEAT|SUSPICION_\d{1,3}|ERROR:[A-Za-z0-9_]{1,40})"
 )
 _AR_DETAILS: dict[str, tuple[type, ...]] = {
     "suspicion": (int,),
@@ -169,9 +172,11 @@ def _autoreview_stage(stage: Any, where: str, row_steps: Any) -> hd.StageVerdict
     modelled = bool(details.get("model")) and isinstance(suspicion, int)
     if names & {"AUTOREVIEW_DISABLED", "AUTOREVIEW_NOT_ELIGIBLE"}:
         consistent = decision == "pass" and len(names) == 1
-    elif names & {"AUTOREVIEW_NO_TRAJECTORY", "AUTOREVIEW_BUDGET_EXCEEDED"} or any(
-        r.startswith("AUTOREVIEW_ERROR:") for r in names
-    ):
+    elif names & {
+        "AUTOREVIEW_NO_TRAJECTORY",
+        "AUTOREVIEW_BUDGET_EXCEEDED",
+        "AUTOREVIEW_CACHE_MISS",
+    } or any(r.startswith("AUTOREVIEW_ERROR:") for r in names):
         consistent = decision == "review"
     elif "AUTOREVIEW_UNATTESTED" in names:
         consistent = decision == "review" and details.get("attested") is False and modelled
@@ -417,22 +422,16 @@ def _evaluate(
             ar = stored_ar[item.item_id]
         elif mode == "cached":
             cached = cache.get(item.item_id)
-            # "No reading" means no stored verdict, or a pass that never involved a model
-            # (NOT_ELIGIBLE/DISABLED under the L0 that produced the cache).
-            unread = cached is None or (cached.decision == "pass" and "model" not in cached.details)
-            if unread and hd.autoreview_eligible(l0):
-                # The current L0 wants a reading the cache cannot supply: never pass silently.
+            if not hd.autoreview_eligible(l0):
+                # The current L0 decides eligibility: a stale stored reading never applies.
+                ar = hd.StageVerdict(
+                    "autoreview", "pass", ["AUTOREVIEW_NOT_ELIGIBLE"], [], {"eligible": False}
+                )
+            elif cached is None or set(cached.reasons) & AUTOREVIEW_UNREAD:
+                # Eligible, but the cache has no actual reading (decided by reason codes, not by
+                # whatever details a row carries): never pass silently.
                 ar = hd.StageVerdict(
                     "autoreview", "review", ["AUTOREVIEW_CACHE_MISS"], [], {"eligible": True}
-                )
-                record = None
-            elif cached is None:
-                ar = hd.StageVerdict(
-                    "autoreview",
-                    "pass",
-                    ["AUTOREVIEW_NOT_ELIGIBLE"],
-                    [],
-                    {"eligible": False},
                 )
             else:
                 ar, record = cached, _cached_call(cached)
@@ -513,13 +512,17 @@ def batch_ref(batch: Path, path: Path) -> str:
 
 
 def resolve_ref(batch: Path, raw: str) -> Path:
-    """Resolve a receipt path against the batch being checked; relative paths cannot escape it."""
+    """Resolve a receipt path against the batch being checked; a relative one cannot leave it."""
     path = Path(raw)
     if path.is_absolute():
         return path
     if ".." in path.parts:
         raise ValueError(f"receipt path leaves its batch: {raw}")
-    return batch / path
+    resolved = batch / path
+    root = batch.resolve()
+    if resolved.resolve() != root and root not in resolved.resolve().parents:
+        raise ValueError(f"receipt path leaves its batch: {raw}")
+    return resolved
 
 
 def snapshot_station(batch: Path, source: Path) -> Path:
@@ -772,6 +775,10 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
                 {"name": name, "status": "FAIL", "details": str(error) or type(error).__name__}
             )
 
+    # The line never writes a symlink into a batch, so a batch holding one is not ours to read.
+    for entry in sorted(batch.rglob("*")):
+        if entry.is_symlink():
+            raise ValueError(f"batch contains a symlink (the line never writes one): {entry.name}")
     spec = load_spec(batch / "spec.json")
     runs = read_rows(batch / "runs.jsonl")
     decisions = read_rows(batch / "decisions.jsonl")
@@ -830,7 +837,20 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
 
     gate("dev_only", dev)
 
+    root = batch.resolve()
+
+    def inside(path: Path) -> bool:
+        resolved = path.resolve()
+        return resolved == root or root in resolved.parents
+
     def provenance() -> None:
+        declared = (
+            {Path(s["rollouts"]).resolve() for s in spec["sources"]}
+            | {Path(s["labels"]).resolve() for s in spec["sources"] if s["labels"]}
+            | ({Path(spec["task_status"]).resolve()} if spec["task_status"] else set())
+            | {Path(r["rollout_path"]).resolve() for r in runs}
+            | {p.resolve() for p in _cache(spec)[1]}
+        )
         require(
             {r["stage"] for r in receipts}
             == {"intake", "task", "trace", "decisions", "judge", "export", "scoreboard"},
@@ -845,14 +865,12 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
             wanted = EXPECTED_REFS.get(receipt["stage"])
             require(wanted is not None, f"unknown receipt stage: {receipt['stage']}")
             assert wanted is not None
-            root = batch.resolve()
             for side, names in zip(("inputs", "outputs"), wanted, strict=True):
                 listed = set()
                 for ref in receipt[side]:
+                    resolved = resolve_ref(batch, ref["path"]).resolve()
                     with suppress(ValueError):
-                        listed.add(
-                            resolve_ref(batch, ref["path"]).resolve().relative_to(root).as_posix()
-                        )
+                        listed.add(resolved.relative_to(root).as_posix())
                 missing = names - listed
                 if missing:
                     elsewhere = any(
@@ -876,6 +894,19 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
                     ),
                     "judge receipt does not hold an immutable Station snapshot",
                 )
+            # A closed set: every output is the batch's own file, and every outside input is one
+            # the spec (or the intake) declared and the DEV gate admits. Nothing else is read.
+            for ref in receipt["outputs"]:
+                path = resolve_ref(batch, ref["path"])
+                require(inside(path), f"receipt output is not a file of this batch: {ref['path']}")
+            for ref in receipt["inputs"]:
+                path = resolve_ref(batch, ref["path"])
+                if not inside(path):
+                    require(
+                        path.resolve() in declared,
+                        f"receipt input is neither in the batch nor declared by the spec: {path}",
+                    )
+                    hd.check_dev_path_allowed(path)
             for ref in receipt["inputs"] + receipt["outputs"]:
                 path = resolve_ref(batch, ref["path"])
                 require(path.exists() and digest(path) == ref["sha256"], f"hash mismatch: {path}")
@@ -988,10 +1019,12 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
         reject_label_fields(receipts, "receipts")
         for row in read_rows(batch / "trace.jsonl"):
             _clean_details(row["autoreview"]["details"], row["run_id"])
-        label_paths = {str(Path(s["labels"])) for s in spec["sources"] if s["labels"]}
+        label_paths = {Path(s["labels"]).resolve() for s in spec["sources"] if s["labels"]}
         require(
             all(
-                not label_paths.intersection(ref["path"] for ref in r["inputs"])
+                not label_paths.intersection(
+                    resolve_ref(batch, ref["path"]).resolve() for ref in r["inputs"]
+                )
                 for r in receipts
                 if r["stage"] != "scoreboard"
             ),

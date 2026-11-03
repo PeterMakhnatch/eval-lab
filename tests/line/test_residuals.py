@@ -207,3 +207,187 @@ def test_old_absolute_receipts_stay_readable_in_place_and_fail_plainly_when_copi
     result = _check(moved, fixture_spec.parent, "provenance")
     assert result["status"] == "FAIL"
     assert "another location" in result["details"]
+
+
+# ---- readings are decided by reason codes, and the current L0 decides eligibility ----------------
+
+
+def test_a_not_eligible_row_carrying_model_details_is_still_no_reading(
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    row = _not_eligible("clean-run")
+    row["stage_decisions"]["autoreview"]["details"].update(model="synthetic/model", attested=True)
+    _cached_spec(fixture_spec, [row, _not_eligible("weak-run")])
+    _soft_l0(monkeypatch, {"clean-run"})
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    decision = next(r for r in read_rows(batch / "decisions.jsonl") if r["run_id"] == "clean-run")
+    assert decision["decision"] == "review" and "AUTOREVIEW_CACHE_MISS" in decision["reasons"]
+    assert read_json(batch / "scoreboard.json")["autoreview"]["cache_misses"] == 1
+
+
+def test_a_stale_reading_never_applies_when_the_current_l0_says_ineligible(
+    fixture_spec: Path,
+) -> None:
+    flagged = _reading("clean-run")
+    flagged["stage_decisions"]["autoreview"].update(
+        decision="review",
+        reasons=["AUTOREVIEW_SUSPICION_80"],
+        details={
+            **flagged["stage_decisions"]["autoreview"]["details"],
+            "suspicion": 80,
+            "verdict": "suspicious",
+        },
+    )
+    _cached_spec(fixture_spec, [flagged, _reading("weak-run")])
+    batch = core.run_line(fixture_spec, fixture_spec.parent)  # real L0: nothing is eligible
+    row = next(r for r in read_rows(batch / "decisions.jsonl") if r["run_id"] == "clean-run")
+    assert row["decision"] == "keep"
+    trace = read_rows(batch / "trace.jsonl")
+    assert all(t["autoreview"]["reasons"] == ["AUTOREVIEW_NOT_ELIGIBLE"] for t in trace)
+    assert all("call" not in t["autoreview"] for t in trace)
+    assert read_json(batch / "receipts" / "trace.json")["models"] == []
+
+
+def test_a_line_export_with_cache_misses_can_be_reused_as_a_cache(
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _cached_spec(fixture_spec, [_not_eligible("clean-run"), _not_eligible("weak-run")])
+    _soft_l0(monkeypatch, {"clean-run"})
+    first = core.run_line(fixture_spec, fixture_spec.parent)
+    spec = read_json(fixture_spec)
+    spec["batch_id"] = "reuse"
+    spec["autoreview"]["cache"] = str(first / "export")
+    write_json(fixture_spec, spec)
+    second = core.run_line(fixture_spec, fixture_spec.parent)
+    assert read_json(second / "scoreboard.json")["autoreview"]["cache_misses"] == 1
+
+
+def test_single_row_label_object_with_a_labels_tag_list_is_a_row(tmp_path: Path) -> None:
+    path = tmp_path / "labels.json"
+    path.write_text('{"id": "run-1", "is_cheat": true, "labels": []}')
+    assert hd.load_labels(path, repo_root=tmp_path) == {"run-1": True}
+
+
+# ---- receipts form a closed set --------------------------------------------------------------
+
+
+def _edit_receipt(batch: Path, stage: str, change: Any) -> None:
+    path = batch / "receipts" / f"{stage}.json"
+    receipt = read_json(path)
+    change(receipt)
+    write_json(path, receipt)
+
+
+def _secret(tmp_path: Path) -> Path:
+    keys = tmp_path / "research" / "answer-keys"
+    keys.mkdir(parents=True)
+    secret = keys / "secret.jsonl"
+    write_rows(secret, [{"secret": "top-secret-answer"}])
+    return secret
+
+
+def test_a_symlink_anywhere_in_a_batch_is_refused(fixture_spec: Path, tmp_path: Path) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    secret = _secret(tmp_path)
+    (batch / "inside_link.jsonl").symlink_to(secret)
+    with pytest.raises(ValueError, match="symlink"):
+        core.check_batch(batch, fixture_spec.parent)
+
+
+def test_a_symlinked_station_snapshot_directory_is_refused(
+    fixture_spec: Path, tmp_path: Path
+) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    outside = tmp_path / "ext_station"
+    shutil.copytree(batch / "evidence" / "station-inputs", outside)
+    shutil.rmtree(batch / "evidence" / "station-inputs")
+    (batch / "evidence" / "station-inputs").symlink_to(outside)
+    with pytest.raises(ValueError, match="symlink"):
+        core.check_batch(batch, fixture_spec.parent)
+
+
+def test_the_cli_check_of_a_symlinked_batch_fails_and_leaves_no_pass(
+    fixture_spec: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab import cli
+
+    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    (batch / "inside_link.jsonl").symlink_to(_secret(tmp_path))
+    assert cli.run_cli(["line", "check", str(batch)], workspace=fixture_spec.parent) == 2
+    assert read_json(batch / "check.json")["passed"] is False
+
+
+def test_an_absolute_receipt_path_to_an_answer_key_is_not_read(
+    fixture_spec: Path, tmp_path: Path
+) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    secret = _secret(tmp_path)
+    ref = {"path": str(secret), "sha256": core.digest(secret), "rows": 1}
+    _edit_receipt(batch, "decisions", lambda r: r["inputs"].append(ref))
+    result = _check(batch, fixture_spec.parent, "provenance")
+    assert result["status"] == "FAIL" and "declared" in result["details"]
+
+
+def test_an_undeclared_outside_input_is_refused_even_if_its_hash_matches(
+    fixture_spec: Path, tmp_path: Path
+) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    stray = tmp_path / "stray.txt"
+    stray.write_text("x")
+    ref = {"path": str(stray), "sha256": core.digest(stray)}
+    _edit_receipt(batch, "export", lambda r: r["inputs"].append(ref))
+    assert _check(batch, fixture_spec.parent, "provenance")["status"] == "FAIL"
+
+
+def test_an_output_outside_the_batch_is_refused(fixture_spec: Path, tmp_path: Path) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    stray = tmp_path / "stray.jsonl"
+    write_rows(stray, [{"a": 1}])
+    ref = {"path": str(stray), "sha256": core.digest(stray), "rows": 1}
+    _edit_receipt(batch, "export", lambda r: r["outputs"].append(ref))
+    result = _check(batch, fixture_spec.parent, "provenance")
+    assert result["status"] == "FAIL" and "not a file of this batch" in result["details"]
+
+
+def test_a_batch_whose_spec_declares_a_forbidden_source_is_refused(
+    fixture_spec: Path, tmp_path: Path
+) -> None:
+    # Declaring an outside input does not admit it: the DEV gate still applies to the spec.
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    spec = read_json(batch / "spec.json")
+    forbidden = tmp_path / "test-split" / "rollouts.jsonl"
+    forbidden.parent.mkdir()
+    shutil.copy(spec["sources"][0]["rollouts"], forbidden)
+    spec["sources"][0]["rollouts"] = str(forbidden)
+    write_json(batch / "spec.json", spec)
+    ref = {"path": str(forbidden), "sha256": core.digest(forbidden)}
+    _edit_receipt(batch, "intake", lambda r: r["inputs"].append(ref))
+    with pytest.raises(ValueError, match="TEST split"):
+        core.check_batch(batch, fixture_spec.parent)
+
+
+def test_label_isolation_compares_canonical_paths(fixture_spec: Path) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    labels = Path(read_json(fixture_spec)["sources"][0]["labels"])
+    spelled = f"{labels.parent}/./{labels.name}"  # same file, different spelling (pathlib hides it)
+    ref = {"path": spelled, "sha256": core.digest(labels)}
+    _edit_receipt(batch, "decisions", lambda r: r["inputs"].append(ref))
+    result = _check(batch, fixture_spec.parent, "label_isolation")
+    assert result["status"] == "FAIL" and "labels entered" in result["details"]
+
+
+def test_scoreboard_row_counting_cannot_leave_the_batch(fixture_spec: Path, tmp_path: Path) -> None:
+    from evallab.line.scoreboard import build_scoreboard
+
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    _secret(tmp_path)
+    escape = "../" * 12 + str(tmp_path / "research" / "answer-keys" / "secret.jsonl").lstrip("/")
+
+    def change(receipt: dict[str, Any]) -> None:
+        receipt["counts"] = {}
+        receipt["inputs"].append({"path": escape})
+
+    _edit_receipt(batch, "decisions", change)
+    with pytest.raises(ValueError, match="leaves its batch"):
+        build_scoreboard(batch, fixture_spec.parent)

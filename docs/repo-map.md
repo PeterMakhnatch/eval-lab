@@ -389,7 +389,7 @@ inputs:
   - path: src/evallab/grid.py
     digest: sha256:f8ac61ab1168834ea73b671484132bebace118d3ad8cb8c5d129b01c6c9948aa
   - path: src/evallab/hack_drop.py
-    digest: sha256:abfc10cf437944ffbed5ae3a88ee21d777753bb0174ae5ebd1fc25e6f59301b5
+    digest: sha256:d2337820961738640f7b61fa1753725e7388cc9c9e50b41cc0778f6c5c68e9c6
   - path: src/evallab/hack_queue.py
     digest: sha256:d259a3c210afb68e35cbbd5128a7571123a2fd12a6ee75dd5487e0f7c90a354c
   - path: src/evallab/hackbook/__init__.py
@@ -627,7 +627,7 @@ inputs:
   - path: src/evallab/line/cli.py
     digest: sha256:78afb981f40c1aa3e3d5eaad4cb880bff0aea8315c97e6e1473641c7535e4460
   - path: src/evallab/line/core.py
-    digest: sha256:c48c3c314fae0a0da425318fda8836e8dcc539a2b172a27b433de665bd28f208
+    digest: sha256:2baed9140641733ccdf828b984dbc98eaa4b502be76ab54f2f8dff4f24be634b
   - path: src/evallab/line/io.py
     digest: sha256:189fbb624c231eb13c867b4aa1dce940330a7b685749703a82ecd215ef4c4ee7
   - path: src/evallab/line/replay.py

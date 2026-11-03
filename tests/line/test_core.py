@@ -72,7 +72,9 @@ def test_scoreboard_tampering_is_detected(fixture_spec: Path) -> None:
     assert next(c for c in checks if c["name"] == "scoreboard_recompute")["status"] == "FAIL"
 
 
-def test_cached_stage_verdicts_and_queue_idempotence(fixture_spec: Path) -> None:
+def test_cached_stage_verdicts_and_queue_idempotence(
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     spec = read_json(fixture_spec)
     cache = fixture_spec.parent / "cache"
     write_rows(
@@ -97,6 +99,8 @@ def test_cached_stage_verdicts_and_queue_idempotence(fixture_spec: Path) -> None
             for run_id in ("clean-run", "weak-run")
         ],
     )
+    soft = hd.StageVerdict("l0", "review", ["L0_SOFT_TARGET_SURFACE_WRITE"], [], {})
+    monkeypatch.setattr(hd, "evaluate_l0_stage", lambda _item: soft)  # eligible for a reading
     spec["autoreview"] = {"mode": "cached", "cache": str(cache), "max_usd": 0}
     spec["models"]["allowed"] = ["synthetic/model"]
     write_json(fixture_spec, spec)

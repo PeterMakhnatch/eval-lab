@@ -9,6 +9,7 @@ from typing import Any
 
 from evallab import hack_drop
 
+from .core import resolve_ref
 from .io import canonical_hash, read_json, read_rows
 
 
@@ -96,11 +97,11 @@ def _receipt_rows(receipt: dict[str, Any], side: str, batch: Path) -> int:
     if count_key in receipt.get("counts", {}):
         return int(receipt["counts"][count_key])
     total = 0
+    root = batch.resolve()
     for item in receipt.get(side, []):
-        path = Path(item["path"])
-        if not path.is_absolute():
-            path = batch / path
-        if path.suffix == ".jsonl":
+        path = resolve_ref(batch, item["path"])  # refuses anything leaving the batch
+        # Only the batch's own rows are ever read here; outside inputs count what they recorded.
+        if root in path.resolve().parents and path.suffix == ".jsonl":
             total += len(read_rows(path))
         elif "rows" in item:
             total += int(item["rows"])

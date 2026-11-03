@@ -84,12 +84,15 @@ output manifest or directory containing `kept.jsonl`, `dropped.jsonl` and
 `review.jsonl` with stored AutoReview stage verdicts. Every run that needs a model reading
 needs a stored one; the line does not fill gaps with a live model call.
 
-A stored verdict that is only "not eligible"/"disabled" (or missing) is not a reading. If
-the current L0 makes a run AutoReview-eligible but the cache holds no actual reading for
-it, the run is never passed silently: it goes to `review` with `AUTOREVIEW_CACHE_MISS`,
-and the scoreboard reports `autoreview.cache_misses`, so a measurement of an L0 change
-cannot hide runs the cache could not judge. A run that needs no reading and has no cache
-row is simply not eligible.
+A stored verdict is a reading only if its reason codes say so: rows whose reasons are
+`AUTOREVIEW_NOT_ELIGIBLE`, `AUTOREVIEW_DISABLED` or `AUTOREVIEW_CACHE_MISS` never are, whatever
+details they carry. The current L0 decides eligibility. If it says a run is ineligible, any
+stored reading is ignored and the run records `AUTOREVIEW_NOT_ELIGIBLE`, so a stale reading
+never applies. If it says the run is eligible but the cache holds no actual reading, the run
+is never passed silently: it goes to `review` with `AUTOREVIEW_CACHE_MISS`, and the
+scoreboard reports `autoreview.cache_misses`, so a measurement of an L0 change cannot hide
+runs the cache could not judge. A line export containing cache misses can be reused as a
+cache; its misses stay misses.
 
 The cache is untrusted input. Only the AutoReview stage-verdict shape is
 accepted: decision, reasons from the AutoReview reason set, cited steps and a
@@ -177,6 +180,14 @@ copy of a batch therefore passes `line check` from its new location, and tamperi
 the copy fails. Batches written before this change recorded absolute paths: they still
 verify in place, but a copy of one fails with a plain "another location" message and
 must be regenerated.
+
+`line check` reads a closed set of files. The line never writes a symlink into a batch, so
+a batch containing any symlink is refused before anything else is read. Every output ref
+must resolve inside the batch, and every input ref outside it must equal an input the spec
+declares (source manifests, labels, task status, cache files) or a rollout listed in
+`runs.jsonl`, and pass the DEV gate. The label-isolation check compares canonical resolved
+paths, so a different spelling of a label file does not evade it, and the scoreboard's row
+counting refuses paths that leave the batch.
 
 ## Eight quality checks
 

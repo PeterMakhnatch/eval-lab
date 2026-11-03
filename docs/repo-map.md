@@ -35,7 +35,7 @@ inputs:
   - path: src/evallab/automation.py
     digest: sha256:9904c4bf1969e119c4bacedbe5b98967f44ccdca82270cbba348567bdb31d178
   - path: src/evallab/autoreview_monitor.py
-    digest: sha256:bb4c66668e5a2f4be20bec387473e298a399fda78a6bd8fb240e095cb3e8ef18
+    digest: sha256:dad490ebbe7339f1b9cff03709a0c1c1f1b54173336502946a55af2ff4a0eb72
   - path: src/evallab/backups.py
     digest: sha256:1a73b6b9a65c10724a0ce5c1bf45539a347ae5a5366ac5eba129d0407b2895a9
   - path: src/evallab/behavior.py
@@ -897,7 +897,7 @@ inputs:
   - path: src/evallab/production/monitor_stop.py
     digest: sha256:9858387ec002c58bf4c3e123fafd40ae6582b553a5a4397385768717e130e87c
   - path: src/evallab/production/monitor_worker.py
-    digest: sha256:d0a374af338e4f520fea0443feae01691428a088ff768e36510278e2e39c5835
+    digest: sha256:0e6b1afb5e47533071d74899def69b8880c63f0bf11dd50b409afc18a4565ad1
   - path: src/evallab/production/outbox_relay.py
     digest: sha256:ab1adc2f16421d334c953e1da45d7c8937426e7bf0918e5a8ecd855c6f20fe1f
   - path: src/evallab/production/public_corpus_loader.py
@@ -1371,7 +1371,7 @@ inputs:
   - path: src/evallab/trial_treatment.py
     digest: sha256:932748bb92147c7a6c240d9e40ad1baae5b028ade560ee69abc8c93a05fc0d5b
   - path: src/evallab/tripwires.py
-    digest: sha256:60f92a80a4525be860f2607f2f0db515656db82b82543db96eea7e0be4ba7be5
+    digest: sha256:7cf82b9b68b48d3c6e1f0ed17764213eaa58ae6625c04aec3b62f5544c455d99
   - path: src/evallab/upstream_adapter.py
     digest: sha256:7ecf5e66b3e99887465bada34fcc09729dbffdc4346f95d79cb793bdd9bb82fb
   - path: src/evallab/upstream_fetch.py

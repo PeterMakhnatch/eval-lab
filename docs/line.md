@@ -132,7 +132,9 @@ exit 2. Read the check details before using any exports.
    `certified`, `provisional`, `weak` and `uncertified`; certification belongs to
    the task-evidence producer, not the line.
 3. **Trace evidence:** reuse hack-drop's deterministic L0 stage and optional
-   cached AutoReview verdicts. The line does not invent a second detector.
+   cached AutoReview verdicts. The line does not invent a second detector. An exception in any
+   detector the L0 stage reads makes the run `L0_PARSE_ERROR` review, never a pass; diagnostic
+   sections no L0 decision reads are not run, so a fault inside one cannot change a decision.
 4. **Decisions:** reuse hack-drop's consolidation precedence: drop wins over
    review, which wins over keep. Persist decisions before loading labels.
 5. **Judge routing:** queue every review and a deterministic sample of keeps.

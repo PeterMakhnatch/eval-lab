@@ -1,5 +1,4 @@
 """Ladder progress table for the ranked mimo-clean-v6 rows (HAR-286).
-
 Joins the v6 unverified ranking (ranks 1-100) with every committed
 ``ladder-*.json`` cell file of schema ``evallab.mimo-v6-ladder-cells/v1`` and
 writes ``ladder-progress.csv``: one row per rank, with the cell's verdict and
@@ -10,6 +9,15 @@ the ``basis`` that verdict rests on, read from the cell's ``verifier_decision``:
 * ``graded`` -- the verifier ran the task's own runner (``rc=...``);
 * ``unscored`` -- neither (no decision recorded);
 * ``none`` -- no committed cell covers the rank (verdict ``none``).
+
+Two trailing columns show the graded-subset evidence for refusal rows: every
+``ladder-*.json`` of schema ``evallab.mimo-v6-ladder-subset-cells/v1`` joins by
+``task_id`` (the subset reader ignores coverage-schema files, and ``read_cells``
+ignores the subset schema). ``subset_verdict`` is the verdict of the
+highest-numbered subset for the task (a repeated subset number: last listed
+wins): ``still-refused``, ``graded-clean``, ``graded-cracked``, ``unscored``,
+or ``none`` when no subset cell covers the task; ``subset_reward`` is that
+subset's reward, empty when none was recorded.
 
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift).
@@ -33,6 +41,7 @@ HERE = Path(__file__).resolve().parent
 RANKING = "research/experiments/mimo-clean-v5-coverage/unverified-ranking.csv"
 CELLS_GLOB = "ladder-*.json"
 CELLS_SCHEMA = "evallab.mimo-v6-ladder-cells/v1"
+SUBSET_CELLS_SCHEMA = "evallab.mimo-v6-ladder-subset-cells/v1"
 OUTPUT_NAME = "ladder-progress.csv"
 FIRST_RANK = 1
 LAST_RANK = 100
@@ -47,6 +56,8 @@ COLUMNS = (
     "basis",
     "wall_seconds",
     "source_file",
+    "subset_verdict",
+    "subset_reward",
 )
 
 TAMPER_SIGNATURE = "tamper signature"
@@ -99,13 +110,41 @@ def _newest_cell(cells: Sequence[dict[str, Any]]) -> dict[str, Any]:
     return max(cells, key=lambda cell: (str(cell.get("finished_utc") or ""), cell["_source_file"]))
 
 
+def read_subset_cells(cells_dir: Path, root: Path = ROOT) -> list[dict[str, Any]]:
+    """Flatten ``tasks[].subsets[]`` of every subset-schema ``ladder-*.json``, by task."""
+    subsets: list[dict[str, Any]] = []
+    for path in sorted(cells_dir.glob(CELLS_GLOB)):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or data.get("schema") != SUBSET_CELLS_SCHEMA:
+            continue
+        source = path.relative_to(root).as_posix()
+        for task in data.get("tasks", []):
+            for subset in task.get("subsets", []):
+                subsets.append({**subset, "task_id": task["task_id"], "_source_file": source})
+    return subsets
+
+
+def _newest_subset(subsets: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """The highest-numbered subset supersedes earlier ones; a repeated number: last listed wins."""
+    newest = subsets[0]
+    for subset in subsets[1:]:
+        if int(subset["subset"]) >= int(newest["subset"]):
+            newest = subset
+    return newest
+
+
 def assemble(
-    ranking: Sequence[dict[str, str]], cells: Sequence[dict[str, Any]]
+    ranking: Sequence[dict[str, str]],
+    cells: Sequence[dict[str, Any]],
+    subsets: Sequence[dict[str, Any]] = (),
 ) -> list[dict[str, str]]:
     """One row per ranked task; rows without a cell read ``verdict=none``."""
     by_rank: dict[int, list[dict[str, Any]]] = {}
     for cell in cells:
         by_rank.setdefault(int(cell["ranking"]["rank"]), []).append(cell)
+    by_task: dict[str, list[dict[str, Any]]] = {}
+    for subset in subsets:
+        by_task.setdefault(str(subset["task_id"]), []).append(subset)
     known = {int(row["rank"]) for row in ranking}
     stray = sorted(rank for rank in by_rank if rank not in known and rank <= LAST_RANK)
     if stray:
@@ -123,6 +162,8 @@ def assemble(
             "basis": "none",
             "wall_seconds": "",
             "source_file": "",
+            "subset_verdict": "none",
+            "subset_reward": "",
         }
         if rank in by_rank:
             cell = _newest_cell(by_rank[rank])
@@ -137,12 +178,21 @@ def assemble(
                 wall_seconds=str(cell["wall_seconds"]),
                 source_file=cell["_source_file"],
             )
+        if ranked["task_id"] in by_task:
+            subset = _newest_subset(by_task[ranked["task_id"]])
+            reward = subset.get("reward")
+            row.update(
+                subset_verdict=str(subset["verdict"]),
+                subset_reward="" if reward is None else str(reward),
+            )
         rows.append(row)
     return rows
 
 
 def build(root: Path = ROOT, *, cells_dir: Path) -> list[dict[str, str]]:
-    return assemble(read_ranking(root), read_cells(cells_dir, root))
+    return assemble(
+        read_ranking(root), read_cells(cells_dir, root), read_subset_cells(cells_dir, root)
+    )
 
 
 def render(rows: Sequence[dict[str, str]]) -> str:

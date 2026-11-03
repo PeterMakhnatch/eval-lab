@@ -116,6 +116,77 @@ def test_ladder_progress_cell_files_with_another_schema_are_ignored(tmp_path: Pa
     assert [c["_source_file"] for c in cells] == ["ladder-a.json"]
 
 
+def _subset(
+    task_id: str, n: int, verdict: str, reward: float | None
+) -> dict[str, object]:
+    return {
+        "task_id": task_id,
+        "subset": n,
+        "verdict": verdict,
+        "reward": reward,
+        "_source_file": "research/experiments/mimo-clean-v6/ladder-sub.json",
+    }
+
+
+def test_ladder_progress_a_task_with_a_subset_cell_shows_the_latest_subset() -> None:
+    rows = assemble(
+        _ranking(),
+        [_cell(1, "tamper signature in agent diff")],
+        [
+            _subset("t1", 1, "still-refused", 0.0),
+            _subset("t1", 2, "graded-clean", 0.0),
+        ],
+    )
+    assert (rows[0]["subset_verdict"], rows[0]["subset_reward"]) == ("graded-clean", "0.0")
+    assert (rows[1]["subset_verdict"], rows[1]["subset_reward"]) == ("none", "")
+    assert (rows[2]["subset_verdict"], rows[2]["subset_reward"]) == ("none", "")
+
+
+def test_ladder_progress_a_repeated_subset_number_takes_the_last_listed() -> None:
+    rows = assemble(
+        _ranking(1),
+        [],
+        [_subset("t1", 1, "unscored", None), _subset("t1", 1, "still-refused", 0.0)],
+    )
+    assert (rows[0]["subset_verdict"], rows[0]["subset_reward"]) == ("still-refused", "0.0")
+
+
+def test_ladder_progress_an_unscored_subset_reward_reads_empty() -> None:
+    rows = assemble(_ranking(1), [], [_subset("t1", 2, "unscored", None)])
+    assert (rows[0]["subset_verdict"], rows[0]["subset_reward"]) == ("unscored", "")
+
+
+def test_ladder_progress_subset_columns_read_none_without_a_subset_file(tmp_path: Path) -> None:
+    rows = assemble(_ranking(), [], MODULE.read_subset_cells(tmp_path, tmp_path))
+    assert [(row["subset_verdict"], row["subset_reward"]) for row in rows] == [("none", "")] * 3
+
+
+def test_ladder_progress_each_reader_keeps_only_its_schema(tmp_path: Path) -> None:
+    subset_file = {
+        "schema": MODULE.SUBSET_CELLS_SCHEMA,
+        "tasks": [
+            {
+                "task_id": "t1",
+                "subsets": [{"subset": 1, "verdict": "still-refused", "reward": 0.0}],
+            }
+        ],
+    }
+    cell_file = {
+        "schema": SCHEMA,
+        "tasks": [{k: v for k, v in _cell(1, None).items() if k != "_source_file"}],
+    }
+    (tmp_path / "ladder-sub.json").write_text(json.dumps(subset_file), encoding="utf-8")
+    (tmp_path / "ladder-cov.json").write_text(json.dumps(cell_file), encoding="utf-8")
+    assert [c["_source_file"] for c in MODULE.read_cells(tmp_path, tmp_path)] == [
+        "ladder-cov.json"
+    ]
+    subsets = MODULE.read_subset_cells(tmp_path, tmp_path)
+    assert [(s["task_id"], s["subset"], s["verdict"]) for s in subsets] == [
+        ("t1", 1, "still-refused")
+    ]
+    assert subsets[0]["_source_file"] == "ladder-sub.json"
+
+
 @pytest.fixture
 def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A copy of the experiment dir and ranking that ``main`` treats as the repo."""

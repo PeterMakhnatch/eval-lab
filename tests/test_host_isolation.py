@@ -14,6 +14,7 @@ from evallab.host_isolation import (
     blocked_addresses,
     controller_addresses,
     desktop_dns_addresses,
+    nft_objects,
     nft_rules,
 )
 
@@ -294,3 +295,136 @@ def test_controller_inventory_probe_failure_propagates_without_fallback(monkeypa
     monkeypatch.setattr(subprocess, "run", run)
     with pytest.raises(subprocess.CalledProcessError):
         controller_addresses()
+
+
+_TABLE = {"family": "inet", "name": "evallab_host_isolation"}
+_CHAIN = {
+    "family": "inet",
+    "table": "evallab_host_isolation",
+    "name": "output",
+    "type": "filter",
+    "hook": "output",
+    "prio": -200,
+    "policy": "accept",
+}
+_RULE = {
+    "family": "inet",
+    "table": "evallab_host_isolation",
+    "chain": "output",
+    "expr": [{"drop": None}],
+}
+
+
+def _nft_document(rule_count: int = 2, *, wrap: bool = False) -> dict:
+    items = [
+        {"metainfo": {"version": "1.0.9"}},
+        {"table": dict(_TABLE)},
+        {"chain": dict(_CHAIN)},
+        *({"rule": dict(_RULE)} for _ in range(rule_count)),
+    ]
+    if wrap:
+        items = [item if "metainfo" in item else {"add": item} for item in items]
+    return {"nftables": items}
+
+
+def _mutated(kind: str, **changes: object) -> dict:
+    document = _nft_document()
+    for item in document["nftables"]:
+        if kind in item:
+            item[kind].update(changes)
+    return document
+
+
+def test_nft_objects_accepts_kernel_listing_skipping_metainfo() -> None:
+    objects = nft_objects(_nft_document(), 2)
+
+    assert [next(iter(item)) for item in objects] == ["table", "chain", "rule", "rule"]
+
+
+def test_nft_objects_accepts_installer_echo_add_wrappers() -> None:
+    assert nft_objects(_nft_document(wrap=True), 2) == nft_objects(_nft_document(), 2)
+
+
+def test_nft_objects_refuses_document_without_table_and_chain() -> None:
+    with pytest.raises(ValueError, match="incomplete or unrelated"):
+        nft_objects({}, 0)
+
+
+def _two_tables() -> dict:
+    document = _nft_document()
+    document["nftables"].append({"table": {"family": "inet", "name": "other"}})
+    return document
+
+
+def _two_chains() -> dict:
+    document = _nft_document()
+    document["nftables"].append({"chain": dict(_CHAIN, name="forward")})
+    return document
+
+
+def _rule_without_expr() -> dict:
+    document = _nft_document()
+    del document["nftables"][-1]["rule"]["expr"]
+    return document
+
+
+def _rule_with_empty_expr() -> dict:
+    document = _nft_document()
+    document["nftables"][-1]["rule"]["expr"] = []
+    return document
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        pytest.param(_two_tables(), id="two-tables"),
+        pytest.param(
+            {"nftables": [{"chain": dict(_CHAIN)}, {"rule": dict(_RULE)}, {"rule": dict(_RULE)}]},
+            id="no-table",
+        ),
+        pytest.param(_mutated("table", family="ip"), id="table-family"),
+        pytest.param(_mutated("table", name="other"), id="table-name"),
+        pytest.param(_two_chains(), id="two-chains"),
+        pytest.param(_mutated("chain", family="ip"), id="chain-family"),
+        pytest.param(_mutated("chain", table="other"), id="chain-table"),
+        pytest.param(_mutated("chain", name="input"), id="chain-name"),
+        pytest.param(_mutated("chain", hook="input"), id="chain-hook"),
+        pytest.param(_mutated("chain", prio=0), id="chain-prio"),
+        pytest.param(_mutated("chain", type="nat"), id="chain-type"),
+        pytest.param(_mutated("chain", policy="drop"), id="chain-policy"),
+        pytest.param(_nft_document(1), id="too-few-rules"),
+        pytest.param(_nft_document(3), id="too-many-rules"),
+        pytest.param(_rule_without_expr(), id="rule-without-expr"),
+        pytest.param(_rule_with_empty_expr(), id="rule-empty-expr"),
+    ],
+)
+def test_nft_objects_refuses_incomplete_or_unrelated_listing(document: dict) -> None:
+    with pytest.raises(ValueError, match="incomplete or unrelated"):
+        nft_objects(document, 2)
+
+
+@pytest.mark.parametrize("field", ["family", "table", "chain"])
+def test_nft_objects_refuses_rule_in_foreign_table_family_or_chain(field: str) -> None:
+    document = _nft_document()
+    document["nftables"][-1]["rule"][field] = "other"
+
+    with pytest.raises(ValueError, match="incomplete or unrelated"):
+        nft_objects(document, 2)
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        {"set": {"name": "x"}},
+        {"table": dict(_TABLE), "chain": dict(_CHAIN)},
+        {"add": {"set": {"name": "x"}}},
+        {},
+    ],
+    ids=["unknown-kind", "mixed-kinds", "wrapped-unknown-kind", "empty-object"],
+)
+def test_nft_objects_refuses_unexpected_object_kind(item: dict) -> None:
+    document = _nft_document()
+    document["nftables"].append(item)
+
+    with pytest.raises(ValueError, match="unexpected nft object"):
+        nft_objects(document, 2)

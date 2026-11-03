@@ -3,6 +3,8 @@
 These tests prove that the staging adapter preserves the canonical task package
 and only changes ``network_mode`` entries to match the host's capabilities.
 """
+
+import platform
 import re
 import tomllib
 
@@ -11,8 +13,11 @@ import pytest
 from evallab.harbor_network import (
     HarborNetworkPolicy,
     NetworkAdaptation,
+    _replace_in_section,
     _set_network_sentinel,
     adapt_task_toml_for_host,
+    host_harbor_network_policy,
+    with_agent_network_allowlist,
 )
 
 
@@ -232,3 +237,215 @@ def test_darwin_adapts_verifier_phase_override(
         re.MULTILINE | re.DOTALL,
     )
     _assert_non_network_fields_unchanged(canonical, new_text)
+
+
+@pytest.mark.parametrize(
+    ("system", "mode", "enforced", "reason"),
+    [
+        ("Linux", "no-network", True, None),
+        ("Darwin", "public", False, "darwin-docker-cannot-enforce-no-network"),
+        ("FreeBSD", "public", False, "freebsd-docker-cannot-enforce-no-network"),
+        ("", "public", False, "-docker-cannot-enforce-no-network"),
+    ],
+)
+def test_host_policy_is_derived_from_platform_and_fails_open_only_with_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    system: str,
+    mode: str,
+    enforced: bool,
+    reason: str | None,
+) -> None:
+    monkeypatch.setattr(platform, "system", lambda: system)
+
+    assert host_harbor_network_policy() == HarborNetworkPolicy(mode, enforced, reason)
+
+
+_AGENT_BASE = '[task]\nname = "x"\n\n[agent]\ntimeout_sec = 1.0\n\n[environment]\nos = "linux"\n'
+
+
+def test_allowlist_empty_hosts_returns_input_unchanged() -> None:
+    assert with_agent_network_allowlist(_AGENT_BASE, ()) is _AGENT_BASE
+
+
+def test_allowlist_inserts_policy_under_agent_header() -> None:
+    updated = with_agent_network_allowlist(_AGENT_BASE, ("api.example.com", "b-1.test"))
+
+    agent = tomllib.loads(updated)["agent"]
+    assert agent["network_mode"] == "allowlist"
+    assert agent["allowed_hosts"] == ["api.example.com", "b-1.test"]
+    assert agent["timeout_sec"] == 1.0
+    assert tomllib.loads(updated)["environment"] == {"os": "linux"}
+
+
+@pytest.mark.parametrize(
+    "host", ["bad host", "evil.com;rm", "a/b", "ü.example", "", "host:443", "*.example.com"]
+)
+def test_allowlist_refuses_invalid_hostname(host: str) -> None:
+    with pytest.raises(ValueError, match="invalid hostname"):
+        with_agent_network_allowlist(_AGENT_BASE, ("ok.example.com", host))
+
+
+@pytest.mark.parametrize("text", ['[task]\nname = "x"\n', 'agent = "scalar"\n'])
+def test_allowlist_refuses_missing_agent_table(text: str) -> None:
+    with pytest.raises(ValueError, match=r"\[agent\] not found"):
+        with_agent_network_allowlist(text, ("a.example.com",))
+
+
+def test_allowlist_refuses_agent_table_without_own_header() -> None:
+    """An inline-table agent parses as a table but has no ``[agent]`` header to extend."""
+    with pytest.raises(ValueError, match=r"\[agent\] not found"):
+        with_agent_network_allowlist("agent = { timeout_sec = 1.0 }\n", ("a.example.com",))
+
+
+def test_allowlist_identical_existing_policy_is_returned_unchanged() -> None:
+    declared = _AGENT_BASE.replace(
+        "[agent]\n", '[agent]\nnetwork_mode = "allowlist"\nallowed_hosts = ["a.example.com"]\n'
+    )
+
+    assert with_agent_network_allowlist(declared, ("a.example.com",)) is declared
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        'network_mode = "public"\n',
+        'network_mode = "allowlist"\n',
+        'allowed_hosts = ["a.example.com"]\n',
+        'network_mode = "allowlist"\nallowed_hosts = ["other.example.com"]\n',
+        'network_mode = "no-network"\nallowed_hosts = ["a.example.com"]\n',
+    ],
+)
+def test_allowlist_refuses_conflicting_existing_policy(extra: str) -> None:
+    declared = _AGENT_BASE.replace("[agent]\n", "[agent]\n" + extra)
+
+    with pytest.raises(ValueError, match="different agent network policy"):
+        with_agent_network_allowlist(declared, ("a.example.com",))
+
+
+def test_allowlist_handles_agent_header_at_end_of_file() -> None:
+    updated = with_agent_network_allowlist("[agent]", ("a.example.com",))
+
+    assert tomllib.loads(updated) == {
+        "agent": {"network_mode": "allowlist", "allowed_hosts": ["a.example.com"]}
+    }
+
+
+def _loads_with_override(monkeypatch: pytest.MonkeyPatch, override: object) -> None:
+    """Return ``override`` from the second ``tomllib.loads`` (the post-insertion parse)."""
+    real = tomllib.loads
+    calls = []
+
+    def loads(text: str) -> object:
+        calls.append(text)
+        return real(text) if len(calls) == 1 else override
+
+    monkeypatch.setattr("evallab.harbor_network.tomllib.loads", loads)
+
+
+@pytest.mark.parametrize(
+    ("override", "message"),
+    [
+        ({"agent": "scalar"}, "did not parse"),
+        ({"agent": {"allowed_hosts": ["a.example.com"]}}, "network_mode was not set"),
+        (
+            {"agent": {"network_mode": "allowlist", "allowed_hosts": []}},
+            "allowed_hosts was not set",
+        ),
+    ],
+)
+def test_allowlist_refuses_when_inserted_policy_does_not_round_trip(
+    monkeypatch: pytest.MonkeyPatch, override: dict, message: str
+) -> None:
+    _loads_with_override(monkeypatch, override)
+
+    with pytest.raises(ValueError, match=message):
+        with_agent_network_allowlist(_AGENT_BASE, ("a.example.com",))
+
+
+def test_replace_in_section_replaces_only_requested_section_key() -> None:
+    text = '[a]\nk = "old"  # c\n[b]\nk = "other"\n'
+
+    assert _replace_in_section(text, "a", "k", "new") == '[a]\nk = "new"  # c\n[b]\nk = "other"\n'
+
+
+def test_replace_in_section_refuses_missing_section() -> None:
+    with pytest.raises(ValueError, match=r"\[missing\] not found"):
+        _replace_in_section('[a]\nk = "v"\n', "missing", "k", "new")
+
+
+def test_replace_in_section_refuses_ambiguous_key() -> None:
+    with pytest.raises(ValueError, match="ambiguous 'k'"):
+        _replace_in_section('[a]\nk = "1"\nk = "2"\n', "a", "k", "new")
+
+
+@pytest.mark.parametrize("body", ['other = "v"\n', "k = 3\n", ""])
+def test_replace_in_section_refuses_missing_or_unquoted_key(body: str) -> None:
+    with pytest.raises(ValueError, match="'k' not found in"):
+        _replace_in_section(f'[a]\n{body}[b]\nk = "v"\n', "a", "k", "new")
+
+
+_DARWIN = HarborNetworkPolicy("public", False, "darwin-docker-cannot-enforce-no-network")
+
+
+def test_adapt_refuses_when_rewrite_changes_non_network_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real = _replace_in_section
+
+    def tampering(text: str, section: str, key: str, value: str) -> str:
+        return real(text, section, key, value).replace('os = "linux"', 'os = "windows"')
+
+    monkeypatch.setattr("evallab.harbor_network._replace_in_section", tampering)
+
+    with pytest.raises(ValueError, match="changed non-network parsed fields"):
+        adapt_task_toml_for_host(_SEQGEN_CANONICAL, host_policy=_DARWIN)
+
+
+_NO_NETWORK_EVERYWHERE = _SEQGEN_CANONICAL.replace(
+    '[environment]\n# Docker Desktop on macOS cannot enforce Harbor\'s no-network policy.\nnetwork_mode = "public"',
+    '[environment]\nnetwork_mode = "no-network"',
+).replace(
+    '[verifier]\ntimeout_sec = 60.0\nenvironment_mode = "separate"\ncollect = []',
+    '[verifier]\ntimeout_sec = 60.0\nenvironment_mode = "separate"\nnetwork_mode = "no-network"\ncollect = []',
+)
+
+
+def _skip_rewrite_of(monkeypatch: pytest.MonkeyPatch, skipped_section: str) -> None:
+    """Make ``_replace_in_section`` a no-op for one section; others are rewritten."""
+    real = _replace_in_section
+
+    def replace(text: str, section: str, key: str, value: str) -> str:
+        if section == skipped_section:
+            return text
+        return real(text, section, key, value)
+
+    monkeypatch.setattr("evallab.harbor_network._replace_in_section", replace)
+
+
+@pytest.mark.parametrize(
+    ("section", "message"),
+    [
+        ("environment", r"environment\.network_mode not set"),
+        ("verifier.environment", r"verifier\.environment\.network_mode not set"),
+        ("verifier", r"verifier\.network_mode not set"),
+    ],
+)
+def test_adapt_refuses_when_effective_value_did_not_land(
+    monkeypatch: pytest.MonkeyPatch, section: str, message: str
+) -> None:
+    assert _NO_NETWORK_EVERYWHERE.count("no-network") == 3
+    _skip_rewrite_of(monkeypatch, section)
+
+    with pytest.raises(ValueError, match=message):
+        adapt_task_toml_for_host(_NO_NETWORK_EVERYWHERE, host_policy=_DARWIN)
+
+
+def test_adapt_full_rewrite_lands_all_three_values() -> None:
+    new_text, adaptation = adapt_task_toml_for_host(_NO_NETWORK_EVERYWHERE, host_policy=_DARWIN)
+
+    config = tomllib.loads(new_text)
+    assert config["environment"]["network_mode"] == "public"
+    assert config["verifier"]["environment"]["network_mode"] == "public"
+    assert config["verifier"]["network_mode"] == "public"
+    assert adaptation is not None
+    assert adaptation.network_isolation_enforced is False

@@ -75,7 +75,7 @@ inputs:
   - path: docs/harbor-view.md
     digest: sha256:cba8fe1c0e3885ac2bbaf365529c79c9e0370ca76cea90e66245e1601fb70f07
   - path: docs/independent-review.md
-    digest: sha256:6f2af42e583a2949e70dbca22033159d3aee75b48d1ffd799642ce6502feb429
+    digest: sha256:33204a8119c8f234545385d6b5b4530f713365a034b6ea6f68f169e4c3ee715d
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/judge-guide.md
@@ -219,7 +219,6 @@ an operator can see what is archived.
 | `docs/features.md` | Trial features: one row per trial | `living` | `analyst, builder` |
 | `docs/flight-recorder.md` | Flight recorder prototype | `living` | `builder, analyst, operator` |
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
-| `docs/independent-review.md` | Independent PR review | `living` | `builder, operator` |
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
@@ -401,7 +400,7 @@ an operator can see what is archived.
 | `docs/hack-drop.md` | evallab hack-drop | `living` | `runner, operator` |
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
 | `docs/harbor-view.md` | Harbor viewer as the results surface (HAR-170) | `living` | `operator, analyst` |
-| `docs/independent-review.md` | Independent PR review | `living` | `builder, operator` |
+| `docs/independent-review.md` | Independent PR review | `living` | `operator` |
 | `docs/judge-guide.md` | How to judge a run | `living` | `operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |

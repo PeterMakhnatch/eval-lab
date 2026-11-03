@@ -1,7 +1,6 @@
 ---
 status: living
 audience:
-  - builder
   - operator
 ---
 

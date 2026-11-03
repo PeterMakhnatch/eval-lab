@@ -1642,6 +1642,42 @@ def test_unbindable_trial_does_not_break_trial_setup() -> None:
     assert len(job._trial_queue.trials) == 1  # the original setup still ran
 
 
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "OPEN SOURCE DEFECT: when _bind_trial raises (no hook registry or no lifecycle "
+        "hooks) on_job_start swallows it and nothing records the trial, so it gets no "
+        "coverage record although the module docstring promises every trial at least one, "
+        "`unavailable` when setup fails. The fix is a src change outside this tests-only "
+        "card; strict xfail so the suite fails the moment the record appears."
+    ),
+)
+def test_unbindable_trial_with_capture_enabled_records_unavailable(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setenv("EVALLAB_FILE_ACCESS", "1")
+    monkeypatch.delenv("EVALLAB_FILE_ACCESS_PATHS", raising=False)
+    monkeypatch.delenv("EVALLAB_FILE_ACCESS_DISCOVERY", raising=False)
+
+    async def main() -> None:
+        plugin = FileAccessPlugin()
+        job = FakeJob()
+        await plugin.on_job_start(job)
+        trial = FakeTrial(TRIAL_NAME, FakeEnv())
+        trial.config.trials_dir = tmp_path
+        trial._hooks = {}  # nothing to bind to
+        job._trial_queue._setup_hooks(trial)
+        await plugin.on_job_end(None)
+
+    asyncio.run(main())
+    log = tmp_path / TRIAL_NAME / "agent" / "file-access.jsonl"
+    assert log.exists(), "an unbindable trial got no coverage record at all"
+    records = _log_lines(tmp_path)
+    assert records[-1]["kind"] == "coverage"
+    assert records[-1]["state"] == "unavailable"
+
+
 class CallbackJob:
     """A job exposing only job-level hook registration (no trial-queue seam)."""
 

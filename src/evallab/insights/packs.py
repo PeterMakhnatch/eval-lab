@@ -672,6 +672,7 @@ def build_pass_dir(
     prompt = (brief + "\n\nRead pack.md first, then schema.json. Use ./q for evidence.\n"
               f"Write exactly one output file: out/{output_file.name}.\n"
               "Do not change source files, the ledger, or this pass's inputs.\n"
+              "Keep scratch files under work/ in this pass directory, never in /tmp.\n"
               + scope_prompt(allowed_read_roots or [path])
               + "Run ./q validate until it prints OK, then stop.\n")
     prompt_file = path / "prompt.md"

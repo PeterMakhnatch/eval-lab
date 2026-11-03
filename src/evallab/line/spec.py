@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from evallab.hack_drop import check_dev_path_allowed
-from evallab.line.io import read_json
+from evallab.line.io import file_keys, read_json
 
 
 def load_spec(path: Path) -> dict[str, Any]:
@@ -122,4 +122,33 @@ def load_spec(path: Path) -> dict[str, Any]:
     if policy not in ("exclude", "cheat", "clean"):
         raise ValueError("labels_policy.attempted_cheat must be exclude, cheat or clean")
     spec["out_root"] = absolute(spec.get("out_root", "~/Developer/eval-lab-results/line"))
+    _refuse_shared_files(spec)
     return spec
+
+
+def _refuse_shared_files(spec: dict[str, Any]) -> None:
+    """No two declared inputs of different kinds may be one file (hard link, case variant).
+
+    A labels file that is also the task-status file, a manifest or a cache would feed answers to
+    a decision stage. Repeating one file within a kind (a labels file shared by two sources) is
+    fine.
+    """
+    from evallab.production.judge_station import STATE_DIR
+
+    kinds: dict[str, list[str]] = {
+        "rollouts": [s["rollouts"] for s in spec["sources"]],
+        "labels": [s["labels"] for s in spec["sources"] if s["labels"]],
+        "task_status": [spec["task_status"]] if spec["task_status"] else [],
+        "cache": [spec["autoreview"]["cache"]] if spec["autoreview"].get("cache") else [],
+        "judge queue": [spec["judge"]["queue"]],
+        "judge verdicts": [spec["judge"].get("verdicts") or str(STATE_DIR / "verdicts.jsonl")],
+    }
+    keyed = [
+        (kind, path, file_keys([Path(path)])) for kind, paths in kinds.items() for path in paths
+    ]
+    for index, (kind, path, keys) in enumerate(keyed):
+        for other_kind, other, other_keys in keyed[index + 1 :]:
+            if kind != other_kind and keys & other_keys:
+                raise ValueError(
+                    f"declared inputs are the same file: {kind} {path} and {other_kind} {other}"
+                )

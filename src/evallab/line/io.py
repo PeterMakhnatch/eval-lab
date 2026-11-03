@@ -2,12 +2,35 @@
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import hashlib
 import json
 import os
 import stat
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
+
+from evallab.hack_drop import strict_json_loads
+
+_READS: contextvars.ContextVar[dict[str, set[str]] | None] = contextvars.ContextVar(
+    "line_reads", default=None
+)
+
+
+@contextlib.contextmanager
+def record_reads() -> Iterator[dict[str, set[str]]]:
+    """Record the SHA-256 of every byte string :func:`read_bytes` returns, by path.
+
+    A path that yields two different hashes inside one scope changed while it was being used.
+    """
+    reads: dict[str, set[str]] = {}
+    token = _READS.set(reads)
+    try:
+        yield reads
+    finally:
+        _READS.reset(token)
 
 
 def read_bytes(path: Path, *, single_link: bool = False) -> bytes:
@@ -25,13 +48,17 @@ def read_bytes(path: Path, *, single_link: bool = False) -> bytes:
         if single_link and info.st_nlink > 1:
             raise ValueError(f"file has other hard links: {path}")
         with os.fdopen(fd, "rb", closefd=False) as handle:
-            return handle.read()
+            data = handle.read()
     finally:
         os.close(fd)
+    reads = _READS.get()
+    if reads is not None:
+        reads.setdefault(str(path), set()).add(hashlib.sha256(data).hexdigest())
+    return data
 
 
 def parse_json(data: bytes, label: object) -> dict[str, Any]:
-    value = json.loads(data.decode("utf-8"))
+    value = strict_json_loads(data.decode("utf-8"))
     if not isinstance(value, dict):
         raise ValueError(f"expected a JSON object: {label}")
     return value
@@ -41,7 +68,7 @@ def parse_rows(data: bytes, label: object) -> list[dict[str, Any]]:
     rows = []
     for number, line in enumerate(data.decode("utf-8").splitlines(), 1):
         if line.strip():
-            row = json.loads(line)
+            row = strict_json_loads(line)
             if not isinstance(row, dict):
                 raise ValueError(f"expected an object: {label}:{number}")
             rows.append(row)
@@ -97,3 +124,52 @@ def digest(path: Path) -> str:
             ]
         )
     raise FileNotFoundError(path)
+
+
+def strict_digest(path: Path) -> str:
+    """Hash a file, or a rollout tree, refusing links and special files anywhere in it.
+
+    A symlink (to a file or a directory) or a FIFO/socket/device inside a tree is refused rather
+    than followed, and every file is read through :func:`read_bytes`. Hard links are allowed:
+    native Harbor trials legitimately share files. A directory hashes exactly as
+    :func:`digest` does, so existing recorded hashes stay valid.
+    """
+    top = os.lstat(path).st_mode
+    if stat.S_ISLNK(top):
+        raise ValueError(f"refusing a symlink: {path}")
+    if stat.S_ISREG(top):
+        return hashlib.sha256(read_bytes(path)).hexdigest()
+    if not stat.S_ISDIR(top):
+        raise ValueError(f"refusing a special file: {path}")
+    files: list[Path] = []
+    for directory, directories, names in os.walk(path, followlinks=False):
+        for name in [*directories, *names]:
+            child = Path(directory) / name
+            mode = os.lstat(child).st_mode
+            if stat.S_ISLNK(mode):
+                raise ValueError(f"refusing a symlink inside a rollout tree: {child}")
+            if stat.S_ISREG(mode):
+                files.append(child)
+            elif not stat.S_ISDIR(mode):
+                raise ValueError(f"refusing a special file inside a rollout tree: {child}")
+    return canonical_hash(
+        [
+            (p.relative_to(path).as_posix(), hashlib.sha256(read_bytes(p)).hexdigest())
+            for p in sorted(files)
+        ]
+    )
+
+
+def file_keys(paths: Iterable[Path]) -> set[tuple[Any, ...]]:
+    """Identities of files for set comparison: (device, inode) and the casefolded real path.
+
+    A resolved path string alone can be fooled by hard links and by case variants on a
+    case-insensitive volume; either identity matching is enough to call two names one file.
+    """
+    keys: set[tuple[Any, ...]] = set()
+    for path in paths:
+        keys.add(("path", str(path.resolve()).casefold()))
+        with contextlib.suppress(OSError):
+            info = path.stat()
+            keys.add(("id", info.st_dev, info.st_ino))
+    return keys

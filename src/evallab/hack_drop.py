@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import base64
 import contextlib
+import contextvars
 import csv
 import fnmatch
 import hashlib
@@ -29,7 +30,7 @@ import re
 import shlex
 import shutil
 import sys
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -174,6 +175,62 @@ def wilson_interval(k: int, n: int, z: float = 1.959964) -> tuple[float | None, 
     centre = (p + z * z / (2 * n)) / denom
     half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
     return (round(max(0.0, centre - half), 4), round(min(1.0, centre + half), 4))
+
+
+_DECLARED_READER: contextvars.ContextVar[Callable[[Path], str] | None] = contextvars.ContextVar(
+    "declared_reader", default=None
+)
+
+
+@contextlib.contextmanager
+def declared_reader(reader: Callable[[Path], str]) -> Iterator[None]:
+    """Route the reads of declared inputs (manifests, labels, task status) through ``reader``.
+
+    The assembly line uses this so one no-follow, fstat-checked read both hashes and parses
+    each declared file; without it the loaders read the path themselves.
+    """
+    token = _DECLARED_READER.set(reader)
+    try:
+        yield
+    finally:
+        _DECLARED_READER.reset(token)
+
+
+def read_declared_text(path: Path) -> str:
+    reader = _DECLARED_READER.get()
+    return reader(path) if reader is not None else path.read_text(encoding="utf-8")
+
+
+class DuplicateKeyError(ValueError):
+    """A JSON object repeated a key: which value counts is ambiguous, so the file is refused."""
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    seen: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in seen:
+            raise DuplicateKeyError(f"duplicate JSON key: {key!r}")
+        seen[key] = value
+    return seen
+
+
+def strict_json_loads(text: str | bytes) -> Any:
+    """``json.loads`` that refuses an object with a repeated key."""
+    return json.loads(text, object_pairs_hook=_reject_duplicate_keys)
+
+
+def _refuse_non_dev_split(document: Mapping[str, Any], what: str) -> None:
+    """Refuse any declared split that is not exactly ``dev``, at the top level and in metadata.
+
+    Both places are checked independently: a harmless-looking value in one never masks the
+    other, and a non-string declaration (a list, a number) is refused rather than ignored.
+    """
+    metadata = document.get("metadata")
+    for split in (document.get("split"), metadata.get("split") if isinstance(metadata, Mapping) else None):
+        if split is None:
+            continue
+        if not isinstance(split, str) or split.strip().casefold() != "dev":
+            raise RefusedRun(f"{what} declares a non-DEV split: {split!r}")
 
 
 def check_dev_path_allowed(path: Path | str) -> Path:
@@ -633,11 +690,11 @@ def load_certified_tasks(path: Path | str) -> dict[str, dict[str, str]]:
     if not resolved.is_file():
         raise FileNotFoundError(f"certified tasks file not found: {path}")
 
-    text = resolved.read_text(encoding="utf-8")
+    text = read_declared_text(resolved)
     mapping: dict[str, dict[str, str]] = {}
 
     try:
-        data = json.loads(text)
+        data = strict_json_loads(text)
         if isinstance(data, dict):
             if "tasks" in data and isinstance(data["tasks"], list):
                 for entry in data["tasks"]:
@@ -670,7 +727,7 @@ def load_certified_tasks(path: Path | str) -> dict[str, dict[str, str]]:
             line = line.strip()
             if not line:
                 continue
-            entry = json.loads(line)
+            entry = strict_json_loads(line)
             if isinstance(entry, dict) and "task_id" in entry:
                 t_id = str(entry["task_id"])
                 mapping[t_id] = {
@@ -714,9 +771,7 @@ def _parse_label_bool(val: Any, row_id: str | None = None) -> bool | None:
 
 
 def _check_label_row_dev(item: dict[str, Any], registry: CorpusRegistry | None = None) -> None:
-    split = item.get("split") or (item.get("metadata") or {}).get("split")
-    if isinstance(split, str) and split.strip() and split.strip().casefold() != "dev":
-        raise RefusedRun(f"label row declares a non-DEV split: {split}")
+    _refuse_non_dev_split(item, "label row")
     if registry is not None:
         task_id = item.get("task_id")
         item_id = item.get("item_id") or item.get("id") or item.get("run_id")
@@ -762,7 +817,7 @@ def load_labels(
         raise FileNotFoundError(f"labels file not found: {path}")
 
     registry = _get_corpus_registry(repo_root=repo_root)
-    text = resolved.read_text(encoding="utf-8")
+    text = read_declared_text(resolved)
     labels: dict[str, bool] = {}
     seen: dict[str, bool | str] = {}
 
@@ -801,7 +856,7 @@ def load_labels(
         _store_label(str(key), raw_val)
 
     try:
-        data = json.loads(text)
+        data = strict_json_loads(text)
         if isinstance(data, dict):
             wrapper_meta = data.get("metadata")
             _check_label_row_dev(
@@ -853,11 +908,11 @@ def load_labels(
         if not line:
             continue
         try:
-            item = json.loads(line)
-            if isinstance(item, dict):
-                _process_item(item)
-        except json.JSONDecodeError:
-            continue
+            item = strict_json_loads(line)
+        except json.JSONDecodeError as error:
+            raise ValueError(f"malformed label row ({error}): {line[:60]!r}") from error
+        if isinstance(item, dict):
+            _process_item(item)
     return labels
 
 
@@ -1007,11 +1062,8 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
 
 
 def _check_row_dev(row: Mapping[str, Any]) -> None:
-    raw_meta = row.get("metadata")
-    row_meta: Mapping[str, Any] = raw_meta if isinstance(raw_meta, Mapping) else {}
-    split = row.get("split") or row_meta.get("split")
-    if isinstance(split, str) and split.strip() and split.strip().casefold() != "dev":
-        raise RefusedRun(f"manifest row declares a non-DEV split: {split}")
+    _refuse_non_dev_split(row, "manifest row")
+
 
 def load_rollouts(
     inputs: Sequence[Path | str],
@@ -1044,11 +1096,11 @@ def load_rollouts(
 
         if p.is_file():
             if p.suffix == ".jsonl":
-                for line in p.read_text(encoding="utf-8").splitlines():
+                for line in read_declared_text(p).splitlines():
                     line = line.strip()
                     if not line:
                         continue
-                    row = json.loads(line)
+                    row = strict_json_loads(line)
                     if isinstance(row, dict):
                         _check_row_dev(row)
                         if "path" in row:
@@ -1080,9 +1132,13 @@ def load_rollouts(
                             items.append(RolloutItem(item_id=run_id, task_id=task_id, run=run_obj, metadata=row))
             elif p.suffix == ".json":
                 try:
-                    data = json.loads(p.read_text(encoding="utf-8"))
+                    data = strict_json_loads(read_declared_text(p))
+                except DuplicateKeyError:
+                    raise
                 except Exception:
                     data = None
+                if isinstance(data, dict):
+                    _check_row_dev(data)  # the wrapper's own split, not only its rows'
 
                 if isinstance(data, dict) and "rows" in data and isinstance(data["rows"], list):
                     for row in data["rows"]:

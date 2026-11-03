@@ -183,18 +183,38 @@ the copy fails. Batches written before this change recorded absolute paths: they
 verify in place, but a copy of one fails with a plain "another location" message and
 must be regenerated.
 
-`line check` reads a closed set of files. The line never writes a symlink or a hard link
-into a batch, so a batch containing either is refused before anything else is read (a copy
-made with `cp -R` has neither). A stage receipt may list only that stage's own batch files
-(plus `evidence/station-inputs/*.jsonl` for the judge). Every output ref must resolve inside
-the batch, and every input ref outside it must be an input the spec declares (source
-manifests, labels, task status, cache files) or a rollout from an intake re-run from the
-spec, never from the batch's own `runs.jsonl`, and must pass the DEV gate. Files are
-compared by identity: (device, inode) plus the case-folded real path, so hard links and
-case variants on a case-insensitive volume count as the same file in label isolation and in
-declared-input matching. Files are read once through a no-follow descriptor and the type,
-link count, hash and rows all come from those bytes. The scoreboard's row counting refuses
-paths that leave the batch.
+`line check` reads a closed set of files.
+
+- **Batch.** The line never writes a symlink or a hard link into a batch, so a batch
+  containing either is refused before anything else is read (a copy made with `cp -R` has
+  neither). A stage receipt may list only that stage's own batch files (plus
+  `evidence/station-inputs/*.jsonl` for the judge), and every output ref must resolve inside
+  the batch.
+- **Complete receipts.** Each stage receipt lists exactly the outside inputs the spec
+  declares for it, derived from the spec and from an intake re-run from it, never from the
+  batch's own `runs.jsonl`: intake lists the source manifests and every rollout; task lists
+  the task-status file; trace lists the cache files; scoreboard lists the labels files; the
+  other stages list none. An omission and an extra both fail provenance. Every listed input
+  also passes the DEV gate.
+- **Rollout trees.** At run time and at check time a rollout directory is walked without
+  following links: any symlink anywhere inside it, and any FIFO, socket or device, is
+  refused. Hard links are allowed (native Harbor trials share files that way). The tree
+  hash is unchanged from earlier batches. This is the line's own walk; it moves to the
+  shared `admit_rollout()` gate when that is canonical-path only.
+- **One reader.** `line check` reads declared inputs (spec, manifests, labels, task status,
+  cache) through one no-follow reader that checks the open descriptor (regular file, link
+  count). The loaders parse the bytes that reader returns, and provenance hashes the same
+  kind of read; a file whose bytes differ between two reads inside one check fails
+  provenance ("changed while being checked"). The stored `spec.json` must equal what
+  `load_spec` resolves it to now, so a declared input that has since become, or passes
+  through, a link is refused.
+- **No shared files.** A spec is refused, at run and at check time, when two declared inputs
+  of different kinds (labels, manifests, task status, cache, judge queue, judge verdicts)
+  are the same file by (device, inode) or case-folded real path; repeating one file within a
+  kind, such as a labels file shared by two sources, is fine. Label isolation also compares
+  the label files with what the spec and intake feed the decision stages, not only with what
+  the receipts list.
+- The scoreboard's row counting refuses paths that leave the batch.
 
 ## Eight quality checks
 
@@ -213,27 +233,98 @@ Any failed check blocks a successful run/check exit. These are evidence and
 consistency gates, not a claim that a detector has perfect recall or that an
 export is automatically suitable for training.
 
-`line check` first overwrites `check.json` with a not-passed, all-`PENDING` result (and the
-scoreboard's quality-check list with the same), then replaces it with the completed
-result. A crash or an unreadable batch therefore leaves `passed: false`, never a stale
-pass. All JSON artifacts are written atomically.
+`line check` first validates the batch directory and only then overwrites `check.json` with a
+not-passed, all-`PENDING` result (and the scoreboard's quality-check list and view with the
+same), then replaces it with the completed result. A missing, linked or tampered directory is
+refused before any file in it is rewritten, so a hard link is never silently replaced by a
+fresh file. A crash therefore leaves `passed: false`, never a stale pass. All JSON artifacts
+are written atomically.
 
 `line check --fast` skips the determinism recompute (the slowest part). It reports that gate as
 `SKIPPED` with "determinism not verified", sets `determinism_verified: false`, never counts as
 a pass (exit 3 when nothing failed, 2 when a check failed), and does not touch `check.json` or
 the scoreboard. Use it for a quick look at a batch; the replay gate and every acceptance claim
 use the full check.
+The Station verdict file is read once, validated and copied into `evidence/station-inputs/`
+when the batch runs, and the judge receipt names that immutable copy, so a Station file that
+grows afterwards cannot break provenance. `verdicts.jsonl` is recomputed from that copy by
+the judge-routing check. Task statuses use the line's vocabulary: hack-drop's
+`gold`/`hardened` mean `certified` and `exploitable` means `weak`.
 
-The Station verdict file is copied into `evidence/station-inputs/` when the batch runs, and
-the judge receipt names that immutable copy, so a Station file that grows afterwards cannot
-break provenance. Task statuses use the line's vocabulary: hack-drop's `gold`/`hardened`
-mean `certified` and `exploitable` means `weak`.
+## Run order and side effects
+
+`line run` refuses everything it can before a batch directory exists or the shared Judge
+queue is touched: the spec and every declared input (DEV gate, duplicate JSON keys, malformed
+label rows, shared files), the Station verdict file (invalid UTF-8, non-object rows, repeated
+keys; a line that is not JSON is skipped, as the Station does), and, when no paid call is
+involved, stored AutoReview readings on a route outside `models.allowed` (or unattested).
+Live AutoReview calls happen as the batch is built, so a refusal after them still leaves
+the evidence on disk. The external Judge queue is appended **last**, only after all eight
+checks passed on the finished batch, and the external queue is then verified; a batch whose
+checks fail is left on disk with `passed: false` and the queue is untouched.
+
+## What covers each batch file
+
+Every file `line check` accepts is covered either by a hash in provenance, by recomputation
+from the declared inputs, or both. A batch may contain only these files (anything else, any
+symlink, hard link, FIFO, socket or device, or a non-regular entry is refused before any
+gate runs).
+
+| File | Hash in a receipt | Recomputed or verified by |
+|---|---|---|
+| `spec.json` | intake receipt | must equal what `load_spec` resolves it to now; DEV gate |
+| `runs.jsonl` | intake receipt | equals a fresh intake run from the spec (DEV only) |
+| `tasks.jsonl` | task receipt | exact row-for-row recomputation from the task-status file (DEV only) |
+| `trace.jsonl` | trace receipt | recomputed (off/cached); in live mode every stored reading must be a valid stage verdict, eligible under the recomputed L0 and backed by a matching call record (route, cost, attestation) |
+| `decisions.jsonl` | decisions receipt | recomputed twice and compared with the saved decision hashes |
+| `judge-queue.jsonl` | judge receipt | recomputed from the decisions |
+| `verdicts.jsonl` | judge receipt | recomputed from the pinned Station snapshot and the admitted runs |
+| `evidence/station-inputs/*.jsonl` | judge receipt | the snapshot the verdicts are recomputed from |
+| `export/*.jsonl` | export receipt | equal the decisions, row for row |
+| `receipts/*.json` | not applicable | exactly the seven stages with a fixed set of fields; one `code_rev`; the batch id; row totals recomputed from the files; trace errors recomputed from the trace; models and spend only on the trace receipt; every output with a row count |
+| `scoreboard.json` | scoreboard receipt lists the labels | recomputed from the batch and the labels, on its own schema version |
+| `SCOREBOARD.md` | not applicable | rendered from `scoreboard.json` and compared (schema version 3 and later) |
+| `check.json` | not applicable | is the check output; its saved decision hashes are compared |
+
+## Threat model
+
+`line check` detects accidental corruption, stale or mixed-code batches, and edits to batch
+files or to declared inputs (a changed byte in a manifest, labels, task-status or cache file,
+a swapped receipt, a flipped decision, a forged total).
+
+It does **not** defend against a local adversary who can use filesystem tricks on the
+inputs, or who can write anywhere the line reads. In particular, these are known limits, to
+be closed structurally when the line's intake adopts the single-read `admit_rollout()` gate:
+
+- **Rollout trees.** The hack-drop loaders read a rollout's files with plain `read_text`
+  after the tree walk, so hard links inside a bundle (including a hard link to a label file),
+  FIFOs that a loader opens before the walk, and files changed between the loader's read and
+  the walk are not caught. Label isolation and the shared-file rule see a rollout directory as
+  one path, not the files inside it; they also do not look inside a cache directory beyond
+  the files it lists.
+- **Declared inputs and hard links.** Declared manifests, labels, task-status and cache files
+  are read without a link-count check, so a hard link to a forbidden file under a DEV-looking
+  name is not caught (the DEV gate judges names and resolved paths, not other names of the
+  same inode).
+- **Races during a check.** Hashes taken by the reader are keyed by the path as spelled, so a
+  file reached through a hard-link alias or a case variant and changed between two reads is
+  compared per spelling; a rollout file changed between a loader's read and its hash is not
+  detected.
+- **Paths the loaders resolve.** The DEV gate resolves symlinks in declared paths and in a
+  manifest row's `path` before the line sees them, so a symlinked input is accepted at run
+  time (a link that appears later is refused by the canonical-path check).
+- **Evaluator fields in decision inputs.** Label fields are refused in everything the line
+  writes and in AutoReview cache rows, but manifest rows, trajectories and task-status files
+  that carry them are accepted and stripped on output rather than refused.
+- **Resource limits.** Inputs are read whole into memory with no size bound.
 
 ## Reading the scoreboard
 
 `scoreboard.json` uses `evallab.line_scoreboard/v1` and records an integer `schema_version`
-(2 now; a file without the field is version 1, the shape written before the field and the
-`autoreview` section existed). `line check` recomputes and compares a saved scoreboard
+(3 now; a file without the field is version 1, the shape written before the field and the
+`autoreview` section existed; version 2 added the field and section; version 3 marks batches
+whose `SCOREBOARD.md` is rendered from the saved file, which `line check` compares too).
+`line check` recomputes and compares a saved scoreboard
 only on the sections its own version defines, so a batch built before a section was added
 still passes, a tampered counted field still fails, and a version newer than the code
 reads is refused with a plain message. `SCOREBOARD.md` is its

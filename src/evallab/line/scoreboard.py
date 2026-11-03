@@ -13,8 +13,11 @@ from .core import resolve_ref
 from .io import canonical_hash, read_json, read_rows
 
 # Version 1 (no field): the shape written by #1815. Version 2 adds ``schema_version`` and the
-# ``autoreview`` section. ``line check`` compares a saved scoreboard on its own version only.
-SCOREBOARD_VERSION = 2
+# ``autoreview`` section. Version 3 changes nothing in the file: it marks batches whose
+# SCOREBOARD.md is rendered from the saved scoreboard.json, so ``line check`` can compare the
+# view too (older batches rendered it from memory, in a different key order).
+# ``line check`` compares a saved scoreboard on its own version only.
+SCOREBOARD_VERSION = 3
 
 
 def _metric(k: int, n: int) -> dict[str, Any]:

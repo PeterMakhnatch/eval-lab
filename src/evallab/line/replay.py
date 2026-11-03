@@ -10,7 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 from .core import CHECK_NAMES
-from .io import canonical_hash, digest, read_json, read_rows, write_json
+from .io import canonical_hash, read_json, read_rows, strict_digest, write_json
 
 BASELINE_SCHEMA = "evallab.line_baseline/v1"
 
@@ -245,7 +245,7 @@ def _input_hashes(spec: dict[str, Any]) -> dict[str, str]:
         paths.add(str(spec["task_status"]))
     if spec["autoreview"].get("cache") is not None:
         paths.add(str(spec["autoreview"]["cache"]))
-    return {path: digest(Path(path)) for path in sorted(paths)}
+    return {path: strict_digest(Path(path)) for path in sorted(paths)}
 
 
 def replay(

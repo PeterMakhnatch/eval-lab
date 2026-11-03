@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from evallab.line.core import check_batch, invalidate_check, run_line
+from evallab.line.core import check_batch, invalidate_check, preflight_batch, run_line
 from evallab.line.io import read_json, write_json
 from evallab.line.replay import replay
 from evallab.line.scoreboard import build_scoreboard, render_scoreboard
@@ -64,7 +64,9 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 (batch / "SCOREBOARD.md").write_text(render_scoreboard(score), encoding="utf-8")
             code = 0 if value["passed"] else 2
         else:
-            value = build_scoreboard(args.path.expanduser().resolve(), root)
+            batch = args.path.expanduser().resolve()
+            preflight_batch(batch)
+            value = build_scoreboard(batch, root)
             code = 0
         if args.json:
             print(json.dumps(value, indent=2, sort_keys=True))

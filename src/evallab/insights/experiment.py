@@ -27,8 +27,13 @@ from evallab.insights.models import (
     RecomputeStatus,
 )
 from evallab.insights.packs import PassInputs
-from evallab.insights.recompute import recompute_claim
-from evallab.insights.runner import TRANSIENT_ERROR, TRANSIENT_RETRY_DELAY, TRANSIENT_STARTUP
+from evallab.insights.recompute import describe_recompute, recompute_claim
+from evallab.insights.runner import (
+    TRANSIENT_MAX_RETRIES,
+    TRANSIENT_STARTUP,
+    is_transient_error,
+    transient_retry_delay,
+)
 from evallab.insights.sources import read_source_text
 from evallab.insights.store import InsightStore, default_state_root
 from evallab.insights.validity import (
@@ -188,6 +193,8 @@ def _from_record(record: ClaimRecord, store: InsightStore, folder: Path) -> Repo
     result = recompute_claim(record.claim, folder)
     status: RecomputeStatus = "not_recomputable" if result is None else result.status
     reason = "No receipt recipe was supplied." if result is None else result.detail
+    if result is not None and result.status == "partial":
+        reason = describe_recompute(result)
     if record.check.status == "fail":
         status = "not_recomputable"
         reason = "The extracted claim failed its code checks. " + " ".join(record.check.notes)
@@ -445,33 +452,35 @@ def _report_insight(record: InsightRecord) -> ReportInsight:
 
 
 # The watch scheduler gives a pass that died at startup on shared omp state (SQLITE_BUSY)
-# exactly one retry; a one-shot experiment run gets the same, classified by the same code:
-# the engine marks such a pass with TRANSIENT_ERROR, and a raised error is matched with
-# TRANSIENT_STARTUP. Any other failure is final, however quickly it happened.
-_RETRY_DELAY_SECONDS = TRANSIENT_RETRY_DELAY.total_seconds()
+# two retries after a 15-45 s jittered pause; a one-shot experiment run gets the same,
+# classified by the same code: the engine marks a pass with a retry left with
+# TRANSIENT_ERROR, and a raised error is matched with TRANSIENT_STARTUP. Any other
+# failure, and a transient one whose retries ran out, is final.
+_sleep = time.sleep
 
 
 def _transient(result: PassRecord | None, error: Exception | None) -> bool:
     if error is not None:
         return TRANSIENT_STARTUP.search(str(error)) is not None
-    return result is not None and result.status != "succeeded" and result.error == TRANSIENT_ERROR
+    return result is not None and result.status != "succeeded" and is_transient_error(result.error)
 
 
 def _attempt(
     engine: EngineLike, lens: Lens, inputs: PassInputs | None,
 ) -> tuple[PassRecord | None, Exception | None]:
-    """Run one pass to completion, once more if it died on a transient startup failure."""
+    """Run one pass to completion, retrying a transient startup failure up to twice."""
     result: PassRecord | None = None
     error: Exception | None = None
-    for attempt in range(2):
+    for attempt in range(TRANSIENT_MAX_RETRIES + 1):
         result, error = None, None
         try:
             result = engine.run_lens(lens, wait=True, trigger="experiment", inputs=inputs)
         except Exception as exc:
             error = exc
-        if attempt == 1 or not _transient(result, error):
+        if attempt == TRANSIENT_MAX_RETRIES or not _transient(result, error):
             break
-        time.sleep(_RETRY_DELAY_SECONDS)
+        seed = result.pass_id if result is not None else f"{lens}:{attempt}"
+        _sleep(transient_retry_delay(seed).total_seconds())
     return result, error
 
 
@@ -593,6 +602,7 @@ def _report(
     reproduced = [claim for claim in claims if claim.status == "reproduced"]
     rounded = [claim for claim in reproduced if claim.note == "rounding"]
     differs = [claim for claim in claims if claim.status == "differs"]
+    partial = [claim for claim in claims if claim.status == "partial"]
     uncertain = [claim for claim in claims if claim.status == "not_recomputable"]
     lines = [f"# Experiment review: {primary_name}"]
     if related_names:
@@ -632,6 +642,14 @@ def _report(
                      f"[{claim.claim_id}].")
     if len(reproduced) > len(held) + len(rounded):
         lines.append(f"- More reproduced claims are listed in claims.jsonl [{audit_id}].")
+    if partial:
+        first_partial = partial[0]
+        lines.append(
+            f"- {len(partial)} claim{'s' if len(partial) != 1 else ''} only partly checked "
+            f"against receipts, not counted as reproduced; for example "
+            f"{_short(first_partial.text)}: {first_partial.reason} "
+            f"[{', '.join(claim.claim_id for claim in partial[:_HELD_LIMIT])}]."
+        )
     if not reproduced:
         lines.append(f"- No claim has a reproduced receipt calculation yet [{audit_id}].")
     lines.append("## What did not")
@@ -887,8 +905,10 @@ def analyze_experiment(
                     "uses an 80% chance of reaching the required unique catches. "
                     "Prevention blocks reward; detection flags a run.",
         ))
+    # `partial` (only some of the claim's numbers checked) is its own bucket: it is neither
+    # reproduced nor failed, and never counts toward confidence "medium" below.
     counts = {status: sum(claim.status == status for claim in claims)
-              for status in ("reproduced", "differs", "not_recomputable")}
+              for status in ("reproduced", "partial", "differs", "not_recomputable")}
     audit_id = f"V-{len(validity.findings) + 1:02d}"
     validity.findings.append(ValidityFinding(
         finding_id=audit_id, code="claim_summary", severity="info", count=len(claims),

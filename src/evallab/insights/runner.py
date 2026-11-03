@@ -6,6 +6,7 @@ not the requested route, establish which model actually answered.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -363,9 +364,30 @@ def classify_failure(log_text: str) -> tuple[str, datetime | None]:
 
 #: omp startup failures that say nothing about the analysis (shared agent.db contention).
 TRANSIENT_STARTUP = re.compile(r"SQLITE_BUSY|database is locked|SQLiteError", re.IGNORECASE)
-#: The pass error recorded when such a failure earned its one quick retry.
-TRANSIENT_ERROR = "transient startup failure (omp database busy); retrying once"
-TRANSIENT_RETRY_DELAY = timedelta(seconds=45)
+#: Startup retries a transient failure earns (shared by the watch scheduler and one-shot runs).
+TRANSIENT_MAX_RETRIES = 2
+#: The pass error recorded while a transient failure still has a retry left.
+TRANSIENT_ERROR = "transient startup failure (omp database busy); retrying"
+#: The pass error recorded when the retries ran out; still a startup failure, not an analysis one.
+TRANSIENT_EXHAUSTED_ERROR = (
+    "transient startup failure (omp database busy); retries exhausted"
+)
+
+
+def is_transient_error(error: str | None) -> bool:
+    """Did the engine mark this pass as a retryable startup failure?"""
+    return error == TRANSIENT_ERROR
+
+
+def transient_retry_delay(seed: str) -> timedelta:
+    """A deterministic 15-45 s pause, jittered by ``seed`` (the failed pass id).
+
+    Workers that collided on omp's shared agent.db start in the same second; the
+    jitter keeps their retries from colliding again, and being a function of the
+    pass id makes a delay reproducible from the ledger.
+    """
+    jitter = int(hashlib.sha256(seed.encode()).hexdigest()[:8], 16) % 31
+    return timedelta(seconds=15 + jitter)
 
 
 def _number(value: object) -> float | None:

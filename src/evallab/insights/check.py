@@ -16,7 +16,7 @@ from evallab.insights.models import (
     SourceRecord,
     normalize_text,
 )
-from evallab.insights.recompute import RecipeError, run_recipe
+from evallab.insights.recompute import RecipeError, describe_recompute, run_recipe
 from evallab.insights.stats import compute, mcnemar_exact, wilson
 from evallab.insights.units import (
     Quantity,
@@ -243,23 +243,36 @@ def check_extracted_claim(claim: ExtractedClaim, section_text: str) -> CheckResu
         claim.value is None and unit_kind(claim.unit) == "other" and not claim.unit
         and not _NOT_BINOMIAL.search(claim.quote)
     )
+    has_counts = claim.k is not None and bool(claim.n)
     if (
-        claim.k is not None
-        and claim.n
-        and claim.ci_low is not None
+        claim.ci_low is not None
         and claim.ci_high is not None
         and claim.ci_low <= claim.ci_high
-        and interval_is_proportion
+        and (interval_is_proportion if has_counts else is_proportion)
         and not _NOT_BINOMIAL.search(claim.quote)
     ):
-        scale = 100 if unit_kind(claim.unit) == "percent" else 1
+        # Same scale rule as units.as_fraction: percent units divide by 100, anything else
+        # is a fraction. An out-of-range bound is a data-contract error, not a method choice.
+        percent = unit_kind(claim.unit) == "percent"
+        scale = 100 if percent else 1
         low, high = claim.ci_low / scale, claim.ci_high / scale
+        reference = stated_fraction if stated_fraction is not None else proportion
         if not (0 <= low <= 1 and 0 <= high <= 1):
             failures.append(
                 "A proportion interval lies outside [0,1]; it is on the wrong scale "
                 "(use fractions, or declare percent units)."
             )
-        else:
+        elif (
+            percent
+            and reference is not None
+            and not low - 0.006 <= reference <= high + 0.006
+            and claim.ci_low - 0.006 <= reference <= claim.ci_high + 0.006
+        ):
+            failures.append(
+                "The interval bounds are fractions but the unit declares percent; "
+                "value and interval must share one scale."
+            )
+        elif has_counts:
             interval = wilson(claim.k, claim.n)
             wilson_low, wilson_high = interval["low"], interval["high"]
             if (
@@ -445,6 +458,11 @@ def check_card(
             failures.append(f"Claim {claim_id} failed its evidence check.")
         if record.recompute is not None and record.recompute.status == "differs":
             failures.append(f"Claim {claim_id} differs from its receipt.")
+        elif record.recompute is not None and record.recompute.status == "partial":
+            warnings.append(
+                f"Claim {claim_id} is only partly confirmed by its receipt: "
+                f"{describe_recompute(record.recompute)}."
+            )
         claim = record.claim
         claim_numbers.extend(_claim_numbers(claim))
         if section_texts is not None and claim.section_id in section_texts:

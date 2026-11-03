@@ -32,7 +32,11 @@ from evallab.insights.models import (
     SourceSection,
 )
 from evallab.insights.packs import PassInputs
-from evallab.insights.runner import TRANSIENT_ERROR
+from evallab.insights.runner import (
+    TRANSIENT_ERROR,
+    TRANSIENT_EXHAUSTED_ERROR,
+    transient_retry_delay,
+)
 from evallab.insights.store import InsightStore
 
 NOW = datetime(2026, 11, 2, 18, tzinfo=UTC)
@@ -668,7 +672,7 @@ def test_report_stays_short_when_the_ledger_is_large(tmp_path: Path) -> None:
 
 @pytest.fixture(autouse=True)
 def _no_retry_pause(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(experiment_module, "_RETRY_DELAY_SECONDS", 0.0)
+    monkeypatch.setattr(experiment_module, "_sleep", lambda _seconds: None)
 
 
 def test_stage_four_says_plainly_when_the_sample_is_below_the_minimum(tmp_path: Path) -> None:
@@ -692,7 +696,7 @@ def test_stage_four_says_plainly_when_the_sample_is_below_the_minimum(tmp_path: 
     assert "Prevention layers together block 2 of 4 cases, detection layers together flag 3" in report
 
 
-def test_a_transient_pass_failure_is_retried_once(tmp_path: Path) -> None:
+def test_a_transient_pass_failure_is_retried(tmp_path: Path) -> None:
     class FlakyEngine(ChallengeEngine):
         failures_left = 1
 
@@ -721,12 +725,13 @@ def test_a_transient_pass_failure_is_retried_once(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(("message", "attempts"), [
-    ("database is locked (SQLITE_BUSY)", 2), ("synthetic failure", 1),
+    ("database is locked (SQLITE_BUSY)", 3), ("synthetic failure", 1),
 ])
-def test_only_transient_startup_failures_are_retried_and_only_once(
+def test_only_transient_startup_failures_are_retried_and_at_most_twice(
     tmp_path: Path, message: str, attempts: int,
 ) -> None:
     seen: list[str] = []
+    pauses: list[float] = []
 
     class AlwaysFails(ChallengeEngine):
         def run_lens(
@@ -737,11 +742,13 @@ def test_only_transient_startup_failures_are_retried_and_only_once(
                 raise RuntimeError(message)
             return super().run_lens(lens, wait=wait, trigger=trigger, inputs=inputs)
 
+    experiment_module._sleep = pauses.append
     folder = tmp_path / "experiment"
     _input(folder)
     output = tmp_path / "output"
     analyze_experiment(folder, output, engine_factory=AlwaysFails, now=NOW)
     assert len(seen) == attempts
+    assert len(pauses) == attempts - 1 and all(15 <= pause <= 45 for pause in pauses)
     limitations = json.loads((output / "analysis.json").read_text("utf-8"))["limitations"]
     assert sum("The skeptic pass failed" in item for item in limitations) == 1
 
@@ -782,8 +789,9 @@ def test_every_lens_retries_a_pass_the_engine_marked_transient(
         assert analysis["insights"][0]["referee_verdict"] == "accept"
 
 
-def test_a_second_transient_failure_is_reported_not_retried_again(tmp_path: Path) -> None:
+def test_a_third_transient_failure_is_reported_not_retried_again(tmp_path: Path) -> None:
     runs: list[str] = []
+    pauses: list[float] = []
 
     class AlwaysBusy(ChallengeEngine):
         def run_lens(
@@ -791,15 +799,20 @@ def test_a_second_transient_failure_is_reported_not_retried_again(tmp_path: Path
         ) -> PassRecord | None:
             result = super().run_lens(lens, wait=wait, trigger=trigger, inputs=inputs)
             if lens == "referee" and result is not None:
-                runs.append(lens)
-                return result.model_copy(update={"status": "failed", "error": TRANSIENT_ERROR})
+                runs.append(result.pass_id)
+                error = TRANSIENT_ERROR if len(runs) <= 2 else TRANSIENT_EXHAUSTED_ERROR
+                return result.model_copy(update={"status": "failed", "error": error})
             return result
 
+    experiment_module._sleep = pauses.append
     folder = tmp_path / "experiment"
     _input(folder)
     output = tmp_path / "output"
     analyze_experiment(folder, output, engine_factory=AlwaysBusy, now=NOW)
-    assert len(runs) == 2
+    assert len(runs) == 3  # the pass and its two retries
+    # Each pause is the 15-45 s jitter derived from the pass that just failed.
+    assert pauses == [transient_retry_delay(pass_id).total_seconds() for pass_id in runs[:2]]
+    assert all(15 <= pause <= 45 for pause in pauses)
     limitations = json.loads((output / "analysis.json").read_text("utf-8"))["limitations"]
     assert limitations.count("The referee pass did not complete successfully.") == 1
 

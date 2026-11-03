@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from evallab.insights.commands._common import add_state_dir, emit, state_dir
+from evallab.insights.recompute import describe_recompute
 from evallab.insights.store import DB_NAME, InsightStore
 
 
@@ -25,6 +26,7 @@ def _cmd(args: argparse.Namespace, root: Path, *, harbor: object | None = None) 
             claim = store.get_claim(record_id)
             found = None if claim is None else {
                 "claim": claim.model_dump(mode="json"),
+                "recompute_summary": describe_recompute(claim.recompute),
                 "rederivations": [r.model_dump(mode="json") for r in store.list_rederivations(claim_id=record_id)],
             }
         elif record_id.startswith("I-"):
@@ -50,7 +52,8 @@ def _cmd(args: argparse.Namespace, root: Path, *, harbor: object | None = None) 
             found = None if experiment is None else {
                 "experiment": experiment.model_dump(mode="json"),
                 "claims": [
-                    {"claim_id": c.claim_id, "statement": c.claim.statement, "check": c.check.status}
+                    {"claim_id": c.claim_id, "statement": c.claim.statement, "check": c.check.status,
+                     "recompute": describe_recompute(c.recompute)}
                     for c in store.list_claims(experiment=experiment.exp_id, include_failed=True)
                 ],
             }

@@ -39,7 +39,8 @@ ClaimStatus = Literal["author", "independent", "corrected", "refuted", "withdraw
 Split = Literal["dev", "test", "mixed", "unknown"]
 EntityKind = Literal["component", "dataset", "model", "mechanism", "task", "metric", "other"]
 CheckStatus = Literal["pass", "warn", "fail"]
-RecomputeStatus = Literal["reproduced", "differs", "not_recomputable"]
+RecomputeStatus = Literal["reproduced", "partial", "differs", "not_recomputable"]
+RecomputeField = Literal["k", "n", "value"]
 Lens = Literal[
     "extractor",
     "connector",
@@ -84,6 +85,7 @@ SignalKind = Literal[
     "correction_cascade",
     "coverage_gap",
     "multiplicity",
+    "pseudo_replication",
 ]
 SignalStatus = Literal["open", "consumed", "stale"]
 PassStatus = Literal[
@@ -217,7 +219,10 @@ class Recipe(ContractModel):
     aggregate a numeric ``field`` over rows; ``distinct_count`` counts distinct
     ``field`` values; ``ratio`` divides two sub-recipes. ``target`` names the
     stated quantity to compare: ``k``, ``n`` or scalar ``value``. Count recipes
-    default to ``k`` and ratio recipes to ``value``. ``where`` maps a dotted
+    default to ``k`` and ratio recipes to ``value``. A recipe validates only the
+    quantity it targets (a ratio also validates k and n when its numerator and
+    denominator equal them); ``also`` lists companion recipes, each with an explicit
+    ``target``, that validate the claim's other stated quantities. ``where`` maps a dotted
     field path to an exact value, a list of allowed values, or an
     operator object such as ``{"$ne": x}``, ``{"$in": [...]}``,
     ``{"$exists": true}``, ``{"$gt": n}``, ``{"$contains": "text"}``.
@@ -232,6 +237,7 @@ class Recipe(ContractModel):
     field: str | None = None
     num: Recipe | None = None
     den: Recipe | None = None
+    also: list[Recipe] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def shape(self) -> Recipe:
@@ -244,6 +250,12 @@ class Recipe(ContractModel):
             raise ValueError("value recipes need a pointer")
         if self.op in {"sum", "mean", "distinct_count"} and self.field is None:
             raise ValueError(f"{self.op} recipes need a field")
+        if any(extra.target is None or extra.also for extra in self.also):
+            raise ValueError("companion recipes need a target and no companions of their own")
+        if self.op == "ratio" and (
+            (self.num is not None and self.num.also) or (self.den is not None and self.den.also)
+        ):
+            raise ValueError("companion recipes belong on the top-level recipe")
         return self
 
 
@@ -339,6 +351,15 @@ class CheckResult(ContractModel):
 
 
 class RecomputeResult(ContractModel):
+    """What a receipt recipe established about one claim.
+
+    ``reproduced`` means every stated quantity (k, n, value) was validated and the recipe
+    has traceable provenance; ``partial`` means a match that leaves a stated quantity
+    unchecked (``unchecked``) or whose pointer cannot be tied to the claim
+    (``provenance_note``). Ledgers written before ``partial`` existed hold empty
+    ``validated``/``unchecked`` lists and keep their stored status.
+    """
+
     status: RecomputeStatus
     value: float | None = None
     stated: float | None = None
@@ -350,6 +371,12 @@ class RecomputeResult(ContractModel):
     #: (``difference``) and spelled in the claim's unit (``difference_text``).
     difference: float | None = None
     difference_text: str = ""
+    #: Stated quantities the receipt confirmed, and stated quantities it never read.
+    validated: list[RecomputeField] = Field(default_factory=list)
+    unchecked: list[RecomputeField] = Field(default_factory=list)
+    #: ``weak_provenance``: a low-information value (0, 1, 100) matched at a pointer that
+    #: names no cohort or metric token from the claim and carries no ``where`` filter.
+    provenance_note: Literal["weak_provenance"] | None = None
 
 
 class ClaimRecord(ContractModel):

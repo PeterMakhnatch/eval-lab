@@ -7,10 +7,11 @@ import io
 import json
 import math
 import re
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Literal
 
-from evallab.insights.models import ExtractedClaim, Recipe, RecomputeResult
+from evallab.insights.models import ExtractedClaim, Recipe, RecomputeField, RecomputeResult
 from evallab.insights.units import canonical_value
 
 MAX_FILE_BYTES = 64 * 1024 * 1024
@@ -289,23 +290,97 @@ def _gap_text(gap: float, claim: ExtractedClaim, counted: bool) -> str:
     return f"{gap:.3g} {claim.unit}" if claim.unit else f"{gap:.3g}"
 
 
-def recompute_claim(claim: ExtractedClaim, folder: Path | None) -> RecomputeResult | None:
-    """Compare a recipe's result with the claim quantity named by ``recipe.target``.
+_FIELDS: tuple[RecomputeField, ...] = ("k", "n", "value")
+# A matching 0, 1 or 100 (0% / 100% once canonical) is likely to be found in many unrelated
+# receipt fields, so such a match needs a pointer that ties it to the claim.
+_LOW_INFORMATION = frozenset({0.0, 1.0, 100.0})
+# Words that appear in nearly every receipt path or claim label and say nothing about the
+# cohort or metric, so sharing one proves nothing.
+_GENERIC_TOKENS = frozenset({
+    "the", "and", "for", "with", "from", "that", "this", "all", "any", "per", "not", "was",
+    "are", "has", "had", "rate", "count", "counts", "total", "totals", "value", "values",
+    "number", "num", "mean", "avg", "average", "sum", "result", "results", "metric",
+    "metrics", "stat", "stats", "data", "report", "field", "dev", "test", "split", "key",
+    "keys", "item", "items", "row", "rows",
+})
+_WORD = re.compile(r"[a-z0-9]+")
+_CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 
-    Counts are compared as exact integers. A scalar is compared in canonical units
-    (percent/100, durations in seconds) within half a unit of its last printed digit,
-    capped at 0.5% of a large value; a gap of up to 0.55 of that unit (a value rounded
-    twice) is still reproduced and carries the note ``rounding``. A receipt may hold a
-    quantity either in canonical units or in the claim's printed unit. A count recipe
-    against a stated rate is a wrong target, not a disagreement with the source, so it
-    is not recomputable. Every ``differs`` records the size of the gap.
-    """
+
+def _tokens(text: str) -> set[str]:
+    """Lowercase word stems of a label or JSON pointer, minus generic words."""
+    words = _WORD.findall(_CAMEL.sub(" ", text).casefold())
+    stems = {word[:-1] if len(word) > 3 and word.endswith("s") else word for word in words}
+    return {stem for stem in stems if len(stem) >= 2 and stem not in _GENERIC_TOKENS}
+
+
+def _claim_tokens(claim: ExtractedClaim, *, condition_only: bool = False) -> set[str]:
+    """Cohort and metric words the claim names (the experiment id is in every path)."""
+    parts = [claim.condition] if condition_only else [
+        claim.metric, claim.subject, claim.dataset, claim.condition, *claim.models,
+    ]
+    return set().union(*(_tokens(part) for part in parts if part))
+
+
+def _leaves(recipe: Recipe) -> list[Recipe]:
+    if recipe.op == "ratio" and recipe.num is not None and recipe.den is not None:
+        return [*_leaves(recipe.num), *_leaves(recipe.den)]
+    return [recipe]
+
+
+def _pointer_path(recipe: Recipe) -> str:
+    """The in-receipt location of every number a recipe reads (not the file name)."""
+    return " ".join(
+        part for leaf in _leaves(recipe) for part in (leaf.pointer, leaf.rows, leaf.field) if part
+    )
+
+
+def recipe_reads(recipe: Recipe) -> str:
+    """Name the receipt file and pointer (or rows and filter) a recipe reads."""
+    if recipe.op == "ratio" and recipe.num is not None and recipe.den is not None:
+        return f"({recipe_reads(recipe.num)}) / ({recipe_reads(recipe.den)})"
+    if recipe.op == "value":
+        return f"{recipe.file}#{recipe.pointer}"
+    rows = f"{recipe.file}#{recipe.rows}" if recipe.rows else str(recipe.file)
+    where = "" if not recipe.where else f" where {json.dumps(recipe.where, sort_keys=True)}"
+    field = f" of {recipe.field}" if recipe.field else ""
+    return f"{recipe.op}{field} over rows of {rows}{where}"
+
+
+def _claim_label(claim: ExtractedClaim, target: str) -> str:
+    context = [f"{name} {text!r}" for name, text in (
+        ("metric", claim.metric), ("condition", claim.condition)) if text]
+    return f"{target} ({'; '.join(context)})" if context else target
+
+
+def _low_information(*readings: float) -> bool:
+    return any(reading in _LOW_INFORMATION for reading in readings)
+
+
+def _stated_readings(claim: ExtractedClaim, fields: Iterable[RecomputeField]) -> list[float]:
+    readings: list[float] = []
+    for name in fields:
+        if name == "value" and claim.value is not None:
+            readings.extend((claim.value, claim.value * canonical_value(1.0, claim.unit)))
+        elif name in {"k", "n"} and getattr(claim, name) is not None:
+            readings.append(float(getattr(claim, name)))
+    return readings
+
+
+def _is_weak_provenance(claim: ExtractedClaim, recipe: Recipe, readings: list[float]) -> bool:
+    """A low-information match whose pointer names nothing of the claim and has no filter."""
+    if not _low_information(*readings):
+        return False
+    if any(leaf.where for leaf in _leaves(recipe)):
+        return False
+    return not (_claim_tokens(claim) & _tokens(_pointer_path(recipe)))
+
+
+def _compare(claim: ExtractedClaim, recipe: Recipe, folder: Path | None) -> RecomputeResult:
+    """Compare one recipe with the claim quantity it targets (reproduced/differs/not)."""
     # Lazy: check.py imports run_recipe at module level for card recipes.
     from evallab.insights.check import is_proportion_claim, value_printed_tolerance
 
-    recipe = claim.recipe
-    if recipe is None:
-        return None
     if folder is None:
         return _not_recomputable("No experiment folder is known.")
     target = recipe_target(claim, recipe)
@@ -325,7 +400,8 @@ def recompute_claim(claim: ExtractedClaim, folder: Path | None) -> RecomputeResu
     except (RecipeError, OverflowError) as exc:
         return _not_recomputable(str(exc), stated=stated)
     note: Literal["rounding"] | None = None
-    detail = f"Receipt gives {value:g}; claim {target} states {stated:g}"
+    detail = (f"Receipt {recipe_reads(recipe)} gives {value:g}; "
+              f"claim {_claim_label(claim, target)} states {stated:g}")
     counted = target in {"k", "n"} or recipe.op in {"count", "distinct_count"}
     if counted:
         gap = abs(value - stated)
@@ -363,7 +439,136 @@ def recompute_claim(claim: ExtractedClaim, folder: Path | None) -> RecomputeResu
                 "set target to k or n, or use a ratio recipe.",
                 stated=stated,
             )
+    detail += f"; differs by {gap_text}."
+    condition = _claim_tokens(claim, condition_only=True)
+    location = _tokens(" ".join(
+        f"{leaf.file or ''} {_pointer_path(leaf)} {json.dumps(leaf.where or {})}"
+        for leaf in _leaves(recipe)
+    ))
+    absent = sorted(condition - location)
+    if absent:
+        detail += (f" The receipt location does not mention the claim's condition word(s) "
+                   f"({', '.join(absent)}); check it reads the right arm or cohort.")
     return RecomputeResult(
-        status="differs", value=value, stated=stated, detail=f"{detail}; differs by {gap_text}.",
+        status="differs", value=value, stated=stated, detail=detail,
         difference=gap, difference_text=gap_text,
     )
+
+
+def _credited(claim: ExtractedClaim, recipe: Recipe, folder: Path) -> set[RecomputeField]:
+    """Stated quantities a matching recipe validated.
+
+    A recipe validates the quantity it targets. A ratio of two recipes also validates k and
+    n when its numerator and denominator equal them, since it then read the counts itself.
+    """
+    target = recipe_target(claim, recipe)
+    if target != "value":
+        return {target}
+    credited: set[RecomputeField] = {"value"} if claim.value is not None else set()
+    if recipe.op == "ratio" and recipe.num is not None and recipe.den is not None:
+        numerator = run_recipe(recipe.num, folder)
+        denominator = run_recipe(recipe.den, folder)
+        if claim.k is not None and math.isclose(numerator, claim.k, abs_tol=1e-9):
+            credited.add("k")
+        if claim.n is not None and math.isclose(denominator, claim.n, abs_tol=1e-9):
+            credited.add("n")
+    return credited
+
+
+def _names(fields: Iterable[str]) -> str:
+    names = list(fields)
+    return " and ".join(names) if len(names) < 3 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def recompute_claim(claim: ExtractedClaim, folder: Path | None) -> RecomputeResult | None:
+    """Compare a recipe's result with the claim quantity named by ``recipe.target``.
+
+    Counts are compared as exact integers. A scalar is compared in canonical units
+    (percent/100, durations in seconds) within half a unit of its last printed digit,
+    capped at 0.5% of a large value; a gap of up to 0.55 of that unit (a value rounded
+    twice) is still reproduced and carries the note ``rounding``. A receipt may hold a
+    quantity either in canonical units or in the claim's printed unit. A count recipe
+    against a stated rate is a wrong target, not a disagreement with the source, so it
+    is not recomputable. Every ``differs`` records the size of the gap and names the
+    receipt location it read.
+
+    A match is ``reproduced`` only when every stated quantity (k, n, value) was validated:
+    by a ratio whose numerator and denominator equal k and n, or by the recipe plus
+    companion recipes (``recipe.also``) that each target another field. Otherwise the match
+    is ``partial`` and names what it validated and what it never read. A match on 0, 1 or
+    100 (0%, 100%) at a pointer that names no cohort or metric token of the claim, with no
+    ``where`` filter, is also ``partial`` and carries the ``weak_provenance`` note.
+    """
+    recipe = claim.recipe
+    if recipe is None:
+        return None
+    primary = _compare(claim, recipe, folder)
+    if primary.status != "reproduced" or folder is None:
+        return primary
+    legs = [(recipe, _credited(claim, recipe, folder))]
+    problems: list[str] = []
+    for extra in recipe.also:
+        result = _compare(claim, extra, folder)
+        if result.status == "differs":
+            return result.model_copy(
+                update={"detail": f"Companion recipe for {extra.target}: {result.detail}"})
+        if result.status == "reproduced":
+            legs.append((extra, _credited(claim, extra, folder)))
+        else:
+            problems.append(f"The companion recipe for {extra.target} could not run: "
+                            f"{result.detail}")
+    credited = {name for _, names in legs for name in names}
+    required = [name for name in _FIELDS if _stated_readings(claim, [name])]
+    validated = [name for name in required if name in credited]
+    unchecked = [name for name in required if name not in credited]
+    weak = False
+    for leg_recipe, leg_credited in legs:
+        readings = _stated_readings(claim, leg_credited)
+        if not readings and primary.stated is not None:
+            readings = [primary.stated]
+        weak = weak or _is_weak_provenance(claim, leg_recipe, readings)
+    if not unchecked and not weak:
+        return primary.model_copy(update={"validated": validated})
+    update: dict[str, Any] = {
+        "status": "partial", "validated": validated, "unchecked": unchecked,
+        "provenance_note": "weak_provenance" if weak else None,
+    }
+    partial = primary.model_copy(update=update)
+    detail = primary.detail
+    summary = describe_recompute(partial)
+    detail += f" Partial: {summary}."
+    if weak:
+        detail += (" Weak provenance: a 0, 1 or 100 matched at a pointer that names no cohort "
+                   "or metric word of the claim and has no where filter, so it may be a "
+                   "coincidental field.")
+    detail += "".join(f" {problem}" for problem in problems)
+    return partial.model_copy(update={"detail": detail})
+
+
+def describe_recompute(result: RecomputeResult | None) -> str:
+    """Plain-language outcome, e.g. ``k matches receipt; n not checked``."""
+    if result is None:
+        return "no receipt recipe"
+    if result.status == "reproduced":
+        if not result.validated:
+            return "matches receipt"
+        return f"{_names(result.validated)} {'matches' if len(result.validated) == 1 else 'match'} receipt"
+    if result.status == "partial":
+        parts: list[str] = []
+        if result.validated:
+            verb = "matches" if len(result.validated) == 1 else "match"
+            parts.append(f"{_names(result.validated)} {verb} receipt")
+        if result.unchecked:
+            parts.append(f"{_names(result.unchecked)} not checked")
+        if result.provenance_note:
+            parts.append("weak provenance (pointer names no cohort or metric word of the claim)")
+        return "; ".join(parts) or "partially recomputed"
+    return result.detail
+
+
+def recompute_counts(results: Iterable[RecomputeResult | None]) -> dict[str, int]:
+    """Count outcomes with ``partial`` kept apart from ``reproduced``."""
+    counts = {"reproduced": 0, "partial": 0, "differs": 0, "not_recomputable": 0, "no recipe": 0}
+    for result in results:
+        counts["no recipe" if result is None else result.status] += 1
+    return counts

@@ -44,11 +44,21 @@ flowchart LR
    in-sample caveats. Percent, fraction, count, currency and duration units stay
    distinct. A declarative `recipe` recomputes the number from receipts;
    `recipe.target` says whether the receipt should produce k, n or value, and
-   the result is `reproduced`, `differs` or `not_recomputable`. A recompute that
+   the result is `reproduced`, `partial`, `differs` or `not_recomputable`. A claim is
+   `reproduced` only when every number it states (k, n, value) was validated: by a
+   `ratio` whose numerator and denominator equal k and n, or by the recipe plus
+   companion recipes (`recipe.also`, each with its own `target`). A match that leaves a
+   stated number unchecked is `partial` and names what it validated ("k matches
+   receipt; n not checked"); `show`, the board's receipt coverage and the status
+   counts keep `partial` apart from `reproduced`. A match on 0, 1 or 100 (0%, 100%)
+   whose pointer names no cohort or metric word of the claim and has no `where` is
+   also `partial` with the `weak_provenance` note. Older ledger rows keep their stored
+   status. A recompute that
    differs from the stated value only within one extra rounding step of its printed
    digits (up to 0.55 of a unit of the last printed digit, such as a true 84.65%
    printed as 84.7%) is `reproduced` with a `rounding` note. Every `differs` records
-   its size, absolute and in the claim's unit, on the claim, in `show`, signals and
+   its size, absolute and in the claim's unit, and the receipt file and pointer it read
+   against the claim field it compared, on the claim, in `show`, signals and
    `REPORT.md`. A `ratio` of two `count` recipes recomputes a rate such as 0/42.
 3. **Signals.** Deterministic, precision-first statistics over the ledger:
    only matching quantities and cohorts are compared, known reader aliases are
@@ -210,8 +220,10 @@ waiting for. The engine reloads `config.yaml` at each tick, keeping the last
 valid values if an edit is broken; `routes.yaml` is read at start. Content
 failures back off exponentially per lens and input set. Quota parks a route
 until its reset, authentication failure parks its provider for 24 hours, and a
-route that served another model parks for an hour. A transient omp database
-startup failure gets one quick retry, in the watch loop and in one-shot experiment runs.
+route that served another model parks for an hour. Workers started in one refill
+are spaced by `launch_stagger_seconds` (default 4), and a transient omp database
+startup failure (`SQLITE_BUSY` on `agent.db`) gets up to two retries after a 15-45 s
+pause jittered by the pass id, in the watch loop and in one-shot experiment runs.
 
 Models are chosen by `routes.yaml`, never ad hoc: the first route whose provider
 is under `max_provider_used_percent`, not parked, and (for referee/rederiver)

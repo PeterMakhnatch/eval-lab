@@ -42,6 +42,8 @@ BASELINE_ROUTE = "anthropic/claude-opus-5-5"
 GT_PER_JUDGE_CALL = 5
 MAX_PARALLEL_WORKERS = 4
 SCORED = ("yes", "partial")
+# Characters of each card shown to the judge; long engine cards were cut before their check at 2400.
+CARD_CHARS = 4000
 # Verifier output exists only after the cutoff; reading it anywhere is a leak.
 VERIFIER_PATTERN = re.compile(r"/ver2?/raw/|/VF-[A-Z][\w-]*/|REVIEW-[\w-]+/report")
 _SNAPSHOT_PATH = re.compile(r"[^\s\"']*/snapshot/[^\s\"']*")
@@ -101,16 +103,16 @@ def engine_cards(state_dir: Path, system: str) -> list[Card]:
         if record["check"]["status"] == "fail":
             continue
         card = record["card"]
-        parts = [
-            card["statement"],
-            "Observations: " + " | ".join(card["observations"]),
-            "Interpretation: " + card["interpretation"],
-        ]
+        # The check and proposals come before the supporting detail so a judge that
+        # reads a bounded prefix of a long card still sees what the card proposes.
+        parts = [card["statement"]]
         if card.get("challenge"):
             parts.append("Check proposed: " + card["challenge"]["check"])
         if card.get("proposed_experiment"):
             parts.append("Experiment proposed: " + card["proposed_experiment"]["hypothesis"])
         parts.extend("Prediction: " + p["statement"] for p in card.get("predictions", []))
+        parts.append("Interpretation: " + card["interpretation"])
+        parts.append("Observations: " + " | ".join(card["observations"]))
         cited = sorted({
             experiments[e["claim_id"]] for e in card["evidence"] if e["claim_id"] in experiments
         })
@@ -287,7 +289,7 @@ def _finding_text(item: dict[str, Any]) -> str:
 def _card_text(card: Card, alias: str) -> str:
     return (
         f"## {alias} (experiments: {', '.join(card.experiments) or 'unstated'})\n"
-        f"{card.title}\n{card.text[:2400]}"
+        f"{card.title}\n{card.text[:CARD_CHARS]}"
     )
 
 
@@ -297,7 +299,7 @@ def _aliases(cards: list[Card], seed: int) -> dict[str, Card]:
     return {f"C{index:03d}": card for index, card in enumerate(shuffled, start=1)}
 
 
-def cmd_judge(root: Path, arms: dict[str, str], *, skip_baseline: bool) -> int:
+def cmd_judge(root: Path, arms: dict[str, str], *, skip_baseline: bool, judge_dir: str) -> int:
     gt = [item for item in _ground_truth(root) if item["anticipatable"] in SCORED]
     systems = {name: engine_cards(root / state, name) for name, state in arms.items()}
     if not skip_baseline:
@@ -308,7 +310,7 @@ def cmd_judge(root: Path, arms: dict[str, str], *, skip_baseline: bool) -> int:
             print(f"{name}: no cards; skipped", file=sys.stderr)
             continue
         aliases = _aliases(cards, seed=20261102)
-        judge_root = root / "judge" / name
+        judge_root = root / judge_dir / name
         judge_root.mkdir(parents=True, exist_ok=True)
         (judge_root / "aliases.json").write_text(
             json.dumps({alias: card.card_id for alias, card in aliases.items()}, indent=2),
@@ -393,7 +395,7 @@ def cmd_audit(root: Path, arms: dict[str, str]) -> dict[str, Any]:
                 continue
             flagged.append({
                 "pass": session.parent.name, "tool": tool, "patterns": ",".join(hits),
-                "call": arguments[:300],
+                "call": arguments[:2000],
             })
     result = {
         "sessions": len(session_dirs), "tool_calls": calls, "flagged": flagged,
@@ -405,8 +407,10 @@ def cmd_audit(root: Path, arms: dict[str, str]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------- report
-def _judgments(root: Path, system: str) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
-    judge_root = root / "judge" / system
+def _judgments(
+    root: Path, system: str, judge_dir: str,
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    judge_root = root / judge_dir / system
     aliases = _load_json(judge_root / "aliases.json")
     matched: dict[str, dict[str, Any]] = {}
     for path in sorted(judge_root.glob("match-*/out/judgment.json")):
@@ -423,9 +427,9 @@ def _judgments(root: Path, system: str) -> tuple[dict[str, dict[str, Any]], dict
 
 def _system_metrics(
     root: Path, system: str, cards: list[Card], gt: list[dict[str, Any]],
-    start: datetime | None, cutoff: datetime, contaminated: set[str],
+    start: datetime | None, cutoff: datetime, contaminated: set[str], judge_dir: str,
 ) -> dict[str, Any]:
-    matched, ratings = _judgments(root, system)
+    matched, ratings = _judgments(root, system, judge_dir)
     by_id = {card.card_id: card for card in cards}
     excluded_hits = 0
     for item in matched.values():
@@ -510,7 +514,7 @@ def _claim_summary(con: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
-def cmd_report(root: Path, arms: dict[str, str]) -> int:
+def cmd_report(root: Path, arms: dict[str, str], judge_dir: str) -> int:
     gt = [item for item in _ground_truth(root) if item["anticipatable"] in SCORED]
     cutoff = _cutoff(root)
     audit = cmd_audit(root, arms)
@@ -524,24 +528,26 @@ def cmd_report(root: Path, arms: dict[str, str]) -> int:
         end = max((datetime.fromisoformat(p["finished_at"]) for p in passes
                    if p.get("finished_at")), default=None)
         result["arms"][name] = {
-            "metrics": _system_metrics(root, name, cards, gt, start, cutoff, contaminated),
+            "metrics": _system_metrics(root, name, cards, gt, start, cutoff, contaminated,
+                                       judge_dir),
             "passes": _pass_summary(passes),
             "claims": _claim_summary(con),
             "wall_minutes": None if start is None or end is None
             else round((end - start).total_seconds() / 60),
         }
     baseline = baseline_cards(root)
-    if baseline and (root / "judge" / "baseline").exists():
+    if baseline and (root / judge_dir / "baseline").exists():
         base_start = datetime.fromtimestamp(
             (root / "baseline" / "prompt.md").stat().st_mtime, UTC
         )
         result["arms"]["baseline"] = {
             "metrics": _system_metrics(root, "baseline", baseline, gt, base_start, cutoff,
-                                       contaminated),
+                                       contaminated, judge_dir),
             "receipt": _load_json(root / "baseline" / "receipt.json"),
         }
     result["audit"] = audit
-    (root / "results.json").write_text(json.dumps(result, indent=2, default=str), "utf-8")
+    out_name = "results.json" if judge_dir == "judge" else f"results-{judge_dir}.json"
+    (root / out_name).write_text(json.dumps(result, indent=2, default=str), "utf-8")
     print(json.dumps({k: v for k, v in result.items() if k != "audit"}, indent=2, default=str))
     print(f"audit: {len(result['audit']['flagged'])} flagged of "
           f"{result['audit']['tool_calls']} tool calls")
@@ -555,17 +561,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--arm", action="append", default=[],
                         help="engine arm as NAME=STATE_DIR_NAME (default engine=state)")
     parser.add_argument("--skip-baseline", action="store_true")
+    parser.add_argument("--judge-dir", default="judge",
+                        help="directory under --dir for judge outputs (default judge)")
     args = parser.parse_args(argv)
     root: Path = args.dir.expanduser().resolve()
     arms = _arms(args.arm) if args.arm else {"engine": "state"}
     if args.command == "baseline":
         return cmd_baseline(root)
     if args.command == "judge":
-        return cmd_judge(root, arms, skip_baseline=args.skip_baseline)
+        return cmd_judge(root, arms, skip_baseline=args.skip_baseline, judge_dir=args.judge_dir)
     if args.command == "audit":
         print(json.dumps(cmd_audit(root, arms), indent=2))
         return 0
-    return cmd_report(root, arms)
+    return cmd_report(root, arms, args.judge_dir)
 
 
 if __name__ == "__main__":

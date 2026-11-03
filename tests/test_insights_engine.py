@@ -59,7 +59,12 @@ from evallab.insights.models import (
     TwinCard,
 )
 from evallab.insights.packs import PassInputs, referee_pack_size
-from evallab.insights.runner import WorkerSpec
+from evallab.insights.runner import (
+    TRANSIENT_ERROR,
+    TRANSIENT_EXHAUSTED_ERROR,
+    WorkerSpec,
+    transient_retry_delay,
+)
 
 FINDINGS = """# Overnight findings
 
@@ -406,6 +411,7 @@ def _engine(tmp_path: Path, clock: Clock, launcher: FakeLauncher, **config: Lens
         clock=clock,
         python_executable="/usr/bin/python3",
         mirror_refresher=lambda repo, mirror: "unused",
+        launch_sleep=lambda _seconds: None,
     )
 
 
@@ -922,32 +928,139 @@ def test_repeated_failures_with_the_same_inputs_back_off_exponentially(tmp_path:
     assert len(launcher.launched) == launched_before  # still inside the longer delay
 
 
-def test_a_busy_omp_database_at_startup_is_retried_once_without_counting_a_failure(
+def _skeptic_passes(engine: Engine) -> list[PassRecord]:
+    return sorted(engine.store.list_passes(lens="skeptic"), key=lambda p: p.created_at)
+
+
+BUSY = "SQLiteError: Database agent.db: database is locked (SQLITE_BUSY)"
+
+
+def test_a_busy_omp_database_is_retried_twice_after_jittered_pauses_then_fails_as_transient(
     tmp_path: Path,
 ) -> None:
     clock = Clock()
-    launcher = FakeLauncher(
-        scripts={"extractor": _extract},
-        no_session={"skeptic": "SQLiteError: Database agent.db: database is locked (SQLITE_BUSY)"},
-    )
+    launcher = FakeLauncher(scripts={"extractor": _extract}, no_session={"skeptic": BUSY})
     engine = _engine(tmp_path, clock, launcher, skeptic=_schedule(cooldown_minutes=30))
     engine.tick()
     clock.advance(1)
-    engine.tick()  # skeptic #1
+    engine.tick()  # skeptic #1 starts
     clock.advance(1)
-    report = engine.tick()  # #1 died at startup: transient
-    first = next(p for p in engine.store.list_passes(lens="skeptic"))
-    assert first.error is not None and "transient" in first.error
-    assert engine._backoff_state() == {}
+    report = engine.tick()  # #1 died at startup: retry 1 of 2
+    first = _skeptic_passes(engine)[0]
+    assert first.error == TRANSIENT_ERROR
+    assert engine._backoff_state() == {}  # a transient start is not a content failure
     assert "transient" in report.waiting["skeptic"]
+    first_delay = transient_retry_delay(first.pass_id)
+    assert timedelta(seconds=15) <= first_delay <= timedelta(seconds=45)
+    assert engine.store.get_meta("transient_until:skeptic") == (clock() + first_delay).isoformat()
+
+    clock.now += first_delay - timedelta(seconds=1)
+    engine.tick()
+    assert len(_skeptic_passes(engine)) == 1  # still inside the jittered pause
+    clock.now += timedelta(seconds=1)
+    engine.tick()  # the retry ignores the 30 minute cooldown
+    assert len(_skeptic_passes(engine)) == 2
     clock.advance(1)
-    engine.tick()  # the one retry ignores the 30 minute cooldown
-    assert len(engine.store.list_passes(lens="skeptic")) == 2
+    engine.tick()  # #2 hits the same collision: retry 2 of 2, with its own jitter
+    second = _skeptic_passes(engine)[1]
+    assert second.error == TRANSIENT_ERROR
+    second_delay = transient_retry_delay(second.pass_id)
+    assert engine.store.get_meta("transient_until:skeptic") == (clock() + second_delay).isoformat()
+    clock.now += second_delay
+    engine.tick()
+    assert len(_skeptic_passes(engine)) == 3
     clock.advance(1)
-    engine.tick()  # the same failure again is a real failure
-    second = max(engine.store.list_passes(lens="skeptic"), key=lambda p: p.created_at)
-    assert second.error is not None and second.error.startswith("no output file")
+    report = engine.tick()  # #3: the retries are spent
+    third = _skeptic_passes(engine)[2]
+    # Still a startup collision, never "no output file (other; exit 0)".
+    assert third.error == TRANSIENT_EXHAUSTED_ERROR
+    assert engine._backoff_state()  # now it backs off like any failure
+    assert "cooling down" in report.waiting["skeptic"]  # ordinary cooldown, no more retries
+    clock.advance(1)
+    engine.tick()
+    assert len(_skeptic_passes(engine)) == 3
+    events = engine.store.events(limit=100)
+    retries = [e for e in events if e["kind"] == "transient_startup_failure"]
+    assert [event["detail"]["retry"] for event in reversed(retries)] == [1, 2]
+
+
+def test_a_successful_retry_forgets_the_transient_count(tmp_path: Path) -> None:
+    clock = Clock()
+    ref: list[Engine] = []
+    calls = {"n": 0}
+
+    def flaky_skeptic(spec: WorkerSpec, inputs: dict[str, object]) -> str | None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            (spec.pass_dir / "worker.stderr").write_text(BUSY, "utf-8")
+            (spec.pass_dir / "session" / "s.jsonl").unlink()
+            return None
+        return _skeptic(ref)(spec, inputs)
+
+    launcher = FakeLauncher(scripts={"extractor": _extract, "skeptic": flaky_skeptic})
+    engine = _engine(tmp_path, clock, launcher, skeptic=_schedule(cooldown_minutes=30))
+    ref.append(engine)
+    engine.tick()
+    clock.advance(1)
+    engine.tick()
+    clock.advance(1)
+    engine.tick()  # #1 busy at startup
+    assert _skeptic_passes(engine)[0].error == TRANSIENT_ERROR
+    clock.advance(1)  # past the longest 45 s jitter
+    engine.tick()
+    clock.advance(1)
+    engine.tick()
+    assert [p.status for p in _skeptic_passes(engine)] == ["failed", "succeeded"]
+    left = _query(engine, "SELECT key FROM meta WHERE key LIKE 'transient:%' AND value != ''")
+    assert left == []
+
+
+def test_a_failure_that_is_not_a_startup_collision_is_never_retried(tmp_path: Path) -> None:
+    clock = Clock()
+    launcher = FakeLauncher(
+        scripts={"extractor": _extract},
+        no_session={"skeptic": "Error: the model returned nothing useful"},
+    )
+    engine = _engine(tmp_path, clock, launcher, skeptic=_schedule(cooldown_minutes=0))
+    engine.tick()
+    clock.advance(1)
+    engine.tick()
+    clock.advance(1)
+    report = engine.tick()
+    first = _skeptic_passes(engine)[0]
+    assert first.error is not None and first.error.startswith("no output file")
+    assert not engine.store.get_meta("transient_until:skeptic")
+    assert "retrying shortly" not in report.waiting["skeptic"]
+    events = engine.store.events(limit=100)
+    assert not [e for e in events if e["kind"] == "transient_startup_failure"]
+    clock.now += timedelta(seconds=50)  # beyond any transient pause
+    engine.tick()
+    assert len(_skeptic_passes(engine)) == 1  # ordinary exponential backoff, not a retry
     assert engine._backoff_state()
+
+
+def test_worker_starts_in_one_refill_are_staggered(tmp_path: Path) -> None:
+    clock = Clock()
+    launcher = FakeLauncher(scripts={"skeptic": _empty_skeptic}, exit_after={"skeptic": 5})
+    engine = _coverage_engine(tmp_path, clock, launcher, max_parallel=2)
+    assert engine.config.launch_stagger_seconds == 4
+    sleeps: list[float] = []
+    engine._launch_sleep = sleeps.append
+    _seed_claims(engine, clock, {f"E{n}": n for n in range(1, 8)})
+    report = engine.tick()
+    assert len([item for item in report.launched if item["lens"] == "skeptic"]) == 2
+    assert sleeps == [4.0]  # none before the first start, one stagger before the second
+    # Starts that are already further apart than the stagger are not delayed again.
+    clock.now += timedelta(seconds=10)
+    engine._stagger_launch()
+    assert sleeps == [4.0]
+    engine._last_launch_at = clock() - timedelta(seconds=1)
+    engine._stagger_launch()
+    assert sleeps == [4.0, 3.0]
+    engine.config = engine.config.model_copy(update={"launch_stagger_seconds": 0})
+    engine._last_launch_at = clock()
+    engine._stagger_launch()
+    assert sleeps == [4.0, 3.0]
 
 
 def test_quota_and_timeout_failures_do_not_use_up_section_attempts(tmp_path: Path) -> None:
@@ -1100,7 +1213,8 @@ def test_agreement_compares_a_count_recipe_with_a_ratio_recipe_by_the_claim(
     )
     original_claim, original = recomputed(count)
     _, rederived = recomputed(ratio)
-    assert (original.status, original.value) == ("reproduced", 4.0)
+    # The count recipe checks k only (n is not checked), so it is partial, not reproduced.
+    assert (original.status, original.value) == ("partial", 4.0)
     assert (rederived.status, rederived.value) == ("reproduced", 0.4)
     # 4 against 0.4 is a unit mismatch, not a disagreement: each side reproduces the claim.
     assert engine_mod._agreement(original, rederived, original_claim, ratio) is True

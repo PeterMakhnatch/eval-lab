@@ -16,7 +16,7 @@ from evallab import hack_drop as hd
 from evallab.line import core
 from evallab.line.io import read_json, read_rows, write_json, write_rows
 
-NON_DEV = "non-DEV split"
+NON_DEV = "non-DEV split|split declaration is not dev"
 DUPLICATE = "duplicate JSON key"
 MALFORMED = "malformed label row"
 

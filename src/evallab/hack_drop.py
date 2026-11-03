@@ -51,6 +51,7 @@ from evallab.trace_anatomy import (
     LoadedRun,
     RefusedRun,
     _added_lines,
+    atif_run,
     build_anatomy,
     load_atif_file,
     load_run,
@@ -156,6 +157,17 @@ _TEXT_SUFFIXES = frozenset({
     ".yml",
 })
 
+
+def bundle_file_eligible(relative: str) -> bool:
+    """Whether a file of a rollout folder is read as a bundle source file (its path, posix)."""
+    parts = relative.split("/")
+    name = parts[-1]
+    if name in _SKIP_FILE_NAMES or any(part in _SKIP_DIRS for part in parts[:-1]):
+        return False
+    suffix = Path(name).suffix
+    return suffix.lower() in _TEXT_SUFFIXES or suffix == ""
+
+
 CONFIG_SURFACE = re.compile(
     r"(?:^|/)(?:pyproject\.toml|pytest\.ini|setup\.cfg|setup\.py|requirements[^\/]*\.txt)$"
 )
@@ -220,17 +232,16 @@ def strict_json_loads(text: str | bytes) -> Any:
 
 
 def _refuse_non_dev_split(document: Mapping[str, Any], what: str) -> None:
-    """Refuse any declared split that is not exactly ``dev``, at the top level and in metadata.
+    """Refuse a document that declares a split other than ``dev``, at any depth.
 
-    Both places are checked independently: a harmless-looking value in one never masks the
-    other, and a non-string declaration (a list, a number) is refused rather than ignored.
+    This is the one split check of the DEV gate, shared with ``rollout_admission``: a ``split``
+    key in any letter case, at the top level, in ``metadata``/``result``/``run_meta`` or deeper,
+    must be exactly ``dev`` (or null); a list or a number there is refused rather than ignored.
     """
-    metadata = document.get("metadata")
-    for split in (document.get("split"), metadata.get("split") if isinstance(metadata, Mapping) else None):
-        if split is None:
-            continue
-        if not isinstance(split, str) or split.strip().casefold() != "dev":
-            raise RefusedRun(f"{what} declares a non-DEV split: {split!r}")
+    from evallab.rollout_admission import declares_non_dev
+
+    if declares_non_dev(document):
+        raise RefusedRun(f"{what} declares a non-DEV split")
 
 
 def check_dev_path_allowed(path: Path | str) -> Path:
@@ -883,8 +894,9 @@ def load_labels(
             )
             if isinstance(items_list, list):
                 for item in items_list:
-                    if isinstance(item, dict):
-                        _process_item(item)
+                    if not isinstance(item, dict):
+                        raise ValueError(f"label row is not an object: {str(item)[:60]!r}")
+                    _process_item(item)
                 return labels
             # Single-row dict detection (keys: id, run_id, task_id, item_id)
             if any(k in data for k in ("id", "run_id", "task_id", "item_id")):
@@ -897,8 +909,9 @@ def load_labels(
             return labels
         if isinstance(data, list):
             for item in data:
-                if isinstance(item, dict):
-                    _process_item(item)
+                if not isinstance(item, dict):
+                    raise ValueError(f"label row is not an object: {str(item)[:60]!r}")
+                _process_item(item)
             return labels
     except json.JSONDecodeError:
         pass
@@ -911,8 +924,9 @@ def load_labels(
             item = strict_json_loads(line)
         except json.JSONDecodeError as error:
             raise ValueError(f"malformed label row ({error}): {line[:60]!r}") from error
-        if isinstance(item, dict):
-            _process_item(item)
+        if not isinstance(item, dict):
+            raise ValueError(f"label row is not an object: {line[:60]!r}")
+        _process_item(item)
     return labels
 
 
@@ -950,7 +964,6 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
     check_dev_path_allowed(path)
     run: LoadedRun | None = None
     diff_text: str | None = None
-    files: list[tuple[str, str]] = []
     parse_error: str | None = None
 
     # Check for ATIF trajectory
@@ -1001,6 +1014,88 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
     elif path.is_file() and path.suffix in (".diff", ".patch"):
         diff_text = path.read_text(encoding="utf-8", errors="replace")
 
+    return _assemble_rollout(
+        path,
+        is_dir=path.is_dir(),
+        run=run,
+        parse_error=parse_error,
+        run_meta=run_meta,
+        diff_text=diff_text,
+        bundle_files=lambda: _read_bundle_files(path),
+    )
+
+
+def _as_text(data: bytes) -> str:
+    """What ``Path.read_text(encoding="utf-8", errors="replace")`` returns for these bytes."""
+    return data.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def rollout_from_admitted(path: Path, admitted: Any) -> RolloutItem:
+    """The rollout ``rollout_admission.admit_rollout`` returned, built from the bytes it read.
+
+    No file of the rollout is opened here: trajectories, sidecars, the diff and the bundle's
+    text files all come from the one read that was hashed and checked, so what is scored is
+    what was admitted. The result equals ``_load_single_path_rollout(path)`` for a rollout
+    that is not hostile.
+    """
+    is_dir = admitted.kind == "trial"
+    held: Mapping[str, bytes] = admitted.held
+    run: LoadedRun | None = None
+    parse_error: str | None = None
+    if is_dir or (path.suffix == ".json" and path.name not in _SKIP_FILE_NAMES):
+        for name, document in admitted.trajectories:
+            try:
+                run = atif_run(document, str(path / name) if is_dir else str(path))
+                break
+            except RefusedRun:
+                raise
+            except Exception as exc:
+                run = None
+                parse_error = type(exc).__name__
+    run_meta: dict[str, Any] = {}
+    diff_text: str | None = None
+    if is_dir:
+        sidecars = dict(admitted.sidecars)
+        for name in ("result.json", "config.json", "run.json"):
+            document = sidecars.get(name)
+            if isinstance(document, dict):
+                for k, v in document.items():
+                    if k not in run_meta:
+                        run_meta[k] = v
+        if "final.diff" in held:
+            diff_text = _as_text(held["final.diff"])
+    elif path.suffix in (".diff", ".patch"):
+        diff_text = _as_text(held[path.name])
+
+    def bundle_files() -> list[tuple[str, str]]:
+        if not is_dir:
+            return [] if path.name in _SKIP_FILE_NAMES else [(path.name, _as_text(held[path.name]))]
+        names = sorted((n for n in held if bundle_file_eligible(n)), key=Path)
+        return [(name, _as_text(held[name])) for name in names]
+
+    return _assemble_rollout(
+        path,
+        is_dir=is_dir,
+        run=run,
+        parse_error=parse_error,
+        run_meta=run_meta,
+        diff_text=diff_text,
+        bundle_files=bundle_files,
+    )
+
+
+def _assemble_rollout(
+    path: Path,
+    *,
+    is_dir: bool,
+    run: LoadedRun | None,
+    parse_error: str | None,
+    run_meta: dict[str, Any],
+    diff_text: str | None,
+    bundle_files: Callable[[], list[tuple[str, str]]],
+) -> RolloutItem:
+    """Identity, files and metadata of a rollout, from what its loader read."""
+    files: list[tuple[str, str]] = []
     # Read files in submission bundle / directory or derive from trajectory
     if run is not None:
         run = _normalize_legacy_run(run)
@@ -1009,10 +1104,10 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
         if not diff_text and run.submission and run.submission.strip():
             diff_text = run.submission
     else:
-        files = _read_bundle_files(path)
+        files = bundle_files()
 
     # Infer ID and task_id: never use absolute paths as item_id
-    item_id = path.name if path.is_dir() else path.stem
+    item_id = path.name if is_dir else path.stem
     task_id = "unknown"
 
     if run_meta:
@@ -1033,7 +1128,7 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
             item_id = str(doc_meta["trial_id"])
         elif doc_meta.get("id"):
             item_id = str(doc_meta["id"])
-        elif path.is_file() and run.run_id and not (run.run_id.startswith("/") or run.run_id.startswith("\\")):
+        elif not is_dir and run.run_id and not (run.run_id.startswith("/") or run.run_id.startswith("\\")):
             item_id = run.run_id
 
         raw_task = run.doc.get("task")
@@ -1068,8 +1163,15 @@ def _check_row_dev(row: Mapping[str, Any]) -> None:
 def load_rollouts(
     inputs: Sequence[Path | str],
     repo_root: Path | None = None,
+    loader: Callable[[Path], RolloutItem] | None = None,
 ) -> list[RolloutItem]:
-    """Discover and load candidate rollouts from paths, directories, or JSON/JSONL manifests."""
+    """Discover and load candidate rollouts from paths, directories, or JSON/JSONL manifests.
+
+    ``loader`` reads one rollout (a file or a trial folder); the assembly line passes one that
+    admits the rollout and builds it from the bytes it admitted. Without it the rollout's files
+    are read here, one by one.
+    """
+    load_one = loader or _load_single_path_rollout
     items: list[RolloutItem] = []
     root = repo_root or Path.cwd()
 
@@ -1101,12 +1203,14 @@ def load_rollouts(
                     if not line:
                         continue
                     row = strict_json_loads(line)
+                    if not isinstance(row, dict):
+                        raise ValueError(f"rollout manifest row is not an object: {line[:60]!r}")
                     if isinstance(row, dict):
                         _check_row_dev(row)
                         if "path" in row:
                             row_path = Path(row["path"])
                             check_dev_path_allowed(row_path)
-                            sub = _load_single_path_rollout(row_path)
+                            sub = load_one(row_path)
                             row_id = str(row.get("id") or sub.item_id)
                             row_task = str(row.get("task_id") or row.get("task") or row.get("pair") or sub.task_id)
                             items.append(
@@ -1147,7 +1251,7 @@ def load_rollouts(
                             if "path" in row:
                                 row_path = Path(row["path"])
                                 check_dev_path_allowed(row_path)
-                                sub = _load_single_path_rollout(row_path)
+                                sub = load_one(row_path)
                                 row_id = str(row.get("id") or sub.item_id)
                                 row_task = str(row.get("pair") or row.get("task_id") or row.get("task") or sub.task_id)
                                 items.append(
@@ -1162,22 +1266,22 @@ def load_rollouts(
                                     )
                                 )
                 elif isinstance(data, dict) and ("steps" in data or "traces" in data):
-                    items.append(_load_single_path_rollout(p))
+                    items.append(load_one(p))
                 else:
-                    items.append(_load_single_path_rollout(p))
+                    items.append(load_one(p))
             else:
-                items.append(_load_single_path_rollout(p))
+                items.append(load_one(p))
 
         elif p.is_dir():
             if (p / "trajectory.json").is_file() or (p / "agent" / "trajectory.json").is_file() or (p / "run.json").is_file():
-                items.append(_load_single_path_rollout(p))
+                items.append(load_one(p))
             else:
                 subdirs = sorted([d for d in p.iterdir() if d.is_dir()])
                 if subdirs:
                     for d in subdirs:
-                        items.append(_load_single_path_rollout(d))
+                        items.append(load_one(d))
                 else:
-                    items.append(_load_single_path_rollout(p))
+                    items.append(load_one(p))
 
     # Detect duplicate IDs and enforce DEV admission across rollouts
     seen_ids: set[str] = set()

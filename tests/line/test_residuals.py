@@ -522,17 +522,6 @@ def test_reads_refuse_a_final_symlink_a_directory_and_other_hard_links(tmp_path:
         read_bytes(tmp_path)
 
 
-def test_a_declared_input_swapped_for_a_symlink_is_refused(fixture_spec: Path) -> None:
-    batch = core.run_line(fixture_spec, fixture_spec.parent)
-    labels = Path(read_json(fixture_spec)["sources"][0]["labels"])
-    copy = labels.with_name("labels-copy.jsonl")
-    shutil.copy(labels, copy)
-    labels.unlink()
-    labels.symlink_to(copy)  # same bytes; a declared input that is now a link is not read
-    with pytest.raises(ValueError, match="no longer canonical"):
-        core.check_batch(batch, fixture_spec.parent)
-
-
 # ---- scoreboard schema versions -------------------------------------------------------------
 
 

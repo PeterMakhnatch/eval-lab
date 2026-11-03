@@ -31,9 +31,11 @@ list of known-bad tricks is needed:
 * every trajectory and sidecar is read once, into memory, together with the hash of every file;
   the digest is checked on those same bytes and the parsed documents are what the caller serves,
   so nothing is read again after it is verified;
-* a ``split`` key (any case, any depth, lists included except the agent-written
-  ``steps``/``nodes``) must be exactly ``dev``, a document nested past ``MAX_DEPTH`` is refused,
-  and malformed JSON is refused;
+* a ``split`` key (any case, any depth, lists included, the agent-written ``steps`` too) must be
+  exactly ``dev``, in EVERY ``.json`` file of the rollout (trajectory, sidecars, metadata,
+  verifier output, bundle files), and none of those files may hold an evaluator/label key
+  (``label_key`` documents the two exact exclusions). A document nested past ``DOCUMENT_DEPTH``
+  is refused, and malformed JSON is refused;
 * every task, trial and run name found anywhere (documents, every path segment, every file and
   folder name in the trial, the run id) is compared in canonical form (NFKC, case-folded, each
   path segment and ``__`` stem) with the corpus registry's TEST assignments and sealed
@@ -51,12 +53,12 @@ import re
 import stat
 import unicodedata
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from evallab import hack_drop as hd
-from evallab.line.io import canonical_hash
+from evallab.line.io import LABEL_KEYS, MAX_READ_BYTES, canonical_hash
 
 SIDECARS = ("result.json", "config.json", "run.json", "grade.json", "provenance.json")
 TRAJECTORIES = ("agent/trajectory.json", "trajectory.json")
@@ -68,6 +70,10 @@ IDENTITY_KEYS = frozenset(
 DIGEST_KEYS = frozenset({"task_checksum", "task_digest", "package_digest"})
 OPAQUE_KEYS = frozenset({"steps", "nodes"})  # agent-written content, not declarations
 MAX_DEPTH = 8
+DOCUMENT_DEPTH = 64
+"""How deep a JSON file of a rollout may nest before it is refused. Real tool schemas reach 10
+levels (``trajs.main.tools[].function.parameters.properties.x.items``); a document nested past
+this is not searched and is refused, never skipped."""
 _PRINTABLE_ASCII = re.compile(r"[\x20-\x7e]+")
 _SEPARATORS = re.compile(r"[\\/]+")
 _EXTENSION = re.compile(r"\.[a-z0-9]{1,8}$")
@@ -91,6 +97,11 @@ class Admitted:
     diff: str | None
     names: tuple[str, ...]
     sha256: str  # the line's digest of what was read
+    # What the line builds a rollout from, all taken from the one read:
+    held: Mapping[str, bytes] = field(default_factory=dict)  # relative path -> bytes
+    trajectories: tuple[tuple[str, Any], ...] = ()  # every trajectory file, parsed, in order
+    sidecars: tuple[tuple[str, Any], ...] = ()  # every sidecar, parsed, in SIDECARS order
+    inodes: frozenset[tuple[int, int]] = frozenset()  # (device, inode) of each file read
 
 
 def canonical(text: str) -> str:
@@ -157,6 +168,34 @@ class _Tree:
     digest: str
     held: dict[str, tuple[Path, bytes]]  # casefolded relative path -> (path, bytes read)
     names: list[str]
+    texts: dict[str, bytes]  # relative path -> bytes, every file a caller may serve
+    inodes: frozenset[tuple[int, int]]  # (device, inode) of every file in the trial
+
+
+def _open(path: Path, expected: os.stat_result) -> Any:
+    """Open ``path`` without following a link, and only if it is still the file that was seen.
+
+    A path swapped for a link or another file after the walk's ``lstat`` is refused, not read.
+    """
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or (info.st_dev, info.st_ino) != (
+            expected.st_dev,
+            expected.st_ino,
+        ):
+            raise AdmissionRefused(f"file changed while it was being admitted: {path}")
+    except BaseException:
+        os.close(fd)
+        raise
+    return os.fdopen(fd, "rb")
+
+
+def _read_whole(path: Path, expected: os.stat_result) -> bytes:
+    if expected.st_size > MAX_READ_BYTES:
+        raise AdmissionRefused(f"file is larger than {MAX_READ_BYTES} bytes: {path}")
+    with _open(path, expected) as handle:
+        return handle.read()
 
 
 def _read_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> _Tree:
@@ -164,6 +203,8 @@ def _read_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> _Tree:
     keep the bytes of the files the caller needs."""
     files: list[tuple[Path, str]] = []
     held: dict[str, tuple[Path, bytes]] = {}
+    texts: dict[str, bytes] = {}
+    inodes: set[tuple[int, int]] = set()
     seen: dict[str, Path] = {}
     names: list[str] = []
     pending = [root]
@@ -185,37 +226,48 @@ def _read_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> _Tree:
                         raise AdmissionRefused(
                             f"hard link to sealed material inside the trial: {path}"
                         )
-                    relative = path.relative_to(root).as_posix().casefold()
+                    inodes.add((mode.st_dev, mode.st_ino))
+                    original = path.relative_to(root).as_posix()
+                    relative = original.casefold()
                     if relative in seen:
                         raise AdmissionRefused(f"two files differ only by case: {path}")
                     seen[relative] = path
-                    if _needed(relative):
-                        data = path.read_bytes()
-                        held[relative] = (path, data)
+                    needed = _needed(relative)
+                    is_json = relative.endswith(".json")
+                    keep = needed or hd.bundle_file_eligible(original)
+                    if keep or is_json:
+                        data = _read_whole(path, mode)
+                        if keep:
+                            texts[original] = data
+                        if needed:
+                            held[relative] = (path, data)
+                        if is_json:
+                            _refuse_document(original, _parse(path, data))
                         files.append((path, hashlib.sha256(data).hexdigest()))
                     else:
-                        with path.open("rb") as handle:
+                        with _open(path, mode) as handle:
                             files.append((path, hashlib.file_digest(handle, "sha256").hexdigest()))
                 else:
                     raise AdmissionRefused(f"special file inside the trial: {path}")
     # the line's own digest of a folder, computed from the hashes of the bytes read here
     ordered = sorted(files)
     digest = canonical_hash([(p.relative_to(root).as_posix(), d) for p, d in ordered])
-    return _Tree(digest, held, names)
+    return _Tree(digest, held, names, texts, frozenset(inodes))
 
 
 def _parse(path: Path, data: bytes) -> Any:
     try:
-        return json.loads(data.decode("utf-8"))
+        return hd.strict_json_loads(data.decode("utf-8"))
     except (ValueError, RecursionError) as error:
         raise AdmissionRefused(f"{path}: not JSON ({error})", unreadable=True) from error
 
 
 def declares_non_dev(value: Any, depth: int = 0) -> bool:
     """True when any ``split`` key, in any case, is not exactly ``dev``; fails closed on a
-    document nested deeper than ``MAX_DEPTH``."""
+    document nested deeper than ``DOCUMENT_DEPTH``. Nothing is skipped: a ``split`` key inside the
+    agent-written ``steps`` counts too."""
     if isinstance(value, Mapping):
-        if depth > MAX_DEPTH:
+        if depth > DOCUMENT_DEPTH:
             return True
         for key, child in value.items():
             if isinstance(key, str) and canonical(key) == "split":
@@ -223,13 +275,58 @@ def declares_non_dev(value: Any, depth: int = 0) -> bool:
                     continue
                 if not isinstance(child, str) or canonical(child) != "dev":
                     return True
-            elif key not in OPAQUE_KEYS and declares_non_dev(child, depth + 1):
+            elif declares_non_dev(child, depth + 1):
                 return True
     elif isinstance(value, list):
-        if depth > MAX_DEPTH:
+        if depth > DOCUMENT_DEPTH:
             return True
         return any(declares_non_dev(child, depth + 1) for child in value)
     return False
+
+
+def label_key(value: Any, depth: int = 0, tools: bool = False, names: bool = False) -> str | None:
+    """The first evaluator/label key (``LABEL_KEYS``, any case) in a document, or ``None``.
+
+    Exactly two parts of a document are not searched, both provably not a declaration:
+
+    * the value of a top-level ``steps`` list: what the agent wrote and what its tools returned;
+    * the parameter names under a ``properties`` mapping inside a top-level ``tools`` list: a tool
+      schema may name a parameter ``label``. Their values (the parameter schemas) and every other
+      key of a tool entry are searched.
+
+    Everything else is searched at every depth, including a trajectory's ``nodes`` and the
+    remaining ``tools`` keys. A document nested past ``DOCUMENT_DEPTH`` is not searched here:
+    :func:`declares_non_dev` refuses it.
+    """
+    if depth > DOCUMENT_DEPTH:
+        return None
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            if not names and isinstance(key, str) and key.lower() in LABEL_KEYS:
+                return key
+            if depth == 0 and key == "steps" and isinstance(child, list):
+                continue
+            found = label_key(
+                child, depth + 1, tools or (depth == 0 and key == "tools"), tools and key == "properties"
+            )
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for child in value:
+            found = label_key(child, depth + 1, tools, False)
+            if found is not None:
+                return found
+    return None
+
+
+def _refuse_document(relative: str, document: Any) -> None:
+    """Refuse a parsed JSON file of the rollout that declares a split other than dev or holds an
+    evaluator/label field. Every ``.json`` file of a rollout goes through this."""
+    if declares_non_dev(document):
+        raise AdmissionRefused(f"{relative}: a split declaration is not dev")
+    key = label_key(document)
+    if key is not None:
+        raise AdmissionRefused(f"{relative}: evaluator/label field {key!r}")
 
 
 def _get_folded(mapping: Mapping[Any, Any], wanted: str) -> Any:
@@ -407,46 +504,58 @@ def admit_rollout(
     here, before anything is parsed. With ``require_trajectory=False`` a rollout without an ATIF
     trajectory (a patch or code bundle) is admitted with ``document=None``. ``listed`` must be
     the canonical path (``os.path.realpath(listed) == listed``); nothing else is examined.
+
+    Everything the caller needs is returned from the one read (``held``, ``trajectories``,
+    ``sidecars``, ``diff``), so a caller that builds its rollout from the result never opens a
+    file of the rollout again.
     """
     root = _walk_path(listed)
     top = _lstat(root).st_mode
     documents: list[Any] = [dict(row)] if row is not None else []
     names: list[str] = [name for name in (run_id, str(root)) if name]
-    candidates: list[tuple[Path, bytes]] = []
-    sidecars: list[tuple[Path, bytes]] = []
+    candidates: list[tuple[str, Path, bytes]] = []
+    sidecars: list[tuple[str, Path, bytes]] = []
     diff_bytes: bytes | None = None
+    held: dict[str, bytes] = {}
+    inodes: frozenset[tuple[int, int]] = frozenset()
     if stat.S_ISDIR(top):
         if canonical(root.name) in TRIAL_FOLDERS or _inside_a_trial(root, folder_rollout=True):
             raise AdmissionRefused(f"a folder inside a trial is not a trial: {root}")
         tree = _read_tree(root, sealed)
         kind, digest, names = "trial", tree.digest, names + tree.names
-        candidates = [tree.held[name] for name in TRAJECTORIES if name in tree.held]
-        sidecars = [tree.held[name] for name in SIDECARS if name in tree.held]
+        candidates = [(name, *tree.held[name]) for name in TRAJECTORIES if name in tree.held]
+        sidecars = [(name, *tree.held[name]) for name in SIDECARS if name in tree.held]
         for name in DIFFS:
             if name in tree.held:
                 diff_bytes = tree.held[name][1]
                 break
+        held, inodes = tree.texts, tree.inodes
     elif stat.S_ISREG(top):
         info = _lstat(root)
         if (info.st_dev, info.st_ino) in sealed:
             raise AdmissionRefused(f"hard link to sealed material: {root}")
         if _inside_a_trial(root, folder_rollout=False):
             raise AdmissionRefused(f"a file inside a trial is not a rollout: {root}")
-        data = root.read_bytes()
+        data = _read_whole(root, info)
         kind, digest = "file", hashlib.sha256(data).hexdigest()
         if root.suffix.casefold() == ".json" or require_trajectory:
-            candidates = [(root, data)]
+            candidates = [(root.name, root, data)]
+            _refuse_document(root.name, _parse(root, data))
+        held, inodes = {root.name: data}, frozenset({(info.st_dev, info.st_ino)})
     else:
         raise AdmissionRefused(f"rollout is neither a folder nor a regular file: {root}")
     if expected_sha256 is not None and digest != expected_sha256.lower():
         raise AdmissionRefused(
             f"sha256 expected {expected_sha256.lower()} got {digest}", integrity=True
         )
-    documents += [_parse(path, data) for path, data in sidecars]
+    parsed_sidecars = tuple((name, _parse(path, data)) for name, path, data in sidecars)
+    documents += [document for _, document in parsed_sidecars]
     documents += _ancestor_documents(root)
     served: tuple[Path, Any] | None = None
-    for path, data in candidates:
+    trajectories: list[tuple[str, Any]] = []
+    for name, path, data in candidates:
         document = _parse(path, data)
+        trajectories.append((name, document))
         documents.append(document)
         if isinstance(document, Mapping) and isinstance(document.get("traces"), list):
             documents += [trace for trace in document["traces"] if isinstance(trace, Mapping)]
@@ -469,4 +578,16 @@ def admit_rollout(
     _refuse_test_identity(registry, names, digests)
     diff = diff_bytes.decode("utf-8", errors="replace") if diff_bytes is not None else None
     path, document = served if served else (None, None)
-    return Admitted(root, kind, path, document, diff, tuple(names), digest)
+    return Admitted(
+        root,
+        kind,
+        path,
+        document,
+        diff,
+        tuple(names),
+        digest,
+        held=held,
+        trajectories=tuple(trajectories),
+        sidecars=parsed_sidecars,
+        inodes=inodes,
+    )

@@ -466,7 +466,13 @@ def test_not_eligible_reading_on_an_eligible_run_fails_determinism(
     def hide_the_reading(rows: list[dict[str, Any]]) -> None:
         ar = _row(rows, "run-1")
         ar.pop("call")
-        ar.update(decision="pass", reasons=["AUTOREVIEW_NOT_ELIGIBLE"], details={"eligible": False})
+        ar.update(
+            decision="pass",
+            reasons=["AUTOREVIEW_NOT_ELIGIBLE"],
+            details={"eligible": False},
+            score=None,
+            cited_steps=ar["evidence_steps"],
+        )
 
     _retrace(batch, live_spec.parent, hide_the_reading)
     _live_failure(batch, live_spec.parent, "eligible run without a live reading", "run-1")
@@ -487,7 +493,11 @@ def test_a_reading_planted_on_an_ineligible_run_fails_determinism(
 
     def plant(rows: list[dict[str, Any]]) -> None:
         _row(rows, "run-2").update(
-            {k: v for k, v in _row(rows, "run-1").items() if k in {*AR_KEYS, "call"}}
+            {
+                k: v
+                for k, v in _row(rows, "run-1").items()
+                if k in {*AR_KEYS, "call", "score", "cited_steps"}
+            }
         )
 
     _retrace(batch, live_spec.parent, plant)

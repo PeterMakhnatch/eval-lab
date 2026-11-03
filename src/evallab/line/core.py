@@ -12,13 +12,14 @@ import subprocess
 import time
 from collections import Counter
 from contextlib import suppress
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from evallab import hack_drop as hd
 from evallab.line.io import (
+    LABEL_KEYS,
     canonical_hash,
     file_keys,
     parse_rows,
@@ -26,6 +27,7 @@ from evallab.line.io import (
     read_json,
     read_rows,
     record_reads,
+    sealed_scope,
     strict_digest,
     write_json,
     write_rows,
@@ -73,25 +75,6 @@ def _code(root: Path) -> tuple[str, bool]:
     return rev, dirty
 
 
-LABEL_KEYS = frozenset(
-    {
-        "label",
-        "labels",
-        "is_cheat",
-        "is_exploit",
-        "ground_truth",
-        "expected_verdict",
-        "attempted_cheat",
-        "attempted_but_failed",
-        "considered_only",
-        "hack",
-        "is_hack",
-        "cheat",
-        "cheated",
-        "behavior",
-        "verdict_enacted",
-    }
-)
 AUTOREVIEW_THRESHOLD = 50
 AUTOREVIEW_UNREAD = frozenset(
     {"AUTOREVIEW_NOT_ELIGIBLE", "AUTOREVIEW_DISABLED", "AUTOREVIEW_CACHE_MISS"}
@@ -279,9 +262,57 @@ def _task_status_dev(path: str) -> None:
                 hd._check_row_dev(candidate)
 
 
+class _NoRegistry:
+    """The registry when none can be built (tests only): nothing is assigned TEST."""
+
+    def assigned_test_anywhere(
+        self, *, item_id: str | None = None, task_id: str | None = None
+    ) -> bool:
+        return False
+
+
+@dataclass(frozen=True)
+class Intake:
+    """Every admitted run, and the identity of every file the admission read."""
+
+    items: list[hd.RolloutItem]
+    rows: list[dict[str, Any]]
+    inodes: frozenset[tuple[int, int]]  # (device, inode) of each file of each admitted rollout
+
+
 def _intake(spec: dict[str, Any], root: Path) -> tuple[list[hd.RolloutItem], list[dict[str, Any]]]:
+    intake = _admit_sources(spec, root)
+    return intake.items, intake.rows
+
+
+def _admit_sources(spec: dict[str, Any], root: Path) -> Intake:
+    """Admit every rollout the sources list, at run time and at check time alike.
+
+    Each rollout goes through ``rollout_admission.admit_rollout`` once, on its canonical path:
+    one walk that refuses links and special files, one read that is hashed, checked for a TEST
+    declaration (any ``split`` key, any case, any depth) and parsed. The run that is scored is
+    built from those bytes, and the hash recorded is that read's, so no rollout file is opened
+    again after it was admitted.
+    """
+    from evallab.line.io import sealed_set
+    from evallab.rollout_admission import AdmissionRefused, admit_rollout
+
+    registry = hd._get_corpus_registry(repo_root=root) or _NoRegistry()
+    sealed = sealed_set()
+    admitted: dict[str, Any] = {}
+
+    def load(path: Path) -> hd.RolloutItem:
+        real = os.path.realpath(path)
+        try:
+            result = admit_rollout(real, registry=registry, sealed=sealed, require_trajectory=False)
+        except AdmissionRefused as error:
+            raise hd.RefusedRun(f"rollout not admitted: {error.detail}") from error
+        admitted[real] = result
+        return hd.rollout_from_admitted(Path(real), result)
+
     items: list[hd.RolloutItem] = []
     rows = []
+    inodes: set[tuple[int, int]] = set()
     seen: set[str] = set()
     for source in spec["sources"]:
         manifest = Path(source["rollouts"])
@@ -297,16 +328,24 @@ def _intake(spec: dict[str, Any], root: Path) -> tuple[list[hd.RolloutItem], lis
                     f"a JSON list is not a rollout manifest (its rows would skip DEV checks): "
                     f"{manifest.name}; use JSONL or an object with a rows list"
                 )
-        for item in hd.load_rollouts([source["rollouts"]], repo_root=root):
+        for item in hd.load_rollouts([source["rollouts"]], repo_root=root, loader=load):
             if item.item_id in seen:
                 raise ValueError(f"duplicate intake run_id: {item.item_id}")
             seen.add(item.item_id)
             hd._check_row_dev(item.metadata)
             hd.check_dev_path_allowed(item.task_id)
-            path = hd.check_dev_path_allowed(item.source_path or source["rollouts"])
-            if path.is_dir():
-                for child in sorted(path.rglob("*")):
-                    hd.check_dev_path_allowed(child)
+            sidecars: dict[str, Any] = {}
+            if item.source_path is None:
+                # Rows carried by the manifest itself: the manifest is the rollout.
+                path = hd.check_dev_path_allowed(source["rollouts"])
+                sha256 = strict_digest(path)
+            else:
+                path = Path(os.path.realpath(item.source_path))
+                hit = admitted.get(str(path))
+                if hit is None:
+                    raise ValueError(f"rollout was not admitted: {item.source_path}")
+                sha256, sidecars = hit.sha256, dict(hit.sidecars)
+                inodes |= hit.inodes
             doc = item.run.doc if item.run else {}
             metadata = [item.metadata, doc]
             for key in ("metadata", "result"):
@@ -314,30 +353,12 @@ def _intake(spec: dict[str, Any], root: Path) -> tuple[list[hd.RolloutItem], lis
                     metadata.append(doc[key])
             if isinstance(item.metadata.get("run_meta"), dict):
                 metadata.append(item.metadata["run_meta"])
-            if path.is_dir():
-                for filename in ("result.json", "config.json", "run.json"):
-                    sidecar = path / filename
-                    if sidecar.is_file():
-                        metadata.append(read_json(sidecar))
-                for name in ("trajectory.json", "agent/trajectory.json"):
-                    trajectory = path / name
-                    if trajectory.is_file():
-                        # The loader keeps only a trajectory's steps; its own split must still pass.
-                        document = hd.strict_json_loads(hd.read_declared_text(trajectory))
-                        if isinstance(document, dict):
-                            hd._check_row_dev(document)
+            for filename in ("result.json", "config.json", "run.json"):
+                if isinstance(sidecars.get(filename), dict):
+                    metadata.append(sidecars[filename])
             for document in metadata:
                 if isinstance(document, dict):
                     hd._check_row_dev(document)
-            if path.is_file() and path.suffix == ".json":
-                try:
-                    raw = hd.strict_json_loads(hd.read_declared_text(path))
-                except hd.DuplicateKeyError:
-                    raise
-                except (ValueError, OSError):
-                    raw = None  # unparsable files are handled (and flagged) by the loader
-                if isinstance(raw, dict):
-                    hd._check_row_dev(raw)
             reward = next((m["reward"] for m in metadata if m.get("reward") is not None), None)
             if reward is None:
                 for document in metadata:
@@ -357,11 +378,11 @@ def _intake(spec: dict[str, Any], root: Path) -> tuple[list[hd.RolloutItem], lis
                     "model": model,
                     "reward": reward,
                     "rollout_path": str(path),
-                    "sha256": strict_digest(path),
+                    "sha256": sha256,
                 }
             )
             items.append(item)
-    return items, rows
+    return Intake(items, rows, frozenset(inodes))
 
 
 def _tasks(spec: dict[str, Any], items: list[hd.RolloutItem]) -> dict[str, dict[str, str]]:
@@ -657,7 +678,18 @@ def _refuse_unallowed_readings(spec: dict[str, Any], traces: list[dict[str, Any]
             )
 
 
+def _shares_an_inode(keys: set[tuple[Any, ...]], inodes: frozenset[tuple[int, int]]) -> bool:
+    """Whether any file an admission read is the same file as one of ``keys`` (by inode)."""
+    return any(("id", device, inode) in keys for device, inode in inodes)
+
+
 def run_line(spec_path: Path, repo_root: Path) -> Path:
+    """Run the line; every declared input is read through the one no-follow, bounded reader."""
+    with sealed_scope(repo_root), hd.declared_reader(_declared_text):
+        return _run_line(spec_path, repo_root)
+
+
+def _run_line(spec_path: Path, repo_root: Path) -> Path:
     from evallab.line.scoreboard import build_scoreboard, render_scoreboard
     from evallab.production.factory_autoreview import append_judge_queue_entry
     from evallab.production.judge_station import STATE_DIR, QueueEntry
@@ -668,7 +700,9 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
     if batch.exists():
         raise ValueError(f"batch already exists; choose a new batch_id: {batch}")
     # Admit every source before producing a batch or touching a queue.
-    items, intake = _intake(spec, repo_root)
+    admitted = _admit_sources(spec, repo_root)
+    items, intake = admitted.items, admitted.rows
+    admitted_hash = {Path(r["rollout_path"]): r["sha256"] for r in intake}
     task_started = time.time()
     tasks = _tasks(spec, items)
     cache, cache_files = _cache(spec)
@@ -679,7 +713,7 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
         + ([Path(spec["task_status"])] if spec["task_status"] else [])
         + cache_files
     )
-    if labelled & file_keys(fed_to_decisions):
+    if (labelled & file_keys(fed_to_decisions)) or _shares_an_inode(labelled, admitted.inodes):
         raise ValueError("a label file is also an input to a decision stage")
     # A run without a stored reading is not an error here: ``_evaluate`` sends it to review as
     # AUTOREVIEW_CACHE_MISS when the current L0 makes it eligible, and the scoreboard counts it.
@@ -727,7 +761,10 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
                 "finished_at": datetime.fromtimestamp(finished, UTC).isoformat(),
                 "seconds": finished - started,
                 "inputs": [
-                    {"path": batch_ref(batch, p), "sha256": strict_digest(p)}
+                    {
+                        "path": batch_ref(batch, p),
+                        "sha256": admitted_hash.get(p) or strict_digest(p),
+                    }
                     for p in dict.fromkeys(inputs)
                 ],
                 "outputs": [
@@ -870,7 +907,6 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
     return batch
 
 
-
 RECEIPT_KEYS = frozenset(
     {
         "schema",
@@ -948,11 +984,31 @@ def preflight_batch(batch: Path) -> None:
             raise ValueError(f"batch contains an unexpected file: {relative}")
 
 
+STATION_OWN = frozenset({"revealed", "reveal", "detector_agreement"})
+"""Station-written reveal blocks: they hold the label the Station showed after the verdict, by
+design, so a label key inside them is the Station's own record and is not scanned."""
+
+
+def _check_station_row(row: dict[str, Any], number: int) -> None:
+    """A Station row declares no split other than dev and no label field beyond its schema."""
+    where = f"Station verdicts line {number}"
+    from evallab.rollout_admission import declares_non_dev
+
+    if declares_non_dev(row):
+        raise ValueError(f"{where} declares a non-DEV split")
+    for key, value in row.items():
+        if str(key).lower() in LABEL_KEYS:
+            raise ValueError(f"evaluator/label field {key!r} found in {where}")
+        if key not in STATION_OWN:
+            reject_label_fields(value, where)
+
+
 def _station_verdicts(data: bytes, admitted: set[str]) -> list[dict[str, Any]]:
     """The Station's effective verdicts for the admitted runs, from one frozen byte string.
 
     Mirrors the Station's own reader (a line that is not JSON is skipped) but refuses what it
-    would crash on or silently prefer: invalid UTF-8, a non-object row, a repeated key.
+    would crash on or silently prefer: invalid UTF-8, a non-object row, a repeated key, a split
+    other than dev, an evaluator/label field outside the Station's own reveal blocks.
     """
     from evallab.production.judge_report import effective_records
 
@@ -968,6 +1024,7 @@ def _station_verdicts(data: bytes, admitted: set[str]) -> list[dict[str, Any]]:
             continue
         if not isinstance(row, dict):
             raise ValueError(f"Station verdicts line {number} is not an object")
+        _check_station_row(row, number)
         rows.append(row)
     return [row for row in effective_records(rows) if row.get("run_id") in admitted]
 
@@ -989,40 +1046,118 @@ def _trace_errors(trace_rows: list[dict[str, Any]]) -> list[dict[str, str]]:
     ]
 
 
-def _validate_live_trace(stored: list[dict[str, Any]], fresh: list[dict[str, Any]]) -> None:
-    """A live reading cannot be recomputed, so every stored one must at least be consistent:
-    a valid stage verdict, eligible under the recomputed L0, and backed by a matching call."""
-    for row, current in zip(stored, fresh, strict=True):
+_TRACE_STAGE_KEYS = frozenset(
+    {"stage", "decision", "reasons", "evidence_steps", "details", "mode", "score", "cited_steps"}
+)
+_CALL_KEYS = frozenset({"requested_route", "served_models", "n_fallbacks", "cost_usd"})
+
+
+def _live_call(call: Any, where: str) -> dict[str, Any] | None:
+    """A call record is exactly its four fields, typed; anything else is refused."""
+    if call is None:
+        return None
+    served = call.get("served_models") if isinstance(call, dict) else None
+    if not (
+        isinstance(call, dict)
+        and set(call) == _CALL_KEYS
+        and isinstance(call["requested_route"], str)
+        and (
+            served is None or (isinstance(served, list) and all(isinstance(s, str) for s in served))
+        )
+        and isinstance(call["n_fallbacks"], int)
+        and not isinstance(call["n_fallbacks"], bool)
+        and isinstance(call["cost_usd"], int | float)
+        and not isinstance(call["cost_usd"], bool)
+        and call["cost_usd"] >= 0
+    ):
+        raise ValueError(f"live call record has an unexpected shape: {where}")
+    return call
+
+
+def _validate_live_trace(
+    stored: list[dict[str, Any]],
+    fresh: list[dict[str, Any]],
+    spec: dict[str, Any],
+    items: list[hd.RolloutItem],
+) -> None:
+    """A live model reading cannot be recomputed, so everything around it is.
+
+    Each stored row must have exactly the trace-row fields; its ``stage``, ``mode``, ``score``
+    and ``cited_steps`` must follow from the reading; and which of the stage's outcomes the run
+    reached must follow from the recomputed L0 eligibility, the run's trajectory and the spend
+    of the rows before it (the same walk ``line run`` made): not eligible, budget exhausted, no
+    trajectory, a model error, or a model reading on the configured route backed by a call
+    record that agrees with its details. A reading cannot be dropped, rerouted or relabelled.
+    """
+    cap = spec["autoreview"]["max_usd"]
+    bound = spec["autoreview"].get("max_call_usd", 0)
+    route = spec["autoreview"].get("route")
+    spent, halted = 0.0, False
+    for row, current, item in zip(stored, fresh, items, strict=True):
         where = str(row["run_id"])
         stage = row["autoreview"]
+        if not isinstance(stage, dict) or set(stage) - {"call"} != _TRACE_STAGE_KEYS:
+            raise ValueError(f"live trace row has unexpected or missing fields: {where}")
         _autoreview_stage(
-            {
-                k: stage[k]
-                for k in ("decision", "reasons", "details", "evidence_steps")
-                if k in stage
-            },
+            {k: stage[k] for k in ("decision", "reasons", "details", "evidence_steps")},
             where,
-            stage.get("evidence_steps", []),
+            stage["evidence_steps"],
         )
+        details = stage["details"]
+        if (
+            stage["stage"] != "autoreview"
+            or stage["mode"] != "live"
+            or stage["score"] != details.get("suspicion")
+            or stage["cited_steps"] != stage["evidence_steps"]
+        ):
+            raise ValueError(f"live trace row disagrees with its own reading: {where}")
         names = set(stage["reasons"])
-        call = stage.get("call")
+        call = _live_call(stage.get("call"), where)
         if not hd.autoreview_eligible(hd.StageVerdict(**current["l0"])):
             if names != {"AUTOREVIEW_NOT_ELIGIBLE"} or call:
                 raise ValueError(f"live reading on an ineligible run: {where}")
             continue
         if names & {"AUTOREVIEW_NOT_ELIGIBLE", "AUTOREVIEW_DISABLED", "AUTOREVIEW_CACHE_MISS"}:
             raise ValueError(f"eligible run without a live reading: {where}")
-        details = stage["details"]
-        if "model" in details:
-            served = isinstance(call, dict) and call.get("served_models") == [details["model"]]
-            attested = served and call.get("n_fallbacks") == 0
+        if spent >= cap:
+            # The budget was spent before this run: the stage could only report that.
+            if (
+                names != {"AUTOREVIEW_BUDGET_EXCEEDED"}
+                or call
+                or abs(float(details.get("spent_usd", -1)) - spent) > 1e-9
+            ):
+                raise ValueError(f"live reading differs from the walk of the budget: {where}")
+            continue
+        if item.run is None:
+            if names != {"AUTOREVIEW_NO_TRAJECTORY"} or call:
+                raise ValueError(f"live reading on a run with no trajectory: {where}")
+            continue
+        if names & {"AUTOREVIEW_BUDGET_EXCEEDED", "AUTOREVIEW_NO_TRAJECTORY"}:
+            raise ValueError(f"live reading skipped without cause: {where}")
+        errors = [r for r in names if r.startswith("AUTOREVIEW_ERROR:")]
+        if errors:
+            error = errors[0].split(":", 1)[1]
+            if (
+                len(names) != 1
+                or details != {"error": error}
+                or (error == "BudgetReservationRefused" and not (halted or spent + bound > cap))
+            ):
+                raise ValueError(f"live error reading is not what the run could produce: {where}")
+        else:
+            served = isinstance(call, dict) and call.get("served_models") == [details.get("model")]
+            attested = served and call is not None and call.get("n_fallbacks") == 0
             if not (
-                isinstance(call, dict)
-                and call.get("requested_route") == details["model"]
-                and abs(float(call.get("cost_usd", 0)) - float(details.get("cost_usd", 0))) < 1e-6
+                call is not None
+                and route
+                and details.get("model") == route
+                and call["requested_route"] == route
+                and abs(float(call["cost_usd"]) - float(details.get("cost_usd", 0))) < 1e-6
                 and details.get("attested") is bool(attested)
             ):
                 raise ValueError(f"live reading is not backed by its call record: {where}")
+        if call:
+            spent += float(call["cost_usd"])
+            halted = halted or float(call["cost_usd"]) > bound
 
 
 def _declared_text(path: Path) -> str:
@@ -1052,9 +1187,9 @@ def check_batch(
     this check fails provenance. ``queue_pending`` is for ``run_line`` only: the external Judge
     queue is appended after this check passes, so it cannot be verified yet.
     """
-    with record_reads() as reads, hd.declared_reader(_declared_text):
+    with sealed_scope(repo_root), record_reads() as reads, hd.declared_reader(_declared_text):
         result = _check_batch(batch, repo_root, fast, evaluated, queue_pending)
-    unstable = sorted(path for path, hashes in reads.items() if len(hashes) > 1)
+    unstable = reads.unstable()
     if unstable:
         for check in result["checks"]:
             if check["name"] == "provenance":
@@ -1133,10 +1268,14 @@ def _check_batch(
 
     fresh: dict[str, Any] = {}
 
-    def verified_intake() -> tuple[Any, Any]:
+    def admitted_intake() -> Intake:
         if "intake" not in fresh:
-            fresh["intake"] = _intake(spec, repo_root)
+            fresh["intake"] = _admit_sources(spec, repo_root)
         return fresh["intake"]
+
+    def verified_intake() -> tuple[Any, Any]:
+        intake = admitted_intake()
+        return intake.items, intake.rows
 
     def dev() -> None:
         items, actual = verified_intake()
@@ -1162,6 +1301,7 @@ def _check_batch(
     def provenance() -> None:
         # Admitted outside inputs come from the spec and from a fresh, verified intake, never
         # from the batch's own (possibly edited) runs.jsonl.
+        intake_hashes = {r["rollout_path"]: r["sha256"] for r in verified_intake()[1]}
         expected_external = {
             "intake": [Path(s["rollouts"]) for s in spec["sources"]]
             + [Path(r["rollout_path"]) for r in verified_intake()[1]],
@@ -1294,9 +1434,12 @@ def _check_batch(
                 hd.check_dev_path_allowed(path)
             for ref in receipt["inputs"] + receipt["outputs"]:
                 path = resolve_ref(batch, ref["path"])
-                if (
-                    not inside(path) and path.is_dir()
-                ):  # an outside rollout tree: no links, no specials
+                known = None if inside(path) else intake_hashes.get(os.path.realpath(path))
+                if known is not None:
+                    # Admitted by this check's own intake: the rollout is never read again.
+                    require(known == ref["sha256"], f"hash mismatch: {path}")
+                    continue
+                if not inside(path) and path.is_dir():  # a manifest tree: no links, no specials
                     require(strict_digest(path) == ref["sha256"], f"hash mismatch: {path}")
                     continue
                 # One open descriptor: type, link count, hash and rows all come from these bytes.
@@ -1346,7 +1489,7 @@ def _check_batch(
 
         require(shown(trace_a) == shown(stored_trace), "trace.jsonl differs from recomputation")
         if live:
-            _validate_live_trace(stored_trace, trace_a)
+            _validate_live_trace(stored_trace, trace_a, spec, verified_intake()[0])
 
     if fast:
         checks.append(
@@ -1441,7 +1584,11 @@ def _check_batch(
             + ([Path(spec["task_status"])] if spec["task_status"] else [])
             + list(_cache(spec)[1])
         )
-        require(not label_keys & file_keys(decision_inputs), "labels entered a decision stage")
+        require(
+            not label_keys & file_keys(decision_inputs)
+            and not _shares_an_inode(label_keys, admitted_intake().inodes),
+            "labels entered a decision stage",
+        )
         require(
             all(
                 not label_keys & file_keys(resolve_ref(batch, ref["path"]) for ref in r["inputs"])

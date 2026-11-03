@@ -66,8 +66,10 @@ label-dependent rates with zero denominators are unavailable, not measured as
 zero. Task status comes from the task-side manifest described in
 [hack-drop](hack-drop.md); rollout labels are not certification evidence.
 Every task carries its own decision reason: `TASK_CERTIFIED`, `TASK_PROVISIONAL`,
-`TASK_UNCERTIFIED` or `TASK_WEAK`; `TASK_STATUS_UNKNOWN` is reserved for a task
-absent from the manifest. `task_action` controls review versus drop for weak
+`TASK_UNCERTIFIED` or `TASK_WEAK`. A task absent from the manifest is `uncertified` (reason
+`NO_EVIDENCE`) and reports `TASK_UNCERTIFIED`; the line never emits `TASK_STATUS_UNKNOWN`,
+which only hack-drop's own stage reports for a task missing from a certified-tasks manifest.
+`task_action` controls review versus drop for weak
 tasks. The optional `task_policy` maps each status (`certified`, `provisional`,
 `weak`, `uncertified`) to `pass`, `review` or `drop`; the defaults match today's
 behavior (weak follows `task_action`, everything else passes), so a training
@@ -196,16 +198,32 @@ must be regenerated.
   the task-status file; trace lists the cache files; scoreboard lists the labels files; the
   other stages list none. An omission and an extra both fail provenance. Every listed input
   also passes the DEV gate.
-- **Rollout trees.** At run time and at check time a rollout directory is walked without
-  following links: any symlink anywhere inside it, and any FIFO, socket or device, is
-  refused. Hard links are allowed (native Harbor trials share files that way). The tree
-  hash is unchanged from earlier batches. This is the line's own walk; it moves to the
-  shared `admit_rollout()` gate when that is canonical-path only.
-- **One reader.** `line check` reads declared inputs (spec, manifests, labels, task status,
-  cache) through one no-follow reader that checks the open descriptor (regular file, link
-  count). The loaders parse the bytes that reader returns, and provenance hashes the same
-  kind of read; a file whose bytes differ between two reads inside one check fails
-  provenance ("changed while being checked"). The stored `spec.json` must equal what
+- **Rollout admission.** At run time and at check time every rollout (a trial folder or a
+  file) goes through `rollout_admission.admit_rollout` on its canonical path (`realpath`),
+  once. That one walk refuses any symlink, FIFO, socket or device, a hard link to sealed
+  material, and a non-ASCII or case-ambiguous name; it opens each file without following
+  links and only if it is still the file the walk saw; it hashes what it read and parses
+  **every `.json` file** in the tree (trajectory, sidecars, `metadata.json`, verifier output,
+  `sub/submission.json`, ...): duplicate keys and malformed JSON are refused, a `split` key
+  in any case at any depth (agent-written steps included) must be `dev`, and no key of
+  `LABEL_KEYS` may appear. Two exclusions only, both for the label check: the value of a
+  top-level `steps` list (what the agent wrote and its tools returned) and parameter names
+  under a `properties` mapping inside a top-level `tools` list (a tool may have a parameter
+  called `label`). The split check has no exclusion at all, so a tool parameter named `split`
+  refuses the trial (fail closed; none of the 738 honest DEV runs checked carries one). A
+  file nested deeper than 64 levels is refused. The rollout that is scored
+  is built from those bytes (trajectory, sidecars, diff and bundle source files), and the
+  hash recorded is that read's: no rollout file is opened again, and the tree hash equals the
+  hash earlier batches recorded. A file inside a bundle that is another name for a label file
+  is refused by label isolation. Hard links to anything else are allowed (native Harbor
+  trials share files that way).
+- **One reader.** Every declared input (spec, manifests, labels, task status, cache, Station
+  verdicts) goes through one reader: no-follow open, the open descriptor must be a regular file,
+  must not be another name for a file under `research/answer-keys` (by device and inode), and
+  is bounded at 512 MB with a plain error. The loaders parse the bytes that reader returns, and
+  provenance hashes the same kind of read; a file whose bytes differ between two reads inside
+  one check, by whichever name (hard-link alias or case variant: reads are keyed by inode),
+  fails provenance ("changed while being checked"). The stored `spec.json` must equal what
   `load_spec` resolves it to now, so a declared input that has since become, or passes
   through, a link is refused.
 - **No shared files.** A spec is refused, at run and at check time, when two declared inputs
@@ -221,7 +239,7 @@ must be regenerated.
 | Check | What must hold |
 |---|---|
 | Conservation | Every intake run has exactly one decision; keep + drop + review equals intake; audits are a subset of keeps; each export file equals its decisions exactly. |
-| DEV only | Sources, runs and tasks pass the existing DEV gates; no TEST or answer-key paths (the path as spelled and its symlink target are both judged). A non-DEV `split` is refused wherever it is declared: manifest rows, direct JSON trajectories and their `metadata`, sidecar files, task-status files (top level and rows) and cached AutoReview rows. Every file in a rollout directory is path-checked, a JSON list is refused as a manifest, and label files are validated (before any directory, queue or export is written, and again by this check). |
+| DEV only | Sources, runs and tasks pass the existing DEV gates; no TEST or answer-key paths (the path as spelled and its symlink target are both judged). A `split` other than exactly `dev` (any key case, any depth, the agent-written steps included) is refused wherever it is declared: manifest rows, every `.json` file of a rollout, task-status files (top level and rows), cached AutoReview rows and Station rows. A JSON list is refused as a manifest, and label files are validated (before any directory, queue or export is written, and again by this check). |
 | Provenance | Receipt input/output hashes match disk and the code revision is recorded. Every stage receipt must list its expected files (for example the export receipt lists all three export files, the judge receipt lists a Station snapshot), so emptying a receipt does not hide a change. |
 | Determinism | `line run` computes the decisions twice in-process and the two hashes must match; its closing check reuses those two passes. A later `line check` recomputes the decisions once and compares them with the stored decisions and both recorded hashes, and recomputes `trace.jsonl` (L0 and AutoReview evidence) from the inputs. |
 | Spend and models | Spend stays inside the spec cap. Every AutoReview call records the route that actually served it and its fallback count in `trace.jsonl`; the route must equal the requested one, have zero fallbacks and be in `models.allowed`, and the trace receipt's model list must equal the routes in the trace. In live mode each call's cost stays within `max_call_usd`, and calls sum to the receipt spend. |
@@ -255,13 +273,14 @@ the judge-routing check. Task statuses use the line's vocabulary: hack-drop's
 
 `line run` refuses everything it can before a batch directory exists or the shared Judge
 queue is touched: the spec and every declared input (DEV gate, duplicate JSON keys, malformed
-label rows, shared files), the Station verdict file (invalid UTF-8, non-object rows, repeated
-keys; a line that is not JSON is skipped, as the Station does), and, when no paid call is
-involved, stored AutoReview readings on a route outside `models.allowed` (or unattested).
-Live AutoReview calls happen as the batch is built, so a refusal after them still leaves
-the evidence on disk. The external Judge queue is appended **last**, only after all eight
-checks passed on the finished batch, and the external queue is then verified; a batch whose
-checks fail is left on disk with `passed: false` and the queue is untouched.
+or non-object label and manifest rows, shared files), every rollout (admission, see above),
+the Station verdict file (invalid UTF-8, non-object rows, repeated keys, a split other than
+dev, a label field; a line that is not JSON is skipped, as the Station does), and, when no
+paid call is involved, stored AutoReview readings on a route outside `models.allowed` (or
+unattested). Live AutoReview calls happen as the batch is built, so a refusal after them
+still leaves the evidence on disk. The external Judge queue is appended **last**, only after
+all eight checks passed on the finished batch, and the external queue is then verified; a
+batch whose checks fail is left on disk with `passed: false` and the queue is untouched.
 
 ## What covers each batch file
 
@@ -275,10 +294,10 @@ gate runs).
 | `spec.json` | intake receipt | must equal what `load_spec` resolves it to now; DEV gate |
 | `runs.jsonl` | intake receipt | equals a fresh intake run from the spec (DEV only) |
 | `tasks.jsonl` | task receipt | exact row-for-row recomputation from the task-status file (DEV only) |
-| `trace.jsonl` | trace receipt | recomputed (off/cached); in live mode every stored reading must be a valid stage verdict, eligible under the recomputed L0 and backed by a matching call record (route, cost, attestation) |
+| `trace.jsonl` | trace receipt | recomputed (off/cached); in live mode each stored reading must have the exact trace-row fields, `stage`/`mode`/`score`/`cited_steps` that follow from the reading, the configured route, a call record that agrees with it, and an outcome (not eligible, budget spent, no trajectory, error, reading) that the recomputed L0, the trajectory and the spend of the rows before it allow |
 | `decisions.jsonl` | decisions receipt | recomputed twice and compared with the saved decision hashes |
 | `judge-queue.jsonl` | judge receipt | recomputed from the decisions |
-| `verdicts.jsonl` | judge receipt | recomputed from the pinned Station snapshot and the admitted runs |
+| `verdicts.jsonl` | judge receipt | recomputed from the pinned Station snapshot and the admitted runs; every row is checked for a split other than dev and for label fields outside the Station's own reveal blocks |
 | `evidence/station-inputs/*.jsonl` | judge receipt | the snapshot the verdicts are recomputed from |
 | `export/*.jsonl` | export receipt | equal the decisions, row for row |
 | `receipts/*.json` | not applicable | exactly the seven stages with a fixed set of fields; one `code_rev`; the batch id; row totals recomputed from the files; trace errors recomputed from the trace; models and spend only on the trace receipt; every output with a row count |
@@ -289,34 +308,42 @@ gate runs).
 ## Threat model
 
 `line check` detects accidental corruption, stale or mixed-code batches, and edits to batch
-files or to declared inputs (a changed byte in a manifest, labels, task-status or cache file,
-a swapped receipt, a flipped decision, a forged total).
+files or declared inputs (a changed byte in a manifest, labels, task-status, cache or rollout
+file, a swapped receipt, a flipped decision, a forged total), and it refuses the filesystem
+tricks a rollout or a declared input can carry: links, special files, another name for sealed
+material, a file that changes between two reads, a TEST declaration or evaluator field in any
+JSON file of a rollout or in a Station row.
 
-It does **not** defend against a local adversary who can use filesystem tricks on the
-inputs, or who can write anywhere the line reads. In particular, these are known limits, to
-be closed structurally when the line's intake adopts the single-read `admit_rollout()` gate:
+It checks consistency, not authenticity. Anyone who can write the batch **and** recompute
+every hash, or change the code, can forge a batch that passes; nothing is signed. What is
+left, exactly:
 
-- **Rollout trees.** The hack-drop loaders read a rollout's files with plain `read_text`
-  after the tree walk, so hard links inside a bundle (including a hard link to a label file),
-  FIFOs that a loader opens before the walk, and files changed between the loader's read and
-  the walk are not caught. Label isolation and the shared-file rule see a rollout directory as
-  one path, not the files inside it; they also do not look inside a cache directory beyond
-  the files it lists.
-- **Declared inputs and hard links.** Declared manifests, labels, task-status and cache files
-  are read without a link-count check, so a hard link to a forbidden file under a DEV-looking
-  name is not caught (the DEV gate judges names and resolved paths, not other names of the
-  same inode).
-- **Races during a check.** Hashes taken by the reader are keyed by the path as spelled, so a
-  file reached through a hard-link alias or a case variant and changed between two reads is
-  compared per spelling; a rollout file changed between a loader's read and its hash is not
-  detected.
-- **Paths the loaders resolve.** The DEV gate resolves symlinks in declared paths and in a
-  manifest row's `path` before the line sees them, so a symlinked input is accepted at run
-  time (a link that appears later is refused by the canonical-path check).
-- **Evaluator fields in decision inputs.** Label fields are refused in everything the line
-  writes and in AutoReview cache rows, but manifest rows, trajectories and task-status files
-  that carry them are accepted and stripped on output rather than refused.
-- **Resource limits.** Inputs are read whole into memory with no size bound.
+- **Live model readings.** A reading made by a live model call cannot be recomputed. `line
+  check` requires every reading to have the exact trace-row shape, the configured route, a call
+  record that agrees with it, and an outcome the walk of the budget, the trajectory and the
+  recomputed L0 allows, but a self-consistent reading forged with a matching call record is
+  accepted. Re-reading it needs the model again.
+- **Sealed material is one folder.** "Another name for sealed material" means a hard link to a
+  file under `<repo>/research/answer-keys` of the repository the command runs in. A label file
+  elsewhere is kept out of the decisions by label isolation (compared by inode with every file
+  admitted), not by being sealed.
+- **Parents of an input.** Declared inputs and the batch are opened without following a final
+  link; a symlinked parent directory on the way is followed. A rollout path is `realpath`ed
+  before admission, which then judges that path, so a link to a forbidden folder is judged by
+  its target.
+- **Only `.json` files of a rollout are parsed.** Other files (logs, `.jsonl` event streams,
+  source files) are hashed and, if they are bundle source files, scored, but a `split` or label
+  word inside them is not looked for. Ancestor folders' sidecars are read by admission with a
+  plain read.
+- **Evaluator fields in manifests and task status.** Label fields are refused in every JSON
+  file of a rollout, in Station rows and AutoReview cache rows, and in everything the line
+  writes. A manifest row or task-status file that carries one is accepted and the field is
+  stripped on output, not refused.
+- **Station reveal blocks.** `revealed`, `reveal` and `detector_agreement` in a Station row
+  hold the label the Station showed after the verdict, by design; they are copied into
+  `verdicts.jsonl` and not scanned.
+- **Memory.** Each file the line reads whole is bounded (512 MB); the number of files and the
+  streamed hash of the others are not.
 
 ## Reading the scoreboard
 

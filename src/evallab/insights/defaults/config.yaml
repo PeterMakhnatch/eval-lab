@@ -54,6 +54,10 @@ overrides: []
 
 tick_seconds: 300
 max_concurrent_passes: 3
+# Seconds between worker starts when one tick or refill launches several: omp's
+# shared agent.db returns SQLITE_BUSY when workers start in the same second.
+# (A startup that still hits it is retried twice after a 15-45 s jittered pause.)
+launch_stagger_seconds: 4
 # Committed experiment results are read from an engine-owned detached worktree
 # that the engine fast-forwards to origin/main (the primary checkout can lag).
 repo_mirror:

@@ -53,6 +53,80 @@ _DEPENDENCE = re.compile(r"\b(?:relies on|relying on|uses? (?:the )?result|adopt
 _INDEPENDENT = re.compile(r"\b(?:independent|re-?run|rerun|replicat\w*|review|resolv\w*|"
                           r"does not (?:use|rely)|not (?:using|relying))\b")
 _ABSENT = re.compile(r"\b(?:not (?:yet )?(?:measured|evaluated|tested)|unmeasured)\b")
+_BRACKET_INTERVAL = re.compile(r"\[\s*\d+(?:\.\d+)?\s*\\?%?\s*,\s*\d+(?:\.\d+)?\s*\\?%?\s*\]")
+_RANGE_INTERVAL = re.compile(r"\d+(?:\.\d+)?\s*\\?%?\s*[–-]\s*\d+(?:\.\d+)?\s*\\?%")
+_FRACTIONS = re.compile(r"\d+/\d+")
+# A relation target such as "C1" is ambiguous when the claim text names "C1-C5": only
+# longer tokens with a digit-bearing segment look like experiment ids ("F3-F7", not "F3-style").
+_LONGER_ID = r"(?:[-_][A-Za-z]*\d[A-Za-z0-9]*)+"
+_CASE_NOUNS = {"case", "cases", "cheat", "cheats", "task", "tasks", "item", "items", "package",
+               "packages", "key", "keys", "rollout", "rollouts", "prompt", "prompts"}
+_REPEAT_NOUNS = {"variant", "variants", "repeat", "repeats", "payload", "payloads", "seed",
+                 "seeds", "pass", "passes", "trial", "trials", "sample", "samples", "run", "runs",
+                 "epoch", "epochs", "attempt", "attempts"}
+_DESIGN = re.compile(
+    r"((?:\d+\s+[A-Za-z][A-Za-z -]*?\s*[x×*]\s*)+\d+\s+[A-Za-z][A-Za-z -]*?)\s*=\s*(\d+)")
+_CLUSTER_NOTE = re.compile(r"not independent|non-?independent|cluster|pseudo.?replicat")
+
+
+def _resolve_target(record: ClaimRecord, raw: str, known: set[str]) -> str | None:
+    """Resolve a relation target to a known experiment id, or None when ambiguous.
+
+    Exact id first, unless the claim text names a longer id that starts with it
+    (``C1`` vs ``C1-C5``); then a unique known id containing that longer token.
+    A target with no exact match may take a unique ``<target>-...`` family member.
+    """
+    target = normalize_experiment_id(raw)
+    claim = record.claim
+    text = " ".join([claim.statement, claim.quote, *(r.note or "" for r in claim.relations
+                                                      if r.target_experiment == raw)])
+    folded = {k.casefold(): k for k in known}
+    longer = {m.group(0).casefold() for m in re.finditer(
+        rf"(?<![\w-]){re.escape(raw.strip())}{_LONGER_ID}(?![\w])", text, re.IGNORECASE)}
+    if longer:
+        hits = {k for token in longer for fold, k in folded.items()
+                if fold == token or f"-{token}-" in f"-{fold}-"}
+        hits.discard(target)
+        return next(iter(hits)) if len(hits) == 1 else None
+    if target in known:
+        return target
+    family = {k for k in known if k.casefold().startswith(target.casefold() + "-")}
+    if len(family) == 1:
+        return next(iter(family))
+    return None if family else target
+
+
+def _arms(record: ClaimRecord) -> tuple[str, ...]:
+    """Compared subjects/readers of a test; empty when the claim names none."""
+    claim = record.claim
+    names = {_reader(claim.subject), *(_normalized(m) for m in claim.models)}
+    return tuple(sorted(name for name in names if name))
+
+
+def _replication_design(record: ClaimRecord) -> tuple[int, int, set[int]] | None:
+    """``18 cheats x 6 variants x 3 repeats = 324`` -> (cases, trials, repeat factors)."""
+    text = record.claim.statement.replace("$", "").replace("\\times", " x ")
+    match = _DESIGN.search(text)
+    if match is None:
+        return None
+    parts = [part.strip() for part in re.split(r"\s[x×*]\s", match.group(1))]
+    sizes: list[tuple[int, str]] = []
+    for part in parts:
+        count, _, noun = part.partition(" ")
+        words = noun.split()
+        if not count.isdigit() or not words:
+            return None
+        sizes.append((int(count), words[-1].casefold()))
+    if sizes[0][1] not in _CASE_NOUNS or any(noun not in _REPEAT_NOUNS for _, noun in sizes[1:]):
+        return None
+    cases, factors = sizes[0][0], [size for size, _ in sizes[1:]]
+    total = cases
+    for factor in factors:
+        total *= factor
+    if total != int(match.group(2)) or cases < 1 or total <= cases:
+        return None
+    return cases, total, {math.prod(subset) for r in range(1, len(factors) + 1)
+                          for subset in combinations(factors, r)}
 
 
 def _normalized(value: str | None) -> str:
@@ -202,7 +276,8 @@ def detect_signals(claims: Sequence[ClaimRecord], *, now: datetime) -> list[Sign
                          f"{claim.experiment}: stated Wilson interval differs from the counts", 4,
                          {"stated": [stated_low, stated_high], "expected": [low, high]})
             text = _normalized(" ".join([claim.metric or "", claim.quote]))
-            bounded = claim.ci_low is not None or bool(re.search(r"\d+\s*[–-]\s*\d+\s*%", claim.quote))
+            bounded = (claim.ci_low is not None or bool(_BRACKET_INTERVAL.search(claim.quote))
+                       or bool(_RANGE_INTERVAL.search(claim.quote)))
             if (claim.kind in {"measurement", "comparison"} and claim.n < 30
                     and claim.k in {0, claim.n} and not _ADMIN.search(text) and not bounded):
                 context = _context(record)
@@ -271,8 +346,47 @@ def detect_signals(claims: Sequence[ClaimRecord], *, now: datetime) -> list[Sign
         if family is not None and comparison is not None and comparison.p_value is not None:
             families[family].append(record)
 
+    # One issue per measurement: restatements share a cohort key, columns of one table row
+    # share (source, section, n, metric), and a cohort named in another claim's subject,
+    # condition or dataset is the same cohort when metric, k and n match.
+    keys = list(small)
+    parent = {key: key for key in keys}
+
+    def find(key: tuple[str, ...]) -> tuple[str, ...]:
+        while parent[key] != key:
+            parent[key] = parent[parent[key]]
+            key = parent[key]
+        return key
+
+    def link(a: tuple[str, ...], b: tuple[str, ...]) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+
+    rows: dict[tuple[object, ...], tuple[str, ...]] = {}
+    identity: dict[tuple[object, ...], list[tuple[tuple[str, ...], set[str], set[str]]]] = defaultdict(list)
+    for key in keys:
+        for record in small[key]:
+            claim = record.claim
+            metric = _metric(claim.metric)
+            row = (record.source_id, claim.section_id, claim.n, metric)
+            link(key, rows.setdefault(row, key))
+            own = {_reader(claim.subject), _normalized(claim.condition)} - {""}
+            dataset = {_normalized(claim.dataset)} - {""}
+            identity[(claim.experiment, metric, claim.k, claim.n)].append((key, own, dataset))
+    for entries in identity.values():
+        for (ka, own_a, data_a), (kb, own_b, data_b) in combinations(entries, 2):
+            # A reader or condition naming the other claim's dataset (a shared subject alone
+            # is not enough: one reader on two cohorts is two measurements).
+            if own_a & data_b or own_b & data_a:
+                link(ka, kb)
+    merged: dict[tuple[str, ...], list[ClaimRecord]] = defaultdict(list)
+    for key in keys:
+        merged[find(key)].extend(small[key])
+
     small_by_experiment: dict[str, list[tuple[float, tuple[str, ...], list[ClaimRecord]]]] = defaultdict(list)
-    for key, records in small.items():
+    for key, records in merged.items():
+        records = sorted({r.claim_id: r for r in records}.values(), key=lambda r: r.claim_id)
         record = records[0]
         relevant = any(re.search(r"\b(?:gate|decision|adopt|drop|capture|threshold|recommend)\w*\b",
                                  _normalized(r.claim.statement + " " + (r.claim.metric or "")))
@@ -306,34 +420,57 @@ def detect_signals(claims: Sequence[ClaimRecord], *, now: datetime) -> list[Sign
                      min(5, -math.log10(max(p, 1e-300))),
                      {"p_value": p, "difference": result["diff"], "test": "fisher_exact"})
 
+    known = {r.claim.experiment for r in current} | {
+        normalize_experiment_id(rel.target_experiment) for r in current for rel in r.claim.relations}
     corrections: dict[str, list[ClaimRecord]] = defaultdict(list)
+    retractions: dict[tuple[str, str, str], list[ClaimRecord]] = defaultdict(list)
     for record in current:
         claim = record.claim
         if claim.status in {"corrected", "refuted"}:
             corrections[claim.experiment].append(record)
         for relation in claim.relations:
-            target = normalize_experiment_id(relation.target_experiment)
-            if target == claim.experiment:
+            # An ambiguous target is dropped: attaching the wrong experiment's claims is worse.
+            target = _resolve_target(record, relation.target_experiment, known)
+            if target is None or target == claim.experiment:
                 continue
             note = _normalized(relation.note)
             if re.search(r"not a (?:refutation|contradiction)|design contrast", note):
                 continue
             if relation.relation in {"corrects", "refutes", "contradicts"}:
-                emit("contradiction", [record, *by_experiment.get(target, [])],
-                     f"{claim.experiment} {relation.relation} {target}", 4,
-                     {"source_experiment": claim.experiment, "target_experiment": target,
-                      "relation": relation.relation},
-                     key=f"{claim.experiment}:{target}:{relation.relation}:{_property(record)}")
+                retractions[(claim.experiment, target, relation.relation)].append(record)
             if relation.relation in {"corrects", "refutes"}:
                 corrections[target].append(record)
+    for (source, target, relation_name), records in sorted(retractions.items()):
+        # Claims of one source restating the same retraction share >= 2 stated fractions
+        # (or the same property); each cluster is one issue about the target.
+        numbers = {r.claim_id: set(_FRACTIONS.findall(r.claim.statement + " " + r.claim.quote))
+                   for r in records}
+        clusters: list[list[ClaimRecord]] = []
+        for record in records:
+            for cluster in clusters:
+                if any(len(numbers[record.claim_id] & numbers[other.claim_id]) >= 2
+                       or _property(record) == _property(other) for other in cluster):
+                    cluster.append(record)
+                    break
+            else:
+                clusters.append([record])
+        for cluster in clusters:
+            anchor = min(_property(r) for r in cluster)
+            emit("contradiction", [*cluster, *by_experiment.get(target, [])],
+                 f"{source} {relation_name} {target}", 4,
+                 {"source_experiment": source, "target_experiment": target,
+                  "relation": relation_name,
+                  "correcting_claim_ids": sorted(r.claim_id for r in cluster)},
+                 key=f"{source}:{target}:{relation_name}:{anchor}")
     for record in current:
         claim = record.claim
         if not claim.metric or claim.kind == "correction" or claim.status in {"corrected", "refuted"}:
             continue
         for relation in claim.relations:
-            target = normalize_experiment_id(relation.target_experiment)
+            target = _resolve_target(record, relation.target_experiment, known)
             text = _normalized(claim.statement + " " + (relation.note or ""))
-            if (relation.relation not in {"extends", "confirms"} or claim.experiment == target
+            if (target is None or relation.relation not in {"extends", "confirms"}
+                    or claim.experiment == target
                     or not _DEPENDENCE.search(text) or _INDEPENDENT.search(text)):
                 continue
             corrected = [r for r in corrections.get(target, []) if r.claim.metric
@@ -370,15 +507,22 @@ def detect_signals(claims: Sequence[ClaimRecord], *, now: datetime) -> list[Sign
                 gaps += 1
 
     for family, records in sorted(families.items()):
-        tests: dict[tuple[object, ...], ClaimRecord] = {}
+        # A test is its compared arms, reference and counts. Restatements share all of them;
+        # distinct readers with identical (b, c, p) must stay distinct, so a condition only
+        # separates tests when several conditions share the same arms and counts.
+        by_counts: dict[tuple[object, ...], dict[str, ClaimRecord]] = defaultdict(dict)
         for record in records:
             claim = record.claim
             comparison = claim.comparison
             assert comparison is not None
-            identity = (_reader(claim.subject), _normalized(claim.condition), comparison.baseline,
-                        comparison.b, comparison.c, comparison.k2, comparison.n2, claim.k, claim.n)
-            tests.setdefault(identity, record)
-        tested = list(tests.values())
+            counts_key = (_arms(record), comparison.baseline, comparison.b, comparison.c,
+                          comparison.k2, comparison.n2, claim.k, claim.n, comparison.p_value)
+            by_counts[counts_key].setdefault(_normalized(claim.condition), record)
+        tested: list[ClaimRecord] = []
+        for _, conditions in sorted(by_counts.items(), key=lambda item: str(item[0])):
+            named = {c: r for c, r in conditions.items() if c}
+            tested.extend((named or conditions).values())
+        tested.sort(key=lambda record: record.claim_id)
         if len(tested) < 2:
             continue
         ps = []
@@ -396,4 +540,31 @@ def detect_signals(claims: Sequence[ClaimRecord], *, now: datetime) -> list[Sign
                        "adjusted": adjusted, "q": 0.05, "family": list(family),
                        "family_provenance": "explicit family tag or shared endpoint/cohort/comparison scope"},
                  key="|".join(family))
+
+    for experiment, members in sorted(by_experiment.items()):
+        # Trials of far fewer independent cases: the experiment itself states
+        # "<cases> x <repeat factors> = <trials>" and a significant p-value is computed over
+        # n trials, n a product of the case count and some of those factors.
+        for design_record in members:
+            design = _replication_design(design_record)
+            if design is None:
+                continue
+            cases, total, factors = design
+            significant = [
+                r for r in members
+                if r.claim.comparison is not None and r.claim.comparison.p_value is not None
+                and r.claim.comparison.p_value < 0.05 and r.claim.n is not None
+                and r.claim.n > cases and r.claim.n % cases == 0 and r.claim.n // cases in factors]
+            if not significant:
+                continue
+            noted = [r.claim_id for r in significant
+                     if _CLUSTER_NOTE.search(_normalized(" ".join(r.claim.caveats)))]
+            emit("pseudo_replication", [design_record, *significant],
+                 f"{experiment}: p-values over {total} trials of {cases} cases",
+                 3, {"cases": cases, "trials": total,
+                     "tests": [{"claim_id": r.claim_id, "n": r.claim.n,
+                                "p_value": r.claim.comparison.p_value if r.claim.comparison else None}
+                               for r in significant],
+                     "source_notes_dependence": noted},
+                 key=f"{experiment}:{cases}:{total}")
     return sorted(signals.values(), key=lambda signal: (-signal.score, signal.signal_id))

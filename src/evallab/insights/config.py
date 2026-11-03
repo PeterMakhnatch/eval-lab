@@ -74,6 +74,9 @@ class EngineConfig(ContractModel):
     overrides: list[SourceOverride] = Field(default_factory=list)
     tick_seconds: int = Field(default=300, ge=10)
     max_concurrent_passes: int = Field(default=2, ge=1, le=8)
+    #: Pause between `omp -p` starts when one tick or refill launches several workers:
+    #: omp's shared agent.db is contended when they start in the same second.
+    launch_stagger_seconds: float = Field(default=4.0, ge=0, le=60)
     lenses: dict[Lens, LensSchedule] = Field(default_factory=dict)
     max_provider_used_percent: float = Field(default=85.0, gt=0, le=100)
     host_min_memory_level: int = Field(default=15, ge=0, le=100)

@@ -89,14 +89,18 @@ Use `./q schema` if a field or allowed value is unclear.
     fits ("searched summary.json and rollouts.jsonl; no field holds the 28-case denominator").
     Start with `./q locate --k K --n N --value V` using the claim's own numbers: it proposes
     receipt pointers and recipe templates. Verify the chosen one with `./q recipe`.
-25. Every recipe declares `target`, the claim quantity it reproduces: `k` (the numerator or
-    a plain count), `n` (the denominator), or `value` (the stated rate or scalar).
-    - Count 32 of 50 candidates: `count` or `value` recipe with `target: "k"`.
-    - Rate 32/50 = .64: a `ratio` recipe (numerator over denominator, target `value`), or a
-      `value` recipe on a receipt field that already holds the rate. Never target `value`
-      with a recipe that returns the count 32 or the total 50.
-    - Precision 15/15: true-positive drops over all drops, or the receipt's own precision
-      rate; never the raw drop count (`/counts/drop` is a count, not a precision).
+25. Every recipe declares `target`, the claim quantity it reproduces: `k` (numerator or plain
+    count), `n` (denominator) or `value` (rate or scalar). A claim is `reproduced` only when
+    every number it states (k, n, value) was validated; one matched field is `partial`.
+    - Count 32 of 50 candidates: `op=count` with `target: "k"`, plus a companion recipe in
+      `also` with `target: "n"` for the 50.
+    - Rate 32/50 = .64: `op=ratio` (numerator over denominator) reading both fields from the
+      same receipt object; that validates k, n and value. A `value` recipe on a rate field
+      validates only the rate. Never target `value` with a count.
+    - Precision 15/15: the receipt's own precision field, or true-positive drops over all drops.
+      Never the raw drop count (`/counts/drop` is a count, not a precision).
+    - A 0, 1 or 100 (0%, 100%) matches many fields by accident: the pointer must contain a word
+      of the claim's cohort or metric, or the recipe needs a `where`; else it is `partial`.
     - Seconds, USD, tokens: `value` recipe; record the number in the unit the quote prints.
 26. A total count is not a numerator; filters and denominator must match the quote.
     A rate needs k from the right rows (the rows the claim counts), never the total row count.
@@ -106,16 +110,17 @@ Use `./q schema` if a field or allowed value is unclear.
     `./q recipe`, and read the status it reports; an executable recipe is not yet a correct one.
 29. Statistical claims copied from prose remain author claims until independently checked.
 30. Skip scheduling chatter, greetings, handoff instructions, and “will run tomorrow” text.
-    PR state, branch names and auto-merge status are experiment metadata, not claims.
+    PR, branch and merge status is experiment metadata, not a claim. Measured friction
+    (latency, timeout, spend, quota) is a measurement or cost, never chatter.
 31. Put process-only section ids in skipped_section_ids, not in made-up method claims.
 32. Every assigned section must either yield claims or be explicitly skipped.
 33. Keep extraction coverage honest even when the pack dropped sections for space.
 34. Retrieve omitted assigned sections with ./q section before marking them skipped.
-35. Coverage: list every headline number of each section before writing claims. Results
+35. Coverage: list every material number of each section before writing claims. Results
     tables, attestation counts (requests served, fallbacks, models executed), costs, timings
-    and quota use are headlines, not a sample to thin out. Each listed number becomes a claim
-    (or is merged into a claim that states it, or is skipped with a reason). A table row with
-    recall, false alarms, cost and sample size yields separate claims, one per metric.
+    and quota use count. Each listed number is extracted as a claim (or merged into a claim
+    that states it) or skipped, with the reason written in the caveats of the nearest claim.
+    A table row with recall, false alarms, cost and sample size yields one claim per metric.
 36. Kind: `measurement` is any observed quantity, even when the prose around it explains;
     `cost` is spend, quota or tokens consumed; `comparison` carries b/c, k2/n2 or a baseline;
     `method` is how it was measured (procedure, assumptions, limits), never a measured count;
@@ -126,9 +131,10 @@ Use `./q schema` if a field or allowed value is unclear.
     and the same scale); never leave a percent scale without the unit. Seconds, USD, counts
     and AUROC stay as printed with their unit. The `value` must appear in the quote after
     converting the unit; a value that does not is a transcription error, not a fix.
-38. Correction state must match the text: a source that says CORRECTED, fixed or retracted
-    gets status `corrected` (kind `correction`), REFUTED gets `refuted`, even when the fix
-    author reports their own correction. Independent is a different axis and never replaces it.
+38. Correction state must match the text: CORRECTED, fixed or retracted gets status `corrected`
+    (kind `correction`) and REFUTED gets `refuted`, even when the fix author reports their own
+    correction (independent is a different axis). Always fill `relations` with `corrects` and
+    the earlier experiment id it corrects, and name the earlier claim in the caveats.
 39. Split and in_sample describe the measured cohort only. Set split=dev when the source
     states that exact cohort is DEV, not a neighbouring subset; use unknown otherwise.
 

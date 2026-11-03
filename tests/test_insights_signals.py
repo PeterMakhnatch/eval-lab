@@ -23,6 +23,7 @@ def _record(
     *,
     stale: bool = False,
     failed: bool = False,
+    source_id: str | None = None,
     recompute: RecomputeResult | None = None,
     **fields: object,
 ) -> ClaimRecord:
@@ -35,7 +36,7 @@ def _record(
     values.update(fields)
     claim = ExtractedClaim.model_validate(values)
     return ClaimRecord(
-        claim_id=f"C-{number}", source_id=f"F-{number}", section_sha256="sha",
+        claim_id=f"C-{number}", source_id=source_id or f"F-{number}", section_sha256="sha",
         fingerprint=claim_fingerprint(claim), pass_id="P-1", extracted_by="fixture",
         created_at=NOW, claim=claim, check=CheckResult(status="fail" if failed else "pass"),
         stale=stale, recompute=recompute,
@@ -259,3 +260,104 @@ def test_signal_ids_and_order_do_not_depend_on_input_order_or_clock() -> None:
     second = detect_signals(list(reversed(claims)), now=NOW.replace(hour=19))
     assert [signal.signal_id for signal in first] == [signal.signal_id for signal in second]
     assert first == sorted(first, key=lambda signal: (-signal.score, signal.signal_id))
+
+
+def _reader_test(number: int, reader: str, *, b: int, c: int, p: float,
+                 condition: str | None = None) -> ClaimRecord:
+    return _record(number, kind="comparison", metric="paired recall", dataset="cohort",
+                   subject=None, models=[reader, "reference"], condition=condition,
+                   comparison={"test": "mcnemar_exact", "baseline": "reference",
+                               "b": b, "c": c, "p_value": p})
+
+
+def test_multiplicity_keeps_distinct_readers_with_identical_counts() -> None:
+    claims = [
+        _reader_test(1, "reader-a", b=0, c=6, p=0.031), _reader_test(2, "reader-b", b=0, c=6, p=0.031),
+        _reader_test(3, "reader-c", b=2, c=2, p=1.0), _reader_test(4, "reader-d", b=2, c=2, p=1.0),
+        _reader_test(5, "reader-e", b=4, c=1, p=0.375),
+        _reader_test(6, "reader-a", b=0, c=6, p=0.031, condition="restated in prose"),
+    ]
+    signal = _signals(*claims, kind="multiplicity")[0]
+    assert signal.detail["tests"] == 5  # readers a-e; the restatement of reader-a is not a test
+    assert signal.detail["lost_claim_ids"] == ["C-1", "C-2"]
+
+
+def _relation(number: int, target: str, **fields: object) -> ClaimRecord:
+    return _record(number, experiment="D1", relations=[{
+        "target_experiment": target, "relation": "corrects"}], **fields)
+
+
+def test_relation_target_prefers_the_longer_id_named_in_the_claim() -> None:
+    hack_drop = _record(1, experiment="C1")
+    folder = _record(2, experiment="ov-c1-c5-live-rollouts-20261101")
+    correction = _relation(3, "C1", statement="The earlier C1-C5 report counted two as attempts.")
+    signal = _signals(hack_drop, folder, correction, kind="contradiction")[0]
+    assert signal.detail["target_experiment"] == "ov-c1-c5-live-rollouts-20261101"
+    assert "C-1" not in signal.claim_ids and "C-2" in signal.claim_ids
+    exact = _relation(4, "C1", statement="The earlier hack-drop numbers were wrong.")
+    assert _signals(hack_drop, folder, exact, kind="contradiction")[0].detail[
+        "target_experiment"] == "C1"
+
+
+def test_ambiguous_relation_target_is_refused() -> None:
+    claims = [_record(1, experiment="C1"), _record(2, experiment="ov-c1-c5-a-20261101"),
+              _record(3, experiment="ov-c1-c5-b-20261101"),
+              _relation(4, "C1", statement="The earlier C1-C5 report counted two as attempts.")]
+    assert not _signals(*claims, kind="contradiction")
+    unresolved = [_record(1, experiment="C1"),
+                  _relation(2, "C1", statement="The earlier C1-C5 report counted two as attempts.")]
+    assert not _signals(*unresolved, kind="contradiction")
+
+
+def test_one_contradiction_per_retraction_not_per_restating_claim() -> None:
+    first = _relation(1, "E9", metric="recall", statement="Retracts 9/10 recall at 0/10 FA; now 7/10.")
+    second = _relation(2, "E9", metric="recall and FA", statement="Corrected 9/10 recall, 0/10 FA.")
+    other = _relation(3, "E9", metric="latency", statement="Latency was 3 s, not 5 s.")
+    signals = _signals(first, second, other, kind="contradiction")
+    assert sorted(s.detail["correcting_claim_ids"] for s in signals) == [["C-1", "C-2"], ["C-3"]]
+
+
+def test_small_n_groups_columns_of_one_table_row_and_skips_bounded_rows() -> None:
+    row = {"section_id": "X-row", "metric": "ASR", "n": 4}
+    columns = [_record(i, k=k, condition=name, source_id="F-table", **row) for i, (name, k) in
+               enumerate([("H1", 0), ("HS", 0), ("L0", 4)], start=1)]
+    signals = _signals(*columns, kind="extreme_small_n")
+    assert len(signals) == 1 and signals[0].claim_ids == ["C-1", "C-2", "C-3"]
+    bounded = _record(9, k=2, n=2, metric="precision",
+                      quote="Precision 2/2 = 100% $[34.2\\%, 100.0\\%]$ in the table.")
+    assert not _signals(bounded, kind="extreme_small_n")
+    gate = _record(10, k=4, n=4, subject="Gate 1", dataset="TraceMonitor", condition="sol_astra",
+                   statement="The gate decision rests on 4/4 recall.")
+    restated = _record(11, k=4, n=4, subject=None, dataset="sol_astra", condition=None)
+    assert [s.claim_ids for s in _signals(gate, restated, kind="extreme_small_n")] == [["C-10", "C-11"]]
+
+
+def _design_claim(number: int = 1, statement: str | None = None) -> ClaimRecord:
+    return _record(number, kind="method", metric=None, subject=None, dataset=None, n=324,
+                   statement=statement or "Phase 2 ran 18 cheats x 6 variants x 3 repeats = 324 trials.",
+                   quote="18 cheats x 6 variants x 3 repeats = 324 trials")
+
+
+def _trial_test(number: int, *, n: int, p: float, experiment: str = "E1") -> ClaimRecord:
+    return _record(number, experiment=experiment, kind="comparison", metric="flip rate",
+                   subject=None, dataset=None, k=3, n=n,
+                   comparison={"test": "mcnemar_exact", "b": 35, "c": 10, "p_value": p})
+
+
+def test_pseudo_replication_needs_explicit_cases_and_trials() -> None:
+    design, tested = _design_claim(), _trial_test(2, n=324, p=0.000247)
+    signal = _signals(design, tested, kind="pseudo_replication")[0]
+    assert signal.detail["cases"] == 18 and signal.detail["trials"] == 324
+    assert signal.claim_ids == ["C-1", "C-2"]
+    sub_family = _trial_test(3, n=54, p=0.01)  # 18 cases x 3 repeats of one variant
+    assert _signals(design, tested, sub_family, kind="pseudo_replication")[0].detail["tests"][1][
+        "n"] == 54
+    assert not _signals(design, _trial_test(2, n=324, p=0.2), kind="pseudo_replication")
+    assert not _signals(design, _trial_test(2, n=300, p=0.001), kind="pseudo_replication")
+    assert not _signals(design, _trial_test(2, n=18, p=0.001), kind="pseudo_replication")
+    other = _trial_test(2, n=324, p=0.001, experiment="E2")
+    assert not _signals(design, other, kind="pseudo_replication")
+    wrong_total = _design_claim(statement="Phase 2 ran 18 cheats x 6 variants x 3 repeats = 300 trials.")
+    assert not _signals(wrong_total, tested, kind="pseudo_replication")
+    assert not _signals(_design_claim(statement="Ran 18 cheats x 6 files x 3 repeats = 324 trials."),
+                        tested, kind="pseudo_replication")

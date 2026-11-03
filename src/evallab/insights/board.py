@@ -6,12 +6,13 @@ import html
 import json
 import re
 import shlex
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from evallab.insights.models import HumanReview, InsightRecord, PassRecord, PredictionRecord
+from evallab.insights.recompute import describe_recompute, recompute_counts
 from evallab.insights.store import InsightStore
 
 LANES = {
@@ -380,6 +381,23 @@ def render_board(
                     + " · waiting reasons</summary>"
                     + _list_html(health_notes or ["No tick errors or waiting reasons recorded."])
                     + "</details>")
+    claim_results = [record.recompute for record in store.list_claims()]
+    recompute = recompute_counts(claim_results)
+    partial_reasons = Counter(
+        describe_recompute(result) for result in claim_results
+        if result is not None and result.status == "partial"
+    ).most_common(3)
+    coverage_text = (
+        f"Receipt coverage over {len(claim_results)} claims: reproduced {recompute['reproduced']}"
+        f" (every stated number confirmed); partial {recompute['partial']} (a match that leaves "
+        f"a stated number unchecked or has weak provenance); differs {recompute['differs']}; "
+        f"not recomputable {recompute['not_recomputable']}; no recipe {recompute['no recipe']}."
+    )
+    partial_notes = [f"partial x{count}: {reason}" for reason, count in partial_reasons]
+    lines.extend(["## Receipt coverage", "", coverage_text,
+                  *(_md_line(f"- {note}") for note in partial_notes), ""])
+    sections.append("<h2>Receipt coverage</h2><p>" + html.escape(coverage_text) + "</p>"
+                    + (_list_html(partial_notes) if partial_notes else ""))
     headline, summary = store.get_meta("board_headline"), store.get_meta("board_summary")
     if headline or summary:
         lines.extend(["## Synthesizer context (model-written)", "", _md_line(headline or ""),
@@ -528,6 +546,7 @@ def render_board(
     status = {
         "updated_at": now.isoformat(), **health, "ledger_path": str(store.path.resolve()),
         "running_passes": len(running), "failures_last_24h": len(failures),
+        "recompute_counts": recompute,
         "top_insight_ids": [item.insight_id for item in top],
         "newest_accepted_ids": [item.insight_id for item in newest],
         "lane_counts": {key: len(group) for key, group in lanes.items()},

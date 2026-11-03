@@ -200,6 +200,13 @@ def test_card_fails_unknown_evidence_and_challenge_targets() -> None:
     assert any("stale" in note for note in result.notes)
 
 
+def test_card_warns_but_does_not_fail_on_a_partly_recomputed_claim() -> None:
+    partial = {"status": "partial", "validated": ["k"], "unchecked": ["n"], "detail": "Partial."}
+    result = check_card(_card(), claims={"C1": _record(recompute=partial)}, known_insights=set())
+    assert result.status == "warn"
+    assert any("k matches receipt; n not checked" in note for note in result.notes)
+
+
 def test_connection_requires_distinct_source_folders_not_experiment_ids() -> None:
     card = _card(kind="connection", evidence=[{"claim_id": "C1"}, {"claim_id": "C2"}])
     claims = {"C1": _record(), "C2": _record("C2", source_id="source-b")}
@@ -335,6 +342,45 @@ def test_claim_ci_on_the_wrong_scale_fails_but_declared_percent_passes() -> None
     # Without a value, a k/n interval is still a proportion interval.
     no_value = _check(k=79, n=158, value=None, ci_low=42.3, ci_high=57.7, quote=quote)
     assert no_value.status == "fail"
+
+
+def test_percent_and_fraction_scales_must_agree_between_value_unit_and_interval() -> None:
+    quote = "79 of 158 passed (50%), 95% interval 42.3-57.7%."
+    # Percent unit, interval stored as fractions: a scale mix, not "a different method".
+    mixed = _check(k=79, n=158, value=50.0, unit="%", ci_low=0.423, ci_high=0.577, quote=quote)
+    assert mixed.status == "fail"
+    assert any("fractions but the unit declares percent" in note for note in mixed.notes)
+    # The same pair with a percent-scale value is declared consistently and passes.
+    declared = _check(k=79, n=158, value=50.0, unit="%", ci_low=42.3, ci_high=57.7, quote=quote)
+    assert declared.status == "pass", declared.notes
+    # Fraction unit, percent-scale interval: out of range.
+    fraction_unit = _check(
+        k=79, n=158, value=0.5, unit="fraction", ci_low=42.3, ci_high=57.7, quote=quote,
+    )
+    assert fraction_unit.status == "fail" and any("[0,1]" in n for n in fraction_unit.notes)
+
+
+def test_rate_intervals_without_counts_are_range_and_order_checked() -> None:
+    quote = "Recall was 50% (95% interval 42.3-57.7%)."
+    fields = {"k": None, "n": None, "metric": "recall", "quote": quote}
+    bad_scale = _check(value=0.5, ci_low=42.3, ci_high=57.7, **fields)
+    assert bad_scale.status == "fail" and any("[0,1]" in note for note in bad_scale.notes)
+    above_one = _check(value=0.5, unit="fraction", ci_low=0.4, ci_high=1.2, **fields)
+    assert above_one.status == "fail" and any("[0,1]" in note for note in above_one.notes)
+    negative = _check(value=0.5, unit="fraction", ci_low=-0.1, ci_high=0.6, **fields)
+    assert negative.status == "fail"
+    swapped = _check(value=0.5, unit="fraction", ci_low=0.6, ci_high=0.4, **fields)
+    assert swapped.status == "fail" and any("reversed" in note for note in swapped.notes)
+    percent = _check(value=50.0, unit="%", ci_low=42.3, ci_high=57.7, **fields)
+    assert percent.status == "pass", percent.notes
+    fraction = _check(value=0.5, unit="fraction", ci_low=0.423, ci_high=0.577, **fields)
+    assert fraction.status == "pass", fraction.notes
+    mixed = _check(value=50.0, unit="%", ci_low=0.423, ci_high=0.577, **fields)
+    assert mixed.status == "fail" and any("fractions but" in note for note in mixed.notes)
+    # A non-proportion measurement keeps whatever interval its unit allows.
+    seconds = _check(k=None, n=None, value=3.2, unit="s", ci_low=2.0, ci_high=4.0,
+                     quote="took 3.2 s (95% interval 2.0-4.0 s)")
+    assert seconds.status == "pass", seconds.notes
 
 
 def test_claim_interval_checks_skip_non_binomial_intervals() -> None:

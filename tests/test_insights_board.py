@@ -10,6 +10,7 @@ from evallab.insights.board import plain_count, render_board
 from evallab.insights.models import (
     CalibrationRecord,
     CheckResult,
+    ClaimRecord,
     EvidenceRef,
     HumanReview,
     InsightCard,
@@ -100,6 +101,34 @@ def test_board_separates_all_lanes_and_quarantines_reasons(tmp_path: Path) -> No
     assert "7 pass / 1 warn / 2 fail" in markdown
     assert "unranked" in document
     assert "Human review: accepted; by Peter Makhnatch" in markdown
+
+
+def _claim_record(index: int, recompute: dict[str, object] | None) -> ClaimRecord:
+    return ClaimRecord.model_validate({
+        "claim_id": f"C-{index}", "source_id": "S-1", "section_sha256": "sha", "fingerprint": f"FP-{index}",
+        "pass_id": "P-1", "extracted_by": "synthetic", "created_at": NOW,
+        "claim": {"local_id": f"c{index}", "experiment": "B3", "statement": f"B3 flips {index} packages",
+                  "kind": "measurement", "n": 50, "quote": "quoted text here", "section_id": f"sec-{index}"},
+        "check": {"status": "pass"}, "recompute": recompute,
+    })
+
+
+def test_board_counts_partial_recomputes_apart_from_reproduced(tmp_path: Path) -> None:
+    partial = {"status": "partial", "validated": ["k"], "unchecked": ["n"]}
+    records = [
+        _claim_record(0, {"status": "reproduced", "validated": ["k", "n"]}),
+        _claim_record(1, partial), _claim_record(2, partial),
+        _claim_record(3, {"status": "differs"}), _claim_record(4, None),
+    ]
+    with InsightStore(tmp_path / "ledger.sqlite") as store:
+        store.insert_claims(records)
+        markdown, document, status = _render(store, tmp_path)
+    assert status["recompute_counts"] == {
+        "reproduced": 1, "partial": 2, "differs": 1, "not_recomputable": 0, "no recipe": 1,
+    }
+    assert "reproduced 1" in markdown and "partial 2" in markdown
+    assert "partial x2: k matches receipt; n not checked" in markdown
+    assert "partial x2: k matches receipt; n not checked" in document
 
 
 def test_board_hides_canaries_and_reports_blind_calibration(tmp_path: Path) -> None:

@@ -81,7 +81,8 @@ from evallab.insights.packs import OUTPUT_FILES, PassInputs, build_pass_dir, car
 from evallab.insights.routes import choose_route
 from evallab.insights.runner import (
     TRANSIENT_ERROR,
-    TRANSIENT_RETRY_DELAY,
+    TRANSIENT_EXHAUSTED_ERROR,
+    TRANSIENT_MAX_RETRIES,
     TRANSIENT_STARTUP,
     Launcher,
     MemoryGate,
@@ -91,6 +92,7 @@ from evallab.insights.runner import (
     WorkerSpec,
     attest_session,
     classify_failure,
+    transient_retry_delay,
 )
 from evallab.insights.store import DB_NAME, InsightStore, utcnow
 
@@ -116,6 +118,8 @@ BACKOFF_MAX = timedelta(hours=24)
 MIRROR_GIT_TIMEOUT = 60
 #: Between full ticks the watch loop polls worker handles this often (seconds).
 COLLECT_POLL_SECONDS = 5.0
+#: A transient-retry count is forgotten after this long without a startup failure.
+TRANSIENT_FORGET = timedelta(hours=1)
 ACTIVE_STATUSES = ("planned", "running")
 REDERIVE_FRACTION = 0.2
 _REFEREE_STATUS: dict[str, InsightStatus] = {
@@ -235,6 +239,7 @@ class Engine:
         python_executable: str | None = None,
         mirror_refresher: Callable[[Path, Path], object] | None = None,
         readonly: bool = False,
+        launch_sleep: Callable[[float], None] | None = None,
     ) -> None:
         self.state_root = state_root.expanduser()
         if not readonly:
@@ -256,6 +261,8 @@ class Engine:
         self.python_executable = python_executable or sys.executable
         self.mirror_refresher = mirror_refresher or _safe_mirror_refresh
         self._handles: dict[str, WorkerHandle] = {}
+        self._launch_sleep = launch_sleep or time.sleep
+        self._last_launch_at: datetime | None = None
 
     # ------------------------------------------------------------------ tick
     def tick(self, *, dry_run: bool = False) -> TickReport:
@@ -391,15 +398,30 @@ class Engine:
                     waiting[lens] = f"would launch: {why}"
                     slots -= 1
                     break
+                self._stagger_launch()
                 record = self.launch(lens, inputs, trigger=why)
                 if record.status != "running":
                     waiting[lens] = f"not launched: {record.error or record.route_reason}"
                     break
+                self._last_launch_at = self.clock()
                 launched.append({"lens": lens, "pass_id": record.pass_id, "route": record.route})
                 running_by_lens[lens] = running_by_lens.get(lens, 0) + 1
                 slots -= 1
                 waiting.pop(lens, None)
         return launched, waiting
+
+    def _stagger_launch(self) -> None:
+        """Space `omp -p` starts so workers do not collide on omp's shared agent.db.
+
+        Sleeps only the part of ``launch_stagger_seconds`` not already elapsed since the
+        previous start, so it is bounded by slots x stagger within one refill.
+        """
+        stagger = self.config.launch_stagger_seconds
+        if stagger <= 0 or self._last_launch_at is None:
+            return
+        wait = stagger - (self.clock() - self._last_launch_at).total_seconds()
+        if wait > 0:
+            self._launch_sleep(wait)
 
     def _backoff_state(self) -> dict[str, dict[str, dict[str, object]]]:
         raw = self.store.get_meta("lens_backoff")
@@ -448,15 +470,43 @@ class Engine:
         if content_digest in per_lens:
             del per_lens[content_digest]
             self.store.set_meta("lens_backoff", json.dumps(state, sort_keys=True))
+        transient_key = f"transient:{lens}:{content_digest}"
+        if self.store.get_meta(transient_key):
+            self.store.set_meta(transient_key, "")
 
-    def _claim_transient_retry(self, lens: Lens, content_digest: str, now: datetime) -> bool:
-        """Allow one quick retry per input set after a startup failure that wasn't ours."""
+    def _transient_state(self, key: str) -> dict[str, object]:
+        raw = self.store.get_meta(key)
+        if not raw:
+            return {}
+        try:
+            return _object_map(json.loads(raw))
+        except ValueError:
+            return {}
+
+    def _claim_transient_retry(
+        self, lens: Lens, content_digest: str, now: datetime, pass_id: str
+    ) -> bool:
+        """Grant one of ``TRANSIENT_MAX_RETRIES`` retries after a startup failure that wasn't ours.
+
+        The retry waits a 15-45 s pause jittered by the failed pass id and ignores the lens
+        cooldown. The count is per input set, forgotten after an hour or on success.
+        """
         key = f"transient:{lens}:{content_digest}"
-        if self.store.get_meta(key):
+        state = self._transient_state(key)
+        retries = _as_int(state.get("retries"))
+        at = state.get("at")
+        if isinstance(at, str) and now - _parse_iso(at) > TRANSIENT_FORGET:
+            retries = 0
+        if retries >= TRANSIENT_MAX_RETRIES:
             return False
-        self.store.set_meta(key, _iso(now))
-        self.store.set_meta(f"transient_until:{lens}", _iso(now + TRANSIENT_RETRY_DELAY))
-        self.store.log_event("transient_startup_failure", {"lens": lens})
+        delay = transient_retry_delay(pass_id)
+        self.store.set_meta(key, json.dumps({"retries": retries + 1, "at": _iso(now)}))
+        self.store.set_meta(f"transient_until:{lens}", _iso(now + delay))
+        self.store.log_event(
+            "transient_startup_failure",
+            {"lens": lens, "pass_id": pass_id, "retry": retries + 1,
+             "delay_seconds": delay.total_seconds()},
+        )
         return True
 
     def _no_route_block(self, lens: Lens) -> str:
@@ -1180,19 +1230,26 @@ class Engine:
                 (diagnostics, _tail(pass_dir / "worker.stderr"), startup_text)
             )
             kind, reset_at = classify_failure(diagnostic_text)
-            transient = (
+            # A worker that never got a model response and whose stderr shows omp's shared
+            # database busy is a startup collision, however many times it repeats.
+            startup_collision = (
                 not timed_out
                 and not update.get("served")
                 and TRANSIENT_STARTUP.search(diagnostic_text) is not None
-                and self._claim_transient_retry(record.lens, str(meta.get("backoff_digest", "")), now)
+            )
+            retry_granted = startup_collision and self._claim_transient_retry(
+                record.lens, str(meta.get("backoff_digest", "")), now, record.pass_id
             )
             if timed_out:
                 status = "timed_out"
                 update["error"] = "worker exceeded its time limit and was stopped"
-            elif transient:
+            elif retry_granted:
                 status = "failed"
                 skip_backoff = True
                 update["error"] = TRANSIENT_ERROR
+            elif startup_collision:
+                status = "failed"
+                update["error"] = TRANSIENT_EXHAUSTED_ERROR
             elif kind == "quota":
                 status = "parked_quota"
                 self._park(record.route, reset_at or now + PARK_DEFAULT)
@@ -1893,6 +1950,9 @@ def _route_reason(reason: str, skipped: Sequence[tuple[str, str]]) -> str:
     return f"{reason} Skipped {details}"
 
 
+_SUPPORTS_CLAIM = frozenset({"reproduced", "partial"})
+
+
 def _agreement(
     original: RecomputeResult | None,
     rederived: RecomputeResult | None,
@@ -1905,9 +1965,10 @@ def _agreement(
     sides produced one (within the claim's printed rounding, the same tolerance
     ``recompute_claim`` uses). When they compare different quantities (a count
     against a ratio, k against n), their values are not comparable, so agreement is
-    whether each side reproduces the claim: both do, or neither does. If only one
-    side produced a value, one side failed and the other did not: disagreement.
-    If neither did, the pair is not comparable: neither agree nor disagree.
+    whether each side supports the claim (reproduced, or partial with what it checked
+    matching): both do, or neither does. If only one side produced a value, one side
+    failed and the other did not: disagreement. If neither did, the pair is not
+    comparable: neither agree nor disagree.
     """
     if original is None or rederived is None:
         return None
@@ -1917,7 +1978,10 @@ def _agreement(
             and recompute_mod.recipe_target(claim, claim.recipe)
             != recompute_mod.recipe_target(claim, rederived_recipe)
         ):
-            return (original.status == "reproduced") == (rederived.status == "reproduced")
+            # ``partial`` means every number that was checked matched: it does not contradict
+            # the claim, so it counts with ``reproduced`` here (and only here; reports and
+            # confidence keep it apart from reproduced).
+            return (original.status in _SUPPORTS_CLAIM) == (rederived.status in _SUPPORTS_CLAIM)
         tolerance = max(1e-9, 1e-6 * max(abs(original.value), abs(rederived.value)))
         if claim is not None:
             tolerance = max(tolerance, check_mod.value_printed_tolerance(claim))

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,7 @@ import pytest
 
 from evallab import hack_drop as hd
 from evallab.line import core
-from evallab.line.io import read_json, read_rows, write_json, write_rows
+from evallab.line.io import read_bytes, read_json, read_rows, write_json, write_rows
 
 
 def _check(batch: Path, root: Path, name: str) -> dict[str, str]:
@@ -391,3 +392,136 @@ def test_scoreboard_row_counting_cannot_leave_the_batch(fixture_spec: Path, tmp_
     _edit_receipt(batch, "decisions", change)
     with pytest.raises(ValueError, match="leaves its batch"):
         build_scoreboard(batch, fixture_spec.parent)
+
+
+# ---- file identity: hard links, case variants, declared set, descriptors ---------------------
+
+
+def test_a_hard_link_to_an_answer_key_inside_a_batch_is_refused(
+    fixture_spec: Path, tmp_path: Path
+) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    secret = _secret(tmp_path)
+    os.link(secret, batch / "hard_secret.jsonl")
+    ref = {"path": "hard_secret.jsonl", "sha256": core.digest(secret), "rows": 1}
+    _edit_receipt(batch, "decisions", lambda r: r["inputs"].append(ref))
+    with pytest.raises(ValueError, match="hard-linked"):
+        core.check_batch(batch, fixture_spec.parent)
+
+
+def test_a_hard_link_to_a_label_file_inside_a_batch_is_refused(fixture_spec: Path) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    labels = Path(read_json(fixture_spec)["sources"][0]["labels"])
+    os.link(labels, batch / "hard_labels.jsonl")
+    ref = {"path": "hard_labels.jsonl", "sha256": core.digest(labels), "rows": 2}
+    _edit_receipt(batch, "decisions", lambda r: r["inputs"].append(ref))
+    with pytest.raises(ValueError, match="hard-linked"):
+        core.check_batch(batch, fixture_spec.parent)
+
+
+def test_a_stage_may_list_only_its_own_batch_files(fixture_spec: Path) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    (batch / "extra.jsonl").write_text('{"a": 1}\n')
+    ref = {"path": "extra.jsonl", "sha256": core.digest(batch / "extra.jsonl"), "rows": 1}
+    _edit_receipt(batch, "decisions", lambda r: r["inputs"].append(ref))
+    result = _check(batch, fixture_spec.parent, "provenance")
+    assert result["status"] == "FAIL" and "unexpected files" in result["details"]
+
+
+def test_the_judge_may_list_its_station_snapshots_and_nothing_else(fixture_spec: Path) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    judge = read_json(batch / "receipts" / "judge.json")
+    snapshots = [r["path"] for r in judge["inputs"] if "station-inputs" in r["path"]]
+    assert snapshots and core.check_batch(batch, fixture_spec.parent)["passed"]
+    (batch / "evidence" / "station-inputs" / "nested").mkdir()
+    (batch / "evidence" / "station-inputs" / "nested" / "x.jsonl").write_text("{}\n")
+    ref = {
+        "path": "evidence/station-inputs/nested/x.jsonl",
+        "sha256": core.digest(batch / "evidence" / "station-inputs" / "nested" / "x.jsonl"),
+    }
+    _edit_receipt(batch, "judge", lambda r: r["inputs"].append(ref))
+    assert _check(batch, fixture_spec.parent, "provenance")["status"] == "FAIL"
+
+
+def _labels_as_task_status(fixture_spec: Path, link: Path, *, spelled: str | None = None) -> None:
+    """One file serving as both the label source and the task-status source."""
+    spec = read_json(fixture_spec)
+    labels = Path(spec["sources"][0]["labels"])
+    write_json(
+        labels,
+        {
+            "rows": [{"id": "clean-run", "is_cheat": False}, {"id": "weak-run", "is_cheat": True}],
+            "tasks": [
+                {"task_id": "plain-task", "status": "certified", "reason": "ALL_GATES_PASS"},
+                {"task_id": "weak-task", "status": "weak", "reason": "ATTACK_ACCEPTED"},
+            ],
+        },
+    )
+    if spelled is None:
+        os.link(labels, link)
+        spec["task_status"] = str(link)
+    else:
+        spec["task_status"] = spelled
+    write_json(fixture_spec, spec)
+
+
+def test_label_isolation_sees_a_hard_linked_name_for_a_label_file(
+    fixture_spec: Path, tmp_path: Path
+) -> None:
+    _labels_as_task_status(fixture_spec, tmp_path / "other-name.json")
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    result = _check(batch, fixture_spec.parent, "label_isolation")
+    assert result["status"] == "FAIL" and "labels entered" in result["details"]
+
+
+def test_label_isolation_sees_a_case_variant_of_a_label_file(
+    fixture_spec: Path, tmp_path: Path
+) -> None:
+    labels = Path(read_json(fixture_spec)["sources"][0]["labels"])
+    variant = labels.with_name(labels.name.upper())
+    if not variant.exists() or not labels.samefile(variant):
+        pytest.skip("case-sensitive filesystem")
+    _labels_as_task_status(fixture_spec, tmp_path / "unused", spelled=str(variant))
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    assert _check(batch, fixture_spec.parent, "label_isolation")["status"] == "FAIL"
+
+
+def test_an_edited_runs_file_cannot_admit_an_outside_input(
+    fixture_spec: Path, tmp_path: Path
+) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    stray = tmp_path / "private-notes.txt"
+    stray.write_text("not a rollout\n")
+    runs = read_rows(batch / "runs.jsonl")
+    runs[0]["rollout_path"] = str(stray)
+    write_rows(batch / "runs.jsonl", runs)
+    ref = {"path": str(stray), "sha256": core.digest(stray)}
+    _edit_receipt(batch, "intake", lambda r: r["inputs"].append(ref))
+    result = _check(batch, fixture_spec.parent, "provenance")
+    assert result["status"] == "FAIL" and "declared" in result["details"]
+
+
+def test_reads_refuse_a_final_symlink_a_directory_and_other_hard_links(tmp_path: Path) -> None:
+    real = tmp_path / "real.jsonl"
+    real.write_text('{"a": 1}\n')
+    assert read_bytes(real) == b'{"a": 1}\n'
+    (tmp_path / "link.jsonl").symlink_to(real)
+    with pytest.raises(OSError):
+        read_bytes(tmp_path / "link.jsonl")
+    os.link(real, tmp_path / "second.jsonl")
+    assert read_bytes(real) == b'{"a": 1}\n'  # tolerated unless the caller asks for one link
+    with pytest.raises(ValueError, match="hard links"):
+        read_bytes(real, single_link=True)
+    with pytest.raises(ValueError, match="regular file"):
+        read_bytes(tmp_path)
+
+
+def test_a_declared_input_swapped_for_a_symlink_fails_provenance(fixture_spec: Path) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    labels = Path(read_json(fixture_spec)["sources"][0]["labels"])
+    copy = labels.with_name("labels-copy.jsonl")
+    shutil.copy(labels, copy)
+    labels.unlink()
+    labels.symlink_to(copy)  # same bytes, but the descriptor read refuses the link
+    result = _check(batch, fixture_spec.parent, "provenance")
+    assert result["status"] == "FAIL"

@@ -181,13 +181,18 @@ the copy fails. Batches written before this change recorded absolute paths: they
 verify in place, but a copy of one fails with a plain "another location" message and
 must be regenerated.
 
-`line check` reads a closed set of files. The line never writes a symlink into a batch, so
-a batch containing any symlink is refused before anything else is read. Every output ref
-must resolve inside the batch, and every input ref outside it must equal an input the spec
-declares (source manifests, labels, task status, cache files) or a rollout listed in
-`runs.jsonl`, and pass the DEV gate. The label-isolation check compares canonical resolved
-paths, so a different spelling of a label file does not evade it, and the scoreboard's row
-counting refuses paths that leave the batch.
+`line check` reads a closed set of files. The line never writes a symlink or a hard link
+into a batch, so a batch containing either is refused before anything else is read (a copy
+made with `cp -R` has neither). A stage receipt may list only that stage's own batch files
+(plus `evidence/station-inputs/*.jsonl` for the judge). Every output ref must resolve inside
+the batch, and every input ref outside it must be an input the spec declares (source
+manifests, labels, task status, cache files) or a rollout from an intake re-run from the
+spec, never from the batch's own `runs.jsonl`, and must pass the DEV gate. Files are
+compared by identity: (device, inode) plus the case-folded real path, so hard links and
+case variants on a case-insensitive volume count as the same file in label isolation and in
+declared-input matching. Files are read once through a no-follow descriptor and the type,
+link count, hash and rows all come from those bytes. The scoreboard's row counting refuses
+paths that leave the batch.
 
 ## Eight quality checks
 

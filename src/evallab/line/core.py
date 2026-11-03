@@ -9,6 +9,7 @@ import re
 import subprocess
 import time
 from collections import Counter
+from collections.abc import Iterable
 from contextlib import suppress
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -16,7 +17,16 @@ from pathlib import Path
 from typing import Any
 
 from evallab import hack_drop as hd
-from evallab.line.io import canonical_hash, digest, read_json, read_rows, write_json, write_rows
+from evallab.line.io import (
+    canonical_hash,
+    digest,
+    parse_rows,
+    read_bytes,
+    read_json,
+    read_rows,
+    write_json,
+    write_rows,
+)
 from evallab.line.spec import load_spec
 
 CHECK_NAMES = (
@@ -503,6 +513,28 @@ def _queue(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def file_keys(paths: Iterable[Path]) -> set[tuple[Any, ...]]:
+    """Identities of files for set comparison: (device, inode) and the casefolded real path.
+
+    A resolved path string alone can be fooled by hard links and by case variants on a
+    case-insensitive volume; either identity matching is enough to call two names one file.
+    """
+    keys: set[tuple[Any, ...]] = set()
+    for path in paths:
+        keys.add(("path", str(path.resolve()).casefold()))
+        with suppress(OSError):
+            info = path.stat()
+            keys.add(("id", info.st_dev, info.st_ino))
+    return keys
+
+
+def _is_station_snapshot(name: str) -> bool:
+    parts = name.split("/")
+    return (
+        len(parts) == 3 and parts[:2] == ["evidence", "station-inputs"] and name.endswith(".jsonl")
+    )
+
+
 def batch_ref(batch: Path, path: Path) -> str:
     """A receipt path: relative inside the batch (so a byte copy still verifies), else absolute."""
     try:
@@ -775,10 +807,15 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
                 {"name": name, "status": "FAIL", "details": str(error) or type(error).__name__}
             )
 
-    # The line never writes a symlink into a batch, so a batch holding one is not ours to read.
+    # The line never writes a symlink or a hard link into a batch, so a batch holding either is
+    # not ours to read (a hard link is a second name for a file that may live anywhere).
     for entry in sorted(batch.rglob("*")):
         if entry.is_symlink():
             raise ValueError(f"batch contains a symlink (the line never writes one): {entry.name}")
+        if entry.is_file() and entry.stat().st_nlink > 1:
+            raise ValueError(
+                f"batch contains a hard-linked file (the line never writes one): {entry.name}"
+            )
     spec = load_spec(batch / "spec.json")
     runs = read_rows(batch / "runs.jsonl")
     decisions = read_rows(batch / "decisions.jsonl")
@@ -819,8 +856,15 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
 
     gate("conservation", conservation)
 
+    fresh: dict[str, Any] = {}
+
+    def verified_intake() -> tuple[Any, Any]:
+        if "intake" not in fresh:
+            fresh["intake"] = _intake(spec, repo_root)
+        return fresh["intake"]
+
     def dev() -> None:
-        items, actual = _intake(spec, repo_root)
+        items, actual = verified_intake()
         require(actual == runs, "intake source identity changed")
         require(
             _tasks(spec, items)
@@ -844,12 +888,14 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
         return resolved == root or root in resolved.parents
 
     def provenance() -> None:
-        declared = (
-            {Path(s["rollouts"]).resolve() for s in spec["sources"]}
-            | {Path(s["labels"]).resolve() for s in spec["sources"] if s["labels"]}
-            | ({Path(spec["task_status"]).resolve()} if spec["task_status"] else set())
-            | {Path(r["rollout_path"]).resolve() for r in runs}
-            | {p.resolve() for p in _cache(spec)[1]}
+        # Admitted outside inputs come from the spec and from a fresh, verified intake, never
+        # from the batch's own (possibly edited) runs.jsonl.
+        declared = file_keys(
+            [Path(s["rollouts"]) for s in spec["sources"]]
+            + [Path(s["labels"]) for s in spec["sources"] if s["labels"]]
+            + ([Path(spec["task_status"])] if spec["task_status"] else [])
+            + [Path(r["rollout_path"]) for r in verified_intake()[1]]
+            + list(_cache(spec)[1])
         )
         require(
             {r["stage"] for r in receipts}
@@ -885,6 +931,14 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
                         "relocatable, then copied); re-run the line to regenerate it",
                     )
                     require(False, f"{receipt['stage']} receipt does not list {sorted(missing)}")
+                # Exact membership: a stage lists only its own files (and, for the judge, its
+                # immutable Station snapshots), never another file that happens to be in the batch.
+                extra = listed - names
+                if receipt["stage"] == "judge" and side == "inputs":
+                    extra = {n for n in extra if not _is_station_snapshot(n)}
+                require(
+                    not extra, f"{receipt['stage']} receipt lists unexpected files: {sorted(extra)}"
+                )
             if receipt["stage"] == "judge":
                 snapshots = (batch / "evidence" / "station-inputs").resolve()
                 require(
@@ -903,20 +957,25 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
                 path = resolve_ref(batch, ref["path"])
                 if not inside(path):
                     require(
-                        path.resolve() in declared,
+                        bool(file_keys([path]) & declared),
                         f"receipt input is neither in the batch nor declared by the spec: {path}",
                     )
                     hd.check_dev_path_allowed(path)
             for ref in receipt["inputs"] + receipt["outputs"]:
                 path = resolve_ref(batch, ref["path"])
-                require(path.exists() and digest(path) == ref["sha256"], f"hash mismatch: {path}")
+                if path.is_dir() and not path.is_symlink():  # an outside rollout bundle
+                    require(digest(path) == ref["sha256"], f"hash mismatch: {path}")
+                    continue
+                # One open descriptor: type, link count, hash and rows all come from these bytes.
+                data = read_bytes(path, single_link=inside(path))
+                require(hashlib.sha256(data).hexdigest() == ref["sha256"], f"hash mismatch: {path}")
                 if "rows" in ref:
-                    require(len(read_rows(path)) == ref["rows"], f"row mismatch: {path}")
+                    require(len(parse_rows(data, path)) == ref["rows"], f"row mismatch: {path}")
 
     gate("provenance", provenance)
 
     def determinism() -> None:
-        items, intake = _intake(spec, repo_root)
+        items, intake = verified_intake()
         cache, _ = _cache(spec)
         stored_trace = read_rows(batch / "trace.jsonl")
         stored_ar = None
@@ -1019,12 +1078,10 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
         reject_label_fields(receipts, "receipts")
         for row in read_rows(batch / "trace.jsonl"):
             _clean_details(row["autoreview"]["details"], row["run_id"])
-        label_paths = {Path(s["labels"]).resolve() for s in spec["sources"] if s["labels"]}
+        label_keys = file_keys(Path(s["labels"]) for s in spec["sources"] if s["labels"])
         require(
             all(
-                not label_paths.intersection(
-                    resolve_ref(batch, ref["path"]).resolve() for ref in r["inputs"]
-                )
+                not label_keys & file_keys(resolve_ref(batch, ref["path"]) for ref in r["inputs"])
                 for r in receipts
                 if r["stage"] != "scoreboard"
             ),

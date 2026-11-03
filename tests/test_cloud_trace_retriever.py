@@ -13,6 +13,7 @@ import pytest
 
 from evallab.production import CloudTraceRetriever, RetrievedExample
 from evallab.production.cloud_trace_db import CloudTraceDatabase, format_retrieval_prompt_block
+from evallab.production.cloud_trace_retriever import _project, _step_excerpt
 from evallab.production.corpus_queue import CorpusRegistry
 
 
@@ -443,3 +444,64 @@ def test_json_quoting_cannot_hide_sealed_evidence_or_task_provenance(db: CloudTr
     for field in ("dataset_id", "cas_uri"):
         add_task(db, **{field: "cas://" + marker})
         assert retriever.retrieve_similar_examples("pytest grader", "task_quality") == []
+
+
+def test_compact_excerpt_counts_distinct_casefolded_query_tokens() -> None:
+    steps = [
+        {"step_index": 0, "content_text": "test test test TEST"},
+        {"step_index": 2, "command_or_action": "python check.py --test"},
+    ]
+    assert _step_excerpt(steps, ["test", "TEST", "python"]) == "python check.py --test"
+    assert _step_excerpt([
+        {"step_index": 0, "content_text": "pythonic testing"},
+        {"step_index": 3, "content_text": "python test"},
+    ], ["python", "test"]) == "python test"
+
+
+@pytest.mark.parametrize("terms", (["test"], ["unmatched"]))
+def test_compact_excerpt_prefers_action_over_step_zero_boilerplate(terms: list[str]) -> None:
+    assert _step_excerpt([
+        {"step_index": 0, "content_text": "You are a helpful test assistant."},
+        {
+            "step_index": 4, "content_text": "Inspect the test result.",
+            "command_or_action": "test -f result.json", "observation_preview": "test passed",
+        },
+    ], terms) == "test -f result.json"
+
+
+def test_compact_projection_prioritizes_flagged_passage_and_ranks_within_it() -> None:
+    trace = {
+        "task_id": "synthetic-dev",
+        "flagged_passage_steps": [4, 8],
+        "steps": [
+            {"step_index": 1, "command_or_action": "python test checksum output"},
+            {"step_index": 4, "command_or_action": "test -f output"},
+            {"step_index": 8, "command_or_action": "python test checksum"},
+        ],
+    }
+    hit = _project(trace, {"defect_class": "synthetic"}, ["python", "test", "checksum", "output"])
+    assert hit.step_excerpt == "python test checksum"
+    assert trace["flagged_passage_steps"] == [4, 8]
+
+
+@pytest.mark.parametrize("flagged", (None, "4", [True, "4", {}, None]))
+def test_compact_excerpt_ignores_invalid_or_absent_flagged_indices(flagged: Any) -> None:
+    assert _step_excerpt([
+        {"step_index": 1, "content_text": "irrelevant"},
+        {"step_index": 4, "command_or_action": "python test"},
+    ], ["test"], flagged) == "python test"
+
+
+@pytest.mark.parametrize("steps", (None, "text", [], [None, {}, {"content_text": " "}]))
+def test_compact_excerpt_handles_empty_steps(steps: Any) -> None:
+    assert _step_excerpt(steps, ["test"]) is None
+
+
+def test_compact_excerpt_stable_ties_and_bounded_whitespace() -> None:
+    action = "python\n" + "test " * 100
+    excerpt = _step_excerpt([
+        {"step_index": 3, "command_or_action": action},
+        {"step_index": 5, "command_or_action": "python test later"},
+    ], ["test"])
+    assert excerpt is not None and excerpt.startswith("python test")
+    assert len(excerpt) == 240 and excerpt.endswith("…") and "\n" not in excerpt

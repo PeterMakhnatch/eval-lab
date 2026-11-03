@@ -71,8 +71,8 @@ def steps(text: str = "inspect checksum") -> list[dict[str, Any]]:
     return [
         {"step_index": 0, "role": "assistant", "tool_name": "terminal",
          "command_or_action": "cat result.txt", "content_text": text},
-        {"step_index": 1, "role": "tool", "tool_name": "terminal",
-         "observation_preview": "checksum observed"},
+        {"step_index": 1, "role": "assistant", "tool_name": "terminal",
+         "command_or_action": "inspect checksum", "observation_preview": "checksum observed"},
     ]
 
 

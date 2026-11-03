@@ -754,7 +754,21 @@ def load_labels(
                 },
                 registry=registry,
             )
-            items_list = data.get("rows") or data.get("items") or data.get("labels")
+            # An explicit empty list is still a rows container, not a run named "rows" -- unless
+            # the object is itself one row (it carries a row id), whose "labels" is just a tag list.
+            is_single_row = any(k in data for k in ("id", "run_id", "task_id", "item_id"))
+            items_list = (
+                None
+                if is_single_row
+                else next(
+                    (
+                        data[key]
+                        for key in ("rows", "items", "labels")
+                        if isinstance(data.get(key), list)
+                    ),
+                    None,
+                )
+            )
             if isinstance(items_list, list):
                 for item in items_list:
                     if isinstance(item, dict):
@@ -1892,6 +1906,17 @@ def evaluate_l0_stage(
 # --------------------------------------------------------------------------- #
 # Stage 3: AUTOREVIEW (Optional)
 # --------------------------------------------------------------------------- #
+
+
+def autoreview_eligible(l0_verdict: StageVerdict) -> bool:
+    """Whether Stage 3 would read this rollout: not hard-dropped, and soft-flagged or target-writing.
+
+    Mirrors the gate inside ``evaluate_autoreview_stage``; callers that replay stored
+    readings use it to tell "no reading needed" from "reading missing".
+    """
+    if l0_verdict.decision == "drop":
+        return False
+    return l0_verdict.decision == "review" or bool(l0_verdict.details.get("writes_target_surface"))
 
 
 def evaluate_autoreview_stage(

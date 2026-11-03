@@ -5,26 +5,55 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 from pathlib import Path
 from typing import Any
 
 
-def read_json(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
+def read_bytes(path: Path, *, single_link: bool = False) -> bytes:
+    """Read one regular file through a single open descriptor, refusing a final symlink.
+
+    The type and link count are taken from the open descriptor (not from an earlier path
+    check), so a path swapped after validation cannot change what is hashed or parsed.
+    ``single_link`` also refuses a file with other hard links (the line never writes any).
+    """
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError(f"not a regular file: {path}")
+        if single_link and info.st_nlink > 1:
+            raise ValueError(f"file has other hard links: {path}")
+        with os.fdopen(fd, "rb", closefd=False) as handle:
+            return handle.read()
+    finally:
+        os.close(fd)
+
+
+def parse_json(data: bytes, label: object) -> dict[str, Any]:
+    value = json.loads(data.decode("utf-8"))
     if not isinstance(value, dict):
-        raise ValueError(f"expected a JSON object: {path}")
+        raise ValueError(f"expected a JSON object: {label}")
     return value
 
 
-def read_rows(path: Path) -> list[dict[str, Any]]:
+def parse_rows(data: bytes, label: object) -> list[dict[str, Any]]:
     rows = []
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for number, line in enumerate(data.decode("utf-8").splitlines(), 1):
         if line.strip():
             row = json.loads(line)
             if not isinstance(row, dict):
-                raise ValueError(f"expected an object: {path}:{number}")
+                raise ValueError(f"expected an object: {label}:{number}")
             rows.append(row)
     return rows
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    return parse_json(read_bytes(path), path)
+
+
+def read_rows(path: Path) -> list[dict[str, Any]]:
+    return parse_rows(read_bytes(path), path)
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -51,7 +80,11 @@ def canonical_hash(value: Any) -> str:
 
 
 def digest(path: Path) -> str:
-    """Hash bytes, or a directory's sorted relative names and file hashes."""
+    """Hash bytes, or a directory's sorted relative names and file hashes.
+
+    This follows links, as it always has: it is what producers record and what other callers
+    (Judge Station) hash. ``line check`` verifies recorded hashes through ``read_bytes`` instead.
+    """
     if path.is_file():
         with path.open("rb") as handle:
             return hashlib.file_digest(handle, "sha256").hexdigest()

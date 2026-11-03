@@ -81,8 +81,18 @@ All labels pass through the shared `hack_drop.load_labels` loader.
 
 For `cached` AutoReview, supply `autoreview.cache` as an existing hack-drop
 output manifest or directory containing `kept.jsonl`, `dropped.jsonl` and
-`review.jsonl` with stored AutoReview stage verdicts. Every replayed run needs a
-cached verdict; the line does not fill gaps with a live model call.
+`review.jsonl` with stored AutoReview stage verdicts. Every run that needs a model reading
+needs a stored one; the line does not fill gaps with a live model call.
+
+A stored verdict is a reading only if its reason codes say so: rows whose reasons are
+`AUTOREVIEW_NOT_ELIGIBLE`, `AUTOREVIEW_DISABLED` or `AUTOREVIEW_CACHE_MISS` never are, whatever
+details they carry. The current L0 decides eligibility. If it says a run is ineligible, any
+stored reading is ignored and the run records `AUTOREVIEW_NOT_ELIGIBLE`, so a stale reading
+never applies. If it says the run is eligible but the cache holds no actual reading, the run
+is never passed silently: it goes to `review` with `AUTOREVIEW_CACHE_MISS`, and the
+scoreboard reports `autoreview.cache_misses`, so a measurement of an L0 change cannot hide
+runs the cache could not judge. A line export containing cache misses can be reused as a
+cache; its misses stay misses.
 
 The cache is untrusted input. Only the AutoReview stage-verdict shape is
 accepted: decision, reasons from the AutoReview reason set, cited steps and a
@@ -164,6 +174,26 @@ code revision and dirty state, start/end times, elapsed seconds, input/output
 hashes, row counts, model routes, spend and structured errors. Evidence stays on
 disk so a claim can be checked without trusting a terminal summary.
 
+Receipts name the batch's own files relative to the batch directory (`tasks.jsonl`,
+`export/kept.jsonl`); inputs outside the batch stay absolute with their SHA-256. A byte
+copy of a batch therefore passes `line check` from its new location, and tampering with
+the copy fails. Batches written before this change recorded absolute paths: they still
+verify in place, but a copy of one fails with a plain "another location" message and
+must be regenerated.
+
+`line check` reads a closed set of files. The line never writes a symlink or a hard link
+into a batch, so a batch containing either is refused before anything else is read (a copy
+made with `cp -R` has neither). A stage receipt may list only that stage's own batch files
+(plus `evidence/station-inputs/*.jsonl` for the judge). Every output ref must resolve inside
+the batch, and every input ref outside it must be an input the spec declares (source
+manifests, labels, task status, cache files) or a rollout from an intake re-run from the
+spec, never from the batch's own `runs.jsonl`, and must pass the DEV gate. Files are
+compared by identity: (device, inode) plus the case-folded real path, so hard links and
+case variants on a case-insensitive volume count as the same file in label isolation and in
+declared-input matching. Files are read once through a no-follow descriptor and the type,
+link count, hash and rows all come from those bytes. The scoreboard's row counting refuses
+paths that leave the batch.
+
 ## Eight quality checks
 
 | Check | What must hold |
@@ -193,7 +223,12 @@ mean `certified` and `exploitable` means `weak`.
 
 ## Reading the scoreboard
 
-`scoreboard.json` uses `evallab.line_scoreboard/v1`; `SCOREBOARD.md` is its
+`scoreboard.json` uses `evallab.line_scoreboard/v1` and records an integer `schema_version`
+(2 now; a file without the field is version 1, the shape written before the field and the
+`autoreview` section existed). `line check` recomputes and compares a saved scoreboard
+only on the sections its own version defines, so a batch built before a section was added
+still passes, a tampered counted field still fails, and a version newer than the code
+reads is refused with a plain message. `SCOREBOARD.md` is its
 readable view. Overall and per-corpus summaries show total and labelled runs,
 cheats, clean runs, attempted cheats and keep/drop/review counts. Each measured
 rate carries numerator `k`, denominator `n`, a rate and a Wilson 95% interval:

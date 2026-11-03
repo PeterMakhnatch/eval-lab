@@ -9,7 +9,12 @@ from typing import Any
 
 from evallab import hack_drop
 
+from .core import resolve_ref
 from .io import canonical_hash, read_json, read_rows
+
+# Version 1 (no field): the shape written by #1815. Version 2 adds ``schema_version`` and the
+# ``autoreview`` section. ``line check`` compares a saved scoreboard on its own version only.
+SCOREBOARD_VERSION = 2
 
 
 def _metric(k: int, n: int) -> dict[str, Any]:
@@ -96,19 +101,36 @@ def _receipt_rows(receipt: dict[str, Any], side: str, batch: Path) -> int:
     if count_key in receipt.get("counts", {}):
         return int(receipt["counts"][count_key])
     total = 0
+    root = batch.resolve()
     for item in receipt.get(side, []):
-        path = Path(item["path"])
-        if not path.is_absolute():
-            path = batch / path
-        if path.suffix == ".jsonl":
+        path = resolve_ref(batch, item["path"])  # refuses anything leaving the batch
+        # Only the batch's own rows are ever read here; outside inputs count what they recorded.
+        if root in path.resolve().parents and path.suffix == ".jsonl":
             total += len(read_rows(path))
         elif "rows" in item:
             total += int(item["rows"])
     return total
 
 
-def build_scoreboard(batch: Path, repo_root: Path) -> dict:
-    """Recompute every metric from persisted batch files, never changing decisions."""
+def stored_version(stored: dict[str, Any]) -> int:
+    """The schema version a saved scoreboard was written at (no field means version 1)."""
+    version = stored.get("schema_version", 1)
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ValueError(f"scoreboard.json has an invalid schema_version: {version!r}")
+    if version > SCOREBOARD_VERSION:
+        raise ValueError(
+            f"scoreboard.json is schema version {version} but this evallab reads up to "
+            f"{SCOREBOARD_VERSION}; it was written by a newer line, so update evallab to check it"
+        )
+    return version
+
+
+def build_scoreboard(batch: Path, repo_root: Path, version: int = SCOREBOARD_VERSION) -> dict:
+    """Recompute every metric from persisted batch files, never changing decisions.
+
+    ``version`` selects which sections to derive, so a saved scoreboard is compared only on
+    the sections its own version defines (1: no ``schema_version``/``autoreview``).
+    """
     batch = Path(batch)
     spec = read_json(batch / "spec.json")
     policy = spec.get("labels_policy", {}).get("attempted_cheat", "exclude")
@@ -201,8 +223,9 @@ def build_scoreboard(batch: Path, repo_root: Path) -> dict:
     reviews = sum(row["decision"] == "review" for row in rows)
     audits = sum(row["decision"] == "keep" and bool(row.get("audit")) for row in rows)
     check_path = batch / "check.json"
-    return {
+    board = {
         "schema": "evallab.line_scoreboard/v1",
+        "schema_version": version,
         "batch_id": spec["batch_id"],
         "labels_policy": {"attempted_cheat": policy},
         "overall": _summary(decisions, joined_labels, joined_attempted),
@@ -216,6 +239,9 @@ def build_scoreboard(batch: Path, repo_root: Path) -> dict:
             "queued": len(read_rows(batch / "judge-queue.jsonl")),
         },
         "task_side": task_side,
+        "autoreview": {
+            "cache_misses": sum("AUTOREVIEW_CACHE_MISS" in row.get("reasons", []) for row in rows)
+        },
         "spend": {
             "usd": sum(spend_by_stage.values()),
             "cap_usd": spec.get("autoreview", {}).get("max_usd", 0),
@@ -224,6 +250,9 @@ def build_scoreboard(batch: Path, repo_root: Path) -> dict:
         "models": [{"role": role, "route": route} for role, route in sorted(models)],
         "quality_checks": read_json(check_path)["checks"] if check_path.exists() else [],
     }
+    if version == 1:  # a batch built before versioning: no version field, no autoreview section
+        del board["schema_version"], board["autoreview"]
+    return board
 
 
 def _display_metric(metric: dict[str, Any]) -> str:
@@ -295,6 +324,8 @@ def render_scoreboard(value: dict) -> str:
     )
     for name, count in value["task_side"].items():
         lines.append(f"- {name}: {count}")
+    if "autoreview" in value:
+        lines.append(f"- autoreview_cache_misses: {value['autoreview']['cache_misses']}")
     lines.extend(
         [
             "",

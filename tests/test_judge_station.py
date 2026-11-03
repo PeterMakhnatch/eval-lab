@@ -1520,6 +1520,19 @@ def _capital_sidecar(trial: Path) -> None:
     (trial / "Result.json").write_text(json.dumps({"split": "test"}), encoding="utf-8")
 
 
+def _folder_in_subfolder(where: str) -> Any:
+    """B2.2: list a folder inside a TEST trial, whose result.json would otherwise be skipped."""
+
+    def mutate(trial: Path) -> Path:
+        trial = trial.rename(trial.parent / "build-pmars__123")
+        folder = trial / where
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "trajectory.json").write_text(json.dumps(_harbor_doc()), encoding="utf-8")
+        return folder
+
+    return mutate
+
+
 def _file_in_subfolder(trial: Path) -> Path:
     trial = trial.rename(trial.parent / "build-pmars__123")
     (trial / "sub").mkdir()
@@ -1751,6 +1764,16 @@ ROUND4: dict[str, dict[str, Any]] = {
     "file-inside-the-verifier-folder": {
         "mutate": _file_in_trial("verifier/trajectory.json"),
         "why": "file inside a trial",
+    },
+    "folder-rollout-in-a-plain-subfolder-of-a-test-trial": {
+        "mutate": _folder_in_subfolder("sub"),
+        "test_ids": TEST_ID,
+        "why": "folder inside a trial",
+    },
+    "folder-rollout-under-the-agent-folder-of-a-test-trial": {
+        "mutate": _folder_in_subfolder("agent/sub"),
+        "test_ids": TEST_ID,
+        "why": "folder inside a trial",
     },
     "file-in-a-plain-subfolder-of-a-test-named-trial": {
         "mutate": _file_in_subfolder,

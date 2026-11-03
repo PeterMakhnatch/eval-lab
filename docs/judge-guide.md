@@ -200,16 +200,17 @@ uv run evallab judge export --out ~/judge-verdicts.csv
   `run_id` to `rollout_path` and `sha256`. The station admits a run only when it is exactly what
   a Harbor trial looks like (`src/evallab/rollout_admission.py`; an allow-list, not a list of
   known tricks):
-  - the path is the one the line wrote: absolute, canonical, printable ASCII (no `..`, trailing
-    slash, or Unicode look-alikes), each component spelled exactly as on disk (a case-insensitive
-    disk would otherwise take `Agent` for `agent`), and every folder on it is a real folder, never
-    a symlink. The station trusts no folder above the path: where a deployment lists rows under a
-    root such as `/tmp` (a link on macOS), the shared gate takes `allowed_roots`, which trusts links
-    above a root and never at or below it;
-  - it is a whole trial folder (never `agent` or `verifier`), or a single ATIF file with no
-    ancestor named `agent` or `verifier` and no ancestor folder holding `result.json`,
-    `config.json`, `run.json`, `grade.json` or an `agent` folder (names compared case-insensitively),
-    so a row cannot point inside a trial to skip its sidecars;
+  - the path is the canonical path, exactly as the line wrote it: absolute, printable ASCII (no
+    `..`, trailing slash, or Unicode look-alikes), each component spelled exactly as on disk (a
+    case-insensitive disk would otherwise take `Agent` for `agent`), and `os.path.realpath(path)`
+    equals the path, so there is no link anywhere on it (a row under macOS `/tmp` must say
+    `/private/tmp`). Every check runs on that one path, so a link above it can hide nothing;
+  - it is a whole trial folder, or a single ATIF file, and never inside a trial: no ancestor is
+    named `agent` or `verifier` or holds an `agent` folder or a root `trajectory.json`, and for a
+    single file none holds `result.json`, `config.json`, `run.json` or `grade.json` either
+    (names compared case-insensitively; a folder rollout is not judged by sidecars because a job
+    folder above many trials may hold its own). A row cannot point inside a trial to skip its
+    sidecars;
   - nothing inside is a symlink or a special file, and no file is a hard link to a file under
     `research/answer-keys` (published trials are hard-linked copies, so a link count alone cannot
     decide; a link into some other folder is caught by the checks that read the content below);

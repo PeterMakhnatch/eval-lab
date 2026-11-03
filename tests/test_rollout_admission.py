@@ -164,45 +164,60 @@ def test_a_name_that_differs_only_by_case_from_the_disk_is_refused(tmp_path: Pat
             ra.admit_rollout(str(tmp_path / "PROBE"), registry=Registry())
 
 
-def test_links_above_an_allowed_root_are_fine_and_links_inside_it_never_are(
-    tmp_path: Path,
-) -> None:
-    base = tmp_path / "base"
-    runs = base / "runs"
-    runs.mkdir(parents=True)
-    trial = _trial(runs)
-    (tmp_path / "top").symlink_to(base, target_is_directory=True)  # an OS-level link above
-    (runs / "inner").symlink_to(trial, target_is_directory=True)  # a link inside the root
-    allowed = [tmp_path / "top" / "runs"]
-    listed = str(tmp_path / "top" / "runs" / trial.name)
-    assert ra.admit_rollout(listed, registry=Registry(), allowed_roots=allowed).kind == "trial"
-    with pytest.raises(ra.AdmissionRefused, match="symlink on the rollout path"):
-        ra.admit_rollout(listed, registry=Registry())  # no trusted root: every link refuses
-    with pytest.raises(ra.AdmissionRefused, match="symlink on the rollout path"):
-        ra.admit_rollout(
-            str(tmp_path / "top" / "runs" / "inner"), registry=Registry(), allowed_roots=allowed
-        )
-    with pytest.raises(ra.AdmissionRefused, match="not under an allowed root"):
-        ra.admit_rollout(str(trial), registry=Registry(), allowed_roots=allowed)
-
-
-def test_an_allowed_root_that_is_itself_a_link_is_refused(tmp_path: Path) -> None:
-    (tmp_path / "real").mkdir()
-    trial = _trial(tmp_path / "real")
-    link = tmp_path / "link-root"
-    link.symlink_to(trial.parent, target_is_directory=True)
-    with pytest.raises(ra.AdmissionRefused, match="symlink on the rollout path"):
-        ra.admit_rollout(str(link / trial.name), registry=Registry(), allowed_roots=[link])
-
-
-def test_a_link_above_an_allowed_root_cannot_hide_a_test_name_on_its_target(
-    tmp_path: Path,
-) -> None:
+def test_a_link_anywhere_on_the_path_is_refused_so_none_can_hide_a_name(tmp_path: Path) -> None:
     target = tmp_path / "build-pmars"  # a TEST task name, reached only through a link
     (target / "runs").mkdir(parents=True)
     trial = _trial(target / "runs")
     (tmp_path / "top").symlink_to(target, target_is_directory=True)
-    listed = str(tmp_path / "top" / "runs" / trial.name)
-    allowed = [tmp_path / "top" / "runs"]
+    (target / "runs" / "inner").symlink_to(trial, target_is_directory=True)
+    for listed in (
+        tmp_path / "top" / "runs" / trial.name,  # a link above
+        tmp_path / "top" / "runs",  # the folder reached through a link is itself the rollout
+        target / "runs" / "inner",  # a link at the rollout
+    ):
+        with pytest.raises(ra.AdmissionRefused, match="symlink on the rollout path"):
+            ra.admit_rollout(str(listed), registry=Registry())
+    # the canonical spelling is examined, and its names are what the registry sees
     with pytest.raises(ra.AdmissionRefused, match="assigned TEST"):
-        ra.admit_rollout(listed, registry=Registry(), allowed_roots=allowed)
+        ra.admit_rollout(str(trial), registry=Registry())
+
+
+def test_a_link_above_into_a_trials_agent_folder_is_refused(tmp_path: Path) -> None:
+    trial = _trial(tmp_path)
+    (tmp_path / "alias").symlink_to(trial / "agent", target_is_directory=True)
+    with pytest.raises(ra.AdmissionRefused, match="symlink on the rollout path"):
+        ra.admit_rollout(str(tmp_path / "alias" / "trajectory.json"), registry=Registry())
+
+
+def test_a_path_that_is_not_its_own_real_path_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """macOS /tmp vs /private/tmp: only the canonical spelling is accepted."""
+    file = _single(tmp_path)
+    real = ra.os.path.realpath
+    monkeypatch.setattr(
+        ra.os.path, "realpath", lambda p, **kw: "/private" + p if p == str(file) else real(p, **kw)
+    )
+    with pytest.raises(ra.AdmissionRefused, match="not its own real path"):
+        ra.admit_rollout(str(file), registry=Registry())
+
+
+@pytest.mark.parametrize("where", ["sub", "agent/sub", "verifier/sub"])
+def test_a_folder_rollout_inside_a_trial_is_refused(tmp_path: Path, where: str) -> None:
+    """B2.2: <trial>/sub holding a trajectory would skip <trial>/result.json (a TEST trial)."""
+    trial = _trial(tmp_path, "build-pmars__123")
+    (trial / "result.json").write_text(json.dumps({"split": "test"}), encoding="utf-8")
+    folder = trial / where
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "trajectory.json").write_text(json.dumps({"steps": []}), encoding="utf-8")
+    with pytest.raises(ra.AdmissionRefused, match="folder inside a trial"):
+        ra.admit_rollout(str(folder), registry=Registry())
+
+
+def test_a_job_folder_holding_its_own_sidecars_above_a_trial_is_fine(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    job.mkdir()
+    (job / "result.json").write_text(json.dumps({"stats": {}}), encoding="utf-8")
+    (job / "config.json").write_text(json.dumps({"n": 1}), encoding="utf-8")
+    trial = _trial(job)
+    assert ra.admit_rollout(str(trial), registry=Registry()).kind == "trial"

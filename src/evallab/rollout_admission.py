@@ -9,16 +9,17 @@ list of known-bad tricks is needed:
   ``Agent`` for ``agent``);
 * every component of the path, the top one included, is a real directory or file by ``lstat``:
   a symlink on the path or inside the trial is refused, so a link cannot redirect to, or hide,
-  forbidden content. ``allowed_roots`` names the folders the operator trusts: operating-system
-  links *above* a root (macOS ``/tmp`` is a link) are fine, links at or below it never are, and
-  the resolved path is registry-checked too so a link above a root cannot hide names;
+  forbidden content. The caller passes the canonical path (``os.path.realpath(p) == p``; macOS
+  ``/tmp`` must be given as ``/private/tmp``) and every check runs on that one path, so a link
+  above it can hide nothing because nothing else is ever examined;
 * every file inside is regular and is not a hard link to sealed material: published trials are
   themselves hard-linked copies (``st_nlink`` 2), so a link count cannot decide, but the inode
   of every file under the caller's sealed folders is known, and a match is refused;
-* a directory is a whole trial (never ``agent`` or ``verifier``); a single file is accepted only
-  when no ancestor is ``agent``/``verifier`` and no ancestor folder holds a sidecar or an
-  ``agent`` folder, so a row cannot point inside a trial to skip its sidecars. Files are indexed
-  by case-folded relative path, so ``Result.json`` is a sidecar too;
+* a rollout is never inside a trial: no ancestor is ``agent``/``verifier`` or holds an ``agent``
+  folder or a root ``trajectory.json``, and for a single file none holds a sidecar either (a
+  folder rollout is not judged by sidecars: a job folder above many trials may hold its own), so
+  a row cannot point inside a trial to skip its sidecars. A directory is a whole trial. Files
+  are indexed by case-folded relative path, so ``Result.json`` is a sidecar too;
 * every trajectory and sidecar is read once, into memory, together with the hash of every file;
   the digest is checked on those same bytes and the parsed documents are what the caller serves,
   so nothing is read again after it is verified;
@@ -41,7 +42,7 @@ import os
 import re
 import stat
 import unicodedata
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -107,33 +108,24 @@ def _lstat(path: Path) -> os.stat_result:
         raise AdmissionRefused(f"cannot stat {path}: {error}", unreadable=True) from error
 
 
-def _trusted_parts(root: Path, allowed_roots: Sequence[str | Path]) -> int:
-    """How many leading components of ``root`` are trusted (0 without ``allowed_roots``)."""
-    if not allowed_roots:
-        return 0
-    for allowed in allowed_roots:
-        base = Path(allowed)
-        if base.is_absolute() and root.parts[: len(base.parts)] == base.parts:
-            return len(base.parts)
-    raise AdmissionRefused(f"rollout path is not under an allowed root: {root}")
-
-
-def _walk_path(listed: str, allowed_roots: Sequence[str | Path]) -> Path:
-    """The listed path, validated component by component without following any link."""
+def _walk_path(listed: str) -> Path:
+    """The listed path, which must be canonical: absolute, ASCII, spelled as on disk, and with
+    no link anywhere (``os.path.realpath(listed) == listed``, so macOS ``/tmp`` is refused and
+    ``/private/tmp`` is what a caller passes). Every check below runs on this one path."""
     _ascii(listed, "rollout path")
     root = Path(listed)
     if not root.is_absolute() or str(root) != listed or ".." in root.parts or "." in root.parts:
         raise AdmissionRefused(f"rollout path is not canonical and absolute: {listed}")
-    trusted = _trusted_parts(root, allowed_roots)
     prefix = Path(root.anchor)
-    for index, part in enumerate(root.parts[1:], start=2):
+    for part in root.parts[1:]:
         parent, prefix = prefix, prefix / part
-        mode = _lstat(prefix).st_mode
-        if stat.S_ISLNK(mode) and index >= trusted:  # the allowed root itself is not trusted
+        if stat.S_ISLNK(_lstat(prefix).st_mode):
             raise AdmissionRefused(f"symlink on the rollout path: {prefix}")
         if part not in os.listdir(parent):
             raise AdmissionRefused(f"path case does not match the filesystem: {prefix}")
-        _gate(prefix)  # a link-free prefix resolves to itself, so the gate sees what is written
+        _gate(prefix)
+    if os.path.realpath(listed) != listed:
+        raise AdmissionRefused(f"rollout path is not its own real path: {listed}")
     return root
 
 
@@ -291,16 +283,21 @@ def _refuse_test_identity(registry: Any, names: Iterable[str], digests: Iterable
             raise AdmissionRefused("sealed task digest in registry")
 
 
-def _inside_a_trial(file: Path) -> bool:
-    """Whether any ancestor is a trial folder or holds a trial's sidecars (case-insensitively)."""
-    for folder in file.parents:
+def _inside_a_trial(path: Path, *, sidecars: bool) -> bool:
+    """Whether any ancestor is a trial folder (``agent``/``verifier``) or holds a trial's
+    ``agent`` folder, compared case-insensitively. A single file is also inside a trial when an
+    ancestor holds the trial's sidecars; a folder rollout is judged instead by a root
+    ``trajectory.json`` in an ancestor, never by sidecars, because a job folder above many
+    trials may hold its own."""
+    markers = {"agent"} | (set(SIDECARS) if sidecars else {"trajectory.json"})
+    for folder in path.parents:
         if canonical(folder.name) in TRIAL_FOLDERS:
             return True
         try:
             listing = {canonical(name) for name in os.listdir(folder)}
         except OSError:
             continue
-        if listing & {"agent", *SIDECARS}:
+        if listing & markers:
             return True
     return False
 
@@ -313,26 +310,24 @@ def admit_rollout(
     run_id: str | None = None,
     expected_sha256: str | None = None,
     sealed: frozenset[tuple[int, int]] = frozenset(),
-    allowed_roots: Sequence[str | Path] = (),
     require_trajectory: bool = True,
 ) -> Admitted:
     """Admit the rollout at exactly ``listed`` or raise :class:`AdmissionRefused`.
 
     ``expected_sha256`` is the line's digest of the rollout; it is checked on the bytes read
     here, before anything is parsed. With ``require_trajectory=False`` a rollout without an ATIF
-    trajectory (a patch or code bundle) is admitted with ``document=None``. Paths must be
-    absolute; ``allowed_roots`` trusts links above (never at or below) the named folders.
+    trajectory (a patch or code bundle) is admitted with ``document=None``. ``listed`` must be
+    the canonical path (``os.path.realpath(listed) == listed``); nothing else is examined.
     """
-    root = _walk_path(listed, allowed_roots)
+    root = _walk_path(listed)
     top = _lstat(root).st_mode
     documents: list[Any] = [dict(row)] if row is not None else []
-    # a link above an allowed root hides names on its target: the resolved path is checked too
-    names: list[str] = [name for name in (run_id, str(root), str(root.resolve())) if name]
+    names: list[str] = [name for name in (run_id, str(root)) if name]
     candidates: list[tuple[Path, bytes]] = []
     sidecars: list[tuple[Path, bytes]] = []
     diff_bytes: bytes | None = None
     if stat.S_ISDIR(top):
-        if canonical(root.name) in TRIAL_FOLDERS:
+        if canonical(root.name) in TRIAL_FOLDERS or _inside_a_trial(root, sidecars=False):
             raise AdmissionRefused(f"a folder inside a trial is not a trial: {root}")
         tree = _read_tree(root, sealed)
         kind, digest, names = "trial", tree.digest, names + tree.names
@@ -346,7 +341,7 @@ def admit_rollout(
         info = _lstat(root)
         if (info.st_dev, info.st_ino) in sealed:
             raise AdmissionRefused(f"hard link to sealed material: {root}")
-        if _inside_a_trial(root):
+        if _inside_a_trial(root, sidecars=True):
             raise AdmissionRefused(f"a file inside a trial is not a rollout: {root}")
         data = root.read_bytes()
         kind, digest = "file", hashlib.sha256(data).hexdigest()

@@ -77,7 +77,7 @@ inputs:
   - path: docs/independent-review.md
     digest: sha256:e8dd4ad2aa408375f6f74b17392f79efb18191b12751938be3d569102ec58fd0
   - path: docs/insights.md
-    digest: sha256:082cfb31e534037efdb28c6e4533ee415c0e9ca707292866f5b2dda8b179624a
+    digest: sha256:b719f1f8720d23c58ded195e779a63b9fe8406135939be6e2c33f7d385e96f5f
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/judge-guide.md

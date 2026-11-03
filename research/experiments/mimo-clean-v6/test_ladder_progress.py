@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import collections
 import csv
 import importlib.util
 import io
@@ -37,6 +38,23 @@ def test_ladder_progress_committed_table_reproduces_from_cell_files() -> None:
     assert render(build(REPO_ROOT, cells_dir=EXPERIMENT)) == committed
 
 
+def test_ladder_progress_readme_refusal_signature_counts_match_the_table() -> None:
+    counted = collections.Counter(
+        row["refusal_hit"].rsplit("/", 1)[-1] for row in _committed() if row["refusal_hit"]
+    )
+    readme = (EXPERIMENT / "README.md").read_text(encoding="utf-8")
+    section = readme.split("### Refusal signatures and attacks executed", 1)[1].split("\n## ", 1)[0]
+    documented = {
+        cells[1].strip("` "): int(cells[2])
+        for cells in (
+            [part.strip() for part in line.strip("|").split("|")]
+            for line in section.splitlines()
+            if line.startswith("| `")
+        )
+    }
+    assert documented == dict(counted)
+
+
 def test_ladder_progress_has_exactly_one_row_per_ranking_rank() -> None:
     with (REPO_ROOT / RANKING).open(encoding="utf-8", newline="") as handle:
         expected = [row["task_id"] for row in csv.DictReader(handle)][:100]
@@ -68,16 +86,38 @@ def _ranking(n: int = 3) -> list[dict[str, str]]:
 
 
 def _cell(rank: int, decision: str | None, finished: str = "", verdict: str = "clean") -> dict:
+    refused = decision is not None and decision.startswith("tamper signature")
     return {
         "task_id": f"t{rank}",
         "ranking": {"rank": rank, "phase": "P"},
         "ladder_version": "1.4.0",
         "verdict": verdict,
         "verifier_decision": decision,
+        "verifier_tamper_hit": f"tamper \\b_pytest\\b in pkg{rank}/__init__.py" if refused else None,
+        "attacks_executed": 14 if refused else 9,
         "wall_seconds": 10 * rank,
         "finished_utc": finished,
         "_source_file": f"f{rank}.json",
     }
+
+
+def test_ladder_progress_a_refusal_cell_names_its_file_and_a_graded_cell_does_not() -> None:
+    rows = assemble(
+        _ranking(3),
+        [_cell(1, "tamper signature in agent diff"), _cell(2, "rc=1 runner=pytest")],
+    )
+    assert [(r["basis"], r["refusal_hit"], r["attacks_executed"]) for r in rows] == [
+        ("tamper-refusal", "pkg1/__init__.py", "14"),
+        ("graded", "", "9"),
+        ("none", "", ""),
+    ]
+
+
+def test_ladder_progress_a_refusal_without_a_named_file_is_refused() -> None:
+    cell = _cell(1, "tamper signature in agent diff")
+    cell["verifier_tamper_hit"] = None
+    with pytest.raises(ProgressError, match="t1"):
+        assemble(_ranking(1), [cell])
 
 
 def test_ladder_progress_uncovered_ranks_read_verdict_none() -> None:

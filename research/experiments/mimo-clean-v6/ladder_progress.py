@@ -19,6 +19,12 @@ wins): ``still-refused``, ``graded-clean``, ``graded-cracked``, ``unscored``,
 or ``none`` when no subset cell covers the task; ``subset_reward`` is that
 subset's reward, empty when none was recorded.
 
+Two more trailing columns come from the coverage cell itself: ``refusal_hit`` is
+the file the refusing signature matched (the cell's ``verifier_tamper_hit`` after
+``" in "``) on ``tamper-refusal`` rows and empty on every other row, and
+``attacks_executed`` is the cell's ``attacks_executed`` count (empty without a
+cell). The subset schema carries neither field.
+
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift).
 """
@@ -58,6 +64,8 @@ COLUMNS = (
     "source_file",
     "subset_verdict",
     "subset_reward",
+    "refusal_hit",
+    "attacks_executed",
 )
 
 TAMPER_SIGNATURE = "tamper signature"
@@ -133,6 +141,17 @@ def _newest_subset(subsets: Sequence[dict[str, Any]]) -> dict[str, Any]:
     return newest
 
 
+def _refusal_hit(cell: dict[str, Any]) -> str:
+    """The file a refusal cell's ``verifier_tamper_hit`` names, after ``" in "``."""
+    hit = cell.get("verifier_tamper_hit")
+    _, separator, path = str(hit or "").partition(" in ")
+    if not separator or not path:
+        raise ProgressError(
+            f"{cell['task_id']}: tamper refusal without a ' in <file>' verifier_tamper_hit: {hit!r}"
+        )
+    return path
+
+
 def assemble(
     ranking: Sequence[dict[str, str]],
     cells: Sequence[dict[str, Any]],
@@ -164,6 +183,8 @@ def assemble(
             "source_file": "",
             "subset_verdict": "none",
             "subset_reward": "",
+            "refusal_hit": "",
+            "attacks_executed": "",
         }
         if rank in by_rank:
             cell = _newest_cell(by_rank[rank])
@@ -171,12 +192,15 @@ def assemble(
                 raise ProgressError(
                     f"rank {rank}: cell is for {cell['task_id']}, ranking says {ranked['task_id']}"
                 )
+            basis = classify_basis(cell.get("verifier_decision"))
             row.update(
                 ladder_version=str(cell["ladder_version"]),
                 verdict=str(cell["verdict"]),
-                basis=classify_basis(cell.get("verifier_decision")),
+                basis=basis,
                 wall_seconds=str(cell["wall_seconds"]),
                 source_file=cell["_source_file"],
+                refusal_hit=_refusal_hit(cell) if basis == "tamper-refusal" else "",
+                attacks_executed=str(cell["attacks_executed"]),
             )
         if ranked["task_id"] in by_task:
             subset = _newest_subset(by_task[ranked["task_id"]])

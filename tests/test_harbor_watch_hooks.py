@@ -254,3 +254,363 @@ def test_lifecycle_hook_wakes_the_auto_watch_before_its_interval(
         assert len(passes) == 1
     finally:
         auto_watch.stop_auto_watch(handle, run_watch_fn=fake_pass)
+
+
+# --- Harbor version parsing -------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected", "streams"),
+    [
+        ("0.24.0", (0, 24, 0), True),
+        ("0.24.0rc1", (0, 24, 0), True),
+        ("0.24.dev", (0, 24), True),
+        ("0.23.9", (0, 23, 9), False),
+        ("1.2.3.4", (1, 2, 3), True),
+        ("0.2rc4", (0, 2), False),
+        ("dev", (), False),
+    ],
+)
+def test_harbor_version_keeps_numeric_pieces_and_stops_at_the_first_non_numeric(
+    monkeypatch: pytest.MonkeyPatch, raw: str, expected: tuple[int, ...], streams: bool
+) -> None:
+    monkeypatch.setattr(hooks_mod.metadata, "version", lambda _name: raw)
+    assert hooks_mod._harbor_version() == expected
+    assert hooks_mod.log_streaming_supported() is streams
+
+
+def test_missing_harbor_package_disables_log_streaming(monkeypatch: pytest.MonkeyPatch) -> None:
+    def absent(_name: str) -> str:
+        raise hooks_mod.metadata.PackageNotFoundError
+
+    monkeypatch.setattr(hooks_mod.metadata, "version", absent)
+    assert hooks_mod._harbor_version() == ()
+    assert hooks_mod.log_streaming_supported() is False
+
+
+# --- job start / log subscription / arming ----------------------------------
+
+
+def test_job_that_raises_during_start_is_swallowed_and_leaves_the_actuator_idle(
+    tmp_path: Path,
+) -> None:
+    class BrokenJob(FakeJob):
+        def __init__(self, job_dir: Path) -> None:
+            super().__init__(job_dir)
+            self.on_agent_started = self._explode  # instance attr shadows FakeJob's recorder
+
+        def _explode(self, _hook: Any) -> None:
+            raise RuntimeError("harbor changed its hook API")
+
+    plugin = WatchHookPlugin()
+    asyncio.run(plugin.on_job_start(BrokenJob(tmp_path / "job")))
+    assert plugin.stop_armed is False
+    assert plugin.log_streaming is False
+    assert plugin._stop_poller is None
+
+
+def test_log_streaming_is_off_when_the_queue_has_no_setup_hooks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hooks_mod, "_harbor_version", lambda: (0, 24, 0))
+    monkeypatch.setenv(hooks_mod.LOG_HOOKS_ENV, "1")
+    job: Any = FakeJob(tmp_path / "job")
+    job._trial_queue = SimpleNamespace()
+    plugin = WatchHookPlugin()
+    _start(plugin, job)
+    assert plugin.log_streaming is False
+    assert plugin._flusher is None
+    assert not hasattr(job._trial_queue, "_setup_hooks")
+
+
+@pytest.mark.filterwarnings("ignore:coroutine .* was never awaited:RuntimeWarning")
+def test_actuator_without_a_running_loop_stays_unarmed(tmp_path: Path) -> None:
+    async def run_trial(_config: Any) -> None:
+        return None
+
+    job: Any = FakeJob(tmp_path / "job")
+    job._trial_queue = SimpleNamespace(_run_trial=run_trial)
+    plugin = WatchHookPlugin()
+    plugin._arm_stop_actuator(job)  # sync: asyncio.create_task has no loop
+    assert plugin.stop_armed is False
+    assert plugin._stop_poller is None
+
+
+def test_end_capture_swallows_a_malformed_event() -> None:
+    class Exploding:
+        @property
+        def trial_name(self) -> str:
+            raise RuntimeError("boom")
+
+    plugin = WatchHookPlugin()
+    assert asyncio.run(plugin._on_end_capture(Exploding())) is None
+    assert plugin._end_results == {}
+    assert plugin._terminal == set()
+
+
+# --- stop-request polling ---------------------------------------------------
+
+
+class _Task:
+    def __init__(self, *, cancel_result: Any = True, raises: bool = False) -> None:
+        self.cancel_result = cancel_result
+        self.raises = raises
+        self.messages: list[Any] = []
+
+    def done(self) -> bool:
+        return False
+
+    def cancel(self, message: Any = None) -> Any:
+        self.messages.append(message)
+        if self.raises:
+            raise RuntimeError("cannot cancel")
+        return self.cancel_result
+
+
+def _poller(job_dir: Path, **tasks: _Task) -> WatchHookPlugin:
+    plugin = WatchHookPlugin()
+    plugin._job_dir = job_dir
+    plugin._trial_tasks.update(tasks)
+    return plugin
+
+
+def _request(job_dir: Path, name: str, body: str) -> Path:
+    path = job_dir / "watch" / "stop-requests" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_poll_without_a_job_dir_cancels_nothing(tmp_path: Path) -> None:
+    task = _Task()
+    plugin = _poller(tmp_path, a=task)
+    plugin._job_dir = None
+    plugin._check_stop_requests()
+    assert task.messages == []
+
+
+def test_poll_with_an_unreadable_requests_dir_cancels_nothing(tmp_path: Path) -> None:
+    task = _Task()
+    plugin = _poller(tmp_path, a=task)
+    plugin._check_stop_requests()  # watch/stop-requests does not exist
+    (tmp_path / "watch").mkdir()
+    (tmp_path / "watch" / "stop-requests").write_text("a file, not a dir", encoding="utf-8")
+    plugin._check_stop_requests()
+    assert task.messages == []
+    assert plugin._stop_requested == set()
+    assert plugin._stop_acted == set()
+
+
+def test_poll_ignores_non_json_files_and_directories(tmp_path: Path) -> None:
+    ignored, real = _Task(), _Task()
+    plugin = _poller(tmp_path, ignored=ignored, real=real)
+    _request(tmp_path, "ignored.txt", json.dumps({"trial": "ignored"}))
+    (tmp_path / "watch" / "stop-requests" / "ignored.json").mkdir()
+    _request(tmp_path, "real.json", json.dumps({"trial": "real"}))
+    plugin._check_stop_requests()
+    assert ignored.messages == []
+    assert len(real.messages) == 1
+    assert plugin._stop_requested == {"real"}
+
+
+def test_poll_names_rule_and_step_in_the_cancel_message(tmp_path: Path) -> None:
+    from evallab.watch_stop import WATCH_STOP_MESSAGE
+
+    task = _Task()
+    plugin = _poller(tmp_path, a=task)
+    body = {"trial": "a", "rule": "history_mining", "step_ref": "7"}
+    _request(tmp_path, "a.json", json.dumps(body))
+    plugin._check_stop_requests()
+    assert task.messages == [f"{WATCH_STOP_MESSAGE}: history_mining 7"]
+    assert plugin._is_our_stop("a", asyncio.CancelledError(task.messages[0])) is True
+
+
+def test_poll_keeps_the_default_message_when_the_record_is_not_a_rule_dict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.watch_stop import WATCH_STOP_MESSAGE
+
+    task_list, task_bad = _Task(), _Task()
+    plugin = _poller(tmp_path, listed=task_list, garbled=task_bad)
+    _request(tmp_path, "listed.json", json.dumps(["not", "a", "dict"]))
+    _request(tmp_path, "garbled.json", "{not json")
+    # The record is re-read after the trial name was resolved; a file that goes
+    # bad in between must still stop that trial with the stem-based message.
+    original = plugin._request_trial
+    monkeypatch.setattr(
+        plugin,
+        "_request_trial",
+        lambda path: path.stem if path.stem == "garbled" else original(path),
+    )
+    plugin._check_stop_requests()
+    assert task_list.messages == [f"{WATCH_STOP_MESSAGE}: listed"]
+    assert task_bad.messages == [f"{WATCH_STOP_MESSAGE}: garbled"]
+    assert plugin._stop_requested == {"listed", "garbled"}
+
+
+def test_cancel_that_raises_is_skipped_and_retried_on_the_next_poll(tmp_path: Path) -> None:
+    broken, healthy = _Task(raises=True), _Task()
+    plugin = _poller(tmp_path, broken=broken, healthy=healthy)
+    _request(tmp_path, "broken.json", json.dumps({"trial": "broken"}))
+    _request(tmp_path, "healthy.json", json.dumps({"trial": "healthy"}))
+    plugin._check_stop_requests()
+    assert len(healthy.messages) == 1  # one failing cancel must not block its sibling
+    assert plugin._stop_requested == {"healthy"}
+    assert plugin._stop_acted == {"healthy"}  # the failed trial is not marked acted
+    plugin._check_stop_requests()
+    assert len(broken.messages) == 2  # retried
+    assert len(healthy.messages) == 1  # but the acted trial is never cancelled twice
+
+
+def test_cancel_that_does_not_take_effect_is_acted_but_not_ours(tmp_path: Path) -> None:
+    task = _Task(cancel_result=False)
+    plugin = _poller(tmp_path, a=task)
+    _request(tmp_path, "a.json", json.dumps({"trial": "a"}))
+    plugin._check_stop_requests()
+    plugin._check_stop_requests()
+    assert len(task.messages) == 1
+    assert plugin._stop_acted == {"a"}
+    assert plugin._stop_requested == set()  # a foreign cancel must not be rewritten as our stop
+
+
+def test_request_trial_prefers_the_record_field_over_the_file_stem(tmp_path: Path) -> None:
+    plugin = _poller(tmp_path)
+    assert plugin._request_trial(_request(tmp_path, "stem.json", '{"trial": "named"}')) == "named"
+    assert plugin._request_trial(_request(tmp_path, "stem.json", '{"rule": "x"}')) == "stem"
+    assert plugin._request_trial(_request(tmp_path, "stem.json", '["x"]')) == "stem"
+    assert plugin._request_trial(_request(tmp_path, "stem.json", "{broken")) is None
+    assert plugin._request_trial(tmp_path / "watch" / "stop-requests" / "gone.json") is None
+
+
+def test_stop_requested_details_fall_back_to_empty(tmp_path: Path) -> None:
+    plugin = _poller(tmp_path)
+    assert plugin._stop_requested_details("a") == {}  # no request file
+    _request(tmp_path, "a.json", "{broken")
+    assert plugin._stop_requested_details("a") == {}
+    _request(tmp_path, "a.json", '["x"]')
+    assert plugin._stop_requested_details("a") == {}
+    _request(tmp_path, "a.json", '{"rule": "r", "step_ref": "3"}')
+    assert plugin._stop_requested_details("a") == {"rule": "r", "step_ref": "3"}
+    plugin._job_dir = None
+    assert plugin._stop_requested_details("a") == {}
+
+
+# --- stop result rewriting --------------------------------------------------
+
+
+class _Dumpable:
+    def model_dump_json(self, indent: int | None = None) -> str:
+        return json.dumps({"stopped": True}, indent=indent)
+
+
+def _trial_result(directory: Path, text: str = "original") -> Path:
+    directory.mkdir(parents=True)
+    path = directory / "result.json"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_rewrite_leaves_result_json_alone_when_the_result_cannot_serialise(
+    tmp_path: Path,
+) -> None:
+    existing = _trial_result(tmp_path / "t")
+    plugin = _poller(tmp_path)
+    config = SimpleNamespace(trials_dir=str(tmp_path))
+    plugin._rewrite_result_json(config, "t", SimpleNamespace())  # no model_dump_json
+    assert existing.read_text(encoding="utf-8") == "original"
+
+    class Raising:
+        def model_dump_json(self, indent: int | None = None) -> str:
+            raise ValueError("unserialisable")
+
+    plugin._rewrite_result_json(config, "t", Raising())
+    assert existing.read_text(encoding="utf-8") == "original"
+
+
+def test_rewrite_falls_back_to_the_job_dir_when_the_trials_dir_copy_is_unwritable(
+    tmp_path: Path,
+) -> None:
+    trials = tmp_path / "elsewhere"
+    # result.json is a directory there, so writing it raises OSError.
+    (trials / "t" / "result.json").mkdir(parents=True)
+    fallback = _trial_result(tmp_path / "t")
+    plugin = _poller(tmp_path)
+    plugin._rewrite_result_json(SimpleNamespace(trials_dir=str(trials)), "t", _Dumpable())
+    assert json.loads(fallback.read_text(encoding="utf-8")) == {"stopped": True}
+
+
+def test_rewrite_without_any_trial_dir_writes_nothing(tmp_path: Path) -> None:
+    plugin = _poller(tmp_path)
+    plugin._rewrite_result_json(SimpleNamespace(), "t", _Dumpable())
+    assert not (tmp_path / "t").exists()
+
+
+# --- log hook / flush loop --------------------------------------------------
+
+
+def test_malformed_log_entry_is_dropped_without_touching_the_buffer() -> None:
+    plugin = WatchHookPlugin()
+    plugin._trial_names["id"] = TRIAL
+    assert asyncio.run(plugin._on_log(SimpleNamespace(trial_id="id", phase="agent"))) is None
+    assert asyncio.run(plugin._on_log(SimpleNamespace(trial_id="other", phase="agent"))) is None
+    assert plugin._logs.drain() == []
+
+
+def test_flush_loop_writes_the_journal_on_every_tick(tmp_path: Path) -> None:
+    class TwoTicks:
+        def __init__(self) -> None:
+            self.waits = [False, False, True]
+
+        def wait(self, _timeout: float) -> bool:
+            return self.waits.pop(0)
+
+    plugin = WatchHookPlugin()
+    plugin._journal = tmp_path / HOOK_JOURNAL
+    plugin._stop = TwoTicks()  # ty: ignore[invalid-assignment]
+    plugin._logs.add(TRIAL, "agent", "hello", _iso(0))
+    plugin._flush_loop()
+    folded = read_hook_journal(tmp_path)
+    assert folded[TRIAL]["logs"]["agent"]["tail"] == "hello"
+    assert (tmp_path / HOOK_JOURNAL).read_text(encoding="utf-8").count("\n") == 1  # drained once
+
+
+# --- journal reader ---------------------------------------------------------
+
+
+def test_journal_reader_skips_bad_lines_and_records_without_a_trial(tmp_path: Path) -> None:
+    path = tmp_path / HOOK_JOURNAL
+    path.parent.mkdir(parents=True)
+    good = {"kind": "event", "event": "start", "trial": TRIAL, "at": "2026-11-03T10:00:00+00:00"}
+    lines = [
+        "{truncated",
+        json.dumps(["not", "a", "dict"]),
+        json.dumps({"kind": "event", "event": "start"}),
+        json.dumps({"kind": "event", "event": "start", "trial": 7}),
+        json.dumps(good),
+        "",
+        json.dumps({**good, "event": "end", "exception_type": "X", "rewards": {"reward": 1.0}}),
+    ]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    folded = read_hook_journal(tmp_path)
+    assert list(folded) == [TRIAL]
+    assert [name for name, _at in folded[TRIAL]["events"]] == ["start", "end"]
+    assert folded[TRIAL]["terminal"] is True
+    assert folded[TRIAL]["exception_type"] == "X"
+    assert folded[TRIAL]["rewards"] == {"reward": 1.0}
+
+
+def test_journal_epoch_handles_odd_timestamps(tmp_path: Path) -> None:
+    assert hooks_mod._epoch(None) == 0.0
+    assert hooks_mod._epoch(12345) == 0.0
+    assert hooks_mod._epoch("yesterday-ish") == 0.0
+    aware = hooks_mod._epoch("2026-11-03T10:00:00+00:00")
+    assert hooks_mod._epoch("2026-11-03T10:00:00Z") == aware
+    assert hooks_mod._epoch("2026-11-03T10:00:00") == aware  # naive reads as UTC
+    assert hooks_mod._epoch("2026-11-03T06:00:00-04:00") == aware
+    path = tmp_path / HOOK_JOURNAL
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps({"kind": "event", "event": "start", "trial": TRIAL, "at": "garbage"}) + "\n",
+        encoding="utf-8",
+    )
+    assert read_hook_journal(tmp_path)[TRIAL]["last_at"] == 0.0

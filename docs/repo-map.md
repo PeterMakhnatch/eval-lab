@@ -389,7 +389,7 @@ inputs:
   - path: src/evallab/grid.py
     digest: sha256:f8ac61ab1168834ea73b671484132bebace118d3ad8cb8c5d129b01c6c9948aa
   - path: src/evallab/hack_drop.py
-    digest: sha256:5e0df3cb036b75547028959486320322d3773bec55c3f02a8f74e315d152001b
+    digest: sha256:abfc10cf437944ffbed5ae3a88ee21d777753bb0174ae5ebd1fc25e6f59301b5
   - path: src/evallab/hack_queue.py
     digest: sha256:d259a3c210afb68e35cbbd5128a7571123a2fd12a6ee75dd5487e0f7c90a354c
   - path: src/evallab/hackbook/__init__.py

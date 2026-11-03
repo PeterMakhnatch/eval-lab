@@ -55,6 +55,10 @@ and two continuation reports, written 2 to 66 minutes after the cutoff: 20
 | engine v2 | `0d72116f7` | both | skeptic reviews every experiment (3 per pass, up to 3 passes at once); extractor writes receipt recipes; unit-aware checks; precision-first signals; sealed per-pass ledger snapshots |
 | baseline | — | both | one Opus 5.5 session per night |
 
+Both engine commits are earlier commits of PR #1826's branch that a later
+rebase replaced, so `main` does not contain them. Each run used a copy of its
+commit's tree, kept with the local backtest state under `runtime/<commit>`.
+
 The v2 runs used at most 3 to 6 concurrent passes because the Mac was under
 memory pressure, and every lens was disabled once the skeptic had covered every
 experiment. The judge ran twice: the first run cut each card to 2,400

@@ -1329,7 +1329,7 @@ inputs:
   - path: src/evallab/token_flow.py
     digest: sha256:7f745be72e76f75eaac75705d4625ca3a7bb5b259377311fef1dabb2d50f70a0
   - path: src/evallab/tool_calls.py
-    digest: sha256:aac4bfab957a1536fbc21e3f269cf29397932c4e5026998f4ae2f654822ab70f
+    digest: sha256:d62b5e7b385517801bf735eb6de47f5809c497552d86595469e196a88073b1ab
   - path: src/evallab/toolbox.py
     digest: sha256:ffe4e1968b5eb2c990fec10c0c543dbbb29539d196d762f0e307299610a59bd8
   - path: src/evallab/trace_anatomy.py

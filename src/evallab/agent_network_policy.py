@@ -72,6 +72,7 @@ adoption is the clean-set owner's call; this derivation records
 
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -86,6 +87,12 @@ TASK_TOML_REL = "task.toml"
 
 #: The agent-phase policy this transform declares.
 AGENT_NETWORK_MODE = "no-network"
+
+
+#: ``[agent]`` table header, tolerating inner spaces and a trailing comment.
+_AGENT_HEADER_RE = re.compile(r"^\s*\[\s*agent\s*\]\s*(#.*)?$")
+_AGENT_INLINE_RE = re.compile(r"""^\s*["']?agent["']?\s*=""")
+_AGENT_DOTTED_RE = re.compile(r"""^\s*["']?agent["']?\s*\.""")
 
 
 def _section_key_present(config: dict[str, Any], section: str, key: str) -> bool:
@@ -132,36 +139,63 @@ def build_task_toml(parent_text: str) -> str:
         )
 
     lines = parent_text.splitlines(keepends=True)
-    try:
-        agent_idx = next(i for i, line in enumerate(lines) if line.strip() == "[agent]")
-    except StopIteration:
-        new_text = parent_text if parent_text.endswith("\n") or not parent_text else parent_text + "\n"
-        new_text += f'\n[agent]\nnetwork_mode = "{AGENT_NETWORK_MODE}"\n'
-    else:
-        lines.insert(agent_idx + 1, f'network_mode = "{AGENT_NETWORK_MODE}"\n')
-        new_text = "".join(lines)
+    insert_line = f'network_mode = "{AGENT_NETWORK_MODE}"\n'
+    candidates: list[str] = []
+    for idx, line in enumerate(lines):
+        if _AGENT_HEADER_RE.match(line):
+            head = lines[: idx + 1]
+            if not head[-1].endswith("\n"):
+                head[-1] += "\n"
+            candidates.append("".join(head) + insert_line + "".join(lines[idx + 1 :]))
+    appended = parent_text if parent_text.endswith("\n") or not parent_text else parent_text + "\n"
+    candidates.append(appended + f"\n[agent]\n{insert_line}")
 
+    # A header-shaped line can sit inside a multi-line string; keep the
+    # first candidate that parses, lands the mode, and changes nothing else.
+    first_error: str | None = None
+    for candidate in candidates:
+        error = _candidate_error(parent_text, candidate)
+        if error is None:
+            return candidate
+        first_error = first_error or error
+
+    if isinstance(agent, dict):
+        for line in lines:
+            if _AGENT_INLINE_RE.match(line):
+                raise VariantInvalid(
+                    "parent declares agent as an inline table (agent = { ... }); "
+                    "rewrite it as an [agent] table before applying agent-network-none@1"
+                )
+            if _AGENT_DOTTED_RE.match(line):
+                raise VariantInvalid(
+                    "parent declares agent through dotted keys (agent.<key> = ...); "
+                    "rewrite it as an [agent] table before applying agent-network-none@1"
+                )
+    raise VariantInvalid(first_error or "derived task.toml did not land [agent] network_mode")
+
+
+def _candidate_error(parent_text: str, new_text: str) -> str | None:
+    """Why ``new_text`` is not an acceptable derivation of the parent, or None."""
     try:
         new_config = tomllib.loads(new_text)
     except tomllib.TOMLDecodeError as exc:
-        raise VariantInvalid(f"derived {TASK_TOML_REL} does not parse: {exc}") from exc
+        return f"derived {TASK_TOML_REL} does not parse: {exc}"
     new_agent = new_config.get("agent")
     if not isinstance(new_agent, dict) or new_agent.get("network_mode") != AGENT_NETWORK_MODE:
-        raise VariantInvalid("derived task.toml did not land [agent] network_mode")
+        return "derived task.toml did not land [agent] network_mode"
 
     # Prove nothing else changed: the parsed configs must agree once the
     # single declared value is masked out.
     masked_parent = tomllib.loads(parent_text)
-    masked_new = tomllib.loads(new_text)
     if isinstance(masked_parent.get("agent"), dict):
         masked_parent["agent"] = {k: v for k, v in masked_parent["agent"].items()}
         masked_parent["agent"]["network_mode"] = "<agent-network-none@1>"
     else:
         masked_parent["agent"] = {"network_mode": "<agent-network-none@1>"}
-    masked_new["agent"]["network_mode"] = "<agent-network-none@1>"
-    if masked_parent != masked_new:
-        raise VariantInvalid("derived task.toml changed fields beyond [agent] network_mode")
-    return new_text
+    new_agent["network_mode"] = "<agent-network-none@1>"
+    if masked_parent != new_config:
+        return "derived task.toml changed fields beyond [agent] network_mode"
+    return None
 
 
 def build_changes(

@@ -843,6 +843,9 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
     render_scoreboard(build_scoreboard(batch, repo_root))  # timed: labels, joins, intervals, view
     receipt("scoreboard", start, score_inputs, [], len(decisions), len(decisions))
     write_json(batch / "scoreboard.json", build_scoreboard(batch, repo_root))
+    (batch / "SCOREBOARD.md").write_text(
+        render_scoreboard(read_json(batch / "scoreboard.json")), encoding="utf-8"
+    )
     result = check_batch(
         batch,
         repo_root,

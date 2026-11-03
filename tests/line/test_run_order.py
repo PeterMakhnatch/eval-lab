@@ -140,8 +140,10 @@ def test_a_failed_check_leaves_the_external_judge_queue_untouched(
     real = core.check_batch
     seen: list[bool] = []
 
-    def failing(batch: Path, repo_root: Path, *, queue_pending: bool = False) -> dict[str, Any]:
-        result = real(batch, repo_root, queue_pending=queue_pending)
+    def failing(
+        batch: Path, repo_root: Path, *, queue_pending: bool = False, **kwargs: Any
+    ) -> dict[str, Any]:
+        result = real(batch, repo_root, queue_pending=queue_pending, **kwargs)
         seen.append(queue_pending)
         if queue_pending:
             result["passed"] = False

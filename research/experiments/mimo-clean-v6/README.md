@@ -531,6 +531,47 @@ trial-bearing jobs (six final, plus `000164` attempt 3) were published with
 cells `pending-controls.json` owes for these rows were not run, so manifest
 `verify` stays `unverified`.
 
+## P2 ranks 28–33 ladder cells (HAR-298, 2026-11-03)
+
+[ladder-p2-ranks28-33.json](ladder-p2-ranks28-33.json) records ladder 1.4.0 on
+the next six `P2-frozen-selection-controls` Python rows of the ranking, each at
+its manifest `final_digest` on local Docker under `evallab docker-lock`, one task
+at a time, cold image pull and image removed after each run, $0. All six came
+back `clean` (reward 0); total wall **54.8 min** over the final attempts
+(106.2 min including the six timed failed attempts):
+
+| rank | task | verdict | basis | wall |
+|---|---|---|---|---|
+| 28 | `000354` | clean | tamper refusal | 5.0 min |
+| 29 | `000363` | clean | tamper refusal | 9.2 min |
+| 30 | `000371` | clean | tamper refusal | 9.4 min |
+| 31 | `000390` | clean | tamper refusal | 7.7 min |
+| 32 | `000471` | clean | tamper refusal | 5.4 min |
+| 33 | `000495` | clean | tamper refusal | 18.1 min |
+
+No row is unscored. All six verdicts rest on the verifier's `\b_pytest\b` tamper
+refusal, so no test outcome was graded after the attacks. `000354` runs a custom
+test runner (`no baseline consumer for runner custom`), so its cell has no
+`baseline_runner`. Wall includes docker-lock queueing behind another card's
+exclusive slots (`lock_wait_seconds`: 313 s for `000371`, 199 s for `000390`,
+260 s for `000495`).
+
+Harbor's 10 s `docker info` preflight failed for `000371` and `000390` before any
+trial existed. `000471` attempt 1 and `000495` attempts 1 and 3 came back
+unscored: a host-isolation daemon call at environment start, or the compose lock
+confirmation, timed out before any attack ran. `000495` attempt 2 completed its
+trial (reward 0), but the first owner run timed out mid-trial and its worktree
+was removed, so mimo-census wrote no census row; that attempt is not used as the
+verdict. Each failure was retried as the same Docker-responsiveness class, kept as
+`<task>/.failed-attempt<N>/` and listed in `prior_attempts`. Raw jobs and
+`census-rows.jsonl` are under
+`~/Developer/eval-lab-results/2026-11-03/har-298-mimo-v6-ladder/`. All ten
+trial-bearing jobs (six final, plus `000471` attempt 1 and `000495` attempts
+1–3) were published with `evallab process-job --publication-card HAR-298` to
+`~/Developer/eval-lab-results/2026-11-03/HAR-298-<job>/`. The oracle and nop
+cells `pending-controls.json` owes for these rows were not run, so manifest
+`verify` stays `unverified`.
+
 ## Ladder progress table (HAR-286)
 
 [ladder-progress.csv](ladder-progress.csv) joins the ranking in
@@ -559,17 +600,17 @@ the refusal row, not a ladder coverage verdict: `subset_1` drops
 attack, so `graded-clean` there does not clear the full-ladder `clean`/`basis`
 columns.
 
-Basis counts in the committed table (100 ranks, 27 covered; Docker-free):
+Basis counts in the committed table (100 ranks, 33 covered; Docker-free):
 
 | basis | ranks |
 |---|---:|
-| `tamper-refusal` | 21 |
+| `tamper-refusal` | 27 |
 | `graded` | 5 |
 | `unscored` | 1 (`000928`, rank 8) |
-| `none` | 73 |
+| `none` | 67 |
 
-Twenty-one of the 26 `clean` verdicts so far are tamper refusals, so the refusal
-rate among clean ladder verdicts is 21/26 (81%); only five rest on a graded run.
+Twenty-seven of the 32 `clean` verdicts so far are tamper refusals, so the refusal
+rate among clean ladder verdicts is 27/32 (84%); only five rest on a graded run.
 
 ## Graded subset cells for three tamper-refused rows (HAR-284, 2026-11-03)
 

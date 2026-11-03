@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import time
+from collections import Counter
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,6 +28,7 @@ from evallab.insights.models import (
 )
 from evallab.insights.packs import PassInputs
 from evallab.insights.recompute import recompute_claim
+from evallab.insights.runner import TRANSIENT_ERROR, TRANSIENT_RETRY_DELAY, TRANSIENT_STARTUP
 from evallab.insights.sources import read_source_text
 from evallab.insights.store import InsightStore, default_state_root
 from evallab.insights.validity import (
@@ -71,6 +73,12 @@ class ReportClaim(ContractModel):
     k: int | None = None
     n: int | None = None
     recipe_backed: bool = False
+    section_id: str | None = None
+    #: ``rounding`` when the receipts differ from the stated value only within its printed
+    #: precision; ``difference`` is the gap, ``difference_text`` the gap in the claim's unit.
+    note: str | None = None
+    difference: float | None = None
+    difference_text: str | None = None
 
 
 class ReportInsight(ContractModel):
@@ -78,6 +86,7 @@ class ReportInsight(ContractModel):
     lens: str
     status: str
     title: str
+    statement: str = ""
     flaw: str | None = None
     severity: str | None = None
     target_claim_ids: list[str] = Field(default_factory=list)
@@ -206,6 +215,11 @@ def _from_record(record: ClaimRecord, store: InsightStore, folder: Path) -> Repo
         experiment=record.claim.experiment, metric=record.claim.metric,
         subject=record.claim.subject, dataset=record.claim.dataset,
         k=record.claim.k, n=record.claim.n, recipe_backed=record.claim.recipe is not None,
+        section_id=record.claim.section_id,
+        note=None if result is None else result.note,
+        difference=None if result is None else result.difference,
+        difference_text=None if result is None or not result.difference_text
+        else result.difference_text,
     )
 
 
@@ -230,41 +244,198 @@ def _numbers(value: object) -> Iterable[str | float | int]:
             yield from _numbers(child)
 
 
-def _cohort_findings(claims: list[ReportClaim], validity: ValidityReport) -> None:
-    # Claims without a subject are grouped within their experiment, so reports whose
-    # extractor left subject empty still expose pooling across datasets or sample sizes.
-    groups: dict[tuple[str, str, str], list[ReportClaim]] = {}
+def _supported_numbers(claims: Iterable[ReportClaim]) -> list[str | float | int]:
+    """Every number the cited claims carry, their rates spelled as percentages and the
+    stated-versus-receipt gaps the report computes from them."""
+    claims = list(claims)
+    allowed = list(_numbers([claim.model_dump() for claim in claims]))
     for claim in claims:
+        rates = [claim.stated_number, claim.recomputed_number]
+        if claim.k is not None and claim.n:
+            rates.append(claim.k / claim.n)
+        allowed.extend(f"{rate:.1%}" for rate in rates if rate is not None and 0 <= rate <= 1)
+        if claim.stated_number is not None and claim.recomputed_number is not None:
+            allowed.append(f"{abs(claim.stated_number - claim.recomputed_number):.3g}")
+    return allowed
+
+
+def _words(text: str | None) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", (text or "").lower()))
+
+
+def _same_cohort(left: ReportClaim, right: ReportClaim) -> bool:
+    """Same experiment and dataset (or a dataset named almost the same way)."""
+    if left.experiment != right.experiment:
+        return False
+    first, second = _words(left.dataset), _words(right.dataset)
+    if not first or not second:
+        return True  # an unnamed dataset is no evidence of a different cohort
+    return len(first & second) / len(first | second) >= 0.5
+
+
+def _different_cohorts(claims: Sequence[ReportClaim]) -> bool:
+    return any(not _same_cohort(left, right) for left in claims for right in claims)
+
+
+def _share(claim: ReportClaim) -> str:
+    return f"{claim.claim_id} ({claim.k}/{claim.n})"
+
+
+def _subset_sum(
+    groups: Sequence[Sequence[ReportClaim]], k: int, n: int,
+) -> list[ReportClaim] | None:
+    """One claim from each of at least two groups whose counts add up to ``k``/``n``."""
+    def walk(
+        index: int, k_left: int, n_left: int, chosen: list[ReportClaim],
+    ) -> list[ReportClaim] | None:
+        if k_left == 0 and n_left == 0 and len(chosen) >= 2:
+            return chosen
+        if index == len(groups):
+            return None
+        for claim in groups[index]:
+            if claim.k is not None and claim.n is not None and (
+                claim.k <= k_left and claim.n <= n_left
+            ):
+                found = walk(index + 1, k_left - claim.k, n_left - claim.n, [*chosen, claim])
+                if found is not None:
+                    return found
+        return walk(index + 1, k_left, n_left, chosen)
+
+    return walk(0, k, n, [])
+
+
+_POOL_MAX_COHORTS = 7
+_POOL_MAX_PER_COHORT = 3
+
+
+def _pool_components(pool: ReportClaim, rates: Sequence[ReportClaim]) -> list[ReportClaim] | None:
+    """The claims a pooled rate adds up, when they come from different cohorts.
+
+    Components are the claims whose k/n the pooled statement itself names, else claims
+    of the same metric in other cohorts whose counts sum to the pooled counts.
+    """
+    if pool.k is None or pool.n is None:
+        return None
+    others = [claim for claim in rates if claim is not pool and (claim.n or 0) < pool.n]
+    named = {
+        (int(k), int(n)) for k, n in re.findall(r"(\d+)\s*(?:/|of)\s*(\d+)", pool.text)
+    } - {(pool.k, pool.n)}
+    if len(named) >= 2:
+        picks = [
+            next((claim for claim in others if (claim.k, claim.n) == share), None)
+            for share in sorted(named)
+        ]
+        found = [claim for claim in picks if claim is not None]
         if (
-            claim.check_status != "fail" and claim.k is not None and claim.n is not None
-            and claim.metric
+            len(found) == len(named) and sum(claim.k or 0 for claim in found) == pool.k
+            and sum(claim.n or 0 for claim in found) == pool.n and _different_cohorts(found)
         ):
-            scope = claim.subject or f"experiment {claim.experiment or 'unknown'}"
-            groups.setdefault((claim.metric, claim.subject or "", scope), []).append(claim)
-    mixed: list[str] = []
-    mixed_ids: set[str] = set()
-    for (metric, _subject, scope), group in sorted(groups.items()):
-        datasets = {claim.dataset for claim in group}
-        unknown_sizes = {claim.n for claim in group if claim.dataset is None}
-        if len(datasets) < 2 and len(unknown_sizes) < 2:
-            continue
-        ids = sorted(claim.claim_id for claim in group)
-        mixed.append(f"{metric} for {scope} ({', '.join(ids)})")
-        mixed_ids.update(ids)
-    if mixed:
+            return found
+    metric = _metric_key(pool)
+    cohorts: dict[tuple[str, str], list[ReportClaim]] = {}
+    for claim in others:
+        if _metric_key(claim) == metric and not _same_cohort(claim, pool):
+            cohorts.setdefault((claim.experiment or "", _dataset_key(claim)), []).append(claim)
+    if not 2 <= len(cohorts) <= _POOL_MAX_COHORTS:
+        return None
+    groups = [sorted(group, key=lambda claim: claim.claim_id)[:_POOL_MAX_PER_COHORT]
+              for _, group in sorted(cohorts.items())]
+    found = _subset_sum(groups, pool.k, pool.n)
+    return found if found is not None and _different_cohorts(found) else None
+
+
+def _metric_key(claim: ReportClaim) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (claim.metric or "").lower()).strip()
+
+
+def _dataset_key(claim: ReportClaim) -> str:
+    return " ".join(sorted(_words(claim.dataset)))
+
+
+def _headline_outliers(
+    rates: Sequence[ReportClaim],
+) -> list[tuple[ReportClaim, list[ReportClaim]]]:
+    """Rates about a dataset this experiment measures nowhere else, standing in a section
+    whose rates describe another dataset (a headline imported from a different cohort)."""
+    sections: dict[tuple[str, str, str], list[ReportClaim]] = {}
+    for claim in rates:
+        if claim.dataset and claim.section_id:
+            key = (claim.experiment or "", claim.file, claim.section_id)
+            sections.setdefault(key, []).append(claim)
+    measured = Counter((claim.experiment, _dataset_key(claim)) for claim in rates if claim.dataset)
+    result: list[tuple[ReportClaim, list[ReportClaim]]] = []
+    for _, group in sorted(sections.items()):
+        names = Counter(_dataset_key(claim) for claim in group)
+        (leader, leader_count), *rest = names.most_common()
+        if leader_count < 2 or (rest and rest[0][1] == leader_count):
+            continue  # no dataset clearly carries the section
+        home = sorted(
+            (claim for claim in group if _dataset_key(claim) == leader),
+            key=lambda claim: (claim.subject is not None, -(claim.n or 0), claim.claim_id),
+        )
+        result.extend(
+            (claim, home[:2]) for claim in group
+            if measured[(claim.experiment, _dataset_key(claim))] == 1
+            and not _same_cohort(claim, home[0])
+        )
+    return result
+
+
+def _cohort_findings(claims: list[ReportClaim], validity: ValidityReport) -> None:
+    """Flag rates from different cohorts that one report puts side by side.
+
+    Two cases, both deterministic: a pooled rate whose counts add up rates of different
+    cohorts, and a rate about another dataset standing in a section whose rates all
+    describe one dataset (a headline that sets two cohorts against each other). Rates
+    that merely share a metric word, or that are reported cohort by cohort, are not mixed.
+    """
+    rates = sorted(
+        (claim for claim in claims if claim.check_status != "fail" and claim.k is not None
+         and claim.n and claim.metric),
+        key=lambda claim: claim.claim_id,
+    )
+    items: list[str] = []
+    ids: set[str] = set()
+    pooled: list[tuple[ReportClaim, list[ReportClaim]]] = []
+    for claim in rates:
+        components = _pool_components(claim, rates)
+        if components is not None:
+            pooled.append((claim, components))
+            ids.update([claim.claim_id, *(part.claim_id for part in components)])
+    if pooled:
+        metrics = list(dict.fromkeys(pool.metric or "" for pool, _ in pooled))
+        extra = len(metrics) - _COHORT_METRICS
+        names = ", ".join(metrics[:_COHORT_METRICS]) + (f" and {extra} more" if extra > 0 else "")
+        first, parts = pooled[0]
+        items.append(
+            f"{len(pooled)} pooled {'rate adds' if len(pooled) == 1 else 'rates add'} up rates "
+            f"of different groups of runs ({names}); for example {_share(first)} is the sum of "
+            f"{', '.join(_share(part) for part in parts)}"
+        )
+    for outlier, home in _headline_outliers(rates):
+        items.append(
+            f"{_share(outlier)} is about dataset {outlier.dataset} but sits beside "
+            f"{', '.join(_share(item) for item in home)} about dataset {home[0].dataset}"
+        )
+        ids.update([outlier.claim_id, *(item.claim_id for item in home)])
+    if items:
         validity.findings.append(ValidityFinding(
             finding_id=f"V-{len(validity.findings) + 1:02d}", code="cohort_mix",
-            severity="warning", count=len(mixed_ids), pointers=sorted(mixed_ids),
-            message="These claims describe different groups of runs that must not be pooled: "
-                    + "; ".join(mixed) + ".",
+            severity="warning", count=len(ids), pointers=sorted(ids),
+            message="Rates from different groups of runs are set side by side and must not "
+                    f"be pooled or compared: {'; '.join(items)}.",
         ))
+
+
+_COHORT_METRICS = 3
 
 
 def _report_insight(record: InsightRecord) -> ReportInsight:
     challenge = record.card.challenge
     return ReportInsight(
         insight_id=record.insight_id, lens=record.lens, status=record.status,
-        title=record.card.title, flaw=challenge.flaw if challenge else None,
+        title=record.card.title, statement=record.card.statement,
+        flaw=challenge.flaw if challenge else None,
         severity=challenge.severity if challenge else None,
         target_claim_ids=(challenge.target_claim_ids if challenge else
                           [ref.claim_id for ref in record.card.evidence]),
@@ -273,27 +444,41 @@ def _report_insight(record: InsightRecord) -> ReportInsight:
     )
 
 
-# A pass that fails this quickly died at startup (e.g. SQLITE_BUSY in the worker's own
-# state database), not during analysis: run it once more after a short pause.
-_RETRY_WITHIN_SECONDS = 30.0
-_RETRY_DELAY_SECONDS = 3.0
+# The watch scheduler gives a pass that died at startup on shared omp state (SQLITE_BUSY)
+# exactly one retry; a one-shot experiment run gets the same, classified by the same code:
+# the engine marks such a pass with TRANSIENT_ERROR, and a raised error is matched with
+# TRANSIENT_STARTUP. Any other failure is final, however quickly it happened.
+_RETRY_DELAY_SECONDS = TRANSIENT_RETRY_DELAY.total_seconds()
+
+
+def _transient(result: PassRecord | None, error: Exception | None) -> bool:
+    if error is not None:
+        return TRANSIENT_STARTUP.search(str(error)) is not None
+    return result is not None and result.status != "succeeded" and result.error == TRANSIENT_ERROR
+
+
+def _attempt(
+    engine: EngineLike, lens: Lens, inputs: PassInputs | None,
+) -> tuple[PassRecord | None, Exception | None]:
+    """Run one pass to completion, once more if it died on a transient startup failure."""
+    result: PassRecord | None = None
+    error: Exception | None = None
+    for attempt in range(2):
+        result, error = None, None
+        try:
+            result = engine.run_lens(lens, wait=True, trigger="experiment", inputs=inputs)
+        except Exception as exc:
+            error = exc
+        if attempt == 1 or not _transient(result, error):
+            break
+        time.sleep(_RETRY_DELAY_SECONDS)
+    return result, error
 
 
 def _run_pass(
     engine: EngineLike, lens: Lens, inputs: PassInputs, limitations: list[str],
 ) -> PassRecord | None:
-    for attempt in range(2):
-        started = time.monotonic()
-        error: Exception | None = None
-        result: PassRecord | None = None
-        try:
-            result = engine.run_lens(lens, wait=True, trigger="experiment", inputs=inputs)
-        except Exception as exc:
-            error = exc
-        failed = error is not None or (result is not None and result.status != "succeeded")
-        if not failed or attempt == 1 or time.monotonic() - started >= _RETRY_WITHIN_SECONDS:
-            break
-        time.sleep(_RETRY_DELAY_SECONDS)
+    result, error = _attempt(engine, lens, inputs)
     if error is not None:
         limitations.append(f"The {lens} pass failed ({type(error).__name__}).")
         return None
@@ -305,10 +490,9 @@ def _run_pass(
 def _extract_all(engine: EngineLike, limitations: list[str]) -> None:
     failures = 0
     for _ in range(20):
-        try:
-            result = engine.run_lens("extractor", wait=True, trigger="experiment")
-        except Exception as exc:
-            limitations.append(f"An extractor pass failed ({type(exc).__name__}).")
+        result, error = _attempt(engine, "extractor", None)
+        if error is not None:
+            limitations.append(f"An extractor pass failed ({type(error).__name__}).")
             failures += 1
         else:
             if result is None:
@@ -335,6 +519,32 @@ def _short(text: str) -> str:
 def _sentence(text: str) -> str:
     """Keep a cited bullet one sentence without dropping its substantive cautions."""
     return re.sub(r"[.!?]\s+", "; ", " ".join(text.split()).rstrip(".!?"))
+
+
+_HELD_LIMIT = 3
+_DIFFERS_LIMIT = 3
+_DID_NOT_LIMIT = 6
+_LIMITATION_LIMIT = 2
+_FINDING_ORDER = {
+    code: rank for rank, code in enumerate(
+        ("cohort_mix", "label_provenance", "scripted_positives", "missing_label_source"),
+    )
+}
+
+
+def _headline_rank(claim: ReportClaim) -> int:
+    """Rates with counts and a named metric are the headline numbers; sort them first."""
+    if claim.k is not None and claim.n and claim.metric:
+        return 0
+    return 1 if claim.metric else 2
+
+
+def _gap_of(claim: ReportClaim) -> str:
+    if claim.difference_text:
+        return claim.difference_text
+    if claim.stated_number is not None and claim.recomputed_number is not None:
+        return f"{abs(claim.stated_number - claim.recomputed_number):.3g}"
+    return "an unrecorded amount"
 
 
 def _display_number(value: float | None) -> str:
@@ -381,6 +591,7 @@ def _report(
     insights: Sequence[ReportInsight] = (), limitations: Sequence[str] = (),
 ) -> str:
     reproduced = [claim for claim in claims if claim.status == "reproduced"]
+    rounded = [claim for claim in reproduced if claim.note == "rounding"]
     differs = [claim for claim in claims if claim.status == "differs"]
     uncertain = [claim for claim in claims if claim.status == "not_recomputable"]
     lines = [f"# Experiment review: {primary_name}"]
@@ -388,10 +599,10 @@ def _report(
         lines.append(f"Related folders: {', '.join(related_names)} [{audit_id}].")
     lines.append("## What was tested")
     qualifier = "" if agents_run else " (existing ledger)"
-    for member in members:
-        lines.append(f"- {member.folder}: claims extracted{qualifier} "
-                     f"{member.claims_extracted}; report files read {member.report_files_read} "
-                     f"[{audit_id}].")
+    lines.append("- " + " | ".join(
+        f"{member.folder}: claims extracted{qualifier} {member.claims_extracted}; "
+        f"report files read {member.report_files_read}" for member in members
+    ) + f" [{audit_id}].")
     if agents_run:
         backed = sum(claim.recipe_backed for claim in claims)
         sampled_count = sum(claim.rederiver_sampled for claim in claims)
@@ -399,26 +610,44 @@ def _report(
                      f"rederivation sampled {sampled_count} of {backed} recipe-backed claims "
                      f"and {sampled_count} of {len(claims)} claims [{audit_id}].")
     lines.append("## What held")
-    for claim in reproduced[:8]:
+    # Headline rates first, then other numbers. Claims that match only within the printed
+    # rounding share one bullet so their note is never lost.
+    if rounded:
+        first = rounded[0]
+        match = ("1 claim matches its receipts" if len(rounded) == 1
+                 else f"{len(rounded)} claims match their receipts")
+        lines.append(
+            f"- {match} only within the printed rounding, for example {_short(first.text)}: "
+            f"stated {_display_number(first.stated_number)}, receipts give "
+            f"{_display_number(first.recomputed_number)}, off by {_gap_of(first)} "
+            f"[{', '.join(claim.claim_id for claim in rounded[:_HELD_LIMIT])}]."
+        )
+    headline = sorted(
+        (claim for claim in reproduced if claim.note != "rounding"), key=_headline_rank,
+    )
+    held = headline[:_HELD_LIMIT - (1 if rounded else 0)]
+    for claim in held:
         lines.append(f"- {_short(claim.text)}: stated {_display_number(claim.stated_number)}, "
                      f"receipts give {_display_number(claim.recomputed_number)} "
                      f"[{claim.claim_id}].")
+    if len(reproduced) > len(held) + len(rounded):
+        lines.append(f"- More reproduced claims are listed in claims.jsonl [{audit_id}].")
     if not reproduced:
         lines.append(f"- No claim has a reproduced receipt calculation yet [{audit_id}].")
     lines.append("## What did not")
     warnings = sorted(
         (finding for finding in validity.findings if finding.severity in {"warning", "error"}),
         key=lambda finding: (
-            finding.code not in {"cohort_mix", "missing_label_source", "label_provenance"},
+            _FINDING_ORDER.get(finding.code, len(_FINDING_ORDER)),
             finding.severity != "error", finding.finding_id,
         ),
     )
     # Share the short section between numerical disagreements and validity warnings.
-    for claim in differs[:4 if warnings else 8]:
+    for claim in differs[:_DIFFERS_LIMIT]:
         lines.append(f"- {_short(claim.text)}: stated {_display_number(claim.stated_number)}, "
-                     f"receipts give {_display_number(claim.recomputed_number)} "
-                     f"[{claim.claim_id}].")
-    for finding in warnings[:8 - min(len(differs), 4 if warnings else 8)]:
+                     f"receipts give {_display_number(claim.recomputed_number)}, off by "
+                     f"{_gap_of(claim)} [{claim.claim_id}].")
+    for finding in warnings[:_DID_NOT_LIMIT - min(len(differs), _DIFFERS_LIMIT)]:
         lines.append(f"- {_sentence(finding.message)} (count: {finding.count}) "
                      f"[{finding.finding_id}].")
     if not differs and not warnings:
@@ -467,46 +696,48 @@ def _report(
         item for item in insights if item.lens == "skeptic" and item.flaw
         and item.check_status != "fail"
     ][:4]
-    by_id = {claim.claim_id: claim for claim in claims}
+    allowed = _supported_numbers(claims)
     for item in challenges:
-        targets = [by_id[claim_id] for claim_id in item.target_claim_ids if claim_id in by_id]
-        allowed = list(_numbers([claim.model_dump() for claim in targets]))
-        if not unsupported_numbers(item.title, allowed):
-            lead = f"{_short(item.title)}; "
-        else:
-            # The title's numbers are not in the cited claims, so state what the claims say.
-            about = " and ".join(_short(claim.text) for claim in targets[:2])
-            lead = f"about {about}; " if about else ""
+        # The card's own words when every number in them is a ledger number; the card
+        # already passed its own number checks against sources and recomputed values.
+        said = next((text for text in (item.title, item.statement)
+                     if text and not unsupported_numbers(text, allowed)), None)
         verdict = item.referee_verdict or "not yet refereed"
         citations = ", ".join([item.insight_id, *item.target_claim_ids])
         flaw = (item.flaw or "other").replace("_", " ")
-        lines.append(f"- {lead}{flaw}; severity {item.severity}; "
-                     f"referee: {verdict} [{citations}].")
+        if said is not None:
+            lines.append(f"- {_short(said)}; {flaw}; severity {item.severity}; "
+                         f"referee: {verdict} [{citations}].")
+        else:
+            lines.append(f"- A {item.severity} {flaw} challenge to the cited claims; "
+                         f"referee: {verdict} [{citations}].")
     if not challenges:
         lines.append(f"- No code-checked skeptic challenge is available [{audit_id}].")
     lines.append("## What is uncertain")
-    for claim in uncertain[:2]:
-        lines.append(f"- This claim lacks a successful receipt check [{claim.claim_id}].")
-    for claim in [claim for claim in claims if claim.rederiver_agreement is False][:2]:
-        lines.append(f"- An independent rederivation disagreed [{claim.claim_id}].")
-    for item in [item for item in challenges if item.referee_verdict is None][:2]:
-        lines.append(f"- This challenge has not been refereed [{item.insight_id}].")
+    if uncertain:
+        cited = ", ".join(claim.claim_id for claim in uncertain[:3])
+        lines.append(f"- {len(uncertain)} claims have no successful receipt check, for example "
+                     f"[{cited}].")
+    disagreed = [claim.claim_id for claim in claims if claim.rederiver_agreement is False]
+    if disagreed:
+        lines.append(f"- An independent rederivation disagreed [{', '.join(disagreed[:3])}].")
+    unrefereed = [item.insight_id for item in challenges if item.referee_verdict is None]
+    if unrefereed:
+        lines.append(f"- These challenges have not been refereed [{', '.join(unrefereed)}].")
     unique_limitations = list(dict.fromkeys(limitations))
     if not agents_run:
         lines.append(f"- No analyst agents ran; claims were not newly extracted [{audit_id}].")
         unique_limitations = [
             item for item in unique_limitations if not item.startswith("No analyst agents ran")
         ]
-    for limitation in unique_limitations[:3]:
+    for limitation in [
+        item for item in unique_limitations
+        if not (disagreed and item.startswith("An independent rederivation disagrees"))
+    ][:_LIMITATION_LIMIT]:
         lines.append(f"- {_sentence(limitation)} [{audit_id}].")
     lines.append(f"- Receipt agreement does not establish independent labels or performance "
                  f"on new cases [{audit_id}].")
-    lines.extend([
-        "## Next step",
-        f"- Resolve validity warnings and missing or disagreeing receipts before choosing "
-        f"a system; collect paired held-out cases before claiming layer value [{audit_id}].",
-        "",
-    ])
+    lines.append("")
     formatted: list[str] = []
     for line in lines:
         if line.startswith("#"):
@@ -662,7 +893,9 @@ def analyze_experiment(
     validity.findings.append(ValidityFinding(
         finding_id=audit_id, code="claim_summary", severity="info", count=len(claims),
         message=(
-            f"Available claim statuses: {json.dumps(counts, sort_keys=True)}. "
+            f"Available claim statuses: {json.dumps(counts, sort_keys=True)} "
+            f"({sum(claim.note == 'rounding' for claim in claims)} reproduced only within "
+            "printed rounding). "
             f"Recipe-backed claims: {sum(claim.recipe_backed for claim in claims)} of "
             f"{len(claims)}. Independent rederivation sampled "
             f"{sum(claim.rederiver_sampled for claim in claims)} of "
@@ -697,7 +930,7 @@ def analyze_experiment(
         primary_name=original.name, related_names=[path.name for path in companions],
         members=member_reviews,
     )
-    allowed = list(_numbers([claim.model_dump() for claim in claims]))
+    allowed = _supported_numbers(claims)
     allowed.extend(_numbers(validity.model_dump()))
     if attribution is not None:
         allowed.extend(_numbers(attribution.model_dump()))

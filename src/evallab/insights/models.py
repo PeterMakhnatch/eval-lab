@@ -343,6 +343,13 @@ class RecomputeResult(ContractModel):
     value: float | None = None
     stated: float | None = None
     detail: str = ""
+    #: ``rounding`` when the receipt differs from the stated value only within its printed
+    #: precision; the claim is then reproduced.
+    note: Literal["rounding"] | None = None
+    #: Size of the gap between receipt and stated value, absolute in compared units
+    #: (``difference``) and spelled in the claim's unit (``difference_text``).
+    difference: float | None = None
+    difference_text: str = ""
 
 
 class ClaimRecord(ContractModel):

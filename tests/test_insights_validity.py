@@ -726,7 +726,6 @@ def test_scripted_positives_all_scripted_warns(tmp_path: Path) -> None:
         for i in range(8)
     ]
     rows += [{"id": f"r{i}", "kind": "real", "positive": False} for i in range(12)]
-    rows += [{"id": "x", "positive": True}]  # no kind/variant/scripted id: unclassified
     _jsonl(tmp_path / "rollouts.jsonl", rows)
     report = check_folder_validity(tmp_path)
     assert (report.scripted_positives, report.real_positives) == (8, 0)
@@ -734,7 +733,7 @@ def test_scripted_positives_all_scripted_warns(tmp_path: Path) -> None:
     assert (receipt.scripted_positives, receipt.real_positives) == (8, 0)
     finding = next(item for item in report.findings if item.code == "scripted_positives")
     assert finding.severity == "warning" and finding.count == 8
-    assert "8 of 8 positives are scripted controls" in finding.message
+    assert "8 of 8 distinct positive cases are scripted controls" in finding.message
     assert "rollouts.jsonl: 8 of 8" in finding.message
     assert finding.paths == ["rollouts.jsonl"]
     assert "PRIVATE" not in report.model_dump_json()
@@ -760,22 +759,22 @@ def test_scripted_positives_mixed_is_info_and_per_file(tmp_path: Path) -> None:
     assert (report.scripted_positives, report.real_positives) == (2, 3)
     finding = next(item for item in report.findings if item.code == "scripted_positives")
     assert finding.severity == "info"
-    assert "2 of 5 positives are scripted controls" in finding.message
+    assert "2 of 5 distinct positive cases are scripted controls" in finding.message
     assert "a.jsonl: 2 of 4" in finding.message
     assert finding.paths == ["a.jsonl"]
 
 
-def test_scripted_positives_need_label_and_kind_fields(tmp_path: Path) -> None:
+def test_scripted_positives_need_a_positive_label(tmp_path: Path) -> None:
     _jsonl(tmp_path / "rows.jsonl", [
         {"kind": "scripted", "note": "no behaviour field"},
-        {"variant": "cheat", "score": 1},
+        {"variant": "cheat", "score": 1},  # a scripted cheat names itself by variant
+        {"variant": "cheat", "positive": False, "score": 2},  # an explicit flag wins
         {"id": "scripted-1", "score": 1},
         {"is_cheat": True},
         {"kind": "real", "is_cheat": True},
     ])
     report = check_folder_validity(tmp_path)
-    assert (report.scripted_positives, report.real_positives) == (0, 1)
-    assert not any(finding.code == "scripted_positives" for finding in report.findings)
+    assert (report.scripted_positives, report.real_positives) == (1, 2)
 
 
 def test_scripted_positives_in_nested_json_rows_and_csv(tmp_path: Path) -> None:
@@ -791,4 +790,37 @@ def test_scripted_positives_in_nested_json_rows_and_csv(tmp_path: Path) -> None:
     assert (by_path["rows.csv"].scripted_positives, by_path["rows.csv"].real_positives) == (1, 0)
     finding = next(item for item in report.findings if item.code == "scripted_positives")
     assert finding.severity == "warning"
-    assert "2 of 3 positives" in finding.message
+    assert "2 of 3 distinct positive cases" in finding.message
+
+
+def test_scripted_positives_count_each_case_once_against_all_positives(tmp_path: Path) -> None:
+    scripted = [
+        {"id": f"a-{index}", "kind": "scripted", "variant": "cheat", "behavior": "scripted_cheat"}
+        for index in (1, 2)
+    ]
+    real_a = [{"id": "a-3", "kind": "real", "behavior": "confirmed_cheat"}]
+    corpus_a = scripted + real_a + [{"id": "a-4", "kind": "real", "behavior": "honest"}]
+    corpus_b = [{"id": f"b-{index}", "is_cheat": index < 3} for index in (1, 2, 3)]
+    _jsonl(tmp_path / "corp" / "a.jsonl", corpus_a)
+    _jsonl(tmp_path / "corp" / "b.jsonl", corpus_b)
+    # The same rows again: a pooled file, a summary that nests rows, and a copied folder.
+    _jsonl(tmp_path / "corp" / "pooled.jsonl", [*scripted, *real_a, *corpus_b])
+    (tmp_path / "corp" / "summary.json").write_text(
+        json.dumps({"rows": corpus_a}), encoding="utf-8",
+    )
+    _jsonl(tmp_path / "zcopy" / "b.jsonl", corpus_b)
+    report = check_folder_validity(tmp_path)
+    assert (report.scripted_positives, report.real_positives) == (2, 3)
+    by_path = {item.path: item for item in report.receipts}
+    assert (by_path["corp/a.jsonl"].scripted_positives,
+            by_path["corp/a.jsonl"].real_positives) == (2, 1)
+    assert (by_path["corp/b.jsonl"].scripted_positives,
+            by_path["corp/b.jsonl"].real_positives) == (0, 2)
+    for repeated in ("corp/pooled.jsonl", "corp/summary.json", "zcopy/b.jsonl"):
+        assert (by_path[repeated].scripted_positives, by_path[repeated].real_positives) == (0, 0)
+    finding = next(item for item in report.findings if item.code == "scripted_positives")
+    assert "2 of 5 distinct positive cases" in finding.message
+    assert "corp/a.jsonl: 2 of 3" in finding.message
+    assert "corp/b.jsonl: 0 of 2" in finding.message
+    assert "pooled" not in finding.message
+    assert finding.count == 2 and finding.paths == ["corp/a.jsonl"]

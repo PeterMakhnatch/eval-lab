@@ -57,9 +57,9 @@ _POSITIVE_TEXT = frozenset({
     "hack", "cheat", "cheating", "positive", "confirmed_cheat", "cheat_confirmed", "exploit",
     "exploited", "true", "yes",
 })
-_BEHAVIOUR_FIELDS = frozenset((*_POSITIVE_FLAGS, *_POSITIVE_TEXT_KEYS))
 _ID_KEYS = ("id", "case_id", "run_id", "rollout_id", "trial_id")
 _SCRIPTED_VARIANTS = frozenset({"cheat", "honest"})
+_SCRIPTED_CHEAT_VARIANT = "cheat"
 _MODEL_KEYS = {"model", "served_model", "requested_model", "route", "requested_route"}
 _SIZE_KEYS = {"n", "total", "denominator", "sample_size", "n_cases", "num_cases"}
 _SPEND_KEYS = {"cost_usd", "usd", "spend"}
@@ -75,6 +75,7 @@ _PATH_CALLS = frozenset({
     "resolve", "expanduser", "fspath", "format",
 })
 _MODULE_SCOPE = "<module>"
+_SCRIPTED_LISTED = 12
 _PROVENANCE_PATH_LIMIT = 10
 
 
@@ -201,8 +202,11 @@ def _label_row(row: dict[str, object]) -> bool:
 
 
 def _positive(row: dict[str, object]) -> bool:
+    explicit = False
     for key in _POSITIVE_FLAGS:
         value = row.get(key)
+        if value not in (None, ""):
+            explicit = True
         if value is True or (isinstance(value, str) and value.strip().lower() in {"true", "1"}):
             return True
         if isinstance(value, int) and not isinstance(value, bool) and value == 1:
@@ -211,7 +215,22 @@ def _positive(row: dict[str, object]) -> bool:
         value = row.get(key)
         if isinstance(value, str) and value.strip().lower().replace("-", "_") in _POSITIVE_TEXT:
             return True
-    return False
+    # A scripted cheat row says so by variant and carries no positive flag of its own.
+    variant = row.get("variant")
+    return (
+        not explicit and isinstance(variant, str)
+        and variant.strip().lower() == _SCRIPTED_CHEAT_VARIANT
+    )
+
+
+def _row_identity(row: dict[str, object]) -> str:
+    """The id a row carries, else a digest of its content, so one case counts once."""
+    for key in _ID_KEYS:
+        value = row.get(key)
+        if isinstance(value, (str, int)) and not isinstance(value, bool) and value != "":
+            return f"id:{value}"
+    digest = hashlib.sha256(json.dumps(row, sort_keys=True, default=str).encode()).hexdigest()
+    return f"row:{digest}"
 
 
 def _scripted(row: dict[str, object]) -> bool | None:
@@ -702,6 +721,7 @@ def check_folder_validity(
     distinct: Counter[str] = Counter()
     overflow: Counter[str] = Counter()
     unsourced: list[str] = []
+    positives: dict[str, dict[str, bool]] = {}
     for path in sorted(root.rglob("*")):
         if path.suffix.lower() not in _DATA_EXTENSIONS:
             continue
@@ -760,14 +780,12 @@ def check_folder_validity(
                             report.rows_without_label_source += 1
                             if relative not in unsourced:
                                 unsourced.append(relative)
-                    if not any(row.get(key) not in (None, "") for key in _BEHAVIOUR_FIELDS):
-                        continue
-                    scripted = _scripted(row)
-                    if scripted is not None and _positive(row):
-                        if scripted:
-                            receipt.scripted_positives += 1
-                        else:
-                            receipt.real_positives += 1
+                    if _positive(row):
+                        identity = _row_identity(row)
+                        # A scripted marker on any copy of the row makes the case scripted.
+                        positives.setdefault(relative, {})[identity] = bool(
+                            _scripted(row) or positives.get(relative, {}).get(identity, False)
+                        )
                 for pointer, key, value, flags in _walk(document, prefix):
                     location = f"{relative}#{pointer}"
                     is_model = (
@@ -846,6 +864,22 @@ def check_folder_validity(
                 paths=[relative],
             )
         report.receipts.append(receipt)
+    scripted_by_identity: dict[str, bool] = {}
+    for rows in positives.values():
+        for identity, scripted in rows.items():
+            scripted_by_identity[identity] = scripted_by_identity.get(identity, False) or scripted
+    by_path = {receipt.path: receipt for receipt in report.receipts}
+    claimed: set[str] = set()
+    # Pooled files repeat the rows of the corpus files, so the smallest file claims a case.
+    for relative in sorted(positives, key=lambda item: (len(positives[item]), item)):
+        for identity in positives[relative]:
+            if identity in claimed:
+                continue
+            claimed.add(identity)
+            if scripted_by_identity[identity]:
+                by_path[relative].scripted_positives += 1
+            else:
+                by_path[relative].real_positives += 1
     report.rows_checked = sum(receipt.rows for receipt in report.receipts)
     report.spend_usd = sum(receipt.spend_usd for receipt in report.receipts)
     report.scripted_positives = sum(receipt.scripted_positives for receipt in report.receipts)
@@ -880,26 +914,28 @@ def check_folder_validity(
     report.label_provenance = _label_provenance(root, excluded)
     _provenance_finding(findings, report.label_provenance)
     if report.scripted_positives:
-        only_scripted = [
+        listed = [
             receipt for receipt in report.receipts
-            if receipt.scripted_positives and not receipt.real_positives
+            if receipt.scripted_positives or receipt.real_positives
         ]
+        only_scripted = [receipt for receipt in listed if not receipt.real_positives]
         shares = ", ".join(
             f"{receipt.path}: {receipt.scripted_positives} of "
             f"{receipt.scripted_positives + receipt.real_positives}"
-            for receipt in report.receipts if receipt.scripted_positives
+            for receipt in listed[:_SCRIPTED_LISTED]
         )
+        if len(listed) > _SCRIPTED_LISTED:
+            shares += f", and {len(listed) - _SCRIPTED_LISTED} more files"
         total = report.scripted_positives + report.real_positives
         _add_finding(
             findings, code="scripted_positives",
             severity="warning" if only_scripted else "info",
             message=(
-                f"{report.scripted_positives} of {total} positives are scripted controls "
-                f"(kind scripted, variant cheat/honest, or 'scripted' in the id); by receipt "
-                f"file: {shares}."
+                f"{report.scripted_positives} of {total} distinct positive cases are scripted "
+                f"controls; by receipt file, each case counted once: {shares}."
             ),
             count=report.scripted_positives,
-            paths=[receipt.path for receipt in report.receipts if receipt.scripted_positives],
+            paths=[receipt.path for receipt in listed if receipt.scripted_positives],
         )
     if splits.get("in_sample") or splits.get("tune"):
         _add_finding(

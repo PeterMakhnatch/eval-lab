@@ -361,6 +361,13 @@ def classify_failure(log_text: str) -> tuple[str, datetime | None]:
     return "other", None
 
 
+#: omp startup failures that say nothing about the analysis (shared agent.db contention).
+TRANSIENT_STARTUP = re.compile(r"SQLITE_BUSY|database is locked|SQLiteError", re.IGNORECASE)
+#: The pass error recorded when such a failure earned its one quick retry.
+TRANSIENT_ERROR = "transient startup failure (omp database busy); retrying once"
+TRANSIENT_RETRY_DELAY = timedelta(seconds=45)
+
+
 def _number(value: object) -> float | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         number = float(value)

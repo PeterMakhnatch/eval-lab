@@ -218,13 +218,81 @@ def test_printed_digit_tolerance_replaces_the_half_point_window(tmp_path: Path) 
         claim = _claim(recipe, k=None, n=None, value=0.293, quote="The rate was 29.3%.")
         result = recompute_claim(claim, tmp_path)
         assert result is not None and result.status == status, pointer
-    # A whole printed percent keeps the half-point window: 29% reproduces 0.2949, not 0.2951.
-    for rate, status in ((0.2949, "reproduced"), (0.2951, "differs")):
+    # A whole printed percent keeps the half-point window: 29% reproduces 0.2949 exactly and
+    # 0.2951 only as a rounding (one extra rounding step); 0.2956 is a real difference.
+    for rate, status in ((0.2949, "reproduced"), (0.2951, "reproduced"), (0.2956, "differs")):
         file = _json(tmp_path, {"rate": rate}, "whole.json")
         recipe = Recipe(op="value", file=file, pointer="/rate")
         claim = _claim(recipe, k=None, n=None, value=0.29, quote="The rate was 29%.")
         result = recompute_claim(claim, tmp_path)
         assert result is not None and result.status == status, rate
+
+
+def _ratio_of(file: str) -> Recipe:
+    return Recipe(
+        op="ratio", num=Recipe(op="value", file=file, pointer="/k"),
+        den=Recipe(op="value", file=file, pointer="/n"),
+    )
+
+
+def test_a_gap_within_the_printed_rounding_is_reproduced_with_a_note(tmp_path: Path) -> None:
+    # 215/254 = 0.846457. Printing 84.7% rounds twice (0.8465, then 84.7%); the truth is 84.6%.
+    recipe = _ratio_of(_json(tmp_path, {"k": 215, "n": 254}))
+    claim = _claim(recipe, k=215, n=254, value=0.847, quote="215/254 = 84.7%")
+    result = recompute_claim(claim, tmp_path)
+    assert result is not None and result.status == "reproduced" and result.note == "rounding"
+    assert result.difference == pytest.approx(0.000543, abs=1e-6)
+    assert "percentage points" in result.difference_text and "rounding" in result.detail
+    # The right printout is clean, with no note and no gap.
+    exact = recompute_claim(
+        _claim(recipe, k=215, n=254, value=0.846, quote="215/254 = 84.6%"), tmp_path,
+    )
+    assert exact is not None and exact.status == "reproduced"
+    assert exact.note is None and exact.difference is None
+
+
+def test_a_real_difference_still_differs_and_carries_its_size(tmp_path: Path) -> None:
+    recipe = _ratio_of(_json(tmp_path, {"k": 215, "n": 254}))
+    claim = _claim(recipe, k=215, n=254, value=0.85, quote="215/254 = 85.0%")
+    result = recompute_claim(claim, tmp_path)
+    assert result is not None and result.status == "differs" and result.note is None
+    assert result.difference == pytest.approx(0.003543, abs=1e-6)
+    assert result.difference_text.endswith("(0.354 percentage points)")
+    assert "differs by 0.00354" in result.detail
+    # Counts are exact: off by one is a difference of one.
+    rows = _json(tmp_path, [{}, {}, {}], "rows.json")
+    count = recompute_claim(_claim(Recipe(op="count", file=rows), k=4), tmp_path)
+    assert count is not None and count.status == "differs"
+    assert count.difference == 1 and count.difference_text == "1"
+    # A unit other than a proportion spells the gap in that unit.
+    seconds = _json(tmp_path, {"v": 3.3}, "seconds.json")
+    timed = _claim(
+        Recipe(op="value", file=seconds, pointer="/v"), k=None, n=None, value=3.2, unit="s",
+        quote="took 3.2 s",
+    )
+    result = recompute_claim(timed, tmp_path)
+    assert result is not None and result.status == "differs"
+    assert result.difference == pytest.approx(0.1) and result.difference_text == "0.1 s"
+
+
+def test_a_ratio_of_two_count_recipes_reproduces_a_rate_with_a_zero_numerator(
+    tmp_path: Path,
+) -> None:
+    rows = [{"kind": "real", "positive": False} for _ in range(42)]
+    (tmp_path / "rollouts.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8",
+    )
+    recipe = Recipe(
+        op="ratio", num=Recipe(op="count", file="rollouts.jsonl", where={"positive": True}),
+        den=Recipe(op="count", file="rollouts.jsonl"),
+    )
+    for value in (None, 0.0):
+        claim = _claim(recipe, k=0, n=42, value=value, quote="0/42 spontaneous subversions")
+        result = recompute_claim(claim, tmp_path)
+        assert result is not None and result.status == "reproduced" and result.value == 0
+    wrong = _claim(recipe, k=1, n=42, value=None, quote="1/42 spontaneous subversions")
+    result = recompute_claim(wrong, tmp_path)
+    assert result is not None and result.status == "differs"
 
 
 @pytest.mark.parametrize(

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Literal
 
 import pytest
 
@@ -31,6 +32,7 @@ from evallab.insights.models import (
     SourceSection,
 )
 from evallab.insights.packs import PassInputs
+from evallab.insights.runner import TRANSIENT_ERROR
 from evallab.insights.store import InsightStore
 
 NOW = datetime(2026, 11, 2, 18, tzinfo=UTC)
@@ -164,7 +166,7 @@ def test_no_agents_uses_existing_ledger_without_factory(tmp_path: Path) -> None:
     output = tmp_path / "output"
     analyze_experiment(folder, output, engine_factory=forbidden, now=NOW, run_agents=False)
     report = (output / "REPORT.md").read_text("utf-8")
-    assert "stated 5, receipts give 4 [C-existing]" in report
+    assert "stated 5, receipts give 4, off by 1 [C-existing]" in report
     assert not (output / ".state").exists()
     analysis = json.loads((output / "analysis.json").read_text("utf-8"))
     assert analysis["agents_run"] is False
@@ -324,41 +326,75 @@ def test_extractor_stops_after_consecutive_failures(tmp_path: Path) -> None:
     assert "consecutive unsuccessful" in (output / "analysis.json").read_text("utf-8")
 
 
-@pytest.mark.parametrize(("datasets", "sizes", "mixed"), [
-    (["C-pool", "Sol-pool"], [6, 6], True),
-    (["C-pool", "C-pool"], [6, 6], False),
-    ([None, None], [6, 8], True),
-    ([None, None], [6, 6], False),
-])
-def test_cohort_findings_keep_datasets_apart(
-    tmp_path: Path, datasets: list[str | None], sizes: list[int], mixed: bool,
-) -> None:
+def _rate(
+    claim_id: str, dataset: str | None, k: int, n: int, *, metric: str = "recall",
+    status: Literal["reproduced", "differs", "not_recomputable"] = "reproduced",
+    **changes: object,
+) -> ReportClaim:
+    fields: dict[str, object] = {
+        "claim_id": claim_id, "text": f"The {metric} was {k} of {n}.", "file": "report.md",
+        "status": status, "reason": "Synthetic receipt.", "experiment": "synthetic",
+        "metric": metric, "dataset": dataset, "k": k, "n": n,
+        "stated_number": k / n, "recomputed_number": k / n, **changes,
+    }
+    return ReportClaim.model_validate(fields)
+
+
+def _cohort_findings(tmp_path: Path, claims: list[ReportClaim]) -> list[dict[str, object]]:
+    """The cohort_mix findings of an existing ledger, re-checked without any agents."""
     folder = tmp_path / "experiment"
     _input(folder)
-    claims = [
-        ReportClaim(
-            claim_id=f"C-cohort-{index}", text="The recall was measured on this pool.",
-            file="report.md", status="reproduced", reason="Synthetic receipt.",
-            experiment="synthetic", metric="recall", subject="Review",
-            dataset=dataset, k=5, n=sizes[index],
-            stated_number=5 / sizes[index], recomputed_number=5 / sizes[index],
-        )
-        for index, dataset in enumerate(datasets)
-    ]
     (folder / "claims.jsonl").write_text(
         "".join(claim.model_dump_json() + "\n" for claim in claims), encoding="utf-8",
     )
     output = tmp_path / "output"
     analyze_experiment(folder, output, now=NOW, run_agents=False)
     findings = json.loads((output / "validity.json").read_text("utf-8"))["findings"]
-    cohort = [finding for finding in findings if finding["code"] == "cohort_mix"]
+    return [finding for finding in findings if finding["code"] == "cohort_mix"]
+
+
+def test_a_pooled_rate_is_flagged_but_shared_words_and_one_cohort_splits_are_not(
+    tmp_path: Path,
+) -> None:
+    claims = [
+        _rate("C-alpha", "Corpus alpha", 3, 10, metric="drop recall", subject="Review"),
+        _rate("C-beta", "Corpus beta", 4, 20, metric="drop recall", subject="Review"),
+        _rate("C-pool", "Pooled corpora", 7, 30, metric="drop recall", subject="POOLED"),
+        # The same word in the metric is no pooling: sizes that do not add up, no pooled claim.
+        _rate("C-lab-gamma", "Corpus gamma", 5, 12, metric="cheat-labelled rollouts"),
+        _rate("C-lab-delta", "Corpus delta", 6, 15, metric="cheat-labelled rollouts"),
+        _rate("C-lab-epsilon", "Corpus epsilon", 9, 21, metric="cheat-labelled rollouts"),
+        # Parts of ONE cohort add up to their whole without mixing anything.
+        _rate("C-split-a", "Corpus zeta", 2, 5, metric="precision"),
+        _rate("C-split-b", "Corpus zeta", 1, 5, metric="precision"),
+        _rate("C-split-all", "Corpus zeta", 3, 10, metric="precision"),
+    ]
+    cohort = _cohort_findings(tmp_path, claims)
+    assert len(cohort) == 1
+    assert cohort[0]["pointers"] == ["C-alpha", "C-beta", "C-pool"]
+    message = str(cohort[0]["message"])
+    assert "C-pool (7/30) is the sum of C-alpha (3/10), C-beta (4/20)" in message
+    assert "cheat-labelled" not in message
+
+
+@pytest.mark.parametrize(("pool_experiment", "other_experiment", "mixed"), [
+    ("w3", "w2", True),   # W2 and W3 are different experiments pooled into one 0/42
+    ("w3", "w3", False),  # the same experiment and unnamed dataset: one cohort
+])
+def test_a_pool_named_in_its_own_statement_is_checked_against_the_named_rates(
+    tmp_path: Path, pool_experiment: str, other_experiment: str, mixed: bool,
+) -> None:
+    pool = _rate("C-pool", None, 0, 42, metric="subversions combined", experiment=pool_experiment,
+                 text="The author combines W2 (0/24) and W3 (0/18) into 0/42 subversions.")
+    claims = [
+        pool,
+        _rate("C-w2", None, 0, 24, metric="w2 subversions", experiment=other_experiment),
+        _rate("C-w3", None, 0, 18, metric="w3 subversions", experiment="w3"),
+    ]
+    cohort = _cohort_findings(tmp_path, claims)
     assert bool(cohort) is mixed
     if mixed:
-        assert cohort[0]["pointers"] == ["C-cohort-0", "C-cohort-1"]
-        assert "different groups of runs" in (output / "REPORT.md").read_text("utf-8")
-    ledger = [json.loads(line) for line in (output / "claims.jsonl").read_text().splitlines()]
-    assert ledger[0]["dataset"] == datasets[0]
-    assert ledger[0]["metric"] == "recall" and ledger[0]["n"] == sizes[0]
+        assert cohort[0]["pointers"] == ["C-pool", "C-w2", "C-w3"]
 
 
 def test_external_attribution_reports_stage_rule_and_union(tmp_path: Path) -> None:
@@ -557,32 +593,77 @@ def test_report_formats_p_values_without_long_floats(tmp_path: Path) -> None:
     assert re.search(r"Wilson interval \d+\.\d%–\d+\.\d%", report)
 
 
-def test_multiple_cohort_groups_emit_one_counted_warning(tmp_path: Path) -> None:
+def test_report_formats_rates_without_long_floats(tmp_path: Path) -> None:
     folder = tmp_path / "experiment"
     _input(folder)
-    claims = [
-        ReportClaim(
-            claim_id=f"C-{metric}-{dataset}", text="The metric was measured on this pool.",
-            file="report.md", status="reproduced", reason="Synthetic receipt.",
-            metric=metric, subject="Review", dataset=dataset, k=5, n=6,
-            stated_number=5 / 6, recomputed_number=5 / 6,
-        )
-        for metric in ("recall", "accuracy") for dataset in ("first", "second")
+    claim = _rate("C-five-sixths", "Pool", 5, 6, metric="recall")
+    (folder / "claims.jsonl").write_text(claim.model_dump_json() + "\n", encoding="utf-8")
+    output = tmp_path / "output"
+    analyze_experiment(folder, output, now=NOW, run_agents=False)
+    report = (output / "REPORT.md").read_text("utf-8")
+    assert "stated 0.833, receipts give 0.833" in report
+    assert "0.8333333333333334" not in report
+
+
+def test_report_shows_rounding_notes_and_the_size_of_every_difference(tmp_path: Path) -> None:
+    folder = tmp_path / "experiment"
+    _input(folder)
+    rounded = _rate("C-rounded", "Pool", 215, 254, metric="drop precision")
+    rounded.stated_number, rounded.recomputed_number = 0.847, 215 / 254
+    rounded.note = "rounding"
+    rounded.difference = 0.000543
+    rounded.difference_text = "0.000543 (0.0543 percentage points)"
+    off = _rate("C-off", "Pool", 215, 254, metric="drop recall")
+    off.status, off.stated_number, off.recomputed_number = "differs", 0.85, 215 / 254
+    off.difference, off.difference_text = 0.003543, "0.00354 (0.354 percentage points)"
+    legacy = _rate("C-legacy", "Pool", 1, 4, metric="precision")  # a ledger without gap fields
+    legacy.status, legacy.stated_number, legacy.recomputed_number = "differs", 0.3, 0.25
+    (folder / "claims.jsonl").write_text(
+        "".join(claim.model_dump_json() + "\n" for claim in (rounded, off, legacy)),
+        encoding="utf-8",
+    )
+    output = tmp_path / "output"
+    analyze_experiment(folder, output, now=NOW, run_agents=False)
+    lines = (output / "REPORT.md").read_text("utf-8").splitlines()
+    held = next(line for line in lines if "[C-rounded]" in line)
+    assert "1 claim matches its receipts only within the printed rounding" in held
+    assert "off by 0.000543 (0.0543 percentage points)" in held
+    missed = next(line for line in lines if "[C-off]" in line)
+    assert "stated 0.85, receipts give 0.846, off by 0.00354 (0.354 percentage points)" in missed
+    assert "off by 0.05 [C-legacy]" in next(line for line in lines if "[C-legacy]" in line)
+    summary = next(
+        finding for finding in json.loads((output / "validity.json").read_text("utf-8"))["findings"]
+        if finding["code"] == "claim_summary"
+    )
+    assert "1 reproduced only within printed rounding" in summary["message"]
+
+
+def test_report_stays_short_when_the_ledger_is_large(tmp_path: Path) -> None:
+    folder = tmp_path / "experiment"
+    _input(folder)
+    claims = [_rate(f"C-held-{index}", f"Corpus {index}", 5, 20 + index, metric=f"metric {index}")
+              for index in range(40)]
+    for index in range(6):
+        miss = _rate(f"C-miss-{index}", "Pool", 5, 10, metric=f"miss {index}")
+        miss.status, miss.stated_number, miss.recomputed_number = "differs", 0.6, 0.5
+        miss.difference, miss.difference_text = 0.1, "0.1 (10 percentage points)"
+        claims.append(miss)
+    claims += [
+        ReportClaim(claim_id=f"C-open-{index}", text="A qualitative remark.", file="report.md",
+                    status="not_recomputable", reason="No receipt recipe.")
+        for index in range(12)
     ]
     (folder / "claims.jsonl").write_text(
         "".join(claim.model_dump_json() + "\n" for claim in claims), encoding="utf-8",
     )
     output = tmp_path / "output"
     analyze_experiment(folder, output, now=NOW, run_agents=False)
-    findings = json.loads((output / "validity.json").read_text("utf-8"))["findings"]
-    cohort = [finding for finding in findings if finding["code"] == "cohort_mix"]
-    assert len(cohort) == 1 and cohort[0]["count"] == 4
-    assert set(cohort[0]["pointers"]) == {claim.claim_id for claim in claims}
     report = (output / "REPORT.md").read_text("utf-8")
-    assert report.count("different groups of runs") == 1
-    assert "stated 0.833, receipts give 0.833" in report
-    assert "0.8333333333333334" not in report
-    assert f"(count: 4) [{cohort[0]['finding_id']}]." in report
+    assert len(report.splitlines()) < 45
+    assert report.count("C-held-") == 3 and report.count("C-miss-") == 3
+    assert "More reproduced claims are listed in claims.jsonl" in report
+    assert ("12 claims have no successful receipt check, "
+            "for example [C-open-0, C-open-1, C-open-2]") in report
 
 
 @pytest.fixture(autouse=True)
@@ -639,11 +720,12 @@ def test_a_transient_pass_failure_is_retried_once(tmp_path: Path) -> None:
     assert analysis["insights"][0]["referee_verdict"] == "accept"
 
 
-@pytest.mark.parametrize(("window", "attempts"), [(30.0, 2), (0.0, 1)])
-def test_pass_retry_is_once_and_only_for_quick_failures(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, window: float, attempts: int,
+@pytest.mark.parametrize(("message", "attempts"), [
+    ("database is locked (SQLITE_BUSY)", 2), ("synthetic failure", 1),
+])
+def test_only_transient_startup_failures_are_retried_and_only_once(
+    tmp_path: Path, message: str, attempts: int,
 ) -> None:
-    monkeypatch.setattr(experiment_module, "_RETRY_WITHIN_SECONDS", window)
     seen: list[str] = []
 
     class AlwaysFails(ChallengeEngine):
@@ -652,7 +734,7 @@ def test_pass_retry_is_once_and_only_for_quick_failures(
         ) -> PassRecord | None:
             if lens == "skeptic":
                 seen.append(lens)
-                raise RuntimeError("synthetic failure")
+                raise RuntimeError(message)
             return super().run_lens(lens, wait=wait, trigger=trigger, inputs=inputs)
 
     folder = tmp_path / "experiment"
@@ -664,34 +746,98 @@ def test_pass_retry_is_once_and_only_for_quick_failures(
     assert sum("The skeptic pass failed" in item for item in limitations) == 1
 
 
-def test_cohort_mix_groups_by_experiment_when_subject_is_null(tmp_path: Path) -> None:
+@pytest.mark.parametrize("lens", ["extractor", "rederiver", "skeptic", "referee"])
+def test_every_lens_retries_a_pass_the_engine_marked_transient(
+    tmp_path: Path, lens: str,
+) -> None:
+    """The engine records TRANSIENT_ERROR on a pass that died at startup; a long-running
+    pass setup (a big referee pack) must not turn that into a lost lens."""
+    runs: list[str] = []
+
+    class BusyOnce(ChallengeEngine):
+        busy = True
+
+        def run_lens(
+            self, lens_name: Lens, *, wait: bool, trigger: str, inputs: PassInputs | None = None,
+        ) -> PassRecord | None:
+            result = super().run_lens(lens_name, wait=wait, trigger=trigger, inputs=inputs)
+            if lens_name == lens:
+                runs.append(lens_name)
+                if self.busy and result is not None:
+                    self.busy = False
+                    return result.model_copy(update={
+                        "status": "failed", "error": TRANSIENT_ERROR,
+                        "started_at": NOW, "finished_at": NOW + timedelta(minutes=3),
+                    })
+            return result
+
     folder = tmp_path / "experiment"
     _input(folder)
-    claims = [
-        ReportClaim(
-            claim_id=f"C-null-{index}", text="The reward rate was measured on this pool.",
-            file="report.md", status="not_recomputable", reason="No receipt recipe.",
-            experiment=experiment, metric="reward 1.0 rate", subject=None,
-            dataset=dataset, k=k, n=n,
-        )
-        for index, (experiment, dataset, k, n) in enumerate([
-            ("OV", "solvable", 6, 20), ("OV", "impossible", 0, 42), ("OTHER", "solvable", 5, 6),
-        ])
-    ]
-    (folder / "claims.jsonl").write_text(
-        "".join(claim.model_dump_json() + "\n" for claim in claims), encoding="utf-8",
-    )
     output = tmp_path / "output"
-    analyze_experiment(folder, output, now=NOW, run_agents=False)
-    findings = json.loads((output / "validity.json").read_text("utf-8"))["findings"]
-    cohort = [finding for finding in findings if finding["code"] == "cohort_mix"]
-    assert len(cohort) == 1
-    # Only the experiment with two datasets is a mix; the other experiment is its own group.
-    assert cohort[0]["pointers"] == ["C-null-0", "C-null-1"]
-    assert "experiment OV" in cohort[0]["message"]
+    analyze_experiment(folder, output, engine_factory=BusyOnce, now=NOW)
+    analysis = json.loads((output / "analysis.json").read_text("utf-8"))
+    assert not any("did not complete" in item for item in analysis["limitations"])
+    assert runs.count(lens) >= 2
+    if lens == "referee":
+        assert analysis["insights"][0]["referee_verdict"] == "accept"
 
 
-def test_skeptic_bullet_keeps_its_substance_when_the_title_is_dropped(tmp_path: Path) -> None:
+def test_a_second_transient_failure_is_reported_not_retried_again(tmp_path: Path) -> None:
+    runs: list[str] = []
+
+    class AlwaysBusy(ChallengeEngine):
+        def run_lens(
+            self, lens: Lens, *, wait: bool, trigger: str, inputs: PassInputs | None = None,
+        ) -> PassRecord | None:
+            result = super().run_lens(lens, wait=wait, trigger=trigger, inputs=inputs)
+            if lens == "referee" and result is not None:
+                runs.append(lens)
+                return result.model_copy(update={"status": "failed", "error": TRANSIENT_ERROR})
+            return result
+
+    folder = tmp_path / "experiment"
+    _input(folder)
+    output = tmp_path / "output"
+    analyze_experiment(folder, output, engine_factory=AlwaysBusy, now=NOW)
+    assert len(runs) == 2
+    limitations = json.loads((output / "analysis.json").read_text("utf-8"))["limitations"]
+    assert limitations.count("The referee pass did not complete successfully.") == 1
+
+
+@pytest.mark.parametrize(("outlier_elsewhere", "second_home", "flagged"), [
+    (False, True, True),    # a dataset this experiment never measures, beside its own rates
+    (True, True, False),    # the other dataset is measured elsewhere: reported cohort by cohort
+    (False, False, False),  # no dataset clearly carries the section
+])
+def test_cohort_mix_flags_a_headline_that_imports_another_cohorts_rate(
+    tmp_path: Path, outlier_elsewhere: bool, second_home: bool, flagged: bool,
+) -> None:
+    home = [("C-home-a", 6, 20), ("C-home-b", 2, 20), ("C-home-c", 4, 10)]
+    claims = [
+        _rate(claim_id, "Impossible tasks", k, n, metric="reward rate", section_id="S-head",
+              experiment="OV")
+        for claim_id, k, n in home[: 3 if second_home else 1]
+    ] + [
+        _rate("C-away", "Earlier solvable benchmarks", 0, 42, metric="subversion rate",
+              section_id="S-head", experiment="OV"),
+    ]
+    if not second_home:
+        claims.append(_rate("C-away-too", "Other cohort", 1, 9, metric="rate",
+                            section_id="S-head", experiment="OV"))
+    if outlier_elsewhere:
+        claims.append(_rate("C-away-detail", "Earlier solvable benchmarks", 0, 18,
+                            metric="subversion rate", section_id="S-detail", experiment="OV"))
+    cohort = _cohort_findings(tmp_path, claims)
+    assert bool(cohort) is flagged
+    if flagged:
+        # The imported 0/42 sits beside the experiment's own largest-n rates.
+        assert cohort[0]["pointers"] == ["C-away", "C-home-a", "C-home-b"]
+        assert "C-away (0/42)" in cohort[0]["message"]
+
+
+def test_skeptic_bullet_is_one_clean_sentence_without_spliced_claim_titles(
+    tmp_path: Path,
+) -> None:
     folder = tmp_path / "experiment"
     _input(folder)
     output = tmp_path / "output"
@@ -700,8 +846,38 @@ def test_skeptic_bullet_keeps_its_substance_when_the_title_is_dropped(tmp_path: 
         line for line in (output / "REPORT.md").read_text("utf-8").splitlines()
         if "[I-challenge" in line and "severity major" in line
     )
-    assert bullet.startswith("- about The detector caught 5 cheating cases; label validity;")
-    assert "987654" not in bullet
+    # The title's number is nowhere in the ledger, so the card's statement speaks instead.
+    assert bullet == (
+        "- These measurements may not use independent label sources; label validity; "
+        "severity major; referee: accept [I-challenge, C-case-0]."
+    )
+    assert "987654" not in bullet and "about" not in bullet
+
+
+def test_skeptic_bullet_without_supported_words_names_only_the_flaw(tmp_path: Path) -> None:
+    class Numbered(ChallengeEngine):
+        def run_lens(
+            self, lens: Lens, *, wait: bool, trigger: str, inputs: PassInputs | None = None,
+        ) -> PassRecord | None:
+            result = super().run_lens(lens, wait=wait, trigger=trigger, inputs=inputs)
+            if lens == "skeptic":
+                record = self.store.list_insights()[0]
+                record.card.statement += " Only 987654 cases back this."
+                self.store.save_insight(record)
+            return result
+
+    folder = tmp_path / "experiment"
+    _input(folder)
+    output = tmp_path / "output"
+    analyze_experiment(folder, output, engine_factory=Numbered, now=NOW)
+    bullet = next(
+        line for line in (output / "REPORT.md").read_text("utf-8").splitlines()
+        if "[I-challenge" in line and "referee" in line
+    )
+    assert bullet == (
+        "- A major label validity challenge to the cited claims; referee: accept "
+        "[I-challenge, C-case-0]."
+    )
 
 
 def test_report_states_recipe_and_rederiver_coverage(tmp_path: Path) -> None:

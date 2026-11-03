@@ -44,7 +44,12 @@ flowchart LR
    in-sample caveats. Percent, fraction, count, currency and duration units stay
    distinct. A declarative `recipe` recomputes the number from receipts;
    `recipe.target` says whether the receipt should produce k, n or value, and
-   the result is `reproduced`, `differs` or `not_recomputable`.
+   the result is `reproduced`, `differs` or `not_recomputable`. A recompute that
+   differs from the stated value only within one extra rounding step of its printed
+   digits (up to 0.55 of a unit of the last printed digit, such as a true 84.65%
+   printed as 84.7%) is `reproduced` with a `rounding` note. Every `differs` records
+   its size, absolute and in the claim's unit, on the claim, in `show`, signals and
+   `REPORT.md`. A `ratio` of two `count` recipes recomputes a rate such as 0/42.
 3. **Signals.** Deterministic, precision-first statistics over the ledger:
    only matching quantities and cohorts are compared, known reader aliases are
    canonicalized, shared test identities are deduplicated, and multiplicity is
@@ -114,8 +119,15 @@ uv run evallab insights experiment <folder>   # one experiment: claims.jsonl, va
 It extracts every report section, recomputes each claim that has a receipt
 recipe, runs one skeptic pass and a cross-family referee on the result, and
 re-derives a 20% sample of recipe-backed claims with a model from another
-family. Every REPORT.md sentence cites a claim or finding id, and the report
-is rejected if it contains a number that is not in the ledger.
+family. Every REPORT.md sentence cites a claim or finding id, the report is rejected
+if it contains a number that is not in the ledger, and it aims to stay under 45
+lines (a few headline claims, one bullet per skeptic card in its own words, counts
+instead of per-claim lists).
+Every pass of every lens gets the scheduler's single retry when it died at startup on
+shared omp state (`SQLITE_BUSY`); the retry is decided by the same classification as
+the watch loop, not by how long the failed pass took. Rederiver agreement compares like
+with like: when the original and the rederived recipe target different quantities (a
+count against a ratio, k against n), agreement means each side reproduces the claim.
 
 - `--with OTHER_FOLDER` (repeatable) analyses related folders together, for
   example an experiment and the earlier receipts its README compares against.
@@ -131,11 +143,16 @@ is rejected if it contains a number that is not in the ledger.
 The validity scan treats only explicit split/answer-key markers and receipt data
 paths as held-out evidence; an arbitrary string containing `test` is not enough.
 `label_provenance` inventories label files, their producing code and shared
-`load_labels` use, while `scripted_positives` separates scripted controls from
-real positives. Missing label provenance counts only rows that actually carry a
+`load_labels` use. `scripted_positives` counts every positive case once (deduplicated
+by id across bundle folders, summaries and pooled files, attributed to the smallest
+file that holds it) and reports scripted k of all positives n per file and overall.
+Missing label provenance counts only rows that actually carry a
 label. Access-denied/refusal checks inspect metadata error/status fields, not
 transcript or output content, to avoid mistaking analyzed text for an access
-failure.
+failure. `cohort_mix` fires when a pooled rate adds up rates of different cohorts
+(counts that sum, or a statement naming the pooled rates) and when a rate about a
+dataset the experiment never measures sits in a section of rates about another
+dataset; rates that merely share a metric word are not flagged.
 
 ```bash
 uv run evallab insights experiment research/experiments/ov-c1-c5-live-rollouts-20261101 \
@@ -194,7 +211,7 @@ valid values if an edit is broken; `routes.yaml` is read at start. Content
 failures back off exponentially per lens and input set. Quota parks a route
 until its reset, authentication failure parks its provider for 24 hours, and a
 route that served another model parks for an hour. A transient omp database
-startup failure gets one quick retry.
+startup failure gets one quick retry, in the watch loop and in one-shot experiment runs.
 
 Models are chosen by `routes.yaml`, never ad hoc: the first route whose provider
 is under `max_provider_used_percent`, not parked, and (for referee/rederiver)

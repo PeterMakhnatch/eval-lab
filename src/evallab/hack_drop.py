@@ -30,7 +30,7 @@ import shlex
 import shutil
 import sys
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -419,6 +419,52 @@ def parse_diff_sections(diff_text: str) -> list[dict[str, Any]]:
 # --------------------------------------------------------------------------- #
 
 
+def _decode_legacy_call(call: Any) -> list[Any]:
+    """Expand one cloud-export call into the ATIF calls it encodes, or return it unchanged."""
+    if not isinstance(call, Mapping):
+        return [call]
+    if call.get("function_name") == "tool":
+        return unpack_legacy_tool_calls([call])
+    args = call.get("arguments")
+    text = args["command"] if isinstance(args, Mapping) and set(args) == {"command"} else None
+    if isinstance(text, str) and text.lstrip().startswith("{"):
+        try:
+            decoded = json.loads(text, strict=False)
+        except ValueError:
+            return [call]
+        if isinstance(decoded, dict):
+            return [{**call, "arguments": decoded}]
+    return [call]
+
+
+def _normalize_legacy_run(run: LoadedRun) -> LoadedRun:
+    """Decode the two argument encodings ``cloud_trace_export`` stored for every call.
+
+    The exporter kept each trace row's raw ``command_or_action`` text as ``arguments.command``:
+    a call's real arguments object arrives as a JSON string (``{"command": "{\"cmd\": ...}"}``),
+    and parallel calls arrive as one ``function_name: tool`` call whose text is a JSON array of
+    ``{id, name, arguments}``. Every downstream scanner reads calls by name and argument key,
+    so both are decoded once, at load. Anything that does not decode (a plain shell command,
+    a malformed envelope, a non-object entry) is left untouched, so unreadable shapes still
+    route to review instead of being guessed at.
+    """
+    doc = run.doc
+    steps = doc.get("steps") if isinstance(doc, Mapping) else None
+    if not isinstance(steps, list):
+        return run
+    changed = False
+    new_steps: list[Any] = []
+    for step in steps:
+        calls = step.get("tool_calls") if isinstance(step, Mapping) else None
+        if isinstance(calls, list):
+            decoded = [out for call in calls for out in _decode_legacy_call(call)]
+            if decoded != calls:
+                step = {**step, "tool_calls": decoded}
+                changed = True
+        new_steps.append(step)
+    return replace(run, doc={**doc, "steps": new_steps}) if changed else run
+
+
 @dataclass(frozen=True)
 class RolloutItem:
     """A candidate rollout item to be scored."""
@@ -430,6 +476,10 @@ class RolloutItem:
     diff_text: str | None = None
     source_path: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.run is not None:
+            object.__setattr__(self, "run", _normalize_legacy_run(self.run))
 
 
 @dataclass
@@ -891,6 +941,7 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
 
     # Read files in submission bundle / directory or derive from trajectory
     if run is not None:
+        run = _normalize_legacy_run(run)
         steps = [dict(s) for s in (run.doc.get("steps") or []) if isinstance(s, Mapping)]
         files = extract_content_files(steps)
         if not diff_text and run.submission and run.submission.strip():
@@ -1301,14 +1352,9 @@ def evaluate_l0_stage(
         steps = rollout.run.doc.get("steps") if isinstance(rollout.run.doc, dict) else []
         if not isinstance(steps, list):
             steps = []
-        for step_idx, raw_step_obj in enumerate(steps):
-            if not isinstance(raw_step_obj, Mapping):
+        for step_idx, step_obj in enumerate(steps):
+            if not isinstance(step_obj, Mapping):
                 continue
-            original_calls = raw_step_obj.get("tool_calls")
-            step_obj = raw_step_obj
-            if isinstance(original_calls, list):
-                # Cloud exports wrap parallel ATIF calls in tool.command JSON arrays.
-                step_obj = {**raw_step_obj, "tool_calls": unpack_legacy_tool_calls(original_calls)}
             _ = step_obj.get("step_id", step_idx)
             if step_obj.get("has_malformed_tool_calls"):
                 unrecognized_tool_steps.append(step_idx)
@@ -1345,10 +1391,20 @@ def evaluate_l0_stage(
                         continue
 
                     if isinstance(c_args, Mapping):
+                        shell_text = ""
+                        if c_name_lower in ("bash", "sh", "exec", "run_command", "execute_bash", "terminal", "cmd"):
+                            shell_text = str(c_args.get("command") or c_args.get("cmd") or c_args.get("code") or "")
+                        elif c_name_lower in ("python", "python3"):
+                            code = c_args.get("code")
+                            if isinstance(code, str) and code.strip():
+                                # Inspect inline Python exactly like a shell heredoc that runs it.
+                                shell_text = f"python3 - <<'EVALLAB_PY'\n{code}\nEVALLAB_PY"
+                            else:
+                                shell_text = str(c_args.get("command") or c_args.get("cmd") or "")
                         c_path = c_args.get("path") or c_args.get("file_path") or c_args.get("filename") or c_args.get("file")
                         c_cmd = str(c_args.get("command") or c_args.get("action") or "").lower()
                         if (
-                            (c_name_lower in ("str_replace_editor", "str_replace_based_edit_tool", "edit", "editor", "file_editor") and c_cmd == "create" and c_path)
+                            (c_name_lower in ("str_replace_editor", "str_replace_based_edit_tool", "text_editor", "edit", "editor", "file_editor") and c_cmd == "create" and c_path)
                             or (c_name_lower in ("create", "create_file") and c_path)
                         ):
                             np = _norm_path(str(c_path))
@@ -1357,7 +1413,7 @@ def evaluate_l0_stage(
                             recognized_any = True
                         elif (
                             (c_name_lower in ("read", "view", "read_file", "open_file", "read_text", "view_file") and c_path)
-                            or (c_name_lower in ("str_replace_editor", "str_replace_based_edit_tool", "edit", "editor", "file_editor") and c_cmd == "view" and c_path)
+                            or (c_name_lower in ("str_replace_editor", "str_replace_based_edit_tool", "text_editor", "edit", "editor", "file_editor") and c_cmd == "view" and c_path)
                         ):
                             np = _norm_path(str(c_path))
                             if np not in read_paths_by_step:
@@ -1376,7 +1432,7 @@ def evaluate_l0_stage(
                                 for mod_file in re.findall(r"\*\*\*\s*Update File:\s*(\S+)", patch_input):
                                     _record_write(_norm_path(mod_file), step_idx, op_kind="modify")
                                 recognized_any = True
-                        elif c_name_lower in ("write", "edit", "str_replace", "str_replace_editor", "str_replace_based_edit_tool", "multiedit", "file_editor", "editor"):
+                        elif c_name_lower in ("write", "edit", "str_replace", "str_replace_editor", "str_replace_based_edit_tool", "text_editor", "multiedit", "file_editor", "editor"):
                             hash_paths = []
                             if not c_path and isinstance(c_args.get("input"), str):
                                 hash_paths = re.findall(r"^\[([^\n#\]]+)(?:#[0-9a-fA-F]+)?\]", c_args["input"], re.MULTILINE)
@@ -1397,14 +1453,14 @@ def evaluate_l0_stage(
                             elif c_path:
                                 is_mod = (
                                     c_cmd in ("str_replace", "insert", "edit")
-                                    or c_name_lower in ("str_replace", "str_replace_editor", "str_replace_based_edit_tool", "multiedit")
+                                    or c_name_lower in ("str_replace", "str_replace_editor", "str_replace_based_edit_tool", "text_editor", "multiedit")
                                     or any(k in c_args for k in ("old_str", "old_string", "oldText", "new_str", "new_string", "newText"))
                                 )
                                 _record_write(str(c_path), step_idx, op_kind="modify" if is_mod else "write")
                                 recognized_any = True
-                        elif c_name_lower in ("bash", "sh", "exec", "run_command", "execute_bash", "terminal", "cmd") and (c_args.get("command") or c_args.get("cmd")):
+                        elif shell_text:
                             recognized_any = True
-                            cmd_str = str(c_args.get("command") or c_args.get("cmd") or "")
+                            cmd_str = shell_text
                             var_assigns = dict(re.findall(r"\b([A-Za-z_]\w*)=['\"]?([\w./@+-]+)['\"]?", cmd_str))
                             expanded_cmd = cmd_str
                             for var_k, var_v in var_assigns.items():

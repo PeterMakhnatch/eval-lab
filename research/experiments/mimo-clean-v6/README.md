@@ -460,6 +460,40 @@ the separate verifier's 30 s `docker info` timed out. Each is preserved as
 `<task>/.failed-attempt<N>/` and listed in `prior_attempts`; the verdicts come
 from the final attempts. Manifest `verify` stays `unverified`.
 
+## P2 ranks 16–21 ladder cells (HAR-283, 2026-11-03)
+
+[ladder-p2-ranks16-21.json](ladder-p2-ranks16-21.json) records ladder 1.4.0 on
+the first six `P2-frozen-selection-controls` Python rows of the ranking, each at
+its manifest `final_digest` on local Docker under `evallab docker-lock`, one task
+at a time, cold image pull and image removed after each run, $0. All six came
+back `clean` (reward 0); total wall **43.4 min** over the final attempts
+(47.8 min including the two timed preflight failures):
+
+| rank | task | verdict | basis | wall |
+|---|---|---|---|---|
+| 16 | `000079` | clean | tamper refusal | 8.6 min |
+| 17 | `000081` | clean | tamper refusal | 6.2 min |
+| 18 | `000102` | clean | tamper refusal | 10.4 min |
+| 19 | `000143` | clean | tamper refusal | 8.9 min |
+| 20 | `000149` | clean | tamper refusal | 4.1 min |
+| 21 | `000160` | clean | graded: target tests fail | 5.2 min |
+
+Five verdicts rest on the verifier's `\b_pytest\b` tamper refusal, as in
+HAR-244/256/267, so no test outcome was graded after those attacks. `000160` has
+no tracked package `__init__.py` for the four source-tamper attacks; the
+verifier dropped the planted `conftest.py` and `tests/conftest.py`, ran the nine
+named target tests and failed them (4 failed, 5 passed, rc=1). `000102`'s
+pre-agent verifier baseline failed collection on
+`ModuleNotFoundError: google.auth.credentials` (rc=4); its verdict rests on the
+refusal, so the cell does not speak to that row's oracle label.
+
+Harbor's 10 s `docker info` preflight failed once each for `000102` and `000143`
+before any trial existed; both are preserved as `<task>/.failed-attempt1/` and
+listed in `prior_attempts`. Raw jobs and `census-rows.jsonl` are under
+`~/Developer/eval-lab-results/2026-11-03/har-283-mimo-v6-ladder/`. The oracle
+and nop cells `pending-controls.json` owes for these rows were not run, so
+manifest `verify` stays `unverified`.
+
 ## Ladder progress table (HAR-286)
 
 [ladder-progress.csv](ladder-progress.csv) joins the ranking in
@@ -476,17 +510,17 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py          # r
 uv run python research/experiments/mimo-clean-v6/ladder_progress.py --check  # exit 1 on drift
 ```
 
-Basis counts in the committed table (100 ranks, 15 covered; Docker-free):
+Basis counts in the committed table (100 ranks, 21 covered; Docker-free):
 
 | basis | ranks |
 |---|---:|
-| `tamper-refusal` | 10 |
-| `graded` | 4 |
+| `tamper-refusal` | 15 |
+| `graded` | 5 |
 | `unscored` | 1 (`000928`, rank 8) |
-| `none` | 85 |
+| `none` | 79 |
 
-Ten of the 14 `clean` verdicts so far are tamper refusals, so the refusal rate
-among clean ladder verdicts is 10/14 (71%); only four rest on a graded run.
+Fifteen of the 20 `clean` verdicts so far are tamper refusals, so the refusal
+rate among clean ladder verdicts is 15/20 (75%); only five rest on a graded run.
 
 ## Graded subset cells for three tamper-refused rows (HAR-284, 2026-11-03)
 

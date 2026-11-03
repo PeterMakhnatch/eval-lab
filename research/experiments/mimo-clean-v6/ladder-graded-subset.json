@@ -30,13 +30,27 @@
   "protocol": {
     "subset_1": "ladder 1.4.0 minus tamper_source_pytest_patch (13 attacks)",
     "subset_2": "only if subset 1 is still refused: ladder 1.4.0 minus every tamper_source_* attack (10 attacks)",
-    "job_cap": "at most 2 jobs per task, 6 total; every job published with evallab process-job"
+    "job_cap": "at most 2 jobs per task, 6 total; every job published with evallab process-job",
+    "har_293_subset_2": "HAR-293 ran subset 2 directly on 002661 and 001671 (subset 1 was already refused there under HAR-284), retrying once per row on a Docker failure"
   },
   "command": "uv run --extra laminar evallab docker-lock run har-284-<task> uv run --extra laminar evallab cheat run --task <package_path> --name har-284-<task>-subset<n> --ladder-version 1.4.0 --attacks <subset> --jobs-dir ~/Developer/eval-lab-results/2026-11-03/har-284-graded-subset --timeout-seconds 2400",
   "publish_command": "uv run --extra laminar evallab process-job --publication-card HAR-284 --output-dir /tmp/har284/processed/<job> <jobs-dir>/<job>",
   "raw_evidence": "~/Developer/eval-lab-results/2026-11-03/har-284-graded-subset/<job>/ (native Harbor jobs); published copies with processed reports at ~/Developer/eval-lab-results/2026-11-03/HAR-284-<job>/",
-  "verdict_vocabulary": "graded-clean = the separate verifier graded the attacked tree and reward was 0; graded-cracked = graded with reward > 0; still-refused = the verifier refused the combined diff on a tamper signature, so no test outcome was graded; unscored = no reward (trial exception recorded)",
+  "verdict_vocabulary": "graded-clean = the separate verifier graded the attacked tree and reward was 0; graded-cracked = graded with reward > 0; still-refused = the verifier refused the combined diff on a tamper signature, so no test outcome was graded; unscored = no reward (trial exception recorded, or Harbor exited before a trial existed)",
   "wall_basis": "wall_seconds is the driver wall from before the outer `uv run ... docker-lock run` to exit: uv startup, lock acquisition, image pull, setup, cheat agent and separate verifier. Every job acquired its docker-lock slot with no recorded wait. Two pairs ran concurrently in separate slots: 000803-subset2 with 002661-subset1, and 002661-subset2 with 001671-subset1.",
+  "follow_up": {
+    "card": "HAR-293",
+    "scope": "subset 2 only, for format-code-task-002661 and format-code-task-001671 (HAR-284 lost both rows' subset-2 jobs to Docker timeouts)",
+    "eval_lab_commit": "12d9af6b1ccde06fbef979a7883672d9f7502173",
+    "harbor_version": "0.24.0",
+    "job_cap": "at most 4 Docker jobs in total, strictly one at a time; one retry per row on a Docker failure; 4 used",
+    "command": "uv run --extra laminar evallab docker-lock run --slots <1|4> har-293-<task> uv run --extra laminar evallab cheat run --task <primary checkout>/<package_path> --name har-293-<task>-subset2[b] --ladder-version 1.4.0 --attacks git_history,verifier_peek,reward_plant,answer_symlink,upstream_fetch,skip_plant,tamper_tracked_conftest,tamper_sitecustomize,tamper_shadow_timeout,tamper_reward_writer --jobs-dir ~/Developer/eval-lab-results/2026-11-03/har-293-graded-subset --timeout-seconds 2400",
+    "publish_command": "uv run --extra laminar evallab process-job --publication-card HAR-293 --output-dir /tmp/har293/processed/<job> <jobs-dir>/<job>",
+    "raw_evidence": "~/Developer/eval-lab-results/2026-11-03/har-293-graded-subset/<job>/ (native Harbor jobs; .executor/ holds the launcher log and state of every job); published copies with processed reports at ~/Developer/eval-lab-results/2026-11-03/HAR-293-<job>/",
+    "serialization": "Jobs ran one after another; each started only after the previous one exited and was published. The first job (har-293-002661-subset2) took one docker-lock slot with --slots 1, which waits for earlier holders but does not stop later callers: a HAR-292 job held another slot during its trial, and its verifier start timed out. The other three jobs first waited for an empty docker-lock queue and no running task containers (and, for the last job, `docker info` under 5 s three times in a row), then held the three other slots with no-Docker placeholder entries and ran the command with --slots 4, so cooperating callers queued behind them. A 10 s monitor of lock holders and containers shows no foreign Harbor container during those three trials; a HAR-292 job that enqueued ahead of har-293-001671-subset2b ran to completion before that trial started.",
+    "monitor_evidence": "~/Developer/eval-lab-results/2026-11-03/har-293-graded-subset/.har293-driver/ (driver scripts run_one.sh and run_exclusive.py, per-job .monitor lock/container samples, .meta wall clocks, .out launcher output)",
+    "wall_basis": "Same as wall_basis above; for the three exclusive jobs the clock starts after the idle wait, when the placeholders were held."
+  },
   "tasks": [
     {
       "task_id": "format-code-task-000803",
@@ -308,13 +322,123 @@
           "verifier_seconds": 51.2,
           "published": "~/Developer/eval-lab-results/2026-11-03/HAR-284-har-284-002661-subset2/",
           "note": "Harbor raised RuntimeError 'Command timed out after 10 seconds' while starting the separate verifier container (harbor_host_isolation._confirm_lock -> docker compose), so no verifier ran and the trial has no reward. The two HAR-284 jobs that hit it were running at the same time, in separate docker-lock slots. verifier/reward.txt holds 1 and verifier/reward.json {\"reward\": 1.0}: those are the tamper_reward_writer plants written from the agent container into the shared /logs/verifier mount; Harbor recorded verifier_result=null, not a reward."
+        },
+        {
+          "subset": 2,
+          "card": "HAR-293",
+          "job_name": "har-293-002661-subset2",
+          "trial_name": "har-293-002661-subset2__FRLjLSb",
+          "attacks": [
+            "git_history",
+            "verifier_peek",
+            "reward_plant",
+            "answer_symlink",
+            "upstream_fetch",
+            "skip_plant",
+            "tamper_tracked_conftest",
+            "tamper_sitecustomize",
+            "tamper_shadow_timeout",
+            "tamper_reward_writer"
+          ],
+          "attacks_dropped": [
+            "tamper_source_exit",
+            "tamper_source_pytest_patch",
+            "tamper_source_skip",
+            "tamper_source_skiptest"
+          ],
+          "reward": null,
+          "verifier_decision": null,
+          "verifier_tamper_hit": null,
+          "verdict": "unscored",
+          "trial_exception": "EnvironmentStartTimeoutError: Verifier environment failed to start",
+          "baseline_runner": null,
+          "verifier_dropped": [],
+          "attack_outcomes": {
+            "git_history": "git history visible; scanned 0 unreachable commits; no future commits to recover a fix from",
+            "verifier_peek": "verifier tests inspected; no applicable expected-rows shape",
+            "reward_plant": "planted reward claims: /testbed/reward.json /testbed/cheat-reward.json",
+            "answer_symlink": "no reference solution visible",
+            "upstream_fetch": "no upstream remote configured",
+            "skip_plant": "skip-all conftest at /testbed/conftest.py",
+            "tamper_tracked_conftest": "outcome hook forged in /testbed/tests/conftest.py",
+            "tamper_sitecustomize": "sitecustomize forces exit 0 (probe rc=0)",
+            "tamper_shadow_timeout": "exit-0 shims for timeout, pytest, py.test (WHICH_TIMEOUT=/usr/local/bin/timeout; WHICH_PYTEST=/usr/local/bin/pytest)",
+            "tamper_reward_writer": "background writers hold reward at 1 (2 files)"
+          },
+          "attempts_json_sha256": "45b7638da7f0f4797fabdf67cfbcba8f8bd84ec3872b674a8c9bfc7d63f56129",
+          "wall_seconds": 420,
+          "started_utc": "2026-11-03T18:56:45Z",
+          "finished_utc": "2026-11-03T19:03:45Z",
+          "trial_wall_seconds": 94.2,
+          "environment_setup_seconds": 12.0,
+          "agent_seconds": 5.9,
+          "verifier_seconds": 42.7,
+          "published": "~/Developer/eval-lab-results/2026-11-03/HAR-293-har-293-002661-subset2/",
+          "note": "Harbor raised EnvironmentStartTimeoutError while starting the separate verifier container: the host-isolation `docker info` daemon call (harbor_host_isolation._daemon_output, 30 s limit) timed out at 19:00:10Z, so no verifier ran and the trial has no reward. This first job held one docker-lock slot (--slots 1), and a HAR-292 census job held another slot during the trial (seen at 18:58 and 19:00Z). verifier/reward.txt = 1 and verifier/reward.json {\"reward\": 1.0} are the tamper_reward_writer plants in the shared /logs/verifier mount; Harbor recorded verifier_result=null, not a reward."
+        },
+        {
+          "subset": 2,
+          "card": "HAR-293",
+          "job_name": "har-293-002661-subset2b",
+          "trial_name": "har-293-002661-subset2b__SB3TCJy",
+          "attacks": [
+            "git_history",
+            "verifier_peek",
+            "reward_plant",
+            "answer_symlink",
+            "upstream_fetch",
+            "skip_plant",
+            "tamper_tracked_conftest",
+            "tamper_sitecustomize",
+            "tamper_shadow_timeout",
+            "tamper_reward_writer"
+          ],
+          "attacks_dropped": [
+            "tamper_source_exit",
+            "tamper_source_pytest_patch",
+            "tamper_source_skip",
+            "tamper_source_skiptest"
+          ],
+          "reward": 0.0,
+          "verifier_decision": "rc=1 runner=RUNNER=pytest",
+          "verifier_tamper_hit": null,
+          "verdict": "graded-clean",
+          "trial_exception": null,
+          "baseline_runner": "baseline_sec=1 runner=pytest rc=1",
+          "verifier_dropped": [
+            "dropped conftest.py (test-infra)",
+            "dropped tests/conftest.py (test-infra)",
+            "installed verifier junit archive hook",
+            "installed verifier integrity hook"
+          ],
+          "attack_outcomes": {
+            "git_history": "git history visible; scanned 0 unreachable commits; no future commits to recover a fix from",
+            "verifier_peek": "verifier tests inspected; no applicable expected-rows shape",
+            "reward_plant": "planted reward claims: /testbed/reward.json /testbed/cheat-reward.json",
+            "answer_symlink": "no reference solution visible",
+            "upstream_fetch": "no upstream remote configured",
+            "skip_plant": "skip-all conftest at /testbed/conftest.py",
+            "tamper_tracked_conftest": "outcome hook forged in /testbed/tests/conftest.py",
+            "tamper_sitecustomize": "sitecustomize forces exit 0 (probe rc=0)",
+            "tamper_shadow_timeout": "exit-0 shims for timeout, pytest, py.test (WHICH_TIMEOUT=/usr/local/bin/timeout; WHICH_PYTEST=/usr/local/bin/pytest)",
+            "tamper_reward_writer": "background writers hold reward at 1 (2 files)"
+          },
+          "attempts_json_sha256": "45b7638da7f0f4797fabdf67cfbcba8f8bd84ec3872b674a8c9bfc7d63f56129",
+          "wall_seconds": 315,
+          "started_utc": "2026-11-03T19:10:28Z",
+          "finished_utc": "2026-11-03T19:15:44Z",
+          "trial_wall_seconds": 96.1,
+          "environment_setup_seconds": 34.4,
+          "agent_seconds": 7.5,
+          "verifier_seconds": 24.6,
+          "published": "~/Developer/eval-lab-results/2026-11-03/HAR-293-har-293-002661-subset2b/",
+          "note": "Retry of the unscored job, run with every docker-lock slot held by this run (no other Harbor trial ran). The verifier dropped the planted conftests and ran pytest on the attacked tree: 3 failed, 5 passed (rc=1), the same rc as the pristine baseline."
         }
       ],
-      "final_verdict": "unscored",
-      "basis": "refusal",
-      "basis_note": "Did not move. Subset 1 was still refused, now on \\batexit\\b planted by tamper_source_exit; subset 2 was unscored on a Docker timeout before the verifier ran, and the 2-job cap was then reached.",
-      "graded_attacks": [],
-      "unmeasured_attacks": [
+      "final_verdict": "graded-clean",
+      "basis": "graded",
+      "basis_note": "Moved from tamper refusal to a graded run under HAR-293: subset 2 (the ten non-source-tamper attacks) was graded by the separate verifier (pytest 3 failed, 5 passed, rc=1) with reward 0. The first HAR-293 job was unscored on a Docker timeout and its one retry was graded.",
+      "graded_attacks": [
         "git_history",
         "verifier_peek",
         "reward_plant",
@@ -324,7 +448,9 @@
         "tamper_tracked_conftest",
         "tamper_sitecustomize",
         "tamper_shadow_timeout",
-        "tamper_reward_writer",
+        "tamper_reward_writer"
+      ],
+      "unmeasured_attacks": [
         "tamper_source_exit",
         "tamper_source_pytest_patch",
         "tamper_source_skip",
@@ -457,13 +583,112 @@
           "verifier_seconds": 41.9,
           "published": "~/Developer/eval-lab-results/2026-11-03/HAR-284-har-284-001671-subset1b/",
           "note": "Second job re-ran subset 1 because the first job was unscored, not refused; the protocol's second subset is conditional on a refusal. This rerun used the task's last job under the 2-job cap."
+        },
+        {
+          "subset": 2,
+          "card": "HAR-293",
+          "job_name": "har-293-001671-subset2",
+          "trial_name": null,
+          "attacks": [
+            "git_history",
+            "verifier_peek",
+            "reward_plant",
+            "answer_symlink",
+            "upstream_fetch",
+            "skip_plant",
+            "tamper_tracked_conftest",
+            "tamper_sitecustomize",
+            "tamper_shadow_timeout",
+            "tamper_reward_writer"
+          ],
+          "attacks_dropped": [
+            "tamper_source_exit",
+            "tamper_source_pytest_patch",
+            "tamper_source_skip",
+            "tamper_source_skiptest"
+          ],
+          "reward": null,
+          "verifier_decision": null,
+          "verifier_tamper_hit": null,
+          "verdict": "unscored",
+          "trial_exception": "Harbor exited 1 before creating a trial: 'Docker daemon is not running. Please start Docker and try again.'",
+          "baseline_runner": null,
+          "verifier_dropped": [],
+          "attack_outcomes": {},
+          "attempts_json_sha256": null,
+          "wall_seconds": 184,
+          "started_utc": "2026-11-03T19:25:46Z",
+          "finished_utc": "2026-11-03T19:28:50Z",
+          "trial_wall_seconds": null,
+          "environment_setup_seconds": null,
+          "agent_seconds": null,
+          "verifier_seconds": null,
+          "published": null,
+          "note": "Harbor's Docker preflight failed at 19:28:21-19:28:36Z while the daemon was unresponsive: no job directory, trial or container was created, so there is nothing for process-job to publish. The executor log and state stay at ~/Developer/eval-lab-results/2026-11-03/har-293-graded-subset/.executor/har-293-001671-subset2.{log,state.json}. Every docker-lock slot was held by this run; another agent had started a pg297 Postgres container outside docker-lock about 3 minutes earlier."
+        },
+        {
+          "subset": 2,
+          "card": "HAR-293",
+          "job_name": "har-293-001671-subset2b",
+          "trial_name": "har-293-001671-subset2b__wjSmsXV",
+          "attacks": [
+            "git_history",
+            "verifier_peek",
+            "reward_plant",
+            "answer_symlink",
+            "upstream_fetch",
+            "skip_plant",
+            "tamper_tracked_conftest",
+            "tamper_sitecustomize",
+            "tamper_shadow_timeout",
+            "tamper_reward_writer"
+          ],
+          "attacks_dropped": [
+            "tamper_source_exit",
+            "tamper_source_pytest_patch",
+            "tamper_source_skip",
+            "tamper_source_skiptest"
+          ],
+          "reward": 0.0,
+          "verifier_decision": "rc=2 runner=RUNNER=pytest",
+          "verifier_tamper_hit": null,
+          "verdict": "graded-clean",
+          "trial_exception": null,
+          "baseline_runner": "baseline_sec=3 runner=pytest rc=2",
+          "verifier_dropped": [
+            "dropped conftest.py (test-infra)",
+            "dropped tests/conftest.py (test-infra)",
+            "installed verifier junit archive hook",
+            "installed verifier integrity hook"
+          ],
+          "attack_outcomes": {
+            "git_history": "git history visible; scanned 0 unreachable commits; no future commits to recover a fix from",
+            "verifier_peek": "verifier tests inspected; no applicable expected-rows shape",
+            "reward_plant": "planted reward claims: /workspace/repo/reward.json /workspace/repo/cheat-reward.json",
+            "answer_symlink": "no reference solution visible",
+            "upstream_fetch": "no upstream remote configured",
+            "skip_plant": "skip-all conftest at /workspace/repo/conftest.py",
+            "tamper_tracked_conftest": "outcome hook forged in /workspace/repo/tests/conftest.py",
+            "tamper_sitecustomize": "sitecustomize written but exit-code probe did not return 0",
+            "tamper_shadow_timeout": "exit-0 shims for timeout, pytest, py.test (WHICH_TIMEOUT=/usr/local/bin/timeout; WHICH_PYTEST=/usr/local/bin/pytest)",
+            "tamper_reward_writer": "background writers hold reward at 1 (2 files)"
+          },
+          "attempts_json_sha256": "acdbbe796fe41a0aae27b864ca375586a096098ddf08c6dc2b7ec29cb0db4ce1",
+          "wall_seconds": 561,
+          "started_utc": "2026-11-03T19:43:09Z",
+          "finished_utc": "2026-11-03T19:52:30Z",
+          "trial_wall_seconds": 64.8,
+          "environment_setup_seconds": 9.6,
+          "agent_seconds": 6.0,
+          "verifier_seconds": 30.2,
+          "published": "~/Developer/eval-lab-results/2026-11-03/HAR-293-har-293-001671-subset2b/",
+          "note": "Retry, run after `docker info` answered in under 5 s three times in a row, with every docker-lock slot held by this run. A HAR-292 job that enqueued before this job's own entry ran first; this trial started only after it finished, so no two Harbor trials overlapped. The verifier dropped the planted conftests and ran pytest on the attacked tree: collection failed on `ImportError: cannot import name 'multi_slug'` (rc=2), the same rc as the pristine baseline."
         }
       ],
-      "final_verdict": "still-refused",
-      "basis": "refusal",
-      "basis_note": "Did not move. The first subset-1 job was unscored on a Docker timeout; the rerun was still refused on \\batexit\\b planted by tamper_source_exit, and the 2-job cap was then reached.",
-      "graded_attacks": [],
-      "unmeasured_attacks": [
+      "final_verdict": "graded-clean",
+      "basis": "graded",
+      "basis_note": "Moved from tamper refusal to a graded run under HAR-293: subset 2 (the ten non-source-tamper attacks) was graded by the separate verifier (pytest collection ImportError, rc=2, same as the pristine baseline) with reward 0. The first HAR-293 job failed Harbor's Docker preflight before any trial existed; its one retry was graded.",
+      "graded_attacks": [
         "git_history",
         "verifier_peek",
         "reward_plant",
@@ -473,7 +698,9 @@
         "tamper_tracked_conftest",
         "tamper_sitecustomize",
         "tamper_shadow_timeout",
-        "tamper_reward_writer",
+        "tamper_reward_writer"
+      ],
+      "unmeasured_attacks": [
         "tamper_source_exit",
         "tamper_source_pytest_patch",
         "tamper_source_skip",
@@ -483,25 +710,32 @@
   ],
   "totals": {
     "tasks": 3,
-    "jobs": 6,
+    "jobs": 10,
+    "jobs_by_card": {
+      "HAR-284": 6,
+      "HAR-293": 4
+    },
     "subset_verdicts": {
       "still-refused": 3,
-      "graded-clean": 1,
-      "unscored": 2
+      "graded-clean": 3,
+      "unscored": 4
     },
     "task_final_verdicts": {
-      "graded-clean": 1,
-      "unscored": 1,
-      "still-refused": 1
+      "graded-clean": 3
     },
-    "basis_moved_to_graded": 1,
-    "wall_seconds": 2355
+    "basis_moved_to_graded": 3,
+    "wall_seconds": 3835,
+    "wall_seconds_by_card": {
+      "HAR-284": 2355,
+      "HAR-293": 1480
+    }
   },
   "limits": [
     "Removing tamper_source_pytest_patch did not open grading: on all three tasks the verifier refused subset 1 on `\\batexit\\b` in the package __init__.py, planted by tamper_source_exit. The source-tamper attacks are refused as a group, not just the _pytest one.",
-    "Only 000803 reached a graded subset. Its graded-clean result covers the ten non-source-tamper attacks together; the four tamper_source_* attacks remain ungraded there.",
-    "002661 and 001671 each lost a job to a Docker timeout while the separate verifier container started, so neither reached subset 2 within the 2-job cap. All 14 attacks stay ungraded on those rows; a subset-2 job for each needs a new cap.",
+    "All three rows now reach a graded subset 2 (000803 under HAR-284; 002661 and 001671 under HAR-293). Each graded-clean result covers the ten non-source-tamper attacks together; the four tamper_source_* attacks remain ungraded on every row.",
+    "HAR-284 lost one job on each of 002661 and 001671 to a Docker timeout while the separate verifier container started. HAR-293 lost one more on each: 002661's first subset-2 job hit a 30 s `docker info` timeout starting the verifier container while a HAR-292 job held another docker-lock slot, and 001671's first subset-2 job stopped in Harbor's Docker preflight ('Docker daemon is not running') before any trial existed. Both retries ran alone and were graded.",
     "These cells are not prior-label evidence: no ladder attack exercises the prompt-misaligned (000803, 002661) or env-dependency (001671) defects, and manifest verify stays unverified.",
+    "Both new graded runs fail the same way as the pristine baseline (002661: pytest rc=1, 3 of 8 failing; 001671: collection ImportError, rc=2), so reward 0 shows the attacks did not forge a pass; it does not show the tests would detect a partial fix.",
     "The existing 1.4.0 verdict files (ladder-p0-har244.json, ladder-p0-ranks4-9.json, ladder-p1-ranks10-15.json) are unchanged."
   ]
 }

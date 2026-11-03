@@ -476,6 +476,14 @@ trials. The synthesis agent may identify recurring patterns, but it must report:
 Text similarity or clustering may help find candidates. It does not establish
 that two failures have the same cause.
 
+Across experiments (not trials), the [insight engine](insights.md) runs this
+stage continuously: claims extracted from experiment reports are checked and
+recomputed by code, statistical signals are computed over the whole ledger,
+and analyst lenses write cards whose observations cite claim ids, whose
+interpretations list alternatives and whose proposals change one variable.
+Its proposals stay `execution_authorized: false`; Stage 7 review still
+belongs to a named human.
+
 ## Stage 7: review and proposal
 
 A human review records one of:

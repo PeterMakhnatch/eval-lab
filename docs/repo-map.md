@@ -474,6 +474,82 @@ inputs:
     digest: sha256:5ddf94cc407d03f2b871faec2ac225973b17946ba22ac7dbf6b5f5920e64f59e
   - path: src/evallab/ingest_verify.py
     digest: sha256:43c53091512ba65fce3cf9b5f7c4638ff0802827acbae4cc0208718707e8dde6
+  - path: src/evallab/insights/__init__.py
+    digest: sha256:31485bf1aa9a7b066abb22d83e4bf1e509c12ba632bbb4bc3d84e29b9ee97190
+  - path: src/evallab/insights/agent_tool.py
+    digest: sha256:d3824b924e74849b446a44e70d318e036dcbcaaa40907d2028fa2a025647c3f6
+  - path: src/evallab/insights/attribution.py
+    digest: sha256:8c749838b4d00faf675bf7d4aa9de5089361b55a3935b28c3e26608129c99c93
+  - path: src/evallab/insights/board.py
+    digest: sha256:82dadc0273246fb7d3075645125d9d9dc9d97151137eb197244459844b979415
+  - path: src/evallab/insights/check.py
+    digest: sha256:cc0dd1a106a41a8c13bb030dabff84afff37ca922cee4bf465ff7382d95449fb
+  - path: src/evallab/insights/cli.py
+    digest: sha256:5297d1a7bbcd87415dbf052ee7de71f282c0e7c332ec9ad579affc8a7a16838a
+  - path: src/evallab/insights/commands/__init__.py
+    digest: sha256:29f6a70279fcba18b8d6dc13b34894af39cf4eca4b6e623794d7eadce87d22e9
+  - path: src/evallab/insights/commands/_common.py
+    digest: sha256:30f4177aa1d1880f7658b8e789a0eb0fba7115644e6c55e74986c5559f3d05e1
+  - path: src/evallab/insights/commands/board.py
+    digest: sha256:12f495cca1e734581b7e78b1a9ee240dbe90b723939dfa1732fa3919f6cc85b3
+  - path: src/evallab/insights/commands/experiment.py
+    digest: sha256:91dce6434b617d8170212a405660837361b51b0fed11340f3ce688b77abf63a0
+  - path: src/evallab/insights/commands/init.py
+    digest: sha256:03088e54ea579e8caa27b845207ab6f285ea9fcacc1c77975ff8997d53433e94
+  - path: src/evallab/insights/commands/query.py
+    digest: sha256:22cf87d5bba2164d3152198a007c6cf1132649a917f6febf2863d36a26073dd5
+  - path: src/evallab/insights/commands/review.py
+    digest: sha256:8bb6da8d744ad0b8d898d0b572f6b3073d048f637f99fa51edee78199de9cd9d
+  - path: src/evallab/insights/commands/run.py
+    digest: sha256:9a0f77e6e98045776b51502d812ed44ef33e404f19e098f57fa5f338398e0671
+  - path: src/evallab/insights/commands/scan.py
+    digest: sha256:8b14a96c848179a5e74916a7c8dac41d5bdc63f4e163a69c8b415c774a17718c
+  - path: src/evallab/insights/commands/show.py
+    digest: sha256:01a863a2b201b0668db2dbbdf3ff1f769b01a973ca1d2758dc4932a643334a2e
+  - path: src/evallab/insights/commands/signals.py
+    digest: sha256:87fb4878bdbc1e52c1a626ea692fcf8bb4ed6e32a594316d410a5ebedc3d1b44
+  - path: src/evallab/insights/commands/stat.py
+    digest: sha256:9449461ce2d895c73fee89c508921f324b9a838fdd6ed302459d1a8c4d365d0f
+  - path: src/evallab/insights/commands/status.py
+    digest: sha256:4252279688db93a5aa51b072881ea0a49297ec4e81f890adbd97a951bbf424b1
+  - path: src/evallab/insights/commands/tick.py
+    digest: sha256:b158b3d589910b64c524fc4c36285e99e0309d0926646333bc75a538083e9d71
+  - path: src/evallab/insights/commands/watch.py
+    digest: sha256:65777cdcd30df2e9f7a3c4c8d78bbce792f89675911e991fccdf198563256f27
+  - path: src/evallab/insights/config.py
+    digest: sha256:46975c0fbe7c814a49f534773fe6aeb44e2d0ed616e97f4d77f9f7fa6626ebc8
+  - path: src/evallab/insights/duplicates.py
+    digest: sha256:7dd59f2ca93626e0b28c0f53845a5370230505d52f662ff9828b01384174e34e
+  - path: src/evallab/insights/engine.py
+    digest: sha256:883cb43d522fe41527927aefedfaf75c8835d6f5d26629a1089f381a75802fd4
+  - path: src/evallab/insights/experiment.py
+    digest: sha256:49db5a8f7b4ee310c260fa12ca2010b12cff36c276336a3882d291754aaddc26
+  - path: src/evallab/insights/locate.py
+    digest: sha256:9a97fd8052cd0ea0a182bef1f5ab4b575118973c5f81a8a4794f9adc44f72ac8
+  - path: src/evallab/insights/models.py
+    digest: sha256:8227cd7e71cdfcf611848d3f8e908f652e0ef4ac14cb5d7a84d7be1c7a229f83
+  - path: src/evallab/insights/packs.py
+    digest: sha256:1ebbc5e7c650b07d2a2e03358305999fe241ce393db7f6a648ef4f751a65f7f8
+  - path: src/evallab/insights/recompute.py
+    digest: sha256:c17c4039a44c54708f070591f6d9eb8cc6545e8db8701008572fb96a3a1bc912
+  - path: src/evallab/insights/routes.py
+    digest: sha256:34f71da7e67f0ef0cf2bbd9f9defdd9a848520a3d91b3784e889c85f7992ca1d
+  - path: src/evallab/insights/runner.py
+    digest: sha256:618bc17d15ed864efcfbf56a8ddbc231fc73623f703ee72458740019b99f64b4
+  - path: src/evallab/insights/scope.py
+    digest: sha256:5102a663c253faf55fb2194c192827521fffbbdeb06f45bb2b86cffb525d1999
+  - path: src/evallab/insights/signals.py
+    digest: sha256:ead94238c29bc3d297f56a08f41efa5fbd09d2da81d895f94329ba1fd873b285
+  - path: src/evallab/insights/sources.py
+    digest: sha256:481cdab2881b7fd5634ee2852b73ebb26e3d4eb2ba4ec1164bc4cf9fdc7cbf44
+  - path: src/evallab/insights/stats.py
+    digest: sha256:1fd61fd73a90a9167e046f2afb21e7c93254a3607f0048b0b681ebf9f0ef3541
+  - path: src/evallab/insights/store.py
+    digest: sha256:de12e6d54ebd6577978cbc149839dd2bb17425f8262b2c4b268d6a75596329aa
+  - path: src/evallab/insights/units.py
+    digest: sha256:4a8a94bc8c0357450742c47ce21e3882b3c04db581a8cee80e9c2bd621df12c3
+  - path: src/evallab/insights/validity.py
+    digest: sha256:225960d18be3f707b13326e5eb92d1b1b7553b1094672b2972f186274726581c
   - path: src/evallab/inspect_adapter.py
     digest: sha256:72ab5c498c124b214507c27900166a15cb1ed3651df3dbf97d565f88b257df6d
   - path: src/evallab/instruction_explicit_rules.py
@@ -1592,6 +1668,44 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `host_task_staging` | 600 | Reusable host task staging for Darwin (Docker Desktop) execution lanes. | — |
 | `hub_trials` | 700 | Bounded, frozen TB4 Hub acquisition through Harbor's native read/download CLI. | `python -m evallab.hub_trials list`, `python -m evallab.hub_trials download`, `python -m evallab.hub_trials verify` |
 | `ingest_verify` | 500 | Ingest completeness verification and gap reconciliation (LOOP-INGEST). | — |
+| `insights` | 100 | Insight engine: always-on analysts over Eval Lab experiment results. | — |
+| `insights.agent_tool` | 500 | Read-only evidence commands available inside an insight pass. | `python -m evallab.insights.agent_tool source`, `python -m evallab.insights.agent_tool stat`, `python -m evallab.insights.agent_tool recipe`, `python -m evallab.insights.agent_tool schema`, `python -m evallab.insights.agent_tool locate`, `python -m evallab.insights.agent_tool sql`, `python -m evallab.insights.agent_tool validate`, `python -m evallab.insights.agent_tool kb` |
+| `insights.attribution` | 200 | Paired, per-case attribution for prevention and detection layers. | — |
+| `insights.board` | 600 | Plain-language, offline views of the checked insight ledger. | — |
+| `insights.check` | 500 | Deterministic evidence, arithmetic and unsupported-number checks. | — |
+| `insights.cli` | 100 | ``evallab insights`` command group. | — |
+| `insights.commands` | 100 | Subcommands of ``evallab insights``; each module exposes ``register(subparsers)``. | — |
+| `insights.commands._common` | 100 | Helpers shared by the integrator-owned ``evallab insights`` subcommands. | — |
+| `insights.commands.board` | 100 | Render the insight board without starting analyst workers. | — |
+| `insights.commands.experiment` | 100 | Analyze local experiment reports and receipts. | — |
+| `insights.commands.init` | 100 | Create the engine state directory with editable copies of the defaults. | — |
+| `insights.commands.query` | 100 | Read-only SQL over the ledger (the same guard the analysts' ``q sql`` uses). | — |
+| `insights.commands.review` | 100 | Record a named human's verdict on an insight (the only acceptance path). | — |
+| `insights.commands.run` | 100 | Start one lens pass now, ignoring cooldowns and daily caps. | — |
+| `insights.commands.scan` | 100 | Discover and index changed experiment evidence. | — |
+| `insights.commands.show` | 100 | Print one ledger record by id: claim (C-), insight (I-), signal (S-), pass (P-) or experiment. | — |
+| `insights.commands.signals` | 100 | Detect statistical leads and print the highest-priority open signals. | — |
+| `insights.commands.stat` | 100 | Expose deterministic statistics without a model call or database. | — |
+| `insights.commands.status` | 300 | Plain status of the engine: is it alive, what is each lens waiting for, what came out. | — |
+| `insights.commands.tick` | 100 | Run one scheduler tick (or show what it would start with ``--dry-run``). | — |
+| `insights.commands.watch` | 100 | Run the always-on engine loop (what the LaunchAgent starts). | — |
+| `insights.config` | 200 | Engine configuration: what to watch, how often each lens runs, which model. | — |
+| `insights.duplicates` | 100 | Deterministic text-neighbour and duplicate checks for insight cards. | — |
+| `insights.engine` | 2100 | The insight engine's scheduler: one ``tick`` moves every stage forward. | — |
+| `insights.experiment` | 1000 | One-folder analysis, combining receipt checks with optional analyst passes. | — |
+| `insights.locate` | 400 | Find where a claim's numbers live in an experiment's receipt files. | — |
+| `insights.models` | 700 | Durable contracts for the insight engine. | — |
+| `insights.packs` | 700 | Deterministic, bounded evidence packs and isolated worker directories. | — |
+| `insights.recompute` | 600 | Reproduce claims from bounded, experiment-local receipt files. | — |
+| `insights.routes` | 100 | Ordered route selection, with a plain explanation of every skipped route. | — |
+| `insights.runner` | 500 | Headless analyst processes, quota gates and served-model receipts. | — |
+| `insights.scope` | 200 | Worker read-scope defaults, prompt text and deterministic session audit. | — |
+| `insights.signals` | 600 | Conservative statistical leads, not extraction-QA errors or conclusions. | — |
+| `insights.sources` | 400 | Bounded source discovery, stable sections, and read-only mirror maintenance. | — |
+| `insights.stats` | 200 | Small deterministic statistics exposed to insight analysts. | — |
+| `insights.store` | 1200 | SQLite ledger for the insight engine. | — |
+| `insights.units` | 200 | Shared parsing and normalization for quantities in claims and analyst prose. | — |
+| `insights.validity` | 1000 | Deterministic receipt checks that never echo arbitrary receipt values. | — |
 | `inspect_adapter` | 1100 | Inspect AI EvalLog ingestion and normalization into Eval Lab's source evidence tables. | — |
 | `instruction_explicit_rules` | 100 | Opt-in explicit integrity rules for code instructions (``instruction-explicit-rules@1``). | — |
 | `integrity_reward` | 200 | Integrity-gated verifier reward for MiMo tasks (HAR-169, Data lane). | — |
@@ -2199,6 +2313,14 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `python -m evallab.hub_trials list` | `hub_trials` | List exact TB4 board rows, including effort and stable row UUID |
 | `python -m evallab.hub_trials download` | `hub_trials` | Freeze a filtered census and download original native evidence |
 | `python -m evallab.hub_trials verify` | `hub_trials` | Verify frozen selection and every recorded evidence hash offline |
+| `python -m evallab.insights.agent_tool source` | `insights.agent_tool` | — |
+| `python -m evallab.insights.agent_tool stat` | `insights.agent_tool` | — |
+| `python -m evallab.insights.agent_tool recipe` | `insights.agent_tool` | — |
+| `python -m evallab.insights.agent_tool schema` | `insights.agent_tool` | — |
+| `python -m evallab.insights.agent_tool locate` | `insights.agent_tool` | — |
+| `python -m evallab.insights.agent_tool sql` | `insights.agent_tool` | — |
+| `python -m evallab.insights.agent_tool validate` | `insights.agent_tool` | — |
+| `python -m evallab.insights.agent_tool kb` | `insights.agent_tool` | — |
 | `python -m evallab.ladder generate` | `ladder` | Expand a declared grid specification into ExperimentSpec files. |
 | `python -m evallab.ladder screen` | `ladder` | Staged difficulty screening and follow-up generation. |
 | `python -m evallab.ladder stage1` | `ladder` | Emit Stage 1 screening specs (k=1) across tasks and model levels. |
@@ -2281,8 +2403,8 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 
 | Name | Location | Written by |
 |---|---|---|
-| `derived root` | `derived/parquet/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `failure_library.commands.runs`, `failure_library.fixmine.hf`, `failure_library.loop.selection`, `failure_library.runs.ingest`, `failure_library.runs.io`, `failure_library.sources.constructed`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `readers.scout_clouddb`, `report`, `rl_rollouts`, `seeker.confine`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
-| `job partitions` | `derived/parquet/job_id=*/trial_id=*/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `failure_library.commands.runs`, `failure_library.fixmine.hf`, `failure_library.loop.selection`, `failure_library.runs.ingest`, `failure_library.runs.io`, `failure_library.sources.constructed`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `readers.scout_clouddb`, `report`, `rl_rollouts`, `seeker.confine`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
+| `derived root` | `derived/parquet/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `failure_library.commands.runs`, `failure_library.fixmine.hf`, `failure_library.loop.selection`, `failure_library.runs.ingest`, `failure_library.runs.io`, `failure_library.sources.constructed`, `fetch`, `ingest_verify`, `insights.validity`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `readers.scout_clouddb`, `report`, `rl_rollouts`, `seeker.confine`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
+| `job partitions` | `derived/parquet/job_id=*/trial_id=*/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `failure_library.commands.runs`, `failure_library.fixmine.hf`, `failure_library.loop.selection`, `failure_library.runs.ingest`, `failure_library.runs.io`, `failure_library.sources.constructed`, `fetch`, `ingest_verify`, `insights.validity`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `readers.scout_clouddb`, `report`, `rl_rollouts`, `seeker.confine`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
 | `acceptance_decisions.parquet` | `acceptance_decisions/acceptance_decisions.parquet` | `interpretation.trajectory_data_quality`, `interpretation.trajectory_runtime` |
 | `action_effects.parquet` | `derived/parquet/**/action_effects.parquet` | `evidence.atif` |
 | `action_transition_edges.parquet` | `derived/parquet/**/action_transition_edges.parquet` | `interpretation.trajectory_sequence` |

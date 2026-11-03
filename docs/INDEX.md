@@ -13,7 +13,7 @@ inputs:
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
-    digest: sha256:0315695b7caf1edb0ab6c4f73cc7c9223e4be51c8cdff092b501fe90f58abfd1
+    digest: sha256:03bc5743189a3e66a4fd8409cea1cb7c796aaf255494064d13c8df90f9d45910
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:742df2a44be3b41e3ab6d2d3805a9dadcf91c1c056fd488b5c34b211dd611b84
   - path: docs/SYSTEM.md
@@ -25,7 +25,7 @@ inputs:
   - path: docs/agent-profiles.md
     digest: sha256:25a39ca8addc9a13867db38340b7bd3606ca87b733a54dd0facb101d7ef8c5cc
   - path: docs/analysis-loop.md
-    digest: sha256:f10a4240346c2971f4c44cb72d5add5cd353d9a348935b0512d847cc0a90d64a
+    digest: sha256:e1d648a2490caf66bff6813ac1aedf0f5523522c2f8addecf5fc22a32f988c80
   - path: docs/analysis-worker.md
     digest: sha256:817b230e678b215bcccb20e1c1a1ab3a51ef055f3a52b00160f7efdd16674a01
   - path: docs/architecture.md
@@ -76,6 +76,8 @@ inputs:
     digest: sha256:cba8fe1c0e3885ac2bbaf365529c79c9e0370ca76cea90e66245e1601fb70f07
   - path: docs/independent-review.md
     digest: sha256:e8dd4ad2aa408375f6f74b17392f79efb18191b12751938be3d569102ec58fd0
+  - path: docs/insights.md
+    digest: sha256:b719f1f8720d23c58ded195e779a63b9fe8406135939be6e2c33f7d385e96f5f
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/judge-guide.md
@@ -286,6 +288,7 @@ an operator can see what is archived.
 | `docs/flight-recorder.md` | Flight recorder prototype | `living` | `builder, analyst, operator` |
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
 | `docs/harbor-view.md` | Harbor viewer as the results surface (HAR-170) | `living` | `operator, analyst` |
+| `docs/insights.md` | Insight engine: always-on analysts over experiment results | `living` | `analyst, operator` |
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
@@ -406,6 +409,7 @@ an operator can see what is archived.
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
 | `docs/harbor-view.md` | Harbor viewer as the results surface (HAR-170) | `living` | `operator, analyst` |
 | `docs/independent-review.md` | Independent PR review | `living` | `operator` |
+| `docs/insights.md` | Insight engine: always-on analysts over experiment results | `living` | `analyst, operator` |
 | `docs/judge-guide.md` | How to judge a run | `living` | `operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/line.md` | Eval Lab assembly line | `living` | `builder, analyst, runner, operator` |

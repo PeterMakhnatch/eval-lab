@@ -79,7 +79,7 @@ inputs:
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/judge-guide.md
-    digest: sha256:af56265840be6a01e92cf4ddfaef98e96f6f8a04ef3d3a6849bc3fe662ac3111
+    digest: sha256:8a2ebba1be10d2215e53a5005c87bddfcd15aeee9230c4e1cdb8985973d157ed
   - path: docs/ladder.md
     digest: sha256:c334944474b3cee6cd9b3eee2ae9c84fbb1ccb7e58ea31b70b6d6a9c523e6265
   - path: docs/lancedb.md

@@ -1520,6 +1520,14 @@ def _capital_sidecar(trial: Path) -> None:
     (trial / "Result.json").write_text(json.dumps({"split": "test"}), encoding="utf-8")
 
 
+def _agent_renamed_to_logs(trial: Path) -> Path:
+    """F4: the TEST trial keeps result.json, config.json and verifier/, but its agent folder is
+    called logs, and the row lists that folder."""
+    trial = trial.rename(trial.parent / "build-pmars__123")
+    (trial / "agent").rename(trial / "logs")
+    return trial / "logs"
+
+
 def _folder_in_subfolder(where: str) -> Any:
     """B2.2: list a folder inside a TEST trial, whose result.json would otherwise be skipped."""
 
@@ -1772,6 +1780,11 @@ ROUND4: dict[str, dict[str, Any]] = {
     },
     "folder-rollout-under-the-agent-folder-of-a-test-trial": {
         "mutate": _folder_in_subfolder("agent/sub"),
+        "test_ids": TEST_ID,
+        "why": "folder inside a trial",
+    },
+    "folder-rollout-in-a-test-trial-with-no-agent-folder-or-root-trajectory": {
+        "mutate": _agent_renamed_to_logs,
         "test_ids": TEST_ID,
         "why": "folder inside a trial",
     },

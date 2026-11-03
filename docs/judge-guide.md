@@ -205,12 +205,16 @@ uv run evallab judge export --out ~/judge-verdicts.csv
     case-insensitive disk would otherwise take `Agent` for `agent`), and `os.path.realpath(path)`
     equals the path, so there is no link anywhere on it (a row under macOS `/tmp` must say
     `/private/tmp`). Every check runs on that one path, so a link above it can hide nothing;
-  - it is a whole trial folder, or a single ATIF file, and never inside a trial: no ancestor is
-    named `agent` or `verifier` or holds an `agent` folder or a root `trajectory.json`, and for a
-    single file none holds `result.json`, `config.json`, `run.json` or `grade.json` either
-    (names compared case-insensitively; a folder rollout is not judged by sidecars because a job
-    folder above many trials may hold its own). A row cannot point inside a trial to skip its
-    sidecars;
+  - it is a whole trial folder, or a single ATIF file, and never inside a trial. A folder above
+    it is a trial, told from a job folder by shape (measured on 8,386 real jobs and 8,395 trials),
+    when it is named `agent` or `verifier`, holds `agent`, `verifier`, `trajectory.json`,
+    `final.diff` or `trial.log`, or holds a `result.json` (keys such as `trial_name`, `task_name`,
+    `verifier_result`), `config.json` (`trial_name`, `task`), `run.json` or `grade.json` with a
+    trial's keys, or one that cannot be read. A job folder's own `result.json` (`stats`,
+    `n_total_trials`) and `config.json` (`job_name`, `tasks`) do not make it a trial, so the trials
+    below it still admit. For a single file the check is stricter: any ancestor holding `agent`,
+    `verifier` or any of those four sidecars refuses (names compared case-insensitively). A row
+    cannot point inside a trial to skip its sidecars;
   - nothing inside is a symlink or a special file, and no file is a hard link to a file under
     `research/answer-keys` (published trials are hard-linked copies, so a link count alone cannot
     decide; a link into some other folder is caught by the checks that read the content below);

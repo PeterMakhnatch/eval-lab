@@ -15,11 +15,14 @@ list of known-bad tricks is needed:
 * every file inside is regular and is not a hard link to sealed material: published trials are
   themselves hard-linked copies (``st_nlink`` 2), so a link count cannot decide, but the inode
   of every file under the caller's sealed folders is known, and a match is refused;
-* a rollout is never inside a trial: no ancestor is ``agent``/``verifier`` or holds an ``agent``
-  folder or a root ``trajectory.json``, and for a single file none holds a sidecar either (a
-  folder rollout is not judged by sidecars: a job folder above many trials may hold its own), so
-  a row cannot point inside a trial to skip its sidecars. A directory is a whole trial. Files
-  are indexed by case-folded relative path, so ``Result.json`` is a sidecar too;
+* a rollout is never inside a trial. Trials are told from job folders by shape (``TRIAL_SHAPE``,
+  measured on the real Harbor results): an ancestor is a trial when it is named ``agent`` or
+  ``verifier``, holds ``agent``, ``verifier``, ``trajectory.json``, ``final.diff`` or
+  ``trial.log``, or holds a ``result.json``/``config.json``/``run.json``/``grade.json`` with a
+  trial's keys (or one that cannot be read). A job folder's own sidecars carry job keys, so the
+  trials below it still admit. A single file is stricter: any ancestor holding ``agent``,
+  ``verifier`` or any sidecar refuses. A directory is a whole trial. Files are indexed by
+  case-folded relative path, so ``Result.json`` is a sidecar too;
 * every trajectory and sidecar is read once, into memory, together with the hash of every file;
   the digest is checked on those same bytes and the parsed documents are what the caller serves,
   so nothing is read again after it is verified;
@@ -283,21 +286,56 @@ def _refuse_test_identity(registry: Any, names: Iterable[str], digests: Iterable
             raise AdmissionRefused("sealed task digest in registry")
 
 
-def _inside_a_trial(path: Path, *, sidecars: bool) -> bool:
-    """Whether any ancestor is a trial folder (``agent``/``verifier``) or holds a trial's
-    ``agent`` folder, compared case-insensitively. A single file is also inside a trial when an
-    ancestor holds the trial's sidecars; a folder rollout is judged instead by a root
-    ``trajectory.json`` in an ancestor, never by sidecars, because a job folder above many
-    trials may hold its own."""
-    markers = {"agent"} | (set(SIDECARS) if sidecars else {"trajectory.json"})
+# Real Harbor shapes (8,386 jobs and 8,395 trials under eval-lab-results): a trial's result.json
+# holds task_name/trial_name/trial_uri/agent_result/verifier_result and its config.json holds
+# trial_name/task; a job's result.json holds n_total_trials/stats and its config.json holds
+# job_name/tasks. A c1c5 run.json/grade.json holds task/case_id; a job-level run.json does not.
+TRIAL_SHAPE = {
+    "result.json": frozenset(
+        {"task_name", "trial_name", "trial_uri", "agent_result", "verifier_result"}
+    ),
+    "config.json": frozenset({"trial_name", "task"}),
+    "run.json": frozenset({"task", "case_id", "trial", "trial_id", "trial_name"}),
+    "grade.json": frozenset({"task", "case_id", "trial_id", "trial_name"}),
+}
+TRIAL_ONLY = frozenset({"agent", "verifier", "trajectory.json", "final.diff", "trial.log"})
+
+
+def _trial_shaped(folder: Path, listing: Mapping[str, str]) -> bool:
+    """Whether ``folder`` is a trial by shape: it holds a trial-only file or folder, or a sidecar
+    with a trial's keys. A sidecar that cannot be read counts as trial-shaped (fail closed)."""
+    if TRIAL_ONLY & listing.keys():
+        return True
+    for sidecar, keys in TRIAL_SHAPE.items():
+        if sidecar not in listing:
+            continue
+        try:
+            document = json.loads((folder / listing[sidecar]).read_bytes().decode("utf-8"))
+        except (OSError, ValueError, RecursionError):
+            return True
+        if not isinstance(document, Mapping) or keys & document.keys():
+            return True
+    return False
+
+
+def _inside_a_trial(path: Path, *, folder_rollout: bool) -> bool:
+    """Whether any ancestor of ``path`` is a trial, compared case-insensitively.
+
+    An ancestor named ``agent``/``verifier`` always is. A folder rollout is also inside a trial
+    when an ancestor is trial-shaped (a job folder above many trials is not: its own sidecars
+    have job keys). A single file is inside a trial when an ancestor holds ``agent``/``verifier``
+    or any sidecar, which is stricter because a file's own folder holds its sidecars."""
     for folder in path.parents:
         if canonical(folder.name) in TRIAL_FOLDERS:
             return True
         try:
-            listing = {canonical(name) for name in os.listdir(folder)}
+            listing = {canonical(name): name for name in os.listdir(folder)}
         except OSError:
             continue
-        if listing & markers:
+        if folder_rollout:
+            if _trial_shaped(folder, listing):
+                return True
+        elif listing.keys() & ({"agent", "verifier"} | set(SIDECARS)):
             return True
     return False
 
@@ -327,7 +365,7 @@ def admit_rollout(
     sidecars: list[tuple[Path, bytes]] = []
     diff_bytes: bytes | None = None
     if stat.S_ISDIR(top):
-        if canonical(root.name) in TRIAL_FOLDERS or _inside_a_trial(root, sidecars=False):
+        if canonical(root.name) in TRIAL_FOLDERS or _inside_a_trial(root, folder_rollout=True):
             raise AdmissionRefused(f"a folder inside a trial is not a trial: {root}")
         tree = _read_tree(root, sealed)
         kind, digest, names = "trial", tree.digest, names + tree.names
@@ -341,7 +379,7 @@ def admit_rollout(
         info = _lstat(root)
         if (info.st_dev, info.st_ino) in sealed:
             raise AdmissionRefused(f"hard link to sealed material: {root}")
-        if _inside_a_trial(root, sidecars=True):
+        if _inside_a_trial(root, folder_rollout=False):
             raise AdmissionRefused(f"a file inside a trial is not a rollout: {root}")
         data = root.read_bytes()
         kind, digest = "file", hashlib.sha256(data).hexdigest()

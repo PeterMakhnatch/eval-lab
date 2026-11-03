@@ -214,10 +214,82 @@ def test_a_folder_rollout_inside_a_trial_is_refused(tmp_path: Path, where: str) 
         ra.admit_rollout(str(folder), registry=Registry())
 
 
-def test_a_job_folder_holding_its_own_sidecars_above_a_trial_is_fine(tmp_path: Path) -> None:
+TRIAL_RESULT = {
+    "id": "x",
+    "task_name": "tb2/build-pmars",
+    "trial_name": "build-pmars__123",
+    "verifier_result": {"rewards": {"reward": 1.0}},
+    "split": "test",
+}
+TRIAL_CONFIG = {"task": {"path": "/x/build-pmars"}, "trial_name": "build-pmars__123"}
+JOB_RESULT = {"id": "j", "n_total_trials": 4, "stats": {"n_trials": 4}}
+JOB_CONFIG = {"job_name": "sweep", "jobs_dir": "/x", "tasks": [{"path": "/x/t"}], "agents": []}
+
+
+def _bare_trial(tmp: Path, *, verifier: bool = False, sidecars: dict | None = None) -> Path:
+    """A TEST trial with sidecars but no agent/ folder and no root trajectory.json (F1-F4)."""
+    trial = tmp / "build-pmars__123"
+    trial.mkdir()
+    for name, document in (sidecars if sidecars is not None else {}).items():
+        (trial / name).write_text(json.dumps(document), encoding="utf-8")
+    if verifier:
+        (trial / "verifier").mkdir()
+        (trial / "verifier" / "agent.diff").write_text("d\n", encoding="utf-8")
+    return trial
+
+
+@pytest.mark.parametrize(
+    ("name", "verifier", "sidecars", "where"),
+    [
+        ("F1-result", False, {"result.json": TRIAL_RESULT}, "logs"),
+        (
+            "F1-all-sidecars",
+            False,
+            {
+                "result.json": TRIAL_RESULT,
+                "config.json": TRIAL_CONFIG,
+                "run.json": {"task": "t"},
+                "grade.json": {"case_id": "c"},
+            },
+            "logs",
+        ),
+        ("F2-verifier", True, {"result.json": TRIAL_RESULT}, "logs"),
+        ("F2-verifier-only", True, {}, "logs"),
+        ("F3-nested-agent", False, {"result.json": TRIAL_RESULT}, "logs/agent"),
+        ("config-only", False, {"config.json": TRIAL_CONFIG}, "logs"),
+        ("unreadable-sidecar", False, {}, "logs"),
+    ],
+)
+def test_a_folder_in_a_trial_without_agent_or_trajectory_is_refused_by_shape(
+    tmp_path: Path, name: str, verifier: bool, sidecars: dict, where: str
+) -> None:
+    trial = _bare_trial(tmp_path, verifier=verifier, sidecars=sidecars)
+    if name == "unreadable-sidecar":
+        (trial / "result.json").write_text("{not json", encoding="utf-8")
+    folder = trial / where
+    folder.mkdir(parents=True)
+    (folder / "trajectory.json").write_text(json.dumps({"steps": []}), encoding="utf-8")
+    with pytest.raises(ra.AdmissionRefused, match="folder inside a trial"):
+        ra.admit_rollout(str(folder), registry=Registry())
+
+
+def test_a_job_folder_with_job_shaped_sidecars_above_trials_still_admits_them(
+    tmp_path: Path,
+) -> None:
     job = tmp_path / "job"
     job.mkdir()
-    (job / "result.json").write_text(json.dumps({"stats": {}}), encoding="utf-8")
-    (job / "config.json").write_text(json.dumps({"n": 1}), encoding="utf-8")
+    (job / "result.json").write_text(json.dumps(JOB_RESULT), encoding="utf-8")
+    (job / "config.json").write_text(json.dumps(JOB_CONFIG), encoding="utf-8")
+    (job / "run.json").write_text(json.dumps({"run_id": "r", "invocations": []}), encoding="utf-8")
+    (job / "job.log").write_text("log\n", encoding="utf-8")
     trial = _trial(job)
     assert ra.admit_rollout(str(trial), registry=Registry()).kind == "trial"
+
+
+def test_a_job_folder_with_a_trial_shaped_result_is_not_a_job(tmp_path: Path) -> None:
+    """The shape decides, not the file name: a result.json with a trial's keys makes a trial."""
+    job = tmp_path / "job"
+    job.mkdir()
+    (job / "result.json").write_text(json.dumps({"trial_name": "t"}), encoding="utf-8")
+    with pytest.raises(ra.AdmissionRefused, match="folder inside a trial"):
+        ra.admit_rollout(str(_trial(job)), registry=Registry())

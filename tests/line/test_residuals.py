@@ -525,3 +525,62 @@ def test_a_declared_input_swapped_for_a_symlink_fails_provenance(fixture_spec: P
     labels.symlink_to(copy)  # same bytes, but the descriptor read refuses the link
     result = _check(batch, fixture_spec.parent, "provenance")
     assert result["status"] == "FAIL"
+
+
+# ---- scoreboard schema versions -------------------------------------------------------------
+
+
+def _as_version_1(batch: Path) -> None:
+    """Rewrite a scoreboard into the shape batches had before it carried a version."""
+    path = batch / "scoreboard.json"
+    board = read_json(path)
+    del board["schema_version"], board["autoreview"]
+    write_json(path, board)
+
+
+def test_a_batch_with_the_pre_versioning_scoreboard_still_passes_check(
+    fixture_spec: Path,
+) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    assert read_json(batch / "scoreboard.json")["schema_version"] == 2
+    _as_version_1(batch)
+    assert core.check_batch(batch, fixture_spec.parent)["passed"]
+
+
+def test_a_pre_versioning_scoreboard_is_still_compared_on_its_counted_fields(
+    fixture_spec: Path,
+) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    _as_version_1(batch)
+    board = read_json(batch / "scoreboard.json")
+    board["judge_load"]["review"] += 1
+    write_json(batch / "scoreboard.json", board)
+    result = _check(batch, fixture_spec.parent, "scoreboard_recompute")
+    assert result["status"] == "FAIL" and "differs" in result["details"]
+
+
+def test_a_scoreboard_newer_than_this_code_is_refused_plainly(fixture_spec: Path) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    board = read_json(batch / "scoreboard.json")
+    board["schema_version"] = 3
+    write_json(batch / "scoreboard.json", board)
+    result = _check(batch, fixture_spec.parent, "scoreboard_recompute")
+    assert result["status"] == "FAIL" and "newer line" in result["details"]
+
+
+def test_downgrading_the_version_does_not_hide_a_current_scoreboard_section(
+    fixture_spec: Path,
+) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    board = read_json(batch / "scoreboard.json")
+    board["schema_version"] = 1  # claims the old shape but still carries the new section
+    write_json(batch / "scoreboard.json", board)
+    assert _check(batch, fixture_spec.parent, "scoreboard_recompute")["status"] == "FAIL"
+
+
+def test_a_pre_versioning_scoreboard_renders_without_the_new_section(fixture_spec: Path) -> None:
+    from evallab.line.scoreboard import render_scoreboard
+
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    _as_version_1(batch)
+    assert "autoreview_cache_misses" not in render_scoreboard(read_json(batch / "scoreboard.json"))

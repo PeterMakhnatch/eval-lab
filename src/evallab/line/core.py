@@ -793,7 +793,7 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
 
 def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
     """Re-derive all eight gates; any missing/corrupt evidence fails closed."""
-    from evallab.line.scoreboard import build_scoreboard
+    from evallab.line.scoreboard import build_scoreboard, stored_version
 
     checks = []
     previous = read_json(batch / "check.json") if (batch / "check.json").is_file() else {}
@@ -1091,8 +1091,10 @@ def check_batch(batch: Path, repo_root: Path) -> dict[str, Any]:
     gate("label_isolation", isolation)
 
     def scoreboard() -> None:
+        stored = read_json(batch / "scoreboard.json")
+        version = stored_version(stored)  # refuses a version newer than this code reads
         require(
-            read_json(batch / "scoreboard.json") == build_scoreboard(batch, repo_root),
+            stored == build_scoreboard(batch, repo_root, version),
             "scoreboard differs from recomputation",
         )
 

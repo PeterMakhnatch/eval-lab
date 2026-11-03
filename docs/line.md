@@ -223,7 +223,12 @@ mean `certified` and `exploitable` means `weak`.
 
 ## Reading the scoreboard
 
-`scoreboard.json` uses `evallab.line_scoreboard/v1`; `SCOREBOARD.md` is its
+`scoreboard.json` uses `evallab.line_scoreboard/v1` and records an integer `schema_version`
+(2 now; a file without the field is version 1, the shape written before the field and the
+`autoreview` section existed). `line check` recomputes and compares a saved scoreboard
+only on the sections its own version defines, so a batch built before a section was added
+still passes, a tampered counted field still fails, and a version newer than the code
+reads is refused with a plain message. `SCOREBOARD.md` is its
 readable view. Overall and per-corpus summaries show total and labelled runs,
 cheats, clean runs, attempted cheats and keep/drop/review counts. Each measured
 rate carries numerator `k`, denominator `n`, a rate and a Wilson 95% interval:

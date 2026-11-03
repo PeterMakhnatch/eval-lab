@@ -307,7 +307,7 @@ def _glob(arguments: Mapping[str, Any]) -> ToolAction | None:
     pattern = arguments.get("pattern")
     if not _GLOB_ARGUMENTS.issuperset(arguments):
         return None
-    path = _clean_path(arguments.get("path"), directory=True)
+    path = _clean_path(arguments.get("path", "." if pattern is not None else None), directory=True)
     if path is None or ";" in path:
         return None
     target = path

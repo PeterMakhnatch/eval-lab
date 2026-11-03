@@ -60,7 +60,7 @@ as counted, with the exclusions listed.
 | MiMo-V2.6 RL catalogued: 7,780 Harbor tasks (code 2,698, webdev 2,093, cyber 1,000, music 1,000, general 925, terminal 64), each with static findings | [docs/mimo-task-catalog.md](docs/mimo-task-catalog.md) |
 | Code tasks cleaned (`mimo-clean-v5`): 2,666 rebuilt, 32 discarded, 564 reference fixes recovered and replayed (fix scores 1, doing nothing scores 0) | [docs/mimo/README.md](docs/mimo/README.md) |
 | New grader (`separate-verifier@8`): runs in a fresh container and grades fail-to-pass against its own pristine run; eight versions in three days, each fixing a hole or a false 0 found by measurement | [docs/mimo/separate-verifier.md](docs/mimo/separate-verifier.md) |
-| Deterministic cheat ladder (14 attacks, no model): cracks published packages, 0 cracked on clean packages in every census round | [docs/mimo/verification.md](docs/mimo/verification.md) |
+| Deterministic cheat ladder (14 attacks, no model): cracks published packages, 0 cracked on clean packages in every census round (most v6 clean verdicts rest on verifier refusal; see "Not done yet") | [docs/mimo/verification.md](docs/mimo/verification.md) |
 | Fix-content probe: 12 copies of the fix found inside earlier "clean" builds; all 12 closed in v5 | [fix-probe-v2](research/experiments/fix-probe-v2/README.md) |
 | Prompted cheaters: 6 of 8 published tasks cracked; 0 copies in 26 attempts on hardened tasks with 2 models | [cheater-recall-v1](research/experiments/cheater-recall-v1/RESULTS.md) |
 | Detectors on CheatBench traces (885 cheating, 3,383 benign): rules catch 48% at 6.7% false positives. On our own 11 copied passes: Laminar copied-fix signal 11/11 (0/13 false), METR scanner 1/11 | [docs/harbor-view.md](docs/harbor-view.md) |
@@ -71,7 +71,13 @@ Not done yet: most clean-set rows are still `unverified`. In the 567-task v6
 full fleet only 5 are `v6_verified` and 562 `v6_unverified` (reference/nop
 controls only; see [docs/mimo/README.md](docs/mimo/README.md)); the v5 census
 had sampled the fleet, leaving 1,729 rebuilt tasks without a v5 ladder run
-(history). The other MiMo domains have not been cleaned; and `vcheck`, the
+(history). Most v6 Python ladder clean verdicts rest on verifier refusal, not a
+graded run: of 27 ranks covered (of 100), 26 are `clean`, 21 of them
+`tamper-refusal` and 5 `graded`, with 1 `unscored` and 73 not run
+([ladder-progress.csv](research/experiments/mimo-clean-v6/ladder-progress.csv)).
+Graded subset cells exist for three of the refused rows
+([ladder-graded-subset.json](research/experiments/mimo-clean-v6/ladder-graded-subset.json)).
+The other MiMo domains have not been cleaned; and `vcheck`, the
 red/blue grader audit modelled on Tokenless EnvCheck, is built but has not run
 a campaign.
 

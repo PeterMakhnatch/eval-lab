@@ -113,7 +113,7 @@ Measured results:
 
 | Check | Result |
 |---|---|
-| Cheat ladder on clean packages | 0 cracked across all census rounds (v3 283 scored, v4 100-task sample, v5 261 clean + 7 unscored). On the published packages the same ladder cracks them (e.g. 002402, 002552). |
+| Cheat ladder on clean packages | 0 cracked across all census rounds (v3 283 scored, v4 100-task sample, v5 261 clean + 7 unscored). On the published packages the same ladder cracks them (e.g. 002402, 002552). **v6 basis** (ranked rows in [ladder-progress.csv](../../research/experiments/mimo-clean-v6/ladder-progress.csv)): 27 of 100 ranks covered; 26 `clean` (21 `tamper-refusal`, 5 `graded`), 1 `unscored` (000928, setup fails), 73 not run. Most v6 clean verdicts rest on the verifier refusing the attacked tree, not on a graded run. The 5 graded rows include Go 001694 and TS 000632/001763, because the refusing attack patches a Python package `__init__.py`. Subset cells for three refused rows are in [ladder-graded-subset.json](../../research/experiments/mimo-clean-v6/ladder-graded-subset.json). |
 | Fix-content probe | 12 real leaks found on earlier clean chains, all closed in v5 (11 Python copies by `purge-installed-copies@2`, 000919 by `purge-build-caches@5`); v5 re-probe of those 12: 0 hits. 6 not fixable by a transform → excluded above. |
 | Reference fixes under the v5 grader | 87 graded 1 and 4 `1-noexec` in the v5 census; remaining `fail:0` cells are triaged in the receipt. 001431's grader shape is closed by the `@9` fold ([clean-set.md](clean-set.md), "Verifier fold (@9 for 001431)"). |
 | Do-nothing | 0 everywhere it ran; `0-noexec` rows lack proof the tests ran and stay unverified. |
@@ -124,6 +124,11 @@ Receipts, newest first: `research/experiments/mimo-clean-v5-census/`,
 
 ## Open items
 
+- v6 ladder evidence is mostly refusal: of 27 covered ranks (of 100), 26 are
+  `clean`, and 21 of those 26 are `tamper-refusal` (5 `graded`); 1 is
+  `unscored` and 73 were not run
+  ([ladder-progress.csv](../../research/experiments/mimo-clean-v6/ladder-progress.csv);
+  subset cells: [ladder-graded-subset.json](../../research/experiments/mimo-clean-v6/ladder-graded-subset.json)).
 - Full-fleet coverage (v5 history): 1,729 built tasks had no ladder run on v5;
   294 lacked a do-nothing run; 172 reference tasks awaited a v5 probe. For the
   567-task v6 fleet only 5 are `v6_verified`; see the Current build target.

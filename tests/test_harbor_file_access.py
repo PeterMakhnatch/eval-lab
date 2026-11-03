@@ -1095,16 +1095,6 @@ def test_final_drain_loss_is_recorded_in_the_coverage_reason(
     assert fragment in _terminal(records)["reason"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "OPEN SOURCE DEFECT: _final_drain only appends a detail when a final chunk "
-        "listing or download fails, and _terminal_state does not treat that as "
-        "degraded, so a complete capture-status.json lets lost events end `stopped`. "
-        "The fix is a src change outside this tests-only card; strict xfail so the "
-        "suite fails the moment the state degrades."
-    ),
-)
 @pytest.mark.parametrize("scenario", [_listing_loss, _chunk_loss], ids=["listing", "chunk"])
 def test_final_drain_loss_is_never_clean(
     tmp_path: Path, monkeypatch: Any, scenario: Callable[[], tuple[FakeEnv, str]]
@@ -1642,17 +1632,6 @@ def test_unbindable_trial_does_not_break_trial_setup() -> None:
     assert len(job._trial_queue.trials) == 1  # the original setup still ran
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "OPEN SOURCE DEFECT: when _bind_trial raises (no hook registry or no lifecycle "
-        "hooks) on_job_start swallows it and nothing records the trial, so it gets no "
-        "coverage record although the module docstring promises every trial at least one, "
-        "`unavailable` when setup fails. The fix is a src change outside this tests-only "
-        "card; strict xfail so the suite fails the moment the record appears."
-    ),
-)
 def test_unbindable_trial_with_capture_enabled_records_unavailable(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
@@ -1833,16 +1812,6 @@ def test_consolidation_orders_dedupes_and_counts_unparseable_lines(tmp_path: Pat
     assert (trial_dir / "agent" / "file-access.jsonl").read_text(encoding="utf-8") == text
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "OPEN SOURCE DEFECT: _consolidate_trial counts skipped malformed lines in its "
-        "reason but still writes state `stopped`, and a fragment that cannot be read "
-        "(OSError) is dropped without any count, so lost records end clean. The fix is "
-        "a src change outside this tests-only card; strict xfail so the suite fails "
-        "the moment consolidation reports `partial`/`unavailable`."
-    ),
-)
 @pytest.mark.parametrize("loss", ["malformed-line", "unreadable-fragment"])
 def test_consolidation_that_loses_records_is_never_clean(tmp_path: Path, loss: str) -> None:
     trial_dir = tmp_path / TRIAL_NAME

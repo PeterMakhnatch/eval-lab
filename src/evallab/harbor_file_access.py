@@ -23,7 +23,8 @@ Lifecycle per agent window (multi-step trials repeat it per agent phase):
    records, append everything, and remove the sandbox scratch directory.
 4. ``END``/``CANCEL`` (plus job end): backstops that close a still-open
    window, clean up, and consolidate any step-relocated fragments back into
-   the root per-trial log, so no sandbox observer or host task is orphaned
+   the root per-trial log (a lossy merge degrades rather than ends clean),
+   so no sandbox observer or host task is orphaned
    on failure or cancellation and no window is lost to log relocation.
 
 The plugin needs the actual ``Trial`` (hook events carry no environment), so
@@ -136,6 +137,9 @@ class _Window:
     loss_unmount: bool = False
     stream_truncated: bool = False
     poll_notes: list[str] = field(default_factory=list)
+    #: A final-drain gap (listing or chunk download failure) means events may
+    #: be lost even when capture-status.json reports a complete capture.
+    drain_incomplete: bool = False
 
 
 class FileAccessPlugin:
@@ -181,8 +185,10 @@ class FileAccessPlugin:
 
             def setup_with_file_access(trial: Any) -> None:
                 setup(trial)
-                with contextlib.suppress(Exception):
+                try:
                     plugin._bind_trial(trial)
+                except Exception as exc:  # noqa: BLE001
+                    plugin._record_unbindable(trial, exc)
 
             queue._setup_hooks = setup_with_file_access
         except Exception:
@@ -240,6 +246,32 @@ class FileAccessPlugin:
         # The bound Trial object is stashed per trial name at bind time; hook
         # events themselves carry no environment.
         return getattr(self, "_trials", {}).get(event.trial_name)
+
+    def _record_unbindable(self, trial: Any, error: Exception) -> None:
+        """Record coverage for a trial whose hooks could not be bound.
+
+        Binding failure means no lifecycle events ever reach this plugin, so
+        the record is written at bind time from the trial's own config --
+        waiting for a hook event would write nothing at all.
+        """
+        config = getattr(trial, "config", None)
+        name = getattr(config, "trial_name", None)
+        trials_dir = getattr(config, "trials_dir", None)
+        if not name or not trials_dir:
+            return
+        trial_dir = Path(str(trials_dir)) / str(name)
+        self._seen[f"setup-{name}"] = (str(name), trial_dir)
+        with contextlib.suppress(Exception):
+            self._append(
+                trial_dir,
+                [
+                    coverage_record(
+                        window_id=0,
+                        state="unavailable" if self.enabled else "disabled",
+                        reason=f"trial hooks could not be bound: {error}",
+                    )
+                ],
+            )
 
     # -- Hook handlers ----------------------------------------------------
     async def _on_trial_started(self, event: Any) -> None:
@@ -714,6 +746,7 @@ class FileAccessPlugin:
             or status.get("overflow_seen")
             or status.get("truncated")
             or window.poll_notes
+            or window.drain_incomplete
             or window.loss_mode != "explicit"
             or bool(status.get("watch_errors"))
             or status.get("state") != "complete"
@@ -921,6 +954,7 @@ class FileAccessPlugin:
             names = await self._list_chunks(env, window)
         except Exception as exc:  # noqa: BLE001
             details.append(f"final chunk listing failed: {exc}")
+            window.drain_incomplete = True
             names = []
         records: list[dict[str, Any]] = []
         for name in names:
@@ -932,6 +966,7 @@ class FileAccessPlugin:
                 )
             except Exception as exc:  # noqa: BLE001
                 details.append(f"final chunk {name} missed: {exc}")
+                window.drain_incomplete = True
                 continue
             window.seen_chunks.add(name)
             records.extend(self._ingest(window, data))
@@ -1009,7 +1044,9 @@ class FileAccessPlugin:
         consolidation the root log would retain only the last window. Fragments
         merge in ``(window_id, observed_at)`` order with byte-identical lines
         deduplicated (resume steps copy rather than move); malformed lines are
-        counted and skipped, never interpolated. A no-fragment trial is a
+        counted and skipped, never interpolated, and a source that cannot be
+        read is counted too. Any lost record degrades the summary -- a merge
+        that dropped content never ends ``stopped``. A no-fragment trial is a
         no-op with no extra record.
         """
         _ = trial_name
@@ -1027,11 +1064,16 @@ class FileAccessPlugin:
         seen_lines: set[str] = set()
         duplicates = 0
         malformed = 0
+        unreadable = 0
         sources = [trial_dir / FILE_ACCESS_LOG, *fragments]
         for source in sources:
             try:
                 text = source.read_text(encoding="utf-8")
             except OSError:
+                # An absent root log is expected (multi-step relocation moves
+                # it aside); anything else unreadable is lost records.
+                if source != sources[0] or source.exists():
+                    unreadable += 1
                 continue
             for line in text.splitlines():
                 if not line.strip():
@@ -1060,17 +1102,22 @@ class FileAccessPlugin:
         root.parent.mkdir(parents=True, exist_ok=True)
         root.write_text("".join(line + "\n" for _, line in merged), encoding="utf-8")
         top_window = self._counters.get(key, 1)
+        lost = malformed + unreadable
+        state = "unavailable" if lost and not merged else "partial" if lost else "stopped"
+        reason = (
+            f"consolidated {len(fragments)} relocated step fragment(s): "
+            f"{duplicates} duplicate line(s) dropped, "
+            f"{malformed} malformed line(s) skipped"
+        )
+        if unreadable:
+            reason += f", {unreadable} unreadable source(s) lost"
         self._append(
             trial_dir,
             [
                 coverage_record(
                     window_id=top_window,
-                    state="stopped",
-                    reason=(
-                        f"consolidated {len(fragments)} relocated step fragment(s): "
-                        f"{duplicates} duplicate line(s) dropped, "
-                        f"{malformed} malformed line(s) skipped"
-                    ),
+                    state=state,
+                    reason=reason,
                 )
             ],
         )

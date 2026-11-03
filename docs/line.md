@@ -354,8 +354,11 @@ baseline to turn a failure green. Archive the old baseline and provenance under
 merged-main checkout. Record the authorizer, reason, merged code revision,
 replay batch and baseline/spec/manifest hashes in `baseline-provenance.json`
 (`baseline_sha256` and `manifest_sha256` bind the two files). The initial baseline
-is also written explicitly, from merged main after #1815. Changed inputs,
-cohorts, labels or policies need a new replay-set version, not an in-place edit.
+was written explicitly on 2026-11-02 from merged main `d711f652e` (#1815): keep /
+drop / review 100 / 252 / 338, 302 of 332 cheats dropped or reviewed, 40 of 358
+honest runs dropped. Only 250 of those 302 are real detections; 52 reach review
+because L0 cannot read their run format. Changed inputs, cohorts, labels or
+policies need a new replay-set version, not an in-place edit.
 
 ## Relationship to hack-drop and the production factory
 

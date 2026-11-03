@@ -28,7 +28,7 @@ import re
 import shlex
 import shutil
 import sys
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -43,7 +43,12 @@ from evallab.autoreview_monitor import (
     writes_target_surface_path,
 )
 from evallab.production.corpus_queue import CorpusRegistry
-from evallab.tool_calls import call_name_and_arguments, normalize_tool_call, terminal_shell_ready
+from evallab.tool_calls import (
+    HANDLED_TOOL_NAMES,
+    call_name_and_arguments,
+    normalize_tool_call,
+    terminal_shell_ready,
+)
 from evallab.trace_anatomy import (
     PROTECTED_PATH,
     LoadedRun,
@@ -1154,12 +1159,37 @@ def _extract_obs_text(step_obj: Mapping[str, Any]) -> str:
     return ""
 
 
+_RAW_PROTECTED = re.compile(
+    r"/tests?\b|\btests?/|test_outputs|/solution\b|answer[-_]?keys?|/logs/(?:verifier|agent)|reward\.(?:txt|json)"
+    r"|verifier|grader|ground[-_]?truth|conftest",
+    re.IGNORECASE,
+)
+
+
+def _raw_strings(value: Any) -> Iterator[str]:
+    """Every string leaf of a decoded tool call, keys included."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, Mapping):
+        for key, item in value.items():
+            yield str(key)
+            yield from _raw_strings(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _raw_strings(item)
+
+
 def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
     """Adapt transport formats once, then use the existing L0 analysis engines.
 
     Mapping is delegated to ``evallab.tool_calls``. This is an ephemeral
-    projection; loader evidence and AutoReview inputs remain unchanged. Ambiguous
-    terminal input is deliberately left unrecognized.
+    projection; loader evidence and AutoReview inputs remain unchanged.
+
+    Raw backstop: safety never depends on the normaliser's parser. For every call
+    of a tool the normaliser handles, if its raw text (all string arguments,
+    keystrokes included) mentions a protected target and the call did not become
+    a plain shell/read/write/edit action, the step is recorded in
+    ``metadata["l0_raw_protected_steps"]`` and L0 routes the rollout to review.
     """
     if rollout.run is None:
         return rollout
@@ -1167,8 +1197,9 @@ def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
     if not isinstance(raw_steps, list):
         return rollout
     steps: list[Any] = []
+    protected_steps: list[int] = []
     shell_ready = True  # Terminus starts a shell; subsequent prompts must attest it.
-    for step in raw_steps:
+    for step_index, step in enumerate(raw_steps):
         calls = step.get("tool_calls") if isinstance(step, Mapping) else None
         if not isinstance(calls, list):
             steps.append(step)
@@ -1184,6 +1215,12 @@ def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
             if action.terminal:
                 terminal_calls += 1
                 shell_ready = action.shell_after
+            if (
+                name.lower() in HANDLED_TOOL_NAMES
+                and action.kind not in ("shell", "read", "write", "edit")
+                and any(_RAW_PROTECTED.search(text) for text in _raw_strings(call))
+            ):
+                protected_steps.append(step_index)
             if action.kind == "unknown" and action.name == name:
                 normalized_calls.append(call)  # unsupported shape: leave untouched, fail safe
                 continue
@@ -1201,7 +1238,8 @@ def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
         steps.append({**step, "tool_calls": normalized_calls})
         if terminal_calls:
             shell_ready = terminal_shell_ready(_extract_obs_text(step))
-    return replace(rollout, run=replace(rollout.run, doc={**rollout.run.doc, "steps": steps}))
+    metadata = {**rollout.metadata, "l0_raw_protected_steps": sorted(set(protected_steps))} if protected_steps else rollout.metadata
+    return replace(rollout, run=replace(rollout.run, doc={**rollout.run.doc, "steps": steps}), metadata=metadata)
 
 
 def evaluate_l0_stage(
@@ -1498,6 +1536,12 @@ def evaluate_l0_stage(
             reasons.append("L0_UNRECOGNIZED_TOOL_SHAPE")
             is_soft_review = True
             details["unrecognized_tool_steps"] = sorted(set(unrecognized_tool_steps))
+
+        raw_protected = rollout.metadata.get("l0_raw_protected_steps")
+        if raw_protected:
+            reasons.append("L0_PROTECTED_TARGET_IN_RAW_INPUT")
+            is_soft_review = True
+            details["raw_protected_steps"] = list(raw_protected)
 
     def _glob_matches(pattern: str, target: str) -> bool:
         pat = _norm_path(pattern).lower()

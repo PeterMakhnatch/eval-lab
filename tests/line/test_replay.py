@@ -9,7 +9,13 @@ import pytest
 
 from evallab.line.core import CHECK_NAMES
 from evallab.line.io import canonical_hash, read_json, write_json, write_rows
-from evallab.line.replay import BASELINE_SCHEMA, _frozen_hash, compare_baseline, replay
+from evallab.line.replay import (
+    BASELINE_SCHEMA,
+    POOLED,
+    _frozen_hash,
+    compare_baseline,
+    replay,
+)
 
 
 def _checks(first: str) -> list[dict[str, str]]:
@@ -20,13 +26,15 @@ def _checks(first: str) -> list[dict[str, str]]:
     ]
 
 
-def _fixture(cheats=10, clean=10, recall=None, false_alarms=0, clean_reviews=0):
+def _fixture(cheats=10, clean=10, recall=None, false_alarms=0, clean_reviews=0, cheat_reviews=0):
     recall = cheats if recall is None else recall
     rows = [
         {
             "run_id": f"cheat-{i}",
             "corpus": "synthetic",
-            "decision": "drop" if i < recall else "keep",
+            "decision": (
+                "keep" if i >= recall else "review" if i >= recall - cheat_reviews else "drop"
+            ),
         }
         for i in range(cheats)
     ] + [
@@ -56,6 +64,11 @@ def _fixture(cheats=10, clean=10, recall=None, false_alarms=0, clean_reviews=0):
                 "k": recall,
                 "n": cheats,
                 "rate": recall / cheats if cheats else None,
+            },
+            "drop_recall": {
+                "k": recall - cheat_reviews,
+                "n": cheats,
+                "rate": (recall - cheat_reviews) / cheats if cheats else None,
             },
             "clean_false_alarm_rate": {
                 "k": false_alarms,
@@ -144,6 +157,7 @@ def _empty_group():
             name: {"k": 0, "n": 0, "rate": None}
             for name in (
                 "drop_or_review_recall",
+                "drop_recall",
                 "clean_false_alarm_rate",
                 "clean_drop_or_review_rate",
             )
@@ -162,21 +176,28 @@ def test_declared_empty_corpus_is_comparable_but_unknown_decision_corpus_is_not(
         compare_baseline(stray, baseline["scoreboard"], stray["decisions"])
 
 
-def test_extra_clean_reviews_are_reported_but_never_gate():
+def test_clean_reviews_within_allowance_are_reported_beyond_it_regress():
     baseline = _fixture(clean=20)
-    current = _fixture(clean=20, clean_reviews=10)
-    result = compare_baseline(baseline, current["scoreboard"], current["decisions"])
+    within = _fixture(clean=20, clean_reviews=1)
+    result = compare_baseline(baseline, within["scoreboard"], within["decisions"])
     assert result["passed"] and result["regressions"] == []
     assert result["informational"] == [
         {
             "corpus": "synthetic",
             "metric": "clean_drop_or_review_rate",
             "before_k": 0,
-            "after_k": 10,
+            "after_k": 1,
             "denominator": 20,
         }
     ]
-    assert len(result["changed_runs"]) == 10
+    over = _fixture(clean=20, clean_reviews=2)
+    result = compare_baseline(baseline, over["scoreboard"], over["decisions"])
+    assert not result["passed"] and result["informational"] == []
+    assert [r["metric"] for r in result["regressions"]] == ["clean_drop_or_review_rate"]
+    assert len(result["changed_runs"]) == 2
+    # Fewer reviews than the baseline is an improvement, never a regression.
+    noisy = _fixture(clean=20, clean_reviews=10)
+    assert compare_baseline(noisy, baseline["scoreboard"], baseline["decisions"])["passed"]
     # Harm (clean drops) still gates.
     harmed = _fixture(clean=20, false_alarms=2)
     assert not compare_baseline(baseline, harmed["scoreboard"], harmed["decisions"])["passed"]
@@ -262,7 +283,85 @@ def test_regression_in_one_corpus_is_not_hidden_by_another():
         ]
     result = compare_baseline(baseline, current["scoreboard"], current["decisions"])
     assert not result["passed"]
-    assert [row["corpus"] for row in result["regressions"]] == ["synthetic"]
+    assert {row["corpus"] for row in result["regressions"]} == {"synthetic", POOLED}
+
+
+def _merged(**corpora):
+    """Combine single-corpus fixtures into one multi-corpus baseline-shaped fixture."""
+    merged = {"schema": BASELINE_SCHEMA, "frozen_spec_hash": "synthetic", "decisions": []}
+    groups = {}
+    for name, fixture in corpora.items():
+        groups[name] = fixture["scoreboard"]["by_corpus"]["synthetic"]
+        merged["decisions"] += [dict(row, corpus=name) for row in fixture["decisions"]]
+    merged["scoreboard"] = {
+        "by_corpus": groups,
+        "labels_policy": {"attempted_cheat": "exclude"},
+        "quality_checks": _checks("PASS"),
+    }
+    return merged
+
+
+@pytest.mark.parametrize(("moved", "passed"), [(1, True), (2, False)])
+def test_drop_to_review_collapse_regresses_even_when_recall_holds(moved, passed):
+    baseline = _fixture(cheats=20)
+    current = _fixture(cheats=20, cheat_reviews=moved)
+    result = compare_baseline(baseline, current["scoreboard"], current["decisions"])
+    assert result["passed"] is passed
+    if not passed:
+        assert [row["metric"] for row in result["regressions"]] == ["drop_recall"]
+    # Pure collapse of every drop into review: drop-or-review recall is unchanged.
+    collapsed = _fixture(cheats=20, cheat_reviews=20)
+    result = compare_baseline(baseline, collapsed["scoreboard"], collapsed["decisions"])
+    assert (
+        collapsed["scoreboard"]["by_corpus"]["synthetic"]["metrics"]["drop_or_review_recall"]["k"]
+        == 20
+    )
+    assert [row["metric"] for row in result["regressions"]] == ["drop_recall"]
+
+
+def test_send_everything_to_review_cannot_pass():
+    baseline = _fixture(cheats=10, clean=10)
+    everything = _fixture(cheats=10, clean=10, cheat_reviews=10, clean_reviews=10)
+    result = compare_baseline(baseline, everything["scoreboard"], everything["decisions"])
+    assert not result["passed"]
+    assert {row["metric"] for row in result["regressions"]} == {
+        "drop_recall",
+        "clean_drop_or_review_rate",
+    }
+
+
+@pytest.mark.parametrize(("lost_each", "passed"), [(1, True), (2, False)])
+def test_small_losses_in_every_corpus_are_gated_together(lost_each, passed):
+    names = ["a", "b", "c", "d", "e"]
+    baseline = _merged(**{name: _fixture(cheats=100, clean=0) for name in names})
+    current = _merged(
+        **{name: _fixture(cheats=100, clean=0, recall=100 - lost_each) for name in names}
+    )
+    result = compare_baseline(baseline, current["scoreboard"], current["decisions"])
+    assert result["passed"] is passed
+    if not passed:
+        # Each corpus stays within its own two-point allowance; only the total fails.
+        assert [(row["corpus"], row["metric"]) for row in result["regressions"]] == [
+            (POOLED, "drop_or_review_recall")
+        ]
+
+
+def test_corpus_missing_from_the_run_is_a_regression_not_a_crash():
+    baseline = _merged(a=_fixture(), b=_fixture())
+    current = _merged(a=_fixture())
+    result = compare_baseline(baseline, current["scoreboard"], current["decisions"])
+    assert not result["passed"]
+    assert result["regressions"] == [
+        {
+            "kind": "corpus_missing",
+            "corpus": "b",
+            "details": "corpus b is in the baseline but missing from this run",
+        }
+    ]
+    assert len(result["changed_runs"]) == 20
+    assert all(row["after"] is None for row in result["changed_runs"])
+    with pytest.raises(ValueError, match="baseline lacks"):
+        compare_baseline(current, baseline["scoreboard"], baseline["decisions"])
 
 
 def _spec(tmp_path):

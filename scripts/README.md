@@ -9,6 +9,7 @@ and promotion helpers.
 - `scripts/premerge.sh`: Pre-merge validation gate executing local quality checks.
 - `scripts/ci/check_harbor_skips.py`: JUnit skip-reason summary and Harbor-named skip gate for native CI.
 - `scripts/fleet-status.sh`: Fleet tracking and active status report script.
+- `scripts/line-replay.py`: Standard frozen `replay-v1` assembly-line regression gate (see `docs/line.md`).
 - `scripts/setup-git.sh`: Local git hooks and repository configuration helper.
 - `scripts/promote_codex_bundle.py`: Sanitization and promotion utility for reviewed run evidence.
 - `scripts/profile/harness.py`: Performance profiling harness and latency budget check.

@@ -65,13 +65,6 @@ def _metric(group: dict[str, Any], name: str, denominator: str) -> tuple[int, in
     return k, n
 
 
-def _optional_metric(group: dict[str, Any], name: str, denominator: str) -> tuple[int, int] | None:
-    metrics = group.get("metrics")
-    if not isinstance(metrics, dict) or name not in metrics:
-        return None
-    return _metric(group, name, denominator)
-
-
 def _quality_failures(scoreboard: dict[str, Any]) -> list[dict[str, Any]]:
     checks = scoreboard.get("quality_checks")
     if (
@@ -85,6 +78,48 @@ def _quality_failures(scoreboard: dict[str, Any]) -> list[dict[str, Any]]:
     return [check for check in checks if str(check.get("status", "")).lower() != "pass"]
 
 
+# (metric, denominator field, direction, per-corpus allowance divisor, pooled divisor).
+# A change passes when it is at most max(1 run, n / divisor) runs, i.e. one run or
+# 100/divisor percentage points. Recall of drop-or-review and honest-run drops keep
+# their original 2 and 1 points. Drop recall is looser (5 points) because moving a cheat
+# from drop to review is cautious, not a miss; it must still not collapse. Honest runs
+# sent to review cost reviewer time, so their rise is bounded at 5 points per corpus;
+# without it "send everything to review" would pass. The pooled rows catch several
+# corpora each slipping within their own allowance: recall 1 point, drop recall and
+# review load 2 points across all corpora together.
+_GATES = (
+    ("drop_or_review_recall", "cheats", "fall", 50, 100),
+    ("drop_recall", "cheats", "fall", 20, 50),
+    ("clean_false_alarm_rate", "clean", "rise", 100, None),
+    ("clean_drop_or_review_rate", "clean", "rise", 20, 50),
+)
+POOLED = "ALL"
+
+
+def _gate(
+    corpus: str,
+    metric: str,
+    direction: str,
+    divisor: int,
+    old_k: int,
+    new_k: int,
+    n: int,
+) -> dict[str, Any] | None:
+    change = old_k - new_k if direction == "fall" else new_k - old_k
+    tolerance = max(Fraction(1), Fraction(n, divisor))
+    if change <= tolerance:
+        return None
+    return {
+        "corpus": corpus,
+        "metric": metric,
+        "before": old_k / n,
+        "after": new_k / n,
+        "tolerance": float(tolerance / n),
+        "changed_count": change,
+        "denominator": n,
+    }
+
+
 def compare_baseline(
     baseline: dict[str, Any],
     current_scoreboard: dict[str, Any],
@@ -92,8 +127,10 @@ def compare_baseline(
 ) -> dict[str, Any]:
     """Compare matched labelled cohorts; invalid comparisons raise ``ValueError``.
 
-    A change of exactly one run or exactly the percentage-point allowance passes.
-    Quality failures are regressions even if all measured rates improve.
+    A change of exactly one run or exactly the percentage-point allowance passes
+    (see ``_GATES``). Quality failures are regressions even if all measured rates
+    improve. A corpus in the baseline that the run lacks is a regression, not an
+    invalid comparison.
     """
     if baseline.get("schema") != BASELINE_SCHEMA:
         raise ValueError("unsupported replay baseline schema")
@@ -103,22 +140,31 @@ def compare_baseline(
         raise ValueError("baseline needs scoreboard and decisions")
     before, after = _decisions(rows), _decisions(current_decisions)
     old_groups, new_groups = previous.get("by_corpus"), current_scoreboard.get("by_corpus")
-    if (
-        not isinstance(old_groups, dict)
-        or not isinstance(new_groups, dict)
-        or old_groups.keys() != new_groups.keys()
-    ):
+    if not isinstance(old_groups, dict) or not isinstance(new_groups, dict):
         raise ValueError("replay corpus cohort mismatch")
-    if before.keys() != after.keys():
+    if new_groups.keys() - old_groups.keys():
+        raise ValueError("replay corpus cohort mismatch: run has corpora the baseline lacks")
+    missing = sorted(old_groups.keys() - new_groups.keys())
+    if {key for key in before if key[0] not in missing} != after.keys():
         raise ValueError("replay decision cohort mismatch")
     if not {corpus for corpus, _ in before} <= set(old_groups):
         # Declared sources with zero rows legitimately have a group but no decisions.
         raise ValueError("replay decisions and scoreboard cohorts disagree")
     if previous.get("labels_policy") != current_scoreboard.get("labels_policy"):
         raise ValueError("replay labels policy mismatch")
-    regressions = []
+    regressions: list[dict[str, Any]] = [
+        {
+            "kind": "corpus_missing",
+            "corpus": corpus,
+            "details": f"corpus {corpus} is in the baseline but missing from this run",
+        }
+        for corpus in missing
+    ]
     informational = []
+    pooled: dict[str, list[int]] = {gate[0]: [0, 0, 0, 0] for gate in _GATES}
     for corpus, old in old_groups.items():
+        if corpus in missing:
+            continue
         new = new_groups[corpus]
         if not isinstance(old, dict) or not isinstance(new, dict):
             raise ValueError(f"invalid replay corpus scoreboard: {corpus}")
@@ -134,41 +180,36 @@ def compare_baseline(
                 raise ValueError(f"replay {field} mismatch: {corpus}")
         if old["runs"] != sum(key[0] == corpus for key in before):
             raise ValueError(f"replay decision denominator mismatch: {corpus}")
-        for metric, denominator, allowance, direction in (
-            ("drop_or_review_recall", "cheats", 50, "fall"),
-            ("clean_false_alarm_rate", "clean", 100, "rise"),
-        ):
+        for metric, denominator, direction, divisor, _ in _GATES:
             old_k, n = _metric(old, metric, denominator)
-            new_k, _ = _metric(new, metric, denominator)
+            new_k, _unused = _metric(new, metric, denominator)
             if not n:
                 continue
-            change = old_k - new_k if direction == "fall" else new_k - old_k
-            tolerance = max(Fraction(1), Fraction(n, allowance))
-            if change > tolerance:
-                regressions.append(
+            pooled[metric][0] += old_k
+            pooled[metric][1] += new_k
+            pooled[metric][2] += n
+            pooled[metric][3] += 1
+            found = _gate(corpus, metric, direction, divisor, old_k, new_k, n)
+            if found:
+                regressions.append(found)
+            elif metric == "clean_drop_or_review_rate" and old_k != new_k:
+                informational.append(
                     {
                         "corpus": corpus,
                         "metric": metric,
-                        "before": old_k / n,
-                        "after": new_k / n,
-                        "tolerance": float(tolerance / n),
-                        "changed_count": change,
+                        "before_k": old_k,
+                        "after_k": new_k,
                         "denominator": n,
                     }
                 )
-        # Clean reviews cost judge load, not harm: report them, never gate on them.
-        info_before = _optional_metric(old, "clean_drop_or_review_rate", "clean")
-        info_after = _optional_metric(new, "clean_drop_or_review_rate", "clean")
-        if info_before and info_after and info_before[1] and info_before[0] != info_after[0]:
-            informational.append(
-                {
-                    "corpus": corpus,
-                    "metric": "clean_drop_or_review_rate",
-                    "before_k": info_before[0],
-                    "after_k": info_after[0],
-                    "denominator": info_before[1],
-                }
-            )
+    if not missing:
+        for metric, _denominator, direction, _divisor, pooled_divisor in _GATES:
+            old_k, new_k, n, corpora = pooled[metric]
+            if pooled_divisor is None or corpora < 2:
+                continue
+            found = _gate(POOLED, metric, direction, pooled_divisor, old_k, new_k, n)
+            if found:
+                regressions.append(found)
     failures = _quality_failures(current_scoreboard)
     regressions.extend(
         {"check": check.get("name"), "details": check.get("details"), "kind": "quality_check"}

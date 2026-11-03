@@ -5,12 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-# OMP accepts this invocation option, but assistant records contain served IDs.
+# OMP accepts these explicit invocation options, but assistant records contain served IDs.
 # Do not strip arbitrary colon suffixes: they may be part of a different model ID.
-_REQUEST_OPTIONS = (":thinking",)
+_REQUEST_OPTIONS = (":thinking", ":off", ":minimal", ":low", ":medium", ":high", ":xhigh")
 _REQUIRED_HEADINGS = ("## Blocking", "## Should-fix", "## Nit")
 
 # Deep review: one separate reviewer process per lane, each with a short focused brief.
@@ -100,11 +101,52 @@ def _invalid_constant(value: str) -> None:
     raise ValueError(f"non-JSON constant {value}")
 
 
+_USABLE_STOPS = ("stop", "toolUse")
+_ERROR_KEYS = ("isError", "errorMessage", "error", "refusal")
+
+
+def _check_identity(
+    container: Mapping[str, object], location: str, expected: str, errors: list[str], violations: list[str]
+) -> str | None:
+    """Return the served ``provider/model`` of an assistant message, recording any contradiction.
+
+    A malformed identity is an error; a present provider or model that differs from the
+    expected route is also a violation, even when the other half is missing.
+    """
+    provider, model = container.get("provider"), container.get("model")
+    route = None
+    if all(isinstance(part, str) and part and not any(char.isspace() for char in part) for part in (provider, model)):
+        route = f"{provider}/{model}"
+    else:
+        errors.append(f"{location}: assistant has no valid provider/model identity")
+    if _is_route(expected):
+        want_provider, _, want_model = expected.partition("/")
+        if any(
+            isinstance(part, str) and part and part != want
+            for part, want in ((provider, want_provider), (model, want_model))
+        ):
+            violations.append(f"{location}: assistant route {f'{provider}/{model}'!r} != {expected!r}")
+            errors.append(violations[-1])
+    return route
+
+
+def _usable(record: Mapping[str, object], message: Mapping[str, object]) -> bool:
+    """A completed assistant turn: normal stop reason and no error, refusal, or abort marker."""
+    if message.get("stopReason") not in _USABLE_STOPS:
+        return False
+    if "stopReason" in record and record["stopReason"] not in _USABLE_STOPS:
+        return False
+    return not any(source.get(key) for source in (record, message) for key in _ERROR_KEYS)
+
+
 def attest_sessions(paths: Sequence[Path], requested_route: str) -> dict:
     """Attest exact JSONL bytes using served assistant identities, never intent.
 
-    Every supplied file must contain a usable assistant. Error/aborted assistants
-    do not contribute counts, but their identity and fallback flags still matter.
+    Every supplied file must contain a usable assistant: a message with stopReason
+    ``stop``/``toolUse`` and no ``isError``/``errorMessage``/``error``/``refusal``. Other
+    assistants do not count, but their identity and fallback flags still matter, as do
+    ``model_change`` records (a carried ``provider`` must match too), any record whose type
+    mentions a fallback, and assistant entries of ``messages`` lists.
     ``fallback_count`` counts flagged records, not flags (outer and inner flags
     on the same record count once). A complete final JSON record needs no LF.
     """
@@ -161,10 +203,17 @@ def attest_sessions(paths: Sequence[Path], requested_route: str) -> dict:
                 continue
 
             message = record.get("message")
-            flag_sources = [record]
-            if isinstance(message, dict):
-                flag_sources.append(message)
-            if any(source.get("resolvedModelIsFallback") is True for source in flag_sources):
+            containers = [message] if isinstance(message, dict) else []
+            listed: list[dict] = []
+            if "messages" in record:
+                if isinstance(record["messages"], list) and all(isinstance(item, dict) for item in record["messages"]):
+                    listed = record["messages"]
+                else:
+                    errors.append(f"{location}: messages must be a list of objects")
+            flag_sources = [record, *containers, *listed]
+            if "fallback" in record["type"].casefold() or any(
+                source.get("resolvedModelIsFallback") is True for source in flag_sources
+            ):
                 result["fallback_count"] += 1
                 violations.append(f"{location}: fallback model was resolved")
                 errors.append(violations[-1])
@@ -173,21 +222,37 @@ def attest_sessions(paths: Sequence[Path], requested_route: str) -> dict:
                     source["resolvedModelIsFallback"], bool
                 ):
                     errors.append(f"{location}: resolvedModelIsFallback must be boolean")
+            # Assistant messages embedded in lists (agent_end, ...) prove identity, never usage:
+            # they repeat the session's own message records.
+            for item in listed:
+                if item.get("role") == "assistant":
+                    _check_identity(item, location, expected, errors, violations)
 
             if record["type"] == "model_change":
                 model = record.get("model")
-                result["model_changes"].append(
-                    {
-                        "path": label,
-                        "line": line_number,
-                        "model": model,
-                        "resolvedModelIsFallback": record.get("resolvedModelIsFallback", False),
-                    }
-                )
-                if not _is_route(model):
+                change = {
+                    "path": label,
+                    "line": line_number,
+                    "model": model,
+                    "resolvedModelIsFallback": record.get("resolvedModelIsFallback", False),
+                }
+                carried = record.get("provider")
+                if "provider" in record:
+                    change["provider"] = carried
+                result["model_changes"].append(change)
+                want_provider, _, _ = expected.partition("/")
+                if carried is not None and _is_route(expected) and carried != want_provider:
+                    violations.append(
+                        f"{location}: model_change provider {carried!r} != {want_provider!r}"
+                    )
+                    errors.append(violations[-1])
+                served = model
+                if isinstance(carried, str) and isinstance(model, str) and model and "/" not in model:
+                    served = f"{carried}/{model}"
+                if not _is_route(served):
                     errors.append(f"{location}: model_change has no valid served model identity")
-                elif model != expected:
-                    violations.append(f"{location}: model_change route {model!r} != {expected!r}")
+                elif served != expected:
+                    violations.append(f"{location}: model_change route {served!r} != {expected!r}")
                     errors.append(violations[-1])
             elif record["type"] == "message":
                 if not isinstance(message, dict) or not isinstance(message.get("role"), str):
@@ -195,27 +260,9 @@ def attest_sessions(paths: Sequence[Path], requested_route: str) -> dict:
                     continue
                 if message["role"] != "assistant":
                     continue
-                provider, model = message.get("provider"), message.get("model")
-                route = f"{provider}/{model}"
-                if (
-                    not isinstance(provider, str)
-                    or "/" in provider
-                    or not isinstance(model, str)
-                    or not _is_route(route)
-                ):
-                    errors.append(f"{location}: assistant has no valid provider/model identity")
-                elif route != expected:
-                    violations.append(f"{location}: assistant route {route!r} != {expected!r}")
-                    errors.append(violations[-1])
-                if any(source.get("stopReason") in ("error", "aborted") for source in flag_sources):
-                    continue
-                # Missing identity is not evidence, even on a successful message.
-                if (
-                    isinstance(provider, str)
-                    and "/" not in provider
-                    and isinstance(model, str)
-                    and _is_route(route)
-                ):
+                route = _check_identity(message, location, expected, errors, violations)
+                # Missing identity is not evidence, and failed attempts are not usable work.
+                if route is not None and _usable(record, message):
                     counts = result["assistant_counts"]
                     counts[route] = counts.get(route, 0) + 1
                     usable += 1
@@ -253,48 +300,124 @@ def merge_attestations(parts: Mapping[str, Mapping[str, object]], requested_rout
     return merged
 
 
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+_ATX = re.compile(r"^ {0,3}(#{1,6})(.*)$")
+_SETEXT = re.compile(r"^ {0,3}(?:=+|-+)[ \t]*$")
+_FINAL_VERDICT = re.compile(r"VERDICT: (PASS|BLOCK)[ \t]*")
+_VERDICT_LEAD = re.compile(r"^(?:[>\s*_`#|+-]|\d+[.)](?=\s))*")
+_VERDICT_LONG = re.compile(r"^verdict\s*:\s*(?:pass|block)")
+_VERDICT_SHORT = re.compile(r"^\W*\S{0,12}\s*:\s*\**(?:pass|block)\**\W*$")
+_SECTION_NAMES = ("blocking", "should-fix", "nit")
+
+
+def _normalise(text: str) -> str:
+    """NFKC and casefold with format (Cf) characters removed, to see through look-alikes."""
+
+    def strip(value: str) -> str:
+        return "".join(char for char in value if unicodedata.category(char) != "Cf")
+
+    return strip(unicodedata.normalize("NFKC", strip(text))).casefold()
+
+
+def _verdict_like(line: str) -> bool:
+    """True for any line that could be read as a verdict, however it is dressed up."""
+    text = _VERDICT_LEAD.sub("", _normalise(line))
+    return _VERDICT_LONG.match(text) is not None or _VERDICT_SHORT.match(text) is not None
+
+
+def _section_name(text: str) -> str:
+    """Normalised heading text, for spotting disguised Blocking/Should-fix/Nit headings."""
+    text = re.sub(r"\s#+\s*$", "", _normalise(text))
+    text = re.sub(r"^[\s*_`]+|[\s*_`:]+$", "", text)
+    return re.sub(r"should[\s_-]*fix", "should-fix", text)
+
+
+def _indent(line: str) -> int:
+    width = 0
+    for char in line:
+        if char == " ":
+            width += 1
+        elif char == "\t":
+            width += 4 - width % 4
+        else:
+            break
+    return width
+
+
 def parse_review(text: str) -> dict[str, str]:
-    """Validate a report and return its ``blocking``, ``should_fix``, ``nit`` and ``verdict``."""
-    lines = text.splitlines()
+    """Strictly validate a report; return its ``blocking``, ``should_fix``, ``nit``, ``verdict``.
+
+    CRLF is normalised; lone CR, control characters and Unicode line/paragraph separators are
+    rejected. Fences follow CommonMark 4.5 and 4-column indented lines are code, never structure.
+    The last non-empty line must be the only ``VERDICT: PASS|BLOCK`` line, and no other
+    verdict-like line or disguised Blocking/Should-fix/Nit heading may appear outside fences.
+    """
+    text = text.replace("\r\n", "\n")
+    if "\r" in text:
+        raise ValueError("review contains a lone carriage return")
+    for char in text:
+        if _is_control(char):
+            raise ValueError(f"review contains control character U+{ord(char):04X}")
+    lines = text.split("\n")
     nonblank = [index for index, line in enumerate(lines) if line.strip()]
     if not nonblank:
         raise ValueError("review is empty")
     last = nonblank[-1]
-    verdict_lines = [
-        index for index, line in enumerate(lines)
-        if re.match(r"^\s*VERDICT\s*:", line, flags=re.IGNORECASE)
-    ]
-    if verdict_lines != [last] or lines[last].strip() not in ("VERDICT: PASS", "VERDICT: BLOCK"):
+    final = _FINAL_VERDICT.fullmatch(lines[last])
+    if final is None:
         raise ValueError("require exactly one final standalone VERDICT: PASS or VERDICT: BLOCK")
 
-    headings = {heading: [] for heading in _REQUIRED_HEADINGS}
-    fence = None
-    verdict_in_fence = False
+    headings: dict[str, list[int]] = {heading: [] for heading in _REQUIRED_HEADINGS}
+    fence: tuple[str, int] | None = None
+    previous: str | None = None  # last ordinary text line, a possible setext heading
     for index, line in enumerate(lines):
-        stripped = line.strip()
-        marker = re.match(r"^(`{3,}|~{3,})(.*)$", stripped)
-        if marker:
-            run, rest = marker.groups()
-            if fence is None:
-                fence = run
-            elif run[0] == fence[0] and len(run) >= len(fence) and not rest.strip():
+        indent = _indent(line)
+        if fence is not None:
+            closer = _FENCE.match(line) if indent < 4 else None
+            if (
+                closer is not None
+                and closer.group(1)[0] == fence[0]
+                and len(closer.group(1)) >= fence[1]
+                and not closer.group(2).strip()
+            ):
                 fence = None
             continue
-        if fence is not None:
-            if index == last:
-                verdict_in_fence = True
+        if not line.strip() or indent >= 4:
+            previous = None
             continue
-        if line.rstrip() in headings:
-            headings[line.rstrip()].append(index)
-    if fence is not None or verdict_in_fence:
-        raise ValueError("review has an unclosed code fence or a fenced verdict")
+        opener = _FENCE.match(line)
+        if opener is not None and not (opener.group(1)[0] == "`" and "`" in opener.group(2)):
+            fence = (opener.group(1)[0], len(opener.group(1)))
+            previous = None
+            continue
+        if index != last and _verdict_like(line):
+            raise ValueError(f"line {index + 1} is a second or disguised verdict line")
+        atx = _ATX.match(line)
+        if atx is not None:
+            exact = line.rstrip(" \t")
+            if exact in headings:
+                headings[exact].append(index)
+            elif _section_name(atx.group(2)) in _SECTION_NAMES:
+                raise ValueError(f"line {index + 1} is a disguised review section heading")
+            elif len(atx.group(1)) <= 2 and not line.isascii():
+                raise ValueError(f"line {index + 1} is a non-ASCII level 1-2 heading")
+            previous = None
+            continue
+        if _SETEXT.match(line) and previous is not None:
+            if _section_name(previous) in _SECTION_NAMES:
+                raise ValueError(f"line {index} is a disguised review section heading")
+            previous = None
+            continue
+        previous = line
+    if fence is not None:
+        raise ValueError("review has an unclosed code fence")
     if any(len(positions) != 1 for positions in headings.values()):
         raise ValueError("require exactly one Blocking, Should-fix, and Nit heading")
     blocking, should_fix, nit = (headings[heading][0] for heading in _REQUIRED_HEADINGS)
     if not blocking < should_fix < nit < last:
         raise ValueError("review sections must appear in Blocking, Should-fix, Nit order")
     blocking_text = "\n".join(lines[blocking + 1:should_fix]).strip()
-    verdict = lines[last].strip().removeprefix("VERDICT: ")
+    verdict = final.group(1)
     if verdict == "PASS" and not re.fullmatch(r"none\.?", blocking_text, flags=re.IGNORECASE):
         raise ValueError("PASS requires the Blocking section to say None")
     return {
@@ -508,9 +631,23 @@ def _none(text: str) -> bool:
     return re.fullmatch(r"none\.?", text.strip(), flags=re.IGNORECASE) is not None
 
 
+def _is_control(char: str) -> bool:
+    category = unicodedata.category(char)
+    return category in ("Zl", "Zp") or (category == "Cc" and char not in "\n\t")
+
+
+def _clean(text: str) -> str:
+    """Replace characters ``parse_review`` rejects, so quoted text cannot spoil a report."""
+    return "".join("\ufffd" if _is_control(char) else char for char in text)
+
+
 def _quote(text: str, limit: int = 8000) -> str:
     shown = text if len(text) <= limit else text[:limit] + "\n[... truncated ...]"
-    return "\n".join(f"> {line}" for line in shown.splitlines()) or "> (empty)"
+    lines = [
+        "> (verdict line omitted)" if _verdict_like(line) else f"> {_clean(line)}"
+        for line in shown.splitlines()
+    ]
+    return "\n".join(lines) or "> (empty)"
 
 
 def consolidate_reviews(
@@ -542,7 +679,7 @@ def consolidate_reviews(
     for part in parts:
         name = str(part["name"])
         report = part.get("report")
-        if not part.get("complete"):
+        if part.get("complete") is not True:
             incomplete[name] = str(part.get("reason") or "reviewer did not finish")
             continue
         try:
@@ -559,7 +696,7 @@ def consolidate_reviews(
         elif review["verdict"] == "BLOCK":
             findings.append(f"### [{name}]\nThe reviewer returned BLOCK without listing a finding.")
     gaps = [
-        f"### [{name}] COVERAGE INCOMPLETE\nNo valid verdict from this lane: {' '.join(reason.split())}"
+        f"### [{name}] COVERAGE INCOMPLETE\nNo valid verdict from this lane: {_clean(' '.join(reason.split()))}"
         for name, reason in incomplete.items()
     ]
     blocking_items = findings + gaps
@@ -575,6 +712,10 @@ def consolidate_reviews(
         return "\n\n".join(items) if items else "None"
 
     coverage = "COMPLETE" if not incomplete else f"PARTIAL ({len(complete)} of {len(parts)} lanes)"
+    if skipped:
+        coverage = f"SUBSET (lanes not run: {', '.join(skipped)})" + (
+            "" if not incomplete else f"; {len(complete)} of {len(parts)} lanes run completed"
+        )
     rows = "\n".join(
         f"| {name} | {'complete' if name in complete else 'INCOMPLETE'} | "
         f"{complete[name]['verdict'] if name in complete else '-'} |"
@@ -600,11 +741,22 @@ def consolidate_reviews(
     return {
         "report": report,
         "verdict": verdict,
-        "coverage": {"expected": names, "complete": list(complete), "incomplete": incomplete},
+        "coverage": {
+            "expected": names,
+            "complete": list(complete),
+            "incomplete": incomplete,
+            "skipped": list(skipped),
+        },
     }
 
 
+_RECEIPT_SCHEMA = "evallab.independent_review/v1"
 _BOUND_HEAD = re.compile(r"^> Reviewed head: `([0-9a-f]{40})`")
+_BOUND_PR = re.compile(r"\(PR #([0-9]+)[,)]")
+
+
+def _is_sha(value: object) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value) is not None
 
 
 def bind_report(
@@ -617,11 +769,19 @@ def bind_report(
     mode: str,
     previous_head: str | None = None,
     pr_head_after: str | None = None,
+    coverage_complete: bool = True,
 ) -> str:
-    """Prepend a quoted block that binds the verdict to the one commit that was reviewed."""
+    """Prepend a quoted block that binds the verdict to the one commit that was reviewed.
+
+    ``coverage_complete=False`` marks a subset or partially failed review, which later
+    ``--verify-fixes``/``--check`` runs must refuse to build on.
+    """
     lines = [
         f"> Reviewed head: `{head_sha}` (PR #{pr_number}, base `{base_sha}`, mode {mode}, model `{model}`).",
         "> This verdict covers only that commit.",
+        "> Coverage: complete."
+        if coverage_complete
+        else "> Coverage: PARTIAL (subset or incomplete lanes); not a basis for --verify-fixes or --check.",
     ]
     if previous_head is not None:
         lines.append(
@@ -636,11 +796,12 @@ def bind_report(
     return "\n".join(lines) + "\n\n" + report
 
 
-def reviewed_head(report: str) -> str | None:
+def reviewed_head(report: str, pr_number: int | None = None) -> str | None:
     """Return the commit a tool-written report is bound to, or None for an unbound report.
 
     Only the leading quoted block counts, so text quoted later in the body cannot spoof it.
-    A refused report is rejected: it carries no verdict to build on.
+    A refused or partial-coverage report is rejected: it carries no verdict to build on. With
+    ``pr_number`` the binding line must also name that PR.
     """
     leading: list[str] = []
     for line in report.splitlines():
@@ -649,9 +810,15 @@ def reviewed_head(report: str) -> str | None:
         leading.append(line)
     if any("REFUSED" in line for line in leading):
         raise ValueError("the earlier review was refused and carries no verdict")
+    if any("Coverage: PARTIAL" in line for line in leading):
+        raise ValueError("the earlier review had partial coverage and is not a basis for a verdict")
     for line in leading:
         found = _BOUND_HEAD.match(line)
         if found:
+            if pr_number is not None:
+                bound_pr = _BOUND_PR.search(line)
+                if bound_pr is None or int(bound_pr.group(1)) != pr_number:
+                    raise ValueError(f"the report is not bound to PR #{pr_number}")
             return found.group(1)
     return None
 
@@ -660,7 +827,9 @@ def binding_status(receipt: Mapping[str, object], pr_number: int, current_head: 
     """Decide whether a stored receipt's verdict covers the PR's current head.
 
     ``covers`` is True only for a valid PASS/BLOCK receipt for this PR whose reviewed head equals
-    ``current_head``. A different head is never covered, whatever the delta looks like.
+    ``current_head``, both full lowercase 40-hex commits. A different head is never covered,
+    whatever the delta looks like. This reads the receipt only; see ``verify_evidence`` for the
+    check against the evidence directory.
     """
     reviewed = receipt.get("head_sha")
     verdict = receipt.get("verdict")
@@ -671,17 +840,248 @@ def binding_status(receipt: Mapping[str, object], pr_number: int, current_head: 
         "verdict": verdict,
         "covers": False,
     }
-    if receipt.get("schema") != "evallab.independent_review/v1":
+    if receipt.get("schema") != _RECEIPT_SCHEMA:
         result["action"] = "not an independent-review receipt"
     elif type(receipt.get("pr_number")) is not int or receipt["pr_number"] != pr_number:
         result["action"] = "receipt is for a different PR"
     elif receipt.get("valid") is not True or verdict not in ("PASS", "BLOCK"):
         result["action"] = "receipt carries no valid PASS/BLOCK verdict; run a new review"
-    elif not isinstance(reviewed, str):
-        result["action"] = "receipt records no reviewed commit; run a new review"
+    elif not _is_sha(reviewed):
+        result["action"] = "receipt records no valid reviewed commit; run a new review"
+    elif not _is_sha(current_head):
+        result["action"] = "current PR head is not a full commit sha; refresh it before checking"
     elif reviewed != current_head:
         result["action"] = "PR head differs from the reviewed commit; run --verify-fixes for the delta"
     else:
         result["covers"] = True
         result["action"] = "verdict covers the current head"
     return result
+
+
+def _read_json_object(path: Path) -> dict:
+    try:
+        value = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_json_object,
+            parse_constant=_invalid_constant,
+        )
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"cannot read receipt {path}: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ValueError(f"receipt {path} is not a JSON object")
+    return value
+
+
+def _session_files(base: Path) -> list[Path]:
+    return sorted(base.rglob("*.jsonl")) if base.is_dir() else []
+
+
+def _leading_block(report: str) -> list[str]:
+    """The consecutive quoted lines that open a report."""
+    block: list[str] = []
+    for line in report.splitlines():
+        if not line.startswith(">"):
+            break
+        block.append(line)
+    return block
+
+
+def verify_evidence(receipt_path: Path) -> dict:
+    """Re-derive a receipt's claims from the evidence directory beside it, or raise ValueError.
+
+    Nothing in the receipt is trusted alone: the schema, PR, verdict and head are cross-checked
+    against ``REVIEW.md`` (not refused, not partial, bound to this PR and commit, verdict equal),
+    every session file is re-attested against the requested model, the recomputed SHA-256 set
+    must equal the set the receipt recorded, and a deep review needs every ``FOCUSES`` lane with
+    its own report, session files and complete coverage, whose consolidation reproduces the
+    verdict. The REVIEW.md binding block must equal the one rebuilt from the receipt and state
+    complete coverage, and the text below it must equal ``REVIEW.reviewer.md`` (shallow) or the
+    recomputed consolidation (deep), so no finding can be edited without failing. A ``--lanes``
+    subset or any missing lane cannot gate.
+
+    Threat model: this catches stale, accidental or internally inconsistent evidence (a hand-edited
+    receipt or report, a swapped or edited session file, a missing lane). It does NOT stop a
+    deliberate forger who can write the whole evidence directory consistently.
+    Returns ``pr_number``, ``head_sha``, ``verdict``, ``mode`` and ``requested_model``.
+    """
+    receipt_path = Path(receipt_path)
+    directory = receipt_path.parent
+    receipt = _read_json_object(receipt_path)
+    problems: list[str] = []
+
+    pr_number = receipt.get("pr_number")
+    verdict = receipt.get("verdict")
+    head = receipt.get("head_sha")
+    mode = receipt.get("mode")
+    requested = receipt.get("requested_model")
+    if receipt.get("schema") != _RECEIPT_SCHEMA:
+        problems.append("receipt schema is not an independent-review receipt")
+    if type(pr_number) is not int:
+        problems.append("receipt pr_number is not an integer")
+    if receipt.get("valid") is not True:
+        problems.append("receipt is not valid")
+    if verdict not in ("PASS", "BLOCK"):
+        problems.append("receipt carries no PASS/BLOCK verdict")
+    if receipt.get("errors") != []:
+        problems.append("receipt records errors")
+    if receipt.get("worktree_removed") is not True:
+        problems.append("receipt does not record the review worktree as removed")
+    if not _is_sha(head):
+        problems.append("receipt head_sha is not a full lowercase 40-hex commit")
+    if mode not in ("shallow", "deep"):
+        problems.append("receipt mode is not shallow or deep")
+    route_ok = _is_route(requested)
+    if not route_ok:
+        problems.append("receipt requested_model is not a provider/model route")
+    checked_pr = pr_number if type(pr_number) is int else None
+
+    review_text: str | None = None
+    body: str | None = None  # REVIEW.md after the binding block: the reviewer's own words
+    try:
+        review_text = (directory / "REVIEW.md").read_text(encoding="utf-8")
+    except (OSError, ValueError) as exc:
+        problems.append(f"REVIEW.md cannot be read: {exc}")
+    if review_text is not None:
+        try:
+            bound = reviewed_head(review_text, checked_pr)
+            if bound is None:
+                problems.append("REVIEW.md is not bound to a reviewed commit")
+            elif bound != head:
+                problems.append("REVIEW.md is bound to a different commit than the receipt")
+        except ValueError as exc:
+            problems.append(f"REVIEW.md: {exc}")
+        try:
+            if parse_review(review_text)["verdict"] != verdict:
+                problems.append("REVIEW.md verdict differs from the receipt verdict")
+        except ValueError as exc:
+            problems.append(f"REVIEW.md is not a valid report: {exc}")
+        if "> Coverage: complete." not in _leading_block(review_text):
+            problems.append("REVIEW.md leading block does not state `> Coverage: complete.`")
+        base = receipt.get("base_sha")
+        previous = receipt.get("previous_head_sha")
+        after = receipt.get("pr_head_after") if receipt.get("head_moved") is True else None
+        if not _is_sha(base):
+            problems.append("receipt base_sha is not a full lowercase 40-hex commit")
+        if previous is not None and not _is_sha(previous):
+            problems.append("receipt previous_head_sha is not a full lowercase 40-hex commit")
+        if after is not None and not _is_sha(after):
+            problems.append("receipt pr_head_after is not a full lowercase 40-hex commit")
+        if (
+            checked_pr is not None and _is_sha(head) and _is_sha(base) and route_ok
+            and mode in ("shallow", "deep") and (previous is None or _is_sha(previous))
+            and (after is None or _is_sha(after))
+        ):
+            prefix = bind_report(
+                "", pr_number=checked_pr, head_sha=head, base_sha=base, model=requested,
+                mode=mode, previous_head=previous, pr_head_after=after,
+            )
+            if review_text.startswith(prefix):
+                body = review_text[len(prefix):]
+            else:
+                problems.append("REVIEW.md binding block does not match the receipt")
+        if body is not None and mode == "shallow":
+            try:
+                reviewer_text = (directory / "REVIEW.reviewer.md").read_text(encoding="utf-8")
+            except (OSError, ValueError) as exc:
+                problems.append(f"REVIEW.reviewer.md cannot be read: {exc}")
+            else:
+                if body != reviewer_text:
+                    problems.append("REVIEW.md body differs from REVIEW.reviewer.md")
+                try:
+                    if parse_review(reviewer_text)["verdict"] != verdict:
+                        problems.append("REVIEW.reviewer.md verdict differs from the receipt verdict")
+                except ValueError as exc:
+                    problems.append(f"REVIEW.reviewer.md is not a valid report: {exc}")
+
+    lane_dirs: dict[str, Path] = {}
+    if mode == "shallow":
+        lane_dirs["shallow"] = directory / "sessions"
+    elif mode == "deep":
+        lane_dirs = {lane: directory / "reviewers" / lane / "sessions" for lane in FOCUSES}
+    recomputed: set[str] = set()
+    for lane, sessions in lane_dirs.items():
+        files = _session_files(sessions)
+        if not files:
+            problems.append(
+                f"[{lane}] no session files: subset/partial coverage cannot gate"
+                if mode == "deep"
+                else "no session files"
+            )
+            continue
+        if any(path.is_symlink() or not path.resolve().is_relative_to(sessions.resolve()) for path in files):
+            problems.append(f"[{lane}] session files must be regular files inside the sessions directory")
+            continue
+        if not route_ok:
+            continue
+        attested = attest_sessions(files, requested)
+        if not attested["valid"] or attested["violations"]:
+            problems.append(f"[{lane}] attestation failed: {'; '.join(attested['errors'][:3])}")
+        recomputed.update(entry["sha256"] for entry in attested["files"])
+
+    attestation = receipt.get("attestation")
+    if not isinstance(attestation, dict):
+        problems.append("receipt has no attestation record")
+    else:
+        if attestation.get("valid") is not True:
+            problems.append("receipt attestation is not valid")
+        if attestation.get("violations") != [] or attestation.get("fallback_count") != 0:
+            problems.append("receipt attestation records violations or fallbacks")
+        entries = attestation.get("files")
+        if not isinstance(entries, list) or not all(
+            isinstance(entry, dict) and isinstance(entry.get("sha256"), str) for entry in entries
+        ):
+            problems.append("receipt attestation files are malformed")
+        elif recomputed and {entry["sha256"] for entry in entries} != recomputed:
+            problems.append("session file digests differ from the receipt attestation")
+
+    if mode == "deep":
+        coverage = receipt.get("coverage")
+        if not isinstance(coverage, dict):
+            problems.append("deep receipt has no coverage record")
+        else:
+            complete = coverage.get("complete")
+            if (
+                not isinstance(complete, list)
+                or not all(isinstance(lane, str) for lane in complete)
+                or sorted(complete) != sorted(FOCUSES)
+            ):
+                problems.append("deep receipt coverage is not every lane complete: subset/partial coverage cannot gate")
+            if coverage.get("incomplete") != {} or coverage.get("skipped", []) != []:
+                problems.append("deep receipt records incomplete or skipped lanes: subset/partial coverage cannot gate")
+        parts = []
+        for lane in FOCUSES:
+            try:
+                lane_report = (directory / "reviewers" / lane / "REVIEW.md").read_text(encoding="utf-8")
+                parse_review(lane_report)
+            except (OSError, ValueError) as exc:
+                problems.append(f"[{lane}] lane report unusable: {exc}")
+                continue
+            parts.append({"name": lane, "complete": True, "report": lane_report, "reason": None})
+        if len(parts) == len(FOCUSES):
+            consolidated = consolidate_reviews(
+                parts,
+                pr_number=checked_pr if checked_pr is not None else 0,
+                head_sha=head if _is_sha(head) else "",
+                base_sha=str(receipt.get("base_sha", "")),
+                model=requested if route_ok else "",
+            )
+            if consolidated["verdict"] != verdict:
+                problems.append("lane reports consolidate to a different verdict than the receipt")
+            if body is not None and body != consolidated["report"]:
+                problems.append("REVIEW.md body differs from the consolidation of the lane reports")
+            if review_text is not None:
+                try:
+                    if parse_review(consolidated["report"])["verdict"] != parse_review(review_text)["verdict"]:
+                        problems.append("consolidated lane report verdict differs from REVIEW.md")
+                except ValueError as exc:
+                    problems.append(f"consolidated lane report is not valid: {exc}")
+
+    if problems:
+        raise ValueError("; ".join(problems))
+    return {
+        "pr_number": pr_number,
+        "head_sha": head,
+        "verdict": verdict,
+        "mode": mode,
+        "requested_model": requested,
+    }

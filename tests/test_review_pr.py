@@ -67,6 +67,7 @@ class LaneBehavior:
     error: Exception | None = None
     dirty: str = ""
     cleanup_error: Exception | None = None
+    moved_head: bool = False
 
 
 @dataclass
@@ -80,6 +81,7 @@ class ReviewHarness:
     added: list[Path] = field(default_factory=list)
     removed: list[Path] = field(default_factory=list)
     statuses: list[Path] = field(default_factory=list)
+    remove_argvs: list[list[str]] = field(default_factory=list)
     behaviors: dict[str, LaneBehavior] = field(
         default_factory=lambda: {name: LaneBehavior() for name in ("review", *LANES)}
     )
@@ -158,32 +160,40 @@ class ReviewHarness:
             self.added.append(path)
             return ""
         if argv == ["git", "diff", f"{BASE}...{self.expected_head}"]:
-            assert cwd == self.added[0]
+            assert cwd in self.added
             return "diff --git a/example.py b/example.py\n+synthetic_change = True\n"
         if self.delta_base is not None and argv == ["git", "diff", self.delta_base, self.expected_head]:
-            assert cwd == self.added[0]
+            assert cwd in self.added
             return "diff --git a/fix.py b/fix.py\n+synthetic_delta = True\n"
         if argv == ["git", "status", "--porcelain", "--untracked-files=all"]:
             assert cwd in self.added
             self.statuses.append(cwd)
             return self.behaviors[self.lane_of(cwd)].dirty
+        if argv == ["git", "rev-parse", "HEAD"]:
+            assert cwd in self.added
+            return OTHER_HEAD if self.behaviors[self.lane_of(cwd)].moved_head else self.expected_head
         if argv == ["gh", "pr", "view", str(PR_NUMBER), "--json", "headRefOid"]:
             assert cwd == self.repo
             self.events.append("head_recheck")
             return json.dumps({"headRefOid": self.current_head})
-        if argv == ["gh", "pr", "view", str(PR_NUMBER), "--json", "headRefOid", "-q", ".headRefOid"]:
+        if argv[:3] == ["gh", "pr", "view"] and argv[4:] == ["--json", "headRefOid", "-q", ".headRefOid"]:
             assert cwd == self.repo
             return self.current_head
         if argv == ["git", "rev-parse", "--show-toplevel"]:
             return str(self.repo)
-        if argv[:3] == ["git", "worktree", "remove"] and len(argv) == 4:
-            assert cwd == self.repo
-            path = Path(argv[3])
+        if argv[:3] == ["git", "worktree", "remove"]:
+            force = "--force" in argv
+            assert len(argv) == (5 if force else 4) and cwd == self.repo
+            path = Path(argv[-1])
             assert path in self.added
             self.events.append("worktree_remove")
-            error = self.behaviors[self.lane_of(path)].cleanup_error
-            if error is not None:
-                raise error
+            behavior = self.behaviors[self.lane_of(path)]
+            if behavior.cleanup_error is not None:
+                raise behavior.cleanup_error
+            if behavior.dirty and not force:
+                # Real git: "contains modified or untracked files, use --force to delete it".
+                raise subprocess.CalledProcessError(128, argv)
+            self.remove_argvs.append(list(argv))
             shutil.rmtree(path)
             self.removed.append(path)
             return ""
@@ -316,7 +326,8 @@ def harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ReviewHarness:
 
 
 def test_success_pins_head_preserves_evidence_and_removes_owned_checkout(harness: ReviewHarness) -> None:
-    receipt = harness.run(contract="Synthetic acceptance contract", previous_review="Prior review evidence")
+    previous = PASS_REVIEW.replace("## Nit\nNone", "## Nit\nEarlier finding: synthetic prior note.")
+    receipt = harness.run(contract="Synthetic acceptance contract", previous_review=previous)
 
     assert receipt["valid"] is True
     assert receipt["verdict"] == "PASS"
@@ -344,7 +355,7 @@ def test_success_pins_head_preserves_evidence_and_removes_owned_checkout(harness
     brief = (harness.out / "brief.md").read_text(encoding="utf-8")
     assert HEAD in brief and BASE in brief
     assert "Synthetic acceptance contract" in brief
-    assert "Prior review evidence" in brief
+    assert "Earlier finding: synthetic prior note." in brief
     for rule in review_pr.RULE_PATHS:
         assert f"Synthetic repository rule: {rule}" in brief
     assert (harness.out / "omp.log").is_file()
@@ -422,6 +433,45 @@ def test_block_verdict_is_advisory_and_local_by_default(harness: ReviewHarness) 
     harness.assert_receipt(receipt)
 
 
+FENCED_PREAMBLE_BLOCK = (
+    "```markdown\n## Blocking\nharmless example\n## Should-fix\n```\n\n"
+    "## Blocking\n- real blocker\n\n## Should-fix\nNone\n\n## Nit\nNone\n\nVERDICT: BLOCK\n"
+)
+FENCED_INSIDE_BLOCKING = (
+    "## Blocking\n- first defect\n```\n## not a heading\nstill blocking detail\n```\n\n"
+    "## Should-fix\nNone\n\n## Nit\nNone\n\nVERDICT: BLOCK\n"
+)
+
+
+def test_comment_summary_uses_the_parsed_blocking_section_not_string_slicing() -> None:
+    summary = review_pr.comment_summary(FENCED_PREAMBLE_BLOCK, verdict="BLOCK", head=HEAD, model="m/x")
+    assert "real blocker" in summary and "harmless example" not in summary
+
+    summary = review_pr.comment_summary(FENCED_INSIDE_BLOCKING, verdict="BLOCK", head=HEAD, model="m/x")
+    assert "first defect" in summary and "still blocking detail" in summary
+
+    summary = review_pr.comment_summary(PASS_REVIEW, verdict="PASS", head=HEAD, model="m/x")
+    assert "### Blocking findings\nNone\n" in summary
+
+    with pytest.raises(ValueError):
+        review_pr.comment_summary("no sections here\n", verdict="BLOCK", head=HEAD, model="m/x")
+
+
+@pytest.mark.parametrize("report,expected", [
+    (FENCED_PREAMBLE_BLOCK, "real blocker"),
+    (FENCED_INSIDE_BLOCKING, "still blocking detail"),
+])
+def test_posted_comment_contains_the_real_blocking_findings(
+    harness: ReviewHarness, report: str, expected: str,
+) -> None:
+    harness.lane("review").review = report
+    receipt = harness.run(comment=True)
+
+    assert receipt["valid"] is True and receipt["verdict"] == "BLOCK" and receipt["comment_posted"] is True
+    body = (harness.out / "comment.md").read_text(encoding="utf-8")
+    assert expected in body and "harmless example" not in body
+
+
 def test_fetch_race_rejects_before_checkout_or_reviewer(harness: ReviewHarness) -> None:
     harness.fetched_head = OTHER_HEAD
     receipt = harness.run(comment=True)
@@ -474,22 +524,46 @@ def test_unattested_review_never_becomes_verdict_or_comment(
 
 
 @pytest.mark.parametrize("session_mode", ["mismatch", "missing"])
-def test_rejected_blocking_report_is_left_untouched(harness: ReviewHarness, session_mode: str) -> None:
+def test_rejected_blocking_report_keeps_its_findings_under_a_refused_notice(
+    harness: ReviewHarness, session_mode: str,
+) -> None:
     harness.lane("review").review = BLOCK_REVIEW
     harness.lane("review").session_mode = session_mode
     receipt = harness.run(comment=True)
 
     harness.assert_rejected(receipt)
-    assert (harness.out / "REVIEW.md").read_text(encoding="utf-8") == BLOCK_REVIEW
+    text = (harness.out / "REVIEW.md").read_text(encoding="utf-8")
+    reasons = " ".join("; ".join(receipt["errors"]).split())
+    assert text == f"> **REFUSED: no valid verdict was issued: {reasons}**\n\n{BLOCK_REVIEW}"
 
 
-def test_rejected_pass_without_trailing_verdict_line_is_not_rewritten(harness: ReviewHarness) -> None:
+def test_rejected_report_without_a_trailing_pass_line_still_gets_the_refused_notice(
+    harness: ReviewHarness,
+) -> None:
     report = PASS_REVIEW + "Additional trailing text\n"
     harness.lane("review").review = report
     receipt = harness.run(comment=True)
 
     harness.assert_rejected(receipt)
-    assert (harness.out / "REVIEW.md").read_text(encoding="utf-8") == report
+    text = (harness.out / "REVIEW.md").read_text(encoding="utf-8")
+    assert text.startswith("> **REFUSED: no valid verdict was issued:")
+    assert text.endswith(report)  # nothing to rewrite: the trailing text is not a verdict line
+
+
+def test_refused_notice_is_not_duplicated_and_a_trailing_pass_is_still_rewritten(
+    harness: ReviewHarness,
+) -> None:
+    prefixed = "> **REFUSED: no valid verdict was issued: earlier notice**\n\n" + PASS_REVIEW
+    harness.lane("review").review = prefixed
+    harness.lane("review").session_mode = "mismatch"
+    receipt = harness.run(comment=True)
+
+    harness.assert_rejected(receipt)
+    text = (harness.out / "REVIEW.md").read_text(encoding="utf-8")
+    assert text.count("REFUSED") == 1 and text.startswith("> **REFUSED: no valid verdict was issued: earlier notice**")
+    assert not pass_lines(text) and text.rstrip().splitlines()[-1] == "VERDICT: BLOCK"
+
+
 
 
 @pytest.mark.parametrize(
@@ -524,6 +598,7 @@ def test_checkout_mutation_rejects_review(harness: ReviewHarness, dirty: str) ->
 
     harness.assert_rejected(receipt)
     assert "modified the checkout" in " ".join(receipt["errors"])
+    assert (harness.out / "dirty.txt").read_text(encoding="utf-8") == dirty + "\n"
 
 
 @pytest.mark.parametrize("failure", ["timeout", "nonzero", "launch-error"])
@@ -696,7 +771,11 @@ def test_deep_launches_four_isolated_reviewers_and_preserves_per_lane_evidence(
     receipt = harness.run(mode="deep", contract="Synthetic acceptance contract")
 
     assert receipt["valid"] is True and receipt["verdict"] == "PASS"
-    assert receipt["coverage"] == {"expected": list(FOCUSES), "complete": list(FOCUSES), "incomplete": {}}
+    coverage = dict(receipt["coverage"])
+    assert not coverage.pop("skipped", None)
+    assert coverage == {"expected": list(FOCUSES), "complete": list(FOCUSES), "incomplete": {}}
+    assert "Coverage: **COMPLETE**" in harness.consolidated()
+    assert "> Coverage: complete." in harness.consolidated()
     assert sorted(launch["lane"] for launch in harness.launches) == sorted(LANES)
     # One private worktree, session directory, brief and log per lane.
     assert len({launch["cwd"] for launch in harness.launches}) == 4
@@ -813,9 +892,10 @@ def test_one_lane_timeout_leaves_report_and_partial_coverage_never_pass(
     harness.lane("adversarial").review = partial
     receipt = harness.run(mode="deep", comment=True)
 
-    assert receipt["valid"] is True
-    assert receipt["verdict"] == "INCONCLUSIVE"
-    assert receipt["verdict"] != "PASS"
+    harness.assert_rejected(receipt)
+    assert receipt["outcome"] == "INCONCLUSIVE"
+    assert "adversarial" in " ".join(receipt["errors"])
+    assert "verdict" not in receipt
     assert receipt["coverage"]["expected"] == list(FOCUSES)
     assert receipt["coverage"]["complete"] == ["gates", "behaviour", "tests_docs"]
     assert list(receipt["coverage"]["incomplete"]) == ["adversarial"]
@@ -830,9 +910,8 @@ def test_one_lane_timeout_leaves_report_and_partial_coverage_never_pass(
     assert not pass_lines(report)
     assert report.splitlines()[-1] == "VERDICT: BLOCK"
     # Neither a comment nor a PASS-like claim leaves the machine for partial coverage.
-    assert receipt["comment_posted"] is False
-    harness.assert_no_comment()
     assert not harness.worktree_root.exists()
+    assert report.startswith("> **REFUSED: no valid verdict was issued:")
     harness.assert_receipt(receipt)
 
 
@@ -872,8 +951,8 @@ def test_lane_failure_makes_only_that_lane_incomplete(
     receipt = harness.run(mode="deep", comment=True)
 
     others = [name for name in LANES if name != lane]
-    assert receipt["valid"] is True
-    assert receipt["verdict"] == "INCONCLUSIVE"
+    harness.assert_rejected(receipt)
+    assert receipt["outcome"] == "INCONCLUSIVE"
     assert list(receipt["coverage"]["incomplete"]) == [lane]
     assert receipt["coverage"]["complete"] == [name for name in LANES if name != lane]
     assert receipt["lanes"][lane]["complete"] is False
@@ -881,17 +960,93 @@ def test_lane_failure_makes_only_that_lane_incomplete(
     report = harness.consolidated()
     assert f"[{lane}] COVERAGE INCOMPLETE" in report
     assert not pass_lines(report)
-    assert receipt["comment_posted"] is False
-    harness.assert_no_comment()
-    assert sorted(harness.removed) == sorted(harness.added)
+    assert len(harness.remove_argvs) == 4
     assert len(harness.launches) == 4
     if failure == "nonzero":
         assert receipt["lanes"][lane]["returncode"] == 7
     if failure == "dirty":
         assert "modified the checkout" in receipt["coverage"]["incomplete"][lane]
         assert harness.worktree_root / lane in harness.statuses
+        assert (harness.out / "reviewers" / lane / "dirty.txt").read_text(encoding="utf-8") == " M tracked.py\n"
     if failure == "invalid-report":
         assert receipt["coverage"]["incomplete"][lane].startswith("report invalid")
+
+
+def test_dirty_lane_keeps_the_other_lanes_block_and_is_force_removed_after_recording_dirty_txt(
+    harness: ReviewHarness,
+) -> None:
+    harness.lane("behaviour").dirty = " M tracked.py\n?? scratch-left-behind.txt"
+    harness.lane("gates").review = BLOCK_REVIEW
+    receipt = harness.run(mode="deep", comment=True)
+
+    assert receipt["valid"] is True and receipt["verdict"] == "BLOCK"
+    assert receipt["errors"] == []
+    assert list(receipt["coverage"]["incomplete"]) == ["behaviour"]
+    assert "modified the checkout" in receipt["coverage"]["incomplete"]["behaviour"]
+    assert receipt["lanes"]["behaviour"]["complete"] is False
+    assert receipt["worktree_removed"] is True
+    assert sorted(harness.removed) == sorted(harness.added) and len(harness.added) == 4
+    assert not harness.worktree_root.exists()
+    dirty = harness.out / "reviewers" / "behaviour" / "dirty.txt"
+    assert dirty.read_text(encoding="utf-8") == " M tracked.py\n?? scratch-left-behind.txt\n"
+    for lane in ("gates", "adversarial", "tests_docs"):
+        assert not (harness.out / "reviewers" / lane / "dirty.txt").exists()
+    # Every removal is forced: a dirty tree cannot make git fail and destroy another lane's verdict.
+    assert len(harness.remove_argvs) == 4
+    assert all(argv[:4] == ["git", "worktree", "remove", "--force"] for argv in harness.remove_argvs)
+    assert receipt["comment_posted"] is True
+    harness.assert_receipt(receipt)
+
+
+def test_shallow_dirty_checkout_is_recorded_and_force_removed(harness: ReviewHarness) -> None:
+    harness.lane("review").dirty = "?? unexpected.txt"
+    receipt = harness.run(comment=True)
+
+    harness.assert_rejected(receipt)
+    assert (harness.out / "dirty.txt").read_text(encoding="utf-8") == "?? unexpected.txt\n"
+    assert harness.remove_argvs == [["git", "worktree", "remove", "--force", str(harness.worktree_root / "checkout")]]
+
+
+def test_without_force_real_git_refuses_a_dirty_worktree_and_would_destroy_the_run(
+    harness: ReviewHarness, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Proves the fake honours git semantics: the pre-fix non-forced removal breaks on dirt."""
+    harness.lane("behaviour").dirty = " M tracked.py"
+    harness.lane("gates").review = BLOCK_REVIEW
+
+    def old_remove(argv: list[str], cwd: Path) -> str:
+        return harness.command([item for item in argv if item != "--force"], cwd)
+
+    monkeypatch.setattr(review_pr, "_command", old_remove)
+    receipt = harness.run(mode="deep")
+
+    assert receipt["valid"] is False and "verdict" not in receipt
+    assert receipt["worktree_removed"] is False
+    assert "cleanup failed" in " ".join(receipt["errors"])
+    assert (harness.worktree_root / "behaviour").exists()
+
+
+def test_committed_edit_in_a_lane_moves_head_and_makes_only_that_lane_incomplete(
+    harness: ReviewHarness,
+) -> None:
+    harness.lane("adversarial").moved_head = True  # `git commit` leaves status clean
+    harness.lane("tests_docs").review = BLOCK_REVIEW
+    receipt = harness.run(mode="deep", comment=True)
+
+    assert receipt["valid"] is True and receipt["verdict"] == "BLOCK"
+    assert list(receipt["coverage"]["incomplete"]) == ["adversarial"]
+    assert "moved HEAD" in receipt["coverage"]["incomplete"]["adversarial"]
+    assert harness.worktree_root / "adversarial" in harness.statuses
+    assert not (harness.out / "reviewers" / "adversarial" / "dirty.txt").exists()
+    assert receipt["worktree_removed"] is True and sorted(harness.removed) == sorted(harness.added)
+
+
+def test_committed_edit_in_the_shallow_checkout_rejects_the_review(harness: ReviewHarness) -> None:
+    harness.lane("review").moved_head = True
+    receipt = harness.run(comment=True)
+
+    harness.assert_rejected(receipt)
+    assert "moved HEAD" in " ".join(receipt["errors"])
 
 
 @pytest.mark.parametrize("session_mode", ["fallback", "mismatch"])
@@ -1005,7 +1160,8 @@ def test_deep_pass_with_content_after_a_stray_heading_in_blocking_is_incomplete(
     )
     receipt = harness.run(mode="deep")
 
-    assert receipt["valid"] is True and receipt["verdict"] == "INCONCLUSIVE"
+    harness.assert_rejected(receipt)
+    assert receipt["outcome"] == "INCONCLUSIVE"
     assert list(receipt["coverage"]["incomplete"]) == ["gates"]
     assert receipt["coverage"]["incomplete"]["gates"].startswith("report invalid")
 
@@ -1038,9 +1194,12 @@ def test_deep_two_lane_subset_passes_with_skipped_notice_and_isolated_briefs(
     receipt = harness.run(mode="deep", lanes=requested)
 
     assert receipt["valid"] is True and receipt["verdict"] == "PASS"
-    assert receipt["coverage"] == {
-        "expected": requested, "complete": requested, "incomplete": {},
-    }
+    coverage = dict(receipt["coverage"])
+    assert coverage.pop("skipped") == ["adversarial", "tests_docs"]
+    assert coverage == {"expected": requested, "complete": requested, "incomplete": {}}
+    text = harness.consolidated()
+    assert "> Coverage: PARTIAL" in text
+    assert "SUBSET (lanes not run: adversarial, tests_docs)" in text
     assert sorted(receipt["lanes"]) == sorted(requested)
     assert sorted(receipt["worktrees"]) == sorted(requested)
     assert sorted(receipt["commands"]) == sorted(requested)
@@ -1077,21 +1236,41 @@ def test_deep_single_lane_brief_has_no_other_reviewers(harness: ReviewHarness) -
     )
 
 
-def test_timeout_in_two_lane_subset_is_inconclusive_not_pass(harness: ReviewHarness) -> None:
+def test_timeout_in_two_lane_subset_is_inconclusive_never_a_valid_pass(harness: ReviewHarness) -> None:
     harness.lane("behaviour").error = subprocess.TimeoutExpired(["omp"], 2400)
     receipt = harness.run(mode="deep", lanes=["gates", "behaviour"], comment=True)
 
-    assert receipt["valid"] is True and receipt["verdict"] == "INCONCLUSIVE"
+    harness.assert_rejected(receipt)
+    assert receipt["outcome"] == "INCONCLUSIVE"
+    assert "behaviour" in " ".join(receipt["errors"]) and "inconclusive" in " ".join(receipt["errors"]).lower()
     assert receipt["coverage"]["expected"] == ["gates", "behaviour"]
     assert receipt["coverage"]["complete"] == ["gates"]
     assert list(receipt["coverage"]["incomplete"]) == ["behaviour"]
     assert len(harness.launches) == 2 and len(harness.added) == 2
     report = harness.consolidated()
-    assert "PARTIAL (1 of 2 lanes)" in report
+    assert "SUBSET (lanes not run: adversarial, tests_docs); 1 of 2 lanes run completed" in report
     assert "- Lanes not run (operator chose a subset): adversarial, tests_docs\n" in report
     assert not pass_lines(report)
-    harness.assert_no_comment()
-    harness.assert_receipt(receipt)
+    assert report.startswith("> **REFUSED: no valid verdict was issued:")
+
+
+@pytest.mark.parametrize("lane_verdict,expected", [(PASS_REVIEW, "PASS"), (BLOCK_REVIEW, "BLOCK")])
+def test_lane_subset_is_a_valid_but_partial_verdict_that_is_not_a_verify_fixes_base(
+    harness: ReviewHarness, lane_verdict: str, expected: str,
+) -> None:
+    harness.lane("gates").review = lane_verdict
+    receipt = harness.run(mode="deep", lanes=["gates", "behaviour"], comment=True)
+
+    assert receipt["valid"] is True and receipt["verdict"] == expected
+    assert receipt["coverage"]["skipped"] == ["adversarial", "tests_docs"]
+    assert receipt["comment_posted"] is True
+    report = harness.consolidated()
+    assert "> Coverage: PARTIAL" in report and "Coverage: **COMPLETE" not in report
+    assert parse_review(report)["verdict"] == expected
+    with pytest.raises(ValueError):
+        reviewed_head(report, PR_NUMBER)
+
+
 
 
 def test_valid_lane_subset_is_ignored_in_shallow_mode(harness: ReviewHarness) -> None:
@@ -1298,8 +1477,8 @@ def test_verify_fixes_with_non_ancestor_review_falls_back_to_the_full_pr_with_a_
     assert not any(argv[:3] == ["git", "diff", PREVIOUS_HEAD] for argv, _ in harness.commands)
 
 
-@pytest.mark.parametrize("previous", ["Plain review without any binding\n", PASS_REVIEW, ""])
-def test_verify_fixes_with_an_unbound_review_reviews_the_full_pr_with_a_note(
+@pytest.mark.parametrize("previous", [PASS_REVIEW, BLOCK_REVIEW])
+def test_verify_fixes_with_a_valid_but_unbound_review_reviews_the_full_pr_with_a_note(
     harness: ReviewHarness, previous: str,
 ) -> None:
     receipt = harness.run(previous_review=previous)
@@ -1335,6 +1514,81 @@ def test_verify_fixes_with_a_refused_previous_review_is_refused(harness: ReviewH
     assert not harness.launches and not harness.added
 
 
+@pytest.mark.parametrize(
+    "previous",
+    ["", "Plain review without any binding\n", PASS_REVIEW + "Trailing text invalidates it\n"],
+    ids=["empty", "plain-text", "trailing-text"],
+)
+def test_verify_fixes_with_an_invalid_previous_review_is_refused(
+    harness: ReviewHarness, previous: str,
+) -> None:
+    receipt = harness.run(previous_review=previous, comment=True)
+
+    harness.assert_rejected(receipt, removed=False)
+    assert not harness.launches and not harness.added
+    assert not any(argv[:2] == ["git", "diff"] for argv, _ in harness.commands)
+
+
+def test_verify_fixes_with_a_review_of_another_pr_is_refused(harness: ReviewHarness) -> None:
+    other_pr = bind_report(
+        PASS_REVIEW, pr_number=PR_NUMBER + 1, head_sha=PREVIOUS_HEAD, base_sha=BASE,
+        model=review_pr.DEFAULT_MODEL, mode="shallow",
+    )
+    harness.delta_base = PREVIOUS_HEAD
+    harness.ancestors.add((PREVIOUS_HEAD, HEAD))
+    receipt = harness.run(previous_review=other_pr, comment=True)
+
+    harness.assert_rejected(receipt, removed=False)
+    assert not harness.launches and not harness.added
+    assert receipt.get("previous_head_sha") is None
+
+
+def test_verify_fixes_with_a_partial_coverage_previous_review_is_refused(harness: ReviewHarness) -> None:
+    partial = bind_report(
+        BLOCK_REVIEW, pr_number=PR_NUMBER, head_sha=PREVIOUS_HEAD, base_sha=BASE,
+        model=review_pr.DEFAULT_MODEL, mode="deep", coverage_complete=False,
+    )
+    harness.delta_base = PREVIOUS_HEAD
+    harness.ancestors.add((PREVIOUS_HEAD, HEAD))
+    receipt = harness.run(previous_review=partial, comment=True)
+
+    harness.assert_rejected(receipt, removed=False)
+    assert not harness.launches and not harness.added
+
+
+@pytest.mark.parametrize("scenario", ["lane-subset", "timeout-with-block", "inconclusive", "refused"])
+def test_verify_fixes_refuses_the_report_of_a_real_partial_or_refused_run(
+    harness: ReviewHarness, tmp_path: Path, scenario: str,
+) -> None:
+    if scenario == "lane-subset":
+        harness.run(mode="deep", lanes=["gates"])
+    elif scenario == "timeout-with-block":
+        harness.lane("adversarial").error = subprocess.TimeoutExpired(["omp"], 2400)
+        harness.lane("tests_docs").review = BLOCK_REVIEW
+        harness.run(mode="deep")
+    elif scenario == "inconclusive":
+        harness.lane("adversarial").error = subprocess.TimeoutExpired(["omp"], 2400)
+        harness.run(mode="deep")
+    else:
+        harness.all_lanes(session_mode="mismatch")
+        harness.run(mode="deep")
+    previous = (harness.out / "REVIEW.md").read_text(encoding="utf-8")
+    # The next review is of a later commit of the same PR, in a fresh evidence directory.
+    harness.out = tmp_path / "second-evidence"
+    harness.behaviors = {name: LaneBehavior() for name in ("review", *LANES)}
+    harness.expected_head = NEW_PR_HEAD
+    harness.set_pr_head(NEW_PR_HEAD)
+    harness.ancestors.add((HEAD, NEW_PR_HEAD))
+    harness.delta_base = HEAD
+    launches = len(harness.launches)
+    receipt = harness.run(previous_review=previous)
+
+    assert receipt["valid"] is False
+    assert receipt.get("previous_head_sha") is None
+    assert len(harness.launches) == launches, "no reviewer may start from an unusable base"
+
+
+
 def test_verify_fixes_ignores_a_binding_quoted_later_in_the_previous_review(harness: ReviewHarness) -> None:
     harness.delta_base = PREVIOUS_HEAD
     harness.ancestors.add((PREVIOUS_HEAD, HEAD))
@@ -1361,6 +1615,7 @@ def test_verify_fixes_on_a_pinned_older_head_diffs_against_that_head(harness: Re
 
 
 def write_receipt(tmp_path: Path, **changes: Any) -> Path:
+    """A hand-written receipt: every field a naive gate would look at, and no evidence at all."""
     data: dict[str, Any] = {
         "schema": "evallab.independent_review/v1",
         "pr_number": PR_NUMBER,
@@ -1374,32 +1629,55 @@ def write_receipt(tmp_path: Path, **changes: Any) -> Path:
     return path
 
 
-def check(harness: ReviewHarness, path: Path, capsys: pytest.CaptureFixture[str]) -> tuple[int, Any]:
-    code = review_pr.main([str(PR_NUMBER), "--check", str(path)])
+def genuine(harness: ReviewHarness, **run_kwargs: Any) -> Path:
+    """Evidence written by an actual run_review (fake git/omp) for a valid PASS or BLOCK."""
+    receipt = harness.run(**run_kwargs)
+    assert receipt["valid"] is True, receipt["errors"]
+    return harness.out / "receipt.json"
+
+
+def check(
+    harness: ReviewHarness, path: Path, capsys: pytest.CaptureFixture[str], pr: int = PR_NUMBER,
+) -> tuple[int, Any]:
+    """Run ``--check``; it may only ever ask GitHub for the PR head, never review or fetch."""
+    commands, launches, added = len(harness.commands), len(harness.launches), len(harness.added)
+    code = review_pr.main([str(pr), "--check", str(path)])
     captured = capsys.readouterr()
-    assert not harness.launches and not harness.added
-    assert not harness.out.exists()
-    assert not any(argv[:2] == ["git", "fetch"] for argv, _ in harness.commands)
+    assert len(harness.launches) == launches and len(harness.added) == added
+    for argv, _ in harness.commands[commands:]:
+        assert argv[:3] == ["gh", "pr", "view"] or argv == ["git", "rev-parse", "--show-toplevel"], argv
     return code, (json.loads(captured.out) if captured.out else None)
 
 
-@pytest.mark.parametrize("verdict,code", [("PASS", 0), ("BLOCK", 1)])
-def test_check_exit_code_reports_the_verdict_that_covers_the_current_head(
-    harness: ReviewHarness, tmp_path: Path, capsys: pytest.CaptureFixture[str], verdict: str, code: int,
+def lane_for(mode: str) -> str:
+    return "review" if mode == "shallow" else "gates"
+
+
+@pytest.mark.parametrize("mode", ["shallow", "deep"])
+@pytest.mark.parametrize("verdict,review,code", [("PASS", PASS_REVIEW, 0), ("BLOCK", BLOCK_REVIEW, 1)])
+def test_check_exit_code_reports_the_verified_verdict_that_covers_the_current_head(
+    harness: ReviewHarness, capsys: pytest.CaptureFixture[str],
+    mode: str, verdict: str, review: str, code: int,
 ) -> None:
-    exit_code, status = check(harness, write_receipt(tmp_path, verdict=verdict), capsys)
+    harness.lane(lane_for(mode)).review = review
+    path = genuine(harness, mode=mode)
+    exit_code, status = check(harness, path, capsys)
 
     assert exit_code == code
     assert status["covers"] is True and status["verdict"] == verdict
     assert status["reviewed_sha"] == status["current_head"] == HEAD
+    assert status["mode"] == mode and status["requested_model"] == review_pr.DEFAULT_MODEL
 
 
-@pytest.mark.parametrize("verdict", ["PASS", "BLOCK"])
+@pytest.mark.parametrize("mode", ["shallow", "deep"])
+@pytest.mark.parametrize("review", [PASS_REVIEW, BLOCK_REVIEW])
 def test_check_exits_4_when_the_pr_head_moved_even_for_a_pass(
-    harness: ReviewHarness, tmp_path: Path, capsys: pytest.CaptureFixture[str], verdict: str,
+    harness: ReviewHarness, capsys: pytest.CaptureFixture[str], mode: str, review: str,
 ) -> None:
+    harness.lane(lane_for(mode)).review = review
+    path = genuine(harness, mode=mode)
     harness.current_head = OTHER_HEAD
-    exit_code, status = check(harness, write_receipt(tmp_path, verdict=verdict), capsys)
+    exit_code, status = check(harness, path, capsys)
 
     assert exit_code == 4
     assert status["covers"] is False
@@ -1407,68 +1685,179 @@ def test_check_exits_4_when_the_pr_head_moved_even_for_a_pass(
     assert "--verify-fixes" in status["action"]
 
 
-@pytest.mark.parametrize(
-    "changes",
-    [
-        {"verdict": "INCONCLUSIVE"},
-        {"verdict": None},
-        {"verdict": "MAYBE"},
-        {"valid": False},
-        {"valid": "true"},
-        {"pr_number": 7},
-        {"schema": "something.else/v1"},
-    ],
-    ids=["inconclusive", "no-verdict", "unknown-verdict", "invalid", "truthy-string-valid",
-         "other-pr", "other-schema"],
-)
-def test_check_exits_2_for_receipts_that_carry_no_usable_verdict(
-    harness: ReviewHarness, tmp_path: Path, capsys: pytest.CaptureFixture[str], changes: dict[str, Any],
+@pytest.mark.parametrize("current", [HEAD, OTHER_HEAD])
+@pytest.mark.parametrize("changes", [{}, {"verdict": "BLOCK"}, {"head_sha": OTHER_HEAD}])
+def test_check_never_trusts_a_forged_receipt_without_evidence(
+    harness: ReviewHarness, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+    changes: dict[str, Any], current: str,
 ) -> None:
-    harness.current_head = OTHER_HEAD  # even with a moved head these are 2, never 4
+    harness.current_head = current
     exit_code, status = check(harness, write_receipt(tmp_path, **changes), capsys)
 
     assert exit_code == 2
     assert status["covers"] is False
+    assert status["problems"]
+    assert not any(argv[0] == "gh" for argv, _ in harness.commands), "no gate decision from a forgery"
 
 
-def test_check_a_receipt_without_a_reviewed_head_never_covers(
+def tamper_review(path: Path) -> None:
+    report = path.parent / "REVIEW.md"
+    report.write_text(report.read_text(encoding="utf-8").replace("VERDICT: PASS", "VERDICT: BLOCK"), encoding="utf-8")
+
+
+def tamper_review_deleted(path: Path) -> None:
+    (path.parent / "REVIEW.md").unlink()
+
+
+def tamper_review_head(path: Path) -> None:
+    report = path.parent / "REVIEW.md"
+    report.write_text(report.read_text(encoding="utf-8").replace(HEAD, OTHER_HEAD, 1), encoding="utf-8")
+
+
+def tamper_receipt_verdict(path: Path) -> None:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["verdict"] = "BLOCK"
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def tamper_receipt_head(path: Path) -> None:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["head_sha"] = NEW_PR_HEAD  # the head the PR is at now; REVIEW.md still binds the old one
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def tamper_session_model(path: Path) -> None:
+    session = sorted(path.parent.rglob("*.jsonl"))[0]
+    session.write_text(session.read_text(encoding="utf-8").replace("gemini-4-argon", "other-model"), encoding="utf-8")
+
+
+def tamper_session_deleted(path: Path) -> None:
+    sorted(path.parent.rglob("*.jsonl"))[0].unlink()
+
+
+def tamper_session_fallback_flag(path: Path) -> None:
+    session = sorted(path.parent.rglob("*.jsonl"))[0]
+    session.write_text(session.read_text(encoding="utf-8").replace('"role"', '"resolvedModelIsFallback": true, "role"'), encoding="utf-8")
+
+
+def tamper_receipt_invalid(path: Path) -> None:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["errors"] = ["synthetic leftover error"]
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def tamper_receipt_worktree(path: Path) -> None:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["worktree_removed"] = False
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+TAMPERS = [
+    tamper_review, tamper_review_deleted, tamper_review_head,
+    tamper_receipt_verdict, tamper_receipt_head, tamper_session_model, tamper_session_deleted,
+    tamper_session_fallback_flag, tamper_receipt_invalid, tamper_receipt_worktree,
+]
+
+
+@pytest.mark.parametrize("mode", ["shallow", "deep"])
+@pytest.mark.parametrize("tamper", TAMPERS, ids=[function.__name__ for function in TAMPERS])
+def test_check_rejects_evidence_edited_after_the_run(
+    harness: ReviewHarness, capsys: pytest.CaptureFixture[str], mode: str, tamper: Any,
+) -> None:
+    path = genuine(harness, mode=mode)
+    tamper(path)
+    harness.current_head = NEW_PR_HEAD if tamper is tamper_receipt_head else HEAD
+    exit_code, status = check(harness, path, capsys)
+
+    assert exit_code == 2, status
+    assert status["covers"] is False
+    assert status["problems"]
+
+
+def test_check_rejects_a_partial_coverage_pass_from_a_lane_subset(
+    harness: ReviewHarness, capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = genuine(harness, mode="deep", lanes=["gates", "behaviour"])
+    assert json.loads(path.read_text(encoding="utf-8"))["verdict"] == "PASS"
+    exit_code, status = check(harness, path, capsys)
+
+    assert exit_code == 2
+    assert status["covers"] is False and status["problems"]
+
+
+def test_check_rejects_a_block_that_has_partial_coverage(
+    harness: ReviewHarness, capsys: pytest.CaptureFixture[str],
+) -> None:
+    harness.lane("adversarial").error = subprocess.TimeoutExpired(["omp"], 2400)
+    harness.lane("tests_docs").review = BLOCK_REVIEW
+    path = genuine(harness, mode="deep")
+    assert json.loads(path.read_text(encoding="utf-8"))["verdict"] == "BLOCK"
+    exit_code, status = check(harness, path, capsys)
+
+    assert exit_code == 2 and status["covers"] is False
+
+
+def test_check_rejects_inconclusive_and_refused_runs(
     harness: ReviewHarness, tmp_path: Path, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    exit_code, status = check(harness, write_receipt(tmp_path, head_sha=None), capsys)
+    harness.lane("gates").error = subprocess.TimeoutExpired(["omp"], 2400)
+    receipt = harness.run(mode="deep")
+    assert receipt["valid"] is False and receipt["outcome"] == "INCONCLUSIVE"
+    exit_code, status = check(harness, harness.out / "receipt.json", capsys)
+    assert exit_code == 2 and status["covers"] is False
 
-    assert exit_code != 0 and exit_code != 1
-    assert status["covers"] is False
+    harness.out = tmp_path / "refused-evidence"
+    harness.lane("review").session_mode = "mismatch"
+    refused = harness.run(mode="shallow")
+    assert refused["valid"] is False
+    exit_code, status = check(harness, harness.out / "receipt.json", capsys)
+    assert exit_code == 2 and status["covers"] is False
 
 
-@pytest.mark.parametrize("content", [None, "", "{not json", "[]", '"text"', "null"])
-def test_check_exits_2_for_missing_or_unreadable_receipts(
+def test_check_of_evidence_for_another_pr_exits_2(
+    harness: ReviewHarness, capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = genuine(harness)
+    exit_code, status = check(harness, path, capsys, pr=PR_NUMBER + 1)
+
+    assert exit_code == 2
+    assert status["covers"] is False and "different PR" in status["action"]
+
+
+@pytest.mark.parametrize("content", [None, "", "{not json", "[]", '"text"', "null", "{}"])
+def test_check_exits_2_with_problems_for_missing_or_unreadable_receipts(
     harness: ReviewHarness, tmp_path: Path, capsys: pytest.CaptureFixture[str], content: str | None,
 ) -> None:
     path = tmp_path / "receipt.json"
     if content is not None:
         path.write_text(content, encoding="utf-8")
-    code = review_pr.main([str(PR_NUMBER), "--check", str(path)])
-    captured = capsys.readouterr()
+    exit_code, status = check(harness, path, capsys)
 
-    assert code == 2
-    assert "Review refused" in captured.err
+    assert exit_code == 2
+    assert status["covers"] is False and status["problems"]
     assert not harness.launches and not harness.added and not harness.out.exists()
 
 
-def test_check_receipt_function_returns_status_without_running_a_review(
-    harness: ReviewHarness, tmp_path: Path,
+def test_check_receipt_function_verifies_evidence_then_asks_github_once(
+    harness: ReviewHarness,
 ) -> None:
-    status = review_pr.check_receipt(write_receipt(tmp_path), PR_NUMBER, harness.repo)
+    path = genuine(harness)
+    harness.commands.clear()
+    status = review_pr.check_receipt(path, PR_NUMBER, harness.repo)
 
     assert status["covers"] is True and status["verdict"] == "PASS"
-    assert [argv[0] for argv, _ in harness.commands] == ["gh"]
-    assert not harness.launches and not harness.out.exists()
+    assert [argv[:3] for argv, _ in harness.commands] == [["gh", "pr", "view"]]
+    harness.commands.clear()
+    forged = review_pr.check_receipt(path.parent / "missing.json", PR_NUMBER, harness.repo)
+    assert forged["covers"] is False and forged["problems"]
+    assert not harness.commands, "unverifiable evidence must not even reach GitHub"
 
 
-def test_check_accepts_the_receipt_written_by_a_real_run_until_the_head_moves(
-    harness: ReviewHarness, capsys: pytest.CaptureFixture[str],
+@pytest.mark.parametrize("mode", ["shallow", "deep"])
+def test_check_accepts_the_evidence_of_a_real_run_until_the_head_moves(
+    harness: ReviewHarness, capsys: pytest.CaptureFixture[str], mode: str,
 ) -> None:
-    receipt = harness.run()
+    receipt = harness.run(mode=mode)
     stored = harness.out / "receipt.json"
 
     assert receipt["valid"] is True
@@ -1478,7 +1867,7 @@ def test_check_accepts_the_receipt_written_by_a_real_run_until_the_head_moves(
     assert review_pr.main([str(PR_NUMBER), "--check", str(stored)]) == 4
     status = json.loads(capsys.readouterr().out)
     assert status["covers"] is False and status["reviewed_sha"] == HEAD
-    assert len(harness.launches) == 1  # only the original review ran
+    assert len(harness.launches) == (4 if mode == "deep" else 1)  # only the original review ran
 
 
 def test_check_of_a_pinned_older_review_is_4_when_the_pr_branch_moved(
@@ -1517,6 +1906,29 @@ def test_cli_malformed_head_is_refused_with_exit_2_and_no_evidence(
     assert code == 2
     assert "Review refused" in capsys.readouterr().err
     assert not harness.out.exists() and not harness.launches
+
+
+@pytest.mark.parametrize(
+    "scenario,code",
+    [("pass", 0), ("block", 1), ("inconclusive", 3), ("refused", 2), ("cleanup-failed", 2)],
+)
+def test_cli_exit_codes_distinguish_inconclusive_from_other_invalid_results(
+    harness: ReviewHarness, capsys: pytest.CaptureFixture[str], scenario: str, code: int,
+) -> None:
+    if scenario == "block":
+        harness.lane("gates").review = BLOCK_REVIEW
+    elif scenario == "inconclusive":
+        harness.lane("gates").error = subprocess.TimeoutExpired(["omp"], 2400)
+    elif scenario == "refused":
+        harness.lane("gates").session_mode = "mismatch"
+    elif scenario == "cleanup-failed":
+        harness.lane("gates").cleanup_error = OSError("synthetic cleanup error")
+    exit_code = review_pr.main([str(PR_NUMBER), "--mode", "deep", "--out", str(harness.out)])
+    printed = json.loads(capsys.readouterr().out)
+
+    assert exit_code == code
+    assert printed["valid"] is (code in (0, 1))
+    assert printed.get("outcome") == ("INCONCLUSIVE" if scenario == "inconclusive" else None)
 
 
 # ------------------------------------------------------------------ real process group

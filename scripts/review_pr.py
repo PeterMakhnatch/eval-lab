@@ -38,6 +38,7 @@ from scripts.independent_review_contract import (
     parse_review,
     render_brief,
     reviewed_head,
+    verify_evidence,
 )
 
 DEFAULT_MODEL = "google-antigravity/gemini-4-argon"
@@ -54,6 +55,7 @@ RULE_PATHS = (
     "agents/CHECKS.md",
     "agents/STRUCTURE.md",
 )
+REFUSED_PREFIX = "> **REFUSED: no valid verdict was issued:"
 
 
 def _command(argv: list[str], cwd: Path) -> str:
@@ -83,7 +85,7 @@ def _run_reviewer(
 
 def comment_summary(review: str, *, verdict: str, head: str, model: str) -> str:
     """Bound the optional public summary; the full report stays in local evidence."""
-    blocking = review.split("## Blocking", 1)[1].split("\n## ", 1)[0].strip()
+    blocking = parse_review(review)["blocking"]
     return (
         f"Independent review (advisory): **{verdict}**\n\n"
         f"Head: `{head}`\nServed model: `{model}` (attested; no fallback).\n\n"
@@ -115,9 +117,21 @@ class Lane:
         return self.directory / "scratch"
 
 
-def _assess(lane: Lane, run: dict[str, Any], model: str) -> dict[str, Any]:
+def _assess(lane: Lane, run: dict[str, Any], model: str, head: str) -> dict[str, Any]:
     """Judge one finished reviewer from evidence only; never from its own claims."""
     attestation = attest_sessions(sorted(lane.sessions.rglob("*.jsonl")), model)
+    # Always inspect the checkout, even after a timeout: dirt is evidence, kept as dirty.txt.
+    try:
+        dirty = _command(["git", "status", "--porcelain", "--untracked-files=all"], lane.worktree)
+    except (OSError, subprocess.SubprocessError) as error:
+        dirty = f"cannot inspect checkout: {error}"
+    if dirty:
+        with contextlib.suppress(OSError):
+            (lane.directory / "dirty.txt").write_text(dirty + "\n", encoding="utf-8")
+    try:
+        current = _command(["git", "rev-parse", "HEAD"], lane.worktree)
+    except (OSError, subprocess.SubprocessError) as error:
+        current = f"cannot read HEAD: {error}"
     reason: str | None = None
     if run["error"] is not None:
         reason = run["error"]
@@ -125,13 +139,10 @@ def _assess(lane: Lane, run: dict[str, Any], model: str) -> dict[str, Any]:
         reason = "served model attestation failed: " + "; ".join(attestation["errors"])
     elif run["returncode"]:
         reason = f"reviewer exited with status {run['returncode']}"
-    else:
-        try:
-            dirty = _command(["git", "status", "--porcelain", "--untracked-files=all"], lane.worktree)
-        except (OSError, subprocess.SubprocessError) as error:
-            dirty = f"cannot inspect checkout: {error}"
-        if dirty:
-            reason = "reviewer modified the checkout; refusing a read-only review verdict"
+    elif dirty:
+        reason = "reviewer modified the checkout; refusing a read-only review verdict"
+    elif current != head:
+        reason = f"reviewer moved HEAD to {current!r}; the checkout is no longer the reviewed commit"
     report = None
     with contextlib.suppress(OSError, UnicodeDecodeError):
         report = lane.report.read_text(encoding="utf-8")
@@ -212,22 +223,25 @@ def run_review(
             except subprocess.CalledProcessError:
                 raise ValueError("--head is neither the PR head nor one of its ancestors") from None
         receipt["head_sha"] = head
-        previous_head = reviewed_head(previous_review) if previous_review is not None else None
         delta_base: str | None = None
-        if previous_head is not None:
-            if previous_head == head:
-                raise ValueError("the earlier review already covers this exact commit; nothing to verify")
-            try:
-                _command(["git", "merge-base", "--is-ancestor", previous_head, head], repo)
-                delta_base = previous_head
-            except subprocess.CalledProcessError:
+        previous_head: str | None = None
+        if previous_review is not None:
+            parse_review(previous_review)  # a base must itself be a complete, valid review
+            previous_head = reviewed_head(previous_review, pr_number)
+            if previous_head is None:
                 receipt.setdefault("notes", []).append(
-                    "earlier reviewed commit is not an ancestor of the reviewed head; reviewing the full PR"
+                    "earlier review is not bound to a commit; reviewing the full PR"
                 )
-        if previous_review is not None and previous_head is None:
-            receipt.setdefault("notes", []).append(
-                "earlier review is not bound to a commit; reviewing the full PR"
-            )
+            elif previous_head == head:
+                raise ValueError("the earlier review already covers this exact commit; nothing to verify")
+            else:
+                try:
+                    _command(["git", "merge-base", "--is-ancestor", previous_head, head], repo)
+                    delta_base = previous_head
+                except subprocess.CalledProcessError:
+                    receipt.setdefault("notes", []).append(
+                        "earlier reviewed commit is not an ancestor of the reviewed head; reviewing the full PR"
+                    )
         receipt["previous_head_sha"] = delta_base
         range_spec = f"{delta_base}..{head}" if delta_base else f"{base}...{head}"
         lines = changed_lines(_command(["git", "diff", "--numstat", range_spec], repo))
@@ -320,7 +334,10 @@ def run_review(
 
         with ThreadPoolExecutor(max_workers=len(launches)) as pool:
             runs = list(pool.map(launch, launches))
-        assessed = {lane.name: _assess(lane, run, model) for (lane, _, _), run in zip(launches, runs, strict=True)}
+        assessed = {
+            lane.name: _assess(lane, run, model, head)
+            for (lane, _, _), run in zip(launches, runs, strict=True)
+        }
         receipt["attestation"] = merge_attestations(
             {name: item["attestation"] for name, item in assessed.items()}, model
         ) if deep else assessed["review"]["attestation"]
@@ -351,10 +368,13 @@ def run_review(
             receipt["pr_head_after"] = current_head
             receipt["head_moved"] = current_head != head
 
-        def bound(text: str) -> str:
+        skipped = [name for name in FOCUSES if lane_names and name not in lane_names]
+
+        def bound(text: str, *, coverage_complete: bool = True) -> str:
             return bind_report(
                 text, pr_number=pr_number, head_sha=head, base_sha=base, model=model,
                 mode=resolved, previous_head=delta_base, pr_head_after=receipt.get("pr_head_after"),
+                coverage_complete=coverage_complete,
             )
 
         if deep:
@@ -370,9 +390,10 @@ def run_review(
             ]
             consolidated = consolidate_reviews(
                 parts, pr_number=pr_number, head_sha=head, base_sha=base, model=model,
-                skipped=[name for name in FOCUSES if lane_names and name not in lane_names],
+                skipped=skipped,
             )
-            review = bound(consolidated["report"])
+            coverage_complete = not consolidated["coverage"]["incomplete"] and not skipped
+            review = bound(consolidated["report"], coverage_complete=coverage_complete)
             (out / "REVIEW.md").write_text(review, encoding="utf-8")
             receipt["coverage"] = consolidated["coverage"]
             for name, detail in receipt["lanes"].items():
@@ -384,6 +405,12 @@ def run_review(
         if deep:
             parse_review(review)  # the consolidated report must itself be a valid review
             verdict = consolidated["verdict"]
+            if verdict == "INCONCLUSIVE":
+                receipt["outcome"] = "INCONCLUSIVE"
+                raise ValueError(
+                    "deep review is inconclusive: no blocker found but lanes are incomplete: "
+                    + ", ".join(consolidated["coverage"]["incomplete"])
+                )
         else:
             review = assessed["review"]["report"]
             if review is None:
@@ -401,7 +428,9 @@ def run_review(
         removed = bool(worktrees)
         for worktree in worktrees:
             try:
-                _command(["git", "worktree", "remove", str(worktree)], repo)
+                # A reviewer may have left this checkout dirty; _assess already recorded that as
+                # dirty.txt and made the lane incomplete, so force removal must not fail the run.
+                _command(["git", "worktree", "remove", "--force", str(worktree)], repo)
             except (OSError, subprocess.SubprocessError) as error:
                 removed = False
                 receipt["valid"] = False
@@ -411,7 +440,7 @@ def run_review(
             receipt["worktree_removed"] = removed
         if worktree_root is not None:
             with contextlib.suppress(OSError):
-                worktree_root.rmdir()  # Never force-delete a dirty checkout or unknown evidence.
+                worktree_root.rmdir()  # Never force-delete unknown files left in the root.
     if receipt["valid"] and comment and receipt["verdict"] in ("PASS", "BLOCK"):
         try:
             body = out / "comment.md"
@@ -427,27 +456,52 @@ def run_review(
             receipt["errors"].append(f"comment failed: {error}")
     report_file = out / "REVIEW.md"
     if not receipt["valid"] and report_file.is_file():
-        # A rejected review must never read as a pass to someone who opens only REVIEW.md.
+        # A rejected review must never read as a verdict to someone who opens only REVIEW.md.
         text = report_file.read_text(encoding="utf-8").rstrip()
         if text.endswith("VERDICT: PASS"):
+            text = text.removesuffix("VERDICT: PASS") + "VERDICT: BLOCK"
+        if not text.startswith(REFUSED_PREFIX):
             reasons = " ".join("; ".join(receipt["errors"]).split())
-            report_file.write_text(
-                f"> **REFUSED: no valid verdict was issued: {reasons}**\n\n"
-                + text.removesuffix("VERDICT: PASS")
-                + "VERDICT: BLOCK\n",
-                encoding="utf-8",
-            )
+            text = f"{REFUSED_PREFIX} {reasons}**\n\n{text}"
+        report_file.write_text(text + "\n", encoding="utf-8")
     (out / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
     return receipt
 
 
 def check_receipt(receipt_path: Path, pr_number: int, repo: Path) -> dict[str, Any]:
-    """Merge-time rule: does a stored receipt's verdict cover the PR's head right now?"""
-    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-    if not isinstance(receipt, dict):
-        raise ValueError("receipt must be a JSON object")
+    """Merge-time rule: does the evidence behind a receipt cover the PR's head right now?
+
+    The receipt's own fields are never trusted: the evidence directory is re-derived first, and
+    only the verified head and verdict are compared with the PR head. This catches stale,
+    accidental and inconsistent results; it cannot stop a deliberate forger who can write the
+    evidence directory.
+    """
+    try:
+        verified = verify_evidence(receipt_path)
+    except (OSError, ValueError) as error:
+        return {
+            "pr_number": pr_number,
+            "reviewed_sha": None,
+            "current_head": None,
+            "verdict": None,
+            "covers": False,
+            "action": "evidence does not verify; run a new review",
+            "problems": [item for item in str(error).split("; ") if item.strip()] or [repr(error)],
+        }
     current = _command(["gh", "pr", "view", str(pr_number), "--json", "headRefOid", "-q", ".headRefOid"], repo)
-    return binding_status(receipt, pr_number, current)
+    status = binding_status(
+        {
+            "schema": "evallab.independent_review/v1",
+            "pr_number": verified["pr_number"],
+            "valid": True,
+            "verdict": verified["verdict"],
+            "head_sha": verified["head_sha"],
+        },
+        pr_number,
+        current,
+    )
+    status.update(mode=verified.get("mode"), requested_model=verified.get("requested_model"))
+    return status
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -504,8 +558,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(json.dumps(receipt, indent=2))
     if not receipt["valid"]:
-        return 2
-    return {"PASS": 0, "BLOCK": 1}.get(receipt["verdict"], 3)
+        return 3 if receipt.get("outcome") == "INCONCLUSIVE" else 2
+    return {"PASS": 0, "BLOCK": 1}[receipt["verdict"]]
 
 
 if __name__ == "__main__":

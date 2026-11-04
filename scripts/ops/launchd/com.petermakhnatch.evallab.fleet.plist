@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.petermakhnatch.evallab.fleet</string>
+    <key>Disabled</key>
+    <true/>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>WorkingDirectory</key>
+    <string>__EVAL_LAB_WORKTREE__</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__EVAL_LAB_WORKTREE__/.venv/bin/evallab</string>
+        <string>fleet</string>
+        <string>watch</string>
+    </array>
+    <key>Umask</key>
+    <integer>63</integer>
+    <key>StandardOutPath</key>
+    <string>__EVAL_LAB_LOG_DIR__/fleet.out</string>
+    <key>StandardErrorPath</key>
+    <string>__EVAL_LAB_LOG_DIR__/fleet.err</string>
+</dict>
+</plist>

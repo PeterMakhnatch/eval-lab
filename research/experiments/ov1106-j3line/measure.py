@@ -453,6 +453,7 @@ def line_table(args):
     for name, entry in report['batches'].items():
         for corpus, acceptance in entry['no_cheat_keep_increase'].items():
             md.append(f'| {name} | {corpus} | {acceptance["before_cheat_keep"]} | {acceptance["after_cheat_keep"]} | {acceptance["pass"]} |')
+    for name, entry in report['batches'].items():
         md += ['', f'### {name}: J3 load', '', f'Eligible runs: {entry["j3_load"]["eligible_runs"]}. Available cache/detail load: {entry["j3_load"]["available_runs"]}.']
         for field in ('calls', 'prompt_tokens', 'completion_tokens', 'latency_s', 'cost_usd'):
             value = entry['j3_load'][field]

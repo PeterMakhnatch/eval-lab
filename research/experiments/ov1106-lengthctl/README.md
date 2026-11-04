@@ -111,10 +111,22 @@ uv run python research/experiments/ov1106-lengthctl/scoreboard.py \
 For a limited table, append `--sets 'malt-*,hackbench-test'` or another set pattern.
 This filters evaluation populations only. It retains all DEV calibration rows and excludes pooled populations.
 Each output directory receives `aggregate.json` and `SCOREBOARD.md`.
-These commands score evaluation data. The parent owns their execution and scientific interpretation.
+These commands reuse frozen scores. They do not call detectors.
 
-The parent runs behavioral tests separately:
+Run behavioral tests separately:
 
 ```sh
 uv run pytest research/experiments/ov1106-lengthctl/test_lengthctl_scoreboard.py
 ```
+
+## Reviewed outputs
+
+`SCOREBOARD.md` gives the controlled interpretation and 2 worked examples.
+`results/aggregate.json.gz` retains every pair, calibration, interval, and input hash.
+`results/FULL-SCOREBOARD.md.gz` retains the complete 21,344-row table.
+`results/manifest.json` binds the compressed files to their original bytes.
+`results/independent-audit.json` records the independent first-run checks.
+`results/final-equivalence.json` proves exact statistical equality after the import-only correction.
+
+Read the aggregate with Python's `gzip.open(path, "rt")` and `json.load`.
+Both compressed files use deterministic gzip metadata.

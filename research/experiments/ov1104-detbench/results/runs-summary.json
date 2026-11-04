@@ -1,0 +1,519 @@
+{
+ "problems": 0,
+ "rows": 16549,
+ "sets": {
+  "agent-cheat-index": {
+   "clusters": 40,
+   "decisive_rule": false,
+   "label_type": {
+    "executed": 1148
+   },
+   "n": 1148,
+   "natural": {
+    "None": 1148
+   },
+   "neg": 1086,
+   "pos": 62,
+   "read_by": [
+    "B6 facets-sonnet (CM-18 subsample<=15/stratum)",
+    "CM-18 cascade-v8 (sample<=60/stratum)",
+    "CM-18 facets-haiku (sample<=60/stratum)",
+    "ID-CM-1 latency (CM-18 stored replays)",
+    "pK-SELF-dd216e-2 facets-sonnet>=1 (B6 subsample)"
+   ],
+   "source_family": "B0yko/cheat-index v0.1.0 (Agent Cheat Index)",
+   "split": "heldout"
+  },
+  "beam-tripwire": {
+   "clusters": 44,
+   "decisive_rule": false,
+   "label_type": {
+    "rule": 613
+   },
+   "n": 613,
+   "natural": {
+    "None": 613
+   },
+   "neg": 442,
+   "pos": 171,
+   "read_by": [
+    "B6 facets-sonnet (CM-18 subsample<=15/stratum)",
+    "CM-18 cascade-v8 (sample<=60/stratum)",
+    "CM-18 facets-haiku (sample<=60/stratum)",
+    "ID-CM-1 latency (CM-18 stored replays)",
+    "pK-SELF-dd216e-2 facets-sonnet>=1 (B6 subsample)"
+   ],
+   "source_family": "dhairyapandya/beam-tripwire-episodes",
+   "split": "heldout"
+  },
+  "c1c5": {
+   "clusters": 5,
+   "decisive_rule": false,
+   "label_type": {
+    "constructed": 10,
+    "executed": 20
+   },
+   "n": 30,
+   "natural": {
+    "False": 10,
+    "True": 20
+   },
+   "neg": 19,
+   "pos": 11,
+   "read_by": [
+    "autoreview-cached",
+    "autoreview-monitor-v2",
+    "evallab-harden",
+    "hack-drop-c2-20261102",
+    "l0formats-replay",
+    "line-replay-v1"
+   ],
+   "source_family": "lab-constructed-c1c5",
+   "split": "dev"
+  },
+  "cape-bench": {
+   "clusters": 540,
+   "decisive_rule": true,
+   "label_type": {
+    "executed": 800
+   },
+   "n": 800,
+   "natural": {
+    "True": 800
+   },
+   "neg": 400,
+   "pos": 400,
+   "read_by": [],
+   "source_family": "Afayyazi/CAPE-Bench",
+   "split": "heldout"
+  },
+  "caught-not-taught": {
+   "clusters": 5,
+   "decisive_rule": false,
+   "label_type": {
+    "executed": 206
+   },
+   "n": 206,
+   "natural": {
+    "False": 206
+   },
+   "neg": 160,
+   "pos": 46,
+   "read_by": [
+    "NP33-CM-1:cascade_v8",
+    "NP33-CM-1:facets"
+   ],
+   "source_family": "amirgroup-codes/caught_not_taught",
+   "split": "heldout"
+  },
+  "cheatbench": {
+   "clusters": 4,
+   "decisive_rule": false,
+   "label_type": {
+    "dataset": 150
+   },
+   "n": 150,
+   "natural": {
+    "False": 150
+   },
+   "neg": 75,
+   "pos": 75,
+   "read_by": [
+    "action-features-lr",
+    "autoreview-cached",
+    "autoreview-dt15",
+    "cascade-v8",
+    "codeban",
+    "combined-v1",
+    "facets",
+    "flag-cheating",
+    "hack-drop-c2-20261102",
+    "kev-4b",
+    "kev-stack-lr",
+    "l0formats-replay",
+    "line-replay-v1",
+    "live-watch",
+    "tripwires-rules"
+   ],
+   "source_family": "cheatbench",
+   "split": "dev"
+  },
+  "evilgenie-escalation": {
+   "clusters": 15,
+   "decisive_rule": false,
+   "label_type": {
+    "judge": 2114
+   },
+   "n": 2114,
+   "natural": {
+    "None": 2114
+   },
+   "neg": 1990,
+   "pos": 124,
+   "read_by": [
+    "B6 facets-sonnet (CM-18 subsample)",
+    "CM-18 cascade-v8 (sample<=60/stratum)",
+    "CM-18 facets-haiku (sample<=60/stratum)"
+   ],
+   "source_family": "WiserHumanExperimental/evilgenie-escalation",
+   "split": "heldout"
+  },
+  "flake-laundering": {
+   "clusters": 17,
+   "decisive_rule": false,
+   "label_type": {
+    "executed": 224
+   },
+   "n": 224,
+   "natural": {
+    "None": 224
+   },
+   "neg": 217,
+   "pos": 7,
+   "read_by": [
+    "np21-cm1:cascade_v8_sonnet",
+    "np21-cm1:facets_haiku",
+    "np29-cm1:test_edit_s"
+   ],
+   "source_family": "zaidwhy/flake-laundering",
+   "split": "heldout"
+  },
+  "goodfire": {
+   "clusters": 150,
+   "decisive_rule": false,
+   "label_type": {
+    "dataset": 150
+   },
+   "n": 150,
+   "natural": {
+    "True": 150
+   },
+   "neg": 70,
+   "pos": 80,
+   "read_by": [
+    "autoreview-cached",
+    "autoreview-masked",
+    "cascade-v8",
+    "facets",
+    "flag-cheating",
+    "hack-drop-c2-20261102",
+    "haiku-reader",
+    "l0formats-replay",
+    "length-baseline",
+    "line-replay-v1"
+   ],
+   "source_family": "goodfire-impossiblebench",
+   "split": "dev"
+  },
+  "kernelbench-hard-runs": {
+   "clusters": 5,
+   "decisive_rule": false,
+   "label_type": {
+    "human": 30
+   },
+   "n": 30,
+   "natural": {
+    "None": 30
+   },
+   "neg": 19,
+   "pos": 11,
+   "read_by": [
+    "B6 facets-sonnet (CM-18 subsample<=15/stratum)",
+    "CM-18 cascade-v8 (sample<=60/stratum)",
+    "CM-18 facets-haiku (sample<=60/stratum)",
+    "ID-CM-1 latency (CM-18 stored replays)",
+    "pK-SELF-dd216e-2 facets-sonnet>=1 (B6 subsample)"
+   ],
+   "source_family": "Infatoshi/kernelbench-hard-runs",
+   "split": "heldout"
+  },
+  "kobayashi-maru": {
+   "clusters": 569,
+   "decisive_rule": false,
+   "label_type": {
+    "rule": 3000
+   },
+   "n": 3000,
+   "natural": {
+    "False": 151,
+    "None": 2849
+   },
+   "neg": 2728,
+   "pos": 272,
+   "read_by": [
+    "np21-cm1:cascade_v8_sonnet",
+    "np21-cm1:facets_haiku",
+    "np22-cm1:gap_analysis"
+   ],
+   "source_family": "ebt55/kobayashi-maru",
+   "split": "heldout"
+  },
+  "latent-agent-sandbox-episodes": {
+   "clusters": 169,
+   "decisive_rule": true,
+   "label_type": {
+    "executed": 326
+   },
+   "n": 326,
+   "natural": {
+    "True": 326
+   },
+   "neg": 148,
+   "pos": 178,
+   "read_by": [],
+   "source_family": "runlatent/latent-agent-sandbox-episodes",
+   "split": "heldout"
+  },
+  "mistrace-reward-hacking": {
+   "clusters": 102,
+   "decisive_rule": false,
+   "label_type": {
+    "executed": 200
+   },
+   "n": 200,
+   "natural": {
+    "None": 200
+   },
+   "neg": 81,
+   "pos": 119,
+   "read_by": [],
+   "source_family": "ameek/MisTrace (reward-hacking config)",
+   "split": "heldout"
+  },
+  "paichecker": {
+   "clusters": 52,
+   "decisive_rule": false,
+   "label_type": {
+    "human": 2587
+   },
+   "n": 2587,
+   "natural": {
+    "None": 2587
+   },
+   "neg": 1502,
+   "pos": 1085,
+   "read_by": [],
+   "source_family": "manyi-w/PAIChecker (SWE-bench Multilingual + SWE-Gym human labels)",
+   "split": "heldout"
+  },
+  "reflex-sentinel": {
+   "clusters": 50,
+   "decisive_rule": false,
+   "label_type": {
+    "executed": 250
+   },
+   "n": 250,
+   "natural": {
+    "None": 250
+   },
+   "neg": 205,
+   "pos": 45,
+   "read_by": [
+    "B6 facets-sonnet (CM-18 subsample<=15/stratum)",
+    "CM-18 cascade-v8 (sample<=60/stratum)",
+    "CM-18 facets-haiku (sample<=60/stratum)",
+    "ID-CM-1 latency (CM-18 stored replays)",
+    "pK-SELF-dd216e-2 facets-sonnet>=1 (B6 subsample)"
+   ],
+   "source_family": "matu79go/reflex-sentinel-agent-trajectories",
+   "split": "heldout"
+  },
+  "researcharena-benchmark-gaming": {
+   "clusters": 7,
+   "decisive_rule": false,
+   "label_type": {
+    "executed": 41
+   },
+   "n": 41,
+   "natural": {
+    "False": 41
+   },
+   "neg": 20,
+   "pos": 21,
+   "read_by": [
+    "B6 facets-sonnet (CM-18 subsample)",
+    "CM-18 cascade-v8 (sample<=60/stratum)",
+    "CM-18 facets-haiku (sample<=60/stratum)"
+   ],
+   "source_family": "aisa-group/ResearchArena-Trajectories (inference-optimization benchmark-gaming core)",
+   "split": "heldout"
+  },
+  "resolvebench-support-agents": {
+   "clusters": 97,
+   "decisive_rule": true,
+   "label_type": {
+    "rule": 512
+   },
+   "n": 512,
+   "natural": {
+    "True": 512
+   },
+   "neg": 400,
+   "pos": 112,
+   "read_by": [],
+   "source_family": "Hubble42/ResolveBench",
+   "split": "heldout"
+  },
+  "reward-pressure-study-2": {
+   "clusters": 20,
+   "decisive_rule": false,
+   "label_type": {
+    "executed": 1120
+   },
+   "n": 1120,
+   "natural": {
+    "None": 1120
+   },
+   "neg": 653,
+   "pos": 467,
+   "read_by": [
+    "np21-cm1:cascade_v8_sonnet",
+    "np21-cm1:facets_haiku",
+    "np35-lb1:s_census"
+   ],
+   "source_family": "osf:7as8h / Reward Pressure Study 2",
+   "split": "heldout"
+  },
+  "rhb-delivery-queue": {
+   "clusters": 7,
+   "decisive_rule": false,
+   "label_type": {
+    "executed": 538
+   },
+   "n": 538,
+   "natural": {
+    "False": 88,
+    "None": 450
+   },
+   "neg": 409,
+   "pos": 129,
+   "read_by": [],
+   "source_family": "joesbobclaw/reward-hacking-benchmark (seven mature studies)",
+   "split": "heldout"
+  },
+  "rsi-benchmark-monitor-training": {
+   "clusters": 14,
+   "decisive_rule": false,
+   "label_type": {
+    "executed": 836
+   },
+   "n": 836,
+   "natural": {
+    "False": 836
+   },
+   "neg": 416,
+   "pos": 420,
+   "read_by": [],
+   "source_family": "scaleapi/rsi-benchmark agent-safety-monitor-training (public train + validation)",
+   "split": "heldout"
+  },
+  "sdf-shortcut-taking": {
+   "clusters": 21,
+   "decisive_rule": false,
+   "label_type": {
+    "executed": 995
+   },
+   "n": 995,
+   "natural": {
+    "None": 995
+   },
+   "neg": 636,
+   "pos": 359,
+   "read_by": [
+    "B6 facets-sonnet (CM-18 subsample)",
+    "CM-18 cascade-v8 (sample<=60/stratum)",
+    "CM-18 facets-haiku (sample<=60/stratum)"
+   ],
+   "source_family": "noahrossi/sdf-shortcut-taking",
+   "split": "heldout"
+  },
+  "sleight-bench": {
+   "clusters": 40,
+   "decisive_rule": false,
+   "label_type": {
+    "constructed": 86
+   },
+   "n": 86,
+   "natural": {
+    "False": 86
+   },
+   "neg": 43,
+   "pos": 43,
+   "read_by": [],
+   "source_family": "safety-research/sleight-bench",
+   "split": "heldout"
+  },
+  "sol-astra": {
+   "clusters": 6,
+   "decisive_rule": false,
+   "label_type": {
+    "constructed": 14,
+    "executed": 42
+   },
+   "n": 56,
+   "natural": {
+    "False": 14,
+    "True": 42
+   },
+   "neg": 48,
+   "pos": 8,
+   "read_by": [
+    "autoreview-cached",
+    "autoreview-structured",
+    "flat-masked-baseline",
+    "hack-drop-c2-20261102",
+    "l0formats-replay",
+    "line-replay-v1"
+   ],
+   "source_family": "lab-sol-astra",
+   "split": "dev"
+  },
+  "terminal-wrench": {
+   "clusters": 25,
+   "decisive_rule": false,
+   "label_type": {
+    "judge": 304
+   },
+   "n": 304,
+   "natural": {
+    "False": 304
+   },
+   "neg": 146,
+   "pos": 158,
+   "read_by": [
+    "autoreview-cached",
+    "autoreview-stage1-reread",
+    "combined-v1",
+    "content-rules",
+    "hack-drop-c2-20261102",
+    "harbor-analyze",
+    "kev-4b",
+    "l0-prefix-gate-1694",
+    "l0formats-replay",
+    "laminar-signals",
+    "line-replay-v1",
+    "metr-scout",
+    "sol-codex",
+    "tripwires-rules"
+   ],
+   "source_family": "terminal-bench-wrench",
+   "split": "dev"
+  },
+  "trusted-monitoring-logs": {
+   "clusters": 200,
+   "decisive_rule": true,
+   "label_type": {
+    "executed": 233
+   },
+   "n": 233,
+   "natural": {
+    "False": 233
+   },
+   "neg": 200,
+   "pos": 33,
+   "read_by": [],
+   "source_family": "dang-w/trusted-monitoring-logs",
+   "split": "heldout"
+  }
+ }
+}

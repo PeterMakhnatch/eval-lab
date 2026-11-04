@@ -138,32 +138,44 @@ def test_import_closure_covers_relative_conditional_and_package_imports(tmp_path
     assert set(files) <= set(paths)
 
 
-def test_missing_data_never_passes(tmp_path, monkeypatch):
+@pytest.fixture
+def repository(tmp_path, monkeypatch):
     import subprocess
 
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     root = tmp_path / "repo"
     root.mkdir()
+
+    def run(*args):
+        return subprocess.check_output(
+            [
+                "git",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.invalid",
+                *args,
+            ],
+            cwd=root,
+            text=True,
+        ).strip()
+
+    run("init", "--quiet")
     for name in ("scripts/line-replay.py", "src/evallab/__init__.py", "pyproject.toml", "uv.lock"):
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("")
-    for args in (
-        ["init", "--quiet"],
-        ["add", "scripts/line-replay.py", "src/evallab/__init__.py", "pyproject.toml", "uv.lock"],
-        [
-            "-c",
-            "user.name=Test",
-            "-c",
-            "user.email=test@example.invalid",
-            "commit",
-            "--quiet",
-            "-m",
-            "fixture",
-        ],
-        ["update-ref", "refs/remotes/origin/main", "HEAD"],
-    ):
-        subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
+    run("add", "scripts/line-replay.py", "src/evallab/__init__.py", "pyproject.toml", "uv.lock")
+    run("commit", "--quiet", "-m", "fixture")
+    run("update-ref", "refs/remotes/origin/main", "HEAD")
     monkeypatch.setattr(gate, "ROOT", root)
+    return root, run
+
+
+def test_missing_data_never_passes(tmp_path, repository):
     output = tmp_path / "receipt"
     assert gate.main(["--set", str(tmp_path / "absent"), "--output", str(output)]) == 2
     import json
@@ -187,3 +199,27 @@ def test_existing_output_is_error_and_preserves_receipt(tmp_path):
     receipt.write_text("preserve existing evidence")
     assert gate.main(["--output", str(tmp_path)]) == 2
     assert receipt.read_text() == "preserve existing evidence"
+
+
+def test_origin_snapshot_stays_fixed_when_another_writer_fetches(tmp_path, repository, monkeypatch):
+    import json
+
+    root, run = repository
+    original = run("rev-parse", "origin/main")
+    run("commit", "--allow-empty", "--quiet", "-m", "new base")
+    newer = run("rev-parse", "HEAD")
+    run("commit", "--allow-empty", "--quiet", "-m", "candidate")
+    real_git = gate.git
+
+    def concurrent_fetch(root, *args):
+        value = real_git(root, *args)
+        if args == ("rev-parse", "--verify", "origin/main^{commit}"):
+            run("update-ref", "refs/remotes/origin/main", newer)
+        return value
+
+    monkeypatch.setattr(gate, "git", concurrent_fetch)
+    output = tmp_path / "snapshot"
+    assert gate.main(["--paths", "--output", str(output)]) == 0
+    report = json.loads((output / "gate.json").read_text())
+    assert report["origin_main"] == original
+    assert report["base"] == original

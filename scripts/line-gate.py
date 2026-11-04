@@ -342,8 +342,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         head = git(ROOT, "rev-parse", "--verify", args.head + "^{commit}")
         main_rev = git(ROOT, "rev-parse", "--verify", "origin/main^{commit}")
-        base = git(ROOT, "merge-base", args.against, head)
-        report.update(head=head, base=base, origin_main=main_rev, pr=args.pr)
+        against = (
+            main_rev
+            if args.against == "origin/main"
+            else git(ROOT, "rev-parse", "--verify", args.against + "^{commit}")
+        )
+        base = git(ROOT, "merge-base", against, head)
+        report.update(head=head, base=base, origin_main=main_rev, against=against, pr=args.pr)
         # Resolve imports at both revisions, so removed and newly imported modules
         # are both sensitive. git archive avoids inspecting a dirty caller tree.
         paths: set[str] = set()

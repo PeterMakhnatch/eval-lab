@@ -1,0 +1,215 @@
+[
+ {
+  "id": "09db1898-8495-4f26-abe9-b0fa8a27716d",
+  "task_id": "format-code-task-002661",
+  "trial": "HAR-148-har148-wrapper-002661",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "625b8d16-dbc9-4300-86c1-ce959d82cf22",
+  "task_id": "format-code-task-001647",
+  "trial": "HAR-148-har148-wrapper-001647",
+  "reward": "1.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "aec02ca4-aa30-420c-807e-6cd690c51740",
+  "task_id": "format-code-task-002661",
+  "trial": "HAR-148-har148-direct-002661",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "d6bebbb8-6508-4690-8e53-6fb63b1086a8",
+  "task_id": "format-code-task-001647",
+  "trial": "HAR-148-har148-direct-001647",
+  "reward": "1.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "44e55dfb-0aa3-479f-9655-e34a62ecd5d9",
+  "task_id": "format-code-task-000587",
+  "trial": "HAR-110-har110-000587-plain",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "41a06c02-66b4-472b-ac06-748e460c4bb6",
+  "task_id": "format-code-task-002256",
+  "trial": "HAR-110-gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "b24aa768-b3b6-4b51-a408-6c382f24aae4",
+  "task_id": "format-code-task-000587",
+  "trial": "HAR-110-har110-000587-gepa",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "04b569be-43f4-4f7b-a886-007c9c176718",
+  "task_id": "format-code-task-000587",
+  "trial": "HAR-110-har110-000587-seed",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "f1ad76d7-e767-4667-ab43-0281307194d3",
+  "task_id": "format-code-task-002256",
+  "trial": "HAR-104-har104-d-002256",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "284a9836-a837-4b8c-91c7-e969a75609fb",
+  "task_id": "format-code-task-000941",
+  "trial": "HAR-120-har120-000941-a2-r2",
+  "reward": "1.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "4440e4ae-9a9a-4754-9834-c891d3d9bac5",
+  "task_id": "format-code-task-002416",
+  "trial": "HAR-120-har120-002416-a1-r2",
+  "reward": "1.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "c8e6d2d0-975c-4a74-9899-87cd4dfacb4c",
+  "task_id": "format-code-task-002256",
+  "trial": "HAR-116-har116-a-002256-baseline",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "9b44d76c-2dae-420a-a286-4c14d7d3b7fa",
+  "task_id": "format-code-task-002256",
+  "trial": "HAR-116-har116-a-002256-loopfix-r2",
+  "reward": "1.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "43a3bd6d-badc-49f0-9c48-cf7bef1e65c2",
+  "task_id": "format-code-task-002302",
+  "trial": "HAR-126-ovn-g5-002302-gepa",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "cd3037b3-2a7a-4e75-9851-2f74b4c2cfa7",
+  "task_id": "format-code-task-000587",
+  "trial": "HAR-116-har116-a-000587-loopfix-r2",
+  "reward": "1.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "63b6bff4-cfef-457e-b0a9-441c6a9d64f8",
+  "task_id": "format-code-task-000941",
+  "trial": "HAR-120-har120-000941-a1",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "aec41551-d4b0-4e12-bce4-631866688bd9",
+  "task_id": "format-code-task-002302",
+  "trial": "HAR-126-ovn-g5-002302-tuned",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "0982d91d-73ba-435e-9c0c-a58f22ffcd1e",
+  "task_id": "format-code-task-000587",
+  "trial": "HAR-116-har116-a-000587-baseline",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "77883efa-e930-4aef-9234-ef098c7b931f",
+  "task_id": "format-code-task-002302",
+  "trial": "HAR-126-ovn-g5-002302-stock",
+  "reward": "0.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "4362c646-7b23-425e-836c-e4473e8b0001",
+  "task_id": "format-code-task-001870",
+  "trial": "HAR-120-har120-001870-a1",
+  "reward": "1.0",
+  "copied": false,
+  "method": null,
+  "matched_lines": null,
+  "sources": []
+ },
+ {
+  "id": "052dc264-c383-40bd-8df5-5d5ef1a1bcfd",
+  "task_id": "format-code-task-002356",
+  "trial": "HAR-120-har120-002356-a1-r2",
+  "reward": "1.0",
+  "copied": true,
+  "method": "folded_lines",
+  "matched_lines": 41,
+  "sources": [
+   "cat /tmp/black24/black/numerics.py; echo ===; grep -n \"numerics\\|normalize_numeric\" /tmp/black24/bla",
+   "sed -n 25,45p /tmp/black24/black/numerics.py; echo ===; sed -n 45,55p /tmp/black24/black/numerics.py"
+  ]
+ }
+]

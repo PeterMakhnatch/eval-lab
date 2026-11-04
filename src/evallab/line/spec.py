@@ -61,7 +61,6 @@ def load_spec(path: Path) -> dict[str, Any]:
     explicit_action = spec.get("task_action")
     if spec.get("task_action", "review") not in ("review", "drop"):
         raise ValueError("task_action must be review or drop")
-    spec.setdefault("task_action", "review")
     policy = spec.setdefault("task_policy", {})
     statuses = ("certified", "provisional", "weak", "uncertified")
     if (
@@ -74,9 +73,16 @@ def load_spec(path: Path) -> dict[str, Any]:
         )
     if explicit_action is not None and policy.get("weak", explicit_action) != explicit_action:
         raise ValueError("task_action and task_policy.weak disagree; set only one")
-    policy.setdefault("weak", spec["task_action"])
+    # Keep the optional legacy alias absent when the policy supplies weak's action.
+    # Inserting a default alias would turn a valid policy into a conflict on reload.
+    if "weak" not in policy:
+        spec.setdefault("task_action", "review")
+    policy.setdefault("weak", spec.get("task_action", "review"))
     for status in ("certified", "provisional", "uncertified"):
         policy.setdefault(status, "pass")
+    floor = spec.get("goodfire_review_floor", True)
+    if not isinstance(floor, bool):
+        raise ValueError("goodfire_review_floor must be boolean")
     ar = spec.setdefault("autoreview", {"mode": "off"})
     if not isinstance(ar, dict) or ar.get("mode") not in ("off", "cached", "live"):
         raise ValueError("autoreview.mode must be off, cached or live")
@@ -119,6 +125,21 @@ def load_spec(path: Path) -> dict[str, Any]:
     ar["cache"] = absolute(ar["cache"]) if ar.get("cache") else None
     if ar["mode"] == "cached" and not ar["cache"]:
         raise ValueError("cached AutoReview requires a cache path")
+    from evallab.line import j3
+
+    config = ar.get("j3", {"mode": "off"})
+    if (
+        not isinstance(config, dict)
+        or set(config) - {"mode", "cache"}
+        or config.get("mode") not in {"off", "cached", "live"}
+    ):
+        raise ValueError("autoreview.j3 requires frozen off/cached/live configuration")
+    if config["mode"] == "cached":
+        config["cache"] = absolute(config.get("cache"))
+    elif config.get("cache") is not None:
+        raise ValueError("only cached J3 accepts a cache path")
+    if config["mode"] != "off" and j3.ROUTE not in allowed:
+        raise ValueError("J3 requires its frozen subscription route in models.allowed")
     audit = spec.setdefault("audit", {"rate": 0.05, "seed": "line"})
     if not isinstance(audit, dict):
         raise ValueError("audit must be an object")
@@ -162,6 +183,11 @@ def _refuse_shared_files(spec: dict[str, Any]) -> None:
         "labels": [s["labels"] for s in spec["sources"] if s["labels"]],
         "task_status": [spec["task_status"]] if spec["task_status"] else [],
         "cache": [spec["autoreview"]["cache"]] if spec["autoreview"].get("cache") else [],
+        "j3 cache": (
+            [spec["autoreview"]["j3"]["cache"]]
+            if spec["autoreview"].get("j3", {}).get("mode") == "cached"
+            else []
+        ),
         "judge queue": [spec["judge"]["queue"]],
         "judge verdicts": [spec["judge"].get("verdicts") or str(STATE_DIR / "verdicts.jsonl")],
     }

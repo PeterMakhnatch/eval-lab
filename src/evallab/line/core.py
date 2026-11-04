@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from evallab import hack_drop as hd
+from evallab.line import j3
 from evallab.line.io import (
     LABEL_KEYS,
     canonical_hash,
@@ -123,6 +124,21 @@ def _clean_details(details: Any, where: str) -> dict[str, Any]:
     """Whitelist AutoReview stage details; anything else is refused, never copied."""
     if not isinstance(details, dict):
         raise ValueError(f"AutoReview details must be an object: {where}")
+    if "j3" in details or "prior" in details:
+        if set(details) != {"j3", "prior"}:
+            raise ValueError(f"invalid combined AutoReview details: {where}")
+        prior = details["prior"]
+        if not isinstance(prior, dict) or set(prior) != {
+            "stage", "decision", "reasons", "evidence_steps", "details"
+        } or prior["stage"] != "autoreview":
+            raise ValueError(f"invalid prior AutoReview stage: {where}")
+        if "j3" in prior.get("details", {}) or "prior" in prior.get("details", {}):
+            raise ValueError(f"recursive AutoReview stage: {where}")
+        _autoreview_stage(
+            {k: v for k, v in prior.items() if k != "stage"}, where, prior["evidence_steps"]
+        )
+        j3.validate(details["j3"])
+        return details
     clean: dict[str, Any] = {}
     for key, value in details.items():
         kinds = _AR_DETAILS.get(key)
@@ -155,9 +171,24 @@ def _autoreview_stage(stage: Any, where: str, row_steps: Any) -> hd.StageVerdict
     if not isinstance(reasons, list) or not reasons:
         raise ValueError(f"cached AutoReview verdict needs reasons: {where}")
     for reason in reasons:
-        if not isinstance(reason, str) or not _AR_REASON.fullmatch(reason):
+        if not isinstance(reason, str) or not (
+            _AR_REASON.fullmatch(reason)
+            or (
+                "j3" in stage.get("details", {})
+                and reason in {"J3_CLEAN", "J3_SUSPICION", "J3_UNAVAILABLE"}
+            )
+        ):
             raise ValueError(f"cached AutoReview reason outside the stage schema: {where}")
     details = _clean_details(stage.get("details", {}), where)
+    if "j3" in details:
+        combined = j3.combine(hd.StageVerdict(**details["prior"]), details["j3"])
+        if (
+            decision != combined.decision
+            or reasons != combined.reasons
+            or stage.get("evidence_steps", combined.evidence_steps) != combined.evidence_steps
+        ):
+            raise ValueError(f"combined AutoReview disagrees with readers: {where}")
+        return combined
     steps = stage.get("evidence_steps", row_steps)
     if not isinstance(steps, list) or any(
         isinstance(s, bool) or not isinstance(s, int) or s < 0 for s in steps
@@ -210,8 +241,10 @@ def _autoreview_stage(stage: Any, where: str, row_steps: Any) -> hd.StageVerdict
 
 
 def _cache(spec: dict[str, Any]) -> tuple[dict[str, hd.StageVerdict], list[Path]]:
+    j3_files = j3.cache_files(spec)
+    j3.load_cache(spec)  # Refuse malformed or label-bearing inputs before side effects.
     if spec["autoreview"]["mode"] != "cached":
-        return {}, []
+        return {}, j3_files
     path = hd.check_declared_path(spec["autoreview"]["cache"])
     files = (
         [path]
@@ -245,7 +278,7 @@ def _cache(spec: dict[str, Any]) -> tuple[dict[str, hd.StageVerdict], list[Path]
             if key in cache and asdict(cache[key]) != asdict(verdict):
                 raise ValueError(f"conflicting AutoReview cache for {key}")
             cache[key] = verdict
-    return cache, files
+    return cache, [*files, *j3_files]
 
 
 def _task_status_dev(path: str) -> None:
@@ -454,6 +487,9 @@ def used_routes(trace_rows: list[dict[str, Any]]) -> set[str]:
         call = row["autoreview"].get("call")
         if call:
             routes.update(call["served_models"] or ["unattested"])
+        for window in row["autoreview"]["details"].get("j3", {}).get("windows", []):
+            if window["served_route"] is not None:
+                routes.add(window["served_route"])
     return routes
 
 
@@ -470,9 +506,12 @@ def _evaluate(
     mode = spec["autoreview"]["mode"]
     cap = spec["autoreview"]["max_usd"]
     call_bound = spec["autoreview"].get("max_call_usd", 0)
+    j3_mode = j3.mode(spec)
+    j3_cache = j3.load_cache(spec)
+    j3_halted = False
     for item, run in zip(items, intake, strict=True):
         status_actions = spec["task_policy"]
-        if run["corpus"] == "goodfire":
+        if run["corpus"] == "goodfire" and spec.get("goodfire_review_floor", True):
             # Apply the source review floor without changing policy for later runs.
             status_actions = {
                 status: "review" if status != "certified" and action == "pass" else action
@@ -481,13 +520,14 @@ def _evaluate(
         task = hd.evaluate_task_stage(
             item.task_id,
             tasks,
-            default_action=spec["task_action"],
+            default_action=spec.get("task_action", "review"),
             status_actions=status_actions,
         )
         l0 = hd.evaluate_l0_stage(item)
         record: dict[str, Any] | None = None
-        if stored_ar is not None:
-            ar = stored_ar[item.item_id]
+        if stored_ar is not None and mode == "live":
+            stored = stored_ar[item.item_id]
+            ar = hd.StageVerdict(**stored.details["prior"]) if "j3" in stored.details else stored
         elif mode == "cached":
             cached = cache.get(item.item_id)
             if not hd.autoreview_eligible(l0):
@@ -502,7 +542,8 @@ def _evaluate(
                     "autoreview", "review", ["AUTOREVIEW_CACHE_MISS"], [], {"eligible": True}
                 )
             else:
-                ar, record = cached, _cached_call(cached)
+                ar = hd.StageVerdict(**cached.details["prior"]) if "j3" in cached.details else cached
+                record = _cached_call(ar)
         else:
             seen: dict[str, Any] = {}
 
@@ -533,7 +574,31 @@ def _evaluate(
                 reviewer_func=reviewer,
             )
             record = dict(seen) or None
+        if j3_mode != "off" and "drop" not in (task.decision, l0.decision, ar.decision):
+            if j3_mode == "live" and stored_ar is not None:
+                value = stored_ar[item.item_id].details.get("j3")
+                if value is None:
+                    raise ValueError(f"missing stored live J3 reading: {item.item_id}")
+            elif j3_mode == "live":
+                value = j3.reading(item, [], "incomplete") if j3_halted else j3.live(item)
+                j3_halted = j3_halted or any(
+                    window["error"] == "unattested" for window in value["windows"]
+                )
+            else:
+                value = j3_cache.get(item.item_id) or j3.reading(item, [], "cache_miss")
+            # Rebind stored/cache readings to current native input, not just the run ID.
+            current = j3.outcome(value, item)
+            if current.decision == "review" and j3.outcome(value).decision != "review":
+                value = {**value, "error": "invalid_input"}
+            ar = j3.combine(ar, value, item)
         decision = hd.consolidate_decisions(item, task, l0, ar).to_manifest_row()
+        if "j3" in ar.details:
+            # The legacy manifest sanitizer drops nested reader records. The line's
+            # strict schema preserves only validated prior/J3 data, never raw text.
+            decision["stage_decisions"]["autoreview"].update(
+                details=_clean_details(ar.details, item.item_id),
+                evidence_steps=list(ar.evidence_steps),
+            )
         audit = decision["decision"] == "keep" and audit_sample(
             spec["audit"]["seed"], item.item_id, spec["audit"]["rate"]
         )
@@ -768,7 +833,7 @@ def _evaluate_twice(
         intake,
         tasks,
         cache,
-        frozen_ar if spec["autoreview"]["mode"] == "live" else None,
+        frozen_ar if spec["autoreview"]["mode"] == "live" or j3.mode(spec) == "live" else None,
     )
     return decisions, traces, state, second, second_traces
 
@@ -838,7 +903,7 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
     station_bytes = read_bytes(verdict_source) if verdict_source.is_file() else b""
     verdicts = _station_verdicts(station_bytes, {r["run_id"] for r in intake})
     prepared = None
-    if spec["autoreview"]["mode"] != "live":
+    if spec["autoreview"]["mode"] != "live" and j3.mode(spec) != "live":
         prepared = _evaluate_twice(spec, items, intake, tasks, cache)
         _refuse_unallowed_readings(spec, prepared[1])
     # The shared queue is read (and so refused if it is sealed or a link) before a directory
@@ -1066,6 +1131,8 @@ _BATCH_FILES = frozenset(
         "scoreboard.json",
         "SCOREBOARD.md",
         "check.json",
+        "replay.json",
+        "changed-decisions.json",
     }
 )
 _BATCH_FOLDERS: dict[str, frozenset[str]] = {
@@ -1652,7 +1719,7 @@ def _check_batch(
 
     def determinism() -> None:
         stored_trace = read_rows(batch / "trace.jsonl")
-        live = spec["autoreview"]["mode"] == "live"
+        live = spec["autoreview"]["mode"] == "live" or j3.mode(spec) == "live"
         hashes: list[Any]
         if evaluated is not None:
             a, trace_a, b = evaluated
@@ -1688,8 +1755,42 @@ def _check_batch(
             )
 
         require(shown(trace_a) == shown(stored_trace), "trace.jsonl differs from recomputation")
-        if live:
-            _validate_live_trace(stored_trace, trace_a, spec, verified_intake()[0])
+        if j3.mode(spec) != "off":
+            for stored, recomputed in zip(stored_trace, trace_a, strict=True):
+                left, right = stored["autoreview"], recomputed["autoreview"]
+                require(
+                    {k: v for k, v in left.items() if k != "call"}
+                    == {k: v for k, v in right.items() if k != "call"},
+                    f"combined J3 trace differs from recomputation: {stored['run_id']}",
+                )
+                _autoreview_stage(
+                    {k: left[k] for k in ("decision", "reasons", "details", "evidence_steps")},
+                    stored["run_id"],
+                    left["evidence_steps"],
+                )
+                require(
+                    set(left) - {"call"} == _TRACE_STAGE_KEYS,
+                    f"J3 trace has unexpected or missing fields: {stored['run_id']}",
+                )
+                if spec["autoreview"]["mode"] != "live":
+                    require(
+                        left.get("call") == right.get("call"),
+                        f"prior reader call differs from recomputation: {stored['run_id']}",
+                    )
+        if spec["autoreview"]["mode"] == "live":
+            # Keep the old reader's attestation and paid-budget validation unchanged.
+            prior_trace = []
+            for row in stored_trace:
+                stage = row["autoreview"]
+                if "prior" in stage["details"]:
+                    prior = stage["details"]["prior"]
+                    stage = {
+                        **prior, "mode": "live", "score": prior["details"].get("suspicion"),
+                        "cited_steps": prior["evidence_steps"],
+                        **({"call": stage["call"]} if "call" in stage else {}),
+                    }
+                prior_trace.append({**row, "autoreview": stage})
+            _validate_live_trace(prior_trace, trace_a, spec, verified_intake()[0])
 
     if fast:
         checks.append(

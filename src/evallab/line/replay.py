@@ -245,7 +245,42 @@ def _input_hashes(spec: dict[str, Any]) -> dict[str, str]:
         paths.add(str(spec["task_status"]))
     if spec["autoreview"].get("cache") is not None:
         paths.add(str(spec["autoreview"]["cache"]))
+    j3_config = spec["autoreview"].get("j3", {})
+    if j3_config.get("mode") == "cached":
+        paths.add(str(j3_config["cache"]))
     return {path: strict_digest(Path(path)) for path in sorted(paths)}
+
+
+def _variant(spec: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    """Apply only the named frozen-reader/floor delta to an already pinned source spec."""
+    from evallab.hack_drop import check_declared_path
+
+    from . import j3
+
+    if not isinstance(overrides, dict) or set(overrides) - {"j3_cache", "goodfire_review_floor"}:
+        raise ValueError("unsupported replay variant override")
+    record: dict[str, Any] = {"schema": "evallab.line_replay_variant/v1"}
+    if "j3_cache" in overrides:
+        raw = overrides["j3_cache"]
+        if not isinstance(raw, str) or not raw:
+            raise ValueError("variant J3 cache requires a path")
+        path = check_declared_path(Path(raw).expanduser().absolute())
+        # Strict digest uses the same bounded no-follow reader as the decision stage.
+        digest = strict_digest(path)
+        if not path.is_file():
+            raise ValueError("variant J3 cache must be a JSONL file")
+        spec["autoreview"]["j3"] = {"mode": "cached", "cache": str(path)}
+        if j3.ROUTE not in spec["models"]["allowed"]:
+            spec["models"]["allowed"].append(j3.ROUTE)
+        record["j3_cache"] = {"path": str(path), "sha256": digest}
+        j3.load_cache(spec)
+    if "goodfire_review_floor" in overrides:
+        floor = overrides["goodfire_review_floor"]
+        if type(floor) is not bool:
+            raise ValueError("variant goodfire_review_floor must be boolean")
+        spec["goodfire_review_floor"] = floor
+        record["goodfire_review_floor"] = floor
+    return record
 
 
 def replay(
@@ -253,12 +288,17 @@ def replay(
     baseline: Path,
     repo_root: Path,
     write_baseline: bool = False,
+    *,
+    variant: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], int]:
     """See :func:`_replay`. Everything it reads is read through the line's reader."""
     from .core import declared_scope
 
     with declared_scope(repo_root):
-        return _replay(spec_path, baseline, repo_root, write_baseline)
+        result, status = _replay(spec_path, baseline, repo_root, write_baseline, variant=variant)
+        if isinstance(result.get("batch"), str):
+            write_json(Path(result["batch"]) / "replay.json", result)
+        return result, status
 
 
 def _replay(
@@ -266,6 +306,8 @@ def _replay(
     baseline: Path,
     repo_root: Path,
     write_baseline: bool = False,
+    *,
+    variant: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], int]:
     """Rerun off/cached inputs without editing the spec or external judge queue.
 
@@ -290,12 +332,20 @@ def _replay(
         from .spec import load_spec
 
         spec = load_spec(spec_path)
+        if variant is not None and write_baseline:
+            raise ValueError("a replay variant cannot refresh a baseline")
         from evallab.hack_drop import check_declared_path
 
         # never read or write under a TEST path, and never through a link
         baseline = check_declared_path(baseline)
         autoreview = spec.get("autoreview", {})
-        if autoreview.get("mode") not in {"off", "cached"} or autoreview.get("max_usd") != 0:
+        from . import j3
+
+        if (
+            autoreview.get("mode") not in {"off", "cached"}
+            or autoreview.get("max_usd") != 0
+            or j3.mode(spec) == "live"
+        ):
             raise ValueError("replay requires autoreview off or cached and a zero spend cap")
         frozen_hash = _frozen_hash(spec)
         input_hashes = _input_hashes(spec)
@@ -317,6 +367,10 @@ def _replay(
                 )
         # Source paths were resolved against the original spec, not this scratch file.
         replay_spec = deepcopy(spec)
+        if variant is not None:
+            result["variant"] = _variant(replay_spec, variant)
+            result["variant"]["base_frozen_spec_hash"] = frozen_hash
+            result["variant"]["frozen_spec_hash"] = _frozen_hash(replay_spec)
         replay_spec["batch_id"] = f"{spec['batch_id']}-replay-{uuid4().hex}"
         replay_spec["judge"]["write"] = False
         from .core import check_batch, run_line

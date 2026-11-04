@@ -13,6 +13,12 @@ This freeze uses the existing J3 DEV operating point. It does not change the rub
 - Missing input, invalid cache, failed windows, and route mismatch require review. A missing final diff or task statement uses the original prompt placeholder; this alone does not create a different judge.
 - Replay uses cached readings only. Live mode uses the auth-gateway. The config flag defaults off.
 
+The resumed lane adds a transport safety rule, not a new judge specification.
+Every gateway process uses `--config /private/tmp/ov1106/shared/nofallback.yml`.
+This file sets `retry.modelFallback: false`. A missing or different served route stops the batch.
+The subprocess also sets `PI_CONFIG_FILES` to this path to enforce the overlay in OMP 18.14.2.
+The frozen rubric, template, threshold, and input view remain unchanged.
+
 ## Evaluation contract
 
 Run the full 690-row DEV line after #1890 merges. Compare main, J3 enabled, and J3 enabled without the Goodfire uncertified review floor. Keep existing replay gates and report their actual verdicts.

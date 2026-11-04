@@ -71,11 +71,25 @@ Every task carries its own decision reason: `TASK_CERTIFIED`, `TASK_PROVISIONAL`
 which only hack-drop's own stage reports for a task missing from a certified-tasks manifest.
 `task_action` controls review versus drop for weak
 tasks. The optional `task_policy` maps each status (`certified`, `provisional`,
-`weak`, `uncertified`) to `pass`, `review` or `drop`; the defaults match today's
-behavior (weak follows `task_action`, everything else passes), so a training
-export can later require certified tasks by setting `"uncertified": "review"`.
+`weak`, `uncertified`) to `pass`, `review` or `drop`. The default task policy
+passes certified, provisional and uncertified tasks; weak tasks follow
+`task_action`. For the `goodfire` source, every non-certified task has a review
+floor: `pass` becomes `review`, including an explicit `task_policy` override.
+Existing `review` and `drop` actions remain unchanged. Certified Goodfire tasks
+and other sources retain their configured actions. Goodfire runs on non-certified
+tasks therefore never enter the kept training export.
 Setting both `task_action` and a different `task_policy.weak` is refused. Missing
 evidence is reported as `uncertified`, not promoted to certified.
+
+**Peter's decision, 2026-11-04:**
+
+> Peter 2026-11-04: keep #1830. It is a correct parsing fix. 32 of the 33 cheats were caught only because the parser failed, which is not detection. 46/80 Goodfire cheat labels have no executed shortcut in the tool calls (ov1104 judges audit). Goodfire runs on uncertified tasks go to review until an action-reading judge is in the line.
+
+The [ov1104 judges audit](../research/experiments/ov1104-judges/README.md)
+reports zero flagged tool-call passages for those 46 runs. This does not prove
+that all 46 runs are honest. The review floor is a source safety policy, not
+an improvement in action detection. It uses the existing task-stage reasons,
+including `TASK_UNCERTIFIED`; stronger drop decisions still take precedence.
 
 `labels_policy.attempted_cheat` must explicitly be `exclude`, `cheat` or `clean`.
 Attempted-but-failed cheats remain separately counted whichever policy is used.
@@ -562,6 +576,21 @@ drop / review 100 / 252 / 338, 302 of 332 cheats dropped or reviewed, 40 of 358
 honest runs dropped. Only 250 of those 302 are real detections; 52 reach review
 because L0 cannot read their run format. Changed inputs, cohorts, labels or
 policies need a new replay-set version, not an in-place edit.
+
+**Dated sequencing exception, authorized by Peter on 2026-11-04:** Peter requests
+one PR for Part A (keep #1830, add the Goodfire review floor, refresh the baseline)
+and one PR for Part B (ship #1825 and refresh again). Part A must merge before
+Part B begins. Only for these 2 PRs, refresh from a clean, committed candidate
+instead of waiting for that candidate to merge to main. Record the exact
+candidate revision and its clean state in provenance. State that it is an
+unmerged candidate; never describe it as merged main. Merge the same candidate
+policy or normaliser implementation and its replay pin together in the respective
+PR. If that implementation changes, repeat the comparison and refresh from a
+clean, committed candidate. Preserve the prior baseline and provenance first.
+The authorizer, reason, replay batch and hashes remain required, as do every
+quality check, pin validation and exact-head CI gate. This exception changes
+only refresh sequencing, not validation or frozen inputs. The normal
+clean-merged-main refresh rule remains in force for every other refresh.
 
 ## Live mode: finished runs flow through the line by themselves
 

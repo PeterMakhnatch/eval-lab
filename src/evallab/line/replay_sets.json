@@ -2,8 +2,8 @@
   "schema": "evallab.line_replay_pins/v1",
   "sets": {
     "replay-v1": {
-      "baseline_code_rev": "d711f652e569e2aa7151357928e707f0e07eb6e5",
-      "baseline_sha256": "c47b9f8d7647afbf7269e902afec8f5907f46770e1c7d6c65c3d19e0ee66f928",
+      "baseline_code_rev": "ad947d6a4b76a37b0699f84400f4cb5e63029a0d",
+      "baseline_sha256": "df4d40cd08619bd4b901a86af70d2b9ebb6f05476cdd6c4e5723edfb42da16a9",
       "manifest_sha256": "f40f6e93d245ba379c31d8d6ac8d36a865ff39871df8a91d35379e9ed2a14bb0",
       "spec_sha256": "6191d99cff8b1b9357e00dbb00a2337985b38d05ed2cb5f1e63d916af72efb8e"
     }

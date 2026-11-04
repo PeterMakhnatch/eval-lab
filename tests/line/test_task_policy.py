@@ -114,6 +114,100 @@ def test_line_reports_status_reasons_and_policy_changes_decisions(fixture_spec: 
 
 
 @pytest.mark.parametrize(
+    "policy,goodfire_decisions,other_decisions",
+    [
+        (
+            {},
+            ("keep", "review", "review", "review", "review"),
+            ("keep", "keep", "keep", "keep", "review"),
+        ),
+        (
+            {"uncertified": "pass", "provisional": "pass"},
+            ("keep", "review", "review", "review", "review"),
+            ("keep", "keep", "keep", "keep", "review"),
+        ),
+        (
+            {
+                "certified": "review",
+                "provisional": "drop",
+                "uncertified": "drop",
+                "weak": "drop",
+            },
+            ("review", "drop", "drop", "drop", "drop"),
+            ("review", "drop", "drop", "drop", "drop"),
+        ),
+    ],
+    ids=["defaults", "explicit-pass", "stronger-actions"],
+)
+def test_goodfire_noncertified_review_floor_preserves_other_sources_and_exports(
+    fixture_spec: Path,
+    policy: dict[str, str],
+    goodfire_decisions: tuple[str, ...],
+    other_decisions: tuple[str, ...],
+) -> None:
+    tasks = ("cert-task", "prov-task", "unc-task", "missing-task", "weak-task")
+    _status(
+        fixture_spec,
+        {
+            "cert-task": "certified",
+            "prov-task": "provisional",
+            "unc-task": "uncertified",
+            "weak-task": "weak",
+        },
+    )
+    spec = read_json(fixture_spec)
+    spec["task_action"] = policy.get("weak", "review")
+    spec["task_policy"] = policy
+    spec["audit"]["rate"] = 0
+    spec["sources"] = []
+    expected = {}
+    reasons = (
+        "TASK_CERTIFIED",
+        "TASK_PROVISIONAL",
+        "TASK_UNCERTIFIED",
+        "TASK_UNCERTIFIED",
+        "TASK_WEAK",
+    )
+    # Goodfire comes first to expose mutations affecting later sources on the same tasks.
+    # Misleading IDs and row metadata must not override the trusted source corpus.
+    for corpus, prefix, decisions in (
+        ("goodfire", "ordinary", goodfire_decisions),
+        ("synthetic", "goodfire", other_decisions),
+    ):
+        manifest = fixture_spec.parent / f"{corpus}.jsonl"
+        write_rows(
+            manifest,
+            [
+                {
+                    "id": f"{prefix}-{task}",
+                    "task_id": task,
+                    "path": str(fixture_spec.parent / "clean.py"),
+                    "corpus": "synthetic" if corpus == "goodfire" else "goodfire",
+                    "reward": 1,
+                }
+                for task in tasks
+            ],
+        )
+        spec["sources"].append({"corpus": corpus, "rollouts": str(manifest)})
+        expected.update(
+            {
+                f"{prefix}-{task}": (decision, [reason])
+                for task, decision, reason in zip(tasks, decisions, reasons, strict=True)
+            }
+        )
+    write_json(fixture_spec, spec)
+
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    rows = read_rows(batch / "decisions.jsonl")
+    assert {r["run_id"]: (r["decision"], r["reasons"]) for r in rows} == expected
+    for decision, filename in (("keep", "kept"), ("review", "review"), ("drop", "dropped")):
+        assert {
+            r["run_id"] for r in read_rows(batch / "export" / f"{filename}.jsonl")
+        } == {run_id for run_id, (action, _) in expected.items() if action == decision}
+    assert core.check_batch(batch, fixture_spec.parent)["passed"]
+
+
+@pytest.mark.parametrize(
     "policy",
     [{"bogus": "review"}, {"weak": "maybe"}, "review", {"weak": "drop"}],
 )

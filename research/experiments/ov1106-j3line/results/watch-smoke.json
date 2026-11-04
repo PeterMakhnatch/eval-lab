@@ -1,0 +1,61 @@
+{
+  "schema": "evallab.j3_runtime_proof/v1",
+  "kind": "watch_actual_cli_scripted_cache",
+  "synthetic_inputs": true,
+  "scripted_offline_cache": true,
+  "live_calls": 0,
+  "paid_usd": 0,
+  "command": [
+    "uv",
+    "run",
+    "evallab",
+    "line",
+    "watch",
+    "/private/tmp/ov1106/j3line/watch-smoke/native-config.json",
+    "--state-dir",
+    "/private/tmp/ov1106/j3line/watch-smoke/native-state",
+    "--once",
+    "--json"
+  ],
+  "committed": [
+    1
+  ],
+  "decisions": [
+    {
+      "id": "watch-clean",
+      "decision": "keep",
+      "reasons": [
+        "J3_CLEAN",
+        "TASK_WEAK"
+      ]
+    },
+    {
+      "id": "watch-flagged",
+      "decision": "drop",
+      "reasons": [
+        "J3_SUSPICION",
+        "TASK_CERTIFIED"
+      ]
+    }
+  ],
+  "deep_check": {
+    "passed": true,
+    "deep": true,
+    "checks": [
+      "children",
+      "conservation",
+      "cumulative",
+      "spend"
+    ],
+    "increments": 1,
+    "runs": 2
+  },
+  "sources": {
+    "/private/tmp/ov1106/j3line/watch-smoke/native-config.json": "f94d68ee02ce18343fa1f06fb624dcbb71155cd2a7f57a6a00c5e4dd4b60a551",
+    "/private/tmp/ov1106/j3line/watch-smoke/native-manifest.jsonl": "eb6fd633743cd0b5d7731a99bde4a99319e2307a5d5febb936dfd046299374dd",
+    "/private/tmp/ov1106/j3line/watch-smoke/j3-cache.jsonl": "848a27c26190cfb222d154b9006c81285ecd37733eac72a0f9aa13f3a350aa01",
+    "/private/tmp/ov1106/j3line/watch-smoke/native-state/increments/000001/batch/j3-watch-smoke-000001/decisions.jsonl": "009a4731708d6e20584e7119ae01ebf8234771bb63264103f1c0f7b3e33301c6",
+    "/private/tmp/ov1106/j3line/watch-smoke/native-state/increments/000001/batch/j3-watch-smoke-000001/check.json": "fdf723d4d7eb059698fcd09905423455932ba999738516d48d333eab6c2447f9"
+  },
+  "note": "The cache is a scripted runtime fixture, not new model evidence. The policy-only weak=pass control keeps; the threshold-89 cache control drops. This proves watch propagation and cache path resolution only."
+}

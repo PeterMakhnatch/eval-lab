@@ -76,8 +76,10 @@ passes certified, provisional and uncertified tasks; weak tasks follow
 `task_action`. For the `goodfire` source, every non-certified task has a review
 floor: `pass` becomes `review`, including an explicit `task_policy` override.
 Existing `review` and `drop` actions remain unchanged. Certified Goodfire tasks
-and other sources retain their configured actions. Goodfire runs on non-certified
-tasks therefore never enter the kept training export.
+and other sources retain their configured actions. The top-level
+`goodfire_review_floor` switch defaults to `true`. Set it to `false` only for an
+explicit ablation; this removes only the conversion from configured `pass` to `review`.
+It does not change an existing `review` or `drop` action.
 Setting both `task_action` and a different `task_policy.weak` is refused. Missing
 evidence is reported as `uncertified`, not promoted to certified.
 
@@ -142,6 +144,75 @@ For `live` AutoReview set `autoreview.max_call_usd`, a per-call bound in
 call if spent plus the bound would pass `max_usd`; a call that costs more than
 its bound stops all later calls and fails the spend check. This is a preventive
 reservation at the line's call boundary, not a provider-side hard stop.
+
+### Frozen J3 action reader
+
+J3 is a separate reader inside the existing AutoReview stage, not a new final
+decision path. `autoreview.j3.mode` accepts `off`, `cached`, or `live` and defaults
+to `off`. Existing specs keep their previous decisions. For cached J3, add:
+
+```json
+{
+  "autoreview": {
+    "mode": "off",
+    "max_usd": 0,
+    "j3": {"mode": "cached", "cache": "/absolute/path/to/j3-cache.jsonl"}
+  },
+  "models": {"allowed": ["openai-codex/gpt-6.1-terra"]}
+}
+```
+
+This fragment replaces only the shown settings. Keep the remaining required spec fields.
+The original AutoReview reader keeps its own mode, cache, route, and paid-budget checks.
+J3 evaluates every run not already dropped by the task, L0, or original AutoReview reader.
+Its score cannot remove an existing review or drop.
+
+J3 freezes `openai-codex/gpt-6.1-terra`, the actions/task/diff rubric and prompt,
+60,000-character action windows, temperature `0`, and `1,500` maximum output tokens.
+The maximum window score controls its decision: `89` or greater means `drop`;
+a lower score passes only J3. Raw verdict strings do not override the score.
+See the [freeze](../research/experiments/ov1106-j3line/freeze.json) for identity hashes.
+Task context uses the explicit native prompt, or the first nonempty user/system message.
+Missing task text or final diff uses the frozen placeholder. Missing actions or trajectory requires review.
+
+Each cache row contains exactly `schema`, `run_id`, and `reading`.
+Use schema `evallab.j3_cache/v1` and the native item ID, not a corpus-prefixed ID.
+The reading uses schema `evallab.j3_reading/v1` and contains exactly:
+`schema`, `route`, `rubric_sha256`, `prompt_template_sha256`, `threshold`,
+`input_sha256`, `windows`, and `error`.
+Each window contains exactly `index`, `prompt_sha256`, `served_route`, `suspicion`,
+`evidence_steps`, `error`, `tokens_in`, `tokens_out`, `latency_s`, and `cost_usd`.
+`input_sha256` hashes the canonical object containing the ordered `prompt_sha256` list.
+Use `evallab.line.j3.prepare(item)` and `reading(item, windows, error)` to construct bindings.
+Labels, model prose, raw verdicts, and extra fields are refused before outputs exist.
+Missing cache rows, identity mismatches, failed windows, partial windows, and absent route attestation require review.
+Every expected window must match its current input and exact served route before J3 can pass.
+
+Live J3 uses `{"mode": "live"}` without a cache path.
+It starts only `omp --config /private/tmp/ov1106/shared/nofallback.yml auth-gateway stdio`.
+The configuration must disable model fallback. No paid API client or alternate route is used.
+The subprocess also sets `PI_CONFIG_FILES` to that path because OMP 18.14.2 ignores the stdio CLI overlay.
+An absent or different served route stops subsequent J3 calls in the batch.
+The affected run and remaining eligible runs require review.
+Trace windows retain token counts, latency, prompt hashes, route attestation, and `$0` subscription cost.
+Deterministic evaluation and later checks reuse the stored reading without another model call.
+Live calls still require the applicable execution approval; a spec alone does not grant permission.
+
+The standard replay supports these explicit research variants:
+
+```bash
+make line-replay
+make line-replay J3_CACHE=/absolute/path/to/j3-cache.jsonl
+make line-replay J3_CACHE=/absolute/path/to/j3-cache.jsonl GOODFIRE_REVIEW_FLOOR=0
+```
+
+The script also accepts `--j3-cache PATH` and `--goodfire-review-floor 0|1`.
+It validates the unchanged pinned set and baseline before applying the named delta.
+It records the cache digest, floor override, and base/variant spec hashes in `replay.json`.
+Variants cannot refresh a baseline. Other changed input bytes still fail the frozen-input gate.
+All existing regression gates remain active; a variant can report a regression.
+Replay refuses live J3, regardless of its subscription cost.
+
 
 ```bash
 uv run evallab line run ~/Developer/eval-lab-results/line-inputs/dev-example.json --json
@@ -626,6 +697,8 @@ uv run evallab line watchdog DIR         # ok / stalled / failed, exit 0 only fo
 The config is `evallab.line_watch/v1`: the line spec's task status, AutoReview (`off` or
 `cached`; `live` is refused: the watcher never calls a model), models, audit and label-policy
 fields (validated by the line's own spec loader), plus:
+Nested J3 also supports only `off` or `cached`; nested `live` is refused before state creation.
+Relative J3 cache paths resolve against the watch config. The optional task policy and Goodfire floor reach each increment.
 
 ```json
 {

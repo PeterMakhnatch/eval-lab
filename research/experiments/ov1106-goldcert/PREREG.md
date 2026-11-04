@@ -49,3 +49,14 @@ Local writer generation has no paid model API or Modal charge.
 Stop owned Modal apps.
 Write EARLY.md when the first complete gate result exists; never manufacture a complete result.
 Deliver the implementation and measured evidence through green exact-head PR checks and guarded merge.
+
+## Resumed execution binding
+
+Every gateway uses the program's no-fallback configuration.
+The requested writer route remains `openai-codex/gpt-6.1-terra`.
+The parent verifies all 87 input source files against fresh never-started immutable image containers.
+The driver freezes its own bytes, the transport, tool schema, manifest, image, route, and 165-second session bound.
+The owner watchdog removes each container after 180 seconds or parent loss.
+Error-bearing or incomplete writers remain in the 20-candidate denominator and cannot enter scoring.
+The writable mount has no kernel disk quota; bounded inventories do not establish a hard storage limit.
+The exact-driver canary passes before generation. No new alternative is available at this amendment.

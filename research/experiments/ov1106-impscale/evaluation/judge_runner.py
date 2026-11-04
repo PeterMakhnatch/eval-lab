@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -31,12 +32,13 @@ class LaneCaller:
 
         self.halted = False
     async def start(self):
-        if not CONFIG.is_file():
-            raise RuntimeError('required nofallback configuration is missing')
+        if CONFIG.read_bytes() != b"retry:\n  modelFallback: false\n":
+            raise RuntimeError('required nofallback configuration differs')
         self.stderr = (self.out / 'gateway-stderr.log').open('ab')
         self.process = await asyncio.create_subprocess_exec(
             'omp', '--config', str(CONFIG), 'auth-gateway', 'stdio',
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+            env={**os.environ, 'PI_CONFIG_FILES': str(CONFIG)},
             stderr=self.stderr, limit=1 << 26)
         ready = json.loads(await asyncio.wait_for(self.process.stdout.readline(), 120))
         if ready.get('ready') is not True:

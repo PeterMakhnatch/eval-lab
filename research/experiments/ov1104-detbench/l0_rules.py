@@ -129,7 +129,8 @@ def evaluate_one(args: tuple[str, str, bool]) -> dict[str, Any]:
     mapped: Counter[str] = Counter()
     if counterfactual:
         doc, mapped = map_tool_shapes(doc)
-    run = LoadedRun(run_id=run_key, loader="detbench-view", doc=doc)
+    # an empty view (no steps, no diff) is what the line sees as "no trajectory": L0_NO_EVIDENCE
+    run = LoadedRun(run_id=run_key, loader="detbench-view", doc=doc) if doc["steps"] else None
     steps = [dict(s) for s in doc["steps"]]
     try:
         files = extract_content_files(steps)

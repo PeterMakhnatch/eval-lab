@@ -1,0 +1,226 @@
+{
+  "experiment_calls_by_route": {
+    "google-antigravity/gemini-3.8-flash": {
+      "calls": 8803,
+      "ok": 8686,
+      "failed": 117,
+      "fallback_rejected": 107,
+      "served": {
+        "google-antigravity/gemini-3.8-flash": 8686,
+        "meta/muse-wonder-full-1.0-contributor": 105,
+        "google-antigravity/gemini-4-argon": 2,
+        "unattested": 10
+      },
+      "tokens_in": 70076803,
+      "tokens_out": 886852
+    },
+    "anthropic/claude-fable-5-1": {
+      "calls": 510,
+      "ok": 457,
+      "failed": 53,
+      "fallback_rejected": 47,
+      "served": {
+        "unattested": 6,
+        "anthropic/claude-fable-5-1": 457,
+        "deepseek/deepseek-flash": 47
+      },
+      "tokens_in": 7801706,
+      "tokens_out": 95673
+    },
+    "openai-codex/gpt-6.1-terra": {
+      "calls": 4657,
+      "ok": 4597,
+      "failed": 60,
+      "fallback_rejected": 60,
+      "served": {
+        "openai-codex/gpt-6.1-terra": 4597,
+        "meta/muse-wonder-full-1.0-contributor": 60
+      },
+      "tokens_in": 29281881,
+      "tokens_out": 506801
+    }
+  },
+  "experiment_calls_by_batch": {
+    "j0__google-antigravity__gemini-3.8-flash": {
+      "google-antigravity/gemini-3.8-flash": {
+        "calls": 301,
+        "ok": 300,
+        "failed": 1,
+        "fallback_rejected": 1,
+        "served": {
+          "google-antigravity/gemini-3.8-flash": 300,
+          "meta/muse-wonder-full-1.0-contributor": 1
+        },
+        "tokens_in": 902116,
+        "tokens_out": 29444
+      }
+    },
+    "j1__google-antigravity__gemini-3.8-flash": {
+      "google-antigravity/gemini-3.8-flash": {
+        "calls": 854,
+        "ok": 825,
+        "failed": 29,
+        "fallback_rejected": 29,
+        "served": {
+          "google-antigravity/gemini-3.8-flash": 825,
+          "meta/muse-wonder-full-1.0-contributor": 29
+        },
+        "tokens_in": 8163340,
+        "tokens_out": 89991
+      }
+    },
+    "j2__anthropic__claude-fable-5-1": {
+      "anthropic/claude-fable-5-1": {
+        "calls": 510,
+        "ok": 457,
+        "failed": 53,
+        "fallback_rejected": 47,
+        "served": {
+          "unattested": 6,
+          "anthropic/claude-fable-5-1": 457,
+          "deepseek/deepseek-flash": 47
+        },
+        "tokens_in": 7801706,
+        "tokens_out": 95673
+      }
+    },
+    "j2__google-antigravity__gemini-3.8-flash": {
+      "google-antigravity/gemini-3.8-flash": {
+        "calls": 3085,
+        "ok": 3044,
+        "failed": 41,
+        "fallback_rejected": 37,
+        "served": {
+          "google-antigravity/gemini-3.8-flash": 3044,
+          "meta/muse-wonder-full-1.0-contributor": 36,
+          "google-antigravity/gemini-4-argon": 1,
+          "unattested": 4
+        },
+        "tokens_in": 27867890,
+        "tokens_out": 315253
+      }
+    },
+    "j2__google-antigravity__gemini-3.8-flash__stab": {
+      "google-antigravity/gemini-3.8-flash": {
+        "calls": 89,
+        "ok": 87,
+        "failed": 2,
+        "fallback_rejected": 2,
+        "served": {
+          "google-antigravity/gemini-3.8-flash": 87,
+          "meta/muse-wonder-full-1.0-contributor": 1,
+          "google-antigravity/gemini-4-argon": 1
+        },
+        "tokens_in": 758087,
+        "tokens_out": 9051
+      }
+    },
+    "j2b__google-antigravity__gemini-3.8-flash": {
+      "google-antigravity/gemini-3.8-flash": {
+        "calls": 4385,
+        "ok": 4343,
+        "failed": 42,
+        "fallback_rejected": 36,
+        "served": {
+          "google-antigravity/gemini-3.8-flash": 4343,
+          "meta/muse-wonder-full-1.0-contributor": 36,
+          "unattested": 6
+        },
+        "tokens_in": 31600835,
+        "tokens_out": 434008
+      }
+    },
+    "j2b__google-antigravity__gemini-3.8-flash__stab": {
+      "google-antigravity/gemini-3.8-flash": {
+        "calls": 89,
+        "ok": 87,
+        "failed": 2,
+        "fallback_rejected": 2,
+        "served": {
+          "google-antigravity/gemini-3.8-flash": 87,
+          "meta/muse-wonder-full-1.0-contributor": 2
+        },
+        "tokens_in": 784535,
+        "tokens_out": 9105
+      }
+    },
+    "j2b__openai-codex__gpt-6.1-terra": {
+      "openai-codex/gpt-6.1-terra": {
+        "calls": 838,
+        "ok": 814,
+        "failed": 24,
+        "fallback_rejected": 24,
+        "served": {
+          "openai-codex/gpt-6.1-terra": 814,
+          "meta/muse-wonder-full-1.0-contributor": 24
+        },
+        "tokens_in": 7592657,
+        "tokens_out": 96010
+      }
+    },
+    "j2b__openai-codex__gpt-6.1-terra__heldout": {
+      "openai-codex/gpt-6.1-terra": {
+        "calls": 3730,
+        "ok": 3695,
+        "failed": 35,
+        "fallback_rejected": 35,
+        "served": {
+          "openai-codex/gpt-6.1-terra": 3695,
+          "meta/muse-wonder-full-1.0-contributor": 35
+        },
+        "tokens_in": 20999808,
+        "tokens_out": 400640
+      }
+    },
+    "j2b__openai-codex__gpt-6.1-terra__stab": {
+      "openai-codex/gpt-6.1-terra": {
+        "calls": 89,
+        "ok": 88,
+        "failed": 1,
+        "fallback_rejected": 1,
+        "served": {
+          "openai-codex/gpt-6.1-terra": 88,
+          "meta/muse-wonder-full-1.0-contributor": 1
+        },
+        "tokens_in": 689416,
+        "tokens_out": 10151
+      }
+    }
+  },
+  "agent_sessions": {
+    "session/2026-11-04T04-46-52-677Z_01a1a4e1-a105-776a-a639-753a4bfcdf89.jsonl": {
+      "assistant_messages_by_model": {
+        "anthropic/claude-fable-5-1": 103
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "session2/2026-11-04T05-19-50-065Z_01a1a4ff-cd31-7067-86f7-1d2e5a4445a4.jsonl": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 106
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "session3/2026-11-04T06-39-53-505Z_01a1a549-18a1-73a6-8be4-0bed551b65fe.jsonl": {
+      "assistant_messages_by_model": {
+        "meta/muse-wonder-full-1.0-contributor": 2,
+        "google-antigravity/gemini-4-argon": 32,
+        "deepseek/deepseek-flash": 98
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "workers/heldout/session/2026-11-04T04-50-53-222Z_01a1a4e5-4ca6-74f0-a6c1-eaba2cd06559.jsonl": {
+      "assistant_messages_by_model": {
+        "anthropic/claude-fable-5-1": 32
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "workers/scorer/session/2026-11-04T04-50-53-231Z_01a1a4e5-4caf-76db-882c-a0d804b30cdd.jsonl": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 21
+      },
+      "resolvedModelIsFallback_count": 0
+    }
+  },
+  "accepted_paid_spend_usd": 0.0,
+  "rejected_fallback_est_usd": 0.05
+}

@@ -31,12 +31,27 @@ def code_sha() -> str:
     return digest.hexdigest()
 
 
-def load_batch(batch_dir: Path) -> dict[str, dict[str, Any]]:
+def load_batch(batch_dir: Path | str) -> dict[str, dict[str, Any]]:
+    """Load one batch dir, or several comma-separated dirs (later dirs win on a shared run_key)."""
     out: dict[str, dict[str, Any]] = {}
-    for path in sorted((batch_dir / "results").glob("*.json")):
-        row = json.loads(path.read_text(encoding="utf-8"))
-        out[row["run_key"]] = row
+    for part in str(batch_dir).split(","):
+        for path in sorted((Path(part) / "results").glob("*.json")):
+            row = json.loads(path.read_text(encoding="utf-8"))
+            out[row["run_key"]] = row
     return out
+
+
+def split_filter(runs_path: Path, splits: str) -> set[str]:
+    """run_keys whose DetBench `split` is in the comma-separated `splits`."""
+    wanted = {s.strip() for s in splits.split(",") if s.strip()}
+    keys = set()
+    for line in runs_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if row["split"] in wanted:
+            keys.add(row["run_key"])
+    return keys
 
 
 def version_of(results: dict[str, dict[str, Any]], model: str) -> str:
@@ -90,13 +105,18 @@ def write(path: Path, rows: list[dict[str, Any]]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out-dir", type=Path, required=True)
-    parser.add_argument("--batch", action="append", default=[], help="name=batch_dir")
+    parser.add_argument("--batch", action="append", default=[], help="name=batch_dir[,batch_dir2]")
     parser.add_argument("--ensemble", action="append", default=[], help="name=a+b:mean|max")
+    parser.add_argument("--runs", type=Path, help="DetBench runs.jsonl used with --split to filter rows")
+    parser.add_argument("--split", default="", help="comma-separated splits to keep (e.g. dev or dev,heldout)")
     args = parser.parse_args()
+    keep = split_filter(args.runs, args.split) if args.runs and args.split else None
     signals: dict[str, list[dict[str, Any]]] = {}
     for spec in args.batch:
         name, batch_dir = spec.split("=", 1)
         results = load_batch(Path(batch_dir))
+        if keep is not None:
+            results = {k: v for k, v in results.items() if k in keep}
         model = next(iter(results.values()))["model"] if results else "unknown"
         signals[name] = signal_rows(name, results, model)
     for spec in args.ensemble:

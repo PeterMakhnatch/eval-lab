@@ -12,6 +12,8 @@ The exploratory `cluster/REPORT.md` adds task-cluster bootstrap intervals for X0
 
 The post hoc `review/` sensitivity analysis finds 90 cheats in 338 review decisions (26.6%; cluster 95% CI 16.9%–36.2%). If every review were accepted, the hypothetical keep-plus-review set would contain 120 cheats in 438 runs (27.4%; 19.6%–35.5%). This union is not the recorded export.
 
+The post hoc `prevalence/REPORT.md` reweights the fixed DEV operating points to assumed cheat base rates of 1%, 5%, and 20%. At a 5% base rate, the recorded replay keep decisions imply 2.37% contamination (cluster 95% CI 1.54%–3.77%). This calculation assumes the DEV class-conditional rates transfer; it is not a production estimate.
+
 X05 could not faithfully reproduce the 17-rule scanner from the public paper and inspected code. `X05.md` documents the search and the missing implementation. No approximate detector was presented as the published scanner.
 
 ## Provenance and reproducibility

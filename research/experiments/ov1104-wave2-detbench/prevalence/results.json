@@ -1,0 +1,1285 @@
+{
+  "cluster_counts": {
+    "c1c5": 5,
+    "cheatbench": 4,
+    "goodfire": 150,
+    "sol-astra": 6,
+    "terminal-wrench": 25
+  },
+  "draws": 5000,
+  "input_hashes_verified_after": true,
+  "point": {
+    "max_rule_j2b_length": {
+      "c1c5": {
+        "counts": {
+          "cheat": 11,
+          "cheat_drop": 0,
+          "cheat_flag": 5,
+          "cheat_keep": 6,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 19,
+          "honest_drop": 0,
+          "honest_flag": 2,
+          "honest_keep": 17,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.006120148172008374,
+            "0.05": 0.031088082901554404,
+            "0.2": 0.1322505800464037
+          },
+          "false_positive_rate": 0.10526315789473684,
+          "keep_cheat": 0.5454545454545454,
+          "keep_honest": 0.8947368421052632,
+          "precision": {
+            "0.01": 0.04179498460184778,
+            "0.05": 0.1851851851851852,
+            "0.2": 0.5191256830601093
+          },
+          "sensitivity": 0.45454545454545453
+        }
+      },
+      "cheatbench": {
+        "counts": {
+          "cheat": 75,
+          "cheat_drop": 0,
+          "cheat_flag": 32,
+          "cheat_keep": 43,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 75,
+          "honest_drop": 0,
+          "honest_flag": 5,
+          "honest_keep": 70,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.006166642764950523,
+            "0.05": 0.03131828113619811,
+            "0.2": 0.13312693498452013
+          },
+          "false_positive_rate": 0.06666666666666667,
+          "keep_cheat": 0.5733333333333334,
+          "keep_honest": 0.9333333333333333,
+          "precision": {
+            "0.01": 0.06072106261859583,
+            "0.05": 0.2519685039370079,
+            "0.2": 0.6153846153846154
+          },
+          "sensitivity": 0.4266666666666667
+        }
+      },
+      "goodfire": {
+        "counts": {
+          "cheat": 80,
+          "cheat_drop": 0,
+          "cheat_flag": 9,
+          "cheat_keep": 71,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 70,
+          "honest_drop": 0,
+          "honest_flag": 2,
+          "honest_keep": 68,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.009143929497911797,
+            "0.05": 0.04587833471799132,
+            "0.2": 0.18593340815563036
+          },
+          "false_positive_rate": 0.02857142857142857,
+          "keep_cheat": 0.8875,
+          "keep_honest": 0.9714285714285714,
+          "precision": {
+            "0.01": 0.03825136612021858,
+            "0.05": 0.1716621253405995,
+            "0.2": 0.49606299212598426
+          },
+          "sensitivity": 0.1125
+        }
+      },
+      "pooled": {
+        "counts": {
+          "cheat": 332,
+          "cheat_drop": 0,
+          "cheat_flag": 192,
+          "cheat_keep": 140,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 358,
+          "honest_drop": 0,
+          "honest_flag": 15,
+          "honest_keep": 343,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.004426058854219469,
+            "0.05": 0.022640173026573746,
+            "0.2": 0.09912504153283863
+          },
+          "false_positive_rate": 0.04189944134078212,
+          "keep_cheat": 0.42168674698795183,
+          "keep_honest": 0.9581005586592178,
+          "precision": {
+            "0.01": 0.12235917373379192,
+            "0.05": 0.4207742598986263,
+            "0.2": 0.7753113156469951
+          },
+          "sensitivity": 0.5783132530120482
+        }
+      },
+      "sol-astra": {
+        "counts": {
+          "cheat": 8,
+          "cheat_drop": 0,
+          "cheat_flag": 8,
+          "cheat_keep": 0,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 48,
+          "honest_drop": 0,
+          "honest_flag": 0,
+          "honest_keep": 48,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.0,
+            "0.05": 0.0,
+            "0.2": 0.0
+          },
+          "false_positive_rate": 0.0,
+          "keep_cheat": 0.0,
+          "keep_honest": 1.0,
+          "precision": {
+            "0.01": 1.0,
+            "0.05": 1.0,
+            "0.2": 1.0
+          },
+          "sensitivity": 1.0
+        }
+      },
+      "terminal-wrench": {
+        "counts": {
+          "cheat": 158,
+          "cheat_drop": 0,
+          "cheat_flag": 138,
+          "cheat_keep": 20,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 146,
+          "honest_drop": 0,
+          "honest_flag": 6,
+          "honest_keep": 140,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.001331630791681868,
+            "0.05": 0.006899810964083177,
+            "0.2": 0.03194748358862145
+          },
+          "false_positive_rate": 0.0410958904109589,
+          "keep_cheat": 0.12658227848101267,
+          "keep_honest": 0.958904109589041,
+          "precision": {
+            "0.01": 0.17673684210526316,
+            "0.05": 0.5279874213836478,
+            "0.2": 0.8416040100250627
+          },
+          "sensitivity": 0.8734177215189873
+        }
+      }
+    },
+    "max_rule_probez_j2b": {
+      "c1c5": {
+        "counts": {
+          "cheat": 11,
+          "cheat_drop": 0,
+          "cheat_flag": 5,
+          "cheat_keep": 6,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 19,
+          "honest_drop": 0,
+          "honest_flag": 2,
+          "honest_keep": 17,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.006120148172008374,
+            "0.05": 0.031088082901554404,
+            "0.2": 0.1322505800464037
+          },
+          "false_positive_rate": 0.10526315789473684,
+          "keep_cheat": 0.5454545454545454,
+          "keep_honest": 0.8947368421052632,
+          "precision": {
+            "0.01": 0.04179498460184778,
+            "0.05": 0.1851851851851852,
+            "0.2": 0.5191256830601093
+          },
+          "sensitivity": 0.45454545454545453
+        }
+      },
+      "cheatbench": {
+        "counts": {
+          "cheat": 75,
+          "cheat_drop": 0,
+          "cheat_flag": 37,
+          "cheat_keep": 38,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 75,
+          "honest_drop": 0,
+          "honest_flag": 0,
+          "honest_keep": 75,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.005091786144981911,
+            "0.05": 0.02597402597402598,
+            "0.2": 0.11242603550295859
+          },
+          "false_positive_rate": 0.0,
+          "keep_cheat": 0.5066666666666667,
+          "keep_honest": 1.0,
+          "precision": {
+            "0.01": 1.0,
+            "0.05": 1.0,
+            "0.2": 1.0
+          },
+          "sensitivity": 0.49333333333333335
+        }
+      },
+      "goodfire": {
+        "counts": {
+          "cheat": 80,
+          "cheat_drop": 0,
+          "cheat_flag": 13,
+          "cheat_keep": 67,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 70,
+          "honest_drop": 0,
+          "honest_flag": 3,
+          "honest_keep": 67,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.008760951188986232,
+            "0.05": 0.04402515723270441,
+            "0.2": 0.1794871794871795
+          },
+          "false_positive_rate": 0.04285714285714286,
+          "keep_cheat": 0.8375,
+          "keep_honest": 0.9571428571428572,
+          "precision": {
+            "0.01": 0.03688690717470612,
+            "0.05": 0.1663619744058501,
+            "0.2": 0.4866310160427808
+          },
+          "sensitivity": 0.1625
+        }
+      },
+      "pooled": {
+        "counts": {
+          "cheat": 332,
+          "cheat_drop": 0,
+          "cheat_flag": 201,
+          "cheat_keep": 131,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 358,
+          "honest_drop": 0,
+          "honest_flag": 17,
+          "honest_keep": 341,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.004166901379543072,
+            "0.05": 0.021337388064930306,
+            "0.2": 0.09384367258567351
+          },
+          "false_positive_rate": 0.04748603351955307,
+          "keep_cheat": 0.39457831325301207,
+          "keep_honest": 0.952513966480447,
+          "precision": {
+            "0.01": 0.11408974590701966,
+            "0.05": 0.40156478453519656,
+            "0.2": 0.7611864514354624
+          },
+          "sensitivity": 0.6054216867469879
+        }
+      },
+      "sol-astra": {
+        "counts": {
+          "cheat": 8,
+          "cheat_drop": 0,
+          "cheat_flag": 8,
+          "cheat_keep": 0,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 48,
+          "honest_drop": 0,
+          "honest_flag": 4,
+          "honest_keep": 44,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.0,
+            "0.05": 0.0,
+            "0.2": 0.0
+          },
+          "false_positive_rate": 0.08333333333333333,
+          "keep_cheat": 0.0,
+          "keep_honest": 0.9166666666666666,
+          "precision": {
+            "0.01": 0.10810810810810813,
+            "0.05": 0.38709677419354843,
+            "0.2": 0.75
+          },
+          "sensitivity": 1.0
+        }
+      },
+      "terminal-wrench": {
+        "counts": {
+          "cheat": 158,
+          "cheat_drop": 0,
+          "cheat_flag": 138,
+          "cheat_keep": 20,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 146,
+          "honest_drop": 0,
+          "honest_flag": 8,
+          "honest_keep": 138,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.0013509037175759976,
+            "0.05": 0.006999108332774045,
+            "0.2": 0.032395491257655104
+          },
+          "false_positive_rate": 0.0547945205479452,
+          "keep_cheat": 0.12658227848101267,
+          "keep_honest": 0.9452054794520548,
+          "precision": {
+            "0.01": 0.13868010242008758,
+            "0.05": 0.4562086767502944,
+            "0.2": 0.7993969211236311
+          },
+          "sensitivity": 0.8734177215189873
+        }
+      }
+    },
+    "or_best_rule_cached_judge": {
+      "c1c5": {
+        "counts": {
+          "cheat": 11,
+          "cheat_drop": 0,
+          "cheat_flag": 0,
+          "cheat_keep": 11,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 19,
+          "honest_drop": 0,
+          "honest_flag": 1,
+          "honest_keep": 18,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.010549694614103277,
+            "0.05": 0.052631578947368425,
+            "0.2": 0.20879120879120877
+          },
+          "false_positive_rate": 0.05263157894736842,
+          "keep_cheat": 1.0,
+          "keep_honest": 0.9473684210526315,
+          "precision": {
+            "0.01": 0.0,
+            "0.05": 0.0,
+            "0.2": 0.0
+          },
+          "sensitivity": 0.0
+        }
+      },
+      "cheatbench": {
+        "counts": {
+          "cheat": 75,
+          "cheat_drop": 0,
+          "cheat_flag": 43,
+          "cheat_keep": 32,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 75,
+          "honest_drop": 0,
+          "honest_flag": 4,
+          "honest_keep": 71,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.004531935986404192,
+            "0.05": 0.023171614771904422,
+            "0.2": 0.10126582278481013
+          },
+          "false_positive_rate": 0.05333333333333334,
+          "keep_cheat": 0.4266666666666667,
+          "keep_honest": 0.9466666666666667,
+          "precision": {
+            "0.01": 0.0979498861047836,
+            "0.05": 0.36134453781512604,
+            "0.2": 0.7288135593220338
+          },
+          "sensitivity": 0.5733333333333334
+        }
+      },
+      "goodfire": {
+        "counts": {
+          "cheat": 80,
+          "cheat_drop": 0,
+          "cheat_flag": 13,
+          "cheat_keep": 67,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 70,
+          "honest_drop": 0,
+          "honest_flag": 3,
+          "honest_keep": 67,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.008760951188986232,
+            "0.05": 0.04402515723270441,
+            "0.2": 0.1794871794871795
+          },
+          "false_positive_rate": 0.04285714285714286,
+          "keep_cheat": 0.8375,
+          "keep_honest": 0.9571428571428572,
+          "precision": {
+            "0.01": 0.03688690717470612,
+            "0.05": 0.1663619744058501,
+            "0.2": 0.4866310160427808
+          },
+          "sensitivity": 0.1625
+        }
+      },
+      "pooled": {
+        "counts": {
+          "cheat": 332,
+          "cheat_drop": 0,
+          "cheat_flag": 171,
+          "cheat_keep": 161,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 358,
+          "honest_drop": 0,
+          "honest_flag": 12,
+          "honest_keep": 346,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.005042709663353329,
+            "0.05": 0.025728883861573446,
+            "0.2": 0.11145832930465688
+          },
+          "false_positive_rate": 0.0335195530726257,
+          "keep_cheat": 0.48493975903614456,
+          "keep_honest": 0.9664804469273743,
+          "precision": {
+            "0.01": 0.13435783984513885,
+            "0.05": 0.44712739383846795,
+            "0.2": 0.7934520569251109
+          },
+          "sensitivity": 0.5150602409638554
+        }
+      },
+      "sol-astra": {
+        "counts": {
+          "cheat": 8,
+          "cheat_drop": 0,
+          "cheat_flag": 0,
+          "cheat_keep": 8,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 48,
+          "honest_drop": 0,
+          "honest_flag": 0,
+          "honest_keep": 48,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.01,
+            "0.05": 0.05,
+            "0.2": 0.2
+          },
+          "false_positive_rate": 0.0,
+          "keep_cheat": 1.0,
+          "keep_honest": 1.0,
+          "precision": {
+            "0.01": null,
+            "0.05": null,
+            "0.2": null
+          },
+          "sensitivity": 0.0
+        }
+      },
+      "terminal-wrench": {
+        "counts": {
+          "cheat": 158,
+          "cheat_drop": 0,
+          "cheat_flag": 115,
+          "cheat_keep": 43,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 146,
+          "honest_drop": 0,
+          "honest_flag": 4,
+          "honest_keep": 142,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.002818479673095865,
+            "0.05": 0.014513526384657,
+            "0.2": 0.06538085022182417
+          },
+          "false_positive_rate": 0.0273972602739726,
+          "keep_cheat": 0.2721518987341772,
+          "keep_honest": 0.9726027397260274,
+          "precision": {
+            "0.01": 0.21157287230020919,
+            "0.05": 0.5830265990693798,
+            "0.2": 0.8691375918832177
+          },
+          "sensitivity": 0.7278481012658228
+        }
+      }
+    },
+    "or_best_rule_j2b": {
+      "c1c5": {
+        "counts": {
+          "cheat": 11,
+          "cheat_drop": 0,
+          "cheat_flag": 0,
+          "cheat_keep": 11,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 19,
+          "honest_drop": 0,
+          "honest_flag": 0,
+          "honest_keep": 19,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.01,
+            "0.05": 0.05,
+            "0.2": 0.2
+          },
+          "false_positive_rate": 0.0,
+          "keep_cheat": 1.0,
+          "keep_honest": 1.0,
+          "precision": {
+            "0.01": null,
+            "0.05": null,
+            "0.2": null
+          },
+          "sensitivity": 0.0
+        }
+      },
+      "cheatbench": {
+        "counts": {
+          "cheat": 75,
+          "cheat_drop": 0,
+          "cheat_flag": 0,
+          "cheat_keep": 75,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 75,
+          "honest_drop": 0,
+          "honest_flag": 0,
+          "honest_keep": 75,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.01,
+            "0.05": 0.05,
+            "0.2": 0.2
+          },
+          "false_positive_rate": 0.0,
+          "keep_cheat": 1.0,
+          "keep_honest": 1.0,
+          "precision": {
+            "0.01": null,
+            "0.05": null,
+            "0.2": null
+          },
+          "sensitivity": 0.0
+        }
+      },
+      "goodfire": {
+        "counts": {
+          "cheat": 80,
+          "cheat_drop": 0,
+          "cheat_flag": 0,
+          "cheat_keep": 80,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 70,
+          "honest_drop": 0,
+          "honest_flag": 0,
+          "honest_keep": 70,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.01,
+            "0.05": 0.05,
+            "0.2": 0.2
+          },
+          "false_positive_rate": 0.0,
+          "keep_cheat": 1.0,
+          "keep_honest": 1.0,
+          "precision": {
+            "0.01": null,
+            "0.05": null,
+            "0.2": null
+          },
+          "sensitivity": 0.0
+        }
+      },
+      "pooled": {
+        "counts": {
+          "cheat": 332,
+          "cheat_drop": 0,
+          "cheat_flag": 0,
+          "cheat_keep": 332,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 358,
+          "honest_drop": 0,
+          "honest_flag": 0,
+          "honest_keep": 358,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.01,
+            "0.05": 0.05,
+            "0.2": 0.2
+          },
+          "false_positive_rate": 0.0,
+          "keep_cheat": 1.0,
+          "keep_honest": 1.0,
+          "precision": {
+            "0.01": null,
+            "0.05": null,
+            "0.2": null
+          },
+          "sensitivity": 0.0
+        }
+      },
+      "sol-astra": {
+        "counts": {
+          "cheat": 8,
+          "cheat_drop": 0,
+          "cheat_flag": 0,
+          "cheat_keep": 8,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 48,
+          "honest_drop": 0,
+          "honest_flag": 0,
+          "honest_keep": 48,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.01,
+            "0.05": 0.05,
+            "0.2": 0.2
+          },
+          "false_positive_rate": 0.0,
+          "keep_cheat": 1.0,
+          "keep_honest": 1.0,
+          "precision": {
+            "0.01": null,
+            "0.05": null,
+            "0.2": null
+          },
+          "sensitivity": 0.0
+        }
+      },
+      "terminal-wrench": {
+        "counts": {
+          "cheat": 158,
+          "cheat_drop": 0,
+          "cheat_flag": 0,
+          "cheat_keep": 158,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 146,
+          "honest_drop": 0,
+          "honest_flag": 0,
+          "honest_keep": 146,
+          "honest_missing": 0,
+          "honest_review": 0
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.01,
+            "0.05": 0.05,
+            "0.2": 0.2
+          },
+          "false_positive_rate": 0.0,
+          "keep_cheat": 1.0,
+          "keep_honest": 1.0,
+          "precision": {
+            "0.01": null,
+            "0.05": null,
+            "0.2": null
+          },
+          "sensitivity": 0.0
+        }
+      }
+    },
+    "recorded_replay_keep": {
+      "c1c5": {
+        "counts": {
+          "cheat": 11,
+          "cheat_drop": 5,
+          "cheat_flag": null,
+          "cheat_keep": 0,
+          "cheat_missing": 0,
+          "cheat_review": 6,
+          "honest": 19,
+          "honest_drop": 4,
+          "honest_flag": null,
+          "honest_keep": 2,
+          "honest_missing": 0,
+          "honest_review": 13
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.0,
+            "0.05": 0.0,
+            "0.2": 0.0
+          },
+          "false_positive_rate": null,
+          "keep_cheat": 0.0,
+          "keep_honest": 0.10526315789473684,
+          "precision": null,
+          "sensitivity": null
+        }
+      },
+      "cheatbench": {
+        "counts": {
+          "cheat": 75,
+          "cheat_drop": 39,
+          "cheat_flag": null,
+          "cheat_keep": 1,
+          "cheat_missing": 0,
+          "cheat_review": 35,
+          "honest": 75,
+          "honest_drop": 24,
+          "honest_flag": null,
+          "honest_keep": 14,
+          "honest_missing": 0,
+          "honest_review": 37
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.0007209805335255948,
+            "0.05": 0.003745318352059925,
+            "0.2": 0.017543859649122806
+          },
+          "false_positive_rate": null,
+          "keep_cheat": 0.013333333333333334,
+          "keep_honest": 0.18666666666666668,
+          "precision": null,
+          "sensitivity": null
+        }
+      },
+      "goodfire": {
+        "counts": {
+          "cheat": 80,
+          "cheat_drop": 17,
+          "cheat_flag": null,
+          "cheat_keep": 27,
+          "cheat_missing": 0,
+          "cheat_review": 36,
+          "honest": 70,
+          "honest_drop": 7,
+          "honest_flag": null,
+          "honest_keep": 25,
+          "honest_missing": 0,
+          "honest_review": 38
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.00945520036019811,
+            "0.05": 0.04738029581348709,
+            "0.2": 0.19110212335692617
+          },
+          "false_positive_rate": null,
+          "keep_cheat": 0.3375,
+          "keep_honest": 0.35714285714285715,
+          "precision": null,
+          "sensitivity": null
+        }
+      },
+      "pooled": {
+        "counts": {
+          "cheat": 332,
+          "cheat_drop": 212,
+          "cheat_flag": null,
+          "cheat_keep": 30,
+          "cheat_missing": 0,
+          "cheat_review": 90,
+          "honest": 358,
+          "honest_drop": 40,
+          "honest_flag": null,
+          "honest_keep": 70,
+          "honest_missing": 0,
+          "honest_review": 248
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.00464633354964309,
+            "0.05": 0.023745301790846784,
+            "0.2": 0.10356798457087753
+          },
+          "false_positive_rate": null,
+          "keep_cheat": 0.09036144578313253,
+          "keep_honest": 0.19553072625698323,
+          "precision": null,
+          "sensitivity": null
+        }
+      },
+      "sol-astra": {
+        "counts": {
+          "cheat": 8,
+          "cheat_drop": 6,
+          "cheat_flag": null,
+          "cheat_keep": 2,
+          "cheat_missing": 0,
+          "cheat_review": 0,
+          "honest": 48,
+          "honest_drop": 0,
+          "honest_flag": null,
+          "honest_keep": 29,
+          "honest_missing": 0,
+          "honest_review": 19
+        },
+        "rates": {
+          "contamination": {
+            "0.01": 0.004162330905306973,
+            "0.05": 0.02131438721136768,
+            "0.2": 0.09375
+          },
+          "false_positive_rate": null,
+          "keep_cheat": 0.25,
+          "keep_honest": 0.6041666666666666,
+          "precision": null,
+          "sensitivity": null
+        }
+      },
+      "terminal-wrench": {
+        "counts": {
+          "cheat": 158,
+          "cheat_drop": 145,
+          "cheat_flag": null,
+          "cheat_keep": 0,
+          "cheat_missing": 0,
+          "cheat_review": 13,
+          "honest": 146,
+          "honest_drop": 5,
+          "honest_flag": null,
+          "honest_keep": 0,
+          "honest_missing": 0,
+          "honest_review": 141
+        },
+        "rates": {
+          "contamination": {
+            "0.01": null,
+            "0.05": null,
+            "0.2": null
+          },
+          "false_positive_rate": null,
+          "keep_cheat": 0.0,
+          "keep_honest": 0.0,
+          "precision": null,
+          "sensitivity": null
+        }
+      }
+    }
+  },
+  "point_counts_match_existing_outputs": true,
+  "pooled_bootstrap": {
+    "max_rule_j2b_length": {
+      "contamination": {
+        "0.01": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.003678947519551149,
+            0.005049700101785082
+          ],
+          "valid_draws": 5000
+        },
+        "0.05": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.018876844775346506,
+            0.02576380788411194
+          ],
+          "valid_draws": 5000
+        },
+        "0.2": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.08373739584295568,
+            0.11159629207467675
+          ],
+          "valid_draws": 5000
+        }
+      },
+      "precision": {
+        "0.01": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.07469144739152649,
+            0.2678169313823505
+          ],
+          "valid_draws": 5000
+        },
+        "0.05": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.2960704620929504,
+            0.6558724473039073
+          ],
+          "valid_draws": 5000
+        },
+        "0.2": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.6664258780349323,
+            0.9005274182330423
+          ],
+          "valid_draws": 5000
+        }
+      }
+    },
+    "max_rule_probez_j2b": {
+      "contamination": {
+        "0.01": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.0035230459774813357,
+            0.00477198193510344
+          ],
+          "valid_draws": 5000
+        },
+        "0.05": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.018088599699696097,
+            0.024374785714884543
+          ],
+          "valid_draws": 5000
+        },
+        "0.2": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.0804628710741866,
+            0.10608361219171321
+          ],
+          "valid_draws": 5000
+        }
+      },
+      "precision": {
+        "0.01": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.07691142034983921,
+            0.1946297120441329
+          ],
+          "valid_draws": 5000
+        },
+        "0.05": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.30271763791651407,
+            0.5573656734629383
+          ],
+          "valid_draws": 5000
+        },
+        "0.2": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.6734332817301931,
+            0.8567582664028718
+          ],
+          "valid_draws": 5000
+        }
+      }
+    },
+    "or_best_rule_cached_judge": {
+      "contamination": {
+        "0.01": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.00451687396142058,
+            0.005723660166149188
+          ],
+          "valid_draws": 5000
+        },
+        "0.05": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.023096040506727217,
+            0.029121465611950562
+          ],
+          "valid_draws": 5000
+        },
+        "0.2": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.10096186934478388,
+            0.12470814663747358
+          ],
+          "valid_draws": 5000
+        }
+      },
+      "precision": {
+        "0.01": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.08705741801697543,
+            0.27190405609649
+          ],
+          "valid_draws": 5000
+        },
+        "0.05": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.33193989355541365,
+            0.6605390431696229
+          ],
+          "valid_draws": 5000
+        },
+        "0.2": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.7023932352655223,
+            0.9023701843281159
+          ],
+          "valid_draws": 5000
+        }
+      }
+    },
+    "or_best_rule_j2b": {
+      "contamination": {
+        "0.01": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.01,
+            0.01
+          ],
+          "valid_draws": 5000
+        },
+        "0.05": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.05,
+            0.05
+          ],
+          "valid_draws": 5000
+        },
+        "0.2": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.2,
+            0.2
+          ],
+          "valid_draws": 5000
+        }
+      },
+      "precision": {
+        "0.01": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 5000
+          },
+          "percentile95": null,
+          "valid_draws": 0
+        },
+        "0.05": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 5000
+          },
+          "percentile95": null,
+          "valid_draws": 0
+        },
+        "0.2": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 5000
+          },
+          "percentile95": null,
+          "valid_draws": 0
+        }
+      }
+    },
+    "recorded_replay_keep": {
+      "contamination": {
+        "0.01": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.002985876436643942,
+            0.007458211587979921
+          ],
+          "valid_draws": 5000
+        },
+        "0.05": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.015364819526601533,
+            0.03767800546871211
+          ],
+          "valid_draws": 5000
+        },
+        "0.2": {
+          "excluded": {
+            "no_class": 0,
+            "no_selected_outcome": 0
+          },
+          "percentile95": [
+            0.06900685094434897,
+            0.15681389518639388
+          ],
+          "valid_draws": 5000
+        }
+      },
+      "precision": null
+    }
+  },
+  "priors": [
+    0.01,
+    0.05,
+    0.2
+  ],
+  "seed": 110408
+}

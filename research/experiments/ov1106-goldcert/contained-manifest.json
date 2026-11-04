@@ -1,0 +1,243 @@
+{
+  "created_at": "2026-11-04T21:10:55.488863+00:00",
+  "integrity_controls": "not executed",
+  "prepared_sha256": "9587485b5d3ac39a1db340404569e8a8b0e5127461ad185a09171d693a5dc412",
+  "schema": "ov1106-contained-packages-v1",
+  "tasks": {
+    "000081": {
+      "contract_sha256": "52800199c33501647dfe3cf4dfb88dddc8ea9af0c72b93dbc364682d1a54f4ca",
+      "hardening": {
+        "calibration": false,
+        "expected_report": null,
+        "findings": [],
+        "layers": [
+          {
+            "details": {},
+            "layer": "L1",
+            "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: test-infra and auto-load files dropped from the kept change",
+            "status": "native"
+          },
+          {
+            "details": {},
+            "layer": "L2",
+            "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: hidden tests re-applied on a pristine tree",
+            "status": "native"
+          },
+          {
+            "details": {},
+            "layer": "L3",
+            "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: structured certification for runner unittest",
+            "status": "native"
+          },
+          {
+            "details": {
+              "image_leaks": 0
+            },
+            "layer": "L4",
+            "mechanism": "separate-verifier@10 separate verifier container",
+            "status": "applied"
+          }
+        ],
+        "output": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/000081",
+        "output_digest": "sha256:23ea08b4e6002ec577a56dc0aee25e06ef4912c21b432c67e3122a6221426717",
+        "runner": "unittest",
+        "separate_verifier": true,
+        "shape": "mimo",
+        "source": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/public-parent/000081",
+        "source_digest": "sha256:9f7620c9888c91b701c76b0b955d82f837b84630f071f570eb6d18f0c140cf36",
+        "transform": "full-hardening@1",
+        "verifier": {
+          "dockerfile": "tests/Dockerfile",
+          "dockerfile_sha256": "2d9e424aaa1c6632d8a461b275b70cb976bf6ba1634516bb8a1837707e1f214e",
+          "gate_runtime": "declared",
+          "origin": "transform"
+        },
+        "workdir": "/testbed"
+      },
+      "original_digest": "sha256:a937eb7637aa762290c37d2c94f649f8d6bf1ecbef234e23107b08376a3b4cfb",
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/000081",
+      "package_digest": "sha256:23ea08b4e6002ec577a56dc0aee25e06ef4912c21b432c67e3122a6221426717",
+      "public_parent_digest": "sha256:9f7620c9888c91b701c76b0b955d82f837b84630f071f570eb6d18f0c140cf36",
+      "status": "staged",
+      "test_patch_sha256": "606cf3b1f5439d1604f5e3c4ae3265cca00bed71c06085d9f1848037f5c408cf"
+    },
+    "000682": {
+      "contract_sha256": "664544a6954f81bf682c4a74a7972d416280e9e325caae023e7ab62b8972a4f4",
+      "hardening": {
+        "calibration": false,
+        "expected_report": null,
+        "findings": [],
+        "layers": [
+          {
+            "details": {},
+            "layer": "L1",
+            "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: test-infra and auto-load files dropped from the kept change",
+            "status": "native"
+          },
+          {
+            "details": {},
+            "layer": "L2",
+            "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: hidden tests re-applied on a pristine tree",
+            "status": "native"
+          },
+          {
+            "details": {},
+            "layer": "L3",
+            "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: structured certification for runner unittest",
+            "status": "native"
+          },
+          {
+            "details": {
+              "image_leaks": 0
+            },
+            "layer": "L4",
+            "mechanism": "separate-verifier@10 separate verifier container",
+            "status": "applied"
+          }
+        ],
+        "output": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/000682",
+        "output_digest": "sha256:ea4ea4b96503c2fef2f9b9626e3f307c1483e69a5883341290d2f31ac2d64323",
+        "runner": "unittest",
+        "separate_verifier": true,
+        "shape": "mimo",
+        "source": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/public-parent/000682",
+        "source_digest": "sha256:f9f48ebf72eb6f158b72338d4bc71cd4cba00fd4d2f8d0823158ba595af56e0b",
+        "transform": "full-hardening@1",
+        "verifier": {
+          "dockerfile": "tests/Dockerfile",
+          "dockerfile_sha256": "dcccb4359faf09f4fe84298d90f5b95fd9bbfcc2648c9786f9d081831b4f95c7",
+          "gate_runtime": "declared",
+          "origin": "transform"
+        },
+        "workdir": "/testbed"
+      },
+      "original_digest": "sha256:d0a65e41ea576ff2832990e0bc3462c8628fd4755471a464490081799f7587f1",
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/000682",
+      "package_digest": "sha256:ea4ea4b96503c2fef2f9b9626e3f307c1483e69a5883341290d2f31ac2d64323",
+      "public_parent_digest": "sha256:f9f48ebf72eb6f158b72338d4bc71cd4cba00fd4d2f8d0823158ba595af56e0b",
+      "status": "staged",
+      "test_patch_sha256": "f427905bec88ddbe47b64861a41f1cf03e02caa8110b9bc0836af4d6cc758dc1"
+    },
+    "001267": {
+      "contract_sha256": "a78e06c18cc2d5e361107afadf2630141ad8e973a9a849bf4074af254847be76",
+      "original_digest": "sha256:0f2d3eb9d6d5baafd36ce165ece651313f4c7f36534d340f04a0ae4e55ea4fd5",
+      "package": null,
+      "reason": "public browser harness missing; model-method-only checks would pin an unspecified internal interface",
+      "status": "unavailable"
+    },
+    "002139": {
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "hardening": {
+        "calibration": false,
+        "expected_report": null,
+        "findings": [],
+        "layers": [
+          {
+            "details": {},
+            "layer": "L1",
+            "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: test-infra and auto-load files dropped from the kept change",
+            "status": "native"
+          },
+          {
+            "details": {},
+            "layer": "L2",
+            "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: hidden tests re-applied on a pristine tree",
+            "status": "native"
+          },
+          {
+            "details": {},
+            "layer": "L3",
+            "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: structured certification for runner unittest",
+            "status": "native"
+          },
+          {
+            "details": {
+              "image_leaks": 0
+            },
+            "layer": "L4",
+            "mechanism": "separate-verifier@10 separate verifier container",
+            "status": "applied"
+          }
+        ],
+        "output": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+        "output_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+        "runner": "unittest",
+        "separate_verifier": true,
+        "shape": "mimo",
+        "source": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/public-parent/002139",
+        "source_digest": "sha256:9de89b2e823924d0f2991be90dd928ae03fe2277d861087465b50c34ec09a900",
+        "transform": "full-hardening@1",
+        "verifier": {
+          "dockerfile": "tests/Dockerfile",
+          "dockerfile_sha256": "9c2a98c11bdc0537be26746a06ee5eee033df9ee486b49ffdf703134815a1035",
+          "gate_runtime": "declared",
+          "origin": "transform"
+        },
+        "workdir": "/workspace/repo"
+      },
+      "original_digest": "sha256:64b31ed23eda67fe547e2ebd520acb5e65b562fe5302a529e72a3d0e29a0216f",
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "public_parent_digest": "sha256:9de89b2e823924d0f2991be90dd928ae03fe2277d861087465b50c34ec09a900",
+      "status": "staged",
+      "test_patch_sha256": "e931fc1c9b7d78a6418b0afd4e51c37fed4e872e561844774b45145f750f47f7"
+    },
+    "003007": {
+      "contract_sha256": "db28aae7deb9e6a45fd032855584a07706546987ca1e4eee431684876c6c13a8",
+      "hardening": {
+        "calibration": false,
+        "expected_report": null,
+        "findings": [],
+        "layers": [
+          {
+            "details": {},
+            "layer": "L1",
+            "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: test-infra and auto-load files dropped from the kept change",
+            "status": "native"
+          },
+          {
+            "details": {},
+            "layer": "L2",
+            "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: hidden tests re-applied on a pristine tree",
+            "status": "native"
+          },
+          {
+            "details": {},
+            "layer": "L3",
+            "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: structured certification for runner unittest",
+            "status": "native"
+          },
+          {
+            "details": {
+              "image_leaks": 0
+            },
+            "layer": "L4",
+            "mechanism": "separate-verifier@10 separate verifier container",
+            "status": "applied"
+          }
+        ],
+        "output": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/003007",
+        "output_digest": "sha256:5da958aee2dd6953a1da6a2c5ade58bc72146b010664206414983fb6a2bdaad5",
+        "runner": "unittest",
+        "separate_verifier": true,
+        "shape": "mimo",
+        "source": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/public-parent/003007",
+        "source_digest": "sha256:ca00fa7dfc8f9c7a42d58816169a3f8434a49b29a55674c24df9d71cc68c583f",
+        "transform": "full-hardening@1",
+        "verifier": {
+          "dockerfile": "tests/Dockerfile",
+          "dockerfile_sha256": "0d68b60237488bedc4ec9cd4d5cef8a7106ad59251634291e1531994437e55fd",
+          "gate_runtime": "declared",
+          "origin": "transform"
+        },
+        "workdir": "/testbed"
+      },
+      "original_digest": "sha256:a0566e8cc4d6de024be75e60cc8a5b5a60e15b386929d4b450f6ea0a9dcb666f",
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/003007",
+      "package_digest": "sha256:5da958aee2dd6953a1da6a2c5ade58bc72146b010664206414983fb6a2bdaad5",
+      "public_parent_digest": "sha256:ca00fa7dfc8f9c7a42d58816169a3f8434a49b29a55674c24df9d71cc68c583f",
+      "status": "staged",
+      "test_patch_sha256": "c9097ffa1f4a32513ac9f3bc85bf6ca93ac111eb260c2b0b57505fb41011c0b9"
+    }
+  }
+}

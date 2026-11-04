@@ -1,4 +1,4 @@
-# Controllers inherit repository checks except the exact frozen import layout below.
+# New controllers inherit repository checks; exact frozen artifacts retain their source form.
 extend = "../../../pyproject.toml"
 
 # These exact artifacts are frozen executed evidence or published execution plans.
@@ -12,3 +12,5 @@ extend = "../../../pyproject.toml"
 "contracts/003007.py" = ["SIM117"]
 "contracts-v3/000682.py" = ["I001", "UP031", "B007"]
 "repair_sns.py" = ["I001"]
+# Historical controller uses immediate synchronous lambdas and bootstrap imports.
+"measure_contained.py" = ["E402", "I001", "B023", "E731"]

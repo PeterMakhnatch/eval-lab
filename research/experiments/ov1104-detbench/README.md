@@ -46,7 +46,7 @@ Which $0 signals (run length, L0 rule families, the line's replay decision, and 
 | `cached_signals/` | Joins 112 pre-existing cached detector outputs on disk to DetBench `run_key`s and generates `results/CACHED-DETECTORS.md`. |
 | `ingest_dev/`, `ingest_heldout_a..d/` | Deterministic ingestion scripts for the 5 DEV sets and 20 held-out sets. |
 | `results/SIGNAL-MATRIX.md` | Full 294-signal pooled summary table and per-set tables across all 25 sets. |
-| `results/COUNTERFACTUAL.md` | Per-corpus counterfactual tables (`full` and `actions_only`) for DEV and held-out sets. |
+| `results/COUNTERFACTUAL.md` | Per-corpus counterfactual tables (`full` and `actions_only`) for DEV and held-out sets, plus the `drop/review/pass` decision-transition view for #1825. |
 | `results/CACHED-DETECTORS.md` | Inventory of all 112 joined cached signals and zero-overlap caches with exact denominators. |
 | `results/runs-summary.json` | Per-set counts, positive/negative splits, cluster counts, `label_type`, `natural`, and `read_by`. |
 | `test_detbench.py` | Unit tests for view normalization, AUROC/bootstrap math, combination methods, and tool-shape mapping. |

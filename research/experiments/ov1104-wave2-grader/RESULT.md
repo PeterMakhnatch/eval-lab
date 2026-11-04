@@ -75,8 +75,10 @@ Runtime estimate for this follow-up is **$0.057597**; provider-reported cost is 
 
 A separate source-trace audit finds 2 existing passing `002391` alternatives with bounded instruction-plus-repository provenance.
 Both are already shown to the existing contract synthesizer. Neither supplies a new blind evaluation alternative.
+A separate instruction-derived public check (2 examples, all 8 provider orders) accepts **2/2**, while the unpatched control fails with an explicit assertion.
+This adds behavioral confirmation of the instruction examples, not held-out generalization or Gate 7 impact.
 The later replacement `a-flash` receives extra property-preservation guidance and is not strict instruction-only.
-See `audit/EXISTING-ALTERNATIVES.md` and `existing-alternatives.json`.
+See `audit/EXISTING-ALTERNATIVES.md`, `existing-alternatives.json`, and `cert/evaluation-2391-public.json`.
 The fresh 0/8 generation result stays unchanged.
 
 ### Gate evidence
@@ -171,8 +173,8 @@ The root PREREG hash is `101840bd36ee6458b38a4d549793ddd825fcadf962457e656ab773b
 ## Spend
 
 - Approved Modal cap: **$2.00**.
-- Main-matrix runtime estimate: **$0.295943**; synthesis follow-up: **$0.057597**; total: **$0.353540**.
-- Provider-reported cost to date: **$0.20594529** (**$0.18728966** main, **$0.01865563** follow-up), observed at **3:19–4:15 AM ET**.
+- Runtime estimate: **$0.356187** (main $0.295943 + synthesis follow-up $0.057597 + public check $0.002647).
+- Provider-reported cost to date: **$0.20620960** (**$0.18728966** main, **$0.01865563** follow-up, **$0.00026431** public check), observed at **3:19–4:40 AM ET**.
 - Final invoice amount: unknown. Provider billing can lag.
 - Subscription generation incremental cost: **$0**. Local smoke cost: **$0**.
 - Owned Modal applications: stopped with 0 tasks.

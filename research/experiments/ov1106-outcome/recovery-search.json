@@ -1,0 +1,3484 @@
+{
+  "additional_admitted_rows": 0,
+  "candidates": [
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "current_package",
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-outcome/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction",
+      "provenance": "Present authored package; read only"
+    },
+    {
+      "digest": "sha256:fe55067d6fdee563775280c1a2ab90835f02e5ec1484e82588263bd0604d0965",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "ceed3b27279ee9da9be291e2d3d70e32376b24f6d993611cc4e2d61fa5f2ec93",
+          "size": 1604
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:b58926e44e3bc1c71468ddf9b5f188f73832fe8a57a11cd4b1f14de4288a7747",
+      "identity_matches": false,
+      "label": "prior_baseline_restored",
+      "path": "/private/tmp/ov1106/outcome/coverage/recovery-audit/restored-package",
+      "provenance": "Prior recovery copy; read only"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_00",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-00",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/wf-w1/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_01",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-01",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/wf-w2/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_02",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-02",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/wf-w5/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_03",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-03",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/wf-w4/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_04",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-04",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-impscale/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_05",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-05",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-goldcert/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_06",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-06",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-lengthctl/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_07",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-07",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-j3line/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_08",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-08",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-longjudge/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_11",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-11",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/wt-gf-line-run-20261102/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_12",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-12",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/wt-gf-hackdrop-shape-20261102/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_13",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-13",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/insights-readonly/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "retained_snapshot_14",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/snapshot-14",
+      "provenance": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/scratch-b1-detached/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o664",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o664",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o664",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o775",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "git_package_0d6420271e81",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/git-0d6420271e81",
+      "provenance": "0d6420271e8151b7a67d4084d1a55be4711dfdc5:research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:fe55067d6fdee563775280c1a2ab90835f02e5ec1484e82588263bd0604d0965",
+      "files": [
+        {
+          "mode": "0o664",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "ceed3b27279ee9da9be291e2d3d70e32376b24f6d993611cc4e2d61fa5f2ec93",
+          "size": 1604
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o664",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o664",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o775",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:b58926e44e3bc1c71468ddf9b5f188f73832fe8a57a11cd4b1f14de4288a7747",
+      "identity_matches": false,
+      "label": "git_baseline_0d6420271e81",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/git-baseline-0d6420271e81",
+      "provenance": {
+        "baseline_restored": [
+          "environment/app/reference_v2/loop.py",
+          "environment/app/tests/test_monitoring.py",
+          "tests/pristine/tests/test_monitoring.py"
+        ],
+        "revision": "0d6420271e8151b7a67d4084d1a55be4711dfdc5"
+      }
+    },
+    {
+      "digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+      "files": [
+        {
+          "mode": "0o664",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+          "size": 1605
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o664",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o664",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+          "size": 978
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o775",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:560ab6ff4c9645bbd30f43f0c629ab0fc887526a706499b3369a06f69b32a1c9",
+      "identity_matches": false,
+      "label": "git_package_0cf63af38e23",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/git-0cf63af38e23",
+      "provenance": "0cf63af38e23b45ba20bea438ddf26ea10053f05:research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+    },
+    {
+      "digest": "sha256:fe55067d6fdee563775280c1a2ab90835f02e5ec1484e82588263bd0604d0965",
+      "files": [
+        {
+          "mode": "0o664",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "ceed3b27279ee9da9be291e2d3d70e32376b24f6d993611cc4e2d61fa5f2ec93",
+          "size": 1604
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o664",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o664",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o664",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o775",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o664",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:b58926e44e3bc1c71468ddf9b5f188f73832fe8a57a11cd4b1f14de4288a7747",
+      "identity_matches": false,
+      "label": "git_baseline_0cf63af38e23",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/git-baseline-0cf63af38e23",
+      "provenance": {
+        "baseline_restored": [
+          "environment/app/reference_v2/loop.py",
+          "environment/app/tests/test_monitoring.py",
+          "tests/pristine/tests/test_monitoring.py"
+        ],
+        "revision": "0cf63af38e23b45ba20bea438ddf26ea10053f05"
+      }
+    },
+    {
+      "digest": "sha256:243347e1e53e00cbbafdb3a6920d1eab110f5fb91d0dcfb0b7cf54b0c0c44674",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": ".pytest_cache/.gitignore",
+          "sha256": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
+          "size": 37
+        },
+        {
+          "mode": "0o644",
+          "path": ".pytest_cache/CACHEDIR.TAG",
+          "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4",
+          "size": 191
+        },
+        {
+          "mode": "0o644",
+          "path": ".pytest_cache/README.md",
+          "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad",
+          "size": 302
+        },
+        {
+          "mode": "0o644",
+          "path": ".pytest_cache/v/cache/lastfailed",
+          "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "size": 2
+        },
+        {
+          "mode": "0o644",
+          "path": ".pytest_cache/v/cache/nodeids",
+          "sha256": "660cd38ac312fcede9dbd8def7c543f1b1b1b7d022cb9aca2cde766dacc74d56",
+          "size": 227
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "ceed3b27279ee9da9be291e2d3d70e32376b24f6d993611cc4e2d61fa5f2ec93",
+          "size": 1604
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:b58926e44e3bc1c71468ddf9b5f188f73832fe8a57a11cd4b1f14de4288a7747",
+      "identity_matches": false,
+      "label": "retained_pytest_cache_0",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/retained-pytest-cache-0",
+      "provenance": {
+        "baseline": "/private/tmp/ov1106/outcome/coverage/recovery-audit/restored-package",
+        "cache_destination": "/.pytest_cache",
+        "cache_source": "/private/tmp/w3sf/work/astra-strict-schema-friction__dsv4pro__t1/testbed/.pytest_cache"
+      }
+    },
+    {
+      "digest": "sha256:db329a18d35049c3ef64f451600afff47df83e4c2e6ffbdc295ab94223673913",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/.pytest_cache/.gitignore",
+          "sha256": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
+          "size": 37
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/.pytest_cache/CACHEDIR.TAG",
+          "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4",
+          "size": 191
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/.pytest_cache/README.md",
+          "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad",
+          "size": 302
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/.pytest_cache/v/cache/lastfailed",
+          "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "size": 2
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/.pytest_cache/v/cache/nodeids",
+          "sha256": "660cd38ac312fcede9dbd8def7c543f1b1b1b7d022cb9aca2cde766dacc74d56",
+          "size": 227
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "ceed3b27279ee9da9be291e2d3d70e32376b24f6d993611cc4e2d61fa5f2ec93",
+          "size": 1604
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:22f2b3d19f0fa2b1fbbed40d2cdefc823e13215d4447bbeae669ec00357517ac",
+      "identity_matches": false,
+      "label": "retained_pytest_cache_1",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/retained-pytest-cache-1",
+      "provenance": {
+        "baseline": "/private/tmp/ov1106/outcome/coverage/recovery-audit/restored-package",
+        "cache_destination": "environment/app/.pytest_cache",
+        "cache_source": "/private/tmp/w3sf/work/astra-strict-schema-friction__dsv4pro__t1/testbed/.pytest_cache"
+      }
+    },
+    {
+      "digest": "sha256:f6dc724b7cdd98d5df302387c3e1531c50c0379366c18ba408f16c5ac13706fd",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "ceed3b27279ee9da9be291e2d3d70e32376b24f6d993611cc4e2d61fa5f2ec93",
+          "size": 1604
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/.pytest_cache/.gitignore",
+          "sha256": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
+          "size": 37
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/.pytest_cache/CACHEDIR.TAG",
+          "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4",
+          "size": 191
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/.pytest_cache/README.md",
+          "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad",
+          "size": 302
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/.pytest_cache/v/cache/lastfailed",
+          "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "size": 2
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/.pytest_cache/v/cache/nodeids",
+          "sha256": "660cd38ac312fcede9dbd8def7c543f1b1b1b7d022cb9aca2cde766dacc74d56",
+          "size": 227
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:c55232261ec7c959a03cf358abd89b40acc0981b6448e07d12dba31ab7006171",
+      "identity_matches": false,
+      "label": "retained_pytest_cache_2",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/retained-pytest-cache-2",
+      "provenance": {
+        "baseline": "/private/tmp/ov1106/outcome/coverage/recovery-audit/restored-package",
+        "cache_destination": "tests/.pytest_cache",
+        "cache_source": "/private/tmp/w3sf/work/astra-strict-schema-friction__dsv4pro__t1/testbed/.pytest_cache"
+      }
+    },
+    {
+      "digest": "sha256:432d25bd3f0ea4893e2d995cad8b048f0fdfd732df9c970ae51360f9d4000aeb",
+      "files": [
+        {
+          "mode": "0o644",
+          "path": "environment/Dockerfile",
+          "sha256": "4cece9ba195014440edd9d22e846ad3e56c4b627360bdb8bbb3cc5abfadff0ce",
+          "size": 187
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/logs/incident_thread.log",
+          "sha256": "ffc32db9e3d35a02afa4f30f0c5e2fc1e0af599b8299bc2b495a81be38eacdc3",
+          "size": 4047
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/__init__.py",
+          "sha256": "71e954b4aee7fb0ba1c9d4b2e476d79710311aa8a9c1d934c37e1aeb671ca758",
+          "size": 38
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/reference_v2/loop.py",
+          "sha256": "ceed3b27279ee9da9be291e2d3d70e32376b24f6d993611cc4e2d61fa5f2ec93",
+          "size": 1604
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/__init__.py",
+          "sha256": "e78a33e0e703dbc539b236372b78d08b0c38d7a480f9214c8f88d0517da99704",
+          "size": 23
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/context.py",
+          "sha256": "56d9d639d4b1dc99b37d462fd789dea1e9fdf36d93b52527de7b32476122935d",
+          "size": 1368
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/harness.py",
+          "sha256": "8033f5f5a35e30b76756921c9c783fb772d93dd5f0f271b7dab412290079bb42",
+          "size": 1519
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/hooks.py",
+          "sha256": "d7c424ddfdd4d3840ccbdaaa703eb4e03a8e999a45fa3d0841817af4fc5d7304",
+          "size": 540
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/model.py",
+          "sha256": "a3e0fca3dfe6d89adee5dce5eb1e4ad09b1768303a26b72e7f59ff4bb7e47f4d",
+          "size": 1454
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/monitor.py",
+          "sha256": "528487608371251cc47fd6a15adb2621ef13e64e613c5e1063c05c0dc01a1311",
+          "size": 1502
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/serving/tools.py",
+          "sha256": "55f5eca8ccf302822f9073d809f27b42bd4726a18bf027f64a696b9517de8a0d",
+          "size": 1219
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "environment/app/var/.gitkeep",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "mode": "0o644",
+          "path": "instruction.md",
+          "sha256": "83f5087c35efd664af760e3ae62b42583031ce08f57b2051276b49f4c459e76b",
+          "size": 788
+        },
+        {
+          "mode": "0o644",
+          "path": "task.toml",
+          "sha256": "e14b838650dbae96a74c831cfac82fd0fe5c2783588b390e853be84967d39455",
+          "size": 546
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/.pytest_cache/.gitignore",
+          "sha256": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
+          "size": 37
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/.pytest_cache/CACHEDIR.TAG",
+          "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4",
+          "size": 191
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/.pytest_cache/README.md",
+          "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad",
+          "size": 302
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/.pytest_cache/v/cache/lastfailed",
+          "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "size": 2
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/.pytest_cache/v/cache/nodeids",
+          "sha256": "660cd38ac312fcede9dbd8def7c543f1b1b1b7d022cb9aca2cde766dacc74d56",
+          "size": 227
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_monitoring.py",
+          "sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+          "size": 1003
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/pristine/tests/test_serve_turn.py",
+          "sha256": "0bdc6a806ca44af6e6716e690733e68e831eccdc4e277e28b1da8230fcd7e959",
+          "size": 749
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/probe_serving.py",
+          "sha256": "9b284484bc3ad871199d484d69ab83e0fb66a1ec35746352830036a0b30a69a0",
+          "size": 1269
+        },
+        {
+          "mode": "0o755",
+          "path": "tests/test.sh",
+          "sha256": "198595b6d8e067c409ebac183e46c7507b73d72aae17bb4f0a638070b6b7f38b",
+          "size": 430
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verify.py",
+          "sha256": "37c60052a46e7b5453bbdbdf7f7554e1f6ac5e378dee70934189aef6800e2cd7",
+          "size": 1743
+        },
+        {
+          "mode": "0o644",
+          "path": "tests/verifylib.py",
+          "sha256": "0c31f488551792c320f2fba061aca8dc92a70dd687f58e80edea2cd1a8673147",
+          "size": 5814
+        }
+      ],
+      "harbor_digest": "sha256:5a8db6ffe5047e22d1d614df1d7e71887dfb0cbbb18b657435a1d92876e77479",
+      "identity_matches": false,
+      "label": "retained_pytest_cache_3",
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/candidates-formatted/retained-pytest-cache-3",
+      "provenance": {
+        "baseline": "/private/tmp/ov1106/outcome/coverage/recovery-audit/restored-package",
+        "cache_destination": "tests/pristine/.pytest_cache",
+        "cache_source": "/private/tmp/w3sf/work/astra-strict-schema-friction__dsv4pro__t1/testbed/.pytest_cache"
+      }
+    }
+  ],
+  "digest_semantics": {
+    "algorithm": "sha256 of sorted '<file-sha256>  ./<relative-path>\\n' records",
+    "file_modes_and_timestamps_included": false,
+    "harbor_lock_matches": [],
+    "hidden_files_otherwise_included": true,
+    "ignored_ancestor_directories": false,
+    "ignored_basenames": [
+      ".DS_Store",
+      ".git",
+      "__pycache__",
+      ".pytest_cache"
+    ],
+    "ignored_suffixes": [
+      ".pyc",
+      ".pyo",
+      ".tmp"
+    ],
+    "original_harbor_lock_digest": "sha256:9831a2c65cdfe933c45cfb758398bc16b9c29f58ddd5febd22167aaf9bc6f3a2",
+    "retained_cache_candidate_digests": [
+      "sha256:243347e1e53e00cbbafdb3a6920d1eab110f5fb91d0dcfb0b7cf54b0c0c44674",
+      "sha256:db329a18d35049c3ef64f451600afff47df83e4c2e6ffbdc295ab94223673913",
+      "sha256:f6dc724b7cdd98d5df302387c3e1531c50c0379366c18ba408f16c5ac13706fd",
+      "sha256:432d25bd3f0ea4893e2d995cad8b048f0fdfd732df9c970ae51360f9d4000aeb"
+    ]
+  },
+  "expected_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+  "git_sources": [
+    {
+      "archive_sha256": "deab665d8290efda962e0b85b4bb22bcc3e477f055153320d983e889f258af80",
+      "revision": "0d6420271e8151b7a67d4084d1a55be4711dfdc5",
+      "tree": "958d008417d2cae0aed7c721c3066561cd3a3454"
+    },
+    {
+      "archive_sha256": "045170102ed6c2264b40f3bbcfccea9cfcf9cec70c748fe6aa797d832fa2191a",
+      "revision": "0cf63af38e23b45ba20bea438ddf26ea10053f05",
+      "tree": "958d008417d2cae0aed7c721c3066561cd3a3454"
+    }
+  ],
+  "new_container_grades": 0,
+  "original_provenance": [
+    {
+      "path": "/private/tmp/w3sf/out/astra-strict-schema-friction__dsv4pro__t1/grade.json",
+      "sha256": "fbc3d8e786bd5e6974d59603c67dd55db808432be249beb5d3a1bd5b36f84e22"
+    },
+    {
+      "path": "/private/tmp/w3sf/trials/astra-strict-schema-friction__dsv4pro__t1/trial/config.json",
+      "sha256": "954b80363c9dcd254051f74650954d0b97a1d35f311478c7573d6903523918d7"
+    },
+    {
+      "path": "/private/tmp/w3sf/trials/astra-strict-schema-friction__dsv4pro__t1/trial/lock.json",
+      "sha256": "8e3227c32ae50bc500f771105e43546172bb291a5e8e61b70d73d1a763d51612"
+    },
+    {
+      "path": "/private/tmp/w3sf/trials/astra-strict-schema-friction__dsv4pro__t1/trial/qa-execution.json",
+      "sha256": "31eeac27888386e397cc2a841895f95f4723e9097ce6b2b031df52700d458777"
+    }
+  ],
+  "recovered": [],
+  "script_sha256": "89cc82ea93186e653ec1851ee09481c558ad8eccfb0145c58b4ce4662f83deea",
+  "unavailable_snapshots": [
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1105-prep1890/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1105-eligibility/research/experiments/ov-safeguard-friction-v2-20261031/tasks/astra-strict-schema-friction"
+  ]
+}

@@ -1,0 +1,133 @@
+{
+  "requested_route": "openai-codex/gpt-6.1-sol",
+  "resumed_launch_config": "/private/tmp/ov1106/shared/nofallback.yml",
+  "judge_calls": 0,
+  "helpers": [
+    {
+      "path": "/private/tmp/ov1106/outcome/helpers/signal/session/2026-11-04T20-32-19-612Z_01a1a843-369c-71e7-b9a3-e3eb9f9b6cd8.jsonl",
+      "sha256": "155a0cf43c4ff05cd39942b54a6891c19245b4397ef0e8805fec02b98973641c",
+      "served": {
+        "openai-codex/gpt-6.1-sol": 38
+      },
+      "fallback_count": 0,
+      "model_changes": [
+        {
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ]
+    },
+    {
+      "path": "/private/tmp/ov1106/outcome/helpers/coverage/session/2026-11-04T20-32-19-612Z_01a1a843-369c-70e2-a110-999405861f3f.jsonl",
+      "sha256": "03874aae0e56bb880d3795afdcace84d0afab5b2d9955a8e92656e1e0b9efe3a",
+      "served": {
+        "openai-codex/gpt-6.1-sol": 45
+      },
+      "fallback_count": 0,
+      "model_changes": [
+        {
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ]
+    },
+    {
+      "path": "/private/tmp/ov1106/outcome/helpers/recovery/resumed-session/2026-11-04T20-48-41-223Z_01a1a852-3107-732a-88e6-de14846e2205.jsonl",
+      "sha256": "d4ca13fedad3ba2b550d5f48bbaa2331bcec358bef43f67b2f9776e857aa5b2e",
+      "served": {
+        "openai-codex/gpt-6.1-sol": 20
+      },
+      "fallback_count": 0,
+      "model_changes": [
+        {
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ]
+    },
+    {
+      "path": "/private/tmp/ov1106/outcome/helpers/signal-fix/resumed-session/2026-11-04T20-48-41-212Z_01a1a852-30fc-7202-b0e8-bb702d173d50.jsonl",
+      "sha256": "de2c0637b8bd67efe0d9b28a1e0ddddbc0fa072c3f65f1c2815cc0296379c008",
+      "served": {
+        "openai-codex/gpt-6.1-sol": 52
+      },
+      "fallback_count": 0,
+      "model_changes": [
+        {
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ]
+    },
+    {
+      "path": "/private/tmp/ov1106/outcome/helpers/paired-verify/session/2026-11-04T20-53-56-266Z_01a1a856-ffaa-7200-ae2f-a42a446d5de6.jsonl",
+      "sha256": "c992d1b7e6c35331250f176c5343b538966815343671f5f553322425fc59aa5c",
+      "served": {
+        "openai-codex/gpt-6.1-sol": 15
+      },
+      "fallback_count": 0,
+      "model_changes": [
+        {
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ]
+    },
+    {
+      "path": "/private/tmp/ov1106/outcome/helpers/copy-review/session/2026-11-04T21-02-49-993Z_01a1a85f-2489-76a8-9013-f821966d9406.jsonl",
+      "sha256": "28bb32a335c200c9aa2ecf9fd393eb25894e402a8681d824938b7f8d9f8ee9f3",
+      "served": {
+        "openai-codex/gpt-6.1-sol": 14
+      },
+      "fallback_count": 0,
+      "model_changes": [
+        {
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ]
+    },
+    {
+      "path": "/private/tmp/ov1106/outcome/helpers/native-export/session/2026-11-04T21-02-49-643Z_01a1a85f-232b-70cb-abaf-5a0defd2833c.jsonl",
+      "sha256": "470622947e886b610cd9eab3f03b4a64a202a23a2a3fb02f1b73b3d50a0df1b9",
+      "served": {
+        "openai-codex/gpt-6.1-sol": 11
+      },
+      "fallback_count": 0,
+      "model_changes": [
+        {
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ]
+    },
+    {
+      "path": "/private/tmp/ov1106/outcome/helpers/provenance-fix/session/2026-11-04T21-06-08-887Z_01a1a862-2d77-70f4-b33f-72bf53efdafc.jsonl",
+      "sha256": "ee1ea90d495c6d0f88b757351656a4ae6084b783b314e3f8497ff2e6423db2c1",
+      "served": {
+        "openai-codex/gpt-6.1-sol": 21
+      },
+      "fallback_count": 0,
+      "model_changes": [
+        {
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ]
+    },
+    {
+      "path": "/private/tmp/ov1106/outcome/helpers/report-review/session/2026-11-04T21-11-17-809Z_01a1a866-e431-73c8-b125-9fc78ebce1ff.jsonl",
+      "sha256": "c1d451990b0a68d5a6748fa884b1a619bc650fc4f74db1d5d3b7d6d9db451b67",
+      "served": {
+        "openai-codex/gpt-6.1-sol": 14
+      },
+      "fallback_count": 0,
+      "model_changes": [
+        {
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ]
+    }
+  ]
+}

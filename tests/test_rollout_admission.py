@@ -121,8 +121,10 @@ def test_the_document_served_is_the_one_the_digest_covered(
     expected = line_digest(trial)
     read_tree = ra._read_tree
 
-    def swap_after_reading(root: Path, sealed: frozenset) -> object:
-        tree = read_tree(root, sealed)
+    def swap_after_reading(
+        root: Path, sealed: frozenset, *, retain_copy_outputs: bool = False
+    ) -> object:
+        tree = read_tree(root, sealed, retain_copy_outputs=retain_copy_outputs)
         (root / "agent" / "trajectory.json").write_text('{"steps": []}', encoding="utf-8")
         (root / "verifier" / "agent.diff").write_text("SWAPPED", encoding="utf-8")
         return tree

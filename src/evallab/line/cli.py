@@ -35,6 +35,11 @@ def build_line_parser(subparsers: Any) -> None:
         if name == "replay":
             command.add_argument("--baseline", type=Path, required=True)
             command.add_argument("--write-baseline", action="store_true")
+            command.add_argument(
+                "--copy-history",
+                action="store_true",
+                help="enable confirmed history-copy detection for this candidate replay",
+            )
         if name == "check":
             command.add_argument(
                 "--fast",
@@ -72,7 +77,14 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
     value: dict[str, Any]
     try:
         if args.line_command == "replay":
-            value, code = replay(args.path, args.baseline, root, args.write_baseline)
+            replay_options = {"copy_history": True} if args.copy_history else {}
+            value, code = replay(
+                args.path,
+                args.baseline,
+                root,
+                args.write_baseline,
+                **replay_options,
+            )
         elif args.line_command == "run":
             batch = core.run_line(args.path, root)
             result = read_json(batch / "check.json")

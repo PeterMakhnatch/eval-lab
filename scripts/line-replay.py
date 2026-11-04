@@ -339,6 +339,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--set", dest="replay_set", type=Path, help="frozen replay set directory")
     parser.add_argument("--name", default=DEFAULT_NAME, help="pinned set name in replay_sets.json")
+    parser.add_argument(
+        "--copy-history",
+        action="store_true",
+        help="enable confirmed history-copy detection without changing the frozen set",
+    )
     args = parser.parse_args(argv)
     root = (
         args.replay_set
@@ -355,7 +360,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         root = root.resolve()
         baseline = _validate_set(root, args.name)
-        result, status = replay(root / "spec.json", root / "baseline.json", REPO_ROOT)
+        replay_options = {"copy_history": True} if args.copy_history else {}
+        result, status = replay(
+            root / "spec.json",
+            root / "baseline.json",
+            REPO_ROOT,
+            **replay_options,
+        )
         if isinstance(status, bool) or not isinstance(status, int) or status not in (0, 1, 2):
             raise ValueError("replay returned an invalid exit status")
         if not isinstance(result, dict):

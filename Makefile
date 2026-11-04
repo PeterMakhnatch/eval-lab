@@ -65,4 +65,4 @@ loop:
 	uv run evallab registry devloop --run
 
 line-replay:
-	uv run python scripts/line-replay.py
+	uv run python scripts/line-replay.py $(LINE_REPLAY_ARGS)

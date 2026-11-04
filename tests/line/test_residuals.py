@@ -34,6 +34,9 @@ def test_empty_rows_list_is_an_empty_label_set_not_a_run_named_rows(tmp_path: Pa
         (hd.StageVerdict("l0", "review", ["X"], [], {}), True),
         (hd.StageVerdict("l0", "pass", [], [], {"writes_target_surface": True}), True),
         (hd.StageVerdict("l0", "pass", [], [], {}), False),
+        (hd.StageVerdict("l0", "pass", [], [], {"normalized_tool_calls": 1}), True),
+        (hd.StageVerdict("l0", "pass", [], [], {"normalized_tool_calls": 0}), False),
+        (hd.StageVerdict("l0", "drop", ["X"], [], {"normalized_tool_calls": 1}), False),
     ],
 )
 def test_eligibility_helper_matches_the_stage_gate(l0: hd.StageVerdict, eligible: bool) -> None:
@@ -139,6 +142,100 @@ def test_a_real_stored_reading_is_used_and_is_not_a_miss(
     assert all(
         "AUTOREVIEW_CACHE_MISS" not in r["reasons"] for r in read_rows(batch / "decisions.jsonl")
     )
+    assert core.check_batch(batch, fixture_spec.parent)["passed"]
+
+
+@pytest.mark.parametrize(
+    "rewritten_call,canonical_call",
+    [
+        pytest.param(
+            {"name": "bash_command", "arguments": {"keystrokes": "pwd\n"}},
+            {"name": "bash", "arguments": {"command": "pwd"}},
+            id="terminus",
+        ),
+        pytest.param(
+            {"function": {"name": "bash_command", "arguments": '{"keystrokes": "pwd\\n"}'}},
+            {"function": {"name": "bash", "arguments": '{"command": "pwd"}'}},
+            id="encoded-function",
+        ),
+        pytest.param(
+            {"name": "shell", "arguments": {"command": "pwd", "keystrokes": "pwd"}},
+            {"name": "bash", "arguments": {"command": "pwd"}},
+            id="bundle-shell",
+        ),
+        pytest.param(
+            {"name": "text_editor", "arguments": {"command": "view", "path": "src/app.py"}},
+            {"name": "str_replace_editor", "arguments": {"command": "view", "path": "src/app.py"}},
+            id="text-editor",
+        ),
+        pytest.param(
+            {
+                "name": "edit_notebook",
+                "arguments": {
+                    "filepath": "src/app.ipynb",
+                    "file_edit_payload": {"source": "x = 1\n"},
+                },
+            },
+            {
+                "name": "edit",
+                "arguments": {"path": "src/app.ipynb", "command": "edit", "content": "x = 1\n"},
+            },
+            id="notebook",
+        ),
+        pytest.param(
+            {"name": "wait", "arguments": {}},
+            {"name": "think", "arguments": {}},
+            id="noop",
+        ),
+    ],
+)
+def test_rewritten_l0_pass_applies_cached_verdict_but_canonical_pass_does_not(
+    fixture_spec: Path, rewritten_call: dict[str, Any], canonical_call: dict[str, Any]
+) -> None:
+    spec = read_json(fixture_spec)
+    manifests = []
+    readings = []
+    for run_id, call in (("clean-run", rewritten_call), ("weak-run", canonical_call)):
+        path = fixture_spec.parent / f"{run_id}.json"
+        write_json(
+            path,
+            {
+                "steps": [
+                    {"step_id": 0, "source": "user", "message": "Inspect the application."},
+                    {"step_id": 1, "source": "agent", "tool_calls": [call]},
+                ]
+            },
+        )
+        manifests.append({"id": run_id, "task_id": "plain-task", "path": str(path)})
+        reading = _reading(run_id)
+        reading["stage_decisions"]["autoreview"].update(
+            decision="drop",
+            reasons=["AUTOREVIEW_CONFIRMED_CHEAT", "AUTOREVIEW_SUSPICION_95"],
+            details={
+                **reading["stage_decisions"]["autoreview"]["details"],
+                "suspicion": 95,
+                "verdict": "confirmed_cheat",
+            },
+        )
+        readings.append(reading)
+    write_rows(Path(spec["sources"][0]["rollouts"]), manifests)
+    _cached_spec(fixture_spec, readings)
+
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    rows = {row["run_id"]: row for row in read_rows(batch / "decisions.jsonl")}
+    traces = {row["run_id"]: row for row in read_rows(batch / "trace.jsonl")}
+    assert traces["clean-run"]["l0"]["decision"] == "pass"
+    assert traces["weak-run"]["l0"]["decision"] == "pass"
+    assert rows["clean-run"]["decision"] == "drop"
+    assert "AUTOREVIEW_CONFIRMED_CHEAT" in rows["clean-run"]["reasons"]
+    assert rows["weak-run"]["decision"] == "keep"
+    assert traces["weak-run"]["autoreview"]["reasons"] == ["AUTOREVIEW_NOT_ELIGIBLE"]
+    assert {row["run_id"] for row in read_rows(batch / "export" / "dropped.jsonl")} == {
+        "clean-run"
+    }
+    assert {row["run_id"] for row in read_rows(batch / "export" / "kept.jsonl")} == {
+        "weak-run"
+    }
     assert core.check_batch(batch, fixture_spec.parent)["passed"]
 
 

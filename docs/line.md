@@ -110,6 +110,19 @@ scoreboard reports `autoreview.cache_misses`, so a measurement of an L0 change c
 runs the cache could not judge. A line export containing cache misses can be reused as a
 cache; its misses stay misses.
 
+AutoReview eligibility uses the shared `hack_drop.autoreview_eligible` policy.
+An L0 hard drop remains ineligible. Otherwise, L0 review, a target-surface write,
+or at least 1 tool call rewritten by the L0 normalizer makes the run eligible.
+The normalizer counts actual changes to decoded tool names or arguments during
+its existing projection pass. Canonical or unchanged calls add no eligibility.
+The L0 verdict records that count as `details.normalized_tool_calls` when nonzero.
+No second normalization pass, corpus rule, or label determines eligibility.
+
+A rewritten call therefore retains AutoReview coverage even when normalized L0 passes.
+In cached mode, the line applies the stored reading or records a cache miss.
+In live mode, the same policy preserves the disabled-mode and budget guards.
+AutoReview still reads the original rollout. The #1825 parsing rules remain unchanged.
+
 The cache is untrusted input. Only the AutoReview stage-verdict shape is
 accepted: decision, reasons from the AutoReview reason set, cited steps and a
 whitelisted details object (suspicion, verdict, model, attested, cost, and the

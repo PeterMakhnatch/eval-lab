@@ -641,7 +641,7 @@ def _sanitize_manifest_details(details: Mapping[str, Any]) -> dict[str, Any]:
                 sanitized[k] = v[:64]
         elif k in ("enabled", "eligible", "attested", "unparsed", "writes_target_surface", "has_gate_card"):
             sanitized[k] = bool(v)
-        elif k in ("calls", "suspicion", "len"):
+        elif k in ("calls", "suspicion", "len", "normalized_tool_calls"):
             sanitized[k] = int(v)
         elif k in ("spent_usd", "cost_usd"):
             sanitized[k] = float(v)
@@ -1504,7 +1504,7 @@ def _raw_strings(value: Any) -> Iterator[str]:
             yield from _raw_strings(item)
 
 
-def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
+def _l0_normalized_rollout(rollout: RolloutItem) -> tuple[RolloutItem, int]:
     """Project supported transports for L0 only, without changing source evidence.
 
     Unknown calls retain their complete raw envelopes and arguments. Handled
@@ -1512,15 +1512,18 @@ def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
     mentions a protected target; safety must not depend on the allow-list.
     Copy only changed steps, and retain existing file evidence when adding
     content exposed by the projection. AutoReview keeps the original rollout.
+    Return the number of calls whose decoded name or arguments actually change,
+    not envelope-only copies. Eligibility reuses this pass, never source metadata.
     """
     if rollout.run is None:
-        return rollout
+        return rollout, 0
     raw_steps = rollout.run.doc.get("steps")
     if not isinstance(raw_steps, list):
-        return rollout
+        return rollout, 0
     steps: list[Any] | None = None
     changed_steps: list[dict[str, Any]] = []
     protected_steps: list[int] = []
+    rewritten_calls = 0
     shell_ready = True
     for step_index, step in enumerate(raw_steps):
         calls = step.get("tool_calls") if isinstance(step, Mapping) else None
@@ -1544,6 +1547,8 @@ def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
                 protected_steps.append(step_index)
             if action.kind == "unknown":
                 continue
+            if name != action.name or arguments != action.arguments:
+                rewritten_calls += 1
             adapted_call = {
                 **call, "name": action.name, "function_name": action.name,
                 "arguments": dict(action.arguments),
@@ -1567,14 +1572,14 @@ def _l0_normalized_rollout(rollout: RolloutItem) -> RolloutItem:
         if terminal_calls:
             shell_ready = terminal_shell_ready(_extract_obs_text(step))
     if steps is None and not protected_steps:
-        return rollout
+        return rollout, 0
     run = replace(rollout.run, doc={**rollout.run.doc, "steps": steps}) if steps is not None else rollout.run
     files = tuple(dict.fromkeys((*rollout.files, *extract_content_files(changed_steps)))) if changed_steps else rollout.files
     metadata = (
         {**rollout.metadata, "l0_raw_protected_steps": sorted(set(protected_steps))}
         if protected_steps else rollout.metadata
     )
-    return replace(rollout, run=run, files=files, metadata=metadata)
+    return replace(rollout, run=run, files=files, metadata=metadata), rewritten_calls
 
 
 def evaluate_l0_stage(
@@ -1582,12 +1587,14 @@ def evaluate_l0_stage(
     hard_families: frozenset[str] = HARD_FAMILIES_DEFAULT,
 ) -> StageVerdict:
     """Stage 2: evaluate L0 deterministic tripwires, tamper signatures, and target-surface writes."""
-    rollout = _l0_normalized_rollout(rollout)
+    rollout, rewritten_calls = _l0_normalized_rollout(rollout)
     reasons: list[str] = []
     evidence_steps: list[int] = []
     is_hard_drop = False
     is_soft_review = False
     details: dict[str, Any] = {}
+    if rewritten_calls:
+        details["normalized_tool_calls"] = rewritten_calls
 
     # Fail-open guard: check for parse errors or absence of evidence
     if rollout.metadata.get("parse_error"):
@@ -2276,14 +2283,18 @@ def evaluate_l0_stage(
 
 
 def autoreview_eligible(l0_verdict: StageVerdict) -> bool:
-    """Whether Stage 3 would read this rollout: not hard-dropped, and soft-flagged or target-writing.
+    """Whether Stage 3 reads a non-dropped rollout with soft flags, target writes, or rewritten calls.
 
     Mirrors the gate inside ``evaluate_autoreview_stage``; callers that replay stored
     readings use it to tell "no reading needed" from "reading missing".
     """
     if l0_verdict.decision == "drop":
         return False
-    return l0_verdict.decision == "review" or bool(l0_verdict.details.get("writes_target_surface"))
+    return (
+        l0_verdict.decision == "review"
+        or bool(l0_verdict.details.get("writes_target_surface"))
+        or bool(l0_verdict.details.get("normalized_tool_calls"))
+    )
 
 
 def evaluate_autoreview_stage(
@@ -2301,7 +2312,7 @@ def evaluate_autoreview_stage(
     cache_path: Path | None = None,
     dry_run: bool = False,
 ) -> StageVerdict:
-    """Stage 3: AutoReview compact card audit for soft-flagged or target-writing rollouts."""
+    """Stage 3: AutoReview compact card audit for rollouts admitted by ``autoreview_eligible``."""
     if not enabled:
         return StageVerdict(
             stage="autoreview",
@@ -2319,10 +2330,10 @@ def evaluate_autoreview_stage(
             details={"eligible": False, "reason": "l0_already_dropped"},
         )
 
-    # Check eligibility: only for rollouts L0 flagged soft OR that write target surface
+    # Use the same eligibility policy as cached readings and live-trace validation.
     l0_soft = l0_verdict.decision == "review"
     writes_target = bool(l0_verdict.details.get("writes_target_surface"))
-    if not (l0_soft or writes_target):
+    if not autoreview_eligible(l0_verdict):
         return StageVerdict(
             stage="autoreview",
             decision="pass",

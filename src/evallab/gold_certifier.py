@@ -721,30 +721,105 @@ class CertificationCell:
 
 
 INJECTION_CONTROLS_REFUSAL = (
-    "injection controls are unavailable: certify-gold has no enforced contained runner; "
-    "witness and .pth gates remain unexercised and cannot pass"
+    "no enforced contained runner: injection controls require explicit opt-in "
+    "and a native ContainedModalRunner; witnesses alone do not enable controls"
 )
 
 
-def _refuse_injection_controls(requested: bool) -> None:
-    if requested:
-        raise ValueError(INJECTION_CONTROLS_REFUSAL)
+class ContainedModalRunner:
+    """Owned native Modal dispatch, without a caller-supplied backend or host shell.
 
+    This is a library boundary, not protection against hostile Python in this process.
+    Fresh native provider receipts qualify outcomes; cached grades cannot qualify them.
+    """
+
+    def __init__(self, *, repo_root: Path, spend_gate: Any, meter: SandboxMeter) -> None:
+        from evallab.regrade import CloudSpendGate
+
+        if type(spend_gate) is not CloudSpendGate or type(meter) is not SandboxMeter:
+            raise ValueError("contained controls require the native spend gate and meter")
+        if meter.cap != spend_gate.cap_usd:
+            raise ValueError("contained meter cap must match the approved spend cap")
+        if not spend_gate.modal_app_name or not spend_gate.billing_tag:
+            raise ValueError("contained controls require an owned Modal app and billing tag")
+        self._repo_root = repo_root
+        self._spend_gate = spend_gate
+        self._meter = meter
+        self._runner: CellRunner | None = None
+
+    def __call__(self, cell_dir: Path, package: Path, script: str) -> dict[str, Any]:
+        from evallab.registry import task_directory_digest
+
+        # Do not consume modal_cell_runner's legacy path-only cached receipts.
+        if (cell_dir / "result.json").exists() or (cell_dir / "trial").exists():
+            raise ValueError("contained controls require fresh cell evidence")
+        self._spend_gate._check_ledger_location(package, cell_dir)
+        if self._runner is None:
+            self._runner = modal_cell_runner(
+                repo_root=self._repo_root, spend_gate=self._spend_gate,
+                meter=self._meter, timeout_seconds=240,
+            )
+        result = self._runner(cell_dir, package, script)
+        try:
+            trial = cell_dir / "trial"
+            execution = json.loads((trial / "qa-execution.json").read_text())
+            lock = json.loads((trial / "egress-lock.json").read_text())
+            applications = lock["applications"]
+            created = [
+                item for item in applications
+                if item["source"] == "creation"
+                and item["network_mode"] in ("no-network", "allowlist", "public")
+                and isinstance(item["sandbox_id"], str) and item["sandbox_id"].startswith("sb-")
+            ]
+            valid = (
+                not result.get("cache_hit") and bool(created)
+                and lock["schema_version"] == 2 and lock["requested"] is True
+                and lock.get("error") is None
+                and execution["environment"] == "modal" and execution["mode"] == "shortcut"
+                and execution["package_digest"] == task_directory_digest(package)
+                and Path(execution["job_path"]).resolve() == trial.resolve()
+                and execution["exception"] is None
+                and execution["reward"] == result.get("reward")
+            )
+        except (OSError, ValueError, KeyError, TypeError):
+            valid = False
+        if not valid:
+            result = {**result, "status": "failed", "reward": None,
+                      "reason": "missing or invalid native Modal containment evidence"}
+            _write_certification_json(cell_dir / "result.json", result)
+        return result
+
+
+def _refuse_injection_controls(
+    requested: bool, *, witnesses: bool = False, run_cell: CellRunner | None = None,
+) -> None:
+    if witnesses and not requested or requested and type(run_cell) is not ContainedModalRunner:
+        raise ValueError(INJECTION_CONTROLS_REFUSAL)
 
 
 def plan_certification_cells(
     *, package: Path, upgraded: Path, reference_patch: str,
     train: list[Mutant], evals: list[Mutant],
     alternatives: list[str], witnesses: list[str], injection_controls: bool = False,
+    run_cell: CellRunner | None = None,
 ) -> list[CertificationCell]:
-    """Plan safe controls only; witness and startup-injection gates remain unexercised."""
-    _refuse_injection_controls(injection_controls or bool(witnesses))
+    """Plan integrity controls only with explicit native contained execution."""
+    _refuse_injection_controls(injection_controls, witnesses=bool(witnesses), run_cell=run_cell)
     assert_disjoint(train, [], evals)
     wd = tomllib.loads((upgraded / "task.toml").read_text())["environment"]["workdir"]
     cells = [
         CertificationCell("reference", "reference", upgraded, reference_script(wd, reference_patch), "REFERENCE_APPLIED"),
         CertificationCell("nop", "nop", upgraded, nop_script(wd), "NOP_APPLIED"),
     ]
+    if injection_controls:
+        for index, witness in enumerate(witnesses or [None]):
+            cells.append(CertificationCell(
+                f"witness-{index}", "witness", upgraded, witness_script(wd, witness),
+                "WITNESS_APPLIED",
+            ))
+        cells.append(CertificationCell(
+            "exit0_pth", "exit0_pth", upgraded, exit0_pth_script(wd), "EXIT0_PTH_APPLIED",
+        ))
     for arm, pool, target in (("train", train, upgraded), ("eval", evals, upgraded), ("evalbase", evals, package)):
         workdir = tomllib.loads((target / "task.toml").read_text())["environment"]["workdir"]
         for mutant in pool:
@@ -882,7 +957,7 @@ def certify_task(
     from evallab.registry import task_directory_digest
     from evallab.regrade import SpendCapReached
 
-    _refuse_injection_controls(injection_controls or bool(witnesses))
+    _refuse_injection_controls(injection_controls, witnesses=bool(witnesses), run_cell=run_cell)
 
     package, out_dir = package.resolve(), out_dir.resolve()
     if out_dir == package or package in out_dir.parents:
@@ -959,6 +1034,7 @@ def certify_task(
     cells = plan_certification_cells(
         package=package, upgraded=upgraded, reference_patch=reference_patch,
         train=train, evals=evals, alternatives=alternatives, witnesses=witnesses or [],
+        injection_controls=injection_controls, run_cell=run_cell,
     )
     _write_certification_json(out_dir / "plan.json", [
         {**asdict(c), "package": str(c.package)} for c in cells
@@ -1006,9 +1082,9 @@ def build_certify_gold_parser(subparsers: Any) -> None:
     parser.add_argument("--alt-solution", action="append", type=Path, default=[],
                         help="Independent correct patch; repeat for Gate 7")
     parser.add_argument("--witness", action="append", type=Path, default=[],
-                        help="Unavailable: witness requests require an enforced contained runner")
+                        help="Contained witness script; requires --injection-controls")
     parser.add_argument("--injection-controls", action="store_true",
-                        help="Unavailable: refused until a contained runner is enforced")
+                        help="Explicitly run integrity controls through the fixed native Modal runner")
     parser.add_argument("--contract-test", type=Path, help="Use an operator-supplied unittest instead of synthesis")
     parser.add_argument("--hook-command", help="Override supplementary test interpreter command")
     parser.add_argument("--python-version", default="3", choices=("3", "2.7"))
@@ -1044,7 +1120,7 @@ def build_certify_gold_parser(subparsers: Any) -> None:
 
 
 def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
-    _refuse_injection_controls(args.injection_controls or bool(args.witness))
+    _refuse_injection_controls(False, witnesses=bool(args.witness) and not args.injection_controls)
     patch = args.reference_patch.read_text(encoding="utf-8")
     targets = python_targets(patch)
     if not targets:
@@ -1067,7 +1143,8 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
             "mutant_limit": args.limit,
             "rounds": args.rounds,
             "probes_per_round": args.probes_per_round,
-            "injection_controls": False,
+            "injection_controls": args.injection_controls,
+            "containment": "requested-not-runtime-proven" if args.injection_controls else "disabled",
             "unexercised_gates": ["gate3_witness", "gate4_exit0_pth"],
             "certification_possible": False,
         }
@@ -1079,7 +1156,7 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
             print(f"  targets: {sorted(targets.keys())}")
             print(f"  model: {args.model}")
             print(f"  metered cap: ${plan_dict['metered_cap_usd']:.2f}")
-            print("  gates 3 and 4: unexercised; certification is blocked")
+            print("  gates 3 and 4: unexercised in this offline plan; certification is not proven")
         return 0
 
     if not args.out:
@@ -1108,11 +1185,17 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
     )
     gate._check_ledger_location(package, out_dir)
     meter = SandboxMeter(args.max_usd)
+    runner = (
+        ContainedModalRunner(repo_root=root, spend_gate=gate, meter=meter)
+        if args.injection_controls else
+        modal_cell_runner(repo_root=root, spend_gate=gate, meter=meter, timeout_seconds=240)
+    )
     result = certify_task(
         task_id=task_id, package=package, reference_patch=patch, out_dir=args.out,
-        run_cell=modal_cell_runner(repo_root=root, spend_gate=gate, meter=meter, timeout_seconds=240),
+        run_cell=runner,
         synthesize=lambda prompt, output: synthesize_contract(prompt, output, model=args.model),
         limit=args.limit, alternative_patches=[p.read_text() for p in args.alt_solution],
+        witnesses=[p.read_text() for p in args.witness], injection_controls=args.injection_controls,
         contract_test=args.contract_test.read_text() if args.contract_test else None,
         hook_command=args.hook_command, python_version=args.python_version,
         harden_options={"expected_tests": args.expected_tests, "allow_degraded": args.allow_degraded},
@@ -1123,7 +1206,8 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
         print(json.dumps(output, indent=2))
     else:
         print(f"{task_id}: {result.status}; receipt: {output['receipt']}")
-        print("Gates 3 and 4: unexercised (injection controls disabled); certification is blocked")
+        if not args.injection_controls:
+            print("Gates 3 and 4: unexercised (injection controls disabled); certification is blocked")
         print(f"Gate 7 alternatives: {result.alternative_solutions_accepted}/{result.alternative_solutions_total}")
         for sha, reward in result.alternative_solution_rewards.items():
             if reward != 1.0:

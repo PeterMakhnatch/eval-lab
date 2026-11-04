@@ -350,18 +350,30 @@ def test_cli_refuses_multi_round_execution_instead_of_silently_doing_nothing(
 
 
 @pytest.mark.parametrize("planning", [False, True])
-@pytest.mark.parametrize("flags", [
-    ["--injection-controls"],
-    ["--witness", "/nonexistent/witness.sh"],
-    ["--injection-controls", "--witness", "/nonexistent/witness.sh"],
-])
-def test_cli_refuses_injection_even_when_requested_explicitly(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, planning: bool, flags: list[str],
+def test_cli_witness_without_explicit_opt_in_refuses_before_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, planning: bool,
 ) -> None:
-    args = _cli_args(tmp_path, *flags, *(["--plan"] if planning else []))
+    args = _cli_args(tmp_path, "--witness", "/nonexistent/witness.sh",
+                     *(["--plan"] if planning else []))
+    args.reference_patch = tmp_path / "absent.patch"
     monkeypatch.setattr(
         "evallab.gold_certifier.modal_cell_runner",
         lambda **_: pytest.fail("executor created"),
     )
-    with pytest.raises(ValueError, match="no enforced contained runner"):
+    with pytest.raises(ValueError, match="witnesses alone"):
         _certify_gold_command(args, tmp_path)
+
+
+def test_cli_contained_preview_does_not_claim_runtime_proof(tmp_path, monkeypatch, capsys):
+    args = _cli_args(tmp_path, "--injection-controls", "--witness", "/nonexistent/witness.sh",
+                     "--plan", "--json")
+    monkeypatch.setattr(
+        "evallab.gold_certifier.modal_cell_runner",
+        lambda **_: pytest.fail("executor created"),
+    )
+    assert _certify_gold_command(args, tmp_path) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["injection_controls"] is True
+    assert plan["containment"] == "requested-not-runtime-proven"
+    assert plan["certification_possible"] is False
+    assert plan["unexercised_gates"] == ["gate3_witness", "gate4_exit0_pth"]

@@ -703,7 +703,7 @@ inputs:
   - path: src/evallab/line/__init__.py
     digest: sha256:c27a9880f68dafe29c1c3c6f2056b52d393a063da5f3c55b99d62fff354f8a9d
   - path: src/evallab/line/cli.py
-    digest: sha256:aa89528acd391b10f8a2f6343e10168e48b21ac56ece693d0018e3f8e9bba658
+    digest: sha256:5ce1525c737b7b744aedb6fda61d47648ef8c9dbfd738d3b04d0463ead83c3c7
   - path: src/evallab/line/core.py
     digest: sha256:91f4a3e681658775bed862e08a9b12cb601a6367e9df57d5a402d01bdff11005
   - path: src/evallab/line/io.py

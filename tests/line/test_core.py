@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
+import sys
 import time
 from pathlib import Path
 
@@ -388,3 +390,53 @@ def test_scoreboard_receipt_times_the_scoreboard_build(
     batch = core.run_line(fixture_spec, fixture_spec.parent)
     assert read_json(batch / "receipts" / "scoreboard.json")["seconds"] >= 0.05
     assert core.check_batch(batch, fixture_spec.parent)["passed"]
+
+
+def test_line_cli_resolves_core_functions_per_call(
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Importing ``evallab.line.cli`` inside a monkeypatch window must not freeze the fake.
+
+    HAR-303 flake: ``line.cli`` bound ``core.run_line`` at import time and ``evallab.cli``
+    imports it lazily. When a worker's first ``line run`` through the CLI landed inside a
+    patch (xdist can place one on any worker), the fake stayed bound after teardown and
+    rewrote ``check.json`` for every later CLI run on that worker. The command path now
+    resolves ``core`` attributes per call: the patch is honored in-window and is gone after.
+    """
+    from evallab import cli
+
+    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
+    module_key = "evallab.line.cli"
+    saved = sys.modules.pop(module_key, None)
+    try:
+        real = core.run_line
+
+        def fails_like_watch_test(spec: Path, repo_root: Path) -> Path:
+            batch = real(spec, repo_root)
+            boom = {"name": "determinism", "status": "FAIL", "details": "boom"}
+            write_json(batch / "check.json", {"checks": [boom], "passed": False})
+            return batch
+
+        with monkeypatch.context() as patch:
+            patch.setattr(core, "run_line", fails_like_watch_test)
+            importlib.import_module(module_key)  # binds under the patch, like the CI worker
+            assert (
+                cli.run_cli(
+                    ["line", "run", str(fixture_spec), "--json"],
+                    workspace=fixture_spec.parent,
+                )
+                == 2
+            )
+        spec = read_json(fixture_spec)
+        spec["batch_id"] = "second"
+        write_json(fixture_spec, spec)
+        assert (
+            cli.run_cli(
+                ["line", "run", str(fixture_spec), "--json"], workspace=fixture_spec.parent
+            )
+            == 0
+        )
+    finally:
+        sys.modules.pop(module_key, None)
+        if saved is not None:
+            sys.modules[module_key] = saved

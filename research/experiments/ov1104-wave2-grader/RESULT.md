@@ -54,6 +54,25 @@ It remains separate from the strict cohort.
 No evaluation failure triggers another Gold correction.
 The pre-registered corrections for `002391` and `002139` still fail to accept the fresh alternatives.
 
+### Bounded follow-up: a generic synthesis rule did not help
+
+A separate pre-registered follow-up asked whether a generic instruction-grounding rule can fix the measured false rejections.
+The rule forbade exact internal helper names, sentinel defaults, private attributes, reference-only module names, unspecified field names, and exact exception wording.
+Three fresh contracts (one per task, tool-free terra) were generated and frozen before scoring.
+The follow-up preregistration hash is `da10407ac48e3b2da88c9d80bbced16989563e59f4ee0ee2eff0ea4133416748`; its raw folder stays external to avoid copying task test names.
+
+**0/3 contracts passed Gate 1 on their own reference**, so the matrix stopped as pre-registered:
+
+- `000682`: the contract imported the test helper `common` through the wrong package root. The hidden tests passed 4/4, then the contract failed at import.
+- `002139`: fake storage state leaked between contract tests. The hidden tests passed 11/11, then 6/8 contract tests failed.
+- `002391`: the instruction-grounded contract kept the result's own primary ID out of its alias set for non-PYSEC duplicates. The reference violates that instruction sentence, so reference reward was 0. This is a task/reference defect, not a contract over-fit; G1 cannot pass until the reference is corrected.
+
+No Gate 7 alternative, train mutant, or evaluation mutant executed: 0/10 planned alternative comparisons, 0/9 train cells, and 0/8 evaluation cells are missing, not passes.
+The old contracts reject 8/10 of the same alternative-task pairs, so the follow-up gives **no evidence** that the generic rule reduces false rejection or preserves mutant kills.
+The failure modes are contract-engineering errors plus one instruction/reference conflict.
+Raw requests, logs, and receipts remain external because verifier logs contain task test names.
+Runtime estimate for this follow-up is **$0.057597**; provider-reported cost is **$0.01865563**.
+
 A separate source-trace audit finds 2 existing passing `002391` alternatives with bounded instruction-plus-repository provenance.
 Both are already shown to the existing contract synthesizer. Neither supplies a new blind evaluation alternative.
 The later replacement `a-flash` receives extra property-preservation guidance and is not strict instruction-only.
@@ -152,11 +171,11 @@ The root PREREG hash is `101840bd36ee6458b38a4d549793ddd825fcadf962457e656ab773b
 ## Spend
 
 - Approved Modal cap: **$2.00**.
-- Recorded runtime estimate: **$0.295943**, with no outstanding reservations.
-- Provider-reported cost to date: **$0.18728966**, observed at **3:19 AM ET**.
+- Main-matrix runtime estimate: **$0.295943**; synthesis follow-up: **$0.057597**; total: **$0.353540**.
+- Provider-reported cost to date: **$0.20594529** (**$0.18728966** main, **$0.01865563** follow-up), observed at **3:19–4:15 AM ET**.
 - Final invoice amount: unknown. Provider billing can lag.
 - Subscription generation incremental cost: **$0**. Local smoke cost: **$0**.
-- Owned Modal application: stopped with 0 tasks at **3:21 AM ET**.
+- Owned Modal applications: stopped with 0 tasks.
 
 `cert/billing.json`, `closure.json`, and the campaign ledger preserve the billing and closure evidence.
 Do not describe the runtime estimate as an actual provider charge.

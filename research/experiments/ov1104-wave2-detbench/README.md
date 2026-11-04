@@ -8,6 +8,8 @@ The post hoc `PASS_REPORT.md` separately analyzes Reflex-Sentinel's `pass_own` f
 
 X06 measures contamination among recorded `keep` decisions, excluding `review`. The replay keeps 30 cheats in 100 runs (30.0%, Wilson 95% CI 21.9%–39.6%) and 70 of 358 honest runs. At the DetBench matrix's frozen DEV operating points, the 4 selected combinations retain 27.8%–48.1% cheats in their kept populations. These are different filters with different missing-component semantics. See `X06.md` for the per-corpus tables, exact matrix parity checks, and the complete-case alternative. Countdown-Code's 1.2% is an experimental contamination dose, not a universal safety threshold.
 
+The exploratory `cluster/REPORT.md` adds task-cluster bootstrap intervals for X06. The recorded replay keep fraction has a pooled 95% interval of 21.6%–39.8% over 190 clusters. The pooled bootstrap resamples clusters within each corpus. Some corpus intervals use only 4–6 clusters and are unstable or degenerate.
+
 X05 could not faithfully reproduce the 17-rule scanner from the public paper and inspected code. `X05.md` documents the search and the missing implementation. No approximate detector was presented as the published scanner.
 
 ## Provenance and reproducibility

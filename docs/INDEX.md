@@ -150,6 +150,8 @@ inputs:
     digest: sha256:8bab1d17040209d7dca7b6cd88e90b8c2c43e439f1376fa7f9125ef37c0f74b6
   - path: docs/scaling.md
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
+  - path: docs/ship.md
+    digest: sha256:f67978612d48e583a60c78ca7380e6a50f110b6f06704aee335c1251e063df3f
   - path: docs/storm-alarms.md
     digest: sha256:0bc85e698e48423c3a23b2462ca7eb6187578a0cb94e9dc6f346d4a1f3363692
   - path: docs/surfaces.md
@@ -240,6 +242,7 @@ an operator can see what is archived.
 | `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/rollout.md` | Rollout engine (`evallab rollout`) | `living` | `builder, operator` |
+| `docs/ship.md` | Ship a pull request | `living` | `builder, operator` |
 | `docs/task-admission.md` | Task admission gate (`evallab tasks admit`) | `living` | `builder, operator` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
@@ -436,6 +439,7 @@ an operator can see what is archived.
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/run-health.md` | Run Health | `living` | `analyst, operator` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
+| `docs/ship.md` | Ship a pull request | `living` | `builder, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-admission.md` | Task admission gate (`evallab tasks admit`) | `living` | `builder, operator` |

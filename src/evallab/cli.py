@@ -8149,6 +8149,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.trace_store.cli import register_traces
 
     register_traces(commands)
+    from evallab.ship import register_parser as register_ship_parser
+
+    register_ship_parser(commands)
     return root
 
 

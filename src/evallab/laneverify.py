@@ -63,13 +63,21 @@ def _tokens(line: str) -> list[dict[str, Any]]:
     # Code identifiers, paths, URLs, hashes and section ordinals are not measurements.
     clean = list(line)
     for match in re.finditer(r"`[^`]+`|https?://\S+|\b[0-9a-f]{7,64}\b|^\s*#+.*$|^\s*\d+\.", line):
-        if match[0].startswith("`") and re.fullmatch(r"[`0-9,./% =()\[\]–−+\-]+", match[0]):
+        if match[0].startswith("`") and re.fullmatch(r"[`0-9,./% =()<>\[\]≤≥–−+\-]+", match[0]):
             continue
         clean[match.start() : match.end()] = " " * (match.end() - match.start())
-    return [
-        {"text": m.group(), "start": m.start(), "end": m.end()}
-        for m in NUMBER.finditer("".join(clean))
-    ]
+    tokens = []
+    for match in NUMBER.finditer("".join(clean)):
+        relation = re.search(r"(<=|>=|[<>≤≥])\s*$", line[: match.start()])
+        tokens.append(
+            {
+                "text": match.group(),
+                "start": match.start(),
+                "end": match.end(),
+                "relation": relation[1] if relation else "=",
+            }
+        )
+    return tokens
 
 
 def _value(text: str) -> float:
@@ -81,6 +89,20 @@ def _tolerance(text: str) -> float:
     if "e" in value.lower():
         return abs(float(value)) * 0.005
     return 0.55 * 10 ** (-len(value.partition(".")[2])) if "." in value else 0.0
+
+
+def _matches(token: dict[str, Any], actual: float) -> bool:
+    stated = _value(token["text"])
+    relation = token["relation"]
+    if relation == "<":
+        return actual < stated
+    if relation in ("<=", "≤"):
+        return actual <= stated
+    if relation == ">":
+        return actual > stated
+    if relation in (">=", "≥"):
+        return actual >= stated
+    return abs(actual - stated) <= _tolerance(token["text"])
 
 
 def numbers(
@@ -134,9 +156,7 @@ def numbers(
                 token.update(
                     actual=result,
                     recipe=spec,
-                    status="reproduced"
-                    if abs(result - _value(token["text"])) <= _tolerance(token["text"])
-                    else "differs",
+                    status="reproduced" if _matches(token, result) else "differs",
                 )
                 if token["status"] == "differs":
                     discrepancies.append(issue("number_differs", evidence, token.copy()))

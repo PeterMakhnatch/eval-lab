@@ -237,3 +237,41 @@ def test_repeated_pr_reference_does_not_hide_state_claim(tmp_path, claim):
     result = verify(lane, tmp_path / "out", tmp_path, run=probe)
     errors = [d for d in result["discrepancies"] if d["kind"] == "pr_state_differs"]
     assert len(errors) == (0 if claim == "merged" else 1)
+
+
+@pytest.mark.parametrize(
+    ("relation", "threshold", "status"),
+    [
+        ("<", "0.05", "reproduced"),
+        ("<", "0.03125", "differs"),
+        ("≤", "0.03125", "reproduced"),
+        (">", "0.03125", "differs"),
+        (">=", "0.03125", "reproduced"),
+    ],
+)
+def test_exact_p_value_bounds_keep_strict_and_inclusive_meaning(
+    tmp_path, relation, threshold, status
+):
+    report = tmp_path / "RESULT.md"
+    quote = f"McNemar p {relation} {threshold}."
+    report.write_text(quote + "\n")
+    (tmp_path / "counts.json").write_text('{"b": 6, "c": 0}')
+    claims, errors = numbers(
+        report,
+        [
+            {
+                "quote": quote,
+                "number": 0,
+                "stat": "mcnemar_exact",
+                "inputs": {
+                    key: {"op": "value", "file": "counts.json", "pointer": "/" + key}
+                    for key in ("b", "c")
+                },
+            }
+        ],
+    )
+    assert claims[0]["numbers"][0]["actual"] == 0.03125
+    assert claims[0]["numbers"][0]["status"] == status
+    assert {error["kind"] for error in errors} == (
+        {"number_differs"} if status == "differs" else set()
+    )

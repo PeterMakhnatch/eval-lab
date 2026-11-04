@@ -75,6 +75,9 @@ A statistical mapping replaces `recipe` with `stat`, `inputs`, and `field`:
 
 Use `mcnemar_exact`, `inputs.b`, `inputs.c`, and `field: p_value` for paired discordant counts.
 Receipt recipes do not execute code from the lane. Printed precision controls rounding tolerance.
+An immediate `<`, `<=`, `≤`, `>`, `>=`, or `≥` checks a bound, not equality.
+The JSON records that relation. Strict bounds remain strict; rounding tolerance applies only to equality.
+For example, exact `p = 0.03125` satisfies `p < 0.05`, but not `p < 0.03125`.
 Arithmetic checks are additional evidence; they do not replace receipt recomputation.
 
 ## Artifact and delivery checks

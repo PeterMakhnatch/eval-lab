@@ -204,6 +204,27 @@ OV_MAX_CONTAINERS=8 /private/tmp/ov1104/probes/venv/bin/modal run \
 - `modal-extract`: `anthropic/claude-fable-5-1` (`16` assistant messages prior to 12:20 AM ET stop, `0` fallbacks); finished and verified by lead on `google-antigravity/gemini-4-argon` (`0` fallbacks).
 - Lead sessions: `session` (`anthropic/claude-fable-5-1` pre-12:20 AM ET stop), `session2` (`google-antigravity/gemini-4-argon`, `0` fallbacks), `session3` (`openai-codex/gpt-6.1-sol` / `google-antigravity/gemini-4-argon`, `0` fallbacks).
 
+### 6.4 Independent recompute (`/private/tmp/ov1104/probes/recompute.py`, not the lane's reporter)
+
+To guard against reporter bugs, a separate hand-written script re-derived the headline numbers from the raw `runs.jsonl` + `signals/*.jsonl` files with its own rank-based AUROC, its own cluster percentile bootstrap (1000 resamples, seed 20261104), and its own Wilson intervals:
+
+| Quantity | Lane value | Independent recompute | Match |
+| --- | --- | --- | --- |
+| `probe_qwen3_8b` DEV AUROC (`n=680`) | `0.5607 [0.459, 0.666]` | `0.5607 [0.464, 0.667]` | yes |
+| `probe_qwen3_8b` all-15-set AUROC (`n=8,843`) | `0.488 [0.451, 0.523]` | `0.4877 [0.452, 0.525]` | yes |
+| `probe_qwen3_8b_run_mean` DEV AUROC (`n=680`) | `0.587 [0.527, 0.656]` | `0.5871 [0.524, 0.656]` | yes |
+| `probe_qwen3_8b_run_mean` all-15-set AUROC (`n=8,843`) | `0.569 [0.529, 0.609]` | `0.5694 [0.531, 0.610]` | yes |
+| 15 per-set `probe_qwen3_8b` held-out AUROCs | `0.277–0.922` | identical to 3 decimals | yes (15/15) |
+| `j2b` alone on the 11 overlapping held-out sets | `32.90% (351/1,067)` at `4.92%` | `32.96% (351/1,065)` at `4.93%` | yes (±0.06 pp) |
+| `OR(probe_qwen3_8b, j2b)` | `33.27% (355/1,067)` at `5.19%` | `33.33% (355/1,065)` at `5.20%` | yes (±0.06 pp) |
+| `OR(probe_qwen3_8b_run_mean, j2b)` | `34.77% (371/1,067)` at `6.83%` | `34.84% (371/1,065)` at `6.84%` | yes (±0.07 pp) |
+| Frozen 5% `probe_qwen3_8b` threshold on DEV negatives | `<= 5% FPR` | `4.25% (15/353)`; 1% threshold `0.85% (3/353)` | yes |
+| Frozen 5% `probe_qwen3_8b_run_mean` threshold on DEV negatives | `<= 5% FPR` | `4.82% (17/353)`; 1% threshold `0.85% (3/353)` | yes |
+
+Residual ±0.06 pp differences in the cascade rows come from a 2-run difference in the join (`probe.py` counts a probe-abstained row's judge flag at its own denominator), not from a scoring discrepancy.
+
+**Additional honest caveat surfaced by the recompute**: on the pooled all-15-set held-out rows (`n=8,843`) the trivial `n_chars` baseline reaches AUROC **`0.665 [0.624, 0.703]`**, well above both frozen probes (`0.488` / `0.569`). Length only loses to the probes per set (12/15 sets) and on DetBench's narrower `pooled:heldout` composition. A reader-probe deployment claim is therefore per-harness, never pooled across harnesses.
+
 ---
 
 ## 7. What Failed & Limitations

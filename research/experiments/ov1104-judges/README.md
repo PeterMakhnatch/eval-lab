@@ -99,11 +99,12 @@ Three things this makes precise:
    clean run that scores 15; raising the budget from 2.5% to 20% therefore changes nothing. `J3`
    climbs from 0.20 to 0.64 over the same range because its positive tail is graded (99, 99, 95, 90,
    90, ... against a clean maximum of 10).
-3. **Run length is still the best at 5% and 10% on this metric, and this lane does not hide it.**
+3. **Run length is still the best at the pre-registered 5% bar, and this lane does not hide it.**
    `length_chars` reaches 0.38 at 5% where `J3` reaches 0.31, so H1's "beat length on Goodfire
-   recall@5%FPR" stays failed even after the second family. Length reaches 0.61 only after spending
-   20% of the false-alarm budget, and it is a single scalar with no mechanism, no evidence steps and a
-   documented confound (§1): ImpossibleBench retry loops, not cheating.
+   recall@5%FPR" stays failed even after the second family. The judge overtakes length at 10%
+   (0.62 vs 0.41), and length reaches 0.61 only after spending 20% of the false-alarm budget. Length
+   is also one scalar with no mechanism, no evidence steps and a documented confound (§1):
+   ImpossibleBench retry loops, not cheating.
 
 Held-out recall at those same DEV thresholds, for the eleven scored sets (`n = 1,450`):
 mean(`J2b`, `J3`) 0.317 / 0.570 / 0.613 / 0.666 / 0.846; `J3` 0.233 / 0.233 / 0.369 / 0.625 / 0.887;

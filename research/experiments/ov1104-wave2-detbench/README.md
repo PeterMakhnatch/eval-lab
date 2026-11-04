@@ -10,6 +10,8 @@ X06 measures contamination among recorded `keep` decisions, excluding `review`. 
 
 The exploratory `cluster/REPORT.md` adds task-cluster bootstrap intervals for X06. The recorded replay keep fraction has a pooled 95% interval of 21.6%–39.8% over 190 clusters. The pooled bootstrap resamples clusters within each corpus. Some corpus intervals use only 4–6 clusters and are unstable or degenerate.
 
+The post hoc `review/` sensitivity analysis finds 90 cheats in 338 review decisions (26.6%; cluster 95% CI 16.9%–36.2%). If every review were accepted, the hypothetical keep-plus-review set would contain 120 cheats in 438 runs (27.4%; 19.6%–35.5%). This union is not the recorded export.
+
 X05 could not faithfully reproduce the 17-rule scanner from the public paper and inspected code. `X05.md` documents the search and the missing implementation. No approximate detector was presented as the published scanner.
 
 ## Provenance and reproducibility

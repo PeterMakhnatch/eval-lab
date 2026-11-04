@@ -27,9 +27,13 @@ Use `--repo-root /path/to/stable/checkout` when the command starts outside that 
 The stable checkout must share the topic worktree's Git repository.
 The smoke runs in a new detached checkout of the merge commit.
 Use a command that leaves no untracked files. Ignored dependency caches can remain.
+Retirement also accepts tool caches (`.ruff_cache`, `.pytest_cache`, `__pycache__`
+and similar) in any directory; any other ignored file still blocks it.
 A failed smoke stops retirement. Fix its cause and repeat the same command.
 
 The command prints pending, successful, and failed check names.
+Right after a push GitHub reports mergeability as `UNKNOWN`; ship asks again a few
+times before treating the PR as unmergeable.
 It reads required names from branch protection through `gh api`.
 If protection is unavailable, it reads the required-check table in `agents/CHECKS.md` on the base.
 Every reported check must succeed, not just the required checks.

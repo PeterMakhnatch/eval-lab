@@ -8,6 +8,7 @@ and promotion helpers.
 ## What lives here / entry points
 - `scripts/premerge.sh`: Pre-merge validation gate executing local quality checks.
 - `scripts/ci/check_harbor_skips.py`: JUnit skip-reason summary and Harbor-named skip gate for native CI.
+- `scripts/ci/report_slowest_files.py`: Per-file summed durations of the 20 slowest test files from a JUnit report, printed per CI test shard.
 - `scripts/fleet-status.sh`: Fleet tracking and active status report script.
 - `scripts/line-replay.py`: Standard frozen `replay-v1` assembly-line regression gate (see `docs/line.md`).
 - `scripts/setup-git.sh`: Local git hooks and repository configuration helper.

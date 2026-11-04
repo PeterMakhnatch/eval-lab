@@ -1,0 +1,77 @@
+--- a/lib/bb/fetch2/__init__.py
++++ b/lib/bb/fetch2/__init__.py
+@@ -2165,6 +2165,7 @@
+ from . import ssh
+ from . import sftp
+ from . import s3
++from . import gcp
+ from . import perforce
+ from . import hg
+ from . import repo
+@@ -2184,6 +2185,7 @@
+ methods.append(ssh.SSH())
+ methods.append(sftp.SFTP())
+ methods.append(s3.S3())
++methods.append(gcp.GCP())
+ methods.append(perforce.Perforce())
+ methods.append(hg.Hg())
+ methods.append(repo.Repo())
+--- /dev/null
++++ b/lib/bb/fetch2/gcp.py
+@@ -0,0 +1,56 @@
++"""Fetch Google Cloud Storage objects using the Google Cloud Storage client."""
++
++# SPDX-License-Identifier: GPL-2.0-only
++
++import os
++import bb
++from bb.fetch2 import FetchError, FetchMethod
++
++
++class GCP(FetchMethod):
++    def supports(self, ud, d):
++        return ud.type == 'gs'
++
++    def recommends_checksum(self, ud):
++        return True
++
++    def urldata_init(self, ud, d):
++        ud.basename = ud.parm.get('downloadfilename', os.path.basename(ud.path))
++        ud.localfile = ud.basename
++
++    def _blob(self, ud):
++        # Import lazily so other fetchers do not require the optional client.
++        from google.cloud import storage
++        return storage.Client().bucket(ud.host).blob(ud.path.lstrip('/'))
++
++    def download(self, ud, d):
++        bb.fetch2.check_network_access(d, 'Google Cloud Storage download', ud.url)
++        try:
++            from google.api_core.exceptions import GoogleAPICallError
++            blob = self._blob(ud)
++            bb.utils.mkdirhier(os.path.dirname(ud.localpath))
++            blob.download_to_filename(ud.localpath)
++        except ImportError as exc:
++            raise FetchError('Google Cloud Storage client is unavailable: %s' % exc, ud.url) from exc
++        except GoogleAPICallError as exc:
++            raise FetchError('Google Cloud Storage download failed: %s' % exc, ud.url) from exc
++
++        if not os.path.exists(ud.localpath):
++            raise FetchError('Download succeeded but target file %s is missing' % ud.localpath, ud.url)
++        if os.path.getsize(ud.localpath) == 0:
++            os.remove(ud.localpath)
++            raise FetchError('Download produced an empty file', ud.url)
++        return True
++
++    def checkstatus(self, fetch, ud, d):
++        bb.fetch2.check_network_access(d, 'Google Cloud Storage existence check', ud.url)
++        try:
++            from google.api_core.exceptions import GoogleAPICallError
++            exists = self._blob(ud).exists()
++        except ImportError as exc:
++            raise FetchError('Google Cloud Storage client is unavailable: %s' % exc, ud.url) from exc
++        except GoogleAPICallError as exc:
++            raise FetchError('Google Cloud Storage existence check failed: %s' % exc, ud.url) from exc
++        if not exists:
++            raise FetchError('Google Cloud Storage object does not exist', ud.url)
++        return True

@@ -1,0 +1,425 @@
+{
+  "request_count": 20,
+  "requests": [
+    {
+      "task": "002391",
+      "index": 0,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/0.request.json",
+      "request_file_sha256": "9a05c882c6c54ea9f32354fdd16213976371402f30ca2cba991a023e46449bae",
+      "canonical_body_sha256": "750f5017f659949fd7429e3a12aec7c1fccd2ee712c0085aed16087b0e26396d",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/0.response-0.json",
+          "sha256": "6b5e559c928d7ab06836e6940b55371d1752c485e0f2a9eef976778115512dcd",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002391",
+      "index": 1,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/1.request.json",
+      "request_file_sha256": "8ee469a523a50b9c2092d3bbdab856aeb6e3d420dc0ed670f059277546a5ebfd",
+      "canonical_body_sha256": "b06c0a459754c98bfad5d6025ab99465542b36f89f265c27b8467530efaa5104",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/1.response-0.json",
+          "sha256": "33425f74d137231e9b73adb70979511b90b81149e819aee9cbbe551f4e2898ba",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002391",
+      "index": 2,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/2.request.json",
+      "request_file_sha256": "d811dbfa1f77c795ec4df0a7ec09e3b10659b6fe5bae8c2424b2ca4736cf6d93",
+      "canonical_body_sha256": "2933eba4fdf77bb814d541fa8dda69bba0951cef3b8f2fc189f0ab7ed86f3771",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/2.response-0.json",
+          "sha256": "43eb8bed572db39e93472a9b1997ef5df6aec9eefc2c9b63c22eb629ab511c2b",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002391",
+      "index": 3,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/3.request.json",
+      "request_file_sha256": "6c2ba1d907e022acfc8a84316e350c100974cc7d7912d7f38d695a7bfef959ee",
+      "canonical_body_sha256": "c726d3f990ec05851b572d2359d3f8fa592b23cd8fab297f0aae8281bd2a7f5c",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/3.response-0.json",
+          "sha256": "ff45254d97fff2862354d10696e499f290ff901c540d3e24f3eeae03f2421ed0",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002391",
+      "index": 4,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/4.request.json",
+      "request_file_sha256": "b839c3bf5c7a8b13717f467cd3b3bf66b6483d97b17621111146692c3daf8214",
+      "canonical_body_sha256": "861848858fbca44074ed4ede2783fac8c54c3367ecd8a4ec6c67a3926b90db9b",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/4.response-0.json",
+          "sha256": "cd6bd12f35da50362009f07b419d197707c6da4bb0200eece8b36a2d4d5b8010",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002391",
+      "index": 5,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/5.request.json",
+      "request_file_sha256": "3836a9ed6265b700499d72bc0862e1b55c39df9f44e187199d9b3e38e04bf865",
+      "canonical_body_sha256": "889ab684fb3ea4e224caae8f40090e56bc4b701dc5437a72400c344bd62b1ea2",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/5.response-0.json",
+          "sha256": "810114ba027136825f3d9560ca310c0237f32f44e48ad128bbaf90db9bf16bfd",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002391",
+      "index": 6,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/6.request.json",
+      "request_file_sha256": "334ab595621d3daed4fb7a6e14b79df795b37ffc6849d7a17f0bee732aa0efb1",
+      "canonical_body_sha256": "862cf1bf26af30d071cf888c1ec9d540aada6b9b0d203a165057fa86316bb792",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/6.response-0.json",
+          "sha256": "fa5128c61d8a189e446630e8ea3ea63aa87e3bf25ab058ae5778423f13a88936",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002391",
+      "index": 7,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/7.request.json",
+      "request_file_sha256": "6756868d7a495b0896ed2a2711e4c8d878bbf795ccbb6fd3605a4de591626fd0",
+      "canonical_body_sha256": "0c0ac2f572f12c305d086cf90bd0c150030be96027c6b4793a550dc730a6bc99",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002391/7.response-0.json",
+          "sha256": "67433c987d94482b461a8091ec565868e1ee90830993f6097bf03a69240a6834",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "000682",
+      "index": 0,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/000682/0.request.json",
+      "request_file_sha256": "654c0b6655619ea90da89d2050a2c9eb297372077855ef4c69f3ed36acb4d25c",
+      "canonical_body_sha256": "4616bf6d127c248a6829be0fbf8b64419ef8a2efa0a088bb703c63a144d91e90",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/000682/0.response-0.json",
+          "sha256": "cbfc8105f9c1c13055ab3c5ea656d4ee1a7668aeca0708ceec34722604ba46a1",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "000682",
+      "index": 1,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/000682/1.request.json",
+      "request_file_sha256": "d6ff7a7060e588a21222d5831a661215fdeb24e02cae83b8c5501057d766e272",
+      "canonical_body_sha256": "24da55f9f0d21818a972033900dd6d326897c0333609c6d60a2911bbafd63d43",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/000682/1.response-0.json",
+          "sha256": "a51964c159ef0a7e68522c3bbc4fbcecab6aa2b4ae3dc50961bcd6c1c9d2f9e1",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "000682",
+      "index": 2,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/000682/2.request.json",
+      "request_file_sha256": "9bd3d036ae11eed8829fa93d668deeb0c837747ba50a30633249455474e5dd9c",
+      "canonical_body_sha256": "1aebddabfe1b7a9880367a75512227da54cc4ae6fdb51ccb3a79be2b74679fd9",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/000682/2.response-0.json",
+          "sha256": "cffb0fedcf4601d5f853164822c12d0c479c493cf32d706e72e06ff8cfeec8dc",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "000682",
+      "index": 3,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/000682/3.request.json",
+      "request_file_sha256": "c7cb23fabcc820c0b64aa9f4ddb9bfeeb137fde19bce145f1e931bae4f3f19c1",
+      "canonical_body_sha256": "a5371d7563e16bebcc60cb8815daa37d7fa9a635bb46eb770f03ea1ff5ee8e0a",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/000682/3.response-0.json",
+          "sha256": "2a989db7e720635070a888ad5ee40e4b81ed49466679cadf9f72e59f8489cfc5",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002139",
+      "index": 0,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/0.request.json",
+      "request_file_sha256": "f6018989351c2da86a58e51c67c608f361e72407548d7626fb10c9d62598e417",
+      "canonical_body_sha256": "b3d153b2356829a06a1049158a146208c3dc0ba1a228f5f831feea18845662f8",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/0.response-0.json",
+          "sha256": "d6e1f7c5260a6e8b460ca177c016554966ac22b4bf3dfd5bd7690012d3fa6ab5",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002139",
+      "index": 1,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/1.request.json",
+      "request_file_sha256": "29eccf2b8913b4565aafc9d8b5ac984f4384e745dae0b0ea9bd2feb209477325",
+      "canonical_body_sha256": "55bd88456d148ed7fd57ed11e9bdf3b5a1f739ac77a35e179bcab7f32459257e",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/1.response-0.json",
+          "sha256": "2efd7fd8000afece0fad77001b5aa01ea088a671177ad42279074cebbfa98f62",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002139",
+      "index": 2,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/2.request.json",
+      "request_file_sha256": "4c803c9a4405bcededcf77df1b1e9a3799f277a917e57e4ab35c1a1a9b8c06a6",
+      "canonical_body_sha256": "812e04fbb0c555ab10eaaa309e93fc5863ea10cc721635e614bc440e647ddd01",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/2.response-0.json",
+          "sha256": "546822820c0ebf32d36dbc6d82db69117c60a44bbcc7fa04b715ca771c866fac",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002139",
+      "index": 3,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/3.request.json",
+      "request_file_sha256": "5f38e898bb22f2b39880e341b61c79c8cf09a80153be2385502158e55b11af25",
+      "canonical_body_sha256": "23344287b951b4983aa6d609c187969b5a8201cbec40adf60b94761050b7f6f8",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/3.response-0.json",
+          "sha256": "907f5a5d6654141557c849d2c1fdff60e941c4fed54fe59fb326d0b090a78c87",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002139",
+      "index": 4,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/4.request.json",
+      "request_file_sha256": "32fd6b709578140336902dda55a0499de88ad96c39b594951aa77ed041eab3a8",
+      "canonical_body_sha256": "b4c2d8f65c13e41a76c8e07b01aae2fa342addc7afd21e31b37b5b59fccdfb66",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/4.response-0.json",
+          "sha256": "a492b69eaed5ccc132a0e4263c2066e507e8d77f0f5087310423bf5ef4c9f3d8",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002139",
+      "index": 5,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/5.request.json",
+      "request_file_sha256": "d5ae7f1d43e7783b72048aedc1600fdec068fa6621f2137a107789a6f92c18ac",
+      "canonical_body_sha256": "8b4432973867e4d56c194b1902223659f5e070c15a6132ffce83ed524179f218",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/5.response-0.json",
+          "sha256": "00f72fbae439e68f6b22e8fea771accb2ecabdd620faa5862dae8fc824b8d100",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002139",
+      "index": 6,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/6.request.json",
+      "request_file_sha256": "98acbecc5817f80f14908d91043f1546f8de143f24bcfc1c1238ad2e8d8af63d",
+      "canonical_body_sha256": "6b172e40d33dcc8fb5c4b20028346b8567b22505a099e6c6f92eecb25340353a",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/6.response-0.json",
+          "sha256": "193aa62744b6e705d1430c4b5001bf95a327c18e6f6f5a7239691e4f1e0a02c5",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    },
+    {
+      "task": "002139",
+      "index": 7,
+      "request": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/7.request.json",
+      "request_file_sha256": "a6b02f48bd89194fe2e5f4e2bb01a1b93d03b71b0e8e43f75df1e9711381704e",
+      "canonical_body_sha256": "5a987f3a88f352528d3d8e67e636219257307173fdc44022ffe21b17d9455eec",
+      "model": "openai-codex/gpt-6.1-terra",
+      "tools": [],
+      "tool_choice": "none",
+      "message_roles": [
+        "user"
+      ],
+      "responses": [
+        {
+          "path": "/private/tmp/ov1104/wave2-grader/workers/cert/generation/002139/7.response-0.json",
+          "sha256": "273a4ebc97d334e6050a276a2d46093b3ec0f629a9be8c98ff884d2de2a0374a",
+          "status": 200,
+          "served_model": "openai-codex/gpt-6.1-terra"
+        }
+      ]
+    }
+  ]
+}

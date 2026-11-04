@@ -1,0 +1,2239 @@
+{
+  "000682_held_out_validation_join": [
+    {
+      "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-b-fable/result.json",
+      "original_reward": 1.0,
+      "patch_sha256": "5ed27f0986697ffdda2850a394514992a82bc21dfb856a4c2f7d75e92485152e",
+      "reward": 1.0,
+      "test_aware": true,
+      "validation_source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/validation.json",
+      "worker": "b-fable"
+    },
+    {
+      "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-b-argon/result.json",
+      "original_reward": 1.0,
+      "patch_sha256": "6cd6702a264f4c0b6bae18b6fc0e74648f8a14b5f80c04b4a519fe4843f606f6",
+      "reward": 1.0,
+      "test_aware": true,
+      "validation_source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/validation.json",
+      "worker": "b-argon"
+    }
+  ],
+  "002391_A0_provenance": {
+    "real-1": {
+      "changed_lines_sha256": "a76f1a7374f5d9f1664b66936474bc987e1f7f8939e916e48cf832312eea6701",
+      "join_method": "SHA256 of ordered added/removed lines, right whitespace removed; excludes diff headers/context",
+      "normalized_patch": {
+        "bytes": 3972,
+        "lines": 100,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-1.patch",
+        "sha256": "65e5213c707a08c82209c71446979690fcd7a85c9e3ad9ad194bc244a5415b49"
+      },
+      "source_matches": [
+        {
+          "arm_label": "cheat",
+          "is_dev": true,
+          "original_reward": 1.0,
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/HAR-202-chrr1-l-cheat-002391-k1/chrr1-l-cheat-002391-k1__QGXLXwa/verifier/agent.diff",
+          "patch_sha256": "e491178d9b4287ccf38007063c811815475ab851199645f38d2a59fa0d88ec7b",
+          "recorded_reward": 1.0,
+          "reward_file": {
+            "bytes": 2,
+            "lines": 1,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/HAR-202-chrr1-l-cheat-002391-k1/chrr1-l-cheat-002391-k1__QGXLXwa/verifier/reward.txt",
+            "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+          },
+          "run_id": "f84294c0-f8b5-4168-8c9f-d7b98e9d6613"
+        }
+      ]
+    },
+    "real-4": {
+      "changed_lines_sha256": "625b025f77c2eea9febd60b14518dcec3ad50398729362cd595db6b2a858afde",
+      "join_method": "SHA256 of ordered added/removed lines, right whitespace removed; excludes diff headers/context",
+      "normalized_patch": {
+        "bytes": 4248,
+        "lines": 112,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-4.patch",
+        "sha256": "ac2df6277a4bb84f6ffddcec5e343120534bdf76ca8582cab0d46a743da986d5"
+      },
+      "source_matches": [
+        {
+          "arm_label": "cheat",
+          "is_dev": true,
+          "original_reward": 1.0,
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/HAR-202-chrr1-w2-h-cheat-002391-k2/chrr1-w2-h-cheat-002391-k2__RoDiGXu/verifier/agent.diff",
+          "patch_sha256": "7ceb0bc7bf5528762eeb4f106857c2998a36ca67b3ea402ba37bf5ed7277aec5",
+          "recorded_reward": 1.0,
+          "reward_file": {
+            "bytes": 2,
+            "lines": 1,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/HAR-202-chrr1-w2-h-cheat-002391-k2/chrr1-w2-h-cheat-002391-k2__RoDiGXu/verifier/reward.txt",
+            "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+          },
+          "run_id": "18c3051f-e8ac-4973-ac37-ccb6ed3b1a22"
+        }
+      ]
+    }
+  },
+  "002391_comparison": {
+    "added": [
+      "b259e89bbc1da753c3e81a891677c00eed21e39f952db13cc3a3929eb8c9fe8c"
+    ],
+    "contract_equal": true,
+    "denominator_count_changed": false,
+    "denominator_membership_changed": true,
+    "held_out_denominator_after": 2,
+    "held_out_denominator_before": 2,
+    "original_fixed_split_source": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-synth/report.json",
+    "original_split_acceptance": {
+      "fraction": 0.5,
+      "k": 1,
+      "n": 2,
+      "wilson95": [
+        0.09453120573423074,
+        0.9054687942657693
+      ]
+    },
+    "receipt_byte_identity_observations": {
+      "eval-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/eval-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/eval-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f/result.json"
+      },
+      "eval-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/eval-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/eval-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329/result.json"
+      },
+      "eval-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba": {
+        "bytes_equal": false,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/eval-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/eval-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba/result.json"
+      },
+      "evalbase-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/evalbase-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/evalbase-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f/result.json"
+      },
+      "evalbase-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/evalbase-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/evalbase-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329/result.json"
+      },
+      "evalbase-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/evalbase-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/evalbase-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba/result.json"
+      },
+      "exit0_pth": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/exit0_pth/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/exit0_pth/result.json"
+      },
+      "nop": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/nop/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/nop/result.json"
+      },
+      "reference": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/reference/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/reference/result.json"
+      },
+      "replacement": {
+        "bytes_equal": false,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-r2-heldout-a-flash/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/alternative-1/result.json"
+      },
+      "retained": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/alternative-1/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/alternative-0/result.json"
+      },
+      "train-301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/train-301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/train-301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d/result.json"
+      },
+      "train-48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/train-48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/train-48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e/result.json"
+      },
+      "train-6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/train-6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/train-6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5/result.json"
+      },
+      "train-d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/train-d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/train-d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b/result.json"
+      },
+      "witness-0": {
+        "bytes_equal": true,
+        "left": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/witness-0/result.json",
+        "right": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/witness-0/result.json"
+      }
+    },
+    "removed": [
+      "65e5213c707a08c82209c71446979690fcd7a85c9e3ad9ad194bc244a5415b49"
+    ],
+    "replacement_acceptance": {
+      "fraction": 1.0,
+      "k": 2,
+      "n": 2,
+      "wilson95": [
+        0.34238022750665303,
+        1
+      ]
+    },
+    "retained": [
+      "ac2df6277a4bb84f6ffddcec5e343120534bdf76ca8582cab0d46a743da986d5"
+    ],
+    "unchanged_fields": {
+      "eval_base_rewards": {
+        "e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f": 0.0,
+        "ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329": 0.0,
+        "f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba": 0.0
+      },
+      "eval_mutants_base_accepted": 0,
+      "eval_mutants_base_accepted_killed": 0,
+      "eval_mutants_killed": 3,
+      "eval_mutants_total": 3,
+      "eval_rewards": {
+        "e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f": 0.0,
+        "ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329": 0.0,
+        "f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba": 0.0
+      },
+      "exit0_pth_reward": 0.0,
+      "gate1_reference_passed": true,
+      "gate2_nop_passed": true,
+      "gate3_witness_passed": true,
+      "gate4_exit0_pth_passed": true,
+      "kind": "gold",
+      "nop_reward": 0.0,
+      "package_digest": "sha256:93ca9a154efbabd44a0f7d9ed59546528c59682bd9771f066e0c9dc996a0f725",
+      "reference_reward": 1.0,
+      "task_id": "format-code-task-002391",
+      "test_lines": 215,
+      "train_mutants_killed": 4,
+      "train_mutants_total": 4,
+      "train_rewards": {
+        "301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d": 0.0,
+        "48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e": 0.0,
+        "6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5": 0.0,
+        "d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b": 0.0
+      },
+      "witness_reward": 0.0,
+      "witness_rewards": {
+        "witness-0": 0.0
+      }
+    }
+  },
+  "002391_honest_arm_inventory": [
+    {
+      "is_dev": true,
+      "original_reward": 0.0,
+      "patch_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/HAR-202-chrr1-l-honest-002391/chrr1-l-honest-002391__JfrMphx/verifier/agent.diff",
+      "patch_sha256": "9ac0841bd4dc7506aad8ec6bad2afbf2136fbb4a984955fdd81ecf7f9c6d80c6",
+      "run_id": "8808dce5-0da4-4e51-b35d-e119b39df387"
+    }
+  ],
+  "UNSET_mock_evidence": {
+    "causality": "[INFERENCE] The sentinel default can reject a call that omits project. This audit does not execute the alternative.",
+    "contract": {
+      "bytes": 6924,
+      "lines": 197,
+      "matching_lines": [
+        55
+      ],
+      "matching_lines_count": 1,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/package/tests/test_gold_contract.py",
+      "pattern": "project\\s*=\\s*['\\\"]UNSET['\\\"]",
+      "sha256": "f4175556f2130e0322fa7495ad7b8286ad1b9114fee9332cc69696e3d077d44d"
+    },
+    "default_project_assertions": {
+      "bytes": 6924,
+      "lines": 197,
+      "matching_lines": [
+        139,
+        148,
+        161
+      ],
+      "matching_lines_count": 3,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/package/tests/test_gold_contract.py",
+      "pattern": "assert.*Client.*None",
+      "sha256": "f4175556f2130e0322fa7495ad7b8286ad1b9114fee9332cc69696e3d077d44d"
+    },
+    "failed_alternative_receipts": [
+      {
+        "bytes": 975,
+        "lines": 12,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/alternative-1/result.json",
+        "sha256": "5af2127dbf1f3db705f02aa59433af38c47f002b9b6bbc9aac20e61bae5d6af9"
+      }
+    ],
+    "literal": "project=\"UNSET\""
+  },
+  "all_audit_checks_pass": true,
+  "arm_label_caveat": "Arm labels record experiment provenance, not semantic correctness. Passing a grader also does not prove semantic correctness. No copy/cheat behavior is inferred from an arm label.",
+  "audit_checks": {
+    "000682-r3:alternative_receipt_map_matches": true,
+    "000682-r3:committed_runtime_bytes_equal": true,
+    "000682-r3:eval_receipt_map_matches": true,
+    "000682-r3:evalbase_receipt_map_matches": true,
+    "000682-r3:exit0_pth_receipt_matches": true,
+    "000682-r3:input_alternatives_match": true,
+    "000682-r3:nop_receipt_matches": true,
+    "000682-r3:reference_receipt_matches": true,
+    "000682-r3:status_matches_cells": true,
+    "000682-r3:train_receipt_map_matches": true,
+    "000682-r3:witness_receipt_map_matches": true,
+    "000682:5ed27f0986697ffdda2850a394514992a82bc21dfb856a4c2f7d75e92485152e:original_validation_reward": true,
+    "000682:6cd6702a264f4c0b6bae18b6fc0e74648f8a14b5f80c04b4a519fe4843f606f6:original_validation_reward": true,
+    "000682:all_held_out_test_aware": true,
+    "002139-r2:alternative_receipt_map_matches": true,
+    "002139-r2:committed_runtime_bytes_equal": true,
+    "002139-r2:eval_receipt_map_matches": true,
+    "002139-r2:evalbase_receipt_map_matches": true,
+    "002139-r2:exit0_pth_receipt_matches": true,
+    "002139-r2:input_alternatives_match": true,
+    "002139-r2:nop_receipt_matches": true,
+    "002139-r2:reference_receipt_matches": true,
+    "002139-r2:status_matches_cells": true,
+    "002139-r2:train_receipt_map_matches": true,
+    "002139-r2:witness_receipt_map_matches": true,
+    "002139:explicit_none_call_assertions_present": true,
+    "002139:unset_mock_default_present": true,
+    "002391-r2-honest:alternative_receipt_map_matches": true,
+    "002391-r2-honest:committed_runtime_bytes_equal": true,
+    "002391-r2-honest:eval_receipt_map_matches": true,
+    "002391-r2-honest:evalbase_receipt_map_matches": true,
+    "002391-r2-honest:exit0_pth_receipt_matches": true,
+    "002391-r2-honest:input_alternatives_match": true,
+    "002391-r2-honest:nop_receipt_matches": true,
+    "002391-r2-honest:reference_receipt_matches": true,
+    "002391-r2-honest:status_matches_cells": true,
+    "002391-r2-honest:train_receipt_map_matches": true,
+    "002391-r2-honest:witness_receipt_map_matches": true,
+    "002391-r2:alternative_receipt_map_matches": true,
+    "002391-r2:committed_runtime_bytes_equal": true,
+    "002391-r2:eval_receipt_map_matches": true,
+    "002391-r2:evalbase_receipt_map_matches": true,
+    "002391-r2:exit0_pth_receipt_matches": true,
+    "002391-r2:input_alternatives_match": true,
+    "002391-r2:nop_receipt_matches": true,
+    "002391-r2:reference_receipt_matches": true,
+    "002391-r2:status_matches_cells": true,
+    "002391-r2:train_receipt_map_matches": true,
+    "002391-r2:witness_receipt_map_matches": true,
+    "002391:36732e9915745a857f0369c29feb83934f3f7aba927f852c02895aff820aa003:patch_hash_matches_manifest": true,
+    "002391:53787d3060a3197f0cb6689d95916c462496ee11bf0e0894577221d21cce8624:patch_hash_matches_manifest": true,
+    "002391:65e5213c707a08c82209c71446979690fcd7a85c9e3ad9ad194bc244a5415b49:patch_hash_matches_manifest": true,
+    "002391:ac2df6277a4bb84f6ffddcec5e343120534bdf76ca8582cab0d46a743da986d5:patch_hash_matches_manifest": true,
+    "002391:contract_matches_synth_manifest": true,
+    "002391:contracts_identical": true,
+    "002391:expected_replacement": true,
+    "002391:non_alternative_fields_unchanged": true,
+    "002391:original_split_matches": true,
+    "002391:published_absent_original_contract": true,
+    "002391:published_assertion_present": true,
+    "002391:real-1:source_patch_hash": true,
+    "002391:real-1:source_reward_matches": true,
+    "002391:real-1:unique_inventory_join": true,
+    "002391:real-4:source_patch_hash": true,
+    "002391:real-4:source_reward_matches": true,
+    "002391:real-4:unique_inventory_join": true,
+    "002391:replacement_original_reward": true
+  },
+  "cert_input_manifests": {
+    "000682-r3": {
+      "alternative_patch_sha256": [
+        "5ed27f0986697ffdda2850a394514992a82bc21dfb856a4c2f7d75e92485152e",
+        "6cd6702a264f4c0b6bae18b6fc0e74648f8a14b5f80c04b4a519fe4843f606f6"
+      ],
+      "base_package_digest": "sha256:d0a65e41ea576ff2832990e0bc3462c8628fd4755471a464490081799f7587f1",
+      "reference_patch_sha256": "247baff2adbecf684aaa86f349fb0465209f1465b8e6f67e8c5e32b77a57cb09",
+      "task_id": "format-code-task-000682"
+    },
+    "002139-r2": {
+      "alternative_patch_sha256": [
+        "853a59a6f10e1aabf75aa00a7ca2d40d02c9f6365d8267d9cf74c2f9dd596a52",
+        "ebc56bc36f8cee1bb0cb9d53b44b1e83ddd99247785ceed469ee3cd889cbd57f"
+      ],
+      "base_package_digest": "sha256:64b31ed23eda67fe547e2ebd520acb5e65b562fe5302a529e72a3d0e29a0216f",
+      "reference_patch_sha256": "fc67f49db977d917e5eaa798de643e573bee6d425b1c4d450be7670f6fe41562",
+      "task_id": "format-code-task-002139"
+    },
+    "002391-r2": {
+      "alternative_patch_sha256": [
+        "65e5213c707a08c82209c71446979690fcd7a85c9e3ad9ad194bc244a5415b49",
+        "ac2df6277a4bb84f6ffddcec5e343120534bdf76ca8582cab0d46a743da986d5"
+      ],
+      "base_package_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1",
+      "reference_patch_sha256": "e1dad924b28bf3725da6a20379e403fb121a0441b7f5839386e1c652b694a27e",
+      "task_id": "format-code-task-002391"
+    },
+    "002391-r2-honest": {
+      "alternative_patch_sha256": [
+        "ac2df6277a4bb84f6ffddcec5e343120534bdf76ca8582cab0d46a743da986d5",
+        "b259e89bbc1da753c3e81a891677c00eed21e39f952db13cc3a3929eb8c9fe8c"
+      ],
+      "base_package_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1",
+      "reference_patch_sha256": "e1dad924b28bf3725da6a20379e403fb121a0441b7f5839386e1c652b694a27e",
+      "task_id": "format-code-task-002391"
+    }
+  },
+  "command": "python3 /Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/audit/recompute.py --prior /Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader --evidence-root /Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader --out /Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/audit/recomputed.json",
+  "corrected_interpretation": {
+    "000682-r3": "provisional: every held-out alternative is test-aware",
+    "002139-r2": "failed Gate 7; UNSET mock is an observed incidental default, not an executed repair",
+    "002391-r2-honest": "unsupported under the original fixed alternative split; contract unchanged and one failed alternative replaced"
+  },
+  "dev_admission": {
+    "source": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/A1-INVENTORY/gold-universe.json",
+    "strictly_dev": {
+      "format-code-task-000682": true,
+      "format-code-task-002139": true,
+      "format-code-task-002391": true
+    }
+  },
+  "interval_policy": "Wilson95 describes selected binary grade outcomes only; no sampling/generalization claim. Identity, membership and gate counts have no inferential CI.",
+  "published_evidence": {
+    "assertion": "self.assertEqual(vulns[0].published, datetime(2024, 1, 1, tzinfo=timezone.utc))",
+    "contract": {
+      "bytes": 7816,
+      "lines": 215,
+      "matching_lines": [
+        87
+      ],
+      "matching_lines_count": 1,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/package/tests/test_gold_contract.py",
+      "pattern": "assert.*published",
+      "sha256": "577ea451edc07cf98a2e7109655012f243d9913f0c092d057c07d7c7c6c6c300"
+    },
+    "instruction": {
+      "bytes": 1463,
+      "lines": 7,
+      "matching_lines": [],
+      "matching_lines_count": 0,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002391/instruction.md",
+      "pattern": "\\bpublished\\b",
+      "sha256": "070adfd6a3bad8de52967db202ed20fa542b9551e77e7bd36608621ba1bb0ef6"
+    },
+    "original_package_from": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/plan.json",
+    "original_test_patch": {
+      "bytes": 10485,
+      "lines": 422,
+      "matching_lines": [],
+      "matching_lines_count": 0,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002391/tests/test.patch",
+      "pattern": "\\bpublished\\b",
+      "sha256": "67775891c7148e2768660014603bb11ff735714727e33a104aeac7bd2cc38fc9"
+    },
+    "prior_verifier_misquote": {
+      "finding": "The quoted line and assertion do not match preserved contract bytes. Use the observed assertion and occurrence lines.",
+      "quoted_assertion": "self.assertEqual(merged.published, pub)",
+      "quoted_line": 94
+    },
+    "scan_policy": "DEV admitted before local byte scan; no instruction or hidden-test text is emitted"
+  },
+  "runs": {
+    "000682-r3": {
+      "acceptance": {
+        "fraction": 1.0,
+        "k": 2,
+        "n": 2,
+        "wilson95": [
+          0.34238022750665303,
+          1
+        ]
+      },
+      "alternatives": {
+        "5ed27f0986697ffdda2850a394514992a82bc21dfb856a4c2f7d75e92485152e": 1.0,
+        "6cd6702a264f4c0b6bae18b6fc0e74648f8a14b5f80c04b4a519fe4843f606f6": 1.0
+      },
+      "cells": [
+        {
+          "arm": "reference",
+          "key": "",
+          "name": "reference",
+          "reward": 1.0,
+          "source": {
+            "bytes": 976,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/reference/result.json",
+            "sha256": "272075956b2c95a068f2fc0d4ae1fdd3f864ed4f77d0740acee76399a4e616bd"
+          }
+        },
+        {
+          "arm": "nop",
+          "key": "",
+          "name": "nop",
+          "reward": 0.0,
+          "source": {
+            "bytes": 961,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/nop/result.json",
+            "sha256": "f86ea1136863aff84eaba44939fb79782d2b965a8c30034f89f7719d4eb4698f"
+          }
+        },
+        {
+          "arm": "exit0_pth",
+          "key": "",
+          "name": "exit0_pth",
+          "reward": 0.0,
+          "source": {
+            "bytes": 969,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/exit0_pth/result.json",
+            "sha256": "5db01984bbcc97bc2792011e4aab4a5346c34e4a23b3d6ebc7759c842b6322e0"
+          }
+        },
+        {
+          "arm": "witness",
+          "key": "",
+          "name": "witness-0",
+          "reward": 0.0,
+          "source": {
+            "bytes": 974,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/witness-0/result.json",
+            "sha256": "7613b63351b9c0cb686765dd4d5f7f89649af49a8fd718408aa6366537907de0"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240",
+          "name": "train-bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1068,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/train-bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240/result.json",
+            "sha256": "1a15f44924cd085a81b7af4f96304312f6a8cd5ef3c6d172c4e0afeb663b194d"
+          }
+        },
+        {
+          "arm": "eval",
+          "key": "fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c",
+          "name": "eval-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1073,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/eval-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c/result.json",
+            "sha256": "02c8e7ea0814f2042b734a2aac5d0043736e6f33720545879018a607e1d2cb29"
+          }
+        },
+        {
+          "arm": "evalbase",
+          "key": "fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c",
+          "name": "evalbase-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c",
+          "reward": 1.0,
+          "source": {
+            "bytes": 1071,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/evalbase-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c/result.json",
+            "sha256": "3d0a2b0e832021ab127d933fcb728f09aa65708385cb38f39f4a8131fc84c996"
+          }
+        },
+        {
+          "arm": "alternative",
+          "key": "5ed27f0986697ffdda2850a394514992a82bc21dfb856a4c2f7d75e92485152e",
+          "name": "alternative-0",
+          "reward": 1.0,
+          "source": {
+            "bytes": 975,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/alternative-0/result.json",
+            "sha256": "f505caedc4c2d6c12637583b1961970ca07bc10bed34d9ba7151a803f58fb5a0"
+          }
+        },
+        {
+          "arm": "alternative",
+          "key": "6cd6702a264f4c0b6bae18b6fc0e74648f8a14b5f80c04b4a519fe4843f606f6",
+          "name": "alternative-1",
+          "reward": 1.0,
+          "source": {
+            "bytes": 975,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/alternative-1/result.json",
+            "sha256": "cc7219d27c1096541243e169db35f66379a2929ed0674a16efc3bb8ba61c1153"
+          }
+        }
+      ],
+      "certification_source": {
+        "bytes": 1405,
+        "lines": 41,
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/000682-r3/certification.json",
+        "sha256": "be24ad2c22660c50312962212b25f7e78a609a7f0a77d9a0ba9debdf3a311152"
+      },
+      "contract": {
+        "bytes": 5093,
+        "lines": 135,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/package/tests/test_gold_contract.py",
+        "sha256": "8261ef970cbf993fd0a018ba8a2127c3f4746cea050e40b10450585389ce9a65"
+      },
+      "eval_killed": {
+        "fraction": 1.0,
+        "k": 1,
+        "n": 1,
+        "wilson95": [
+          0.20654931437723745,
+          1
+        ]
+      },
+      "gates": {
+        "alternatives": true,
+        "eval": true,
+        "exit0_pth": true,
+        "nop": true,
+        "reference": true,
+        "train": true,
+        "witness": true
+      },
+      "gates_passed": {
+        "k": 7,
+        "n": 7
+      },
+      "recorded_status": "certified",
+      "train_killed": {
+        "fraction": 1.0,
+        "k": 1,
+        "n": 1,
+        "wilson95": [
+          0.20654931437723745,
+          1
+        ]
+      }
+    },
+    "002139-r2": {
+      "acceptance": {
+        "fraction": 0.5,
+        "k": 1,
+        "n": 2,
+        "wilson95": [
+          0.09453120573423074,
+          0.9054687942657693
+        ]
+      },
+      "alternatives": {
+        "853a59a6f10e1aabf75aa00a7ca2d40d02c9f6365d8267d9cf74c2f9dd596a52": 1.0,
+        "ebc56bc36f8cee1bb0cb9d53b44b1e83ddd99247785ceed469ee3cd889cbd57f": 0.0
+      },
+      "cells": [
+        {
+          "arm": "reference",
+          "key": "",
+          "name": "reference",
+          "reward": 1.0,
+          "source": {
+            "bytes": 971,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/reference/result.json",
+            "sha256": "8cf17358599e9379f988262cf3b7de5fbbbbc497dbc5fb1698836e4b2c0486e0"
+          }
+        },
+        {
+          "arm": "nop",
+          "key": "",
+          "name": "nop",
+          "reward": 0.0,
+          "source": {
+            "bytes": 960,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/nop/result.json",
+            "sha256": "08cc13fcbfda8619c0549591c4604f8fcce2f90dd884bf4c0b5305560f068ce7"
+          }
+        },
+        {
+          "arm": "exit0_pth",
+          "key": "",
+          "name": "exit0_pth",
+          "reward": 0.0,
+          "source": {
+            "bytes": 968,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/exit0_pth/result.json",
+            "sha256": "6bdfe3d8bf92cd1766f7ed7cb8e5e0398114fb97eccf5ddd5589cef19ac15584"
+          }
+        },
+        {
+          "arm": "witness",
+          "key": "",
+          "name": "witness-0",
+          "reward": 0.0,
+          "source": {
+            "bytes": 973,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/witness-0/result.json",
+            "sha256": "448a2a12f4086f7b187f205f6971f7d5bfe030527ff84fbd9721317d1e3d3154"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d",
+          "name": "train-12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1075,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/train-12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d/result.json",
+            "sha256": "18981dad8277429024791523c0136c95d50c0105b78009c4734b2a2b8b34283b"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd",
+          "name": "train-1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1066,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/train-1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd/result.json",
+            "sha256": "f464c0f40d99e850be56584bb63c0059f5cb25f139de81270a9188c8e3bab644"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e",
+          "name": "train-7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1062,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/train-7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e/result.json",
+            "sha256": "0d119f67e480c287e88286f1a9ccb80c878a7d5bca677d09ae9b52d502de46d9"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec",
+          "name": "train-88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1072,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/train-88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec/result.json",
+            "sha256": "bbfe6d718566678ff78f6dfa9a4374e7bc3fae3756b82611ce6b391aefd4c05e"
+          }
+        },
+        {
+          "arm": "eval",
+          "key": "8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf",
+          "name": "eval-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1065,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/eval-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf/result.json",
+            "sha256": "50829bc4b2c361770c9fcd31175caf8609736e28f8c6f9de02fad1036d2affcb"
+          }
+        },
+        {
+          "arm": "eval",
+          "key": "a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c",
+          "name": "eval-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1070,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/eval-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c/result.json",
+            "sha256": "53fb0ddee581b177c0f0251a8df088ab0ef2616743980ab353c2f3735244f32c"
+          }
+        },
+        {
+          "arm": "eval",
+          "key": "b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc",
+          "name": "eval-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1068,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/eval-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc/result.json",
+            "sha256": "51c9ead7882ee5f04bfd549fcd82ca3e8e67814d3b3ad96ed13c888b8a0999f8"
+          }
+        },
+        {
+          "arm": "eval",
+          "key": "bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa",
+          "name": "eval-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1068,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/eval-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa/result.json",
+            "sha256": "5e46a2294cd6589d7c39513e0ea6941b2dfff5b8f9a533ae3971d03e061271c7"
+          }
+        },
+        {
+          "arm": "evalbase",
+          "key": "8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf",
+          "name": "evalbase-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1064,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/evalbase-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf/result.json",
+            "sha256": "52127e82147424694982bcd5b9344caec0d4118c91bd0312a1331b52eefdaa98"
+          }
+        },
+        {
+          "arm": "evalbase",
+          "key": "a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c",
+          "name": "evalbase-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c",
+          "reward": 1.0,
+          "source": {
+            "bytes": 1061,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/evalbase-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c/result.json",
+            "sha256": "31a64ae47cee6a23562d96292c44744a988e7b34fd4ab6dcef99156325259573"
+          }
+        },
+        {
+          "arm": "evalbase",
+          "key": "b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc",
+          "name": "evalbase-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1066,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/evalbase-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc/result.json",
+            "sha256": "1e15bf2c6ca12e32ff07f81e7f84cf88671c23d8c9f1863c50f5ac3331543415"
+          }
+        },
+        {
+          "arm": "evalbase",
+          "key": "bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa",
+          "name": "evalbase-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1068,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/evalbase-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa/result.json",
+            "sha256": "cf4e62feabb8084b932507e3f70ab34bfd0ac69ca232609aae8b4cee14f62ae1"
+          }
+        },
+        {
+          "arm": "alternative",
+          "key": "853a59a6f10e1aabf75aa00a7ca2d40d02c9f6365d8267d9cf74c2f9dd596a52",
+          "name": "alternative-0",
+          "reward": 1.0,
+          "source": {
+            "bytes": 971,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/alternative-0/result.json",
+            "sha256": "c54dc23a299d9355b664592ad78114a66b3ec45467aae946302b53ad382a3d0c"
+          }
+        },
+        {
+          "arm": "alternative",
+          "key": "ebc56bc36f8cee1bb0cb9d53b44b1e83ddd99247785ceed469ee3cd889cbd57f",
+          "name": "alternative-1",
+          "reward": 0.0,
+          "source": {
+            "bytes": 975,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/alternative-1/result.json",
+            "sha256": "5af2127dbf1f3db705f02aa59433af38c47f002b9b6bbc9aac20e61bae5d6af9"
+          }
+        }
+      ],
+      "certification_source": {
+        "bytes": 2096,
+        "lines": 50,
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/002139-r2/certification.json",
+        "sha256": "b16c6372c6d84d0ff785213adbd5687e2355a39cc017d8e044a610ef42320ad2"
+      },
+      "contract": {
+        "bytes": 6924,
+        "lines": 197,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/package/tests/test_gold_contract.py",
+        "sha256": "f4175556f2130e0322fa7495ad7b8286ad1b9114fee9332cc69696e3d077d44d"
+      },
+      "eval_killed": {
+        "fraction": 1.0,
+        "k": 4,
+        "n": 4,
+        "wilson95": [
+          0.5101091635454027,
+          1
+        ]
+      },
+      "gates": {
+        "alternatives": false,
+        "eval": true,
+        "exit0_pth": true,
+        "nop": true,
+        "reference": true,
+        "train": true,
+        "witness": true
+      },
+      "gates_passed": {
+        "k": 6,
+        "n": 7
+      },
+      "recorded_status": "failed",
+      "train_killed": {
+        "fraction": 1.0,
+        "k": 4,
+        "n": 4,
+        "wilson95": [
+          0.5101091635454027,
+          1
+        ]
+      }
+    },
+    "002391-r2": {
+      "acceptance": {
+        "fraction": 0.5,
+        "k": 1,
+        "n": 2,
+        "wilson95": [
+          0.09453120573423074,
+          0.9054687942657693
+        ]
+      },
+      "alternatives": {
+        "65e5213c707a08c82209c71446979690fcd7a85c9e3ad9ad194bc244a5415b49": 0.0,
+        "ac2df6277a4bb84f6ffddcec5e343120534bdf76ca8582cab0d46a743da986d5": 1.0
+      },
+      "cells": [
+        {
+          "arm": "reference",
+          "key": "",
+          "name": "reference",
+          "reward": 1.0,
+          "source": {
+            "bytes": 971,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/reference/result.json",
+            "sha256": "0f38d702f4d903fcdeb7a4873f10b1f7d647917e8b8c5816e381a0a61ee4baa6"
+          }
+        },
+        {
+          "arm": "nop",
+          "key": "",
+          "name": "nop",
+          "reward": 0.0,
+          "source": {
+            "bytes": 958,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/nop/result.json",
+            "sha256": "4f5e6c5a96542b9a3432cad78440ee7de1b690c114f0339451355713276e8ca8"
+          }
+        },
+        {
+          "arm": "exit0_pth",
+          "key": "",
+          "name": "exit0_pth",
+          "reward": 0.0,
+          "source": {
+            "bytes": 966,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/exit0_pth/result.json",
+            "sha256": "80fa3050fd80a43a867873ee8aa60851416d4f7d0ff40d2e7b277ebe806ec2a1"
+          }
+        },
+        {
+          "arm": "witness",
+          "key": "",
+          "name": "witness-0",
+          "reward": 0.0,
+          "source": {
+            "bytes": 971,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/witness-0/result.json",
+            "sha256": "5ef02823d4250b7e059fc264ae4f54d723d1f93d729213e149160c28c98148eb"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d",
+          "name": "train-301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1060,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/train-301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d/result.json",
+            "sha256": "4d75fd44844d616652273cb483dddfc9b6b2c0cde65563873e61c0433252328d"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e",
+          "name": "train-48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1059,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/train-48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e/result.json",
+            "sha256": "b5c55fe27b73af78659c3890e924db4c292dba7c27798bbbad2e38e70d9c771c"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5",
+          "name": "train-6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1071,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/train-6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5/result.json",
+            "sha256": "b088ff4d5ad01b157e03c3594728711e46fc019043d7615ece1ebbaac2b56bad"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b",
+          "name": "train-d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1075,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/train-d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b/result.json",
+            "sha256": "32a6a8a1f4929f9538c431427b5fb67a0e170855c4b38f4da4c221305b57faf2"
+          }
+        },
+        {
+          "arm": "eval",
+          "key": "e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f",
+          "name": "eval-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1060,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/eval-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f/result.json",
+            "sha256": "b3efb4d853f202edafea63ccc87d59a4411b9f15291cfa99abb0e628f3596340"
+          }
+        },
+        {
+          "arm": "eval",
+          "key": "ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329",
+          "name": "eval-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1062,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/eval-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329/result.json",
+            "sha256": "e824d4047c1aef11a200b7a948cd8ee7d58cbefcb2d45873beaa4793dd0043d6"
+          }
+        },
+        {
+          "arm": "eval",
+          "key": "f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba",
+          "name": "eval-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1060,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/eval-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba/result.json",
+            "sha256": "c830377b761d740658149f28fed76f741c87a3d650f5fbbb849093a3ccf4fa75"
+          }
+        },
+        {
+          "arm": "evalbase",
+          "key": "e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f",
+          "name": "evalbase-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1059,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/evalbase-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f/result.json",
+            "sha256": "3210d01330ea6d09205c3cd7b133aa67ca7be6c280b5177b7d96bf2cd660b4b6"
+          }
+        },
+        {
+          "arm": "evalbase",
+          "key": "ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329",
+          "name": "evalbase-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1060,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/evalbase-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329/result.json",
+            "sha256": "ece69c29e7d65e08f0131c1fabaff290d584d58832d399f0f1a40937f724e693"
+          }
+        },
+        {
+          "arm": "evalbase",
+          "key": "f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba",
+          "name": "evalbase-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1057,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/evalbase-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba/result.json",
+            "sha256": "f1d8c63052a5dc8a42ae74030a054639c93a994c9108122e1e8b75b8a526f9c8"
+          }
+        },
+        {
+          "arm": "alternative",
+          "key": "65e5213c707a08c82209c71446979690fcd7a85c9e3ad9ad194bc244a5415b49",
+          "name": "alternative-0",
+          "reward": 0.0,
+          "source": {
+            "bytes": 972,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/alternative-0/result.json",
+            "sha256": "1a6bce79e644930eb7aaa99d7b375cda21e0153034e107c3ce18e4bed4551437"
+          }
+        },
+        {
+          "arm": "alternative",
+          "key": "ac2df6277a4bb84f6ffddcec5e343120534bdf76ca8582cab0d46a743da986d5",
+          "name": "alternative-1",
+          "reward": 1.0,
+          "source": {
+            "bytes": 971,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/alternative-1/result.json",
+            "sha256": "bd7cbf4a9b35a825db4f298fe667a1db74c16035cc7185e33032baf1ed71d7be"
+          }
+        }
+      ],
+      "certification_source": {
+        "bytes": 1942,
+        "lines": 48,
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/002391-r2/certification.json",
+        "sha256": "d5ccc5526081c1faeb8e42f0132923a416a118f212e69d3dc69bf2293c6ddddc"
+      },
+      "contract": {
+        "bytes": 7816,
+        "lines": 215,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/package/tests/test_gold_contract.py",
+        "sha256": "577ea451edc07cf98a2e7109655012f243d9913f0c092d057c07d7c7c6c6c300"
+      },
+      "eval_killed": {
+        "fraction": 1.0,
+        "k": 3,
+        "n": 3,
+        "wilson95": [
+          0.4385029682449546,
+          1
+        ]
+      },
+      "gates": {
+        "alternatives": false,
+        "eval": true,
+        "exit0_pth": true,
+        "nop": true,
+        "reference": true,
+        "train": true,
+        "witness": true
+      },
+      "gates_passed": {
+        "k": 6,
+        "n": 7
+      },
+      "recorded_status": "failed",
+      "train_killed": {
+        "fraction": 1.0,
+        "k": 4,
+        "n": 4,
+        "wilson95": [
+          0.5101091635454027,
+          1
+        ]
+      }
+    },
+    "002391-r2-honest": {
+      "acceptance": {
+        "fraction": 1.0,
+        "k": 2,
+        "n": 2,
+        "wilson95": [
+          0.34238022750665303,
+          1
+        ]
+      },
+      "alternatives": {
+        "ac2df6277a4bb84f6ffddcec5e343120534bdf76ca8582cab0d46a743da986d5": 1.0,
+        "b259e89bbc1da753c3e81a891677c00eed21e39f952db13cc3a3929eb8c9fe8c": 1.0
+      },
+      "cells": [
+        {
+          "arm": "reference",
+          "key": "",
+          "name": "reference",
+          "reward": 1.0,
+          "source": {
+            "bytes": 971,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/reference/result.json",
+            "sha256": "0f38d702f4d903fcdeb7a4873f10b1f7d647917e8b8c5816e381a0a61ee4baa6"
+          }
+        },
+        {
+          "arm": "nop",
+          "key": "",
+          "name": "nop",
+          "reward": 0.0,
+          "source": {
+            "bytes": 958,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/nop/result.json",
+            "sha256": "4f5e6c5a96542b9a3432cad78440ee7de1b690c114f0339451355713276e8ca8"
+          }
+        },
+        {
+          "arm": "exit0_pth",
+          "key": "",
+          "name": "exit0_pth",
+          "reward": 0.0,
+          "source": {
+            "bytes": 966,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/exit0_pth/result.json",
+            "sha256": "80fa3050fd80a43a867873ee8aa60851416d4f7d0ff40d2e7b277ebe806ec2a1"
+          }
+        },
+        {
+          "arm": "witness",
+          "key": "",
+          "name": "witness-0",
+          "reward": 0.0,
+          "source": {
+            "bytes": 971,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/witness-0/result.json",
+            "sha256": "5ef02823d4250b7e059fc264ae4f54d723d1f93d729213e149160c28c98148eb"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d",
+          "name": "train-301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1060,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/train-301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d/result.json",
+            "sha256": "4d75fd44844d616652273cb483dddfc9b6b2c0cde65563873e61c0433252328d"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e",
+          "name": "train-48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1059,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/train-48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e/result.json",
+            "sha256": "b5c55fe27b73af78659c3890e924db4c292dba7c27798bbbad2e38e70d9c771c"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5",
+          "name": "train-6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1071,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/train-6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5/result.json",
+            "sha256": "b088ff4d5ad01b157e03c3594728711e46fc019043d7615ece1ebbaac2b56bad"
+          }
+        },
+        {
+          "arm": "train",
+          "key": "d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b",
+          "name": "train-d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1075,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/train-d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b/result.json",
+            "sha256": "32a6a8a1f4929f9538c431427b5fb67a0e170855c4b38f4da4c221305b57faf2"
+          }
+        },
+        {
+          "arm": "eval",
+          "key": "e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f",
+          "name": "eval-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1060,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/eval-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f/result.json",
+            "sha256": "b3efb4d853f202edafea63ccc87d59a4411b9f15291cfa99abb0e628f3596340"
+          }
+        },
+        {
+          "arm": "eval",
+          "key": "ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329",
+          "name": "eval-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1062,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/eval-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329/result.json",
+            "sha256": "e824d4047c1aef11a200b7a948cd8ee7d58cbefcb2d45873beaa4793dd0043d6"
+          }
+        },
+        {
+          "arm": "eval",
+          "key": "f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba",
+          "name": "eval-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1059,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/eval-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba/result.json",
+            "sha256": "b9343e2c7a1304d6ff7d3c304e87692cd2fb3afdfcadde72862a68cafc1ccf40"
+          }
+        },
+        {
+          "arm": "evalbase",
+          "key": "e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f",
+          "name": "evalbase-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1059,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/evalbase-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f/result.json",
+            "sha256": "3210d01330ea6d09205c3cd7b133aa67ca7be6c280b5177b7d96bf2cd660b4b6"
+          }
+        },
+        {
+          "arm": "evalbase",
+          "key": "ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329",
+          "name": "evalbase-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1060,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/evalbase-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329/result.json",
+            "sha256": "ece69c29e7d65e08f0131c1fabaff290d584d58832d399f0f1a40937f724e693"
+          }
+        },
+        {
+          "arm": "evalbase",
+          "key": "f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba",
+          "name": "evalbase-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba",
+          "reward": 0.0,
+          "source": {
+            "bytes": 1057,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/evalbase-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba/result.json",
+            "sha256": "f1d8c63052a5dc8a42ae74030a054639c93a994c9108122e1e8b75b8a526f9c8"
+          }
+        },
+        {
+          "arm": "alternative",
+          "key": "ac2df6277a4bb84f6ffddcec5e343120534bdf76ca8582cab0d46a743da986d5",
+          "name": "alternative-0",
+          "reward": 1.0,
+          "source": {
+            "bytes": 971,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/alternative-0/result.json",
+            "sha256": "bd7cbf4a9b35a825db4f298fe667a1db74c16035cc7185e33032baf1ed71d7be"
+          }
+        },
+        {
+          "arm": "alternative",
+          "key": "b259e89bbc1da753c3e81a891677c00eed21e39f952db13cc3a3929eb8c9fe8c",
+          "name": "alternative-1",
+          "reward": 1.0,
+          "source": {
+            "bytes": 971,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/alternative-1/result.json",
+            "sha256": "0b6146729a4b10a814c9f80bf35a778070658722f7989726aa6125e5707bad21"
+          }
+        }
+      ],
+      "certification_source": {
+        "bytes": 1951,
+        "lines": 48,
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/002391-r2-honest/certification.json",
+        "sha256": "933f1128cfe0b7310413d21828c64741fd027d5648c45809a85702a9779ae022"
+      },
+      "contract": {
+        "bytes": 7816,
+        "lines": 215,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/package/tests/test_gold_contract.py",
+        "sha256": "577ea451edc07cf98a2e7109655012f243d9913f0c092d057c07d7c7c6c6c300"
+      },
+      "eval_killed": {
+        "fraction": 1.0,
+        "k": 3,
+        "n": 3,
+        "wilson95": [
+          0.4385029682449546,
+          1
+        ]
+      },
+      "gates": {
+        "alternatives": true,
+        "eval": true,
+        "exit0_pth": true,
+        "nop": true,
+        "reference": true,
+        "train": true,
+        "witness": true
+      },
+      "gates_passed": {
+        "k": 7,
+        "n": 7
+      },
+      "recorded_status": "certified",
+      "train_killed": {
+        "fraction": 1.0,
+        "k": 4,
+        "n": 4,
+        "wilson95": [
+          0.5101091635454027,
+          1
+        ]
+      }
+    }
+  },
+  "schema_version": "ov1104-cert-provenance-audit-v1",
+  "scope": "Retrospective metadata only. No inference, network, graders, exploit controls, or task-text output.",
+  "shown_and_total": {
+    "000682-r3": {
+      "shown": [
+        {
+          "patch_sha256": "341648598f802bbcff07d8a9fbd9e6136798591287f481c7195805febb817883",
+          "reward": 1.0,
+          "source": {
+            "bytes": 978,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-r3-shown-b-flash/result.json",
+            "sha256": "dc6cfe7655d190ebb0741dcaaa83d1c6a9a7f030e46408285cfc586ecffcf949"
+          },
+          "worker": "b-flash"
+        },
+        {
+          "patch_sha256": "3b838bf7f6eaccf576b8e512610ee80c5ca6230e940cba7b34091c32665515bd",
+          "reward": 1.0,
+          "source": {
+            "bytes": 978,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-r3-shown-a-flash/result.json",
+            "sha256": "83b6c2adceb9b2195e92a969735da8c643b4f9975d19c211fa348c8e66ea19b2"
+          },
+          "worker": "a-flash"
+        }
+      ],
+      "total_acceptance": {
+        "fraction": 1.0,
+        "k": 4,
+        "n": 4,
+        "wilson95": [
+          0.5101091635454027,
+          1
+        ]
+      }
+    },
+    "002139-r2": {
+      "shown": [
+        {
+          "patch_sha256": "6b76a3543d8f04bd46c0b963198fb327423a3e89b39c4c72122230630e0df36f",
+          "reward": 1.0,
+          "source": {
+            "bytes": 974,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002139-r2-shown-a-argon/result.json",
+            "sha256": "d8be6a9f498a0e271dd2b6101e8709d3b32cc7bf7cb8ee4dca71feed83c7930c"
+          },
+          "worker": "a-argon"
+        }
+      ],
+      "total_acceptance": {
+        "fraction": 0.6666666666666666,
+        "k": 2,
+        "n": 3,
+        "wilson95": [
+          0.2076596008020477,
+          0.9385080552796037
+        ]
+      }
+    },
+    "002391-r2": {
+      "shown": [
+        {
+          "patch_sha256": "36732e9915745a857f0369c29feb83934f3f7aba927f852c02895aff820aa003",
+          "reward": 1.0,
+          "source": {
+            "bytes": 975,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-r2-shown-real-2/result.json",
+            "sha256": "4fd283d575e4b9a87b50a80917e49db925bb319ae4f65ef45331cedf97274400"
+          },
+          "worker": "real-2"
+        },
+        {
+          "patch_sha256": "53787d3060a3197f0cb6689d95916c462496ee11bf0e0894577221d21cce8624",
+          "reward": 1.0,
+          "source": {
+            "bytes": 975,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-r2-shown-real-3/result.json",
+            "sha256": "70c6b8c4a5237e8ddca586118b1bcb428175c4f18ee6b3e7d416f627cd02a349"
+          },
+          "worker": "real-3"
+        }
+      ],
+      "total_acceptance": {
+        "fraction": 0.75,
+        "k": 3,
+        "n": 4,
+        "wilson95": [
+          0.30064184258240184,
+          0.9544127391902995
+        ]
+      }
+    },
+    "002391-r2-honest": {
+      "shown": [
+        {
+          "patch_sha256": "36732e9915745a857f0369c29feb83934f3f7aba927f852c02895aff820aa003",
+          "reward": 1.0,
+          "source": {
+            "bytes": 975,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-r2-shown-real-2/result.json",
+            "sha256": "4fd283d575e4b9a87b50a80917e49db925bb319ae4f65ef45331cedf97274400"
+          },
+          "worker": "real-2"
+        },
+        {
+          "patch_sha256": "53787d3060a3197f0cb6689d95916c462496ee11bf0e0894577221d21cce8624",
+          "reward": 1.0,
+          "source": {
+            "bytes": 975,
+            "lines": 12,
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-r2-shown-real-3/result.json",
+            "sha256": "70c6b8c4a5237e8ddca586118b1bcb428175c4f18ee6b3e7d416f627cd02a349"
+          },
+          "worker": "real-3"
+        }
+      ],
+      "total_acceptance": {
+        "fraction": 1.0,
+        "k": 4,
+        "n": 4,
+        "wilson95": [
+          0.5101091635454027,
+          1
+        ]
+      }
+    }
+  },
+  "sources": [
+    {
+      "bytes": 17677,
+      "lines": 300,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/verifier/agent.diff",
+      "sha256": "3d54c91bf1d1f7254bced99e24a3c2d2558bef0b4d35d6cd639a4852dd16ebe4"
+    },
+    {
+      "bytes": 17593,
+      "lines": 290,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-dev-002391-cfe31418/har110-dev-002391-cfe31418__MvXkrso/verifier/agent.diff",
+      "sha256": "af4cdab5e440c75849822940250937873a808e29d817daefb2b0ff37c7d7e5e8"
+    },
+    {
+      "bytes": 18440,
+      "lines": 320,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-baseline/har116-a-002391-baseline__xZqrQkD/verifier/agent.diff",
+      "sha256": "d6cf044a9aefdd2bc7aa84fffd3267b29bc96ef96dd6ee67790fa6db394c97f8"
+    },
+    {
+      "bytes": 18849,
+      "lines": 336,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/verifier/agent.diff",
+      "sha256": "88396536b0df927af93e0319bd568c2d595643dd84b914348cdcb7fc1f48ee67"
+    },
+    {
+      "bytes": 4610,
+      "lines": 98,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/HAR-202-chrr1-h-cheat-002391-k1/uncommitted.diff",
+      "sha256": "f1b5431f526c5d7212fe63e18c4a56e20e60426c2ad80288e5ef1708bee32ce9"
+    },
+    {
+      "bytes": 4610,
+      "lines": 98,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/HAR-202-chrr1-h-cheat-002391-k2/uncommitted.diff",
+      "sha256": "f1b5431f526c5d7212fe63e18c4a56e20e60426c2ad80288e5ef1708bee32ce9"
+    },
+    {
+      "bytes": 18561,
+      "lines": 316,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/HAR-202-chrr1-l-cheat-002391-k1/chrr1-l-cheat-002391-k1__QGXLXwa/verifier/agent.diff",
+      "sha256": "e491178d9b4287ccf38007063c811815475ab851199645f38d2a59fa0d88ec7b"
+    },
+    {
+      "bytes": 2,
+      "lines": 1,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/HAR-202-chrr1-l-cheat-002391-k1/chrr1-l-cheat-002391-k1__QGXLXwa/verifier/reward.txt",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "bytes": 17701,
+      "lines": 296,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/HAR-202-chrr1-l-honest-002391/chrr1-l-honest-002391__JfrMphx/verifier/agent.diff",
+      "sha256": "9ac0841bd4dc7506aad8ec6bad2afbf2136fbb4a984955fdd81ecf7f9c6d80c6"
+    },
+    {
+      "bytes": 18837,
+      "lines": 328,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/HAR-202-chrr1-w2-h-cheat-002391-k2/chrr1-w2-h-cheat-002391-k2__RoDiGXu/verifier/agent.diff",
+      "sha256": "7ceb0bc7bf5528762eeb4f106857c2998a36ca67b3ea402ba37bf5ed7277aec5"
+    },
+    {
+      "bytes": 2,
+      "lines": 1,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/HAR-202-chrr1-w2-h-cheat-002391-k2/chrr1-w2-h-cheat-002391-k2__RoDiGXu/verifier/reward.txt",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "bytes": 259351,
+      "lines": 4666,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/A0/submissions-inventory.json",
+      "sha256": "3d09fc895fe431adddb7d725393cb2031323827641204eaf424303b4cecb097e"
+    },
+    {
+      "bytes": 70533,
+      "lines": 2068,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/A1-INVENTORY/gold-universe.json",
+      "sha256": "3c68165b576cb0a85e005beea8fabe12cf4e6a8daa30776fd39d752e4cd0bbb3"
+    },
+    {
+      "bytes": 3972,
+      "lines": 100,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-1.patch",
+      "sha256": "65e5213c707a08c82209c71446979690fcd7a85c9e3ad9ad194bc244a5415b49"
+    },
+    {
+      "bytes": 3088,
+      "lines": 84,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-2.patch",
+      "sha256": "36732e9915745a857f0369c29feb83934f3f7aba927f852c02895aff820aa003"
+    },
+    {
+      "bytes": 4260,
+      "lines": 120,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-3.patch",
+      "sha256": "53787d3060a3197f0cb6689d95916c462496ee11bf0e0894577221d21cce8624"
+    },
+    {
+      "bytes": 4248,
+      "lines": 112,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-4.patch",
+      "sha256": "ac2df6277a4bb84f6ffddcec5e343120534bdf76ca8582cab0d46a743da986d5"
+    },
+    {
+      "bytes": 978,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-b-argon/result.json",
+      "sha256": "ada527896a4fb9bb21874e4ee851b5a975ac1803dd426a473e78c6ac625853b0"
+    },
+    {
+      "bytes": 977,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-b-fable/result.json",
+      "sha256": "4cf0a9177e1d8fd1685ffc4d7ccb5780035e26e137173694a8e9d4e4e2758e18"
+    },
+    {
+      "bytes": 978,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-r3-shown-a-flash/result.json",
+      "sha256": "83b6c2adceb9b2195e92a969735da8c643b4f9975d19c211fa348c8e66ea19b2"
+    },
+    {
+      "bytes": 978,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-r3-shown-b-flash/result.json",
+      "sha256": "dc6cfe7655d190ebb0741dcaaa83d1c6a9a7f030e46408285cfc586ecffcf949"
+    },
+    {
+      "bytes": 974,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002139-r2-shown-a-argon/result.json",
+      "sha256": "d8be6a9f498a0e271dd2b6101e8709d3b32cc7bf7cb8ee4dca71feed83c7930c"
+    },
+    {
+      "bytes": 970,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-a-flash/result.json",
+      "sha256": "8cf533590a28c47a716ce2be34f40621e8dbcb513d5c21cbaa8ba8800ded68e0"
+    },
+    {
+      "bytes": 975,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-r2-heldout-a-flash/result.json",
+      "sha256": "9e2a7577231eb917a57ee7dd6f74ef5d207d8bc4073de099cded48805c43654c"
+    },
+    {
+      "bytes": 975,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-r2-shown-real-2/result.json",
+      "sha256": "4fd283d575e4b9a87b50a80917e49db925bb319ae4f65ef45331cedf97274400"
+    },
+    {
+      "bytes": 975,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-r2-shown-real-3/result.json",
+      "sha256": "70c6b8c4a5237e8ddca586118b1bcb428175c4f18ee6b3e7d416f627cd02a349"
+    },
+    {
+      "bytes": 1210,
+      "lines": 31,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3-synth/report.json",
+      "sha256": "613e12b6c292f5a6aa28c0b306be1a2b6566b2bbbcf7a0162fb3bbcd1f07da29"
+    },
+    {
+      "bytes": 975,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/alternative-0/result.json",
+      "sha256": "f505caedc4c2d6c12637583b1961970ca07bc10bed34d9ba7151a803f58fb5a0"
+    },
+    {
+      "bytes": 975,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/alternative-1/result.json",
+      "sha256": "cc7219d27c1096541243e169db35f66379a2929ed0674a16efc3bb8ba61c1153"
+    },
+    {
+      "bytes": 1073,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/eval-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c/result.json",
+      "sha256": "02c8e7ea0814f2042b734a2aac5d0043736e6f33720545879018a607e1d2cb29"
+    },
+    {
+      "bytes": 1071,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/evalbase-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c/result.json",
+      "sha256": "3d0a2b0e832021ab127d933fcb728f09aa65708385cb38f39f4a8131fc84c996"
+    },
+    {
+      "bytes": 969,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/exit0_pth/result.json",
+      "sha256": "5db01984bbcc97bc2792011e4aab4a5346c34e4a23b3d6ebc7759c842b6322e0"
+    },
+    {
+      "bytes": 961,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/nop/result.json",
+      "sha256": "f86ea1136863aff84eaba44939fb79782d2b965a8c30034f89f7719d4eb4698f"
+    },
+    {
+      "bytes": 976,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/reference/result.json",
+      "sha256": "272075956b2c95a068f2fc0d4ae1fdd3f864ed4f77d0740acee76399a4e616bd"
+    },
+    {
+      "bytes": 1068,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/train-bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240/result.json",
+      "sha256": "1a15f44924cd085a81b7af4f96304312f6a8cd5ef3c6d172c4e0afeb663b194d"
+    },
+    {
+      "bytes": 974,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/cells/witness-0/result.json",
+      "sha256": "7613b63351b9c0cb686765dd4d5f7f89649af49a8fd718408aa6366537907de0"
+    },
+    {
+      "bytes": 1405,
+      "lines": 41,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/certification.json",
+      "sha256": "be24ad2c22660c50312962212b25f7e78a609a7f0a77d9a0ba9debdf3a311152"
+    },
+    {
+      "bytes": 1677,
+      "lines": 48,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/hardening.json",
+      "sha256": "d40a924c3177a4830a49a388be9f43f49f45c6f4a3ed488fee6d040418a812e4"
+    },
+    {
+      "bytes": 419,
+      "lines": 9,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/inputs.json",
+      "sha256": "185f1642e10674850420d3a4d75b8a3f8320c5ac796c26ecd234e36836470b53"
+    },
+    {
+      "bytes": 5093,
+      "lines": 135,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/package/tests/test_gold_contract.py",
+      "sha256": "8261ef970cbf993fd0a018ba8a2127c3f4746cea050e40b10450585389ce9a65"
+    },
+    {
+      "bytes": 67144,
+      "lines": 74,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682-r3/plan.json",
+      "sha256": "750819527ef3795963ac87d41f5e766830c6d283afef3af4871717a48e09fcdc"
+    },
+    {
+      "bytes": 1032,
+      "lines": 29,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2-synth/report.json",
+      "sha256": "f7cca588bf2e9003cf4d2d7d873e9cbbd4172bfb772389435f3f917aaa98cf30"
+    },
+    {
+      "bytes": 971,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/alternative-0/result.json",
+      "sha256": "c54dc23a299d9355b664592ad78114a66b3ec45467aae946302b53ad382a3d0c"
+    },
+    {
+      "bytes": 975,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/alternative-1/result.json",
+      "sha256": "5af2127dbf1f3db705f02aa59433af38c47f002b9b6bbc9aac20e61bae5d6af9"
+    },
+    {
+      "bytes": 1065,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/eval-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf/result.json",
+      "sha256": "50829bc4b2c361770c9fcd31175caf8609736e28f8c6f9de02fad1036d2affcb"
+    },
+    {
+      "bytes": 1070,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/eval-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c/result.json",
+      "sha256": "53fb0ddee581b177c0f0251a8df088ab0ef2616743980ab353c2f3735244f32c"
+    },
+    {
+      "bytes": 1068,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/eval-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc/result.json",
+      "sha256": "51c9ead7882ee5f04bfd549fcd82ca3e8e67814d3b3ad96ed13c888b8a0999f8"
+    },
+    {
+      "bytes": 1068,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/eval-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa/result.json",
+      "sha256": "5e46a2294cd6589d7c39513e0ea6941b2dfff5b8f9a533ae3971d03e061271c7"
+    },
+    {
+      "bytes": 1064,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/evalbase-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf/result.json",
+      "sha256": "52127e82147424694982bcd5b9344caec0d4118c91bd0312a1331b52eefdaa98"
+    },
+    {
+      "bytes": 1061,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/evalbase-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c/result.json",
+      "sha256": "31a64ae47cee6a23562d96292c44744a988e7b34fd4ab6dcef99156325259573"
+    },
+    {
+      "bytes": 1066,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/evalbase-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc/result.json",
+      "sha256": "1e15bf2c6ca12e32ff07f81e7f84cf88671c23d8c9f1863c50f5ac3331543415"
+    },
+    {
+      "bytes": 1068,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/evalbase-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa/result.json",
+      "sha256": "cf4e62feabb8084b932507e3f70ab34bfd0ac69ca232609aae8b4cee14f62ae1"
+    },
+    {
+      "bytes": 968,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/exit0_pth/result.json",
+      "sha256": "6bdfe3d8bf92cd1766f7ed7cb8e5e0398114fb97eccf5ddd5589cef19ac15584"
+    },
+    {
+      "bytes": 960,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/nop/result.json",
+      "sha256": "08cc13fcbfda8619c0549591c4604f8fcce2f90dd884bf4c0b5305560f068ce7"
+    },
+    {
+      "bytes": 971,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/reference/result.json",
+      "sha256": "8cf17358599e9379f988262cf3b7de5fbbbbc497dbc5fb1698836e4b2c0486e0"
+    },
+    {
+      "bytes": 1075,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/train-12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d/result.json",
+      "sha256": "18981dad8277429024791523c0136c95d50c0105b78009c4734b2a2b8b34283b"
+    },
+    {
+      "bytes": 1066,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/train-1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd/result.json",
+      "sha256": "f464c0f40d99e850be56584bb63c0059f5cb25f139de81270a9188c8e3bab644"
+    },
+    {
+      "bytes": 1062,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/train-7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e/result.json",
+      "sha256": "0d119f67e480c287e88286f1a9ccb80c878a7d5bca677d09ae9b52d502de46d9"
+    },
+    {
+      "bytes": 1072,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/train-88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec/result.json",
+      "sha256": "bbfe6d718566678ff78f6dfa9a4374e7bc3fae3756b82611ce6b391aefd4c05e"
+    },
+    {
+      "bytes": 973,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/cells/witness-0/result.json",
+      "sha256": "448a2a12f4086f7b187f205f6971f7d5bfe030527ff84fbd9721317d1e3d3154"
+    },
+    {
+      "bytes": 2096,
+      "lines": 50,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/certification.json",
+      "sha256": "b16c6372c6d84d0ff785213adbd5687e2355a39cc017d8e044a610ef42320ad2"
+    },
+    {
+      "bytes": 1688,
+      "lines": 48,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/hardening.json",
+      "sha256": "e8eb16c5da20d885c1557a4f54dfa50c2b4a8c0cf0feed9e2e7499dbfa9a4ae1"
+    },
+    {
+      "bytes": 419,
+      "lines": 9,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/inputs.json",
+      "sha256": "470e2a36e6fe0e17421232bf186d38edf7cd4c6d4bad8aedc7f6051e6e308d2f"
+    },
+    {
+      "bytes": 6924,
+      "lines": 197,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/package/tests/test_gold_contract.py",
+      "sha256": "f4175556f2130e0322fa7495ad7b8286ad1b9114fee9332cc69696e3d077d44d"
+    },
+    {
+      "bytes": 362258,
+      "lines": 146,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/plan.json",
+      "sha256": "32366f51a1aed3e93d6607ea5188b374510f5b8618764abbfe6a3d4915acc39a"
+    },
+    {
+      "bytes": 971,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/alternative-0/result.json",
+      "sha256": "bd7cbf4a9b35a825db4f298fe667a1db74c16035cc7185e33032baf1ed71d7be"
+    },
+    {
+      "bytes": 971,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/alternative-1/result.json",
+      "sha256": "0b6146729a4b10a814c9f80bf35a778070658722f7989726aa6125e5707bad21"
+    },
+    {
+      "bytes": 1060,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/eval-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f/result.json",
+      "sha256": "b3efb4d853f202edafea63ccc87d59a4411b9f15291cfa99abb0e628f3596340"
+    },
+    {
+      "bytes": 1062,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/eval-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329/result.json",
+      "sha256": "e824d4047c1aef11a200b7a948cd8ee7d58cbefcb2d45873beaa4793dd0043d6"
+    },
+    {
+      "bytes": 1059,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/eval-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba/result.json",
+      "sha256": "b9343e2c7a1304d6ff7d3c304e87692cd2fb3afdfcadde72862a68cafc1ccf40"
+    },
+    {
+      "bytes": 1059,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/evalbase-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f/result.json",
+      "sha256": "3210d01330ea6d09205c3cd7b133aa67ca7be6c280b5177b7d96bf2cd660b4b6"
+    },
+    {
+      "bytes": 1060,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/evalbase-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329/result.json",
+      "sha256": "ece69c29e7d65e08f0131c1fabaff290d584d58832d399f0f1a40937f724e693"
+    },
+    {
+      "bytes": 1057,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/evalbase-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba/result.json",
+      "sha256": "f1d8c63052a5dc8a42ae74030a054639c93a994c9108122e1e8b75b8a526f9c8"
+    },
+    {
+      "bytes": 966,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/exit0_pth/result.json",
+      "sha256": "80fa3050fd80a43a867873ee8aa60851416d4f7d0ff40d2e7b277ebe806ec2a1"
+    },
+    {
+      "bytes": 958,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/nop/result.json",
+      "sha256": "4f5e6c5a96542b9a3432cad78440ee7de1b690c114f0339451355713276e8ca8"
+    },
+    {
+      "bytes": 971,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/reference/result.json",
+      "sha256": "0f38d702f4d903fcdeb7a4873f10b1f7d647917e8b8c5816e381a0a61ee4baa6"
+    },
+    {
+      "bytes": 1060,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/train-301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d/result.json",
+      "sha256": "4d75fd44844d616652273cb483dddfc9b6b2c0cde65563873e61c0433252328d"
+    },
+    {
+      "bytes": 1059,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/train-48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e/result.json",
+      "sha256": "b5c55fe27b73af78659c3890e924db4c292dba7c27798bbbad2e38e70d9c771c"
+    },
+    {
+      "bytes": 1071,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/train-6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5/result.json",
+      "sha256": "b088ff4d5ad01b157e03c3594728711e46fc019043d7615ece1ebbaac2b56bad"
+    },
+    {
+      "bytes": 1075,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/train-d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b/result.json",
+      "sha256": "32a6a8a1f4929f9538c431427b5fb67a0e170855c4b38f4da4c221305b57faf2"
+    },
+    {
+      "bytes": 971,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/cells/witness-0/result.json",
+      "sha256": "5ef02823d4250b7e059fc264ae4f54d723d1f93d729213e149160c28c98148eb"
+    },
+    {
+      "bytes": 1951,
+      "lines": 48,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/certification.json",
+      "sha256": "933f1128cfe0b7310413d21828c64741fd027d5648c45809a85702a9779ae022"
+    },
+    {
+      "bytes": 1688,
+      "lines": 48,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/hardening.json",
+      "sha256": "f8754cde4430132a8f034485bd09167f1c41eaf58d97cb50d802b561849b6675"
+    },
+    {
+      "bytes": 419,
+      "lines": 9,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/inputs.json",
+      "sha256": "c1ab522ce5038e1b51f9e7c0c86566422b6f7b5848fb111259f55d4d78453c50"
+    },
+    {
+      "bytes": 116684,
+      "lines": 130,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-honest/plan.json",
+      "sha256": "e440e8746140fe81a2042f6a1e224e0e95d5504e7c88e43437de768b98cca74c"
+    },
+    {
+      "bytes": 1206,
+      "lines": 31,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-synth/report.json",
+      "sha256": "e14d38290dd733e1486d3db1bb85a09c41e780d1b76301573fe00970d5ef4a2d"
+    },
+    {
+      "bytes": 7816,
+      "lines": 215,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-synth/test_gold_contract.py",
+      "sha256": "577ea451edc07cf98a2e7109655012f243d9913f0c092d057c07d7c7c6c6c300"
+    },
+    {
+      "bytes": 972,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/alternative-0/result.json",
+      "sha256": "1a6bce79e644930eb7aaa99d7b375cda21e0153034e107c3ce18e4bed4551437"
+    },
+    {
+      "bytes": 971,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/alternative-1/result.json",
+      "sha256": "bd7cbf4a9b35a825db4f298fe667a1db74c16035cc7185e33032baf1ed71d7be"
+    },
+    {
+      "bytes": 1060,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/eval-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f/result.json",
+      "sha256": "b3efb4d853f202edafea63ccc87d59a4411b9f15291cfa99abb0e628f3596340"
+    },
+    {
+      "bytes": 1062,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/eval-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329/result.json",
+      "sha256": "e824d4047c1aef11a200b7a948cd8ee7d58cbefcb2d45873beaa4793dd0043d6"
+    },
+    {
+      "bytes": 1060,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/eval-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba/result.json",
+      "sha256": "c830377b761d740658149f28fed76f741c87a3d650f5fbbb849093a3ccf4fa75"
+    },
+    {
+      "bytes": 1059,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/evalbase-e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f/result.json",
+      "sha256": "3210d01330ea6d09205c3cd7b133aa67ca7be6c280b5177b7d96bf2cd660b4b6"
+    },
+    {
+      "bytes": 1060,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/evalbase-ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329/result.json",
+      "sha256": "ece69c29e7d65e08f0131c1fabaff290d584d58832d399f0f1a40937f724e693"
+    },
+    {
+      "bytes": 1057,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/evalbase-f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba/result.json",
+      "sha256": "f1d8c63052a5dc8a42ae74030a054639c93a994c9108122e1e8b75b8a526f9c8"
+    },
+    {
+      "bytes": 966,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/exit0_pth/result.json",
+      "sha256": "80fa3050fd80a43a867873ee8aa60851416d4f7d0ff40d2e7b277ebe806ec2a1"
+    },
+    {
+      "bytes": 958,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/nop/result.json",
+      "sha256": "4f5e6c5a96542b9a3432cad78440ee7de1b690c114f0339451355713276e8ca8"
+    },
+    {
+      "bytes": 971,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/reference/result.json",
+      "sha256": "0f38d702f4d903fcdeb7a4873f10b1f7d647917e8b8c5816e381a0a61ee4baa6"
+    },
+    {
+      "bytes": 1060,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/train-301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d/result.json",
+      "sha256": "4d75fd44844d616652273cb483dddfc9b6b2c0cde65563873e61c0433252328d"
+    },
+    {
+      "bytes": 1059,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/train-48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e/result.json",
+      "sha256": "b5c55fe27b73af78659c3890e924db4c292dba7c27798bbbad2e38e70d9c771c"
+    },
+    {
+      "bytes": 1071,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/train-6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5/result.json",
+      "sha256": "b088ff4d5ad01b157e03c3594728711e46fc019043d7615ece1ebbaac2b56bad"
+    },
+    {
+      "bytes": 1075,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/train-d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b/result.json",
+      "sha256": "32a6a8a1f4929f9538c431427b5fb67a0e170855c4b38f4da4c221305b57faf2"
+    },
+    {
+      "bytes": 971,
+      "lines": 12,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/cells/witness-0/result.json",
+      "sha256": "5ef02823d4250b7e059fc264ae4f54d723d1f93d729213e149160c28c98148eb"
+    },
+    {
+      "bytes": 1942,
+      "lines": 48,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/certification.json",
+      "sha256": "d5ccc5526081c1faeb8e42f0132923a416a118f212e69d3dc69bf2293c6ddddc"
+    },
+    {
+      "bytes": 1688,
+      "lines": 48,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/hardening.json",
+      "sha256": "f8754cde4430132a8f034485bd09167f1c41eaf58d97cb50d802b561849b6675"
+    },
+    {
+      "bytes": 419,
+      "lines": 9,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/inputs.json",
+      "sha256": "7741ed84e767f89de30e6e5283e245ae13056ae3cb8b5199440a3a4879d568e0"
+    },
+    {
+      "bytes": 7816,
+      "lines": 215,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/package/tests/test_gold_contract.py",
+      "sha256": "577ea451edc07cf98a2e7109655012f243d9913f0c092d057c07d7c7c6c6c300"
+    },
+    {
+      "bytes": 122158,
+      "lines": 130,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/plan.json",
+      "sha256": "ea33fd995f7b78abd63889c4470074d89ba6be4f24293cc0396e8d5bf8f38569"
+    },
+    {
+      "bytes": 6627,
+      "lines": 50,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/PREREG.md",
+      "sha256": "a2e18624463c2dd87631db5779b4da63da321907333e96198c59df1ede1bf5f7"
+    },
+    {
+      "bytes": 1405,
+      "lines": 41,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/000682-r3/certification.json",
+      "sha256": "be24ad2c22660c50312962212b25f7e78a609a7f0a77d9a0ba9debdf3a311152"
+    },
+    {
+      "bytes": 2096,
+      "lines": 50,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/002139-r2/certification.json",
+      "sha256": "b16c6372c6d84d0ff785213adbd5687e2355a39cc017d8e044a610ef42320ad2"
+    },
+    {
+      "bytes": 1951,
+      "lines": 48,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/002391-r2-honest/certification.json",
+      "sha256": "933f1128cfe0b7310413d21828c64741fd027d5648c45809a85702a9779ae022"
+    },
+    {
+      "bytes": 1942,
+      "lines": 48,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/002391-r2/certification.json",
+      "sha256": "d5ccc5526081c1faeb8e42f0132923a416a118f212e69d3dc69bf2293c6ddddc"
+    },
+    {
+      "bytes": 5672,
+      "lines": 142,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/validation.json",
+      "sha256": "208ccfccc8e65650c1e7da86d9147d597e7b65379bbed5315512c53cb09dd037"
+    },
+    {
+      "bytes": 59077,
+      "lines": 1072,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/scorecard/build_scorecard.py",
+      "sha256": "531ad14cacdc8808bfeac1433e37816384aaaca37e001551b6ffddf5eb83e51b"
+    },
+    {
+      "bytes": 24343,
+      "lines": 350,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/audit/recompute.py",
+      "sha256": "3b857a1c9b3eb48bea9fe24c9a0e3be57854d70d5252c7936755f824b5932653"
+    },
+    {
+      "bytes": 1463,
+      "lines": 7,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002391/instruction.md",
+      "sha256": "070adfd6a3bad8de52967db202ed20fa542b9551e77e7bd36608621ba1bb0ef6"
+    },
+    {
+      "bytes": 10485,
+      "lines": 422,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002391/tests/test.patch",
+      "sha256": "67775891c7148e2768660014603bb11ff735714727e33a104aeac7bd2cc38fc9"
+    }
+  ]
+}

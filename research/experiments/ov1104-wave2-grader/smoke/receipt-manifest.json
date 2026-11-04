@@ -1,0 +1,433 @@
+{
+  "schema": "wave2.smoke.receipt-manifest/v1",
+  "raw_index": "/private/tmp/ov1104/wave2-grader/workers/smoke/raw-receipt-index.json",
+  "raw_index_sha256": "05d4799d30221c98f40785223ea7c41b1bdaad1b564f860b46743ac37d26e4bf",
+  "files_n": 555,
+  "bytes": 1487858,
+  "trials_n": 37,
+  "isolated_starts_n": 39,
+  "network_lock_confirmed_n": 39,
+  "empty_mounts_n": 39,
+  "exact_cpu_memory_limits_n": 39,
+  "grid_artifact": {
+    "path": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment3/photonic-waveguide-routing/grid/trial/artifacts/app/routing_result_1.json",
+    "bytes": 4096,
+    "sha256": "b880e4e6a9a7399fc8b4ca54a1edaac0e6fcc437cdb4ba8d1f4fbaaf8e5474b0",
+    "registered_sha256": "b880e4e6a9a7399fc8b4ca54a1edaac0e6fcc437cdb4ba8d1f4fbaaf8e5474b0",
+    "matches_preregistration": true
+  },
+  "trials": [
+    {
+      "task_id": "format-code-task-000079",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000079/null",
+      "receipt_tree_sha256": "69b1ed8f8f3445edc5caa28682953556f250528a6d3cc7829feb24c48f2099bc",
+      "files_n": 15,
+      "bytes": 45717,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000081",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000081/null",
+      "receipt_tree_sha256": "24727ea41f13904809ac57087b4dab04c6a0310d7d5f0a66706f858533c742b3",
+      "files_n": 15,
+      "bytes": 40105,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000085",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000085/null",
+      "receipt_tree_sha256": "21c8fe662a3af7e9a069e9a6410e95017f0990f169372e5f57c9ee91e2df7eb2",
+      "files_n": 15,
+      "bytes": 28970,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000212",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000212/null",
+      "receipt_tree_sha256": "2d606125e2f657975f0f2c43ba17e9e3e0458d78a27bec0ea4aac2aeddffdb76",
+      "files_n": 15,
+      "bytes": 38222,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000232",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000232/null",
+      "receipt_tree_sha256": "7673d1f9272d83f810d9ba40442d36778d9e7eb508cdae4d7c4558ba491ea1ee",
+      "files_n": 15,
+      "bytes": 21610,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000256",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000256/null",
+      "receipt_tree_sha256": "b1d46bb74bbd10afc2708ca3203047c12d7de2502fe1251cac83d51afc753c7a",
+      "files_n": 15,
+      "bytes": 22898,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000322",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000322/null",
+      "receipt_tree_sha256": "d7d212f8f3f32b754dbf7b733233cd08d3f6ba30a732bc7bb58f2e1098fd5379",
+      "files_n": 15,
+      "bytes": 61907,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000603",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000603/null",
+      "receipt_tree_sha256": "435d818bfe61195dd2d82a3f4b8e21dd70110797de8af7d1d34feead90378322",
+      "files_n": 15,
+      "bytes": 18250,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000682",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000682/null",
+      "receipt_tree_sha256": "7bf07880b1dbd7ae118b168f9e6f431a6f7d01d523e7e1fbc365c89e472b301f",
+      "files_n": 15,
+      "bytes": 42423,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000812",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000812/null",
+      "receipt_tree_sha256": "959b76159d748e774a1f71db75ca653882e49bd14f1a6d10fbb86a3713e8e0a9",
+      "files_n": 15,
+      "bytes": 46208,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000838",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000838/null",
+      "receipt_tree_sha256": "2c1d28fda94b19ecdb3afb066e07097a20b19758aeecf1c6bf7961bb4614d731",
+      "files_n": 15,
+      "bytes": 27430,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000847",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000847/null",
+      "receipt_tree_sha256": "274233fb9d4609caf572e3bbd2ffc72e77a4b28a4af1f21aa873d1bcf3f7a33f",
+      "files_n": 15,
+      "bytes": 34919,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000872",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000872/null",
+      "receipt_tree_sha256": "6a34c3c4772988c4b9b397ef5b4c1a1f35fc9d8b4bb07ebb5e641656e6ecefb9",
+      "files_n": 15,
+      "bytes": 22066,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000931",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000931/null",
+      "receipt_tree_sha256": "7be18b9a14acdca2334c6fd34e8866050d2e5bb25456d45d8119eeeff520dbbd",
+      "files_n": 15,
+      "bytes": 31110,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-000945",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000945/null",
+      "receipt_tree_sha256": "3df96b75cfd5d85a1492f0f7b59320e4ddd304e3e7b0a2ac66f17aaf52d3ed7d",
+      "files_n": 15,
+      "bytes": 29922,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-001205",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001205/null",
+      "receipt_tree_sha256": "6bb364dee31b82ed2750a0c5ab425f7a9399efd6b03e810b018667fec8ef3554",
+      "files_n": 15,
+      "bytes": 20284,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-001267",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001267/null",
+      "receipt_tree_sha256": "ade80b405f716b78d1fc77f48bcb421cff53577bd03ec1ebf5ba6883abd9a77d",
+      "files_n": 15,
+      "bytes": 20530,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-001338",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001338/null",
+      "receipt_tree_sha256": "9ca0ad3a9d0ec8a19144078d0acf79da88d3ea7ad2723c9e460ecbadf2902a79",
+      "files_n": 15,
+      "bytes": 31029,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-001426",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001426/null",
+      "receipt_tree_sha256": "42a7de6d3d1786ef582ccc2ba9369a8b33284dfcfef814a758529a1acb74c36b",
+      "files_n": 15,
+      "bytes": 65715,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-001431",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001431/null",
+      "receipt_tree_sha256": "d3f32e89fb1913492333a38d107199a07ad62ced103b947e36223dceed39fd21",
+      "files_n": 15,
+      "bytes": 38943,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-001514",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001514/null",
+      "receipt_tree_sha256": "6dbe5c82290d9213d3873bd4a01a7f4761030a791284957465b5dee943d278ce",
+      "files_n": 15,
+      "bytes": 33199,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-001804",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001804/null",
+      "receipt_tree_sha256": "09080257b0a77955e0296b1a69af43185172345be918327c037734d4c4a59c0d",
+      "files_n": 15,
+      "bytes": 24452,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-001809",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001809/null",
+      "receipt_tree_sha256": "4f377948ffdccb153141a4c6a90bc4921050427487f5c1b3058aa5e905422cde",
+      "files_n": 15,
+      "bytes": 40642,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-001850",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001850/null",
+      "receipt_tree_sha256": "1430c6aae0a9addb01c9c70c4ff705aa0648c5d6a51975a5a7d411869b8e3d8d",
+      "files_n": 15,
+      "bytes": 95021,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-001985",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001985/null",
+      "receipt_tree_sha256": "122bc86f8bc7c677fab2a1c49cecca9320b1b1d5dbbf2ad2e1be0f2f0f3dca87",
+      "files_n": 15,
+      "bytes": 121819,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-002139",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002139/null",
+      "receipt_tree_sha256": "a903d6cbff779a5dc76783b576d33ab745c13c4cd8355ac53deac6fa82cbe518",
+      "files_n": 15,
+      "bytes": 70161,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-002160",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002160/null",
+      "receipt_tree_sha256": "3a55413f0a23d8c6b232b8a709193326e7e60bbda8895c523f443c1251c04875",
+      "files_n": 15,
+      "bytes": 36419,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-002391",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002391/null",
+      "receipt_tree_sha256": "7163491aaa3423a6f1675ec7c79f62c01a6f8e18e9d364e3e455a96bb5874d76",
+      "files_n": 15,
+      "bytes": 40284,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-002535",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002535/null",
+      "receipt_tree_sha256": "5d6ef46f60ffed1112f2cfd953606724cccfe0d8f8732c4c40305bc5900ae8a9",
+      "files_n": 15,
+      "bytes": 40127,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-002545",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002545/null",
+      "receipt_tree_sha256": "1117f5e5e709f87f801f5a75d8f658aa19154e8d03349c23caf5afb6cc3a2d0c",
+      "files_n": 15,
+      "bytes": 64046,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-002552",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002552/null",
+      "receipt_tree_sha256": "b5453a0260a6f09145c68d6a33e6d5112903c5ba6af1f5fae2c28f540f70c870",
+      "files_n": 15,
+      "bytes": 23671,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-002609",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002609/null",
+      "receipt_tree_sha256": "94ab2aeef76e55d706d298fe6e956696d36f6db1e917215c4d7518880ff38bba",
+      "files_n": 15,
+      "bytes": 47402,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-002680",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002680/null",
+      "receipt_tree_sha256": "2ea06d7216a2f41fa4b3b7dd25dbe6a7ce941663e1eff72e3f563d8c1fbb2978",
+      "files_n": 15,
+      "bytes": 21503,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-002976",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002976/null",
+      "receipt_tree_sha256": "4394dda1acca2800dc0c61f654841a56691c0e96ed319ba9b9c387e2d7096186",
+      "files_n": 15,
+      "bytes": 23011,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "format-code-task-003007",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-003007/null",
+      "receipt_tree_sha256": "5793dc2e8cb8f78be0de6bb7b1c6f44e3d93441d0e828cd59f70e90e91d49c42",
+      "files_n": 15,
+      "bytes": 40267,
+      "isolated_starts_n": 1
+    },
+    {
+      "task_id": "photonic-waveguide-routing",
+      "probe": "null",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/photonic-waveguide-routing/null",
+      "receipt_tree_sha256": "2c5dbb94fab8d9b6ec1e559803b448f964055b5bd446ca7e1d83fc89b4c935b7",
+      "files_n": 14,
+      "bytes": 35591,
+      "isolated_starts_n": 2
+    },
+    {
+      "task_id": "photonic-waveguide-routing",
+      "probe": "grid",
+      "reward": 0.0,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment3/photonic-waveguide-routing/grid",
+      "receipt_tree_sha256": "15010b60747fa64bf84c23db1d81f6c2bb2f8728ec0b7d06266a7c4994fa91d6",
+      "files_n": 16,
+      "bytes": 41985,
+      "isolated_starts_n": 2
+    }
+  ],
+  "coverage": {
+    "image_eligible": {
+      "k": 36,
+      "n": 55,
+      "wilson95": [
+        0.5225390350756162,
+        0.7663729045791027
+      ]
+    },
+    "eligible_completed": {
+      "k": 36,
+      "n": 36,
+      "wilson95": [
+        0.9035813714055363,
+        1
+      ]
+    },
+    "grid_eligible_completed": {
+      "k": 1,
+      "n": 1,
+      "wilson95": [
+        0.20654931437723745,
+        1
+      ]
+    },
+    "joint_mutation_weak": {
+      "k": 20,
+      "n": 31,
+      "wilson95": [
+        0.46947954064368874,
+        0.788833409061346
+      ]
+    },
+    "null_detects_joint_mutation_weak": {
+      "k": 0,
+      "n": 20,
+      "wilson95": [
+        0,
+        0.16112515805281938
+      ]
+    }
+  }
+}

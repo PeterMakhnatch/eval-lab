@@ -1,0 +1,262 @@
+[
+  {
+    "task": "002139",
+    "index": 4,
+    "split": "dev",
+    "cohort": "filename-unconstrained",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "b4c2d8f65c13e41a76c8e07b01aae2fa342addc7afd21e31b37b5b59fccdfb66",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 26102,
+      "completion_tokens": 637,
+      "total_tokens": 26739,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "2b09caf10e45773710f1b4c89ff9837bc0e061f0e877c958d3346dcf5401eeb7",
+    "changed_paths": [
+      "lib/bb/fetch2/__init__.py",
+      "lib/bb/fetch2/gs.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/002139/4.patch",
+    "error": null,
+    "source_review": {
+      "reviewed_at": "2026-11-04T07:57:04.414055+00:00",
+      "independent_of_current_grader_feedback": true,
+      "source_only": true,
+      "semantic_assessment": "instruction-consistent by inspection; not yet runtime verified",
+      "notes": "Chooses gs.py and GS without a provided module name. Registers gs scheme and implements stated filename, network, storage, missing-object, missing-output, zero-output removal, and existence behavior. No test/harness changes. Uses str.removeprefix, requiring Python >=3.9; runtime version is an unresolved compatibility condition."
+    },
+    "public": {
+      "status": "executed",
+      "reward": 1.0,
+      "source_applied": true,
+      "public_contract_passed": true,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-4-public/result.json",
+      "est_usd": 0.00151
+    },
+    "original": {
+      "status": "executed",
+      "reward": 1.0,
+      "source_applied": true,
+      "public_contract_passed": false,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-4-original/result.json",
+      "est_usd": 0.00071
+    },
+    "existing": {
+      "status": "executed",
+      "reward": 0.0,
+      "source_applied": true,
+      "public_contract_passed": false,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-4-existing/result.json",
+      "est_usd": 0.00411
+    },
+    "corrected": {
+      "status": "executed",
+      "reward": 0.0,
+      "source_applied": true,
+      "public_contract_passed": false,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-4-corrected/result.json",
+      "est_usd": 0.01124
+    }
+  },
+  {
+    "task": "002139",
+    "index": 5,
+    "split": "dev",
+    "cohort": "filename-unconstrained",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "8b4432973867e4d56c194b1902223659f5e070c15a6132ffce83ed524179f218",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 26102,
+      "completion_tokens": 740,
+      "total_tokens": 26842,
+      "prompt_tokens_details": {
+        "cached_tokens": 25984
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "c54574190e7837c525b8a10e71b21f6e88dd48d336e7993026391488644768ad",
+    "changed_paths": [
+      "lib/bb/fetch2/__init__.py",
+      "lib/bb/fetch2/gs.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/002139/5.patch",
+    "error": null,
+    "source_review": {
+      "reviewed_at": "2026-11-04T07:57:04.414081+00:00",
+      "independent_of_current_grader_feedback": true,
+      "source_only": true,
+      "semantic_assessment": "instruction-consistent by inspection; not yet runtime verified",
+      "notes": "Chooses gs.py and GS without a provided module name. Registers gs scheme and implements stated filename, network, storage, missing-object, missing-output, zero-output removal, and existence behavior. No test/harness changes."
+    },
+    "public": {
+      "status": "executed",
+      "reward": 1.0,
+      "source_applied": true,
+      "public_contract_passed": true,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-5-public/result.json",
+      "est_usd": 0.00085
+    },
+    "original": {
+      "status": "executed",
+      "reward": 1.0,
+      "source_applied": true,
+      "public_contract_passed": false,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-5-original/result.json",
+      "est_usd": 0.00063
+    },
+    "existing": {
+      "status": "executed",
+      "reward": 0.0,
+      "source_applied": true,
+      "public_contract_passed": false,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-5-existing/result.json",
+      "est_usd": 0.00487
+    },
+    "corrected": {
+      "status": "executed",
+      "reward": 0.0,
+      "source_applied": true,
+      "public_contract_passed": false,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-5-corrected/result.json",
+      "est_usd": 0.00196
+    }
+  },
+  {
+    "task": "002139",
+    "index": 6,
+    "split": "eval",
+    "cohort": "filename-unconstrained",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "6b172e40d33dcc8fb5c4b20028346b8567b22505a099e6c6f92eecb25340353a",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 26102,
+      "completion_tokens": 680,
+      "total_tokens": 26782,
+      "prompt_tokens_details": {
+        "cached_tokens": 25984
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "6aee9ed30707e32d1dfcd40febf08d2acd1592b555e7e123b0329ade6b2bbc3f",
+    "changed_paths": [
+      "lib/bb/fetch2/__init__.py",
+      "lib/bb/fetch2/gs.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/002139/6.patch",
+    "error": null,
+    "source_review": {
+      "reviewed_at": "2026-11-04T07:57:04.414082+00:00",
+      "independent_of_current_grader_feedback": true,
+      "source_only": true,
+      "semantic_assessment": "instruction-consistent by inspection; not yet runtime verified",
+      "notes": "Chooses gs.py and GS without a provided module name. Registers gs scheme and implements stated filename, network, storage, missing-object, missing-output, zero-output removal, and existence behavior. No test/harness changes."
+    },
+    "public": {
+      "status": "executed",
+      "reward": 1.0,
+      "source_applied": true,
+      "public_contract_passed": true,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-6-public/result.json",
+      "est_usd": 0.00125
+    },
+    "original": {
+      "status": "executed",
+      "reward": 1.0,
+      "source_applied": true,
+      "public_contract_passed": false,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-6-original/result.json",
+      "est_usd": 0.0017
+    },
+    "existing": {
+      "status": "executed",
+      "reward": 0.0,
+      "source_applied": true,
+      "public_contract_passed": false,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-6-existing/result.json",
+      "est_usd": 0.00217
+    },
+    "corrected": {
+      "status": "executed",
+      "reward": 0.0,
+      "source_applied": true,
+      "public_contract_passed": false,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-6-corrected/result.json",
+      "est_usd": 0.00282
+    }
+  },
+  {
+    "task": "002139",
+    "index": 7,
+    "split": "eval",
+    "cohort": "filename-unconstrained",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "5a987f3a88f352528d3d8e67e636219257307173fdc44022ffe21b17d9455eec",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 26102,
+      "completion_tokens": 717,
+      "total_tokens": 26819,
+      "prompt_tokens_details": {
+        "cached_tokens": 25984
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "73ea294d259dde4102f1ade45b8a84bacab88078b71fef5847cad18eed377b4f",
+    "changed_paths": [
+      "lib/bb/fetch2/__init__.py",
+      "lib/bb/fetch2/gs.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/002139/7.patch",
+    "error": null,
+    "source_review": {
+      "reviewed_at": "2026-11-04T07:57:04.414083+00:00",
+      "independent_of_current_grader_feedback": true,
+      "source_only": true,
+      "semantic_assessment": "instruction-consistent by inspection; not yet runtime verified",
+      "notes": "Chooses gs.py and GS without a provided module name. Registers gs scheme and implements stated filename, network, storage, missing-object, missing-output, zero-output removal, and existence behavior. No test/harness changes."
+    },
+    "public": {
+      "status": "executed",
+      "reward": 1.0,
+      "source_applied": true,
+      "public_contract_passed": true,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-7-public/result.json",
+      "est_usd": 0.00062
+    },
+    "original": {
+      "status": "executed",
+      "reward": 1.0,
+      "source_applied": true,
+      "public_contract_passed": false,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-7-original/result.json",
+      "est_usd": 0.00073
+    },
+    "existing": {
+      "status": "executed",
+      "reward": 0.0,
+      "source_applied": true,
+      "public_contract_passed": false,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-7-existing/result.json",
+      "est_usd": 0.00218
+    },
+    "corrected": {
+      "status": "executed",
+      "reward": 0.0,
+      "source_applied": true,
+      "public_contract_passed": false,
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/002139-alt-7-corrected/result.json",
+      "est_usd": 0.00223
+    }
+  }
+]

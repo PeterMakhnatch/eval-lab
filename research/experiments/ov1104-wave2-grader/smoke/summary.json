@@ -1,0 +1,963 @@
+{
+  "any_evaluated_subset": {
+    "evaluated_n": 36,
+    "not_complete_case": true,
+    "weak_k": 0,
+    "wilson95": [
+      0.0,
+      0.09641862859446367
+    ]
+  },
+  "availability": {
+    "eligible": 36,
+    "unavailable": 19
+  },
+  "exit0": "not_implemented_or_executed_safety_exclusion",
+  "full_X07_complete": false,
+  "grid": {
+    "evaluated_n": 1,
+    "interface_supported_n": 8,
+    "weak_k": 0,
+    "wilson95": [
+      0.0,
+      0.7934506856227626
+    ]
+  },
+  "joint_denominator": {
+    "cells": [
+      {
+        "mutation_weak": false,
+        "n": 11,
+        "smoke_weak": false
+      },
+      {
+        "mutation_weak": true,
+        "n": 20,
+        "smoke_weak": false
+      },
+      {
+        "mutation_weak": false,
+        "n": 0,
+        "smoke_weak": true
+      },
+      {
+        "mutation_weak": true,
+        "n": 0,
+        "smoke_weak": true
+      }
+    ],
+    "n": 31,
+    "task_ids": [
+      "format-code-task-000079",
+      "format-code-task-000081",
+      "format-code-task-000085",
+      "format-code-task-000212",
+      "format-code-task-000232",
+      "format-code-task-000256",
+      "format-code-task-000322",
+      "format-code-task-000682",
+      "format-code-task-000812",
+      "format-code-task-000838",
+      "format-code-task-000847",
+      "format-code-task-000931",
+      "format-code-task-001205",
+      "format-code-task-001267",
+      "format-code-task-001338",
+      "format-code-task-001426",
+      "format-code-task-001431",
+      "format-code-task-001804",
+      "format-code-task-001809",
+      "format-code-task-001850",
+      "format-code-task-001985",
+      "format-code-task-002139",
+      "format-code-task-002160",
+      "format-code-task-002391",
+      "format-code-task-002535",
+      "format-code-task-002545",
+      "format-code-task-002552",
+      "format-code-task-002609",
+      "format-code-task-002680",
+      "format-code-task-002976",
+      "format-code-task-003007"
+    ]
+  },
+  "manifest_sha256": "ea77ebadd7130ff308b5a35b4fceee89e6c0c44beddadaa3e9b744c5b74ad24c",
+  "null": {
+    "evaluated_n": 36,
+    "weak_k": 0,
+    "wilson95": [
+      0.0,
+      0.09641862859446367
+    ]
+  },
+  "observations": [
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "cad-model"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "cad-model"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "distributed-dedup"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "distributed-dedup"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "fin-saccr-rwa"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "fin-saccr-rwa"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:04:10.355343+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000079/null/observation.json",
+      "receipt_sha256": "be0a9c93150d6e251e137862f29ea2ce8db4789324acc53992e52737b4343d2a",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:03:58.372540+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000079"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000079"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:04:37.387772+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000081/null/observation.json",
+      "receipt_sha256": "378c58f48422d025c9e07aab21eb4ea0664a3965dd40e3211ea7e72b1ae8ffd0",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:04:27.405996+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000081"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000081"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:04:45.889396+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000085/null/observation.json",
+      "receipt_sha256": "27ff36987a255d4282f06f512cc76acf682f48d78ce2a8e2509e085071bccdbe",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:04:37.388006+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000085"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000085"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:04:55.748023+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000212/null/observation.json",
+      "receipt_sha256": "f02dc578de03c23c0f913773b0fbd8f8670746e275e5278cc727168d122c4894",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:04:45.889702+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000212"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000212"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:05:06.650541+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000232/null/observation.json",
+      "receipt_sha256": "3bb79948fc3c9973261363555911332f8eb91a94cb32dd5a4339dd035cbfd5e2",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:04:55.748279+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000232"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000232"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:05:23.787477+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000256/null/observation.json",
+      "receipt_sha256": "8b6e63935c341e7bca11005e69e7789cbc092fbd49eb05c6354b1c2e65396446",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:05:06.650800+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000256"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000256"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:05:33.181570+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000322/null/observation.json",
+      "receipt_sha256": "5eeddc46672fe2358bcfb138ea6a113c2e2d305f117f9bb4721a618207e1bb25",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:05:23.787756+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000322"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000322"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "format-code-task-000484"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000484"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "format-code-task-000581"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000581"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:05:41.447033+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000603/null/observation.json",
+      "receipt_sha256": "c51de8e630a91b85e18807e93f689c6a0a63b0207be5bafc65f11eb715e692c7",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:05:33.182860+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000603"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000603"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:05:50.907282+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000682/null/observation.json",
+      "receipt_sha256": "0b3dc1388cecab0baff98bd260748315dd29fa8377b0b9aa049e89afd81acb8d",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:05:41.447274+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000682"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000682"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:05:59.598539+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000812/null/observation.json",
+      "receipt_sha256": "662943e343f729d0c44c34b43b1dba2d93ea8b6bcfe54047e22e250ba682d7de",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:05:50.907534+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000812"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000812"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:06:06.174553+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000838/null/observation.json",
+      "receipt_sha256": "75ac4d928b649b43ff82f4e56f8b6502d3c696f5900ce3fe6ca8f164a15d03b0",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:05:59.598852+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000838"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000838"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:06:14.389317+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000847/null/observation.json",
+      "receipt_sha256": "b2040b3721cc783ae67c91b152d7d11a9111b124aadfc359757a1f87f7adf4a7",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:06:06.174850+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000847"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000847"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:06:21.212944+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000872/null/observation.json",
+      "receipt_sha256": "e77ee53affabb2bdf0ccc47cdd7111e645f64589a3ce9b46a25bea2b98a1da62",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:06:14.389584+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000872"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000872"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:06:45.563841+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000931/null/observation.json",
+      "receipt_sha256": "01692581ca369978a6499c706572ca0e92a30dc8bc0d43d93081602693ba7511",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:06:21.213202+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000931"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000931"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:07:12.720101+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-000945/null/observation.json",
+      "receipt_sha256": "fead9bbc4819f5cddd2d51c3491028f650be875c4adb384351d67bde94978f29",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:06:45.564359+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-000945"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-000945"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:07:23.472623+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001205/null/observation.json",
+      "receipt_sha256": "94092707d696c07b5b4bca08ad8bce31041355c457bb9e5a608910efe7a9f6f9",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:07:12.720321+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-001205"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-001205"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:07:46.403500+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001267/null/observation.json",
+      "receipt_sha256": "91029ff40d2162bc8d53a0542a7b5b8777ccbe1da73ba9dfafe44705ff761f34",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:07:23.472859+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-001267"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-001267"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:08:10.207513+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001338/null/observation.json",
+      "receipt_sha256": "e25c9e2ced628edf383454c61d3d5966d1058a172ced0150e95ab031235e365a",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:07:46.403773+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-001338"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-001338"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:08:24.672514+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001426/null/observation.json",
+      "receipt_sha256": "f206d34979c55906ffa14f21a9f415d8cf9a0a10622f05aea7d6e55e3dc9ddeb",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:08:10.207737+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-001426"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-001426"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:08:32.336420+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001431/null/observation.json",
+      "receipt_sha256": "4fd8f49a8e1563efa79666d0d2ff949944154e4c8b7ab74c13a3eaaa35e236a5",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:08:24.672750+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-001431"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-001431"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:08:47.264515+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001514/null/observation.json",
+      "receipt_sha256": "76039f905b21bfa33fea6429a7bd6f329cc1c063c285717cfe0a39fb8ecc84af",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:08:32.336675+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-001514"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-001514"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "format-code-task-001793"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-001793"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:08:56.036023+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001804/null/observation.json",
+      "receipt_sha256": "3b5f7582d62c174c044a2eb971bfd8efc118b51bd8ade1df65c10d590f2a3690",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:08:47.265757+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-001804"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-001804"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:09:03.990123+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001809/null/observation.json",
+      "receipt_sha256": "784160806fa2def25b7782230af7fb60262a0efd37ed6a8b3701f35420f78562",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:08:56.036320+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-001809"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-001809"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:09:12.742458+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001850/null/observation.json",
+      "receipt_sha256": "b419e84c4f65ad18025e11745ce3941f2c3efdaf2501a0e166980a6201ac906d",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:09:03.990408+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-001850"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-001850"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "format-code-task-001954"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-001954"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:09:23.352419+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-001985/null/observation.json",
+      "receipt_sha256": "f3c2954a2e7e549db45b034c259262f60fef7f15bc0635c5aec0283be15b8602",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:09:12.742718+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-001985"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-001985"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:09:30.851012+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002139/null/observation.json",
+      "receipt_sha256": "fd33f455378215387c8447e0d8ba7af0172aa038b1ebc700633ffdebd3faed9c",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:09:23.352637+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-002139"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-002139"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:09:48.332761+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002160/null/observation.json",
+      "receipt_sha256": "ff0ebeefe81852f62407d02bdd95efab2414ac77ae5c1c9bc9136c304b6f8006",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:09:30.851455+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-002160"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-002160"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "format-code-task-002212"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-002212"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:09:58.990389+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002391/null/observation.json",
+      "receipt_sha256": "7825f6aa9e4e205b605b1e1d7d017d990afee6a11238ea1be27844ccc1dc2f07",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:09:48.395476+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-002391"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-002391"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:10:09.860681+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002535/null/observation.json",
+      "receipt_sha256": "e5517db419c22db8929ca53da95e15aad2a2df9881cba871bedbb68bbfcf5aa7",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:09:58.990909+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-002535"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-002535"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:10:53.075575+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002545/null/observation.json",
+      "receipt_sha256": "aa0f91bb15e14b7aebca5a970feeb76d6bc3e21240648268c34d6bec4d9c8882",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:10:09.860915+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-002545"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-002545"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:11:06.481371+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002552/null/observation.json",
+      "receipt_sha256": "4c098af0f575a303f5b7531c0348cb7347f787aacc38cded4fa3b7a09f9f46d5",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:10:53.104549+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-002552"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-002552"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:11:26.173363+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002609/null/observation.json",
+      "receipt_sha256": "4ece9a35709c82768848691513f5bd763fa139950526d9e610bf6d2d99abd4e5",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:11:06.482060+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-002609"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-002609"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:11:33.545655+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002680/null/observation.json",
+      "receipt_sha256": "dc7d5a17e30be94c6f01d7b2d5c601e1da6367a4701debbf1b8530607d4f3ea9",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:11:26.174329+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-002680"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-002680"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:11:42.654274+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-002976/null/observation.json",
+      "receipt_sha256": "4e496f3ce7104738a180189d8141a3ef25f07004ed47d4c31575150fdf32b715",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:11:33.545912+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-002976"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-002976"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "format-code-task-003005"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-003005"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:11:51.315841+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/format-code-task-003007/null/observation.json",
+      "receipt_sha256": "0b46a0ba7b8f1e19ba599173f2767a39d5ffdfa4a2ba09f2d2d9a50430117504",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:11:42.654720+00:00",
+      "status": "evaluated",
+      "task_id": "format-code-task-003007"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "format-code-task-003007"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "freecad-platform-drawing"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "freecad-platform-drawing"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "freecad-spring-clip"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "freecad-spring-clip"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "gsea-proteomics"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "gsea-proteomics"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "heat-pump-warranty"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "heat-pump-warranty"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "html-js-filter"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "html-js-filter"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "jax-speedrun-gpu"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "jax-speedrun-gpu"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "layout-config-recreation2"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "layout-config-recreation2"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:12:02.135365+00:00",
+      "probe": "null",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2/photonic-waveguide-routing/null/observation.json",
+      "receipt_sha256": "d91b68b1e80b727ebe9986f7cc22f9e6a2da9ab7ca3f13dd6c027f4ee393e294",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:11:51.316106+00:00",
+      "status": "evaluated",
+      "task_id": "photonic-waveguide-routing"
+    },
+    {
+      "backend": "smoke_runner:CachedLockedEnvironment",
+      "finished_at": "2026-11-04T08:14:57.377587+00:00",
+      "probe": "grid",
+      "receipt": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment3/photonic-waveguide-routing/grid/observation.json",
+      "receipt_sha256": "217f7f19a549b67b00b8cde3335ce9a9fd42ceff6036ce88ddcdb17596f217d8",
+      "reward": 0.0,
+      "started_at": "2026-11-04T08:14:44.641490+00:00",
+      "status": "evaluated",
+      "task_id": "photonic-waveguide-routing"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "satb-audio-transcription"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "satb-audio-transcription"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "vba-userform-port"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "vba-userform-port"
+    },
+    {
+      "probe": "null",
+      "reward": null,
+      "status": "unavailable_image",
+      "task_id": "vpp-loss-divergence"
+    },
+    {
+      "probe": "grid",
+      "reward": null,
+      "status": "unsupported_interface",
+      "task_id": "vpp-loss-divergence"
+    }
+  ],
+  "observations_by_status": {
+    "evaluated": 37,
+    "unavailable_image": 26,
+    "unsupported_interface": 47
+  },
+  "population_n": 55,
+  "prior_mutation_audit": {
+    "n": 37,
+    "weak_k": 24
+  },
+  "raw_receipts": {
+    "grid": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment3",
+    "null": "/private/tmp/ov1104/wave2-grader/workers/smoke/runs-amendment2"
+  },
+  "schema": "wave2.defensive-smoke.summary/v1",
+  "two_supported_probes_complete_case": {
+    "n": 1,
+    "weak_k": 0,
+    "wilson95": [
+      0.0,
+      0.7934506856227626
+    ]
+  }
+}

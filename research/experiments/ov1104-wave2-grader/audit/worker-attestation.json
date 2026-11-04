@@ -1,0 +1,227 @@
+{
+  "files": [
+    {
+      "assistant_messages": 78,
+      "assistant_messages_by_provider_model": [
+        {
+          "count": 78,
+          "model": "gpt-6.1-sol",
+          "provider": "openai-codex"
+        }
+      ],
+      "bytes": 1563969,
+      "malformed_json_lines": [],
+      "model_change_records": 2,
+      "model_change_records_by_model": [
+        {
+          "count": 2,
+          "model": "openai-codex/gpt-6.1-sol"
+        }
+      ],
+      "parsed_records": 312,
+      "path": "/private/tmp/ov1104/wave2-grader/session/2026-11-04T07-39-15-434Z_01a1a57f-726a-7594-adb7-f2b2c4db120a/Audit.jsonl",
+      "resolvedModelIsFallback": {
+        "all_top_level_record_fields": {
+          "absent": 310,
+          "false": 2,
+          "other": 0,
+          "true": 0
+        },
+        "assistant_message_fields": {
+          "absent": 78,
+          "false": 0,
+          "other": 0,
+          "true": 0
+        },
+        "model_change_record_fields": {
+          "absent": 0,
+          "false": 2,
+          "other": 0,
+          "true": 0
+        }
+      },
+      "sha256": "66b0c1b1179feee11b850dfdc0d6f9d3a26ae862d086bd4ba6286d66201d7618",
+      "status": "ok"
+    },
+    {
+      "assistant_messages": 129,
+      "assistant_messages_by_provider_model": [
+        {
+          "count": 129,
+          "model": "gpt-6.1-sol",
+          "provider": "openai-codex"
+        }
+      ],
+      "bytes": 2509744,
+      "malformed_json_lines": [],
+      "model_change_records": 2,
+      "model_change_records_by_model": [
+        {
+          "count": 2,
+          "model": "openai-codex/gpt-6.1-sol"
+        }
+      ],
+      "parsed_records": 547,
+      "path": "/private/tmp/ov1104/wave2-grader/session/2026-11-04T07-39-15-434Z_01a1a57f-726a-7594-adb7-f2b2c4db120a/Cert.jsonl",
+      "resolvedModelIsFallback": {
+        "all_top_level_record_fields": {
+          "absent": 545,
+          "false": 2,
+          "other": 0,
+          "true": 0
+        },
+        "assistant_message_fields": {
+          "absent": 129,
+          "false": 0,
+          "other": 0,
+          "true": 0
+        },
+        "model_change_record_fields": {
+          "absent": 0,
+          "false": 2,
+          "other": 0,
+          "true": 0
+        }
+      },
+      "sha256": "3be33848114cb3b2c205f33ea583b473f8f201ac759762a9bdcb37865736b333",
+      "status": "ok"
+    },
+    {
+      "assistant_messages": 97,
+      "assistant_messages_by_provider_model": [
+        {
+          "count": 97,
+          "model": "gpt-6.1-sol",
+          "provider": "openai-codex"
+        }
+      ],
+      "bytes": 2277344,
+      "malformed_json_lines": [],
+      "model_change_records": 2,
+      "model_change_records_by_model": [
+        {
+          "count": 2,
+          "model": "openai-codex/gpt-6.1-sol"
+        }
+      ],
+      "parsed_records": 412,
+      "path": "/private/tmp/ov1104/wave2-grader/session/2026-11-04T07-39-15-434Z_01a1a57f-726a-7594-adb7-f2b2c4db120a/Smoke.jsonl",
+      "resolvedModelIsFallback": {
+        "all_top_level_record_fields": {
+          "absent": 410,
+          "false": 2,
+          "other": 0,
+          "true": 0
+        },
+        "assistant_message_fields": {
+          "absent": 97,
+          "false": 0,
+          "other": 0,
+          "true": 0
+        },
+        "model_change_record_fields": {
+          "absent": 0,
+          "false": 2,
+          "other": 0,
+          "true": 0
+        }
+      },
+      "sha256": "0646b8a94dc3ad2de24465d00f2f025e8e2023717ea17df3dc4db96e45adec2a",
+      "status": "ok"
+    },
+    {
+      "assistant_messages": 8,
+      "assistant_messages_by_provider_model": [
+        {
+          "count": 8,
+          "model": "claude-haiku-5-5",
+          "provider": "anthropic"
+        }
+      ],
+      "bytes": 308098,
+      "malformed_json_lines": [],
+      "model_change_records": 2,
+      "model_change_records_by_model": [
+        {
+          "count": 2,
+          "model": "anthropic/claude-haiku-5-5"
+        }
+      ],
+      "parsed_records": 50,
+      "path": "/private/tmp/ov1104/wave2-grader/session/2026-11-04T07-39-15-434Z_01a1a57f-726a-7594-adb7-f2b2c4db120a/LintConvention.jsonl",
+      "resolvedModelIsFallback": {
+        "all_top_level_record_fields": {
+          "absent": 48,
+          "false": 2,
+          "other": 0,
+          "true": 0
+        },
+        "assistant_message_fields": {
+          "absent": 8,
+          "false": 0,
+          "other": 0,
+          "true": 0
+        },
+        "model_change_record_fields": {
+          "absent": 0,
+          "false": 2,
+          "other": 0,
+          "true": 0
+        }
+      },
+      "sha256": "5f894600cc865fd8179ee95dacb6b7670865222e30565907e8df62f69a9e8ccc",
+      "status": "ok"
+    }
+  ],
+  "policy": "Explicit file snapshots only; no session text emitted. Absent fallback fields are not explicit false values. Counts are deterministic, not sampled estimates.",
+  "schema_version": "ov1104-native-worker-attestation-v1",
+  "totals": {
+    "assistant_messages": 312,
+    "assistant_messages_by_provider_model": [
+      {
+        "count": 8,
+        "model": "claude-haiku-5-5",
+        "provider": "anthropic"
+      },
+      {
+        "count": 304,
+        "model": "gpt-6.1-sol",
+        "provider": "openai-codex"
+      }
+    ],
+    "missing_or_unreadable_files": 0,
+    "model_change_records": 8,
+    "model_change_records_by_model": [
+      {
+        "count": 2,
+        "model": "anthropic/claude-haiku-5-5"
+      },
+      {
+        "count": 6,
+        "model": "openai-codex/gpt-6.1-sol"
+      }
+    ],
+    "ok_files": 4,
+    "requested_files": 4,
+    "resolvedModelIsFallback": {
+      "all_top_level_record_fields": {
+        "absent": 1313,
+        "false": 8,
+        "other": 0,
+        "true": 0
+      },
+      "assistant_message_fields": {
+        "absent": 312,
+        "false": 0,
+        "other": 0,
+        "true": 0
+      },
+      "model_change_record_fields": {
+        "absent": 0,
+        "false": 8,
+        "other": 0,
+        "true": 0
+      }
+    }
+  }
+}

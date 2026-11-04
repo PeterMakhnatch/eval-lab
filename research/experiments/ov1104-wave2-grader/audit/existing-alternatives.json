@@ -1,0 +1,2777 @@
+{
+  "auditor_script": {
+    "bytes": 17180,
+    "path": "/private/tmp/ov1104/wave2-grader/workers/audit/audit_existing.py",
+    "sha256": "af611af7a7be447ce8c20fe0b99b986b2c8d640ee16eb5c0451a6781cc5a382e"
+  },
+  "candidates": [
+    {
+      "candidate": {
+        "bytes": 3088,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-2.patch",
+        "sha256": "36732e9915745a857f0369c29feb83934f3f7aba927f852c02895aff820aa003"
+      },
+      "definition_signature_hits": [],
+      "existing_contract_holdout": false,
+      "existing_contract_role": "shown to synthesizer in original fixed split",
+      "independent_source_run": true,
+      "initial_prompt_sha256": "2df3d0e00f26a0746cbaaffffe79bb13eba9ba72afc7b17c6dabaa99b2574ed9",
+      "label": "real-2",
+      "non_bytecode_changed_paths": [
+        "pip_audit/_audit.py"
+      ],
+      "normalized_changed_lines_sha256": "adce31d836a9e40458708b4bcd134202fd4cdf7d06c209f1f3dddac4de2ffd8b",
+      "original_instruction_is_exact_prompt_substring": true,
+      "recorded_forbidden_boundary_calls": [],
+      "recorded_original_reward": 1.0,
+      "reward_file_value": 1.0,
+      "solution_generation_blinding": "supported_on_recorded_artifacts: instruction plus repository; no hidden-test/reference access observed",
+      "source_exception_type": "TrialBudgetExhaustedError",
+      "source_inventory_row": {
+        "agent_model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+        "is_dev": true,
+        "original_reward": 1.0,
+        "patch_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/verifier/agent.diff",
+        "patch_sha256": "3d54c91bf1d1f7254bced99e24a3c2d2558bef0b4d35d6cd639a4852dd16ebe4",
+        "run_id": "6f7f45f6-3d1f-4edc-be7d-25c387d7f04b",
+        "task_id": "format-code-task-002391"
+      },
+      "source_only_compile": {
+        "apply_command": [
+          "git",
+          "apply",
+          "--whitespace=nowarn",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-2.patch"
+        ],
+        "apply_exit_code": 0,
+        "baseline_command": [
+          "git",
+          "show",
+          "HEAD:pip_audit/_audit.py"
+        ],
+        "baseline_cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+        "baseline_source_sha256": "12236435d54fc7c43ca839632efc8c684a7f45ed305c7b0c4e92b2cd0313109a",
+        "compile_only_passed": true
+      },
+      "source_patch": {
+        "bytes": 17677,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/verifier/agent.diff",
+        "sha256": "3d54c91bf1d1f7254bced99e24a3c2d2558bef0b4d35d6cd639a4852dd16ebe4"
+      },
+      "source_patch_hash_matches_inventory": true,
+      "source_result": {
+        "bytes": 20115,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/result.json",
+        "sha256": "a93476c58aab4fb5f4bafc2d5aae150eeffe4ca99cb52e17879d103de5ae9ed2"
+      },
+      "source_review": "Source review: implements per-dependency identifier connectivity with union-find, representative selection and alias merging. No test/grader source changes. This is legitimate application logic, not proof of every edge case.",
+      "source_reward_file": {
+        "bytes": 2,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/verifier/reward.txt",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      "terminal_recordings": [
+        {
+          "bytes": 156767,
+          "hidden_added_definition_matches": 0,
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/agent/recording.cast",
+          "reference_added_definition_matches": 0,
+          "sha256": "30e6c5c8987e563a0b49848aa52f21ccea73e972e6a96504257c75072576b84c"
+        },
+        {
+          "bytes": 89543,
+          "hidden_added_definition_matches": 0,
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/agent/terminus_2.pane",
+          "reference_added_definition_matches": 0,
+          "sha256": "b295194b1b6f64d133b4e63462d3f15f6e19f5a1d1d962b9f941f6b207d8040b"
+        }
+      ],
+      "tool_call_count": 107,
+      "tool_calls_metadata": [
+        {
+          "boundary_hits": [],
+          "command_sha256": "dc0e3260be699b880053f660d837a9a53e127871f437316338f492db07300384",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 2,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "201d75b2fb759938435f6f197f6a1adad72c1967a20ee400ef7e2c95700a21e3",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 2,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "27432476dfc2b5e84569357926336bc04782000237a28fb3cdc1578a656b2c87",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_audit.py"
+          ],
+          "step_id": 3,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "38680642cb11b8c017abf51c00de8e7b524bc456bccd6233d5e85f59fbf99b37",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_service/interface.py"
+          ],
+          "step_id": 3,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "0bdd6956b42a1711f400f02472951350a247b32f19f3efbae52b6f336f909291",
+          "path_targets": [
+            "/workspace/repo/test/test_audit.py"
+          ],
+          "step_id": 4,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "a4e25621fd829979b720c5e53e6d373fd0248f40fcad2bc46fe632e58b99acbc",
+          "path_targets": [
+            "/workspace/repo/pip_audit",
+            "/workspace/repo/test"
+          ],
+          "step_id": 4,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "4dc4144195db9427ec2a8439022233b4c21e791fb45eae78c7dc492fbe30057a",
+          "path_targets": [
+            "/workspace/repo/test/conftest.py"
+          ],
+          "step_id": 5,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c5d379bb7f6aa2c695c245af52e27cff3ed8cf0f3eb579fad1b1a72a2769a6fc",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 6,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "02dc52318c210070bfbc0785bc36ab2335b807c2510f8945204e5d0a5a83d406",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 7,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "574dce61744929a1d1fb0342ea787c639f411a9311dd5ecbc72be18a21a41df4",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 8,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "08ad004d4eb79ddbc2f86dd9e9ab28904b1cb8316e89976dad5d2f7884f63acc",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 9,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "30f1e66015d92783a502c80090307281e3931af800fc7c16c16d19fd618b96a4",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 10,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "1df4b50e90e5f575a7513011f60d3a4713425cfea4b2220c125df4034ea0f035",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 11,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "22a2934ba28b1d3b10ce9641b4a74244c3023a72a586eb2151fda7c7426e4267",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 11,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "baa764c49dae6aef68371ca235e205371f9fe0f6454a77ca7d7d37b932a19a31",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 12,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "22a2934ba28b1d3b10ce9641b4a74244c3023a72a586eb2151fda7c7426e4267",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 12,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "baa764c49dae6aef68371ca235e205371f9fe0f6454a77ca7d7d37b932a19a31",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 13,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "baa764c49dae6aef68371ca235e205371f9fe0f6454a77ca7d7d37b932a19a31",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 14,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "5e47e6f077cdcec622df5be1224d35ee0bae4767e38b968cb2b345831163bd72",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 15,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "49e428da049b8bff256053ac969c39405b175bb738e1f0d1da33b42b2e5bab05",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 16,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 17,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 18,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 19,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 20,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 21,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 22,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 23,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 24,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 25,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 26,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 27,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 28,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 29,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 30,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 31,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 32,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 33,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 34,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 35,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 36,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 37,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 38,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 39,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 40,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 41,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c173301dd0a842f6e16a605835ebd1adeee35a3c8e7a3001f3565ec5da54dbb2",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 42,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 43,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 44,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 45,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 46,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 47,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 48,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 49,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 50,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 51,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 52,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 53,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 54,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 55,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 56,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 57,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 58,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 59,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 60,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 61,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 62,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 63,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 64,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 65,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 66,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 67,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 68,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 69,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 70,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 71,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 72,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 73,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 74,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 75,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 76,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 77,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 78,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 79,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 80,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path_targets": [],
+          "step_id": 81,
+          "tool": "mark_task_complete"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "55000a6b2dd1450a370765a93adb4083d1b83b8fba3cae6091d6ecf42cf26e7c",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 82,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "0b12b35582fd74e8d14af64441cd7968b0296ecea04e6519c6a230416a045e6c",
+          "path_targets": [
+            "/tmp/verify.py"
+          ],
+          "step_id": 83,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "795d0d233db401a151fc295c9838532c717660004fceb5b88c712b73988cf5f3",
+          "path_targets": [],
+          "step_id": 84,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 85,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 86,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 87,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 88,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 89,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 90,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 91,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 92,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 93,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 94,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 95,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 96,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 97,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 98,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 99,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 100,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 101,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 102,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ae7e4a72d34d7c6c5387a03ba61837d04126cab8c7013ebe2a00e494974ff5c6",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py",
+            "test/test_cli.py"
+          ],
+          "step_id": 103,
+          "tool": "bash_command"
+        }
+      ],
+      "trajectory": {
+        "bytes": 503027,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/agent/trajectory.json",
+        "sha256": "953525bc54369695eef0a385f419fa4d5bed54cda93de8dace90ae7108d5eca1"
+      },
+      "trajectory_steps": 103
+    },
+    {
+      "candidate": {
+        "bytes": 4260,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-3.patch",
+        "sha256": "53787d3060a3197f0cb6689d95916c462496ee11bf0e0894577221d21cce8624"
+      },
+      "definition_signature_hits": [],
+      "existing_contract_holdout": false,
+      "existing_contract_role": "shown to synthesizer in original fixed split",
+      "independent_source_run": true,
+      "initial_prompt_sha256": "c9111ae7d2e494e812fa484e7c31105e1e532c3eb563e06198783577a3f19cd4",
+      "label": "real-3",
+      "non_bytecode_changed_paths": [
+        "pip_audit/_audit.py"
+      ],
+      "normalized_changed_lines_sha256": "cfcf556bf3cbb01ed3d50d91e92c5b541af79b4f811fcefd841aec3aed55b2d6",
+      "original_instruction_is_exact_prompt_substring": true,
+      "recorded_forbidden_boundary_calls": [],
+      "recorded_original_reward": 1.0,
+      "reward_file_value": 1.0,
+      "solution_generation_blinding": "supported_on_recorded_artifacts: instruction plus repository; no hidden-test/reference access observed",
+      "source_exception_type": "TrialBudgetExhaustedError",
+      "source_inventory_row": {
+        "agent_model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+        "is_dev": true,
+        "original_reward": 1.0,
+        "patch_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/verifier/agent.diff",
+        "patch_sha256": "88396536b0df927af93e0319bd568c2d595643dd84b914348cdcb7fc1f48ee67",
+        "run_id": "cb389f84-e07a-4b6b-940a-e2587190dc64",
+        "task_id": "format-code-task-002391"
+      },
+      "source_only_compile": {
+        "apply_command": [
+          "git",
+          "apply",
+          "--whitespace=nowarn",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-3.patch"
+        ],
+        "apply_exit_code": 0,
+        "baseline_command": [
+          "git",
+          "show",
+          "HEAD:pip_audit/_audit.py"
+        ],
+        "baseline_cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+        "baseline_source_sha256": "12236435d54fc7c43ca839632efc8c684a7f45ed305c7b0c4e92b2cd0313109a",
+        "compile_only_passed": true
+      },
+      "source_patch": {
+        "bytes": 18849,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/verifier/agent.diff",
+        "sha256": "88396536b0df927af93e0319bd568c2d595643dd84b914348cdcb7fc1f48ee67"
+      },
+      "source_patch_hash_matches_inventory": true,
+      "source_result": {
+        "bytes": 20253,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/result.json",
+        "sha256": "4b990ff8f5f868b1f0409d22443257845c59f2b47bdbab4c8e7c426222286a0a"
+      },
+      "source_review": "Source review: implements per-dependency identifier connectivity with union-find and source identifier ranking, then merges aliases. Also adds unused-looking exception classes; no test/grader source changes. This is legitimate application logic, not proof of every edge case.",
+      "source_reward_file": {
+        "bytes": 2,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/verifier/reward.txt",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      "terminal_recordings": [
+        {
+          "bytes": 198366,
+          "hidden_added_definition_matches": 0,
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/agent/recording.cast",
+          "reference_added_definition_matches": 0,
+          "sha256": "613bdd1ad5e020c2e8e2974a898af3a8d59fedc754336a8cede9b95333417913"
+        },
+        {
+          "bytes": 113990,
+          "hidden_added_definition_matches": 0,
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/agent/terminus_2.pane",
+          "reference_added_definition_matches": 0,
+          "sha256": "d4f07e7d4a72fecfe2fda68860101bd247fc3538409baaa6c6aa02a01c339940"
+        }
+      ],
+      "tool_call_count": 100,
+      "tool_calls_metadata": [
+        {
+          "boundary_hits": [],
+          "command_sha256": "dc0e3260be699b880053f660d837a9a53e127871f437316338f492db07300384",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 2,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "4e32a8b950e3a730e090aa4e65277992bda9cc7e57e4c46d45dba49a0c9ce1db",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 2,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "27432476dfc2b5e84569357926336bc04782000237a28fb3cdc1578a656b2c87",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_audit.py"
+          ],
+          "step_id": 5,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "38680642cb11b8c017abf51c00de8e7b524bc456bccd6233d5e85f59fbf99b37",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_service/interface.py"
+          ],
+          "step_id": 5,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "f055e7243193f805a2a5ac4c19e59ce9296173d22809e75e0d4fa2ab80aea626",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_audit.py"
+          ],
+          "step_id": 6,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "0bdd6956b42a1711f400f02472951350a247b32f19f3efbae52b6f336f909291",
+          "path_targets": [
+            "/workspace/repo/test/test_audit.py"
+          ],
+          "step_id": 6,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "97e3441d965a05e7f993e6046720bfccf0bd5776f93fe8c359076b3fb470d12d",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_service/__init__.py"
+          ],
+          "step_id": 7,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "036eeed93cbc694ca050da3cde76ba9b868e4e18262e6cb49638afc196afa5f4",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_audit.py"
+          ],
+          "step_id": 7,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "6347e7334459e8ca831258c61966e1bf527a041c5e6f3f39a2954397dce92b57",
+          "path_targets": [
+            "/workspace/repo/test/test_audit.py"
+          ],
+          "step_id": 8,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "7f6f0877979b0142065b344d497e0c26b49bc0a1ebb9239cef777fd3cd771ba0",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 8,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "b4ac6294f5c1c7544713a9527c60b323629f589198cd3a25943c043f4a11f601",
+          "path_targets": [
+            "/workspace/repo/test/test_audit.py"
+          ],
+          "step_id": 9,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c2730a3bc1ec8ebc77576cb9cf05ac966a1897a0a42fb82efd49c4c8a10791ad",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_service/interface.py"
+          ],
+          "step_id": 9,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "e5ca1b9db1e5e14006c36fa54b870b5a96f974c984c3bf4a03e016f504a239db",
+          "path_targets": [
+            "/workspace/repo/test/test_audit.py"
+          ],
+          "step_id": 10,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ba241a90fae7435321fb2cf6c8b08956125db6c136212082d091ea97812918ab",
+          "path_targets": [
+            "/workspace/repo",
+            "/workspace/repo/pip_audit/_service/interface.py"
+          ],
+          "step_id": 10,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "044497fcb55f018b6b9f874d6de3bf7ab2ad258c7188d02609c01b5ec8dbb5d7",
+          "path_targets": [
+            "/workspace/repo/test/test_audit.py"
+          ],
+          "step_id": 11,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "8ebfc02eb6955e0c142e953d12ca28410046f55f9ceeb29fe7978992f2fff4ef",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_service/interface.py",
+            "/workspace/repo/test/test_audit.py"
+          ],
+          "step_id": 12,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "d07f97cc4910d1f7d2270de4e43f4ed9e3bc73e4e167268ef5abbadf3b1a8ebf",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_service/interface.py"
+          ],
+          "step_id": 13,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "55b9682c1af74855f64206c65ba41ed23869c94ccebdd091f6d65b02ee9eb0da",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_service/interface.py"
+          ],
+          "step_id": 14,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "db052f14483bad9a7494abe2338a78481bec60606a3758f43be779d6566add40",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 15,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "a9df0202f3d8412a9204ffdc1973348e82416c790394970b07990c3d0bea61e8",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 16,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "438b61d81fbc83906247a08559dbbc364a5554bcba96d402a8f617b552dfca66",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_audit.py"
+          ],
+          "step_id": 17,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "1d1b43e04941346bdee60bfc843bd59ae44eda298629401bc4535a636e70ea55",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_audit.py"
+          ],
+          "step_id": 18,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "27432476dfc2b5e84569357926336bc04782000237a28fb3cdc1578a656b2c87",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_audit.py"
+          ],
+          "step_id": 19,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "3bfc0f5cf1691befb9bfcbdc4781be3345b27a0c37fa35c8a9c51df662526c6b",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 20,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "904f83c78072e001219c5f9a622a7d8772a9bc0b098ab6c91abe5e2b5ad1b7df",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 21,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "27432476dfc2b5e84569357926336bc04782000237a28fb3cdc1578a656b2c87",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_audit.py"
+          ],
+          "step_id": 22,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "0338e19a165bc98486529fb295bc320fcc9bd76a64aca014e6dbc6c41491a808",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 23,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "3689511f31e62891fc3b4d652eaca2689e40aa43a7024abd36ece3a4167821db",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 24,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "0338e19a165bc98486529fb295bc320fcc9bd76a64aca014e6dbc6c41491a808",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 25,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "1ff85e1bdd6e582b456277ce7eaf6d8c87a158ce17fc4d77f2b46d180fc0fd8f",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 26,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "fe6e1f236ff4d520ab0deab22d8519c339d6b263e6824d4c65f8988ea5a80552",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 27,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "28e8b8d749c291f9c4f9238816a818d01374c24c404ceb5592f5970c86e6de1a",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 28,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "036eeed93cbc694ca050da3cde76ba9b868e4e18262e6cb49638afc196afa5f4",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_audit.py"
+          ],
+          "step_id": 29,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "24dc25d0a3e12af2dbace4f8a6478ed315556cf14b1d99dbe20b3fe7b2765d32",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_audit.py"
+          ],
+          "step_id": 30,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "00b6da9148c74f4d8fa5e0df924e1a7bcfa556901f410263b96fbc1c211588ad",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 31,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "48dc77425b685365f0b515df0f8b6d050dc8b153916874d38948b458f8cd650a",
+          "path_targets": [
+            "/workspace/repo/pip_audit/_audit.py"
+          ],
+          "step_id": 32,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "4521683d32a187fb09367cb96814be31c34711c44a018cd0343b6a317ffc5d70",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 33,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "3b48f6f38c7a8062e839a58b835ea703ab262689e52041a54fe095b33ef71250",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 34,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "430f253b7944d351498cb0bb796691ebfea461c2896f2b56ea73af2d92e2c949",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 35,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "4521683d32a187fb09367cb96814be31c34711c44a018cd0343b6a317ffc5d70",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 36,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ef85fb85280c8d4473e3e7b2fd17ecf124988ea520fc37e8c9a9054889f917ba",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 37,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "37777c45a86ee8e4a18dfdf44913a75c3906ef91a19caf479a5cb0ef4e56a648",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 38,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "4521683d32a187fb09367cb96814be31c34711c44a018cd0343b6a317ffc5d70",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 39,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "a5d279d670fd2bd80661b89979f5f0d0d49ee6ff0ef05458eb112f2629adb517",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 40,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "4521683d32a187fb09367cb96814be31c34711c44a018cd0343b6a317ffc5d70",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 41,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "e1a8644f2211c8df7bf73db118cd6144ad9a261063cb2aef892b139f431468fe",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 42,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "4521683d32a187fb09367cb96814be31c34711c44a018cd0343b6a317ffc5d70",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 43,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "1d7a88362341ce80d8af36d6002a6dc79aee95e072bb866b24a3a2a0610ad2f2",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 44,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "4521683d32a187fb09367cb96814be31c34711c44a018cd0343b6a317ffc5d70",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 45,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "3f1fa0177e446fc91e7ae28d74726f008f9726c7891df6a2b06d88dda57242ed",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 46,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "2fb764ddb2ef0e0918caf88e1587fd1598b85e577ba9e36e4eb623097d216920",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 47,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "4521683d32a187fb09367cb96814be31c34711c44a018cd0343b6a317ffc5d70",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 48,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "ba702ee18625cae2f980efc52fcb6f09e3663c1d19549bab6b4a5126835332a4",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 49,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "8f6b320e8b4ab22637a107e89659961b76c1be9014793b9144c8b9cb8ee4ca6e",
+          "path_targets": [
+            "/workspace/repo",
+            "pip_audit/_audit.py"
+          ],
+          "step_id": 50,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "4521683d32a187fb09367cb96814be31c34711c44a018cd0343b6a317ffc5d70",
+          "path_targets": [
+            "/workspace/repo",
+            "test/test_audit.py"
+          ],
+          "step_id": 51,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "262c9e5d2594c085332418d4cf1d8e30f6c802ed8bb1dedaa215bafad2b8c8d5",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 52,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "65a41248df6f4077ff83a929390760768f736bf838e8fc0c560cf56d627b866e",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 53,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "199cb848c03fa8bd115a2cc6947d5445f4463722434bc92258bab7a9938ee64c",
+          "path_targets": [
+            "/workspace/repo"
+          ],
+          "step_id": 54,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "43c438f70c3f001f61871d81b3b40b6b9daf7303cc2b5db215a72d94ea30ac39",
+          "path_targets": [
+            "/workspace/repo",
+            "test/service/test_interface.py",
+            "test/test_audit.py",
+            "test/test_fix.py"
+          ],
+          "step_id": 55,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "3fab44b4f62820971086c955f61bf4d49333f0595f6f8bbea67b68d7894b0776",
+          "path_targets": [
+            "/tmp/pytest_out.txt",
+            "/workspace/repo",
+            "test/service/test_interface.py",
+            "test/test_audit.py",
+            "test/test_fix.py"
+          ],
+          "step_id": 56,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "97275c6c680a47b69a326d663134ed3fad8a1a09e33abf3e2c30955ebbb70180",
+          "path_targets": [
+            "/dev/null",
+            "/tmp/pytest_out.txt"
+          ],
+          "step_id": 57,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "94e78df541431d6078c50c77907cb70f0e2999bea0c4f24192add731043b5427",
+          "path_targets": [
+            "/tmp/pytest_out.txt"
+          ],
+          "step_id": 58,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "947603c01218507a3ab5b0e5d011d5dfed65b68f218d61e37e541b25848e5960",
+          "path_targets": [],
+          "step_id": 59,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "b1119ecaf54feb68aa5ca8387277e0a929c71cd99fc70f1985b1de1b3b8724b6",
+          "path_targets": [],
+          "step_id": 60,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "5dbad7dd0b9b122dcd9956884390f4aac4738caba8ff53498a7ab6718b176c30",
+          "path_targets": [],
+          "step_id": 61,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "73d00d47d409d59f8036ce91c245af1a50392eb098e74cb822df21c85baad726",
+          "path_targets": [],
+          "step_id": 62,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "90e58a573f3ff63e27007d755bd59467a29ed7b8ad6789af6257b1abb1cee5bc",
+          "path_targets": [
+            "/tmp/t.txt"
+          ],
+          "step_id": 63,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "b43f4f701037de1d368286843f6db75f8d66be2324dedf0807a064acaf70294f",
+          "path_targets": [
+            "/tmp/t.txt"
+          ],
+          "step_id": 64,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "62e4e0d7677d8023a87c96e38775157e205ccf5cabf13da5072f525ed5823b28",
+          "path_targets": [],
+          "step_id": 65,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 66,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "916e2878c5097950ecd71858aedcfbb69d8c31e5f073cf61068d0ab8b4ebbef6",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 67,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "3eb6df074d59b039bea2e91213c8e2e7c54aa269807d589649c0dbf2a924a554",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 68,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 69,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "916e2878c5097950ecd71858aedcfbb69d8c31e5f073cf61068d0ab8b4ebbef6",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 70,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "3eb6df074d59b039bea2e91213c8e2e7c54aa269807d589649c0dbf2a924a554",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 71,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 72,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "916e2878c5097950ecd71858aedcfbb69d8c31e5f073cf61068d0ab8b4ebbef6",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 73,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "71549a2e7ff7ded295d4a6dba251b447f61d2617d385eb10d997fdfa9b01f788",
+          "path_targets": [
+            "/tmp/test_out.txt",
+            "/workspace/repo",
+            "test/service/test_interface.py"
+          ],
+          "step_id": 74,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "f613f3819ffb6684cb84917919587e690c02e14c67748a33ddbd996e24707ee9",
+          "path_targets": [
+            "/tmp/test_out.txt"
+          ],
+          "step_id": 75,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "f613f3819ffb6684cb84917919587e690c02e14c67748a33ddbd996e24707ee9",
+          "path_targets": [
+            "/tmp/test_out.txt"
+          ],
+          "step_id": 76,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 77,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "916e2878c5097950ecd71858aedcfbb69d8c31e5f073cf61068d0ab8b4ebbef6",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 78,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 79,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "916e2878c5097950ecd71858aedcfbb69d8c31e5f073cf61068d0ab8b4ebbef6",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 80,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 81,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "916e2878c5097950ecd71858aedcfbb69d8c31e5f073cf61068d0ab8b4ebbef6",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 82,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 83,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "916e2878c5097950ecd71858aedcfbb69d8c31e5f073cf61068d0ab8b4ebbef6",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 84,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 85,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "916e2878c5097950ecd71858aedcfbb69d8c31e5f073cf61068d0ab8b4ebbef6",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 86,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 87,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "916e2878c5097950ecd71858aedcfbb69d8c31e5f073cf61068d0ab8b4ebbef6",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 88,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 89,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "916e2878c5097950ecd71858aedcfbb69d8c31e5f073cf61068d0ab8b4ebbef6",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 90,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 91,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 92,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "916e2878c5097950ecd71858aedcfbb69d8c31e5f073cf61068d0ab8b4ebbef6",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 93,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 94,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "916e2878c5097950ecd71858aedcfbb69d8c31e5f073cf61068d0ab8b4ebbef6",
+          "path_targets": [
+            "/tmp/x.txt"
+          ],
+          "step_id": 95,
+          "tool": "bash_command"
+        },
+        {
+          "boundary_hits": [],
+          "command_sha256": "c028f0546f569e72e1229fc54e1c4e2c5aa8adb9f697dc05194726e33852c670",
+          "path_targets": [],
+          "step_id": 96,
+          "tool": "bash_command"
+        }
+      ],
+      "trajectory": {
+        "bytes": 510036,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/agent/trajectory.json",
+        "sha256": "0eeba77ad1cb95bf69c1bcb3d092fc1537af0a7a30f99f273016395d0b54430d"
+      },
+      "trajectory_steps": 96
+    },
+    {
+      "additional_field_preservation_guidance_lines": [
+        11
+      ],
+      "assistant_messages_by_model": [
+        {
+          "count": 40,
+          "model": "gemini-3.8-flash",
+          "provider": "google-antigravity"
+        }
+      ],
+      "candidate": {
+        "bytes": 2933,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/a-flash.patch",
+        "sha256": "b259e89bbc1da753c3e81a891677c00eed21e39f952db13cc3a3929eb8c9fe8c"
+      },
+      "definition_signature_hits": [],
+      "existing_contract_holdout": "not cleanly established",
+      "existing_contract_role": "later replacement for failed original held-out real-1; prompt contains explicit published-preservation guidance",
+      "generation_patch": {
+        "bytes": 2933,
+        "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/solution.patch",
+        "sha256": "b259e89bbc1da753c3e81a891677c00eed21e39f952db13cc3a3929eb8c9fe8c"
+      },
+      "generation_user_prompt_sha256": "2f61ea59341e07287a8ce728457c55fff3c06d38bc2ba8d1c313cdfcff734130",
+      "guidance_description": "User prompt explicitly requires preserving description, fix_versions and published. This is additional guidance beyond the original task instruction.",
+      "history_commit_metadata": [
+        {
+          "commit_hashes": [
+            "5188fe34423845d4d06f9f4355f211fbd3906dfc"
+          ],
+          "jsonl_line": 27
+        }
+      ],
+      "independent_source_run": true,
+      "label": "a-flash",
+      "native_session": {
+        "bytes": 506012,
+        "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/session/2026-11-04T05-51-07-518Z_01a1a51c-72fe-7717-b60b-47ca5111f6e1.jsonl",
+        "sha256": "424f9dbc769f849d2cdf5c79986d4d278591d664f28d0de1748e2c18acb08a7e"
+      },
+      "original_validation_receipt": {
+        "bytes": 970,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-a-flash/result.json",
+        "sha256": "8cf533590a28c47a716ce2be34f40621e8dbcb513d5c21cbaa8ba8800ded68e0"
+      },
+      "original_validation_reward": 1.0,
+      "patch_matches_generation_output": true,
+      "recorded_forbidden_boundary_calls": [],
+      "solution_generation_blinding": "no hidden-test/reference reads observed, but not strictly instruction-only: explicit extra preservation guidance",
+      "source_only_compile": {
+        "apply_command": [
+          "git",
+          "apply",
+          "--whitespace=nowarn",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/a-flash.patch"
+        ],
+        "apply_exit_code": 0,
+        "baseline_command": [
+          "git",
+          "show",
+          "HEAD:pip_audit/_audit.py"
+        ],
+        "baseline_cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+        "baseline_source_sha256": "12236435d54fc7c43ca839632efc8c684a7f45ed305c7b0c4e92b2cd0313109a",
+        "compile_only_passed": true
+      },
+      "source_review": "Source review: implements connected-component grouping, alias merging and application dataclass replacement. The normalized patch changes only application _audit.py, not tests or grader infrastructure.",
+      "tool_call_count": 39,
+      "tool_calls_metadata": [
+        {
+          "arguments_sha256": "63cc7a471bcbce9ca89fd729f707c0d4357091699699bf086915b3dc53e89dd1",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 9,
+          "path": "/private/tmp/ov1104/grader/alt/002391/instruction.md",
+          "tool": "read"
+        },
+        {
+          "arguments_sha256": "4757c2a785f1385053768ceb699bc0fec970c3d1b49e34362e302625635ecb8b",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 13,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo/**",
+          "tool": "glob"
+        },
+        {
+          "arguments_sha256": "f1e006af0e8ef5ae1328416d6665d108d6000b019c1d55f5765491352352349f",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 16,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo/pip_audit/_audit.py",
+          "tool": "read"
+        },
+        {
+          "arguments_sha256": "7ba90d277125c43d43bd169f4791a7b08c552d12bd2cf61bcbae411eebffa7f0",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 19,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo/pip_audit/_service/interface.py",
+          "tool": "read"
+        },
+        {
+          "arguments_sha256": "871207a3945f5a15a65ab913ea6cd6e3bdb0ee8ba0580673ba696911da4a7aa5",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 22,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo/pip_audit/_service/interface.py:17-137",
+          "tool": "read"
+        },
+        {
+          "arguments_sha256": "fe006afb1299f523ea1b140554f36fb071707b3fc6e6aaf7417488a16ea32cd5",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 25,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "c316afd9b5a55f2dd6c78e2e8b0a1ed0604323e03209aee2f8099749713f1491",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 28,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "tool": "grep"
+        },
+        {
+          "arguments_sha256": "be858303583fd0a7bee2e69e3aec3011c4bc7ee8af8b1e2e6b777a0079f0c90c",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 31,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo/pip_audit/_service/interface.py",
+          "tool": "grep"
+        },
+        {
+          "arguments_sha256": "9ef44f2879858defe8b5d3423162c9f89cd5188896dc29f512b35fde630e6964",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 34,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo/pip_audit/_service/interface.py:150-175",
+          "tool": "read"
+        },
+        {
+          "arguments_sha256": "bcda07700778226f4614cfdb1690a2c64bc35a87abba7e64909de4f7772840e2",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 37,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "04a1e85ee311aa497c9c98bc31b29c2666519ce36decb9d74833f033218bdf42",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash",
+          "jsonl_line": 40,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "0825a157de45d8bdda1428116161b077eec0d65f502c6cd49d1843054fd012d7",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 43,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo/**",
+          "tool": "glob"
+        },
+        {
+          "arguments_sha256": "4d5497aef8d0f2bc4be5aff697a22e24e04db6119a82b074720c113bf88e0537",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash",
+          "jsonl_line": 46,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "ddd7d9409005283447aa0528785ef30fc08182568d7415bc5c30b3862ba78c27",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash",
+          "jsonl_line": 49,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "f70d5663331dbcd755533d4d46a7173243a39631c712bd4e806543a998a9549c",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash",
+          "jsonl_line": 52,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "fa642cb2be8286a70c314a71d8877b95ad00b5824e08a05e1833ae96ef91ba75",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 55,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo/pip_audit/_service/interface.py",
+          "tool": "read"
+        },
+        {
+          "arguments_sha256": "79d29f534d12ee63b3aa51fa94f53321fc5c71028ab2493524dfe306a0c0346e",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 58,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo/pip_audit/_service/interface.py:80-136",
+          "tool": "read"
+        },
+        {
+          "arguments_sha256": "7ac54ae3b9e28ce3d36ed34c4bfe6f6d2771f41ee892d24f74eea25c0b18b0c8",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 61,
+          "path": null,
+          "tool": "edit"
+        },
+        {
+          "arguments_sha256": "f1e006af0e8ef5ae1328416d6665d108d6000b019c1d55f5765491352352349f",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 64,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo/pip_audit/_audit.py",
+          "tool": "read"
+        },
+        {
+          "arguments_sha256": "f30410d7e6835ddd3486cdbb23714b52f155608bbcc47efdefaf99fe0e19a12b",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 67,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "672ad2fba8d541e3643b850d6d3416d1656aaf29d2526072be2f4918201f9fe2",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 70,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "da1e4b5ed65dec7fd086c0146f9a67013474c1c97ac44a448697a12b2e254719",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash",
+          "jsonl_line": 73,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "7d6c2f220936374ef5b0493bf236665ac5ac83695213cef72e8e89ce760c8331",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 76,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "c02017a19d9a9971fdc5a09fa6bc6029cf0262c3ea8326b0b224807c1df26928",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 79,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "cd6790f5533961fbc1494aaa4c120f5f603a31ac0ebcf6be0f078e8b916a7a4e",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 82,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "367d8f9ef4fb9db199c1afca5051cac162672d710dc079b62c5f015412ecf905",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 85,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "3d869b3709540f7435ce01e58377fa8ddeac65eba71eba0418440ea3e2f300cc",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 88,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "c65389a04a55af57a21296e9b17c7862e6d4d8b069c1f2048ffdf6776a496fe0",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 91,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/solution.patch",
+          "tool": "read"
+        },
+        {
+          "arguments_sha256": "434a36b686c28f02ba75705cc8a486b65740783bdfeb2ab103120f78cbd6db2a",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 94,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "11305a607a67f59140d2029ded7bc242efbd6203777967d5f8b0e0c2acc36d9e",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 97,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "700c9162e1c255511434c4f3e771e01e6de639d583aeac5cf5d3f07634a7cb39",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 100,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "dfcec0c3d043a64522b0007aa9c37a39496828d59e3601619ba4477f4913022a",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 103,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "b1831e5cfbd749b2d6f4dfc75dc2b155606f80d591b12129b303d4ea072b658e",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 106,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "7761e3f9608ff63aaa3826e4463411cced02b492a8b5bb4f7a0485f3f9103cb2",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 109,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "c6496ec8775b90ac1ccbe1fc8575eca713cdd9b9a90181a2acde4d2cba4a5010",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 112,
+          "path": null,
+          "tool": "bash"
+        },
+        {
+          "arguments_sha256": "776d60c621503a812e4bfc75d09b2819cb3cdead7689d65422da4064b9f211f4",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 115,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/NOTES.md",
+          "tool": "write"
+        },
+        {
+          "arguments_sha256": "0886fb4238314e62b9b5cbf0072a2c302cc4e4e0a69b305257f9276b6134f2d8",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 118,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/DONE",
+          "tool": "write"
+        },
+        {
+          "arguments_sha256": "81839a932494e171af123897ed81febc8912f2fa203bdf82e8a9eed135d9addf",
+          "boundary_hits": [],
+          "cwd": null,
+          "jsonl_line": 121,
+          "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/*",
+          "tool": "glob"
+        },
+        {
+          "arguments_sha256": "6cce28117734cad06626241cdf09440db1df17c15a9c073f7604eb4e5d21c9de",
+          "boundary_hits": [],
+          "cwd": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/repo",
+          "jsonl_line": 124,
+          "path": null,
+          "tool": "bash"
+        }
+      ],
+      "validation_row": {
+        "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-a-flash/result.json",
+        "grader": "original",
+        "original_reward": 1.0,
+        "patch_applied": true,
+        "patch_sha256": "b259e89bbc1da753c3e81a891677c00eed21e39f952db13cc3a3929eb8c9fe8c",
+        "task_id": "format-code-task-002391",
+        "test_aware": false,
+        "worker": "a-flash"
+      }
+    }
+  ],
+  "command": "python3 /private/tmp/ov1104/wave2-grader/workers/audit/audit_existing.py",
+  "conclusion": {
+    "caveats": [
+      "Trace absence does not exclude unlogged access or pretraining exposure.",
+      "A grader pass and arm label do not prove full semantic correctness.",
+      "No new contract grading occurs.",
+      "Source runs end with TrialBudgetExhaustedError despite preserved verifier reward 1.0."
+    ],
+    "clean_existing_contract_held_out_alternatives_established": {
+      "k": 0,
+      "n": 3
+    },
+    "existing_source_reviewed_passing_alternatives": 2,
+    "newly_available_blind_held_out_alternatives": 0,
+    "recorded_source_blind_existing_passes": {
+      "k": 2,
+      "labels": [
+        "real-2",
+        "real-3"
+      ],
+      "n": 3
+    },
+    "statement": "Two separate passing source runs support instruction-plus-repository blinding on their recorded artifacts. Both were shown to the existing contract synthesizer. The later a-flash run has no observed hidden/reference reads but receives extra published-preservation guidance. These artifacts do not establish two clean held-out alternatives for the existing frozen contract."
+  },
+  "dev_admission": {
+    "source": {
+      "bytes": 70533,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/A1-INVENTORY/gold-universe.json",
+      "sha256": "3c68165b576cb0a85e005beea8fabe12cf4e6a8daa30776fd39d752e4cd0bbb3"
+    },
+    "strictly_dev": true,
+    "task_id": "format-code-task-002391"
+  },
+  "fresh_generation_context_separate": {
+    "original_passes": {
+      "k": 0,
+      "n": 8
+    },
+    "source": "Parent Main assignment message; not independently recomputed in this historical-source audit"
+  },
+  "hidden_signature_policy": "Local-only comparison of added test-function definitions and reference-added function definitions. No hidden/reference text or definition names are emitted. Signature absence alone is not proof; full recorded tool path boundaries and source diffs are also audited.",
+  "interval_policy": "All counts here are deterministic provenance or compile outcomes; no inferential confidence interval applies.",
+  "reference_patch_sha256": "e1dad924b28bf3725da6a20379e403fb121a0441b7f5839386e1c652b694a27e",
+  "schema_version": "ov1104-existing-alternative-provenance-v1",
+  "signature_counts": {
+    "hidden_added_test_definitions": 8,
+    "reference_added_definitions": 2
+  },
+  "sources": [
+    {
+      "bytes": 156767,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/agent/recording.cast",
+      "sha256": "30e6c5c8987e563a0b49848aa52f21ccea73e972e6a96504257c75072576b84c"
+    },
+    {
+      "bytes": 89543,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/agent/terminus_2.pane",
+      "sha256": "b295194b1b6f64d133b4e63462d3f15f6e19f5a1d1d962b9f941f6b207d8040b"
+    },
+    {
+      "bytes": 503027,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/agent/trajectory.json",
+      "sha256": "953525bc54369695eef0a385f419fa4d5bed54cda93de8dace90ae7108d5eca1"
+    },
+    {
+      "bytes": 20115,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/result.json",
+      "sha256": "a93476c58aab4fb5f4bafc2d5aae150eeffe4ca99cb52e17879d103de5ae9ed2"
+    },
+    {
+      "bytes": 17677,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/verifier/agent.diff",
+      "sha256": "3d54c91bf1d1f7254bced99e24a3c2d2558bef0b4d35d6cd639a4852dd16ebe4"
+    },
+    {
+      "bytes": 2,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX/verifier/reward.txt",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "bytes": 17593,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-dev-002391-cfe31418/har110-dev-002391-cfe31418__MvXkrso/verifier/agent.diff",
+      "sha256": "af4cdab5e440c75849822940250937873a808e29d817daefb2b0ff37c7d7e5e8"
+    },
+    {
+      "bytes": 18440,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-baseline/har116-a-002391-baseline__xZqrQkD/verifier/agent.diff",
+      "sha256": "d6cf044a9aefdd2bc7aa84fffd3267b29bc96ef96dd6ee67790fa6db394c97f8"
+    },
+    {
+      "bytes": 198366,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/agent/recording.cast",
+      "sha256": "613bdd1ad5e020c2e8e2974a898af3a8d59fedc754336a8cede9b95333417913"
+    },
+    {
+      "bytes": 113990,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/agent/terminus_2.pane",
+      "sha256": "d4f07e7d4a72fecfe2fda68860101bd247fc3538409baaa6c6aa02a01c339940"
+    },
+    {
+      "bytes": 510036,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/agent/trajectory.json",
+      "sha256": "0eeba77ad1cb95bf69c1bcb3d092fc1537af0a7a30f99f273016395d0b54430d"
+    },
+    {
+      "bytes": 20253,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/result.json",
+      "sha256": "4b990ff8f5f868b1f0409d22443257845c59f2b47bdbab4c8e7c426222286a0a"
+    },
+    {
+      "bytes": 18849,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/verifier/agent.diff",
+      "sha256": "88396536b0df927af93e0319bd568c2d595643dd84b914348cdcb7fc1f48ee67"
+    },
+    {
+      "bytes": 2,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/verifier/reward.txt",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "bytes": 4610,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/HAR-202-chrr1-h-cheat-002391-k1/uncommitted.diff",
+      "sha256": "f1b5431f526c5d7212fe63e18c4a56e20e60426c2ad80288e5ef1708bee32ce9"
+    },
+    {
+      "bytes": 4610,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/HAR-202-chrr1-h-cheat-002391-k2/uncommitted.diff",
+      "sha256": "f1b5431f526c5d7212fe63e18c4a56e20e60426c2ad80288e5ef1708bee32ce9"
+    },
+    {
+      "bytes": 18561,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/HAR-202-chrr1-l-cheat-002391-k1/chrr1-l-cheat-002391-k1__QGXLXwa/verifier/agent.diff",
+      "sha256": "e491178d9b4287ccf38007063c811815475ab851199645f38d2a59fa0d88ec7b"
+    },
+    {
+      "bytes": 17701,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/HAR-202-chrr1-l-honest-002391/chrr1-l-honest-002391__JfrMphx/verifier/agent.diff",
+      "sha256": "9ac0841bd4dc7506aad8ec6bad2afbf2136fbb4a984955fdd81ecf7f9c6d80c6"
+    },
+    {
+      "bytes": 18837,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/HAR-202-chrr1-w2-h-cheat-002391-k2/chrr1-w2-h-cheat-002391-k2__RoDiGXu/verifier/agent.diff",
+      "sha256": "7ceb0bc7bf5528762eeb4f106857c2998a36ca67b3ea402ba37bf5ed7277aec5"
+    },
+    {
+      "bytes": 259351,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/A0/submissions-inventory.json",
+      "sha256": "3d09fc895fe431adddb7d725393cb2031323827641204eaf424303b4cecb097e"
+    },
+    {
+      "bytes": 70533,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/A1-INVENTORY/gold-universe.json",
+      "sha256": "3c68165b576cb0a85e005beea8fabe12cf4e6a8daa30776fd39d752e4cd0bbb3"
+    },
+    {
+      "bytes": 2933,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/a-flash.patch",
+      "sha256": "b259e89bbc1da753c3e81a891677c00eed21e39f952db13cc3a3929eb8c9fe8c"
+    },
+    {
+      "bytes": 3088,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-2.patch",
+      "sha256": "36732e9915745a857f0369c29feb83934f3f7aba927f852c02895aff820aa003"
+    },
+    {
+      "bytes": 4260,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-3.patch",
+      "sha256": "53787d3060a3197f0cb6689d95916c462496ee11bf0e0894577221d21cce8624"
+    },
+    {
+      "bytes": 970,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-a-flash/result.json",
+      "sha256": "8cf533590a28c47a716ce2be34f40621e8dbcb513d5c21cbaa8ba8800ded68e0"
+    },
+    {
+      "bytes": 1206,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2-synth/report.json",
+      "sha256": "e14d38290dd733e1486d3db1bb85a09c41e780d1b76301573fe00970d5ef4a2d"
+    },
+    {
+      "bytes": 122158,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391-r2/plan.json",
+      "sha256": "ea33fd995f7b78abd63889c4470074d89ba6be4f24293cc0396e8d5bf8f38569"
+    },
+    {
+      "bytes": 5672,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/validation.json",
+      "sha256": "208ccfccc8e65650c1e7da86d9147d597e7b65379bbed5315512c53cb09dd037"
+    },
+    {
+      "bytes": 1463,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002391/instruction.md",
+      "sha256": "070adfd6a3bad8de52967db202ed20fa542b9551e77e7bd36608621ba1bb0ef6"
+    },
+    {
+      "bytes": 10485,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002391/tests/test.patch",
+      "sha256": "67775891c7148e2768660014603bb11ff735714727e33a104aeac7bd2cc38fc9"
+    },
+    {
+      "bytes": 506012,
+      "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/session/2026-11-04T05-51-07-518Z_01a1a51c-72fe-7717-b60b-47ca5111f6e1.jsonl",
+      "sha256": "424f9dbc769f849d2cdf5c79986d4d278591d664f28d0de1748e2c18acb08a7e"
+    },
+    {
+      "bytes": 2933,
+      "path": "/private/tmp/ov1104/grader/workers/gen2391-a-flash/solution.patch",
+      "sha256": "b259e89bbc1da753c3e81a891677c00eed21e39f952db13cc3a3929eb8c9fe8c"
+    }
+  ]
+}

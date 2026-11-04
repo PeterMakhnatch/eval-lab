@@ -1,0 +1,98 @@
+{
+  "000682-0": {
+    "reviewed_at": "2026-11-04T07:51:10.212125+00:00",
+    "reviewer": "Cert coding worker",
+    "independent_of_current_grader_feedback": true,
+    "source_only": true,
+    "semantic_assessment": "instruction-consistent by inspection; runtime unverified",
+    "notes": "Registers kms-key via KmsRelatedFilter; action sets KmsMasterKeyId for each topic and supports state=false. No test/harness paths or bypass. Three variants share identical executable action/filter structure; variant 0 also overrides filter permissions. Alias attribute handling inherited from supplied KmsRelatedFilter."
+  },
+  "000682-1": {
+    "reviewed_at": "2026-11-04T07:51:10.212320+00:00",
+    "reviewer": "Cert coding worker",
+    "independent_of_current_grader_feedback": true,
+    "source_only": true,
+    "semantic_assessment": "instruction-consistent by inspection; runtime unverified",
+    "notes": "Registers kms-key via KmsRelatedFilter; action sets KmsMasterKeyId for each topic and supports state=false. No test/harness paths or bypass. Three variants share identical executable action/filter structure; variant 0 also overrides filter permissions. Alias attribute handling inherited from supplied KmsRelatedFilter."
+  },
+  "000682-2": {
+    "reviewed_at": "2026-11-04T07:51:10.212322+00:00",
+    "reviewer": "Cert coding worker",
+    "independent_of_current_grader_feedback": true,
+    "source_only": true,
+    "semantic_assessment": "instruction-consistent by inspection; runtime unverified",
+    "notes": "Registers kms-key via KmsRelatedFilter; action sets KmsMasterKeyId for each topic and supports state=false. No test/harness paths or bypass. Three variants share identical executable action/filter structure; variant 0 also overrides filter permissions. Alias attribute handling inherited from supplied KmsRelatedFilter."
+  },
+  "000682-3": {
+    "reviewed_at": "2026-11-04T07:51:10.212323+00:00",
+    "reviewer": "Cert coding worker",
+    "independent_of_current_grader_feedback": true,
+    "source_only": true,
+    "semantic_assessment": "instruction-consistent by inspection; runtime unverified",
+    "notes": "Registers kms-key via KmsRelatedFilter; action sets KmsMasterKeyId for each topic and supports state=false. No test/harness paths or bypass. Three variants share identical executable action/filter structure; variant 0 also overrides filter permissions. Alias attribute handling inherited from supplied KmsRelatedFilter."
+  },
+  "002391-0": {
+    "reviewed_at": "2026-11-04T07:51:10.212325+00:00",
+    "reviewer": "Cert coding worker",
+    "independent_of_current_grader_feedback": true,
+    "source_only": true,
+    "semantic_assessment": "instruction-consistent by inspection; runtime unverified",
+    "notes": "Groups overlapping primary IDs and aliases, prefers PYSEC independent of service order, unions identifiers excluding representative ID, preserves metadata through dataclasses.replace. No test/harness changes. Transitive grouping follows disjoint component invariant."
+  },
+  "002391-1": {
+    "reviewed_at": "2026-11-04T07:51:10.212326+00:00",
+    "reviewer": "Cert coding worker",
+    "independent_of_current_grader_feedback": true,
+    "source_only": true,
+    "semantic_assessment": "instruction-consistent by inspection; runtime unverified",
+    "notes": "Groups overlapping primary IDs and aliases, prefers PYSEC independent of service order, unions identifiers excluding representative ID, preserves metadata through dataclasses.replace. No test/harness changes. Transitive grouping follows disjoint component invariant."
+  },
+  "002391-2": {
+    "reviewed_at": "2026-11-04T07:51:10.212327+00:00",
+    "reviewer": "Cert coding worker",
+    "independent_of_current_grader_feedback": true,
+    "source_only": true,
+    "semantic_assessment": "instruction-consistent by inspection; runtime unverified",
+    "notes": "Groups overlapping primary IDs and aliases, prefers PYSEC independent of service order, unions identifiers excluding representative ID, preserves metadata through dataclasses.replace. No test/harness changes. Transitive grouping follows disjoint component invariant. Singleton branch keeps original aliases, including a possible self ID; instruction ambiguity outside duplicate case remains."
+  },
+  "002391-3": {
+    "reviewed_at": "2026-11-04T07:51:10.212328+00:00",
+    "reviewer": "Cert coding worker",
+    "independent_of_current_grader_feedback": true,
+    "source_only": true,
+    "semantic_assessment": "instruction-consistent by inspection; runtime unverified",
+    "notes": "Groups overlapping primary IDs and aliases, prefers PYSEC independent of service order, unions identifiers excluding representative ID, preserves metadata through dataclasses.replace. No test/harness changes. Transitive grouping follows disjoint component invariant."
+  },
+  "002139-0": {
+    "reviewed_at": "2026-11-04T07:51:10.212329+00:00",
+    "reviewer": "Cert coding worker",
+    "independent_of_current_grader_feedback": true,
+    "source_only": true,
+    "semantic_assessment": "instruction-consistent by inspection; runtime unverified",
+    "notes": "Registers gs fetcher. Uses Google storage client, strips leading slash, checks network before operations, handles missing object and missing/zero output, removes zero file, and checks blob existence. No test/harness changes. Does not cache client or expose reference-specific gcp_client/logger; those are not explicit instruction requirements. Status is semantic review, not an executed correctness claim."
+  },
+  "002139-1": {
+    "reviewed_at": "2026-11-04T07:51:10.212332+00:00",
+    "reviewer": "Cert coding worker",
+    "independent_of_current_grader_feedback": true,
+    "source_only": true,
+    "semantic_assessment": "instruction-consistent by inspection; runtime unverified",
+    "notes": "Registers gs fetcher. Uses Google storage client, strips leading slash, checks network before operations, handles missing object and missing/zero output, removes zero file, and checks blob existence. No test/harness changes. Does not cache client or expose reference-specific gcp_client/logger; those are not explicit instruction requirements. Status is semantic review, not an executed correctness claim."
+  },
+  "002139-2": {
+    "reviewed_at": "2026-11-04T07:51:10.212334+00:00",
+    "reviewer": "Cert coding worker",
+    "independent_of_current_grader_feedback": true,
+    "source_only": true,
+    "semantic_assessment": "instruction-consistent by inspection; runtime unverified",
+    "notes": "Registers gs fetcher. Uses Google storage client, strips leading slash, checks network before operations, handles missing object and missing/zero output, removes zero file, and checks blob existence. No test/harness changes. Does not cache client or expose reference-specific gcp_client/logger; those are not explicit instruction requirements. Status is semantic review, not an executed correctness claim. Optional dependency import inside try can leave NotFound unbound if that import fails; supported dependency-present path is plausible."
+  },
+  "002139-3": {
+    "reviewed_at": "2026-11-04T07:51:10.212335+00:00",
+    "reviewer": "Cert coding worker",
+    "independent_of_current_grader_feedback": true,
+    "source_only": true,
+    "semantic_assessment": "instruction-consistent by inspection; runtime unverified",
+    "notes": "Registers gs fetcher. Uses Google storage client, strips leading slash, checks network before operations, handles missing object and missing/zero output, removes zero file, and checks blob existence. No test/harness changes. Does not cache client or expose reference-specific gcp_client/logger; those are not explicit instruction requirements. Status is semantic review, not an executed correctness claim."
+  }
+}

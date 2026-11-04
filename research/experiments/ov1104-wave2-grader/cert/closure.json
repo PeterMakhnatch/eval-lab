@@ -1,0 +1,23 @@
+{
+  "observed_at": "2026-11-04T08:21:00.900565+00:00",
+  "stop_command": [
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/modal",
+    "app",
+    "stop",
+    "--yes",
+    "ap-mypHhQj6Qhylr8IfWxBwUz"
+  ],
+  "stop_exit_code": 0,
+  "owned_apps": [
+    {
+      "app_id": "ap-mypHhQj6Qhylr8IfWxBwUz",
+      "description": "ov1104-wave2-grader-cert",
+      "state": "stopped",
+      "tasks": "0",
+      "created_at": "2026-11-04 02:48:09-05:00",
+      "stopped_at": "2026-11-04 03:19:52-05:00"
+    }
+  ],
+  "raw_receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/provider-apps-post-stop.json",
+  "raw_sha256": "6753d64e66abd0f35920961a6ec3c9f976f6e57581fc32d09930fbdd9ac8bf9b"
+}

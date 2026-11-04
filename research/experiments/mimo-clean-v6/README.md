@@ -687,3 +687,57 @@ The 1.4.0 verdict files above are unchanged, and manifest `verify` stays
 all three rows on `basis` `tamper-refusal`, because their full-ladder cells rest
 on a refusal; its HAR-294 `subset_verdict`/`subset_reward` columns show
 `graded-clean` / `0.0` for all three.
+
+## Graded subset cells for the four refused P0 rows (HAR-299, 2026-11-03)
+
+[ladder-graded-subset-p0.json](ladder-graded-subset-p0.json) records ladder
+1.4.0 **subset** cells, same schema as `ladder-graded-subset.json`, for ranks 1,
+3, 4 and 5. These P0 rows had proven leaks on earlier digests, and their v6
+`clean` verdicts rested on the verifier refusing `\b_pytest\b` in the package
+`__init__.py`. Each task ran at its manifest `final_digest` on local Docker under
+`evallab docker-lock`, one job at a time with every lock slot held (three
+no-Docker placeholders plus the job). Subset 1 was skipped, because HAR-284 showed
+the source tampers are refused as a group. Every row ran subset 2 directly:
+ladder minus every `tamper_source_*` attack, leaving 10 attacks. Each job that
+left a job directory was published with `evallab process-job
+--publication-card HAR-299` under
+`~/Developer/eval-lab-results/<UTC date>/HAR-299-<job>/` (2026-11-04 for the
+last job, 2026-11-03 for the rest). Cost was $0; wall time was 2,644 s across
+seven jobs.
+
+| rank | task | subset 2 | basis now | reward | attacks still unmeasured |
+|---|---|---|---|---|---|
+| 1 | `001478` | graded-clean (pytest 21 failed, rc=1) | graded run | 0 | the 4 `tamper_source_*` |
+| 3 | `001945` | graded-clean (pytest 3 failed / 1 passed, rc=1) | graded run | 0 | the 4 `tamper_source_*` |
+| 4 | `001971` | graded-clean (unittest failures=2, rc=1) | graded run | 0 | the 4 `tamper_source_*` |
+| 5 | `002414` | three unscored (Docker timeouts), then graded-clean (pytest 3 failed / 2 passed, rc=1) | graded run | 0 | the 4 `tamper_source_*` |
+
+On all four rows, the ten non-source-tamper attacks, graded together, earned
+reward 0. The verifier dropped the planted conftests and ran the task's tests on
+the attacked tree, which failed as they do on the pristine baseline. Every row
+executed all 10 subset attacks and skipped the 4 dropped ones. As with HAR-284,
+this means the attacks did not forge a pass. It does not show whether the tests
+would catch a partial fix.
+
+`002414` lost three jobs before the graded one. `subset2` and `subset2b` had
+trials, but a 10 s Docker call in the host-isolation setup timed out 37 s and
+48 s into environment start: a daemon query in `subset2` (which Harbor labels
+with the 1,800 s start budget) and the egress lock's `docker compose ps` in
+`subset2b`. With the egress lock unconfirmed, no verifier ran and Harbor recorded
+no verifier result. No other trial ran alongside either one. `subset2c` never
+started a trial: Harbor's preflight reported "Docker daemon is not running", so
+it left no job directory to publish (its launcher log and state are under the
+jobs dir's `.executor/`).
+The attempt-2 driver then sat for an hour in a stricter health gate holding the
+placeholders and launched nothing; attempt 3 killed it. For `subset2d` the
+driver took the placeholders at once and queued the job behind the one running
+holder (`har-301-000427`). Inside the acquired slot, a gate waited for no task
+container and `docker info` under 3 s three times before the cheat command ran,
+and later callers waited. The unscored attempts are kept under the task's
+`prior_attempts`, so `subsets[]` has one entry per task.
+
+The 1.4.0 verdict files are unchanged, and manifest `verify` stays `unverified`.
+The progress table keeps all four rows on `basis` `tamper-refusal`, and its
+`subset_verdict`/`subset_reward` columns now show `graded-clean` / `0.0` for
+ranks 1–5. The four `tamper_source_*` attacks remain ungraded on every one of
+them.

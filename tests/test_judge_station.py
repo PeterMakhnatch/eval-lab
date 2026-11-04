@@ -20,7 +20,7 @@ from evallab.line.io import digest as line_digest
 from evallab.production import judge_station as js
 from evallab.production import judge_web
 from evallab.production.run_atlas import AtlasRun
-from evallab.rollout_admission import MAX_DEPTH
+from evallab.rollout_admission import DOCUMENT_DEPTH
 
 SECRET_SOURCE = "cheatbench-actions-v1"
 
@@ -1425,7 +1425,7 @@ def _single_file(directory: str, filename: str) -> Any:
 
 def _too_deep(trial: Path) -> None:
     nested: dict[str, Any] = {"note": "no split key at all"}
-    for _ in range(MAX_DEPTH + 2):
+    for _ in range(DOCUMENT_DEPTH + 2):
         nested = {"inner": nested}
     _write_json(trial, "config.json", nested)
 

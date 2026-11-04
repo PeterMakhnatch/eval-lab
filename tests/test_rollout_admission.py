@@ -30,23 +30,25 @@ class Registry:
         {"a": {"b": {"split": "test"}}},
         {"tasks": [{"split": "test"}]},
         {"metadata": {"split": "Test"}},
+        {"steps": [{"tool_calls": [{"arguments": {"split": "test"}}]}]},
     ],
 )
 def test_any_split_that_is_not_exactly_dev_is_refused(value: dict) -> None:
     assert ra.declares_non_dev(value)
 
 
-@pytest.mark.parametrize(
-    "value",
-    [{}, {"split": "dev"}, {"split": " DEV "}, {"split": None}, {"steps": [{"split": "test"}]}],
-)
-def test_dev_or_absent_splits_and_agent_written_steps_are_accepted(value: dict) -> None:
+@pytest.mark.parametrize("value", [{}, {"split": "dev"}, {"split": " DEV "}, {"split": None}])
+def test_dev_or_absent_splits_are_accepted(value: dict) -> None:
     assert not ra.declares_non_dev(value)
+
+
+def test_a_split_inside_agent_written_steps_is_refused_too() -> None:
+    assert ra.declares_non_dev({"steps": [{"split": "test"}]})
 
 
 def test_a_document_nested_past_the_limit_is_refused_even_without_a_split() -> None:
     nested: dict = {"note": 1}
-    for _ in range(ra.MAX_DEPTH + 2):
+    for _ in range(ra.DOCUMENT_DEPTH + 2):
         nested = {"inner": nested}
     assert ra.declares_non_dev(nested)
 
@@ -143,7 +145,7 @@ def test_a_bundle_without_a_trajectory_is_admitted_only_when_asked(tmp_path: Pat
 def test_a_json_too_deep_to_parse_is_an_unreadable_refusal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def too_deep(_text: str) -> object:
+    def too_deep(_text: str, **_options: object) -> object:
         raise RecursionError("maximum recursion depth exceeded")
 
     monkeypatch.setattr(ra.json, "loads", too_deep)

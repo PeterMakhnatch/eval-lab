@@ -80,9 +80,8 @@ def test_check_never_leaves_a_stale_pass_after_a_crash(
     code = cli.run_cli(["line", "check", str(batch), "--json"], workspace=fixture_spec.parent)
     assert code == 2
     assert read_json(batch / "check.json")["passed"] is False
-    assert {c["status"] for c in read_json(batch / "scoreboard.json")["quality_checks"]} == {
-        "PENDING"
-    }
+    # the refused check is a finished failing result everywhere, never a stale pass
+    assert {c["status"] for c in read_json(batch / "scoreboard.json")["quality_checks"]} == {"FAIL"}
 
 
 @pytest.mark.parametrize(

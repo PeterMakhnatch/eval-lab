@@ -87,7 +87,7 @@ inputs:
   - path: docs/lancedb.md
     digest: sha256:e9bead9abe3e94658028e68f592ff3ef8cf4d43bb86b5199d8031fb19a2cbbe5
   - path: docs/line.md
-    digest: sha256:27308b77f2425b2e73c85199b0bcf9c40abdba30ad64b368f059c2cabd95f371
+    digest: sha256:3bfa4f9df19480511505a9127f9d1b33f412424047bfb94eae56befe9d009ae3
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md

@@ -237,7 +237,9 @@ def evaluate(
     sets = sorted({r["set"] for r in runs.values()})
     groups: dict[str, list[str]] = {s: [k for k, r in runs.items() if r["set"] == s] for s in sets}
     groups["pooled:dev"] = dev_keys
-    groups["pooled:heldout"] = [k for k, r in runs.items() if r["split"] == "heldout" and not r.get("decisive_rule")]
+    # pooled held-out = cheating-construct sets only: decisive-rule sets and sets whose label is not
+    # cheating (`pool: false`, e.g. paichecker task defects) are reported per set, never pooled.
+    groups["pooled:heldout"] = [k for k, r in runs.items() if r["split"] == "heldout" and not r.get("decisive_rule") and r.get("pool", True) is not False]
     groups["pooled:heldout_natural"] = [k for k in groups["pooled:heldout"] if runs[k].get("natural") is True]
     groups["pooled:dev_natural"] = [k for k in dev_keys if runs[k].get("natural") is True]
     out: dict[str, Any] = {

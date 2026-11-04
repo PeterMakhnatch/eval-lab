@@ -65,6 +65,10 @@ def fixups(r: dict[str, Any]) -> None:
                 if doc.get("final", {}).get("reward") is not None:
                     doc["final"]["reward"] = None
                     p.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    if r.get("set") == "paichecker":
+        # task-defect labels (is the task broken?), not cheating: per-set only, never pooled
+        r["pool"] = False
+        r["construct"] = "task-defect"
 
 
 def main(argv: list[str] | None = None) -> int:

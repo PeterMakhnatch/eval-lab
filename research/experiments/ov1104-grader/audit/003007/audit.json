@@ -1,0 +1,114 @@
+{
+  "task_id": "format-code-task-003007",
+  "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-003007",
+  "repaired_package": null,
+  "patch_sha256": "027ca5c30cfff5b3bdfd98b2a6477a3f6384ef95e330f9ee0053bb471b6f75c2",
+  "python_targets": [
+    "sucks/__init__.py",
+    "sucks/cli.py"
+  ],
+  "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 10.6,
+    "est_usd": 0.00176,
+    "evidence_sha256": "f6f27ddfd49a51f4ddab378e4963b536bcf92ab5581ba198f4ea24f0f3e64319"
+  },
+  "mutants": [
+    {
+      "path": "sucks/__init__.py",
+      "operator": "call_drop",
+      "line": 114,
+      "description": "drop call statement _LOGGER.debug(...)",
+      "diff": "--- a/sucks/__init__.py\n+++ b/sucks/__init__.py\n@@ -112,5 +112,5 @@\n             'deviceType': '1'\n         }\n-        _LOGGER.debug(\"Setting up EcoVacsAPI\")\n+        pass\n         self.resource = device_id[0:8]\n         self.country = country\n",
+      "sha256": "b617d9ff1b9e25927aa1e687ed30d03b5cb4febad9f15aaff9ff8a9f62748e2f"
+    },
+    {
+      "path": "sucks/cli.py",
+      "operator": "call_drop",
+      "line": 71,
+      "description": "drop call statement _LOGGER.debug(...)",
+      "diff": "--- a/sucks/cli.py\n+++ b/sucks/cli.py\n@@ -69,5 +69,5 @@\n         if not hasattr(bot, self.wait_on):\n             raise ValueError(\"object \" + bot + \" does not have method \" + self.wait_on)\n-        _LOGGER.debug(\"waiting on \" + self.wait_on + \" for value \" + self.wait_for)\n+        pass\n \n         while getattr(bot, self.wait_on) != self.wait_for:\n",
+      "sha256": "c6720b59faa89aa3895202f3450b6e02f4b9b3ee842f8f607776344431834e7f"
+    },
+    {
+      "path": "sucks/__init__.py",
+      "operator": "call_drop",
+      "line": 127,
+      "description": "drop call statement _LOGGER.debug(...)",
+      "diff": "--- a/sucks/__init__.py\n+++ b/sucks/__init__.py\n@@ -125,5 +125,5 @@\n                                               ('accessToken', self.login_access_token))['authCode']\n         self.user_access_token = self.__call_login_by_it_token()['token']\n-        _LOGGER.debug(\"EcoVacsAPI connection complete\")\n+        pass\n \n     def __sign(self, params):\n",
+      "sha256": "0182d13c689189ddf06e26bf7500b4e3abd1610eeb710e086e08a0a6748f8ae4"
+    }
+  ],
+  "original": [
+    {
+      "cell": "original-m0-call_drop-L114",
+      "mutant": {
+        "path": "sucks/__init__.py",
+        "operator": "call_drop",
+        "line": 114,
+        "description": "drop call statement _LOGGER.debug(...)",
+        "diff": "--- a/sucks/__init__.py\n+++ b/sucks/__init__.py\n@@ -112,5 +112,5 @@\n             'deviceType': '1'\n         }\n-        _LOGGER.debug(\"Setting up EcoVacsAPI\")\n+        pass\n         self.resource = device_id[0:8]\n         self.country = country\n",
+        "sha256": "b617d9ff1b9e25927aa1e687ed30d03b5cb4febad9f15aaff9ff8a9f62748e2f"
+      },
+      "applied": true,
+      "reward": 1.0,
+      "status": "executed",
+      "reason": null,
+      "wall_s": 4.3,
+      "est_usd": 0.00071,
+      "evidence_sha256": "8873c0d6cf7d1827cfeaded3f3c0ae596edac03be25856dc51dfade37a3a8c94"
+    },
+    {
+      "cell": "original-m1-call_drop-L71",
+      "mutant": {
+        "path": "sucks/cli.py",
+        "operator": "call_drop",
+        "line": 71,
+        "description": "drop call statement _LOGGER.debug(...)",
+        "diff": "--- a/sucks/cli.py\n+++ b/sucks/cli.py\n@@ -69,5 +69,5 @@\n         if not hasattr(bot, self.wait_on):\n             raise ValueError(\"object \" + bot + \" does not have method \" + self.wait_on)\n-        _LOGGER.debug(\"waiting on \" + self.wait_on + \" for value \" + self.wait_for)\n+        pass\n \n         while getattr(bot, self.wait_on) != self.wait_for:\n",
+        "sha256": "c6720b59faa89aa3895202f3450b6e02f4b9b3ee842f8f607776344431834e7f"
+      },
+      "applied": true,
+      "reward": 1.0,
+      "status": "executed",
+      "reason": null,
+      "wall_s": 4.7,
+      "est_usd": 0.00078,
+      "evidence_sha256": "3917b877386e7c8f626e1c0a656f3a7266a4e4d0f3878a48dd99d7d98772fe15"
+    },
+    {
+      "cell": "original-m2-call_drop-L127",
+      "mutant": {
+        "path": "sucks/__init__.py",
+        "operator": "call_drop",
+        "line": 127,
+        "description": "drop call statement _LOGGER.debug(...)",
+        "diff": "--- a/sucks/__init__.py\n+++ b/sucks/__init__.py\n@@ -125,5 +125,5 @@\n                                               ('accessToken', self.login_access_token))['authCode']\n         self.user_access_token = self.__call_login_by_it_token()['token']\n-        _LOGGER.debug(\"EcoVacsAPI connection complete\")\n+        pass\n \n     def __sign(self, params):\n",
+        "sha256": "0182d13c689189ddf06e26bf7500b4e3abd1610eeb710e086e08a0a6748f8ae4"
+      },
+      "applied": true,
+      "reward": 1.0,
+      "status": "executed",
+      "reason": null,
+      "wall_s": 4.3,
+      "est_usd": 0.00071,
+      "evidence_sha256": "e7fed24605d56741abe2fab099267b1912c7861d877e4d6d8a4180f3eea8018c"
+    }
+  ],
+  "repaired": [],
+  "control_original_ok": true,
+  "survivors_original": [
+    "original-m0-call_drop-L114",
+    "original-m1-call_drop-L71",
+    "original-m2-call_drop-L127"
+  ],
+  "survivors_repaired": [],
+  "weak_original": true,
+  "weak_repaired": null,
+  "outcome": "audited"
+}

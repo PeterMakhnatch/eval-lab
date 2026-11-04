@@ -1,0 +1,142 @@
+[
+  {
+    "task_id": "format-code-task-000682",
+    "worker": "a-argon",
+    "patch_sha256": "cdb24ce0391e908e6aba7eacbbd8f1eb76a265eff96fa91e6cbb665d9329d585",
+    "original_reward": 0.0,
+    "patch_applied": true,
+    "test_aware": false,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-a-argon/result.json"
+  },
+  {
+    "task_id": "format-code-task-000682",
+    "worker": "a-flash",
+    "patch_sha256": "3b838bf7f6eaccf576b8e512610ee80c5ca6230e940cba7b34091c32665515bd",
+    "original_reward": 1.0,
+    "patch_applied": true,
+    "test_aware": false,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-a-flash/result.json"
+  },
+  {
+    "task_id": "format-code-task-000682",
+    "worker": "a-fable",
+    "patch_sha256": "d9df0b652aeb812a4d99fb2f2e138a20f2904e74a8552baeaf7516781731d1a0",
+    "original_reward": 0.0,
+    "patch_applied": true,
+    "test_aware": false,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-a-fable/result.json"
+  },
+  {
+    "task_id": "format-code-task-000682",
+    "worker": "a-flash2",
+    "patch_sha256": "31fcfadeb2b840cdb0c35e4f2305e5e7b19c6e4e369f4ff2e2630aea09e6d75f",
+    "original_reward": 0.0,
+    "patch_applied": true,
+    "test_aware": false,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-a-flash2/result.json"
+  },
+  {
+    "task_id": "format-code-task-000682",
+    "worker": "b-argon",
+    "patch_sha256": "6cd6702a264f4c0b6bae18b6fc0e74648f8a14b5f80c04b4a519fe4843f606f6",
+    "original_reward": 1.0,
+    "patch_applied": true,
+    "test_aware": true,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-b-argon/result.json"
+  },
+  {
+    "task_id": "format-code-task-000682",
+    "worker": "b-flash",
+    "patch_sha256": "341648598f802bbcff07d8a9fbd9e6136798591287f481c7195805febb817883",
+    "original_reward": 1.0,
+    "patch_applied": true,
+    "test_aware": true,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-b-flash/result.json"
+  },
+  {
+    "task_id": "format-code-task-000682",
+    "worker": "b-fable",
+    "patch_sha256": "5ed27f0986697ffdda2850a394514992a82bc21dfb856a4c2f7d75e92485152e",
+    "original_reward": 1.0,
+    "patch_applied": true,
+    "test_aware": true,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000682-b-fable/result.json"
+  },
+  {
+    "task_id": "format-code-task-002139",
+    "worker": "a-argon",
+    "patch_sha256": "6b76a3543d8f04bd46c0b963198fb327423a3e89b39c4c72122230630e0df36f",
+    "original_reward": 1.0,
+    "patch_applied": true,
+    "test_aware": false,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002139-a-argon/result.json"
+  },
+  {
+    "task_id": "format-code-task-002139",
+    "worker": "a-flash",
+    "patch_sha256": "ebc56bc36f8cee1bb0cb9d53b44b1e83ddd99247785ceed469ee3cd889cbd57f",
+    "original_reward": 1.0,
+    "patch_applied": true,
+    "test_aware": false,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002139-a-flash/result.json"
+  },
+  {
+    "task_id": "format-code-task-002139",
+    "worker": "a-fable",
+    "patch_sha256": "853a59a6f10e1aabf75aa00a7ca2d40d02c9f6365d8267d9cf74c2f9dd596a52",
+    "original_reward": 1.0,
+    "patch_applied": true,
+    "test_aware": false,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002139-a-fable/result.json"
+  },
+  {
+    "task_id": "format-code-task-000838",
+    "worker": "a-argon",
+    "patch_sha256": "4cd5beb18adabc71251813f921dedd0d1794ee8bf30b84d43d3b04bd798b2287",
+    "original_reward": 0.0,
+    "patch_applied": true,
+    "test_aware": false,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000838-a-argon/result.json"
+  },
+  {
+    "task_id": "format-code-task-000838",
+    "worker": "a-flash",
+    "patch_sha256": "0978fd6c9cf4c2176732a495b26190cedae9f904e8b60a383f6128610a8d6e4b",
+    "original_reward": 0.0,
+    "patch_applied": true,
+    "test_aware": false,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000838-a-flash/result.json"
+  },
+  {
+    "task_id": "format-code-task-000838",
+    "worker": "a-fable",
+    "patch_sha256": "905dd9106730f9d9dbed97cad92874a86681d5bd7c61b3789a153e9f7d14030d",
+    "original_reward": 1.0,
+    "patch_applied": true,
+    "test_aware": false,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-000838-a-fable/result.json"
+  },
+  {
+    "task_id": "format-code-task-002391",
+    "worker": "a-flash",
+    "patch_sha256": "b259e89bbc1da753c3e81a891677c00eed21e39f952db13cc3a3929eb8c9fe8c",
+    "original_reward": 1.0,
+    "patch_applied": true,
+    "test_aware": false,
+    "grader": "original",
+    "cell_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/grade-002391-a-flash/result.json"
+  }
+]

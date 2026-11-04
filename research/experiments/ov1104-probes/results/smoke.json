@@ -1,0 +1,106 @@
+{
+ "file": "/private/tmp/ov1104/probes/workers/modal-extract/smoke/smoke.npz",
+ "N": 12,
+ "meta": {
+  "model": "Qwen/Qwen3-8B",
+  "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+  "layers": [
+   9,
+   18,
+   27
+  ],
+  "window": 4096,
+  "max_windows": 12,
+  "render_sha": "fb1f89ce43f13f8ab6665fd9128d4fdeac68dd42d5c6f0792e31f3837826bb93",
+  "extract_sha": "2face0c5ee9f5f1f8685def74e6164b217282c953be232c4fb6f3340f0e29191",
+  "gpu": "NVIDIA A10",
+  "gpu_name": "NVIDIA A10",
+  "modal_app": "ap-KiTtJbpymAvJRhnkOvXAdM",
+  "started_utc": "2026-11-04T05:38:00Z",
+  "finished_utc": "2026-11-04T05:38:42Z",
+  "set": "terminal-wrench-smoke12",
+  "n_calls": 2,
+  "n_containers": 2,
+  "gpu_proc_secs": 34.0,
+  "wall_secs": 42.0,
+  "est_billed_secs": 180.6,
+  "usd_per_gpu_sec": 0.000306,
+  "est_usd": 0.0553
+ },
+ "shapes": {
+  "run_keys": [
+   12
+  ],
+  "run_mean": [
+   12,
+   3,
+   4096
+  ],
+  "run_max": [
+   12,
+   3,
+   4096
+  ],
+  "win_mean": [
+   12,
+   12,
+   3,
+   4096
+  ],
+  "win_max": [
+   12,
+   12,
+   3,
+   4096
+  ],
+  "n_windows": [
+   12
+  ],
+  "win_steps": [
+   12,
+   12,
+   2
+  ],
+  "win_tokens": [
+   12,
+   12
+  ],
+  "n_tokens": [
+   12
+  ]
+ },
+ "dtypes": {
+  "run_keys": "<U52",
+  "run_mean": "float16",
+  "run_max": "float16",
+  "win_mean": "float16",
+  "win_max": "float16",
+  "n_windows": "int16",
+  "win_steps": "int32",
+  "win_tokens": "int32",
+  "n_tokens": "int32"
+ },
+ "run_mean_max_rel_err": 0.0005984857765070131,
+ "n_windows_hist": {
+  "1": 2,
+  "2": 6,
+  "3": 3,
+  "4": 1
+ },
+ "n_tokens": [
+  5459,
+  12158,
+  3942,
+  5621,
+  10968,
+  4693,
+  5368,
+  7977,
+  13386,
+  2807,
+  8999,
+  6196
+ ],
+ "fails": [],
+ "ok": true
+}

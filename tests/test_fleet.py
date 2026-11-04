@@ -376,3 +376,12 @@ def test_unverifiable_complete_record_stops_the_lane(
     supervisor.tick()
     assert store.get(lane.name).status == "route-violation"
     assert signals == [signal.SIGKILL]
+
+
+def test_binary_result_is_unverified_instead_of_crashing_the_supervisor(tmp_path: Path):
+    lane = make_lane(tmp_path)
+    (lane.directory / "RESULT.md").write_bytes(b"\xff\xfeinvalid result")
+    result = verify(lane)
+    assert result["verified"] is False
+    assert result["prs"] == []
+    assert any("RESULT.md" in reason for reason in result["reasons"])

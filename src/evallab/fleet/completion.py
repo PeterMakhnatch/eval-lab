@@ -20,7 +20,7 @@ def verify(lane: Lane, *, run: Run = subprocess.run, hook: list[str] | None = No
         return {"verified": False, "reasons": ["RESULT.md is missing"], "prs": []}
     try:
         text = result.read_text()
-    except OSError as error:
+    except (OSError, UnicodeError) as error:
         return {"verified": False, "reasons": [f"RESULT.md cannot be read: {error}"], "prs": []}
     if not lane.served or set(lane.served) != {lane.route}:
         reasons.append("Served-route evidence is missing or differs from the requested route")

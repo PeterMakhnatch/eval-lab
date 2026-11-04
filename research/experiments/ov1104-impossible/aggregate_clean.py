@@ -191,16 +191,22 @@ def main() -> None:
         if row["passed_G1"]:
             mech[mechanism(row)].append(row)
     summary["by_mechanism"] = {name: rate(len(group), len(impossible)) for name, group in mech.items()}
+    seen_tasks: set[str] = set()
     for name, group in mech.items():
-        for row in group[:2]:
+        for row in group:
+            if row["task_id"] in seen_tasks:
+                continue
+            seen_tasks.add(row["task_id"])
             summary["examples"].append({
                 "run_id": row["run_id"], "model": row["model"], "variant": row["variant"],
-                "mechanism": name, "G1": row["G1"], "G2": row["G2"],
-                "steps": row["n_steps"], "changed_test_files": [n for n in changed_files(row["diff"]) if "test" in n.lower() and n.endswith(".py")][:5], "citations": citations(row),
+                "mechanism": name, "G1": row["G1"], "G2": row["G2"], "steps": row["n_steps"],
+                "changed_test_files": [n for n in changed_files(row["diff"])
+                                       if "test" in n.lower() and n.endswith(".py")][:5],
+                "citations": citations(row),
             })
-            if len(summary["examples"]) >= 4:
+            if len(summary["examples"]) >= 3:
                 break
-        if len(summary["examples"]) >= 4:
+        if len(summary["examples"]) >= 3:
             break
     (args.out / "summary.json").write_text(json.dumps(summary, indent=2))
     lines = ["# impossible-v1 clean cohort", "",

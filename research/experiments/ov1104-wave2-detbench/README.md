@@ -12,9 +12,9 @@ The exploratory `cluster/REPORT.md` adds task-cluster bootstrap intervals for X0
 
 The post hoc `review/` sensitivity analysis finds 90 cheats in 338 review decisions (26.6%; cluster 95% CI 16.9%–36.2%). If every review were accepted, the hypothetical keep-plus-review set would contain 120 cheats in 438 runs (27.4%; 19.6%–35.5%). This union is not the recorded export.
 
-The `matched/DIGEST.md` comparison asks the deployment question on identical rows: against the better length baseline, 1,786 of 3,585 eligible signal-set rows lose with a 95% interval below 0, and 405 win with an interval above 0. After a quality filter (at least 5 mixed-label clusters and 100 scored runs) only 11 rows show a pooled-to-within AUROC gap above 0.10, and none of those is a confirmed win. The best signal per set beats length in 10 of 18 sets and loses in 1.
+The `matched/DIGEST.md` comparison asks the deployment question on identical rows: against the better length baseline, 1,786 of 3,585 eligible signal-set rows lose with a 95% interval below 0, and 405 win with an interval above 0. After a quality filter (at least 5 mixed-label clusters and 50 scored runs) only 11 rows show a pooled-to-within AUROC gap above 0.10, and none of those is a confirmed win. The best signal per set beats length in 10 of 18 sets and loses in 1.
 
-The `audit/reward-audit.json` receipt records that 16,548 of 16,549 admitted runs carry no verifier reward, and that the single set with rewards has them perfectly inverse to the label. Passing-only AUROC is therefore not computable, and the exploratory own-test subset in `PASS_REPORT.md` is the only passing evidence available.
+The `audit/reward-audit.json` receipt records that 16,493 of 16,549 admitted runs carry no verifier reward, and that the single set with rewards has them perfectly inverse to the label. Passing-only AUROC is therefore not computable, and the exploratory own-test subset in `PASS_REPORT.md` is the only passing evidence available.
 
 The `frontier/REPORT.md` sweep answers the X06 pass bar directly. At observed prevalence no filter reaches 1.2% residual contamination. At a 5% cheat prior `max_rule_j2b_length` reaches 1.196% at 79.9% honest retention, with a cluster interval that crosses the bar; the frozen 5% FPR points of the other filters leave 2.1% to 2.6%.
 

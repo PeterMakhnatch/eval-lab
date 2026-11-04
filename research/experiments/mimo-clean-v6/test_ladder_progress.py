@@ -85,7 +85,14 @@ def _ranking(n: int = 3) -> list[dict[str, str]]:
     ]
 
 
-def _cell(rank: int, decision: str | None, finished: str = "", verdict: str = "clean") -> dict:
+def _cell(
+    rank: int,
+    decision: str | None,
+    finished: str = "",
+    verdict: str = "clean",
+    digest: str | None = None,
+    matches: bool = True,
+) -> dict:
     refused = decision is not None and decision.startswith("tamper signature")
     return {
         "task_id": f"t{rank}",
@@ -97,8 +104,21 @@ def _cell(rank: int, decision: str | None, finished: str = "", verdict: str = "c
         "attacks_executed": 14 if refused else 9,
         "wall_seconds": 10 * rank,
         "finished_utc": finished,
+        "final_digest": f"sha256:cell{rank}" if digest is None else digest,
+        "digest_matches_manifest": matches,
         "_source_file": f"f{rank}.json",
     }
+
+
+def _manifest(n: int = 3) -> dict[str, str]:
+    return {f"t{i}": f"sha256:cell{i}" for i in range(1, n + 1)}
+
+
+def _cell_file(tmp_path: Path, cell: dict) -> None:
+    body = {k: v for k, v in cell.items() if k != "_source_file"}
+    (tmp_path / "ladder-a.json").write_text(
+        json.dumps({"schema": SCHEMA, "tasks": [body]}), encoding="utf-8"
+    )
 
 
 def test_ladder_progress_a_refusal_cell_names_its_file_and_a_graded_cell_does_not() -> None:
@@ -152,7 +172,7 @@ def test_ladder_progress_cell_files_with_another_schema_are_ignored(tmp_path: Pa
     (tmp_path / "ladder-b.json").write_text(
         json.dumps({"schema": "other/v1", "tasks": [cell]}), encoding="utf-8"
     )
-    cells = MODULE.read_cells(tmp_path, tmp_path)
+    cells = MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
     assert [c["_source_file"] for c in cells] == ["ladder-a.json"]
 
 
@@ -197,7 +217,8 @@ def test_ladder_progress_an_unscored_subset_reward_reads_empty() -> None:
 
 
 def test_ladder_progress_subset_columns_read_none_without_a_subset_file(tmp_path: Path) -> None:
-    rows = assemble(_ranking(), [], MODULE.read_subset_cells(tmp_path, tmp_path))
+    subsets = MODULE.read_subset_cells(tmp_path, tmp_path, manifest=_manifest())
+    rows = assemble(_ranking(), [], subsets)
     assert [(row["subset_verdict"], row["subset_reward"]) for row in rows] == [("none", "")] * 3
 
 
@@ -207,6 +228,8 @@ def test_ladder_progress_each_reader_keeps_only_its_schema(tmp_path: Path) -> No
         "tasks": [
             {
                 "task_id": "t1",
+                "final_digest": "sha256:cell1",
+                "digest_matches_manifest": True,
                 "subsets": [{"subset": 1, "verdict": "still-refused", "reward": 0.0}],
             }
         ],
@@ -217,14 +240,83 @@ def test_ladder_progress_each_reader_keeps_only_its_schema(tmp_path: Path) -> No
     }
     (tmp_path / "ladder-sub.json").write_text(json.dumps(subset_file), encoding="utf-8")
     (tmp_path / "ladder-cov.json").write_text(json.dumps(cell_file), encoding="utf-8")
-    assert [c["_source_file"] for c in MODULE.read_cells(tmp_path, tmp_path)] == [
-        "ladder-cov.json"
-    ]
-    subsets = MODULE.read_subset_cells(tmp_path, tmp_path)
+    cells = MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    assert [c["_source_file"] for c in cells] == ["ladder-cov.json"]
+    subsets = MODULE.read_subset_cells(tmp_path, tmp_path, manifest=_manifest(1))
     assert [(s["task_id"], s["subset"], s["verdict"]) for s in subsets] == [
         ("t1", 1, "still-refused")
     ]
     assert subsets[0]["_source_file"] == "ladder-sub.json"
+
+
+def test_ladder_progress_manifest_reads_each_task_digest(tmp_path: Path) -> None:
+    (tmp_path / "manifest.csv").write_text(
+        "task_id,final_digest\nt1,sha256:a\nt2,sha256:b\n", encoding="utf-8"
+    )
+    assert MODULE.read_manifest(tmp_path) == {"t1": "sha256:a", "t2": "sha256:b"}
+
+
+def test_ladder_progress_a_missing_manifest_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ProgressError, match="manifest is missing"):
+        MODULE.read_manifest(tmp_path)
+
+
+def test_ladder_progress_a_repeated_manifest_task_is_refused(tmp_path: Path) -> None:
+    (tmp_path / "manifest.csv").write_text(
+        "task_id,final_digest\nt1,sha256:a\nt1,sha256:b\n", encoding="utf-8"
+    )
+    with pytest.raises(ProgressError, match="repeats a task_id"):
+        MODULE.read_manifest(tmp_path)
+
+
+def test_ladder_progress_a_cell_at_the_manifest_digest_is_accepted(tmp_path: Path) -> None:
+    _cell_file(tmp_path, _cell(1, "rc=0 runner=x"))
+    cells = MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    assert [(c["task_id"], c["final_digest"]) for c in cells] == [("t1", "sha256:cell1")]
+
+
+def test_ladder_progress_a_cell_at_another_digest_is_refused(tmp_path: Path) -> None:
+    _cell_file(tmp_path, _cell(1, "rc=0 runner=x", digest="sha256:stale"))
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "t1" in message
+    assert "sha256:stale" in message
+    assert "sha256:cell1" in message
+
+
+def test_ladder_progress_a_cell_flagged_as_not_matching_the_manifest_is_refused(
+    tmp_path: Path,
+) -> None:
+    _cell_file(tmp_path, _cell(1, "rc=0 runner=x", matches=False))
+    with pytest.raises(ProgressError, match="digest_matches_manifest") as refused:
+        MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "t1" in message
+    assert "sha256:cell1" in message
+
+
+def test_ladder_progress_a_cell_absent_from_the_manifest_is_refused(tmp_path: Path) -> None:
+    _cell_file(tmp_path, _cell(1, "rc=0 runner=x"))
+    with pytest.raises(ProgressError, match="t1: absent from manifest.csv"):
+        MODULE.read_cells(tmp_path, tmp_path, manifest={})
+
+
+def test_ladder_progress_a_subset_cell_at_another_digest_is_refused(tmp_path: Path) -> None:
+    subset_file = {
+        "schema": MODULE.SUBSET_CELLS_SCHEMA,
+        "tasks": [
+            {
+                "task_id": "t1",
+                "final_digest": "sha256:stale",
+                "digest_matches_manifest": True,
+                "subsets": [{"subset": 1, "verdict": "still-refused", "reward": 0.0}],
+            }
+        ],
+    }
+    (tmp_path / "ladder-sub.json").write_text(json.dumps(subset_file), encoding="utf-8")
+    with pytest.raises(ProgressError, match="sha256:stale"):
+        MODULE.read_subset_cells(tmp_path, tmp_path, manifest=_manifest(1))
 
 
 @pytest.fixture
@@ -235,12 +327,23 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     for path in EXPERIMENT.glob("ladder-*.json"):
         shutil.copy(path, experiment / path.name)
     shutil.copy(EXPERIMENT / "ladder-progress.csv", experiment / "ladder-progress.csv")
+    shutil.copy(EXPERIMENT / "manifest.csv", experiment / "manifest.csv")
     ranking = tmp_path / RANKING
     ranking.parent.mkdir(parents=True)
     shutil.copy(REPO_ROOT / RANKING, ranking)
     monkeypatch.setattr(MODULE, "ROOT", tmp_path)
     monkeypatch.setattr(MODULE, "HERE", experiment)
     return experiment
+
+
+def test_ladder_progress_check_refuses_a_cell_at_another_digest(sandbox: Path) -> None:
+    path = sandbox / "ladder-p0-har244.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    task_id = data["tasks"][0]["task_id"]
+    data["tasks"][0]["final_digest"] = "sha256:stale"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ProgressError, match=task_id):
+        MODULE.main(["--check"])
 
 
 def test_ladder_progress_check_passes_on_committed_table(sandbox: Path) -> None:

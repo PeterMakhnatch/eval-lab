@@ -36,7 +36,7 @@ class Gateway(base.Gateway):
             if current is not None and current.loop is loop and current.process.returncode is None:
                 return current
             process = await asyncio.create_subprocess_exec(
-                "omp", "auth-gateway", "stdio", "--config", str(CONFIG),
+                "omp", "--config", str(CONFIG), "auth-gateway", "stdio",
                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE, limit=1 << 26,
             )

@@ -109,24 +109,30 @@ Worst overshoot when the threshold is tuned on four corpora and applied to the f
 | `max_best_rule_j2b` | 5.3% (c1c5) | 21.1% (c1c5) |
 | `or_best_rule_j2b` | 0.0% (see caveat) | 10.3% (terminal-wrench) |
 
-- **A shared threshold on a length baseline is unusable.** `length_chars` overshoots to 22.7% at a
-  1% target and 34.7% at a 5% target; `length_steps` to 38.7% and 52.0%. All of the worst cases are
-  `cheatbench`. Pooled AUROC for `length_chars` is 0.53, so the ranking looks harmless while the
-  operating point is wrong by one to two orders of magnitude.
-- **The percentile-rank `max` combinations are the most portable objects measured here, and the
-  advantage is much larger at the tight target.** At 1% the best combination overshoots to 1.3-2.1%
-  versus 22.7-38.7% for the length baselines (roughly a 20x difference). At 5% the same combination
-  overshoots to 10.5%, still the best but only about 3x better than the baselines. The mechanism is
-  that the rank is computed against each member's own DEV-negative distribution, so the operating
-  point follows the corpus instead of assuming a shared score scale.
-- **Binary rule signals are not automatically safe.** `l0v_full_any_hard` reads 0.0% at a 1% target
-  but 32.0% at 5% on `cheatbench`: the single "rule fired" value sits between the two targets, so the
-  overshoot appears as soon as the target is loose enough to reach it.
-- **`or_best_rule_j2b` reads 0.0% at 1% for a bad reason.** Its DEV 1%-FPR threshold is `+inf` (the OR
-  fires on more than 1% of DEV negatives even at its lowest non-trivial point), so it flags nothing
-  and cannot overshoot. Treat 0.0% as "not operating", not as portable. This is the same `+inf`
-  artefact that made the earlier "18/20 held-out sets at 5%" claim misleading.
-- **Practical rule:** use the `max` combination rather than a single member; if the corpus family is
-  known, re-derive the threshold per family; and if one threshold must be shared across unknown
-  corpora, expect the realised FPR to be several times the target even for the best signal measured
-  here. A 1% target is the only regime where the combination's FPR stays near the target.
+- **A shared threshold on a length baseline is unusable.** `length_chars` overshoots to
+  22.7% at a 1% target and 34.7% at a 5% target; `length_steps` to 38.7% and 52.0%. All of the
+  worst cases are `cheatbench`. Pooled AUROC for `length_chars` is 0.53, so the ranking looks
+  harmless while the operating point is wrong by one to two orders of magnitude.
+- **The percentile-rank `max` combinations are the most portable objects measured here, and
+  the advantage is much larger at the tight target.** At 1% the best combination overshoots to
+  1.3-2.1% versus 22.7-38.7% for the length baselines (roughly a 20x difference). At 5% the
+  same combination overshoots to 10.5%, still the best but only about 3x better than the
+  baselines. The mechanism is that the rank is computed against each member's own DEV-negative
+  distribution, so the operating point follows the corpus instead of assuming a shared score
+  scale.
+- **Binary rule signals are not automatically safe.** `l0v_full_any_hard` reads 0.0% at a 1%
+  target but 32.0% at 5% on `cheatbench`: the single "rule fired" value sits between the two
+  targets, so the overshoot appears as soon as the target is loose enough to reach it.
+- **`or_best_rule_j2b` reads 0.0% at 1% for a bad reason.** Its DEV 1%-FPR threshold is `+inf`
+  (the OR fires on more than 1% of DEV negatives even at its lowest non-trivial point), so it
+  flags nothing and cannot overshoot. Treat 0.0% as "not operating", not as portable. This is
+  the same `+inf` artefact that made the earlier "18/20 held-out sets at 5%" claim misleading.
+- **Practical rule:** use the `max` combination rather than a single member; if the corpus
+  family is known, re-derive the threshold per family; and if one threshold must be shared
+  across unknown corpora, expect the realised FPR to be several times the target even for the
+  best signal measured here. A 1% target is the only regime where the combination's FPR stays
+  near the target.
+
+The table values above are fixed text tied to the current DEV set; re-running the script
+regenerates the measured tables but does not recompute this paragraph.
+

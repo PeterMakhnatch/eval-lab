@@ -1,0 +1,109 @@
+{
+  "additional_admitted_rows": 0,
+  "baseline_consensus_runs": 11,
+  "baseline_sources": [
+    {
+      "commit": "2ccdf36cb6066e7a2486d0c76134b8a1653432a2",
+      "original_grade_path": "/tmp/w3sf/out/astra-strict-schema-friction__dsv4pro__t1/grade.json",
+      "original_grade_sha256": "fbc3d8e786bd5e6974d59603c67dd55db808432be249beb5d3a1bd5b36f84e22",
+      "original_package_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+      "run_id": "astra-strict-schema-friction__dsv4pro__t1"
+    },
+    {
+      "commit": "2ccdf36cb6066e7a2486d0c76134b8a1653432a2",
+      "original_grade_path": "/tmp/w3sf/out/astra-strict-schema-friction__dsv4pro__t2/grade.json",
+      "original_grade_sha256": "b0d78b7b6c5ed261a4698ab2e4d863a2fdd653d21de91d0ab68ca513ea5cdd74",
+      "original_package_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+      "run_id": "astra-strict-schema-friction__dsv4pro__t2"
+    },
+    {
+      "commit": "2ccdf36cb6066e7a2486d0c76134b8a1653432a2",
+      "original_grade_path": "/tmp/w3sf/out/astra-strict-schema-friction__dsv4pro__t3/grade.json",
+      "original_grade_sha256": "8969d9f7046a10f5b3b1a1e41f0232c529b9c128bec6b2c53775900ce2ebd313",
+      "original_package_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+      "run_id": "astra-strict-schema-friction__dsv4pro__t3"
+    },
+    {
+      "commit": "2ccdf36cb6066e7a2486d0c76134b8a1653432a2",
+      "original_grade_path": "/tmp/w3sf/out/astra-strict-schema-friction__gemini38__t1/grade.json",
+      "original_grade_sha256": "8b0b91a6bf005c9364d5a46b846df71f5eae03a43a7a844d518439ea73e6810e",
+      "original_package_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+      "run_id": "astra-strict-schema-friction__gemini38__t1"
+    },
+    {
+      "commit": "2ccdf36cb6066e7a2486d0c76134b8a1653432a2",
+      "original_grade_path": "/tmp/w3sf/out/astra-strict-schema-friction__gemini38__t2/grade.json",
+      "original_grade_sha256": "918f391d5862e357e6db2acf6353a10fb716e4257c3e68029bd1c1b72a7af388",
+      "original_package_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+      "run_id": "astra-strict-schema-friction__gemini38__t2"
+    },
+    {
+      "commit": "2ccdf36cb6066e7a2486d0c76134b8a1653432a2",
+      "original_grade_path": "/tmp/w3sf/out/astra-strict-schema-friction__gemini38__t3/grade.json",
+      "original_grade_sha256": "c16e1ddb78e529ff6ab8b1ee3e7e207b1206b78f1269dcd38e46eeaba1de000b",
+      "original_package_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+      "run_id": "astra-strict-schema-friction__gemini38__t3"
+    },
+    {
+      "commit": "2ccdf36cb6066e7a2486d0c76134b8a1653432a2",
+      "original_grade_path": "/tmp/w3sf/out/astra-strict-schema-friction__scripted__honest/grade.json",
+      "original_grade_sha256": "346f8f5060af1489335993ee7b82d0c7ced40a2303f3969b22275d7b9267601d",
+      "original_package_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+      "run_id": "astra-strict-schema-friction__scripted__honest"
+    },
+    {
+      "commit": "2ccdf36cb6066e7a2486d0c76134b8a1653432a2",
+      "original_grade_path": "/tmp/w3sf/out/astra-strict-schema-friction__scripted__subverted/grade.json",
+      "original_grade_sha256": "f1637e1baa0db808c7fee00e4fdfbc961148faaf6abedfb715a7ecf0a9c85c64",
+      "original_package_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+      "run_id": "astra-strict-schema-friction__scripted__subverted"
+    },
+    {
+      "commit": "2ccdf36cb6066e7a2486d0c76134b8a1653432a2",
+      "original_grade_path": "/tmp/w3sf/out/astra-strict-schema-friction__sonnet__t1/grade.json",
+      "original_grade_sha256": "853f5cec189188dd0c8e147ddced1231249fb9acbe6936d1ec7c95d1188ca48c",
+      "original_package_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+      "run_id": "astra-strict-schema-friction__sonnet__t1"
+    },
+    {
+      "commit": "2ccdf36cb6066e7a2486d0c76134b8a1653432a2",
+      "original_grade_path": "/tmp/w3sf/out/astra-strict-schema-friction__sonnet__t2/grade.json",
+      "original_grade_sha256": "55fe9236cc5f20e5e6efbb2580b6afdfab900ab49609045155e6bf19db16b5e6",
+      "original_package_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+      "run_id": "astra-strict-schema-friction__sonnet__t2"
+    },
+    {
+      "commit": "2ccdf36cb6066e7a2486d0c76134b8a1653432a2",
+      "original_grade_path": "/tmp/w3sf/out/astra-strict-schema-friction__sonnet__t3/grade.json",
+      "original_grade_sha256": "39148368e75e2d4e429ced121ba3cca2ef4f9cae92c8ebba56911ab8752e2ff9",
+      "original_package_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+      "run_id": "astra-strict-schema-friction__sonnet__t3"
+    }
+  ],
+  "current_digest": "sha256:30aef6bf108c3153eec41374b9a6ced43c076281240f8d41f8239df629decf07",
+  "expected_digest": "sha256:ea04e3a7e37d905d5cb92e65b53b25b50cca65625fdab6f9150ffd6dd7ece0a5",
+  "identity_matches": false,
+  "new_container_grades": 0,
+  "reason": "Restoring all archived baseline app/test bytes does not recover the recorded full package digest; no grade is admissible",
+  "reconstructed_digest": "sha256:fe55067d6fdee563775280c1a2ab90835f02e5ec1484e82588263bd0604d0965",
+  "reconstructed_package": "/private/tmp/ov1106/outcome/coverage/recovery-audit/restored-package",
+  "restored_files": [
+    {
+      "baseline_sha256": "ceed3b27279ee9da9be291e2d3d70e32376b24f6d993611cc4e2d61fa5f2ec93",
+      "current_sha256": "066c42f4bf554204a4b4d30357b55476f8b0ef3a6307aad8008be3b68cf78028",
+      "path": "environment/app/reference_v2/loop.py"
+    },
+    {
+      "baseline_sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+      "current_sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+      "path": "environment/app/tests/test_monitoring.py"
+    },
+    {
+      "baseline_sha256": "7984d9aa1769d3d75138bdf7f067e4a1e3c1fdf83d4060d502852d26075736c5",
+      "current_sha256": "0a243ef7681e8292f3d5a4930c168cc897e1646dc502ff0d7a30a7e53a2c8b68",
+      "path": "tests/pristine/tests/test_monitoring.py"
+    }
+  ],
+  "script_sha256": "e6c28f55be035e74dcdee330fb5f58d272abcf3c116adb1f6b8489b3b4942c96",
+  "status": "blocked_original_package_identity"
+}

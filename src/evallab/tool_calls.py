@@ -327,7 +327,7 @@ def _notebook_edit(arguments: Mapping[str, Any]) -> ToolAction | None:
         return None
     paths = {key: arguments[key] for key in ("file_path", "filepath") if key in arguments}
     path = _clean_path(next(iter(paths.values()), None))
-    if path is None or len(set(paths.values())) != 1:
+    if path is None or any(value != path for value in paths.values()):
         return None
     source = payload.get("source")
     if isinstance(source, list) and all(isinstance(line, str) for line in source):

@@ -369,6 +369,8 @@ def test_glob_with_unrecognised_arguments_is_unknown(arguments: dict[str, Any]) 
         {"file_path": "n.ipynb", "file_edit_payload": {"source": ["x"], "patch": "*** Begin Patch"}},
         {"file_path": "n.ipynb", "filepath": "other.ipynb", "file_edit_payload": {"source": ["x"]}},
         {"file_path": ["a.ipynb"], "file_edit_payload": {"source": ["x"]}},
+        {"file_path": "n.ipynb", "filepath": [], "file_edit_payload": {"source": ["x"]}},
+        {"file_path": "n.ipynb", "filepath": {}, "file_edit_payload": {"source": ["x"]}},
         {"file_path": "../tests/n.ipynb", "file_edit_payload": {"source": ["x"]}},
         {"file_path": "n.ipynb", "file_edit_payload": {"source": ["a\n", "b", "c\n"]}},
         {"file_path": "n.ipynb", "file_edit_payload": {"source": 3}},

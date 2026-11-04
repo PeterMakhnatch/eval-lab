@@ -695,7 +695,7 @@ inputs:
   - path: src/evallab/lance.py
     digest: sha256:7207597b318da335bf4647383116519daa6378b4bdfaa7b33f3189cb1df9cb36
   - path: src/evallab/laneverify.py
-    digest: sha256:7a558a3020dd5c10adf99530f7a5384f627cbcc18452c9554631e91de6d694e1
+    digest: sha256:666b416cec8d7d993e797b720f2f0fb4d8860ca29ed5c6a78de995a1fdcba706
   - path: src/evallab/ledger.py
     digest: sha256:dd75ff27a017a30ebe022cb99b271baeccb5d42d8520696d1bbbdf50b75de5b8
   - path: src/evallab/lego_capture.py

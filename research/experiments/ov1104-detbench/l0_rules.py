@@ -50,7 +50,7 @@ SHELL_LIKE = {
     "bash_tool": ("command", "cmd"),
     "terminal_command": ("command", "cmd"),
 }
-READ_ONLY = {"glob", "grep", "ls", "list_dir", "list_directory", "search", "find", "web_search", "search_files", "search_code", "list_files", "lsp", "todo", "wait", "task", "learn", "recall", "memory", "retain", "reflect", "web_fetch", "fetch", "browser", "image", "note", "plan", "update_plan", "report_progress", "ask_user", "message", "chat", "respond", "final", "answer", "complete", "done", "end", "stop"}
+READ_ONLY = {"glob", "grep", "ls", "list_dir", "list_directory", "search", "find", "web_search", "search_files", "search_code", "list_files", "lsp", "todo", "wait", "task", "learn", "recall", "memory", "retain", "reflect", "web_fetch", "fetch", "browser", "image", "note", "plan", "update_plan", "report_progress", "ask_user", "message", "chat", "respond", "final", "answer", "complete", "done", "end", "stop", "mark_task_complete", "task_complete", "attempt_completion", "complete_task", "end_task", "finish_task", "submit_answer", "final_answer", "report", "summary", "sequentialthinking", "sequential_thinking", "thinking", "reasoning"}
 EDIT_LIKE = {"edit_file": "edit", "replace": "str_replace", "str_replace_editor": "str_replace_editor", "write_file": "write", "create_file": "create_file", "insert": "edit", "apply_diff": "edit", "patch": "apply_patch", "multi_edit": "multiedit", "file_edit": "edit", "edit_file_contents": "edit"}
 READ_LIKE = {"read_file": "read", "cat": "read", "view_file": "view", "open": "read", "open_file": "open_file", "view": "view", "read": "read", "get_file": "read", "file_read": "read"}
 

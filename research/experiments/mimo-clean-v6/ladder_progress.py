@@ -25,6 +25,13 @@ the file the refusing signature matched (the cell's ``verifier_tamper_hit`` afte
 ``attacks_executed`` is the cell's ``attacks_executed`` count (empty without a
 cell). The subset schema carries neither field.
 
+Every coverage and subset cell must also run at the manifest's package: the
+builder reads ``manifest.csv`` from the cells directory and raises
+``ProgressError`` naming the ``task_id``, the cell digest and the manifest
+digest when ``final_digest`` differs or ``digest_matches_manifest`` is not true.
+A task absent from the manifest is refused the same way, so a cell run on a
+stale or wrong package never enters the table.
+
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift).
 """
@@ -37,7 +44,7 @@ import difflib
 import io
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +52,7 @@ ROOT = Path(__file__).resolve().parents[3]
 HERE = Path(__file__).resolve().parent
 
 RANKING = "research/experiments/mimo-clean-v5-coverage/unverified-ranking.csv"
+MANIFEST_NAME = "manifest.csv"
 CELLS_GLOB = "ladder-*.json"
 CELLS_SCHEMA = "evallab.mimo-v6-ladder-cells/v1"
 SUBSET_CELLS_SCHEMA = "evallab.mimo-v6-ladder-subset-cells/v1"
@@ -100,7 +108,41 @@ def read_ranking(root: Path = ROOT) -> list[dict[str, str]]:
     return rows
 
 
-def read_cells(cells_dir: Path, root: Path = ROOT) -> list[dict[str, Any]]:
+def read_manifest(cells_dir: Path) -> dict[str, str]:
+    """``task_id`` to ``final_digest`` for every row of ``manifest.csv``."""
+    path = cells_dir / MANIFEST_NAME
+    if not path.is_file():
+        raise ProgressError(f"manifest is missing: {path}")
+    with path.open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    manifest = {row["task_id"]: row["final_digest"] for row in rows}
+    if len(manifest) != len(rows):
+        raise ProgressError(f"{MANIFEST_NAME} repeats a task_id")
+    return manifest
+
+
+def _require_manifest_digest(task: Mapping[str, Any], manifest: Mapping[str, str]) -> None:
+    """Refuse a cell that did not run the manifest package for its task."""
+    task_id = str(task["task_id"])
+    expected = manifest.get(task_id)
+    digest = str(task.get("final_digest") or "")
+    if expected is None:
+        raise ProgressError(f"{task_id}: absent from {MANIFEST_NAME}; cannot check its digest")
+    if digest != expected:
+        raise ProgressError(
+            f"{task_id}: cell final_digest {digest} != manifest final_digest {expected}"
+        )
+    if task.get("digest_matches_manifest") is not True:
+        flag = task.get("digest_matches_manifest")
+        raise ProgressError(
+            f"{task_id}: digest_matches_manifest is {flag!r}, not true "
+            f"(cell final_digest {digest}, manifest final_digest {expected})"
+        )
+
+
+def read_cells(
+    cells_dir: Path, root: Path = ROOT, *, manifest: Mapping[str, str]
+) -> list[dict[str, Any]]:
     """Every cell of every ``ladder-*.json`` with the v6 cell schema, with its file."""
     cells: list[dict[str, Any]] = []
     for path in sorted(cells_dir.glob(CELLS_GLOB)):
@@ -109,6 +151,7 @@ def read_cells(cells_dir: Path, root: Path = ROOT) -> list[dict[str, Any]]:
             continue
         source = path.relative_to(root).as_posix()
         for task in data.get("tasks", []):
+            _require_manifest_digest(task, manifest)
             cells.append({**task, "_source_file": source})
     return cells
 
@@ -118,7 +161,9 @@ def _newest_cell(cells: Sequence[dict[str, Any]]) -> dict[str, Any]:
     return max(cells, key=lambda cell: (str(cell.get("finished_utc") or ""), cell["_source_file"]))
 
 
-def read_subset_cells(cells_dir: Path, root: Path = ROOT) -> list[dict[str, Any]]:
+def read_subset_cells(
+    cells_dir: Path, root: Path = ROOT, *, manifest: Mapping[str, str]
+) -> list[dict[str, Any]]:
     """Flatten ``tasks[].subsets[]`` of every subset-schema ``ladder-*.json``, by task."""
     subsets: list[dict[str, Any]] = []
     for path in sorted(cells_dir.glob(CELLS_GLOB)):
@@ -127,6 +172,7 @@ def read_subset_cells(cells_dir: Path, root: Path = ROOT) -> list[dict[str, Any]
             continue
         source = path.relative_to(root).as_posix()
         for task in data.get("tasks", []):
+            _require_manifest_digest(task, manifest)
             for subset in task.get("subsets", []):
                 subsets.append({**subset, "task_id": task["task_id"], "_source_file": source})
     return subsets
@@ -214,8 +260,11 @@ def assemble(
 
 
 def build(root: Path = ROOT, *, cells_dir: Path) -> list[dict[str, str]]:
+    manifest = read_manifest(cells_dir)
     return assemble(
-        read_ranking(root), read_cells(cells_dir, root), read_subset_cells(cells_dir, root)
+        read_ranking(root),
+        read_cells(cells_dir, root, manifest=manifest),
+        read_subset_cells(cells_dir, root, manifest=manifest),
     )
 
 

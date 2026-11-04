@@ -7,8 +7,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-from evallab.line.core import check_batch, invalidate_check, run_line
-from evallab.line.io import read_json, write_json
+from evallab.line.core import (
+    check_batch,
+    invalidate_check,
+    preflight_batch,
+    refused_check,
+    run_line,
+    settle_check,
+)
+from evallab.line.io import read_json
 from evallab.line.replay import replay
 from evallab.line.scoreboard import build_scoreboard, render_scoreboard
 
@@ -35,6 +42,13 @@ def build_line_parser(subparsers: Any) -> None:
         command.set_defaults(func=_command)
 
 
+def _batch(given: Path) -> Path:
+    """The batch directory, validated as spelled: a symlink is refused before any resolve."""
+    spelled = given.expanduser()
+    preflight_batch(spelled)
+    return spelled.resolve()
+
+
 def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
     del harbor
     value: dict[str, Any]
@@ -48,23 +62,22 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             code = 0 if result["passed"] else 2
         elif args.line_command == "check" and args.fast:
             # A read-only look: it must never overwrite a verified check.json or scoreboard.
-            value = check_batch(args.path.expanduser().resolve(), root, fast=True)
+            value = check_batch(_batch(args.path), root, fast=True)
             failed = any(check["status"] == "FAIL" for check in value["checks"])
             code = 2 if failed else 3
         elif args.line_command == "check":
-            batch = args.path.expanduser().resolve()
-            invalidate_check(batch)  # a crash below must never leave a stale PASS on disk
-            value = check_batch(batch, root)
-            write_json(batch / "check.json", value)
-            if (batch / "scoreboard.json").is_file():
-                # Refresh only the QC view, never repair a mismatched metric.
-                score = read_json(batch / "scoreboard.json")
-                score["quality_checks"] = value["checks"]
-                write_json(batch / "scoreboard.json", score)
-                (batch / "SCOREBOARD.md").write_text(render_scoreboard(score), encoding="utf-8")
+            batch = _batch(args.path)
+            found = invalidate_check(batch)  # a crash below must never leave a stale PASS on disk
+            try:
+                value = check_batch(batch, root)
+            except (ValueError, OSError) as error:
+                settle_check(batch, refused_check(error), found)
+                raise
+            settle_check(batch, value, found)  # a failing batch's scoreboard is left as found
             code = 0 if value["passed"] else 2
         else:
-            value = build_scoreboard(args.path.expanduser().resolve(), root)
+            batch = _batch(args.path)
+            value = build_scoreboard(batch, root)
             code = 0
         if args.json:
             print(json.dumps(value, indent=2, sort_keys=True))

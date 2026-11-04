@@ -2,20 +2,115 @@
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import hashlib
 import json
 import os
 import stat
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
+
+from evallab.hack_drop import strict_json_loads
+
+MAX_READ_BYTES = 512 * 1024 * 1024
+"""The largest file the line reads whole. A bigger one is refused with a plain error."""
+
+LABEL_KEYS = frozenset(
+    {
+        "label",
+        "labels",
+        "is_cheat",
+        "is_exploit",
+        "ground_truth",
+        "expected_verdict",
+        "attempted_cheat",
+        "attempted_but_failed",
+        "considered_only",
+        "hack",
+        "is_hack",
+        "cheat",
+        "cheated",
+        "behavior",
+        "verdict_enacted",
+    }
+)
+"""Evaluator/label fields: they must never appear in anything the line reads or writes."""
+
+
+class ReadLog:
+    """What :func:`read_bytes` returned, by file identity.
+
+    Two names for one file (a hard link, a case variant) share one entry, so a file that changed
+    between two reads is seen however each read spelled it.
+    """
+
+    def __init__(self) -> None:
+        self.hashes: dict[tuple[int, int], set[str]] = {}
+        self.names: dict[tuple[int, int], set[str]] = {}
+
+    def unstable(self) -> list[str]:
+        return sorted(
+            ", ".join(sorted(self.names[key]))
+            for key, hashes in self.hashes.items()
+            if len(hashes) > 1
+        )
+
+
+_READS: contextvars.ContextVar[ReadLog | None] = contextvars.ContextVar("line_reads", default=None)
+_SEALED: contextvars.ContextVar[frozenset[tuple[int, int]] | None] = contextvars.ContextVar(
+    "line_sealed", default=None
+)
+
+
+@contextlib.contextmanager
+def record_reads() -> Iterator[ReadLog]:
+    """Record the SHA-256 of every byte string :func:`read_bytes` returns, by file identity.
+
+    A file that yields two different hashes inside one scope changed while it was being used.
+    """
+    log = ReadLog()
+    token = _READS.set(log)
+    try:
+        yield log
+    finally:
+        _READS.reset(token)
+
+
+@contextlib.contextmanager
+def sealed_scope(repo_root: Path) -> Iterator[None]:
+    """Refuse, inside this scope, any read of a file that is another name for sealed material.
+
+    ``(device, inode)`` of every file under ``research/answer-keys`` is taken once; a declared
+    input that shares one (a hard link under a DEV-looking name) is refused by
+    :func:`read_bytes`. A nested scope reuses the outer one.
+    """
+    if _SEALED.get() is not None:
+        yield
+        return
+    from evallab.rollout_admission import sealed_inodes
+
+    token = _SEALED.set(sealed_inodes(repo_root / "research" / "answer-keys"))
+    try:
+        yield
+    finally:
+        _SEALED.reset(token)
+
+
+def sealed_set() -> frozenset[tuple[int, int]]:
+    """The sealed inodes of the enclosing :func:`sealed_scope` (empty outside one)."""
+    return _SEALED.get() or frozenset()
 
 
 def read_bytes(path: Path, *, single_link: bool = False) -> bytes:
     """Read one regular file through a single open descriptor, refusing a final symlink.
 
-    The type and link count are taken from the open descriptor (not from an earlier path
-    check), so a path swapped after validation cannot change what is hashed or parsed.
-    ``single_link`` also refuses a file with other hard links (the line never writes any).
+    The type, link count, identity and size are taken from the open descriptor (not from an
+    earlier path check), so a path swapped after validation cannot change what is hashed or
+    parsed. ``single_link`` also refuses a file with other hard links (the line never writes
+    any). A file that is another name for sealed material, or larger than
+    :data:`MAX_READ_BYTES`, is refused.
     """
     fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
     try:
@@ -24,14 +119,26 @@ def read_bytes(path: Path, *, single_link: bool = False) -> bytes:
             raise ValueError(f"not a regular file: {path}")
         if single_link and info.st_nlink > 1:
             raise ValueError(f"file has other hard links: {path}")
+        if (info.st_dev, info.st_ino) in sealed_set():
+            raise ValueError(f"file is a hard link to sealed material: {path}")
+        if info.st_size > MAX_READ_BYTES:
+            raise ValueError(f"file is larger than {MAX_READ_BYTES} bytes: {path}")
         with os.fdopen(fd, "rb", closefd=False) as handle:
-            return handle.read()
+            data = handle.read(MAX_READ_BYTES + 1)
+        if len(data) > MAX_READ_BYTES:
+            raise ValueError(f"file is larger than {MAX_READ_BYTES} bytes: {path}")
     finally:
         os.close(fd)
+    log = _READS.get()
+    if log is not None:
+        key = (info.st_dev, info.st_ino)
+        log.hashes.setdefault(key, set()).add(hashlib.sha256(data).hexdigest())
+        log.names.setdefault(key, set()).add(str(path))
+    return data
 
 
 def parse_json(data: bytes, label: object) -> dict[str, Any]:
-    value = json.loads(data.decode("utf-8"))
+    value = strict_json_loads(data.decode("utf-8"))
     if not isinstance(value, dict):
         raise ValueError(f"expected a JSON object: {label}")
     return value
@@ -41,7 +148,7 @@ def parse_rows(data: bytes, label: object) -> list[dict[str, Any]]:
     rows = []
     for number, line in enumerate(data.decode("utf-8").splitlines(), 1):
         if line.strip():
-            row = json.loads(line)
+            row = strict_json_loads(line)
             if not isinstance(row, dict):
                 raise ValueError(f"expected an object: {label}:{number}")
             rows.append(row)
@@ -97,3 +204,52 @@ def digest(path: Path) -> str:
             ]
         )
     raise FileNotFoundError(path)
+
+
+def strict_digest(path: Path) -> str:
+    """Hash a file, or a rollout tree, refusing links and special files anywhere in it.
+
+    A symlink (to a file or a directory) or a FIFO/socket/device inside a tree is refused rather
+    than followed, and every file is read through :func:`read_bytes`. Hard links are allowed:
+    native Harbor trials legitimately share files. A directory hashes exactly as
+    :func:`digest` does, so existing recorded hashes stay valid.
+    """
+    top = os.lstat(path).st_mode
+    if stat.S_ISLNK(top):
+        raise ValueError(f"refusing a symlink: {path}")
+    if stat.S_ISREG(top):
+        return hashlib.sha256(read_bytes(path)).hexdigest()
+    if not stat.S_ISDIR(top):
+        raise ValueError(f"refusing a special file: {path}")
+    files: list[Path] = []
+    for directory, directories, names in os.walk(path, followlinks=False):
+        for name in [*directories, *names]:
+            child = Path(directory) / name
+            mode = os.lstat(child).st_mode
+            if stat.S_ISLNK(mode):
+                raise ValueError(f"refusing a symlink inside a rollout tree: {child}")
+            if stat.S_ISREG(mode):
+                files.append(child)
+            elif not stat.S_ISDIR(mode):
+                raise ValueError(f"refusing a special file inside a rollout tree: {child}")
+    return canonical_hash(
+        [
+            (p.relative_to(path).as_posix(), hashlib.sha256(read_bytes(p)).hexdigest())
+            for p in sorted(files)
+        ]
+    )
+
+
+def file_keys(paths: Iterable[Path]) -> set[tuple[Any, ...]]:
+    """Identities of files for set comparison: (device, inode) and the casefolded real path.
+
+    A resolved path string alone can be fooled by hard links and by case variants on a
+    case-insensitive volume; either identity matching is enough to call two names one file.
+    """
+    keys: set[tuple[Any, ...]] = set()
+    for path in paths:
+        keys.add(("path", str(path.resolve()).casefold()))
+        with contextlib.suppress(OSError):
+            info = path.stat()
+            keys.add(("id", info.st_dev, info.st_ino))
+    return keys

@@ -10,7 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 from .core import CHECK_NAMES
-from .io import canonical_hash, digest, read_json, read_rows, write_json
+from .io import canonical_hash, read_json, read_rows, strict_digest, write_json
 
 BASELINE_SCHEMA = "evallab.line_baseline/v1"
 
@@ -245,10 +245,23 @@ def _input_hashes(spec: dict[str, Any]) -> dict[str, str]:
         paths.add(str(spec["task_status"]))
     if spec["autoreview"].get("cache") is not None:
         paths.add(str(spec["autoreview"]["cache"]))
-    return {path: digest(Path(path)) for path in sorted(paths)}
+    return {path: strict_digest(Path(path)) for path in sorted(paths)}
 
 
 def replay(
+    spec_path: Path,
+    baseline: Path,
+    repo_root: Path,
+    write_baseline: bool = False,
+) -> tuple[dict[str, Any], int]:
+    """See :func:`_replay`. Everything it reads is read through the line's reader."""
+    from .core import declared_scope
+
+    with declared_scope(repo_root):
+        return _replay(spec_path, baseline, repo_root, write_baseline)
+
+
+def _replay(
     spec_path: Path,
     baseline: Path,
     repo_root: Path,
@@ -277,9 +290,10 @@ def replay(
         from .spec import load_spec
 
         spec = load_spec(spec_path)
-        from evallab.hack_drop import check_dev_path_allowed
+        from evallab.hack_drop import check_declared_path
 
-        baseline = check_dev_path_allowed(baseline)  # never read or write under a TEST path
+        # never read or write under a TEST path, and never through a link
+        baseline = check_declared_path(baseline)
         autoreview = spec.get("autoreview", {})
         if autoreview.get("mode") not in {"off", "cached"} or autoreview.get("max_usd") != 0:
             raise ValueError("replay requires autoreview off or cached and a zero spend cap")

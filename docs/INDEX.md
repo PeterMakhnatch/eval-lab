@@ -118,6 +118,8 @@ inputs:
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/production-factory.md
     digest: sha256:a7af38189cd6c7c5c929b096e7189f9ed2b4ee5c78a9a9240206dd6e08c119de
+  - path: docs/program-report.md
+    digest: sha256:27372f4364f7920808f772376958e4d2b566739e0333256bd00c3d5a8e9e359d
   - path: docs/qa-contract.md
     digest: sha256:7109b75163134eaca1db56c99cfafb07f6714777b27ef2b2d46d5c31f1d5d9d2
   - path: docs/qa-task.md
@@ -305,6 +307,7 @@ an operator can see what is archived.
 | `docs/monitor-investigations.md` | Monitor investigations (HAR-151) | `living` | `analyst, operator` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
+| `docs/program-report.md` | Receipt-bound program reports | `living` | `analyst, operator` |
 | `docs/qa-task.md` | QA Agent - Task: executed task/grader auditor | `living` | `analyst, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
@@ -433,6 +436,7 @@ an operator can see what is archived.
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
 | `docs/production-factory.md` | Production factory (local, DEV only) | `living` | `operator, builder` |
+| `docs/program-report.md` | Receipt-bound program reports | `living` | `analyst, operator` |
 | `docs/qa-contract.md` | QA contract (`evallab.qa`) | `living` | `builder, operator` |
 | `docs/qa-task.md` | QA Agent - Task: executed task/grader auditor | `living` | `analyst, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |

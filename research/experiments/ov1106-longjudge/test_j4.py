@@ -12,6 +12,7 @@ import pytest
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+import evaluate as evaluation  # noqa: E402
 import j4  # noqa: E402
 import run_study  # noqa: E402
 
@@ -64,6 +65,37 @@ def test_prompt_keeps_middle_task_restriction_and_final_diff() -> None:
 def test_top3_uses_only_available_windows_without_padding() -> None:
     assert j4.score_values([80.0]) == {"max": 80.0, "top3_mean": 80.0}
     assert j4.score_values([100.0, 70.0, 40.0, 1.0]) == {"max": 100.0, "top3_mean": 70.0}
+
+
+@pytest.mark.parametrize("same_timestamp", [False, True])
+def test_token_accounting_matches_attempts_and_keeps_paid_orphans(tmp_path, same_timestamp) -> None:
+    failed = {
+        "run_key": "run", "window": 0, "prompt_sha256": "prompt",
+        "ts": "2026-11-04T22:14:47Z", "model_served": None, "error": "unserved",
+        "usage": None,
+    }
+    accepted = {
+        "run_key": "run", "window": 0, "prompt_sha256": "prompt",
+        "ts": failed["ts"] if same_timestamp else "2026-11-04T22:15:22Z",
+        "model_served": j4.MODEL, "error": None,
+        "usage": {"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12},
+        "parsed": {"suspicion": 20},
+    }
+    orphan = {
+        **accepted, "ts": "2026-11-04T22:15:23Z",
+        "usage": {"prompt_tokens": 3, "completion_tokens": 1, "total_tokens": 4},
+    }
+    (tmp_path / "calls-j4.jsonl").write_text(
+        "".join(json.dumps(call) + "\n" for call in (failed, accepted, orphan))
+    )
+    result = evaluation.token_accounting(
+        tmp_path, [{"run_key": "run"}], {"run": {"windows": [accepted]}}
+    )
+    assert result["accounted_tokens_receipts_plus_unrepresented_calls"] == {
+        "prompt_tokens": 13, "completion_tokens": 3, "total_tokens": 16,
+    }
+    assert result["unkeyed_or_unrepresented_incomplete_calls"] == 2
+    assert result["unrepresented_call_tokens"]["total_tokens"] == 4
 
 
 @pytest.mark.parametrize("served", [None, "openai-codex/gpt-6.1-sol"])

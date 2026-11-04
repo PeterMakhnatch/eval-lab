@@ -228,7 +228,8 @@ def usage(entries: list[dict[str, Any]]) -> dict[str, int]:
 def token_accounting(directory: Path, rows: list[dict[str, Any]], results: dict[str, Any]) -> dict[str, Any]:
     windows = [w for r in results.values() for w in r.get('windows', [])]
     def key(entry: dict[str, Any], run_key: str | None = None) -> tuple[Any, ...]:
-        return (entry.get('run_key', run_key), entry.get('window'), entry.get('prompt_sha256'))
+        return (entry.get('run_key', run_key), entry.get('window'), entry.get('prompt_sha256'),
+                entry.get('ts'), entry.get('model_served'), bool(entry.get('error')))
     represented = Counter(key(w, k) for k, r in results.items() for w in r.get('windows', []))
     logs, unrepresented = [], []
     log_identities = []

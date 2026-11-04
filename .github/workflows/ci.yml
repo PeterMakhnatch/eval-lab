@@ -63,6 +63,13 @@ jobs:
         run: uv run --no-sync evallab registry audit --json
       - name: Statistical lessons freshness and lineage
         run: uv run --no-sync python -m evallab.lessons
+      - name: Explain private line replay availability (not a gate result)
+        run: |
+          if [ ! -d "$HOME/Developer/eval-lab-results/line/replay-v1" ]; then
+            echo "line gate: replay data unavailable, run locally" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "line gate: exact-head local pre-merge receipt required; CI does not run the private gate" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
 
   test:
     runs-on: ubuntu-latest

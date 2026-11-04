@@ -9,7 +9,7 @@ Do not replace a failing task with an easier task.
 The code worker makes certification safe by default.
 Seven historical gates retain their meanings.
 Missing integrity controls remain unexercised and cannot produce a certificate.
-This study does not create or execute grader-bypass payloads.
+The initial safe matrix omits integrity controls. A contained opt-in extension is defined below.
 No full certification claim is permitted without all 7 measured gates.
 
 ## Gold acceptance
@@ -60,3 +60,14 @@ The owner watchdog removes each container after 180 seconds or parent loss.
 Error-bearing or incomplete writers remain in the 20-candidate denominator and cannot enter scoring.
 The writable mount has no kernel disk quota; bounded inventories do not establish a hard storage limit.
 The exact-driver canary passes before generation. No new alternative is available at this amendment.
+
+## Contained opt-in integrity extension
+
+The original lane acceptance requires all 7 gates. The default safe mode alone cannot meet it.
+Add an explicit opt-in path that owns the fixed native Modal runner, without an arbitrary callback or backend override.
+Default calls still omit integrity controls. Witness files alone cannot enable them.
+Only the explicit, contained path may use the existing immutable witness and startup-injection helpers.
+Never execute these scripts on the host. Do not generate new bypass designs or model attackers.
+The parent validates the actual contained runner before any integrity execution.
+Unmeasured or unapplied controls remain null. Do not reuse historical integrity passes for a changed package.
+This extension does not change the task cohort, frozen public checks, source inputs, split, or 20-candidate denominator.

@@ -1,0 +1,32 @@
+{
+  "scope": "Instruction-grounded behavioral checks. No new alternative has been read during contract design.",
+  "000081": {
+    "test_all_continues_and_summarizes_all_results": "Run every collected example; print failures and N / M passed summary.",
+    "test_named_failure_propagates": "A single named example must propagate failure immediately.",
+    "test_supplied_argv_controls_verbosity_and_command": "argv=['all', '--quiet'] and argv flags must control the programmatic call, not sys.argv.",
+    "test_leading_flag_is_not_a_test_name": "Leading flag defaults to no command; baseline public no-command behavior lists tests.",
+    "test_supplied_style_overrides_process_style": "Supplied argv controls style; baseline public flags include --freeform and --google."
+  },
+  "000682": {
+    "test_encryption_policy_exposes_selected_key_and_disable": "Enable SNS topic encryption with a selected KMS key and disable it. TopicArn/KmsMasterKeyId and AWS set_topic_attributes are baseline public AWS interfaces. Registration and configuration names are discovered, never pinned.",
+    "test_kms_attribute_and_alias_filtering": "Match topics through KMS id, arn, alias and key attributes; select topics not using an approved key. key/value/not policy syntax and c7n:AliasName come from public baseline filtering conventions. No subclass, helper, exact schema dictionary, registration name or return-value assertion is required.",
+    "limits": "Schema-driven action discovery currently supports a combined boolean encryption toggle and selected-key string. A correct implementation exposing separate enable/disable actions could need a broader public-interface adapter; do not claim universal acceptance from this check alone."
+  },
+  "002139": {
+    "test_download_filenames_path_and_status": "Use bb.fetch2.Fetch, both instruction filename examples, stripped storage object path, target bytes and existence check.",
+    "test_notfound_missing_and_empty_download": "FetchError for NotFound, absent target or zero bytes; remove zero-byte file.",
+    "test_missing_status_and_network_access": "Missing blob raises FetchError; normal BitBake network prohibition blocks download/existence API use. Client construction alone is not treated as network access.",
+    "limits": "A minimal Google SDK fake implements the documented Client.bucket(...).blob(...), download_to_filename and exists interfaces. It does not pin client construction arguments or implementation module names."
+  },
+  "003007": {
+    "test_status_booleans": "is_cleaning/is_charging properties for the public baseline status vocabulary; active modes exclude stop/returning/charging/idle/offline.",
+    "test_importable_vocabulary_without_constant_name_pins": "Named importable constants for clean modes, fan speeds, charge modes and components. Names are unconstrained; values come from public baseline dictionaries.",
+    "test_login_diagnostics_use_library_logger": "Existing login warning must use a sucks-scoped logger. No message text or debug-call count is pinned.",
+    "limits": "Historical 3 mutants only delete debug calls. The instruction requires scoped logging, not preservation of each debug message. Surviving deletion mutants are not automatically semantic defects."
+  },
+  "001267": {
+    "contract": "contracts/001267.json contains all 4 browser scenarios.",
+    "limits": "No executable public browser harness is available. Reference-only model method tests are not used as public Gold assertions. All Gold cells remain unmeasured."
+  },
+  "gates": "G3/G4 are unexercised. G7 awaits parent-supplied blind alternatives. Certification remains incomplete."
+}

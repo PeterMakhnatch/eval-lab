@@ -1,0 +1,12 @@
+# Active controllers inherit all repository checks.
+extend = "../../../pyproject.toml"
+
+# These exact target-container checks are frozen executed evidence.
+# contract-freeze.json binds their bytes before blind generation and scoring.
+# Preserve bootstrap imports, compatible syntax, and the public failure contract.
+# Do not modernize these files after evaluation; all other checks stay active.
+[lint.per-file-ignores]
+"contracts/000081.py" = ["F401", "UP031", "B017"]
+"contracts/000682.py" = ["I001", "UP031", "B007"]
+"contracts/002139.py" = ["E402"]
+"contracts/003007.py" = ["SIM117"]

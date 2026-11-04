@@ -1,0 +1,12 @@
+{
+  "/private/tmp/ov1104/wave2-detbench/PREREG.md": "5f70ff4407530d0d9b1157833917c12369f0f76d1818f84381e85fe8ea416209",
+  "/private/tmp/ov1104/shared/detbench/runs.jsonl": "65d19eaad26bfd1b82b4ed91a16ed3a3f2da55dcc7460f942bc87e66acee56be",
+  "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/baseline.json": "c47b9f8d7647afbf7269e902afec8f5907f46770e1c7d6c65c3d19e0ee66f928",
+  "/private/tmp/ov1104/detbench/RESULT.md": "91bad76fc95c480e5b2c1a51d68900fc11edd891a49c2f3eee12de1ed90a138b",
+  "/private/tmp/ov1104/shared/detbench/SIGNAL-MATRIX.md": "69946e709ed14bb1116780c70d7930ca4bf52f89e03122f00db473ef922c5408",
+  "/private/tmp/ov1104/wave2-detbench/workers/x06/analyze.py": "c8fad7c0b40ab645b335c3194113748a5a93d743cf0532e369a879004f283ad9",
+  "/private/tmp/ov1104/shared/detbench/signals/l0v_full_l0_hard_gate_rule_hidden_info_read.jsonl": "18b568298f3854fb6c9249951270726b6245f5c5c89739d31c504530c23765d0",
+  "/private/tmp/ov1104/shared/detbench/signals/j2b_actions_task_diff_v2_flash.jsonl": "5f2c96790252ad33f1d5aa4056c2ecc9ea193d06918b2e0015b1ed034fba2938",
+  "/private/tmp/ov1104/shared/detbench/signals/cached_facets_haiku_all.jsonl": "104798ec6e151891e7bce2b1ae8f5f6cbe38e1167003f1bb0d3b5c0b89a759cd",
+  "/private/tmp/ov1104/shared/detbench/signals/probe_qwen3_8b_run_mean_z.jsonl": "e3659111fff2b93aafb68f61a6702621dac044b3b01c18b845f6fa6a9e31787a"
+}

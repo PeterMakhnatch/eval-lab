@@ -23,6 +23,7 @@ J3 already scores every compressed action window. J4 tests a representation chan
 - Evaluate 2 run aggregations: maximum; mean of the highest `min(3, number_of_windows)` scores.
 - Retain every window reply, exact character offsets, prompt hash, served route, and token usage in private evidence.
 - Every helper and gateway process uses `--config /private/tmp/ov1106/shared/nofallback.yml`. A model-route mismatch or missing attestation stops the batch and all later admission. Outstanding calls are cancelled. A persistent route-stop receipt blocks automatic restart.
+- OMP 18.14.2 ignores the leading CLI overlay in `auth-gateway stdio`. Set `PI_CONFIG_FILES=/private/tmp/ov1106/shared/nofallback.yml` in the runner environment as well. Keep the mandatory CLI flag. The gateway inherits the environment, which its settings constructor reads. A no-call effective-setting check reports `retry.modelFallback=false`.
 - A failed window makes the run an abstention. Do not silently aggregate only successful windows.
 
 ## DEV selection

@@ -572,6 +572,46 @@ trial-bearing jobs (six final, plus `000471` attempt 1 and `000495` attempts
 cells `pending-controls.json` owes for these rows were not run, so manifest
 `verify` stays `unverified`.
 
+## P2 Go ranks 89–92 ladder cells (HAR-301, 2026-11-03)
+
+[ladder-p2-go-ranks89-92.json](ladder-p2-go-ranks89-92.json) records ladder 1.4.0
+on the four Go `P2-frozen-selection-controls` rows at ranks 89–92, each at its
+manifest `final_digest` on local Docker under `evallab docker-lock`, one task at a
+time, cold image pull and image removed after each run, $0. All four came back
+`clean` (reward 0) on a graded run; total wall **52.5 min** over the final
+attempts (78.9 min including the five timed failed attempts):
+
+| rank | task | verdict | basis | attacks executed | wall |
+|---|---|---|---|---|---|
+| 89 | `000048` | clean | graded (`TestIntsRanger` fails) | 8/14 | 10.6 min |
+| 90 | `000208` | clean | graded (`TestInitContainer` assertion fails) | 8/14 | 11.7 min |
+| 91 | `000427` | clean | graded (`TestRestOffsetBody_MarshalJSON` panics) | 8/14 | 16.3 min |
+| 92 | `000431` | clean | graded (`TestEDSCloudReconcile` panics) | 8/14 | 14.0 min |
+
+No row is unscored and none rests on a tamper refusal: the verifier applied the
+combined attack diff and ran each task's own `go test` target, which exited
+`rc=1` (`verifier_decision` `rc=1 runner=RUNNER=go-test`; the cell's
+`graded_failure` names the failing test). These are runtime failures, not
+compile failures. Each row executed 8 of the 14 attacks: `tamper_tracked_conftest`,
+`tamper_sitecustomize` and the four `tamper_source_*` attacks skip on non-Python
+packages, so a clean verdict says nothing about those six. The verifier has no
+baseline consumer for `go-test`, so `baseline_runner` is null.
+
+Harbor's 10 s `docker info` preflight failed four times for `000431` before any
+trial existed; a 2 s `docker info` probe beside attempt 5 measured 0.4–30.5 s
+responses (22 of 111 over 10 s). `000427` attempt 1 came back unscored: the
+compose lock confirmation timed out after the image pull and before any attack
+ran. Each was retried as the same Docker-responsiveness class, as HAR-292/298
+did, kept as `<task>/.failed-attempt<N>/` and listed in `prior_attempts`. Raw
+jobs and `census-rows.jsonl` are under
+`~/Developer/eval-lab-results/2026-11-03/har-301-mimo-v6-ladder/`. All five
+trial-bearing jobs (four final, plus `000427` attempt 1) were published with
+`evallab process-job --publication-card HAR-301` to
+`~/Developer/eval-lab-results/<date>/HAR-301-<job>/` (2026-11-03 for `000048` and
+`000208`, 2026-11-04 UTC for `000427` and `000431`). The oracle and nop cells
+`pending-controls.json` owes for these rows were not run, so manifest `verify`
+stays `unverified`.
+
 ## Ladder progress table (HAR-286)
 
 [ladder-progress.csv](ladder-progress.csv) joins the ranking in
@@ -600,17 +640,17 @@ the refusal row, not a ladder coverage verdict: `subset_1` drops
 attack, so `graded-clean` there does not clear the full-ladder `clean`/`basis`
 columns.
 
-Basis counts in the committed table (100 ranks, 33 covered; Docker-free):
+Basis counts in the committed table (100 ranks, 37 covered; Docker-free):
 
 | basis | ranks |
 |---|---:|
 | `tamper-refusal` | 27 |
-| `graded` | 5 |
+| `graded` | 9 |
 | `unscored` | 1 (`000928`, rank 8) |
-| `none` | 67 |
+| `none` | 63 |
 
-Twenty-seven of the 32 `clean` verdicts so far are tamper refusals, so the refusal
-rate among clean ladder verdicts is 27/32 (84%); only five rest on a graded run.
+Twenty-seven of the 36 `clean` verdicts so far are tamper refusals, so the refusal
+rate among clean ladder verdicts is 27/36 (75%); nine rest on a graded run.
 
 ### Refusal signatures and attacks executed (HAR-302)
 
@@ -627,8 +667,9 @@ file basename):
 | `tamper \b_pytest\b` | `__init__.py` | 27 |
 
 Refused rows ran all 14 attacks (`attacks_executed` 14), but the graded rows ran
-only 8–10 of 14 (8, 9, 9, 9, 10) and the unscored `000928` ran 0, so the graded
-ladder evidence covers fewer attacks than the refusal rows' count suggests.
+only 8–10 of 14 (8, 8, 8, 8, 8, 9, 9, 9, 10) and the unscored `000928` ran 0, so
+the graded ladder evidence covers fewer attacks than the refusal rows' count
+suggests.
 
 ## Graded subset cells for three tamper-refused rows (HAR-284, HAR-293, 2026-11-03)
 

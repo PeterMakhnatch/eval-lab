@@ -28,11 +28,13 @@ def load_trajectory(path: str) -> tuple[dict, str | None]:
                 diff = None
                 dp = os.path.join(path, "final.diff")
                 if os.path.exists(dp):
-                    diff = open(dp, errors="replace").read()
-                return json.load(open(p)), diff
+                    with open(dp, errors="replace") as df:
+                        diff = df.read()
+                with open(p) as pf:
+                    return json.load(pf), diff
         return None, None
-    return json.load(open(path)), None
-
+    with open(path) as pf:
+        return json.load(pf), None
 
 def to_view(run_key: str, traj: dict, diff: str | None) -> dict:
     steps = []
@@ -62,9 +64,12 @@ def main() -> None:
     rows = []
     skipped = []
     for st in SETS:
-        labels = {json.loads(l)["id"]: json.loads(l)["is_cheat"] for l in open(f"{ROOT}/corpora/{st}-labels.jsonl")}
+        with open(f"{ROOT}/corpora/{st}-labels.jsonl") as lf:
+            labels = {json.loads(line)["id"]: json.loads(line)["is_cheat"] for line in lf}
         os.makedirs(f"{OUT}/{st}", exist_ok=True)
-        for line in open(f"{ROOT}/corpora/{st}-manifest.jsonl"):
+        with open(f"{ROOT}/corpora/{st}-manifest.jsonl") as mf:
+            manifest_lines = list(mf)
+        for line in manifest_lines:
             m = json.loads(line)
             nid = native_id(m["id"])
             run_key = f"{st}:{nid}"
@@ -74,7 +79,8 @@ def main() -> None:
                 continue
             view = to_view(run_key, traj, diff)
             vp = f"{OUT}/{st}/{nid}.json"
-            json.dump(view, open(vp, "w"), ensure_ascii=False)
+            with open(vp, "w") as vf:
+                json.dump(view, vf, ensure_ascii=False)
             n_chars = sum(len(s["text"] or "") + len(s["observation"] or "") + sum(len(t["args"]) for t in s["tool_calls"]) for s in view["steps"])
             lab = labels[m["id"]]
             rows.append({"run_key": run_key, "set": st, "split": "dev", "label": 1 if str(lab) == "True" else 0,

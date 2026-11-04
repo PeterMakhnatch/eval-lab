@@ -91,10 +91,10 @@ rank,task_id,phase,language,ladder_version,verdict,basis,wall_seconds,source_fil
 90,format-code-task-000208,P2-frozen-selection-controls,go,1.4.0,clean,graded,701,research/experiments/mimo-clean-v6/ladder-p2-go-ranks89-92.json,none,,,8
 91,format-code-task-000427,P2-frozen-selection-controls,go,1.4.0,clean,graded,978,research/experiments/mimo-clean-v6/ladder-p2-go-ranks89-92.json,none,,,8
 92,format-code-task-000431,P2-frozen-selection-controls,go,1.4.0,clean,graded,839,research/experiments/mimo-clean-v6/ladder-p2-go-ranks89-92.json,none,,,8
-93,format-code-task-000112,P2-frozen-selection-controls,javascript,,none,none,,,none,,,
-94,format-code-task-000524,P2-frozen-selection-controls,javascript,,none,none,,,none,,,
-95,format-code-task-001675,P2-frozen-selection-controls,javascript,,none,none,,,none,,,
-96,format-code-task-001849,P2-frozen-selection-controls,javascript,,none,none,,,none,,,
+93,format-code-task-000112,P2-frozen-selection-controls,javascript,1.4.0,clean,graded,759.4,research/experiments/mimo-clean-v6/ladder-p2-js-ranks93-96.json,none,,,9
+94,format-code-task-000524,P2-frozen-selection-controls,javascript,1.4.0,clean,graded,360.6,research/experiments/mimo-clean-v6/ladder-p2-js-ranks93-96.json,none,,,9
+95,format-code-task-001675,P2-frozen-selection-controls,javascript,1.4.0,clean,graded,439.0,research/experiments/mimo-clean-v6/ladder-p2-js-ranks93-96.json,none,,,9
+96,format-code-task-001849,P2-frozen-selection-controls,javascript,1.4.0,clean,graded,617.9,research/experiments/mimo-clean-v6/ladder-p2-js-ranks93-96.json,none,,,9
 97,format-code-task-000046,P2-frozen-selection-controls,typescript,,none,none,,,none,,,
 98,format-code-task-000055,P2-frozen-selection-controls,typescript,,none,none,,,none,,,
 99,format-code-task-000460,P2-frozen-selection-controls,typescript,,none,none,,,none,,,

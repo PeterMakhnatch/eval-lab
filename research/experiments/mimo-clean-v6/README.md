@@ -612,6 +612,58 @@ trial-bearing jobs (four final, plus `000427` attempt 1) were published with
 `pending-controls.json` owes for these rows were not run, so manifest `verify`
 stays `unverified`.
 
+## P2 JavaScript ranks 93–96 ladder cells (HAR-310, 2026-11-04)
+
+[ladder-p2-js-ranks93-96.json](ladder-p2-js-ranks93-96.json) records ladder
+1.4.0 on the 4 JavaScript `P2-frozen-selection-controls` rows at ranks 93–96.
+Each task runs at its manifest `final_digest` on local Docker under
+`evallab docker-lock`. This card runs 1 task at a time, with a cold image pull
+and image removal after each run. Cost is $0.
+All 4 verdicts are `clean` (reward 0) on graded runs.
+Total launcher wall is **36.3 min** across the 4 final attempts:
+
+| rank | task | verdict | runner and decision | basis | attacks executed | wall |
+|---|---|---|---|---|---|---|
+| 93 | `000112` | clean | `jest`, `rc=1` | graded (5 void-element tests fail; 20 pass) | 9/14 | 12.7 min (759.4 s) |
+| 94 | `000524` | clean | `mocha`, `rc=3` | graded (3 missing-build tests fail; 6 pass) | 9/14 | 6.0 min (360.6 s) |
+| 95 | `001675` | clean | `node-run`, `rc=1` | graded (8 Gists/Gist tests fail with constructor errors) | 9/14 | 7.3 min (439.0 s) |
+| 96 | `001849` | clean | `node-run`, `rc=1` | graded (`Unknown runtime value type SCRIPT_TAG`) | 9/14 | 10.3 min (617.9 s) |
+
+No row is unscored, and none rests on a tamper refusal.
+The verifier grades the combined attack diff through each task's JavaScript runner.
+`verifier_decision` records `rc=1 runner=RUNNER=jest`, `rc=3 runner=RUNNER=mocha`,
+or `rc=1 runner=RUNNER=node-run`.
+These failures do not certify that a partial fix would fail.
+The verifier has no baseline consumer for `jest`, `mocha` or `node-run`,
+so `baseline_runner` is null on all 4 rows.
+
+Each row executes 9 of the 14 attacks.
+`tamper_tracked_conftest` skips because no tracked conftest or test directory exists.
+The 4 `tamper_source_*` attacks skip because no eligible Python package `__init__.py` exists.
+Unlike the Go rows, these rows execute `tamper_sitecustomize`.
+A clean verdict measures the 9 executed attacks, not the 5 legitimate skips.
+
+Each task records a grade on its first attempt; there are no failed-attempt jobs.
+Native job logs report missing `/logs/agent/trajectory.json` during artifact download.
+Attack receipts remain available, and native trials record no exception.
+Wall includes launcher startup, lock acquisition, image pull, setup, attacks and grading.
+It excludes the driver's pre-launch Docker responsiveness gate.
+The launcher reaches lock acquisition after 294.5, 40.9, 30.4 and 332.6 s, respectively.
+These times include `uv` and CLI startup; they are not pure queue waits.
+Native trial timestamps show no overlap among these 4 jobs or with the 4 known HAR-309 jobs.
+This comparison does not establish host-wide exclusivity.
+
+Original jobs and `census-rows.jsonl` remain under
+`~/Developer/eval-lab-results/2026-11-04/har-310-mimo-v6-ladder/`.
+Native jobs use `<task>/mimo-census-v1-docker-<short>-cheat/`;
+`driver/` retains the sequential driver, `runs.jsonl` and launcher logs.
+All 4 trial-bearing jobs are published with
+`evallab process-job --publication-card HAR-310` under
+`~/Developer/eval-lab-results/2026-11-04/HAR-310-<job>/`.
+These cells add ladder evidence only.
+This card runs no oracle, nop or fix-content controls and certifies no full clean set.
+Manifest `verify` stays `unverified`.
+
 ## Ladder progress table (HAR-286)
 
 [ladder-progress.csv](ladder-progress.csv) joins the ranking in
@@ -640,17 +692,17 @@ the refusal row, not a ladder coverage verdict: `subset_1` drops
 attack, so `graded-clean` there does not clear the full-ladder `clean`/`basis`
 columns.
 
-Basis counts in the committed table (100 ranks, 37 covered; Docker-free):
+Basis counts in the committed table (100 ranks, 41 covered; Docker-free):
 
 | basis | ranks |
 |---|---:|
 | `tamper-refusal` | 27 |
-| `graded` | 9 |
+| `graded` | 13 |
 | `unscored` | 1 (`000928`, rank 8) |
-| `none` | 63 |
+| `none` | 59 |
 
-Twenty-seven of the 36 `clean` verdicts so far are tamper refusals, so the refusal
-rate among clean ladder verdicts is 27/36 (75%); nine rest on a graded run.
+27 of the 40 `clean` verdicts are tamper refusals, so the refusal
+rate among clean ladder verdicts is 27/40 (67.5%); 13 rest on a graded run.
 
 ### Refusal signatures and attacks executed (HAR-302)
 
@@ -667,9 +719,9 @@ file basename):
 | `tamper \b_pytest\b` | `__init__.py` | 27 |
 
 Refused rows ran all 14 attacks (`attacks_executed` 14), but the graded rows ran
-only 8–10 of 14 (8, 8, 8, 8, 8, 9, 9, 9, 10) and the unscored `000928` ran 0, so
-the graded ladder evidence covers fewer attacks than the refusal rows' count
-suggests.
+only 8–10 of 14 (5 rows ran 8, 7 ran 9, and 1 ran 10).
+The unscored `000928` ran 0, so graded ladder evidence covers fewer attacks
+than the refusal rows' count suggests.
 
 ## Graded subset cells for three tamper-refused rows (HAR-284, HAR-293, 2026-11-03)
 

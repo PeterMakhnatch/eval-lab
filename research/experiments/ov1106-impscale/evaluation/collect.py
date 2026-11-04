@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 from evaluate import LANE, ROOT, digest, gates, keyed, load_contract, rows
@@ -17,6 +18,13 @@ def load_module(name: str, path: Path):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def frozen_rubric_sha() -> str:
+    prompt_dir = ROOT / 'research/experiments/ov1104-judges'
+    sys.path.insert(0, str(prompt_dir))
+    prompts = load_module('frozen_judge_prompts', prompt_dir / 'prompts.py')
+    return prompts.rubric_sha('j2b')
 
 
 def main() -> int:
@@ -36,6 +44,7 @@ def main() -> int:
     if set(runs) - set(admitted):
         raise ValueError('runs include nonadmitted keys')
     contract = load_contract()
+    expected_rubric = frozen_rubric_sha()
     lib = load_module('frozen_detbench_lib', ROOT / 'research/experiments/ov1104-detbench/detbench_lib.py')
     args.out.mkdir(parents=True, exist_ok=True)
     for name in ('length_steps', 'length_chars'):
@@ -64,7 +73,7 @@ def main() -> int:
                 or (not w.get('error') and w.get('model_served') != model) for w in windows)
             if source.get('model') != model or not windows or bad_attestation:
                 score, reason = None, 'missing or mismatched served model attestation'
-            if source.get('rubric_sha256') != '7e7cb3c4686423ad372bd6bb515fc0b3ab6a183f3d33b8ce45379e6a87f24472':
+            if source.get('rubric_sha256') != expected_rubric:
                 score, reason = None, 'missing or mismatched frozen rubric'
             output.append({'run_key': key, 'signal': name, 'version': contract['signals'][name]['version'],
                            'score': score, 'abstain': reason, 'model': model if score is not None else None,

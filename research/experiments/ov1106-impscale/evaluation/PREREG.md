@@ -93,3 +93,21 @@ No paid APIs. Calls use only `omp auth-gateway stdio`. Before each batch, save `
 ## Outputs and claims
 
 Commit only protocol, scripts, hashes, and small aggregates. Never commit raw trajectories, views, prompts, judge replies, audit excerpts, or private call logs. Report exact changed files, commands, coverage, intervals, exclusions, and receipts. If admission or freeze is absent, report the gate failure and no performance numbers.
+
+## Post-score collection erratum: collection-rubric-binding-v2
+
+Both frozen judge batches finish with 151 numeric results each.
+The original collector then rejects every result because its expected rubric digest is incorrect.
+Its literal digest is `7e7cb3c4686423ad372bd6bb515fc0b3ab6a183f3d33b8ce45379e6a87f24472`.
+The frozen `prompts.rubric_sha('j2b')` returns
+`7e7cb3c4686423ad137ecbfa726be97f54e5a05805157e3d8e8adbc5250afc83`.
+The raw results carry that actual source digest.
+
+This erratum occurs after model scoring and is not a preregistered change.
+The separate collection version derives the expected digest from the already-frozen prompt source.
+It retains rejection for missing or different rubric digests and served-model mismatches.
+It does not change a prompt, threshold, label, input, window, model result, or metric method.
+It makes no new model request.
+The original freeze, original collector, rejected signal exports, and original report remain preserved.
+Report the original collection failure separately from the corrected analysis.
+Do not present this correction as an unchanged preregistered pipeline.

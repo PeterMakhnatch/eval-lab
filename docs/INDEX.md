@@ -77,7 +77,7 @@ inputs:
   - path: docs/independent-review.md
     digest: sha256:e8dd4ad2aa408375f6f74b17392f79efb18191b12751938be3d569102ec58fd0
   - path: docs/insights.md
-    digest: sha256:b719f1f8720d23c58ded195e779a63b9fe8406135939be6e2c33f7d385e96f5f
+    digest: sha256:024af6ba8fc2cd0757d4b17888866d2fe28c0fb97b1acb6cfde64d4bda694e16
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/judge-guide.md
@@ -86,6 +86,8 @@ inputs:
     digest: sha256:c334944474b3cee6cd9b3eee2ae9c84fbb1ccb7e58ea31b70b6d6a9c523e6265
   - path: docs/lancedb.md
     digest: sha256:e9bead9abe3e94658028e68f592ff3ef8cf4d43bb86b5199d8031fb19a2cbbe5
+  - path: docs/lane-verification.md
+    digest: sha256:adc4fee76353ab0f6f2d0f5bd9c629e0ab5fa2addc617f6a93c0e607fd9fe3f3
   - path: docs/line.md
     digest: sha256:24d54b64b8b22cf74f34e34490cbf6d6696abeef56c0776168159cf3b95d60e3
   - path: docs/lineage.md
@@ -295,6 +297,7 @@ an operator can see what is archived.
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
+| `docs/lane-verification.md` | Verify a lane from its receipts | `living` | `operator, analyst` |
 | `docs/line.md` | Eval Lab assembly line | `living` | `builder, analyst, runner, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
 | `docs/live-watch.md` | Live watch: in-progress trial monitoring | `living` | `analyst, operator` |
@@ -415,6 +418,7 @@ an operator can see what is archived.
 | `docs/insights.md` | Insight engine: always-on analysts over experiment results | `living` | `analyst, operator` |
 | `docs/judge-guide.md` | How to judge a run | `living` | `operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
+| `docs/lane-verification.md` | Verify a lane from its receipts | `living` | `operator, analyst` |
 | `docs/line.md` | Eval Lab assembly line | `living` | `builder, analyst, runner, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
 | `docs/live-supervisor.md` | Live Supervisor | `living` | `operator, builder` |

@@ -81,3 +81,14 @@ code change is reported as a new version, never replaces the old row.
 `j2_terra_*`, `j2b_terra_*`, `j2b_3fam_*`, and `j3_actions_task_diff_terra` are DEV-only at the time
 of writing (0 non-null held-out rows); their held-out rows, when they land, are exploratory and are
 reported as a separate version.
+
+### Version drift warning
+
+`l0_rules.py` gained the cf2 mapping (`--counterfactual2`) after the `l0v_*` and `l0cf_*` signals were
+produced, so the file's current sha12 is **`63f07ba808a2`** while the on-disk `l0v_*` and `l0cf_*`
+rows still carry **`907888e4a064`** (the code that produced them) and the `l0cf2_*` rows carry
+`63f07ba808a2`. Re-running `l0_rules.py` today would rewrite the `l0v_*` / `l0cf_*` signal files with
+a **new** version tag, even though the mapping logic they use is unchanged. Treat the version string,
+not the filename, as the identity of a signal: a row tagged `l0v_full@63f07ba808a2` is a re-run, not
+the frozen baseline, and its held-out numbers must be reported as a new version rather than replacing
+the rows in `SIGNAL-MATRIX.md`.

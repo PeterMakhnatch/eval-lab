@@ -18,6 +18,8 @@ from typing import Any
 
 import yaml
 
+from evallab.schemas import StandingApprovalsPolicy
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SET = "~/Developer/eval-lab-results/line/replay-v1"
 DECISIONS = ("keep", "review", "drop")
@@ -168,24 +170,19 @@ def approval(
     policy_text: str, pr: int | None, head: str, rows: list[dict[str, Any]]
 ) -> dict[str, Any] | None:
     """Read only the Peter-owned policy on origin/main, never a candidate flag/file."""
-    policy = yaml.safe_load(policy_text)
-    if not isinstance(policy, dict) or not isinstance(policy.get("line_gate_approvals", []), list):
-        raise ValueError("invalid standing policy approval records")
+    policy = StandingApprovalsPolicy.model_validate(yaml.safe_load(policy_text))
     deltas = [
         {"corpus": row["corpus"], "class": row["class"], "delta": row["delta"]}
         for row in rows
         if any(row["delta"].values())
     ]
-    for entry in policy.get("line_gate_approvals", []):
+    for record in policy.line_gate_approvals:
+        entry = record.model_dump(mode="json", by_alias=True)
         if (
-            isinstance(entry, dict)
-            and pr is not None
-            and entry.get("pr") == pr
-            and entry.get("head") == head
-            and entry.get("approved_by") == "Peter"
-            and isinstance(entry.get("approval_quote"), str)
-            and entry["approval_quote"].strip()
-            and entry.get("corpus_deltas") == deltas
+            pr is not None
+            and record.pr == pr
+            and record.head == head
+            and entry["corpus_deltas"] == deltas
         ):
             return entry
     return None

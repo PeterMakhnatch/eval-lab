@@ -77,6 +77,14 @@ def test_corpus_removal_is_error():
         gate.compare(board(), board(name="b"))
 
 
+POLICY = {
+    "daily_cost_ceiling_usd": 20,
+    "per_job_cost_ceiling_usd": 3,
+    "quiet_failure_rule": 3,
+    "auto_run": [{"name": "local-controls", "agents": ["oracle", "nop"]}],
+}
+
+
 def test_approval_binds_pr_head_and_every_corpus_delta():
     rows, _ = gate.compare(board(), board(cheats=(3, 2, 5)))
     deltas = [
@@ -91,7 +99,8 @@ def test_approval_binds_pr_head_and_every_corpus_delta():
         "approval_quote": "Approve this exact DEV change.",
         "corpus_deltas": deltas,
     }
-    policy = yaml.safe_dump({"line_gate_approvals": [entry]})
+    policy_data = {**POLICY, "line_gate_approvals": [entry]}
+    policy = yaml.safe_dump(policy_data)
     assert gate.approval(policy, 123, "a" * 40, rows) == entry
     assert gate.approval(policy, 124, "a" * 40, rows) is None
     assert gate.approval(policy, None, "a" * 40, rows) is None
@@ -99,10 +108,17 @@ def test_approval_binds_pr_head_and_every_corpus_delta():
     changed = deepcopy(rows)
     changed[0]["delta"]["keep"] = 2
     assert gate.approval(policy, 123, "a" * 40, changed) is None
+    original = gate.StandingApprovalsPolicy.model_validate(POLICY)
+    approved = gate.StandingApprovalsPolicy.model_validate(policy_data)
+    assert "line_gate_approvals" not in original.model_dump()
+    # Recording an exception remains loadable by queue policy consumers.
+    restored = gate.StandingApprovalsPolicy.model_validate(approved.model_dump())
+    assert restored.line_gate_approvals[0].pr == 123
+    assert restored.daily_cost_ceiling_usd == original.daily_cost_ceiling_usd
+    assert restored.auto_run == original.auto_run
     entry["approved_by"] = "agent"
-    assert (
-        gate.approval(yaml.safe_dump({"line_gate_approvals": [entry]}), 123, "a" * 40, rows) is None
-    )
+    with pytest.raises(ValueError, match="approved_by"):
+        gate.approval(yaml.safe_dump(policy_data), 123, "a" * 40, rows)
 
 
 def test_import_closure_covers_relative_conditional_and_package_imports(tmp_path):

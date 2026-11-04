@@ -638,6 +638,9 @@ the changed rows from `gate.json`, reduced to `corpus`, `class` and `delta`,
 in the same order. This names all changed keep/review/drop counts, not just
 the pooled change. No override flag or candidate policy edit grants approval.
 The policy remains unsigned; its existing Peter-only authorship rule applies.
+The shared standing-policy schema validates these records and omits an empty list.
+Existing policy digests remain unchanged when no exception exists. A line
+exception never authorizes queue execution or spending.
 
 CI without the private set prints
 `line gate: replay data unavailable, run locally`. This notice is not a pass.

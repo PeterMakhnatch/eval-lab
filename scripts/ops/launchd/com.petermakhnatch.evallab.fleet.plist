@@ -20,6 +20,11 @@
         <string>fleet</string>
         <string>watch</string>
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>__EVAL_LAB_BIN_DIR__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
     <key>Umask</key>
     <integer>63</integer>
     <key>StandardOutPath</key>

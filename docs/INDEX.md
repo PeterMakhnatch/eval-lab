@@ -66,6 +66,8 @@ inputs:
     digest: sha256:27c954be78fd297f809bec812ea4f5d0582cdd3edbf2b48f70155891ad1de9f9
   - path: docs/features.md
     digest: sha256:d8336213e0fcebb651ae62fafcf74dc83ff6325678bfe2c7cf7e046cd42a77f7
+  - path: docs/fleet.md
+    digest: sha256:993a7f8000a1225bd3b7a43ce5a1283e95344ebe3296ac0adc76ad961c0b9e61
   - path: docs/flight-recorder.md
     digest: sha256:0138627b7592e818cf17532f1541173916e68de1867935abfe6ab343f66475b8
   - path: docs/hack-drop.md
@@ -227,6 +229,7 @@ an operator can see what is archived.
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/features.md` | Trial features: one row per trial | `living` | `analyst, builder` |
+| `docs/fleet.md` | Fleet lane supervision | `living` | `builder, operator` |
 | `docs/flight-recorder.md` | Flight recorder prototype | `living` | `builder, analyst, operator` |
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
@@ -413,6 +416,7 @@ an operator can see what is archived.
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
+| `docs/fleet.md` | Fleet lane supervision | `living` | `builder, operator` |
 | `docs/flight-recorder.md` | Flight recorder prototype | `living` | `builder, analyst, operator` |
 | `docs/hack-drop.md` | evallab hack-drop | `living` | `runner, operator` |
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |

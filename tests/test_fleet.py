@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import signal
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -26,6 +27,12 @@ def fleet(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     supervisor = Supervisor(store, clock=lambda: now[0])
     monkeypatch.setattr(supervisor, "power", lambda active: None)
     monkeypatch.setattr(supervisor, "quota_reason", lambda route: "")
+    monkeypatch.setattr(runtime.os, "getpgrp", lambda: 999)
+    monkeypatch.setattr(
+        runtime,
+        "datetime",
+        SimpleNamespace(now=lambda tz: datetime(2026, 11, 4, 16, tzinfo=tz)),
+    )
     yield supervisor, store, now
     supervisor.verifiers.shutdown(wait=True)
     store.db.close()

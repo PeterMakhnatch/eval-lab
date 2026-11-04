@@ -155,7 +155,8 @@ Set the hook's fixed arguments to match the installed verifier's CLI contract.
 ## LaunchAgent deployment
 
 Use `scripts/ops/launchd/com.petermakhnatch.evallab.fleet.plist` as a template.
-Replace its executable, working directory, and log directory placeholders.
+Replace its worktree, local binary directory, and log directory placeholders.
+The binary directory must contain `omp`; the configured PATH must also resolve `gh`.
 Keep the existing repository LaunchAgent installation pattern.
 Installing or loading a shared LaunchAgent requires separate operator authorization.
 The template uses `KeepAlive` and starts disabled; this change does not load it.

@@ -172,11 +172,13 @@ The root PREREG hash is `101840bd36ee6458b38a4d549793ddd825fcadf962457e656ab773b
 
 ## Spend
 
-- Approved Modal cap: **$2.00**.
-- Runtime estimate: **$0.356187** (main $0.295943 + synthesis follow-up $0.057597 + public check $0.002647).
-- Provider-reported cost to date: **$0.20620960** (**$0.18728966** main, **$0.01865563** follow-up, **$0.00026431** public check), observed at **3:19–4:40 AM ET**.
+- Approved lane cap: **$2.00** (**$30** program cap).
+- Modal runtime estimate: **$0.356187** (main $0.295943 + synthesis follow-up $0.057597 + public check $0.002647).
+- DeepSeek recorded cost from provider fallback: **$0.645516** (lead 107 messages $0.350377 + `Synth2` 149 messages $0.295139).
+- **Total paid estimate: $1.001703**, under the $2 lane cap.
+- Provider-reported Modal cost: **$0.20620960** ($0.18728966 + $0.01865563 + $0.00026431), observed at **3:19–4:40 AM ET**. DeepSeek cost is OMP-recorded, not an invoice.
 - Final invoice amount: unknown. Provider billing can lag.
-- Subscription generation incremental cost: **$0**. Local smoke cost: **$0**.
+- Subscription usage (Sol) and local smoke: **$0 billed**.
 - Owned Modal applications: stopped with 0 tasks.
 
 `cert/billing.json`, `closure.json`, and the campaign ledger preserve the billing and closure evidence.
@@ -184,15 +186,19 @@ Do not describe the runtime estimate as an actual provider charge.
 
 ## Model attribution and deviations
 
-The 20/20 task-solving gateway responses attest Codex terra, with tools disabled.
+The 20/20 main task-solving gateway responses attest Codex terra, with tools disabled; the follow-up adds 3/3 terra.
 Native task delegation rejects per-call model selection in this harness.
 The 3 main workers serve Sol: 304 assistant messages in the final recorded snapshots.
 A lint-convention scout serves Anthropic Haiku: 8 assistant messages.
 That scout violates the program's Anthropic route restriction. It performs configuration lookup, not experimental generation or scoring.
 No further Anthropic worker starts.
-`audit/worker-attestation.json` preserves the exact session hashes and counts.
-All 8 model-change records explicitly mark fallback false.
-The 312 assistant records omit the fallback field; absence is not an explicit false flag.
+A provider fallback at **08:37Z** moved the lead and the `Synth2` worker to DeepSeek Flash: **256 assistant messages, $0.645516 recorded**.
+`Public2391` stays on Sol.
+No task-solving generation, grading, or scoring used the fallback model.
+This fallback is a paid, unplanned route and was missing from the earlier spend total; it is now logged in `spend.jsonl`.
+`audit/worker-attestation.json` preserves the initial session hashes and counts; `audit/addendum-attestation.json` and `audit/MODEL-ATTESTATION-ADDENDUM.md` cover the fallback.
+The initial 4 sessions' 8 model-change records mark fallback false; the addendum sessions include one true fallback.
+The initial 312 assistant records omit the fallback field; absence is not an explicit false flag.
 
 Active controller lint repairs preserve the frozen contracts and public checks byte-for-byte.
 The local Ruff configuration inherits project rules and permits only observed style diagnostics in exact frozen evidence files.

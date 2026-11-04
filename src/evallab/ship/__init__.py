@@ -12,15 +12,16 @@ import json
 import os
 import re
 import subprocess
-import tempfile
 import time
 import tomllib
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from evallab.ship.cleanup import inspect_cleanup, retire
+from evallab.ship.cleanup import inspect_cleanup, inspect_tree, retire
 
 
 class Blocked(RuntimeError):
@@ -101,6 +102,27 @@ class Ship:
         self.save("required-checks", required_source="agents/CHECKS.md", required=sorted(names))
         return names
 
+    @contextmanager
+    def checkout(self, commit: str, purpose: str) -> Iterator[Path]:
+        tree = self.directory / f"{self.pr}-{purpose}-worktree"
+        self.save("checkout-requested", active_checkout={"path": str(tree), "commit": commit, "purpose": purpose})
+        if tree.exists():
+            inventory = self.run(["git", "worktree", "list", "--porcelain", "-z"]).stdout
+            block = next((row for row in inventory.split("\0\0")
+                          if row.startswith(f"worktree {tree}\0")), "")
+            if (f"\0HEAD {commit}\0" not in block or "\0detached" not in block
+                    or "\0locked" in block or "\0prunable" in block):
+                raise Blocked(f"Cannot resume an unknown or changed detached checkout: {tree}")
+            inspect_tree(self, tree, commit)
+        else:
+            self.run(["git", "worktree", "add", "--detach", str(tree), commit])
+        try:
+            yield tree
+        finally:
+            inspect_tree(self, tree, commit)
+            self.run(["git", "worktree", "remove", str(tree)])
+            self.save("checkout-removed", active_checkout=None)
+
     def gates(self, pr: dict[str, Any]) -> None:
         if self.data.get("gates_head") == pr["headRefOid"]:
             return
@@ -115,10 +137,7 @@ class Ship:
         selected = [gate for gate in gates if any(fnmatch.fnmatchcase(path, pattern)
                     for path in paths for pattern in gate["paths"])]
         if selected:
-            temporary = Path(tempfile.mkdtemp(prefix="evallab-ship-gates-"))
-            tree = temporary / "head"
-            self.run(["git", "worktree", "add", "--detach", str(tree), pr["headRefOid"]])
-            try:
+            with self.checkout(pr["headRefOid"], "gate") as tree:
                 for gate in selected:
                     env = {**os.environ, "EVALLAB_SHIP_HEAD": pr["headRefOid"],
                            "EVALLAB_SHIP_BASE": pr["baseRefOid"], "EVALLAB_SHIP_PR": str(self.pr)}
@@ -126,9 +145,6 @@ class Ship:
                     if result.returncode:
                         raise Blocked(f"gate {gate['name']}: {'blocked' if result.returncode == 1 else 'error'} "
                                       f"(exit {result.returncode})\n{result.stdout[-2000:]}")
-            finally:
-                self.run(["git", "worktree", "remove", str(tree)])
-                temporary.rmdir()
         self.save("gates-passed", gates_head=pr["headRefOid"], gates=[g["name"] for g in selected])
 
     def checks(self, required: set[str]) -> None:
@@ -247,8 +263,6 @@ class Ship:
             # A dirty/in-use tree must not lose even its remote branch.
             plan = inspect_cleanup(self, pr)
             self.save("cleanup-preflight", cleanup_plan=plan)
-            if self.data.get("merge_attempted"):
-                raise Blocked("Earlier merge attempt is unresolved; refusing to repeat it")
             self.guard(self.view())
             self.save("merge-requested", merge_attempted=True)
             self.gh("pr", "merge", str(self.pr), "--repo", self.repo, "--squash", "--delete-branch",
@@ -262,14 +276,8 @@ class Ship:
         self.run(["git", "merge-base", "--is-ancestor", commit, "origin/main"])
         self.save("main-verified")
         if self.smoke and self.data.get("smoke_passed") != {"commit": commit, "command": self.smoke}:
-            temporary = Path(tempfile.mkdtemp(prefix="evallab-ship-smoke-"))
-            tree = temporary / "merge"
-            self.run(["git", "worktree", "add", "--detach", str(tree), commit])
-            try:
+            with self.checkout(commit, "smoke") as tree:
                 self.run(["/bin/sh", "-c", self.smoke], cwd=tree)
-            finally:
-                self.run(["git", "worktree", "remove", str(tree)])
-                temporary.rmdir()
             self.save("smoke-passed", smoke_passed={"commit": commit, "command": self.smoke})
         plan = inspect_cleanup(self, pr)
         self.save("cleanup-preflight", cleanup_plan=plan)

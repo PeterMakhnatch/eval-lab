@@ -69,10 +69,14 @@ Use `--state-dir` for an isolated receipt directory, including tests.
 
 Repeat the command after an interruption. Ship checks remote PR state before any merge.
 A merged PR never receives another merge request.
-An interrupted merge request with an unmerged PR remains blocked because its outcome is uncertain.
-Inspect GitHub before replacing that receipt. Preserve the original receipt as evidence.
-A moved head also requires a fresh receipt directory after the author checks the new diff.
+If GitHub still reports the same PR open, ship refreshes CI evidence before another guarded merge request.
+GitHub permits only one merge for a PR. A late response cannot create a second merge.
+A moved head requires a fresh receipt directory after the author checks the new diff.
 A second failed CI attempt stops. Repeating the command does not grant another rerun.
+Gate and smoke checkouts use stable paths beside the receipt.
+After interruption, ship reuses a clean, inactive checkout with the recorded commit.
+It preserves dirty, changed, unknown, or active checkouts instead of deleting them.
+An interrupted gate or smoke can execute again. Make those commands safe to repeat.
 
 ## Retirement safety
 
@@ -96,6 +100,7 @@ Completion also requires the local branch, remote branch, and topic worktree to 
 
 `uv run pytest tests/test_ship.py` uses a fake GitHub CLI and real disposable Git repositories.
 It covers head movement, failing test names, one rerun, pending checks, gate exits, remote merge reconciliation, resume, and unsafe cleanup.
+A process-kill scenario proves smoke recovery removes the resumed checkout without merging twice.
 No test requires network access or host authentication.
 The earlier F4 Temporal prototype remains research evidence under `research/experiments/on-mergetrain-workflow-20261102/`.
 Ship reuses its remote-state reconciliation pattern without a server or automatic source edits.

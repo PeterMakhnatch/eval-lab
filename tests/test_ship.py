@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import select
+import shlex
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -227,3 +231,38 @@ def test_failed_smoke_resume_preserves_dirty_tree_and_never_remerges(delivery):
     (tree / "consumer.txt").write_text("change\n")
     assert run_command(args, root) == 0
     assert json.loads(state.read_text())["merges"] == 1
+
+
+def test_interrupted_merge_intent_reconciles_open_pr_before_delivery(delivery):
+    args, root, _, state, _, _ = delivery
+    args.state_dir.mkdir()
+    snapshot = json.loads(state.read_text())["pr"]
+    (args.state_dir / "42.json").write_text(json.dumps({"pr": snapshot, "merge_attempted": True}))
+    assert run_command(args, root) == 0
+    assert json.loads(state.read_text())["merges"] == 1
+
+
+def test_killed_smoke_resumes_its_checkout_without_remerging(delivery):
+    args, root, _, state, git, _ = delivery
+    ready = state.parent / "ready.fifo"
+    os.mkfifo(ready)
+    descriptor = os.open(ready, os.O_RDONLY | os.O_NONBLOCK)
+    command = [sys.executable, "-c", "from evallab.entry import main; main()", "ship", "42",
+               "--repo-root", str(root), "--state-dir", str(args.state_dir), "--poll", "0",
+               "--smoke", f"printf ready > {shlex.quote(str(ready))}; sleep 60"]
+    with (state.parent / "interrupted.log").open("w") as stream:
+        process = subprocess.Popen(command, cwd=root, stdout=stream, stderr=stream, start_new_session=True)
+        try:
+            assert select.select([descriptor], [], [], 120)[0], "smoke did not reach its readiness boundary"
+            assert os.read(descriptor, 5) == b"ready"
+        finally:
+            os.close(descriptor)
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=30)
+    checkout = args.state_dir / "42-smoke-worktree"
+    assert checkout.exists()
+    assert json.loads(state.read_text())["merges"] == 1
+    assert run_command(args, root) == 0
+    assert json.loads(state.read_text())["merges"] == 1
+    assert not checkout.exists()
+    assert "detached" not in git("worktree", "list", "--porcelain")

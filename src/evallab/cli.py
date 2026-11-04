@@ -5938,6 +5938,9 @@ def parser() -> argparse.ArgumentParser:
 
     report = commands.add_parser("report", help="Render trajectory families and eval cards")
     report_commands = report.add_subparsers(dest="report_command", required=True)
+    from evallab.program_report import register_parser as register_program_report_parser
+
+    register_program_report_parser(report_commands)
     report_family = report_commands.add_parser(
         "family", help="Explain one task family from Parquet and canonical ATIF"
     )

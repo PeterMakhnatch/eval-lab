@@ -184,7 +184,7 @@ class Driver:
             if value.get("session"):
                 started = datetime.fromisoformat(value["timestamp"])
                 called = datetime.fromisoformat(call["ts"].replace("Z", "+00:00"))
-                if not 0 <= (started - called).total_seconds() < 2:
+                if not 0 <= (started - called).total_seconds() <= float(call.get("latency_s") or 0) + 2:
                     continue
             candidates.append((p, value))
         if stop.get("status") == -1 and candidates:

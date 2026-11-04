@@ -23,11 +23,19 @@ sys.path.insert(0, str(HERE))
 from detbench_lib import RUNS, SIGNALS  # noqa: E402
 from score import combine, evaluate, load_runs, load_signal, signal_name  # noqa: E402
 
+_CACHE: dict[tuple[str, tuple[str, ...]], dict[str, dict[str, Any]]] = {}
+_LEN_CACHE: dict[str, dict[str, dict[str, Any]] | None] = {}
+
 
 def _job(args: tuple[str, str, str, str, int, str | None, list[str]]) -> dict[str, Any]:
     name, kind, spec, runs_path, bootstrap, length_path, sets = args
-    runs = load_runs(Path(runs_path), sets or None)
-    length = load_signal(Path(length_path)) if length_path else None
+    ck = (runs_path, tuple(sets))
+    if ck not in _CACHE:
+        _CACHE[ck] = load_runs(Path(runs_path), sets or None)
+    runs = _CACHE[ck]
+    if length_path and length_path not in _LEN_CACHE:
+        _LEN_CACHE[length_path] = load_signal(Path(length_path))
+    length = _LEN_CACHE.get(length_path) if length_path else None
     if kind == "signal":
         sig = load_signal(Path(spec))
         return evaluate(sig, runs, name=signal_name(sig, name), bootstrap=bootstrap, length=length)
@@ -66,6 +74,24 @@ def _beats(e: dict[str, Any]) -> str:
     return f"{v.get('beats_length') or '-'} ({_f(v.get('auroc_diff'))})"
 
 
+def _is_zero_fire_l0_reason(sig_name: str, e: dict[str, Any]) -> bool:
+    if "_l0_hard_" not in sig_name and "_l0_soft_" not in sig_name and "_l0_no_evidence" not in sig_name and "_l0_runner_error" not in sig_name:
+        return False
+    fire = e.get("at", {}).get("fire") or {}
+    r05 = e.get("at", {}).get("0.05") or {}
+    return e.get("auroc") == 0.5 and (fire.get("recall") or 0) == 0 and (fire.get("fpr") or 0) == 0 and (r05.get("recall") or 0) == 0 and (r05.get("fpr") or 0) == 0
+
+
+def _round_obj(o: Any) -> Any:
+    if isinstance(o, float):
+        return round(o, 4)
+    if isinstance(o, dict):
+        return {k: _round_obj(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_round_obj(v) for v in o]
+    return o
+
+
 def render(results: list[dict[str, Any]], sets_dev: list[str], sets_ho: list[str], sets_dec: list[str]) -> str:
     lines = ["# SIGNAL-MATRIX (ov1104-detbench)", ""]
     lines.append("Columns: AUROC [95% cluster-bootstrap CI]; `R/F@1%`, `R/F@5%` = recall / FPR at the threshold that gives 1% / 5% FPR on pooled DEV negatives (abstain = not flagged); `fire R/F` = recall / FPR when a rule-like (<=3-valued) signal fires at its top value; cov = coverage; beats length = paired bootstrap of AUROC(signal) - AUROC(length_chars), yes/no/tie (diff). Held-out numbers are scored once with the DEV-frozen threshold. Decisive-rule sets are never pooled.")
@@ -93,19 +119,27 @@ def render(results: list[dict[str, Any]], sets_dev: list[str], sets_ho: list[str
                 continue
             e0 = any_r["per_set"][s]
             lines += [f"### {s}  (n={e0['n']}, pos={e0['n_pos']}, neg={e0['n_neg']}, clusters={e0['n_clusters']})", "", "| signal | AUROC [CI] | R/F@1% | R/F@5% | fire R/F | cov | beats length | prec@1% | prec@5% | prec@20% |", "|---|---|---|---|---|---|---|---|---|---|"]
+            omitted_zero_cov = 0
+            omitted_zero_l0 = 0
             for r in results:
                 e = r["per_set"].get(s)
-                if not e:
+                if not e or not (e.get("coverage") or 0) > 0:
+                    omitted_zero_cov += 1
+                    continue
+                if _is_zero_fire_l0_reason(r["signal"], e):
+                    omitted_zero_l0 += 1
                     continue
                 a5 = e["at"].get("0.05") or {}
                 lines.append(f"| {r['signal']} | {_ci(e)} | {_at(e, '0.01')} | {_at(e, '0.05')} | {_at(e, 'fire')} | {_f(e['coverage'])} | {_beats(e)} | {_f(a5.get('precision_at_1pct'))} | {_f(a5.get('precision_at_5pct'))} | {_f(a5.get('precision_at_20pct'))} |")
+            if omitted_zero_cov or omitted_zero_l0:
+                lines.append(f"\n*({omitted_zero_cov} signals with 0 coverage on `{s}` and {omitted_zero_l0} zero-fire per-reason L0 rule variants omitted; all {len(results)} signals appear in the Pooled summary table above.)*")
+            lines.append("")
     combos = [r for r in results if r.get("method")]
     if combos:
         lines += ["", "## Combinations (frozen on DEV, scored once on held-out)", ""]
         for r in combos:
             lines.append(f"- **{r['signal']}**: method={r['method']} members={r['members']}" + (f" weights={ {k: round(v, 3) for k, v in r['stack_weights'].items()} }" if r.get("stack_weights") else ""))
     return "\n".join(lines) + "\n"
-
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -133,7 +167,15 @@ def main(argv: list[str] | None = None) -> int:
     sets_dec = sorted({r["set"] for r in runs.values() if r["split"] == "heldout" and (r.get("decisive_rule") or r.get("pool", True) is False)})
     sets_ho = sorted({r["set"] for r in runs.values() if r["split"] == "heldout" and not r.get("decisive_rule") and r.get("pool", True) is not False})
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    (args.out_dir / "matrix.json").write_text(json.dumps(results, indent=1, sort_keys=True), encoding="utf-8")
+    full_json_dir = Path("/private/tmp/ov1104/detbench")
+    full_json_dir.mkdir(parents=True, exist_ok=True)
+    (full_json_dir / "matrix.json").write_text(json.dumps(results, indent=1, sort_keys=True), encoding="utf-8")
+    keep_keys = {"pooled:dev", "pooled:dev_natural", "pooled:heldout", "pooled:heldout_natural"}
+    pooled_results = [
+        _round_obj({**r, "per_set": {k: v for k, v in r["per_set"].items() if k in keep_keys}})
+        for r in results
+    ]
+    (args.out_dir / "matrix-pooled.json").write_text(json.dumps(pooled_results, indent=1, sort_keys=True), encoding="utf-8")
     (args.out_dir / "SIGNAL-MATRIX.md").write_text(render(results, sets_dev, sets_ho, sets_dec), encoding="utf-8")
     print(f"{len(results)} signals -> {args.out_dir}")
     return 0

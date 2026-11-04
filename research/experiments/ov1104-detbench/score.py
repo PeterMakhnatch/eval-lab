@@ -16,7 +16,7 @@ import json
 import math
 import random
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -68,19 +68,70 @@ def _by_cluster(rows: Iterable[Row]) -> dict[str, list[Row]]:
     return out
 
 
+Block = tuple[tuple[tuple[int, int], ...], tuple[tuple[int, int], ...]]
+
+
+def _prep_blocks(rows: Sequence[Row], c2i: Mapping[str, int]) -> list[Block]:
+    scored = sorted(((s, y, c2i[c]) for c, y, s in rows), key=lambda t: t[0])
+    raw: list[tuple[Counter[int], Counter[int]]] = []
+    i = 0
+    n = len(scored)
+    while i < n:
+        j = i
+        while j + 1 < n and scored[j + 1][0] == scored[i][0]:
+            j += 1
+        pos_c: Counter[int] = Counter()
+        neg_c: Counter[int] = Counter()
+        for k in range(i, j + 1):
+            if scored[k][1] == 1:
+                pos_c[scored[k][2]] += 1
+            else:
+                neg_c[scored[k][2]] += 1
+        raw.append((pos_c, neg_c))
+        i = j + 1
+    merged: list[tuple[Counter[int], Counter[int]]] = []
+    for pos_c, neg_c in raw:
+        if merged and not pos_c and not merged[-1][0]:
+            merged[-1][1].update(neg_c)
+        elif merged and not neg_c and not merged[-1][1]:
+            merged[-1][0].update(pos_c)
+        else:
+            merged.append((Counter(pos_c), Counter(neg_c)))
+    return [(tuple(p.items()), tuple(ng.items())) for p, ng in merged]
+
+
+def _auroc_from_blocks(blocks: Sequence[Block], w: Sequence[int]) -> float | None:
+    neg_cum = 0.0
+    u_sum = 0.0
+    pos_tot = 0
+    for pos_items, neg_items in blocks:
+        n_b = sum(w[c] * cnt for c, cnt in neg_items) if neg_items else 0
+        p_b = sum(w[c] * cnt for c, cnt in pos_items) if pos_items else 0
+        if p_b:
+            u_sum += p_b * (neg_cum + 0.5 * n_b)
+            pos_tot += p_b
+        neg_cum += n_b
+    if not pos_tot or not neg_cum:
+        return None
+    return u_sum / (pos_tot * neg_cum)
+
+
 def bootstrap_auroc(rows: Sequence[Row], b: int, seed: int) -> tuple[float | None, float | None]:
     """Cluster bootstrap 95% CI of AUROC (percentile)."""
     groups = _by_cluster(rows)
     keys = list(groups)
     if len(keys) < 2 or auroc(rows) is None:
         return (None, None)
+    c2i = {c: idx for idx, c in enumerate(keys)}
+    blocks = _prep_blocks(rows, c2i)
+    n_clusters = len(keys)
     rng = random.Random(seed)
     values: list[float] = []
     for _ in range(b):
-        sample: list[Row] = []
+        w = [0] * n_clusters
         for _ in keys:
-            sample.extend(groups[rng.choice(keys)])
-        a = auroc(sample)
+            w[c2i[rng.choice(keys)]] += 1
+        a = _auroc_from_blocks(blocks, w)
         if a is not None:
             values.append(a)
     if len(values) < max(10, b // 2):
@@ -96,22 +147,24 @@ def bootstrap_auroc_diff(
     common = sorted(set(rows_a) & set(rows_b))
     if not common:
         return (None, None, None)
-    ga = _by_cluster(rows_a[k] for k in common)
-    gb = _by_cluster(rows_b[k] for k in common)
+    list_a = [rows_a[k] for k in common]
+    list_b = [rows_b[k] for k in common]
+    ga = _by_cluster(list_a)
     keys = list(ga)
-    pa, pb = auroc([rows_a[k] for k in common]), auroc([rows_b[k] for k in common])
+    pa, pb = auroc(list_a), auroc(list_b)
     if pa is None or pb is None or len(keys) < 2:
         return (None if pa is None or pb is None else pa - pb, None, None)
+    c2i = {c: idx for idx, c in enumerate(keys)}
+    blocks_a = _prep_blocks(list_a, c2i)
+    blocks_b = _prep_blocks(list_b, c2i)
+    n_clusters = len(keys)
     rng = random.Random(seed)
     diffs: list[float] = []
     for _ in range(b):
-        picks = [rng.choice(keys) for _ in keys]
-        sa: list[Row] = []
-        sb: list[Row] = []
-        for p in picks:
-            sa.extend(ga[p])
-            sb.extend(gb[p])
-        xa, xb = auroc(sa), auroc(sb)
+        w = [0] * n_clusters
+        for _ in keys:
+            w[c2i[rng.choice(keys)]] += 1
+        xa, xb = _auroc_from_blocks(blocks_a, w), _auroc_from_blocks(blocks_b, w)
         if xa is not None and xb is not None:
             diffs.append(xa - xb)
     if len(diffs) < max(10, b // 2):
@@ -174,11 +227,21 @@ def load_runs(path: Path = RUNS, sets: Sequence[str] | None = None) -> dict[str,
     return {r["run_key"]: r for r in rows}
 
 
+def _resolve_signal_path(path: Path) -> Path:
+    if path.is_file():
+        return path
+    for cand in (SIGNALS / path.name, SIGNALS / f"{path.name}.jsonl"):
+        if cand.is_file():
+            return cand
+    return path
+
+
 def load_signal(path: Path) -> dict[str, dict[str, Any]]:
+    resolved = _resolve_signal_path(Path(path))
     out: dict[str, dict[str, Any]] = {}
-    for r in read_jsonl(path):
+    for r in read_jsonl(resolved):
         if r["score"] is None and not r.get("abstain"):
-            raise ValueError(f"{path}: null score without abstain for {r['run_key']}")
+            raise ValueError(f"{resolved}: null score without abstain for {r['run_key']}")
         out[r["run_key"]] = r
     return out
 
@@ -430,11 +493,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--json", type=Path, help="write the full result here")
     ap.add_argument("--write-combined", type=Path, help="write the combined signal rows here (combine only)")
     args = ap.parse_args(argv)
-    runs = load_runs(args.runs, args.sets)
-    length = load_signal(args.length) if args.length and args.length.is_file() else None
+    sets_flat = [s for item in (args.sets or []) for s in item.split(",") if s] or None
+    runs = load_runs(args.runs, sets_flat)
+    length = load_signal(args.length) if args.length and _resolve_signal_path(args.length).is_file() else None
     if args.combine:
-        sigs = [load_signal(p) for p in args.combine]
-        names = [signal_name(s, p.stem) for s, p in zip(sigs, args.combine, strict=True)]
+        combine_paths = [_resolve_signal_path(Path(item)) for raw in args.combine for item in str(raw).split(",") if item]
+        sigs = [load_signal(p) for p in combine_paths]
+        names = [signal_name(s, p.stem) for s, p in zip(sigs, combine_paths, strict=True)]
         combined = combine(sigs, runs, args.method, names=names)
         meta = combined.pop("__weights__", None)
         if args.write_combined:

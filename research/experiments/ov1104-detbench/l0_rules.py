@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import signal
 import sys
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
@@ -117,6 +118,14 @@ def _tool_names(doc: dict[str, Any]) -> Counter[str]:
     return c
 
 
+class _L0Timeout(BaseException):
+    """Per-run watchdog for exponential regex backtracking in hack_drop."""
+
+
+def _raise_l0_timeout(_signum: int, _frame: Any) -> None:
+    raise _L0Timeout()
+
+
 def evaluate_one(args: tuple[str, str, bool]) -> dict[str, Any]:
     run_key, view_path, counterfactual = args
     from evallab import hack_drop as hd
@@ -132,20 +141,25 @@ def evaluate_one(args: tuple[str, str, bool]) -> dict[str, Any]:
     # an empty view (no steps, no diff) is what the line sees as "no trajectory": L0_NO_EVIDENCE
     run = LoadedRun(run_id=run_key, loader="detbench-view", doc=doc) if doc["steps"] else None
     steps = [dict(s) for s in doc["steps"]]
+    old_handler = signal.signal(signal.SIGALRM, _raise_l0_timeout)
+    signal.setitimer(signal.ITIMER_REAL, 2.0)
     try:
-        files = extract_content_files(steps)
-    except Exception:  # noqa: BLE001 - content extraction is best effort, as in the line
-        files = []
-    item = hd.RolloutItem(item_id=run_key, task_id="unknown", run=run, files=tuple(files), diff_text=view["final"].get("diff"))
-    try:
+        try:
+            files = extract_content_files(steps)
+        except Exception:  # noqa: BLE001 - content extraction is best effort, as in the line
+            files = []
+        item = hd.RolloutItem(item_id=run_key, task_id="unknown", run=run, files=tuple(files), diff_text=view["final"].get("diff"))
         verdict = hd.evaluate_l0_stage(item)
         reasons = list(verdict.reasons)
         decision = verdict.decision
         unrec = len(verdict.details.get("unrecognized_tool_steps") or [])
         evidence = list(verdict.evidence_steps)
         error = None
-    except Exception as exc:  # noqa: BLE001 - record, never drop the row
+    except (Exception, _L0Timeout) as exc:  # noqa: BLE001 - record, never drop the row
         reasons, decision, unrec, evidence, error = ["L0_RUNNER_ERROR"], "review", 0, [], type(exc).__name__
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0.0)
+        signal.signal(signal.SIGALRM, old_handler)
     return {
         "run_key": run_key,
         "decision": decision,
@@ -179,8 +193,11 @@ def main(argv: list[str] | None = None) -> int:
         rows = [r for r in rows if r["set"] in set(args.sets)]
     key = "view" if args.view == "full" else "view_actions_only"
     jobs = [(r["run_key"], r[key], args.counterfactual) for r in rows]
-    with ProcessPoolExecutor(max_workers=args.workers) as pool:
-        results = list(pool.map(evaluate_one, jobs, chunksize=8))
+    if args.workers <= 1:
+        results = [evaluate_one(j) for j in jobs]
+    else:
+        with ProcessPoolExecutor(max_workers=args.workers) as pool:
+            results = list(pool.map(evaluate_one, jobs, chunksize=8))
     prefix = f"{'l0cf' if args.counterfactual else 'l0v'}_{args.view}"
     version = f"{prefix}@{hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:12]}"
     args.raw_dir.mkdir(parents=True, exist_ok=True)

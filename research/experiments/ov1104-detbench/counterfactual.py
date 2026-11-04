@@ -78,28 +78,33 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--runs", type=Path, default=RUNS)
     ap.add_argument("--out", type=Path, default=HERE / "results" / "COUNTERFACTUAL.md")
     args = ap.parse_args(argv)
-    runs = {r["run_key"]: r for r in read_jsonl(args.runs) if r["split"] == "dev"}
-    lines = ["# Counterfactual: L0 reads every known tool shape (DEV replay-v1, L0 stage only, no AutoReview)", "", "`now` = current-main `evaluate_l0_stage` on the DetBench view. `cf` = the same rules after `l0_rules.map_tool_shapes` rewrote every known tool shape (Terminus `bash_command{keystrokes}`, `shell{command}`, cloud-export names, read-only tools) into one the parser reads. 'flagged' = L0 decision review or drop. 'caught by content' = any L0 reason other than the shape/parse notes. Wilson 95% CIs in brackets. No src change ships; the mapping lives in l0_rules.py only.", ""]
-    for view in ("full", "actions_only"):
-        b = args.raw_dir / f"l0v_{view}_raw.jsonl"
-        c = args.raw_dir / f"l0cf_{view}_raw.jsonl"
-        if not (b.is_file() and c.is_file()):
-            lines += [f"### view = {view}: not computed (missing {b.name if not b.is_file() else c.name})", ""]
+    all_runs = read_jsonl(args.runs)
+    dev_runs = {r["run_key"]: r for r in all_runs if r["split"] == "dev"}
+    ho_runs = {r["run_key"]: r for r in all_runs if r["split"] == "heldout"}
+    lines = ["# Counterfactual: L0 reads every known tool shape (DEV replay-v1 + Held-out sets, L0 stage only, no AutoReview)", "", "`now` = current-main `evaluate_l0_stage` on the DetBench view. `cf` = the same rules after `l0_rules.map_tool_shapes` rewrote every known tool shape (Terminus `bash_command{keystrokes}`, `shell{command}`, cloud-export names, read-only tools) into one the parser reads. 'flagged' = L0 decision review or drop. 'caught by content' = any L0 reason other than the shape/parse notes. Wilson 95% CIs in brackets. No src change ships; the mapping lives in l0_rules.py only.", ""]
+    for split_title, runs in (("DEV replay-v1 (690 runs, pre-registered H5)", dev_runs), ("Held-out sets (15,859 runs across 20 sets)", ho_runs)):
+        if not runs:
             continue
-        base = {r["run_key"]: r for r in read_jsonl(b) if r["run_key"] in runs}
-        cf = {r["run_key"]: r for r in read_jsonl(c) if r["run_key"] in runs}
-        missing = [k for k in runs if k not in base or k not in cf]
-        if missing:
-            lines += [f"({len(missing)} DEV runs missing from raw outputs; excluded)", ""]
-            runs_v = {k: v for k, v in runs.items() if k not in set(missing)}
-        else:
-            runs_v = runs
-        lines += table(runs_v, base, cf, view)
-        mapped = Counter()
-        for r in cf.values():
-            mapped.update(r["mapped"])
-        lines += [f"Mappings applied ({view}): {dict(mapped)}", ""]
-    args.out.parent.mkdir(parents=True, exist_ok=True)
+        lines += [f"## {split_title}", ""]
+        for view in ("full", "actions_only"):
+            b = args.raw_dir / f"l0v_{view}_raw.jsonl"
+            c = args.raw_dir / f"l0cf_{view}_raw.jsonl"
+            if not (b.is_file() and c.is_file()):
+                lines += [f"### view = {view}: not computed (missing {b.name if not b.is_file() else c.name})", ""]
+                continue
+            base = {r["run_key"]: r for r in read_jsonl(b) if r["run_key"] in runs}
+            cf = {r["run_key"]: r for r in read_jsonl(c) if r["run_key"] in runs}
+            missing = [k for k in runs if k not in base or k not in cf]
+            if missing:
+                lines += [f"({len(missing)} runs missing from raw outputs; excluded)", ""]
+                runs_v = {k: v for k, v in runs.items() if k not in set(missing)}
+            else:
+                runs_v = runs
+            lines += table(runs_v, base, cf, view)
+            mapped = Counter()
+            for r in cf.values():
+                mapped.update(r["mapped"])
+            lines += [f"Mappings applied ({view}): {dict(mapped)}", ""]
     args.out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
     summary = {"out": str(args.out)}

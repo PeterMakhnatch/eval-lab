@@ -124,6 +124,14 @@ The shared mutation-weak fraction is 20/31, interval 46.9–78.9%.
 [INFERENCE] Null controls identify gross grader failures, not partial behavioral coverage gaps.
 These results do not support replacing mutation audits with the benign smoke subset.
 
+### Worked example: a null pass does not mean a sound grader
+
+`format-code-task-000682` is mutation-weak: its original grader accepts a `call_drop` mutant that deletes the `sns.set_topic_attributes` call, so the action does nothing.
+The accepted mutant scores 1.0 in the prior exact-bound cell (`cell_key ab0c70ce…`, evidence `d625f8dc…`).
+The same grader rejects the no-change null with reward 0.0 (`smoke` receipt `runs-amendment2/format-code-task-000682/null/observation.json`).
+Thus the null control cannot substitute for a behavioral mutant: it exercises no candidate behavior at all.
+[INFERENCE] This mechanism explains the 0/20 recall and predicts low null recall on other partial-coverage graders.
+
 ## Commands and receipts
 
 Run from the owned `ov1104-wave2-grader` worktree.

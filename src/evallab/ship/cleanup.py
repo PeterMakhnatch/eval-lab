@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 
 
 CACHE_ROOTS = {".venv", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".hypothesis"}
+#: Tool caches that a linter or test run writes in any directory it visits.
+NESTED_CACHES = {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".hypothesis"}
 
 
 def inspect_tree(ship: Ship, tree: Path, head: str) -> None:
@@ -27,7 +29,7 @@ def inspect_tree(ship: Ship, tree: Path, head: str) -> None:
             raise Blocked(f"Cleanup refused: Git operation {operation} in {tree}")
     ignored = ship.run(["git", "ls-files", "--others", "--ignored", "--exclude-standard", "-z"], cwd=tree).stdout
     unknown = [name for name in ignored.split("\0") if name and not (
-        Path(name).parts[0] in CACHE_ROOTS or "__pycache__" in Path(name).parts
+        Path(name).parts[0] in CACHE_ROOTS or NESTED_CACHES.intersection(Path(name).parts[:-1])
         or name in {".coverage", ".DS_Store"})]
     if unknown:
         raise Blocked(f"Cleanup refused: unique ignored files in {tree}: {unknown[:20]}")

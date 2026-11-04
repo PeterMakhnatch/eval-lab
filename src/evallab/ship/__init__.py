@@ -23,6 +23,9 @@ from typing import Any
 
 from evallab.ship.cleanup import inspect_cleanup, inspect_tree, retire
 
+#: How many times a PR view may report mergeable UNKNOWN before ship gives up on it.
+UNKNOWN_MERGEABLE_VIEWS = 12
+
 
 class Blocked(RuntimeError):
     """A delivery boundary needs an author fix."""
@@ -72,9 +75,16 @@ class Ship:
         return self.run(["gh", *args], cwd=self.directory, check=check)
 
     def view(self) -> dict[str, Any]:
-        return json.loads(self.gh("pr", "view", str(self.pr), "--repo", self.repo, "--json",
-            "number,state,headRefOid,headRefName,baseRefName,baseRefOid,isDraft,mergeable,"
-            "mergeStateStatus,changedFiles,labels,mergeCommit,isCrossRepository,statusCheckRollup").stdout)
+        # GitHub reports mergeable UNKNOWN until it has computed the merge after a
+        # push or a base change; ask again briefly instead of treating it as a conflict.
+        for _ in range(UNKNOWN_MERGEABLE_VIEWS):
+            pr = json.loads(self.gh("pr", "view", str(self.pr), "--repo", self.repo, "--json",
+                "number,state,headRefOid,headRefName,baseRefName,baseRefOid,isDraft,mergeable,"
+                "mergeStateStatus,changedFiles,labels,mergeCommit,isCrossRepository,statusCheckRollup").stdout)
+            if pr["state"] != "OPEN" or pr["mergeable"] != "UNKNOWN":
+                return pr
+            time.sleep(min(self.poll, 5))
+        return pr
 
     def guard(self, pr: dict[str, Any]) -> None:
         for key in ("headRefOid", "baseRefName", "baseRefOid"):

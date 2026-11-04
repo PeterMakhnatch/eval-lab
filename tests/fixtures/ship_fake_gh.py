@@ -27,6 +27,9 @@ elif args[:2] == ["pr", "view"]:
         view = {**state["pr"], "statusCheckRollup": []}
     else:
         view = state["pr"]
+    if state["views"] <= state.get("unknown_views", 0):
+        # GitHub computes mergeability lazily after a push or a base change.
+        view = {**view, "mergeable": "UNKNOWN"}
     output = json.dumps(view)
 elif args[:2] == ["pr", "merge"]:
     if "--match-head-commit" not in args or "--admin" in args:

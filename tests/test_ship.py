@@ -194,6 +194,23 @@ def test_clean_ignored_dependency_cache_can_retire(delivery):
     assert not tree.exists()
 
 
+def test_nested_tool_cache_can_retire(delivery):
+    args, root, tree, _, git, _ = delivery
+    exclude = root / git("rev-parse", "--git-common-dir") / "info/exclude"
+    exclude.write_text(".ruff_cache/\n")
+    (tree / "library/benchmarks/.ruff_cache/0.17.2").mkdir(parents=True)
+    (tree / "library/benchmarks/.ruff_cache/0.17.2/123").write_text("lint cache")
+    assert run_command(args, root) == 0
+    assert not tree.exists()
+
+
+def test_unknown_mergeability_is_asked_again_not_treated_as_conflict(delivery):
+    args, root, _, state, _, change = delivery
+    change(unknown_views=3)
+    assert run_command(args, root) == 0
+    assert json.loads(state.read_text())["merges"]
+
+
 @pytest.mark.parametrize("pause", ["draft", "conflict", "hold", "neutral", "missing"])
 def test_pauses_and_incomplete_checks_cannot_merge(delivery, pause):
     args, root, tree, state, _, change = delivery

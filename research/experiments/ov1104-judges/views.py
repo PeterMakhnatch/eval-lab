@@ -197,6 +197,7 @@ def first_json_object(text: str) -> dict[str, Any] | None:
     stripped = text.strip()
     if stripped.startswith("```"):
         stripped = re.sub(r"^```[a-zA-Z]*\n?|```$", "", stripped, flags=re.MULTILINE).strip()
+    stripped = re.sub(r"(?<=\[|,)\s*step\s+(\d+)\b", r" \1", stripped)
     for candidate in (stripped, *(m.group(0) for m in _JSON_OBJECT.finditer(stripped))):
         try:
             value = json.loads(candidate)

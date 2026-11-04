@@ -79,7 +79,7 @@ async def judge_run(caller: Caller, *, judge: str, model: str, row: dict[str, An
     windows = render_windows(view, actions_only=True, window_chars=window_chars)
     tasks = []
     for index, window in enumerate(windows):
-        prompt = j1_prompt(window["text"]) if judge == "j1" else j2_prompt(view, window["text"])
+        prompt = j1_prompt(window["text"]) if judge == "j1" else j2_prompt(view, window["text"], v2=judge == "j2b")
         tag = {"judge": judge, "run_key": row["run_key"], "set": row["set"], "window": index, "n_windows": len(windows)}
         tasks.append(caller.call(model, prompt, tag=tag, seed=seed))
     replies = await asyncio.gather(*tasks)
@@ -166,7 +166,7 @@ async def main_async(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--judge", choices=("j1", "j2"), required=True)
+    parser.add_argument("--judge", choices=("j1", "j2", "j2b"), required=True)
     parser.add_argument("--model", required=True, help="provider/model route, e.g. google-antigravity/gemini-3.8-flash")
     parser.add_argument("--runs", required=True)
     parser.add_argument("--out", required=True)

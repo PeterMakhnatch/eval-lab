@@ -38,24 +38,30 @@ class Gateway:
         self.reader = loop.create_task(self._read_stdout())
         self.stderr_reader = loop.create_task(self._read_stderr())
 
+    _lock: asyncio.Lock | None = None
+
     @classmethod
     async def get(cls) -> Gateway:
         loop = asyncio.get_running_loop()
-        current = cls._current
-        if current is not None and current.loop is loop and current.process.returncode is None:
-            return current
-        process = await asyncio.create_subprocess_exec(
-            "omp", "auth-gateway", "stdio",
-            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            limit=1 << 26,
-        )
-        assert process.stdout is not None
-        ready = json.loads(await asyncio.wait_for(process.stdout.readline(), timeout=120))
-        if not ready.get("ready"):
-            process.kill()
-            raise RuntimeError(f"omp auth-gateway stdio did not start: {ready!r}")
-        cls._current = gateway = cls(process, loop)
-        return gateway
+        if cls._lock is None:
+            cls._lock = asyncio.Lock()
+        async with cls._lock:  # one child at a time: concurrent spawns race on omp's auth store
+            current = cls._current
+            if current is not None and current.loop is loop and current.process.returncode is None:
+                return current
+            process = await asyncio.create_subprocess_exec(
+                "omp", "auth-gateway", "stdio",
+                stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                limit=1 << 26,
+            )
+            assert process.stdout is not None
+            line = await asyncio.wait_for(process.stdout.readline(), timeout=120)
+            ready = json.loads(line) if line.strip() else {}
+            if not ready.get("ready"):
+                process.kill()
+                raise RuntimeError(f"omp auth-gateway stdio did not start: {line[:200]!r}")
+            cls._current = gateway = cls(process, loop)
+            return gateway
 
     async def _read_stdout(self) -> None:
         assert self.process.stdout is not None

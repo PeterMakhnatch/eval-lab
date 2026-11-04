@@ -134,3 +134,7 @@ re.search(r"def\s+test_[a-zA-Z0-9_]*\s*\([^)]*\)\s*:\s*(?:#.*|\s*)*pass\b", text
 ```
 
 The nested quantifier `(?:#.*|\s*)*` backtracks in $O(2^N)$ time over whitespace following `def test_...():` when the function body does not start with `pass`. On `evilgenie-escalation:ccec713ac32ccb897a16f3c5361238a0980b07a7622122154ce782627c836490` (and two `sleight-bench` runs), this single call hangs a CPU core indefinitely. We added a 2.0-second `SIGALRM` watchdog in `l0_rules.py` (recording `_L0Timeout` on 3/16,549 runs) without modifying `src/`. Replacing `(?:#.*|\s*)*` with `(?:[ \t]*#[^\n]*\n|\s+)*` eliminates the backtracking.
+
+## Additional source admissions
+
+- [`hackbench-test`](../ov1105-hackbench/README.md): pinned `facebook/hackbench` test release, 169 positive records and 0 negatives. Its adapter preserves the source split and prior detector exposure. It remains outside the binary held-out pool (`pool=false`). Frozen-detector measurements are retrospective/exploratory; this source cannot establish run-level AUROC or FPR.

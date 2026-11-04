@@ -159,7 +159,8 @@ jobs:
             tests/test_heldout_v7_rounds.py tests/test_campaign_execution.py \
             tests/test_mimoagent_clean_options.py tests/test_harbor024_agent_kwargs.py \
             tests/test_auditor_sft_data.py tests/test_antigravity_bridge.py \
-            tests/test_task_workbench.py tests/test_tb4_fingerprints.py
+            tests/test_task_workbench.py tests/test_tb4_fingerprints.py \
+            tests/test_harbor_daytona.py
           uv run --no-sync python scripts/ci/check_harbor_skips.py harbor-native.xml
 
   quality-required:

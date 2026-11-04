@@ -677,6 +677,8 @@ class SecretSafeDaytonaEnvironment(BoundedDaytonaEnvironment):
             changed = await strategy._vm_exec(
                 f"docker network connect {shlex.quote(network)} {container_id}", timeout_sec=15,
             )
+            if changed.return_code:
+                raise RuntimeError("Failed to connect task network")
 
     async def stop(self, delete: bool) -> None:
         try:

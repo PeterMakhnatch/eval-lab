@@ -151,7 +151,7 @@ inputs:
   - path: docs/scaling.md
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
   - path: docs/ship.md
-    digest: sha256:f67978612d48e583a60c78ca7380e6a50f110b6f06704aee335c1251e063df3f
+    digest: sha256:3c0dfef0d5215d74402dae4d928b5e27de820634a59c091a4d5a9b7bb28a5c4d
   - path: docs/storm-alarms.md
     digest: sha256:0bc85e698e48423c3a23b2462ca7eb6187578a0cb94e9dc6f346d4a1f3363692
   - path: docs/surfaces.md

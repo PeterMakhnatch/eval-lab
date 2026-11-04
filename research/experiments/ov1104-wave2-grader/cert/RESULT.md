@@ -88,3 +88,23 @@ Unmodified `certify-gold` does not execute. Its planner automatically includes p
 - Provider evidence: `billing.json`. The owned application `ap-mypHhQj6Qhylr8IfWxBwUz` is stopped with 0 tasks at **3:21 AM ET**; see `closure.json`.
 
 No task has a new seven-gate certificate. The exact unmet requirement is at least 2 original-correct fresh 002391 alternatives. The positive measured result is independent confirmation of Gold false rejections on 2 tasks, with every failed attempt retained.
+
+## Independent check of the two existing `002391` alternatives
+
+`public_2391.py` checks only the 2 duplicate-advisory examples in the task instruction across all 8 provider orders.
+It requires one result, PYSEC precedence, the exact merged alias union, and no own primary ID in the alias set.
+`real-2` and `real-3` pass; the unpatched control fails with an explicit assertion.
+
+| Candidate | Public marker | Native reward | Estimated USD |
+|---|---:|---:|---:|
+| Unpatched | false | null | 0.00072 |
+| `real-2` | true | 1.0 | 0.00112 |
+| `real-3` | true | 1.0 | 0.00068 |
+
+This is **2/2 on a fixed set of 2 known alternatives**, with a valid negative control.
+It adds independent behavioral confirmation of the instruction examples.
+It does not add held-out alternatives, change Gate 7, or certify any task: both patches were shown to the old synthesizer.
+Prereg SHA-256 `d0c4c52b26d961aab5ea312377801fd6b06e95c708ad1a0ba03a9a7dab9cff8d`; check SHA-256 `68d6d748cb6893502b49d57083b6eb9d8d58a9461a713e919013db4788bd73ff`.
+Aggregate `evaluation-2391-public.json`; parent verification `parent-verification-2391-public.json`.
+Estimated spend for the 3 cells is **$0.002525**; provider-reported for this app is **$0.00026431** to date.
+The app `ov1104-wave2-grader-cert3` has 0 active tasks.

@@ -38,6 +38,23 @@ The original fixed split shows both patches to the contract synthesizer.
 Neither patch becomes held-out merely because this audit reviews it independently.
 The existing contract acceptance receipts remain unchanged; this audit does not repeat grading.
 
+### Independent public behavioral check
+
+`cert/public_2391.py` tests only the 2 duplicate-advisory examples in the task instruction.
+It runs all 8 provider orders (2 for example 1, 6 for example 2) and requires one emitted result, PYSEC precedence, the exact merged alias union, and no own primary ID in the alias set.
+It reads no hidden test or reference patch.
+
+| Candidate | Public marker | Native reward | Receipt SHA256 |
+|---|---:|---:|---|
+| Unpatched control | false; assertion fails | null | `e6cf37f1c4289f6e40059083e0798dd62a6d97a1140f9772eb2579678f37e637` |
+| `real-2` | true | 1.0 | `6f16f8168dea3055c7b2dc2c2671f94dbc50ea44290825893f192909c8259a0b` |
+| `real-3` | true | 1.0 | `0b4e246cad5307cc6c7606b4123ca6f7d2e561d70ad1493e0d1298c038764670` |
+
+The result is **2/2 accepted with a valid negative control**, over a fixed set of 2 known alternatives; no confidence interval applies.
+This is independent behavioral confirmation of the instruction examples, not certification, not held-out generalization, and not a Gate 7 claim.
+Both patches were already shown to the old synthesizer.
+Aggregate: `cert/evaluation-2391-public.json`; parent check: `cert/parent-verification-2391-public.json`; prereg hash `d0c4c52b26d961aab5ea312377801fd6b06e95c708ad1a0ba03a9a7dab9cff8d`.
+
 ### Guided generated alternative
 
 `a-flash` has candidate SHA256 `b259e89bbc1da753c3e81a891677c00eed21e39f952db13cc3a3929eb8c9fe8c`.
@@ -57,7 +74,7 @@ The audit does not establish clean held-out provenance for this later replacemen
 - The scans find no definition matches. No hidden or reference text, or definition names, enters this report.
 - Zero signature matches alone do not prove blinding. The bounded finding also uses the recorded access paths and application-source review.
 - Trace evidence does not exclude unlogged access or pretraining exposure. Grader rewards and arm labels do not prove full semantic correctness.
-- Source-only patch application and Python compilation succeed for 3/3 candidates. No imports, task functions, graders, or tests execute.
+- Source-only patch application and Python compilation succeed for 3/3 candidates. The provenance audit itself imports no task code, runs no task function, grader, or test. The separate public check executes application code only inside a Modal sandbox.
 - Counts in this section describe deterministic provenance or compilation outcomes. No inferential confidence interval applies.
 - Parent separately reports 0/8 original passes from fresh generation. This historical-source audit does not recompute that result.
 

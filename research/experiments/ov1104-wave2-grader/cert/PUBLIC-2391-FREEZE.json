@@ -1,0 +1,30 @@
+{
+  "audit_sha256": "7560771ab81bce23372c08ec0679efc76d557eed7611914edd835338a2847f1f",
+  "files": {
+    "PREREG-2391-PUBLIC.md": "d0c4c52b26d961aab5ea312377801fd6b06e95c708ad1a0ba03a9a7dab9cff8d",
+    "PUBLIC-2391-EXECUTION-NOTE.json": "43f217e07b6e1452a2329e1256c2fdbd705b3e71fa9e5ea919ad87eaf5c0e315",
+    "cells.py": "534b17617ea5089912bc7277b2639c9268ee7ee4e94ff81e8662b046b1526f23",
+    "evaluate_2391_public.py": "088e7fa665cb9060a236d6911a82b649c6f7f29f32dc0173a3375a62a0a9ad14",
+    "public_2391.py": "68d6d748cb6893502b49d57083b6eb9d8d58a9461a713e919013db4788bd73ff"
+  },
+  "frozen_at": "2026-11-04T09:39:36.382127+00:00",
+  "incremental_cap_usd": 0.1,
+  "initial_settled_usd": 0.353662,
+  "instruction_sha256": "070adfd6a3bad8de52967db202ed20fa542b9551e77e7bd36608621ba1bb0ef6",
+  "modal_app_name": "ov1104-wave2-grader-cert3",
+  "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002391",
+  "package_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1",
+  "patches": {
+    "real-2": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-2.patch",
+      "sha256": "36732e9915745a857f0369c29feb83934f3f7aba927f852c02895aff820aa003"
+    },
+    "real-3": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/alt/002391/real-3.patch",
+      "sha256": "53787d3060a3197f0cb6689d95916c462496ee11bf0e0894577221d21cce8624"
+    }
+  },
+  "raw_evidence": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-wave2-grader/2391-public",
+  "shared_cap_usd": 2.0,
+  "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ov1104/wave2-grader-spend.json"
+}

@@ -1,6 +1,6 @@
 # PREREG: ov1104-grader (systematic grader trust)
 
-Written 2026-11-04 00:20 ET, before any scoring or paid run of this lane. Hash committed before the first Modal cell.
+Written 2026-11-03 11:51 PM ET, before any scoring or paid run of this lane. Committed (011d7fbb) before the first Modal cell.
 
 ## Questions
 Q1. Across every DEV task with executed grader evidence, how is grader weakness distributed, and which tasks are closest to certifiable?
@@ -43,3 +43,8 @@ Alternative solutions: `~/Developer/eval-lab-results/2026-11-02/A0/submissions-i
 ## What counts as a miss
 A certification that needs a `test_aware` alternative is reported as `provisional (test-aware alternatives)`, not `certified`.
 Any generated alternative that fails the original grader is reported in the counts (k/n), not dropped.
+
+## Amendment 1 (2026-11-04 12:08 AM ET, after run 1 of 002391, before any run 2)
+Observed: certify-gold on 002391 passed gates 1-6 (reference 1, nop/witness/.pth 0, train 4/4 and held-out 3/3 mutants killed) and failed gate 7 with 0/4 real correct solutions accepted: the synthesized test pins a reference-only helper (`merge_aliases`) and reference-specific merge precedence.
+H5 (alternative-informed synthesis, pre-registered now): split the task's validated alternatives in two fixed halves by sha256 ascending order; the first half is shown to the synthesizer as "independent correct solutions the test must also pass" (their diffs, in the prompt), the second half is held out and graded only by gate 7. Run certify-gold with `--contract-test` set to the new test. PASS = status `certified` (held-out alternatives all accepted, all train and held-out mutants still killed, gates 1-4 pass). Reported separately from H3/H4: this is a protocol change, and a certification obtained this way is labeled `certified (alt-informed, k held out)`. If a shown alternative is also rejected, that is reported as a miss of the synthesizer, not hidden.
+For 000682 the same split applies if run 1 fails gate 7; test-aware alternatives stay labeled as such.

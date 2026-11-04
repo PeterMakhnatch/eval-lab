@@ -93,6 +93,31 @@ and `docs/repo-map.md` with `make docs` when generator inputs change or a
 merge/rebase requires refresh, and review the generated diff — not unconditionally
 before every freshness check. Freshness checks are read-only and never stage or amend.
 
+### Local line-change gate
+
+Before merging a line-behavior change, run the paired full-line DEV gate:
+
+```bash
+git fetch origin
+uv run python scripts/line-gate.py --paths --output /absolute/new/path/paths
+uv run python scripts/line-gate.py --pr <PR_NUMBER> --output /absolute/new/path/gate
+```
+
+The first gate command lists the base/head import closure and changed sensitive paths.
+It is discovery only, not a gate pass. The second command writes `gate.json` and
+`gate.md`. Require exit 0 and `passed: true` for the exact PR head and current
+`origin/main`. Keep both receipts with the merge record. A changed head or base
+requires another run. Exit 1 blocks; exit 2 is an error, including absent data.
+CI without the private replay set says
+`line gate: replay data unavailable, run locally`. This is not a pass.
+
+The gate blocks any per-corpus DEV cheat-keep increase. It also preserves the
+existing honest-drop allowance in [the line contract](../docs/line.md).
+An exception requires Peter's exact PR, head and corpus-delta approval in the
+existing Peter-owned standing policy on `origin/main`. Candidate policy edits
+and command-line flags cannot authorize an exception.
+
+
 ### Local checkpoints versus full CI
 
 Verification separates rapid local checkpoints, full hosted CI gates, and explicit

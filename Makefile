@@ -1,4 +1,4 @@
-.PHONY: help sync check prepush premerge docs smoke smoke-ci db-up db-down db-init doctor controls ingest summarize loop line-replay
+.PHONY: help sync check prepush premerge docs smoke smoke-ci db-up db-down db-init doctor controls ingest summarize loop line-replay line-gate
 
 help:
 	@echo "sync       Install locked Python dependencies"
@@ -16,6 +16,7 @@ help:
 	@echo "summarize  Print a Markdown result table"
 	@echo "loop       Run targeted tests for changed modules in the working tree"
 	@echo "line-replay Run the frozen replay-v1 assembly-line gate (exit 77 = data missing, skipped)"
+	@echo "line-gate   Compare base/head full DEV line; ARGS='--pr N --output PATH' (0 pass, 1 block, 2 error)"
 
 sync:
 	uv sync --frozen
@@ -66,3 +67,6 @@ loop:
 
 line-replay:
 	uv run python scripts/line-replay.py $(LINE_REPLAY_ARGS)
+
+line-gate:
+	uv run python scripts/line-gate.py $(ARGS)

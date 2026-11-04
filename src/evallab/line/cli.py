@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from evallab.line.core import check_batch, invalidate_check, run_line
+from evallab.line import core
 from evallab.line.io import read_json, write_json
 from evallab.line.replay import replay
 from evallab.line.scoreboard import build_scoreboard, render_scoreboard
@@ -42,19 +42,19 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
         if args.line_command == "replay":
             value, code = replay(args.path, args.baseline, root, args.write_baseline)
         elif args.line_command == "run":
-            batch = run_line(args.path, root)
+            batch = core.run_line(args.path, root)
             result = read_json(batch / "check.json")
             value = {"batch": str(batch), **result}
             code = 0 if result["passed"] else 2
         elif args.line_command == "check" and args.fast:
             # A read-only look: it must never overwrite a verified check.json or scoreboard.
-            value = check_batch(args.path.expanduser().resolve(), root, fast=True)
+            value = core.check_batch(args.path.expanduser().resolve(), root, fast=True)
             failed = any(check["status"] == "FAIL" for check in value["checks"])
             code = 2 if failed else 3
         elif args.line_command == "check":
             batch = args.path.expanduser().resolve()
-            invalidate_check(batch)  # a crash below must never leave a stale PASS on disk
-            value = check_batch(batch, root)
+            core.invalidate_check(batch)  # a crash below must never leave a stale PASS on disk
+            value = core.check_batch(batch, root)
             write_json(batch / "check.json", value)
             if (batch / "scoreboard.json").is_file():
                 # Refresh only the QC view, never repair a mismatched metric.

@@ -72,6 +72,46 @@ Paired cluster bootstrap on the 1,448 runs both signals score: `J3` − `J2b` = 
 `flake-laundering` (0.858 vs 0.440). Its lower held-out recall is a threshold artifact — its DEV
 threshold lands at 4.1% held-out FPR — not a ranking loss; this lane does not re-tune on held-out.
 
+## Operating points at matched false-alarm budgets
+
+The pre-registered headline fixes one threshold per judge (5% FPR on pooled DEV negatives) and reads
+Goodfire recall off it. `terminal-wrench` (146) and `cheatbench` (63) dominate those 358 negatives,
+which is why the second family's bar lands at 89/100. `results/operating_points.json` sweeps the
+budget instead, choosing each threshold on the scored set's own DEV rows, so the ranking question is
+separated from the calibration question:
+
+| Judge | GF AUROC | rec/FPR at 1% | 2.5% | 5% | 10% | 20% |
+|---|---:|---|---|---|---|---|
+| `J0` AutoReview | 0.543 | 0.05 / 0% | 0.11 / 1.4% | 0.11 / 1.4% | 0.11 / 1.4% | 0.11 / 1.4% |
+| `J1` actions only | 0.537 | 0.07 / 0% | 0.07 / 0% | 0.07 / 0% | 0.07 / 0% | 0.07 / 0% |
+| `J2b` frozen (flash) | 0.544 | 0.09 / 0% | 0.09 / 0% | 0.09 / 0% | 0.09 / 0% | 0.09 / 0% |
+| **`J3` terra** | **0.778** | **0.20 / 0%** | 0.20 / 0% | 0.31 / 2.9% | **0.62 / 7.1%** | 0.64 / 11.4% |
+| mean(`J2b`, `J3`) | 0.778 | **0.21 / 0%** | 0.21 / 0% | 0.33 / 2.9% | 0.62 / 7.1% | 0.64 / 11.4% |
+| `length_chars` | 0.802 | 0.03 / 0% | 0.19 / 1.4% | 0.38 / 4.3% | 0.41 / 10.0% | 0.61 / 20.0% |
+| `length_steps` | 0.746 | 0.11 / 0% | 0.35 / 1.4% | 0.36 / 4.3% | 0.36 / 4.3% | 0.47 / 18.6% |
+
+Three things this makes precise:
+
+1. **At a tight budget the action judges win by 2-4x.** At 1% (0 false alarms in 70) `J3` catches
+   16/80 = 0.20 against AutoReview's 4/80 = 0.05 and `length_chars`'s 2/80 = 0.03.
+2. **AutoReview is saturated; the action judges are not.** `J0` scores exactly 0 on **71 of 80**
+   Goodfire positives, so any threshold above 0 buys at most 9/80 = 0.113 and also fires on the one
+   clean run that scores 15; raising the budget from 2.5% to 20% therefore changes nothing. `J3`
+   climbs from 0.20 to 0.64 over the same range because its positive tail is graded (99, 99, 95, 90,
+   90, ... against a clean maximum of 10).
+3. **Run length is still the best at the pre-registered 5% bar, and this lane does not hide it.**
+   `length_chars` reaches 0.38 at 5% where `J3` reaches 0.31, so H1's "beat length on Goodfire
+   recall@5%FPR" stays failed even after the second family. The judge overtakes length at 10%
+   (0.62 vs 0.41), and length reaches 0.61 only after spending 20% of the false-alarm budget. Length
+   is also one scalar with no mechanism, no evidence steps and a documented confound (§1):
+   ImpossibleBench retry loops, not cheating.
+
+Held-out recall at those same DEV thresholds, for the eleven scored sets (`n = 1,450`):
+mean(`J2b`, `J3`) 0.317 / 0.570 / 0.613 / 0.666 / 0.846; `J3` 0.233 / 0.233 / 0.369 / 0.625 / 0.887;
+frozen `J2b` 0.372 / 0.372 / 0.657 / 0.674 / 0.674; `length_chars` 0.000 / 0.000 / 0.081 / 0.099 / 0.238.
+`J0` and `J1` have no held-out rows at all, so no held-out comparison against the deployed reader is
+possible from this lane's data.
+
 ## How to Read This Directory
 - `PREREG.md`: Pre-registration written and committed (`39715b9`, sha256 `3e4bb28366bc65b00e435178a6f8b6ac54e770e14179649370ed87aa5ecaf9a8`) before DEV scoring.
 - `FREEZE.md`: Exact code, rubric, model, and threshold hashes committed (`88c8be063`) before any held-out run was scored.

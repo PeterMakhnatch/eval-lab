@@ -1,0 +1,50 @@
+{
+  "alternative_solution_rewards": {
+    "853a59a6f10e1aabf75aa00a7ca2d40d02c9f6365d8267d9cf74c2f9dd596a52": 1.0,
+    "ebc56bc36f8cee1bb0cb9d53b44b1e83ddd99247785ceed469ee3cd889cbd57f": 0.0
+  },
+  "alternative_solutions_accepted": 1,
+  "alternative_solutions_total": 2,
+  "eval_base_rewards": {
+    "8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf": 0.0,
+    "a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c": 1.0,
+    "b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc": 0.0,
+    "bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa": 0.0
+  },
+  "eval_mutants_base_accepted": 1,
+  "eval_mutants_base_accepted_killed": 1,
+  "eval_mutants_killed": 4,
+  "eval_mutants_total": 4,
+  "eval_rewards": {
+    "8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf": 0.0,
+    "a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c": 0.0,
+    "b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc": 0.0,
+    "bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa": 0.0
+  },
+  "exit0_pth_reward": 0.0,
+  "gate1_reference_passed": true,
+  "gate2_nop_passed": true,
+  "gate3_witness_passed": true,
+  "gate4_exit0_pth_passed": true,
+  "gate7_alternatives_passed": false,
+  "kind": "gold",
+  "nop_reward": 0.0,
+  "package_digest": "sha256:82948245bc04940ae9b52fd59ae5a87c927364732d6ba433549210df29523102",
+  "reference_reward": 1.0,
+  "status": "failed",
+  "task_id": "format-code-task-002139",
+  "test_lines": 197,
+  "train_mutants_killed": 4,
+  "train_mutants_total": 4,
+  "train_rewards": {
+    "12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d": 0.0,
+    "1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd": 0.0,
+    "7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e": 0.0,
+    "88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec": 0.0
+  },
+  "upgraded_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002139-r2/package",
+  "witness_reward": 0.0,
+  "witness_rewards": {
+    "witness-0": 0.0
+  }
+}

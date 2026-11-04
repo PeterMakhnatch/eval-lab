@@ -1,0 +1,237 @@
+{
+  "H3_H4_blind_synthesis": {
+    "certified_count": 0,
+    "attempted_count": 5,
+    "tasks": {
+      "format-code-task-000682": {
+        "status": "failed",
+        "gates_passed": "5/7",
+        "failed_gates": [
+          "gate1_reference",
+          "gate7_alternatives"
+        ],
+        "blocker": "Synthesized test added /testbed/tests to sys.path and ran 'from common import BaseTest', triggering relative-import ImportError on both reference and all 4 alternatives. Also 3/4 instruction-only alternatives failed original grader because placebo fixtures lack kms.describe_key recordings.",
+        "alternatives_accepted": "0/4 (1 instruction-only + 3 test-aware)",
+        "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/000682/certification.json"
+      },
+      "format-code-task-002552": {
+        "status": "refused_insufficient_mutants",
+        "gates_passed": "unmeasured (probe 1.0)",
+        "failed_gates": [
+          "gate5_train_mutants",
+          "gate6_heldout_mutants"
+        ],
+        "blocker": "Reference patch touches only 4 Python lines in miio/miot_models.py, yielding 1 AST mutant total (<2 required to split into disjoint train and held-out sets).",
+        "alternatives_accepted": "unmeasured (3 real passing submissions available)",
+        "receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002552.log"
+      },
+      "format-code-task-002391": {
+        "status": "failed",
+        "gates_passed": "6/7 (gates 1-6 passed: ref=1, nop=0, witness=0, exit0_pth=0, train=4/4, eval=3/3)",
+        "failed_gates": [
+          "gate7_alternatives"
+        ],
+        "blocker": "Synthesized contract test pinned reference-only helper VulnerabilityResult.merge_aliases and reference merge precedence, rejecting 4/4 real passing submissions.",
+        "alternatives_accepted": "0/4 (3 honest + 1 HAR-202 cheat copy)",
+        "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/002391/certification.json"
+      },
+      "format-code-task-002139": {
+        "status": "failed",
+        "gates_passed": "6/7 (gates 1-6 passed: ref=1, nop=0, witness=0, exit0_pth=0, train=4/4, eval=4/4)",
+        "failed_gates": [
+          "gate7_alternatives"
+        ],
+        "blocker": "Synthesized contract test pinned exact literal exception string 'The GCP API threw a NotFound exception' from the reference patch (not specified in instruction.md), rejecting 3/3 instruction-only alternatives.",
+        "alternatives_accepted": "0/3 (all instruction-only; A0 inventory submission fc67f49d excluded as byte-identical HAR-202 cheat copy of reference)",
+        "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/002139/certification.json"
+      },
+      "format-code-task-000838": {
+        "status": "failed",
+        "gates_passed": "5/7",
+        "failed_gates": [
+          "gate1_reference",
+          "gate7_alternatives"
+        ],
+        "blocker": "separate-verifier@10 unittest shim prepends /var/lib/mimo-grade/v10shim/sitecustomize.py to PYTHONPATH and sets PYTHONPYCACHEPREFIX, breaking ruamel.yaml namespace package import ('ModuleNotFoundError: No module named ruamel') in the Python 3.8 container even on the pristine baseline and reference.",
+        "alternatives_accepted": "0/2 (1 real + 1 instruction-only; 2 other instruction-only generators failed original grader because instruction.md omits the --hide-command flag name)",
+        "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/000838/certification.json"
+      }
+    }
+  },
+  "H5_alternative_informed_synthesis": {
+    "description": "PREREG Amendment 1: validated alternatives split in half by sha256 ascending; first half shown to synthesizer as correct solutions the test must also pass, second half strictly held out for Gate 7.",
+    "tasks": {
+      "format-code-task-000682": {
+        "run2_status": "failed Gate 1 (MagicMock session_factory missing .region string attribute for c7n.utils.local_session)",
+        "run3_self_repair_status": "certified (alt-informed, 2/2 held-out; provisional: test-aware alternatives)",
+        "certification_json_status": "certified",
+        "gates_passed": "7/7 (ref=1, nop=0, witness=0, exit0_pth=0, train=1/1, eval=1/1, held-out alts=2/2)",
+        "shown_alternatives_accepted": "2/2 (a-flash instruction-only=1.0, b-flash test-aware=1.0)",
+        "held_out_alternatives_accepted": "2/2 (b-fable test-aware=1.0, b-argon test-aware=1.0)",
+        "total_alternatives_accepted": "4/4",
+        "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/000682-r3/certification.json"
+      },
+      "format-code-task-002391": {
+        "all_a0_inventory_status": "near_miss (6/7 gates + 1/2 held-out, 3/4 total)",
+        "honest_solutions_status": "certified (alt-informed, 2/2 held-out honest, 4/4 total honest, non-test-aware)",
+        "certification_json_status_all_a0": "failed",
+        "certification_json_status_honest": "certified",
+        "gates_passed": "7/7 on honest solutions (ref=1, nop=0, witness=0, exit0_pth=0, train=4/4, eval=3/3, held-out honest alts=2/2)",
+        "shown_alternatives_accepted": "2/2 (real-2=1.0, real-3=1.0)",
+        "held_out_alternatives_all_a0": "1/2 (real-4 honest=1.0; real-1 from HAR-202-chrr1-l-cheat-002391-k1 rejected at 0.0 because its copied merge_aliases omits self.published, resetting published to None)",
+        "held_out_alternatives_honest": "2/2 (real-4 honest=1.0, a-flash instruction-only=1.0)",
+        "receipt_all_a0": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/002391-r2/certification.json",
+        "receipt_honest": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/002391-r2-honest/certification.json"
+      },
+      "format-code-task-002139": {
+        "status": "near_miss (6/7 gates + 1/2 held-out, 2/3 total)",
+        "certification_json_status": "failed",
+        "gates_passed": "6/7 (ref=1, nop=0, witness=0, exit0_pth=0, train=4/4, eval=4/4)",
+        "shown_alternatives_accepted": "1/1 (a-argon=1.0)",
+        "held_out_alternatives_accepted": "1/2 (a-fable=1.0; a-flash=0.0 because FakeStorageClient.__init__(project='UNSET') in synthesized test did not default project=None when a-flash called storage.Client())",
+        "total_alternatives_accepted": "2/3 (all instruction-only)",
+        "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/research/experiments/ov1104-grader/cert/runs/002139-r2/certification.json"
+      }
+    }
+  },
+  "model_attestation": {
+    "worker/gen139-a-argon": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 15
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen139-a-fable": {
+      "assistant_messages_by_model": {
+        "anthropic/claude-fable-5-1": 7
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen139-a-flash": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-3.8-flash": 64
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen2391-a-flash": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-3.8-flash": 40
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen682-a-argon": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 7
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen682-a-fable": {
+      "assistant_messages_by_model": {
+        "anthropic/claude-fable-5-1": 11
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen682-a-flash": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-3.8-flash": 53
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen682-a-flash2": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-3.8-flash": 82
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen682-b-argon": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 9
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen682-b-fable": {
+      "assistant_messages_by_model": {
+        "anthropic/claude-fable-5-1": 6
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen682-b-flash": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-3.8-flash": 67
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen838-a-argon": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 10
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen838-a-fable": {
+      "assistant_messages_by_model": {
+        "anthropic/claude-fable-5-1": 12
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/gen838-a-flash": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-3.8-flash": 74
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "worker/scorecard": {
+      "assistant_messages_by_model": {
+        "anthropic/claude-fable-5-1": 100
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "cert/000682": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 1
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "cert/000682-r2-synth": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 1
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "cert/000682-r3-synth": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 1
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "cert/000838": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 1
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "cert/002139-r2-synth": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 1
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "cert/002139-synth": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 1
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "cert/002391": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 1
+      },
+      "resolvedModelIsFallback_count": 0
+    },
+    "cert/002391-r2-synth": {
+      "assistant_messages_by_model": {
+        "google-antigravity/gemini-4-argon": 1
+      },
+      "resolvedModelIsFallback_count": 0
+    }
+  }
+}

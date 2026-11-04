@@ -1,0 +1,50 @@
+{
+  "alternative_solution_rewards": {
+    "36732e9915745a857f0369c29feb83934f3f7aba927f852c02895aff820aa003": 0.0,
+    "53787d3060a3197f0cb6689d95916c462496ee11bf0e0894577221d21cce8624": 0.0,
+    "65e5213c707a08c82209c71446979690fcd7a85c9e3ad9ad194bc244a5415b49": 0.0,
+    "ac2df6277a4bb84f6ffddcec5e343120534bdf76ca8582cab0d46a743da986d5": 0.0
+  },
+  "alternative_solutions_accepted": 0,
+  "alternative_solutions_total": 4,
+  "eval_base_rewards": {
+    "e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f": 0.0,
+    "ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329": 0.0,
+    "f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba": 0.0
+  },
+  "eval_mutants_base_accepted": 0,
+  "eval_mutants_base_accepted_killed": 0,
+  "eval_mutants_killed": 3,
+  "eval_mutants_total": 3,
+  "eval_rewards": {
+    "e7492691f312275db9d88215135c05bde0fd4d2349a8b5521fc36c86d7253c9f": 0.0,
+    "ea391ba7590df5fd0289108fc638a7cbc63be58973a964d716a6c156d6148329": 0.0,
+    "f5b6d64c6c354dbad5bd9856870f97e713a13bd16932793f9c2fc329759861ba": 0.0
+  },
+  "exit0_pth_reward": 0.0,
+  "gate1_reference_passed": true,
+  "gate2_nop_passed": true,
+  "gate3_witness_passed": true,
+  "gate4_exit0_pth_passed": true,
+  "gate7_alternatives_passed": false,
+  "kind": "gold",
+  "nop_reward": 0.0,
+  "package_digest": "sha256:beea84e6dc86f8dddd998c9c645e817ceee8940a638fa06574ffd99fbc192622",
+  "reference_reward": 1.0,
+  "status": "failed",
+  "task_id": "format-code-task-002391",
+  "test_lines": 172,
+  "train_mutants_killed": 4,
+  "train_mutants_total": 4,
+  "train_rewards": {
+    "301ce092a7ecca6859222a75ec899e263c49df63d319fbd2fc253b2b92a2462d": 0.0,
+    "48e9aef1c83cbf07381fe44e7e3f6f1f6d8b7b67f8b76936c8c36ce5bb7d2f2e": 0.0,
+    "6862c30d1c4197c50553656d62a6d186b754776db70174b623c1a17537474ba5": 0.0,
+    "d32c1eab41642085d8a27cbce161887a3d217ad9686d220cd2986221aca7bc3b": 0.0
+  },
+  "upgraded_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/002391/package",
+  "witness_reward": 0.0,
+  "witness_rewards": {
+    "witness-0": 0.0
+  }
+}

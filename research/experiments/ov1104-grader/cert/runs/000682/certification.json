@@ -1,0 +1,43 @@
+{
+  "alternative_solution_rewards": {
+    "341648598f802bbcff07d8a9fbd9e6136798591287f481c7195805febb817883": 0.0,
+    "3b838bf7f6eaccf576b8e512610ee80c5ca6230e940cba7b34091c32665515bd": 0.0,
+    "5ed27f0986697ffdda2850a394514992a82bc21dfb856a4c2f7d75e92485152e": 0.0,
+    "6cd6702a264f4c0b6bae18b6fc0e74648f8a14b5f80c04b4a519fe4843f606f6": 0.0
+  },
+  "alternative_solutions_accepted": 0,
+  "alternative_solutions_total": 4,
+  "eval_base_rewards": {
+    "fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c": 1.0
+  },
+  "eval_mutants_base_accepted": 1,
+  "eval_mutants_base_accepted_killed": 1,
+  "eval_mutants_killed": 1,
+  "eval_mutants_total": 1,
+  "eval_rewards": {
+    "fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c": 0.0
+  },
+  "exit0_pth_reward": 0.0,
+  "gate1_reference_passed": false,
+  "gate2_nop_passed": true,
+  "gate3_witness_passed": true,
+  "gate4_exit0_pth_passed": true,
+  "gate7_alternatives_passed": false,
+  "kind": "gold",
+  "nop_reward": 0.0,
+  "package_digest": "sha256:4294966c17836da1bad33f7919bdf4c25dd3f07701e26e79c4814ff7ddc82259",
+  "reference_reward": 0.0,
+  "status": "failed",
+  "task_id": "format-code-task-000682",
+  "test_lines": 192,
+  "train_mutants_killed": 1,
+  "train_mutants_total": 1,
+  "train_rewards": {
+    "bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240": 0.0
+  },
+  "upgraded_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cert/000682/package",
+  "witness_reward": 0.0,
+  "witness_rewards": {
+    "witness-0": 0.0
+  }
+}

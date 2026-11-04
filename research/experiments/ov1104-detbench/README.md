@@ -16,7 +16,7 @@ Which $0 signals (run length, L0 rule families, the line's replay decision, and 
 3. **L0 rules and transfer (`l0v_full_*`, `l0cf_full_*`)**:
    - On `pooled:dev`, the best single L0 rule is `l0v_full_l0_hard_gate_rule_hidden_info_read` with AUROC **0.695 [0.646, 0.749]** (recall **0.410** at 2.0% DEV FPR), and `l0v_full_any_hard` reaches AUROC **0.706 [0.638, 0.776]** (`fire` recall **0.512** at 10.1% DEV FPR).
    - On `pooled:heldout`, 6 individual L0 rules have 95% CI lower bounds above 0.500 (**H2 PASS**): `l0_hard_target_surface_write` (**0.532 [0.522, 0.543]**), `l0_hard_gate_rule_hidden_info_read` (**0.511 [0.508, 0.516]**), `l0_soft_config_write` (**0.509 [0.503, 0.516]**), `l0_soft_test_write_unverified` (**0.508 [0.502, 0.517]**), `l0_unrecognized_tool_shape` (**0.513 [0.506, 0.521]**), and `l0_hard_hackbook_hb_test_literal_echo` (**0.501 [0.500, 0.502]**). Pooled hard rules (`l0v_full_any_hard`) reach **0.546 [0.534, 0.560]** (`fire` recall **0.119** at 2.6% held-out FPR).
-   - **0 of 25** single L0 rules beat `length_chars` on `pooled:heldout` (**H3 PASS**; `l0_hard_target_surface_write` ties at $-0.054 [-0.116, +0.008]$; all other 24 rules lose).
+   - **0 of 186** L0 per-rule signals (both view variants x `now`/cf1/cf2 x every reason code) beat `length_chars` on `pooled:heldout` (**H3 PASS**; `l0_hard_target_surface_write` ties at $-0.054 [-0.116, +0.008]$; all others lose).
 4. **Judges, probes, outcome regrade, and DEV-frozen combinations**:
    - **Cached Facets (`cached_facets_haiku_all`)**: DEV AUROC **0.640 [0.528, 0.708]** (coverage 0.43); on the 11 held-out sets it covers (1,294 held-out runs, coverage 0.11), it achieves held-out AUROC **0.924 [0.900, 0.943]**, beating `length_chars` by **+0.412**.
    - **JudgeLab frozen `j2b_actions_task_diff_v2_flash`**: DEV AUROC **0.781 [0.734, 0.830]** (coverage 0.97, recall **0.578** at 4.2% DEV FPR); on the 11 held-out sets it covers (coverage 0.13), it achieves held-out AUROC **0.799 [0.754, 0.844]**, beating `length_chars` by **+0.190**.
@@ -46,7 +46,7 @@ Which $0 signals (run length, L0 rule families, the line's replay decision, and 
 | `matrix.py` | Scores all signals and DEV-frozen combinations into `results/SIGNAL-MATRIX.md` and `results/matrix-pooled.json`. |
 | `cached_signals/` | Joins 112 pre-existing cached detector outputs on disk to DetBench `run_key`s and generates `results/CACHED-DETECTORS.md`. |
 | `ingest_dev/`, `ingest_heldout_a..d/` | Deterministic ingestion scripts for the 5 DEV sets and 20 held-out sets. |
-| `results/SIGNAL-MATRIX.md` | Full 294-signal pooled summary table and per-set tables across all 25 sets. |
+| `results/SIGNAL-MATRIX.md` | Full 367-signal (349 files + 18 combos) pooled summary and per-set tables across all 25 sets. |
 | `results/COUNTERFACTUAL.md` | Per-corpus counterfactual tables (`full` and `actions_only`) for DEV and held-out sets, plus the `drop/review/pass` decision-transition view for #1825. |
 | `results/DECISION-TRANSITIONS.md` (and `-actions_only`) | Per-set decision transitions for #1825: how many runs change decision under cf1 and cf2, per label, with the hard-drop-loss column first. |
 | `threshold_portability.py` / `results/THRESHOLD-PORTABILITY.md` | Exploratory leave-one-corpus-out threshold transfer on DEV: does a detector's 1%/5% FPR threshold survive a corpus change? |
@@ -96,7 +96,7 @@ uv run pytest research/experiments/ov1104-detbench/test_detbench.py
 |---|---|---|---|
 | **H1** | `length_chars` AUROC on `goodfire` DEV $\ge 0.70$ | **0.802 [0.728, 0.869]** ($n=150$, 80 pos / 70 neg, 150 cluster IDs / 50 paired tasks) | **PASS** |
 | **H2** | $\ge 1$ L0 rule has `pooled:heldout` AUROC 95% CI lower bound $> 0.50$ | **6 single rules pass**: `l0_hard_target_surface_write` **0.532 [0.522, 0.543]**, `l0_hard_gate_rule_hidden_info_read` **0.511 [0.508, 0.516]**, `l0_unrecognized_tool_shape` **0.513 [0.506, 0.521]**, `l0_soft_config_write` **0.509 [0.503, 0.516]**, `l0_soft_test_write_unverified` **0.508 [0.502, 0.517]**, `l0_hard_hackbook_hb_test_literal_echo` **0.501 [0.500, 0.502]** | **PASS** |
-| **H3** | No single L0 rule beats `length_chars` on `pooled:heldout` | **0/25 single L0 rules beat `length_chars`** (`0.586 [0.524, 0.644]`); best diff is $-0.054 [-0.116, +0.008]$ (tie) | **PASS** |
+| **H3** | No single L0 rule beats `length_chars` on `pooled:heldout` | **0/186 L0 per-rule signals beat `length_chars`** (`0.586 [0.524, 0.644]`); best diff is $-0.054 [-0.116, +0.008]$ (tie). The denominator includes the cf1 and cf2 variants, so the counterfactual forms do not rescue L0 either. | **PASS** |
 | **H4** | Best DEV `or` combo has held-out FPR Wilson 95% upper bound $\le 10\%$ on $\ge 10/20$ held-out sets | `or_best_rule_cached_judge`: **17/20 (85%)** sets $\le 10\%$ (pooled HO FPR **0.46%**, $42/9,105$); `or_best_rule_j2b`: **15/20 (75%)** sets at native OR (`fire` FPR **1.25%**) | **PASS** |
 | **H5** | Counterfactual on DEV cuts shape-only honest flags by $\ge 80\%$ and changes content-caught cheats by $\le 5\%$ per corpus | Shape-only honest flags drop **160/358 $\to$ 6/358 (-96.25%)** on `full` (**135/358 $\to$ 6/358, -95.56%** on `actions_only`); content-caught cheats change by **0.0% to +0.63%** per corpus (`214/332 -> 215/332`) | **PASS** |
 

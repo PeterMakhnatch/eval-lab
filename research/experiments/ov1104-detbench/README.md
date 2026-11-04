@@ -40,13 +40,15 @@ Which $0 signals (run length, L0 rule families, the line's replay decision, and 
 | `detbench_lib.py` | Label-free view builder (`build_view`, `actions_only`, `write_views`, `runs_row`, `signal_row`). |
 | `publish.py` | Merges worker `runs*.jsonl`, validates view schema and zero label leakage, writes `READY` and `results/runs-summary.json`. |
 | `score.py` | Pure-Python cluster-bootstrap scorer and combiner (`--combine a,b --method or\|max\|stack_loso`; sha256 `a19f60db1cd7...`). |
-| `l0_rules.py` | Evaluates `evallab.hack_drop.evaluate_l0_stage` on `full` and `actions_only` views, with `--counterfactual` tool-shape mapping. |
+| `l0_rules.py` | Evaluates `evallab.hack_drop.evaluate_l0_stage` on `full` and `actions_only` views, with `--counterfactual` (cf1: known shapes to their true equivalent) and `--counterfactual2` (cf2: every residual shape, unknown to `think`; zero unrecognized steps by construction, so it is an upper bound rather than a proposal). |
+| `decision_transitions.py` | Compares the `drop`/`review`/`pass` decision per run across `now` / cf1 / cf2 **and** prints the `drop -> review` and `drop -> pass` cells first, so a mapping that breaks a hard drop is visible. |
 | `counterfactual.py` | Generates `results/COUNTERFACTUAL.md` for #1825 across DEV and held-out sets. |
 | `matrix.py` | Scores all signals and DEV-frozen combinations into `results/SIGNAL-MATRIX.md` and `results/matrix-pooled.json`. |
 | `cached_signals/` | Joins 112 pre-existing cached detector outputs on disk to DetBench `run_key`s and generates `results/CACHED-DETECTORS.md`. |
 | `ingest_dev/`, `ingest_heldout_a..d/` | Deterministic ingestion scripts for the 5 DEV sets and 20 held-out sets. |
 | `results/SIGNAL-MATRIX.md` | Full 294-signal pooled summary table and per-set tables across all 25 sets. |
 | `results/COUNTERFACTUAL.md` | Per-corpus counterfactual tables (`full` and `actions_only`) for DEV and held-out sets, plus the `drop/review/pass` decision-transition view for #1825. |
+| `results/DECISION-TRANSITIONS.md` (and `-actions_only`) | Per-set decision transitions for #1825: how many runs change decision under cf1 and cf2, per label, with the hard-drop-loss column first. |
 | `threshold_portability.py` / `results/THRESHOLD-PORTABILITY.md` | Exploratory leave-one-corpus-out threshold transfer on DEV: does a detector's 1%/5% FPR threshold survive a corpus change? |
 | `results/CACHED-DETECTORS.md` | Inventory of all 112 joined cached signals and zero-overlap caches with exact denominators. |
 | `results/runs-summary.json` | Per-set counts, positive/negative splits, cluster counts, `label_type`, `natural`, and `read_by`. |
@@ -64,11 +66,15 @@ uv run python research/experiments/ov1104-detbench/length_signals.py
 # 3. Extract 112 cached detector signals from disk
 uv run python research/experiments/ov1104-detbench/cached_signals/extract_cached_signals.py
 
-# 4. Run L0 rules (current and counterfactual) on full and actions_only views
+# 4. Run L0 rules on full and actions_only views: current, cf1, cf2
 for v in full actions_only; do
   uv run python research/experiments/ov1104-detbench/l0_rules.py --view $v --workers 4
   uv run python research/experiments/ov1104-detbench/l0_rules.py --view $v --counterfactual --workers 4
+  uv run python research/experiments/ov1104-detbench/l0_rules.py --view $v --counterfactual2 --workers 10 \
+      --raw-dir /private/tmp/ov1104/detbench/l0-cf2
 done
+uv run python research/experiments/ov1104-detbench/decision_transitions.py --view full
+uv run python research/experiments/ov1104-detbench/decision_transitions.py --view actions_only
 
 # 5. Generate #1825 counterfactual tables
 uv run python research/experiments/ov1104-detbench/counterfactual.py

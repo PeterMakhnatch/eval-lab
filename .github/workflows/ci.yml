@@ -131,6 +131,10 @@ jobs:
           DATABASE_URL: postgresql://evallab:local-development-only@localhost:54329/evallab
           EVALLAB_RUN_POSTGRES_TESTS: "1"
         run: uv run --no-sync pytest --shard ${{ matrix.shard }} --junitxml=full-suite.xml
+      - name: Slowest test files
+        # HAR-305: per-file durations summed from the JUnit report, so the conftest
+        # SHARD_OVERRIDES pins can be refreshed from measurements.
+        run: uv run --no-sync python scripts/ci/report_slowest_files.py full-suite.xml
       - name: Full-suite skip reason census
         run: uv run --no-sync python scripts/ci/check_harbor_skips.py --report-only full-suite.xml
       - if: matrix.python-version == '3.12' && matrix.shard == '1/2'
@@ -168,6 +172,21 @@ jobs:
             tests/test_auditor_sft_data.py tests/test_antigravity_bridge.py \
             tests/test_task_workbench.py tests/test_tb4_fingerprints.py
           uv run --no-sync python scripts/ci/check_harbor_skips.py harbor-native.xml
+      - name: Name the JUnit artifact
+        if: always()
+        id: junit
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: echo "suffix=${SHARD/\//of}" >> "$GITHUB_OUTPUT"
+      - name: Upload JUnit reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: junit-${{ matrix.python-version }}-${{ steps.junit.outputs.suffix }}
+          path: |
+            full-suite.xml
+            harbor-native.xml
+          retention-days: 14
 
   quality-required:
     name: quality-required

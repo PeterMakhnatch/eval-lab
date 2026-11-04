@@ -69,10 +69,15 @@ trigger and dependency handling fail closed, including merge-group support.
 | Native Harbor diff/regrade | After the base suite, each test shard installs the locked `laminar` extra, requires `harbor.job_diff` to import, then runs the explicit file list in `.github/workflows/ci.yml` with the same shard selector: the diff/regrade, observability and adapter suites plus every test file that skips without the installed SDK (host and compose isolation, agent network policy, task workbench, and the rest). The step writes a JUnit report and `scripts/ci/check_harbor_skips.py` prints every distinct skip-reason count and fails on any message naming Harbor. `tests/test_quality_gates.py::test_every_harbor_gated_test_file_runs_in_the_native_harbor_step` fails when a Harbor-gated file is missing from that list (HAR-260) | Python 3.12 and 3.14; the optional-runtime skips in the base suite are not native coverage |
 | Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate (runs before tests in premerge) |
 
-The full-suite pytest step writes `full-suite.xml`; its immediately following
-report-only checker ranks `SKIP reason count=N` lines by decreasing count and
-never rejects Harbor-named skips. The native Harbor checker retains its failing
-default mode.
+The full-suite pytest step writes `full-suite.xml`. The step right after it,
+`scripts/ci/report_slowest_files.py`, prints one `SLOWEST seconds=… tests=…
+file=…` line for each of the 20 slowest test files (durations summed per file)
+plus a `SLOWEST total` line, so the `SHARD_OVERRIDES` pins in `conftest.py` can
+be refreshed from measurements (HAR-305). The report-only skip checker after
+it ranks `SKIP reason count=N` lines by decreasing count and never rejects
+Harbor-named skips. The native Harbor checker retains its failing default
+mode. Each test shard uploads `full-suite.xml` and `harbor-native.xml` as the
+`junit-<python>-<shard>` artifact (for example `junit-3.12-1of2`, 14 days).
 
 The ty job fails on any diagnostic. Keep the local premerge baseline and the
 GitHub `typecheck` workflow at zero; never restore a positive baseline.

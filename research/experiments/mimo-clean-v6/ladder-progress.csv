@@ -87,10 +87,10 @@ rank,task_id,phase,language,ladder_version,verdict,basis,wall_seconds,source_fil
 86,format-code-task-002829,P2-frozen-selection-controls,python,,none,none,,,none,,,
 87,format-code-task-002976,P2-frozen-selection-controls,python,,none,none,,,none,,,
 88,format-code-task-003023,P2-frozen-selection-controls,python,,none,none,,,none,,,
-89,format-code-task-000048,P2-frozen-selection-controls,go,,none,none,,,none,,,
-90,format-code-task-000208,P2-frozen-selection-controls,go,,none,none,,,none,,,
-91,format-code-task-000427,P2-frozen-selection-controls,go,,none,none,,,none,,,
-92,format-code-task-000431,P2-frozen-selection-controls,go,,none,none,,,none,,,
+89,format-code-task-000048,P2-frozen-selection-controls,go,1.4.0,clean,graded,635,research/experiments/mimo-clean-v6/ladder-p2-go-ranks89-92.json,none,,,8
+90,format-code-task-000208,P2-frozen-selection-controls,go,1.4.0,clean,graded,701,research/experiments/mimo-clean-v6/ladder-p2-go-ranks89-92.json,none,,,8
+91,format-code-task-000427,P2-frozen-selection-controls,go,1.4.0,clean,graded,978,research/experiments/mimo-clean-v6/ladder-p2-go-ranks89-92.json,none,,,8
+92,format-code-task-000431,P2-frozen-selection-controls,go,1.4.0,clean,graded,839,research/experiments/mimo-clean-v6/ladder-p2-go-ranks89-92.json,none,,,8
 93,format-code-task-000112,P2-frozen-selection-controls,javascript,,none,none,,,none,,,
 94,format-code-task-000524,P2-frozen-selection-controls,javascript,,none,none,,,none,,,
 95,format-code-task-001675,P2-frozen-selection-controls,javascript,,none,none,,,none,,,

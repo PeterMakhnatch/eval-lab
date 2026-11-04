@@ -1,6 +1,6 @@
 # PREREG: ov1104-judges (LLM judges that read what the agent did, not what it said)
 
-Written 2026-11-04 00:35 ET, before any DEV scoring beyond a 15-run pilot (pilot run keys in
+Written 2026-11-03 11:57 PM ET, before any DEV scoring beyond a 15-run pilot (pilot run keys in
 `pilot-keys.txt`; the pilot was used only to check that replies parse and cite steps). Hash of
 this file at freeze time is recorded in `FREEZE.md` (section "Freeze").
 

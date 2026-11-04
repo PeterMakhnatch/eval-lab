@@ -119,6 +119,13 @@ jobs:
         env:
           DATABASE_URL: postgresql://evallab:local-development-only@localhost:54329/evallab
         run: uv run --no-sync evallab db init
+      - name: Expose the runner PostgreSQL server binaries
+        # The ubuntu runner image ships PostgreSQL under /usr/lib/postgresql/<major>/bin
+        # but not on PATH, so the corpus-queue tests that need initdb and pg_ctl skip.
+        run: |
+          dir=$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -n 1)
+          echo "$dir" >> "$GITHUB_PATH"
+          "$dir/initdb" --version
       - name: Full test suite
         env:
           DATABASE_URL: postgresql://evallab:local-development-only@localhost:54329/evallab

@@ -15,7 +15,7 @@ import signal
 import subprocess
 import time
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -51,6 +51,8 @@ class WorkerSpec:
     pass_dir: Path
     prompt_file: Path
     tools: str
+    cwd: Path | None = None
+    resume: Path | None = None
 
 
 class WorkerHandle(Protocol):
@@ -181,6 +183,8 @@ class OmpLauncher:
             "--max-time", f"{spec.max_minutes * 60:g}", "--config", str(config_file),
             f"@{spec.prompt_file.resolve()}",
         ]
+        if spec.resume is not None:
+            argv[1:1] = ["--resume", str(spec.resume.resolve())]
         env = {
             **{key: value for key, value in os.environ.items() if key != "EVALLAB_INSIGHTS_STATE"},
             "HARBOR_TELEMETRY": "off",
@@ -194,7 +198,7 @@ class OmpLauncher:
             pass_dir / "worker.stderr"
         ).open("ab") as errors:
             child = self._popen(
-                argv, cwd=pass_dir, env=env, stdin=subprocess.DEVNULL,
+                argv, cwd=spec.cwd or pass_dir, env=env, stdin=subprocess.DEVNULL,
                 stdout=log, stderr=errors, start_new_session=True,
             )
         return _ProcessHandle(child.pid, child.poll)
@@ -260,7 +264,10 @@ def _route(route: str) -> str:
     return _THINKING_SUFFIX.sub("", route)
 
 
-def attest_session(session_dir: Path, requested: str) -> Attestation:
+def attest_session(
+    session_dir: Path, requested: str, *, paths: Iterable[Path] | None = None,
+    include_errors: bool = False, positions: dict[str, int] | None = None,
+) -> Attestation:
     served: Counter[str] = Counter()
     tokens = {
         "input": 0,
@@ -271,16 +278,26 @@ def attest_session(session_dir: Path, requested: str) -> Attestation:
         "reasoningTokens": 0,
     }
     fallback_events = errors = 0
+    unattested = False
     changes: list[str] = []
     diagnostics: list[str] = []
-    for path in sorted(session_dir.rglob("*.jsonl")):
+    for path in sorted(paths if paths is not None else session_dir.rglob("*.jsonl")):
         try:
             with path.open(encoding="utf-8", errors="replace") as stream:
-                for line in stream:
+                if positions is not None:
+                    stream.seek(positions.get(str(path), 0))
+                while line := stream.readline():
+                    if positions is not None:
+                        if not line.endswith("\n"):
+                            break
+                        positions[str(path)] = stream.tell()
                     try:
                         event = _object(json.loads(line))
                     except ValueError:
                         # A running worker may still be appending its final record.
+                        if include_errors and line.endswith("\n"):
+                            unattested = True
+                            diagnostics.append(f"Malformed session record in {path}")
                         continue
                     fallback_events += int(_fallback(event))
                     if event.get("type") == "model_change":
@@ -298,17 +315,26 @@ def attest_session(session_dir: Path, requested: str) -> Attestation:
                     if is_error:
                         diagnostics.append(json.dumps(message, default=str))
                     provider, model = message.get("provider"), message.get("model")
-                    if not is_error and isinstance(provider, str) and isinstance(model, str):
+                    if include_errors and not (
+                        isinstance(provider, str) and isinstance(model, str)
+                    ):
+                        unattested = True
+                        diagnostics.append(f"Unattested assistant turn in {path}")
+                    if (include_errors or not is_error) and isinstance(provider, str) and isinstance(
+                        model, str,
+                    ):
                         served[_route(f"{provider}/{model}")] += 1
                     usage = _object(message.get("usage"))
                     for name in tokens:
                         count = usage.get(name)
                         if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
                             tokens[name] += count
-        except OSError:
-            continue
+        except OSError as error:
+            unattested |= include_errors
+            diagnostics.append(f"Cannot read session {path}: {error}")
     return Attestation(
-        served=dict(served), off_route=any(model != _route(requested) for model in served),
+        served=dict(served),
+        off_route=unattested or any(model != _route(requested) for model in served),
         fallback_events=fallback_events, error_records=errors, tokens=tokens,
         model_changes=tuple(changes), diagnostics="\n".join(diagnostics)[-20_000:],
     )

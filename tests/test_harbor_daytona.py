@@ -18,29 +18,41 @@ from typing import Any
 
 import pytest
 
-# Not "harbor.environments...": tests/test_egress_lock.py installs stubs for that
-# module when Harbor is absent, which would make an importorskip on it pass.
-pytest.importorskip("harbor.job_diff", reason="native Harbor is not installed")
+# test_egress_lock.py installs stub modules for harbor.environments.* when Harbor is
+# absent, so only a module the stubs do not provide (harbor.job_diff) proves a real
+# install. Skipping by mark rather than importorskip keeps every test collected,
+# which tests/test_ci_coverage.py requires of each committed module.
+try:
+    import harbor.job_diff  # noqa: F401
+    from daytona import Resources
+    from harbor.environments.daytona.environment import DaytonaEnvironment
+    from harbor.models.task.config import EnvironmentConfig, NetworkMode, NetworkPolicy
+    from harbor.models.trial.paths import TrialPaths
 
-from daytona import Resources  # noqa: E402
-from harbor.environments.daytona.environment import DaytonaEnvironment  # noqa: E402
-from harbor.models.task.config import EnvironmentConfig, NetworkMode, NetworkPolicy  # noqa: E402
-from harbor.models.trial.paths import TrialPaths  # noqa: E402
+    from evallab import harbor_daytona
+    from evallab.daytona_guard import AdmissionRefused, GuardUnavailable
+    from evallab.execution_contracts import (
+        DAYTONA_AUTO_STOP_INTERVAL_MINS,
+        ZAI_OPENAPI_PROXY_HOST,
+        ZAI_OPENAPI_PROXY_SCRIPT_ENV,
+        ZAI_OPENAPI_PROXY_USAGE_FILE_ENV,
+        ZAI_OPENAPI_SECRET_FILE_ENV,
+    )
+    from evallab.harbor_daytona import (
+        BoundedDaytonaEnvironment,
+        SecretSafeDaytonaEnvironment,
+        _ProxyDaytonaDinD,
+        render_proxy_overlay,
+    )
 
-from evallab import harbor_daytona  # noqa: E402
-from evallab.daytona_guard import AdmissionRefused, GuardUnavailable  # noqa: E402
-from evallab.execution_contracts import (  # noqa: E402
-    DAYTONA_AUTO_STOP_INTERVAL_MINS,
-    ZAI_OPENAPI_PROXY_HOST,
-    ZAI_OPENAPI_PROXY_SCRIPT_ENV,
-    ZAI_OPENAPI_PROXY_USAGE_FILE_ENV,
-    ZAI_OPENAPI_SECRET_FILE_ENV,
-)
-from evallab.harbor_daytona import (  # noqa: E402
-    BoundedDaytonaEnvironment,
-    SecretSafeDaytonaEnvironment,
-    _ProxyDaytonaDinD,
-    render_proxy_overlay,
+    HARBOR_INSTALLED = True
+except ModuleNotFoundError as error:
+    if (error.name or "").partition(".")[0] not in {"harbor", "daytona"}:
+        raise
+    HARBOR_INSTALLED = False
+
+pytestmark = pytest.mark.skipif(
+    not HARBOR_INSTALLED, reason="native Harbor (the --extra laminar sync) is not installed"
 )
 
 LIMITS = {"cpu": 4.0, "memory_gib": 8.0, "disk_gib": 10.0}
@@ -147,7 +159,7 @@ def _base_transport(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]]:
 def _make(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    cls: type = BoundedDaytonaEnvironment,
+    cls: type | None = None,
     *,
     compose: bool = False,
     config: EnvironmentConfig | None = None,
@@ -165,7 +177,7 @@ def _make(
     guard = guard or FakeGuard()
     monkeypatch.setattr(harbor_daytona, "DaytonaGuard", lambda: guard)
     kwargs.setdefault("ttl_minutes", 30)
-    env = cls(
+    env = (cls or BoundedDaytonaEnvironment)(
         environment_dir=environment_dir,
         environment_name="task",
         session_id="trial__task",
@@ -591,7 +603,7 @@ def test_disappearance_after_recent_pressure_uses_the_last_observation(
     assert record["pressure_source"] == "last_observation"
 
 
-@pytest.mark.parametrize("age", [harbor_daytona.DAYTONA_MONITOR_SECONDS * 2 + 30, -300])
+@pytest.mark.parametrize("age", [90, -300])
 def test_disappearance_ignores_stale_or_future_pressure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, age: float
 ) -> None:
@@ -1070,7 +1082,7 @@ CONTAINER = "ab" * 8
 PUBLIC, INTERNAL = "proj_default", "proj_internal"
 
 
-class FakeStrategy(_ProxyDaytonaDinD):
+class _StrategyScript:
     """The scoped transport with every VM and compose call scripted."""
 
     def __init__(self) -> None:  # noqa: D107 - no real environment behind it
@@ -1094,6 +1106,10 @@ class FakeStrategy(_ProxyDaytonaDinD):
             return self.inspect
         failed = self.failing_prefix is not None and command.startswith(self.failing_prefix)
         return SimpleNamespace(return_code=1 if failed else 0, stdout="", stderr="")
+
+
+def FakeStrategy() -> Any:  # noqa: N802 - a class-shaped factory over the real transport
+    return type("FakeStrategy", (_StrategyScript, _ProxyDaytonaDinD), {})()
 
 
 def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Any, FakeStrategy]:

@@ -116,5 +116,5 @@ These commands score evaluation data. The parent owns their execution and scient
 The parent runs behavioral tests separately:
 
 ```sh
-uv run pytest research/experiments/ov1106-lengthctl/test_scoreboard.py
+uv run pytest research/experiments/ov1106-lengthctl/test_lengthctl_scoreboard.py
 ```

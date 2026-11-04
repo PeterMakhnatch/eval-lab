@@ -1,0 +1,223 @@
+{
+  "cache_layout": "~/.cache/eval-lab/source-intake/facebook__hackbench/<revision>/",
+  "exposure_policy": {
+    "historical_approximate_groups": {
+      "sealed": 27,
+      "study": 25
+    },
+    "independent_run_key": "Exact ordered nonempty shell-command sequence SHA-256, task-scoped; not the registry's approximate >=90%-ordered independent-run groups",
+    "partition_rule": "Sort tasks by sha256('hackbench-split-20261102:' + task_name), alternate, first task sealed",
+    "prior_detector_reads_all_records": [
+      "CM-11 cascade-v7 HackBench cross-test (2026-10-28)",
+      "CM-15 cascade-v7/v8 HackBench cross-test (2026-10-28)"
+    ],
+    "sealed_meaning": "Not opened for the November 2 behavior-mining study; NOT never detector-read",
+    "sealed_records": 94,
+    "sealed_tasks": [
+      "scaling_law",
+      "llm_online_serving",
+      "moving_mnist_world_model",
+      "cross-modal-retrieval",
+      "materials-tokenization",
+      "improving-replay-buffers",
+      "grpo_multisource"
+    ],
+    "source": "~/Developer/research-context/bridge/2026-10-27-run-atlas/cross-test-registry.json entry hackbench; cm11/cm15 receipts in this repository",
+    "study_read": "HackBench behavior-mining study (2026-11-02)",
+    "study_records": 75
+  },
+  "files": {
+    ".gitattributes": {
+      "bytes": 2586,
+      "git_blob_sha1": "4030271851b0e7764fd603c9941753dbf5bff82d",
+      "matches_MANIFEST": true,
+      "matches_SHA256SUMS": true,
+      "matches_hub_blob_id": true,
+      "rows": null,
+      "sha256": "ca92a31ccda29044af766f2e249454d37b1cf6e8ee4ac0e4aa47d68facc29359"
+    },
+    "MANIFEST.json": {
+      "bytes": 4180,
+      "git_blob_sha1": "1cc31565dfdfff9f60e74ee36e8f7d95b6af2739",
+      "matches_SHA256SUMS": true,
+      "matches_hub_blob_id": true,
+      "rows": null,
+      "sha256": "8af0bbc4564418e55f266a236401d76bac4a9c0368e556f951a9fb118e0573e6"
+    },
+    "README.md": {
+      "bytes": 6170,
+      "git_blob_sha1": "659b1df2aaed430af7d01ac14168b720dbf120e5",
+      "matches_MANIFEST": false,
+      "matches_SHA256SUMS": false,
+      "matches_hub_blob_id": true,
+      "rows": null,
+      "sha256": "6876fc20e8a67ab0dc126678846cde303fee64b958531446a31e067ea4327921"
+    },
+    "SHA256SUMS": {
+      "bytes": 443,
+      "git_blob_sha1": "25b0451e68b2bac365cab08eeb8d6e5580a9872b",
+      "matches_hub_blob_id": true,
+      "rows": null,
+      "sha256": "1f67847133f7f2f160a872e363c177d4f383c891da3ccae18b966e2cea4fe008"
+    },
+    "data/hackbench_169_gpt55_glm52.numbered.jsonl": {
+      "bytes": 408528473,
+      "matches_MANIFEST": true,
+      "matches_SHA256SUMS": true,
+      "matches_expected_bytes": true,
+      "matches_hub_lfs_sha256": true,
+      "rows": 169,
+      "sha256": "42c0cfa4a3dc822eb6505fbcc58989c5df5dcf509cc4a97338abbb38c7e9fd87"
+    },
+    "schemas/example.schema.json": {
+      "bytes": 3681,
+      "git_blob_sha1": "e5de0295a2a46b8a661ac98e6b94f83acbd9ede4",
+      "matches_MANIFEST": true,
+      "matches_MANIFEST_schema_sha256": true,
+      "matches_SHA256SUMS": true,
+      "matches_hub_blob_id": true,
+      "rows": null,
+      "sha256": "2e351645dedda1329314123f0f05c9f03141c73316bd618c6d37b8beed102b49"
+    }
+  },
+  "license": "CC-BY-NC-4.0",
+  "license_url": "https://creativecommons.org/licenses/by-nc/4.0/",
+  "mapped_classes": {
+    "excluded": 0,
+    "negative": 0,
+    "positive": 169
+  },
+  "profile": {
+    "agents": {
+      "terminus-2 2.0.0": 169
+    },
+    "by_origin": {
+      "natural": {
+        "command_blocks": 13116,
+        "gold_commands": 1010,
+        "rows": 41
+      },
+      "synthetic": {
+        "command_blocks": 47425,
+        "gold_commands": 302,
+        "rows": 128
+      }
+    },
+    "command_block_kinds": {
+      "bash_command": 27588,
+      "command": 28566,
+      "mark_task_complete": 4387
+    },
+    "command_blocks_total": 60541,
+    "commands_per_trajectory": {
+      "max": 1901,
+      "median": 264,
+      "min": 22,
+      "p25": 93,
+      "p75": 364
+    },
+    "distinct_ids": 169,
+    "distinct_raw_transcripts": 166,
+    "first_gold_index": {
+      "max": 1235,
+      "median": 123,
+      "min": 14,
+      "p25": 43,
+      "p75": 199
+    },
+    "gold_block_kinds": {
+      "bash_command": 44,
+      "command": 1268
+    },
+    "gold_commands_total": 1312,
+    "gold_density": 0.0217,
+    "gold_per_trajectory": {
+      "max": 383,
+      "median": 1,
+      "min": 1,
+      "p25": 1,
+      "p75": 3
+    },
+    "hack_types": {
+      "general": 81,
+      "task-specific": 88
+    },
+    "ids_sha256": "398b7106861255a929bf8a5d43a2a4fbf3799aa39966ac72770ce3e47fd6fb1a",
+    "models": {
+      "GLM-5.2": 67,
+      "GPT-5.5": 102
+    },
+    "origin_x_hack_type": {
+      "natural/general": 41,
+      "synthetic/general": 40,
+      "synthetic/task-specific": 88
+    },
+    "origins": {
+      "natural": 41,
+      "synthetic": 128
+    },
+    "rows": 169,
+    "structural_problems": [],
+    "tasks": {
+      "continual-learning": 7,
+      "cross-modal-retrieval": 15,
+      "data_select_ifeval": 11,
+      "flux2_klein_lora": 13,
+      "grpo_multisource": 6,
+      "improving-replay-buffers": 37,
+      "llm_online_serving": 6,
+      "materials-tokenization": 9,
+      "moving_mnist_world_model": 13,
+      "multilingual_ocr": 25,
+      "scaling_law": 8,
+      "time-series-explanation": 14,
+      "w2s": 5
+    },
+    "transcript_chars": {
+      "max": 3828982,
+      "median": 1059641,
+      "min": 66181,
+      "p25": 573136,
+      "p75": 1232442
+    }
+  },
+  "publisher_count_checks": {
+    "distinct_raw_transcripts": true,
+    "gold_command_indices": true,
+    "models": true,
+    "origins": true,
+    "rows": true,
+    "tasks": true
+  },
+  "publisher_selection": {
+    "excluded_legit_rows": 33,
+    "retained_hack_rows": 169,
+    "retained_record_order_preserved": true,
+    "source_jsonl_sha256": "3b6a8eff5d15cc7139bc1c5a81297ea998830bd9ea625141151d0ec2bf1b47c3",
+    "source_rows": 202
+  },
+  "repo_id": "facebook/hackbench",
+  "revision": "b3d6f678e6359dcd35e20f3f2c5ee085b5af4934",
+  "schema_version": "ov1105-hackbench-intake-v1",
+  "source_splits": {
+    "test": 169
+  },
+  "source_url": "https://huggingface.co/datasets/facebook/hackbench/tree/b3d6f678e6359dcd35e20f3f2c5ee085b5af4934",
+  "sources": {
+    "blog": "https://facebookresearch.github.io/RAM/blogs/hackbench/",
+    "card": "https://huggingface.co/datasets/facebook/hackbench/blob/b3d6f678e6359dcd35e20f3f2c5ee085b5af4934/README.md",
+    "paper": "https://arxiv.org/html/2610.38882v1#S2"
+  },
+  "usage": {
+    "evaluation_only": true,
+    "noncommercial_only": true,
+    "rehosting_allowed": false,
+    "training_allowed": false
+  },
+  "warnings": [
+    "The pinned README Git blob is valid, but publisher SHA256SUMS and MANIFEST.json list a stale README hash.",
+    "All released records are HACK-positive; 33 LEGIT source records are not released. Run-level AUROC and FPR are undefined.",
+    "169 records contain 166 distinct raw transcripts. Preserve records and cluster uncertainty by task.",
+    "All 169 records previously entered CM-11/CM-15 detector cross-tests; 75 also entered behavior mining. Sealed is study-specific, not detector-unread."
+  ]
+}

@@ -1,0 +1,10 @@
+goodfire:goodfire-reward-hack-data/swebench-verified-kimi-k3-nohack/6f9e7224-2316-56f5-80cf-8e1b0941d655
+goodfire:goodfire-reward-hack-data/swebench-verified-qwen3.8-2.4t-a95b-fp8-nohack/2acf24a2-2f04-5b2d-98a1-b5b50df3d7d9
+cheatbench:cheatbench-actions-v1:c050b4142dece4fc1f3e99b5
+cheatbench:cheatbench-actions-v1:d7dbded0cc95992bb6aee145
+terminal-wrench:run-f5cd5e744672b7098f02643aebde80aa
+terminal-wrench:run-5e485cb55897039781a4ca9b0255c4f1
+sol-astra:serving-path-migration__scripted__dishonest_subverted
+sol-astra:sol-sink-permission-friction__dsv4pro__t2
+c1c5:c1-billing-amount-format__sonnet__t2
+c1c5:c4-release-attestation__sonnet__t1

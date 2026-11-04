@@ -1,0 +1,15 @@
+{
+ "n_rerun": 77,
+ "n_paired": 76,
+ "abstain_disagreements": 0,
+ "spearman": 0.9819413005659337,
+ "mean_abs_diff": 2.4342105263157894,
+ "threshold": 20.0,
+ "flag_agreement": 0.9868421052631579,
+ "flag_agreement_wilson95": [
+  0.929161553705025,
+  0.9976735798594324
+ ],
+ "flags_a": 31,
+ "flags_b": 32
+}

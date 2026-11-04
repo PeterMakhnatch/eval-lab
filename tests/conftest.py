@@ -56,13 +56,15 @@ _CALL_DURATIONS: pytest.StashKey[dict[str, float]] = pytest.StashKey()
 
 DEFAULT_SLOW_TEST_BUDGET_SECONDS: float = 60.0
 
-# Shard pins for heavy test modules to balance CI execution times across shards.
-# Measured CI durations (as of 2026-09-06):
-#   - tests/test_compaction_properties.py: ~75s
-#   - tests/test_trajectory_recipes.py: ~40s
-# Rule: Update these pins whenever a module's CI runtime changes by >30s.
+# Shard pins that flip a test module's crc32 shard to balance CI shard load.
+# Refresh with scripts/ci/propose_shard_pins.py --total 2 over the full-suite.xml
+# files of the junit-<python>-<shard> artifacts of one CI run; paste its block.
+# Measured in CI run 41761936272 (2026-11-04, seconds averaged over 3.12 and 3.14):
+#   - tests/test_trajectory_recipes.py: 0.26 s (hash shard 2); kept, removing it widens the gap.
+#   - tests/test_compaction_properties.py: 109.37 s, unpinned (was pinned to shard 2): the
+#     pin put it on the heavier shard (harmful); crc32 places it on shard 1.
+# Serial seconds shard 1 / shard 2 under these pins: 921.96 / 930.14 averaged.
 SHARD_OVERRIDES: dict[str, int] = {
-    "tests/test_compaction_properties.py": 2,
     "tests/test_trajectory_recipes.py": 1,
 }
 

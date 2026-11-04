@@ -1109,6 +1109,38 @@ def test_live_postgres_gate_rejects_missing_service_or_opt_in() -> None:
     assert any("EVALLAB_RUN_POSTGRES_TESTS" in p for p in _live_postgres_problems(no_opt_in))
 
 
+def _postgres_server_binaries_problems(steps: list[dict]) -> list[str]:
+    """Report when the test job does not put the runner's PostgreSQL bin dir on PATH.
+
+    The corpus-queue and cloud-trace tests skip unless initdb and pg_ctl are on PATH,
+    and the ubuntu runner image keeps them under /usr/lib/postgresql/<major>/bin.
+    """
+    names = [s.get("name") for s in steps]
+    if "Full test suite" not in names:
+        return ["the test job must retain its Full test suite step"]
+    suite_index = names.index("Full test suite")
+    for step in steps[:suite_index]:
+        run = str(step.get("run") or "")
+        if "/usr/lib/postgresql/" in run and "GITHUB_PATH" in run:
+            return []
+    return [
+        "no step before Full test suite adds /usr/lib/postgresql/<major>/bin to "
+        "GITHUB_PATH, so the local-PostgreSQL corpus-queue tests skip (HAR-304)"
+    ]
+
+
+def test_full_suite_finds_postgres_server_binaries_on_path() -> None:
+    job = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))["jobs"]["test"]
+    steps = [s for s in job["steps"] if isinstance(s, dict)]
+    assert _postgres_server_binaries_problems(steps) == []
+    dropped = [s for s in steps if "/usr/lib/postgresql/" not in str(s.get("run"))]
+    assert _postgres_server_binaries_problems(dropped) != []
+    expose = "Expose the runner PostgreSQL server binaries"
+    late = [s for s in steps if s.get("name") != expose]
+    late.append(next(s for s in steps if s.get("name") == expose))
+    assert _postgres_server_binaries_problems(late) != []
+
+
 def _full_suite_inspect_problems(steps: list[dict]) -> list[str]:
     """Report when the environment the full suite runs in cannot have `inspect`.
 

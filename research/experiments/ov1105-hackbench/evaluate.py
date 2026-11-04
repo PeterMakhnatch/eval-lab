@@ -318,12 +318,35 @@ async def judge_signals(rows: list[dict[str, Any]], config: dict[str, Any], outp
     sys.path.insert(0, str(JUDGES))
     judge = module("hackbench_judge", JUDGES / "judge.py")
     gate = asyncio.Lock()
+    stop_reason: str | None = None
+    window_tasks: set[asyncio.Task[Any]] = set()
+
+    async def drain_windows() -> None:
+        for task in window_tasks:
+            if not task.done():
+                task.cancel()
+        if window_tasks:
+            await asyncio.gather(*window_tasks, return_exceptions=True)
+            window_tasks.clear()
 
     class AttestedCaller(judge.Caller):
-        async def call(self, model: str, prompt: str, *, tag: dict[str, Any], **kwargs: Any) -> Any:
+        def call(self, model: str, prompt: str, *, tag: dict[str, Any], **kwargs: Any) -> asyncio.Task[Any]:
+            # Track at creation, including windows that have not started executing.
+            task = asyncio.create_task(self._call(model, prompt, tag=tag, **kwargs))
+            window_tasks.add(task)
+            return task
+
+        async def _call(self, model: str, prompt: str, *, tag: dict[str, Any], **kwargs: Any) -> Any:
+            nonlocal stop_reason
             # A one-window batch: serial admission even when judge_run gathers its windows.
             async with gate:
-                quota(output, f"{model}:{tag['run_key']}:{tag['window']}")
+                if stop_reason is not None:
+                    raise QuotaStop(stop_reason)
+                try:
+                    quota(output, f"{model}:{tag['run_key']}:{tag['window']}")
+                except QuotaStop as exc:
+                    stop_reason = str(exc)
+                    raise
                 reply = await super().call(model, prompt, tag=tag, **kwargs)
                 if not reply["error"] and reply.get("model_served") != model:
                     reply["error"] = "missing or mismatched served-model attestation"
@@ -349,6 +372,8 @@ async def judge_signals(rows: list[dict[str, Any]], config: dict[str, Any], outp
                         result = {"score": None, "abstain": stopped}
                     except Exception as exc:  # Preserve failure as coverage, never silently drop a run.
                         result = {"score": None, "abstain": f"judge error: {type(exc).__name__}: {exc}"[:300]}
+                    finally:
+                        await drain_windows()
                     save(path, result)
                 entry = signal(row, name, spec["version"], result.get("score"),
                                abstain=result.get("abstain"), evidence=result.get("evidence_steps"),
@@ -357,8 +382,12 @@ async def judge_signals(rows: list[dict[str, Any]], config: dict[str, Any], outp
                 entries.append(entry)
             signals[name] = entries
     finally:
-        if judge.Gateway._current is not None:
-            judge.Gateway._current.close()
+        await drain_windows()
+        gateway = judge.Gateway._current
+        if gateway is not None:
+            gateway.close()
+            await gateway.process.wait()
+            await asyncio.gather(gateway.reader, gateway.stderr_reader, return_exceptions=True)
     save(output / "attestation.json", judge.summarize_log(output / "calls.jsonl"))
     return signals
 

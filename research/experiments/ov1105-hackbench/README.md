@@ -19,10 +19,18 @@ Results must retain these limits and separate natural from synthetic records.
 - `adapter.py`: faithful, label-free DetBench conversion through the existing parser.
 - `PREREG.md`: exact sample policy, frozen detector identities, thresholds, quota gates, and statistics.
 - `evaluate.py`: preparation and parent-released evaluation; raw artifacts remain outside Git.
+- `RESULT.md`: measured coverage, matched-row comparison, worked examples, and execution limits.
+- `aggregate-results.json`: all individual rules, source strata, intervals, routes, versions, and quota readings.
+- `sample-manifest.json` / `scored-sample.json`: exact selected and completed run identities, without transcripts.
 
 Use the intake and conversion commands in `DATASET.md`.
 Commit and push the adapter, map, and pre-registration before any detector reads the converted runs.
 Do not change labels, prompts, thresholds, or rules after that barrier.
+
+The single registered run completes 17 J2b records before the quota command fails.
+J3 does not start. Do not interpret absent predictions as measured model failure.
+`PREREG.md` records a later execution-control correction separately from the evaluated source identity.
+The original freeze remains immutable; no scoring rerun follows the correction.
 
 ## Rights and data handling
 

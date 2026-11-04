@@ -165,9 +165,44 @@ python3 -B research/experiments/ov1105-hackbench/evaluate.py score \
 The parent release permits the requested exploratory measurements, not unseen-source transfer claims.
 No new measurement authorization is required. The commit/push, immutable-input, quota, and no-overwrite barriers remain in force.
 
+## Post-run execution-control amendment
+
+This amendment follows the single registered scoring run. It is not a new pre-outcome freeze.
+The original pre-registration text above remains historical. Its pending-release statements describe that earlier stage.
+The parent evaluates commit `dbd629e1ad882b4b5c6960470eed4a62fb0f6774`.
+That commit preserves the evaluated source and original pre-registration:
+
+- Evaluated `evaluate.py` SHA-256: `4808528e3209e6058d3710cc1855ede53a7369613e10130a0234f8fa64d1815c`.
+- Original `PREREG.md` SHA-256: `f473d13d0609836580cd0cf27767154ab58c1002b1d22a11314d187ed08cb2b0`.
+- Evaluated L0 orchestration identity: `l0v_full@63f07ba808a2+abstain-errors@4808528e3209`.
+
+The parent reports `SQLITE_BUSY` on usage receipts 222 and 223 after 222 successful Flash calls.
+Receipt 224 succeeds after the first stop. No completed call is recorded after that stop.
+Queued window callers can repeat quota probes because the evaluated caller has no sticky stop latch.
+The parent also reports an event-loop shutdown error involving `BaseSubprocessTransport`.
+
+The corrected runner latches the first quota-stop reason inside the serialized caller gate.
+Queued callers raise that reason without another quota probe or model call.
+The runner tracks window tasks at creation, then cancels and drains them before leaving each row.
+Final cleanup drains outstanding windows before closing the gateway.
+It then awaits the gateway process and both stream-reader tasks through the existing lifecycle API.
+The frozen `judge_run` helper remains unchanged.
+
+Only the evaluator source hash and evaluator-derived L0 orchestration identity change in the JSON below.
+Corrected runner SHA-256: `c6097d4407906c7470a1a5c1a8a43d5de8c4f8fcf7e0a6b6e3fce9990435498b`.
+Corrected L0 orchestration identity: `l0v_full@63f07ba808a2+abstain-errors@c6097d440790`.
+These identities support future code verification. They do not describe the evaluated execution.
+
+Execution results remain unchanged. All recorded results retain their original evaluated versions.
+No real scoring rerun occurs, and this amendment authorizes none.
+No prompt, rule, label map, route, threshold, parameter, or sample changes.
+The original preparation, release, usage receipts, call logs, and results remain immutable.
+The corrected runner does not satisfy the original file freeze; never rewrite that freeze to admit a rerun.
+
 ## Machine-readable freeze
 
-This block is authoritative for source hashes, versions, thresholds, routes, and parameters.
+This block pins the corrected runner for source verification after the post-run amendment above.
+Detector versions, thresholds, routes, and parameters remain frozen. It does not relabel historical results.
 It pins the evaluator and Intake files as well as detector source. `prepare` also pins this document and converted view bytes.
 The Python-tree digest hashes the canonical sorted mapping of repository-relative `.py` paths to their SHA-256 digests.
 
@@ -190,7 +225,7 @@ The Python-tree digest hashes the canonical sorted mapping of repository-relativ
     "research/experiments/ov1104-judges/signals.py": "4ae20bdda9c26a673a1b006e42c80807cada892adf894090f43db01635074648",
     "research/experiments/ov1104-judges/FREEZE.md": "621ce06e413eb80a8110625aeaa033898dfa7963e4d33b79354e8fc9ab168eea",
     "research/experiments/ov1104-judges/results/operating_points.json": "6eb774a467f543a58819743125f4875c3c819be4ee23816ae14fc8d067a3fe01",
-    "research/experiments/ov1105-hackbench/evaluate.py": "4808528e3209e6058d3710cc1855ede53a7369613e10130a0234f8fa64d1815c",
+    "research/experiments/ov1105-hackbench/evaluate.py": "c6097d4407906c7470a1a5c1a8a43d5de8c4f8fcf7e0a6b6e3fce9990435498b",
     "research/experiments/ov1105-hackbench/adapter.py": "48184e525714a3231b6f13e58490c5edd2e6fb66e675ab70f333409d5175e59c",
     "research/experiments/ov1105-hackbench/intake.py": "bcb154087c23b8efe8335489bb22ebd72afd37f7fff34f0a21416393ef5e4575",
     "research/experiments/ov1105-hackbench/manifest.json": "42a77139d2cac6a1a4bc85d631bee82528d5c5256de7574a7605cf2acfe2ee38",
@@ -199,7 +234,7 @@ The Python-tree digest hashes the canonical sorted mapping of repository-relativ
   },
   "evallab_python_tree_sha256": "7a7416a6ad440f5c5eaf4e97fe6eaae1936e930a3a02ec61fc3efe0e5080d877",
   "length_version": "length@3cf40d368f6d",
-  "l0_version": "l0v_full@63f07ba808a2+abstain-errors@4808528e3209",
+  "l0_version": "l0v_full@63f07ba808a2+abstain-errors@c6097d440790",
   "historical_l0_version": "l0v_full@907888e4a064",
   "line_version": "ingest-dev@8645cafeb4af:unavailable-heldout",
   "line_thresholds": {

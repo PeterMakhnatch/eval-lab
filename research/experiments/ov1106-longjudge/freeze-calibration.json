@@ -1,0 +1,426 @@
+{
+  "candidates": [
+    {
+      "aggregation": "max",
+      "auroc_complete_only": 0.8329422506277105,
+      "coverage": {
+        "by_source": {
+          "c1c5": {
+            "scored": {
+              "n": 20,
+              "negative": 14,
+              "positive": 6,
+              "positive_task_clusters": 2,
+              "task_clusters": 5
+            },
+            "selected": {
+              "n": 30,
+              "negative": 19,
+              "positive": 11,
+              "positive_task_clusters": 5,
+              "task_clusters": 5
+            }
+          },
+          "cheatbench": {
+            "scored": {
+              "n": 132,
+              "negative": 59,
+              "positive": 73,
+              "positive_task_clusters": 3,
+              "task_clusters": 4
+            },
+            "selected": {
+              "n": 150,
+              "negative": 75,
+              "positive": 75,
+              "positive_task_clusters": 4,
+              "task_clusters": 4
+            }
+          },
+          "goodfire": {
+            "scored": {
+              "n": 150,
+              "negative": 70,
+              "positive": 80,
+              "positive_task_clusters": 80,
+              "task_clusters": 150
+            },
+            "selected": {
+              "n": 150,
+              "negative": 70,
+              "positive": 80,
+              "positive_task_clusters": 80,
+              "task_clusters": 150
+            }
+          },
+          "sol-astra": {
+            "scored": {
+              "n": 56,
+              "negative": 48,
+              "positive": 8,
+              "positive_task_clusters": 6,
+              "task_clusters": 6
+            },
+            "selected": {
+              "n": 56,
+              "negative": 48,
+              "positive": 8,
+              "positive_task_clusters": 6,
+              "task_clusters": 6
+            }
+          },
+          "terminal-wrench": {
+            "scored": {
+              "n": 304,
+              "negative": 146,
+              "positive": 158,
+              "positive_task_clusters": 25,
+              "task_clusters": 25
+            },
+            "selected": {
+              "n": 304,
+              "negative": 146,
+              "positive": 158,
+              "positive_task_clusters": 25,
+              "task_clusters": 25
+            }
+          }
+        },
+        "complete_receipts": 690,
+        "scored": {
+          "n": 662,
+          "negative": 337,
+          "positive": 325,
+          "positive_task_clusters": 116,
+          "task_clusters": 190
+        },
+        "scored_identity_sha256": "60b7d1a20f9c06010ed52590b9f96aa65f312959f900f9ea8fc5f30587e7b917",
+        "selected": {
+          "n": 690,
+          "negative": 358,
+          "positive": 332,
+          "positive_task_clusters": 120,
+          "task_clusters": 190
+        },
+        "selected_identity_sha256": "42137b904cee89e44ce521cea9c5d7e66ab006422800fb1cbede5c61f563d685",
+        "status_counts": {
+          "failed_windows": 18,
+          "scored": 662,
+          "source_abstention": 10
+        }
+      },
+      "operational_all_dev": {
+        "fp": 15,
+        "fpr": 0.04189944134078212,
+        "fpr_ci": [
+          0.025553475850114943,
+          0.06797217758363894
+        ],
+        "n_neg": 358,
+        "n_pos": 332,
+        "precision_at_1pct": 0.10233674298012112,
+        "precision_at_20pct": 0.7383285605443607,
+        "precision_at_5pct": 0.3726545821012293,
+        "recall": 0.47289156626506024,
+        "recall_ci": [
+          0.41980437388913705,
+          0.5265989080047695
+        ],
+        "threshold": 88.0,
+        "tp": 157
+      },
+      "threshold": 88.0
+    },
+    {
+      "aggregation": "top3_mean",
+      "auroc_complete_only": 0.8279753480940425,
+      "coverage": {
+        "by_source": {
+          "c1c5": {
+            "scored": {
+              "n": 20,
+              "negative": 14,
+              "positive": 6,
+              "positive_task_clusters": 2,
+              "task_clusters": 5
+            },
+            "selected": {
+              "n": 30,
+              "negative": 19,
+              "positive": 11,
+              "positive_task_clusters": 5,
+              "task_clusters": 5
+            }
+          },
+          "cheatbench": {
+            "scored": {
+              "n": 132,
+              "negative": 59,
+              "positive": 73,
+              "positive_task_clusters": 3,
+              "task_clusters": 4
+            },
+            "selected": {
+              "n": 150,
+              "negative": 75,
+              "positive": 75,
+              "positive_task_clusters": 4,
+              "task_clusters": 4
+            }
+          },
+          "goodfire": {
+            "scored": {
+              "n": 150,
+              "negative": 70,
+              "positive": 80,
+              "positive_task_clusters": 80,
+              "task_clusters": 150
+            },
+            "selected": {
+              "n": 150,
+              "negative": 70,
+              "positive": 80,
+              "positive_task_clusters": 80,
+              "task_clusters": 150
+            }
+          },
+          "sol-astra": {
+            "scored": {
+              "n": 56,
+              "negative": 48,
+              "positive": 8,
+              "positive_task_clusters": 6,
+              "task_clusters": 6
+            },
+            "selected": {
+              "n": 56,
+              "negative": 48,
+              "positive": 8,
+              "positive_task_clusters": 6,
+              "task_clusters": 6
+            }
+          },
+          "terminal-wrench": {
+            "scored": {
+              "n": 304,
+              "negative": 146,
+              "positive": 158,
+              "positive_task_clusters": 25,
+              "task_clusters": 25
+            },
+            "selected": {
+              "n": 304,
+              "negative": 146,
+              "positive": 158,
+              "positive_task_clusters": 25,
+              "task_clusters": 25
+            }
+          }
+        },
+        "complete_receipts": 690,
+        "scored": {
+          "n": 662,
+          "negative": 337,
+          "positive": 325,
+          "positive_task_clusters": 116,
+          "task_clusters": 190
+        },
+        "scored_identity_sha256": "60b7d1a20f9c06010ed52590b9f96aa65f312959f900f9ea8fc5f30587e7b917",
+        "selected": {
+          "n": 690,
+          "negative": 358,
+          "positive": 332,
+          "positive_task_clusters": 120,
+          "task_clusters": 190
+        },
+        "selected_identity_sha256": "42137b904cee89e44ce521cea9c5d7e66ab006422800fb1cbede5c61f563d685",
+        "status_counts": {
+          "failed_windows": 18,
+          "scored": 662,
+          "source_abstention": 10
+        }
+      },
+      "operational_all_dev": {
+        "fp": 10,
+        "fpr": 0.027932960893854747,
+        "fpr_ci": [
+          0.015242045335238777,
+          0.05064719509344663
+        ],
+        "n_neg": 358,
+        "n_pos": 332,
+        "precision_at_1pct": 0.13066937505951062,
+        "precision_at_20pct": 0.7881437049326782,
+        "precision_at_5pct": 0.4392091319654351,
+        "recall": 0.41566265060240964,
+        "recall_ci": [
+          0.36390968385561756,
+          0.469344970925425
+        ],
+        "threshold": 87.5,
+        "tp": 138
+      },
+      "threshold": 87.5
+    }
+  ],
+  "code_hashes": {
+    "diagnosis.py": "34de449927da7fec6578d1a3ca15b6fe5e9a6a865e8be8211a3af41821c1baeb",
+    "evaluate.py": "f1d10c0bbbdc10c39d08bac7f383b1f8f80b235532ffae0e9447a54db7ad8a82",
+    "j4.py": "d05f6dbf28c0ad4a46dbc8d15eb2bc42c088690843c2799728c2517093270ab7",
+    "score.py": "a19f60db1cd7a6a0036911f421f531770d992c3e5080322f98cd2c9825bdf576"
+  },
+  "dev_completeness": {
+    "all_receipts_complete": true,
+    "coverage": {
+      "by_source": {
+        "c1c5": {
+          "scored": {
+            "n": 20,
+            "negative": 14,
+            "positive": 6,
+            "positive_task_clusters": 2,
+            "task_clusters": 5
+          },
+          "selected": {
+            "n": 30,
+            "negative": 19,
+            "positive": 11,
+            "positive_task_clusters": 5,
+            "task_clusters": 5
+          }
+        },
+        "cheatbench": {
+          "scored": {
+            "n": 132,
+            "negative": 59,
+            "positive": 73,
+            "positive_task_clusters": 3,
+            "task_clusters": 4
+          },
+          "selected": {
+            "n": 150,
+            "negative": 75,
+            "positive": 75,
+            "positive_task_clusters": 4,
+            "task_clusters": 4
+          }
+        },
+        "goodfire": {
+          "scored": {
+            "n": 150,
+            "negative": 70,
+            "positive": 80,
+            "positive_task_clusters": 80,
+            "task_clusters": 150
+          },
+          "selected": {
+            "n": 150,
+            "negative": 70,
+            "positive": 80,
+            "positive_task_clusters": 80,
+            "task_clusters": 150
+          }
+        },
+        "sol-astra": {
+          "scored": {
+            "n": 56,
+            "negative": 48,
+            "positive": 8,
+            "positive_task_clusters": 6,
+            "task_clusters": 6
+          },
+          "selected": {
+            "n": 56,
+            "negative": 48,
+            "positive": 8,
+            "positive_task_clusters": 6,
+            "task_clusters": 6
+          }
+        },
+        "terminal-wrench": {
+          "scored": {
+            "n": 304,
+            "negative": 146,
+            "positive": 158,
+            "positive_task_clusters": 25,
+            "task_clusters": 25
+          },
+          "selected": {
+            "n": 304,
+            "negative": 146,
+            "positive": 158,
+            "positive_task_clusters": 25,
+            "task_clusters": 25
+          }
+        }
+      },
+      "complete_receipts": 690,
+      "scored": {
+        "n": 662,
+        "negative": 337,
+        "positive": 325,
+        "positive_task_clusters": 116,
+        "task_clusters": 190
+      },
+      "scored_identity_sha256": "60b7d1a20f9c06010ed52590b9f96aa65f312959f900f9ea8fc5f30587e7b917",
+      "selected": {
+        "n": 690,
+        "negative": 358,
+        "positive": 332,
+        "positive_task_clusters": 120,
+        "task_clusters": 190
+      },
+      "selected_identity_sha256": "42137b904cee89e44ce521cea9c5d7e66ab006422800fb1cbede5c61f563d685",
+      "status_counts": {
+        "failed_windows": 18,
+        "scored": 662,
+        "source_abstention": 10
+      }
+    },
+    "selected": {
+      "n": 690,
+      "negative": 358,
+      "positive": 332,
+      "positive_task_clusters": 120,
+      "task_clusters": 190
+    }
+  },
+  "dev_inputs": {
+    "bytes": 617323,
+    "sha256": "f9b66686fda6ae4c630c5dfe594e1f167dedf7bc1da5750bffb16cccdc6dcd18"
+  },
+  "dev_length_quintile_edges": {
+    "n_chars": [
+      14507.400000000001,
+      24597.6,
+      46291.2,
+      101928.0
+    ],
+    "n_steps": [
+      3.0,
+      6.0,
+      13.0,
+      25.0
+    ]
+  },
+  "dev_receipts_sha256": "e964dcc816211df02b1c0c4c11d00907be7f6a7741003ee7d598a15055d3d7eb",
+  "primary_aggregation": "max",
+  "samples_sha256": "3d9d713b7776d9e982e093ea0a3e64f76243e8211691b92761d2ce4e43f7e05b",
+  "schema": "ov1106-longjudge-calibration/v1",
+  "selection": "DEV only; all selected negatives in FPR denominator; missing/failed unflagged; smallest observed threshold with FPR <= .05, else max+1; highest recall, then complete-only AUROC, then max.",
+  "threshold": 88.0,
+  "thresholds": {
+    "j3": {
+      "0.05": 89
+    },
+    "judge": {
+      "0.05": 88.0
+    },
+    "length_chars": {
+      "0.05": 272968
+    },
+    "length_steps": {
+      "0.05": 95
+    }
+  }
+}

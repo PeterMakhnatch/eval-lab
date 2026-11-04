@@ -1,0 +1,796 @@
+{
+  "schema_version": 1,
+  "audit_kind": "blind_source_only_mutant_validity",
+  "created_at": "2026-11-04T21:33:08.037130+00:00",
+  "status": "complete_static_audit_not_certification",
+  "input_manifests": [
+    {
+      "path": "/private/tmp/ov1106/goldcert/helpers/contracts/prepared.json",
+      "sha256": "9587485b5d3ac39a1db340404569e8a8b0e5127461ad185a09171d693a5dc412"
+    },
+    {
+      "path": "/private/tmp/ov1106/goldcert/frozen-inputs.json",
+      "sha256": "a1aea80ce372fef8b7f232010138fe18606e8b0e43a7e4872b2f0e5683d20125"
+    }
+  ],
+  "scope": {
+    "task_ids": [
+      "000682",
+      "002139",
+      "000081",
+      "001267",
+      "003007"
+    ],
+    "scores_read": false,
+    "scored_reports_read": false,
+    "hidden_tests_read": false,
+    "git_history_read": false,
+    "reference_solution_files_read": false,
+    "reference_prefix_handling": "Shared embedded reference payloads are not displayed or assessed as solutions. For whole-file replacement controls, the common patch is reconstructed only in memory to subtract it. Only the isolated mutation delta is inspected and retained. For appended patch controls, the shared reference script prefix is discarded before decoding the final delta.",
+    "untrusted_scripts_executed": false,
+    "runtime_or_tests_executed": false,
+    "model_api_calls": 0,
+    "child_agents": 0,
+    "pool_membership_changed": false,
+    "denominators_changed": false,
+    "grader_tuned": false,
+    "preregistered": false,
+    "purpose": "Explanatory prereg-external metadata only. Frozen G5/G6 retain every member. Do not certify tasks by excluding POSSIBLY_VALID or UNCERTAIN controls.",
+    "not_established": [
+      "Gold correctness or certification",
+      "correct-candidate acceptance",
+      "observed mutant behavior or rejection rates"
+    ]
+  },
+  "category_definitions": {
+    "DEFECT": "The isolated delta necessarily breaks a stated public requirement or established production behavior on a described valid path. This is a static judgment, not an observed run.",
+    "POSSIBLY_VALID": "The delta changes behavior or diagnostics, but the admitted public contract does not require that detail. This does not certify the complete candidate as correct.",
+    "UNCERTAIN": "Available source and instruction evidence do not support a clear judgment about the isolated delta."
+  },
+  "verification": {
+    "all_admitted_source_hashes_match_frozen_manifest": true,
+    "whole_file_mutant_hashes_verified": 10,
+    "declared_only_mutant_hashes_preserved": 8,
+    "instruction_excerpts_verified_exact": 18,
+    "frozen_pool_total": 18,
+    "split_counts": {
+      "train": 8,
+      "eval": 10
+    },
+    "classification_counts": {
+      "DEFECT": 11,
+      "POSSIBLY_VALID": 7,
+      "UNCERTAIN": 0
+    },
+    "no_execution_note": "Verification covers metadata identities and coverage only. No mutant, grader, test, build, formatter, or storage/browser operation executes."
+  },
+  "tasks": [
+    {
+      "task_id": "000682",
+      "fixed_pool_count": 2,
+      "split_counts": {
+        "train": 1,
+        "eval": 1
+      },
+      "category_counts": {
+        "DEFECT": 1,
+        "POSSIBLY_VALID": 1,
+        "UNCERTAIN": 0
+      },
+      "source_image_sha256": "sha256:9e7dc898cf933772f2fd4342c9b1a6f1cc64c4865dc956fd5a7aff729ead560f",
+      "admitted_production_hashes": {
+        "c7n/actions/__init__.py": "1e9738792ae0c29f63cdb8055414f2391e08b41c89b73bebc127f8f89d7954ea",
+        "c7n/filters/__init__.py": "575df083e00eaf0da25952cb25377c466d44479e7ff5de2b65433f5fee4f1f35",
+        "c7n/filters/kms.py": "6bc7d46a418015939ec7b1ee7e26b27c8208042b3b80ea22ebf5cd9cece3889f",
+        "c7n/resources/sns.py": "c1ffc81c27c6249fa6ffd58bb39ba7570f29ebc8a660c03fe7cc0446b739c53e",
+        "c7n/resources/sqs.py": "5ec232327c8ec8e4c67e2450a8ecfb0a822872d5da93ba73e7cfe563196de726",
+        "c7n/utils.py": "a37ec3ad90087c4b7142efef8023951108c10867c6ef62a3b759a57b60da3df8"
+      }
+    },
+    {
+      "task_id": "002139",
+      "fixed_pool_count": 8,
+      "split_counts": {
+        "train": 4,
+        "eval": 4
+      },
+      "category_counts": {
+        "DEFECT": 6,
+        "POSSIBLY_VALID": 2,
+        "UNCERTAIN": 0
+      },
+      "source_image_sha256": "sha256:c07a0dd1f2d1b023550b352b3194d9e03022c00da954f20264cd012d8183cb52",
+      "admitted_production_hashes": {
+        "lib/bb/fetch2/__init__.py": "3c95eb10221bb7aba2deb3f2869538340239040a620b6af8e71ec3f18fab6651",
+        "lib/bb/fetch2/az.py": "18ca2ee7d4f80d496b78c147303f92bb16a589156d8e6adbe20809a6d3d9056d",
+        "lib/bb/fetch2/crate.py": "a448984dec8d0bf22bdcb4a36cda64d2a34d0f2a8f2cae2fab2c9ef79108474e",
+        "lib/bb/fetch2/s3.py": "0e2ec33149c4bdc2654325ead0b61cf79f765ab4855431f24582c3303d922a70"
+      }
+    },
+    {
+      "task_id": "000081",
+      "fixed_pool_count": 3,
+      "split_counts": {
+        "train": 1,
+        "eval": 2
+      },
+      "category_counts": {
+        "DEFECT": 3,
+        "POSSIBLY_VALID": 0,
+        "UNCERTAIN": 0
+      },
+      "source_image_sha256": "sha256:972247b69623a8839aaa1faf5108524a1d74e68699f8f9a85100ce2b87bc8b89",
+      "admitted_production_hashes": {
+        "xdoctest/__init__.py": "79a07ff894e0d3ea69e75bf32b357801f2a0387d1908e57df2130d58a922b2f2",
+        "xdoctest/__main__.py": "01fdf5f960d35b01c6c4b2f56eec2d2bccaa0892dd5de55bd30e02275d846128",
+        "xdoctest/_old_pkgutil_code.py": "328797392c738deadd526d22a9cf3e4926698e654fc5a41431c67dc9637217fd",
+        "xdoctest/checker.py": "4f53471f715fcfc41c3a84b56ab169b11473969191165beb863d0cc191f7e232",
+        "xdoctest/core.py": "e2ae1ae689c65994a55a8756c21fb4bb38d5908fd2012fdd3b03b31edff10743",
+        "xdoctest/docscrape_google.py": "fe8310213752534ad4fc00c5c615650e1a664f6f7537ab3cf14c4f0a4247292c",
+        "xdoctest/dynamic_analysis.py": "38b7bf81cbfc1740f6c21469399fba53d106977edd6bc50210032ffbd40d8f19",
+        "xdoctest/exceptions.py": "f5067c643debf43ca762bfce674e3dfed5927ab6b23a3729bc4d35acec78165e",
+        "xdoctest/parser.py": "90bce4950d5276ca46509f5c5c166a75cd9328266814e16a5653838bf6adb35a",
+        "xdoctest/plugin.py": "647129c3397f31e2e20a9db5caaaa7c8020328994ac343e2be08b5737b438cfd",
+        "xdoctest/runner.py": "37814cfac2d490805c03a6db4c2076e6904e5fc8fbe1d4507b11396b7e754caa",
+        "xdoctest/static_analysis.py": "e930559ff9a38e219e427c9656023046309cf2aa83eb547c1693f1479aa13816",
+        "xdoctest/utils.py": "2c20c5f3614ac688609817ee20d2d472a73059703fca986c794950f2a3b2fa2e"
+      }
+    },
+    {
+      "task_id": "001267",
+      "fixed_pool_count": 2,
+      "split_counts": {
+        "train": 1,
+        "eval": 1
+      },
+      "category_counts": {
+        "DEFECT": 1,
+        "POSSIBLY_VALID": 1,
+        "UNCERTAIN": 0
+      },
+      "source_image_sha256": "sha256:b8c483785208ce4956f00418f067db104d0c9bb0ea0ed440fc4fa25dff6b0092",
+      "admitted_production_hashes": {
+        "rd_ui/app/404.html": "4f2117ec8ba3f5a88ae0010f2b72e64fb9fde0c2745c6e72b4082ea4e7114298",
+        "rd_ui/app/index.html": "64452a8efe1121ee3b1de79c0240093edbf436ef31339e2b4bdd0a7bebf17f50",
+        "rd_ui/app/login.html": "fcb7f0250abed0870dcc5749ddd109b5795f364e04f2b4845e855e77c5bfd32b",
+        "rd_ui/app/scripts/app.js": "83873ffa637a6c34d9919bb9d9d9fade62b35fec993ae8356511c78f22ed4177",
+        "rd_ui/app/scripts/controllers/admin_controllers.js": "d391602f06a74e2f6ede5b3e1daa1ef090242f3680ddee0252b832dbf928ff88",
+        "rd_ui/app/scripts/controllers/controllers.js": "5345e2065c84b02276bedd519785456ef25d9ac4a13d95ddecb7e33aae419e1c",
+        "rd_ui/app/scripts/controllers/dashboard.js": "c465a797b5456a827e9ce4ca86dda0096812e6c5945a6d9bdda9481bb3eff99a",
+        "rd_ui/app/scripts/controllers/query_source.js": "14b2d235ad11dff7e420155eede434c986782fa12408e3035dd37c00365307fb",
+        "rd_ui/app/scripts/controllers/query_view.js": "31c5546625d97c8b2cec72d989f0a8bdae6feaff8ad2c839f109646ca617c9cf",
+        "rd_ui/app/scripts/directives/dashboard_directives.js": "1404af3bf7ffb56855b5752611a01358d52aa58aac6798ee798164984c50c87c",
+        "rd_ui/app/scripts/directives/directives.js": "d73aff668c75dad642b98af41c9abdffd6c323589fa7dd0c4dfea9571603c96c",
+        "rd_ui/app/scripts/directives/query_directives.js": "e8d8074f1609171f8ab3bfebdbf881eea2342690140c269665fe13ff50e432c1",
+        "rd_ui/app/scripts/filters.js": "ab5d691d6881060a36e91a63d9e16d709b8fcb0f0bc628712bbb3d4deed11e70",
+        "rd_ui/app/scripts/ng_highchart.js": "0dac3a71412ddf85cc48d3e81ee8d43b463aed22e869193f399431cc17cd340a",
+        "rd_ui/app/scripts/ng_smart_table.js": "2d0dfe3187cee5b0e000c3aa4bd9f0a31a29c4015070b6b6a635f1466509191e",
+        "rd_ui/app/scripts/services/dashboards.js": "95f41480ba9c056538be297298b4e37ce9fe98ab5816996abab92872742b2113",
+        "rd_ui/app/scripts/services/notifications.js": "f82921157877a7af31ec176123c24fd80f7a9b318b2100f89da2b83f39b2a7a2",
+        "rd_ui/app/scripts/services/resources.js": "fed749782485c1dfeaeee954de27a9bfeb63790f3f7902202856949f219ea554",
+        "rd_ui/app/scripts/services/services.js": "4aa63fbf7b2a13b2b70760d336fa3c858408bdfa7239e81297d0c14df65675c5",
+        "rd_ui/app/scripts/ui-bootstrap-tpls-0.5.0.min.js": "bcdccb56c5a299a156917431597f0d85ab87eca140b84235c08afb037b07fe86",
+        "rd_ui/app/scripts/visualizations/base.js": "f62539826d7a79207f872f56dc14af6ba19bbfface0609aa37acc97cffad5101",
+        "rd_ui/app/scripts/visualizations/chart.js": "3183df8e82f7adec907bc494d01b2389cba632cb0b46a6dbd024df28d3d95a62",
+        "rd_ui/app/scripts/visualizations/cohort.js": "6bdc36ffa28570664942f9ae49d95e0f65495ffab8bc4ccc13a617abc5fea62b",
+        "rd_ui/app/scripts/visualizations/pivot.js": "ebdbac40f6c9bcfd6367d5f7bacf4a65aa5987b6f701215697d996cc6c6c4729",
+        "rd_ui/app/scripts/visualizations/table.js": "4dbd33c57989c646f41e0f7232f4b98f1e461bcf8adfb2542c6457f0d7c8baeb",
+        "rd_ui/app/styles/login.css": "0e357b7ae92d201254f814f2f3483c84919bf7f108666f1ffb0db989e664cb2c",
+        "rd_ui/app/styles/redash.css": "adbdd7f5a0ef955c15f262a44b57ed06855066e39d8fc87fb836c632f6257f23",
+        "rd_ui/app/views/admin_status.html": "dc72568d6fceb5fc6f50c572193af2e8d60addf8998721a9c938ced30dd4308c",
+        "rd_ui/app/views/admin_workers.html": "92a89579a82c19c007da24392288da93985de66bb2650e286c76fd23749e4c9e",
+        "rd_ui/app/views/dashboard.html": "55d9b4f9b05c602a99217b1608d282a993ecd9568781f91e52960b74f18aa2a0",
+        "rd_ui/app/views/edit_dashboard.html": "a861e7de5247969cf73411bd094222c6fdd799b425aa4ffb0466e2324240832a",
+        "rd_ui/app/views/grid_renderer.html": "404852a5296193b79a2de1d9e3d3563c300431a07a179ded5cfe485a3ab77ce1",
+        "rd_ui/app/views/index.html": "4052540be8842ab015a6554bcd6b2b9849ab217841b660f6ed80dd9c79bcd1ec",
+        "rd_ui/app/views/new_widget_form.html": "c9878ec8b79bab10c5f9dc504113b8d7335a1147d2fdb0e7f1f50a8c6603026b",
+        "rd_ui/app/views/queries.html": "82fbec1aca4d1b00f9c2d8a783ca0f93d049828b141f7e29f193ca727e74f66a",
+        "rd_ui/app/views/queries_query_name_cell.html": "01af9ba7363cd4f3a64575bb156d9addb599402782dbf7b4df63adea0ad48f35",
+        "rd_ui/app/views/query.html": "54c2f5cda86a74c1b0700eba0b9c99f9677d55a6d62ab5ef444bd5ebd6661cda",
+        "rd_ui/app/views/visualizations/chart_editor.html": "2a0b5ac638ce2a909727795451a05b1454436d6b962a4907710dfbd9c4367c52",
+        "rd_ui/app/views/visualizations/cohort_editor.html": "4e71426a1f4e78cb2b17ad4f6ed9c5d0dd8f5d75d92d7295a478647113666ad0",
+        "rd_ui/app/views/visualizations/edit_visualization.html": "d7ed939a87fd2c985197d295b27032485aba5158e3a98994220c54395df01864",
+        "rd_ui/app/views/visualizations/filters.html": "3aedf426818f999d13a07f1d278850446210c8a0d632a74d7df1bd5c306fddbd",
+        "redash/__init__.py": "0162e8ec23b0546c19dff62e22e2c4aaf5de019eecf4d67696e36f0c44714e44",
+        "redash/authentication.py": "eb011edc14e4f8988c183b2691dff0a321b3dd38b6050f873e4b3e43659d029b",
+        "redash/cache.py": "520dfd582c246a9a226a6189345f40ad5dcbe33e4ff34224bc130ee8cffe2c7a",
+        "redash/controllers.py": "d8754cb6fc760670f3d531536492317aac1856d7981aa0f472eb15e004a9e1cd",
+        "redash/data/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "redash/data/query_runner.py": "6fc502fcb8c2a90dd9ad1310f36646019374a0cb00833b6f42c4c1f2ede1f6e4",
+        "redash/data/query_runner_bigquery.py": "eb8e4c031f6e9b63a334605c07dea2b36cac86aa11001ba1bd7a4ea2c92f099f",
+        "redash/data/query_runner_graphite.py": "5f0bf3c91384d95f6455a5b3780a7f659eb1997bef301af9e63976ef041eaedc",
+        "redash/data/query_runner_mysql.py": "1e11dcb64800bab1ca316e7391f770fd7eb9f8341eefe6e0e84175e53322fe19",
+        "redash/data/query_runner_pg.py": "debd6304c3463aaa0f7064e0a78ad37194a285434fcb9587df1e8e6118e23343",
+        "redash/data/query_runner_script.py": "d3ce04d967f5385385c595d2025813ef5920232258017f56f8f7233b3891f2d8",
+        "redash/data/query_runner_url.py": "b61fd9dc04cc5f3ecc6644ea27d923d7999eee084cda03c482f1b43fbeff25d2",
+        "redash/google_oauth.py": "ac25e50622811a9f1551c41ae757984cf4ab4db7edf308b6741284b28083acb4",
+        "redash/import_export.py": "6150e03b045e8a3085b2ccb0ba8470af2549b15f214320ca0a43e68becac6fef",
+        "redash/models.py": "4ffb47539e20d83978fe11b34bd09025418d96ce3012cd26f1bc16abe428d043",
+        "redash/permissions.py": "d41968f9ec6e1cb585045d4865c34842cccda0253144c514dcd8310c805098cd",
+        "redash/settings.py": "316c783bb4e957658cd36eef942a835bd07adf0502bf02d7a63b056eb61a7029",
+        "redash/tasks.py": "8282a406f26a4f5e47396025b7c25f6d3a83f9a20d7b0310703662bc9c98029c",
+        "redash/utils.py": "36d859db51a219a1be9542621e5023fc580cac7fd0e1d39644ccc41d43980c6f",
+        "redash/worker.py": "2d40e7adf12c57f69031d0ca7ca592b0069cf975c03c3c5d285eea433e40690e",
+        "redash/wsgi.py": "899686141a5bfc3cc1d329474c7edd2eaabfa80e767d760b3b281de670b095aa"
+      }
+    },
+    {
+      "task_id": "003007",
+      "fixed_pool_count": 3,
+      "split_counts": {
+        "train": 1,
+        "eval": 2
+      },
+      "category_counts": {
+        "DEFECT": 0,
+        "POSSIBLY_VALID": 3,
+        "UNCERTAIN": 0
+      },
+      "source_image_sha256": "sha256:c8f7aadce30109f55059097b262d856a94c0ea0fe1111a41af8a61892f89b576",
+      "admitted_production_hashes": {
+        "sucks/__init__.py": "bba4997cac7cb6f9cf4f413525016aa7ed7faba343efc012380da25046d9a321",
+        "sucks/cli.py": "3447a387221a54d4d19f5797e45d7b8e5b99acdb15f735e8bd2ca8ccf9396cf0"
+      }
+    }
+  ],
+  "controls": [
+    {
+      "task_id": "000682",
+      "control_name": "train-bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240",
+      "split": "train",
+      "control_sha256": "bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240",
+      "control_hash_origin": "prepared.json control name and MUTANT_APPLIED marker",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "script_sha256": "2e2633ef04feea293755fc7439a30817a3db93fa262adf3118591ccb2a7c1ff8",
+      "mutation_delta_sha256": "3b1c2cb60da671441342c10f665a8ca49f5157fb71c663006a24994a658cc0a7",
+      "category": "POSSIBLY_VALID",
+      "necessarily_violates_public_contract": false,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000682/instruction.md",
+        "sha256": "6ae2341089d4403e2e83f2946fde43aa485c29774043588ad6e6e7085cfa2278",
+        "line_start": 11,
+        "line_end": 11,
+        "excerpt": "I'd also like to be able to turn encryption back off on a topic if needed."
+      },
+      "production_evidence": {
+        "pristine_locations": "c7n/resources/sns.py:19-48,227-254; c7n/resources/sqs.py:326-345",
+        "explanation": "Pristine SNS has no encryption action. The existing SQS action requires a key but establishes no SNS enabled default. The delta preserves both branches.",
+        "mutation_delta": "--- before/c7n/resources/sns.py\n+++ mutant/c7n/resources/sns.py\n@@ -308,5 +308,5 @@\n         sns = local_session(self.manager.session_factory).client('sns')\n \n-        if self.data.get('enabled', True):\n+        if self.data.get('enabled', False):\n             key = self.data.get('key', 'alias/aws/sns')\n         else:\n"
+      },
+      "rationale": "The delta changes only the omitted-enabled default. Explicit enabled=True and enabled=False still select encryption and decryption. The instruction does not require an enabled parameter or its default.",
+      "uncertainty_or_limit": "A default that disables encryption may surprise users. That is not a necessary violation of the stated new interface; the reference default is not an established SNS contract.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "000682",
+      "control_name": "eval-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c",
+      "split": "eval",
+      "control_sha256": "fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c",
+      "control_hash_origin": "prepared.json control name and MUTANT_APPLIED marker",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "script_sha256": "49106113e4d35d0964103035f818e30e103921466330d2afc58b2cf1f9f90407",
+      "mutation_delta_sha256": "e7e443023e5277d8bf331ad3c4adce8427022dce774832908b8d8639c6e0fda5",
+      "category": "DEFECT",
+      "necessarily_violates_public_contract": true,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000682/instruction.md",
+        "sha256": "6ae2341089d4403e2e83f2946fde43aa485c29774043588ad6e6e7085cfa2278",
+        "line_start": 11,
+        "line_end": 11,
+        "excerpt": "I want an action that flips encryption on for them, ideally letting me pick the KMS key."
+      },
+      "production_evidence": {
+        "pristine_locations": "c7n/resources/sns.py:30-36,248-253",
+        "explanation": "Pristine SNS identifies topics by TopicArn and uses set_topic_attributes for service changes. The delta replaces the KmsMasterKeyId update with pass.",
+        "mutation_delta": "--- before/c7n/resources/sns.py\n+++ mutant/c7n/resources/sns.py\n@@ -314,8 +314,4 @@\n \n         for r in resources:\n-            sns.set_topic_attributes(\n-                TopicArn=r['TopicArn'],\n-                AttributeName='KmsMasterKeyId',\n-                AttributeValue=key\n-            )\n+            pass\n         return resources\n"
+      },
+      "rationale": "The delta removes the only SNS topic-attribute update from the resource loop. The action returns resources without changing encryption.",
+      "uncertainty_or_limit": "Static call-removal inference; no AWS calls execute.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "002139",
+      "control_name": "train-12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d",
+      "split": "train",
+      "control_sha256": "12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d",
+      "control_hash_origin": "prepared.json control name and MUTANT_APPLIED marker",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "script_sha256": "78c54bbff1f81cefc86109babf81bc6dc6b7cd4a6dcb10bad9226862ec9dc87a",
+      "mutation_delta_sha256": "1ce68d6d3385a1e7056ff53e1b5adf20a2281152327998f0de2fc385eb0d7c43",
+      "category": "DEFECT",
+      "necessarily_violates_public_contract": true,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002139/instruction.md",
+        "sha256": "40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8",
+        "line_start": 7,
+        "line_end": 7,
+        "excerpt": "If the storage API reports that the object is not found, the caller should get `bb.fetch2.FetchError`."
+      },
+      "production_evidence": {
+        "pristine_locations": "lib/bb/fetch2/az.py:80-96; lib/bb/fetch2/__init__.py:117-120",
+        "explanation": "The delta visibly replaces raise FetchError in except NotFound with a bare raise. The public fetcher uses its own error types.",
+        "mutation_delta": "--- before/lib/bb/fetch2/gcp.py\n+++ mutant/lib/bb/fetch2/gcp.py\n@@ -71,5 +71,5 @@\n             blob.download_to_filename(ud.localpath)\n         except NotFound:\n-            raise FetchError(\"The GCP API threw a NotFound exception\")\n+            raise\n \n         # Additional sanity checks copied from the wget class (although there\n"
+      },
+      "rationale": "A bare raise in the NotFound handler propagates the storage exception instead of the required FetchError.",
+      "uncertainty_or_limit": "The conclusion concerns a storage NotFound exception; no storage client executes.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "002139",
+      "control_name": "train-1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd",
+      "split": "train",
+      "control_sha256": "1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd",
+      "control_hash_origin": "prepared.json control name and MUTANT_APPLIED marker",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "script_sha256": "632e9cb5293b55ffcc467b4f0e2372f599a1c99114a4c590f264c2d78e6fcc37",
+      "mutation_delta_sha256": "022a3dcb63d4993765b0364d9a9cd44dce051e727ba61c8ccb0089b3358518a9",
+      "category": "DEFECT",
+      "necessarily_violates_public_contract": true,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002139/instruction.md",
+        "sha256": "40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8",
+        "line_start": 7,
+        "line_end": 7,
+        "excerpt": "If the API reports success but the target file is missing, or if the target file is zero bytes, `download()` should fail with `bb.fetch2.FetchError`"
+      },
+      "production_evidence": {
+        "pristine_locations": "lib/bb/fetch2/az.py:89-96",
+        "explanation": "The pristine cloud fetcher checks existence before size. The delta deletes that guard and retains os.path.getsize immediately after it.",
+        "mutation_delta": "--- before/lib/bb/fetch2/gcp.py\n+++ mutant/lib/bb/fetch2/gcp.py\n@@ -76,6 +76,5 @@\n         # are no known issues which mean these are required, treat the GCP API\n         # tool with a little healthy suspicion).\n-        if not os.path.exists(ud.localpath):\n-            raise FetchError(f\"The GCP API returned success for gs://{ud.host}{ud.path} but {ud.localpath} doesn't exist?!\")\n+        pass\n \n         if os.path.getsize(ud.localpath) == 0:\n"
+      },
+      "rationale": "Removing the existence guard leaves getsize on a missing file. That raises an OS file error rather than the required FetchError.",
+      "uncertainty_or_limit": "Static standard-library behavior inference; the target must remain absent after reported API success.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "002139",
+      "control_name": "train-7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e",
+      "split": "train",
+      "control_sha256": "7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e",
+      "control_hash_origin": "prepared.json control name and MUTANT_APPLIED marker",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "script_sha256": "6f0565f117a6023251902ac2576ed6d87045f01561e84e95a3f1631f5c85096f",
+      "mutation_delta_sha256": "922c886046d18152bcaca45ebd9d76cad562da5353945af1579361eb1773cf65",
+      "category": "DEFECT",
+      "necessarily_violates_public_contract": true,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002139/instruction.md",
+        "sha256": "40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8",
+        "line_start": 3,
+        "line_end": 3,
+        "excerpt": "A typical session should work as `f = bb.fetch2.Fetch(['gs://example-bucket/releases/pkg-1.0.tar.gz'], d); f.download(); f.checkstatus()`"
+      },
+      "production_evidence": {
+        "pristine_locations": "lib/bb/fetch2/__init__.py:1368-1375; lib/bb/fetch2/s3.py:66-73",
+        "explanation": "Pristine Fetch selects a supporting method. The mutation-local guard explicitly detects a missing client, but its initialization call becomes pass.",
+        "mutation_delta": "--- before/lib/bb/fetch2/gcp.py\n+++ mutant/lib/bb/fetch2/gcp.py\n@@ -61,5 +61,5 @@\n         logger.debug2(f\"Trying to download gs://{ud.host}{ud.path} to {ud.localpath}\")\n         if self.gcp_client is None:\n-            self.get_gcp_client()\n+            pass\n \n         bb.fetch2.check_network_access(d, \"blob.download_to_filename\", f\"gs://{ud.host}{ud.path}\")\n"
+      },
+      "rationale": "The delta removes client initialization precisely when gcp_client is None. A first download cannot use a storage client through that path.",
+      "uncertainty_or_limit": "Depends on the visible missing-client branch being reached, which is the first-use path this guard handles. No credentialed session executes.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "002139",
+      "control_name": "train-88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec",
+      "split": "train",
+      "control_sha256": "88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec",
+      "control_hash_origin": "prepared.json control name and MUTANT_APPLIED marker",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "script_sha256": "686e19921d6ebe3e1fd3ab4c6410e9416c227cc32faeb8389e7e5a01106ad9e1",
+      "mutation_delta_sha256": "f1cf0baea2b47eb867630cd71ca4bc06090694c41cf72d539bb7dbc6cb08b15c",
+      "category": "POSSIBLY_VALID",
+      "necessarily_violates_public_contract": false,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002139/instruction.md",
+        "sha256": "40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8",
+        "line_start": 5,
+        "line_end": 5,
+        "excerpt": "It should run BitBake's normal network-access checks before downloading or checking object existence."
+      },
+      "production_evidence": {
+        "pristine_locations": "lib/bb/fetch2/az.py:45-96",
+        "explanation": "Existing cloud download code performs operational checks independently of optional debug messages. The delta changes only logger.debug2 to pass.",
+        "mutation_delta": "--- before/lib/bb/fetch2/gcp.py\n+++ mutant/lib/bb/fetch2/gcp.py\n@@ -59,5 +59,5 @@\n         \"\"\"\n         from google.api_core.exceptions import NotFound\n-        logger.debug2(f\"Trying to download gs://{ud.host}{ud.path} to {ud.localpath}\")\n+        pass\n         if self.gcp_client is None:\n             self.get_gcp_client()\n"
+      },
+      "rationale": "Only a debug2 message is removed. Client setup, the network-access check, and the download remain unchanged by this delta. The instruction does not require download debug output.",
+      "uncertainty_or_limit": "Less diagnostic output is observable, but no specified message or logging requirement is present.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "002139",
+      "control_name": "eval-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf",
+      "split": "eval",
+      "control_sha256": "8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf",
+      "control_hash_origin": "prepared.json control name and MUTANT_APPLIED marker",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "script_sha256": "969e6f621f92cce870a4247d864d46a8cfab8cf14ce4b825c7e603a0dbad664d",
+      "mutation_delta_sha256": "196c5f0021004ccc808c980909e9e216db60a6da88d84c593f053f201d9bfd2c",
+      "category": "DEFECT",
+      "necessarily_violates_public_contract": true,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002139/instruction.md",
+        "sha256": "40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8",
+        "line_start": 7,
+        "line_end": 7,
+        "excerpt": "the zero-byte file should be removed."
+      },
+      "production_evidence": {
+        "pristine_locations": "lib/bb/fetch2/az.py:89-96",
+        "explanation": "Pristine cloud behavior rejects and removes size-zero files. The delta changes == 0 to != 0 without changing its deletion/error body.",
+        "mutation_delta": "--- before/lib/bb/fetch2/gcp.py\n+++ mutant/lib/bb/fetch2/gcp.py\n@@ -79,5 +79,5 @@\n             raise FetchError(f\"The GCP API returned success for gs://{ud.host}{ud.path} but {ud.localpath} doesn't exist?!\")\n \n-        if os.path.getsize(ud.localpath) == 0:\n+        if os.path.getsize(ud.localpath) != 0:\n             os.remove(ud.localpath)\n             raise FetchError(f\"The downloaded file for gs://{ud.host}{ud.path} resulted in a zero size file?! Deleting and failing since this isn't right.\")\n"
+      },
+      "rationale": "The reversed size condition removes and rejects nonempty downloads while allowing zero-byte files through this guard.",
+      "uncertainty_or_limit": "Both nonempty success and zero-byte failure behavior violate the stated download contract.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "002139",
+      "control_name": "eval-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c",
+      "split": "eval",
+      "control_sha256": "a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c",
+      "control_hash_origin": "prepared.json control name and MUTANT_APPLIED marker",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "script_sha256": "02c4081cdd4ca8aa056e2ec98a6e2a20420d046bd2ad29c169eaef5fcb87153d",
+      "mutation_delta_sha256": "99c75249458abb92cf20feb4c1b26a19c21c65fac0f36699f751c60ffedaa9d4",
+      "category": "POSSIBLY_VALID",
+      "necessarily_violates_public_contract": false,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002139/instruction.md",
+        "sha256": "40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8",
+        "line_start": 3,
+        "line_end": 3,
+        "excerpt": "with the `gs://` URL handled as a normal fetchable source."
+      },
+      "production_evidence": {
+        "pristine_locations": "lib/bb/fetch2/__init__.py:642-676,1473-1478; lib/bb/fetch2/s3.py:72-73",
+        "explanation": "The pristine base recommends_checksum defaults to False. The flag gates missing-checksum warnings and NoChecksumError; supplied checksum mismatch checks remain separate. S3 recommends True, but that is a different backend.",
+        "mutation_delta": "--- before/lib/bb/fetch2/gcp.py\n+++ mutant/lib/bb/fetch2/gcp.py\n@@ -39,5 +39,5 @@\n \n     def recommends_checksum(self, urldata):\n-        return True\n+        return False\n \n     def urldata_init(self, ud, d):\n"
+      },
+      "rationale": "The delta disables checksum recommendation, not checksum support or supplied-checksum verification. The instruction does not specify missing-checksum warnings or strict-policy participation for the new scheme.",
+      "uncertainty_or_limit": "Under BB_STRICT_CHECKSUM=1 with no checksum, the change suppresses a policy error. Whether normal fetchable source imports that policy for gs is not specified. This is not certified correct.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "002139",
+      "control_name": "eval-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc",
+      "split": "eval",
+      "control_sha256": "b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc",
+      "control_hash_origin": "prepared.json control name and MUTANT_APPLIED marker",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "script_sha256": "7f4d76e8c205fb918e0b6d2ac574a3ac599051c4360d144b011ccb260b3fbd3a",
+      "mutation_delta_sha256": "027361e6b68e885635a91f7bd6010adaafafbe1468ea822491c6189183370e75",
+      "category": "DEFECT",
+      "necessarily_violates_public_contract": true,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002139/instruction.md",
+        "sha256": "40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8",
+        "line_start": 7,
+        "line_end": 7,
+        "excerpt": "`checkstatus()` should succeed only when the blob exists and should raise `bb.fetch2.FetchError` when it does not."
+      },
+      "production_evidence": {
+        "pristine_locations": "lib/bb/fetch2/az.py:32-43",
+        "explanation": "Pristine cloud status handling delegates to an existence/status check. The delta directly reverses the boolean test before FetchError.",
+        "mutation_delta": "--- before/lib/bb/fetch2/gcp.py\n+++ mutant/lib/bb/fetch2/gcp.py\n@@ -97,5 +97,5 @@\n         # Path sometimes has leading slash, so strip it\n         path = ud.path.lstrip(\"/\")\n-        if self.gcp_client.bucket(ud.host).blob(path).exists() == False:\n+        if self.gcp_client.bucket(ud.host).blob(path).exists() != False:\n             raise FetchError(f\"The GCP API reported that gs://{ud.host}{ud.path} does not exist\")\n         else:\n"
+      },
+      "rationale": "The reversed existence comparison raises for existing blobs and accepts missing blobs.",
+      "uncertainty_or_limit": "Assumes the storage exists API returns its documented boolean result.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "002139",
+      "control_name": "eval-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa",
+      "split": "eval",
+      "control_sha256": "bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa",
+      "control_hash_origin": "prepared.json control name and MUTANT_APPLIED marker",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "script_sha256": "e772e7e96bf19490a67f5b30676bc3fe89c44ff37dce1bcde43e96829ffb806b",
+      "mutation_delta_sha256": "61ee1c54aa3f83ba3cfc8e1588eae056075f3858ea9f48dcb81215484866a959",
+      "category": "DEFECT",
+      "necessarily_violates_public_contract": true,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002139/instruction.md",
+        "sha256": "40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8",
+        "line_start": 3,
+        "line_end": 3,
+        "excerpt": "with the `gs://` URL handled as a normal fetchable source."
+      },
+      "production_evidence": {
+        "pristine_locations": "lib/bb/fetch2/__init__.py:1368-1375,2178-2196; lib/bb/fetch2/s3.py:66-70; lib/bb/fetch2/az.py:25-29",
+        "explanation": "Pristine Fetch scans methods and raises NoMethodError if none supports the URL. The delta removes methods.append(gcp.GCP()). Existing admitted cloud backends select their own schemes.",
+        "mutation_delta": "--- before/lib/bb/fetch2/__init__.py\n+++ mutant/lib/bb/fetch2/__init__.py\n@@ -2194,5 +2194,5 @@\n methods.append(az.Az())\n methods.append(crate.Crate())\n-methods.append(gcp.GCP())\n+pass\n methods.append(gomod.GoMod())\n methods.append(gomod.GoModGit())\n"
+      },
+      "rationale": "Removing GCP from methods prevents Fetch from selecting the new backend for gs URLs.",
+      "uncertainty_or_limit": "No new alternative gs registration is introduced by this delta; no Fetch invocation executes.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "000081",
+      "control_name": "mutant-0",
+      "split": "train",
+      "control_sha256": "55e2cf8a8678a386d61a1606501841cb85cdaee240ce84b71f53263dd7336518",
+      "control_hash_origin": "prepared.json mutant_sha256",
+      "control_hash_semantics": "declared frozen identity; derivation not specified by prepared.json; retained verbatim",
+      "script_sha256": "0e08c82f17870ee817cc46f010706bacb1d423f8a1296a81a8c91bc057b017a3",
+      "mutation_delta_sha256": "9997fe10009c3f105038ba206965c71ea03af385fd98f25d5e60c115465212da",
+      "category": "DEFECT",
+      "necessarily_violates_public_contract": true,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000081/instruction.md",
+        "sha256": "5d871298963ec727f9513397626f0b620b1886e25a099b938560c7e8d2209129",
+        "line_start": 18,
+        "line_end": 20,
+        "excerpt": "What I'd expect from an \"all\" run is the usual test-runner behavior: keep\ngoing on failure, run every collected example, and at the end print the\nfailures along with a \"N / M passed\" summary"
+      },
+      "production_evidence": {
+        "pristine_locations": "xdoctest/runner.py:108-135",
+        "explanation": "The pristine runner calls example.run, propagates failures, and computes n_passed from each summary. The delta reverses the newly introduced batch/single condition.",
+        "mutation_delta": "--- a/xdoctest/runner.py\n+++ b/xdoctest/runner.py\n@@ -124,5 +124,5 @@\n                 sys.stdout.flush()\n             errors.append('\\n'.join(example.repr_failure()))\n-            if len(enabled_examples) == 1:\n+            if len(enabled_examples) != 1:\n                 raise\n         summaries.append(summary)\n"
+      },
+      "rationale": "The reversed count condition raises on a failure in a multi-example batch and suppresses the requested single-example propagation.",
+      "uncertainty_or_limit": "Static control-flow inference; no runtime execution.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "000081",
+      "control_name": "mutant-1",
+      "split": "eval",
+      "control_sha256": "6c657d2160326fa2558076cf11a31f24a4d7c94926f6306aa439e5ff0545c439",
+      "control_hash_origin": "prepared.json mutant_sha256",
+      "control_hash_semantics": "declared frozen identity; derivation not specified by prepared.json; retained verbatim",
+      "script_sha256": "0807a2952a05a8edf564c831f3af9904bc0a97299e857eb8e25dc5229bba00ea",
+      "mutation_delta_sha256": "b11bc21f9c068dabb83c29f64e68ae824fecd895d1cae0c5e57db52e438e1da9",
+      "category": "DEFECT",
+      "necessarily_violates_public_contract": true,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000081/instruction.md",
+        "sha256": "5d871298963ec727f9513397626f0b620b1886e25a099b938560c7e8d2209129",
+        "line_start": 19,
+        "line_end": 20,
+        "excerpt": "at the end print the\nfailures along with a \"N / M passed\" summary"
+      },
+      "production_evidence": {
+        "pristine_locations": "xdoctest/runner.py:118-131",
+        "explanation": "The pristine runner prints example.repr_failure(); the delta removes the collection of that same report for delayed output.",
+        "mutation_delta": "--- a/xdoctest/runner.py\n+++ b/xdoctest/runner.py\n@@ -123,5 +123,5 @@\n                 sys.stdout.write('F')\n                 sys.stdout.flush()\n-            errors.append('\\n'.join(example.repr_failure()))\n+            pass\n             if len(enabled_examples) == 1:\n                 raise\n"
+      },
+      "rationale": "Removing failure collection prevents the final batch report from printing the failing examples. A progress F does not replace the requested failure details.",
+      "uncertainty_or_limit": "Single-example propagation remains; the violation concerns failing multi-example batches.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "000081",
+      "control_name": "mutant-2",
+      "split": "eval",
+      "control_sha256": "3e3ec362a9cb3c68b66425f88b3eb670eb8b0f4a7cd5fb24c898094250314bd8",
+      "control_hash_origin": "prepared.json mutant_sha256",
+      "control_hash_semantics": "declared frozen identity; derivation not specified by prepared.json; retained verbatim",
+      "script_sha256": "678f81117f8b43513ae46d7aa3ec090e385bcfd7a57dd021ec51398a2acf2144",
+      "mutation_delta_sha256": "405ff11852f860c0c236fdf63ac6fbb30e85be584741eb462b4a26c582e7ffe9",
+      "category": "DEFECT",
+      "necessarily_violates_public_contract": true,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000081/instruction.md",
+        "sha256": "5d871298963ec727f9513397626f0b620b1886e25a099b938560c7e8d2209129",
+        "line_start": 20,
+        "line_end": 20,
+        "excerpt": "failures along with a \"N / M passed\" summary"
+      },
+      "production_evidence": {
+        "pristine_locations": "xdoctest/runner.py:114-135",
+        "explanation": "Pristine n_passed sums summary passed values; the delta changes the exception summary from False to True.",
+        "mutation_delta": "--- a/xdoctest/runner.py\n+++ b/xdoctest/runner.py\n@@ -119,5 +119,5 @@\n                 sys.stdout.flush()\n         except Exception:\n-            summary = {'passed': False}\n+            summary = {'passed': True}\n             if not verbose:\n                 sys.stdout.write('F')\n"
+      },
+      "rationale": "An exception now contributes True to the passed count. The reported number of passing examples is incorrect.",
+      "uncertainty_or_limit": "Applies when the batch contains a failing example and continues.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "001267",
+      "control_name": "mutant-0",
+      "split": "train",
+      "control_sha256": "a9257e58aad9e93bafdc18e029b0730d8afc49bdca653ab6cd8e27276946dbe5",
+      "control_hash_origin": "prepared.json mutant_sha256",
+      "control_hash_semantics": "declared frozen identity; derivation not specified by prepared.json; retained verbatim",
+      "script_sha256": "0fb2ecc88cbd5e07339cdc2d84ef058228b2c4842accecd3f813bc9c4e7debde",
+      "mutation_delta_sha256": "1480329b6552288b4d26405e14793bdc3e63ad270d6c88a95b20ea983801a20c",
+      "category": "DEFECT",
+      "necessarily_violates_public_contract": true,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001267/instruction.md",
+        "sha256": "92d8d6352b450451e09a128c9b9befe6b0023ffa843c433a553420924d30d78b",
+        "line_start": 13,
+        "line_end": 13,
+        "excerpt": "type a keyword, get back the queries that match (against the query name and the description, since both are useful)"
+      },
+      "production_evidence": {
+        "pristine_locations": "redash/controllers.py:279-328",
+        "explanation": "Pristine query resources enter the API through api.add_resource. The delta removes the search registration while leaving the list and query registrations.",
+        "mutation_delta": "--- a/redash/controllers.py\n+++ b/redash/controllers.py\n@@ -333,5 +333,5 @@\n             abort(404, message=\"Query not found.\")\n \n-api.add_resource(QuerySearchAPI, '/api/queries/search', endpoint='queries_search')\n+pass\n api.add_resource(QueryListAPI, '/api/queries', endpoint='queries')\n api.add_resource(QueryAPI, '/api/queries/<query_id>', endpoint='query')\n"
+      },
+      "rationale": "The delta removes registration of the new search resource. The search URL no longer reaches that handler, so the added search feature cannot return its results through that route.",
+      "uncertainty_or_limit": "No browser execution. This conclusion concerns removal of the search route in this frozen implementation, not a required endpoint spelling for independent solutions.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "001267",
+      "control_name": "mutant-1",
+      "split": "eval",
+      "control_sha256": "459c2ee4ca5734c315c97116f7ced96bfe07add0ad7c29d75ce0fd36b6b0acfe",
+      "control_hash_origin": "prepared.json mutant_sha256",
+      "control_hash_semantics": "declared frozen identity; derivation not specified by prepared.json; retained verbatim",
+      "script_sha256": "0ea27b5a149f9f5e42d49a31f081c97b03b16199b65db6450eba9af91a6824a1",
+      "mutation_delta_sha256": "df696d908b22adc6e6d3ff0542e4f417ea452c31dc86e12cb1e22b9a00dfe648",
+      "category": "POSSIBLY_VALID",
+      "necessarily_violates_public_contract": false,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001267/instruction.md",
+        "sha256": "92d8d6352b450451e09a128c9b9befe6b0023ffa843c433a553420924d30d78b",
+        "line_start": 13,
+        "line_end": 13,
+        "excerpt": "it would be nice to be able to kick off a search from wherever I happen to be in the app."
+      },
+      "production_evidence": {
+        "pristine_locations": "redash/controllers.py:327-328; all admitted 001267 production sources",
+        "explanation": "Pristine code uses explicit endpoint names for existing resources but contains no queries_search, querysearchapi, or /api/queries/search reference. The delta retains the route path and handler.",
+        "mutation_delta": "--- a/redash/controllers.py\n+++ b/redash/controllers.py\n@@ -333,5 +333,5 @@\n             abort(404, message=\"Query not found.\")\n \n-api.add_resource(QuerySearchAPI, '/api/queries/search', endpoint='queries_search')\n+api.add_resource(QuerySearchAPI, '/api/queries/search')\n api.add_resource(QueryListAPI, '/api/queries', endpoint='queries')\n api.add_resource(QueryAPI, '/api/queries/<query_id>', endpoint='query')\n"
+      },
+      "rationale": "The URL and resource handler stay registered. Only the explicit internal endpoint name is omitted. The public instruction specifies search behavior, not a Flask endpoint identifier.",
+      "uncertainty_or_limit": "The framework can derive a default endpoint name. A new internal url_for dependency could matter, but no such dependency is established by the admitted pristine interface. Runtime routing is not checked.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "003007",
+      "control_name": "mutant-0",
+      "split": "train",
+      "control_sha256": "b617d9ff1b9e25927aa1e687ed30d03b5cb4febad9f15aaff9ff8a9f62748e2f",
+      "control_hash_origin": "prepared.json mutant_sha256",
+      "control_hash_semantics": "declared frozen identity; derivation not specified by prepared.json; retained verbatim",
+      "script_sha256": "3ea2ae8a78e083593e693b6d1b573d55939568d2fd0855a1fffa5e9b593ce65f",
+      "mutation_delta_sha256": "88eed35a8c4dfa0ad41205ce5e7ca40653d3297be68f73969188c8bd9e0c6b0b",
+      "category": "POSSIBLY_VALID",
+      "necessarily_violates_public_contract": false,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-003007/instruction.md",
+        "sha256": "8f83549f73e689134c24a8ae877231b200916848ec6b024b8eb393e0b6e6a3e5",
+        "line_start": 32,
+        "line_end": 32,
+        "excerpt": "That only works if the library logs through a logger named after its module"
+      },
+      "production_evidence": {
+        "pristine_locations": "sucks/__init__.py:76-99",
+        "explanation": "The pristine setup message is a root logging.debug call before resource and login setup. The delta removes the corresponding scoped call and retains setup.",
+        "mutation_delta": "--- a/sucks/__init__.py\n+++ b/sucks/__init__.py\n@@ -112,5 +112,5 @@\n             'deviceType': '1'\n         }\n-        _LOGGER.debug(\"Setting up EcoVacsAPI\")\n+        pass\n         self.resource = device_id[0:8]\n         self.country = country\n"
+      },
+      "rationale": "The delta removes one setup debug message. It does not restore root logging or change API initialization. The instruction requires module-scoped logging, not retention of this exact message.",
+      "uncertainty_or_limit": "The user values verbose diagnostics. Deleting one message reduces detail, but exact message retention is not specified.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "003007",
+      "control_name": "mutant-1",
+      "split": "eval",
+      "control_sha256": "c6720b59faa89aa3895202f3450b6e02f4b9b3ee842f8f607776344431834e7f",
+      "control_hash_origin": "prepared.json mutant_sha256",
+      "control_hash_semantics": "declared frozen identity; derivation not specified by prepared.json; retained verbatim",
+      "script_sha256": "6223244670edc2ab07b2bf2ea48cd53e1a79184a0930c2d6f6945d3b0a35d5ed",
+      "mutation_delta_sha256": "1bcbe0d6d6b2730b59e36a8845db29a0f8729bdb3b84c291fa0ebcf80eeeb8c0",
+      "category": "POSSIBLY_VALID",
+      "necessarily_violates_public_contract": false,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-003007/instruction.md",
+        "sha256": "8f83549f73e689134c24a8ae877231b200916848ec6b024b8eb393e0b6e6a3e5",
+        "line_start": 32,
+        "line_end": 32,
+        "excerpt": "That only works if the library logs through a logger named after its module"
+      },
+      "production_evidence": {
+        "pristine_locations": "sucks/cli.py:60-73",
+        "explanation": "Pristine StatusWait logs before polling and after completion. The delta removes only the initial scoped debug call.",
+        "mutation_delta": "--- a/sucks/cli.py\n+++ b/sucks/cli.py\n@@ -69,5 +69,5 @@\n         if not hasattr(bot, self.wait_on):\n             raise ValueError(\"object \" + bot + \" does not have method \" + self.wait_on)\n-        _LOGGER.debug(\"waiting on \" + self.wait_on + \" for value \" + self.wait_for)\n+        pass\n \n         while getattr(bot, self.wait_on) != self.wait_for:\n"
+      },
+      "rationale": "The delta removes one wait-start debug message. The wait loop and condition remain unchanged. No exact message is required.",
+      "uncertainty_or_limit": "This reduces wait diagnostics; it does not establish a violation of module-scoped logging or waiting behavior.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    },
+    {
+      "task_id": "003007",
+      "control_name": "mutant-2",
+      "split": "eval",
+      "control_sha256": "0182d13c689189ddf06e26bf7500b4e3abd1610eeb710e086e08a0a6748f8ae4",
+      "control_hash_origin": "prepared.json mutant_sha256",
+      "control_hash_semantics": "declared frozen identity; derivation not specified by prepared.json; retained verbatim",
+      "script_sha256": "a7de6956d7c44507869152b87c88d08e29e830dda2e8815a9addee5b17037861",
+      "mutation_delta_sha256": "81cd448717209d22d0ec1c03e592a34b1700dc1ce6fab478b8aadedcbbf39afd",
+      "category": "POSSIBLY_VALID",
+      "necessarily_violates_public_contract": false,
+      "instruction": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-003007/instruction.md",
+        "sha256": "8f83549f73e689134c24a8ae877231b200916848ec6b024b8eb393e0b6e6a3e5",
+        "line_start": 32,
+        "line_end": 32,
+        "excerpt": "That only works if the library logs through a logger named after its module"
+      },
+      "production_evidence": {
+        "pristine_locations": "sucks/__init__.py:90-99",
+        "explanation": "Pristine token assignment precedes the completion message. The delta replaces only the corresponding scoped debug call with pass.",
+        "mutation_delta": "--- a/sucks/__init__.py\n+++ b/sucks/__init__.py\n@@ -125,5 +125,5 @@\n                                               ('accessToken', self.login_access_token))['authCode']\n         self.user_access_token = self.__call_login_by_it_token()['token']\n-        _LOGGER.debug(\"EcoVacsAPI connection complete\")\n+        pass\n \n     def __sign(self, params):\n"
+      },
+      "rationale": "The delta removes one connection-complete debug message after authentication. It does not change the token assignment or logger destination.",
+      "uncertainty_or_limit": "The instruction does not promise this completion message. Removing all useful logging could raise a different concern, but this delta removes one message.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated frozen mutation delta; not executed"
+    }
+  ],
+  "nonpool_control_inventory": [
+    {
+      "task_id": "000682",
+      "name": "reference",
+      "arm": "reference",
+      "script_sha256": "1374986acce3ed41b6c6825707786b31753a5d5986cf788b7f00178e3867c06a",
+      "classification": "NOT_A_TRAIN_EVAL_MUTANT"
+    },
+    {
+      "task_id": "000682",
+      "name": "nop",
+      "arm": "nop",
+      "script_sha256": "eee6d70f3a76c8b39f5decda7404e97f87c8cf2e4b3b126ed95d8e1556d7b5e8",
+      "classification": "NOT_A_TRAIN_EVAL_MUTANT"
+    },
+    {
+      "task_id": "002139",
+      "name": "reference",
+      "arm": "reference",
+      "script_sha256": "a21cd82031ce53e78178e3f39880d73d40d48005bdb0a7ede6fbf3ae9129cb3d",
+      "classification": "NOT_A_TRAIN_EVAL_MUTANT"
+    },
+    {
+      "task_id": "002139",
+      "name": "nop",
+      "arm": "nop",
+      "script_sha256": "eee6d70f3a76c8b39f5decda7404e97f87c8cf2e4b3b126ed95d8e1556d7b5e8",
+      "classification": "NOT_A_TRAIN_EVAL_MUTANT"
+    },
+    {
+      "task_id": "000081",
+      "name": "reference",
+      "arm": "reference",
+      "script_sha256": "9dac36ffce8f4482f64e5f0b6d9a4bf36bce97791dbbb8bf296efbf924d51b7d",
+      "classification": "NOT_A_TRAIN_EVAL_MUTANT"
+    },
+    {
+      "task_id": "000081",
+      "name": "nop",
+      "arm": "nop",
+      "script_sha256": "eee6d70f3a76c8b39f5decda7404e97f87c8cf2e4b3b126ed95d8e1556d7b5e8",
+      "classification": "NOT_A_TRAIN_EVAL_MUTANT"
+    },
+    {
+      "task_id": "001267",
+      "name": "reference",
+      "arm": "reference",
+      "script_sha256": "b9ac9fd4a4f696f6dca0410e21b5c08b55f1e05037fc69b8b21febb06aebbfa9",
+      "classification": "NOT_A_TRAIN_EVAL_MUTANT"
+    },
+    {
+      "task_id": "001267",
+      "name": "nop",
+      "arm": "nop",
+      "script_sha256": "eee6d70f3a76c8b39f5decda7404e97f87c8cf2e4b3b126ed95d8e1556d7b5e8",
+      "classification": "NOT_A_TRAIN_EVAL_MUTANT"
+    },
+    {
+      "task_id": "003007",
+      "name": "reference",
+      "arm": "reference",
+      "script_sha256": "66997f89a3ec6351402b94af8bb09b089624e2264001949e4fdeea02137a9c5c",
+      "classification": "NOT_A_TRAIN_EVAL_MUTANT"
+    },
+    {
+      "task_id": "003007",
+      "name": "nop",
+      "arm": "nop",
+      "script_sha256": "eee6d70f3a76c8b39f5decda7404e97f87c8cf2e4b3b126ed95d8e1556d7b5e8",
+      "classification": "NOT_A_TRAIN_EVAL_MUTANT"
+    }
+  ]
+}

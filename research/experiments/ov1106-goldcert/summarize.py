@@ -31,7 +31,11 @@ from pathlib import Path
 
 TASKS = ('000682', '002139', '000081', '001267', '003007')
 MODEL = 'openai-codex/gpt-6.1-terra'
-DRIVER_SHA = '170ed8f02f9edb9f9bf93a433c54fb873d34c92d54256687bde02d0cae441e89'
+# Preserve immutable historical evidence and admit only the reviewed overlay-fixed revision.
+REVIEWED_DRIVERS = frozenset({
+    '170ed8f02f9edb9f9bf93a433c54fb873d34c92d54256687bde02d0cae441e89',
+    '9fa14b0c7a9e4f7dde8733aa2e4557f577c530aa82be7bb8771928d63cfffc47',
+})
 TRANSPORT_SHA = 'f2e8c41fd72e01fc0e0b75b0ef190cde3aa2e92c0321152f995fc5cf52a7d22a'
 PREFIXES = {'000682': ('c7n/',), '002139': ('lib/bb/',), '000081': ('xdoctest/',),
             '001267': ('redash/', 'rd_ui/app/'), '003007': ('sucks/',)}
@@ -96,7 +100,7 @@ def prompt(task, instruction):
 def binding(root, trusted_manifest):
     frozen = root / 'frozen'
     bound = load(frozen / 'binding.json')
-    require(bound['model'] == MODEL and bound['driver_sha256'] == DRIVER_SHA
+    require(bound['model'] == MODEL and bound['driver_sha256'] in REVIEWED_DRIVERS
             and bound['transport_sha256'] == TRANSPORT_SHA, 'unreviewed driver/transport/model')
     checked(frozen / 'ov1106-goldcert/generate_blind.py', bound['driver_sha256'])
     checked(frozen / 'ov1104-impossible/container_tool.py', bound['transport_sha256'])

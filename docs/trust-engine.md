@@ -160,6 +160,24 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    Missing receipts, unknown sandbox identities, unknown network modes, or native errors leave the outcome unmeasured.
    The provider creation record proves sandbox allocation through this fixed path; it does not prove network isolation.
    The task network policy can allow public egress. This runner is not protection against hostile Python in the host process.
+   Contained accounting uses the exact native `CloudSpendGate`, not `ReserveSettleSpendGate`.
+   Each native environment start retains 3 fixed execution-unit reservations: image preparation and 2 possible sandbox creation attempts.
+   Successful first-attempt creation does not release the other reservations.
+   Failed admission can retain a partial group if a later charge exceeds the cap.
+   `CloudSpendGate` retains charges after successful, short, failed, and cancelled executions.
+   The separate `SandboxMeter` reports wall/resource estimates; these estimates do not settle the ledger or prove provider billing.
+   Ledger entries have reservation IDs, but the QA receipt does not bind those IDs to individual cells.
+   Do not infer ownership from timestamps or subtract global before/after totals when other cells can run.
+   The upstream grader has a different finalization contract: exact reservation identity, successful native measurement,
+   completed image hydration, and terminal public SDK evidence for every owned sandbox.
+   Sandbox creation receipts and app-stop results alone do not satisfy that contract.
+   Do not migrate the contained ledger to reserve/settle accounting to recover headroom from incomplete evidence.
+   The shared official `ReserveSettleSpendGate` path is a separate estimated accounting mode, not a refund mechanism for these reservations.
+   Its current reservation covers projected cell time, not every role's full sandbox lifetime and image preparation.
+   Settlement uses package resources and elapsed cell time, including failures; it does not require terminal provider closure receipts.
+   Therefore, this path does not yet satisfy full-resource/lifetime admission for contained controls.
+   Keep exact `CloudSpendGate` admission until that prerequisite is met; do not admit arbitrary subclasses or callbacks.
+   Existing fixed reservations remain committed and unfinalized. Neither accounting mode produces provider invoices.
    Without supplied witness files, explicit mode uses the existing default witness control.
    Arbitrary library callbacks with injection opt-in refuse before planning, file reads, script generation, or spend.
    Offline previews show requested controls but keep their gates unexercised and `certification_possible: false`.

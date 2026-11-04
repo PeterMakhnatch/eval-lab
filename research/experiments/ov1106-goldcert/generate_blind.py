@@ -192,7 +192,9 @@ class Gateway:
     async def start(self):
         self.audit = (self.root / "gateway-envelopes.jsonl").open("x")
         self.stderr = (self.root / "gateway-stderr.log").open("xb")
-        self.process = await asyncio.create_subprocess_exec("omp", "--config", "/private/tmp/ov1106/shared/nofallback.yml", "auth-gateway", "stdio", stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=self.stderr, limit=1 << 26)
+        # OMP 18.14.2 does not forward CLI overlays into auth-gateway; the environment does.
+        environment = dict(os.environ, PI_CONFIG_FILES="/private/tmp/ov1106/shared/nofallback.yml")
+        self.process = await asyncio.create_subprocess_exec("omp", "--config", "/private/tmp/ov1106/shared/nofallback.yml", "auth-gateway", "stdio", env=environment, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=self.stderr, limit=1 << 26)
         raw = await asyncio.wait_for(self.process.stdout.readline(), 120)
         self.envelope("startup", {"raw": raw.decode(errors="replace")})
         if not raw or not json.loads(raw).get("ready"):

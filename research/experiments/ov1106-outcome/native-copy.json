@@ -17,10 +17,10 @@
   "warning": "Audit-derived labels are not independent ground truth; do not call this recall/FPR or clean accuracy.",
   "source_sha256": {
     "src/evallab/line/core.py": "1e886a19d8f879e9d888d8b081b18202e7c43987659562e4a80285797d5994e5",
-    "src/evallab/line/copy_history.py": "9a5941df884173401e78896419a89ceefe6b6856bcc44661fe7f1cc8b7191ab4",
-    "src/evallab/copy_check.py": "efed73d9e6425b8de5a59fffec766de7c071838049e8513dfe7985b13558d412",
+    "src/evallab/line/copy_history.py": "8a9351e28b12339594b2562d472f634cadc0a4ff3941687f06c418baa2812aed",
+    "src/evallab/copy_check.py": "dd025b38a43f2f74508eb8f39a6da362cc58135311865d0aabab76e389a79629",
     "src/evallab/rollout_admission.py": "d2c1c1d2eede2efa422f5f20fe69cbf793e337642dfda1362c17516fb77bdf58",
-    "src/evallab/hack_drop.py": "a062249cedf1022ac3294313c6fa1d1b04899231748f94dae4aabc6a20fbed7f",
+    "src/evallab/hack_drop.py": "c3a00a5bb8158982eb2e91d71fbee746368d43a179adafcd454a834a86f24a0d",
     "research/experiments/ov1106-outcome/audit_native_copy.py": "534631364bdfdfafeadc3a85488690e00c8cfae76c675e3764caa3fa17026190"
   },
   "manifest_sha256": {

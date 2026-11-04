@@ -190,3 +190,28 @@ make line-replay LINE_REPLAY_ARGS='--copy-history'
 
 The copy flag defaults OFF. The candidate replay cannot rewrite a baseline.
 See `docs/line.md` for its persisted spec, evidence admission, and policy limits.
+
+## 6. Full-line acceptance and verification
+
+Both exact acceptance commands pass on all 690 frozen DEV runs:
+`make line-replay` and `make line-replay LINE_REPLAY_ARGS='--copy-history'`.
+Both produce 0 changed decisions. No corpus gains a cheat keep.
+The spec, manifest and baseline hashes remain unchanged.
+
+The ON trace contains the honest C4 base-commit match described above.
+The baseline already drops that run, so the extra signal changes no decision.
+This is integration acceptance, not evidence of a detector gain.
+The complete keep/review/drop table by corpus and class is
+[`results/line-replay.md`](results/line-replay.md).
+`results/line-replay.json` binds the actual batch scoreboards and their hashes.
+The exact command receipts are `/private/tmp/ov1106/outcome/replay-acceptance.json`.
+
+The final consumer regression suites pass 1502 tests. The focused copy and
+snapshot checks pass 96 tests. The strict source typecheck reports 0 diagnostics.
+Ruff, governance, registry audit and lessons freshness checks pass.
+The regression output is `/private/tmp/ov1106/outcome/final-regression-output.txt`.
+
+Nine completed helper sessions record 230 successful assistant turns on
+`openai-codex/gpt-6.1-sol`, with 0 fallback events. Resumed launches use the
+mandatory no-fallback config. No judge or gateway call occurs in this lane.
+Receipt: `helper-attestation.json`. Infrastructure spend is $0.

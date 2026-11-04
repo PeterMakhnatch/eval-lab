@@ -228,7 +228,7 @@ def history_copy(rollout: hd.RolloutItem) -> dict[str, Any] | None:
     diff_text = retained.get("final.diff", retained.get("verifier/agent.diff", rollout.diff_text))
     if rollout.run is None or not diff_text:
         return None
-    projected = hd._l0_normalized_rollout(rollout)
+    projected, _ = hd._l0_normalized_rollout(rollout)
     assert projected.run is not None
     steps = checker.agent_steps(
         projected.run.doc,

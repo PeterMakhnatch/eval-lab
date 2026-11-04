@@ -115,6 +115,8 @@ testpaths = [
     "research/experiments/tests",
     "research/experiments/library-ladder-coverage",
     "research/experiments/mimo-clean-v6",
+    "research/experiments/ov1104-detbench/test_length_metrics.py",
+    "research/experiments/ov1106-lengthctl",
 ]
 
 [tool.ruff]

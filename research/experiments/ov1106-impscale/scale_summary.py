@@ -14,6 +14,8 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from recover_campaign import reconstruct
+
 HERE = Path(__file__).resolve().parent
 TRANSPORT = 'f2e8c41fd72e01fc0e0b75b0ef190cde3aa2e92c0321152f995fc5cf52a7d22a'
 NOFALLBACK = Path('/private/tmp/ov1106/shared/nofallback.yml')
@@ -350,9 +352,18 @@ def campaign_audit(audit, root):
     for row in plan:
         need(row['model'] in MODELS and row['split'] == 'dev' and row['layout'] == 'v2'
              and row['required_transport_sha256'] == TRANSPORT, 'plan admission identity differs')
-    # A missing terminal summary is incomplete, never an invitation to inspect active sessions.
-    summary = audit.load(root / 'summary.json')
-    need(all(row['status'] in ('complete', 'error', 'quota_stop') for row in summary['outcomes']), 'unknown outcome status')
+    recovered = not (root / 'summary.json').exists()
+    if recovered:
+        summary = audit.load(root / 'recovery-summary.json')
+        need(summary.get('reconstructed') is True, 'recovery summary lacks reconstruction marker')
+        for item in summary['inputs']:
+            audit.bind(item['path'], item['sha256'])
+        rebuilt = reconstruct(root, Path(summary['plan_path']), Path(summary['interruption_path']))
+        need(summary == rebuilt, 'recovery summary differs from immutable inputs')
+    else:
+        summary = audit.load(root / 'summary.json')
+    need(all(row['status'] in ('complete', 'error', 'quota_stop', 'quota_probe_failed')
+             for row in summary['outcomes']), 'unknown outcome status')
     outcomes = [row for row in summary['outcomes'] if 'id' in row]
     ids = [row['id'] for row in outcomes]
     need(len(set(ids)) == len(ids), 'duplicate outcomes')
@@ -364,16 +375,50 @@ def campaign_audit(audit, root):
     saved = [json.loads(line) for line in (root / 'outcomes.jsonl').read_text().splitlines() if line.strip()]
     need(saved == outcomes, 'outcomes JSONL differs from terminal summary')
     missing = sorted({r['id'] for r in plan} - set(ids))
-    need(not missing or summary['quota_stopped'] is True, f'planned outcomes missing: {missing}')
+    probe_failed = summary.get('quota_probe_failed', False)
+    quota_stopped = summary['quota_stopped']
+    need(type(probe_failed) is bool and type(quota_stopped) is bool
+         and not (probe_failed and quota_stopped), 'invalid quota stop flags')
+    stops = [row for row in summary['outcomes'] if 'id' not in row]
+    if not recovered:
+        need(len(stops) == int(probe_failed or quota_stopped), 'quota stop marker differs')
+        if stops:
+            stop = stops[0]
+            expected_status = 'quota_probe_failed' if probe_failed else 'quota_stop'
+            need(stop['status'] == expected_status, 'quota stop classification differs')
+            next_index = stop['next_plan_index']
+            need(type(next_index) is int and 0 <= next_index < len(plan)
+                 and len(ids) == next_index and set(ids) == {r['id'] for r in plan[:next_index]},
+                 'missing outcomes are not the unattempted batch suffix')
+            # Historical ceiling stops predate quota-receipt pointers.
+            quota_path = safe_child(root, stop.get('quota_receipt', f'quota-{next_index:03d}.json'))
+            quota_receipt = audit.load(quota_path)
+            if 'quota_receipt_sha256' in stop:
+                audit.bind(quota_path, stop['quota_receipt_sha256'])
+            need(quota_receipt['allowed'] is False, 'stop quota receipt allows launch')
+            need(quota_receipt.get('probe_failed', False) is probe_failed, 'quota receipt error classification differs')
+            if probe_failed:
+                need(quota_receipt['stop_reason'] == 'quota_probe_failed'
+                     and quota_receipt.get('error_type') and quota_receipt.get('error'),
+                     'missing quota probe error evidence')
+        need(summary.get('stop_reason', stops[0]['status'] if stops else 'completed')
+             == (stops[0]['status'] if stops else 'completed'), 'summary stop reason differs')
+    need(not missing or quota_stopped or probe_failed, f'planned outcomes missing: {missing}')
     by_id = {row['id']: row for row in plan}
     rows = [run_audit(audit, root, by_id[row['id']], row, campaign) for row in sorted(outcomes, key=lambda r: r['id'])]
     return rows, {'path': str(root), 'planned': len(plan), 'not_attempted_ids': missing,
-                  'quota_stopped': summary['quota_stopped']}
+                  'quota_stopped': quota_stopped, 'quota_probe_failed': probe_failed,
+                  'reconstructed': recovered,
+                  'status': 'RECOVERED_PARTIAL' if recovered else ('PARTIAL' if missing else 'COMPLETED'),
+                  'stop_reason': 'quota_probe_failed' if probe_failed else ('quota_stop' if quota_stopped else 'completed')}
 
 
 def report(rows, summary):
     lines = ['# Private scale audit', '', '## Construct limits', ''] + ['- ' + line for line in LIMITS]
     lines += ['', '## Counts', '', '```json', json.dumps(summary['counts'], indent=2), '```', '', '## Worked examples', '']
+    lines += ['', '## Campaign completion', '', '```json',
+              json.dumps(summary['campaigns'], indent=2), '```',
+              'Unattempted IDs have unknown outcomes. Quota probe errors do not establish a quota ceiling breach.']
     eligible = sorted([r for r in rows if 'mechanism' in r], key=lambda r: (not (r['G1_pass'] and not r['G2_pass']), r['id']))
     for index, row in enumerate(eligible[:2], 1):
         root = Path(row['campaign']) / 'runs' / row['id']
@@ -414,6 +459,7 @@ def main():
     output.mkdir(parents=True, mode=0o700)
     audit = Audit()
     audit.hash(Path(__file__))
+    audit.hash(Path(reconstruct.__code__.co_filename))
     rows, campaigns, errors = [], [], []
     for root in roots:
         try:
@@ -431,7 +477,10 @@ def main():
     rows.sort(key=lambda r: (r['id'], r['campaign']))
     summary = {**summarize(rows), 'schema_version': 1, 'campaigns': campaigns, 'campaign_errors': errors,
                'limitations': LIMITS, 'intervals': 'Wilson 95%; task-cluster bootstrap seed=1106, reps=2000',
-               'status': 'PASS' if not errors and all(r['admitted'] for r in rows) else 'INCOMPLETE_OR_INVALID'}
+               'status': ('INCOMPLETE_OR_INVALID' if errors or not all(r['admitted'] for r in rows)
+                          else 'PARTIAL' if any(c['not_attempted_ids'] or c['reconstructed'] for c in campaigns)
+                          else 'PASS'),
+               'evidence_valid': not errors and all(r['admitted'] for r in rows)}
     # Detect changed complete inputs before publishing any result.
     for path, expected in sorted(audit.inputs.copy().items()):
         audit.bind(path, expected)
@@ -441,7 +490,7 @@ def main():
     (output / 'runs.jsonl').write_text(''.join(json.dumps(row, sort_keys=True) + '\n' for row in rows))
     (output / 'private-report.md').write_text(report(rows, summary))
     print(json.dumps({'status': summary['status'], 'counts': summary['counts'], 'campaign_errors': errors}, sort_keys=True))
-    return 0 if summary['status'] == 'PASS' else 2
+    return 0 if summary['evidence_valid'] else 2
 
 
 if __name__ == '__main__':

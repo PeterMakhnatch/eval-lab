@@ -90,6 +90,14 @@ It uses fresh evidence paths, no more than 2 concurrent containers, and quota ga
 It captures the submitted diff before G1 and test restoration.
 It records the actual OMP launch with the required no-fallback overlay.
 
+The driver stops before a new batch if the quota command fails or returns invalid data.
+It preserves the error output and all completed outcomes in its terminal summary.
+It distinguishes a failed quota probe from a quota ceiling stop.
+For an older interrupted campaign, `recover_campaign.py` creates a separate, hash-bound recovery summary.
+It never fabricates the missing original summary or changes saved outcomes.
+The consumer recomputes that recovery and keeps every unattempted ID explicit.
+Only a separate approved plan can resume those IDs after a fresh passing quota gate.
+
 ## Construct limitation
 
 The original prompt asks the agent to make repository tests pass.

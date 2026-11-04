@@ -9,6 +9,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 import shutil
 import subprocess
 import sys
@@ -32,19 +33,41 @@ def save(path: Path, value: dict) -> None:
         json.dump(value, stream, indent=2)
 
 
+class QuotaProbeError(RuntimeError):
+    """Quota is unknown; the next batch must not start."""
+
+
 def quota(omp: Path, output: Path) -> bool:
-    result = subprocess.run([str(omp), "usage", "--json", "--redact"],
-                            capture_output=True, text=True, check=True, timeout=90)
-    document = json.loads(result.stdout)
-    codex, gemini = [], []
-    for report in document["reports"]:
-        for limit in report.get("limits", []):
-            if report["provider"] == "openai-codex" and limit.get("scope", {}).get("windowId") == "7d":
-                codex.append(limit["amount"]["usedFraction"])
-            if (report["provider"] == "google-antigravity" and "gemini-weekly" in limit["id"]):
-                gemini.append(limit["amount"]["usedFraction"])
-    allowed = bool(codex and gemini and max(codex) < 0.82 and max(gemini) < 0.78)
-    save(output, {"recorded_at": datetime.now(UTC).isoformat(), "allowed": allowed,
+    command = [str(omp), "usage", "--json", "--redact"]
+    evidence = {"recorded_at": datetime.now(UTC).isoformat(), "command": command}
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=90)
+        evidence.update(stdout=result.stdout, stderr=result.stderr, returncode=result.returncode)
+        document = json.loads(result.stdout)
+        codex, gemini = [], []
+        for report in document["reports"]:
+            for limit in report.get("limits", []):
+                if report["provider"] == "openai-codex" and limit.get("scope", {}).get("windowId") == "7d":
+                    codex.append(limit["amount"]["usedFraction"])
+                if report["provider"] == "google-antigravity" and "gemini-weekly" in limit["id"]:
+                    gemini.append(limit["amount"]["usedFraction"])
+        if not codex or not gemini or any(
+                isinstance(value, bool) or not isinstance(value, (int, float))
+                or not math.isfinite(value) or not 0 <= value <= 1
+                for value in codex + gemini):
+            raise ValueError("Missing or invalid required weekly quota limits")
+        allowed = max(codex) < 0.82 and max(gemini) < 0.78
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError, AttributeError) as error:
+        def text(value):
+            return value.decode(errors="replace") if isinstance(value, bytes) else value
+        for key in ("stdout", "stderr", "returncode"):
+            if hasattr(error, key):
+                evidence[key] = text(getattr(error, key))
+        evidence.update(allowed=False, probe_failed=True, stop_reason="quota_probe_failed",
+                        error_type=type(error).__name__, error=str(error))
+        save(output, evidence)
+        raise QuotaProbeError(str(error)) from error
+    save(output, {**evidence, "allowed": allowed, "probe_failed": False,
                   "codex_weekly": codex, "gemini_weekly": gemini, "report": document})
     return allowed
 
@@ -203,9 +226,18 @@ def main() -> None:
                                          "nofallback_sha256": digest(NOFALLBACK),
                                          "paid_infra_usd": 0, "started_at": datetime.now(UTC).isoformat()})
     outcomes = []
+    (args.output / "outcomes.jsonl").touch(exist_ok=False)
     for start in range(0, len(rows), args.batch_size):
-        if not quota(runner.OMP, args.output / f"quota-{start:03d}.json"):
-            outcomes.append({"status": "quota_stop", "next_plan_index": start})
+        quota_path = args.output / f"quota-{start:03d}.json"
+        try:
+            allowed = quota(runner.OMP, quota_path)
+        except QuotaProbeError:
+            outcomes.append({"status": "quota_probe_failed", "next_plan_index": start,
+                             "quota_receipt": quota_path.name, "quota_receipt_sha256": digest(quota_path)})
+            break
+        if not allowed:
+            outcomes.append({"status": "quota_stop", "next_plan_index": start,
+                             "quota_receipt": quota_path.name, "quota_receipt_sha256": digest(quota_path)})
             break
         with ThreadPoolExecutor(max_workers=args.workers) as pool:
             futures = {pool.submit(runner.execute, row, canary_gate()): row for row in rows[start:start + args.batch_size]}
@@ -230,6 +262,8 @@ def main() -> None:
                                         "complete": sum(row["status"] == "complete" for row in outcomes),
                                         "errors": sum(row["status"] == "error" for row in outcomes),
                                         "quota_stopped": any(row["status"] == "quota_stop" for row in outcomes),
+                                        "quota_probe_failed": any(row["status"] == "quota_probe_failed" for row in outcomes),
+                                        "stop_reason": next((row["status"] for row in outcomes if "id" not in row), "completed"),
                                         "paid_infra_usd": 0})
 
 

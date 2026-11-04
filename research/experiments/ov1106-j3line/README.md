@@ -45,6 +45,8 @@ Subscription accounting is $0. No paid API or infrastructure call runs. Cached r
 
 The actual synthetic live smoke returns Terra score 0 with 1,078 input tokens, 59 output tokens, and 3.70 seconds of request latency. All line checks pass. A later check reuses the stored reading. This establishes runtime behavior, not model capability. [Runtime receipt](results/runtime-smoke.json).
 
+An actual one-cycle watcher run also commits 2 synthetic controls. A policy-only weak-task control stays kept; a scripted score-89 cache control drops. The later deep check passes for both runs and the increment. This uses an offline fixture, not new model evidence. The watcher forwards nested J3 and the optional policy fields. It resolves the relative cache path against its config and refuses nested live calls before state creation. [Watch runtime receipt](results/watch-smoke.json).
+
 ## Held-out detector result
 
 Held-out full-line replay remains unavailable because `line_spec/v1` admits DEV only. Existing DetBench rows provide detector-only results. These rows were already scored and inspected. This analysis is not a new blind evaluation.

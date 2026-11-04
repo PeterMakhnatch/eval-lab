@@ -284,6 +284,15 @@ def parse_config(path: Path, state_dir: Path) -> dict[str, Any]:
             **autoreview,
             "cache": _resolve(autoreview["cache"], base, "autoreview.cache"),
         }
+    j3 = autoreview.get("j3") if isinstance(autoreview, dict) else None
+    if isinstance(j3, dict):
+        if j3.get("mode") == "live":
+            raise WatchError("the watcher never calls a model: use J3 mode off or cached")
+        if j3.get("cache"):
+            autoreview = {
+                **autoreview,
+                "j3": {**j3, "cache": _resolve(j3["cache"], base, "autoreview.j3.cache")},
+            }
     template_doc = {
         "schema": "evallab.line_spec/v1",
         "batch_id": "template",
@@ -301,7 +310,7 @@ def parse_config(path: Path, state_dir: Path) -> dict[str, Any]:
         "labels_policy": doc.get("labels_policy", {"attempted_cheat": "exclude"}),
         "out_root": str(state.root / "increments"),
     }
-    for key in ("task_action", "task_policy"):
+    for key in ("task_action", "task_policy", "goodfire_review_floor"):
         if key in doc:
             template_doc[key] = doc[key]
     with tempfile.TemporaryDirectory(prefix="line-watch-config-") as scratch:
@@ -318,7 +327,9 @@ def parse_config(path: Path, state_dir: Path) -> dict[str, Any]:
             "models",
             "audit",
             "labels_policy",
+            "goodfire_review_floor",
         )
+        if key in spec
     }
     return {
         "schema": CONFIG_SCHEMA,

@@ -697,6 +697,8 @@ uv run evallab line watchdog DIR         # ok / stalled / failed, exit 0 only fo
 The config is `evallab.line_watch/v1`: the line spec's task status, AutoReview (`off` or
 `cached`; `live` is refused: the watcher never calls a model), models, audit and label-policy
 fields (validated by the line's own spec loader), plus:
+Nested J3 also supports only `off` or `cached`; nested `live` is refused before state creation.
+Relative J3 cache paths resolve against the watch config. The optional task policy and Goodfire floor reach each increment.
 
 ```json
 {

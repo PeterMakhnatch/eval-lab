@@ -67,7 +67,7 @@ inputs:
   - path: docs/features.md
     digest: sha256:d8336213e0fcebb651ae62fafcf74dc83ff6325678bfe2c7cf7e046cd42a77f7
   - path: docs/fleet.md
-    digest: sha256:993a7f8000a1225bd3b7a43ce5a1283e95344ebe3296ac0adc76ad961c0b9e61
+    digest: sha256:e9b69055deb43a7c419e7c34ca7511cfd8df06e60099f45ce7df5175d4ecbfd8
   - path: docs/flight-recorder.md
     digest: sha256:0138627b7592e818cf17532f1541173916e68de1867935abfe6ab343f66475b8
   - path: docs/hack-drop.md

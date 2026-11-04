@@ -1,0 +1,3 @@
+# Exploratory review-decision sensitivity
+
+Registered after inspecting replay decision counts. This is not a blind analysis. Use the same admitted 690 DEV runs and recorded replay decisions as X06. Calculate the cheat fraction among review decisions and among the hypothetical union of recorded keep plus review. This union is a sensitivity scenario, not the exported keep population and not a claim that review is eventually accepted. Resample task clusters within each corpus with replacement, preserve corpus strata, use 5,000 draws and seed 110407. Exclude draws with zero selected runs and report valid draws and 95% percentile intervals. Do not refit decisions or thresholds. Write no raw trajectory text. Retain input hashes and command.

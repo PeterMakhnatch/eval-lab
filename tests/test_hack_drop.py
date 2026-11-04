@@ -446,6 +446,62 @@ def test_l0_normalizer_keeps_source_document_and_autoreview_inputs_immutable() -
     assert rollout.files == original_files
 
 
+@pytest.mark.parametrize(
+    "enabled,max_calls,max_usd,hard_drop,reason",
+    [
+        (False, 1, 1.0, False, "AUTOREVIEW_DISABLED"),
+        (True, 0, 1.0, False, "AUTOREVIEW_BUDGET_EXCEEDED"),
+        (True, 1, 0.0, False, "AUTOREVIEW_BUDGET_EXCEEDED"),
+        (True, 0, 0.0, True, "AUTOREVIEW_NOT_ELIGIBLE"),
+    ],
+)
+def test_rewritten_l0_pass_preserves_autoreview_disable_budget_and_drop_guards(
+    enabled: bool, max_calls: int, max_usd: float, hard_drop: bool, reason: str
+) -> None:
+    rollout = _l0_transport_rollout(
+        {"tool_calls": [{"name": "bash_command", "arguments": {"keystrokes": "pwd\n"}}]}
+    )
+    l0 = evaluate_l0_stage(rollout)
+    assert l0.decision == "pass"
+    if hard_drop:
+        l0 = StageVerdict("l0", "drop", ["L0_HARD_TARGET_SURFACE_WRITE"], details=l0.details)
+
+    def no_call(prompt: str, route: str) -> dict[str, Any]:
+        pytest.fail("Disabled, exhausted, or hard-dropped rollouts must not call a reviewer")
+
+    stage = evaluate_autoreview_stage(
+        rollout,
+        l0,
+        enabled=enabled,
+        max_calls=max_calls,
+        max_model_usd=max_usd,
+        reviewer_func=no_call,
+    )
+    assert stage.reasons == [reason]
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        {"name": "wait", "arguments": {"command": "pwd"}},
+        {
+            "name": "text_editor",
+            "arguments": {"command": "view", "path": "src/app.py", "extra": True},
+        },
+    ],
+)
+def test_handled_but_unchanged_call_does_not_make_l0_pass_autoreview_eligible(
+    call: dict[str, Any],
+) -> None:
+    rollout = _l0_transport_rollout(
+        {"tool_calls": [{"name": "bash", "arguments": {"command": "pwd"}}, call]}
+    )
+    l0 = evaluate_l0_stage(rollout)
+    assert l0.decision == "pass"
+    stage = evaluate_autoreview_stage(rollout, l0, enabled=True)
+    assert stage.reasons == ["AUTOREVIEW_NOT_ELIGIBLE"]
+
+
 # --------------------------------------------------------------------------- #
 # 3. AutoReview stage: attestation, parsing, skip-on-drop, spend
 # --------------------------------------------------------------------------- #

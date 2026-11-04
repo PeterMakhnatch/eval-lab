@@ -1222,14 +1222,14 @@ def test_network_policy_refuses_when_networks_cannot_be_inspected(
 @pytest.mark.parametrize(
     ("mode", "prefix", "attached", "message"),
     [
-        (NetworkMode.NO_NETWORK, "docker network disconnect", (PUBLIC, INTERNAL), "disconnect"),
-        (NetworkMode.PUBLIC, "docker network connect", (INTERNAL,), "connect"),
+        ("no-network", "docker network disconnect", (PUBLIC, INTERNAL), "disconnect"),
+        ("public", "docker network connect", (INTERNAL,), "connect"),
     ],
 )
 def test_failed_network_change_fails_the_policy(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    mode: NetworkMode,
+    mode: str,
     prefix: str,
     attached: tuple[str, ...],
     message: str,
@@ -1238,7 +1238,7 @@ def test_failed_network_change_fails_the_policy(
     strategy.attached(*attached)
     strategy.failing_prefix = prefix
     with pytest.raises(RuntimeError, match=f"Failed to {message} task network"):
-        _apply(env, mode)
+        _apply(env, NetworkMode(mode))
 
 
 # --- secret-safe stop ---------------------------------------------------------------------

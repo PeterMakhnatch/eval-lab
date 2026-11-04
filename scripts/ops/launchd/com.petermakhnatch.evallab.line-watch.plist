@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.petermakhnatch.evallab.line-watch</string>
+	<!-- TEMPLATE ONLY, NOT INSTALLED BY ANY SCRIPT. Render __WORKDIR__ (an immutable release
+	     whose .venv has evallab), __HOME__, __LOG_DIR__ (must exist), __CONFIG__ (an
+	     evallab.line_watch/v1 JSON outside git) and __STATE_DIR__ (one watcher owns it; the
+	     default location is ~/.local/state/evallab-prod-live/line-watch) before loading;
+	     never load it unrendered. DEV only, never a model: the watcher refuses AutoReview mode
+	     live, so __CONFIG__ must use off or cached; no Docker. The watcher takes a
+	     non-blocking lock on the state directory, so a second copy exits instead of racing.
+	     KeepAlive restarts it after a crash or reboot: an increment without commit.json is
+	     moved to abandoned/ and its runs are planned again. Exit status 2 means the watcher
+	     stopped on a refusal or a failed check: it stays failed (see line-watch-watchdog)
+	     until someone reads status.json and errors.jsonl. -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>__WORKDIR__/.venv/bin/evallab</string>
+		<string>line</string>
+		<string>watch</string>
+		<string>__CONFIG__</string>
+		<string>--state-dir</string>
+		<string>__STATE_DIR__</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>__WORKDIR__</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<!-- Standard priority, slightly niced: not "Background", which launchd throttles to a
+	     trickle on a loaded host (see prod-factory). -->
+	<key>ProcessType</key>
+	<string>Standard</string>
+	<key>Nice</key>
+	<integer>5</integer>
+	<key>ThrottleInterval</key>
+	<integer>60</integer>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+		<key>EVALLAB_DISABLE_LOCAL_DOCKER</key>
+		<string>1</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>__LOG_DIR__/line-watch.out</string>
+	<key>StandardErrorPath</key>
+	<string>__LOG_DIR__/line-watch.err</string>
+</dict>
+</plist>

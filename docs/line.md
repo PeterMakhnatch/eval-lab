@@ -563,6 +563,158 @@ honest runs dropped. Only 250 of those 302 are real detections; 52 reach review
 because L0 cannot read their run format. Changed inputs, cohorts, labels or
 policies need a new replay-set version, not an in-place edit.
 
+## Live mode: finished runs flow through the line by themselves
+
+`evallab line watch` is a thin scheduler around the ordinary line. It watches explicit DEV
+sources; every finished run that stays unchanged for the settling time goes through the same
+`run_line`, in small **increments**. It starts no runs, calls no model and writes nothing outside
+its own state directory (and the Judge Station queue file named in its config). It has no intake,
+label rules or checks of its own: the line's intake, `rollout_admission`, DEV and label rules and
+eight checks do the gating, and a refusal or a failed check stops the watcher.
+
+```bash
+uv run evallab line watch ~/Developer/eval-lab-results/line-inputs/live.json \
+  --state-dir ~/.local/state/evallab-prod-live/line-watch          # runs until stopped
+uv run evallab line watch live.json --state-dir DIR --once --json  # one cycle (for a scheduler)
+uv run evallab line check DIR            # every child's eight checks + 3 global checks
+uv run evallab line scoreboard DIR       # cumulative scoreboard over all increments
+uv run evallab line watchdog DIR         # ok / stalled / failed, exit 0 only for ok
+```
+
+The config is `evallab.line_watch/v1`: the line spec's task status, AutoReview (`off` or
+`cached`; `live` is refused: the watcher never calls a model), models, audit and label-policy
+fields (validated by the line's own spec loader), plus:
+
+```json
+{
+  "schema": "evallab.line_watch/v1", "watch_id": "dev-live", "split": "dev",
+  "sources": [
+    {"corpus": "harbor", "kind": "jobs", "path": "/path/to/results-home",
+     "max_depth": 2, "ready_marker": "provenance.json", "labels": null},
+    {"corpus": "rows", "kind": "manifest", "path": "/path/to/growing.jsonl",
+     "labels": "/path/to/labels.jsonl"}
+  ],
+  "task_status": null,
+  "autoreview": {"mode": "off", "max_usd": 0},
+  "models": {"allowed": []},
+  "audit": {"rate": 0.05, "seed": "dev-live"},
+  "labels_policy": {"attempted_cheat": "exclude"},
+  "judge": {"queue": null, "write": true, "verdicts": null},
+  "watch": {"poll_seconds": 15, "settle_seconds": 30,
+            "max_runs_per_increment": 200, "watchdog_max_age_seconds": 900}
+}
+```
+
+**Where finished runs come from.** A `jobs` source is a folder of Harbor jobs, searched
+`max_depth` levels down. A job is finished by the same rule as `evallab.results.load_job`
+(`finished_at`, `stats`, `n_total_trials`, and that many trial folders); `ready_marker` names a
+file that must also exist (`provenance.json` for the results home, which `publish_job` writes
+last). Each trial folder with a trajectory is a run, named by its `trial_name`. A `manifest`
+source is a growing JSONL file; a row is a run when its `path` exists (an unterminated last line
+is a write in progress). Rows with inline `steps`, a `pair`, or no `path` are held
+(`unsupported_row`): the watcher only names runs that exist on disk. A label field in a manifest
+row stops the watcher. Runs not usable yet are *held* with a reason (`job_unfinished`,
+`job_unpublished`, `job_trial_count_mismatch`, `no_trajectory`, `missing_path`, `no_id`,
+`unsupported_row`, `conflicting_duplicate`, `already_committed`, `unreadable`), listed in
+`status.json`, never silently dropped.
+
+**No copying.** A run is ready once its file sizes and times have not changed for
+`settle_seconds` (timers live in memory only). The increment manifest names each run by its
+canonical real path; the line digests the files in place, so a later change to a source is
+caught by that child's own `check_batch`. Only the increment's labels (scoreboard only) and
+cached AutoReview readings are written into the increment's `inputs/`. A run id that is already
+committed, or that appears twice with different content, is held and never processed again.
+
+**Validated before anything is written.** Every declared file is read the way the line reads it
+(`declared_scope`: no link followed, bounded, never another name for sealed material), and a
+declared path that is itself a symlink is refused before it is resolved. The configuration
+(strictly: duplicate keys and NaN/Infinity are refused; `labels_policy` defaults to
+`{"attempted_cheat": "exclude"}`), the task status, the labels, the AutoReview cache, the Judge
+Station verdicts and queue are read through the line's own loaders before the state directory
+exists; a cached reading must be attested and from `models.allowed`, or it is refused. A manifest
+row is read strictly (a repeated key is refused) and reaches the line as written, only its path
+made canonical. Each run (every copy of it, held or not) is admitted with the Judge
+Station's `rollout_admission.admit_rollout` (canonical path, no link at or below the named
+folder, no hard link into the answer keys, `split` exactly `dev` anywhere in the run and its job
+files, no TEST or sealed task or run name) before any increment folder exists. A forbidden run
+stops the watcher; a run that is only not readable yet is held.
+
+**One increment.** An increment is an ordinary line spec run by `run_line`, so it has the usual
+receipts and eight checks. Decisions are per run, so grouping never changes a decision (tested
+against one batch over the same runs). Steps: write `increments/<n>/{inputs,spec.json}`, run the
+line into `increments/<n>/batch/`, require its eight checks to pass, publish its review and audit
+runs to the Judge Station queue, then write `increments/<n>/commit.json` last (decisions hash,
+whole-child hash, `spec.json` hash and run ids) and verify. The state is only the committed
+increments; an increment without `commit.json` is moved to `abandoned/<n>-<random>` on start (each
+move has its own name, so repeated failures never collide) and its runs are planned again.
+A failed line check or live check stops the watcher (exit 2, `status.json` `failed`,
+`errors.jsonl`), keeps the evidence and never commits on top of a state that does not verify
+(at start-up every committed child gets the line's full check, not only the newest).
+
+**`line check DIR`.** It runs the line's own `check_batch` on every child (read-only: nothing is
+ever written into a committed child; the quick form checks only the newest) plus exactly three
+global checks:
+
+| Check | What must hold |
+|---|---|
+| conservation | `increments/` is exactly commits 1..N (one open folder only while a watcher runs); each commit names its own batch, lists exactly its child's runs, and its decisions hash, the hash of the whole child folder (receipts, `SCOREBOARD.md`, `check.json` and all) and the hash of the increment's own `spec.json` still match; no run id appears in two children. `watch.json` still has its schema and the hash of its own configuration, the frozen task status still matches the hash it records, and every commit recorded those same two hashes. When the watcher owns the Judge Station queue (`judge.write`), the queue holds every committed child's queue rows exactly once, unchanged, with no label field and no other run (rows of the open increment, or of an increment moved to `abandoned/` after a crash, are tolerated: they are queued once whichever increment commits them). |
+| cumulative | The cumulative view builds from the children (they must agree on every task) and its totals (runs, labelled runs, cheats, clean, keep/drop/review) equal the sums of the child scoreboards and cover exactly the committed runs. |
+| spend | Total spend of the children is within the cap. |
+
+The result adds a `children` entry for the line's own checks. `line check` writes nothing.
+`line check --fast` takes one batch folder (a child under `increments/` works) and refuses a
+state directory with a plain message.
+
+**Cumulative view.** Nothing derived is stored. `line scoreboard DIR` builds the cumulative view
+on demand in a scratch folder from the committed children only; the ordinary scoreboard builder
+runs on it, so counts are summed and every Wilson interval is computed on the totals. There is
+no `cumulative/` folder to edit; one planted there is never read.
+
+**Judge Station queue.** The queue named by `judge.queue` (default `judge-queue.jsonl` in the
+state directory) belongs to this watcher. It is written only after an increment's checks pass,
+under an exclusive lock, by copying, appending missing rows with the production factory's own
+`append_judge_queue_entry`, syncing and renaming. A run already queued is skipped, so a restart
+cannot queue anything twice; a torn or duplicated queue file stops the watcher. `judge.verdicts`
+defaults to an empty file in the state directory, never the real Station state.
+
+**One owner, restarts.** One process owns a state directory (`watch.lock`). A state directory
+belongs to one configuration; only the `watch` tuning may change. Killing the watcher at any
+point and restarting gives the same decisions, queue and scoreboard as an uninterrupted run.
+
+**Watchdog and lag.** `line watchdog DIR` writes `watchdog.json` and answers in the live
+supervisor's words, as one JSON line with an `at` time: `ok` (idle, or making progress),
+`stalled` (no process owns the directory, it was stopped, or nothing moved for
+`watchdog_max_age_seconds`), `failed` (status missing, state damaged, or the watcher stopped on
+an error). It never crashes on damaged state. Lag is measured from recorded times only and
+reported in `status.json`.
+
+### Known gaps of live mode
+
+Live mode adds no gate of its own: whatever plain `line run` refuses on the same inputs,
+`line watch` refuses too (one test per review case runs both and requires both to refuse).
+What is left is either shared with `line run` (it admits the same input) or needs someone who can
+already write inside the state directory.
+
+| Review id | Gap | Class |
+|---|---|---|
+| gates 2.2, behaviour 2.2, I06b | `rollout_admission.identities()` skips the keys `nodes` and `steps` when it collects names, so a TEST task id nested there is admitted by `line run` and by `line watch` alike (their `split` is checked) | shared with `line run` |
+| gates 2.3 | A `.jsonl` file inside a trial is hashed with the trial but not parsed for splits, labels or names | shared with `line run` |
+| gates 2.5, I12 | A manifest `pair` mapping and `run_id` are not in `IDENTITY_KEYS` (see the table above); live mode additionally checks the string and mapping forms of `id`, `run_id`, `path`, `pair` and `trial_name` for TEST names and non-ASCII | shared with `line run` |
+| gates 2.7, T20a | Job-level sidecars (`provenance.json`, the job `result.json`) are read at admission but not hashed into a commit, so editing them after a commit is not noticed (a trial is) | shared with `line run` |
+| T20b | A source run edited while a watcher is running is caught at the next start-up (every child is checked in full then) and by the newest child's check, not between two cycles | design |
+| T05b | Judge queue rows left by an open or abandoned increment are tolerated without comparing their fields | state-directory write access |
+| T06b, T07b, T07c, T18b | `commit.json`, `watch.json` (including its `watch` tuning and the line settings it stores) and `increments/<n>/spec.json` can be rewritten together with the hashes that seal them; the checks compare them with each other, not with an outside copy | state-directory write access |
+| T09ab | Extra files, links or an `answer-keys` name planted inside the state directory, or a state directory passed as a symlink, are not looked for | state-directory write access |
+| T13b | `frozen/task-status.json` plus `watch.json`'s recorded hash can be rewritten together; the frozen file is not compared with the task-status file the config names | state-directory write access |
+
+Launchd templates `scripts/ops/launchd/com.petermakhnatch.evallab.line-watch.plist` and
+`...line-watch-watchdog.plist` are provided but not installed by any script.
+`live_supervisor_services.KNOWN_STATUS_FILES` maps the watchdog file under the default state
+directory `~/.local/state/evallab-prod-live/line-watch`.
+
+Not built on purpose: a second detector, queue format, label loader or task-status system; model
+calls; running Harbor; reading TEST evidence; service installation.
+
 ## Relationship to hack-drop and the production factory
 
 [hack-drop](hack-drop.md) owns the loaders, task/L0/AutoReview stage functions,

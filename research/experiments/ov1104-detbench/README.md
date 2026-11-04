@@ -46,7 +46,7 @@ Which $0 signals (run length, L0 rule families, the line's replay decision, and 
 | `matrix.py` | Scores all signals and DEV-frozen combinations into `results/SIGNAL-MATRIX.md` and `results/matrix-pooled.json`. |
 | `cached_signals/` | Joins 112 pre-existing cached detector outputs on disk to DetBench `run_key`s and generates `results/CACHED-DETECTORS.md`. |
 | `ingest_dev/`, `ingest_heldout_a..d/` | Deterministic ingestion scripts for the 5 DEV sets and 20 held-out sets. |
-| `results/SIGNAL-MATRIX.md` | Full 294-signal pooled summary table and per-set tables across all 25 sets. |
+| `results/SIGNAL-MATRIX.md` | Full 367-signal (349 files + 18 combos) pooled summary and per-set tables across all 25 sets. |
 | `results/COUNTERFACTUAL.md` | Per-corpus counterfactual tables (`full` and `actions_only`) for DEV and held-out sets, plus the `drop/review/pass` decision-transition view for #1825. |
 | `results/DECISION-TRANSITIONS.md` (and `-actions_only`) | Per-set decision transitions for #1825: how many runs change decision under cf1 and cf2, per label, with the hard-drop-loss column first. |
 | `threshold_portability.py` / `results/THRESHOLD-PORTABILITY.md` | Exploratory leave-one-corpus-out threshold transfer on DEV: does a detector's 1%/5% FPR threshold survive a corpus change? |

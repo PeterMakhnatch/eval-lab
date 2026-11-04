@@ -1,0 +1,107 @@
+{
+  "caveats": [
+    "Provider billing may lag; DeepSeek cost is not an invoice.",
+    "Two addendum workers and the lead changed model after a provider fallback at 08:37Z; the requested Codex routes were not served for those turns.",
+    "No task-solving generation or scoring used the fallback model; gateway calls remained terra.",
+    "The earlier repo RESULT understated spend and omitted this fallback; this addendum corrects both."
+  ],
+  "files": [
+    {
+      "assistant_messages_by_provider_model": [
+        {
+          "billing": "subscription; excluded from paid total",
+          "count": 101,
+          "model": "gpt-6.1-sol",
+          "provider": "openai-codex",
+          "recorded_cost_usd": 2.190195
+        },
+        {
+          "billing": "recorded zero",
+          "count": 1,
+          "model": "muse-wonder-full-1.0-contributor",
+          "provider": "meta",
+          "recorded_cost_usd": 0.0
+        },
+        {
+          "billing": "paid",
+          "count": 107,
+          "model": "deepseek-flash",
+          "provider": "deepseek",
+          "recorded_cost_usd": 0.350377
+        }
+      ],
+      "bytes": 3248953,
+      "path": "/private/tmp/ov1104/wave2-grader/session/2026-11-04T07-39-15-434Z_01a1a57f-726a-7594-adb7-f2b2c4db120a.jsonl",
+      "provider_fallbacks": [
+        {
+          "model": "meta/muse-wonder-full-1.0-contributor",
+          "resolvedModelIsFallback": true,
+          "timestamp": "2026-11-04T08:37:34.466Z"
+        },
+        {
+          "model": "google-antigravity/gemini-4-argon",
+          "resolvedModelIsFallback": true,
+          "timestamp": "2026-11-04T08:37:35.452Z"
+        },
+        {
+          "model": "deepseek/deepseek-flash",
+          "resolvedModelIsFallback": true,
+          "timestamp": "2026-11-04T08:37:35.492Z"
+        }
+      ],
+      "role": "lead",
+      "sha256": "027ae2a795a8679538bfbb4e3b1f191bd90506682d082630ee2a2d5e5c996687"
+    },
+    {
+      "assistant_messages_by_provider_model": [
+        {
+          "billing": "paid",
+          "count": 149,
+          "model": "deepseek-flash",
+          "provider": "deepseek",
+          "recorded_cost_usd": 0.295139
+        }
+      ],
+      "bytes": 1732849,
+      "path": "/private/tmp/ov1104/wave2-grader/session/2026-11-04T07-39-15-434Z_01a1a57f-726a-7594-adb7-f2b2c4db120a/Synth2.jsonl",
+      "provider_fallbacks": [
+        {
+          "model": "deepseek/deepseek-flash",
+          "resolvedModelIsFallback": true
+        }
+      ],
+      "role": "Synth2",
+      "sha256": "3c046967e6bdc26c521cf97d2ad931608bc6e65034128b9b1dc5a5926f3496bf"
+    },
+    {
+      "assistant_messages_by_provider_model": [
+        {
+          "billing": "subscription; excluded from paid total",
+          "count": 50,
+          "model": "gpt-6.1-sol",
+          "provider": "openai-codex",
+          "recorded_cost_usd": 0.6378656
+        }
+      ],
+      "bytes": 855519,
+      "path": "/private/tmp/ov1104/wave2-grader/session/2026-11-04T07-39-15-434Z_01a1a57f-726a-7594-adb7-f2b2c4db120a/Public2391.jsonl",
+      "provider_fallbacks": [],
+      "role": "Public2391",
+      "sha256": "a3a70997b315512d440a0e09bbeed33bf52fdb6dd131e03e47e8ffb980f6734d"
+    }
+  ],
+  "policy": "Explicit session snapshots only; no session text. Costs are OMP-recorded per-message usage, not provider invoices. Subscription models are excluded from paid totals.",
+  "schema": "ov1104-wave2-grader.model-attestation-addendum/v1",
+  "totals": {
+    "assistant_messages": 408,
+    "deepseek_recorded_cost_usd": 0.645516,
+    "lane_cap_usd": 2.0,
+    "modal_runtime_estimate_usd": 0.356187,
+    "paid_deepseek_messages": 256,
+    "task_solving_gateway": {
+      "cert": "20/20 terra",
+      "cert2": "3/3 terra"
+    },
+    "total_paid_estimate_usd": 1.001703
+  }
+}

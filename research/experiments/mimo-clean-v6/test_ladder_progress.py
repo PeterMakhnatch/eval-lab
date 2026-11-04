@@ -7,6 +7,7 @@ import csv
 import importlib.util
 import io
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -53,6 +54,85 @@ def test_ladder_progress_readme_refusal_signature_counts_match_the_table() -> No
         )
     }
     assert documented == dict(counted)
+
+
+# Both route pages quote the v6 basis counts in one fixed sentence shape, so the
+# parse stays a single regex:
+#
+#   v6 basis (100 ranks): <covered> covered, <clean> clean,
+#   <tamper-refusal> tamper-refusal, <graded> graded, <unscored> unscored,
+#   <not run> not run
+#
+# Each page carries that sentence exactly once, wrapped anywhere. Two numbers do
+# not come straight from ``basis_counts``: covered is every rank minus ``none``,
+# and clean is every ``clean`` verdict. Edit both pages together, never one alone.
+BASIS_SENTENCE = re.compile(
+    r"v6 basis \(100 ranks\): (\d+) covered, (\d+) clean, (\d+) tamper-refusal, "
+    r"(\d+) graded, (\d+) unscored, (\d+) not run"
+)
+BASIS_PAGES = (REPO_ROOT / "docs" / "mimo" / "README.md", REPO_ROOT / "README.md")
+BASIS_FIELDS = ("covered", "clean", "tamper-refusal", "graded", "unscored", "not run")
+
+
+def _quoted_basis() -> dict[str, int]:
+    """The six numbers both pages quote, from the committed ladder table."""
+    rows = _committed()
+    counts = MODULE.basis_counts(rows)
+    not_run = counts.get("none", 0)
+    return {
+        "covered": len(rows) - not_run,
+        "clean": sum(1 for row in rows if row["verdict"] == "clean"),
+        "tamper-refusal": counts.get("tamper-refusal", 0),
+        "graded": counts.get("graded", 0),
+        "unscored": counts.get("unscored", 0),
+        "not run": not_run,
+    }
+
+
+def test_ladder_progress_quoted_basis_counts_match_the_committed_table() -> None:
+    expected = _quoted_basis()
+    for page in BASIS_PAGES:
+        text = " ".join(page.read_text(encoding="utf-8").split())
+        found = BASIS_SENTENCE.findall(text)
+        assert len(found) == 1, f"{page.relative_to(REPO_ROOT)} must quote the sentence once"
+        quoted = dict(zip(BASIS_FIELDS, map(int, found[0]), strict=True))
+        assert quoted == expected, page.relative_to(REPO_ROOT)
+
+
+def test_ladder_progress_both_pages_name_the_graded_go_cells() -> None:
+    go_cells = [
+        row["task_id"].rsplit("-", 1)[-1]
+        for row in _committed()
+        if row["basis"] == "graded" and row["language"] == "go"
+    ]
+    assert go_cells
+    for page in BASIS_PAGES:
+        text = page.read_text(encoding="utf-8")
+        missing = [cell for cell in go_cells if f"`{cell}`" not in text]
+        assert not missing, (
+            f"{page.relative_to(REPO_ROOT)} does not name graded Go cells {missing}"
+        )
+
+
+def test_ladder_progress_readme_basis_table_matches_the_committed_table() -> None:
+    readme = (EXPERIMENT / "README.md").read_text(encoding="utf-8")
+    section = readme.split("Basis counts in the committed table", 1)[1].split("\n##", 1)[0]
+    header = re.search(r"\(100 ranks, (\d+) covered;", section)
+    assert header is not None
+    documented: dict[str, int] = {}
+    for line in section.splitlines():
+        if not line.startswith("| `"):
+            continue
+        cells = [part.strip() for part in line.strip("|").split("|")]
+        documented[cells[0].strip("` ")] = int(cells[1].split()[0])
+    expected = _quoted_basis()
+    assert int(header.group(1)) == expected["covered"]
+    assert documented == {
+        "tamper-refusal": expected["tamper-refusal"],
+        "graded": expected["graded"],
+        "unscored": expected["unscored"],
+        "none": expected["not run"],
+    }
 
 
 def test_ladder_progress_has_exactly_one_row_per_ranking_rank() -> None:

@@ -8119,6 +8119,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.insights.cli import build_insights_parser
 
     build_insights_parser(commands)
+    from evallab.laneverify import build_verify_lane_parser
+
+    build_verify_lane_parser(commands)
     from evallab.docker_lock import build_docker_lock_parser
 
     build_docker_lock_parser(commands)

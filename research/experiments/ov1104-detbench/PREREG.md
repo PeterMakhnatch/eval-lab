@@ -58,3 +58,26 @@ combination beat run length?
 Signal `version` = sha12 of the producing code (+ prompt/model for judge signals). score.py and this
 PREREG are hashed in RESULT.md. Held-out numbers are computed once per version; a re-run after a
 code change is reported as a new version, never replaces the old row.
+
+## Signal versions scored on held-out (added 02:15 AM ET Nov 4, after independent verification flagged that the literal per-signal freeze was missing from this file; every held-out number below was computed once, with no held-out tuning)
+
+| signal | version |
+|---|---|
+| `length_chars`, `length_steps` | `length@3cf40d368f6d` |
+| `line_replay_decision`, `autoreview_cached` | `ingest-dev@8645cafeb4af` |
+| `cached_cascade_v8_score` | `cached:66eff7afd476` |
+| `cached_facets_haiku_all` | `cached:171ff908b12c` |
+| `j2b_actions_task_diff_v2_flash` | `7a4f27c6ba7d0e9261a0a78b07033bbf6ecd16290801b648e2b961bb6f33d75e` |
+| `j2_terra_mean` | `274a9138797c7b85cce80bff109d54df0aca1a5a26740cca3f8fa439699cfb31` |
+| `j2b_3fam_mean` | `f103d3590922c6f0dcb94cd062826a67535e97adfcce0b67eec39cfc13d97d96` |
+| `j3_actions_task_diff_terra` | `c9d77cb7b0a5cb418abf76e398811915fa7fdd4c6d2ba783ed05109c9ae8c2a5` |
+| `probe_qwen3_8b` | `ae70efb5b508721cb896bf7b9433593a7a5c38aa976d9960a4afe9559b850e7a` |
+| `probe_qwen3_8b_run_mean` | `facdc0cc422bca60611e00635448f14a0270a564d0e6a0d048e4f6acea3c1dc2` |
+| `probe_qwen3_8b_run_mean_z` | `facdc0cc422bca60611e00635448f14a0270a564d0e6a0d048e4f6acea3c1dc2+unsupervised_set_z` |
+| `outcome_regrade` | `ov1104-outcome@23174f421d4e` |
+| `l0v_full_*` (current L0 rules) | `l0v_full@907888e4a064` |
+| `l0cf_full_*` (counterfactual tool shapes) | `l0cf_full@907888e4a064` |
+
+`j2_terra_*`, `j2b_terra_*`, `j2b_3fam_*`, and `j3_actions_task_diff_terra` are DEV-only at the time
+of writing (0 non-null held-out rows); their held-out rows, when they land, are exploratory and are
+reported as a separate version.

@@ -1,0 +1,29 @@
+{
+  "repository_revision": "7053af12ee16b83fc5a797df2e6a57f1ab32230a",
+  "files": {
+    "research/experiments/ov1104-detbench/detbench_lib.py": "49bd983c7461081b2c3fc7bd8ccf10e3413b8e6896f9cc5f8eb1d47658220c0c",
+    "research/experiments/ov1104-detbench/score.py": "a19f60db1cd7a6a0036911f421f531770d992c3e5080322f98cd2c9825bdf576",
+    "research/experiments/ov1104-detbench/l0_rules.py": "63f07ba808a2ffc04f5c2d34fee7b9d450a46fbbaa76e2b1511b35398ec4531d",
+    "research/experiments/ov1104-detbench/length_signals.py": "3cf40d368f6db022fdcb69e93c8c4919e166e3c381de0d884638518fd4251ce1",
+    "research/experiments/ov1104-judges/judge.py": "32558e3da73fc5671b46d8040c47081c990ed08022a9070831e6259fe96d3d13",
+    "research/experiments/ov1104-judges/views.py": "29adb9b7090ca9abb3792ffafd3d1a7b66642e601c188ffcc7d7a5cb0be58f8b",
+    "research/experiments/ov1104-judges/prompts.py": "101ceef23c3fc73aef2d4e10f637dab1ef790891bc6a966b51f7efaa9885c6e0",
+    "research/experiments/ov1104-judges/gateway.py": "945b399d4668e93721c06dedd2704d2cdfac2d649d729a60065dbc40bfa4c94c",
+    "research/experiments/ov1104-judges/j0_autoreview.py": "899e80c74b216cfb7e10a090861185fe1a9bf2c1e5f67a5d64b8125d16868997",
+    "research/experiments/ov1104-judges/FREEZE.md": "621ce06e413eb80a8110625aeaa033898dfa7963e4d33b79354e8fc9ab168eea",
+    "research/experiments/ov1104-judges/results/operating_points.json": "6eb774a467f543a58819743125f4875c3c819be4ee23816ae14fc8d067a3fe01",
+    "src/evallab/hack_drop.py": "1ab9ec2c65bcf83a76f3dc93a808d3024ecb6ab2dc75c0002577fc91821b3d55"
+  },
+  "paid_spend_cap_usd": 0,
+  "judge_quota_stop": {
+    "codex_weekly_percent": 62,
+    "gemini_weekly_percent": 78
+  },
+  "intake_files": {
+    "adapter.py": "d57fe0a83185ad03225bb3cdd305756647cde43197c1f97e13b737441559d430",
+    "label-map.json": "1bc2afd79dd5adaccf5bc7f0faeafb464325915de4395de82ec40b2e564a10ae",
+    "source-manifest.json": "f7bb489c9ac75eb2125faf9fe5710b86f87c5364b06c3e56c2fa31f45e2ccf93",
+    "evaluate.py": "1c219a1955ca1769e039b7b110db36bc29ac3316b4bc64bc0567619b77772d3a",
+    "sample.json": "bf3729ff0b6791ba5323ac1ca469398ae57793483aee21c4c458072c812aded8"
+  }
+}

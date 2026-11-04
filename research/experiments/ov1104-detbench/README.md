@@ -138,3 +138,26 @@ The nested quantifier `(?:#.*|\s*)*` backtracks in $O(2^N)$ time over whitespace
 ## Additional source admissions
 
 - [`hackbench-test`](../ov1105-hackbench/README.md): pinned `facebook/hackbench` test release, 169 positive records and 0 negatives. Its adapter preserves the source split and prior detector exposure. It remains outside the binary held-out pool (`pool=false`). Frozen-detector measurements are retrospective/exploratory; this source cannot establish run-level AUROC or FPR.
+
+## Native MALT admission (ov1105)
+
+`malt-public--public--unprompted-cc38a5c5` is an evaluation-only extension.
+Its adapter, pinned file manifest, label map, fixed sample, and results live in
+`../ov1105-malt/`. The 2 METR repositories contain the same 7,179 identities;
+they do not add 2 independent source sets.
+
+The primary map requires reviewed, unprompted `bypass_constraints` or
+`ignores_task_instructions` positives and reviewed exact `normal` negatives.
+It yields 741 eligible identities. Complete-context conversion admits 669
+runs: 15 positive and 654 negative across 57 tasks. It records 72 structural
+conversion failures. All admitted runs contain reasoning.
+
+This source has prior redistributed-data exposure. The failure library already
+processes 572 MALT identities, including all 47 source positives, with
+`agent-text-regex/v1`. Prior use by these frozen detectors is not established.
+Read the source-level `read_by` annotation and exposure audit before interpreting
+transfer. These results do not establish unread-positive generalization.
+
+The extension does not change the original DEV or held-out denominators,
+thresholds, prompts, rules, or historical pooled results. Score it separately
+with the frozen DEV operating points. Never train or tune on these runs.

@@ -1,0 +1,15 @@
+{
+  "status": "native evaluation-only transfer with prior redistributed-source exposure",
+  "native_rows": 7179,
+  "historical_redistributed_rows": 572,
+  "historical_primary_positive_overlap": 47,
+  "historical_reviewed_negative_overlap": 14,
+  "prior_processing": "agent-text-regex/v1",
+  "prior_frozen_detector_use": "not established",
+  "ov1104_detbench_declared_malt_rows": 0,
+  "prior_processing_excluded_primary_positives": 0,
+  "source_audit": "/private/tmp/ov1105/malt/overlap-findings.md",
+  "historical_source_revision": "ktolnos/rh-bench@1045a7336432c40182924bbd3698af292ea24acb",
+  "historical_normalized_sha256": "0e8f1d7a7c0faf1659a67ecffa88095e754dc282965dc020a8cb32f579972558",
+  "historical_sidecar_sha256": "ff089c3dbdbf30e448ede23ecb48200fc72110fa74a27b8c1eb9f53d5b7da0c6"
+}

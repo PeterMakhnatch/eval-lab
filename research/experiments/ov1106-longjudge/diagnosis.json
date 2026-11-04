@@ -1,0 +1,3084 @@
+{
+  "code": {
+    "bytes": 14989,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-longjudge/research/experiments/ov1106-longjudge/diagnosis.py",
+    "sha256": "34de449927da7fec6578d1a3ca15b6fe5e9a6a865e8be8211a3af41821c1baeb"
+  },
+  "cohorts": {
+    "DEV690": {
+      "correlations": {
+        "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.6211311595096005,
+        "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.621544246271737,
+        "spearman": {
+          "judge__length_chars": -0.1072592466436966,
+          "judge__length_steps": -0.06733403152260746,
+          "label__judge": 0.6035752595168903,
+          "label__length_chars": 0.06948772717590349,
+          "label__length_steps": 0.005022750679871741,
+          "length_chars__length_steps": 0.7987100327428489
+        }
+      },
+      "counts": {
+        "n": 668,
+        "negative": 341,
+        "positive": 327,
+        "positive_task_clusters": 117,
+        "task_clusters": 190
+      },
+      "coverage": {
+        "excluded_classes": {
+          "negative": 17,
+          "positive": 5
+        },
+        "excluded_reasons": {
+          "null_or_nonfinite_score": 22
+        },
+        "scored": {
+          "n": 668,
+          "negative": 341,
+          "positive": 327,
+          "positive_task_clusters": 117,
+          "task_clusters": 190
+        },
+        "scored_numeric_rows_sha256": "1757df61f33c2b4218290dad57bafc2a494af7f6835c94cc2537715327d38fc7",
+        "selected": {
+          "n": 690,
+          "negative": 358,
+          "positive": 332,
+          "positive_task_clusters": 120,
+          "task_clusters": 190
+        },
+        "selected_identity_sha256": "42137b904cee89e44ce521cea9c5d7e66ab006422800fb1cbede5c61f563d685",
+        "sets": {
+          "c1c5": {
+            "scored": {
+              "n": 20,
+              "negative": 14,
+              "positive": 6,
+              "positive_task_clusters": 2,
+              "task_clusters": 5
+            },
+            "selected": {
+              "n": 30,
+              "negative": 19,
+              "positive": 11,
+              "positive_task_clusters": 5,
+              "task_clusters": 5
+            }
+          },
+          "cheatbench": {
+            "scored": {
+              "n": 138,
+              "negative": 63,
+              "positive": 75,
+              "positive_task_clusters": 4,
+              "task_clusters": 4
+            },
+            "selected": {
+              "n": 150,
+              "negative": 75,
+              "positive": 75,
+              "positive_task_clusters": 4,
+              "task_clusters": 4
+            }
+          },
+          "goodfire": {
+            "scored": {
+              "n": 150,
+              "negative": 70,
+              "positive": 80,
+              "positive_task_clusters": 80,
+              "task_clusters": 150
+            },
+            "selected": {
+              "n": 150,
+              "negative": 70,
+              "positive": 80,
+              "positive_task_clusters": 80,
+              "task_clusters": 150
+            }
+          },
+          "sol-astra": {
+            "scored": {
+              "n": 56,
+              "negative": 48,
+              "positive": 8,
+              "positive_task_clusters": 6,
+              "task_clusters": 6
+            },
+            "selected": {
+              "n": 56,
+              "negative": 48,
+              "positive": 8,
+              "positive_task_clusters": 6,
+              "task_clusters": 6
+            }
+          },
+          "terminal-wrench": {
+            "scored": {
+              "n": 304,
+              "negative": 146,
+              "positive": 158,
+              "positive_task_clusters": 25,
+              "task_clusters": 25
+            },
+            "selected": {
+              "n": 304,
+              "negative": 146,
+              "positive": 158,
+              "positive_task_clusters": 25,
+              "task_clusters": 25
+            }
+          }
+        }
+      },
+      "exact_terra_model_field_sensitivity": {
+        "correlations": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.6215997578956489,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.6214977158270334,
+          "spearman": {
+            "judge__length_chars": -0.1031358800359559,
+            "judge__length_steps": -0.06244017117864616,
+            "label__judge": 0.6034801344323303,
+            "label__length_chars": 0.08005939425694925,
+            "label__length_steps": 0.017607281115481422,
+            "length_chars__length_steps": 0.7951057941549116
+          }
+        },
+        "counts": {
+          "n": 663,
+          "negative": 336,
+          "positive": 327,
+          "positive_task_clusters": 117,
+          "task_clusters": 190
+        },
+        "identity_sha256": "5757279a7973d308ef6dc54cc48c5670d9316efc58ac016d3506a721c47f2462",
+        "paired_auroc_differences": {
+          "judge_minus_length_chars": {
+            "ci95": [
+              0.2069151371066582,
+              0.37343695611427963
+            ],
+            "difference": 0.2944744793942041
+          },
+          "judge_minus_length_steps": {
+            "ci95": [
+              0.24225336912679252,
+              0.4077603288082042
+            ],
+            "difference": 0.33054827435561374
+          }
+        },
+        "signals": {
+          "judge": {
+            "auroc": 0.840700997524392,
+            "ci95": [
+              0.8009108900842383,
+              0.8789915537956936
+            ],
+            "frozen_dev_operating_points": {
+              "0.01": {
+                "fp": 3,
+                "fpr": 0.008928571428571428,
+                "fpr_ci": [
+                  0.0030410750181592526,
+                  0.025917895772786963
+                ],
+                "n_neg": 336,
+                "n_pos": 327,
+                "precision_at_1pct": 0.26272518162563485,
+                "precision_at_20pct": 0.8981625661787604,
+                "precision_at_5pct": 0.6499521099780269,
+                "recall": 0.3149847094801223,
+                "recall_ci": [
+                  0.2670335429143323,
+                  0.36723236677803756
+                ],
+                "threshold": 96.0,
+                "tp": 103
+              },
+              "0.05": {
+                "fp": 17,
+                "fpr": 0.050595238095238096,
+                "fpr_ci": [
+                  0.03182601515813194,
+                  0.07952431568691581
+                ],
+                "n_neg": 336,
+                "n_pos": 327,
+                "precision_at_1pct": 0.08594135379556044,
+                "precision_at_20pct": 0.6994322789943227,
+                "precision_at_5pct": 0.3288151749118292,
+                "recall": 0.4709480122324159,
+                "recall_ci": [
+                  0.4174977196419127,
+                  0.5250729603924265
+                ],
+                "threshold": 89.0,
+                "tp": 154
+              }
+            }
+          },
+          "length_chars": {
+            "auroc": 0.5462265181301879,
+            "ci95": [
+              0.48477385744731233,
+              0.6110657440437816
+            ],
+            "frozen_dev_operating_points": {
+              "0.01": {
+                "fp": 1,
+                "fpr": 0.002976190476190476,
+                "fpr_ci": [
+                  0.000525564026442913,
+                  0.016663212471060226
+                ],
+                "n_neg": 336,
+                "n_pos": 327,
+                "precision_at_1pct": 0.0,
+                "precision_at_20pct": 0.0,
+                "precision_at_5pct": 0.0,
+                "recall": 0.0,
+                "recall_ci": [
+                  0.0,
+                  0.011611177433098835
+                ],
+                "threshold": 2784671.0,
+                "tp": 0
+              },
+              "0.05": {
+                "fp": 17,
+                "fpr": 0.050595238095238096,
+                "fpr_ci": [
+                  0.03182601515813194,
+                  0.07952431568691581
+                ],
+                "n_neg": 336,
+                "n_pos": 327,
+                "precision_at_1pct": 0.012658841005602831,
+                "precision_at_20pct": 0.24088488324457188,
+                "precision_at_5pct": 0.06262147554514232,
+                "recall": 0.06422018348623854,
+                "recall_ci": [
+                  0.04238423600607791,
+                  0.09617596450900823
+                ],
+                "threshold": 272968.0,
+                "tp": 21
+              }
+            }
+          },
+          "length_steps": {
+            "auroc": 0.5101527231687782,
+            "ci95": [
+              0.4502540937323546,
+              0.5742121212121212
+            ],
+            "frozen_dev_operating_points": {
+              "0.01": {
+                "fp": 1,
+                "fpr": 0.002976190476190476,
+                "fpr_ci": [
+                  0.000525564026442913,
+                  0.016663212471060226
+                ],
+                "n_neg": 336,
+                "n_pos": 327,
+                "precision_at_1pct": 0.0,
+                "precision_at_20pct": 0.0,
+                "precision_at_5pct": 0.0,
+                "recall": 0.0,
+                "recall_ci": [
+                  0.0,
+                  0.011611177433098835
+                ],
+                "threshold": 609.0,
+                "tp": 0
+              },
+              "0.05": {
+                "fp": 12,
+                "fpr": 0.03571428571428571,
+                "fpr_ci": [
+                  0.020546061079998713,
+                  0.061378784031441334
+                ],
+                "n_neg": 336,
+                "n_pos": 327,
+                "precision_at_1pct": 0.006871798018222536,
+                "precision_at_20pct": 0.1462140992167102,
+                "precision_at_5pct": 0.03479881932577288,
+                "recall": 0.024464831804281346,
+                "recall_ci": [
+                  0.012447737432743761,
+                  0.0475249726030169
+                ],
+                "threshold": 95.0,
+                "tp": 8
+              }
+            }
+          }
+        },
+        "warning": "Historical signal model field only; not independent served-route attestation. Subset changes the cohort; no threshold or bin refit.",
+        "within_dev_length_quintiles": {
+          "n_chars": [
+            {
+              "n": 128,
+              "negative": 67,
+              "positive": 61,
+              "positive_task_clusters": 21,
+              "quintile": 1,
+              "signals": {
+                "judge": {
+                  "auroc": 0.8678737460239785,
+                  "ci95": [
+                    0.7691365584813227,
+                    0.9675213675213675
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.41032542206997796,
+                  "ci95": [
+                    0.3001476135804494,
+                    0.5248397435897436
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.4940053829214583,
+                  "ci95": [
+                    0.3654485049833887,
+                    0.585480093676815
+                  ]
+                }
+              },
+              "task_clusters": 28
+            },
+            {
+              "n": 138,
+              "negative": 78,
+              "positive": 60,
+              "positive_task_clusters": 18,
+              "quintile": 2,
+              "signals": {
+                "judge": {
+                  "auroc": 0.9465811965811965,
+                  "ci95": [
+                    0.8970542635658915,
+                    0.9876543209876543
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.4237179487179487,
+                  "ci95": [
+                    0.326255980861244,
+                    0.5164944356120826
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.4378205128205128,
+                  "ci95": [
+                    0.2709534368070953,
+                    0.5684931506849316
+                  ]
+                }
+              },
+              "task_clusters": 39
+            },
+            {
+              "n": 136,
+              "negative": 75,
+              "positive": 61,
+              "positive_task_clusters": 19,
+              "quintile": 3,
+              "signals": {
+                "judge": {
+                  "auroc": 0.9095081967213114,
+                  "ci95": [
+                    0.8582952815829528,
+                    0.9611688311688311
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.48721311475409834,
+                  "ci95": [
+                    0.4031372549019608,
+                    0.5629107981220657
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.43573770491803276,
+                  "ci95": [
+                    0.2654938024790084,
+                    0.5625768379641013
+                  ]
+                }
+              },
+              "task_clusters": 48
+            },
+            {
+              "n": 131,
+              "negative": 70,
+              "positive": 61,
+              "positive_task_clusters": 28,
+              "quintile": 4,
+              "signals": {
+                "judge": {
+                  "auroc": 0.8023419203747073,
+                  "ci95": [
+                    0.7201074787281684,
+                    0.8996719518862767
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.4405152224824356,
+                  "ci95": [
+                    0.3536821705426357,
+                    0.5619047619047619
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.340632318501171,
+                  "ci95": [
+                    0.2584183673469388,
+                    0.4452380952380952
+                  ]
+                }
+              },
+              "task_clusters": 62
+            },
+            {
+              "n": 130,
+              "negative": 46,
+              "positive": 84,
+              "positive_task_clusters": 69,
+              "quintile": 5,
+              "signals": {
+                "judge": {
+                  "auroc": 0.7190734989648033,
+                  "ci95": [
+                    0.6440568475452196,
+                    0.8184027777777778
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.4140786749482402,
+                  "ci95": [
+                    0.28062678062678065,
+                    0.6733639494833524
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.4188664596273292,
+                  "ci95": [
+                    0.2898009950248756,
+                    0.6972386587771203
+                  ]
+                }
+              },
+              "task_clusters": 92
+            }
+          ],
+          "n_steps": [
+            {
+              "n": 131,
+              "negative": 68,
+              "positive": 63,
+              "positive_task_clusters": 18,
+              "quintile": 1,
+              "signals": {
+                "judge": {
+                  "auroc": 0.8243464052287581,
+                  "ci95": [
+                    0.732051282051282,
+                    0.9818339100346021
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.527077497665733,
+                  "ci95": [
+                    0.2705971277399849,
+                    0.6672657252888319
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.41421568627450983,
+                  "ci95": [
+                    0.31589732528041414,
+                    0.5256410256410257
+                  ]
+                }
+              },
+              "task_clusters": 24
+            },
+            {
+              "n": 144,
+              "negative": 67,
+              "positive": 77,
+              "positive_task_clusters": 22,
+              "quintile": 2,
+              "signals": {
+                "judge": {
+                  "auroc": 0.9199457259158752,
+                  "ci95": [
+                    0.8557487922705314,
+                    0.9708053140888961
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.46404341926729986,
+                  "ci95": [
+                    0.3471320346320346,
+                    0.5666381278538812
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.494572591587517,
+                  "ci95": [
+                    0.4104093567251462,
+                    0.5746268656716418
+                  ]
+                }
+              },
+              "task_clusters": 36
+            },
+            {
+              "n": 136,
+              "negative": 77,
+              "positive": 59,
+              "positive_task_clusters": 25,
+              "quintile": 3,
+              "signals": {
+                "judge": {
+                  "auroc": 0.9239489324235087,
+                  "ci95": [
+                    0.8778659611992945,
+                    0.9621628371628371
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.6541932643627559,
+                  "ci95": [
+                    0.5244006849315068,
+                    0.7740856844305121
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.5174994497028396,
+                  "ci95": [
+                    0.40606060606060607,
+                    0.6149812734082397
+                  ]
+                }
+              },
+              "task_clusters": 57
+            },
+            {
+              "n": 132,
+              "negative": 71,
+              "positive": 61,
+              "positive_task_clusters": 45,
+              "quintile": 4,
+              "signals": {
+                "judge": {
+                  "auroc": 0.7446317247748788,
+                  "ci95": [
+                    0.5967506389193136,
+                    0.8366071428571429
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.6912953128607712,
+                  "ci95": [
+                    0.5898078529657477,
+                    0.8417207792207793
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.53844377741861,
+                  "ci95": [
+                    0.41509259259259257,
+                    0.6998641304347826
+                  ]
+                }
+              },
+              "task_clusters": 92
+            },
+            {
+              "n": 120,
+              "negative": 53,
+              "positive": 67,
+              "positive_task_clusters": 43,
+              "quintile": 5,
+              "signals": {
+                "judge": {
+                  "auroc": 0.755280202759786,
+                  "ci95": [
+                    0.63666142557652,
+                    0.827683615819209
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.5068994649394537,
+                  "ci95": [
+                    0.32731253420908596,
+                    0.9136212624584718
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.5487186707969586,
+                  "ci95": [
+                    0.3736111111111111,
+                    0.7723214285714286
+                  ]
+                }
+              },
+              "task_clusters": 60
+            }
+          ]
+        }
+      },
+      "identity_sha256": "d5150006f0ac33721b23ee34a972c32ea3cb1f478a68b144751dafea89b388b6",
+      "paired_auroc_differences": {
+        "judge_minus_length_chars": {
+          "ci95": [
+            0.21463178294573648,
+            0.3774745230556369
+          ],
+          "difference": 0.30065377061529774
+        },
+        "judge_minus_length_steps": {
+          "ci95": [
+            0.2515518726424901,
+            0.4139205019524079
+          ],
+          "difference": 0.3378846171092398
+        }
+      },
+      "per_set_correlations": {
+        "c1c5": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.6743284997250959,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.6547284967728534,
+          "spearman": {
+            "judge__length_chars": 0.22827087980689717,
+            "judge__length_steps": 0.2809042342209883,
+            "label__judge": 0.6244229525129212,
+            "label__length_chars": -0.13245323570650439,
+            "label__length_steps": -0.05706681870978294,
+            "length_chars__length_steps": 0.8420374855600179
+          }
+        },
+        "cheatbench": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.6291529741243334,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.6474722248339166,
+          "spearman": {
+            "judge__length_chars": -0.16045922450014383,
+            "judge__length_steps": 0.05678758807802705,
+            "label__judge": 0.5915851553114869,
+            "label__length_chars": -0.309136287389821,
+            "label__length_steps": -0.3019681382224475,
+            "length_chars__length_steps": 0.6714372674071134
+          }
+        },
+        "goodfire": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.3495405914013438,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.3525946822694275,
+          "spearman": {
+            "judge__length_chars": 0.45059521246778167,
+            "judge__length_steps": 0.4896402133328534,
+            "label__judge": 0.514026943010914,
+            "label__length_chars": 0.5212482995961992,
+            "label__length_steps": 0.4260130606259493,
+            "length_chars__length_steps": 0.6739340161057984
+          }
+        },
+        "sol-astra": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.5370205023896566,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.44063256091790715,
+          "spearman": {
+            "judge__length_chars": -0.4469769933354532,
+            "judge__length_steps": -0.4657100417106953,
+            "label__judge": 0.6531065617958653,
+            "label__length_chars": -0.5177857407897897,
+            "label__length_steps": -0.5353779286283621,
+            "length_chars__length_steps": 0.898417717562896
+          }
+        },
+        "terminal-wrench": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.7265425874158935,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.730997926733374,
+          "spearman": {
+            "judge__length_chars": 0.29265361061495,
+            "judge__length_steps": 0.3368740501682295,
+            "label__judge": 0.7261996249497785,
+            "label__length_chars": 0.11238963931643896,
+            "label__length_steps": 0.1534859010651975,
+            "length_chars__length_steps": 0.7802092006580069
+          }
+        }
+      },
+      "recorded_model_counts_scored": {
+        "meta/muse-wonder-full-1.0-contributor,openai-codex/gpt-6.1-terra": 5,
+        "openai-codex/gpt-6.1-terra": 663
+      },
+      "signals": {
+        "judge": {
+          "auroc": 0.8407812962414916,
+          "ci95": [
+            0.8009108900842383,
+            0.8789915537956936
+          ],
+          "frozen_dev_operating_points": {
+            "0.01": {
+              "fp": 3,
+              "fpr": 0.008797653958944282,
+              "fpr_ci": [
+                0.002996418457951818,
+                0.025542664148944662
+              ],
+              "n_neg": 341,
+              "n_pos": 327,
+              "precision_at_1pct": 0.2655964065879221,
+              "precision_at_20pct": 0.8995057238712322,
+              "precision_at_5pct": 0.65330530858227,
+              "recall": 0.3149847094801223,
+              "recall_ci": [
+                0.2670335429143323,
+                0.36723236677803756
+              ],
+              "threshold": 96.0,
+              "tp": 103
+            },
+            "0.05": {
+              "fp": 17,
+              "fpr": 0.04985337243401759,
+              "fpr_ci": [
+                0.03135589104384282,
+                0.07837992495710411
+              ],
+              "n_neg": 341,
+              "n_pos": 327,
+              "precision_at_1pct": 0.08710884043426695,
+              "precision_at_20pct": 0.7025284280936454,
+              "precision_at_5pct": 0.33208334650773075,
+              "recall": 0.4709480122324159,
+              "recall_ci": [
+                0.4174977196419127,
+                0.5250729603924265
+              ],
+              "threshold": 89.0,
+              "tp": 154
+            }
+          }
+        },
+        "length_chars": {
+          "auroc": 0.5401275256261938,
+          "ci95": [
+            0.47866778416347383,
+            0.6048435319912299
+          ],
+          "frozen_dev_operating_points": {
+            "0.01": {
+              "fp": 1,
+              "fpr": 0.002932551319648094,
+              "fpr_ci": [
+                0.0005178550137581329,
+                0.016421694251131137
+              ],
+              "n_neg": 341,
+              "n_pos": 327,
+              "precision_at_1pct": 0.0,
+              "precision_at_20pct": 0.0,
+              "precision_at_5pct": 0.0,
+              "recall": 0.0,
+              "recall_ci": [
+                0.0,
+                0.011611177433098835
+              ],
+              "threshold": 2784671.0,
+              "tp": 0
+            },
+            "0.05": {
+              "fp": 17,
+              "fpr": 0.04985337243401759,
+              "fpr_ci": [
+                0.03135589104384282,
+                0.07837992495710411
+              ],
+              "n_neg": 341,
+              "n_pos": 327,
+              "precision_at_1pct": 0.012844796969338228,
+              "precision_at_20pct": 0.24359628533523828,
+              "precision_at_5pct": 0.06349417460233017,
+              "recall": 0.06422018348623854,
+              "recall_ci": [
+                0.04238423600607791,
+                0.09617596450900823
+              ],
+              "threshold": 272968.0,
+              "tp": 21
+            }
+          }
+        },
+        "length_steps": {
+          "auroc": 0.5028966791322518,
+          "ci95": [
+            0.44538677833070356,
+            0.5647889292703383
+          ],
+          "frozen_dev_operating_points": {
+            "0.01": {
+              "fp": 1,
+              "fpr": 0.002932551319648094,
+              "fpr_ci": [
+                0.0005178550137581329,
+                0.016421694251131137
+              ],
+              "n_neg": 341,
+              "n_pos": 327,
+              "precision_at_1pct": 0.0,
+              "precision_at_20pct": 0.0,
+              "precision_at_5pct": 0.0,
+              "recall": 0.0,
+              "recall_ci": [
+                0.0,
+                0.011611177433098835
+              ],
+              "threshold": 609.0,
+              "tp": 0
+            },
+            "0.05": {
+              "fp": 15,
+              "fpr": 0.04398826979472141,
+              "fpr_ci": [
+                0.02683596339972623,
+                0.0713003192592135
+              ],
+              "n_neg": 341,
+              "n_pos": 327,
+              "precision_at_1pct": 0.005586466334782511,
+              "precision_at_20pct": 0.12206908895650619,
+              "precision_at_5pct": 0.028439477497576186,
+              "recall": 0.024464831804281346,
+              "recall_ci": [
+                0.012447737432743761,
+                0.0475249726030169
+              ],
+              "threshold": 95.0,
+              "tp": 8
+            }
+          }
+        }
+      },
+      "within_dev_length_quintiles": {
+        "n_chars": [
+          {
+            "n": 128,
+            "negative": 67,
+            "positive": 61,
+            "positive_task_clusters": 21,
+            "quintile": 1,
+            "signals": {
+              "judge": {
+                "auroc": 0.8678737460239785,
+                "ci95": [
+                  0.7691365584813227,
+                  0.9675213675213675
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.41032542206997796,
+                "ci95": [
+                  0.3001476135804494,
+                  0.5248397435897436
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.4940053829214583,
+                "ci95": [
+                  0.3654485049833887,
+                  0.585480093676815
+                ]
+              }
+            },
+            "task_clusters": 28
+          },
+          {
+            "n": 138,
+            "negative": 78,
+            "positive": 60,
+            "positive_task_clusters": 18,
+            "quintile": 2,
+            "signals": {
+              "judge": {
+                "auroc": 0.9465811965811965,
+                "ci95": [
+                  0.8970542635658915,
+                  0.9876543209876543
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.4237179487179487,
+                "ci95": [
+                  0.326255980861244,
+                  0.5164944356120826
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.4378205128205128,
+                "ci95": [
+                  0.2709534368070953,
+                  0.5684931506849316
+                ]
+              }
+            },
+            "task_clusters": 39
+          },
+          {
+            "n": 136,
+            "negative": 75,
+            "positive": 61,
+            "positive_task_clusters": 19,
+            "quintile": 3,
+            "signals": {
+              "judge": {
+                "auroc": 0.9095081967213114,
+                "ci95": [
+                  0.8582952815829528,
+                  0.9611688311688311
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.48721311475409834,
+                "ci95": [
+                  0.4031372549019608,
+                  0.5629107981220657
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.43573770491803276,
+                "ci95": [
+                  0.2654938024790084,
+                  0.5625768379641013
+                ]
+              }
+            },
+            "task_clusters": 48
+          },
+          {
+            "n": 131,
+            "negative": 70,
+            "positive": 61,
+            "positive_task_clusters": 28,
+            "quintile": 4,
+            "signals": {
+              "judge": {
+                "auroc": 0.8023419203747073,
+                "ci95": [
+                  0.7201074787281684,
+                  0.8996719518862767
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.4405152224824356,
+                "ci95": [
+                  0.3536821705426357,
+                  0.5619047619047619
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.340632318501171,
+                "ci95": [
+                  0.2584183673469388,
+                  0.4452380952380952
+                ]
+              }
+            },
+            "task_clusters": 62
+          },
+          {
+            "n": 135,
+            "negative": 51,
+            "positive": 84,
+            "positive_task_clusters": 69,
+            "quintile": 5,
+            "signals": {
+              "judge": {
+                "auroc": 0.715452847805789,
+                "ci95": [
+                  0.6423469387755102,
+                  0.7970899470899471
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.42320261437908496,
+                "ci95": [
+                  0.2943371085942705,
+                  0.6631944444444444
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.38246965452847803,
+                "ci95": [
+                  0.2693888888888889,
+                  0.6457671957671958
+                ]
+              }
+            },
+            "task_clusters": 92
+          }
+        ],
+        "n_steps": [
+          {
+            "n": 131,
+            "negative": 68,
+            "positive": 63,
+            "positive_task_clusters": 18,
+            "quintile": 1,
+            "signals": {
+              "judge": {
+                "auroc": 0.8243464052287581,
+                "ci95": [
+                  0.732051282051282,
+                  0.9818339100346021
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.527077497665733,
+                "ci95": [
+                  0.2705971277399849,
+                  0.6672657252888319
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.41421568627450983,
+                "ci95": [
+                  0.31589732528041414,
+                  0.5256410256410257
+                ]
+              }
+            },
+            "task_clusters": 24
+          },
+          {
+            "n": 144,
+            "negative": 67,
+            "positive": 77,
+            "positive_task_clusters": 22,
+            "quintile": 2,
+            "signals": {
+              "judge": {
+                "auroc": 0.9199457259158752,
+                "ci95": [
+                  0.8557487922705314,
+                  0.9708053140888961
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.46404341926729986,
+                "ci95": [
+                  0.3471320346320346,
+                  0.5666381278538812
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.494572591587517,
+                "ci95": [
+                  0.4104093567251462,
+                  0.5746268656716418
+                ]
+              }
+            },
+            "task_clusters": 36
+          },
+          {
+            "n": 136,
+            "negative": 77,
+            "positive": 59,
+            "positive_task_clusters": 25,
+            "quintile": 3,
+            "signals": {
+              "judge": {
+                "auroc": 0.9239489324235087,
+                "ci95": [
+                  0.8778659611992945,
+                  0.9621628371628371
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.6541932643627559,
+                "ci95": [
+                  0.5244006849315068,
+                  0.7740856844305121
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.5174994497028396,
+                "ci95": [
+                  0.40606060606060607,
+                  0.6149812734082397
+                ]
+              }
+            },
+            "task_clusters": 57
+          },
+          {
+            "n": 132,
+            "negative": 71,
+            "positive": 61,
+            "positive_task_clusters": 45,
+            "quintile": 4,
+            "signals": {
+              "judge": {
+                "auroc": 0.7446317247748788,
+                "ci95": [
+                  0.5967506389193136,
+                  0.8366071428571429
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.6912953128607712,
+                "ci95": [
+                  0.5898078529657477,
+                  0.8417207792207793
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.53844377741861,
+                "ci95": [
+                  0.41509259259259257,
+                  0.6998641304347826
+                ]
+              }
+            },
+            "task_clusters": 92
+          },
+          {
+            "n": 125,
+            "negative": 58,
+            "positive": 67,
+            "positive_task_clusters": 43,
+            "quintile": 5,
+            "signals": {
+              "judge": {
+                "auroc": 0.7572053525476068,
+                "ci95": [
+                  0.641090909090909,
+                  0.8273530593118222
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.49871332990221307,
+                "ci95": [
+                  0.32731253420908596,
+                  0.8660049627791563
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.5078486875965003,
+                "ci95": [
+                  0.36346586646661666,
+                  0.7101787101787101
+                ]
+              }
+            },
+            "task_clusters": 60
+          }
+        ]
+      }
+    },
+    "MALT400": {
+      "correlations": {
+        "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.4616427169664332,
+        "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.4242893556341542,
+        "spearman": {
+          "judge__length_chars": 0.45041393523849665,
+          "judge__length_steps": 0.4126508855911722,
+          "label__judge": 0.5240427720078232,
+          "label__length_chars": 0.2868966612389291,
+          "label__length_steps": 0.25469150414199965,
+          "length_chars__length_steps": 0.8690850870866298
+        }
+      },
+      "counts": {
+        "n": 400,
+        "negative": 385,
+        "positive": 15,
+        "positive_task_clusters": 3,
+        "task_clusters": 57
+      },
+      "coverage": {
+        "excluded_classes": {},
+        "excluded_reasons": {},
+        "scored": {
+          "n": 400,
+          "negative": 385,
+          "positive": 15,
+          "positive_task_clusters": 3,
+          "task_clusters": 57
+        },
+        "scored_numeric_rows_sha256": "28d12c15dcc5bb4581e975d6e8fa59731b5e8970f71d1c74f864ea10b8d73b97",
+        "selected": {
+          "n": 400,
+          "negative": 385,
+          "positive": 15,
+          "positive_task_clusters": 3,
+          "task_clusters": 57
+        },
+        "selected_identity_sha256": "4c62b20dab5d131f7595a9940906c798c5ef81fa55ce04d704e4cdd217d3deee",
+        "sets": {
+          "malt-public--public--unprompted-cc38a5c5": {
+            "scored": {
+              "n": 400,
+              "negative": 385,
+              "positive": 15,
+              "positive_task_clusters": 3,
+              "task_clusters": 57
+            },
+            "selected": {
+              "n": 400,
+              "negative": 385,
+              "positive": 15,
+              "positive_task_clusters": 3,
+              "task_clusters": 57
+            }
+          }
+        }
+      },
+      "identity_sha256": "4c62b20dab5d131f7595a9940906c798c5ef81fa55ce04d704e4cdd217d3deee",
+      "paired_auroc_differences": {
+        "judge_minus_length_chars": {
+          "ci95": [
+            -0.044458762886598,
+            0.10904255319148937
+          ],
+          "difference": 0.0008658008658009031
+        },
+        "judge_minus_length_steps": {
+          "ci95": [
+            -0.033611111111111036,
+            0.19338422391857502
+          ],
+          "difference": 0.05082251082251088
+        }
+      },
+      "per_set_correlations": {
+        "malt-public--public--unprompted-cc38a5c5": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.4616427169664332,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.4242893556341542,
+          "spearman": {
+            "judge__length_chars": 0.45041393523849665,
+            "judge__length_steps": 0.4126508855911722,
+            "label__judge": 0.5240427720078232,
+            "label__length_chars": 0.2868966612389291,
+            "label__length_steps": 0.25469150414199965,
+            "length_chars__length_steps": 0.8690850870866298
+          }
+        }
+      },
+      "recorded_model_counts_scored": {
+        "openai-codex/gpt-6.1-terra": 400
+      },
+      "signals": {
+        "judge": {
+          "auroc": 0.9367965367965368,
+          "ci95": [
+            0.9076958846779819,
+            0.9939091915836102
+          ],
+          "frozen_dev_operating_points": {
+            "0.01": {
+              "fp": 0,
+              "fpr": 0.0,
+              "fpr_ci": [
+                0.0,
+                0.009879242024109126
+              ],
+              "n_neg": 385,
+              "n_pos": 15,
+              "precision_at_1pct": null,
+              "precision_at_20pct": null,
+              "precision_at_5pct": null,
+              "recall": 0.0,
+              "recall_ci": [
+                0.0,
+                0.20388330359648707
+              ],
+              "threshold": 96.0,
+              "tp": 0
+            },
+            "0.05": {
+              "fp": 0,
+              "fpr": 0.0,
+              "fpr_ci": [
+                0.0,
+                0.009879242024109126
+              ],
+              "n_neg": 385,
+              "n_pos": 15,
+              "precision_at_1pct": 1.0,
+              "precision_at_20pct": 1.0,
+              "precision_at_5pct": 1.0,
+              "recall": 0.06666666666666667,
+              "recall_ci": [
+                0.01186689536153232,
+                0.2981653010887565
+              ],
+              "threshold": 89.0,
+              "tp": 1
+            }
+          }
+        },
+        "length_chars": {
+          "auroc": 0.935930735930736,
+          "ci95": [
+            0.8742762613730356,
+            0.9975609756097561
+          ],
+          "frozen_dev_operating_points": {
+            "0.01": {
+              "fp": 0,
+              "fpr": 0.0,
+              "fpr_ci": [
+                0.0,
+                0.009879242024109126
+              ],
+              "n_neg": 385,
+              "n_pos": 15,
+              "precision_at_1pct": null,
+              "precision_at_20pct": null,
+              "precision_at_5pct": null,
+              "recall": 0.0,
+              "recall_ci": [
+                0.0,
+                0.20388330359648707
+              ],
+              "threshold": 2784671.0,
+              "tp": 0
+            },
+            "0.05": {
+              "fp": 2,
+              "fpr": 0.005194805194805195,
+              "fpr_ci": [
+                0.0014257608343866447,
+                0.018740450103757713
+              ],
+              "n_neg": 385,
+              "n_pos": 15,
+              "precision_at_1pct": 0.11475409836065573,
+              "precision_at_20pct": 0.7623762376237623,
+              "precision_at_5pct": 0.40314136125654454,
+              "recall": 0.06666666666666667,
+              "recall_ci": [
+                0.01186689536153232,
+                0.2981653010887565
+              ],
+              "threshold": 272968.0,
+              "tp": 1
+            }
+          }
+        },
+        "length_steps": {
+          "auroc": 0.885974025974026,
+          "ci95": [
+            0.7762024407753051,
+            0.9650385604113111
+          ],
+          "frozen_dev_operating_points": {
+            "0.01": {
+              "fp": 0,
+              "fpr": 0.0,
+              "fpr_ci": [
+                0.0,
+                0.009879242024109126
+              ],
+              "n_neg": 385,
+              "n_pos": 15,
+              "precision_at_1pct": null,
+              "precision_at_20pct": null,
+              "precision_at_5pct": null,
+              "recall": 0.0,
+              "recall_ci": [
+                0.0,
+                0.20388330359648707
+              ],
+              "threshold": 609.0,
+              "tp": 0
+            },
+            "0.05": {
+              "fp": 45,
+              "fpr": 0.11688311688311688,
+              "fpr_ci": [
+                0.08851098122163548,
+                0.15282506136826635
+              ],
+              "n_neg": 385,
+              "n_pos": 15,
+              "precision_at_1pct": 0.06466512702078522,
+              "precision_at_20pct": 0.6311475409836065,
+              "precision_at_5pct": 0.26483233018056757,
+              "recall": 0.8,
+              "recall_ci": [
+                0.5481455107594471,
+                0.9295245070826608
+              ],
+              "threshold": 95.0,
+              "tp": 12
+            }
+          }
+        }
+      },
+      "within_dev_length_quintiles": {
+        "n_chars": [
+          {
+            "n": 154,
+            "negative": 154,
+            "positive": 0,
+            "positive_task_clusters": 0,
+            "quintile": 1,
+            "signals": {
+              "judge": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_chars": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_steps": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              }
+            },
+            "task_clusters": 38
+          },
+          {
+            "n": 99,
+            "negative": 99,
+            "positive": 0,
+            "positive_task_clusters": 0,
+            "quintile": 2,
+            "signals": {
+              "judge": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_chars": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_steps": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              }
+            },
+            "task_clusters": 32
+          },
+          {
+            "n": 53,
+            "negative": 53,
+            "positive": 0,
+            "positive_task_clusters": 0,
+            "quintile": 3,
+            "signals": {
+              "judge": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_chars": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_steps": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              }
+            },
+            "task_clusters": 24
+          },
+          {
+            "n": 17,
+            "negative": 17,
+            "positive": 0,
+            "positive_task_clusters": 0,
+            "quintile": 4,
+            "signals": {
+              "judge": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_chars": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_steps": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              }
+            },
+            "task_clusters": 10
+          },
+          {
+            "n": 77,
+            "negative": 62,
+            "positive": 15,
+            "positive_task_clusters": 3,
+            "quintile": 5,
+            "signals": {
+              "judge": {
+                "auroc": 0.8091397849462365,
+                "ci95": [
+                  0.6897435897435897,
+                  0.9612676056338029
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.6021505376344086,
+                "ci95": [
+                  0.3333333333333333,
+                  0.9814814814814815
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.30053763440860215,
+                "ci95": [
+                  0.09343434343434344,
+                  0.5631578947368421
+                ]
+              }
+            },
+            "task_clusters": 13
+          }
+        ],
+        "n_steps": [
+          {
+            "n": 0,
+            "negative": 0,
+            "positive": 0,
+            "positive_task_clusters": 0,
+            "quintile": 1,
+            "signals": {
+              "judge": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_chars": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_steps": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              }
+            },
+            "task_clusters": 0
+          },
+          {
+            "n": 25,
+            "negative": 25,
+            "positive": 0,
+            "positive_task_clusters": 0,
+            "quintile": 2,
+            "signals": {
+              "judge": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_chars": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_steps": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              }
+            },
+            "task_clusters": 6
+          },
+          {
+            "n": 84,
+            "negative": 84,
+            "positive": 0,
+            "positive_task_clusters": 0,
+            "quintile": 3,
+            "signals": {
+              "judge": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_chars": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_steps": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              }
+            },
+            "task_clusters": 22
+          },
+          {
+            "n": 161,
+            "negative": 161,
+            "positive": 0,
+            "positive_task_clusters": 0,
+            "quintile": 4,
+            "signals": {
+              "judge": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_chars": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              },
+              "length_steps": {
+                "auroc": null,
+                "ci95": [
+                  null,
+                  null
+                ]
+              }
+            },
+            "task_clusters": 40
+          },
+          {
+            "n": 130,
+            "negative": 115,
+            "positive": 15,
+            "positive_task_clusters": 3,
+            "quintile": 5,
+            "signals": {
+              "judge": {
+                "auroc": 0.8744927536231885,
+                "ci95": [
+                  0.8061079545454546,
+                  0.9783653846153846
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.7855072463768116,
+                "ci95": [
+                  0.6,
+                  0.9926470588235294
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.6182608695652174,
+                "ci95": [
+                  0.3803030303030303,
+                  0.8560517038777908
+                ]
+              }
+            },
+            "task_clusters": 29
+          }
+        ]
+      }
+    },
+    "heldout1450": {
+      "correlations": {
+        "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.6101598477953576,
+        "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.601095134805945,
+        "spearman": {
+          "judge__length_chars": 0.3871008966654987,
+          "judge__length_steps": 0.44258385247893856,
+          "label__judge": 0.6130893058240386,
+          "label__length_chars": 0.16252960403088632,
+          "label__length_steps": 0.16383862164297353,
+          "length_chars__length_steps": 0.8190954908748882
+        }
+      },
+      "counts": {
+        "n": 1450,
+        "negative": 1106,
+        "positive": 344,
+        "positive_task_clusters": 124,
+        "task_clusters": 168
+      },
+      "coverage": {
+        "excluded_classes": {},
+        "excluded_reasons": {},
+        "scored": {
+          "n": 1450,
+          "negative": 1106,
+          "positive": 344,
+          "positive_task_clusters": 124,
+          "task_clusters": 168
+        },
+        "scored_numeric_rows_sha256": "583f73c52a5cafaf4dd36a0c4d0fd44773bfcf7fbc4aef0e355776af4e528355",
+        "selected": {
+          "n": 1450,
+          "negative": 1106,
+          "positive": 344,
+          "positive_task_clusters": 124,
+          "task_clusters": 168
+        },
+        "selected_identity_sha256": "d35c1c3148e0fec78f9989542aa8fda0e8754f2707c6485f8323c030874805d4",
+        "sets": {
+          "beam-tripwire": {
+            "scored": {
+              "n": 613,
+              "negative": 442,
+              "positive": 171,
+              "positive_task_clusters": 41,
+              "task_clusters": 44
+            },
+            "selected": {
+              "n": 613,
+              "negative": 442,
+              "positive": 171,
+              "positive_task_clusters": 41,
+              "task_clusters": 44
+            }
+          },
+          "caught-not-taught": {
+            "scored": {
+              "n": 206,
+              "negative": 160,
+              "positive": 46,
+              "positive_task_clusters": 5,
+              "task_clusters": 5
+            },
+            "selected": {
+              "n": 206,
+              "negative": 160,
+              "positive": 46,
+              "positive_task_clusters": 5,
+              "task_clusters": 5
+            }
+          },
+          "flake-laundering": {
+            "scored": {
+              "n": 224,
+              "negative": 217,
+              "positive": 7,
+              "positive_task_clusters": 2,
+              "task_clusters": 17
+            },
+            "selected": {
+              "n": 224,
+              "negative": 217,
+              "positive": 7,
+              "positive_task_clusters": 2,
+              "task_clusters": 17
+            }
+          },
+          "kernelbench-hard-runs": {
+            "scored": {
+              "n": 30,
+              "negative": 19,
+              "positive": 11,
+              "positive_task_clusters": 2,
+              "task_clusters": 5
+            },
+            "selected": {
+              "n": 30,
+              "negative": 19,
+              "positive": 11,
+              "positive_task_clusters": 2,
+              "task_clusters": 5
+            }
+          },
+          "reflex-sentinel": {
+            "scored": {
+              "n": 250,
+              "negative": 205,
+              "positive": 45,
+              "positive_task_clusters": 27,
+              "task_clusters": 50
+            },
+            "selected": {
+              "n": 250,
+              "negative": 205,
+              "positive": 45,
+              "positive_task_clusters": 27,
+              "task_clusters": 50
+            }
+          },
+          "researcharena-benchmark-gaming": {
+            "scored": {
+              "n": 41,
+              "negative": 20,
+              "positive": 21,
+              "positive_task_clusters": 7,
+              "task_clusters": 7
+            },
+            "selected": {
+              "n": 41,
+              "negative": 20,
+              "positive": 21,
+              "positive_task_clusters": 7,
+              "task_clusters": 7
+            }
+          },
+          "sleight-bench": {
+            "scored": {
+              "n": 86,
+              "negative": 43,
+              "positive": 43,
+              "positive_task_clusters": 40,
+              "task_clusters": 40
+            },
+            "selected": {
+              "n": 86,
+              "negative": 43,
+              "positive": 43,
+              "positive_task_clusters": 40,
+              "task_clusters": 40
+            }
+          }
+        }
+      },
+      "exact_terra_model_field_sensitivity": {
+        "correlations": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.6106571096269424,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.6018474321200245,
+          "spearman": {
+            "judge__length_chars": 0.3866394824775848,
+            "judge__length_steps": 0.44229674238533884,
+            "label__judge": 0.6132208881378741,
+            "label__length_chars": 0.1615202521057557,
+            "label__length_steps": 0.16286279482002433,
+            "length_chars__length_steps": 0.8183914199046166
+          }
+        },
+        "counts": {
+          "n": 1448,
+          "negative": 1105,
+          "positive": 343,
+          "positive_task_clusters": 124,
+          "task_clusters": 168
+        },
+        "identity_sha256": "bdf8b7335d7d5a8b151b7b995d1fca26885fd6d2990c2bf4697e14f7d5110885",
+        "paired_auroc_differences": {
+          "judge_minus_length_chars": {
+            "ci95": [
+              0.23854653311162144,
+              0.33588070829450134
+            ],
+            "difference": 0.28526047781750064
+          },
+          "judge_minus_length_steps": {
+            "ci95": [
+              0.23604862464645282,
+              0.3341327456572466
+            ],
+            "difference": 0.285112726409245
+          }
+        },
+        "signals": {
+          "judge": {
+            "auroc": 0.8949276413862248,
+            "ci95": [
+              0.859018401860881,
+              0.9264081051408469
+            ],
+            "frozen_dev_operating_points": {
+              "0.01": {
+                "fp": 13,
+                "fpr": 0.011764705882352941,
+                "fpr_ci": [
+                  0.006888115686472625,
+                  0.020024170684387714
+                ],
+                "n_neg": 1105,
+                "n_pos": 343,
+                "precision_at_1pct": 0.16684250558186325,
+                "precision_at_20pct": 0.8321096426823299,
+                "precision_at_5pct": 0.5106255162574154,
+                "recall": 0.23323615160349853,
+                "recall_ci": [
+                  0.191587483685289,
+                  0.2807939306062751
+                ],
+                "threshold": 96.0,
+                "tp": 80
+              },
+              "0.05": {
+                "fp": 45,
+                "fpr": 0.04072398190045249,
+                "fpr_ci": [
+                  0.030573292255153903,
+                  0.0540568937192884
+                ],
+                "n_neg": 1105,
+                "n_pos": 343,
+                "precision_at_1pct": 0.08411352193718534,
+                "precision_at_20pct": 0.6944698750463937,
+                "precision_at_5pct": 0.3236508302583026,
+                "recall": 0.37026239067055394,
+                "recall_ci": [
+                  0.32086103700066726,
+                  0.42253757432145955
+                ],
+                "threshold": 89.0,
+                "tp": 127
+              }
+            }
+          },
+          "length_chars": {
+            "auroc": 0.6096671635687242,
+            "ci95": [
+              0.5592737551641661,
+              0.6559766229001232
+            ],
+            "frozen_dev_operating_points": {
+              "0.01": {
+                "fp": 0,
+                "fpr": 0.0,
+                "fpr_ci": [
+                  0.0,
+                  0.0034643896569051687
+                ],
+                "n_neg": 1105,
+                "n_pos": 343,
+                "precision_at_1pct": null,
+                "precision_at_20pct": null,
+                "precision_at_5pct": null,
+                "recall": 0.0,
+                "recall_ci": [
+                  0.0,
+                  0.01107554700550003
+                ],
+                "threshold": 2784671.0,
+                "tp": 0
+              },
+              "0.05": {
+                "fp": 19,
+                "fpr": 0.017194570135746608,
+                "fpr_ci": [
+                  0.011035075800815475,
+                  0.026699316745716482
+                ],
+                "n_neg": 1105,
+                "n_pos": 343,
+                "precision_at_1pct": 0.04419882136476361,
+                "precision_at_20pct": 0.5336922884281703,
+                "precision_at_5pct": 0.19416496375066708,
+                "recall": 0.07871720116618076,
+                "recall_ci": [
+                  0.05466069896137615,
+                  0.11210557825317055
+                ],
+                "threshold": 272968.0,
+                "tp": 27
+              }
+            }
+          },
+          "length_steps": {
+            "auroc": 0.6098149149769798,
+            "ci95": [
+              0.5555402087170043,
+              0.6603881086771491
+            ],
+            "frozen_dev_operating_points": {
+              "0.01": {
+                "fp": 8,
+                "fpr": 0.007239819004524887,
+                "fpr_ci": [
+                  0.0036730149590308153,
+                  0.014220849598769843
+                ],
+                "n_neg": 1105,
+                "n_pos": 343,
+                "precision_at_1pct": 0.019932823678390655,
+                "precision_at_20pct": 0.33482819223077387,
+                "precision_at_5pct": 0.09581866426180606,
+                "recall": 0.014577259475218658,
+                "recall_ci": [
+                  0.006242183314096412,
+                  0.033664980396782625
+                ],
+                "threshold": 609.0,
+                "tp": 5
+              },
+              "0.05": {
+                "fp": 26,
+                "fpr": 0.023529411764705882,
+                "fpr_ci": [
+                  0.016106955740211835,
+                  0.034253227344603676
+                ],
+                "n_neg": 1105,
+                "n_pos": 343,
+                "precision_at_1pct": 0.03268811690808871,
+                "precision_at_20pct": 0.4554475094264735,
+                "precision_at_5pct": 0.1497162241503034,
+                "recall": 0.07871720116618076,
+                "recall_ci": [
+                  0.05466069896137615,
+                  0.11210557825317055
+                ],
+                "threshold": 95.0,
+                "tp": 27
+              }
+            }
+          }
+        },
+        "warning": "Historical signal model field only; not independent served-route attestation. Subset changes the cohort; no threshold or bin refit.",
+        "within_dev_length_quintiles": {
+          "n_chars": [
+            {
+              "n": 325,
+              "negative": 274,
+              "positive": 51,
+              "positive_task_clusters": 38,
+              "quintile": 1,
+              "signals": {
+                "judge": {
+                  "auroc": 0.8176255903821382,
+                  "ci95": [
+                    0.702946127946128,
+                    0.9173706985369874
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.46915700586804066,
+                  "ci95": [
+                    0.3232815964523282,
+                    0.5964759036144578
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.6737154715900959,
+                  "ci95": [
+                    0.5337251741953832,
+                    0.802537410540013
+                  ]
+                }
+              },
+              "task_clusters": 87
+            },
+            {
+              "n": 261,
+              "negative": 219,
+              "positive": 42,
+              "positive_task_clusters": 33,
+              "quintile": 2,
+              "signals": {
+                "judge": {
+                  "auroc": 0.974124809741248,
+                  "ci95": [
+                    0.9393923895253683,
+                    0.9951136816912645
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.4508588823657317,
+                  "ci95": [
+                    0.3400264783759929,
+                    0.5721198156682028
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.5797999565122853,
+                  "ci95": [
+                    0.49244663382594417,
+                    0.6697115384615384
+                  ]
+                }
+              },
+              "task_clusters": 75
+            },
+            {
+              "n": 299,
+              "negative": 216,
+              "positive": 83,
+              "positive_task_clusters": 39,
+              "quintile": 3,
+              "signals": {
+                "judge": {
+                  "auroc": 0.9053157072735386,
+                  "ci95": [
+                    0.842846043509443,
+                    0.9500948489712535
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.5384315037929496,
+                  "ci95": [
+                    0.4462327264751042,
+                    0.6393762183235867
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.4945058009817046,
+                  "ci95": [
+                    0.38946330384891226,
+                    0.5793903951798689
+                  ]
+                }
+              },
+              "task_clusters": 60
+            },
+            {
+              "n": 434,
+              "negative": 327,
+              "positive": 107,
+              "positive_task_clusters": 41,
+              "quintile": 4,
+              "signals": {
+                "judge": {
+                  "auroc": 0.8715882134385092,
+                  "ci95": [
+                    0.8182938856015779,
+                    0.9154099692974534
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.5126754122724285,
+                  "ci95": [
+                    0.4426691729323308,
+                    0.5777000777000777
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.49465546314556,
+                  "ci95": [
+                    0.4188807867460118,
+                    0.5702826804419573
+                  ]
+                }
+              },
+              "task_clusters": 53
+            },
+            {
+              "n": 129,
+              "negative": 69,
+              "positive": 60,
+              "positive_task_clusters": 31,
+              "quintile": 5,
+              "signals": {
+                "judge": {
+                  "auroc": 0.8783816425120773,
+                  "ci95": [
+                    0.7821350762527233,
+                    0.9433287165281625
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.56256038647343,
+                  "ci95": [
+                    0.46044776119402986,
+                    0.6676267281105991
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.4870772946859903,
+                  "ci95": [
+                    0.38410221619176843,
+                    0.5887468030690537
+                  ]
+                }
+              },
+              "task_clusters": 46
+            }
+          ],
+          "n_steps": [
+            {
+              "n": 6,
+              "negative": 4,
+              "positive": 2,
+              "positive_task_clusters": 2,
+              "quintile": 1,
+              "signals": {
+                "judge": {
+                  "auroc": 0.75,
+                  "ci95": [
+                    0.5,
+                    1.0
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.625,
+                  "ci95": [
+                    0.1111111111111111,
+                    1.0
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.375,
+                  "ci95": [
+                    0.125,
+                    0.5
+                  ]
+                }
+              },
+              "task_clusters": 6
+            },
+            {
+              "n": 178,
+              "negative": 165,
+              "positive": 13,
+              "positive_task_clusters": 8,
+              "quintile": 2,
+              "signals": {
+                "judge": {
+                  "auroc": 0.789044289044289,
+                  "ci95": [
+                    0.5608194622279129,
+                    0.9229651162790697
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.5358974358974359,
+                  "ci95": [
+                    0.23651452282157676,
+                    0.7475806451612903
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.16153846153846155,
+                  "ci95": [
+                    0.0804093567251462,
+                    0.21052631578947367
+                  ]
+                }
+              },
+              "task_clusters": 26
+            },
+            {
+              "n": 220,
+              "negative": 185,
+              "positive": 35,
+              "positive_task_clusters": 28,
+              "quintile": 3,
+              "signals": {
+                "judge": {
+                  "auroc": 0.798918918918919,
+                  "ci95": [
+                    0.6693223443223443,
+                    0.8911302740991685
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.5,
+                  "ci95": [
+                    0.34670050761421317,
+                    0.6395530145530145
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.6379150579150579,
+                  "ci95": [
+                    0.4938229238160604,
+                    0.76253110558123
+                  ]
+                }
+              },
+              "task_clusters": 61
+            },
+            {
+              "n": 534,
+              "negative": 371,
+              "positive": 163,
+              "positive_task_clusters": 74,
+              "quintile": 4,
+              "signals": {
+                "judge": {
+                  "auroc": 0.9601805764556083,
+                  "ci95": [
+                    0.938475865280149,
+                    0.9788402811658625
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.5850627552792155,
+                  "ci95": [
+                    0.5204298740772905,
+                    0.637460866699621
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.6062788351826435,
+                  "ci95": [
+                    0.5549153699475035,
+                    0.658046589254643
+                  ]
+                }
+              },
+              "task_clusters": 110
+            },
+            {
+              "n": 510,
+              "negative": 380,
+              "positive": 130,
+              "positive_task_clusters": 53,
+              "quintile": 5,
+              "signals": {
+                "judge": {
+                  "auroc": 0.893997975708502,
+                  "ci95": [
+                    0.8539320900774102,
+                    0.9273400821596244
+                  ]
+                },
+                "length_chars": {
+                  "auroc": 0.6339068825910931,
+                  "ci95": [
+                    0.5732066131141416,
+                    0.6990180675569521
+                  ]
+                },
+                "length_steps": {
+                  "auroc": 0.6491194331983806,
+                  "ci95": [
+                    0.5872040072859745,
+                    0.7089598871195324
+                  ]
+                }
+              },
+              "task_clusters": 66
+            }
+          ]
+        }
+      },
+      "identity_sha256": "d35c1c3148e0fec78f9989542aa8fda0e8754f2707c6485f8323c030874805d4",
+      "paired_auroc_differences": {
+        "judge_minus_length_chars": {
+          "ci95": [
+            0.23813770782590282,
+            0.33396365021494256
+          ],
+          "difference": 0.28443032717944405
+        },
+        "judge_minus_length_steps": {
+          "ci95": [
+            0.23509189176154266,
+            0.3335671395929646
+          ],
+          "difference": 0.28430679380966395
+        }
+      },
+      "per_set_correlations": {
+        "beam-tripwire": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.6242163773912661,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.6188687168599442,
+          "spearman": {
+            "judge__length_chars": 0.22586868004033278,
+            "judge__length_steps": 0.2067938962873897,
+            "label__judge": 0.6003367658097076,
+            "label__length_chars": -0.011952844892167894,
+            "label__length_steps": -0.05093282642871521,
+            "length_chars__length_steps": 0.8029527666697112
+          }
+        },
+        "caught-not-taught": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.8552067486220812,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.8556271067475429,
+          "spearman": {
+            "judge__length_chars": 0.34706883685892415,
+            "judge__length_steps": 0.24872885447940649,
+            "label__judge": 0.866797827615282,
+            "label__length_chars": 0.29539481292256964,
+            "label__length_steps": 0.15767734819390314,
+            "length_chars__length_steps": 0.41662949468349253
+          }
+        },
+        "flake-laundering": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.312184778608307,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.30485824810014367,
+          "spearman": {
+            "judge__length_chars": -0.23446753115008856,
+            "judge__length_steps": -0.09445072810955309,
+            "label__judge": 0.2878384172815429,
+            "label__length_chars": 0.04940122801163959,
+            "label__length_steps": -0.2402766056148211,
+            "length_chars__length_steps": 0.2896472346971166
+          }
+        },
+        "kernelbench-hard-runs": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.42776502197216315,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.46947386249390705,
+          "spearman": {
+            "judge__length_chars": 0.5718517976865137,
+            "judge__length_steps": 0.686472822215872,
+            "label__judge": 0.4338242780000908,
+            "label__length_chars": 0.10788756781341387,
+            "label__length_steps": 0.17624861539606582,
+            "length_chars__length_steps": 0.8985308036063703
+          }
+        },
+        "reflex-sentinel": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.8219844949838719,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.8242275841593455,
+          "spearman": {
+            "judge__length_chars": -0.0490528031187905,
+            "judge__length_steps": 0.16763581587897164,
+            "label__judge": 0.821552417488023,
+            "label__length_chars": -0.18415847945820515,
+            "label__length_steps": 0.12242857228138986,
+            "length_chars__length_steps": 0.2369639935213558
+          }
+        },
+        "researcharena-benchmark-gaming": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.8775684598677768,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.8866027840850019,
+          "spearman": {
+            "judge__length_chars": 0.23070124798133618,
+            "judge__length_steps": 0.019350262799791,
+            "label__judge": 0.8724325841355228,
+            "label__length_chars": 0.11959398433213676,
+            "label__length_steps": -0.06598576191430866,
+            "length_chars__length_steps": 0.03981009629631005
+          }
+        },
+        "sleight-bench": {
+          "partial_spearman_label_judge_given_rank_log1p_chars_steps": 0.2309992452036857,
+          "sensitivity_rank_label_judge_given_unranked_log1p_chars_steps": 0.22408671925954304,
+          "spearman": {
+            "judge__length_chars": 0.3562929691039524,
+            "judge__length_steps": 0.1662968961994982,
+            "label__judge": 0.2313373715204813,
+            "label__length_chars": 0.04590450454708389,
+            "label__length_steps": 0.013639886789409469,
+            "length_chars__length_steps": 0.24106267689286812
+          }
+        }
+      },
+      "recorded_model_counts_scored": {
+        "meta/muse-wonder-full-1.0-contributor,openai-codex/gpt-6.1-terra": 2,
+        "openai-codex/gpt-6.1-terra": 1448
+      },
+      "signals": {
+        "judge": {
+          "auroc": 0.8947245994364775,
+          "ci95": [
+            0.859018401860881,
+            0.9264258367080948
+          ],
+          "frozen_dev_operating_points": {
+            "0.01": {
+              "fp": 13,
+              "fpr": 0.011754068716094032,
+              "fpr_ci": [
+                0.006881876430274329,
+                0.020006161174101842
+              ],
+              "n_neg": 1106,
+              "n_pos": 344,
+              "precision_at_1pct": 0.16656375656993117,
+              "precision_at_20pct": 0.8318291215403129,
+              "precision_at_5pct": 0.5101240717679074,
+              "recall": 0.23255813953488372,
+              "recall_ci": [
+                0.19101733779300653,
+                0.280006039949922
+              ],
+              "threshold": 96.0,
+              "tp": 80
+            },
+            "0.05": {
+              "fp": 45,
+              "fpr": 0.0406871609403255,
+              "fpr_ci": [
+                0.030545524569743514,
+                0.05400840710252148
+              ],
+              "n_neg": 1106,
+              "n_pos": 344,
+              "precision_at_1pct": 0.08395906232105307,
+              "precision_at_20pct": 0.6940439367137393,
+              "precision_at_5pct": 0.3232117298921723,
+              "recall": 0.3691860465116279,
+              "recall_ci": [
+                0.31989581303142867,
+                0.4213656217341343
+              ],
+              "threshold": 89.0,
+              "tp": 127
+            }
+          }
+        },
+        "length_chars": {
+          "auroc": 0.6102942722570335,
+          "ci95": [
+            0.559097349043667,
+            0.65643778879073
+          ],
+          "frozen_dev_operating_points": {
+            "0.01": {
+              "fp": 0,
+              "fpr": 0.0,
+              "fpr_ci": [
+                0.0,
+                0.003461268139296341
+              ],
+              "n_neg": 1106,
+              "n_pos": 344,
+              "precision_at_1pct": null,
+              "precision_at_20pct": null,
+              "precision_at_5pct": null,
+              "recall": 0.0,
+              "recall_ci": [
+                0.0,
+                0.011043706215040148
+              ],
+              "threshold": 2784671.0,
+              "tp": 0
+            },
+            "0.05": {
+              "fp": 19,
+              "fpr": 0.017179023508137433,
+              "fpr_ci": [
+                0.01102507400763905,
+                0.026675318734466276
+              ],
+              "n_neg": 1106,
+              "n_pos": 344,
+              "precision_at_1pct": 0.04567336054935461,
+              "precision_at_20pct": 0.5422328057150861,
+              "precision_at_5pct": 0.19959781375683205,
+              "recall": 0.08139534883720931,
+              "recall_ci": [
+                0.05691312145678684,
+                0.11512346979301424
+              ],
+              "threshold": 272968.0,
+              "tp": 28
+            }
+          }
+        },
+        "length_steps": {
+          "auroc": 0.6104178056268136,
+          "ci95": [
+            0.5556361268149056,
+            0.6614125346034848
+          ],
+          "frozen_dev_operating_points": {
+            "0.01": {
+              "fp": 8,
+              "fpr": 0.007233273056057866,
+              "fpr_ci": [
+                0.0036696899662519928,
+                0.014208051690016554
+              ],
+              "n_neg": 1106,
+              "n_pos": 344,
+              "precision_at_1pct": 0.01989366064940391,
+              "precision_at_20pct": 0.3343814245978957,
+              "precision_at_5pct": 0.0956449548583486,
+              "recall": 0.014534883720930232,
+              "recall_ci": [
+                0.006223991818531347,
+                0.03356844386700182
+              ],
+              "threshold": 609.0,
+              "tp": 5
+            },
+            "0.05": {
+              "fp": 26,
+              "fpr": 0.023508137432188065,
+              "fpr_ci": [
+                0.016092347747152208,
+                0.0342224593223038
+              ],
+              "n_neg": 1106,
+              "n_pos": 344,
+              "precision_at_1pct": 0.033792218449102164,
+              "precision_at_20pct": 0.4639817811338847,
+              "precision_at_5pct": 0.15414327240871264,
+              "recall": 0.08139534883720931,
+              "recall_ci": [
+                0.05691312145678684,
+                0.11512346979301424
+              ],
+              "threshold": 95.0,
+              "tp": 28
+            }
+          }
+        }
+      },
+      "within_dev_length_quintiles": {
+        "n_chars": [
+          {
+            "n": 325,
+            "negative": 274,
+            "positive": 51,
+            "positive_task_clusters": 38,
+            "quintile": 1,
+            "signals": {
+              "judge": {
+                "auroc": 0.8176255903821382,
+                "ci95": [
+                  0.702946127946128,
+                  0.9173706985369874
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.46915700586804066,
+                "ci95": [
+                  0.3232815964523282,
+                  0.5964759036144578
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.6737154715900959,
+                "ci95": [
+                  0.5337251741953832,
+                  0.802537410540013
+                ]
+              }
+            },
+            "task_clusters": 87
+          },
+          {
+            "n": 261,
+            "negative": 219,
+            "positive": 42,
+            "positive_task_clusters": 33,
+            "quintile": 2,
+            "signals": {
+              "judge": {
+                "auroc": 0.974124809741248,
+                "ci95": [
+                  0.9393923895253683,
+                  0.9951136816912645
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.4508588823657317,
+                "ci95": [
+                  0.3400264783759929,
+                  0.5721198156682028
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.5797999565122853,
+                "ci95": [
+                  0.49244663382594417,
+                  0.6697115384615384
+                ]
+              }
+            },
+            "task_clusters": 75
+          },
+          {
+            "n": 299,
+            "negative": 216,
+            "positive": 83,
+            "positive_task_clusters": 39,
+            "quintile": 3,
+            "signals": {
+              "judge": {
+                "auroc": 0.9053157072735386,
+                "ci95": [
+                  0.842846043509443,
+                  0.9500948489712535
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.5384315037929496,
+                "ci95": [
+                  0.4462327264751042,
+                  0.6393762183235867
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.4945058009817046,
+                "ci95": [
+                  0.38946330384891226,
+                  0.5793903951798689
+                ]
+              }
+            },
+            "task_clusters": 60
+          },
+          {
+            "n": 434,
+            "negative": 327,
+            "positive": 107,
+            "positive_task_clusters": 41,
+            "quintile": 4,
+            "signals": {
+              "judge": {
+                "auroc": 0.8715882134385092,
+                "ci95": [
+                  0.8182938856015779,
+                  0.9154099692974534
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.5126754122724285,
+                "ci95": [
+                  0.4426691729323308,
+                  0.5777000777000777
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.49465546314556,
+                "ci95": [
+                  0.4188807867460118,
+                  0.5702826804419573
+                ]
+              }
+            },
+            "task_clusters": 53
+          },
+          {
+            "n": 131,
+            "negative": 70,
+            "positive": 61,
+            "positive_task_clusters": 31,
+            "quintile": 5,
+            "signals": {
+              "judge": {
+                "auroc": 0.8728337236533957,
+                "ci95": [
+                  0.779655612244898,
+                  0.937062324929972
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.5655737704918032,
+                "ci95": [
+                  0.4609967497291441,
+                  0.6703703703703704
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.4905152224824356,
+                "ci95": [
+                  0.3853573687539532,
+                  0.5935938209904589
+                ]
+              }
+            },
+            "task_clusters": 46
+          }
+        ],
+        "n_steps": [
+          {
+            "n": 6,
+            "negative": 4,
+            "positive": 2,
+            "positive_task_clusters": 2,
+            "quintile": 1,
+            "signals": {
+              "judge": {
+                "auroc": 0.75,
+                "ci95": [
+                  0.5,
+                  1.0
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.625,
+                "ci95": [
+                  0.1111111111111111,
+                  1.0
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.375,
+                "ci95": [
+                  0.125,
+                  0.5
+                ]
+              }
+            },
+            "task_clusters": 6
+          },
+          {
+            "n": 178,
+            "negative": 165,
+            "positive": 13,
+            "positive_task_clusters": 8,
+            "quintile": 2,
+            "signals": {
+              "judge": {
+                "auroc": 0.789044289044289,
+                "ci95": [
+                  0.5608194622279129,
+                  0.9229651162790697
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.5358974358974359,
+                "ci95": [
+                  0.23651452282157676,
+                  0.7475806451612903
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.16153846153846155,
+                "ci95": [
+                  0.0804093567251462,
+                  0.21052631578947367
+                ]
+              }
+            },
+            "task_clusters": 26
+          },
+          {
+            "n": 220,
+            "negative": 185,
+            "positive": 35,
+            "positive_task_clusters": 28,
+            "quintile": 3,
+            "signals": {
+              "judge": {
+                "auroc": 0.798918918918919,
+                "ci95": [
+                  0.6693223443223443,
+                  0.8911302740991685
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.5,
+                "ci95": [
+                  0.34670050761421317,
+                  0.6395530145530145
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.6379150579150579,
+                "ci95": [
+                  0.4938229238160604,
+                  0.76253110558123
+                ]
+              }
+            },
+            "task_clusters": 61
+          },
+          {
+            "n": 534,
+            "negative": 371,
+            "positive": 163,
+            "positive_task_clusters": 74,
+            "quintile": 4,
+            "signals": {
+              "judge": {
+                "auroc": 0.9601805764556083,
+                "ci95": [
+                  0.938475865280149,
+                  0.9788402811658625
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.5850627552792155,
+                "ci95": [
+                  0.5204298740772905,
+                  0.637460866699621
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.6062788351826435,
+                "ci95": [
+                  0.5549153699475035,
+                  0.658046589254643
+                ]
+              }
+            },
+            "task_clusters": 110
+          },
+          {
+            "n": 512,
+            "negative": 381,
+            "positive": 131,
+            "positive_task_clusters": 53,
+            "quintile": 5,
+            "signals": {
+              "judge": {
+                "auroc": 0.8924084871070506,
+                "ci95": [
+                  0.8514904380819468,
+                  0.925616101756161
+                ]
+              },
+              "length_chars": {
+                "auroc": 0.6353308889823887,
+                "ci95": [
+                  0.5717831233295151,
+                  0.7010213556174559
+                ]
+              },
+              "length_steps": {
+                "auroc": 0.6502474404439903,
+                "ci95": [
+                  0.5861211149738743,
+                  0.7127800912155463
+                ]
+              }
+            },
+            "task_clusters": 66
+          }
+        ]
+      }
+    }
+  },
+  "command_argv": [
+    "research/experiments/ov1106-longjudge/diagnosis.py",
+    "--bootstrap",
+    "1000",
+    "--seed",
+    "1104",
+    "--out",
+    "research/experiments/ov1106-longjudge/diagnosis.json"
+  ],
+  "dev_length_quintile_edges": {
+    "n_chars": [
+      14507.400000000001,
+      24597.6,
+      46291.2,
+      101928.0
+    ],
+    "n_steps": [
+      3.0,
+      6.0,
+      13.0,
+      25.0
+    ]
+  },
+  "frozen_dev_thresholds": {
+    "judge": {
+      "0.01": 96.0,
+      "0.05": 89.0
+    },
+    "length_chars": {
+      "0.01": 2784671.0,
+      "0.05": 272968.0
+    },
+    "length_steps": {
+      "0.01": 609.0,
+      "0.05": 95.0
+    }
+  },
+  "inputs": {
+    "detbench_j3": {
+      "bytes": 1265872,
+      "path": "/private/tmp/ov1104/shared/detbench/signals/j3_actions_task_diff_terra_full.jsonl",
+      "sha256": "15e94821fa4b2225ffff0416b394b47feddd95098d7362a99f86f34c0646b0f7"
+    },
+    "detbench_runs": {
+      "bytes": 15891247,
+      "path": "/private/tmp/ov1104/shared/detbench/runs.jsonl",
+      "sha256": "65d19eaad26bfd1b82b4ed91a16ed3a3f2da55dcc7460f942bc87e66acee56be"
+    },
+    "malt_j3": {
+      "bytes": 142899,
+      "path": "/Users/petermakhnatch/.local/state/eval-lab/ov1105-malt-060fefc3a/scores/signals/j3_actions_task_diff_terra.jsonl",
+      "sha256": "b45768f52beaedc2d08cbe13fe2f71b4225a2f54e2e845fac58a3e0a5eadba4a"
+    },
+    "malt_runs": {
+      "bytes": 3665111,
+      "path": "/Users/petermakhnatch/.local/state/eval-lab/ov1105-malt-060fefc3a/detbench-frozen/runs.jsonl",
+      "sha256": "fd47cf28211eaadb2d5367c177ae706547d6e0a5d3f97c71eb476d04bebbc87e"
+    },
+    "thresholds": {
+      "bytes": 14917,
+      "path": "/Users/petermakhnatch/.local/state/eval-lab/ov1105-malt-060fefc3a/scores/thresholds.json",
+      "sha256": "2cfb458ad11f37a61d5f041a9de68201f58591179e092495d7686587813aa08e"
+    }
+  },
+  "method": {
+    "auroc_ci": "95% task-cluster percentile bootstrap; single-class resamples omitted; existing DetBench implementation",
+    "bins": "linear quintiles on all 690 DEV rows, labels unused; upper boundary inclusive; no transfer refitting",
+    "bootstrap": 1000,
+    "cluster": "source task cluster, as recorded",
+    "partial_spearman": "Pearson correlation of label and judge midrank residuals after intercept and ranked log1p lengths",
+    "proportion_ci": "Wilson 95%; conditional on scored subset; not cluster-adjusted",
+    "seed": 1104,
+    "sensitivity": "same ranked outcomes residualized on unranked log1p lengths"
+  },
+  "purpose": "Existing J3 diagnosis only; held-out results must not tune J4.",
+  "signal_identities": {
+    "detbench": [
+      [
+        "c9d77cb7b0a5cb418abf76e398811915fa7fdd4c6d2ba783ed05109c9ae8c2a5",
+        "meta/muse-wonder-full-1.0-contributor"
+      ],
+      [
+        "c9d77cb7b0a5cb418abf76e398811915fa7fdd4c6d2ba783ed05109c9ae8c2a5",
+        "meta/muse-wonder-full-1.0-contributor,openai-codex/gpt-6.1-terra"
+      ],
+      [
+        "c9d77cb7b0a5cb418abf76e398811915fa7fdd4c6d2ba783ed05109c9ae8c2a5",
+        "openai-codex/gpt-6.1-terra"
+      ],
+      [
+        "c9d77cb7b0a5cb418abf76e398811915fa7fdd4c6d2ba783ed05109c9ae8c2a5",
+        null
+      ]
+    ],
+    "malt": [
+      [
+        "c9d77cb7b0a5cb418abf76e398811915fa7fdd4c6d2ba783ed05109c9ae8c2a5",
+        "openai-codex/gpt-6.1-terra"
+      ]
+    ]
+  },
+  "statistics_code": {
+    "bytes": 22524,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-longjudge/research/experiments/ov1104-detbench/score.py",
+    "sha256": "a19f60db1cd7a6a0036911f421f531770d992c3e5080322f98cd2c9825bdf576"
+  }
+}

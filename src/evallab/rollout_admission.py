@@ -302,15 +302,16 @@ def label_key(
     depth: int = 0,
     tools: bool = False,
     names: bool = False,
-    *,
+    traces: bool = False,
     trajectory: bool = True,
 ) -> str | None:
     """The first evaluator/label key (``LABEL_KEYS``, any case) in a document, or ``None``.
 
     Exactly two parts of a document are not searched, both provably not a declaration:
 
-    * the value of a top-level ``steps`` list of a trajectory file: what the agent wrote and what
-      its tools returned (any other file of a rollout is searched whole);
+    * the value of a ``steps`` list of a trajectory file, at the top or inside a top-level
+      ``traces`` list (a raw bundle): what the agent wrote and what its tools returned (any
+      other file of a rollout is searched whole);
     * the parameter names under a ``properties`` mapping inside a top-level ``tools`` list whose
       value is a parameter schema (a mapping): a tool schema may name a parameter ``label``.
       Their values (the parameter schemas) and every other key of a tool entry are searched.
@@ -329,19 +330,26 @@ def label_key(
                 and key.lower() in LABEL_KEYS
             ):
                 return key
-            if trajectory and depth == 0 and key == "steps" and isinstance(child, list):
+            if (
+                trajectory
+                and key == "steps"
+                and isinstance(child, list)
+                and (depth == 0 or (traces and depth == 2))
+            ):
                 continue
             found = label_key(
                 child,
                 depth + 1,
                 tools or (depth == 0 and key == "tools" and isinstance(child, list)),
                 tools and key == "properties" and isinstance(child, Mapping),
+                traces=(depth == 0 and key == "traces" and isinstance(child, list)),
+                trajectory=trajectory,
             )
             if found is not None:
                 return found
     elif isinstance(value, list):
         for child in value:
-            found = label_key(child, depth + 1, tools, False)
+            found = label_key(child, depth + 1, tools, False, traces=traces, trajectory=trajectory)
             if found is not None:
                 return found
     return None

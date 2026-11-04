@@ -162,7 +162,7 @@ def bundle_file_eligible(relative: str) -> bool:
     """Whether a file of a rollout folder is read as a bundle source file (its path, posix)."""
     parts = relative.split("/")
     name = parts[-1]
-    if name in _SKIP_FILE_NAMES or any(part in _SKIP_DIRS for part in parts[:-1]):
+    if name.casefold() in _SKIP_FILE_NAMES or any(part.casefold() in _SKIP_DIRS for part in parts[:-1]):
         return False
     suffix = Path(name).suffix
     return suffix.lower() in _TEXT_SUFFIXES or suffix == ""
@@ -959,18 +959,18 @@ def load_labels(
 def _read_bundle_files(path: Path) -> list[tuple[str, str]]:
     """Read text files from path (file or directory). Metadata and trajectories are skipped."""
     if path.is_file():
-        if path.name in _SKIP_FILE_NAMES:
+        if path.name.casefold() in _SKIP_FILE_NAMES:
             return []
         return [(path.name, path.read_text(encoding="utf-8", errors="replace"))]
     if not path.is_dir():
         return []
     found: list[tuple[str, str]] = []
     for child in sorted(path.rglob("*")):
-        if not child.is_file() or child.name in _SKIP_FILE_NAMES:
+        if not child.is_file() or child.name.casefold() in _SKIP_FILE_NAMES:
             continue
         # Exclude directories like agent/ and verifier/
         rel_parts = child.relative_to(path).parts
-        if any(part in _SKIP_DIRS for part in rel_parts[:-1]):
+        if any(part.casefold() in _SKIP_DIRS for part in rel_parts[:-1]):
             continue
         if child.suffix.lower() not in _TEXT_SUFFIXES and child.suffix != "":
             continue
@@ -989,7 +989,7 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
 
     # Check for ATIF trajectory
     if path.is_file():
-        if path.suffix == ".json" and path.name not in _SKIP_FILE_NAMES:
+        if path.suffix.casefold() == ".json" and path.name.casefold() not in _SKIP_FILE_NAMES:
             try:
                 run = load_atif_file(path)
                 parse_error = None
@@ -1032,9 +1032,14 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
                     pass
 
     # Check for diff
-    if path.is_dir() and (path / "final.diff").is_file():
-        diff_text = (path / "final.diff").read_text(encoding="utf-8", errors="replace")
-    elif path.is_file() and path.suffix in (".diff", ".patch"):
+    final = (
+        next((c for c in sorted(path.iterdir()) if c.name.casefold() == "final.diff" and c.is_file()), None)
+        if path.is_dir()
+        else None
+    )
+    if final is not None:
+        diff_text = final.read_text(encoding="utf-8", errors="replace")
+    elif path.is_file() and path.suffix.casefold() in (".diff", ".patch"):
         diff_text = path.read_text(encoding="utf-8", errors="replace")
 
     return _assemble_rollout(
@@ -1065,7 +1070,7 @@ def rollout_from_admitted(path: Path, admitted: Any) -> RolloutItem:
     held: Mapping[str, bytes] = admitted.held
     run: LoadedRun | None = None
     parse_error: str | None = None
-    if is_dir or (path.suffix == ".json" and path.name not in _SKIP_FILE_NAMES):
+    if is_dir or (path.suffix.casefold() == ".json" and path.name.casefold() not in _SKIP_FILE_NAMES):
         for name, document in admitted.trajectories:
             try:
                 run = atif_run(document, str(path / name) if is_dir else str(path))
@@ -1086,14 +1091,15 @@ def rollout_from_admitted(path: Path, admitted: Any) -> RolloutItem:
                 for k, v in document.items():
                     if k not in run_meta:
                         run_meta[k] = v
-        if "final.diff" in held:
-            diff_text = _as_text(held["final.diff"])
-    elif path.suffix in (".diff", ".patch"):
+        final = next((n for n in sorted(held) if n.casefold() == "final.diff"), None)
+        if final is not None:
+            diff_text = _as_text(held[final])
+    elif path.suffix.casefold() in (".diff", ".patch"):
         diff_text = _as_text(held[path.name])
 
     def bundle_files() -> list[tuple[str, str]]:
         if not is_dir:
-            return [] if path.name in _SKIP_FILE_NAMES else [(path.name, _as_text(held[path.name]))]
+            return [] if path.name.casefold() in _SKIP_FILE_NAMES else [(path.name, _as_text(held[path.name]))]
         names = sorted((n for n in held if bundle_file_eligible(n)), key=Path)
         return [(name, _as_text(held[name])) for name in names]
 

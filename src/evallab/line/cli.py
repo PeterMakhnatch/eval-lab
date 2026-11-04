@@ -7,8 +7,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-from evallab.line.core import check_batch, invalidate_check, preflight_batch, run_line
-from evallab.line.io import read_json, write_json
+from evallab.line.core import (
+    check_batch,
+    invalidate_check,
+    preflight_batch,
+    refused_check,
+    run_line,
+    settle_check,
+)
+from evallab.line.io import read_json
 from evallab.line.replay import replay
 from evallab.line.scoreboard import build_scoreboard, render_scoreboard
 
@@ -60,22 +67,13 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             code = 2 if failed else 3
         elif args.line_command == "check":
             batch = _batch(args.path)
-            invalidate_check(batch)  # a crash below must never leave a stale PASS on disk
-            value = check_batch(batch, root)
-            write_json(batch / "check.json", value)
-            if (batch / "scoreboard.json").is_file():
-                # Refresh only the QC view, never repair a mismatched metric.
-                score = read_json(batch / "scoreboard.json")
-                score["quality_checks"] = value["checks"]
-                write_json(batch / "scoreboard.json", score)
-                try:
-                    view = render_scoreboard(score)
-                except (AttributeError, KeyError, TypeError, ValueError):
-                    # A scoreboard that cannot be rendered is not the same shape the line writes:
-                    # scoreboard_recompute has already failed on it, so the view is left alone.
-                    view = None
-                if view is not None:
-                    (batch / "SCOREBOARD.md").write_text(view, encoding="utf-8")
+            found = invalidate_check(batch)  # a crash below must never leave a stale PASS on disk
+            try:
+                value = check_batch(batch, root)
+            except (ValueError, OSError) as error:
+                settle_check(batch, refused_check(error), found)
+                raise
+            settle_check(batch, value, found)  # a failing batch's scoreboard is left as found
             code = 0 if value["passed"] else 2
         else:
             batch = _batch(args.path)

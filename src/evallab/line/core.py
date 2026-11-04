@@ -16,7 +16,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from evallab import hack_drop as hd
 from evallab.line.io import (
@@ -610,7 +610,15 @@ def _write_snapshot(batch: Path, wanted: bytes) -> Path:
     return target
 
 
-def invalidate_check(batch: Path) -> None:
+class Found(NamedTuple):
+    """What ``line check`` found on disk before it began: the bytes of ``scoreboard.json`` and
+    ``SCOREBOARD.md`` (``None`` if absent) and whether the view matched the scoreboard."""
+
+    files: dict[str, bytes | None]
+    view: str
+
+
+def invalidate_check(batch: Path) -> Found:
     """Replace any earlier check result with PENDING/not-passed before a new check runs.
 
     The batch is validated first, so a missing, linked or tampered directory is refused before
@@ -629,6 +637,12 @@ def invalidate_check(batch: Path) -> None:
         previous = read_json(path)
     except (OSError, ValueError):
         previous = {}
+    found: dict[str, bytes | None] = {}
+    for name in ("scoreboard.json", "SCOREBOARD.md"):
+        try:
+            found[name] = read_bytes(batch / name)
+        except (OSError, ValueError):
+            found[name] = None
     try:
         score: dict[str, Any] | None = read_json(batch / "scoreboard.json")
     except (OSError, ValueError):
@@ -654,15 +668,66 @@ def invalidate_check(batch: Path) -> None:
             "scoreboard_view": view,
         },
     )
-    if score is None:
-        return
+    if score is None or view != "ok":
+        # no scoreboard, or a saved view that is not what the scoreboard renders: leave both
+        # exactly as found
+        return Found(found, view)
     score["quality_checks"] = pending
     write_json(batch / "scoreboard.json", score)
     try:
         rendered = render_scoreboard(score)
     except (ValueError, KeyError, TypeError, AttributeError):
-        return  # a scoreboard that cannot be rendered fails its gate; it must not crash the check
+        return Found(found, "unreadable")  # it fails its gate; it must not crash the check
     (batch / "SCOREBOARD.md").write_text(rendered, encoding="utf-8")
+    return Found(found, view)
+
+
+def settle_check(batch: Path, value: dict[str, Any], found: Found) -> None:
+    """Write the finished check, then bring the scoreboard's quality section and view along.
+
+    That is done only when the saved view matched the saved scoreboard when the check began
+    (or the scoreboard has since proved sound): only the quality-check list is refreshed, and the
+    view is rendered from it, so nothing that was wrong is repaired. Otherwise ``scoreboard.json``
+    and ``SCOREBOARD.md`` are put back exactly as ``line check`` found them: a tampered or deleted
+    view is never rewritten into a passing one, so a second check fails too.
+    """
+    from evallab.line.scoreboard import render_scoreboard
+
+    write_json(batch / "check.json", value)
+    sound = found.view == "ok" or any(
+        check["name"] == "scoreboard_recompute" and check["status"] == "PASS"
+        for check in value["checks"]
+    )
+    if sound and (batch / "scoreboard.json").is_file():
+        try:
+            score = read_json(batch / "scoreboard.json")
+            score["quality_checks"] = value["checks"]
+            rendered = render_scoreboard(score)
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            pass  # a scoreboard that cannot be rendered stays as found, and failed its gate
+        else:
+            write_json(batch / "scoreboard.json", score)
+            (batch / "SCOREBOARD.md").write_text(rendered, encoding="utf-8")
+            return
+    for name, data in found.files.items():
+        if data is not None:
+            (batch / name).write_bytes(data)
+
+
+def refused_check(error: Exception) -> dict[str, Any]:
+    """The check result of a batch the line refused before any gate ran (a declared input that
+    is now a link, a spec that no longer resolves to itself): every gate FAIL and not passed, so
+    ``check.json`` names the refusal instead of staying ``PENDING``."""
+    return {
+        "checks": [
+            {"name": name, "status": "FAIL", "details": f"not run, refused: {error}"}
+            for name in CHECK_NAMES
+        ],
+        "passed": False,
+        "determinism_verified": False,
+        "decision_hash": None,
+        "second_decision_hash": None,
+    }
 
 
 def _evaluate_twice(
@@ -778,6 +843,12 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
         else [],
     )
     rev, dirty = _code(repo_root)
+    for source in spec["sources"]:
+        folder = Path(source["rollouts"])
+        if folder.is_dir():
+            # A folder of trials is walked (links and special files refused) before a batch
+            # directory exists, not when the intake receipt hashes it; that digest is reused.
+            admitted_hash[folder] = strict_digest(folder)
     batch.mkdir(parents=True)
     write_json(batch / "spec.json", spec)
 
@@ -1725,16 +1796,17 @@ def _check_batch(
     def scoreboard() -> None:
         stored = read_json(batch / "scoreboard.json")
         version = stored_version(stored)  # refuses a version newer than this code reads
-        require(
-            stored == build_scoreboard(batch, repo_root, version),
-            "scoreboard differs from recomputation",
-        )
         if version >= 3:  # older batches rendered the view from memory, in another key order
             carried = previous.get("scoreboard_view", "ok")
             require(
                 carried == "ok",
                 f"SCOREBOARD.md was {carried} before this check (compared with scoreboard.json)",
             )
+        require(
+            stored == build_scoreboard(batch, repo_root, version),
+            "scoreboard differs from recomputation",
+        )
+        if version >= 3:
             require(
                 read_bytes(batch / "SCOREBOARD.md").decode("utf-8") == render_scoreboard(stored),
                 "SCOREBOARD.md differs from scoreboard.json",

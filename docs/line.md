@@ -260,11 +260,16 @@ export is automatically suitable for training.
 `line check` first validates the batch directory and compares the saved `SCOREBOARD.md` with the
 view rendered from the saved `scoreboard.json` (the result is carried to the
 `scoreboard_recompute` gate); only then does it overwrite `check.json` with a not-passed,
-all-`PENDING` result (and the scoreboard's quality-check list and view with the same), then
-replaces it with the completed result. A missing, linked or tampered directory is refused before
-any file in it is rewritten, so a hard link is never silently replaced by a fresh file. A crash
-therefore leaves `passed: false`, never a stale pass. All JSON artifacts are written
-atomically.
+all-`PENDING` result (and, when the saved view matched, the scoreboard's quality-check list and
+view with the same), then replaces it with the completed result. A missing, linked or tampered
+directory is refused before any file in it is rewritten, so a hard link is never silently
+replaced by a fresh file. A crash therefore leaves `passed: false`, never a stale pass. A check
+the line refuses before any gate runs (a declared input that has become a link) is still
+written as a finished result: not passed, every gate `FAIL` with the refusal as its details.
+When the saved view differed from the saved scoreboard, was missing or unreadable, `line check`
+leaves `scoreboard.json` and `SCOREBOARD.md` exactly as it found them (it never rewrites a
+tampered view into a passing one), so a second check fails as well. All JSON artifacts are
+written atomically.
 
 `line check --fast` skips the determinism recompute (the slowest part). It reports that gate as
 `SKIPPED` with "determinism not verified", sets `determinism_verified: false`, never counts as
@@ -365,6 +370,36 @@ left, exactly:
   passes.
 - **Memory.** Each file the line reads whole is bounded (512 MB); the number of files and the
   streamed hash of the others are not.
+
+## Known gaps
+
+Found by the verify review of #1834 (`gates`, `behaviour`, `adversarial`, `tests_docs` ids as
+in `/tmp/nov2-line/review/1834-verify3/REVIEW.md`) and classified against `main`: none of these
+is worse than main (main has no such check, or the same hole), and none is fixed yet. Each is
+a follow-up.
+
+| Review id | Gap | Class |
+|---|---|---|
+| gates 1, adversarial 3, behaviour 3 | Manifest `pair` and `run_id` (also `run_id`/`case_id`/`trial` in sidecars) are not in `IDENTITY_KEYS`; `admit_rollout(run_id=...)` does not run the ASCII/path checks on its own `run_id`; a whitespace-only `id` is accepted; identities nested deeper than 8 (`MAX_DEPTH`) are not checked | pre-existing / new-path gap |
+| gates 1.5 | A `.json` manifest whose `rows` is not a list is admitted as a single trajectory-less rollout (`review`, `L0_PARSE_ERROR`) | pre-existing |
+| gates 2, adversarial 4 | `load_labels` / `_check_label_row_dev` do not use `name_forms` (NFKC, path segments, `.json` suffix), the path gate, the sealed identity or nested identities; a wrapper with a top-level `id`/`task_id` skips its `rows` | pre-existing |
+| gates 2.2 | `spec.json` is not checked for a non-dev `split` or label fields beyond the top-level `split`, and is persisted as written | pre-existing |
+| gates 2.3, adversarial 6 | The `tools`/`properties` exemption of the label check accepts a label-named property whose schema holds label semantics | new-path gap |
+| gates 2.4, adversarial 4 | Task-status `task_id`, `inputs[].path` and `evidence[].path` are not checked against the registry or the path gate; a dict-form task status skips non-object values | pre-existing |
+| gates 3.2, adversarial 6, behaviour 2 | A live `trace.jsonl` row with extra top-level keys passes (`_validate_live_trace` checks only the `autoreview` keys); `AUTOREVIEW_NOT_ELIGIBLE`/`DISABLED` cached rows may carry score/model/cost details | pre-existing / new-path gap |
+| adversarial 1 | `scoreboard.json` is not hashed by a receipt: its `schema_version` can be downgraded (3 to 2) so the view is not compared | new-path gap |
+| adversarial 2 | Receipts: a swapped pair of receipt files (the file name is not compared with `stage`), a non-string `code_rev`, odd timestamp values, duplicate `./` spellings of one ref | new-path gap |
+| adversarial 4, gates 4 | Station rows: a TEST identity or answer-key path in a row, and a torn last line, are not refused (the Station reads them the same way) | pre-existing |
+| adversarial 5 | `autoreview.cache` is not read when the mode is `off`, so a sealed hard link there is not noticed; a cache folder's files are not compared with the other declared inputs by `load_spec` (`run_line` compares them with the labels) | new-path gap |
+| behaviour (case) | `verifier/agent.diff` is recognised by admission but never scored (the loader reads `final.diff` only) | pre-existing |
+| behaviour nit | `line scoreboard` prints metrics in insertion order, `SCOREBOARD.md` in sorted order; `core.snapshot_station` is dead code | nit |
+
+Fixed in the same round because they were worse than main: a refused `line check` no longer
+stays `PENDING`, `Final.diff`/`.JSON` and other upper-case names are matched like their
+lower-case forms, steps inside `traces[]` of a raw bundle are exempt from the label check like
+top-level steps, a folder of trials with a link in it is refused before a batch exists, and
+`line check` never rewrites `SCOREBOARD.md` of a batch whose saved view differs from its
+scoreboard. An honest symlinked declared input is refused by design (main follows it).
 
 ## Reading the scoreboard
 

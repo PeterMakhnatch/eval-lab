@@ -703,9 +703,9 @@ inputs:
   - path: src/evallab/line/__init__.py
     digest: sha256:c27a9880f68dafe29c1c3c6f2056b52d393a063da5f3c55b99d62fff354f8a9d
   - path: src/evallab/line/cli.py
-    digest: sha256:41b5cd792552319400a418fc6197dd14e965cacb7b6261eac1c8937f9f49d805
+    digest: sha256:aa89528acd391b10f8a2f6343e10168e48b21ac56ece693d0018e3f8e9bba658
   - path: src/evallab/line/core.py
-    digest: sha256:db8210f02c9e48766950d374bc0e57bcc151f2da7713d7c020d39306629902b0
+    digest: sha256:91f4a3e681658775bed862e08a9b12cb601a6367e9df57d5a402d01bdff11005
   - path: src/evallab/line/io.py
     digest: sha256:a4a058c6a6e7fbe4109462d97fae487dc55e66bb7096c1dca31b7d6dc2d8b76a
   - path: src/evallab/line/replay.py
@@ -1179,7 +1179,7 @@ inputs:
   - path: src/evallab/rollout.py
     digest: sha256:edfc1dd043c7d6755e6e82e59a88f08a13b9ce6bbef18e564b26adebc8e726d0
   - path: src/evallab/rollout_admission.py
-    digest: sha256:be650a5cbc4f84d62772e79ca13f4e3c312a18e348555f2b88cffca08083b675
+    digest: sha256:91170d2b01e5265febf36ccd0f9a966d65296b86903c68c24a9c3b65bfc6d917
   - path: src/evallab/roster.py
     digest: sha256:580eb3a4ce08953ade65471162763ddc902de0bada93b9c61b224ddbda80e16a
   - path: src/evallab/run_preflight.py

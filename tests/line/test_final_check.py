@@ -117,19 +117,39 @@ def test_invalidate_check_records_the_view_state_and_check_batch_then_fails(
     batch = core.run_line(fixture_spec, fixture_spec.parent)
     root = fixture_spec.parent
     assert "scoreboard_view" not in read_json(batch / "check.json")
+    board_bytes = (batch / "scoreboard.json").read_bytes()
     tamper(batch)
-    core.invalidate_check(batch)
+    tampered = _view_bytes(batch)
+    found = core.invalidate_check(batch)
     pending = read_json(batch / "check.json")
     assert pending["scoreboard_view"] == view
     assert pending["passed"] is False
     assert {c["status"] for c in pending["checks"]} == {"PENDING"}
-    # invalidate_check re-rendered the view, so the file itself now looks right: only the
-    # state it recorded before rewriting makes the gate fail.
-    board = read_json(batch / "scoreboard.json")
-    assert (batch / "SCOREBOARD.md").read_text() == render_scoreboard(board)
+    # A bad view is neither repaired nor re-rendered: both files stay exactly as found, and
+    # what was found is what invalidate_check returns for the later restore.
+    assert (batch / "scoreboard.json").read_bytes() == board_bytes
+    assert _view_bytes(batch) == tampered
+    assert found.files == {"scoreboard.json": board_bytes, "SCOREBOARD.md": tampered}
+    assert found.view == view
     result = _check(batch, root, "scoreboard_recompute")
     assert result["status"] == "FAIL"
     assert f"SCOREBOARD.md was {view} before this check" in result["details"]
+
+
+def _view_bytes(batch: Path) -> bytes | None:
+    path = batch / "SCOREBOARD.md"
+    return path.read_bytes() if path.exists() else None
+
+
+def test_invalidate_check_of_an_untouched_batch_returns_the_original_bytes(
+    fixture_spec: Path,
+) -> None:
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    board_bytes = (batch / "scoreboard.json").read_bytes()
+    view_bytes = (batch / "SCOREBOARD.md").read_bytes()
+    found = core.invalidate_check(batch)
+    assert found.view == "ok"
+    assert found.files == {"scoreboard.json": board_bytes, "SCOREBOARD.md": view_bytes}
 
 
 def test_invalidate_check_of_an_untouched_batch_records_an_ok_view(fixture_spec: Path) -> None:
@@ -139,34 +159,101 @@ def test_invalidate_check_of_an_untouched_batch_records_an_ok_view(fixture_spec:
     assert _check(batch, fixture_spec.parent, "scoreboard_recompute")["status"] == "PASS"
 
 
-def test_a_failed_check_leaves_the_batch_and_a_second_check_after_a_repair_passes(
-    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(("tamper", "view"), VIEW_TAMPERS)
+def test_a_failed_check_never_repairs_the_view_so_a_second_fails_too_until_it_is_restored(
+    fixture_spec: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tamper: Callable[[Path], None],
+    view: str,
 ) -> None:
     root = fixture_spec.parent
     batch = core.run_line(fixture_spec, root)
     original = (batch / "SCOREBOARD.md").read_bytes()
-    _rewrite_text(batch)
-    assert _cli(monkeypatch, root, "check", str(batch)) == 2
-    assert batch.is_dir() and (batch / "scoreboard.json").is_file()
-    # The failed check re-rendered the view (never the metrics): the file is no longer the
-    # tampered text, so restoring the original bytes is the same as what it wrote, apart from
-    # the quality-check section that now lists the failure.
-    assert (batch / "SCOREBOARD.md").read_bytes() != b"# Everything passed, trust me\n"
-    board = read_json(batch / "scoreboard.json")
-    assert (batch / "SCOREBOARD.md").read_text() == render_scoreboard(board)
+    board_bytes = (batch / "scoreboard.json").read_bytes()
+    tamper(batch)
+    tampered = _view_bytes(batch)
+    for _ in range(2):  # a second check meets exactly what the first one met
+        assert _cli(monkeypatch, root, "check", str(batch)) == 2
+        assert batch.is_dir()
+        assert _view_bytes(batch) == tampered  # a deleted view stays deleted
+        assert (batch / "scoreboard.json").read_bytes() == board_bytes
+        saved = read_json(batch / "check.json")
+        assert saved["passed"] is False
+        recompute = _checks(batch)["scoreboard_recompute"]
+        assert recompute["status"] == "FAIL"
+        assert f"SCOREBOARD.md was {view} before this check" in recompute["details"]
+    # Putting the genuine view back is what it takes.
     (batch / "SCOREBOARD.md").write_bytes(original)
-    # The saved view, now the original run's text, differs from the render of the board that the
-    # failing check wrote (its quality checks list the failure): so the next check still fails
-    # on the view.
-    assert _cli(monkeypatch, root, "check", str(batch)) == 2
-    assert _checks(batch)["scoreboard_recompute"]["status"] == "FAIL"
-    # With nothing touched since that check, the view is the render of its own board: it passes.
     assert _cli(monkeypatch, root, "check", str(batch)) == 0
     assert read_json(batch / "check.json")["passed"] is True
-    # Re-tampering fails it again.
-    _rewrite_text(batch)
+    assert (batch / "SCOREBOARD.md").read_text() == render_scoreboard(
+        read_json(batch / "scoreboard.json")
+    )
+
+
+def test_a_check_that_fails_elsewhere_still_refreshes_the_scoreboard_quality_list_and_view(
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = fixture_spec.parent
+    batch = core.run_line(fixture_spec, root)
+    _set_receipt("trace", code_dirty=True)(batch)  # provenance fails; the scoreboard is sound
     assert _cli(monkeypatch, root, "check", str(batch)) == 2
-    assert "SCOREBOARD.md was differs" in _checks(batch)["scoreboard_recompute"]["details"]
+    checks = _checks(batch)
+    assert checks["provenance"]["status"] == "FAIL"
+    assert checks["scoreboard_recompute"]["status"] == "PASS"
+    board = read_json(batch / "scoreboard.json")
+    assert board["quality_checks"] == read_json(batch / "check.json")["checks"]
+    assert {c["name"] for c in board["quality_checks"] if c["status"] == "FAIL"} == {"provenance"}
+    view = (batch / "SCOREBOARD.md").read_text()
+    assert view == render_scoreboard(board)
+    assert "provenance: **FAIL**" in view
+
+
+def test_a_check_of_tampered_metrics_keeps_them_and_only_refreshes_the_quality_list(
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = fixture_spec.parent
+    batch = core.run_line(fixture_spec, root)
+    board = read_json(batch / "scoreboard.json")
+    board["judge_load"]["total"] += 1  # a plausible number the batch does not support
+    tampered_total = board["judge_load"]["total"]
+    write_json(batch / "scoreboard.json", board)
+    (batch / "SCOREBOARD.md").write_text(render_scoreboard(board), encoding="utf-8")
+    for _ in range(2):  # the view matches its board each time, so a second check meets the same
+        assert _cli(monkeypatch, root, "check", str(batch)) == 2
+        checks = read_json(batch / "check.json")["checks"]
+        recompute = _checks(batch)["scoreboard_recompute"]
+        assert recompute["status"] == "FAIL"
+        assert "scoreboard differs from recomputation" in recompute["details"]
+        assert not {c["status"] for c in checks} <= {"PENDING"}
+        after = read_json(batch / "scoreboard.json")
+        assert after["judge_load"]["total"] == tampered_total  # a wrong metric is never repaired
+        assert after["quality_checks"] == checks  # only the quality list is refreshed
+        assert {k: v for k, v in after.items() if k != "quality_checks"} == {
+            k: v for k, v in board.items() if k != "quality_checks"
+        }
+        assert (batch / "SCOREBOARD.md").read_text() == render_scoreboard(after)
+        assert "scoreboard_recompute: **FAIL**" in (batch / "SCOREBOARD.md").read_text()
+
+
+def test_a_check_of_a_tampered_board_with_a_stale_view_restores_both_files(
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = fixture_spec.parent
+    batch = core.run_line(fixture_spec, root)
+    board = read_json(batch / "scoreboard.json")
+    board["judge_load"]["total"] += 1
+    write_json(batch / "scoreboard.json", board)  # SCOREBOARD.md is left as it was
+    board_bytes = (batch / "scoreboard.json").read_bytes()
+    view_bytes = (batch / "SCOREBOARD.md").read_bytes()
+    for _ in range(2):
+        assert _cli(monkeypatch, root, "check", str(batch)) == 2
+        recompute = _checks(batch)["scoreboard_recompute"]
+        assert recompute["status"] == "FAIL"
+        assert "SCOREBOARD.md was differs before this check" in recompute["details"]
+        assert not {c["status"] for c in read_json(batch / "check.json")["checks"]} <= {"PENDING"}
+        assert (batch / "scoreboard.json").read_bytes() == board_bytes
+        assert (batch / "SCOREBOARD.md").read_bytes() == view_bytes
 
 
 def _drop_quality_checks(batch: Path) -> None:

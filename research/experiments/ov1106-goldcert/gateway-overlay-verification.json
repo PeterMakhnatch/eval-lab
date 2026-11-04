@@ -1,0 +1,18 @@
+{
+  "old_batch_driver_sha256": "170ed8f02f9edb9f9bf93a433c54fb873d34c92d54256687bde02d0cae441e89",
+  "old_batch_served_models": {
+    "openai-codex/gpt-6.1-terra": 122
+  },
+  "old_batch_scope": "All retained raw response envelopes, including final and any late responses. All20 provenance chains remain admitted. No guarantee that oldCLI actually enforced its unused overlay.",
+  "new_driver_sha256": "9fa14b0c7a9e4f7dde8733aa2e4557f577c530aa82be7bb8771928d63cfffc47",
+  "environment_override": "PI_CONFIG_FILES=/private/tmp/ov1106/shared/nofallback.yml",
+  "mandatory_cli_flag": "--config /private/tmp/ov1106/shared/nofallback.yml",
+  "config_get_retry_modelFallback": false,
+  "new_canary": "/private/tmp/ov1106/goldcert/resumed-terra-canary-v3/canary/receipt.json",
+  "new_canary_sha256": "55c0413e5a5286027b157152b14f7d6794531831ee5250f01c6e33d43003c013",
+  "new_canary_response_models": {
+    "openai-codex/gpt-6.1-terra": 6
+  },
+  "new_canary_passed": true,
+  "provider_error_fallback_fault_tested": false
+}

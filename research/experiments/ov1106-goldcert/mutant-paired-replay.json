@@ -1,0 +1,224 @@
+{
+  "blinding": "The separate audit helper receives public instructions, admitted pristine source and frozen mutation deltas, but no scorer outputs. Parent joins rewards after labels freeze.",
+  "counts": {
+    "DEFECT": {
+      "original_rejected": 8,
+      "paired_rows": 10,
+      "public_rejected": 10
+    },
+    "POSSIBLY_VALID": {
+      "original_rejected": 0,
+      "paired_rows": 6,
+      "public_rejected": 0
+    }
+  },
+  "exclusion_reason": "Both UI mutations lack a public runtime scorer; fixed pool membership remains unchanged.",
+  "frozen_pool_total": 18,
+  "gate_pools_or_denominators_changed": false,
+  "no_native_hardened_gates_inferred": true,
+  "paired_executable_rows": 16,
+  "posthoc_descriptive": true,
+  "rows": [
+    {
+      "control": "train-bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/000682-original-v2-runtime2-train-bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240/result.json",
+      "original_reward": 1.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/000682-gold-v2-train-bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240/result.json",
+      "public_reward": 1.0,
+      "split": "train",
+      "static_category": "POSSIBLY_VALID",
+      "task": "000682"
+    },
+    {
+      "control": "eval-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/000682-original-v2-runtime2-eval-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c/result.json",
+      "original_reward": 1.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/000682-gold-v2-eval-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c/result.json",
+      "public_reward": 0.0,
+      "split": "eval",
+      "static_category": "DEFECT",
+      "task": "000682"
+    },
+    {
+      "control": "train-12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-original-v2-runtime2-train-12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d/result.json",
+      "original_reward": 0.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-gold-v2-train-12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d/result.json",
+      "public_reward": 0.0,
+      "split": "train",
+      "static_category": "DEFECT",
+      "task": "002139"
+    },
+    {
+      "control": "train-1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-original-v2-runtime2-train-1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd/result.json",
+      "original_reward": 0.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-gold-v2-train-1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd/result.json",
+      "public_reward": 0.0,
+      "split": "train",
+      "static_category": "DEFECT",
+      "task": "002139"
+    },
+    {
+      "control": "train-7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-original-v2-runtime2-train-7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e/result.json",
+      "original_reward": 0.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-gold-v2-train-7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e/result.json",
+      "public_reward": 0.0,
+      "split": "train",
+      "static_category": "DEFECT",
+      "task": "002139"
+    },
+    {
+      "control": "train-88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-original-v2-runtime2-train-88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec/result.json",
+      "original_reward": 1.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-gold-v2-train-88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec/result.json",
+      "public_reward": 1.0,
+      "split": "train",
+      "static_category": "POSSIBLY_VALID",
+      "task": "002139"
+    },
+    {
+      "control": "eval-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-original-v2-runtime2-eval-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf/result.json",
+      "original_reward": 0.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-gold-v2-eval-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf/result.json",
+      "public_reward": 0.0,
+      "split": "eval",
+      "static_category": "DEFECT",
+      "task": "002139"
+    },
+    {
+      "control": "eval-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-original-v2-runtime2-eval-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c/result.json",
+      "original_reward": 1.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-gold-v2-eval-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c/result.json",
+      "public_reward": 1.0,
+      "split": "eval",
+      "static_category": "POSSIBLY_VALID",
+      "task": "002139"
+    },
+    {
+      "control": "eval-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-original-v2-runtime2-eval-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc/result.json",
+      "original_reward": 0.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-gold-v2-eval-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc/result.json",
+      "public_reward": 0.0,
+      "split": "eval",
+      "static_category": "DEFECT",
+      "task": "002139"
+    },
+    {
+      "control": "eval-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-original-v2-runtime2-eval-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa/result.json",
+      "original_reward": 0.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/002139-gold-v2-eval-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa/result.json",
+      "public_reward": 0.0,
+      "split": "eval",
+      "static_category": "DEFECT",
+      "task": "002139"
+    },
+    {
+      "control": "mutant-0",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/000081-original-v2-runtime2-mutant-0/result.json",
+      "original_reward": 0.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/000081-gold-v2-mutant-0/result.json",
+      "public_reward": 0.0,
+      "split": "train",
+      "static_category": "DEFECT",
+      "task": "000081"
+    },
+    {
+      "control": "mutant-1",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/000081-original-v2-runtime2-mutant-1/result.json",
+      "original_reward": 1.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/000081-gold-v2-mutant-1/result.json",
+      "public_reward": 0.0,
+      "split": "eval",
+      "static_category": "DEFECT",
+      "task": "000081"
+    },
+    {
+      "control": "mutant-2",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/000081-original-v2-runtime2-mutant-2/result.json",
+      "original_reward": 0.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/000081-gold-v2-mutant-2/result.json",
+      "public_reward": 0.0,
+      "split": "eval",
+      "static_category": "DEFECT",
+      "task": "000081"
+    },
+    {
+      "control": "mutant-0",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/001267-original-v2-runtime2-mutant-0/result.json",
+      "original_reward": 1.0,
+      "paired_measured": false,
+      "public_receipt": null,
+      "public_reward": null,
+      "split": "train",
+      "static_category": "DEFECT",
+      "task": "001267"
+    },
+    {
+      "control": "mutant-1",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/001267-original-v2-runtime2-mutant-1/result.json",
+      "original_reward": 1.0,
+      "paired_measured": false,
+      "public_receipt": null,
+      "public_reward": null,
+      "split": "eval",
+      "static_category": "POSSIBLY_VALID",
+      "task": "001267"
+    },
+    {
+      "control": "mutant-0",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/003007-original-v2-runtime2-mutant-0/result.json",
+      "original_reward": 1.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/003007-gold-v2-mutant-0/result.json",
+      "public_reward": 1.0,
+      "split": "train",
+      "static_category": "POSSIBLY_VALID",
+      "task": "003007"
+    },
+    {
+      "control": "mutant-1",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/003007-original-v2-runtime2-mutant-1/result.json",
+      "original_reward": 1.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/003007-gold-v2-mutant-1/result.json",
+      "public_reward": 1.0,
+      "split": "eval",
+      "static_category": "POSSIBLY_VALID",
+      "task": "003007"
+    },
+    {
+      "control": "mutant-2",
+      "original_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/003007-original-v2-runtime2-mutant-2/result.json",
+      "original_reward": 1.0,
+      "paired_measured": true,
+      "public_receipt": "/private/tmp/ov1106/goldcert/helpers/contracts/cells/003007-gold-v2-mutant-2/result.json",
+      "public_reward": 1.0,
+      "split": "eval",
+      "static_category": "POSSIBLY_VALID",
+      "task": "003007"
+    }
+  ],
+  "schema": "ov1106-goldcert-static-audit-paired-replay-v1",
+  "static_labels_are_runtime_ground_truth": false,
+  "unpaired_rows": 2
+}

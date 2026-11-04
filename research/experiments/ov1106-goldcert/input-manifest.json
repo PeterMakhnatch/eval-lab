@@ -1,0 +1,152 @@
+{
+  "tasks": [
+    {
+      "allowed_prefixes": [
+        "c7n/"
+      ],
+      "id": "000682",
+      "instruction_sha256": "6ae2341089d4403e2e83f2946fde43aa485c29774043588ad6e6e7085cfa2278",
+      "source_hashes": {
+        "c7n/actions/__init__.py": "1e9738792ae0c29f63cdb8055414f2391e08b41c89b73bebc127f8f89d7954ea",
+        "c7n/filters/__init__.py": "575df083e00eaf0da25952cb25377c466d44479e7ff5de2b65433f5fee4f1f35",
+        "c7n/filters/kms.py": "6bc7d46a418015939ec7b1ee7e26b27c8208042b3b80ea22ebf5cd9cece3889f",
+        "c7n/resources/sns.py": "c1ffc81c27c6249fa6ffd58bb39ba7570f29ebc8a660c03fe7cc0446b739c53e",
+        "c7n/resources/sqs.py": "5ec232327c8ec8e4c67e2450a8ecfb0a822872d5da93ba73e7cfe563196de726",
+        "c7n/utils.py": "a37ec3ad90087c4b7142efef8023951108c10867c6ef62a3b759a57b60da3df8"
+      },
+      "source_image": "sha256:9e7dc898cf933772f2fd4342c9b1a6f1cc64c4865dc956fd5a7aff729ead560f",
+      "source_origin": "Stopped pristine cached env-image export; no process, reference application, or VCS history access.",
+      "upstream_revision": "ef7ecf3430a90b8f9fb6590a7591bede10a996ba"
+    },
+    {
+      "allowed_prefixes": [
+        "lib/bb/"
+      ],
+      "id": "002139",
+      "instruction_sha256": "40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8",
+      "source_hashes": {
+        "lib/bb/fetch2/__init__.py": "3c95eb10221bb7aba2deb3f2869538340239040a620b6af8e71ec3f18fab6651",
+        "lib/bb/fetch2/az.py": "18ca2ee7d4f80d496b78c147303f92bb16a589156d8e6adbe20809a6d3d9056d",
+        "lib/bb/fetch2/crate.py": "a448984dec8d0bf22bdcb4a36cda64d2a34d0f2a8f2cae2fab2c9ef79108474e",
+        "lib/bb/fetch2/s3.py": "0e2ec33149c4bdc2654325ead0b61cf79f765ab4855431f24582c3303d922a70"
+      },
+      "source_image": "sha256:c07a0dd1f2d1b023550b352b3194d9e03022c00da954f20264cd012d8183cb52",
+      "source_origin": "Stopped pristine cached env-image export; no process, reference application, or VCS history access.",
+      "upstream_revision": "f316e1ced454b1ef83dfb78f3695040600507b78"
+    },
+    {
+      "allowed_prefixes": [
+        "xdoctest/"
+      ],
+      "id": "000081",
+      "instruction_sha256": "5d871298963ec727f9513397626f0b620b1886e25a099b938560c7e8d2209129",
+      "source_hashes": {
+        "xdoctest/__init__.py": "79a07ff894e0d3ea69e75bf32b357801f2a0387d1908e57df2130d58a922b2f2",
+        "xdoctest/__main__.py": "01fdf5f960d35b01c6c4b2f56eec2d2bccaa0892dd5de55bd30e02275d846128",
+        "xdoctest/_old_pkgutil_code.py": "328797392c738deadd526d22a9cf3e4926698e654fc5a41431c67dc9637217fd",
+        "xdoctest/checker.py": "4f53471f715fcfc41c3a84b56ab169b11473969191165beb863d0cc191f7e232",
+        "xdoctest/core.py": "e2ae1ae689c65994a55a8756c21fb4bb38d5908fd2012fdd3b03b31edff10743",
+        "xdoctest/docscrape_google.py": "fe8310213752534ad4fc00c5c615650e1a664f6f7537ab3cf14c4f0a4247292c",
+        "xdoctest/dynamic_analysis.py": "38b7bf81cbfc1740f6c21469399fba53d106977edd6bc50210032ffbd40d8f19",
+        "xdoctest/exceptions.py": "f5067c643debf43ca762bfce674e3dfed5927ab6b23a3729bc4d35acec78165e",
+        "xdoctest/parser.py": "90bce4950d5276ca46509f5c5c166a75cd9328266814e16a5653838bf6adb35a",
+        "xdoctest/plugin.py": "647129c3397f31e2e20a9db5caaaa7c8020328994ac343e2be08b5737b438cfd",
+        "xdoctest/runner.py": "37814cfac2d490805c03a6db4c2076e6904e5fc8fbe1d4507b11396b7e754caa",
+        "xdoctest/static_analysis.py": "e930559ff9a38e219e427c9656023046309cf2aa83eb547c1693f1479aa13816",
+        "xdoctest/utils.py": "2c20c5f3614ac688609817ee20d2d472a73059703fca986c794950f2a3b2fa2e"
+      },
+      "source_image": "sha256:972247b69623a8839aaa1faf5108524a1d74e68699f8f9a85100ce2b87bc8b89",
+      "source_origin": "Stopped pristine cached env-image export; no process, reference application, or VCS history access.",
+      "upstream_revision": "95437b7b43d24792a7d38333c93943c93a244508"
+    },
+    {
+      "allowed_prefixes": [
+        "sucks/"
+      ],
+      "id": "003007",
+      "instruction_sha256": "8f83549f73e689134c24a8ae877231b200916848ec6b024b8eb393e0b6e6a3e5",
+      "source_hashes": {
+        "sucks/__init__.py": "bba4997cac7cb6f9cf4f413525016aa7ed7faba343efc012380da25046d9a321",
+        "sucks/cli.py": "3447a387221a54d4d19f5797e45d7b8e5b99acdb15f735e8bd2ca8ccf9396cf0"
+      },
+      "source_image": "sha256:c8f7aadce30109f55059097b262d856a94c0ea0fe1111a41af8a61892f89b576",
+      "source_origin": "Stopped pristine cached env-image export; no process, reference application, or VCS history access.",
+      "upstream_revision": "4c1d68f9246fcfba605344e50f9ed6ed9631b247"
+    },
+    {
+      "allowed_prefixes": [
+        "redash/",
+        "rd_ui/app/"
+      ],
+      "id": "001267",
+      "instruction_sha256": "92d8d6352b450451e09a128c9b9befe6b0023ffa843c433a553420924d30d78b",
+      "source_hashes": {
+        "rd_ui/app/404.html": "4f2117ec8ba3f5a88ae0010f2b72e64fb9fde0c2745c6e72b4082ea4e7114298",
+        "rd_ui/app/index.html": "64452a8efe1121ee3b1de79c0240093edbf436ef31339e2b4bdd0a7bebf17f50",
+        "rd_ui/app/login.html": "fcb7f0250abed0870dcc5749ddd109b5795f364e04f2b4845e855e77c5bfd32b",
+        "rd_ui/app/scripts/app.js": "83873ffa637a6c34d9919bb9d9d9fade62b35fec993ae8356511c78f22ed4177",
+        "rd_ui/app/scripts/controllers/admin_controllers.js": "d391602f06a74e2f6ede5b3e1daa1ef090242f3680ddee0252b832dbf928ff88",
+        "rd_ui/app/scripts/controllers/controllers.js": "5345e2065c84b02276bedd519785456ef25d9ac4a13d95ddecb7e33aae419e1c",
+        "rd_ui/app/scripts/controllers/dashboard.js": "c465a797b5456a827e9ce4ca86dda0096812e6c5945a6d9bdda9481bb3eff99a",
+        "rd_ui/app/scripts/controllers/query_source.js": "14b2d235ad11dff7e420155eede434c986782fa12408e3035dd37c00365307fb",
+        "rd_ui/app/scripts/controllers/query_view.js": "31c5546625d97c8b2cec72d989f0a8bdae6feaff8ad2c839f109646ca617c9cf",
+        "rd_ui/app/scripts/directives/dashboard_directives.js": "1404af3bf7ffb56855b5752611a01358d52aa58aac6798ee798164984c50c87c",
+        "rd_ui/app/scripts/directives/directives.js": "d73aff668c75dad642b98af41c9abdffd6c323589fa7dd0c4dfea9571603c96c",
+        "rd_ui/app/scripts/directives/query_directives.js": "e8d8074f1609171f8ab3bfebdbf881eea2342690140c269665fe13ff50e432c1",
+        "rd_ui/app/scripts/filters.js": "ab5d691d6881060a36e91a63d9e16d709b8fcb0f0bc628712bbb3d4deed11e70",
+        "rd_ui/app/scripts/ng_highchart.js": "0dac3a71412ddf85cc48d3e81ee8d43b463aed22e869193f399431cc17cd340a",
+        "rd_ui/app/scripts/ng_smart_table.js": "2d0dfe3187cee5b0e000c3aa4bd9f0a31a29c4015070b6b6a635f1466509191e",
+        "rd_ui/app/scripts/services/dashboards.js": "95f41480ba9c056538be297298b4e37ce9fe98ab5816996abab92872742b2113",
+        "rd_ui/app/scripts/services/notifications.js": "f82921157877a7af31ec176123c24fd80f7a9b318b2100f89da2b83f39b2a7a2",
+        "rd_ui/app/scripts/services/resources.js": "fed749782485c1dfeaeee954de27a9bfeb63790f3f7902202856949f219ea554",
+        "rd_ui/app/scripts/services/services.js": "4aa63fbf7b2a13b2b70760d336fa3c858408bdfa7239e81297d0c14df65675c5",
+        "rd_ui/app/scripts/ui-bootstrap-tpls-0.5.0.min.js": "bcdccb56c5a299a156917431597f0d85ab87eca140b84235c08afb037b07fe86",
+        "rd_ui/app/scripts/visualizations/base.js": "f62539826d7a79207f872f56dc14af6ba19bbfface0609aa37acc97cffad5101",
+        "rd_ui/app/scripts/visualizations/chart.js": "3183df8e82f7adec907bc494d01b2389cba632cb0b46a6dbd024df28d3d95a62",
+        "rd_ui/app/scripts/visualizations/cohort.js": "6bdc36ffa28570664942f9ae49d95e0f65495ffab8bc4ccc13a617abc5fea62b",
+        "rd_ui/app/scripts/visualizations/pivot.js": "ebdbac40f6c9bcfd6367d5f7bacf4a65aa5987b6f701215697d996cc6c6c4729",
+        "rd_ui/app/scripts/visualizations/table.js": "4dbd33c57989c646f41e0f7232f4b98f1e461bcf8adfb2542c6457f0d7c8baeb",
+        "rd_ui/app/styles/login.css": "0e357b7ae92d201254f814f2f3483c84919bf7f108666f1ffb0db989e664cb2c",
+        "rd_ui/app/styles/redash.css": "adbdd7f5a0ef955c15f262a44b57ed06855066e39d8fc87fb836c632f6257f23",
+        "rd_ui/app/views/admin_status.html": "dc72568d6fceb5fc6f50c572193af2e8d60addf8998721a9c938ced30dd4308c",
+        "rd_ui/app/views/admin_workers.html": "92a89579a82c19c007da24392288da93985de66bb2650e286c76fd23749e4c9e",
+        "rd_ui/app/views/dashboard.html": "55d9b4f9b05c602a99217b1608d282a993ecd9568781f91e52960b74f18aa2a0",
+        "rd_ui/app/views/edit_dashboard.html": "a861e7de5247969cf73411bd094222c6fdd799b425aa4ffb0466e2324240832a",
+        "rd_ui/app/views/grid_renderer.html": "404852a5296193b79a2de1d9e3d3563c300431a07a179ded5cfe485a3ab77ce1",
+        "rd_ui/app/views/index.html": "4052540be8842ab015a6554bcd6b2b9849ab217841b660f6ed80dd9c79bcd1ec",
+        "rd_ui/app/views/new_widget_form.html": "c9878ec8b79bab10c5f9dc504113b8d7335a1147d2fdb0e7f1f50a8c6603026b",
+        "rd_ui/app/views/queries.html": "82fbec1aca4d1b00f9c2d8a783ca0f93d049828b141f7e29f193ca727e74f66a",
+        "rd_ui/app/views/queries_query_name_cell.html": "01af9ba7363cd4f3a64575bb156d9addb599402782dbf7b4df63adea0ad48f35",
+        "rd_ui/app/views/query.html": "54c2f5cda86a74c1b0700eba0b9c99f9677d55a6d62ab5ef444bd5ebd6661cda",
+        "rd_ui/app/views/visualizations/chart_editor.html": "2a0b5ac638ce2a909727795451a05b1454436d6b962a4907710dfbd9c4367c52",
+        "rd_ui/app/views/visualizations/cohort_editor.html": "4e71426a1f4e78cb2b17ad4f6ed9c5d0dd8f5d75d92d7295a478647113666ad0",
+        "rd_ui/app/views/visualizations/edit_visualization.html": "d7ed939a87fd2c985197d295b27032485aba5158e3a98994220c54395df01864",
+        "rd_ui/app/views/visualizations/filters.html": "3aedf426818f999d13a07f1d278850446210c8a0d632a74d7df1bd5c306fddbd",
+        "redash/__init__.py": "0162e8ec23b0546c19dff62e22e2c4aaf5de019eecf4d67696e36f0c44714e44",
+        "redash/authentication.py": "eb011edc14e4f8988c183b2691dff0a321b3dd38b6050f873e4b3e43659d029b",
+        "redash/cache.py": "520dfd582c246a9a226a6189345f40ad5dcbe33e4ff34224bc130ee8cffe2c7a",
+        "redash/controllers.py": "d8754cb6fc760670f3d531536492317aac1856d7981aa0f472eb15e004a9e1cd",
+        "redash/data/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "redash/data/query_runner.py": "6fc502fcb8c2a90dd9ad1310f36646019374a0cb00833b6f42c4c1f2ede1f6e4",
+        "redash/data/query_runner_bigquery.py": "eb8e4c031f6e9b63a334605c07dea2b36cac86aa11001ba1bd7a4ea2c92f099f",
+        "redash/data/query_runner_graphite.py": "5f0bf3c91384d95f6455a5b3780a7f659eb1997bef301af9e63976ef041eaedc",
+        "redash/data/query_runner_mysql.py": "1e11dcb64800bab1ca316e7391f770fd7eb9f8341eefe6e0e84175e53322fe19",
+        "redash/data/query_runner_pg.py": "debd6304c3463aaa0f7064e0a78ad37194a285434fcb9587df1e8e6118e23343",
+        "redash/data/query_runner_script.py": "d3ce04d967f5385385c595d2025813ef5920232258017f56f8f7233b3891f2d8",
+        "redash/data/query_runner_url.py": "b61fd9dc04cc5f3ecc6644ea27d923d7999eee084cda03c482f1b43fbeff25d2",
+        "redash/google_oauth.py": "ac25e50622811a9f1551c41ae757984cf4ab4db7edf308b6741284b28083acb4",
+        "redash/import_export.py": "6150e03b045e8a3085b2ccb0ba8470af2549b15f214320ca0a43e68becac6fef",
+        "redash/models.py": "4ffb47539e20d83978fe11b34bd09025418d96ce3012cd26f1bc16abe428d043",
+        "redash/permissions.py": "d41968f9ec6e1cb585045d4865c34842cccda0253144c514dcd8310c805098cd",
+        "redash/settings.py": "316c783bb4e957658cd36eef942a835bd07adf0502bf02d7a63b056eb61a7029",
+        "redash/tasks.py": "8282a406f26a4f5e47396025b7c25f6d3a83f9a20d7b0310703662bc9c98029c",
+        "redash/utils.py": "36d859db51a219a1be9542621e5023fc580cac7fd0e1d39644ccc41d43980c6f",
+        "redash/worker.py": "2d40e7adf12c57f69031d0ca7ca592b0069cf975c03c3c5d285eea433e40690e",
+        "redash/wsgi.py": "899686141a5bfc3cc1d329474c7edd2eaabfa80e767d760b3b281de670b095aa"
+      },
+      "source_image": "sha256:b8c483785208ce4956f00418f067db104d0c9bb0ea0ed440fc4fa25dff6b0092",
+      "source_origin": "Stopped pristine cached env-image export; no process, reference application, or VCS history access.",
+      "upstream_revision": "883bf173c0df529e07056ea9b2be81710c3b0e16"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "scope": "Posthoc source-level edge probe, not a native candidate score or full task verdict. No grader, candidate, pool, split, or gate changes.",
+  "source_sha256": "6bc7d46a418015939ec7b1ee7e26b27c8208042b3b80ea22ebf5cd9cece3889f",
+  "source_lines": [
+    47,
+    57
+  ],
+  "candidate_task": "000682",
+  "candidate_index": 2,
+  "candidate_patch_sha256": "b136aad0a83b31afcf8dc8552a973609b1eb24b8fd08107d9add40889b5d14be",
+  "sdk_response": {
+    "Aliases": [],
+    "Truncated": false
+  },
+  "observed_error": {
+    "type": "IndexError",
+    "message": "list index out of range"
+  },
+  "execution": "Only the exact pristine process method AST executes, with local session/client/related-resource stubs. No candidate imports, network, Docker, Modal, model, or paid calls.",
+  "public_evidence": [
+    {
+      "url": "https://docs.aws.amazon.com/kms/latest/developerguide/kms-alias.html",
+      "paraphrase": "Some KMS keys have no aliases. CreateKey does not require an alias.",
+      "local_copy": "/Users/petermakhnatch/Developer/research-context/sources/links/docs.aws.amazon.com/2026-11-04-aliases-in-aws-kms-aws-key-management-servicealiases-in-aws.md"
+    },
+    {
+      "url": "https://docs.aws.amazon.com/sns/latest/dg/sns-server-side-encryption.html",
+      "paraphrase": "SNS accepts a KMS key ID or key ARN, not only an alias.",
+      "local_copy": "/Users/petermakhnatch/Developer/research-context/sources/links/docs.aws.amazon.com/2026-11-04-securing-amazon-sns-data-with-server-side-encryption-amazon.md"
+    }
+  ],
+  "limits": [
+    "The static score-blind review remains UNCERTAIN for this candidate.",
+    "This bounded method probe does not execute the complete resource-manager lookup or a live AWS operation.",
+    "Eight native acceptances do not prove eight universally correct implementations.",
+    "No frozen contract is tuned from this historical held-out candidate."
+  ]
+}

@@ -1,0 +1,810 @@
+{
+  "schema_version": 1,
+  "review_type": "scoreblind_static_source_only",
+  "reviewer_model": "openai-codex/gpt-6.1-sol",
+  "scope": {
+    "tasks": [
+      "000682",
+      "002139"
+    ],
+    "planned_indices_per_task": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "candidates_reviewed": 8,
+    "candidate_root": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers",
+    "frozen_inputs": "/private/tmp/ov1106/goldcert/frozen-inputs.json",
+    "all_historical_splits_preserved": true,
+    "all_source_hashes_preserved": true,
+    "allowed_source_restriction": "Only paths in the two tasks source_hashes were opened or hashed; no source-export directory traversal."
+  },
+  "method": {
+    "static_only": true,
+    "candidate_execution": false,
+    "patch_application": false,
+    "external_research": false,
+    "model_api_calls": false,
+    "children": false,
+    "tests_build_lint_formatters": false,
+    "git_or_history_access": false,
+    "scores_or_grader_contents_access": false,
+    "reference_or_hidden_test_access": false,
+    "receipt_usage": "Hash, task/index/split, source mapping and modified-path fields only; no scoring data. One initial receipt rendering also exposed route/usage/provenance fields, which are not correctness evidence.",
+    "static_validation": "Hash comparisons, patch-header path comparison, and ast.parse of added SNS declarations or new GCS source text only. No compile/import/exec/eval of candidate code.",
+    "limits": "No runtime proof and no statistical confidence claim. Directory listings exposed filenames only; no scoring report contents were read."
+  },
+  "classification_policy": {
+    "DEFINITE_DEFECT": "A concrete consumer-visible violation follows from the public instruction or supplied established API, without guessing unavailable SDK behavior.",
+    "NO_DEFINITE_DEFECT_FOUND": "The inspected source reveals no definite violation; this is not a correctness claim.",
+    "UNCERTAIN": "A specific potentially consumer-visible failure is identified, but a necessary SDK/API reachability fact is unavailable."
+  },
+  "summary": {
+    "DEFINITE_DEFECT": 0,
+    "NO_DEFINITE_DEFECT_FOUND": 7,
+    "UNCERTAIN": 1,
+    "uncertain_candidate": "000682/2",
+    "interpretation": "No candidate is certified by this review. The inherited empty-alias indexing risk in SNS candidate 2 remains unresolved. Keep all 8 planned candidates and their original splits; no grader tuning or candidate-pool change follows."
+  },
+  "public_instructions": {
+    "000682": {
+      "path": "/private/tmp/ov1104/grader/alt/000682/instruction.md",
+      "sha256": "6ae2341089d4403e2e83f2946fde43aa485c29774043588ad6e6e7085cfa2278"
+    },
+    "002139": {
+      "path": "/private/tmp/ov1104/grader/alt/002139/instruction.md",
+      "sha256": "40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8"
+    }
+  },
+  "candidates": [
+    {
+      "task": "000682",
+      "index": 0,
+      "frozen_split": "validation",
+      "patch_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/000682/0/solution.patch",
+      "receipt_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/000682/0/receipt.json",
+      "patch_sha256": "8f76711e17db400581b6fc21dae77b5e53b98a4992a580d8421a77c51acfa87a",
+      "receipt_patch_sha256": "8f76711e17db400581b6fc21dae77b5e53b98a4992a580d8421a77c51acfa87a",
+      "patch_hash_matches": true,
+      "modified_paths": [
+        "c7n/filters/kms.py",
+        "c7n/resources/sns.py"
+      ],
+      "source_hashes": {
+        "c7n/actions/__init__.py": "1e9738792ae0c29f63cdb8055414f2391e08b41c89b73bebc127f8f89d7954ea",
+        "c7n/filters/__init__.py": "575df083e00eaf0da25952cb25377c466d44479e7ff5de2b65433f5fee4f1f35",
+        "c7n/filters/kms.py": "6bc7d46a418015939ec7b1ee7e26b27c8208042b3b80ea22ebf5cd9cece3889f",
+        "c7n/resources/sns.py": "c1ffc81c27c6249fa6ffd58bb39ba7570f29ebc8a660c03fe7cc0446b739c53e",
+        "c7n/resources/sqs.py": "5ec232327c8ec8e4c67e2450a8ecfb0a822872d5da93ba73e7cfe563196de726",
+        "c7n/utils.py": "a37ec3ad90087c4b7142efef8023951108c10867c6ef62a3b759a57b60da3df8"
+      },
+      "source_hashes_match_frozen": true,
+      "source_bytes_verified": {
+        "c7n/actions/__init__.py": true,
+        "c7n/filters/__init__.py": true,
+        "c7n/filters/kms.py": true,
+        "c7n/resources/sns.py": true,
+        "c7n/resources/sqs.py": true,
+        "c7n/utils.py": true
+      },
+      "instruction_hash_matches": true,
+      "modified_paths_match_patch_headers": true,
+      "static_ast_parse": "Added SNS imports and class definitions parse; no patch application, import, or execution.",
+      "category": "NO_DEFINITE_DEFECT_FOUND",
+      "definite_defects": [],
+      "evidence": [
+        {
+          "kind": "public_api_alignment",
+          "claim": "Registers an SNS kms-key filter, inherits the established KmsRelatedFilter, and sets KmsMasterKeyId as the related identifier. The inherited schema exposes ValueFilter properties and c7n:AliasName matching. This is a source-level integration observation, not proof that all identifier forms resolve.",
+          "patch_lines": "30-39",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/resources/sns.py:27-48",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/filters/kms.py:22-57"
+          ],
+          "instruction_quote": "same kind of filtering that other resources support against a KMS key (matching by id / arn / alias)"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Registers an encryption action and boolean state/string key schema. Enabled state forwards the selected key; disabled state sends an empty KmsMasterKeyId. Uses the established session_factory and TopicArn/SetTopicAttributes call shape.",
+          "patch_lines": "57-71",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/resources/sns.py:173-200",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/resources/sns.py:227-253",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/actions/__init__.py:16",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/utils.py:122-166"
+          ],
+          "instruction_quote": "I want an action that flips encryption on for them, ideally letting me pick the KMS key. I'd also like to be able to turn encryption back off on a topic if needed."
+        },
+        {
+          "kind": "different_valid_design_not_a_defect",
+          "claim": "The instruction does not require a property spelling, class name, default key, action return value, or exact message. key/state and alias/aws/sns are not rejected for differing from an unavailable reference.",
+          "patch_lines": "57-71",
+          "public_evidence": [
+            "/private/tmp/ov1104/grader/alt/000682/instruction.md:7-25"
+          ]
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Guards the inherited alias list indexing for an empty list. Only the first alias remains visible, as in the established public filter.",
+          "patch_lines": "7-9",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/filters/kms.py:47-57"
+          ]
+        }
+      ],
+      "remaining_uncertainty": [
+        "Approved source mappings do not include RelatedResourceFilter, the KMS Key manager, QueryResourceManager, BaseAction implementation, or botocore service definitions. Complete key ID/ARN/alias resolution and inherited permissions cannot be proven here.",
+        "All candidates preserve first-alias-only behavior. Multiple aliases, alias pagination, alias ARN resolution, and alias-list ClientError recovery need SDK/related-manager evidence not supplied. Existing behavior is not independent evidence of full correctness.",
+        "The action forwards the chosen identifier or an empty string to SNS. Supplied public production files do not define SNS service-side acceptance or encryption-disable semantics; no SDK call is made.",
+        "Uses manager.retry around SetTopicAttributes. The approved KMS filter already uses manager.retry, but the manager implementation and retry/error policy are not provided.",
+        "No runtime, live service, hidden test, reference, or grader evidence is used. NO_DEFINITE_DEFECT_FOUND does not assert correctness."
+      ]
+    },
+    {
+      "task": "000682",
+      "index": 1,
+      "frozen_split": "validation",
+      "patch_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/000682/1/solution.patch",
+      "receipt_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/000682/1/receipt.json",
+      "patch_sha256": "416c4c679a9e6a3b7464813190d6aa90f0ca5e3c6a158f3a05a02a7989d19c79",
+      "receipt_patch_sha256": "416c4c679a9e6a3b7464813190d6aa90f0ca5e3c6a158f3a05a02a7989d19c79",
+      "patch_hash_matches": true,
+      "modified_paths": [
+        "c7n/filters/kms.py",
+        "c7n/resources/sns.py"
+      ],
+      "source_hashes": {
+        "c7n/actions/__init__.py": "1e9738792ae0c29f63cdb8055414f2391e08b41c89b73bebc127f8f89d7954ea",
+        "c7n/filters/__init__.py": "575df083e00eaf0da25952cb25377c466d44479e7ff5de2b65433f5fee4f1f35",
+        "c7n/filters/kms.py": "6bc7d46a418015939ec7b1ee7e26b27c8208042b3b80ea22ebf5cd9cece3889f",
+        "c7n/resources/sns.py": "c1ffc81c27c6249fa6ffd58bb39ba7570f29ebc8a660c03fe7cc0446b739c53e",
+        "c7n/resources/sqs.py": "5ec232327c8ec8e4c67e2450a8ecfb0a822872d5da93ba73e7cfe563196de726",
+        "c7n/utils.py": "a37ec3ad90087c4b7142efef8023951108c10867c6ef62a3b759a57b60da3df8"
+      },
+      "source_hashes_match_frozen": true,
+      "source_bytes_verified": {
+        "c7n/actions/__init__.py": true,
+        "c7n/filters/__init__.py": true,
+        "c7n/filters/kms.py": true,
+        "c7n/resources/sns.py": true,
+        "c7n/resources/sqs.py": true,
+        "c7n/utils.py": true
+      },
+      "instruction_hash_matches": true,
+      "modified_paths_match_patch_headers": true,
+      "static_ast_parse": "Added SNS imports and class definitions parse; no patch application, import, or execution.",
+      "category": "NO_DEFINITE_DEFECT_FOUND",
+      "definite_defects": [],
+      "evidence": [
+        {
+          "kind": "public_api_alignment",
+          "claim": "Registers an SNS kms-key filter, inherits the established KmsRelatedFilter, and sets KmsMasterKeyId as the related identifier. The inherited schema exposes ValueFilter properties and c7n:AliasName matching. This is a source-level integration observation, not proof that all identifier forms resolve.",
+          "patch_lines": "29-38",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/resources/sns.py:27-48",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/filters/kms.py:22-57"
+          ],
+          "instruction_quote": "same kind of filtering that other resources support against a KMS key (matching by id / arn / alias)"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Registers an encryption action and boolean state/string key schema. Enabled state forwards the selected key; disabled state sends an empty KmsMasterKeyId. Uses the established session_factory and TopicArn/SetTopicAttributes call shape.",
+          "patch_lines": "56-68",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/resources/sns.py:173-200",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/resources/sns.py:227-253",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/actions/__init__.py:16",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/utils.py:122-166"
+          ],
+          "instruction_quote": "I want an action that flips encryption on for them, ideally letting me pick the KMS key. I'd also like to be able to turn encryption back off on a topic if needed."
+        },
+        {
+          "kind": "different_valid_design_not_a_defect",
+          "claim": "The instruction does not require a property spelling, class name, default key, action return value, or exact message. key/state and alias/aws/sns are not rejected for differing from an unavailable reference.",
+          "patch_lines": "56-68",
+          "public_evidence": [
+            "/private/tmp/ov1104/grader/alt/000682/instruction.md:7-25"
+          ]
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Guards the inherited alias list indexing for an empty list. Only the first alias remains visible, as in the established public filter.",
+          "patch_lines": "7-8",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/filters/kms.py:47-57"
+          ]
+        }
+      ],
+      "remaining_uncertainty": [
+        "Approved source mappings do not include RelatedResourceFilter, the KMS Key manager, QueryResourceManager, BaseAction implementation, or botocore service definitions. Complete key ID/ARN/alias resolution and inherited permissions cannot be proven here.",
+        "All candidates preserve first-alias-only behavior. Multiple aliases, alias pagination, alias ARN resolution, and alias-list ClientError recovery need SDK/related-manager evidence not supplied. Existing behavior is not independent evidence of full correctness.",
+        "The action forwards the chosen identifier or an empty string to SNS. Supplied public production files do not define SNS service-side acceptance or encryption-disable semantics; no SDK call is made.",
+        "Calls SetTopicAttributes directly; service exceptions propagate. The public instruction does not require retries or per-topic continuation. No definite error-flow violation is established.",
+        "No runtime, live service, hidden test, reference, or grader evidence is used. NO_DEFINITE_DEFECT_FOUND does not assert correctness."
+      ]
+    },
+    {
+      "task": "000682",
+      "index": 2,
+      "frozen_split": "held_out",
+      "patch_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/000682/2/solution.patch",
+      "receipt_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/000682/2/receipt.json",
+      "patch_sha256": "b136aad0a83b31afcf8dc8552a973609b1eb24b8fd08107d9add40889b5d14be",
+      "receipt_patch_sha256": "b136aad0a83b31afcf8dc8552a973609b1eb24b8fd08107d9add40889b5d14be",
+      "patch_hash_matches": true,
+      "modified_paths": [
+        "c7n/resources/sns.py"
+      ],
+      "source_hashes": {
+        "c7n/actions/__init__.py": "1e9738792ae0c29f63cdb8055414f2391e08b41c89b73bebc127f8f89d7954ea",
+        "c7n/filters/__init__.py": "575df083e00eaf0da25952cb25377c466d44479e7ff5de2b65433f5fee4f1f35",
+        "c7n/filters/kms.py": "6bc7d46a418015939ec7b1ee7e26b27c8208042b3b80ea22ebf5cd9cece3889f",
+        "c7n/resources/sns.py": "c1ffc81c27c6249fa6ffd58bb39ba7570f29ebc8a660c03fe7cc0446b739c53e",
+        "c7n/resources/sqs.py": "5ec232327c8ec8e4c67e2450a8ecfb0a822872d5da93ba73e7cfe563196de726",
+        "c7n/utils.py": "a37ec3ad90087c4b7142efef8023951108c10867c6ef62a3b759a57b60da3df8"
+      },
+      "source_hashes_match_frozen": true,
+      "source_bytes_verified": {
+        "c7n/actions/__init__.py": true,
+        "c7n/filters/__init__.py": true,
+        "c7n/filters/kms.py": true,
+        "c7n/resources/sns.py": true,
+        "c7n/resources/sqs.py": true,
+        "c7n/utils.py": true
+      },
+      "instruction_hash_matches": true,
+      "modified_paths_match_patch_headers": true,
+      "static_ast_parse": "Added SNS imports and class definitions parse; no patch application, import, or execution.",
+      "category": "UNCERTAIN",
+      "definite_defects": [],
+      "evidence": [
+        {
+          "kind": "public_api_alignment",
+          "claim": "Registers an SNS kms-key filter, inherits the established KmsRelatedFilter, and sets KmsMasterKeyId as the related identifier. The inherited schema exposes ValueFilter properties and c7n:AliasName matching. This is a source-level integration observation, not proof that all identifier forms resolve.",
+          "patch_lines": "20-29",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/resources/sns.py:27-48",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/filters/kms.py:22-57"
+          ],
+          "instruction_quote": "same kind of filtering that other resources support against a KMS key (matching by id / arn / alias)"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Registers an encryption action and boolean state/string key schema. Enabled state forwards the selected key; disabled state sends an empty KmsMasterKeyId. Uses the established session_factory and TopicArn/SetTopicAttributes call shape.",
+          "patch_lines": "47-58",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/resources/sns.py:173-200",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/resources/sns.py:227-253",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/actions/__init__.py:16",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/utils.py:122-166"
+          ],
+          "instruction_quote": "I want an action that flips encryption on for them, ideally letting me pick the KMS key. I'd also like to be able to turn encryption back off on a topic if needed."
+        },
+        {
+          "kind": "different_valid_design_not_a_defect",
+          "claim": "The instruction does not require a property spelling, class name, default key, action return value, or exact message. key/state and alias/aws/sns are not rejected for differing from an unavailable reference.",
+          "patch_lines": "47-58",
+          "public_evidence": [
+            "/private/tmp/ov1104/grader/alt/000682/instruction.md:7-25"
+          ]
+        },
+        {
+          "kind": "plausible_sdk_api_risk",
+          "claim": "The new SNS filter inherits unchanged KmsRelatedFilter.process. Its alias_info.get(\"Aliases\")[0] raises IndexError for Aliases=[] before key attributes can be filtered. That conditional Python failure is certain; the provided sources do not establish whether an SNS-referenced valid key can produce this response. Therefore this is not promoted to a definite consumer-visible defect.",
+          "patch_lines": "20-29",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/filters/kms.py:47-57"
+          ],
+          "instruction_quote": "filter through KMS key attributes"
+        }
+      ],
+      "remaining_uncertainty": [
+        "Approved source mappings do not include RelatedResourceFilter, the KMS Key manager, QueryResourceManager, BaseAction implementation, or botocore service definitions. Complete key ID/ARN/alias resolution and inherited permissions cannot be proven here.",
+        "All candidates preserve first-alias-only behavior. Multiple aliases, alias pagination, alias ARN resolution, and alias-list ClientError recovery need SDK/related-manager evidence not supplied. Existing behavior is not independent evidence of full correctness.",
+        "The action forwards the chosen identifier or an empty string to SNS. Supplied public production files do not define SNS service-side acceptance or encryption-disable semantics; no SDK call is made.",
+        "Calls SetTopicAttributes directly; service exceptions propagate. The public instruction does not require retries or per-topic continuation. No definite error-flow violation is established.",
+        "No runtime, live service, hidden test, reference, or grader evidence is used. NO_DEFINITE_DEFECT_FOUND does not assert correctness."
+      ]
+    },
+    {
+      "task": "000682",
+      "index": 3,
+      "frozen_split": "held_out",
+      "patch_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/000682/3/solution.patch",
+      "receipt_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/000682/3/receipt.json",
+      "patch_sha256": "8ceee8eccfef4b0d32fbfec9f39e967da4c313de850608bacdc96b4666046bdc",
+      "receipt_patch_sha256": "8ceee8eccfef4b0d32fbfec9f39e967da4c313de850608bacdc96b4666046bdc",
+      "patch_hash_matches": true,
+      "modified_paths": [
+        "c7n/filters/kms.py",
+        "c7n/resources/sns.py"
+      ],
+      "source_hashes": {
+        "c7n/actions/__init__.py": "1e9738792ae0c29f63cdb8055414f2391e08b41c89b73bebc127f8f89d7954ea",
+        "c7n/filters/__init__.py": "575df083e00eaf0da25952cb25377c466d44479e7ff5de2b65433f5fee4f1f35",
+        "c7n/filters/kms.py": "6bc7d46a418015939ec7b1ee7e26b27c8208042b3b80ea22ebf5cd9cece3889f",
+        "c7n/resources/sns.py": "c1ffc81c27c6249fa6ffd58bb39ba7570f29ebc8a660c03fe7cc0446b739c53e",
+        "c7n/resources/sqs.py": "5ec232327c8ec8e4c67e2450a8ecfb0a822872d5da93ba73e7cfe563196de726",
+        "c7n/utils.py": "a37ec3ad90087c4b7142efef8023951108c10867c6ef62a3b759a57b60da3df8"
+      },
+      "source_hashes_match_frozen": true,
+      "source_bytes_verified": {
+        "c7n/actions/__init__.py": true,
+        "c7n/filters/__init__.py": true,
+        "c7n/filters/kms.py": true,
+        "c7n/resources/sns.py": true,
+        "c7n/resources/sqs.py": true,
+        "c7n/utils.py": true
+      },
+      "instruction_hash_matches": true,
+      "modified_paths_match_patch_headers": true,
+      "static_ast_parse": "Added SNS imports and class definitions parse; no patch application, import, or execution.",
+      "category": "NO_DEFINITE_DEFECT_FOUND",
+      "definite_defects": [],
+      "evidence": [
+        {
+          "kind": "public_api_alignment",
+          "claim": "Registers an SNS kms-key filter, inherits the established KmsRelatedFilter, and sets KmsMasterKeyId as the related identifier. The inherited schema exposes ValueFilter properties and c7n:AliasName matching. This is a source-level integration observation, not proof that all identifier forms resolve.",
+          "patch_lines": "29-38",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/resources/sns.py:27-48",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/filters/kms.py:22-57"
+          ],
+          "instruction_quote": "same kind of filtering that other resources support against a KMS key (matching by id / arn / alias)"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Registers an encryption action and boolean state/string key schema. Enabled state forwards the selected key; disabled state sends an empty KmsMasterKeyId. Uses the established session_factory and TopicArn/SetTopicAttributes call shape.",
+          "patch_lines": "63-74",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/resources/sns.py:173-200",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/resources/sns.py:227-253",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/actions/__init__.py:16",
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/utils.py:122-166"
+          ],
+          "instruction_quote": "I want an action that flips encryption on for them, ideally letting me pick the KMS key. I'd also like to be able to turn encryption back off on a topic if needed."
+        },
+        {
+          "kind": "different_valid_design_not_a_defect",
+          "claim": "The instruction does not require a property spelling, class name, default key, action return value, or exact message. key/state and alias/aws/sns are not rejected for differing from an unavailable reference.",
+          "patch_lines": "63-74",
+          "public_evidence": [
+            "/private/tmp/ov1104/grader/alt/000682/instruction.md:7-25"
+          ]
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Guards the inherited alias list indexing for an empty list. Only the first alias remains visible, as in the established public filter.",
+          "patch_lines": "7-8",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/000682/c7n/filters/kms.py:47-57"
+          ]
+        }
+      ],
+      "remaining_uncertainty": [
+        "Approved source mappings do not include RelatedResourceFilter, the KMS Key manager, QueryResourceManager, BaseAction implementation, or botocore service definitions. Complete key ID/ARN/alias resolution and inherited permissions cannot be proven here.",
+        "All candidates preserve first-alias-only behavior. Multiple aliases, alias pagination, alias ARN resolution, and alias-list ClientError recovery need SDK/related-manager evidence not supplied. Existing behavior is not independent evidence of full correctness.",
+        "The action forwards the chosen identifier or an empty string to SNS. Supplied public production files do not define SNS service-side acceptance or encryption-disable semantics; no SDK call is made.",
+        "Calls SetTopicAttributes directly; service exceptions propagate. The public instruction does not require retries or per-topic continuation. No definite error-flow violation is established.",
+        "No runtime, live service, hidden test, reference, or grader evidence is used. NO_DEFINITE_DEFECT_FOUND does not assert correctness."
+      ]
+    },
+    {
+      "task": "002139",
+      "index": 0,
+      "frozen_split": "validation",
+      "patch_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/002139/0/solution.patch",
+      "receipt_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/002139/0/receipt.json",
+      "patch_sha256": "2dcacc3602235f656f6e9c9a9bbee94269e68e9ca6b6ef261860d7f00a4447f9",
+      "receipt_patch_sha256": "2dcacc3602235f656f6e9c9a9bbee94269e68e9ca6b6ef261860d7f00a4447f9",
+      "patch_hash_matches": true,
+      "modified_paths": [
+        "lib/bb/fetch2/__init__.py",
+        "lib/bb/fetch2/gs.py"
+      ],
+      "source_hashes": {
+        "lib/bb/fetch2/__init__.py": "3c95eb10221bb7aba2deb3f2869538340239040a620b6af8e71ec3f18fab6651",
+        "lib/bb/fetch2/az.py": "18ca2ee7d4f80d496b78c147303f92bb16a589156d8e6adbe20809a6d3d9056d",
+        "lib/bb/fetch2/crate.py": "a448984dec8d0bf22bdcb4a36cda64d2a34d0f2a8f2cae2fab2c9ef79108474e",
+        "lib/bb/fetch2/s3.py": "0e2ec33149c4bdc2654325ead0b61cf79f765ab4855431f24582c3303d922a70"
+      },
+      "source_hashes_match_frozen": true,
+      "source_bytes_verified": {
+        "lib/bb/fetch2/__init__.py": true,
+        "lib/bb/fetch2/az.py": true,
+        "lib/bb/fetch2/crate.py": true,
+        "lib/bb/fetch2/s3.py": true
+      },
+      "instruction_hash_matches": true,
+      "modified_paths_match_patch_headers": true,
+      "static_ast_parse": "New GCS production module parses; no compilation, import, or execution.",
+      "category": "NO_DEFINITE_DEFECT_FOUND",
+      "definite_defects": [],
+      "evidence": [
+        {
+          "kind": "public_api_alignment",
+          "claim": "Imports the new backend and appends an instance to methods. supports selects gs. New module/class names differ across candidates but registration matches the defined class. No production filename is prescribed.",
+          "patch_lines": "1-21; 32-46",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1368-1385",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:2159-2196"
+          ],
+          "instruction_quote": "with the `gs://` URL handled as a normal fetchable source"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "urldata_init chooses downloadfilename or basename(ud.path), then sets localfile. FetchData calls urldata_init and inherited localpath joins DL_DIR with localfile.",
+          "patch_lines": "32-46",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1325-1337",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1384-1397",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1452-1458",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/s3.py:75-81"
+          ],
+          "instruction_quote": "the default local source filename should be `pkg-1.0.tar.gz`"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Creates storage.Client(), selects bucket(ud.host), then blob(ud.path.lstrip(\"/\")). download_to_filename receives ud.localpath. SDK behavior itself is not defined by the allowed source.",
+          "patch_lines": "32-46; 48-61",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1335-1337",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1947-1958"
+          ],
+          "instruction_quote": "stripping a leading slash from the object name before calling the storage API"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Both download and checkstatus call check_network_access before constructing the storage client or requesting blob data/existence. The public helper raises for disabled or untrusted network access.",
+          "patch_lines": "48-61; 63-72",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1011-1021"
+          ],
+          "instruction_quote": "It should run BitBake's normal network-access checks before downloading or checking object existence."
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Download translates the imported NotFound exception to FetchError, rejects a missing target, removes a zero-byte target and raises FetchError. Existence checks translate NotFound and reject false exists(), returning True only for truthy existence.",
+          "patch_lines": "48-61; 63-72",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1952-1985",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:2011-2040",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/s3.py:97-125"
+          ],
+          "instruction_quote": "If the API reports success but the target file is missing, or if the target file is zero bytes, `download()` should fail with `bb.fetch2.FetchError`; the zero-byte file should be removed."
+        },
+        {
+          "kind": "established_lifecycle_alignment",
+          "claim": "The candidate inherits donestamp verification/update, checksum support, cleanup, and normal download-cache flow. recommends_checksum returns True, as S3 does. The pristine FetchData checksum list already includes gs. The instruction does not add a custom cache or dependency-management contract.",
+          "patch_lines": "32-46",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1344-1359",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1460-1496",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1916-1958",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1974-1987",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/s3.py:72-81"
+          ]
+        }
+      ],
+      "remaining_uncertainty": [
+        "Google SDK implementations and service contracts are absent from approved sources. Client().bucket().blob(), client association, exists(), download_to_filename(), and the actual NotFound exception identity are plausible API uses, not SDK-verified behavior.",
+        "Authentication, permissions, transient service exceptions, transport failures, and partial downloads are not exercised. Only NotFound is expressly required to become FetchError. Other SDK exception handling is not labeled defective without a public contract.",
+        "Google imports are lazy and ImportError is not translated. The instruction does not prescribe missing-dependency behavior; this difference alone is not a definite defect.",
+        "No candidate module is imported or executed. No SDK, filesystem-download, cache, or Fetch session is exercised. Static alignment does not prove correctness."
+      ]
+    },
+    {
+      "task": "002139",
+      "index": 1,
+      "frozen_split": "validation",
+      "patch_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/002139/1/solution.patch",
+      "receipt_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/002139/1/receipt.json",
+      "patch_sha256": "726452de94f8017c3daad4efd8a40a8f28aac20ff18171c8a24a6dbcbfe6451f",
+      "receipt_patch_sha256": "726452de94f8017c3daad4efd8a40a8f28aac20ff18171c8a24a6dbcbfe6451f",
+      "patch_hash_matches": true,
+      "modified_paths": [
+        "lib/bb/fetch2/__init__.py",
+        "lib/bb/fetch2/gs.py"
+      ],
+      "source_hashes": {
+        "lib/bb/fetch2/__init__.py": "3c95eb10221bb7aba2deb3f2869538340239040a620b6af8e71ec3f18fab6651",
+        "lib/bb/fetch2/az.py": "18ca2ee7d4f80d496b78c147303f92bb16a589156d8e6adbe20809a6d3d9056d",
+        "lib/bb/fetch2/crate.py": "a448984dec8d0bf22bdcb4a36cda64d2a34d0f2a8f2cae2fab2c9ef79108474e",
+        "lib/bb/fetch2/s3.py": "0e2ec33149c4bdc2654325ead0b61cf79f765ab4855431f24582c3303d922a70"
+      },
+      "source_hashes_match_frozen": true,
+      "source_bytes_verified": {
+        "lib/bb/fetch2/__init__.py": true,
+        "lib/bb/fetch2/az.py": true,
+        "lib/bb/fetch2/crate.py": true,
+        "lib/bb/fetch2/s3.py": true
+      },
+      "instruction_hash_matches": true,
+      "modified_paths_match_patch_headers": true,
+      "static_ast_parse": "New GCS production module parses; no compilation, import, or execution.",
+      "category": "NO_DEFINITE_DEFECT_FOUND",
+      "definite_defects": [],
+      "evidence": [
+        {
+          "kind": "public_api_alignment",
+          "claim": "Imports the new backend and appends an instance to methods. supports selects gs. New module/class names differ across candidates but registration matches the defined class. No production filename is prescribed.",
+          "patch_lines": "1-21; 36-54",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1368-1385",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:2159-2196"
+          ],
+          "instruction_quote": "with the `gs://` URL handled as a normal fetchable source"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "urldata_init chooses downloadfilename or basename(ud.path), then sets localfile. FetchData calls urldata_init and inherited localpath joins DL_DIR with localfile.",
+          "patch_lines": "36-54",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1325-1337",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1384-1397",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1452-1458",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/s3.py:75-81"
+          ],
+          "instruction_quote": "the default local source filename should be `pkg-1.0.tar.gz`"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Creates storage.Client(), selects bucket(ud.host), then blob(ud.path.lstrip(\"/\")). download_to_filename receives ud.localpath. SDK behavior itself is not defined by the allowed source.",
+          "patch_lines": "36-54; 56-71",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1335-1337",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1947-1958"
+          ],
+          "instruction_quote": "stripping a leading slash from the object name before calling the storage API"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Both download and checkstatus call check_network_access before constructing the storage client or requesting blob data/existence. The public helper raises for disabled or untrusted network access.",
+          "patch_lines": "56-71; 73-84",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1011-1021"
+          ],
+          "instruction_quote": "It should run BitBake's normal network-access checks before downloading or checking object existence."
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Download translates the imported NotFound exception to FetchError, rejects a missing target, removes a zero-byte target and raises FetchError. Existence checks translate NotFound and reject false exists(), returning True only for truthy existence.",
+          "patch_lines": "56-71; 73-84",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1952-1985",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:2011-2040",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/s3.py:97-125"
+          ],
+          "instruction_quote": "If the API reports success but the target file is missing, or if the target file is zero bytes, `download()` should fail with `bb.fetch2.FetchError`; the zero-byte file should be removed."
+        },
+        {
+          "kind": "established_lifecycle_alignment",
+          "claim": "The candidate inherits donestamp verification/update, checksum support, cleanup, and normal download-cache flow. recommends_checksum returns True, as S3 does. The pristine FetchData checksum list already includes gs. The instruction does not add a custom cache or dependency-management contract.",
+          "patch_lines": "36-54",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1344-1359",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1460-1496",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1916-1958",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1974-1987",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/s3.py:72-81"
+          ]
+        }
+      ],
+      "remaining_uncertainty": [
+        "Google SDK implementations and service contracts are absent from approved sources. Client().bucket().blob(), client association, exists(), download_to_filename(), and the actual NotFound exception identity are plausible API uses, not SDK-verified behavior.",
+        "Authentication, permissions, transient service exceptions, transport failures, and partial downloads are not exercised. Only NotFound is expressly required to become FetchError. Other SDK exception handling is not labeled defective without a public contract.",
+        "Google imports are lazy and ImportError is translated to FetchError. No package-installation or missing-dependency message contract is specified.",
+        "No candidate module is imported or executed. No SDK, filesystem-download, cache, or Fetch session is exercised. Static alignment does not prove correctness."
+      ]
+    },
+    {
+      "task": "002139",
+      "index": 2,
+      "frozen_split": "held_out",
+      "patch_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/002139/2/solution.patch",
+      "receipt_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/002139/2/receipt.json",
+      "patch_sha256": "6b69148920edbd5c24afc90314068696a1df8433847b51624e707d398541950c",
+      "receipt_patch_sha256": "6b69148920edbd5c24afc90314068696a1df8433847b51624e707d398541950c",
+      "patch_hash_matches": true,
+      "modified_paths": [
+        "lib/bb/fetch2/__init__.py",
+        "lib/bb/fetch2/gs.py"
+      ],
+      "source_hashes": {
+        "lib/bb/fetch2/__init__.py": "3c95eb10221bb7aba2deb3f2869538340239040a620b6af8e71ec3f18fab6651",
+        "lib/bb/fetch2/az.py": "18ca2ee7d4f80d496b78c147303f92bb16a589156d8e6adbe20809a6d3d9056d",
+        "lib/bb/fetch2/crate.py": "a448984dec8d0bf22bdcb4a36cda64d2a34d0f2a8f2cae2fab2c9ef79108474e",
+        "lib/bb/fetch2/s3.py": "0e2ec33149c4bdc2654325ead0b61cf79f765ab4855431f24582c3303d922a70"
+      },
+      "source_hashes_match_frozen": true,
+      "source_bytes_verified": {
+        "lib/bb/fetch2/__init__.py": true,
+        "lib/bb/fetch2/az.py": true,
+        "lib/bb/fetch2/crate.py": true,
+        "lib/bb/fetch2/s3.py": true
+      },
+      "instruction_hash_matches": true,
+      "modified_paths_match_patch_headers": true,
+      "static_ast_parse": "New GCS production module parses; no compilation, import, or execution.",
+      "category": "NO_DEFINITE_DEFECT_FOUND",
+      "definite_defects": [],
+      "evidence": [
+        {
+          "kind": "public_api_alignment",
+          "claim": "Imports the new backend and appends an instance to methods. supports selects gs. New module/class names differ across candidates but registration matches the defined class. No production filename is prescribed.",
+          "patch_lines": "1-21; 36-51",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1368-1385",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:2159-2196"
+          ],
+          "instruction_quote": "with the `gs://` URL handled as a normal fetchable source"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "urldata_init chooses downloadfilename or basename(ud.path), then sets localfile. FetchData calls urldata_init and inherited localpath joins DL_DIR with localfile.",
+          "patch_lines": "36-51",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1325-1337",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1384-1397",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1452-1458",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/s3.py:75-81"
+          ],
+          "instruction_quote": "the default local source filename should be `pkg-1.0.tar.gz`"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Creates storage.Client(), selects bucket(ud.host), then blob(ud.path.lstrip(\"/\")). download_to_filename receives ud.localpath. SDK behavior itself is not defined by the allowed source.",
+          "patch_lines": "36-51; 53-66",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1335-1337",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1947-1958"
+          ],
+          "instruction_quote": "stripping a leading slash from the object name before calling the storage API"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Both download and checkstatus call check_network_access before constructing the storage client or requesting blob data/existence. The public helper raises for disabled or untrusted network access.",
+          "patch_lines": "53-66; 68-77",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1011-1021"
+          ],
+          "instruction_quote": "It should run BitBake's normal network-access checks before downloading or checking object existence."
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Download translates the imported NotFound exception to FetchError, rejects a missing target, removes a zero-byte target and raises FetchError. Existence checks translate NotFound and reject false exists(), returning True only for truthy existence.",
+          "patch_lines": "53-66; 68-77",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1952-1985",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:2011-2040",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/s3.py:97-125"
+          ],
+          "instruction_quote": "If the API reports success but the target file is missing, or if the target file is zero bytes, `download()` should fail with `bb.fetch2.FetchError`; the zero-byte file should be removed."
+        },
+        {
+          "kind": "established_lifecycle_alignment",
+          "claim": "The candidate inherits donestamp verification/update, checksum support, cleanup, and normal download-cache flow. recommends_checksum returns True, as S3 does. The pristine FetchData checksum list already includes gs. The instruction does not add a custom cache or dependency-management contract.",
+          "patch_lines": "36-51",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1344-1359",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1460-1496",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1916-1958",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1974-1987",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/s3.py:72-81"
+          ]
+        }
+      ],
+      "remaining_uncertainty": [
+        "Google SDK implementations and service contracts are absent from approved sources. Client().bucket().blob(), client association, exists(), download_to_filename(), and the actual NotFound exception identity are plausible API uses, not SDK-verified behavior.",
+        "Authentication, permissions, transient service exceptions, transport failures, and partial downloads are not exercised. Only NotFound is expressly required to become FetchError. Other SDK exception handling is not labeled defective without a public contract.",
+        "Google imports are lazy and ImportError is not translated. The instruction does not prescribe missing-dependency behavior; this difference alone is not a definite defect.",
+        "No candidate module is imported or executed. No SDK, filesystem-download, cache, or Fetch session is exercised. Static alignment does not prove correctness."
+      ]
+    },
+    {
+      "task": "002139",
+      "index": 3,
+      "frozen_split": "held_out",
+      "patch_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/002139/3/solution.patch",
+      "receipt_path": "/private/tmp/ov1106/goldcert/resumed-terra-writers/writers/002139/3/receipt.json",
+      "patch_sha256": "88322b9cff87abfb35f442681334bce63b3659d5d450c7430d88523d6f672fb3",
+      "receipt_patch_sha256": "88322b9cff87abfb35f442681334bce63b3659d5d450c7430d88523d6f672fb3",
+      "patch_hash_matches": true,
+      "modified_paths": [
+        "lib/bb/fetch2/__init__.py",
+        "lib/bb/fetch2/gs.py"
+      ],
+      "source_hashes": {
+        "lib/bb/fetch2/__init__.py": "3c95eb10221bb7aba2deb3f2869538340239040a620b6af8e71ec3f18fab6651",
+        "lib/bb/fetch2/az.py": "18ca2ee7d4f80d496b78c147303f92bb16a589156d8e6adbe20809a6d3d9056d",
+        "lib/bb/fetch2/crate.py": "a448984dec8d0bf22bdcb4a36cda64d2a34d0f2a8f2cae2fab2c9ef79108474e",
+        "lib/bb/fetch2/s3.py": "0e2ec33149c4bdc2654325ead0b61cf79f765ab4855431f24582c3303d922a70"
+      },
+      "source_hashes_match_frozen": true,
+      "source_bytes_verified": {
+        "lib/bb/fetch2/__init__.py": true,
+        "lib/bb/fetch2/az.py": true,
+        "lib/bb/fetch2/crate.py": true,
+        "lib/bb/fetch2/s3.py": true
+      },
+      "instruction_hash_matches": true,
+      "modified_paths_match_patch_headers": true,
+      "static_ast_parse": "New GCS production module parses; no compilation, import, or execution.",
+      "category": "NO_DEFINITE_DEFECT_FOUND",
+      "definite_defects": [],
+      "evidence": [
+        {
+          "kind": "public_api_alignment",
+          "claim": "Imports the new backend and appends an instance to methods. supports selects gs. New module/class names differ across candidates but registration matches the defined class. No production filename is prescribed.",
+          "patch_lines": "1-21; 32-49",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1368-1385",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:2159-2196"
+          ],
+          "instruction_quote": "with the `gs://` URL handled as a normal fetchable source"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "urldata_init chooses downloadfilename or basename(ud.path), then sets localfile. FetchData calls urldata_init and inherited localpath joins DL_DIR with localfile.",
+          "patch_lines": "32-49",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1325-1337",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1384-1397",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1452-1458",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/s3.py:75-81"
+          ],
+          "instruction_quote": "the default local source filename should be `pkg-1.0.tar.gz`"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Creates storage.Client(), selects bucket(ud.host), then blob(ud.path.lstrip(\"/\")). download_to_filename receives ud.localpath. SDK behavior itself is not defined by the allowed source.",
+          "patch_lines": "32-49; 51-66",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1335-1337",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1947-1958"
+          ],
+          "instruction_quote": "stripping a leading slash from the object name before calling the storage API"
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Both download and checkstatus call check_network_access before constructing the storage client or requesting blob data/existence. The public helper raises for disabled or untrusted network access.",
+          "patch_lines": "51-66; 68-79",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1011-1021"
+          ],
+          "instruction_quote": "It should run BitBake's normal network-access checks before downloading or checking object existence."
+        },
+        {
+          "kind": "public_api_alignment",
+          "claim": "Download translates the imported NotFound exception to FetchError, rejects a missing target, removes a zero-byte target and raises FetchError. Existence checks translate NotFound and reject false exists(), returning True only for truthy existence.",
+          "patch_lines": "51-66; 68-79",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1952-1985",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:2011-2040",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/s3.py:97-125"
+          ],
+          "instruction_quote": "If the API reports success but the target file is missing, or if the target file is zero bytes, `download()` should fail with `bb.fetch2.FetchError`; the zero-byte file should be removed."
+        },
+        {
+          "kind": "established_lifecycle_alignment",
+          "claim": "The candidate inherits donestamp verification/update, checksum support, cleanup, and normal download-cache flow. recommends_checksum returns True, as S3 does. The pristine FetchData checksum list already includes gs. The instruction does not add a custom cache or dependency-management contract.",
+          "patch_lines": "32-49",
+          "public_evidence": [
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1344-1359",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1460-1496",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1916-1958",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/__init__.py:1974-1987",
+            "/private/tmp/ov1106/goldcert/source-exports/002139/lib/bb/fetch2/s3.py:72-81"
+          ]
+        }
+      ],
+      "remaining_uncertainty": [
+        "Google SDK implementations and service contracts are absent from approved sources. Client().bucket().blob(), client association, exists(), download_to_filename(), and the actual NotFound exception identity are plausible API uses, not SDK-verified behavior.",
+        "Authentication, permissions, transient service exceptions, transport failures, and partial downloads are not exercised. Only NotFound is expressly required to become FetchError. Other SDK exception handling is not labeled defective without a public contract.",
+        "Google imports are lazy and ImportError is translated to FetchError. No package-installation or missing-dependency message contract is specified.",
+        "No candidate module is imported or executed. No SDK, filesystem-download, cache, or Fetch session is exercised. Static alignment does not prove correctness."
+      ]
+    }
+  ]
+}

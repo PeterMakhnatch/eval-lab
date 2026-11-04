@@ -41,6 +41,11 @@ def matrix(tmp_path: Path, alternatives: list[str] | None = None):
         package=package, upgraded=upgraded, reference_patch=PATCH,
         train=train, evals=evals, alternatives=alternatives or [], witnesses=[],
     )
+    # Assessment fixtures represent existing receipts, not executable injection plans.
+    cells.extend([
+        gold.CertificationCell("witness-recorded", "witness", upgraded, "", "RECORDED"),
+        gold.CertificationCell("exit0_pth", "exit0_pth", upgraded, "", "RECORDED"),
+    ])
     outcomes = {c.name: {"status": "executed", "agent_log": c.marker,
                         "reward": 1.0 if c.arm in ("reference", "alternative", "evalbase") else 0.0}
                 for c in cells}
@@ -154,7 +159,16 @@ def test_certify_executes_and_persists_digest_bound_result(tmp_path):
         alternative_patches=["correct-a", "correct-b"],
     )
     assert len(prompts) == 1
-    assert result.status == "certified"
+    assert result.status == "failed"
+    assert result.gate1_reference_passed and result.gate2_nop_passed
+    assert result.train_mutants_killed == result.train_mutants_total
+    assert result.eval_mutants_killed == result.eval_mutants_total
+    assert not result.gate3_witness_passed and not result.gate4_exit0_pth_passed
+    assert result.witness_rewards == {}
+    assert result.witness_reward is None and result.exit0_pth_reward is None
+    plan = json.loads((tmp_path / "out/plan.json").read_text())
+    assert {c["arm"] for c in plan} == {"reference", "nop", "train", "eval", "evalbase", "alternative"}
+    assert {p.name for p in (tmp_path / "out/cells").iterdir()} == {"probe", *(c["name"] for c in plan)}
     receipt = json.loads((tmp_path / "out/certification.json").read_text())
     assert receipt == result.summary()
     assert receipt["package_digest"] == task_directory_digest(tmp_path / "out/package")
@@ -379,7 +393,7 @@ def test_evalbase_measured_rejection_is_valid_not_infrastructure(tmp_path):
     assert result.eval_mutants_base_accepted == 0
 
 
-@pytest.mark.parametrize("cap,refused_arm", [("0.012", "probe"), ("0.072", "witness"), ("0.147", "evalbase")])
+@pytest.mark.parametrize("cap,refused_arm", [("0.012", "probe"), ("0.072", "train"), ("0.117", "evalbase")])
 def test_real_modal_runner_unwraps_backend_cap_refusal(tmp_path, monkeypatch, capsys, cap, refused_arm):
     from evallab.cli import run_cli
 
@@ -514,7 +528,7 @@ def test_dotted_output_directories_keep_distinct_default_ledgers(tmp_path, monke
     monkeypatch.setattr(gold, "synthesize_contract", lambda *_args, **_kwargs: CODE)
     for name in ("gold-v1.1", "gold-v1.2"):
         args.out = tmp_path / name
-        assert gold._certify_gold_command(args, tmp_path) == 0
+        assert gold._certify_gold_command(args, tmp_path) == 1
     assert ledgers == [tmp_path / "gold-v1.1.spend.json", tmp_path / "gold-v1.2.spend.json"]
 
 
@@ -526,3 +540,41 @@ def test_ledger_inside_output_refused_before_executor_creation(tmp_path, monkeyp
         gold._certify_gold_command(args, tmp_path)
     assert not args.out.exists()
 
+
+@pytest.mark.parametrize("options", [{"injection_controls": True}, {"witnesses": ["operator witness"]}])
+def test_injection_request_refused_before_any_certifier_side_effect(tmp_path, options):
+    out = tmp_path / "out"
+    with pytest.raises(ValueError, match="no enforced contained runner"):
+        gold.certify_task(
+            task_id="synthetic", package=tmp_path / "absent", reference_patch=PATCH,
+            out_dir=out, run_cell=lambda *_: pytest.fail("executed"),
+            synthesize=lambda *_: pytest.fail("synthesized"),
+            stage=lambda *_args, **_kw: pytest.fail("hardened"), **options,
+        )
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("options", [{"injection_controls": True}, {"witnesses": ["operator witness"]}])
+def test_planner_refuses_explicit_injection_without_reading_package(tmp_path, options):
+    with pytest.raises(ValueError, match="no enforced contained runner"):
+        gold.plan_certification_cells(
+            package=tmp_path / "absent", upgraded=tmp_path / "absent",
+            reference_patch=PATCH, train=[], evals=[], alternatives=[],
+            **({"witnesses": []} | options),
+        )
+
+
+def test_safe_plan_never_generates_injection_scripts(tmp_path, monkeypatch):
+    for name in ("witness_script", "exit0_pth_script"):
+        monkeypatch.setattr(gold, name, lambda *_: pytest.fail("injection script generated"))
+    base = package_at(tmp_path / "base")
+    result = gold.certify_task(
+        task_id="synthetic", package=base, reference_patch=PATCH, out_dir=tmp_path / "out",
+        run_cell=fake_cell, synthesize=lambda *_: CODE, stage=fake_stage, limit=4,
+        alternative_patches=["correct-a", "correct-b"],
+    )
+    report = gold.GoldMatrixSummary([result]).to_report_dict()
+    for gate in ("gate3_witness", "gate4_exit0_pth"):
+        assert report[gate]["passed"] == 0
+        assert report[gate]["total"] == 1
+    assert result.status == "failed"

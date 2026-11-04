@@ -10,14 +10,12 @@ from pathlib import Path
 import pytest
 
 from evallab.gold_certifier import (
-    CONFTEST_TAMPER_PAYLOAD,
     GOLD_CONTRACT_TEST_NAME,
     GoldMatrixSummary,
     TaskCertificationResult,
     _certify_gold_command,
     build_certify_gold_parser,
     build_synthesis_prompt,
-    exit0_pth_script,
     extract_code_block,
     format_supplementary_hook,
     format_wilson,
@@ -28,7 +26,6 @@ from evallab.gold_certifier import (
     stage_and_harden_package,
     validate_contract_test,
     wilson_interval,
-    witness_script,
 )
 from evallab.mutant_auditor import Mutant
 from evallab.separate_verifier import supplementary_test_blocks
@@ -176,17 +173,6 @@ def test_arm_scripts_contain_expected_markers() -> None:
     nop = nop_script("/testbed")
     assert "cd /testbed || exit 1" in nop
     assert "NOP_APPLIED" in nop
-
-    wit_solve = witness_script("/testbed", "bash /solve.sh")
-    assert "WITNESS_APPLIED solve_sh" in wit_solve
-
-    wit_conftest = witness_script("/testbed", None)
-    assert "WITNESS_APPLIED conftest" in wit_conftest
-    assert "pytest_sessionfinish" in CONFTEST_TAMPER_PAYLOAD
-
-    exit0 = exit0_pth_script("/testbed")
-    assert "EXIT0_PTH_APPLIED" in exit0
-    assert "zz_cert.pth" in exit0
 
 
 def test_stage_and_harden_package(tmp_path: Path) -> None:
@@ -346,6 +332,9 @@ def test_cli_plan_reports_rounds_and_probes(tmp_path: Path, capsys: pytest.Captu
     assert _certify_gold_command(args, tmp_path) == 0
     plan = json.loads(capsys.readouterr().out)
     assert plan["rounds"] == 3 and plan["probes_per_round"] == 4
+    assert plan["injection_controls"] is False
+    assert plan["unexercised_gates"] == ["gate3_witness", "gate4_exit0_pth"]
+    assert plan["certification_possible"] is False
 
 
 @pytest.mark.parametrize("flag", ["--rounds", "--probes-per-round"])
@@ -363,3 +352,21 @@ def test_cli_refuses_multi_round_execution_instead_of_silently_doing_nothing(
     args = _cli_args(tmp_path, "--out", str(tmp_path / "out"), "--rounds", "2")
     assert _certify_gold_command(args, tmp_path) == 2
     assert "not implemented" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("planning", [False, True])
+@pytest.mark.parametrize("flags", [
+    ["--injection-controls"],
+    ["--witness", "/nonexistent/witness.sh"],
+    ["--injection-controls", "--witness", "/nonexistent/witness.sh"],
+])
+def test_cli_refuses_injection_even_when_requested_explicitly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, planning: bool, flags: list[str],
+) -> None:
+    args = _cli_args(tmp_path, *flags, *(["--plan"] if planning else []))
+    monkeypatch.setattr(
+        "evallab.gold_certifier.modal_cell_runner",
+        lambda **_: pytest.fail("executor created"),
+    )
+    with pytest.raises(ValueError, match="no enforced contained runner"):
+        _certify_gold_command(args, tmp_path)

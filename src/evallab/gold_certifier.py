@@ -717,23 +717,31 @@ class CertificationCell:
     key: str = ""
 
 
+INJECTION_CONTROLS_REFUSAL = (
+    "injection controls are unavailable: certify-gold has no enforced contained runner; "
+    "witness and .pth gates remain unexercised and cannot pass"
+)
+
+
+def _refuse_injection_controls(requested: bool) -> None:
+    if requested:
+        raise ValueError(INJECTION_CONTROLS_REFUSAL)
+
+
+
 def plan_certification_cells(
     *, package: Path, upgraded: Path, reference_patch: str,
     train: list[Mutant], evals: list[Mutant],
-    alternatives: list[str], witnesses: list[str],
+    alternatives: list[str], witnesses: list[str], injection_controls: bool = False,
 ) -> list[CertificationCell]:
-    """Plan six research arms plus correct alternatives; evals never feed synthesis."""
+    """Plan safe controls only; witness and startup-injection gates remain unexercised."""
+    _refuse_injection_controls(injection_controls or bool(witnesses))
     assert_disjoint(train, [], evals)
     wd = tomllib.loads((upgraded / "task.toml").read_text())["environment"]["workdir"]
     cells = [
         CertificationCell("reference", "reference", upgraded, reference_script(wd, reference_patch), "REFERENCE_APPLIED"),
         CertificationCell("nop", "nop", upgraded, nop_script(wd), "NOP_APPLIED"),
-        CertificationCell("exit0_pth", "exit0_pth", upgraded, exit0_pth_script(wd), "EXIT0_PTH_APPLIED"),
     ]
-    for index, witness in enumerate(witnesses or [None]):
-        cells.append(CertificationCell(
-            f"witness-{index}", "witness", upgraded, witness_script(wd, witness), "WITNESS_APPLIED",
-        ))
     for arm, pool, target in (("train", train, upgraded), ("eval", evals, upgraded), ("evalbase", evals, package)):
         workdir = tomllib.loads((target / "task.toml").read_text())["environment"]["workdir"]
         for mutant in pool:
@@ -865,10 +873,13 @@ def certify_task(
     witnesses: list[str] | None = None, contract_test: str | None = None,
     hook_command: str | None = None, python_version: str = "3",
     harden_options: dict[str, Any] | None = None,
+    injection_controls: bool = False,
 ) -> TaskCertificationResult:
     """Probe, synthesize from train only, harden, execute and persist gate evidence."""
     from evallab.registry import task_directory_digest
     from evallab.regrade import SpendCapReached
+
+    _refuse_injection_controls(injection_controls or bool(witnesses))
 
     package, out_dir = package.resolve(), out_dir.resolve()
     if out_dir == package or package in out_dir.parents:
@@ -992,7 +1003,9 @@ def build_certify_gold_parser(subparsers: Any) -> None:
     parser.add_argument("--alt-solution", action="append", type=Path, default=[],
                         help="Independent correct patch; repeat for Gate 7")
     parser.add_argument("--witness", action="append", type=Path, default=[],
-                        help="Existing tamper witness solve.sh (default: conftest control)")
+                        help="Unavailable: witness requests require an enforced contained runner")
+    parser.add_argument("--injection-controls", action="store_true",
+                        help="Unavailable: refused until a contained runner is enforced")
     parser.add_argument("--contract-test", type=Path, help="Use an operator-supplied unittest instead of synthesis")
     parser.add_argument("--hook-command", help="Override supplementary test interpreter command")
     parser.add_argument("--python-version", default="3", choices=("3", "2.7"))
@@ -1028,6 +1041,7 @@ def build_certify_gold_parser(subparsers: Any) -> None:
 
 
 def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
+    _refuse_injection_controls(args.injection_controls or bool(args.witness))
     patch = args.reference_patch.read_text(encoding="utf-8")
     targets = python_targets(patch)
     if not targets:
@@ -1050,6 +1064,9 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
             "mutant_limit": args.limit,
             "rounds": args.rounds,
             "probes_per_round": args.probes_per_round,
+            "injection_controls": False,
+            "unexercised_gates": ["gate3_witness", "gate4_exit0_pth"],
+            "certification_possible": False,
         }
         if args.json:
             print(json.dumps(plan_dict, indent=2))
@@ -1059,6 +1076,7 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
             print(f"  targets: {sorted(targets.keys())}")
             print(f"  model: {args.model}")
             print(f"  metered cap: ${plan_dict['metered_cap_usd']:.2f}")
+            print("  gates 3 and 4: unexercised; certification is blocked")
         return 0
 
     if not args.out:
@@ -1092,7 +1110,6 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
         run_cell=modal_cell_runner(repo_root=root, spend_gate=gate, meter=meter, timeout_seconds=240),
         synthesize=lambda prompt, output: synthesize_contract(prompt, output, model=args.model),
         limit=args.limit, alternative_patches=[p.read_text() for p in args.alt_solution],
-        witnesses=[p.read_text() for p in args.witness],
         contract_test=args.contract_test.read_text() if args.contract_test else None,
         hook_command=args.hook_command, python_version=args.python_version,
         harden_options={"expected_tests": args.expected_tests, "allow_degraded": args.allow_degraded},
@@ -1103,6 +1120,7 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
         print(json.dumps(output, indent=2))
     else:
         print(f"{task_id}: {result.status}; receipt: {output['receipt']}")
+        print("Gates 3 and 4: unexercised (injection controls disabled); certification is blocked")
         print(f"Gate 7 alternatives: {result.alternative_solutions_accepted}/{result.alternative_solutions_total}")
         for sha, reward in result.alternative_solution_rewards.items():
             if reward != 1.0:

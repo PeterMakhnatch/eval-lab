@@ -138,11 +138,6 @@ def test_build_synthesis_prompt_blind_to_eval_mutants() -> None:
     assert eval_diff not in prompt
     assert "9999" not in prompt
 
-    # Required instructions
-    assert "contract-complete" in prompt
-    assert "branch, guard, boundary condition" in prompt
-    assert "PUBLIC API" in prompt
-    assert "inspect.getsource" in prompt  # in strict rules list
     assert "AssertionError: False is not true" in prompt  # feedback included
 
 

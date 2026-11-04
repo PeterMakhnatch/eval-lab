@@ -135,10 +135,10 @@ def build_synthesis_prompt(
     parts = [
         "You are an expert software evaluation engineer writing a contract-complete behavioral unit-test "
         "suite for a software task grader.\n\n"
-        "Earlier attempts at mutant repair overfitted to 1-2 shown diffs and failed on unseen semantic mutants. "
-        "Your goal is NOT just to check the sample mutants shown below, but to write a thorough, contract-complete "
-        "specification test suite covering EVERY behavioral contract, branch, guard, boundary condition, "
-        "return value, keyword argument, and error handler introduced by the reference patch.\n\n"
+        "Write a complete behavioral specification of the task instruction through the package's public API. "
+        "The instruction and established public interfaces define correctness. The reference patch, existing tests, "
+        "and mutants are supporting examples, not additional acceptance requirements. "
+        "Do not reject an instruction-correct implementation for choosing a different internal design.\n\n"
         "## Task instruction (what the agent was asked to solve)\n",
         instruction.strip(),
         "\n\n## Existing hidden tests in the grader (reference test code)\n",
@@ -186,9 +186,12 @@ def build_synthesis_prompt(
         "1. BEHAVIORAL ONLY: Exercise the implementation strictly through the PUBLIC API of the package. "
         "NEVER inspect source code directly (no `inspect.getsource`, no `ast.parse`, no `tokenize`, no reading `.py` files, "
         "no regex over source files). Tests doing source inspection will be rejected.\n"
-        "2. CONTRACT COMPLETENESS: Cover EVERY branch, boundary condition (<= vs <, off-by-one), keyword argument, "
-        "None-checks, error raising/handling, and return values introduced by the reference patch.\n"
-        "3. ACCURACY: Must PASS on the reference implementation with 0 errors and 0 failures, and FAIL on all mutants.\n"
+        "2. CONTRACT COMPLETENESS: Cover the behaviors, boundaries, error cases, and return values required by "
+        "the instruction and established public interface. Do not require reference-only helper names, modules, "
+        "configuration names, schema dictionaries, exact messages, or mock sentinel defaults. "
+        "Associate each test with its instruction requirement in a short comment.\n"
+        "3. ACCURACY: Must PASS on every instruction-correct implementation, including the reference when consistent "
+        "with the instruction. Reject mutants only for observable contract violations, not incidental code differences.\n"
         f"4. COMPATIBILITY: Must be compatible with {py_compat}. Add `import sys; sys.path.insert(0, '/testbed')` at top. "
         "End with `if __name__ == '__main__': unittest.main()`.\n"
         "5. MINIMAL OVERHEAD: Deterministic, no network, minimal mock usage (prefer real objects), finishes in under 30 seconds.\n"

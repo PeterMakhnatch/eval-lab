@@ -152,6 +152,11 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    Selecting a cloud backend or hardening the verifier does not satisfy that requirement.
    Offline JSON previews report `injection_controls: false`, the unexercised gates, and `certification_possible: false`.
 
+   Gold synthesis uses the task instruction and established public interfaces as the acceptance contract.
+   Reference patches, existing tests, and mutants supply examples; they do not add requirements.
+   The prompt excludes reference-only names, exact messages, schema dictionaries, and mock sentinel defaults.
+   This prompt rule does not prove acceptance validity. Independent, test-blind alternatives must still exercise Gate 7.
+
    After Peter approves a named task and cap, run:
    ```bash
    evallab certify-gold \

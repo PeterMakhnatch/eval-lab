@@ -54,13 +54,14 @@ def split_filter(runs_path: Path, splits: str) -> set[str]:
     return keys
 
 
-def version_of(results: dict[str, dict[str, Any]], model: str) -> str:
+def version_of(results: dict[str, dict[str, Any]], model: str, tag: str = "") -> str:
     rubric = next((r.get("rubric_sha256") for r in results.values() if r.get("rubric_sha256")), "deployed-autoreview")
-    return hashlib.sha256(f"{code_sha()}|{rubric}|{model}".encode()).hexdigest()
+    payload = f"{code_sha()}|{rubric}|{model}" + (f"|tag={tag}" if tag else "")
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def signal_rows(name: str, results: dict[str, dict[str, Any]], model: str) -> list[dict[str, Any]]:
-    version = version_of(results, model)
+def signal_rows(name: str, results: dict[str, dict[str, Any]], model: str, tag: str = "") -> list[dict[str, Any]]:
+    version = version_of(results, model, tag)
     rows = []
     for run_key, row in sorted(results.items()):
         served = sorted({w.get("model_served") for w in row.get("windows", []) if w.get("model_served")})
@@ -109,6 +110,7 @@ def main() -> None:
     parser.add_argument("--ensemble", action="append", default=[], help="name=a+b:mean|max")
     parser.add_argument("--runs", type=Path, help="DetBench runs.jsonl used with --split to filter rows")
     parser.add_argument("--split", default="", help="comma-separated splits to keep (e.g. dev or dev,heldout)")
+    parser.add_argument("--version-tag", default="", help="extra token hashed into every version (e.g. view=reasoning)")
     args = parser.parse_args()
     keep = split_filter(args.runs, args.split) if args.runs and args.split else None
     signals: dict[str, list[dict[str, Any]]] = {}
@@ -118,7 +120,7 @@ def main() -> None:
         if keep is not None:
             results = {k: v for k, v in results.items() if k in keep}
         model = next(iter(results.values()))["model"] if results else "unknown"
-        signals[name] = signal_rows(name, results, model)
+        signals[name] = signal_rows(name, results, model, args.version_tag)
     for spec in args.ensemble:
         name, rest = spec.split("=", 1)
         members, method = rest.split(":")

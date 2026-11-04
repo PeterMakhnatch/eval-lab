@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import hashlib
+import importlib.util
 import json
 import math
 import re
@@ -22,7 +23,10 @@ HERE = Path(__file__).resolve().parent
 DETBENCH = HERE.parent / "ov1104-detbench"
 sys.path.insert(0, str(DETBENCH))
 import length_metrics as metrics  # noqa: E402
-import score as historical  # noqa: E402
+
+_score_spec = importlib.util.spec_from_file_location("ov1104_detbench_score", DETBENCH / "score.py")
+historical = importlib.util.module_from_spec(_score_spec)
+_score_spec.loader.exec_module(historical)
 
 PREREG = "9c66cb3b7"
 DEFAULT_ROOT = Path("/private/tmp/ov1104/shared/detbench")

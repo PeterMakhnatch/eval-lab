@@ -35,7 +35,7 @@ class LaneCaller:
             raise RuntimeError('required nofallback configuration is missing')
         self.stderr = (self.out / 'gateway-stderr.log').open('ab')
         self.process = await asyncio.create_subprocess_exec(
-            'omp', 'auth-gateway', 'stdio', '--config', str(CONFIG),
+            'omp', '--config', str(CONFIG), 'auth-gateway', 'stdio',
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=self.stderr, limit=1 << 26)
         ready = json.loads(await asyncio.wait_for(self.process.stdout.readline(), 120))

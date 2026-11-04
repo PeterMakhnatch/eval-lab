@@ -53,6 +53,12 @@ Only the pinned `src/evallab/hack_drop.py` dependency changes.
 The final contract records SHA-256 `86dc78d0c24f3f9a3795aff3b74e989ae6bf39ef5f1ec68f61d6c4b8ef16852a`.
 No cohort score informs this update. Labels, thresholds, prompts, and sample remain unchanged.
 
+The first judge launch fails before any model request: this CLI rejects `--config` after the subcommand.
+The transport-only correction places the same overlay before `auth-gateway stdio`.
+A startup-only probe returns `ready: true` with 0 model requests.
+The parent preserves the first freeze and publishes a second freeze before judging.
+The corrected launch preserves all data, labels, prompts, thresholds, windows, and response-model checks.
+
 The L0 runner's `decision` signal is only L0. It is never the full line. `native_line.py` stages label-free bundles and calls `evallab.line.core.run_line`. It copies the current standard replay policy from `~/Developer/eval-lab-results/line/replay-v1/spec.json`: weak→review; certified, provisional and uncertified→pass; task status has no certification evidence; audit rate 0.05, seed `nov2-line`. It uses variant-specific task IDs, an isolated read-only judge queue, empty verdicts and a genuinely empty native AutoReview cache. No task is marked certified. Native code emits `AUTOREVIEW_CACHE_MISS` for eligible runs with no reading and `AUTOREVIEW_NOT_ELIGIBLE` otherwise. Thus categorical decisions are real native decisions under missing downstream evidence, not a complete deployed-model performance claim. Report cache-miss coverage separately. Never synthesize CLEAN verdicts, substitute J2b, disable AutoReview, or infer keeps. Fresh actual AutoReview readings require a separately frozen input set and route-safe runner.
 
 ## Length definitions

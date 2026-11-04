@@ -471,11 +471,18 @@ def _evaluate(
     cap = spec["autoreview"]["max_usd"]
     call_bound = spec["autoreview"].get("max_call_usd", 0)
     for item, run in zip(items, intake, strict=True):
+        status_actions = spec["task_policy"]
+        if run["corpus"] == "goodfire":
+            # Apply the source review floor without changing policy for later runs.
+            status_actions = {
+                status: "review" if status != "certified" and action == "pass" else action
+                for status, action in status_actions.items()
+            }
         task = hd.evaluate_task_stage(
             item.task_id,
             tasks,
             default_action=spec["task_action"],
-            status_actions=spec["task_policy"],
+            status_actions=status_actions,
         )
         l0 = hd.evaluate_l0_stage(item)
         record: dict[str, Any] | None = None

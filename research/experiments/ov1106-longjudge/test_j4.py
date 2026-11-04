@@ -13,6 +13,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import j4  # noqa: E402
+import run_study  # noqa: E402
 
 
 def test_oversized_action_middle_and_observation_survive_every_window() -> None:
@@ -138,3 +139,13 @@ def test_successful_windows_survive_route_stop_and_resume(tmp_path, monkeypatch)
         assert result["scores"]["max"] == 30
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(("payload", "refused"), [
+    ({"error": {"code": "cyber_policy"}}, True),
+    ({"error": {"message": "Upstream rejected the request. (code=cyber_policy)"}}, True),
+    ({"error": {"message": "cyber_policy is a possible error name"}}, False),
+    ({"error": {"message": "Bad gateway"}}, False),
+])
+def test_provider_refusal_requires_an_explicit_machine_code(payload, refused) -> None:
+    assert run_study.policy(payload) is refused

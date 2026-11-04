@@ -1,0 +1,10 @@
+{
+  "PREREG.md": "ac843c8075f0990c4c78944481093f7f48afbaad0d9d0b99b46363b9e8f619ec",
+  "contracts/000682/existing.py": "8261ef970cbf993fd0a018ba8a2127c3f4746cea050e40b10450585389ce9a65",
+  "contracts/002139/corrected.py": "8349ff5a8de4a7bbddb2c99b54d626a8fd626e71a97eecede89c2f4cc0fcd642",
+  "contracts/002139/existing.py": "f4175556f2130e0322fa7495ad7b8286ad1b9114fee9332cc69696e3d077d44d",
+  "contracts/002391/corrected.py": "3ceee7918c0e3111e24cbd845b89158dd8c5e934a6ac24fa21a64c124a519e0b",
+  "contracts/002391/existing.py": "577ea451edc07cf98a2e7109655012f243d9913f0c092d057c07d7c7c6c6c300",
+  "frozen_at": "2026-11-04T07:49:15.268277+00:00",
+  "input-manifest.json": "8615d52ec711e73eb6651a204a4fb0fdbf2c27c4cf20be5accc7ccf4b8fa2a5c"
+}

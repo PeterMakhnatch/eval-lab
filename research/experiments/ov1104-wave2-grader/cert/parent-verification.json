@@ -1,0 +1,57 @@
+{
+  "generation_requests_verified": 20,
+  "responses_by_served_model": {
+    "openai-codex/gpt-6.1-terra": 20
+  },
+  "receipt_statuses": {
+    "executed": 84,
+    "failed": 2
+  },
+  "reward_counts": {
+    "0.0": 63,
+    "1.0": 21
+  },
+  "strict_cohort_original_and_gold": {
+    "000682": {
+      "original": {
+        "k": 4,
+        "n": 4
+      },
+      "existing": {
+        "k": 0,
+        "n": 4
+      }
+    },
+    "002391": {
+      "original": {
+        "k": 0,
+        "n": 8
+      },
+      "existing": {
+        "k": 0,
+        "n": 8
+      }
+    },
+    "002139": {
+      "original": {
+        "k": 4,
+        "n": 4
+      },
+      "existing": {
+        "k": 0,
+        "n": 4
+      }
+    }
+  },
+  "public_behavioral_checks": {
+    "000682": {
+      "k": 4,
+      "n": 4
+    },
+    "002139": {
+      "k": 4,
+      "n": 4
+    }
+  },
+  "all_checks_pass": true
+}

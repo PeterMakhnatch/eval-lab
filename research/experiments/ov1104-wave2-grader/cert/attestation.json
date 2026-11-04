@@ -1,0 +1,10 @@
+{
+  "requested_model": "openai-codex/gpt-6.1-terra",
+  "requests": 20,
+  "responses": 20,
+  "attested_responses": 20,
+  "tools_empty": true,
+  "instruction_only_count": 16,
+  "reference_filename_guided_count": 4,
+  "no_model_saw_hidden_tests_reference_patch_or_previous_alternatives": true
+}

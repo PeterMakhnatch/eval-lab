@@ -1,0 +1,11 @@
+{
+  "captured_at": "2026-11-04T08:18:57.731878+00:00",
+  "session": "/private/tmp/ov1104/wave2-grader/session/2026-11-04T07-39-15-434Z_01a1a57f-726a-7594-adb7-f2b2c4db120a/Smoke.jsonl",
+  "assistant_provider_model_counts": {
+    "openai-codex/gpt-6.1-sol": 96
+  },
+  "model_change_count": 2,
+  "resolvedModelIsFallback_true": 0,
+  "generation_calls": 0,
+  "note": "Assistant route snapshot; parent can refresh after final handoff. No task-solving generation calls."
+}

@@ -1,0 +1,58 @@
+--- a/pip_audit/_audit.py
++++ b/pip_audit/_audit.py
+@@ -6,7 +6,7 @@
+ 
+ import logging
+ from collections.abc import Iterator
+-from dataclasses import dataclass
++from dataclasses import dataclass, replace
+ 
+ from pip_audit._dependency_source import DependencySource
+ from pip_audit._service import Dependency, VulnerabilityResult, VulnerabilityService
+@@ -21,6 +21,39 @@
+     """
+ 
+     dry_run: bool = False
++
++
++def _collapse_vulnerabilities(
++    vulnerabilities: list[VulnerabilityResult],
++) -> list[VulnerabilityResult]:
++    """Merge records connected by their primary IDs or aliases."""
++    groups: list[tuple[VulnerabilityResult, set[str]]] = []
++    for vulnerability in vulnerabilities:
++        identifiers = set(vulnerability.aliases) | {vulnerability.id}
++        matches = [
++            index for index, (_, ids) in enumerate(groups) if ids & identifiers
++        ]
++        if not matches:
++            groups.append((vulnerability, identifiers))
++            continue
++
++        # Existing groups are disjoint, so all groups connected by this record
++        # can be merged at once. Keep the first group's position in the output.
++        records = [groups[index][0] for index in matches] + [vulnerability]
++        for index in matches:
++            identifiers.update(groups[index][1])
++        representative = next(
++            (record for record in records if record.id.startswith("PYSEC")),
++            records[0],
++        )
++        groups[matches[0]] = (representative, identifiers)
++        for index in reversed(matches[1:]):
++            del groups[index]
++
++    return [
++        replace(record, aliases=identifiers - {record.id})
++        for record, identifiers in groups
++    ]
+ 
+ 
+ class Auditor:
+@@ -60,4 +93,5 @@
+             logger.info(f"Dry run: would have audited {len(list(specs))} packages")
+             yield from ()
+         else:
+-            yield from self._service.query_all(specs)
++            for dependency, vulnerabilities in self._service.query_all(specs):
++                yield dependency, _collapse_vulnerabilities(vulnerabilities)

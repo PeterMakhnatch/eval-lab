@@ -1,0 +1,14 @@
+# Inherit all project checks for active experiment controllers.
+extend = "../../../pyproject.toml"
+
+# These exact files are immutable executed evidence. The adjacent freeze receipts
+# bind their bytes. Do not modernize target-container Python or reorder bootstrap
+# imports after evaluation. Limit exceptions to their observed style diagnostics;
+# all other rules remain active, including syntax and undefined-name checks.
+[lint.per-file-ignores]
+"cert/contracts/000682/existing.py" = ["I001", "UP008"]
+"cert/contracts/002391/existing.py" = ["I001", "UP017"]
+"cert/contracts/002391/corrected.py" = ["I001", "UP017"]
+"cert/public_gcs.py" = ["E402"]
+"cert/public_sns.py" = ["I001"]
+"smoke/smoke_runner.py" = ["F401", "I001"]

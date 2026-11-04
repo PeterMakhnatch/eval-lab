@@ -1,0 +1,312 @@
+[
+  {
+    "task": "000682",
+    "index": 0,
+    "split": "dev",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "4616bf6d127c248a6829be0fbf8b64419ef8a2efa0a088bb703c63a144d91e90",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 10694,
+      "completion_tokens": 612,
+      "total_tokens": 11306,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 34
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "7b17dbbf28eb3587405a04b793d3ec4dba32d64f163adab9c0e19cb75a4cd130",
+    "changed_paths": [
+      "c7n/resources/sns.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/000682/0.patch",
+    "error": null
+  },
+  {
+    "task": "000682",
+    "index": 1,
+    "split": "dev",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "24da55f9f0d21818a972033900dd6d326897c0333609c6d60a2911bbafd63d43",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 10694,
+      "completion_tokens": 530,
+      "total_tokens": 11224,
+      "prompt_tokens_details": {
+        "cached_tokens": 10624
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "be9a7738a70d7a3323777e95652a9f873ddef870e5c9a2b65e9a8515f2724f55",
+    "changed_paths": [
+      "c7n/resources/sns.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/000682/1.patch",
+    "error": null
+  },
+  {
+    "task": "000682",
+    "index": 2,
+    "split": "eval",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "1aebddabfe1b7a9880367a75512227da54cc4ae6fdb51ccb3a79be2b74679fd9",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 10694,
+      "completion_tokens": 559,
+      "total_tokens": 11253,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "ef165da95a6d78789747ef6c1657b540642345977b288d5e17b00027aa3c1f34",
+    "changed_paths": [
+      "c7n/resources/sns.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/000682/2.patch",
+    "error": null
+  },
+  {
+    "task": "000682",
+    "index": 3,
+    "split": "eval",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "a5371d7563e16bebcc60cb8815daa37d7fa9a635bb46eb770f03ea1ff5ee8e0a",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 10694,
+      "completion_tokens": 609,
+      "total_tokens": 11303,
+      "prompt_tokens_details": {
+        "cached_tokens": 10624
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 32
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "8436f9a63b135244dfc1784905d70f257c5093be219e06ef16352f681a047db0",
+    "changed_paths": [
+      "c7n/resources/sns.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/000682/3.patch",
+    "error": null
+  },
+  {
+    "task": "002391",
+    "index": 0,
+    "split": "dev",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "750f5017f659949fd7429e3a12aec7c1fccd2ee712c0085aed16087b0e26396d",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 2319,
+      "completion_tokens": 579,
+      "total_tokens": 2898,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 121
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "cce81e16761a8eca4400c9896b8563a379d76a85e5eb6d2a71a68e014b93a72c",
+    "changed_paths": [
+      "pip_audit/_audit.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/002391/0.patch",
+    "error": null
+  },
+  {
+    "task": "002391",
+    "index": 1,
+    "split": "dev",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "b06c0a459754c98bfad5d6025ab99465542b36f89f265c27b8467530efaa5104",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 2319,
+      "completion_tokens": 500,
+      "total_tokens": 2819,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 90
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "77dd0d4f1ad6fafb20df62fed7fdb38ea1d47903a53214e2b4b6a36dcc0865fe",
+    "changed_paths": [
+      "pip_audit/_audit.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/002391/1.patch",
+    "error": null
+  },
+  {
+    "task": "002391",
+    "index": 2,
+    "split": "eval",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "2933eba4fdf77bb814d541fa8dda69bba0951cef3b8f2fc189f0ab7ed86f3771",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 2319,
+      "completion_tokens": 632,
+      "total_tokens": 2951,
+      "prompt_tokens_details": {
+        "cached_tokens": 2176
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 82
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "adbd8dec15b4d64fc2a0d5790fe71907a4d77b3926d2002f16c8322b1ed764be",
+    "changed_paths": [
+      "pip_audit/_audit.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/002391/2.patch",
+    "error": null
+  },
+  {
+    "task": "002391",
+    "index": 3,
+    "split": "eval",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "c726d3f990ec05851b572d2359d3f8fa592b23cd8fab297f0aae8281bd2a7f5c",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 2319,
+      "completion_tokens": 449,
+      "total_tokens": 2768,
+      "prompt_tokens_details": {
+        "cached_tokens": 2176
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 54
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "aa75f0b7575231fda17f55fb21ece46707b920f852ff40601b4e16465e1ff34b",
+    "changed_paths": [
+      "pip_audit/_audit.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/002391/3.patch",
+    "error": null
+  },
+  {
+    "task": "002139",
+    "index": 0,
+    "split": "dev",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "b3d153b2356829a06a1049158a146208c3dc0ba1a228f5f831feea18845662f8",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 26123,
+      "completion_tokens": 670,
+      "total_tokens": 26793,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "436c5c9d377732e36a4b8c20a72bca9b03b6d07b4ecd8a1a1a3d79500fe089e8",
+    "changed_paths": [
+      "lib/bb/fetch2/__init__.py",
+      "lib/bb/fetch2/gcp.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/002139/0.patch",
+    "error": null
+  },
+  {
+    "task": "002139",
+    "index": 1,
+    "split": "dev",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "55bd88456d148ed7fd57ed11e9bdf3b5a1f739ac77a35e179bcab7f32459257e",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 26123,
+      "completion_tokens": 661,
+      "total_tokens": 26784,
+      "prompt_tokens_details": {
+        "cached_tokens": 25984
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "2a1d4037b74a0c1b8adebacaaeefe4c873b2c9e6bdf650b8e8f172aeb9cb463f",
+    "changed_paths": [
+      "lib/bb/fetch2/__init__.py",
+      "lib/bb/fetch2/gcp.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/002139/1.patch",
+    "error": null
+  },
+  {
+    "task": "002139",
+    "index": 2,
+    "split": "eval",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "812e04fbb0c555ab10eaaa309e93fc5863ea10cc721635e614bc440e647ddd01",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 26123,
+      "completion_tokens": 673,
+      "total_tokens": 26796,
+      "prompt_tokens_details": {
+        "cached_tokens": 25984
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "ac4618d8320fbc87f3a8d6d4259bffcbbdad0563136043361b5df1489b62de75",
+    "changed_paths": [
+      "lib/bb/fetch2/__init__.py",
+      "lib/bb/fetch2/gcp.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/002139/2.patch",
+    "error": null
+  },
+  {
+    "task": "002139",
+    "index": 3,
+    "split": "eval",
+    "model_requested": "openai-codex/gpt-6.1-terra",
+    "request_sha256": "23344287b951b4983aa6d609c187969b5a8201cbec40adf60b94761050b7f6f8",
+    "status": 200,
+    "model_served": "openai-codex/gpt-6.1-terra",
+    "usage": {
+      "prompt_tokens": 26123,
+      "completion_tokens": 717,
+      "total_tokens": 26840,
+      "prompt_tokens_details": {
+        "cached_tokens": 25984
+      }
+    },
+    "attempts": 1,
+    "patch_sha256": "4c96a81411bb864925545d0a55440af2034179878277e000cdd0592aaa2ff064",
+    "changed_paths": [
+      "lib/bb/fetch2/__init__.py",
+      "lib/bb/fetch2/gcp.py"
+    ],
+    "patch": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader/research/experiments/ov1104-wave2-grader/cert/alternatives/002139/3.patch",
+    "error": null
+  }
+]

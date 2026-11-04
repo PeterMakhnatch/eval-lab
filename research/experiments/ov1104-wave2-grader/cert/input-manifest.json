@@ -1,0 +1,49 @@
+{
+  "model_requested": "openai-codex/gpt-6.1-terra",
+  "split": {
+    "dev": [
+      0,
+      1
+    ],
+    "eval": [
+      2,
+      3
+    ]
+  },
+  "tasks": {
+    "000682": {
+      "baseline_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/probe-000682/result.json",
+      "baseline_receipt_sha256": "71c5d0cc7fe8df2a9cdbc5a1aab67d12679d9363d5257100a8817a5cc243e6f9",
+      "instruction_sha256": "6ae2341089d4403e2e83f2946fde43aa485c29774043588ad6e6e7085cfa2278",
+      "source_files": {
+        "c7n/actions/__init__.py": "1e9738792ae0c29f63cdb8055414f2391e08b41c89b73bebc127f8f89d7954ea",
+        "c7n/filters/__init__.py": "575df083e00eaf0da25952cb25377c466d44479e7ff5de2b65433f5fee4f1f35",
+        "c7n/filters/kms.py": "6bc7d46a418015939ec7b1ee7e26b27c8208042b3b80ea22ebf5cd9cece3889f",
+        "c7n/resources/sns.py": "c1ffc81c27c6249fa6ffd58bb39ba7570f29ebc8a660c03fe7cc0446b739c53e",
+        "c7n/resources/sqs.py": "5ec232327c8ec8e4c67e2450a8ecfb0a822872d5da93ba73e7cfe563196de726",
+        "c7n/utils.py": "a37ec3ad90087c4b7142efef8023951108c10867c6ef62a3b759a57b60da3df8"
+      }
+    },
+    "002139": {
+      "baseline_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-04/ov1104-grader/cells/probe-002139-b/result.json",
+      "baseline_receipt_sha256": "a6b0b9b41f491d5007b8e748053e4eac216a472819db5fb7e9a8bb10d48c1f91",
+      "instruction_sha256": "40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8",
+      "source_files": {
+        "lib/bb/fetch2/__init__.py": "3c95eb10221bb7aba2deb3f2869538340239040a620b6af8e71ec3f18fab6651",
+        "lib/bb/fetch2/az.py": "18ca2ee7d4f80d496b78c147303f92bb16a589156d8e6adbe20809a6d3d9056d",
+        "lib/bb/fetch2/crate.py": "a448984dec8d0bf22bdcb4a36cda64d2a34d0f2a8f2cae2fab2c9ef79108474e",
+        "lib/bb/fetch2/s3.py": "0e2ec33149c4bdc2654325ead0b61cf79f765ab4855431f24582c3303d922a70"
+      }
+    },
+    "002391": {
+      "baseline_receipt": "/private/tmp/ov1104/wave2-grader/workers/cert/cells/source-002391-workdir/result.json",
+      "baseline_receipt_sha256": "5e7d0683d914d0683a53ebe8cb5509e84db551482f53686f684dbe5e42a72421",
+      "instruction_sha256": "070adfd6a3bad8de52967db202ed20fa542b9551e77e7bd36608621ba1bb0ef6",
+      "source_files": {
+        "pip_audit/_audit.py": "12236435d54fc7c43ca839632efc8c684a7f45ed305c7b0c4e92b2cd0313109a",
+        "pip_audit/_service/interface.py": "e32724d92c5d9cc35f5f4c8f0cd546fda38ff8866d5391d72793531ae8063302"
+      }
+    }
+  },
+  "tools": []
+}

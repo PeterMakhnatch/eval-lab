@@ -1,0 +1,12 @@
+{
+  "schema": "wave2.smoke.image-enumeration/v1",
+  "command": ["docker", "image", "ls", "--digests", "--no-trunc", "--format", "{{json .}}"],
+  "raw_stdout": "/private/tmp/ov1104/wave2-grader/workers/smoke/docker-images.stdout.jsonl",
+  "raw_stdout_sha256": "08ab4b3a70dc34a90b2ab8630fe5a4f0892f0499490d3798236a0407b24da9d6",
+  "raw_stderr": "/private/tmp/ov1104/wave2-grader/workers/smoke/docker-images.stderr.txt",
+  "enumerated_tags_n": 242,
+  "enumerated_unique_image_ids_n": 242,
+  "selected_agent_or_verifier_image_ids_n": 38,
+  "unselected_image_ids_n": 204,
+  "interpretation": "Unselected images are not inferred DEV or safe. No task content is opened to resolve an unadmitted image. The population is limited to immutable prior strict-DEV admission metadata. Selected IDs can include an agent-only image whose verifier is missing."
+}

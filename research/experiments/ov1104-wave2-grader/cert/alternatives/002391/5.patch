@@ -1,0 +1,53 @@
+--- a/pip_audit/_audit.py
++++ b/pip_audit/_audit.py
+@@ -6,7 +6,7 @@
+ 
+ import logging
+ from collections.abc import Iterator
+-from dataclasses import dataclass
++from dataclasses import dataclass, replace
+ 
+ from pip_audit._dependency_source import DependencySource
+ from pip_audit._service import Dependency, VulnerabilityResult, VulnerabilityService
+@@ -60,4 +60,40 @@
+             logger.info(f"Dry run: would have audited {len(list(specs))} packages")
+             yield from ()
+         else:
+-            yield from self._service.query_all(specs)
++            for dependency, vulnerabilities in self._service.query_all(specs):
++                yield dependency, self._collapse_vulnerabilities(vulnerabilities)
++
++    @staticmethod
++    def _collapse_vulnerabilities(
++        vulnerabilities: list[VulnerabilityResult],
++    ) -> list[VulnerabilityResult]:
++        # Each group contains a representative, all of its identifiers, and the
++        # number of records it contains. Groups have disjoint identifier sets.
++        groups: list[tuple[VulnerabilityResult, set, int]] = []
++        for vulnerability in vulnerabilities:
++            identifiers = vulnerability.aliases | {vulnerability.id}
++            matches = [i for i, (_, ids, _) in enumerate(groups) if ids & identifiers]
++            if not matches:
++                groups.append((vulnerability, identifiers, 1))
++                continue
++
++            representative = groups[matches[0]][0]
++            count = 1
++            for i in matches:
++                candidate, ids, size = groups[i]
++                identifiers |= ids
++                count += size
++                if candidate.id.startswith("PYSEC") and not representative.id.startswith("PYSEC"):
++                    representative = candidate
++            if vulnerability.id.startswith("PYSEC") and not representative.id.startswith("PYSEC"):
++                representative = vulnerability
++
++            first = matches[0]
++            for i in reversed(matches):
++                groups.pop(i)
++            groups.insert(first, (representative, identifiers, count))
++
++        return [
++            replace(result, aliases=ids - {result.id}) if count > 1 else result
++            for result, ids, count in groups
++        ]

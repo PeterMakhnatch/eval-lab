@@ -1,0 +1,19 @@
+{
+  "raw_receipt_files_verified": 555,
+  "native_trials_verified": {
+    "null": 36,
+    "grid": 1
+  },
+  "isolation_and_resource_receipts_verified": 39,
+  "grid_bytes_verified": 4096,
+  "mutation_population": {
+    "weak": 24,
+    "n": 37
+  },
+  "joint_population": {
+    "mutation_weak": 20,
+    "n": 31,
+    "smoke_weak": 0
+  },
+  "all_checks_pass": true
+}

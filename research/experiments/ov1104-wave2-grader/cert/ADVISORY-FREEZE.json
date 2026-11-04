@@ -1,0 +1,14 @@
+{
+  "prereg_sha256": "abeda6073362e2d9fcfb8d6808cad6f5191cccfab9590aeb2e8fbb6178dd89ee",
+  "instruction_sha256": "070adfd6a3bad8de52967db202ed20fa542b9551e77e7bd36608621ba1bb0ef6",
+  "source_files": {
+    "pip_audit/_audit.py": "12236435d54fc7c43ca839632efc8c684a7f45ed305c7b0c4e92b2cd0313109a",
+    "pip_audit/_service/interface.py": "e32724d92c5d9cc35f5f4c8f0cd546fda38ff8866d5391d72793531ae8063302"
+  },
+  "requests": {
+    "4": "b839c3bf5c7a8b13717f467cd3b3bf66b6483d97b17621111146692c3daf8214",
+    "5": "3836a9ed6265b700499d72bc0862e1b55c39df9f44e187199d9b3e38e04bf865",
+    "6": "334ab595621d3daed4fb7a6e14b79df795b37ffc6849d7a17f0bee732aa0efb1",
+    "7": "6756868d7a495b0896ed2a2711e4c8d878bbf795ccbb6fd3605a4de591626fd0"
+  }
+}

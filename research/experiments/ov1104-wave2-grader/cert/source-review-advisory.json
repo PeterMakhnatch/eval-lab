@@ -1,0 +1,30 @@
+{
+  "002391-4": {
+    "reviewed_at": "2026-11-04T08:15:31.178422+00:00",
+    "source_only": true,
+    "independent_of_current_cohort_grader_feedback": true,
+    "semantic_assessment": "Same alias-union risk as initial cohort; do not count as correct before original grading",
+    "notes": "Uses union of original primary IDs and aliases in output aliases, excluding representative primary ID. Meets connectivity and PYSEC precedence by inspection, but adds identifiers not present in supplied alias sets. Do not repair or exclude."
+  },
+  "002391-5": {
+    "reviewed_at": "2026-11-04T08:15:31.178442+00:00",
+    "source_only": true,
+    "independent_of_current_cohort_grader_feedback": true,
+    "semantic_assessment": "Same alias-union risk as initial cohort; do not count as correct before original grading",
+    "notes": "Uses union of original primary IDs and aliases in output aliases, excluding representative primary ID. Meets connectivity and PYSEC precedence by inspection, but adds identifiers not present in supplied alias sets. Do not repair or exclude."
+  },
+  "002391-6": {
+    "reviewed_at": "2026-11-04T08:15:31.178446+00:00",
+    "source_only": true,
+    "independent_of_current_cohort_grader_feedback": true,
+    "semantic_assessment": "Same alias-union risk as initial cohort; do not count as correct before original grading",
+    "notes": "Uses union of original primary IDs and aliases in output aliases, excluding representative primary ID. Meets connectivity and PYSEC precedence by inspection, but adds identifiers not present in supplied alias sets. Do not repair or exclude."
+  },
+  "002391-7": {
+    "reviewed_at": "2026-11-04T08:15:31.178448+00:00",
+    "source_only": true,
+    "independent_of_current_cohort_grader_feedback": true,
+    "semantic_assessment": "Same alias-union risk as initial cohort; do not count as correct before original grading",
+    "notes": "Uses union of original primary IDs and aliases in output aliases, excluding representative primary ID. Meets connectivity and PYSEC precedence by inspection, but adds identifiers not present in supplied alias sets. Do not repair or exclude."
+  }
+}

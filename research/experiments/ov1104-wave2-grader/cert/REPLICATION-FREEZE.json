@@ -1,0 +1,16 @@
+{
+  "prereg_sha256": "d65c8bdbf12b0278cd6a34a7e24c5cad8ae3f9a4fdb41665fa73799bd05f0539",
+  "instruction_sha256": "40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8",
+  "source_files": {
+    "lib/bb/fetch2/__init__.py": "3c95eb10221bb7aba2deb3f2869538340239040a620b6af8e71ec3f18fab6651",
+    "lib/bb/fetch2/az.py": "18ca2ee7d4f80d496b78c147303f92bb16a589156d8e6adbe20809a6d3d9056d",
+    "lib/bb/fetch2/crate.py": "a448984dec8d0bf22bdcb4a36cda64d2a34d0f2a8f2cae2fab2c9ef79108474e",
+    "lib/bb/fetch2/s3.py": "0e2ec33149c4bdc2654325ead0b61cf79f765ab4855431f24582c3303d922a70"
+  },
+  "requests": {
+    "4": "32fd6b709578140336902dda55a0499de88ad96c39b594951aa77ed041eab3a8",
+    "5": "d5ae7f1d43e7783b72048aedc1600fdec068fa6621f2137a107789a6f92c18ac",
+    "6": "98acbecc5817f80f14908d91043f1546f8de143f24bcfc1c1238ad2e8d8af63d",
+    "7": "a6b02f48bd89194fe2e5f4e2bb01a1b93d03b71b0e8e43f75df1e9711381704e"
+  }
+}

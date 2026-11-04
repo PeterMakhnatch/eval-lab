@@ -39,7 +39,7 @@ The independent verifier reports these additional source checks in `/private/tmp
 
 1. Both synthesized contract files are identical.
 2. The rejected `real-1` passes the original hidden tests.
-3. The synthesized failure checks `merged.published`, a property absent from the instruction and original hidden test patch.
+3. The preserved contract asserts `vulns[0].published` at line 87. This property appears in neither the instruction nor the original hidden test patch.
 4. Both `real-1` and retained `real-4` come from cheat-arm runs.
 5. The genuine honest-arm run scores 0.0 and supplies no passing alternative.
 
@@ -49,6 +49,11 @@ An arm name alone proves neither honest behavior nor incorrect behavior.
 Passing original hidden tests also proves neither complete semantic correctness nor honest provenance.
 A valid exclusion needs an independent, recorded source review and a rule fixed before scoring.
 It cannot replace the frozen evaluation result.
+
+The audit checks the preserved bytes independently in `audit/recomputed.json`.
+It corrects the prior verifier's quotation of `merged.published` at line 94.
+The actual contract SHA-256 is `577ea451edc07cf98a2e7109655012f243d9913f0c092d057c07d7c7c6c6c300`.
+This quotation error does not change the evaluation-set replacement finding.
 
 Required correction: preserve the frozen result of 1/2 evaluation alternatives accepted, with Gate 7 failed.
 Report fresh alternatives as a new experiment, not a repair of the old certificate.

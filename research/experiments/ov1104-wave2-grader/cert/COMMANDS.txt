@@ -1,0 +1,44 @@
+Working directory for all commands:
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-grader
+
+Runtime interpreter (existing locked Harbor 0.24 environment; no shared installation):
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/python
+
+Preregistration:
+shasum -a 256 research/experiments/ov1104-wave2-grader/cert/PREREG.md
+
+Successful pristine-source probe (two earlier infrastructure/configuration failures are retained in workers/cert/cells):
+env PATH=/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin:$PATH /Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/python research/experiments/ov1104-wave2-grader/cert/cells.py --name source-002391-workdir --package /Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002391 --script /private/tmp/ov1104/wave2-grader/workers/cert/probe2391.sh
+
+Frozen text-only generation, 12 initial candidates:
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/python research/experiments/ov1104-wave2-grader/cert/generate.py
+
+Filename-unconstrained 002139 replication, four additional candidates:
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/python research/experiments/ov1104-wave2-grader/cert/replicate139.py
+
+Main original/existing/corrected matrix and safe source controls:
+env PATH=/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin:$PATH /Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/python research/experiments/ov1104-wave2-grader/cert/evaluate.py
+
+Replication original/existing/corrected matrix and independent public API check:
+env PATH=/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin:$PATH /Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/python research/experiments/ov1104-wave2-grader/cert/evaluate_replication.py
+
+No unmodified certify-gold command executes: its default witness/exit0_pth controls violate this assignment's injection-control boundary. No Docker containers execute in this slice.
+
+Prospective instruction-only 002391 replication, four additional candidates:
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/python research/experiments/ov1104-wave2-grader/cert/replicate2391.py
+
+Advisory replication grading:
+env PATH=/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin:$PATH /Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/python research/experiments/ov1104-wave2-grader/cert/evaluate_advisory.py
+
+Independent SNS side-effect checks:
+env PATH=/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin:$PATH /Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/python research/experiments/ov1104-wave2-grader/cert/evaluate_sns_public.py
+
+Evidence summary and exact historical cell-key recomputation:
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/python research/experiments/ov1104-wave2-grader/cert/summarize.py
+
+Provider-reported billing:
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/modal billing report --for today --resolution h --tag-names app_name --json
+
+Owned application closure:
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/modal app stop --yes ap-mypHhQj6Qhylr8IfWxBwUz
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-grader/.venv/bin/modal app list --json

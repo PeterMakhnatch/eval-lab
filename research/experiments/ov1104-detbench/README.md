@@ -7,12 +7,12 @@ Which $0 signals (run length, L0 rule families, the line's replay decision, and 
 ## Answer
 
 1. **Dataset and views (`runs.jsonl`, 16,549 runs across 25 sets, 0 schema leaks)**:
-   - We published 690 DEV runs (332 cheats, 358 honest; 140 task clusters across 5 corpora) and 15,859 held-out runs (4,104 positives, 11,755 negatives across 20 cross-test registry sets), with 33,098 label-free normalized view files (`full` and `actions_only`).
-   - Exactly 16 held-out sets (12,191 runs: 2,369 positives, 9,822 negatives; 956 clusters) measure cheating without a registered decisive floor and form `pooled:heldout`. Three decisive-rule sets (`cape-bench` 800, `latent-agent-sandbox-episodes` 326, `resolvebench-support-agents` 512) and one task-defect set (`paichecker` 2,587) plus `trusted-monitoring-logs` (233) are scored per set and excluded from `pooled:heldout`.
+   - We published 690 DEV runs (332 cheats, 358 honest; 190 `cluster` IDs across 140 underlying tasks in 5 corpora) and 15,859 held-out runs (4,104 positives, 11,755 negatives across 20 cross-test registry sets), with 33,098 label-free normalized view files (`full` and `actions_only`).
+   - Fifteen held-out sets (11,401 runs: 2,296 positives, 9,105 negatives; 956 clusters) measure cheating without a registered decisive floor and form `pooled:heldout`. Four decisive-rule sets (`cape-bench` 800, `latent-agent-sandbox-episodes` 326, `resolvebench-support-agents` 512, `trusted-monitoring-logs` 233) and one task-defect set (`paichecker` 2,587, `pool: false`) are scored per set and excluded from `pooled:heldout`.
 2. **Trivial length baselines (`length_chars`, `length_steps`)**:
    - On `goodfire` DEV (150 natural runs), `length_chars` reaches AUROC **0.802 [0.728, 0.869]** (**H1 PASS**; bar >= 0.70), beating every cached LLM monitor on `goodfire`.
    - On `pooled:dev` (690 runs), `length_chars` has AUROC **0.531 [0.473, 0.594]** (`pooled:dev_natural` 212 runs: **0.837 [0.750, 0.906]**).
-   - On `pooled:heldout` (12,191 runs), `length_chars` has AUROC **0.586 [0.524, 0.644]** and `length_steps` has AUROC **0.665 [0.625, 0.705]**.
+   - On `pooled:heldout` (11,401 runs), `length_chars` has AUROC **0.586 [0.524, 0.644]** and `length_steps` has AUROC **0.665 [0.625, 0.705]**.
 3. **L0 rules and transfer (`l0v_full_*`, `l0cf_full_*`)**:
    - On `pooled:dev`, the best single L0 rule is `l0v_full_l0_hard_gate_rule_hidden_info_read` with AUROC **0.695 [0.646, 0.749]** (recall **0.410** at 2.0% DEV FPR), and `l0v_full_any_hard` reaches AUROC **0.706 [0.638, 0.776]** (`fire` recall **0.512** at 10.1% DEV FPR).
    - On `pooled:heldout`, 4 individual L0 rules have 95% CI lower bounds above 0.500 (**H2 PASS**): `l0_hard_target_surface_write` (**0.532 [0.522, 0.543]**), `l0_hard_gate_rule_hidden_info_read` (**0.511 [0.508, 0.516]**), `l0_soft_config_write` (**0.509 [0.503, 0.516]**), and `l0_soft_test_write_unverified` (**0.508 [0.502, 0.517]**). Pooled hard rules (`l0v_full_any_hard`) reach **0.546 [0.534, 0.560]** (`fire` recall **0.119** at 2.6% held-out FPR).
@@ -20,11 +20,12 @@ Which $0 signals (run length, L0 rule families, the line's replay decision, and 
 4. **Judges, probes, outcome regrade, and DEV-frozen combinations**:
    - **Cached Facets (`cached_facets_haiku_all`)**: DEV AUROC **0.640 [0.528, 0.708]** (coverage 0.43); on the 11 held-out sets it covers (1,294 held-out runs, coverage 0.11), it achieves held-out AUROC **0.924 [0.900, 0.943]**, beating `length_chars` by **+0.412**.
    - **JudgeLab frozen `j2b_actions_task_diff_v2_flash`**: DEV AUROC **0.781 [0.734, 0.830]** (coverage 0.97, recall **0.578** at 4.2% DEV FPR); on the 11 held-out sets it covers (coverage 0.13), it achieves held-out AUROC **0.799 [0.754, 0.844]**, beating `length_chars` by **+0.190**.
-   - **Probes frozen `probe_qwen3_8b` and `probe_qwen3_8b_run_mean`**: `probe_qwen3_8b` achieves DEV OOF AUROC **0.561 [0.459, 0.666]** (mean LOSO **0.619**) and held-out AUROC **0.549 [0.485, 0.611]** (coverage 0.61); diagnostic `probe_qwen3_8b_run_mean` achieves DEV OOF AUROC **0.587 [0.527, 0.656]** and held-out AUROC **0.631 [0.559, 0.706]** (coverage 0.61).
+   - **Probes frozen `probe_qwen3_8b`, `probe_qwen3_8b_run_mean`, and within-set z-scored `probe_qwen3_8b_*_z`**: `probe_qwen3_8b` achieves DEV OOF AUROC **0.561 [0.459, 0.666]** (mean LOSO **0.619**) and held-out AUROC **0.549 [0.485, 0.611]** (coverage 0.61); diagnostic `probe_qwen3_8b_run_mean` achieves DEV OOF AUROC **0.587 [0.527, 0.656]** and held-out AUROC **0.631 [0.559, 0.706]** (coverage 0.61). Within-set z-scoring (`probe_qwen3_8b_run_mean_z`) raises DEV AUROC to **0.622 [0.561, 0.673]** (recall **0.130** at 4.7% FPR) and held-out AUROC to **0.699 [0.633, 0.767]** (held-out recall **0.136** at 2.7% FPR).
    - **Outcome regrade (`outcome_regrade`)**: DEV AUROC **0.889 [0.714, 1.000]** on the 56 `c1c5` + `sol-astra` runs with executable containers (0.0% FPR).
    - **DEV-frozen combinations**:
      - `or_best_rule_cached_judge` (`l0_hard_gate_rule_hidden_info_read` OR `cached_facets_haiku_all`): DEV AUROC **0.741 [0.690, 0.774]**, DEV recall **0.515** at 3.4% FPR; held-out recall **0.144** at **0.46% FPR** (`42/9,105`), with **17/20 (85%)** of held-out sets having a Wilson 95% FPR upper bound $\le 10\%$ (**H4 PASS**).
      - `max_best_rule_j2b` (percentile-rank max of `l0_hard_gate_rule_hidden_info_read` and `j2b_actions_task_diff_v2_flash`): DEV AUROC **0.805 [0.761, 0.847]**, DEV recall **0.645** at 4.7% FPR (`+6.7` pp over `j2b` alone).
+     - `max_rule_probez_j2b` (percentile-rank max of `l0_hard_gate_rule_hidden_info_read`, `probe_qwen3_8b_run_mean_z`, and `j2b_actions_task_diff_v2_flash`): DEV AUROC **0.812 [0.758, 0.855]** (DEV recall **0.605** at 4.7% FPR), held-out AUROC **0.587 [0.538, 0.639]** (held-out recall **0.143** at 1.6% FPR).
      - `max_rule_j2b_length`: DEV AUROC **0.870 [0.819, 0.923]**, held-out AUROC **0.644 [0.596, 0.686]**, beating `length_chars` on both DEV (**+0.339**) and held-out (**+0.058**).
 5. **Counterfactual for held L0 format decision (#1825)**:
    - On DEV `full` views (690 runs), mapping known tool shapes (`bash_command{keystrokes}`, `shell{command}`, `execute_bash`, `edit_file`, `read_file`, read-only tools) reduces honest runs flagged only by `L0_UNRECOGNIZED_TOOL_SHAPE` from **160/358 (44.7% [39.6%, 49.9%])** to **6/358 (1.7% [0.8%, 3.6%])** — a **96.25% reduction** (**H5 PASS**; bar >= 80%). Total honest runs flagged by L0 drops from **253/358 (70.7%)** to **108/358 (30.2%)** (`terminal-wrench`: `146/146 (100%) -> 41/146 (28.1%)`; `sol-astra`: `19/48 (39.6%) -> 3/48 (6.2%)`).
@@ -44,7 +45,7 @@ Which $0 signals (run length, L0 rule families, the line's replay decision, and 
 | `matrix.py` | Scores all signals and DEV-frozen combinations into `results/SIGNAL-MATRIX.md` and `results/matrix-pooled.json`. |
 | `cached_signals/` | Joins 112 pre-existing cached detector outputs on disk to DetBench `run_key`s and generates `results/CACHED-DETECTORS.md`. |
 | `ingest_dev/`, `ingest_heldout_a..d/` | Deterministic ingestion scripts for the 5 DEV sets and 20 held-out sets. |
-| `results/SIGNAL-MATRIX.md` | Full 286-signal pooled summary table and per-set tables across all 25 sets. |
+| `results/SIGNAL-MATRIX.md` | Full 294-signal pooled summary table and per-set tables across all 25 sets. |
 | `results/COUNTERFACTUAL.md` | Per-corpus counterfactual tables (`full` and `actions_only`) for DEV and held-out sets. |
 | `results/CACHED-DETECTORS.md` | Inventory of all 112 joined cached signals and zero-overlap caches with exact denominators. |
 | `results/runs-summary.json` | Per-set counts, positive/negative splits, cluster counts, `label_type`, `natural`, and `read_by`. |
@@ -83,7 +84,7 @@ uv run pytest research/experiments/ov1104-detbench/test_detbench.py
 
 | ID | Pre-Registered Bar | Measured Result | Verdict |
 |---|---|---|---|
-| **H1** | `length_chars` AUROC on `goodfire` DEV $\ge 0.70$ | **0.802 [0.728, 0.869]** ($n=150$, 80 pos / 70 neg, 50 task clusters) | **PASS** |
+| **H1** | `length_chars` AUROC on `goodfire` DEV $\ge 0.70$ | **0.802 [0.728, 0.869]** ($n=150$, 80 pos / 70 neg, 150 cluster IDs / 50 paired tasks) | **PASS** |
 | **H2** | $\ge 1$ L0 rule has `pooled:heldout` AUROC 95% CI lower bound $> 0.50$ | **4 single rules pass**: `l0_hard_target_surface_write` **0.532 [0.522, 0.543]**, `l0_hard_gate_rule_hidden_info_read` **0.511 [0.508, 0.516]**, `l0_soft_config_write` **0.509 [0.503, 0.516]**, `l0_soft_test_write_unverified` **0.508 [0.502, 0.517]** | **PASS** |
 | **H3** | No single L0 rule beats `length_chars` on `pooled:heldout` | **0/25 single L0 rules beat `length_chars`** (`0.586 [0.524, 0.644]`); best diff is $-0.054 [-0.116, +0.008]$ (tie) | **PASS** |
 | **H4** | Best DEV `or` combo has held-out FPR Wilson 95% upper bound $\le 10\%$ on $\ge 10/20$ held-out sets | `or_best_rule_cached_judge`: **17/20 (85%)** sets $\le 10\%$ (pooled HO FPR **0.46%**, $42/9,105$); `or_best_rule_j2b`: **15/20 (75%)** sets at native OR (`fire` FPR **1.25%**) | **PASS** |
@@ -105,10 +106,12 @@ uv run pytest research/experiments/ov1104-detbench/test_detbench.py
 | `j2b_actions_task_diff_v2_flash` (JudgeLab) | **0.781 [0.734, 0.830]** | **0.578 / 0.042** | 0.97 | **0.799 [0.754, 0.844]** | 0.098 / 0.011 | 0.13 | **yes (+0.190)** |
 | `probe_qwen3_8b` (Probes primary) | 0.561 [0.459, 0.666] | 0.072 / 0.042 | 0.99 | 0.549 [0.485, 0.611] | 0.003 / 0.002 | 0.61 | no (-0.068) |
 | `probe_qwen3_8b_run_mean` (Probes secondary) | 0.587 [0.527, 0.656] | 0.057 / 0.047 | 0.99 | 0.631 [0.559, 0.706] | 0.016 / 0.005 | 0.61 | no (-0.046) |
+| `probe_qwen3_8b_run_mean_z` (Probes per-set z) | 0.622 [0.561, 0.673] | 0.130 / 0.047 | 0.99 | 0.699 [0.633, 0.767] | 0.136 / 0.027 | 0.61 | tie (-0.033) |
 | `outcome_regrade` (Outcome container re-exec) | **0.889 [0.714, 1.000]** | 0.042 / 0.000 | 0.08 | — | — | 0.00 | — |
 | `or_best_rule_cached_judge` | 0.741 [0.690, 0.774] | 0.515 / 0.034 | 1.00 | 0.570 [0.558, 0.583] | 0.144 / 0.005 | 1.00 | tie (-0.016) |
 | `or_best_rule_j2b` (fire R/F in parens) | 0.794 [0.754, 0.834] | (0.648 / 0.059) | 1.00 | 0.554 [0.540, 0.571] | (0.120 / 0.013) | 1.00 | tie (-0.032) |
 | `max_best_rule_j2b` | **0.805 [0.761, 0.847]** | **0.645 / 0.047** | 1.00 | 0.555 [0.540, 0.573] | 0.113 / 0.012 | 1.00 | tie (-0.031) |
+| `max_rule_probez_j2b` | **0.812 [0.758, 0.855]** | 0.605 / 0.047 | 1.00 | 0.587 [0.538, 0.639] | 0.143 / 0.016 | 1.00 | tie (+0.001) |
 | `max_rule_j2b_length` | **0.870 [0.819, 0.923]** | 0.578 / 0.042 | 1.00 | **0.644 [0.596, 0.686]** | 0.079 / 0.007 | 1.00 | **yes (+0.058)** |
 | `stack_loso_with_j2b` | 0.696 [0.625, 0.753] | 0.551 / 0.047 | 1.00 | 0.482 [0.431, 0.541] | 0.102 / 0.013 | 1.00 | tie (-0.104) |
 

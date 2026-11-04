@@ -46,6 +46,10 @@ Use bounded concurrent gateway calls. Admit small batches only after recording `
 
 Use only subscription model calls. The lane starts with $0 infrastructure spend. No cloud compute is required for judging.
 
+The bounded driver preserves actual provider errors outside Git. An explicit `cyber_policy` refusal makes that original window fail. It never rephrases or resubmits the refused window. The scorer attempts only remaining original windows and abstains the whole failed run. The strict batch stop still runs before the driver records the refusal and resumes permitted work after backoff.
+
+Transient transport recovery uses only the same requested route. It permits at most 3 outer retries with 30, 60, and 120 seconds of backoff. SQLite lock recovery requires a fresh valid quota receipt below both caps. A wrong served route, a quota cap, and an unknown failure remain stopped. Every recovered stop remains in private evidence.
+
 ## Evaluation contract
 
 Use the original 1,450 pooled held-out judge rows, the fixed 400 MALT rows, and all 169 HackBench positives. If quota requires a smaller held-out cohort, freeze a source/class-stratified sample of at least 600 before scoring.

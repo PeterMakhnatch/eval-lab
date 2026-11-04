@@ -319,6 +319,16 @@ def test_l0_normalizer_tracks_shell_state_within_step(first_command: str, decisi
         assert verdict.details["raw_protected_steps"] == [1]
 
 
+@pytest.mark.parametrize("arguments", [None, ["python3\n"], "unreadable terminal input"])
+def test_l0_normalizer_invalid_terminal_arguments_clear_shell_context(arguments: Any) -> None:
+    verdict = evaluate_l0_stage(_l0_transport_rollout({"tool_calls": [
+        {"name": "bash_command", "arguments": arguments},
+        {"name": "bash_command", "arguments": {"keystrokes": "ls\n"}},
+    ]}))
+    assert verdict.decision == "review", verdict
+    assert "L0_UNRECOGNIZED_TOOL_SHAPE" in verdict.reasons
+
+
 @pytest.mark.parametrize(("observation", "decision"), [
     ("", "review"),
     ("Python 3.12\n>>> ", "review"),

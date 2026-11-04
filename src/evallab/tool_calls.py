@@ -396,4 +396,7 @@ def normalize_tool_call(name: str, arguments: Any, *, shell_ready: bool = True) 
             action = _text_editor(arguments)
         elif lowered == "bash_command":
             return _terminal(arguments, shell_ready)
-    return action or ToolAction("unknown", name, arguments if isinstance(arguments, Mapping) else {})
+    return action or ToolAction(
+        "unknown", name, arguments if isinstance(arguments, Mapping) else {},
+        terminal=lowered == "bash_command",
+    )

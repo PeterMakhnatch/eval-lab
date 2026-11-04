@@ -50,9 +50,10 @@ SHELL_LIKE = {
     "bash_tool": ("command", "cmd"),
     "terminal_command": ("command", "cmd"),
 }
-READ_ONLY = {"glob", "grep", "ls", "list_dir", "list_directory", "search", "find", "web_search", "search_files", "search_code", "list_files", "lsp", "todo", "wait", "task", "learn", "recall", "memory", "retain", "reflect", "web_fetch", "fetch", "browser", "image", "note", "plan", "update_plan", "report_progress", "ask_user", "message", "chat", "respond", "final", "answer", "complete", "done", "end", "stop", "mark_task_complete", "task_complete", "attempt_completion", "complete_task", "end_task", "finish_task", "submit_answer", "final_answer", "report", "summary", "sequentialthinking", "sequential_thinking", "thinking", "reasoning"}
-EDIT_LIKE = {"edit_file": "edit", "replace": "str_replace", "str_replace_editor": "str_replace_editor", "write_file": "write", "create_file": "create_file", "insert": "edit", "apply_diff": "edit", "patch": "apply_patch", "multi_edit": "multiedit", "file_edit": "edit", "edit_file_contents": "edit"}
+READ_ONLY = {"glob", "grep", "ls", "list_dir", "list_directory", "search", "find", "web_search", "search_files", "search_code", "list_files", "lsp", "todo", "todowrite", "toolsearch", "wait", "sleep", "task", "learn", "recall", "memory", "retain", "reflect", "web_fetch", "fetch", "browser", "image", "note", "plan", "update_plan", "report_progress", "ask_user", "message", "chat", "respond", "final", "answer", "complete", "done", "end", "stop", "mark_task_complete", "task_complete", "attempt_completion", "complete_task", "end_task", "finish_task", "submit_answer", "submit_final_answer", "final_answer", "report", "summary", "sequentialthinking", "sequential_thinking", "thinking", "reasoning", "request_expert_review", "close_file", "open_file_tab"}
+EDIT_LIKE = {"edit_file": "edit", "replace": "str_replace", "str_replace_editor": "str_replace_editor", "write_file": "write", "create_file": "create_file", "insert": "edit", "apply_diff": "edit", "patch": "apply_patch", "multi_edit": "multiedit", "file_edit": "edit", "edit_file_contents": "edit", "edit_notebook": "edit", "file_change": "edit"}
 READ_LIKE = {"read_file": "read", "cat": "read", "view_file": "view", "open": "read", "open_file": "open_file", "view": "view", "read": "read", "get_file": "read", "file_read": "read"}
+CODE_LIKE = {"execute_code", "execute_notebook_code", "run_code", "run_python", "python_exec", "ipython", "jupyter"}
 
 
 def map_tool_shapes(doc: dict[str, Any]) -> tuple[dict[str, Any], Counter[str]]:
@@ -84,6 +85,10 @@ def map_tool_shapes(doc: dict[str, Any]) -> tuple[dict[str, Any], Counter[str]]:
                 text = next((str(v) for v in args.values() if isinstance(v, str)), "")
                 new_calls.append({"function_name": "bash", "arguments": {"command": text}})
                 mapped[f"{low}(odd-key)->bash"] += 1
+            elif low in CODE_LIKE:
+                code = next((str(args[k]) for k in ("code", "source", "command", "cmd") if isinstance(args.get(k), str) and args[k]), "")
+                new_calls.append({"function_name": "python", "arguments": {"code": code}})
+                mapped[f"{low}->python"] += 1
             elif low in READ_LIKE and low not in ("read", "view", "open_file"):
                 path = args.get("path") or args.get("file_path") or args.get("file") or args.get("filename") or args.get("target_file")
                 new_calls.append({"function_name": READ_LIKE[low], "arguments": {"path": str(path or "")}})

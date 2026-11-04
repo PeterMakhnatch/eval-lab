@@ -33,7 +33,9 @@ The check records receipt hashes. Receipts above 256 KiB remain unchecked; use a
 Numeric presence is not semantic verification. Its status is `receipt_bound_unchecked`, not verified.
 The workflow does not certify model routes, statistical validity, or scientific conclusions.
 `verification.json` records each `verify-lane` invocation when that command exists on `origin/main`.
-Until then, lane verification remains unchecked. The report preserves verifier failures rather than claiming a clean audit.
+Each lane's audit goes to `<output-dir>/verification/<lane>/`.
+The report counts lanes as verified (exit 0), with discrepancies (exit 1) or verifier errors (any other exit).
+A verifier error is not a finding about the lane. Without `verify-lane`, lane verification remains unchecked.
 
 ## Select and draft
 

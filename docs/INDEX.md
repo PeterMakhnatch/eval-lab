@@ -121,7 +121,7 @@ inputs:
   - path: docs/production-factory.md
     digest: sha256:a7af38189cd6c7c5c929b096e7189f9ed2b4ee5c78a9a9240206dd6e08c119de
   - path: docs/program-report.md
-    digest: sha256:27372f4364f7920808f772376958e4d2b566739e0333256bd00c3d5a8e9e359d
+    digest: sha256:761dce310b72e7e128eb3818dde5029a2076360b7d40c7a81313916513580054
   - path: docs/qa-contract.md
     digest: sha256:7109b75163134eaca1db56c99cfafb07f6714777b27ef2b2d46d5c31f1d5d9d2
   - path: docs/qa-task.md

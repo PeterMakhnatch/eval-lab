@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from evallab import program_report
+from evallab.laneverify import build_verify_lane_parser
 from evallab.program_report import build_report, index_facts, publish_bridge
+
+REAL_VERIFY_LANES = program_report.verify_lanes
 
 
 def program(tmp_path: Path, text: str) -> Path:
@@ -20,6 +26,30 @@ def program(tmp_path: Path, text: str) -> Path:
 def no_verifier(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("evallab.program_report.verify_lanes", lambda *_: {
         "availability": {"status": "unchecked", "reason": "absent"}})
+
+
+@pytest.mark.parametrize(("code", "summary"), [
+    (0, "1 verified"), (1, "1 with discrepancies"), (2, "1 verifier errors")])
+def test_lane_verifier_call_parses_with_the_real_cli_and_reports_its_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int, summary: str,
+) -> None:
+    source = program(tmp_path, "No numbers here.\n")
+    parser = argparse.ArgumentParser()
+    build_verify_lane_parser(parser.add_subparsers())
+    calls = []
+
+    def run(command: list[str], **_: object) -> SimpleNamespace:
+        if command[:2] == ["git", "grep"]:
+            return SimpleNamespace(returncode=0)
+        parser.parse_args(command[3:])  # exits on a call the real CLI rejects
+        calls.append(command)
+        return SimpleNamespace(returncode=code, stdout="", stderr="")
+
+    monkeypatch.setattr(program_report.subprocess, "run", run)
+    checks = REAL_VERIFY_LANES(source, tmp_path, tmp_path / "report")
+    assert calls and checks["alpha"]["outcome"] == summary.split(" ", 1)[1]
+    rendered = program_report.render([], ["alpha"], checks)
+    assert f"Lane verifier: {summary}." in rendered
 
 
 def test_unreceipted_number_blocks_draft_with_verbatim_location(tmp_path: Path) -> None:

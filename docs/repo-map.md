@@ -1041,7 +1041,7 @@ inputs:
   - path: src/evallab/profiles.py
     digest: sha256:295f2ecea5447231df911fb9804bc3d66f0135855a1575cfdaeda84023d67a4f
   - path: src/evallab/program_report.py
-    digest: sha256:e72998dbb5f0c0bcd91a5557141ebcffc0ccdae22ea3ae41b4787d5ae6251035
+    digest: sha256:d0f257a15f759740fedfde87a89c7d4d834af4a8e8b4cf5425b9623fc53d436e
   - path: src/evallab/provenance.py
     digest: sha256:8b76204b8281dc651babfe786a51a88688c3e462adf6e274a8b172d9b6c09807
   - path: src/evallab/purge_build_caches.py

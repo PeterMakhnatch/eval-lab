@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import subprocess
+from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -117,14 +118,14 @@ def render(facts: list[Fact], lanes: list[str], checks: dict[str, Any]) -> str:
         lines.append("")
     lines.extend(["## What failed", "", "Unselected statements remain in facts.json and checks.json.",
                   "No unsupported statement enters this draft."])
-    if any(item.get("returncode", 0) for item in checks.values()):
-        lines.append("The lane verifier reports failures. See verification.json.")
-    else:
-        lines.append("See verification.json for lane-verifier availability and results.")
+    outcomes = Counter(item.get("outcome", "unchecked") for name, item in checks.items()
+                       if name != "availability")
+    summary = ", ".join(f"{count} {outcome}" for outcome, count in sorted(outcomes.items()))
+    lines.append(f"Lane verifier: {summary or 'unchecked'}. See verification.json.")
     return "\n".join(lines) + "\n"
 
 
-def verify_lanes(program: Path, root: Path) -> dict[str, Any]:
+def verify_lanes(program: Path, root: Path, output: Path) -> dict[str, Any]:
     """Use the integrated verifier only when its command exists on origin/main."""
     available = subprocess.run(
         ["git", "grep", "-q", "verify-lane", "origin/main", "--", "src/evallab",
@@ -135,15 +136,20 @@ def verify_lanes(program: Path, root: Path) -> dict[str, Any]:
         return {"availability": {"status": "unchecked", "reason": "verify-lane absent on origin/main"}}
     results: dict[str, Any] = {}
     for source in sorted(program.glob("*/RESULT.md")):
-        command = ["uv", "run", "evallab", "verify-lane", str(source.parent)]
+        command = ["uv", "run", "evallab", "verify-lane", str(source.parent),
+                   "--output-dir", str(output / "verification" / source.parent.name)]
         try:
             result = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=120)
         except subprocess.TimeoutExpired:
-            results[source.parent.name] = {"command": command, "status": "unchecked",
+            results[source.parent.name] = {"command": command, "outcome": "unchecked",
                                           "reason": "lane verifier timed out"}
             continue
+        # verify-lane exits 0 when every check passes and 1 on discrepancies; any
+        # other code (usage, I/O) is a verifier error, not a finding about the lane.
+        outcome = {0: "verified", 1: "with discrepancies"}.get(result.returncode, "verifier errors")
         results[source.parent.name] = {"command": command, "returncode": result.returncode,
-                                      "stdout": result.stdout, "stderr": result.stderr}
+                                      "outcome": outcome, "stdout": result.stdout,
+                                      "stderr": result.stderr}
     return results
 
 
@@ -200,7 +206,7 @@ def build_report(program: Path, output: Path, root: Path, *, select: list[str] |
     output.mkdir(parents=True, exist_ok=False)
     (output / "facts.json").write_text(json.dumps([asdict(fact) for fact in facts], indent=2) + "\n")
     (output / "checks.json").write_text(json.dumps(checks, indent=2) + "\n")
-    verification = verify_lanes(program, root)
+    verification = verify_lanes(program, root, output)
     (output / "verification.json").write_text(json.dumps(verification, indent=2) + "\n")
     failures = [fact for fact in selected if fact.status != "receipt_bound_unchecked"]
     (output / "rejected.json").write_text(json.dumps([asdict(fact) for fact in failures], indent=2) + "\n")

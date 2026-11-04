@@ -26,7 +26,7 @@ Generate 4 alternatives per task in independent fresh source containers.
 Use `openai-codex/gpt-6.1-terra` through `omp auth-gateway stdio`.
 The model sees only the instruction and pristine public production source.
 The only tool executes through the hash-bound retained `ov1104-impossible/container_tool.py` executor.
-The writer container uses a minimal cached Alpine image, no network, a read-only root, no credentials, and only its own public-source workspace mount.
+The writer container uses a cached official Debian-based image, no network, a read-only root, no credentials, and only its own public-source workspace mount. Its entrypoint is a bounded sleep; no database process starts.
 The parent gateway has credentials, but no credential value enters the container or model content.
 A new model-driven exact-transport canary must pass before generation.
 Every forbidden-path probe must return an actual denial, not the missing-cwd code 125.

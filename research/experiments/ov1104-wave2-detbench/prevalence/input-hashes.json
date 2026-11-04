@@ -1,0 +1,18 @@
+{
+  "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/baseline.json": "c47b9f8d7647afbf7269e902afec8f5907f46770e1c7d6c65c3d19e0ee66f928",
+  "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-detbench/research/experiments/ov1104-detbench/detbench_lib.py": "49bd983c7461081b2c3fc7bd8ccf10e3413b8e6896f9cc5f8eb1d47658220c0c",
+  "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-detbench/research/experiments/ov1104-detbench/score.py": "a19f60db1cd7a6a0036911f421f531770d992c3e5080322f98cd2c9825bdf576",
+  "/private/tmp/ov1104/detbench/matrix.json": "553ea89a3c84e19a6b07988d45a4fc967215bfd1179174ae1f6a186b6b480486",
+  "/private/tmp/ov1104/shared/detbench/runs.jsonl": "65d19eaad26bfd1b82b4ed91a16ed3a3f2da55dcc7460f942bc87e66acee56be",
+  "/private/tmp/ov1104/shared/detbench/signals/cached_facets_haiku_all.jsonl": "104798ec6e151891e7bce2b1ae8f5f6cbe38e1167003f1bb0d3b5c0b89a759cd",
+  "/private/tmp/ov1104/shared/detbench/signals/j2b_actions_task_diff_v2_flash.jsonl": "5f2c96790252ad33f1d5aa4056c2ecc9ea193d06918b2e0015b1ed034fba2938",
+  "/private/tmp/ov1104/shared/detbench/signals/l0v_full_l0_hard_gate_rule_hidden_info_read.jsonl": "18b568298f3854fb6c9249951270726b6245f5c5c89739d31c504530c23765d0",
+  "/private/tmp/ov1104/shared/detbench/signals/length_chars.jsonl": "75bcc657accb7a3469a34a57d106951e3ae8034a5cc35ea515d28f02fecb64d2",
+  "/private/tmp/ov1104/shared/detbench/signals/probe_qwen3_8b_run_mean_z.jsonl": "e3659111fff2b93aafb68f61a6702621dac044b3b01c18b845f6fa6a9e31787a",
+  "/private/tmp/ov1104/wave2-detbench/PREVALENCE-PROTOCOL.md": "8775e687a26dda74cc509b82c8238a5b6f3a870cd9a586bf517f3882d9bca27b",
+  "/private/tmp/ov1104/wave2-detbench/workers/x06/aggregates.json": "855068f23571bf2a463e9c46ddc7aed131bfa816e787c6f846028df30c284451",
+  "/private/tmp/ov1104/wave2-detbench/workers/x06/analyze.py": "c8fad7c0b40ab645b335c3194113748a5a93d743cf0532e369a879004f283ad9",
+  "/private/tmp/ov1104/wave2-detbench/workers/x06/exact-matrix-aggregates.json": "1d82956920cbb64cae4398182411570a33329c78c7459dc064e5bce82c83dfb0",
+  "/private/tmp/ov1104/wave2-detbench/workers/x06/exact_matrix.py": "7b6b4cd66a7306f2f3b67092bb9e23d737875581a1cf5924ccaf78a15279c26e",
+  "/private/tmp/ov1104/wave2-detbench/workers/x06/prevalence/prevalence.py": "4d6fa42e02601fa9ee0f9d5c986efbd5aabff7a2570a8c0b9e72ef126d87bc8f"
+}

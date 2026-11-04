@@ -174,10 +174,16 @@ class LengthModel:
     reason: str | None = None
 
     def predict(self, n_chars: float) -> float | None:
+        """Return the fitted probability, which can saturate at 0 or 1."""
+        logit = self.predict_logit(n_chars)
+        return _sigmoid(logit) if logit is not None else None
+
+    def predict_logit(self, n_chars: float) -> float | None:
+        """Return the linear predictor for ranking and logit-unit thresholds."""
         x = math.log1p(_number(n_chars, "n_chars", nonnegative=True))
         if self.intercept is None or self.slope is None:
             return None
-        return _sigmoid(self.intercept + self.slope * (x - self.mean_log_length) / self.scale_log_length)
+        return self.intercept + self.slope * (x - self.mean_log_length) / self.scale_log_length
 
 
 def fit_length_model(dev_runs: Sequence[Mapping[str, Any]]) -> LengthModel:
@@ -436,6 +442,8 @@ def evaluate(
     reselects only these empirical ROC points, not DEV thresholds or length edges.
     Undefined draws are counted. CI requires >=2 tasks and >=max(10,B/2) valid
     draws; one-class point estimates never receive an interval.
+    All length_model metrics use logits; its DEV threshold must also use logits.
+    Calibrate it with LengthModel.predict_logit, not probability-valued predict.
     """
     if isinstance(bootstrap, bool) or not isinstance(bootstrap, int) or bootstrap < 0:
         raise ValueError("bootstrap must be a nonnegative integer")
@@ -454,7 +462,7 @@ def evaluate(
     vectors = {"signal": [r.score for r in rows], "characters": [r.n_chars for r in rows],
                "steps": [r.n_steps for r in rows]}
     if length_model is not None and length_model.reason is None:
-        predictions = [length_model.predict(r.n_chars) for r in rows]
+        predictions = [length_model.predict_logit(r.n_chars) for r in rows]
         if any(p is None for p in predictions):
             raise ValueError("length model has no coefficients")
         vectors["length_model"] = predictions

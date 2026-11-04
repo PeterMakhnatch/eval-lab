@@ -92,6 +92,36 @@ def test_dev_only_logistic_fit_constant_length_and_direction():
         lm.fit_length_model([{**dev[0], 'n_chars': None}])
 
 
+def test_saturated_probabilities_preserve_logit_ranks_and_fixed_recall():
+    dev = [{'run_key': str(i), 'split': 'dev', 'label': i % 2,
+            'n_chars': 100 if i % 2 else 1} for i in range(20)]
+    model = lm.fit_length_model(dev)
+    rows = [row('negative', 'task', 0, 0, chars=10_000_000),
+            row('positive', 'task', 1, 1, chars=100_000_000)]
+    assert [model.predict(r.n_chars) for r in rows] == [1.0, 1.0]
+    logits = [model.predict_logit(r.n_chars) for r in rows]
+    assert logits[0] < logits[1]
+    threshold = lm.choose_threshold(
+        [r['label'] for r in dev], [model.predict_logit(r['n_chars']) for r in dev])
+    result = lm.evaluate(rows, length_model=model, strata_edges=(), bootstrap=0,
+                         dev_thresholds={'length_model': threshold})
+    control = result['scores']['length_model']
+    assert control['raw_auroc'] == 1
+    assert control['length_stratified']['auroc'] == 1
+    assert control['within_task']['auroc'] == 1
+    assert control['empirical_operating_point']['recall'] == 1
+    assert control['empirical_operating_point']['fpr'] == 0
+    assert result['paired_gain'] == 0
+    assert control['dev_fixed_operating_point']['recall'] == 1
+    assert control['dev_fixed_operating_point']['fpr'] == 1
+    # A supplied logit cut between the lengths must retain only the positive.
+    separated = lm.evaluate(rows, length_model=model, bootstrap=0,
+                            dev_thresholds={'length_model': sum(logits) / 2})
+    operating = separated['scores']['length_model']['dev_fixed_operating_point']
+    assert operating['recall'] == 1
+    assert operating['fpr'] == 0
+
+
 def test_bootstrap_paired_gain_freezes_model_and_edges():
     # Signal is perfect, model and character length are reverse-perfect.
     rows = [row(f'{t}:{y}', str(t), y, y, chars=10 if y == 0 else 1, steps=y)
@@ -202,9 +232,10 @@ def test_multiplicity_bootstrap_matches_slow_reference_all_scalars(target_fpr):
     model = lm.LengthModel(0, -0.7, 0, 1, 20)
     vectors = dict(signal=[r.score for r in rows], characters=[r.n_chars for r in rows],
                    steps=[r.n_steps for r in rows],
-                   length_model=[model.predict(r.n_chars) for r in rows])
+                   length_model=[model.predict_logit(r.n_chars) for r in rows])
     edges = (10, 20, 30, 40, 50, 60)  # Includes empty and single-class strata.
-    thresholds = dict(signal=1, characters=math.inf, steps=None, length_model=0.1)
+    thresholds = dict(signal=1, characters=math.inf, steps=None,
+                      length_model=math.log(0.1 / 0.9))
     clusters = [[0, 1], [2, 3, 4], [5, 6], [7]]
     plan = lm._BootstrapPlan(rows, vectors, edges, thresholds, target_fpr)
     rng = random.Random(1106)

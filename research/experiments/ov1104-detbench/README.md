@@ -175,6 +175,10 @@ New signal comparisons use `length_metrics.py` and report these matched-row metr
   Report eligible rows and tasks. Use the underlying task, not a run identity.
 - Paired AUROC gain over a logistic label model fitted on DEV log character length.
   Freeze this model before evaluation. This gain is not a residual-score AUROC.
+  Use `LengthModel.predict_logit` for every length-model metric and DEV threshold.
+  These scores and thresholds use logits, not probabilities. This prevents false
+  ranking ties when probabilities saturate. `LengthModel.predict` still returns
+  probabilities; do not reuse probability thresholds with logit scores.
 - Recall at an empirical FPR no greater than 5%, without splitting score ties.
   This descriptive ROC point differs from recall at a DEV-frozen threshold.
   Report the latter separately. Positive-only sets support only frozen-threshold recall.

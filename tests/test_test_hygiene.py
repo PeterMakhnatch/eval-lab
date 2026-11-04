@@ -66,26 +66,19 @@ class FakeTerminalReporter:
 
 
 def test_shard_overrides_balance_heavy_modules() -> None:
-    """Pins must place heavy modules on opposite shards, overriding hash defaults."""
-    assert "tests/test_compaction_properties.py" in SHARD_OVERRIDES
-    assert "tests/test_trajectory_recipes.py" in SHARD_OVERRIDES
+    """Pins follow scripts/ci/propose_shard_pins.py over CI run 41761936272 (HAR-308).
 
-    compaction_shard = SHARD_OVERRIDES["tests/test_compaction_properties.py"]
-    trajectory_shard = SHARD_OVERRIDES["tests/test_trajectory_recipes.py"]
+    Every pin must flip its module's crc32 default; a pin equal to the hash
+    shard is a no-op. The compaction pin was dropped because it put 109 s on
+    the heavier shard; crc32 alone now places that module on shard 1.
+    """
+    assert SHARD_OVERRIDES == {"tests/test_trajectory_recipes.py": 1}
 
-    # Compaction and trajectory recipes must be on opposite shards
-    assert compaction_shard != trajectory_shard
-    assert {compaction_shard, trajectory_shard} == {1, 2}
+    for path, shard in SHARD_OVERRIDES.items():
+        hash_shard = (zlib.crc32(path.encode("utf-8")) % 2) + 1
+        assert shard != hash_shard, f"{path} pin to shard {shard} equals its crc32 default"
 
-    # Compaction was on shard 1 by hash; pin must flip it to shard 2
-    compaction_hash_shard = (zlib.crc32(b"tests/test_compaction_properties.py") % 2) + 1
-    assert compaction_hash_shard == 1
-    assert compaction_shard == 2
-
-    # Trajectory recipes was on shard 2 by hash; pin must flip it to shard 1
-    trajectory_hash_shard = (zlib.crc32(b"tests/test_trajectory_recipes.py") % 2) + 1
-    assert trajectory_hash_shard == 2
-    assert trajectory_shard == 1
+    assert (zlib.crc32(b"tests/test_compaction_properties.py") % 2) + 1 == 1
 
 
 def test_slow_test_budget_makereport_records_call_duration() -> None:

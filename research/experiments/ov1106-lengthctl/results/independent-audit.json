@@ -1,0 +1,671 @@
+{
+  "aggregate_path": "/private/tmp/ov1106/lengthctl/full/aggregate.json",
+  "aggregate_sha256": "440a8a4dbd7fdd8decd406ddcd6a2109fa3b4a583c700a95bfad862ac98bce7a",
+  "aggregate_unchanged_during_audit": true,
+  "checks": {
+    "cartesian_coverage": {
+      "details": {
+        "populations": 58,
+        "signals": 368
+      },
+      "pass": true
+    },
+    "coverage_arithmetic": {
+      "details": {
+        "checked": 21344,
+        "failures": []
+      },
+      "pass": true
+    },
+    "goodfire_mask_completeness": {
+      "details": {
+        "expected_suppressed_pairs": 1324,
+        "mismatches": []
+      },
+      "pass": true
+    },
+    "goodfire_suppression": {
+      "details": {
+        "failures": [],
+        "pairs": 1324,
+        "unique_evaluations": 417
+      },
+      "pass": true
+    },
+    "hackbench_forbidden_metrics": {
+      "details": {
+        "unique_evaluations": 35,
+        "violations": []
+      },
+      "pass": true
+    },
+    "independent_corrected_outcome_coverage": {
+      "details": {
+        "dev_numeric": 49,
+        "mismatches": [],
+        "pairs": 58
+      },
+      "pass": true
+    },
+    "independent_frozen_edges": {
+      "details": {
+        "evaluations": 1936,
+        "failures": []
+      },
+      "pass": true
+    },
+    "independent_headline_points": {
+      "details": {
+        "method": "independent Mann-Whitney counts using sorted negative scores; half credit for ties; no metric implementation imports",
+        "mismatches": [],
+        "rows_recomputed": 13
+      },
+      "pass": true
+    },
+    "independent_malt_group_points": {
+      "details": {
+        "mismatches": [],
+        "signal_rows": 4
+      },
+      "pass": true
+    },
+    "independent_matched_baselines": {
+      "details": {
+        "failures": [],
+        "mixed_source_evaluations": 1901,
+        "unique_evaluations": 1936
+      },
+      "pass": true
+    },
+    "independent_source_coverage": {
+      "details": {
+        "combination_masks": "independent presence/availability rules; not refitted predictions",
+        "coverage_mismatches": [],
+        "pairs": 21286,
+        "reader_errors": 0
+      },
+      "pass": true
+    },
+    "interval_counts_and_bounds": {
+      "details": {
+        "bounded_intervals": 41426,
+        "failures": [],
+        "intervals": 43176,
+        "null_intervals": 1750,
+        "policy": "bounds suppressed below 1000 valid draws or fewer than 2 tasks; counts retained",
+        "single_task_evaluations": 6
+      },
+      "pass": true
+    },
+    "matched_length_point_estimates": {
+      "details": {
+        "evaluations": 1901,
+        "failures": []
+      },
+      "pass": true
+    },
+    "no_raw_group_fields": {
+      "details": {
+        "metadata_sentinels": 5,
+        "raw_identifier_fields": 0
+      },
+      "pass": true
+    },
+    "no_raw_identity_values": {
+      "details": {
+        "identities_compared": 19661,
+        "matches": []
+      },
+      "pass": true
+    },
+    "pair_references": {
+      "details": {
+        "evaluations": 1936,
+        "orphans": 0,
+        "pairs": 21344,
+        "referenced_pairs": 8441,
+        "unavailable_pairs": 12903,
+        "unresolved": 0
+      },
+      "pass": true
+    },
+    "population_counts": {
+      "details": {
+        "excluded_sets": {
+          "cape-bench": 800,
+          "latent-agent-sandbox-episodes": 326,
+          "paichecker": 2587,
+          "resolvebench-support-agents": 512,
+          "trusted-monitoring-logs": 233
+        },
+        "heldout_included": 11401,
+        "heldout_total": 15859,
+        "population_count": 58
+      },
+      "pass": true
+    },
+    "reused_malt_ci_agreement": {
+      "details": {
+        "compared": 8,
+        "raw_gain_valid_draws": 1914,
+        "requested_draws": 2000,
+        "within_task_valid_draws": 1737
+      },
+      "pass": true
+    },
+    "source_hashes": {
+      "details": {
+        "including_nested_unique": 439,
+        "mismatches": [
+          {
+            "actual": "339a37075e6aa20a842468a0460206de9602e9f1ba86c2e35ac54833e3cc8a5b",
+            "expected": "6524cad64566c037b71ca6d91319ea6d914c8a02cef7ced22e0d53ffcc269f7d",
+            "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-lengthctl/research/experiments/ov1106-lengthctl/scoreboard.py"
+          }
+        ],
+        "signal_files": 419,
+        "top_level": 432
+      },
+      "pass": false
+    }
+  },
+  "defects": [
+    "source_hashes"
+  ],
+  "headline_recomputations": [
+    {
+      "aggregate": {
+        "character_auroc": 0.5372824225995149,
+        "model_auroc": 0.5372824225995149,
+        "paired_gain": 0.24328096019403633,
+        "raw_auroc": 0.7805633827935512,
+        "step_auroc": 0.49815861749179624
+      },
+      "evaluation": "4dcae2a15b63a4f5b1fcfaeb8447656346b64f36b1d9e9c8e0460d8a22d10cf5",
+      "independent": {
+        "character_auroc": 0.5372824225995149,
+        "model_auroc": 0.5372824225995149,
+        "paired_gain": 0.24328096019403633,
+        "raw_auroc": 0.7805633827935512,
+        "step_auroc": 0.49815861749179624
+      },
+      "population": "original/pool/dev",
+      "positive": 326,
+      "rows": 670,
+      "signal": "j2b_actions_task_diff_v2_flash"
+    },
+    {
+      "aggregate": {
+        "character_auroc": 0.5401275256261938,
+        "model_auroc": 0.5401275256261938,
+        "paired_gain": 0.30065377061529774,
+        "raw_auroc": 0.8407812962414916,
+        "step_auroc": 0.5028966791322518
+      },
+      "evaluation": "af8febc0657df6d71b14e1c549c32c7f3e7f78d9d172dd88aa3097534f7a46af",
+      "independent": {
+        "character_auroc": 0.5401275256261938,
+        "model_auroc": 0.5401275256261938,
+        "paired_gain": 0.30065377061529774,
+        "raw_auroc": 0.8407812962414916,
+        "step_auroc": 0.5028966791322518
+      },
+      "population": "original/pool/dev",
+      "positive": 327,
+      "rows": 668,
+      "signal": "j3_actions_task_diff_terra_full"
+    },
+    {
+      "aggregate": {
+        "character_auroc": 0.5313362388099886,
+        "model_auroc": 0.5313362388099886,
+        "paired_gain": 0.174408527966615,
+        "raw_auroc": 0.7057447667766036,
+        "step_auroc": 0.48880578178636336
+      },
+      "evaluation": "455425a6d23716e8e20ab7769d1c6cdadbf9377d679e85af6eeb9c9cf00b99dd",
+      "independent": {
+        "character_auroc": 0.5313362388099886,
+        "model_auroc": 0.5313362388099886,
+        "paired_gain": 0.174408527966615,
+        "raw_auroc": 0.7057447667766036,
+        "step_auroc": 0.48880578178636336
+      },
+      "population": "original/pool/dev",
+      "positive": 332,
+      "rows": 690,
+      "signal": "l0v_full_any_hard"
+    },
+    {
+      "aggregate": {
+        "character_auroc": 0.5313362388099886,
+        "model_auroc": 0.5313362388099886,
+        "paired_gain": 0.16804788988355657,
+        "raw_auroc": 0.6993841286935452,
+        "step_auroc": 0.48880578178636336
+      },
+      "evaluation": "73dbe2b3838e7972aab2eb1abde26e59b2f5e1b93370be817d49482a55d87863",
+      "independent": {
+        "character_auroc": 0.5313362388099886,
+        "model_auroc": 0.5313362388099886,
+        "paired_gain": 0.16804788988355657,
+        "raw_auroc": 0.6993841286935452,
+        "step_auroc": 0.48880578178636336
+      },
+      "population": "original/pool/dev",
+      "positive": 332,
+      "rows": 690,
+      "signal": "l0v_full_any_rule"
+    },
+    {
+      "aggregate": {
+        "character_auroc": 0.5313362388099886,
+        "model_auroc": 0.5313362388099886,
+        "paired_gain": 0.174408527966615,
+        "raw_auroc": 0.7057447667766036,
+        "step_auroc": 0.48880578178636336
+      },
+      "evaluation": "455425a6d23716e8e20ab7769d1c6cdadbf9377d679e85af6eeb9c9cf00b99dd",
+      "independent": {
+        "character_auroc": 0.5313362388099886,
+        "model_auroc": 0.5313362388099886,
+        "paired_gain": 0.174408527966615,
+        "raw_auroc": 0.7057447667766036,
+        "step_auroc": 0.48880578178636336
+      },
+      "population": "original/pool/dev",
+      "positive": 332,
+      "rows": 690,
+      "signal": "line_l0_any_hard"
+    },
+    {
+      "aggregate": {
+        "character_auroc": 0.6097786660744688,
+        "model_auroc": 0.6097786660744688,
+        "paired_gain": 0.18951254719076172,
+        "raw_auroc": 0.7992912132652306,
+        "step_auroc": 0.6108520245762085
+      },
+      "evaluation": "e365a5fc158c62711c6684027c4e4e6f5b792c5f49df0316f4e5d51a965bab76",
+      "independent": {
+        "character_auroc": 0.6097786660744688,
+        "model_auroc": 0.6097786660744688,
+        "paired_gain": 0.18951254719076172,
+        "raw_auroc": 0.7992912132652306,
+        "step_auroc": 0.6108520245762085
+      },
+      "population": "original/pool/heldout",
+      "positive": 342,
+      "rows": 1448,
+      "signal": "j2b_actions_task_diff_v2_flash"
+    },
+    {
+      "aggregate": {
+        "character_auroc": 0.6102942722570335,
+        "model_auroc": 0.6102942722570335,
+        "paired_gain": 0.28443032717944405,
+        "raw_auroc": 0.8947245994364775,
+        "step_auroc": 0.6104178056268136
+      },
+      "evaluation": "4538da131facfde153a6167f000408d7b1338c0108378cc81fbd435ad6f27aea",
+      "independent": {
+        "character_auroc": 0.6102942722570335,
+        "model_auroc": 0.6102942722570335,
+        "paired_gain": 0.28443032717944405,
+        "raw_auroc": 0.8947245994364775,
+        "step_auroc": 0.6104178056268136
+      },
+      "population": "original/pool/heldout",
+      "positive": 344,
+      "rows": 1450,
+      "signal": "j3_actions_task_diff_terra_full"
+    },
+    {
+      "aggregate": {
+        "character_auroc": 0.5856239249024638,
+        "model_auroc": 0.5856239249024638,
+        "paired_gain": -0.03929547267936784,
+        "raw_auroc": 0.546328452223096,
+        "step_auroc": 0.6652795636275968
+      },
+      "evaluation": "6b0412c83a5263e6df6866d88b4a6e788df8ac29afd6906080189f364e629955",
+      "independent": {
+        "character_auroc": 0.5856239249024638,
+        "model_auroc": 0.5856239249024638,
+        "paired_gain": -0.03929547267936784,
+        "raw_auroc": 0.546328452223096,
+        "step_auroc": 0.6652795636275968
+      },
+      "population": "original/pool/heldout",
+      "positive": 2296,
+      "rows": 11401,
+      "signal": "l0v_full_any_hard"
+    },
+    {
+      "aggregate": {
+        "character_auroc": 0.5856239249024638,
+        "model_auroc": 0.5856239249024638,
+        "paired_gain": -0.021758252061221395,
+        "raw_auroc": 0.5638656728412424,
+        "step_auroc": 0.6652795636275968
+      },
+      "evaluation": "1645cca42733343c7396bf0acde01df1066fc148dae03a32f7298de889d44225",
+      "independent": {
+        "character_auroc": 0.5856239249024638,
+        "model_auroc": 0.5856239249024638,
+        "paired_gain": -0.021758252061221395,
+        "raw_auroc": 0.5638656728412424,
+        "step_auroc": 0.6652795636275968
+      },
+      "population": "original/pool/heldout",
+      "positive": 2296,
+      "rows": 11401,
+      "signal": "l0v_full_any_rule"
+    },
+    {
+      "aggregate": {
+        "character_auroc": 0.935930735930736,
+        "model_auroc": 0.935930735930736,
+        "paired_gain": -0.37264069264069266,
+        "raw_auroc": 0.5632900432900433,
+        "step_auroc": 0.885974025974026
+      },
+      "evaluation": "1c95c6a713eca49d10cc725e9e60eab7d04d77840375c9333e4d6ad1afff8834",
+      "independent": {
+        "character_auroc": 0.935930735930736,
+        "model_auroc": 0.935930735930736,
+        "paired_gain": -0.37264069264069266,
+        "raw_auroc": 0.5632900432900433,
+        "step_auroc": 0.885974025974026
+      },
+      "population": "malt/set/malt-public--public--unprompted-cc38a5c5",
+      "positive": 15,
+      "rows": 400,
+      "signal": "j2b_actions_task_diff_v2_flash"
+    },
+    {
+      "aggregate": {
+        "character_auroc": 0.935930735930736,
+        "model_auroc": 0.935930735930736,
+        "paired_gain": 0.0008658008658009031,
+        "raw_auroc": 0.9367965367965368,
+        "step_auroc": 0.885974025974026
+      },
+      "evaluation": "b3eabc1bfe58e98700fd422e55182925c3634ad7fc3dc8509b491eff39be5943",
+      "independent": {
+        "character_auroc": 0.935930735930736,
+        "model_auroc": 0.935930735930736,
+        "paired_gain": 0.0008658008658009031,
+        "raw_auroc": 0.9367965367965368,
+        "step_auroc": 0.885974025974026
+      },
+      "population": "malt/set/malt-public--public--unprompted-cc38a5c5",
+      "positive": 15,
+      "rows": 400,
+      "signal": "j3_actions_task_diff_terra_full"
+    },
+    {
+      "aggregate": {
+        "character_auroc": 0.9370030581039756,
+        "model_auroc": 0.9370030581039756,
+        "paired_gain": -0.0752293577981652,
+        "raw_auroc": 0.8617737003058104,
+        "step_auroc": 0.890519877675841
+      },
+      "evaluation": "bc857a392f838a1eeb03dbc8c038675fa47d8cce6818500373a9c11567876f97",
+      "independent": {
+        "character_auroc": 0.9370030581039756,
+        "model_auroc": 0.9370030581039756,
+        "paired_gain": -0.0752293577981652,
+        "raw_auroc": 0.8617737003058104,
+        "step_auroc": 0.890519877675841
+      },
+      "population": "malt/set/malt-public--public--unprompted-cc38a5c5",
+      "positive": 15,
+      "rows": 669,
+      "signal": "l0v_full_any_hard"
+    },
+    {
+      "aggregate": {
+        "character_auroc": 0.9370030581039756,
+        "model_auroc": 0.9370030581039756,
+        "paired_gain": -0.08669724770642206,
+        "raw_auroc": 0.8503058103975535,
+        "step_auroc": 0.890519877675841
+      },
+      "evaluation": "ba00fde56ee373f0d2e68b0122a5314e822097c865ffe322621edf8a58e80607",
+      "independent": {
+        "character_auroc": 0.9370030581039756,
+        "model_auroc": 0.9370030581039756,
+        "paired_gain": -0.08669724770642206,
+        "raw_auroc": 0.8503058103975535,
+        "step_auroc": 0.890519877675841
+      },
+      "population": "malt/set/malt-public--public--unprompted-cc38a5c5",
+      "positive": 15,
+      "rows": 669,
+      "signal": "l0v_full_any_rule"
+    }
+  ],
+  "known_provenance_change": {
+    "current_scoreboard_sha256": "339a37075e6aa20a842468a0460206de9602e9f1ba86c2e35ac54833e3cc8a5b",
+    "kind": "expected import-only source change; final recomputation pending",
+    "recorded_scoreboard_sha256": "6524cad64566c037b71ca6d91319ea6d914c8a02cef7ced22e0d53ffcc269f7d",
+    "scientific_output_defect": false
+  },
+  "malt_group_recomputations": [
+    {
+      "groups": {
+        "length_stratified": {
+          "auroc": 0.5852272727272727,
+          "eligible_groups": 2,
+          "eligible_rows": 88
+        },
+        "within_task": {
+          "auroc": 0.7156862745098039,
+          "eligible_groups": 2,
+          "eligible_rows": 17
+        }
+      },
+      "signal": "j2b_actions_task_diff_v2_flash"
+    },
+    {
+      "groups": {
+        "length_stratified": {
+          "auroc": 0.8511449724517907,
+          "eligible_groups": 2,
+          "eligible_rows": 88
+        },
+        "within_task": {
+          "auroc": 0.8627450980392156,
+          "eligible_groups": 2,
+          "eligible_rows": 17
+        }
+      },
+      "signal": "j3_actions_task_diff_terra_full"
+    },
+    {
+      "groups": {
+        "length_stratified": {
+          "auroc": 0.6523033774913474,
+          "eligible_groups": 2,
+          "eligible_rows": 133
+        },
+        "within_task": {
+          "auroc": 0.53,
+          "eligible_groups": 2,
+          "eligible_rows": 20
+        }
+      },
+      "signal": "l0v_full_any_hard"
+    },
+    {
+      "groups": {
+        "length_stratified": {
+          "auroc": 0.6047320682659029,
+          "eligible_groups": 2,
+          "eligible_rows": 133
+        },
+        "within_task": {
+          "auroc": 0.53,
+          "eligible_groups": 2,
+          "eligible_rows": 20
+        }
+      },
+      "signal": "l0v_full_any_rule"
+    }
+  ],
+  "reused_ci_evidence": {
+    "comparisons": [
+      {
+        "current": {
+          "high": 0.7487179487179487,
+          "low": 0.4943661971830986,
+          "requested_draws": 2000,
+          "valid_draws": 1914
+        },
+        "match": true,
+        "metric": "signal.raw_auroc",
+        "prior": {
+          "high": 0.7487179487179487,
+          "low": 0.4943661971830986,
+          "requested_draws": 2000,
+          "valid_draws": 1914
+        },
+        "signal": "j2b_actions_task_diff_v2_flash"
+      },
+      {
+        "current": {
+          "high": -0.2006552006552006,
+          "low": -0.46896551724137936,
+          "requested_draws": 2000,
+          "valid_draws": 1914
+        },
+        "match": true,
+        "metric": "paired_gain",
+        "prior": {
+          "high": -0.2006552006552006,
+          "low": -0.46896551724137936,
+          "requested_draws": 2000,
+          "valid_draws": 1914
+        },
+        "signal": "j2b_actions_task_diff_v2_flash"
+      },
+      {
+        "current": {
+          "high": 0.75,
+          "low": 0.6666666666666666,
+          "requested_draws": 2000,
+          "valid_draws": 1737
+        },
+        "match": true,
+        "metric": "signal.within_task.auroc",
+        "prior": {
+          "high": 0.75,
+          "low": 0.6666666666666666,
+          "requested_draws": 2000,
+          "valid_draws": 1737
+        },
+        "signal": "j2b_actions_task_diff_v2_flash"
+      },
+      {
+        "current": {
+          "high": 0.75,
+          "low": 0.5,
+          "requested_draws": 2000,
+          "valid_draws": 1914
+        },
+        "match": true,
+        "metric": "signal.length_stratified.auroc",
+        "prior": {
+          "high": 0.75,
+          "low": 0.5,
+          "requested_draws": 2000,
+          "valid_draws": 1914
+        },
+        "signal": "j2b_actions_task_diff_v2_flash"
+      },
+      {
+        "current": {
+          "high": 0.9941588785046729,
+          "low": 0.9061538461538462,
+          "requested_draws": 2000,
+          "valid_draws": 1914
+        },
+        "match": true,
+        "metric": "signal.raw_auroc",
+        "prior": {
+          "high": 0.9941588785046729,
+          "low": 0.9061538461538462,
+          "requested_draws": 2000,
+          "valid_draws": 1914
+        },
+        "signal": "j3_actions_task_diff_terra_full"
+      },
+      {
+        "current": {
+          "high": 0.1072303921568627,
+          "low": -0.04326923076923084,
+          "requested_draws": 2000,
+          "valid_draws": 1914
+        },
+        "match": true,
+        "metric": "paired_gain",
+        "prior": {
+          "high": 0.1072303921568627,
+          "low": -0.04326923076923084,
+          "requested_draws": 2000,
+          "valid_draws": 1914
+        },
+        "signal": "j3_actions_task_diff_terra_full"
+      },
+      {
+        "current": {
+          "high": 1.0,
+          "low": 0.6666666666666666,
+          "requested_draws": 2000,
+          "valid_draws": 1737
+        },
+        "match": true,
+        "metric": "signal.within_task.auroc",
+        "prior": {
+          "high": 1.0,
+          "low": 0.6666666666666666,
+          "requested_draws": 2000,
+          "valid_draws": 1737
+        },
+        "signal": "j3_actions_task_diff_terra_full"
+      },
+      {
+        "current": {
+          "high": 0.9783894804991851,
+          "low": 0.7295606193004863,
+          "requested_draws": 2000,
+          "valid_draws": 1914
+        },
+        "match": true,
+        "metric": "signal.length_stratified.auroc",
+        "prior": {
+          "high": 0.9783894804991851,
+          "low": 0.7295606193004863,
+          "requested_draws": 2000,
+          "valid_draws": 1914
+        },
+        "signal": "j3_actions_task_diff_terra_full"
+      }
+    ],
+    "input_hashes_match": true,
+    "module_is_pre_logit_fix": true,
+    "receipt_path": "/private/tmp/ov1106/lengthctl/helpers/metrics/review/receipts.json",
+    "receipt_sha256": "a031f3467dc8270d6a7e2b4b8cb21932861e2734e43c7d92c314f80dd133dde5",
+    "scope": "reuse raw, paired, within-task and within-length MALT intervals only; DEV length ranks unchanged after logit fix"
+  },
+  "scope": {
+    "computation": "Python eval; independent score joins, coverage, AUROC and grouped weighting; reused independently audited CI receipt explicitly identified",
+    "models_or_workers": false,
+    "new_heldout_tuning": false,
+    "pytest_lint_build": false,
+    "raw_transcript_or_answer_key_reads": false,
+    "source_or_input_changes": false
+  }
+}

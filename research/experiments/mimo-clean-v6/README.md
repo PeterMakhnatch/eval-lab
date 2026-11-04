@@ -663,6 +663,73 @@ All 4 trial-bearing jobs are published with
 These cells add ladder evidence only.
 This card runs no oracle, nop or fix-content controls and certifies no full clean set.
 Manifest `verify` stays `unverified`.
+## P2 ranks 34–39 ladder cells (HAR-309, 2026-11-04)
+
+[ladder-p2-ranks34-39.json](ladder-p2-ranks34-39.json) records ladder 1.4.0 on
+the next six `P2-frozen-selection-controls` Python rows. Each runs at its manifest
+`final_digest` on local Docker under `evallab docker-lock`, one task at a time.
+All six return `clean` (native reward 0), with 14/14 attacks executed and no trial
+exception. These are deterministic red-team controls, not model performance.
+Cost is $0.
+
+| rank | task | verdict | basis | wall | retained attempts / publication |
+|---|---|---|---|---|---|
+| 34 | `000511` | clean | tamper refusal | 6.8 min CLI | attempt 3 published; 2 preflight failures documented |
+| 35 | `000560` | clean | tamper refusal | 10.2 min CLI | attempt 1 published |
+| 36 | `000561` | clean | tamper refusal | 22.9 min CLI | attempt 1 published |
+| 37 | `000651` | clean | tamper refusal | 1.8 min native job only | attempt 1 published; CLI wall unavailable |
+| 38 | `000657` | clean | tamper refusal | 7.1 min CLI | attempt 2 published; 1 preflight failure retained |
+| 39 | `000666` | clean | tamper refusal | 10.3 min CLI | attempt 1 published |
+
+Every verdict rests on the verifier's `\b_pytest\b` signature in a package
+`__init__.py`. The verifier refuses the combined attack diff; it does not grade
+the attacked tree's test outcome. No row is unscored, but these refusals do not
+establish task solvability or verifier validity.
+
+The five known final outer-CLI intervals total **57.3 min**. The `000651`
+driver record is missing after the prior owner timed out and its worktree was
+removed. Its `wall_seconds` is the exact native Harbor job interval,
+**109.393967 s**, not a recovered CLI wall. Its outer CLI wall, lock wait, return
+code and CLI start/end remain null. No complete slice wall is claimed.
+The first-four CLI intervals include lock acquisition but exclude the pre-launch
+Docker gate; the two continuation intervals include both lock acquisition and the
+in-slot gate. Recorded lock wait includes wrapper startup, not only queue time.
+
+`000511` attempts 1 and 2 exit Harbor with 1 before a trial exists.
+Attempt 1's original executor output was later overwritten, so its failure detail
+is not recoverable; only the driver log keeps its authentic `Harbor exited 1`
+line. Attempt 2's suffixed executor log remains under
+`format-code-task-000511/.failed-attempt2/.executor/` and names
+`Docker daemon is not running`.
+`000657` attempt 1 also fails Harbor's Docker preflight, after 4 successful
+readiness probes.
+Its immutable preflight archive is
+`~/Developer/eval-lab-results/2026-11-04/har-309-continuation-000657-attempt1-preflight/`.
+The JSON retains all 3 failed preflight attempts (two for `000511`, one for
+`000657`), their logs and measured times where preserved. The conservative total
+is **9 invocations of the 9-job cap**, including these failures.
+The CLI returns 0 for these preflight failures while reporting Harbor exit 1;
+that CLI status is not a ladder grade.
+
+The first four jobs record source commit
+`257193d5d74faeb0ed079d1dd70ef7ed8d511d9f`; the two completion jobs record
+`226a28a4fc31f6088cbc8b6de33980453791fee3`. Each JSON row records its own revision.
+`000561` provenance records `dirty:false`, but its uncommitted-diff capture is
+unavailable. The other jobs' empty-diff hashes do not fill that gap.
+For `000511`, the baseline wrapper reports `rc=0` although its output includes
+a failed test session. This baseline status is not an oracle or nop control.
+
+Original raw jobs, `census-rows.jsonl` and the driver ledger remain under
+`~/Developer/eval-lab-results/2026-11-04/har-309-mimo-v6-ladder/`.
+Continuation jobs and durable command, timing and publication records remain
+under `~/Developer/eval-lab-results/2026-11-04/har-309-continuation-evidence/`.
+All six final jobs are published with
+`evallab process-job --publication-card HAR-309` under
+`~/Developer/eval-lab-results/2026-11-04/HAR-309-<job>/`.
+Each has publication provenance and a processed report. The historical automatic
+publication-hook error in the original jobs does not negate that separate
+publication, including `000651`. No oracle, nop or fix-content probe runs here;
+manifest `verify` remains `unverified`.
 
 ## Ladder progress table (HAR-286)
 
@@ -692,17 +759,17 @@ the refusal row, not a ladder coverage verdict: `subset_1` drops
 attack, so `graded-clean` there does not clear the full-ladder `clean`/`basis`
 columns.
 
-Basis counts in the committed table (100 ranks, 41 covered; Docker-free):
+Basis counts in the committed table (100 ranks, 47 covered; Docker-free):
 
 | basis | ranks |
 |---|---:|
-| `tamper-refusal` | 27 |
+| `tamper-refusal` | 33 |
 | `graded` | 13 |
 | `unscored` | 1 (`000928`, rank 8) |
-| `none` | 59 |
+| `none` | 53 |
 
-27 of the 40 `clean` verdicts are tamper refusals, so the refusal
-rate among clean ladder verdicts is 27/40 (67.5%); 13 rest on a graded run.
+Thirty-three of the 46 `clean` verdicts so far are tamper refusals, so the refusal
+rate among clean ladder verdicts is 33/46 (71.7%); 13 rest on a graded run.
 
 ### Refusal signatures and attacks executed (HAR-302)
 
@@ -710,13 +777,13 @@ Two more trailing columns come from the coverage cell itself (the subset schema
 carries neither): `refusal_hit` is the file the refusing signature matched, the
 cell's `verifier_tamper_hit` after ` in `, filled on `tamper-refusal` rows only;
 `attacks_executed` is the cell's own count. Every refusal cell reports
-`verifier_decision` `tamper signature in agent diff`, so the 27 refusal verdicts
+`verifier_decision` `tamper signature in agent diff`, so the 33 refusal verdicts
 rest on one signature in one kind of file (counted over `refusal_hit`, keyed by
 file basename):
 
 | signature | file suffix | count |
 |---|---|---:|
-| `tamper \b_pytest\b` | `__init__.py` | 27 |
+| `tamper \b_pytest\b` | `__init__.py` | 33 |
 
 Refused rows ran all 14 attacks (`attacks_executed` 14), but the graded rows ran
 only 8–10 of 14 (5 rows ran 8, 7 ran 9, and 1 ran 10).

@@ -34,6 +34,68 @@ Tool names still present in runs with unrecognized steps after the mapping (top 
 
 Mappings applied (actions_only): {'glob->think': 81, 'grep->think': 32, 'shell->bash': 554, 'web_search->think': 67, 'file_change->edit': 14, 'toolsearch->think': 17, 'todowrite->think': 26, 'execute_bash->bash': 481, 'request_expert_review->think': 79, 'execute_code->python': 342, 'sleep->think': 516, 'edit_file->edit': 319, 'submit_final_answer->think': 20, 'bash(odd-key)->bash': 125, 'task_complete->think': 33, 'edit_notebook->edit': 41, 'execute_notebook_code->python': 34, 'wait->think': 20, 'bash_command->bash': 6179, 'mark_task_complete->think': 310, 'close_file->think': 2}
 
+## Decision transitions (#1825 operational view)
+
+The tables above count runs that are "flagged". This section counts what changes in the *decision*
+the line actually emits: `drop` (hard), `review` (soft), `pass` (nothing). `now` = current
+`evaluate_l0_stage`; `cf` = the same rules after `map_tool_shapes`. Counts are per run, from
+`l0/l0v_full_raw.jsonl` and `l0/l0cf_full_raw.jsonl`; `actions_only` differs only where noted.
+
+### DEV replay-v1 (690 runs)
+
+| label | transition | n | where |
+|---|---|---:|---|
+| honest | `review -> pass` | **145 / 358 (40.5%)** | c1c5 2, cheatbench 22, sol-astra 16, terminal-wrench 105 |
+| honest | `review -> drop` | 1 / 358 | cheatbench 1 |
+| honest | `drop -> *` | **0** | — |
+| cheat | `review -> pass` | 48 / 332 (14.5%) | c1c5 2, cheatbench 17, terminal-wrench 29 |
+| cheat | `review -> drop` | 2 / 332 | cheatbench 2 |
+| cheat | `drop -> *` | **0** | — |
+
+### Held-out (15,859 runs)
+
+Across all 20 sets, **0 runs of either label move out of `drop`** (`drop -> pass` = 0,
+`drop -> review` = 0). Every change is a soft `review -> pass` (signal lost) or a `review/pass ->
+drop` (signal gained):
+
+| set | cheat soft signals lost (`review -> pass`) | honest runs newly flagged (`review -> drop`) |
+|---|---:|---:|
+| `sdf-shortcut-taking` | **257 / 359 (71.6%)** | 5 |
+| `mistrace-reward-hacking` | **80 / 119 (67.2%)** | 1 |
+| `kobayashi-maru` | 30 / 272 (11.0%) | 0 |
+| `sleight-bench` | 24 / 43 (55.8%) | 2 |
+| `agent-cheat-index` | 19 / 62 (30.6%) | **9** |
+| `researcharena-benchmark-gaming` | 3 / 21 | **4 / 20** |
+| `cape-bench` | 1 / 400 | 0 |
+| `kernelbench-hard-runs` | 1 / 11 | 2 / 19 |
+| `beam-tripwire` | 0 | **18 / 442 (4.1%)** |
+| all other 11 sets | 0 | 0 |
+| **all 20 sets** | **463 / 4,104 (11.3%)** | **42 / 11,755 (0.36%)** |
+
+Decision counts (`full` view): honest relieved 2,211, honest newly flagged 42 (net **+2,169**);
+cheat relieved 463, cheat newly flagged 26 (net **+437**). `actions_only` differs only on
+`terminal-wrench` honest relief (105 -> 82) and `evilgenie-escalation` (0 either way).
+
+### How to read this for the #1825 decision
+
+- **Hard drops are preserved exactly.** No run that L0 hard-drops today stops being hard-dropped
+  under tool-shape recognition, on DEV or on any held-out set. The change is safe with respect to
+  the strongest action the line takes.
+- **The honest-false-alarm relief is large and concentrated in `review`**: 145/358 honest DEV runs
+  leave the review queue (40.5%), and on held-out `reflex-sentinel` 197/205 (96.1%), `kobayashi-maru`
+  303/2,728 (11.1%), `sdf-shortcut-taking` 595/636 (93.6%), `reward-pressure-study-2` 320/653 (49.0%).
+- **The cost is 463 held-out cheats that stop being surfaced at `review`**, because the only reason
+  they were surfaced was the unrecognized-tool-shape parser artifact, not a content rule. That is
+  71.6% of `sdf-shortcut-taking` and 67.2% of `mistrace-reward-hacking` cheats. Content rules only
+  catch 24.5% and 6.7% of those sets today, so on those two sets the review queue loses most of its
+  (accidental) coverage. The honest answer: tool-shape recognition improves the queue's precision
+  but shrinks its recall on two held-out sets, and it does so without losing a single hard drop.
+- **Small new honest false alarms appear**: 42 held-out runs move to `drop`, 18 of them on
+  `beam-tripwire` (4.1% of its honest runs) and 9 on `agent-cheat-index`. Those are runs whose
+  newly-parsed tool calls match real hard rules once the shape is readable — worth inspecting before
+  shipping, because they are the cases where correct parsing turns a benign-looking action into a
+  hard drop.
+
 ## Held-out sets (15,859 runs across 20 sets)
 
 ### view = full

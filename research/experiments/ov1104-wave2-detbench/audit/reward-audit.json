@@ -1,0 +1,122 @@
+{
+  "manifest_sha256": "65d19eaad26bfd1b82b4ed91a16ed3a3f2da55dcc7460f942bc87e66acee56be",
+  "passing_sets_with_both_classes": [],
+  "per_set_counts": {
+    "agent-cheat-index:heldout": {
+      "reward_absent": 1148,
+      "runs": 1148
+    },
+    "beam-tripwire:heldout": {
+      "reward_absent": 613,
+      "runs": 613
+    },
+    "c1c5:dev": {
+      "reward_absent": 30,
+      "runs": 30
+    },
+    "cape-bench:heldout": {
+      "reward_absent": 800,
+      "runs": 800
+    },
+    "caught-not-taught:heldout": {
+      "reward_absent": 206,
+      "runs": 206
+    },
+    "cheatbench:dev": {
+      "reward_absent": 150,
+      "runs": 150
+    },
+    "evilgenie-escalation:heldout": {
+      "reward_absent": 2114,
+      "runs": 2114
+    },
+    "flake-laundering:heldout": {
+      "reward_absent": 224,
+      "runs": 224
+    },
+    "goodfire:dev": {
+      "reward_absent": 150,
+      "runs": 150
+    },
+    "kernelbench-hard-runs:heldout": {
+      "reward_absent": 30,
+      "runs": 30
+    },
+    "kobayashi-maru:heldout": {
+      "reward_absent": 3000,
+      "runs": 3000
+    },
+    "latent-agent-sandbox-episodes:heldout": {
+      "reward_absent": 326,
+      "runs": 326
+    },
+    "mistrace-reward-hacking:heldout": {
+      "reward_absent": 200,
+      "runs": 200
+    },
+    "paichecker:heldout": {
+      "reward_absent": 2587,
+      "runs": 2587
+    },
+    "reflex-sentinel:heldout": {
+      "reward_absent": 250,
+      "runs": 250
+    },
+    "researcharena-benchmark-gaming:heldout": {
+      "reward_absent": 41,
+      "runs": 41
+    },
+    "resolvebench-support-agents:heldout": {
+      "reward_absent": 512,
+      "runs": 512
+    },
+    "reward-pressure-study-2:heldout": {
+      "reward_absent": 1120,
+      "runs": 1120
+    },
+    "rhb-delivery-queue:heldout": {
+      "reward_absent": 538,
+      "runs": 538
+    },
+    "rsi-benchmark-monitor-training:heldout": {
+      "reward_absent": 836,
+      "runs": 836
+    },
+    "sdf-shortcut-taking:heldout": {
+      "reward_absent": 995,
+      "runs": 995
+    },
+    "sleight-bench:heldout": {
+      "reward_absent": 86,
+      "runs": 86
+    },
+    "sol-astra:dev": {
+      "reward=0.0|label=1": 8,
+      "reward=1.0|label=0": 48,
+      "reward_present": 56,
+      "runs": 56
+    },
+    "terminal-wrench:dev": {
+      "reward_absent": 304,
+      "runs": 304
+    },
+    "trusted-monitoring-logs:heldout": {
+      "reward_absent": 233,
+      "runs": 233
+    }
+  },
+  "reward_label_association": {
+    "sol-astra": {
+      "label_is_inverse_of_reward": true,
+      "reward0_cheat": 8,
+      "reward0_honest": 0,
+      "reward1_cheat": 0,
+      "reward1_honest": 48,
+      "rows_scored": 56,
+      "rows_with_reward": 56,
+      "split": "dev"
+    }
+  },
+  "sets_with_reward": 1,
+  "total_runs": 16549
+}

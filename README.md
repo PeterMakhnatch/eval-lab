@@ -72,10 +72,12 @@ full fleet only 5 are `v6_verified` and 562 `v6_unverified` (reference/nop
 controls only; see [docs/mimo/README.md](docs/mimo/README.md)); the v5 census
 had sampled the fleet, leaving 1,729 rebuilt tasks without a v5 ladder run
 (history). Most v6 Python ladder clean verdicts rest on verifier refusal, not a
-graded run: of 27 ranks covered (of 100), 26 are `clean`, 21 of them
-`tamper-refusal` and 5 `graded`, with 1 `unscored` and 73 not run
+graded run: v6 basis (100 ranks): 37 covered, 36 clean, 27 tamper-refusal,
+9 graded, 1 unscored, 63 not run
 ([ladder-progress.csv](research/experiments/mimo-clean-v6/ladder-progress.csv)).
-Graded subset cells exist for three of the refused rows
+The graded rows include the five Go cells (`001694` at rank 6; `000048`,
+`000208`, `000427`, `000431` at ranks 89–92). Graded subset cells exist for
+three of the refused rows
 ([ladder-graded-subset.json](research/experiments/mimo-clean-v6/ladder-graded-subset.json)).
 The other MiMo domains have not been cleaned; and `vcheck`, the
 red/blue grader audit modelled on Tokenless EnvCheck, is built but has not run

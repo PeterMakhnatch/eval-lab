@@ -385,3 +385,23 @@ def test_binary_result_is_unverified_instead_of_crashing_the_supervisor(tmp_path
     assert result["verified"] is False
     assert result["prs"] == []
     assert any("RESULT.md" in reason for reason in result["reasons"])
+
+
+@pytest.mark.parametrize("swapped", [False, True])
+def test_each_pr_claim_binds_its_own_head_in_a_multi_pr_paragraph(tmp_path: Path, swapped: bool):
+    lane = make_lane(tmp_path)
+    lane.worktree = str(tmp_path / "worktree")
+    lane.served = {ROUTE: 1}
+    other = "b" * 40
+    first, second = (other, HEAD) if swapped else (HEAD, other)
+    (lane.directory / "RESULT.md").write_text(
+        f"PR #123 MERGED head {first}.\nPR #456 MERGED head {second}.\n"
+    )
+
+    def run(argv, **kwargs):
+        if argv[:3] == ["gh", "pr", "view"]:
+            return completion_run(head=HEAD if argv[3] == "123" else other)(argv, **kwargs)
+        return completion_run()(argv, **kwargs)
+
+    result = verify(lane, run=run)
+    assert result["verified"] is not swapped

@@ -67,10 +67,19 @@ def verify(lane: Lane, *, run: Run = subprocess.run, hook: list[str] | None = No
                 if (reference.startswith("https://") and reference in paragraph)
                 or re.search(r"(?:#|\bPR\s+)" + re.escape(number) + r"\b", paragraph)
             ]
-            if not any(pr["headRefOid"] in paragraph for paragraph in paragraphs):
-                reasons.append(
-                    f"PR #{number} exact head SHA is absent from its RESULT.md paragraph"
-                )
+            claims: list[str] = []
+            for paragraph in paragraphs:
+                ids = set(re.findall(r"(?:pull/|#|\bPR\s+)(\d+)\b", paragraph))
+                if len(ids) == 1:
+                    claims.append(paragraph)
+                else:
+                    claims.extend(
+                        line
+                        for line in paragraph.splitlines()
+                        if set(re.findall(r"(?:pull/|#|\bPR\s+)(\d+)\b", line)) == {number}
+                    )
+            if not any(pr["headRefOid"] in claim for claim in claims):
+                reasons.append(f"PR #{number} exact head SHA is absent from its citation claim")
             checks = pr.get("statusCheckRollup") or []
             successful = {
                 check.get("name")

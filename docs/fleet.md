@@ -132,6 +132,7 @@ a clean registered worktree, and a pushed branch or a head bound to a merged PR.
 For each PR citation, it checks GitHub's state, exact head, and reported checks.
 Both `quality-required` and `typecheck-required` must succeed. Every reported check must succeed.
 The exact PR head must appear in the citation's `RESULT.md` paragraph.
+Put each PR and its head on separate lines in a paragraph that cites multiple PRs.
 Cite PRs with `#NUMBER`, `PR NUMBER`, or GitHub URLs.
 Fleet currently requires delivery PRs to be merged before it marks the lane verified.
 The retired branch can be absent after a guarded merge when its head matches the merged PR.

@@ -1,0 +1,415 @@
+{
+  "schema": "ov1106-goldcert-route-attestation-v2",
+  "main_session_scope": "Lead still active; current system route is Sol. This file attests completed/stopped helpers only, not future turns.",
+  "resumed_served_sessions": 14,
+  "resumed_startup_only_sessions": 0,
+  "all_resumed_observed_routes_exact_sol": true,
+  "original_stopped_sessions_may_fallback": true,
+  "writer_batch_observed_route": "122/122 exact openai-codex/gpt-6.1-terra responses; separate raw-envelope proof",
+  "sessions": [
+    {
+      "session": "contracts/session6/2026-11-04T21-48-55-562Z_01a1a889-578a-7557-8115-912738848759.jsonl",
+      "sha256": "a59023c128e99c7072280e622ac6d9cfda644c791b70cd616dded30b5848e130",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 17
+      },
+      "assistant_messages": 17,
+      "stop_reasons": {
+        "toolUse": 16,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T21:48:56.680Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "contracts/session5/2026-11-04T21-37-37-850Z_01a1a87f-003a-75e4-87fb-0246d1794f17.jsonl",
+      "sha256": "234adce548e08a2ace879c25d0237cf11bb0aba6fe041f4a8a4c8b7fd42d9a46",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 35
+      },
+      "assistant_messages": 35,
+      "stop_reasons": {
+        "toolUse": 34,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T21:37:38.717Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "contracts/session4/2026-11-04T21-12-20-883Z_01a1a867-da93-7505-8afb-d6d104b03b9d.jsonl",
+      "sha256": "885f5d009525df67b7cb2afeb3e89b43ceadac847c9d983050931beeb2656d06",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 22
+      },
+      "assistant_messages": 22,
+      "stop_reasons": {
+        "toolUse": 21,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T21:12:22.712Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "contracts/session3/2026-11-04T21-02-35-734Z_01a1a85e-ecd6-7007-823c-58d5cb67a42a.jsonl",
+      "sha256": "a90cb43f0f4ebf69788e0894e6729866df77c4776145a72a845141909b59c262",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 20
+      },
+      "assistant_messages": 20,
+      "stop_reasons": {
+        "toolUse": 19,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T21:02:36.946Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "contracts/session2/2026-11-04T20-49-32-470Z_01a1a852-f936-7504-bf81-2c47474a1bd6.jsonl",
+      "sha256": "4c19c31aa2e6e8e044718796f34f33758f4bb2b646f1d878ea4f7f9ca3791170",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 33
+      },
+      "assistant_messages": 33,
+      "stop_reasons": {
+        "toolUse": 32,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T20:49:33.268Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "contracts/session/2026-11-04T20-33-15-535Z_01a1a844-110f-72a1-97f7-990aea721eae.jsonl",
+      "sha256": "f444664098777312c671a8d6a851114ddea642b76742021883a6ef567d1bac43",
+      "resumed": false,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 67,
+        "meta/muse-wonder-full-1.0-contributor": 1,
+        "google-antigravity/gemini-4-argon": 1
+      },
+      "assistant_messages": 69,
+      "stop_reasons": {
+        "toolUse": 67,
+        "error": 1,
+        "aborted": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T20:33:15.788Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        },
+        {
+          "timestamp": "2026-11-04T20:45:59.885Z",
+          "model": "meta/muse-wonder-full-1.0-contributor",
+          "resolvedModelIsFallback": true
+        },
+        {
+          "timestamp": "2026-11-04T20:46:02.286Z",
+          "model": "google-antigravity/gemini-4-argon",
+          "resolvedModelIsFallback": true
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "safe/session6/2026-11-04T21-35-58-978Z_01a1a87d-7e02-73f7-bf4c-b3af052c063f.jsonl",
+      "sha256": "e25f58b2ae2a21a6941781faa0403062a2ff48d50f10ab03012775fa18fabbb7",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 11
+      },
+      "assistant_messages": 11,
+      "stop_reasons": {
+        "toolUse": 10,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T21:35:59.864Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "safe/session5/2026-11-04T21-29-19-624Z_01a1a877-6608-745d-9c45-7749f763edfe.jsonl",
+      "sha256": "d84b8e4318166cae14e0ff90bed95187149181fd0592b84e76c06d5ab93ffd6e",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 13
+      },
+      "assistant_messages": 13,
+      "stop_reasons": {
+        "toolUse": 12,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T21:29:21.513Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "safe/session4/2026-11-04T21-07-03-614Z_01a1a863-033e-7126-aa30-9f075819ca88.jsonl",
+      "sha256": "efa7ff296e00ed49d6839d5e46a29e388c6c1a6808227a8adb9a300e76578fab",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 42
+      },
+      "assistant_messages": 42,
+      "stop_reasons": {
+        "toolUse": 41,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T21:07:07.621Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "safe/session3/2026-11-04T20-59-46-540Z_01a1a85c-57ec-7651-9c79-c426088dc46d.jsonl",
+      "sha256": "70d96c62edb80e3cb8ace97582119a85a2a03bb07db404c61b9caf1c3aa53a4a",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 24
+      },
+      "assistant_messages": 24,
+      "stop_reasons": {
+        "toolUse": 23,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T20:59:49.835Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "safe/session/2026-11-04T20-33-15-537Z_01a1a844-1111-74ab-9d06-9d094c54a8bd.jsonl",
+      "sha256": "ed079196afd851d83de0e07902133e2569025ce269d57b8922ed238edaabaaf1",
+      "resumed": false,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 19
+      },
+      "assistant_messages": 19,
+      "stop_reasons": {
+        "toolUse": 18,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T20:33:15.800Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "provenance/session3/2026-11-04T21-29-19-541Z_01a1a877-65b5-76af-906b-63599d0592d6.jsonl",
+      "sha256": "605d0b635981b41e1f9aefe5e024cf8ded73404ea87ec1cbcaedffcfe61b74ac",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 19
+      },
+      "assistant_messages": 19,
+      "stop_reasons": {
+        "toolUse": 18,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T21:29:21.517Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "provenance/session2/2026-11-04T20-53-33-036Z_01a1a856-a4ec-71b9-83e7-20c174a0f7c5.jsonl",
+      "sha256": "8964d48db2d706adec091a83809cd1d4f792af3885d560f67890fdc1e060d197",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 27
+      },
+      "assistant_messages": 27,
+      "stop_reasons": {
+        "toolUse": 26,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T20:53:33.536Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "provenance/session/2026-11-04T20-39-55-277Z_01a1a84a-2a8d-7602-bdd7-1f012141996a.jsonl",
+      "sha256": "8656d63d499025414555d2a711550d5793e4cf598b1d3aaeb2f9a1726504fb58",
+      "resumed": false,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 12
+      },
+      "assistant_messages": 12,
+      "stop_reasons": {
+        "toolUse": 11,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T20:39:55.860Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "driver/session2/2026-11-04T20-49-32-474Z_01a1a852-f93a-72f1-9d07-4533446718a8.jsonl",
+      "sha256": "8117c0581c1d2470fa978da25d42e348121b2daedab6028c4bcbd4ad8a7fd480",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 16
+      },
+      "assistant_messages": 16,
+      "stop_reasons": {
+        "toolUse": 15,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T20:49:33.273Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "driver/session/2026-11-04T20-42-51-119Z_01a1a84c-d96f-710e-8792-f960acc202fa.jsonl",
+      "sha256": "40e7cc873a358f4ff98c5fec4ae716cdcd1ef29d5f573629edc5176f9ecf8c33",
+      "resumed": false,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 7,
+        "meta/muse-wonder-full-1.0-contributor": 1,
+        "google-antigravity/gemini-4-argon": 3
+      },
+      "assistant_messages": 11,
+      "stop_reasons": {
+        "toolUse": 9,
+        "error": 1,
+        "aborted": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T20:42:51.515Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        },
+        {
+          "timestamp": "2026-11-04T20:46:06.818Z",
+          "model": "meta/muse-wonder-full-1.0-contributor",
+          "resolvedModelIsFallback": true
+        },
+        {
+          "timestamp": "2026-11-04T20:46:07.276Z",
+          "model": "google-antigravity/gemini-4-argon",
+          "resolvedModelIsFallback": true
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "provenance/session4/2026-11-04T22-10-42-794Z_01a1a89d-49ea-7390-bb25-76671a46175b.jsonl",
+      "sha256": "99484bd1ccfdb6c86cad66cf1f3a63a6ad3e67f17626470f7cafbbfc7ab7a867",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 40
+      },
+      "assistant_messages": 40,
+      "stop_reasons": {
+        "toolUse": 39,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T22:10:43.373Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    },
+    {
+      "session": "provenance/session5/2026-11-04T22-15-19-611Z_01a1a8a1-833b-703e-8199-32070c5300d5.jsonl",
+      "sha256": "9b93e1c70fcd0cd2f98772c29ef835a728ca00a868b472132cb7436afcf1f523",
+      "resumed": true,
+      "assistant_models": {
+        "openai-codex/gpt-6.1-sol": 17
+      },
+      "assistant_messages": 17,
+      "stop_reasons": {
+        "toolUse": 16,
+        "stop": 1
+      },
+      "model_changes": [
+        {
+          "timestamp": "2026-11-04T22:15:19.925Z",
+          "model": "openai-codex/gpt-6.1-sol",
+          "resolvedModelIsFallback": false
+        }
+      ],
+      "scope": "Completed/stopped private helper transcript, metadata only. Empty startup session supplies no served-model evidence."
+    }
+  ]
+}

@@ -1,0 +1,606 @@
+{
+ "lane": "probes",
+ "cap_usd": 8.0,
+ "approval": "Peter 2026-11-03 23:35 ET: $30 overnight infra budget (ov1104), lane cap per PROGRAM.md",
+ "billing_tag": "ov1104",
+ "est_usd": 6.9501,
+ "actual_usd": 6.9501,
+ "items": [
+  {
+   "ts": "2026-11-04T05:40:19Z",
+   "lane": "probes",
+   "what": "prefetch_weights Qwen3-8B cpu=4",
+   "provider": "modal",
+   "est_usd": 0.0786,
+   "actual_usd": 0.0786,
+   "receipt": {
+    "app": "ap-QGAdIXmXxBLAGmIb5x7nBB",
+    "cpu_cores": 4,
+    "wall_secs": 1500
+   }
+  },
+  {
+   "ts": "2026-11-04T05:40:19Z",
+   "lane": "probes",
+   "what": "smoke terminal-wrench runs=12 tokens=87574 gpu=NVIDIA A10",
+   "provider": "modal",
+   "est_usd": 0.0553,
+   "actual_usd": 0.0553,
+   "receipt": {
+    "app": "ap-KiTtJbpymAvJRhnkOvXAdM",
+    "tasks": [
+     "ta-01M6JH2A7DR9Z4XY8EW6BWJQCR",
+     "ta-01M6JH2A7DY3XNGKA70E65QX4R"
+    ],
+    "gpu_proc_secs": 34.0,
+    "est_billed_secs": 180.6,
+    "usd_per_gpu_sec": 0.000306
+   }
+  },
+  {
+   "ts": "2026-11-04T05:41:32Z",
+   "lane": "probes",
+   "what": "extract c1c5 runs=20 tokens=154860 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.1003,
+   "actual_usd": 0.1003,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JH5XKAZTD1N20XNDNSMBJR",
+     "ta-01M6JH5XT056D8P5T5ADQQP9RR",
+     "ta-01M6JH5XT0ENQDG7Z03B2D04ER"
+    ],
+    "new_tasks": [
+     "ta-01M6JH5XKAZTD1N20XNDNSMBJR",
+     "ta-01M6JH5XT056D8P5T5ADQQP9RR",
+     "ta-01M6JH5XT0ENQDG7Z03B2D04ER"
+    ],
+    "gpu_proc_secs": 56.8,
+    "wall_secs": 47.3,
+    "est_billed_secs": 327.6,
+    "usd_per_gpu_sec": 0.000306,
+    "out": "/private/tmp/ov1104/probes/vectors/c1c5.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T05:42:10Z",
+   "lane": "probes",
+   "what": "extract sol-astra runs=56 tokens=333737 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.1477,
+   "actual_usd": 0.1477,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JH5XKAZTD1N20XNDNSMBJR",
+     "ta-01M6JH5XT056D8P5T5ADQQP9RR",
+     "ta-01M6JH5XT0ENQDG7Z03B2D04ER",
+     "ta-01M6JH7C6H7JKT5W15E01AS4HR",
+     "ta-01M6JH7C6HWWSXA5BFVG116B5R",
+     "ta-01M6JH7C75CZMVJFMHRBHT05JR",
+     "ta-01M6JH7C75EGQQ7ETW68GN18GR"
+    ],
+    "new_tasks": [
+     "ta-01M6JH7C6H7JKT5W15E01AS4HR",
+     "ta-01M6JH7C6HWWSXA5BFVG116B5R",
+     "ta-01M6JH7C75CZMVJFMHRBHT05JR",
+     "ta-01M6JH7C75EGQQ7ETW68GN18GR"
+    ],
+    "gpu_proc_secs": 121.5,
+    "wall_secs": 37.8,
+    "est_billed_secs": 482.7,
+    "usd_per_gpu_sec": 0.000306,
+    "out": "/private/tmp/ov1104/probes/vectors/sol-astra.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T05:43:45Z",
+   "lane": "probes",
+   "what": "extract terminal-wrench runs=292 tokens=1728934 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.2413,
+   "actual_usd": 0.2413,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JH5XKAZTD1N20XNDNSMBJR",
+     "ta-01M6JH5XT056D8P5T5ADQQP9RR",
+     "ta-01M6JH5XT0ENQDG7Z03B2D04ER",
+     "ta-01M6JH7C6H7JKT5W15E01AS4HR",
+     "ta-01M6JH7C6HWWSXA5BFVG116B5R",
+     "ta-01M6JH7C75CZMVJFMHRBHT05JR",
+     "ta-01M6JH7C75EGQQ7ETW68GN18GR",
+     "ta-01M6JH8KV7KCMHF1ZEBF48JQNR"
+    ],
+    "new_tasks": [
+     "ta-01M6JH8KV7KCMHF1ZEBF48JQNR"
+    ],
+    "gpu_proc_secs": 698.3,
+    "wall_secs": 94.6,
+    "est_billed_secs": 788.6,
+    "usd_per_gpu_sec": 0.000306,
+    "out": "/private/tmp/ov1104/probes/vectors/terminal-wrench.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T05:47:02Z",
+   "lane": "probes",
+   "what": "extract goodfire runs=150 tokens=6088906 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.4379,
+   "actual_usd": 0.4379,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JH5XKAZTD1N20XNDNSMBJR",
+     "ta-01M6JH5XT056D8P5T5ADQQP9RR",
+     "ta-01M6JH5XT0ENQDG7Z03B2D04ER",
+     "ta-01M6JH7C6H7JKT5W15E01AS4HR",
+     "ta-01M6JH7C6HWWSXA5BFVG116B5R",
+     "ta-01M6JH7C75CZMVJFMHRBHT05JR",
+     "ta-01M6JH7C75EGQQ7ETW68GN18GR",
+     "ta-01M6JH8KV7KCMHF1ZEBF48JQNR"
+    ],
+    "new_tasks": [],
+    "gpu_proc_secs": 1431.1,
+    "wall_secs": 196.4,
+    "est_billed_secs": 1431.1,
+    "usd_per_gpu_sec": 0.000306,
+    "out": "/private/tmp/ov1104/probes/vectors/goodfire.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T05:49:13Z",
+   "lane": "probes",
+   "what": "extract cheatbench runs=150 tokens=4744588 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.2526,
+   "actual_usd": 0.2526,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JH5XKAZTD1N20XNDNSMBJR",
+     "ta-01M6JH5XT056D8P5T5ADQQP9RR",
+     "ta-01M6JH5XT0ENQDG7Z03B2D04ER",
+     "ta-01M6JH7C6H7JKT5W15E01AS4HR",
+     "ta-01M6JH7C6HWWSXA5BFVG116B5R",
+     "ta-01M6JH7C75CZMVJFMHRBHT05JR",
+     "ta-01M6JH7C75EGQQ7ETW68GN18GR",
+     "ta-01M6JH8KV7KCMHF1ZEBF48JQNR"
+    ],
+    "new_tasks": [],
+    "gpu_proc_secs": 825.6,
+    "wall_secs": 130.3,
+    "est_billed_secs": 825.6,
+    "usd_per_gpu_sec": 0.000306,
+    "out": "/private/tmp/ov1104/probes/vectors/cheatbench.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T05:53:23Z",
+   "lane": "probes",
+   "what": "extract sleight-bench runs=86 tokens=216662 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.3297,
+   "actual_usd": 0.3297,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JHVW6MZK0E0DTHC05RJ3CR",
+     "ta-01M6JHVWH24Q6MF80H7VF220VR",
+     "ta-01M6JHVWH282P9KG1GT0FTXA4R",
+     "ta-01M6JHVWHQ10ABJ2CQ7R28VY3R",
+     "ta-01M6JHVWHQWFSFSXQFJZRGTH2R",
+     "ta-01M6JHVWJ579YRR0609G1SVDYR",
+     "ta-01M6JHVWJHNW4BR48EP8K0089R"
+    ],
+    "new_tasks": [
+     "ta-01M6JHVW6MZK0E0DTHC05RJ3CR",
+     "ta-01M6JHVWH24Q6MF80H7VF220VR",
+     "ta-01M6JHVWH282P9KG1GT0FTXA4R",
+     "ta-01M6JHVWHQ10ABJ2CQ7R28VY3R",
+     "ta-01M6JHVWHQWFSFSXQFJZRGTH2R",
+     "ta-01M6JHVWJ579YRR0609G1SVDYR",
+     "ta-01M6JHVWJHNW4BR48EP8K0089R"
+    ],
+    "gpu_proc_secs": 72.5,
+    "wall_secs": 38.6,
+    "est_billed_secs": 608.2,
+    "usd_per_gpu_sec": 0.000542,
+    "out": "/private/tmp/ov1104/probes/vectors/sleight-bench.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T05:54:07Z",
+   "lane": "probes",
+   "what": "extract kernelbench-hard-runs runs=30 tokens=1284862 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.0563,
+   "actual_usd": 0.0563,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JHVW6MZK0E0DTHC05RJ3CR",
+     "ta-01M6JHVWHQ10ABJ2CQ7R28VY3R",
+     "ta-01M6JHVWJ579YRR0609G1SVDYR",
+     "ta-01M6JHVWJ5BQDSHEK068DFM4PR"
+    ],
+    "new_tasks": [
+     "ta-01M6JHVWJ5BQDSHEK068DFM4PR"
+    ],
+    "gpu_proc_secs": 101.7,
+    "wall_secs": 44.0,
+    "est_billed_secs": 184.0,
+    "usd_per_gpu_sec": 0.000306,
+    "out": "/private/tmp/ov1104/probes/vectors/kernelbench-hard-runs.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T05:56:12Z",
+   "lane": "probes",
+   "what": "extract researcharena-benchmark-gaming runs=41 tokens=2645382 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.1093,
+   "actual_usd": 0.1093,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JHVW6MZK0E0DTHC05RJ3CR",
+     "ta-01M6JHVWH282P9KG1GT0FTXA4R",
+     "ta-01M6JHVWHQ10ABJ2CQ7R28VY3R",
+     "ta-01M6JHVWHQWFSFSXQFJZRGTH2R",
+     "ta-01M6JHVWJ579YRR0609G1SVDYR",
+     "ta-01M6JHVWJ5BQDSHEK068DFM4PR"
+    ],
+    "new_tasks": [],
+    "gpu_proc_secs": 357.2,
+    "wall_secs": 124.5,
+    "est_billed_secs": 357.2,
+    "usd_per_gpu_sec": 0.000306,
+    "out": "/private/tmp/ov1104/probes/vectors/researcharena-benchmark-gaming.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T05:56:48Z",
+   "lane": "probes",
+   "what": "extract flake-laundering runs=224 tokens=573035 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.0915,
+   "actual_usd": 0.0915,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JHVW6MZK0E0DTHC05RJ3CR",
+     "ta-01M6JHVWH24Q6MF80H7VF220VR",
+     "ta-01M6JHVWH282P9KG1GT0FTXA4R",
+     "ta-01M6JHVWHQWFSFSXQFJZRGTH2R",
+     "ta-01M6JJ27CXBWMQ1RWWDZPS1RQR",
+     "ta-01M6JJ27DR87EST59MXGYNDFNR"
+    ],
+    "new_tasks": [
+     "ta-01M6JJ27CXBWMQ1RWWDZPS1RQR",
+     "ta-01M6JJ27DR87EST59MXGYNDFNR"
+    ],
+    "gpu_proc_secs": 147.3,
+    "wall_secs": 33.7,
+    "est_billed_secs": 299.1,
+    "usd_per_gpu_sec": 0.000306,
+    "out": "/private/tmp/ov1104/probes/vectors/flake-laundering.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T05:57:40Z",
+   "lane": "probes",
+   "what": "extract caught-not-taught runs=206 tokens=1195504 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.3321,
+   "actual_usd": 0.3321,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JHVW6MZK0E0DTHC05RJ3CR",
+     "ta-01M6JHVWH24Q6MF80H7VF220VR",
+     "ta-01M6JHVWH282P9KG1GT0FTXA4R",
+     "ta-01M6JJ27CXBWMQ1RWWDZPS1RQR",
+     "ta-01M6JJ27DR87EST59MXGYNDFNR",
+     "ta-01M6JJ321A3FRJZJXJV98NE07R",
+     "ta-01M6JJ321AJAW1E5S0SVXE1QXR",
+     "ta-01M6JJ321W66XSRJH3CQ3R5CHR"
+    ],
+    "new_tasks": [
+     "ta-01M6JJ321A3FRJZJXJV98NE07R",
+     "ta-01M6JJ321AJAW1E5S0SVXE1QXR",
+     "ta-01M6JJ321W66XSRJH3CQ3R5CHR"
+    ],
+    "gpu_proc_secs": 342.0,
+    "wall_secs": 51.8,
+    "est_billed_secs": 569.6,
+    "usd_per_gpu_sec": 0.000583,
+    "out": "/private/tmp/ov1104/probes/vectors/caught-not-taught.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T05:58:44Z",
+   "lane": "probes",
+   "what": "extract trusted-monitoring-logs runs=233 tokens=1782874 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.2537,
+   "actual_usd": 0.2537,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JHVW6MZK0E0DTHC05RJ3CR",
+     "ta-01M6JHVWH24Q6MF80H7VF220VR",
+     "ta-01M6JHVWH282P9KG1GT0FTXA4R",
+     "ta-01M6JJ27CXBWMQ1RWWDZPS1RQR",
+     "ta-01M6JJ27DR87EST59MXGYNDFNR",
+     "ta-01M6JJ321A3FRJZJXJV98NE07R",
+     "ta-01M6JJ321AJAW1E5S0SVXE1QXR",
+     "ta-01M6JJ321W66XSRJH3CQ3R5CHR"
+    ],
+    "new_tasks": [],
+    "gpu_proc_secs": 435.2,
+    "wall_secs": 63.7,
+    "est_billed_secs": 435.2,
+    "usd_per_gpu_sec": 0.000583,
+    "out": "/private/tmp/ov1104/probes/vectors/trusted-monitoring-logs.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T05:59:56Z",
+   "lane": "probes",
+   "what": "extract reflex-sentinel runs=250 tokens=1622180 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.2883,
+   "actual_usd": 0.2883,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JHVW6MZK0E0DTHC05RJ3CR",
+     "ta-01M6JHVWH24Q6MF80H7VF220VR",
+     "ta-01M6JHVWH282P9KG1GT0FTXA4R",
+     "ta-01M6JJ27CXBWMQ1RWWDZPS1RQR",
+     "ta-01M6JJ27DR87EST59MXGYNDFNR",
+     "ta-01M6JJ321A3FRJZJXJV98NE07R",
+     "ta-01M6JJ321AJAW1E5S0SVXE1QXR",
+     "ta-01M6JJ321W66XSRJH3CQ3R5CHR"
+    ],
+    "new_tasks": [],
+    "gpu_proc_secs": 494.5,
+    "wall_secs": 72.1,
+    "est_billed_secs": 494.5,
+    "usd_per_gpu_sec": 0.000583,
+    "out": "/private/tmp/ov1104/probes/vectors/reflex-sentinel.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T06:00:26Z",
+   "lane": "probes",
+   "what": "extract resolvebench-support-agents runs=512 tokens=1043285 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.1196,
+   "actual_usd": 0.1196,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JHVW6MZK0E0DTHC05RJ3CR",
+     "ta-01M6JHVWH24Q6MF80H7VF220VR",
+     "ta-01M6JHVWH282P9KG1GT0FTXA4R",
+     "ta-01M6JJ27CXBWMQ1RWWDZPS1RQR",
+     "ta-01M6JJ27DR87EST59MXGYNDFNR",
+     "ta-01M6JJ321A3FRJZJXJV98NE07R",
+     "ta-01M6JJ321AJAW1E5S0SVXE1QXR",
+     "ta-01M6JJ321W66XSRJH3CQ3R5CHR"
+    ],
+    "new_tasks": [],
+    "gpu_proc_secs": 205.2,
+    "wall_secs": 28.8,
+    "est_billed_secs": 205.2,
+    "usd_per_gpu_sec": 0.000583,
+    "out": "/private/tmp/ov1104/probes/vectors/resolvebench-support-agents.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T06:02:38Z",
+   "lane": "probes",
+   "what": "extract latent-agent-sandbox-episodes runs=326 tokens=4075045 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.5423,
+   "actual_usd": 0.5423,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JHVW6MZK0E0DTHC05RJ3CR",
+     "ta-01M6JHVWH24Q6MF80H7VF220VR",
+     "ta-01M6JHVWH282P9KG1GT0FTXA4R",
+     "ta-01M6JJ27CXBWMQ1RWWDZPS1RQR",
+     "ta-01M6JJ27DR87EST59MXGYNDFNR",
+     "ta-01M6JJ321A3FRJZJXJV98NE07R",
+     "ta-01M6JJ321AJAW1E5S0SVXE1QXR",
+     "ta-01M6JJ321W66XSRJH3CQ3R5CHR"
+    ],
+    "new_tasks": [],
+    "gpu_proc_secs": 930.2,
+    "wall_secs": 131.7,
+    "est_billed_secs": 930.2,
+    "usd_per_gpu_sec": 0.000583,
+    "out": "/private/tmp/ov1104/probes/vectors/latent-agent-sandbox-episodes.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T06:02:53Z",
+   "lane": "probes",
+   "what": "extract rhb-delivery-queue runs=538 tokens=436751 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.0563,
+   "actual_usd": 0.0563,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JHVW6MZK0E0DTHC05RJ3CR",
+     "ta-01M6JHVWH24Q6MF80H7VF220VR",
+     "ta-01M6JHVWH282P9KG1GT0FTXA4R",
+     "ta-01M6JJ27CXBWMQ1RWWDZPS1RQR",
+     "ta-01M6JJ27DR87EST59MXGYNDFNR",
+     "ta-01M6JJ321A3FRJZJXJV98NE07R",
+     "ta-01M6JJ321AJAW1E5S0SVXE1QXR",
+     "ta-01M6JJ321W66XSRJH3CQ3R5CHR"
+    ],
+    "new_tasks": [],
+    "gpu_proc_secs": 96.6,
+    "wall_secs": 14.0,
+    "est_billed_secs": 96.6,
+    "usd_per_gpu_sec": 0.000583,
+    "out": "/private/tmp/ov1104/probes/vectors/rhb-delivery-queue.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T06:03:54Z",
+   "lane": "probes",
+   "what": "extract cape-bench runs=800 tokens=1913682 gpu=L4,A10G,L40S,A100-40GB",
+   "provider": "modal",
+   "est_usd": 0.2672,
+   "actual_usd": 0.2672,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JHVW6MZK0E0DTHC05RJ3CR",
+     "ta-01M6JHVWH24Q6MF80H7VF220VR",
+     "ta-01M6JHVWH282P9KG1GT0FTXA4R",
+     "ta-01M6JJ27CXBWMQ1RWWDZPS1RQR",
+     "ta-01M6JJ27DR87EST59MXGYNDFNR",
+     "ta-01M6JJ321A3FRJZJXJV98NE07R",
+     "ta-01M6JJ321AJAW1E5S0SVXE1QXR",
+     "ta-01M6JJ321W66XSRJH3CQ3R5CHR"
+    ],
+    "new_tasks": [],
+    "gpu_proc_secs": 458.3,
+    "wall_secs": 60.2,
+    "est_billed_secs": 458.3,
+    "usd_per_gpu_sec": 0.000583,
+    "out": "/private/tmp/ov1104/probes/vectors/cape-bench.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T06:09:48Z",
+   "lane": "probes",
+   "what": "extract agent-cheat-index runs=1148 tokens=4245852 gpu=L4,A10G",
+   "provider": "modal",
+   "est_usd": 0.6898,
+   "actual_usd": 0.6898,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JJJN9WSJQ5WKQ3CTMHKR9R",
+     "ta-01M6JJM9TNH6Y56NGBGKD6VXXR",
+     "ta-01M6JJMA657G4EHKEDWJ3BQ8GR",
+     "ta-01M6JJMA659QM2E2X3GP1FCXQR",
+     "ta-01M6JJMC06CDYK6HPY5RYTD4PR",
+     "ta-01M6JJMC06NC4YK7E1DNTQBCZR",
+     "ta-01M6JJMCPSG1GM7A796E2052DR",
+     "ta-01M6JJMCPSJ9CYAKAPNC2CAAWR"
+    ],
+    "new_tasks": [
+     "ta-01M6JJJN9WSJQ5WKQ3CTMHKR9R",
+     "ta-01M6JJM9TNH6Y56NGBGKD6VXXR",
+     "ta-01M6JJMA657G4EHKEDWJ3BQ8GR",
+     "ta-01M6JJMA659QM2E2X3GP1FCXQR",
+     "ta-01M6JJMC06CDYK6HPY5RYTD4PR",
+     "ta-01M6JJMC06NC4YK7E1DNTQBCZR",
+     "ta-01M6JJMCPSG1GM7A796E2052DR",
+     "ta-01M6JJMCPSJ9CYAKAPNC2CAAWR"
+    ],
+    "gpu_proc_secs": 1650.8,
+    "wall_secs": 275.7,
+    "est_billed_secs": 2254.3,
+    "usd_per_gpu_sec": 0.000306,
+    "out": "/private/tmp/ov1104/probes/vectors/agent-cheat-index.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T06:15:37Z",
+   "lane": "probes",
+   "what": "extract rsi-benchmark-monitor-training runs=836 tokens=6700364 gpu=L4,A10G",
+   "provider": "modal",
+   "est_usd": 0.8182,
+   "actual_usd": 0.8182,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JJJN9WSJQ5WKQ3CTMHKR9R",
+     "ta-01M6JJM9TNH6Y56NGBGKD6VXXR",
+     "ta-01M6JJMA657G4EHKEDWJ3BQ8GR",
+     "ta-01M6JJMA659QM2E2X3GP1FCXQR",
+     "ta-01M6JJMC06CDYK6HPY5RYTD4PR",
+     "ta-01M6JJMC06NC4YK7E1DNTQBCZR",
+     "ta-01M6JJMCPSG1GM7A796E2052DR",
+     "ta-01M6JJMCPSJ9CYAKAPNC2CAAWR"
+    ],
+    "new_tasks": [],
+    "gpu_proc_secs": 2673.7,
+    "wall_secs": 341.6,
+    "est_billed_secs": 2673.7,
+    "usd_per_gpu_sec": 0.000306,
+    "out": "/private/tmp/ov1104/probes/vectors/rsi-benchmark-monitor-training.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T06:21:31Z",
+   "lane": "probes",
+   "what": "extract beam-tripwire runs=613 tokens=7286522 gpu=L4,A10G",
+   "provider": "modal",
+   "est_usd": 0.8134,
+   "actual_usd": 0.8134,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JJJN9WSJQ5WKQ3CTMHKR9R",
+     "ta-01M6JJM9TNH6Y56NGBGKD6VXXR",
+     "ta-01M6JJMA657G4EHKEDWJ3BQ8GR",
+     "ta-01M6JJMA659QM2E2X3GP1FCXQR",
+     "ta-01M6JJMC06CDYK6HPY5RYTD4PR",
+     "ta-01M6JJMC06NC4YK7E1DNTQBCZR",
+     "ta-01M6JJMCPSG1GM7A796E2052DR",
+     "ta-01M6JJMCPSJ9CYAKAPNC2CAAWR",
+     "ta-01M6JKDCBM8ZHQHX0S2W50YMMR"
+    ],
+    "new_tasks": [
+     "ta-01M6JKDCBM8ZHQHX0S2W50YMMR"
+    ],
+    "gpu_proc_secs": 2535.7,
+    "wall_secs": 353.3,
+    "est_billed_secs": 2658.3,
+    "usd_per_gpu_sec": 0.000306,
+    "out": "/private/tmp/ov1104/probes/vectors/beam-tripwire.npz"
+   }
+  },
+  {
+   "ts": "2026-11-04T06:27:40Z",
+   "lane": "probes",
+   "what": "extract kobayashi-maru runs=3000 tokens=7894160 gpu=L4,A10G",
+   "provider": "modal",
+   "est_usd": 0.8687,
+   "actual_usd": 0.8687,
+   "receipt": {
+    "app": "ov1104-probes-extract",
+    "tasks": [
+     "ta-01M6JJJN9WSJQ5WKQ3CTMHKR9R",
+     "ta-01M6JJMA657G4EHKEDWJ3BQ8GR",
+     "ta-01M6JJMA659QM2E2X3GP1FCXQR",
+     "ta-01M6JJMC06CDYK6HPY5RYTD4PR",
+     "ta-01M6JJMC06NC4YK7E1DNTQBCZR",
+     "ta-01M6JJMCPSG1GM7A796E2052DR",
+     "ta-01M6JJMCPSJ9CYAKAPNC2CAAWR",
+     "ta-01M6JKDCBM8ZHQHX0S2W50YMMR"
+    ],
+    "new_tasks": [],
+    "gpu_proc_secs": 2838.9,
+    "wall_secs": 364.2,
+    "est_billed_secs": 2838.9,
+    "usd_per_gpu_sec": 0.000306,
+    "out": "/private/tmp/ov1104/probes/vectors/kobayashi-maru.npz"
+   }
+  }
+ ]
+}

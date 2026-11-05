@@ -1,9 +1,56 @@
-# Ship reads this policy from origin/<base>, never from the proposed PR.
-# Commands use argv arrays, run in a detached exact-head checkout, and receive
-# EVALLAB_SHIP_HEAD, EVALLAB_SHIP_BASE, and EVALLAB_SHIP_PR.
-# Exit 0 passes. Exit 1 blocks. Any other exit signals an error and blocks.
-#
-# [[gate]]
-# name = "line"
-# paths = ["src/evallab/autoreview/**", "research/line/**"]
-# command = ["uv", "run", "evallab", "line-gate"]
+# Existing gate definitions come from origin/<base>; candidate policy can only add names.
+# Commands run in detached exact-head checkouts. Exit 0 passes; all other exits block.
+# scripts/line-gate.py reads this same path policy for discovery.
+[[gate]]
+name = "line"
+paths = [
+  "src/evallab/line/**",
+  "src/evallab/hack_drop.py",
+  "src/evallab/autoreview_monitor.py",
+  "src/evallab/production/factory_autoreview.py",
+  "src/evallab/production/monitor_worker.py",
+  "src/evallab/production/gate_policy.py",
+  "src/evallab/production/corpus_queue.py",
+  "src/evallab/production/run_atlas.py",
+  "src/evallab/production/task_evidence.py",
+  "src/evallab/qa/trace_cheap.py",
+  "src/evallab/hackbook/**",
+  "src/evallab/tripwires.py",
+  "src/evallab/ast_walk.py",
+  "src/evallab/codeban.py",
+  "src/evallab/edit_signals.py",
+  "src/evallab/history_mining.py",
+  "src/evallab/peer_content.py",
+  "src/evallab/task_protected.py",
+  "src/evallab/upstream_fetch.py",
+  "src/evallab/separate_verifier.py",
+  "src/evallab/integrity_reward_core.py",
+  "src/evallab/live_watch.py",
+  "src/evallab/trace_anatomy.py",
+  "src/evallab/tool_calls.py",
+  "src/evallab/mimo_tool_calls.py",
+  "src/evallab/step_layers.py",
+  "src/evallab/token_flow.py",
+  "src/evallab/loopfix.py",
+  "src/evallab/probe03.py",
+  "src/evallab/rollout_admission.py",
+  "src/evallab/copy_check.py",
+  "src/evallab/task_status.py",
+  "src/evallab/schemas/**",
+  "research/hackbook/entries.jsonl",
+  "research/answer-keys/splits/assignments.csv",
+  "research/answer-keys/tb4-audit-v1/items.jsonl",
+  "research/answer-keys/tb4-audit-v1/tasks.jsonl",
+  "research/answer-keys/cheatbench-actions-v1/items.jsonl",
+  "research/answer-keys/hacktrace-act-v1/items.jsonl",
+  "research/experiments/mimo-defect-map-v1/inventory.json",
+  "assignments.csv",
+  "scripts/line-replay.py",
+  "scripts/line-gate.py",
+  "agents/ship-gates.toml",
+  "Makefile",
+  "pyproject.toml",
+  "uv.lock",
+  "policy/standing-approvals.yaml",
+]
+command = ["make", "line-gate"]

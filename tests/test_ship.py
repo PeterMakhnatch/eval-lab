@@ -151,10 +151,45 @@ def test_exact_head_path_gate(delivery, exit_code):
     pr = json.loads(state.read_text())["pr"]
     pr.update(headRefOid=head, baseRefOid=git("rev-parse", "main"))
     change(pr=pr)
+    # A candidate cannot weaken or remove the base-owned gate.
+    (tree / "agents/ship-gates.toml").write_text(
+        '[[gate]]\nname = "consumer"\npaths = ["unrelated/**"]\n'
+        'command = ["/bin/sh", "-c", "exit 0"]\n'
+    )
+    git("commit", "-am", "attempt to bypass gate", cwd=tree)
+    head = git("rev-parse", "HEAD", cwd=tree)
+    git("push", "--force-with-lease", "origin", "topic")
+    git("update-ref", "refs/pull/42/head", head, cwd=root.parent / "origin.git")
+    pr.update(headRefOid=head, changedFiles=2)
+    pr["files"].append({"path": "agents/ship-gates.toml"})
+    change(pr=pr)
     assert run_command(args, root) == (0 if exit_code == 0 else 1)
     if exit_code:
         assert not json.loads(state.read_text()).get("merges")
         assert tree.exists()
+
+
+@pytest.mark.parametrize("exit_code", [0, 1, 2])
+def test_new_gate_runs_before_its_registration_merges(delivery, exit_code):
+    args, root, tree, state, git, change = delivery
+    config = ('[[gate]]\nname = "consumer"\npaths = ["consumer.*"]\n'
+              f'command = ["/bin/sh", "-c", "test $(git rev-parse HEAD) = $EVALLAB_SHIP_HEAD && exit {exit_code}"]\n')
+    (tree / "agents/ship-gates.toml").write_text(config)
+    git("commit", "-am", "register gate", cwd=tree)
+    head = git("rev-parse", "HEAD", cwd=tree)
+    git("push", "origin", "topic")
+    git("update-ref", "refs/pull/42/head", head, cwd=root.parent / "origin.git")
+    pr = json.loads(state.read_text())["pr"]
+    pr.update(headRefOid=head, changedFiles=2)
+    pr["files"].append({"path": "agents/ship-gates.toml"})
+    change(pr=pr)
+    assert run_command(args, root) == (0 if exit_code == 0 else 1)
+    receipt = json.loads((args.state_dir / "42.json").read_text())
+    if exit_code:
+        assert not json.loads(state.read_text()).get("merges")
+        assert tree.exists()
+    else:
+        assert receipt["gates"] == ["consumer"]
 
 
 def test_pending_waits_for_required_checks(delivery):

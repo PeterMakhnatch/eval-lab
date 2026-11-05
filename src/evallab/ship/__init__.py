@@ -143,6 +143,15 @@ class Ship:
         if present:
             config = self.run(["git", "show", f"origin/{pr['baseRefName']}:agents/ship-gates.toml"])
             gates = tomllib.loads(config.stdout).get("gate", [])
+        # New gates apply to their registration PR too. Candidate policy can
+        # only add names; the base definition always wins for existing gates.
+        head_policy = self.run(["git", "ls-tree", "--name-only", pr["headRefOid"],
+                                "--", "agents/ship-gates.toml"]).stdout.strip()
+        if head_policy:
+            candidate = self.run(["git", "show", f"{pr['headRefOid']}:agents/ship-gates.toml"])
+            base_names = {gate["name"] for gate in gates}
+            gates.extend(gate for gate in tomllib.loads(candidate.stdout).get("gate", [])
+                         if gate["name"] not in base_names)
         paths = [row["path"] for row in pr["files"]]
         selected = [gate for gate in gates if any(fnmatch.fnmatchcase(path, pattern)
                     for path in paths for pattern in gate["paths"])]

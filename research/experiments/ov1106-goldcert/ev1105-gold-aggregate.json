@@ -1,0 +1,1521 @@
+{
+  "executed_rows": [
+    {
+      "arm": "witness",
+      "cell_key": "4bcd0986ee7ce40c1bc2201d5e74c67f7b46809a7558a190e47fcd775bbc9df6",
+      "certifier_arm": "witness",
+      "contract_sha256": "483774c5a299c827f079cc0bf3a80bee2579899ca6ff1ef8bee813382fd5289a",
+      "control": "witness-0",
+      "est_usd": 0.00653,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 0.48,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "2868dc0384f0354b0942f912caa0a945552e6b2ed7d35a3107e40131abeb484a",
+        "result.json": "6c084de0283c46e61d9fe39dad3f700da84e8a6e4af732bc87dfcf3b1d26e019",
+        "trial/agent/oracle.txt": "2f6710489df40db4d00239861fda57a1ac2601ebff0dc72360858ed3bade24d2",
+        "trial/egress-lock.json": "f67f923b7e035da8e3a32a697e8b4c914800ec2419f07e0d8c83b5f6c26fd627",
+        "trial/qa-execution.json": "bc5536fc771d768d192d0d18072494798267ba96f77de6c8c501534ccb96f65c",
+        "trial/verifier/test_output.log": "9b309aca2de4d5758fddac16ca9dc1a0fed25d5b0d10392937bb19a127e3d672"
+      },
+      "integrity_kind": "conftest_pytest_sessionfinish_exit0",
+      "mutant_sha256": null,
+      "name": "000682-ev1105-witness-0",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/followup/hardened/000682",
+      "package_digest": "sha256:60faefa8e3d7911b173cf7070cec5b47a44e9687f66a831b13febbd96f3c9b6e",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/000682-ev1105-witness-0/result.json",
+      "reward": 0.0,
+      "script_sha256": "2868dc0384f0354b0942f912caa0a945552e6b2ed7d35a3107e40131abeb484a",
+      "static_category": null,
+      "status": "executed",
+      "task": "000682",
+      "wall_s": 39.5
+    },
+    {
+      "arm": "witness",
+      "cell_key": "4c321b7990f8753b0fc872245667caf07b2efcac263a95a632aaffead958f347",
+      "certifier_arm": "witness",
+      "contract_sha256": "483774c5a299c827f079cc0bf3a80bee2579899ca6ff1ef8bee813382fd5289a",
+      "control": "witness-1",
+      "est_usd": 0.00358,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 0.48,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "7fc3f0473b8395e6403bab39247a54cca1189af4bf90d72495ca5956e9a0419e",
+        "result.json": "072a81ebf84b3dfa8929cbe4792d1bbf0c67dda67020c01a47bab2f99248a660",
+        "trial/agent/oracle.txt": "d744893c8b8462249badb717e104966e8f9fcedeb892dd6b214f247711add25b",
+        "trial/egress-lock.json": "6263b4879a077528fe2b25af9ba80d67ccac110dd27acb96af69c47896c8fd7c",
+        "trial/qa-execution.json": "573750778c41632996b8e8ee5197116aef295473614710443250b690647a407b",
+        "trial/verifier/test_output.log": "b0103a3d330b5d7e8919982bbdf091082154879281c52c2b7c956f42e4d60681"
+      },
+      "integrity_kind": "unittest_testcase_run_noop_injection",
+      "mutant_sha256": null,
+      "name": "000682-ev1105-witness-1",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/followup/hardened/000682",
+      "package_digest": "sha256:60faefa8e3d7911b173cf7070cec5b47a44e9687f66a831b13febbd96f3c9b6e",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/000682-ev1105-witness-1/result.json",
+      "reward": 0.0,
+      "script_sha256": "7fc3f0473b8395e6403bab39247a54cca1189af4bf90d72495ca5956e9a0419e",
+      "static_category": null,
+      "status": "executed",
+      "task": "000682",
+      "wall_s": 21.7
+    },
+    {
+      "arm": "startup",
+      "cell_key": "1e5d237b67ec4a857da2ec881e27846a8d24c840dc9576093aa6ff28565222d7",
+      "certifier_arm": "exit0_pth",
+      "contract_sha256": "483774c5a299c827f079cc0bf3a80bee2579899ca6ff1ef8bee813382fd5289a",
+      "control": "exit0_pth",
+      "est_usd": 0.00459,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 0.48,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "1af60b890d0bbf43a324ac38a2df6e2788b7953105919422487aff4b7305bde0",
+        "result.json": "ee6fa385df866e118d7cc2c0c26589c7f501fe8c6392f69bc9f971b0acc68166",
+        "trial/agent/oracle.txt": "ab3cd7de4a83e9b80a1e53eef324be25344870b449164c512e4c4e8332676687",
+        "trial/egress-lock.json": "f6313e46577062cd37130550283f7c00dfc8b81df235470f89b7a7c5d9333920",
+        "trial/qa-execution.json": "af151da6f3bc99ebf998cff99cb0e8c252c34c5c47b22674a792a20231cc8a6d",
+        "trial/verifier/test_output.log": "9b309aca2de4d5758fddac16ca9dc1a0fed25d5b0d10392937bb19a127e3d672"
+      },
+      "integrity_kind": "site_packages_pth_os_exit0",
+      "mutant_sha256": null,
+      "name": "000682-ev1105-exit0_pth",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/followup/hardened/000682",
+      "package_digest": "sha256:60faefa8e3d7911b173cf7070cec5b47a44e9687f66a831b13febbd96f3c9b6e",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/000682-ev1105-exit0_pth/result.json",
+      "reward": 0.0,
+      "script_sha256": "1af60b890d0bbf43a324ac38a2df6e2788b7953105919422487aff4b7305bde0",
+      "static_category": null,
+      "status": "executed",
+      "task": "000682",
+      "wall_s": 27.7
+    },
+    {
+      "arm": "train",
+      "cell_key": "f02ef1c118c4bc9260e2495ec2819cd84d56108b0e32d03c824658c5a619ef6f",
+      "certifier_arm": "train",
+      "contract_sha256": "483774c5a299c827f079cc0bf3a80bee2579899ca6ff1ef8bee813382fd5289a",
+      "control": "train-bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240",
+      "est_usd": 0.00457,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 0.48,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "2e2633ef04feea293755fc7439a30817a3db93fa262adf3118591ccb2a7c1ff8",
+        "result.json": "c130d69bfc216f06ab88f87d2c6ddd74165a0236179935fad9ee3de46285cc33",
+        "trial/agent/oracle.txt": "60ccdbff512327162ea8a47491afbff585b186e48d7ee15e76427b2f85b703a8",
+        "trial/egress-lock.json": "49451ddfdd38ab82a2940ab8c9130d68cb3c23bbc8184a8fcc4862e60464628f",
+        "trial/qa-execution.json": "c41da91b38f2335e979313178a9d54f6e747949791dad2186a045ea43a8b9c44",
+        "trial/verifier/test_output.log": "0deda4fd1ab95c7f38c4d5d064bd3e00d0a3328e7faff976f9ac0c247f188fa7"
+      },
+      "historical_followup_name": "000682-followupv2-train-bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240",
+      "mutant_sha256": "bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240",
+      "mutation_delta_sha256": "3b1c2cb60da671441342c10f665a8ca49f5157fb71c663006a24994a658cc0a7",
+      "name": "000682-ev1105-train-bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/followup/hardened/000682",
+      "package_digest": "sha256:60faefa8e3d7911b173cf7070cec5b47a44e9687f66a831b13febbd96f3c9b6e",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/000682-ev1105-train-bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240/result.json",
+      "reward": 1.0,
+      "script_sha256": "2e2633ef04feea293755fc7439a30817a3db93fa262adf3118591ccb2a7c1ff8",
+      "standalone_original_reward": 1.0,
+      "standalone_public_reward": 1.0,
+      "static_category": "POSSIBLY_VALID",
+      "static_rationale": "The delta changes only the omitted-enabled default. Explicit enabled=True and enabled=False still select encryption and decryption. The instruction does not require an enabled parameter or its default.",
+      "status": "executed",
+      "task": "000682",
+      "wall_s": 27.7
+    },
+    {
+      "arm": "eval",
+      "cell_key": "bee534673f1af2f14839278c716b450f48cf524bf8a4f12a41f43ea8a3ded028",
+      "certifier_arm": "eval",
+      "contract_sha256": "483774c5a299c827f079cc0bf3a80bee2579899ca6ff1ef8bee813382fd5289a",
+      "control": "eval-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c",
+      "est_usd": 0.00445,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 0.96,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "49106113e4d35d0964103035f818e30e103921466330d2afc58b2cf1f9f90407",
+        "result.json": "1b98ba5e352b2d50234e53ae1ab5b13a77e0b62ce73800ac58019a565ce1488c",
+        "trial/agent/oracle.txt": "e308c515ccc6d50703aaf710f5dded246ffd3d65acbd7361168dd3d2bca22c55",
+        "trial/egress-lock.json": "79c81c61240c7c7dfd50abe9d86a896351815676193ce607fba9b65f3e8db7a9",
+        "trial/qa-execution.json": "e9eff7384c7bb9bd713c898c9b9c39f8296fe417f63e72bc4e76563cb77f4d28",
+        "trial/verifier/test_output.log": "f4b884fad33980d0a1e86382318e4a252a60067fc3c061dea24981658ae573d6"
+      },
+      "historical_followup_name": "000682-followupv2-eval-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c",
+      "mutant_sha256": "fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c",
+      "mutation_delta_sha256": "e7e443023e5277d8bf331ad3c4adce8427022dce774832908b8d8639c6e0fda5",
+      "name": "000682-ev1105-eval-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/followup/hardened/000682",
+      "package_digest": "sha256:60faefa8e3d7911b173cf7070cec5b47a44e9687f66a831b13febbd96f3c9b6e",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/000682-ev1105-eval-fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c/result.json",
+      "reward": 0.0,
+      "script_sha256": "49106113e4d35d0964103035f818e30e103921466330d2afc58b2cf1f9f90407",
+      "standalone_original_reward": 1.0,
+      "standalone_public_reward": 0.0,
+      "static_category": "DEFECT",
+      "static_rationale": "The delta removes the only SNS topic-attribute update from the resource loop. The action returns resources without changing encryption.",
+      "status": "executed",
+      "task": "000682",
+      "wall_s": 27.0
+    },
+    {
+      "arm": "witness",
+      "cell_key": "18ac001273aa55722e3c2178bfe3ea6b189b25e36dc7f814aa3f74a0c4cddd08",
+      "certifier_arm": "witness",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "witness-0",
+      "est_usd": 0.00601,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 0.96,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "c890fb46b49c27c737b1825fa19cd9305125f239385b12179ea4dac10222231c",
+        "result.json": "6c4cbdbfdf038b0b1364092c462b60ebdca4a66c49d759a7590e15ab8f8f4843",
+        "trial/agent/oracle.txt": "2f6710489df40db4d00239861fda57a1ac2601ebff0dc72360858ed3bade24d2",
+        "trial/egress-lock.json": "c307247c9bddede0f01499743e337159a3fe712f3abfb1eb1de1fac79f006615",
+        "trial/qa-execution.json": "d4375d06b3250bba509adfaea8cc75f29e9d16ff069ec9170a75c4142e32ce45",
+        "trial/verifier/test_output.log": "52e786697856b6f997f401850b94ad17914c00ad0e2827f1dd318dd96f34f430"
+      },
+      "integrity_kind": "conftest_pytest_sessionfinish_exit0",
+      "mutant_sha256": null,
+      "name": "002139-ev1105-witness-0",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/002139-ev1105-witness-0/result.json",
+      "reward": 0.0,
+      "script_sha256": "c890fb46b49c27c737b1825fa19cd9305125f239385b12179ea4dac10222231c",
+      "static_category": null,
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 36.4
+    },
+    {
+      "arm": "witness",
+      "cell_key": "3396a831ae3953ca33c39fd0b022907b7365af37517f69506b081bb3ec8cf1ae",
+      "certifier_arm": "witness",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "witness-1",
+      "est_usd": 0.00257,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 0.96,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "d4a4c74cfc9fa94835cdcc3bff24973ea9115d00d2a50cbb958658467a7a5a4a",
+        "result.json": "483e618a4d1504d70be4fe20f88f611fbeed71f383382772ccb73cbd9332a97d",
+        "trial/agent/oracle.txt": "d744893c8b8462249badb717e104966e8f9fcedeb892dd6b214f247711add25b",
+        "trial/egress-lock.json": "7186c36b172f5ab9b6777a2c0651cfb57eece4a7d6fa2e6d88679f2e23911aa8",
+        "trial/qa-execution.json": "bb9760d164380f59ad1dbc545f25ac8245bf9faccbd21a281e91e4b699973cac",
+        "trial/verifier/test_output.log": "5dbfd2ca4d6e6e332b59cfc9e5d9aace4abce7b74aeb3b4d2775a3efa1069462"
+      },
+      "integrity_kind": "unittest_testcase_run_noop_injection",
+      "mutant_sha256": null,
+      "name": "002139-ev1105-witness-1",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/002139-ev1105-witness-1/result.json",
+      "reward": 0.0,
+      "script_sha256": "d4a4c74cfc9fa94835cdcc3bff24973ea9115d00d2a50cbb958658467a7a5a4a",
+      "static_category": null,
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 15.5
+    },
+    {
+      "arm": "startup",
+      "cell_key": "7dac6173b96aa9cc7810a05d0c90839c730b4823ccfeac5a4db2a5687b2e0e8b",
+      "certifier_arm": "exit0_pth",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "exit0_pth",
+      "est_usd": 0.00246,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 0.96,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "d9865a494c1a9693b395bdbdfe41aaf4e092117e5393710b52b15dd6299d50ca",
+        "result.json": "9639544a61ee5e9cbe3cdfb33cb43034ef83a68e714faa44a3d76a1ac72e0e5a",
+        "trial/agent/oracle.txt": "ab3cd7de4a83e9b80a1e53eef324be25344870b449164c512e4c4e8332676687",
+        "trial/egress-lock.json": "4606b0bfe55b3a442f863d78346462146f05358508d8480f3222e8d3500dac52",
+        "trial/qa-execution.json": "c2e93af357069fd1b8c2b47b4451d7ede4574b52079432e153040d789124a7f9",
+        "trial/verifier/test_output.log": "8704fde57d53c3571042f3d2a25c3d2c3817ec980f8acf673746927a8c7182a1"
+      },
+      "integrity_kind": "site_packages_pth_os_exit0",
+      "mutant_sha256": null,
+      "name": "002139-ev1105-exit0_pth",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/002139-ev1105-exit0_pth/result.json",
+      "reward": 0.0,
+      "script_sha256": "d9865a494c1a9693b395bdbdfe41aaf4e092117e5393710b52b15dd6299d50ca",
+      "static_category": null,
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 14.9
+    },
+    {
+      "arm": "train",
+      "cell_key": "3448fc0124ded63b72e7897878d5ff89b01721f74d39db0930f9757518fc8858",
+      "certifier_arm": "train",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "train-12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d",
+      "est_usd": 0.00228,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 1.44,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "78c54bbff1f81cefc86109babf81bc6dc6b7cd4a6dcb10bad9226862ec9dc87a",
+        "result.json": "c56cc306a1e66554625874332aceb8c7c3164624108c89c79a7e3ffc84c94f12",
+        "trial/agent/oracle.txt": "3a9684a4f4a248ae2b06b721a5387c45a7854af72c54d15138cf67a246833856",
+        "trial/egress-lock.json": "c6b5ede7055c66948e81a3625a2f55c5a7f5845e39dfa2f788d73ad5cc3316f9",
+        "trial/qa-execution.json": "3b7779815d9ec31ec0797a4365abbc65d2fee0ad3ebb9528c44cf0d3c692260d",
+        "trial/verifier/test_output.log": "f2a625f950eedd1b3e9919846c1f2202c686cf4daebef8d0ea7ed34107806a77"
+      },
+      "historical_followup_name": "002139-followupv2-train-12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d",
+      "mutant_sha256": "12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d",
+      "mutation_delta_sha256": "1ce68d6d3385a1e7056ff53e1b5adf20a2281152327998f0de2fc385eb0d7c43",
+      "name": "002139-ev1105-train-12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/002139-ev1105-train-12cd1c5af9be3dca05d044d01635d09a6b3f63294931837012b86c7ef310623d/result.json",
+      "reward": 0.0,
+      "script_sha256": "78c54bbff1f81cefc86109babf81bc6dc6b7cd4a6dcb10bad9226862ec9dc87a",
+      "standalone_original_reward": 0.0,
+      "standalone_public_reward": 0.0,
+      "static_category": "DEFECT",
+      "static_rationale": "A bare raise in the NotFound handler propagates the storage exception instead of the required FetchError.",
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 13.8
+    },
+    {
+      "arm": "train",
+      "cell_key": "9e20fedb313d2c7a046c4f514ff4992b194ea0a9087f75c0712678fd9f6e8a49",
+      "certifier_arm": "train",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "train-1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd",
+      "est_usd": 0.00175,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 1.44,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "632e9cb5293b55ffcc467b4f0e2372f599a1c99114a4c590f264c2d78e6fcc37",
+        "result.json": "b1db31f83ff9646e13738e93d2c5317e241789d21267920334996fbd33da6f33",
+        "trial/agent/oracle.txt": "52213d15a78bbd55d3d95fe41d6f15f579114949652d91f7c748cc6d66546c06",
+        "trial/egress-lock.json": "de819a7c746b8ff4900f1f3c40f94f5bbe872e3613238265cca9ad21d767a4dd",
+        "trial/qa-execution.json": "c3126e8c57874c3040bd4292f0c1bb7792e17f106427a6bde8062a964c99f0b0",
+        "trial/verifier/test_output.log": "b314d916b002d61d712da71c99d30b655dbc1fbb1038c6456bf1bbff8676ebb2"
+      },
+      "historical_followup_name": "002139-followupv2-train-1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd",
+      "mutant_sha256": "1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd",
+      "mutation_delta_sha256": "022a3dcb63d4993765b0364d9a9cd44dce051e727ba61c8ccb0089b3358518a9",
+      "name": "002139-ev1105-train-1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/002139-ev1105-train-1c21126d94bf45900ea5e01c8e7b902e240a794f1709b37d16258b2eed0175fd/result.json",
+      "reward": 0.0,
+      "script_sha256": "632e9cb5293b55ffcc467b4f0e2372f599a1c99114a4c590f264c2d78e6fcc37",
+      "standalone_original_reward": 0.0,
+      "standalone_public_reward": 0.0,
+      "static_category": "DEFECT",
+      "static_rationale": "Removing the existence guard leaves getsize on a missing file. That raises an OS file error rather than the required FetchError.",
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 10.6
+    },
+    {
+      "arm": "train",
+      "cell_key": "f31709703b4c9c549e9ca271df67d2059d4e844fd7c4c9ce3b9097279967454a",
+      "certifier_arm": "train",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "train-7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e",
+      "est_usd": 0.00188,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 1.44,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "6f0565f117a6023251902ac2576ed6d87045f01561e84e95a3f1631f5c85096f",
+        "result.json": "c4f674a776c1341f4ffe277ccf844da37e067fe4473e707f38a04621e0221a2b",
+        "trial/agent/oracle.txt": "4390d47de433be74fd564d7068ccd908ae32be8b1e69e66e8dc9e1bc557016eb",
+        "trial/egress-lock.json": "ea9ae10132463d8d3069d8906d7cfac89adc6f469f4ed3d69fc79e5506e17b18",
+        "trial/qa-execution.json": "a0044ed0fd3abebad2fb774605c3efdea04112c006e3a2ccff28e34721175b3b",
+        "trial/verifier/test_output.log": "4906d45d1e8f44d1f656f1c5cef360eb2cfe73ddc6b36962f7754bd2387bf6ad"
+      },
+      "historical_followup_name": "002139-followupv2-train-7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e",
+      "mutant_sha256": "7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e",
+      "mutation_delta_sha256": "922c886046d18152bcaca45ebd9d76cad562da5353945af1579361eb1773cf65",
+      "name": "002139-ev1105-train-7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/002139-ev1105-train-7458f900c996d48cb101034ab526af74b95a06109e9fddc0b7a4451046f7f17e/result.json",
+      "reward": 0.0,
+      "script_sha256": "6f0565f117a6023251902ac2576ed6d87045f01561e84e95a3f1631f5c85096f",
+      "standalone_original_reward": 0.0,
+      "standalone_public_reward": 0.0,
+      "static_category": "DEFECT",
+      "static_rationale": "The delta removes client initialization precisely when gcp_client is None. A first download cannot use a storage client through that path.",
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 11.4
+    },
+    {
+      "arm": "train",
+      "cell_key": "ff14dfd470cf6e7085d177fc12cf36366bb82fd0ddd0697b41eed5f02de9931b",
+      "certifier_arm": "train",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "train-88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec",
+      "est_usd": 0.00271,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 1.44,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "686e19921d6ebe3e1fd3ab4c6410e9416c227cc32faeb8389e7e5a01106ad9e1",
+        "result.json": "2c6560902ff1d53c0c5680979e820b445e08fbf082c88bac554102926e47ef12",
+        "trial/agent/oracle.txt": "f572d9f5f9d51a87267340c56f8798ebc59dfd66bf4c29724cf5ab69ff86e325",
+        "trial/egress-lock.json": "cd353d28bc469e7e96d0ad1289c4d714adae3e61bc7d23c522d0e323d7ebce30",
+        "trial/qa-execution.json": "4607b0dbf07dbbd17ff70fa27344b38ef17394805585d499fcc0ab6b5056b345",
+        "trial/verifier/test_output.log": "27b80b6ef684253170c2b447f83aa2100fcc61a4d478cdb9d6f25b1b3b0d73f4"
+      },
+      "historical_followup_name": "002139-followupv2-train-88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec",
+      "mutant_sha256": "88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec",
+      "mutation_delta_sha256": "f1cf0baea2b47eb867630cd71ca4bc06090694c41cf72d539bb7dbc6cb08b15c",
+      "name": "002139-ev1105-train-88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/002139-ev1105-train-88e971a3c4000453b8728ca97b700b9780652d78ad57e7d61fc0943157ebb5ec/result.json",
+      "reward": 1.0,
+      "script_sha256": "686e19921d6ebe3e1fd3ab4c6410e9416c227cc32faeb8389e7e5a01106ad9e1",
+      "standalone_original_reward": 1.0,
+      "standalone_public_reward": 1.0,
+      "static_category": "POSSIBLY_VALID",
+      "static_rationale": "Only a debug2 message is removed. Client setup, the network-access check, and the download remain unchanged by this delta. The instruction does not require download debug output.",
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 16.4
+    },
+    {
+      "arm": "eval",
+      "cell_key": "0d721ac6fe363fc7d2dbb4f11f76741d3b72043b94b4de6d69c669d0a38617bb",
+      "certifier_arm": "eval",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "eval-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf",
+      "est_usd": 0.0036,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 1.92,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "969e6f621f92cce870a4247d864d46a8cfab8cf14ce4b825c7e603a0dbad664d",
+        "result.json": "8c248a69a9d6551b4eeab14e80788730b418acccdaf9823933bdf74d88e8077b",
+        "trial/agent/oracle.txt": "7f5216e3f1945278e9f08d64d4900888bf6a2f58250aa5d295560475e7247d31",
+        "trial/egress-lock.json": "952d70762fab12bd3508e3ec22de2df5f69b13cf0c711d860a179022e55c1c38",
+        "trial/qa-execution.json": "3965b003b827f4775dade608613b1c020f8b365b7726ad4ddb42ab9ebbb0338d",
+        "trial/verifier/test_output.log": "a40f9188db5510b890b300e04ba61f2cef6f07338b5e49b6a60ecbf014f0e9a7"
+      },
+      "historical_followup_name": "002139-followupv2-eval-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf",
+      "mutant_sha256": "8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf",
+      "mutation_delta_sha256": "196c5f0021004ccc808c980909e9e216db60a6da88d84c593f053f201d9bfd2c",
+      "name": "002139-ev1105-eval-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/002139-ev1105-eval-8ff11728e4e547e77b2476c4bab0c8acb4bfb04216187898225809979f80b0bf/result.json",
+      "reward": 0.0,
+      "script_sha256": "969e6f621f92cce870a4247d864d46a8cfab8cf14ce4b825c7e603a0dbad664d",
+      "standalone_original_reward": 0.0,
+      "standalone_public_reward": 0.0,
+      "static_category": "DEFECT",
+      "static_rationale": "The reversed size condition removes and rejects nonempty downloads while allowing zero-byte files through this guard.",
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 21.8
+    },
+    {
+      "arm": "eval",
+      "cell_key": "507e2bf44c509805acef52c6ae7614a497cc10fa53dbb0cc65b44e52528f6e44",
+      "certifier_arm": "eval",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "eval-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c",
+      "est_usd": 0.0019,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 1.92,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "02c4081cdd4ca8aa056e2ec98a6e2a20420d046bd2ad29c169eaef5fcb87153d",
+        "result.json": "bc556cac56f0fca2d662c97d60b8cea5066a06a2443018273ebc524bd4281890",
+        "trial/agent/oracle.txt": "6c1552e9d59f29b20b362db42a336d428b84534cb5973fb12a2b4e889fbb31fb",
+        "trial/egress-lock.json": "0fa1f111f7b433a72e4998a3bedee402329419a2e2dc36ccd823601508544c60",
+        "trial/qa-execution.json": "89e0c7d22004e7ea215987fe7b2885c379b4c709c757632c63832adb51633ec3",
+        "trial/verifier/test_output.log": "99241131de1845908f61df098bca2a8f08b5abe4173059bea5b2d9a6ed2fa054"
+      },
+      "historical_followup_name": "002139-followupv2-eval-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c",
+      "mutant_sha256": "a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c",
+      "mutation_delta_sha256": "99c75249458abb92cf20feb4c1b26a19c21c65fac0f36699f751c60ffedaa9d4",
+      "name": "002139-ev1105-eval-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/002139-ev1105-eval-a9ba99c310817c3cbec0a1fe6dc79bf49fba09f52572ba9159da2449c132903c/result.json",
+      "reward": 1.0,
+      "script_sha256": "02c4081cdd4ca8aa056e2ec98a6e2a20420d046bd2ad29c169eaef5fcb87153d",
+      "standalone_original_reward": 1.0,
+      "standalone_public_reward": 1.0,
+      "static_category": "POSSIBLY_VALID",
+      "static_rationale": "The delta disables checksum recommendation, not checksum support or supplied-checksum verification. The instruction does not specify missing-checksum warnings or strict-policy participation for the new scheme.",
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 11.5
+    },
+    {
+      "arm": "eval",
+      "cell_key": "ff66076f411005aa5494c4ea6c3be95ae3c37d6b3a8f95cc305df9c3d90bc05d",
+      "certifier_arm": "eval",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "eval-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc",
+      "est_usd": 0.00236,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 1.92,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "7f4d76e8c205fb918e0b6d2ac574a3ac599051c4360d144b011ccb260b3fbd3a",
+        "result.json": "48867f8d8452f1d39fa1e45d699a4992e571911202afb99442973649a4e6daa8",
+        "trial/agent/oracle.txt": "0a276db8c0bb00a1dab625259bcc45576c92ecba039457bd812019a1159df9cd",
+        "trial/egress-lock.json": "9e752b2d7f2335b365a3a281f964581e4b2f327d76aa133a05d714a63e6c9bb6",
+        "trial/qa-execution.json": "87cb99bcf11e6fa01930fd0eb7d1d5790b9355fcf1ac79cb55e1aa296371e617",
+        "trial/verifier/test_output.log": "68ebdb1b41c721d615192b8eff8b25eeb985ade4bdadb904302f750ba9218775"
+      },
+      "historical_followup_name": "002139-followupv2-eval-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc",
+      "mutant_sha256": "b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc",
+      "mutation_delta_sha256": "027361e6b68e885635a91f7bd6010adaafafbe1468ea822491c6189183370e75",
+      "name": "002139-ev1105-eval-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/002139-ev1105-eval-b03288027f0b5357e7f7e92cf167cca2d489ad384a1ff063d2ff7e52bbb5defc/result.json",
+      "reward": 0.0,
+      "script_sha256": "7f4d76e8c205fb918e0b6d2ac574a3ac599051c4360d144b011ccb260b3fbd3a",
+      "standalone_original_reward": 0.0,
+      "standalone_public_reward": 0.0,
+      "static_category": "DEFECT",
+      "static_rationale": "The reversed existence comparison raises for existing blobs and accepts missing blobs.",
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 14.3
+    },
+    {
+      "arm": "eval",
+      "cell_key": "9b15d90ca97f3ef8b37af908fd5d0b25d4d4ca18bec3cc5517d17e2750dca99d",
+      "certifier_arm": "eval",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "eval-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa",
+      "est_usd": 0.00312,
+      "fixed_reservations": {
+        "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+        "billing_tag": "ev1105",
+        "cap_usd": 4.0,
+        "executions": 6,
+        "modal_app_name": "ev1105-gold-cert",
+        "reserved_usd": 1.92,
+        "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+        "this_gate_reserved_usd": 0.12,
+        "usd_per_execution": 0.02
+      },
+      "hashes": {
+        "agent-script.sh": "e772e7e96bf19490a67f5b30676bc3fe89c44ff37dce1bcde43e96829ffb806b",
+        "result.json": "ab4e6d7168119922f92d63924a3a34ac313f9b380e5387ccd70aae60b7c8262e",
+        "trial/agent/oracle.txt": "04cb167cf02d0d46e7211641f00db9225c55f91977fc00567ebde86ed8b8aabf",
+        "trial/egress-lock.json": "8eae065fcc9d17cb207401c1d18a05a70906dddfc2f250bdbd2ae2509b923385",
+        "trial/qa-execution.json": "cc757e95ead6e71e4dd7e93ad891ef93587e80aafcff5643770590dd6cbcc1e3",
+        "trial/verifier/test_output.log": "8704fde57d53c3571042f3d2a25c3d2c3817ec980f8acf673746927a8c7182a1"
+      },
+      "historical_followup_name": "002139-followupv2-eval-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa",
+      "mutant_sha256": "bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa",
+      "mutation_delta_sha256": "61ee1c54aa3f83ba3cfc8e1588eae056075f3858ea9f48dcb81215484866a959",
+      "name": "002139-ev1105-eval-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "reason": null,
+      "receipt": "/private/tmp/ev1105/gold/execution/cells/002139-ev1105-eval-bdc62c3429a1a73e7d7b0357d5fdecd60518243a1209a615caba5c7525319eaa/result.json",
+      "reward": 0.0,
+      "script_sha256": "e772e7e96bf19490a67f5b30676bc3fe89c44ff37dce1bcde43e96829ffb806b",
+      "standalone_original_reward": 0.0,
+      "standalone_public_reward": 0.0,
+      "static_category": "DEFECT",
+      "static_rationale": "Removing GCP from methods prevents Fetch from selecting the new backend for gs URLs.",
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 18.9
+    }
+  ],
+  "execution": {
+    "path": "/private/tmp/ev1105/gold/execution/execution.json",
+    "sha256": "eebae5fbbaa8096684f7f15aaec43cc125856fd5645ea5f309a250b747749c0a"
+  },
+  "freeze_sha256": "780cbcc145374eb6bfeed0f2343885534dad6456abfe64cdc819f85669b18f63",
+  "policy": {
+    "app": "ev1105-gold-cert",
+    "approval": "Peter 2026-11-05 12:55 ET: 'sure do this' (gold slice, about $1-2 Modal)",
+    "billing_tag": "ev1105",
+    "cap_usd": 4.0,
+    "estimates_not_invoices": true,
+    "fixed_reservations_retained": true,
+    "gate": "CloudSpendGate",
+    "ledger": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+    "max_concurrency": 4,
+    "meter_cap_usd": 4.0,
+    "native_calls_planned": 16,
+    "runner": "ContainedModalRunner",
+    "spend_log": "/Users/petermakhnatch/.local/state/evallab-ev1105/spend.jsonl",
+    "timeout_seconds": 240,
+    "unit_usd": 0.02,
+    "units_per_hardened_cell": 6
+  },
+  "pooled_counts": {
+    "all_mutants": {
+      "accepted": 3,
+      "measured": 10,
+      "planned": 10,
+      "rejected": 7,
+      "successes": 7,
+      "unmeasured": 0,
+      "wilson95": [
+        0.3967781453459709,
+        0.892208733443606
+      ]
+    },
+    "defect_mutants": {
+      "accepted": 0,
+      "measured": 7,
+      "planned": 7,
+      "rejected": 7,
+      "successes": 7,
+      "unmeasured": 0,
+      "wilson95": [
+        0.6456695613241317,
+        1.0
+      ]
+    },
+    "integrity_controls": {
+      "accepted": 0,
+      "measured": 6,
+      "planned": 6,
+      "rejected": 6,
+      "successes": 6,
+      "unmeasured": 0,
+      "wilson95": [
+        0.6096657083436265,
+        1.0
+      ]
+    },
+    "new_native_cells": {
+      "accepted": 3,
+      "measured": 16,
+      "planned": 16,
+      "rejected": 13,
+      "successes": 13,
+      "unmeasured": 0,
+      "wilson95": [
+        0.5699111883245088,
+        0.9340840098021131
+      ]
+    },
+    "possibly_valid_mutants": {
+      "accepted": 3,
+      "measured": 3,
+      "planned": 3,
+      "rejected": 0,
+      "successes": 0,
+      "unmeasured": 0,
+      "wilson95": [
+        0.0,
+        0.5614970356393196
+      ]
+    },
+    "startup_controls": {
+      "accepted": 0,
+      "measured": 2,
+      "planned": 2,
+      "rejected": 2,
+      "successes": 2,
+      "unmeasured": 0,
+      "wilson95": [
+        0.3423802239546494,
+        1.0
+      ]
+    },
+    "witness_controls": {
+      "accepted": 0,
+      "measured": 4,
+      "planned": 4,
+      "rejected": 4,
+      "successes": 4,
+      "unmeasured": 0,
+      "wilson95": [
+        0.5101091596030786,
+        0.9999999999999999
+      ]
+    }
+  },
+  "prepared": {
+    "path": "/private/tmp/ev1105/gold/execution/prepared.json",
+    "sha256": "77122da718495b5fe836be65e247cee88f170b61cc90d3e0223d5a3693238b8c"
+  },
+  "publication_commit": "ce35f72f93a051e714a2e4a011594ba6b5ca90cd",
+  "reused_G1_G2_G7_rows": [
+    {
+      "alternative_informed": false,
+      "arm": "reference",
+      "cell_key": "e1c8fd082ca6472eb6e77d34f564edf8c5d4f2719d89d7a1f4fcb8ffa232360a",
+      "contract_sha256": "483774c5a299c827f079cc0bf3a80bee2579899ca6ff1ef8bee813382fd5289a",
+      "control": "reference",
+      "est_usd": 0.02401,
+      "hashes": {
+        "agent-script.sh": "1374986acce3ed41b6c6825707786b31753a5d5986cf788b7f00178e3867c06a",
+        "result.json": "4770f0340bc341cd0fd7d7f4ec4681ab8d22bd24bc730a51a5195d0d14796ede",
+        "trial/agent/oracle.txt": "388cf57f5dddad1fad072e073f35fc4fde974d6f6c29f51ace12fe8b04c923d9",
+        "trial/egress-lock.json": "d3bdf67c94587d60025bceff820740ee4bbf61cde91c610d968a8a0d6a892983",
+        "trial/qa-execution.json": "61f072c379ad943849a472ba66eaa4de386ca183f7cfb469de545db8ba9882a6",
+        "trial/verifier/test_output.log": "820fc58b7523040f638a99bdb4a3ee64fcb31b06817c821ae6f2ac5e018b1c11"
+      },
+      "name": "000682-followupv2-reference",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/followup/hardened/000682",
+      "package_digest": "sha256:60faefa8e3d7911b173cf7070cec5b47a44e9687f66a831b13febbd96f3c9b6e",
+      "receipt": "/private/tmp/ov1106/goldcert/helpers/safe/followup/cells/000682-followupv2-reference/result.json",
+      "reward": 1.0,
+      "script_sha256": "1374986acce3ed41b6c6825707786b31753a5d5986cf788b7f00178e3867c06a",
+      "split": null,
+      "status": "executed",
+      "task": "000682",
+      "wall_s": 145.3
+    },
+    {
+      "alternative_informed": false,
+      "arm": "nop",
+      "cell_key": "7407a529810db7fd403a650165c30dabd0a6cce111a2fde5273a021aeb1b0f57",
+      "contract_sha256": "483774c5a299c827f079cc0bf3a80bee2579899ca6ff1ef8bee813382fd5289a",
+      "control": "nop",
+      "est_usd": 0.02444,
+      "hashes": {
+        "agent-script.sh": "eee6d70f3a76c8b39f5decda7404e97f87c8cf2e4b3b126ed95d8e1556d7b5e8",
+        "result.json": "a3be73e136f6197d252a03dd105034d88b4a568a981ec961ac2619ec37eacfa1",
+        "trial/agent/oracle.txt": "11634a17c289e081aaef1adb05727460cc49174adf55be33055a756b846e389a",
+        "trial/egress-lock.json": "903716acaa09b734fd1f41b50f53600caa681ad152616fdd9769dfcaf82c056c",
+        "trial/qa-execution.json": "d33a40ec953b2f0c3e2a7bdfadfbac21fdf0b24d4ad3abff68a1ba456a5ee00b",
+        "trial/verifier/test_output.log": "9b309aca2de4d5758fddac16ca9dc1a0fed25d5b0d10392937bb19a127e3d672"
+      },
+      "name": "000682-followupv2-nop",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/followup/hardened/000682",
+      "package_digest": "sha256:60faefa8e3d7911b173cf7070cec5b47a44e9687f66a831b13febbd96f3c9b6e",
+      "receipt": "/private/tmp/ov1106/goldcert/helpers/safe/followup/cells/000682-followupv2-nop/result.json",
+      "reward": 0.0,
+      "script_sha256": "eee6d70f3a76c8b39f5decda7404e97f87c8cf2e4b3b126ed95d8e1556d7b5e8",
+      "split": null,
+      "status": "executed",
+      "task": "000682",
+      "wall_s": 147.9
+    },
+    {
+      "alternative_informed": true,
+      "arm": "alternative",
+      "cell_key": "df5a030bd6288aa703d850048c5a2061dbb02683aaa46492d7c9c988613920b0",
+      "contract_sha256": "483774c5a299c827f079cc0bf3a80bee2579899ca6ff1ef8bee813382fd5289a",
+      "control": "alternative-0",
+      "est_usd": 0.00543,
+      "hashes": {
+        "agent-script.sh": "4412dc4fec725a4e2ddbf063c2345dc6acbfb1e9334516e526449009a53a7ee7",
+        "result.json": "15cf9f978fe18043cfbee3934ccf4e3b9f647e876d96c0c681e88cb9976ed78e",
+        "trial/agent/oracle.txt": "388cf57f5dddad1fad072e073f35fc4fde974d6f6c29f51ace12fe8b04c923d9",
+        "trial/egress-lock.json": "98868ae0401ce228c68fbc3f761c6c6e31ecb7c8045ce71837ed8db9512c7fdd",
+        "trial/qa-execution.json": "92403b087cfab225cbf4f177bf2a5d3de25fc718f276553fd58d48d34617cb43",
+        "trial/verifier/test_output.log": "0deda4fd1ab95c7f38c4d5d064bd3e00d0a3328e7faff976f9ac0c247f188fa7"
+      },
+      "name": "000682-followupv2-alternative-0",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/followup/hardened/000682",
+      "package_digest": "sha256:60faefa8e3d7911b173cf7070cec5b47a44e9687f66a831b13febbd96f3c9b6e",
+      "receipt": "/private/tmp/ov1106/goldcert/helpers/safe/followup/cells/000682-followupv2-alternative-0/result.json",
+      "reward": 1.0,
+      "script_sha256": "4412dc4fec725a4e2ddbf063c2345dc6acbfb1e9334516e526449009a53a7ee7",
+      "split": "validation",
+      "status": "executed",
+      "task": "000682",
+      "wall_s": 32.8
+    },
+    {
+      "alternative_informed": true,
+      "arm": "alternative",
+      "cell_key": "0e1848ea086885307cf048bd32a86013cdac7017acfa688ae0735207613cd4b1",
+      "contract_sha256": "483774c5a299c827f079cc0bf3a80bee2579899ca6ff1ef8bee813382fd5289a",
+      "control": "alternative-1",
+      "est_usd": 0.00643,
+      "hashes": {
+        "agent-script.sh": "fc5b4a49ed6ad3078b18cfa90c7ae1496cbc73c3137fd47c9fb7c78a6cc7a909",
+        "result.json": "8da957940f0ce1f56e9419c20f787e167c2450df695a4fc239c7dae618382175",
+        "trial/agent/oracle.txt": "388cf57f5dddad1fad072e073f35fc4fde974d6f6c29f51ace12fe8b04c923d9",
+        "trial/egress-lock.json": "804b44cb4da48bc7a81a33271a8f1cf0446d80e0fc2c0d239f8c7debf7682830",
+        "trial/qa-execution.json": "1f0faefd1f4f3fe7299c3c5e276b8bca0a133228db8f9456717eb33d94c33ddf",
+        "trial/verifier/test_output.log": "89d75f80d2c05cd7c781c8bcbcd9752fcce9bbee11e5ee235e99738866f709b7"
+      },
+      "name": "000682-followupv2-alternative-1",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/followup/hardened/000682",
+      "package_digest": "sha256:60faefa8e3d7911b173cf7070cec5b47a44e9687f66a831b13febbd96f3c9b6e",
+      "receipt": "/private/tmp/ov1106/goldcert/helpers/safe/followup/cells/000682-followupv2-alternative-1/result.json",
+      "reward": 1.0,
+      "script_sha256": "fc5b4a49ed6ad3078b18cfa90c7ae1496cbc73c3137fd47c9fb7c78a6cc7a909",
+      "split": "validation",
+      "status": "executed",
+      "task": "000682",
+      "wall_s": 38.9
+    },
+    {
+      "alternative_informed": true,
+      "arm": "alternative",
+      "cell_key": "df14462e0966f7ac5fd8201a6ffe750b646dd88090da44490199abebdd068daa",
+      "contract_sha256": "483774c5a299c827f079cc0bf3a80bee2579899ca6ff1ef8bee813382fd5289a",
+      "control": "alternative-2",
+      "est_usd": 0.00639,
+      "hashes": {
+        "agent-script.sh": "b3b4243e3fccc16284efd95532db80d429bcb861c2c763087b625972a0133364",
+        "result.json": "882e036748e46e69d4f5439946a1475715c35428a2f61fb5d911522ec29f3599",
+        "trial/agent/oracle.txt": "388cf57f5dddad1fad072e073f35fc4fde974d6f6c29f51ace12fe8b04c923d9",
+        "trial/egress-lock.json": "359124739628a45f6a4e7561119e4bb91fc31bccb1292dd977e689cbea2a3f2d",
+        "trial/qa-execution.json": "e59a42c16818d5c99d9b9d3d893f03866b23fde1ed5cabf0a393a671279a6137",
+        "trial/verifier/test_output.log": "0deda4fd1ab95c7f38c4d5d064bd3e00d0a3328e7faff976f9ac0c247f188fa7"
+      },
+      "name": "000682-followupv2-alternative-2",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/followup/hardened/000682",
+      "package_digest": "sha256:60faefa8e3d7911b173cf7070cec5b47a44e9687f66a831b13febbd96f3c9b6e",
+      "receipt": "/private/tmp/ov1106/goldcert/helpers/safe/followup/cells/000682-followupv2-alternative-2/result.json",
+      "reward": 1.0,
+      "script_sha256": "b3b4243e3fccc16284efd95532db80d429bcb861c2c763087b625972a0133364",
+      "split": "held_out",
+      "status": "executed",
+      "task": "000682",
+      "wall_s": 38.7
+    },
+    {
+      "alternative_informed": true,
+      "arm": "alternative",
+      "cell_key": "b157cb64eb37eee8f993d2020cb9d64d6fba016735f7accd3415b285a5e568b4",
+      "contract_sha256": "483774c5a299c827f079cc0bf3a80bee2579899ca6ff1ef8bee813382fd5289a",
+      "control": "alternative-3",
+      "est_usd": 0.00467,
+      "hashes": {
+        "agent-script.sh": "5402c83b867ed464df3b37136ed88d1109eede5694424712584cc5981686cb7f",
+        "result.json": "f1e51c7f9ba8b8d61b1ceddecad4fe6d0014bf283183907b70c1962600094e2d",
+        "trial/agent/oracle.txt": "388cf57f5dddad1fad072e073f35fc4fde974d6f6c29f51ace12fe8b04c923d9",
+        "trial/egress-lock.json": "a2841b1ca5c9c3d1d9ff021bb34d5a83980ae6c2d1847557a2bdf829529e5db5",
+        "trial/qa-execution.json": "8c9f6094a2ee2c796afa6ea8d700d6426cebb44afe93e02aea2ee8df6a4e4b93",
+        "trial/verifier/test_output.log": "0deda4fd1ab95c7f38c4d5d064bd3e00d0a3328e7faff976f9ac0c247f188fa7"
+      },
+      "name": "000682-followupv2-alternative-3",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/followup/hardened/000682",
+      "package_digest": "sha256:60faefa8e3d7911b173cf7070cec5b47a44e9687f66a831b13febbd96f3c9b6e",
+      "receipt": "/private/tmp/ov1106/goldcert/helpers/safe/followup/cells/000682-followupv2-alternative-3/result.json",
+      "reward": 1.0,
+      "script_sha256": "5402c83b867ed464df3b37136ed88d1109eede5694424712584cc5981686cb7f",
+      "split": "held_out",
+      "status": "executed",
+      "task": "000682",
+      "wall_s": 28.3
+    },
+    {
+      "alternative_informed": false,
+      "arm": "reference",
+      "cell_key": "680636bbdc9aa61a3dbb7f173c068ddd33195430a17177d1a478577bea528560",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "reference",
+      "est_usd": 0.04929,
+      "hashes": {
+        "agent-script.sh": "a21cd82031ce53e78178e3f39880d73d40d48005bdb0a7ede6fbf3ae9129cb3d",
+        "result.json": "c488d181f9397fcfb1b785b9b7d8d82af3d3816ce61bc7cb5f38b3a83ad4ad1d",
+        "trial/agent/oracle.txt": "388cf57f5dddad1fad072e073f35fc4fde974d6f6c29f51ace12fe8b04c923d9",
+        "trial/egress-lock.json": "e07113ebd7dc8286e3bfe960d85f8cb8bc3d51962702627519771300dce3b1d5",
+        "trial/qa-execution.json": "9ec5348ded96bd2c12897f9ad575c20509d623cea08a022c74d92ba8a93d1768",
+        "trial/verifier/test_output.log": "ca524f95b8a4bcdefea89270d803585a9e6264673590986dd00d5791c91b5ea8"
+      },
+      "name": "002139-followupv2-reference",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "receipt": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/cells/002139-hardened-reference/result.json",
+      "reward": 1.0,
+      "script_sha256": "a21cd82031ce53e78178e3f39880d73d40d48005bdb0a7ede6fbf3ae9129cb3d",
+      "split": null,
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 298.3
+    },
+    {
+      "alternative_informed": false,
+      "arm": "nop",
+      "cell_key": "035f6ba320f60639d8bd24345ed7ce36041d1d1bd304b63ef2c8812dc707e9f7",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "nop",
+      "est_usd": 0.00285,
+      "hashes": {
+        "agent-script.sh": "eee6d70f3a76c8b39f5decda7404e97f87c8cf2e4b3b126ed95d8e1556d7b5e8",
+        "result.json": "53f63295b52d396a01b5fbecc5989f071238a9a9fa0615c3617bb38e03938403",
+        "trial/agent/oracle.txt": "11634a17c289e081aaef1adb05727460cc49174adf55be33055a756b846e389a",
+        "trial/egress-lock.json": "e20867faee04ed54a0f0bb889c8fc0665699711359d58532b01a4fa67ec8dbc2",
+        "trial/qa-execution.json": "85aafac6907978f97728ee860c89593cad5e5646dcb898ecf1ce4554c16c25f9",
+        "trial/verifier/test_output.log": "e7480db967a0747a0996fe18fb37f66cceaecd17f70f633684ce646ec0167660"
+      },
+      "name": "002139-followupv2-nop",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "receipt": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/cells/002139-hardened-nop/result.json",
+      "reward": 0.0,
+      "script_sha256": "eee6d70f3a76c8b39f5decda7404e97f87c8cf2e4b3b126ed95d8e1556d7b5e8",
+      "split": null,
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 17.2
+    },
+    {
+      "alternative_informed": false,
+      "arm": "alternative",
+      "cell_key": "9c23902a5345a092ef0a40434d759d1b0d350728111bbbb524a6a9102d22cbab",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "alternative-0",
+      "est_usd": 0.00183,
+      "hashes": {
+        "agent-script.sh": "9b755d2eef353515110f42b6b2926c55eb03052a05f62bf1065faf548fdbf9d1",
+        "result.json": "2ce47a675b11cce7fe8f161a03afbbb5df40d6649f963b44b332f23c5c8961fe",
+        "trial/agent/oracle.txt": "388cf57f5dddad1fad072e073f35fc4fde974d6f6c29f51ace12fe8b04c923d9",
+        "trial/egress-lock.json": "06f336fdcf3f36947cbf82bc9f4ee635a8adbb74af7c18dcc6db616af23af622",
+        "trial/qa-execution.json": "a3fda262954d218c5de272155fb973f6b0ded05e15109839f8725519855c189f",
+        "trial/verifier/test_output.log": "ca524f95b8a4bcdefea89270d803585a9e6264673590986dd00d5791c91b5ea8"
+      },
+      "name": "002139-followupv2-alternative-0",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "receipt": "/private/tmp/ov1106/goldcert/helpers/safe/followup/cells/002139-followupv2-alternative-0/result.json",
+      "reward": 1.0,
+      "script_sha256": "9b755d2eef353515110f42b6b2926c55eb03052a05f62bf1065faf548fdbf9d1",
+      "split": "validation",
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 11.1
+    },
+    {
+      "alternative_informed": false,
+      "arm": "alternative",
+      "cell_key": "f02eedab3bb1f438c9671841380797163c7ef325a96e26784468a4df925dbe3a",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "alternative-1",
+      "est_usd": 0.00231,
+      "hashes": {
+        "agent-script.sh": "944964b235a737a0cd79e457ea06288088464c302d46cc6a2ea623cbf20e5324",
+        "result.json": "f3ae13f351cc46fa4a43a43f85fd98d70a66ae3935d2f21838dc8282bbd27c4a",
+        "trial/agent/oracle.txt": "388cf57f5dddad1fad072e073f35fc4fde974d6f6c29f51ace12fe8b04c923d9",
+        "trial/egress-lock.json": "5e1bded87a9378ec8e58cd9f8bcebffe3442e7b8f12d8feb401f6917c3fc55aa",
+        "trial/qa-execution.json": "ae27e9d11cf2e445f8c2a12136acdd04149b52c93d87ff41203b4c80b494a8a1",
+        "trial/verifier/test_output.log": "27b80b6ef684253170c2b447f83aa2100fcc61a4d478cdb9d6f25b1b3b0d73f4"
+      },
+      "name": "002139-followupv2-alternative-1",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "receipt": "/private/tmp/ov1106/goldcert/helpers/safe/followup/cells/002139-followupv2-alternative-1/result.json",
+      "reward": 1.0,
+      "script_sha256": "944964b235a737a0cd79e457ea06288088464c302d46cc6a2ea623cbf20e5324",
+      "split": "validation",
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 14.0
+    },
+    {
+      "alternative_informed": false,
+      "arm": "alternative",
+      "cell_key": "afa3dcf7588b7b304b95fd133ba77bfb0944be6e11957b5a29b15e9fdd20fb2a",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "alternative-2",
+      "est_usd": 0.0019,
+      "hashes": {
+        "agent-script.sh": "5dc01e7ff7117d6f9a68a3976c55c25f47ea2c1ba2d6b86e8acb2a7cbcec20d8",
+        "result.json": "44d0a1f172dbbbc0d3e5eae06131a0624548c8883c7a53ed36b4cf5494209f99",
+        "trial/agent/oracle.txt": "388cf57f5dddad1fad072e073f35fc4fde974d6f6c29f51ace12fe8b04c923d9",
+        "trial/egress-lock.json": "5e9a68a1abf5d3c707984c5ad82c701db943d3876cf50f70329af443889579cf",
+        "trial/qa-execution.json": "2e1d3ed074bb4643bec39c2a6ddc426edcab58f0b5fa655bcdb182bf0a4cf27a",
+        "trial/verifier/test_output.log": "7cba04a0365573149ca08b5850029076e22e3188d26180ce51b1dc246d02c392"
+      },
+      "name": "002139-followupv2-alternative-2",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "receipt": "/private/tmp/ov1106/goldcert/helpers/safe/followup/cells/002139-followupv2-alternative-2/result.json",
+      "reward": 1.0,
+      "script_sha256": "5dc01e7ff7117d6f9a68a3976c55c25f47ea2c1ba2d6b86e8acb2a7cbcec20d8",
+      "split": "held_out",
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 11.5
+    },
+    {
+      "alternative_informed": false,
+      "arm": "alternative",
+      "cell_key": "a1383ef6c0a0c1efe733ac49c954fece651e125a496ff115779198acad343f62",
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "control": "alternative-3",
+      "est_usd": 0.00292,
+      "hashes": {
+        "agent-script.sh": "4c1054241136467c8a374d22c1fb71b974aeb804b6613348fe8f78f7549f23b1",
+        "result.json": "b3cc776aadabe50cbf7a0471736cdb4e2166d2102dc1903bd5aafd6429c78936",
+        "trial/agent/oracle.txt": "388cf57f5dddad1fad072e073f35fc4fde974d6f6c29f51ace12fe8b04c923d9",
+        "trial/egress-lock.json": "e9c87c293589e0a351e80f0057699a53d32bbf396f53fc478f453140fe535e1d",
+        "trial/qa-execution.json": "c97e41b364035ee5d16b706dea1712eff27238361bbfb7adc9915bf7d8537f73",
+        "trial/verifier/test_output.log": "b3bc7b3b3982a1e4a6f6f34880f0ab8ee9a09320035a6236428197a2757deae6"
+      },
+      "name": "002139-followupv2-alternative-3",
+      "native_exception": null,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc",
+      "receipt": "/private/tmp/ov1106/goldcert/helpers/safe/followup/cells/002139-followupv2-alternative-3/result.json",
+      "reward": 1.0,
+      "script_sha256": "4c1054241136467c8a374d22c1fb71b974aeb804b6613348fe8f78f7549f23b1",
+      "split": "held_out",
+      "status": "executed",
+      "task": "002139",
+      "wall_s": 17.6
+    }
+  ],
+  "schema": "ev1105-gold-aggregate-v1",
+  "spend": {
+    "app_stops": [
+      {
+        "app_id": "ap-YcdGzVLiMhjE2cCOop3v10",
+        "returncode": 1,
+        "stderr": "Aborted: no interactive terminal detected. Rerun with --yes (-y) to skip confirmation.\n",
+        "stdout": "Are you sure you want to stop App 'ap-YcdGzVLiMhjE2cCOop3v10'? No containers are currently running. [y/N]: \n"
+      },
+      {
+        "app_id": "ap-YcdGzVLiMhjE2cCOop3v10",
+        "returncode": 0,
+        "stderr": "",
+        "stdout": ""
+      }
+    ],
+    "cap_usd": 4.0,
+    "ledger_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/gold-spend-ledger.json",
+    "measured_meter_usd": 0.05436,
+    "remaining_owned_apps": [],
+    "reservations_count": 96,
+    "reserved_usd": 1.92,
+    "spend_log_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/spend.jsonl",
+    "unit_usd": 0.02
+  },
+  "tasks": {
+    "000682": {
+      "alternative_informed": true,
+      "certified": true,
+      "certified_strict_nonempty_g5_uninformed_g7": false,
+      "contract_sha256": "483774c5a299c827f079cc0bf3a80bee2579899ca6ff1ef8bee813382fd5289a",
+      "counts": {
+        "alternative": {
+          "accepted": 4,
+          "measured": 4,
+          "planned": 4,
+          "rejected": 0,
+          "successes": 4,
+          "unmeasured": 0,
+          "wilson95": [
+            0.5101091596030786,
+            0.9999999999999999
+          ]
+        },
+        "defect_all": {
+          "accepted": 0,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 1,
+          "successes": 1,
+          "unmeasured": 0,
+          "wilson95": [
+            0.2065493117918027,
+            1.0
+          ]
+        },
+        "eval_all": {
+          "accepted": 0,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 1,
+          "successes": 1,
+          "unmeasured": 0,
+          "wilson95": [
+            0.2065493117918027,
+            1.0
+          ]
+        },
+        "eval_defect": {
+          "accepted": 0,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 1,
+          "successes": 1,
+          "unmeasured": 0,
+          "wilson95": [
+            0.2065493117918027,
+            1.0
+          ]
+        },
+        "eval_possibly_valid": {
+          "accepted": 0,
+          "measured": 0,
+          "planned": 0,
+          "rejected": 0,
+          "successes": 0,
+          "unmeasured": 0,
+          "wilson95": null
+        },
+        "nop": {
+          "accepted": 0,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 1,
+          "successes": 1,
+          "unmeasured": 0,
+          "wilson95": [
+            0.2065493117918027,
+            1.0
+          ]
+        },
+        "possibly_valid_all": {
+          "accepted": 1,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 0,
+          "successes": 0,
+          "unmeasured": 0,
+          "wilson95": [
+            0.0,
+            0.7934506882081973
+          ]
+        },
+        "reference": {
+          "accepted": 1,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 0,
+          "successes": 1,
+          "unmeasured": 0,
+          "wilson95": [
+            0.2065493117918027,
+            1.0
+          ]
+        },
+        "startup": {
+          "accepted": 0,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 1,
+          "successes": 1,
+          "unmeasured": 0,
+          "wilson95": [
+            0.2065493117918027,
+            1.0
+          ]
+        },
+        "train_all": {
+          "accepted": 1,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 0,
+          "successes": 0,
+          "unmeasured": 0,
+          "wilson95": [
+            0.0,
+            0.7934506882081973
+          ]
+        },
+        "train_defect": {
+          "accepted": 0,
+          "measured": 0,
+          "planned": 0,
+          "rejected": 0,
+          "successes": 0,
+          "unmeasured": 0,
+          "wilson95": null
+        },
+        "train_possibly_valid": {
+          "accepted": 1,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 0,
+          "successes": 0,
+          "unmeasured": 0,
+          "wilson95": [
+            0.0,
+            0.7934506882081973
+          ]
+        },
+        "witness": {
+          "accepted": 0,
+          "measured": 2,
+          "planned": 2,
+          "rejected": 2,
+          "successes": 2,
+          "unmeasured": 0,
+          "wilson95": [
+            0.3423802239546494,
+            1.0
+          ]
+        }
+      },
+      "gates": {
+        "G1": true,
+        "G2": true,
+        "G3": true,
+        "G4": true,
+        "G5_G6_pooled_defect": true,
+        "G5_defect_no_survivor": true,
+        "G5_defect_nonempty": false,
+        "G5_raw_kill_all": false,
+        "G6_defect": true,
+        "G6_raw_kill_all": true,
+        "G7": true
+      },
+      "newly_held_out": false,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/followup/hardened/000682",
+      "package_digest": "sha256:60faefa8e3d7911b173cf7070cec5b47a44e9687f66a831b13febbd96f3c9b6e"
+    },
+    "002139": {
+      "alternative_informed": false,
+      "certified": true,
+      "certified_strict_nonempty_g5_uninformed_g7": true,
+      "contract_sha256": "1f238e048889c20a7db57500d79e22f958407a05a468020c059ff3b842b49c81",
+      "counts": {
+        "alternative": {
+          "accepted": 4,
+          "measured": 4,
+          "planned": 4,
+          "rejected": 0,
+          "successes": 4,
+          "unmeasured": 0,
+          "wilson95": [
+            0.5101091596030786,
+            0.9999999999999999
+          ]
+        },
+        "defect_all": {
+          "accepted": 0,
+          "measured": 6,
+          "planned": 6,
+          "rejected": 6,
+          "successes": 6,
+          "unmeasured": 0,
+          "wilson95": [
+            0.6096657083436265,
+            1.0
+          ]
+        },
+        "eval_all": {
+          "accepted": 1,
+          "measured": 4,
+          "planned": 4,
+          "rejected": 3,
+          "successes": 3,
+          "unmeasured": 0,
+          "wilson95": [
+            0.3006418400969081,
+            0.954412739704631
+          ]
+        },
+        "eval_defect": {
+          "accepted": 0,
+          "measured": 3,
+          "planned": 3,
+          "rejected": 3,
+          "successes": 3,
+          "unmeasured": 0,
+          "wilson95": [
+            0.43850296436068037,
+            1.0
+          ]
+        },
+        "eval_possibly_valid": {
+          "accepted": 1,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 0,
+          "successes": 0,
+          "unmeasured": 0,
+          "wilson95": [
+            0.0,
+            0.7934506882081973
+          ]
+        },
+        "nop": {
+          "accepted": 0,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 1,
+          "successes": 1,
+          "unmeasured": 0,
+          "wilson95": [
+            0.2065493117918027,
+            1.0
+          ]
+        },
+        "possibly_valid_all": {
+          "accepted": 2,
+          "measured": 2,
+          "planned": 2,
+          "rejected": 0,
+          "successes": 0,
+          "unmeasured": 0,
+          "wilson95": [
+            0.0,
+            0.6576197760453506
+          ]
+        },
+        "reference": {
+          "accepted": 1,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 0,
+          "successes": 1,
+          "unmeasured": 0,
+          "wilson95": [
+            0.2065493117918027,
+            1.0
+          ]
+        },
+        "startup": {
+          "accepted": 0,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 1,
+          "successes": 1,
+          "unmeasured": 0,
+          "wilson95": [
+            0.2065493117918027,
+            1.0
+          ]
+        },
+        "train_all": {
+          "accepted": 1,
+          "measured": 4,
+          "planned": 4,
+          "rejected": 3,
+          "successes": 3,
+          "unmeasured": 0,
+          "wilson95": [
+            0.3006418400969081,
+            0.954412739704631
+          ]
+        },
+        "train_defect": {
+          "accepted": 0,
+          "measured": 3,
+          "planned": 3,
+          "rejected": 3,
+          "successes": 3,
+          "unmeasured": 0,
+          "wilson95": [
+            0.43850296436068037,
+            1.0
+          ]
+        },
+        "train_possibly_valid": {
+          "accepted": 1,
+          "measured": 1,
+          "planned": 1,
+          "rejected": 0,
+          "successes": 0,
+          "unmeasured": 0,
+          "wilson95": [
+            0.0,
+            0.7934506882081973
+          ]
+        },
+        "witness": {
+          "accepted": 0,
+          "measured": 2,
+          "planned": 2,
+          "rejected": 2,
+          "successes": 2,
+          "unmeasured": 0,
+          "wilson95": [
+            0.3423802239546494,
+            1.0
+          ]
+        }
+      },
+      "gates": {
+        "G1": true,
+        "G2": true,
+        "G3": true,
+        "G4": true,
+        "G5_G6_pooled_defect": true,
+        "G5_defect_no_survivor": true,
+        "G5_defect_nonempty": true,
+        "G5_raw_kill_all": false,
+        "G6_defect": true,
+        "G6_raw_kill_all": false,
+        "G7": true
+      },
+      "newly_held_out": true,
+      "package": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/hardened/002139",
+      "package_digest": "sha256:4a8b4f14a5ae4cd8ef1446ca00edc19b3bbe49b45824b65b606b804dac5818cc"
+    }
+  }
+}

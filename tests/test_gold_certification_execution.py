@@ -741,3 +741,44 @@ def test_cli_contained_controls_validate_approval_and_cap_before_construction(
     monkeypatch.setattr(gold, "ContainedModalRunner", lambda **_: pytest.fail("constructed"))
     with pytest.raises(ValueError, match=message):
         gold._certify_gold_command(args, tmp_path)
+
+
+def test_ev1105_gold_native_mutant_and_integrity_slice():
+    exp = Path(__file__).resolve().parents[1] / "research/experiments/ov1106-goldcert"
+    freeze = json.loads((exp / "ev1105-gold-freeze.json").read_text())
+    aggregate = json.loads((exp / "ev1105-gold-aggregate.json").read_text())
+    validity = json.loads((exp / "mutant-validity.json").read_text())
+
+    planned = {j["name"]: j for j in freeze["planned_jobs"]}
+    executed = {r["name"]: r for r in aggregate["executed_rows"]}
+    assert len(planned) == len(executed) == 16
+    assert set(planned) == set(executed)
+
+    validity_by_key = {(c["task_id"], c["control_name"]): c["category"] for c in validity["controls"]}
+    for name, row in executed.items():
+        plan_row = planned[name]
+        for field in ("task", "arm", "control", "package_digest", "script_sha256", "static_category"):
+            assert row[field] == plan_row[field]
+        assert row["status"] == "executed"
+        assert len(row["hashes"]) == 6
+        if row["arm"] in ("train", "eval"):
+            assert row["static_category"] == validity_by_key[row["task"], row["control"]]
+            if row["static_category"] == "DEFECT":
+                assert row["reward"] == 0.0
+            else:
+                assert row["static_category"] == "POSSIBLY_VALID"
+                assert row["reward"] == 1.0
+        else:
+            assert row["arm"] in ("witness", "startup")
+            assert row["reward"] == 0.0
+
+    assert aggregate["pooled_counts"]["defect_mutants"]["rejected"] == 7
+    assert aggregate["pooled_counts"]["defect_mutants"]["planned"] == 7
+    assert aggregate["pooled_counts"]["possibly_valid_mutants"]["accepted"] == 3
+    assert aggregate["pooled_counts"]["integrity_controls"]["rejected"] == 6
+    assert aggregate["spend"]["reserved_usd"] == pytest.approx(1.92)
+    assert aggregate["spend"]["remaining_owned_apps"] == []
+    assert aggregate["tasks"]["002139"]["certified"] is True
+    assert aggregate["tasks"]["002139"]["certified_strict_nonempty_g5_uninformed_g7"] is True
+    assert aggregate["tasks"]["000682"]["certified"] is True
+    assert aggregate["tasks"]["000682"]["certified_strict_nonempty_g5_uninformed_g7"] is False

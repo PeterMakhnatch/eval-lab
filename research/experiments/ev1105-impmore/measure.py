@@ -133,10 +133,27 @@ async def judge(args):
     caller_module = load(OLD / "evaluation/judge_runner.py")
     caller_module.CONFIG = CONFIG
     model = CONTRACT["signals"][args.signal]["model"]
-    quota_path = args.out / ("quota-" + args.signal + ".json")
-    if not quota_probe(Path("/Users/petermakhnatch/.local/bin/omp"), quota_path, {model}):
-        raise RuntimeError("Quota stopped judge batch")
-    await caller_module.run(argparse.Namespace(model=model, out=args.out, runs=args.prepared / "judge-runs.jsonl"))
+    destination = args.out / ("j2b__" + caller_module.slug(model))
+    results = destination / "results"
+    results.mkdir(parents=True, exist_ok=False)
+    caller = caller_module.LaneCaller(destination)
+    completed, stopped = 0, False
+    try:
+        await caller.start()
+        for index, row in enumerate(rows(args.prepared / "judge-runs.jsonl")):
+            if index % 10 == 0:
+                quota_path = destination / f"quota-{index:03d}.json"
+                if not quota_probe(Path("/Users/petermakhnatch/.local/bin/omp"), quota_path, {model}):
+                    stopped = True
+                    break
+            await caller_module.judge_run(caller, judge="j2b", model=model, row=row,
+                window_chars=60000, seed=None, out_path=results / (caller_module.slug(row["run_key"]) + ".json"))
+            completed += 1
+            if completed % 10 == 0:
+                print(json.dumps({"signal": args.signal, "completed": completed}), flush=True)
+    finally:
+        await caller.close()
+    dump(destination / "summary.json", {"completed": completed, "quota_stopped": stopped, "model": model})
 
 
 def collect(args):

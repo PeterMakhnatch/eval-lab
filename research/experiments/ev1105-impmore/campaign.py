@@ -100,7 +100,16 @@ def main():
         selected = {row["model"] for row in json.loads(plan.read_text())}
         if not selected <= MODELS:
             raise ValueError("Unsupported model route")
-        module.quota = lambda omp, output: quota_probe(omp, output, selected)
+        def quota(omp, output):
+            try:
+                return quota_probe(omp, output, selected)
+            except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as error:
+                with output.open("x") as stream:
+                    json.dump({"allowed": False, "probe_failed": True, "error_type": type(error).__name__,
+                               "stop_reason": "quota_probe_failed"}, stream)
+                raise module.QuotaProbeError(str(error)) from error
+
+        module.quota = quota
         if args.work is None:
             parser.error("--work is required for batch")
         remaining += ["--work", str(args.work)]

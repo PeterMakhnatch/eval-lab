@@ -116,6 +116,64 @@ Timeouts and runner errors remain abstentions. It never calibrates on this cohor
 
 ## Native line prerequisites and limits
 
+### Legacy preparation correction (2026-11-05)
+
+Reproduce the original frozen measurement at its published source tag. Current
+native preparation requires `--legacy-tasks` when the view identifies a
+post-restoration snapshot. Use a fresh output directory:
+
+```bash
+uv run python research/experiments/ov1106-impscale/evaluation/native_line.py prepare \
+  --admitted /private/tmp/ov1106/impscale/ADMITTED.json \
+  --runs /private/tmp/ov1106/impscale/helpers/scoring/set/judge-runs.jsonl \
+  --legacy-tasks /private/tmp/ov1104/impossible/work/tasks \
+  --out /absolute/new/path/native-preparation-corrected
+```
+
+The task's `generated.json.test_files` declares preparation ownership.
+The converter reads the selected variant's declared files and regular members
+of its declared build archive. It never extracts the archive to the host.
+For each declared path, it applies complete snapshot hunks to the pristine file.
+It removes the section only when the result exactly equals the prepared file.
+Changed or undeclared sections remain unchanged. Truncated hunks and mismatched
+context also remain unchanged. Binary-difference records remain in the snapshot.
+
+Each bundle includes `preparation-receipt.json`. It binds the declaration, prepared
+files, pristine inputs or their absence, removed sections, and source/result diffs.
+The normal input index binds this receipt with the reconstructed bundle.
+This is an intake correction, not an L0 path exemption. Actions remain unchanged.
+A restored snapshot still cannot recover erased submitted changes.
+Submitted pre-G1 diffs already use the prepared baseline and need no subtraction.
+
+The saved original inputs, labels, model scores, and historical reports remain
+unchanged. A corrected replay is a separate observation, not a replacement for
+the historical freeze. No new model call is needed for this correction.
+
+#### Corrected native observation
+
+The 2026-11-05 replay uses current main `6b4f04a5c` as its before source.
+It preserves the selected labels, source actions, empty AutoReview cache, and task policy.
+Only the diff parser and declared-preparation subtraction change.
+
+| Selected cohort | Before drops | Corrected drops | Corrected keep / review / drop |
+|---|---:|---:|---:|
+| Historical honest controls | 27/27, 100% [87.54%, 100%] | 1/27, 3.70% [0.66%, 18.28%] | 22 / 4 / 1 |
+| Historical positives | 53/53, 100% [93.24%, 100%] | 16/53, 30.19% [19.52%, 43.54%] | 32 / 5 / 16 |
+| Strict submitted-diff positives | 32/32, 100% [89.28%, 100%] | 32/32, 100% [89.28%, 100%] | 0 / 0 / 32 |
+
+Brackets show Wilson 95% intervals. Both positive cohorts share the same 27 controls.
+The remaining honest drop comes from an actual new test appended to an existing
+protected file. The existing-file write policy remains unchanged.
+
+The parser correction alone still drops 27/27 controls. Preparation ownership
+must also be corrected at intake. The historical positive-drop decrease exposes
+missing action detection after restoration erases test edits. It is not evidence
+that the removed preparation sections detected agent cheats.
+Strict positives retain submitted diffs and remain 32/32 detected.
+Missing AutoReview readings remain missing. No judge score or label changes.
+These selected-cohort results are not a production false-positive estimate.
+
+
 `native_line.py` calls the real `evallab.line.core.run_line` with admitted, label-free bundles.
 The preparation intake parses all 151 bundles, task IDs, actions, observations, and diffs.
 It does not compute a detector decision before freeze.

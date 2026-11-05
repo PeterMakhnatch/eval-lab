@@ -2,8 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
+import io
 import json
+import re
 import sys
+import tarfile
 from pathlib import Path
 
 from evaluate import LANE, ROOT, check_admission, digest, gates, keyed, rows
@@ -15,6 +20,121 @@ from detbench_lib import view_to_atif  # noqa: E402
 
 def dump(path, value):
     path.write_text(json.dumps(value, indent=2) + '\n')
+
+
+def _apply_section(before: str, section: str) -> str:
+    """Apply complete unified hunks exactly, with no fuzzy or offset matching."""
+    lines = before.splitlines(keepends=True)
+    patch = section.splitlines(keepends=True)
+    start = next(i for i, line in enumerate(patch) if line.startswith('@@ '))
+    body = []
+    for line in patch[start:]:
+        if line.startswith('\\ No newline at end of file'):
+            if not body:
+                raise ValueError('orphan newline marker')
+            body[-1] = body[-1].removesuffix('\n')
+        else:
+            body.append(line)
+    result, cursor, index = [], 0, 0
+    while index < len(body):
+        match = re.fullmatch(r'@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@[^\n]*\n?', body[index])
+        if match is None:
+            raise ValueError('incomplete or invalid hunk')
+        old_start, old_count, new_start, new_count = (
+            int(value) if value is not None else 1 for value in match.groups()
+        )
+        old_at = old_start - 1 if old_count else old_start
+        new_at = new_start - 1 if new_count else new_start
+        if not cursor <= old_at <= len(lines):
+            raise ValueError('out-of-order hunk')
+        result.extend(lines[cursor:old_at])
+        cursor = old_at
+        if len(result) != new_at:
+            raise ValueError('hunk coordinates differ')
+        removed = added = 0
+        index += 1
+        while index < len(body) and not body[index].startswith('@@ '):
+            line = body[index]
+            if line[:1] not in (' ', '-', '+'):
+                raise ValueError('invalid hunk body')
+            if line[0] in ' -':
+                if cursor >= len(lines) or lines[cursor] != line[1:]:
+                    raise ValueError('hunk context differs')
+                cursor += 1
+                removed += 1
+            if line[0] in ' +':
+                result.append(line[1:])
+                added += 1
+            index += 1
+        if (removed, added) != (old_count, new_count):
+            raise ValueError('truncated hunk')
+    result.extend(lines[cursor:])
+    return ''.join(result)
+
+
+def without_preparation(diff_text: str, task: Path, variant: str) -> tuple[str, dict]:
+    """Remove only exact declared preparation; preserve every action and changed section.
+
+    Legacy snapshots follow restoration, not submission. This cannot recover erased
+    agent changes. The action trace remains authoritative for those changes.
+    """
+    from evallab.hack_drop import parse_diff_sections
+
+    if Path(variant).name != variant or variant in ('.', '..'):
+        raise ValueError('invalid task variant')
+    generated_path = task / 'generated.json'
+    generated = json.loads(generated_path.read_text())
+    inputs = {str(generated_path.resolve()): digest(generated_path)}
+    prepared = {}
+    for name in generated['test_files']:
+        rel = Path(name)
+        if rel.is_absolute() or '..' in rel.parts:
+            raise ValueError('invalid prepared path')
+        source = task / 'variants' / variant / rel
+        if source.is_file():
+            prepared[name] = source.read_bytes().decode('utf-8')
+            inputs[str(source.resolve())] = digest(source)
+    # The declared archive expands before the agent runs. Read regular members
+    # in memory; never extract paths or follow archive links on the host.
+    archive = prepared.get('mimo_build_env.tar.gz.b64')
+    if archive is not None:
+        with tarfile.open(fileobj=io.BytesIO(base64.b64decode(archive)), mode='r:gz') as bundle:
+            for member in bundle:
+                rel = Path(member.name)
+                if rel.is_absolute() or '..' in rel.parts or not member.isfile():
+                    continue
+                stream = bundle.extractfile(member)
+                if stream is not None:
+                    prepared[str(rel)] = stream.read().decode('utf-8')
+    kept, removed = [], []
+    for chunk in re.split(r'(?=^(?:diff (?:--git|-ruN) |Binary files ))', diff_text, flags=re.M):
+        sections = parse_diff_sections(chunk)
+        if len(sections) != 1:
+            kept.append(chunk)
+            continue
+        section = sections[0]
+        name = section['new_path'] or section['old_path']
+        if name not in prepared or section['is_deleted']:
+            kept.append(chunk)
+            continue
+        base = task / 'base' / name
+        before = base.read_bytes().decode('utf-8') if base.is_file() else ''
+        inputs[str(base.resolve())] = digest(base) if base.is_file() else None
+        try:
+            after = _apply_section(before, chunk)
+        except (ValueError, StopIteration):
+            kept.append(chunk)
+            continue
+        if after != prepared[name]:
+            kept.append(chunk)
+            continue
+        removed.append({'path': name, 'section_sha256': hashlib.sha256(chunk.encode()).hexdigest()})
+    result = ''.join(kept)
+    return result, {'schema': 'ov1106.native_preparation/v1', 'task': str(task.resolve()),
+                    'variant': variant, 'inputs': inputs, 'removed': removed,
+                    'source_diff_sha256': hashlib.sha256(diff_text.encode()).hexdigest(),
+                    'result_diff_sha256': hashlib.sha256(result.encode()).hexdigest(),
+                    'limitation': 'post-restoration snapshot; submitted edits remain in actions only'}
 
 
 def prepare(args):
@@ -37,7 +157,14 @@ def prepare(args):
         trajectory = view_to_atif(view)
         dump(path / 'trajectory.json', trajectory)
         dump(path / 'run.json', {'task_id': task_id, 'split': 'dev'})
-        (path / 'final.diff').write_text(view['final']['diff'])
+        diff_text = view['final']['diff']
+        if diff_text.startswith('[This snapshot is captured after the harness restores tests.'):
+            if args.legacy_tasks is None:
+                raise ValueError('legacy native replay requires --legacy-tasks preparation declarations')
+            diff_text, receipt = without_preparation(
+                diff_text, args.legacy_tasks / source['task_id'], source['variant'])
+            dump(path / 'preparation-receipt.json', receipt)
+        (path / 'final.diff').write_text(diff_text)
         (path / 'prompt.md').write_text(view['task_text'])
         native_rows.append({'id': key, 'task_id': task_id, 'path': str(path.resolve())})
         for artifact in path.iterdir():
@@ -97,6 +224,8 @@ def run(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--legacy-tasks', type=Path,
+                        help='declared legacy task packages; required for post-restoration snapshots')
     parser.add_argument('mode', choices=('prepare', 'run'))
     parser.add_argument('--admitted', type=Path, default=LANE / 'ADMITTED.json')
     parser.add_argument('--frozen', type=Path, default=LANE / 'FROZEN.json')

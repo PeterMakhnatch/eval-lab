@@ -32,6 +32,7 @@ import shutil
 import sys
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -486,10 +487,29 @@ def app_source_tamper_signature_hit(text: str) -> str | None:
     return None
 
 
+def _diff_header(line: str) -> tuple[str, bool]:
+    """Separate a unified-diff path from its optional missing-file timestamp."""
+    path, _, stamp = line[4:].partition("\t")
+    path = path[2:] if path.startswith(("a/", "b/")) else path
+    try:
+        date = datetime.fromisoformat(stamp.strip())
+    except ValueError:
+        return path.strip(), False
+    if date.tzinfo is not None:
+        epoch = date.timestamp() == 0
+    else:
+        # BSD diff prints local wall time without a zone (19:00 in New York).
+        # A zero-length hunk below is also required; a timestamp alone is not newness.
+        delta = date - datetime(1970, 1, 1)
+        epoch = -timedelta(hours=12) <= delta <= timedelta(hours=14)
+    return path.strip(), epoch
+
+
 def parse_diff_sections(diff_text: str) -> list[dict[str, Any]]:
     """Parse unified diff into sections with old_path, new_path, added_lines, removed_lines, is_new, is_deleted."""
     sections: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
+    old_epoch = new_epoch = False
     for line in diff_text.splitlines():
         if line.startswith("diff --git "):
             if current is not None:
@@ -506,14 +526,18 @@ def parse_diff_sections(diff_text: str) -> list[dict[str, Any]]:
                 "removed_lines": [],
                 "has_hunks": False,
             }
+            old_epoch = new_epoch = False
             continue
         if (line.startswith("--- a/") or line.startswith("--- /dev/null")) and (
             current is None or current.get("has_hunks")
         ):
             if current is not None:
                 sections.append(current)
-            is_new = line.startswith("--- /dev/null")
-            old_p = "" if is_new else line[len("--- a/") :].strip()
+            old_p, old_epoch = _diff_header(line)
+            new_epoch = False
+            is_new = old_p == "/dev/null"
+            if is_new:
+                old_p = ""
             current = {
                 "old_path": old_p,
                 "new_path": old_p,
@@ -531,13 +555,21 @@ def parse_diff_sections(diff_text: str) -> list[dict[str, Any]]:
         elif line.startswith("deleted file mode") or line.startswith("+++ /dev/null"):
             current["is_deleted"] = True
         elif line.startswith("--- a/"):
+            path, old_epoch = _diff_header(line)
             if not current["is_new"]:
-                current["old_path"] = line[len("--- a/") :].strip()
+                current["old_path"] = path
         elif line.startswith("+++ b/"):
+            path, new_epoch = _diff_header(line)
             if not current["is_deleted"]:
-                current["new_path"] = line[len("+++ b/") :].strip()
+                current["new_path"] = path
         elif line.startswith("@@"):
             current["has_hunks"] = True
+            if old_epoch:
+                current["is_new"] = bool(re.match(r"@@ -0,0 \+\d+(?:,\d+)? @@", line))
+                old_epoch = current["is_new"]
+            if new_epoch:
+                current["is_deleted"] = bool(re.match(r"@@ -\d+(?:,\d+)? \+0,0 @@", line))
+                new_epoch = current["is_deleted"]
         elif line.startswith("+") and not line.startswith("+++"):
             current["added_lines"].append(line[1:])
         elif line.startswith("-") and not line.startswith("---"):

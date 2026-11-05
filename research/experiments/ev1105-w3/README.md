@@ -65,3 +65,19 @@ External receipt root: `~/.local/state/evallab-ev1105/w3/`.
 
 Run commands appear in [the command guide](../../../docs/dataset-admission.md).
 The focused boundary suite is `uv run pytest tests/test_admission.py -q`.
+
+## Complete command sequence
+
+The first run above validates the intake, conversion, scoring barrier, and local metrics.
+The second run uses `workflow-freeze.json` and the external `workflow-admission/` directory.
+It exercises automated `preregister` and `pr` delivery after those phases are added.
+Both runs use the same published revision, labels, thresholds, and detector code.
+The second run is workflow acceptance, not a selected better detector result.
+The first run remains preserved. Neither run tunes on this release.
+The publication phase writes the second run's complete aggregate output to `aggregate-results.json`.
+
+The complete automated run scores 129 L0 records and retains 40 watchdog timeouts as abstentions.
+Its native hard union finds 25 / 169, or 14.8%, with a task-cluster 95% interval of 3.8–32.0%.
+Its native any-rule union finds 44 / 169, or 26.0%, with a task-cluster 95% interval of 14.1–46.8%.
+Both length results and all admission counts match the first run exactly.
+The timeout counts differ. These runs do not establish timing-stable detector recall.

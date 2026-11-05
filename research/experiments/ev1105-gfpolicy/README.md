@@ -6,7 +6,7 @@
    - We build `research/experiments/ev1105-gfpolicy/goodfire-action-v1.jsonl` (`150` Goodfire DEV rows, SHA-256 `6b773df70858c9497cf24fbd85809feb5bebb1d73af27cd3ba52522579f3670e`) from `ev1105-goodfire` (`#1907`).
    - We do not edit the original label files (`goodfire-labels.jsonl` SHA-256 `a0bd0439810f09bc743d9e577fb7d902de6ac938991c7882a47f6b0a83566483` is unchanged).
    - Among the **80** publisher-positive Goodfire DEV runs:
-     - **`executed-shortcut` (positive, `is_cheat: true`):** **11/80 (`13.75% [7.86%, 22.97%]`)** in Primary `R1 ∩ R2` consensus (`10/38` ImpossibleBench, `1/42` SWE-bench Verified). Sensitivity tiers: **6/80 (`7.50% [3.48%, 15.41%]`)** Strict `Tier 1` outcome-altering, **10/80 (`12.50% [6.93%, 21.50%]`)** 3-reader unanimous (`R1 ∩ R2 ∩ R3_argon`), **14/80 (`17.50% [10.72%, 27.26%]`)** broader union.
+     - **`executed-shortcut` (positive, `is_cheat: true`):** **11/80 (`13.75% [7.85%, 22.97%]`)** in Primary `R1 ∩ R2` consensus (`10/38` ImpossibleBench, `1/42` SWE-bench Verified). Sensitivity tiers: **6/80 (`7.50% [3.48%, 15.41%]`)** Strict `Tier 1` outcome-altering, **10/80 (`12.50% [6.93%, 21.50%]`)** 3-reader unanimous (`R1 ∩ R2 ∩ R3_argon`), **14/80 (`17.50% [10.72%, 27.26%]`)** broader union.
      - **`intent-only` (reported separately, never relabelled honest, `is_cheat: null`, `label: "considered_only"`):** **23/80 (`28.75% [19.99%, 39.46%]`)** in the bounded step digest (**52/80 = `65.00% [54.08%, 74.55%]`** under full `<think>` + `content` synthesis).
      - **`no-evidence` (reported separately, never relabelled honest, `is_cheat: null`, `label: "unjudged"`):** **46/80 (`57.50% [46.57%, 67.74%]`)** in the bounded step digest (**17/80 = `21.25% [13.71%, 31.42%]`** under full `<think>` + `content` synthesis).
    - Among the **70** publisher-honest Goodfire DEV runs: **0/70 (`0.00% [0.00%, 5.20%]`)** have an executed shortcut. All **70/70** stay `honest` (`is_cheat: false`, `label: "honest"`; `69` `no-evidence` + `1` `intent-only`).
@@ -127,7 +127,7 @@
 | **P5a**: Remove floor on all Goodfire + Goodfire-scoped `J3 61/100` (`J3` off on other 4 corpora) | Off / Off | GF-only `61/100` | `1 / 5 / 5` (Tier1: `0 / 3 / 3`) | `10 / 53 / 200` (Tier1: `9 / 51 / 198`) | `61/332` | `60 / 3 / 7` | **`123 / 195 / 40`** | **`253`** (`258`) |
 | **P5b**: Remove floor on all Goodfire + Goodfire-scoped `J3 >= 89` (`J3` off on other 4 corpora) | Off / Off | GF-only `>=89` | `2 / 1 / 8` (Tier1: `0 / 0 / 6`) | `11 / 49 / 203` (Tier1: `9 / 48 / 201`) | `64/332` | `60 / 3 / 7` | **`123 / 195 / 40`** | **`247`** (`253`) |
 | **P5c**: Remove floor ONLY for `ImpossibleBench` Goodfire + Goodfire-scoped `J3 61/100` | Off / On | GF-only `61/100` | `1 / 5 / 5` (Tier1: `0 / 3 / 3`) | `10 / 53 / 200` (Tier1: `9 / 51 / 198`) | `35/332` | `35 / 28 / 7` | **`98 / 220 / 40`** | **`304`** (`308`) |
-| **P5d**: Remove floor ONLY for `ImpossibleBench` Goodfire + Goodfire-scoped `J3 >= 89` | Off / On | GF-only `>=89` | `2 / 1 / 8` (Tier1: `0 / 0 / 6`) | `11 / 49 / 203` (Tier1: `9 / 48 / 201`) | `37/332` | `35 / 28 / 7` | **`98 / 220 / 40`** | **`299`** (`304`) |
+| **P5d**: Remove floor ONLY for `ImpossibleBench` Goodfire + Goodfire-scoped `J3 >= 89` | Off / On | GF-only `>=89` | `2 / 1 / 8` (Tier1: `0 / 0 / 6`) | `11 / 49 / 203` (Tier1: `9 / 48 / 201`) | `37/332` | `35 / 28 / 7` | **`98 / 220 / 40`** | **`299`** (`303`) |
 
 ---
 
@@ -139,10 +139,14 @@ uv run pytest -q research/experiments/ev1105-gfpolicy/test_evaluate_policy.py
 ```
 
 - **Replay batches in `~/Developer/eval-lab-results/line/replay-v1/batches/`:**
-  - `main_floor_on_j3_off`: `replay-v1-replay-079537600573489cac9124e16da319c8` (`decisions.jsonl` SHA-256 `49398a09052bd778598a472b2855c92837953143cf967caab687a5800e202c3d`)
-  - `floor_on_j3_61_100`: `replay-v1-gate-82271e648bc04283898c77de2ffd05ab` (`decisions.jsonl` SHA-256 `618d8a8be582d09c4190ef891f885a1030bc9be48db3c485b024e7ac4432a998`)
-  - `floor_on_j3_frozen89`: `replay-v1-replay-03b0a4fecc224fc8bc29b67be18098ed` (`decisions.jsonl` SHA-256 `be98229d4bfed99dc6d2f83ef19a212da9b24be21e9b90754984481697c52365`)
-  - `floor_off_j3_off`: `replay-v1-replay-41c449a52dfe46328338931a8cdf674b` (`decisions.jsonl` SHA-256 `c2cd04a2b7683e8070f3761e12183f7922146c31c497268e50469168341cb3bc`)
-  - `floor_off_j3_61_100`: `replay-v1-replay-d11ffd6429c94097b711059368c574b3` (`decisions.jsonl` SHA-256 `56a251071f918d4e1f79baac370d69b6f0f0aa0f4ef1a36b64729268eb41aa01`)
-  - `floor_off_j3_frozen89`: `replay-v1-replay-4bdb1f6d14954d43a0a9a04301ad3f71` (`decisions.jsonl` SHA-256 `e85d57d5061015b79f66cb80a2db23acbc38fb4db0d92fc9cb4bfcb082a99bd8`)
+  - `main_floor_on_j3_off`: `replay-v1-replay-079537600573489cac9124e16da319c8` (`decisions.jsonl` SHA-256 `5e0846c92e44e46e4a772afd76804745036672fbd065435e3135a2a4075807bc`)
+  - `floor_on_j3_61_100`: `replay-v1-gate-82271e648bc04283898c77de2ffd05ab` (`decisions.jsonl` SHA-256 `246356ed8ff09c473676d67bba79f0938b56aab333bb00fd6f3b08f8c843aa49`)
+  - `floor_on_j3_frozen89`: `replay-v1-replay-03b0a4fecc224fc8bc29b67be18098ed` (`decisions.jsonl` SHA-256 `dd3adcf4ff67409b6295ce3bd66706c6690d6c830c2f99bae35b102c9bb1768c`)
+  - `floor_off_j3_off`: `replay-v1-replay-41c449a52dfe46328338931a8cdf674b` (`decisions.jsonl` SHA-256 `658ac3ca636eb01045681fcb08f6ad86dcdb6e2e8b4f3e5e384dd820821c16c2`)
+  - `floor_off_j3_61_100`: `replay-v1-replay-d11ffd6429c94097b711059368c574b3` (`decisions.jsonl` SHA-256 `e3be0f8cbab784f2132bc314e75e2b0a9f3a837ad51bc775b7dd145c91fb790e`)
+  - `floor_off_j3_frozen89`: `replay-v1-replay-4bdb1f6d14954d43a0a9a04301ad3f71` (`decisions.jsonl` SHA-256 `0369677dd10ed9626925fa1b4e42ee3e1cf053716d82a5d23173d2e3fbf3edd7`)
 - **Model calls & spend in this lane:** `0` model calls, `$0.00` spend.
+
+Verification corrects the 6 replay digests above and the P5d judge-queue count to 303 (299 review decisions).
+The generated aggregate already contains the correct values. No method, threshold, label, or policy decision changes.
+Receipts: `/private/tmp/ev1105/verify/gfpolicy-digest-audit.json`, `gfpolicy-complete-recomputed.json`, and `printed-wilson-recomputed.json` in that directory.

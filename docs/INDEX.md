@@ -67,7 +67,7 @@ inputs:
   - path: docs/features.md
     digest: sha256:d8336213e0fcebb651ae62fafcf74dc83ff6325678bfe2c7cf7e046cd42a77f7
   - path: docs/fleet.md
-    digest: sha256:e9b69055deb43a7c419e7c34ca7511cfd8df06e60099f45ce7df5175d4ecbfd8
+    digest: sha256:8daa1813330ee5f809b5817092ff0544cc3fc0c16cabc344299062147bb8d056
   - path: docs/flight-recorder.md
     digest: sha256:0138627b7592e818cf17532f1541173916e68de1867935abfe6ab343f66475b8
   - path: docs/hack-drop.md
@@ -91,7 +91,7 @@ inputs:
   - path: docs/lane-verification.md
     digest: sha256:adc4fee76353ab0f6f2d0f5bd9c629e0ab5fa2addc617f6a93c0e607fd9fe3f3
   - path: docs/line.md
-    digest: sha256:24d54b64b8b22cf74f34e34490cbf6d6696abeef56c0776168159cf3b95d60e3
+    digest: sha256:f4012f51e6407a16981773dd5630b77f1d628bb8fbfc87d59976bd153bb67424
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md
@@ -157,7 +157,7 @@ inputs:
   - path: docs/scaling.md
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
   - path: docs/ship.md
-    digest: sha256:ee7e3acddcff82c518f42f93feed4ff605603a2db1457347342e3d09022ead97
+    digest: sha256:5778f8acd032ef2bc5dc1d5d0a63a01dbcf6379ea7174177a24659352f80f3cc
   - path: docs/storm-alarms.md
     digest: sha256:0bc85e698e48423c3a23b2462ca7eb6187578a0cb94e9dc6f346d4a1f3363692
   - path: docs/surfaces.md

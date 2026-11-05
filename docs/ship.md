@@ -46,15 +46,16 @@ Use `--timeout 1800` and `--poll 15` to set the wait limit and poll interval in 
 ## Path gates
 
 `agents/ship-gates.toml` maps case-sensitive path globs to command argument arrays.
-Ship reads the policy from the fetched base, not from the proposed change.
-A PR cannot remove its own gate by editing the configuration.
-New policy takes effect for later PRs after the policy merges.
+Ship reads existing gates from the fetched base.
+A PR cannot remove or weaken its own existing gate by editing the configuration.
+New gate names from the candidate also run before their registration merges.
+The base definition wins whenever both policies contain the same name.
 
 ```toml
 [[gate]]
 name = "line"
-paths = ["src/evallab/autoreview/**"]
-command = ["uv", "run", "evallab", "line-gate"]
+paths = ["src/evallab/line/**", "src/evallab/autoreview_monitor.py"]
+command = ["make", "line-gate"]
 ```
 
 Ship runs each selected gate in a detached checkout of the exact PR head.
@@ -62,6 +63,12 @@ It sets `EVALLAB_SHIP_HEAD`, `EVALLAB_SHIP_BASE`, and `EVALLAB_SHIP_PR`.
 Exit `0` passes. Exit `1` blocks. Other exit codes report an error and block.
 A head or base change invalidates the delivery attempt.
 The author must refresh combined evidence before a new attempt.
+
+The registered `line` gate runs `make line-gate` for decision-sensitive paths.
+Its scope includes L0 scanners, normalization, task policy, replay inputs, and gate controls.
+Documentation-only and unrelated research PRs do not select this gate.
+A replay regression or missing private data blocks merge.
+See [the line contract](line.md#sensitive-decision-paths) for coverage and receipts.
 
 ## Receipts and recovery
 

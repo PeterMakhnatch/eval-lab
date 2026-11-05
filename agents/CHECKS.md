@@ -103,7 +103,7 @@ uv run python scripts/line-gate.py --paths --output /absolute/new/path/paths
 uv run python scripts/line-gate.py --pr <PR_NUMBER> --output /absolute/new/path/gate
 ```
 
-The first gate command lists the base/head import closure and changed sensitive paths.
+The first gate command lists explicit decision-sensitive paths and changed files.
 It is discovery only, not a gate pass. The second command writes `gate.json` and
 `gate.md`. Require exit 0 and `passed: true` for the exact PR head and current
 `origin/main`. Keep both receipts with the merge record. A changed head or base
@@ -116,6 +116,13 @@ existing honest-drop allowance in [the line contract](../docs/line.md).
 An exception requires Peter's exact PR, head and corpus-delta approval in the
 existing Peter-owned standing policy on `origin/main`. Candidate policy edits
 and command-line flags cannot authorize an exception.
+
+`evallab ship` selects the registered `line` gate for decision-sensitive paths
+and runs `make line-gate` automatically before merge. Missing private data blocks
+delivery. The gate also runs on its registration PR. Documentation-only and
+unrelated research changes do not select it. See `agents/ship-gates.toml` for
+the path patterns and [the line contract](../docs/line.md#sensitive-decision-paths)
+for historical coverage.
 
 
 ### Local checkpoints versus full CI

@@ -54,6 +54,8 @@ inputs:
     digest: sha256:5bb755045d2af1099d2322936f788abe8b846f8fc77976788872fc7290363584
   - path: docs/data-architecture.md
     digest: sha256:3da92ed792d6c995bc79be4d078f62af534b020ecaa3c52885d6d4ec677777fe
+  - path: docs/dataset-admission.md
+    digest: sha256:ae98ad05fed70925f959f3afb11ba3498dbb5dda3d86e683e6b42fcb8be4b6b9
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:efe12fcfc333012d835c097f02b64535305bf108e7f9d820c97327d1072d3633
   - path: docs/docker-lock.md
@@ -225,6 +227,7 @@ an operator can see what is archived.
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
+| `docs/dataset-admission.md` | Dataset admission | `living` | `builder, analyst` |
 | `docs/docker-lock.md` | Docker FIFO lock (`evallab docker-lock`) | `living` | `builder, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
@@ -292,6 +295,7 @@ an operator can see what is archived.
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
 | `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
+| `docs/dataset-admission.md` | Dataset admission | `living` | `builder, analyst` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/features.md` | Trial features: one row per trial | `living` | `analyst, builder` |

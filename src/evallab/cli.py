@@ -8161,6 +8161,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.ship import register_parser as register_ship_parser
 
     register_ship_parser(commands)
+    from evallab.admission import register_parser as register_admission_parser
+
+    register_admission_parser(commands)
     return root
 
 

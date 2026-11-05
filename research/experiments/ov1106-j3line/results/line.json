@@ -1,0 +1,728 @@
+{
+  "batches": {
+    "j3": {
+      "acceptance_pass": true,
+      "cache_sources_count": 0,
+      "cache_sources_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "changed_keep_cases_count": 11,
+      "changed_keep_cases_sha256": "9b87c53d0a3d748985b078f7b2fd3d2ef89e6f0bfa998e1dd536a165a860d3e7",
+      "exports": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-03b0a4fecc224fc8bc29b67be18098ed/export/kept.jsonl",
+          "sha256": "8164369f0fbd698ebdeadd6e57ec0a6e47942c53d2a888908a97033413b88547"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-03b0a4fecc224fc8bc29b67be18098ed/export/review.jsonl",
+          "sha256": "a386af82ea0c52369165d998082d676dd38fa514badbb253d4efc5880f2b9a2e"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-03b0a4fecc224fc8bc29b67be18098ed/export/dropped.jsonl",
+          "sha256": "f5681ede170960239a0dc812a13f864f074ef7b0f2ec165c9cdbec8b77d05ad3"
+        }
+      ],
+      "j3_load": {
+        "available_runs": 438,
+        "calls": {
+          "covered_runs": 438,
+          "mean_per_covered_run": 1.2602739726027397,
+          "sum": 552
+        },
+        "completion_tokens": {
+          "covered_runs": 438,
+          "mean_per_covered_run": 140.42694063926942,
+          "sum": 61507
+        },
+        "cost_usd": {
+          "covered_runs": 438,
+          "mean_per_covered_run": 0.0,
+          "sum": 0.0
+        },
+        "eligible_runs": 438,
+        "latency_s": {
+          "covered_runs": 438,
+          "mean_per_covered_run": 6.634543378995433,
+          "sum": 2905.93
+        },
+        "prompt_tokens": {
+          "covered_runs": 438,
+          "mean_per_covered_run": 11871.214611872147,
+          "sum": 5199592
+        }
+      },
+      "j3_per_run_load_count": 438,
+      "j3_per_run_load_sha256": "a4d5d765d7997f6f7841374ed08800324f1cbad17d1137ceda3945c78324e6be",
+      "no_cheat_keep_increase": {
+        "c1c5": {
+          "after_cheat_keep": 0,
+          "before_cheat_keep": 0,
+          "pass": true
+        },
+        "cheatbench": {
+          "after_cheat_keep": 2,
+          "before_cheat_keep": 2,
+          "pass": true
+        },
+        "goodfire": {
+          "after_cheat_keep": 0,
+          "before_cheat_keep": 0,
+          "pass": true
+        },
+        "sol-astra": {
+          "after_cheat_keep": 2,
+          "before_cheat_keep": 2,
+          "pass": true
+        },
+        "terminal-wrench": {
+          "after_cheat_keep": 4,
+          "before_cheat_keep": 5,
+          "pass": true
+        }
+      },
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-03b0a4fecc224fc8bc29b67be18098ed",
+      "table": [
+        {
+          "corpus": "c1c5",
+          "drop": 4,
+          "keep": 1,
+          "keep_rate": 0.05263157894736842,
+          "keep_rate_ci95": [
+            0.009351993958601784,
+            0.24638731374732356
+          ],
+          "label": 0,
+          "n": 19,
+          "review": 14
+        },
+        {
+          "corpus": "c1c5",
+          "drop": 5,
+          "keep": 0,
+          "keep_rate": 0.0,
+          "keep_rate_ci95": [
+            0.0,
+            0.25883296999442634
+          ],
+          "label": 1,
+          "n": 11,
+          "review": 6
+        },
+        {
+          "corpus": "cheatbench",
+          "drop": 25,
+          "keep": 9,
+          "keep_rate": 0.12,
+          "keep_rate_ci95": [
+            0.06443371792670737,
+            0.2125964029159394
+          ],
+          "label": 0,
+          "n": 75,
+          "review": 41
+        },
+        {
+          "corpus": "cheatbench",
+          "drop": 41,
+          "keep": 2,
+          "keep_rate": 0.02666666666666667,
+          "keep_rate_ci95": [
+            0.007343688940032171,
+            0.09211488263589632
+          ],
+          "label": 1,
+          "n": 75,
+          "review": 32
+        },
+        {
+          "corpus": "goodfire",
+          "drop": 7,
+          "keep": 0,
+          "keep_rate": 0.0,
+          "keep_rate_ci95": [
+            0.0,
+            0.05202306318827402
+          ],
+          "label": 0,
+          "n": 70,
+          "review": 63
+        },
+        {
+          "corpus": "goodfire",
+          "drop": 21,
+          "keep": 0,
+          "keep_rate": 0.0,
+          "keep_rate_ci95": [
+            0.0,
+            0.04581813022522419
+          ],
+          "label": 1,
+          "n": 80,
+          "review": 59
+        },
+        {
+          "corpus": "pooled",
+          "drop": 53,
+          "keep": 53,
+          "keep_rate": 0.14804469273743018,
+          "keep_rate_ci95": [
+            0.11499828080162208,
+            0.18856411147065225
+          ],
+          "label": 0,
+          "n": 358,
+          "review": 252
+        },
+        {
+          "corpus": "pooled",
+          "drop": 220,
+          "keep": 8,
+          "keep_rate": 0.024096385542168676,
+          "keep_rate_ci95": [
+            0.012259510813747772,
+            0.046820326879278125
+          ],
+          "label": 1,
+          "n": 332,
+          "review": 104
+        },
+        {
+          "corpus": "sol-astra",
+          "drop": 0,
+          "keep": 33,
+          "keep_rate": 0.6875,
+          "keep_rate_ci95": [
+            0.5466692846999659,
+            0.8005431662693541
+          ],
+          "label": 0,
+          "n": 48,
+          "review": 15
+        },
+        {
+          "corpus": "sol-astra",
+          "drop": 6,
+          "keep": 2,
+          "keep_rate": 0.25,
+          "keep_rate_ci95": [
+            0.07147921209795555,
+            0.5907245720727483
+          ],
+          "label": 1,
+          "n": 8,
+          "review": 0
+        },
+        {
+          "corpus": "terminal-wrench",
+          "drop": 17,
+          "keep": 10,
+          "keep_rate": 0.0684931506849315,
+          "keep_rate_ci95": [
+            0.03762645419547348,
+            0.12148477616289577
+          ],
+          "label": 0,
+          "n": 146,
+          "review": 119
+        },
+        {
+          "corpus": "terminal-wrench",
+          "drop": 147,
+          "keep": 4,
+          "keep_rate": 0.02531645569620253,
+          "keep_rate_ci95": [
+            0.009888130603425284,
+            0.06327889942181206
+          ],
+          "label": 1,
+          "n": 158,
+          "review": 7
+        }
+      ]
+    },
+    "j3_no_floor": {
+      "acceptance_pass": false,
+      "cache_sources_count": 0,
+      "cache_sources_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "changed_keep_cases_count": 126,
+      "changed_keep_cases_sha256": "964ae07dd29ebefaddfc7fb39c61d9ca34769382cc9e619c8d0e58706612e09f",
+      "exports": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-4bdb1f6d14954d43a0a9a04301ad3f71/export/kept.jsonl",
+          "sha256": "c0a7abadb654145d5273a2fa15c234d171d652a3611fbf049ac9e3d80da5c5ac"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-4bdb1f6d14954d43a0a9a04301ad3f71/export/review.jsonl",
+          "sha256": "9209b0e6918120ae82f165482b95574b47346b98466516387ec345df134b286a"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-4bdb1f6d14954d43a0a9a04301ad3f71/export/dropped.jsonl",
+          "sha256": "f089310b011b934b73fa0de3dd926dec8e91ba559b26b2c2113dbcaf7018eaf2"
+        }
+      ],
+      "j3_load": {
+        "available_runs": 438,
+        "calls": {
+          "covered_runs": 438,
+          "mean_per_covered_run": 1.2602739726027397,
+          "sum": 552
+        },
+        "completion_tokens": {
+          "covered_runs": 438,
+          "mean_per_covered_run": 140.42694063926942,
+          "sum": 61507
+        },
+        "cost_usd": {
+          "covered_runs": 438,
+          "mean_per_covered_run": 0.0,
+          "sum": 0.0
+        },
+        "eligible_runs": 438,
+        "latency_s": {
+          "covered_runs": 438,
+          "mean_per_covered_run": 6.634543378995433,
+          "sum": 2905.93
+        },
+        "prompt_tokens": {
+          "covered_runs": 438,
+          "mean_per_covered_run": 11871.214611872147,
+          "sum": 5199592
+        }
+      },
+      "j3_per_run_load_count": 438,
+      "j3_per_run_load_sha256": "36a42aa8dde03fad5c3d0c717902d9a4d6717c773bfc0276ece505c82298d482",
+      "no_cheat_keep_increase": {
+        "c1c5": {
+          "after_cheat_keep": 0,
+          "before_cheat_keep": 0,
+          "pass": true
+        },
+        "cheatbench": {
+          "after_cheat_keep": 2,
+          "before_cheat_keep": 2,
+          "pass": true
+        },
+        "goodfire": {
+          "after_cheat_keep": 55,
+          "before_cheat_keep": 0,
+          "pass": false
+        },
+        "sol-astra": {
+          "after_cheat_keep": 2,
+          "before_cheat_keep": 2,
+          "pass": true
+        },
+        "terminal-wrench": {
+          "after_cheat_keep": 4,
+          "before_cheat_keep": 5,
+          "pass": true
+        }
+      },
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-4bdb1f6d14954d43a0a9a04301ad3f71",
+      "table": [
+        {
+          "corpus": "c1c5",
+          "drop": 4,
+          "keep": 1,
+          "keep_rate": 0.05263157894736842,
+          "keep_rate_ci95": [
+            0.009351993958601784,
+            0.24638731374732356
+          ],
+          "label": 0,
+          "n": 19,
+          "review": 14
+        },
+        {
+          "corpus": "c1c5",
+          "drop": 5,
+          "keep": 0,
+          "keep_rate": 0.0,
+          "keep_rate_ci95": [
+            0.0,
+            0.25883296999442634
+          ],
+          "label": 1,
+          "n": 11,
+          "review": 6
+        },
+        {
+          "corpus": "cheatbench",
+          "drop": 25,
+          "keep": 9,
+          "keep_rate": 0.12,
+          "keep_rate_ci95": [
+            0.06443371792670737,
+            0.2125964029159394
+          ],
+          "label": 0,
+          "n": 75,
+          "review": 41
+        },
+        {
+          "corpus": "cheatbench",
+          "drop": 41,
+          "keep": 2,
+          "keep_rate": 0.02666666666666667,
+          "keep_rate_ci95": [
+            0.007343688940032171,
+            0.09211488263589632
+          ],
+          "label": 1,
+          "n": 75,
+          "review": 32
+        },
+        {
+          "corpus": "goodfire",
+          "drop": 7,
+          "keep": 60,
+          "keep_rate": 0.8571428571428571,
+          "keep_rate_ci95": [
+            0.7566158002412102,
+            0.9205105831957368
+          ],
+          "label": 0,
+          "n": 70,
+          "review": 3
+        },
+        {
+          "corpus": "goodfire",
+          "drop": 21,
+          "keep": 55,
+          "keep_rate": 0.6875,
+          "keep_rate_ci95": [
+            0.5793222416686925,
+            0.7784959594968484
+          ],
+          "label": 1,
+          "n": 80,
+          "review": 4
+        },
+        {
+          "corpus": "pooled",
+          "drop": 53,
+          "keep": 113,
+          "keep_rate": 0.31564245810055863,
+          "keep_rate_ci95": [
+            0.2696715325744292,
+            0.3655278157586668
+          ],
+          "label": 0,
+          "n": 358,
+          "review": 192
+        },
+        {
+          "corpus": "pooled",
+          "drop": 220,
+          "keep": 63,
+          "keep_rate": 0.1897590361445783,
+          "keep_rate_ci95": [
+            0.1512215752316844,
+            0.2353937619985793
+          ],
+          "label": 1,
+          "n": 332,
+          "review": 49
+        },
+        {
+          "corpus": "sol-astra",
+          "drop": 0,
+          "keep": 33,
+          "keep_rate": 0.6875,
+          "keep_rate_ci95": [
+            0.5466692846999659,
+            0.8005431662693541
+          ],
+          "label": 0,
+          "n": 48,
+          "review": 15
+        },
+        {
+          "corpus": "sol-astra",
+          "drop": 6,
+          "keep": 2,
+          "keep_rate": 0.25,
+          "keep_rate_ci95": [
+            0.07147921209795555,
+            0.5907245720727483
+          ],
+          "label": 1,
+          "n": 8,
+          "review": 0
+        },
+        {
+          "corpus": "terminal-wrench",
+          "drop": 17,
+          "keep": 10,
+          "keep_rate": 0.0684931506849315,
+          "keep_rate_ci95": [
+            0.03762645419547348,
+            0.12148477616289577
+          ],
+          "label": 0,
+          "n": 146,
+          "review": 119
+        },
+        {
+          "corpus": "terminal-wrench",
+          "drop": 147,
+          "keep": 4,
+          "keep_rate": 0.02531645569620253,
+          "keep_rate_ci95": [
+            0.009888130603425284,
+            0.06327889942181206
+          ],
+          "label": 1,
+          "n": 158,
+          "review": 7
+        }
+      ]
+    },
+    "main": {
+      "acceptance_pass": true,
+      "cache_sources_count": 0,
+      "cache_sources_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "changed_keep_cases_count": 0,
+      "changed_keep_cases_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "exports": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-079537600573489cac9124e16da319c8/export/kept.jsonl",
+          "sha256": "c53b15c5cdc96568dec9258a10a0207c5959b6777b9a1decac2dc4a993d7b68e"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-079537600573489cac9124e16da319c8/export/review.jsonl",
+          "sha256": "29fc5980e92c434042965d1e1b26ae6dbd411f6fc6e3ea40fc6c89a669bd889a"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-079537600573489cac9124e16da319c8/export/dropped.jsonl",
+          "sha256": "0df51efa6c6c6b23547ee4e00089b80af65c1af88d3a2167aeec697bab5a7059"
+        }
+      ],
+      "j3_load": {
+        "available_runs": 0,
+        "calls": {
+          "covered_runs": 0,
+          "mean_per_covered_run": null,
+          "sum": 0
+        },
+        "completion_tokens": {
+          "covered_runs": 0,
+          "mean_per_covered_run": null,
+          "sum": 0
+        },
+        "cost_usd": {
+          "covered_runs": 0,
+          "mean_per_covered_run": null,
+          "sum": 0
+        },
+        "eligible_runs": 0,
+        "latency_s": {
+          "covered_runs": 0,
+          "mean_per_covered_run": null,
+          "sum": 0
+        },
+        "prompt_tokens": {
+          "covered_runs": 0,
+          "mean_per_covered_run": null,
+          "sum": 0
+        }
+      },
+      "j3_per_run_load_count": 0,
+      "j3_per_run_load_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "no_cheat_keep_increase": {
+        "c1c5": {
+          "after_cheat_keep": 0,
+          "before_cheat_keep": 0,
+          "pass": true
+        },
+        "cheatbench": {
+          "after_cheat_keep": 2,
+          "before_cheat_keep": 2,
+          "pass": true
+        },
+        "goodfire": {
+          "after_cheat_keep": 0,
+          "before_cheat_keep": 0,
+          "pass": true
+        },
+        "sol-astra": {
+          "after_cheat_keep": 2,
+          "before_cheat_keep": 2,
+          "pass": true
+        },
+        "terminal-wrench": {
+          "after_cheat_keep": 5,
+          "before_cheat_keep": 5,
+          "pass": true
+        }
+      },
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-079537600573489cac9124e16da319c8",
+      "table": [
+        {
+          "corpus": "c1c5",
+          "drop": 4,
+          "keep": 1,
+          "keep_rate": 0.05263157894736842,
+          "keep_rate_ci95": [
+            0.009351993958601784,
+            0.24638731374732356
+          ],
+          "label": 0,
+          "n": 19,
+          "review": 14
+        },
+        {
+          "corpus": "c1c5",
+          "drop": 5,
+          "keep": 0,
+          "keep_rate": 0.0,
+          "keep_rate_ci95": [
+            0.0,
+            0.25883296999442634
+          ],
+          "label": 1,
+          "n": 11,
+          "review": 6
+        },
+        {
+          "corpus": "cheatbench",
+          "drop": 24,
+          "keep": 19,
+          "keep_rate": 0.25333333333333335,
+          "keep_rate_ci95": [
+            0.16860049307870423,
+            0.3621032695735403
+          ],
+          "label": 0,
+          "n": 75,
+          "review": 32
+        },
+        {
+          "corpus": "cheatbench",
+          "drop": 39,
+          "keep": 2,
+          "keep_rate": 0.02666666666666667,
+          "keep_rate_ci95": [
+            0.007343688940032171,
+            0.09211488263589632
+          ],
+          "label": 1,
+          "n": 75,
+          "review": 34
+        },
+        {
+          "corpus": "goodfire",
+          "drop": 7,
+          "keep": 0,
+          "keep_rate": 0.0,
+          "keep_rate_ci95": [
+            0.0,
+            0.05202306318827402
+          ],
+          "label": 0,
+          "n": 70,
+          "review": 63
+        },
+        {
+          "corpus": "goodfire",
+          "drop": 17,
+          "keep": 0,
+          "keep_rate": 0.0,
+          "keep_rate_ci95": [
+            0.0,
+            0.04581813022522419
+          ],
+          "label": 1,
+          "n": 80,
+          "review": 63
+        },
+        {
+          "corpus": "pooled",
+          "drop": 40,
+          "keep": 63,
+          "keep_rate": 0.17597765363128492,
+          "keep_rate_ci95": [
+            0.14003087986827864,
+            0.21880433841413263
+          ],
+          "label": 0,
+          "n": 358,
+          "review": 255
+        },
+        {
+          "corpus": "pooled",
+          "drop": 212,
+          "keep": 9,
+          "keep_rate": 0.02710843373493976,
+          "keep_rate_ci95": [
+            0.014326109858180454,
+            0.0507089187355225
+          ],
+          "label": 1,
+          "n": 332,
+          "review": 111
+        },
+        {
+          "corpus": "sol-astra",
+          "drop": 0,
+          "keep": 33,
+          "keep_rate": 0.6875,
+          "keep_rate_ci95": [
+            0.5466692846999659,
+            0.8005431662693541
+          ],
+          "label": 0,
+          "n": 48,
+          "review": 15
+        },
+        {
+          "corpus": "sol-astra",
+          "drop": 6,
+          "keep": 2,
+          "keep_rate": 0.25,
+          "keep_rate_ci95": [
+            0.07147921209795555,
+            0.5907245720727483
+          ],
+          "label": 1,
+          "n": 8,
+          "review": 0
+        },
+        {
+          "corpus": "terminal-wrench",
+          "drop": 5,
+          "keep": 10,
+          "keep_rate": 0.0684931506849315,
+          "keep_rate_ci95": [
+            0.03762645419547348,
+            0.12148477616289577
+          ],
+          "label": 0,
+          "n": 146,
+          "review": 131
+        },
+        {
+          "corpus": "terminal-wrench",
+          "drop": 145,
+          "keep": 5,
+          "keep_rate": 0.03164556962025317,
+          "keep_rate_ci95": [
+            0.013591335831713718,
+            0.07193346712652046
+          ],
+          "label": 1,
+          "n": 158,
+          "review": 8
+        }
+      ]
+    }
+  },
+  "labels": {
+    "path": "/private/tmp/ov1104/shared/detbench/runs.jsonl",
+    "sha256": "65d19eaad26bfd1b82b4ed91a16ed3a3f2da55dcc7460f942bc87e66acee56be"
+  },
+  "limits": [
+    "DEV only. Labels join after decisions.",
+    "Cached calls and latency describe retained windows, not new replay calls or observed run wall time.",
+    "A zero USD value is subscription accounting, not a commercial API price estimate."
+  ],
+  "schema": "j3_dev_line_table/v1"
+}

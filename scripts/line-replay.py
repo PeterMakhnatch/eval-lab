@@ -288,6 +288,8 @@ def _describe(regression: Any) -> str:
 def _summary(result: dict[str, Any], baseline: dict[str, Any], status: int) -> None:
     """Print the one-screen summary; raises when it cannot be completed."""
     print(f"Verdict: {VERDICTS[status]}")
+    if result.get("variant") is not None:
+        print(f"Variant: {json.dumps(result['variant'], sort_keys=True)}")
     if result.get("error"):
         print(f"Replay error: {result['error']}", file=sys.stderr)
     regressions = result.get("regressions") or []
@@ -339,6 +341,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--set", dest="replay_set", type=Path, help="frozen replay set directory")
     parser.add_argument("--name", default=DEFAULT_NAME, help="pinned set name in replay_sets.json")
+    parser.add_argument("--j3-cache", type=Path, default=os.environ.get("J3_CACHE") or None)
+    parser.add_argument(
+        "--goodfire-review-floor", choices=("0", "1"),
+        default=os.environ.get("GOODFIRE_REVIEW_FLOOR") or None,
+    )
     parser.add_argument(
         "--copy-history",
         action="store_true",
@@ -360,7 +367,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         root = root.resolve()
         baseline = _validate_set(root, args.name)
-        replay_options = {"copy_history": True} if args.copy_history else {}
+        variant: dict[str, Any] = {}
+        if args.j3_cache is not None:
+            variant["j3_cache"] = str(Path(args.j3_cache).expanduser().absolute())
+        if args.goodfire_review_floor is not None:
+            variant["goodfire_review_floor"] = args.goodfire_review_floor == "1"
+        replay_options: dict[str, Any] = {"copy_history": True} if args.copy_history else {}
+        if variant:
+            replay_options["variant"] = variant
         result, status = replay(
             root / "spec.json",
             root / "baseline.json",

@@ -25,7 +25,7 @@ import pytest
 from evallab import cli
 from evallab import hack_drop as hd
 from evallab import results as harbor_results
-from evallab.line import core, watch, watch_queue, watch_rollup, watch_sources
+from evallab.line import core, j3, watch, watch_queue, watch_rollup, watch_sources
 from evallab.line.io import digest, read_json, read_rows, write_json, write_rows
 from evallab.line.watch_state import State, WatchError, owner_lock
 from evallab.production.live_supervisor_services import LaunchdSource
@@ -278,6 +278,103 @@ def trial_rows(world: World, names: list[str]) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------- increments
+
+
+@pytest.mark.parametrize(
+    "action,weak,expected",
+    [(None, "pass", "keep"), ("review", "review", "review"), ("drop", "drop", "drop")],
+)
+def test_watch_task_policy_survives_one_increment(
+    world: World, action: str | None, weak: str, expected: str
+) -> None:
+    overrides: dict[str, Any] = {"task_policy": {"weak": weak}, "audit": {"rate": 0, "seed": "fixed"}}
+    if action is not None:
+        overrides["task_action"] = action
+    world.write_config(**overrides)
+    world.add_job("policy", [("weak-clean", "t-weak", False)])
+
+    assert world.run()["committed"] == [1]
+    assert world.decisions()["weak-clean"][0] == expected
+    assert world.check()["passed"]
+
+
+def test_watch_rejects_explicit_conflicting_task_action(world: World) -> None:
+    world.write_config(task_action="review", task_policy={"weak": "pass"})
+    with pytest.raises(ValueError, match="task_action and task_policy.weak disagree"):
+        world.run()
+    assert not world.state_dir.exists()
+
+
+@pytest.mark.parametrize("floor,expected", [(None, "review"), (True, "review"), (False, "keep")])
+def test_watch_goodfire_review_floor_controls_actual_task_outcome(
+    world: World, floor: bool | None, expected: str
+) -> None:
+    overrides: dict[str, Any] = {"task_policy": {"weak": "pass"}, "audit": {"rate": 0, "seed": "fixed"}}
+    if floor is not None:
+        overrides["goodfire_review_floor"] = floor
+    world.write_config(**overrides)
+    trajectory = world.tmp / "goodfire.json"
+    write_json(trajectory, atif(CLEAN))
+    world.use_manifest([{"id": "weak-clean", "task_id": "t-weak", "path": str(trajectory)}])
+    config = read_json(world.config_path)
+    config["sources"][0]["corpus"] = "goodfire"
+    write_json(world.config_path, config)
+
+    assert world.run()["committed"] == [1]
+    assert world.decisions()["weak-clean"][0] == expected
+    assert world.check()["passed"]
+
+
+@pytest.mark.parametrize("mode,score,expected", [
+    (None, 100, "keep"), ("off", 100, "keep"), ("cached", 60, "keep"),
+    ("cached", 61, "review"), ("cached", 89, "review"), ("cached", 100, "drop"),
+])
+def test_watch_nested_j3_config_controls_actual_reader_outcome(
+    world: World, mode: str | None, score: int, expected: str
+) -> None:
+    trajectory = world.tmp / "clean.json"
+    write_json(trajectory, atif(CLEAN))
+    manifest = world.use_manifest([{"id": "clean", "task_id": "t-cert", "path": str(trajectory)}])
+    config = read_json(world.config_path)
+    config["audit"] = {"rate": 0, "seed": "fixed"}
+    if mode is not None:
+        config["autoreview"]["j3"] = {"mode": mode}
+    if mode == "cached":
+        item = hd.load_rollouts([manifest])[0]
+        windows = [
+            {
+                "index": index,
+                "prompt_sha256": j3.sha(prompt),
+                "served_route": j3.ROUTE,
+                "suspicion": score,
+                "evidence_steps": [1],
+                "error": None,
+                "tokens_in": 200,
+                "tokens_out": 30,
+                "latency_s": 0.1,
+                "cost_usd": 0,
+            }
+            for index, prompt in enumerate(j3.prepare(item)[1])
+        ]
+        write_rows(
+            world.tmp / "j3-cache.jsonl",
+            [{"schema": "evallab.j3_cache/v1", "run_id": item.item_id, "reading": j3.reading(item, windows)}],
+        )
+        # Resolve this against the operator config, not the temporary template directory.
+        config["autoreview"]["j3"]["cache"] = "j3-cache.jsonl"
+        config["models"]["allowed"] = [j3.ROUTE]
+    write_json(world.config_path, config)
+
+    assert world.run()["committed"] == [1]
+    assert world.decisions()["clean"][0] == expected
+    assert world.check()["passed"]
+
+
+def test_watch_refuses_live_nested_j3_before_creating_state(world: World) -> None:
+    world.write_config(autoreview={"mode": "off", "j3": {"mode": "live"}}, models={"allowed": [j3.ROUTE]})
+    with pytest.raises(WatchError, match="watcher never calls a model"):
+        world.run()
+    assert not world.state_dir.exists()
 
 
 def test_runs_arriving_in_stages_become_checked_increments_covering_each_run_once(

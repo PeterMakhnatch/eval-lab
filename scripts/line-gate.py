@@ -9,6 +9,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,8 @@ from typing import Any
 
 import yaml
 
+from evallab.line import j3
+from evallab.line.io import read_bytes
 from evallab.schemas import StandingApprovalsPolicy
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -142,11 +145,19 @@ def approval(
     return None
 
 
+def _j3_cache_digest(path: Path) -> str:
+    """Hash a declared regular cache without resolving away a final symlink."""
+    if not stat.S_ISREG(path.lstat().st_mode):
+        raise ValueError(f"J3 cache must be a regular file, not a symlink: {path}")
+    j3.hd.check_declared_path(str(path))
+    return hashlib.sha256(read_bytes(path)).hexdigest()
+
+
 RUNNER = """
-import json, sys, tempfile
+import hashlib, json, stat, sys, tempfile
 from pathlib import Path
 from uuid import uuid4
-root, data, output = map(Path, sys.argv[1:])
+root, data, output = map(Path, sys.argv[1:4])
 sys.path.insert(0, str(root / 'src'))
 from evallab.line.spec import load_spec
 from evallab.line.core import run_line, check_batch
@@ -154,20 +165,47 @@ spec = load_spec(data / 'spec.json')
 ar = spec.get('autoreview', {})
 if ar.get('mode') not in ('off', 'cached') or ar.get('max_usd') != 0:
     raise ValueError('line gate requires off/cached AutoReview and zero spend')
+if ar.get('j3', {}).get('mode', 'off') not in ('off', 'cached'):
+    raise ValueError('line gate requires off/cached J3')
+cache = None
+if len(sys.argv) > 4:
+    from evallab.line import j3
+    from evallab.line.io import read_bytes
+    cache = json.loads(sys.argv[4])
+    path = Path(cache['path'])
+    def check_cache():
+        if not stat.S_ISREG(path.lstat().st_mode):
+            raise ValueError('J3 cache must remain a regular file')
+        if hashlib.sha256(read_bytes(path)).hexdigest() != cache['sha256']:
+            raise ValueError('J3 cache changed during line gate replay')
+    check_cache()
+    ar['j3'] = {'mode': 'cached', 'cache': str(path)}
+    if j3.ROUTE not in spec['models']['allowed']:
+        spec['models']['allowed'].append(j3.ROUTE)
+    j3.load_cache(spec)
 spec['batch_id'] += '-gate-' + uuid4().hex
 spec['judge']['write'] = False
-with tempfile.TemporaryDirectory(prefix='evallab-line-gate-spec-') as scratch:
-    path = Path(scratch) / 'spec.json'
-    path.write_text(json.dumps(spec))
-    batch = run_line(path, root)
-checks = check_batch(batch, root)
+try:
+    with tempfile.TemporaryDirectory(prefix='evallab-line-gate-spec-') as scratch:
+        path_spec = Path(scratch) / 'spec.json'
+        path_spec.write_text(json.dumps(spec))
+        batch = run_line(path_spec, root)
+    checks = check_batch(batch, root)
+finally:
+    if cache is not None:
+        check_cache()
 output.write_text(json.dumps({'batch': str(batch), 'checks': checks}, indent=2) + '\\n')
 if not checks.get('passed'):
     raise SystemExit(2)
 """
 
 
-def run_revision(root: Path, revision: str, data: Path, output: Path, label: str) -> dict[str, Any]:
+def run_revision(
+    root: Path, revision: str, data: Path, output: Path, label: str,
+    *, j3_cache: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    if j3_cache is not None and label != "head":
+        raise ValueError("J3 cache overlay is only allowed on candidate head")
     with tempfile.TemporaryDirectory(prefix=f"evallab-line-gate-{label}-") as scratch:
         tree = Path(scratch) / "tree"
         git(root, "worktree", "add", "--quiet", "--detach", str(tree), revision)
@@ -189,6 +227,8 @@ def run_revision(root: Path, revision: str, data: Path, output: Path, label: str
                 str(data),
                 str(output / f"{label}-replay.json"),
             ]
+            if j3_cache is not None:
+                command.append(json.dumps(j3_cache, sort_keys=True))
             (output / f"{label}-command.json").write_text(json.dumps(command, indent=2) + "\n")
             env = {
                 k: v
@@ -225,6 +265,13 @@ def render(report: dict[str, Any]) -> str:
         f"Elapsed: {report['elapsed_seconds']:.2f} seconds",
         "",
     ]
+    if report.get("candidate_overlay") is not None:
+        lines.extend([
+            "Candidate overlay: `" + json.dumps(report["candidate_overlay"], sort_keys=True) + "`",
+            "",
+            f"J3 cache SHA-256: `{report['j3_cache']['sha256']}`",
+            "",
+        ])
     if report.get("error"):
         lines.extend([report["error"], ""])
     lines.extend(
@@ -262,6 +309,9 @@ def main(argv: list[str] | None = None) -> int:
         "--output", type=Path, help="new receipt directory; defaults to a unique /tmp directory"
     )
     parser.add_argument("--pr", type=int, default=os.environ.get("EVALLAB_SHIP_PR"))
+    parser.add_argument(
+        "--j3-cache", type=Path, help="enable frozen cached J3 on candidate head only"
+    )
     parser.add_argument(
         "--paths",
         action="store_true",
@@ -331,8 +381,33 @@ def main(argv: list[str] | None = None) -> int:
             validator._check_files(data)
             validator._check_spec_paths(data)
             report["replay_set"] = str(data)
-            before = run_revision(ROOT, base, data, output, "base")
-            after = run_revision(ROOT, head, data, output, "head")
+            cache = None
+            if args.j3_cache is not None:
+                path = args.j3_cache.expanduser().absolute()
+                cache = {"path": str(path), "sha256": _j3_cache_digest(path)}
+                j3.load_cache({"autoreview": {"j3": {"mode": "cached", "cache": str(path)}}})
+                if _j3_cache_digest(path) != cache["sha256"]:
+                    raise ValueError("J3 cache changed during line gate validation")
+                frozen = json.loads((data / "spec.json").read_text())
+                allowed = list(frozen.get("models", {}).get("allowed", []))
+                if j3.ROUTE not in allowed:
+                    allowed.append(j3.ROUTE)
+                report.update(
+                    j3_cache=cache,
+                    candidate_overlay={
+                        "autoreview": {"j3": {"mode": "cached", "cache": str(path)}},
+                        "models": {"allowed": allowed},
+                    },
+                )
+            try:
+                before = run_revision(ROOT, base, data, output, "base")
+                if cache is None:
+                    after = run_revision(ROOT, head, data, output, "head")
+                else:
+                    after = run_revision(ROOT, head, data, output, "head", j3_cache=cache)
+            finally:
+                if cache is not None and _j3_cache_digest(Path(cache["path"])) != cache["sha256"]:
+                    raise ValueError("J3 cache changed during line gate replay")
             validator._check_files(data)
             rows, blockers = compare(before, after)
             record = approval(

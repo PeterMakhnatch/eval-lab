@@ -429,7 +429,12 @@ class Watcher:
                 "split": "dev",
                 "sources": child_sources,
                 "task_status": str(frozen) if frozen else None,
-                "task_action": line["task_action"],
+                **({"task_action": line["task_action"]} if "task_action" in line else {}),
+                **(
+                    {"goodfire_review_floor": line["goodfire_review_floor"]}
+                    if "goodfire_review_floor" in line
+                    else {}
+                ),
                 "task_policy": line["task_policy"],
                 "autoreview": autoreview,
                 "models": line["models"],

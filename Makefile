@@ -66,7 +66,7 @@ loop:
 	uv run evallab registry devloop --run
 
 line-replay:
-	uv run python scripts/line-replay.py $(LINE_REPLAY_ARGS)
+	uv run python scripts/line-replay.py $(LINE_REPLAY_ARGS) $(if $(J3_CACHE),--j3-cache "$(J3_CACHE)") $(if $(GOODFIRE_REVIEW_FLOOR),--goodfire-review-floor "$(GOODFIRE_REVIEW_FLOOR)")
 
 line-gate:
 	uv run python scripts/line-gate.py $(ARGS)

@@ -1,0 +1,90 @@
+{
+  "check": {
+    "checks": [
+      {
+        "details": "",
+        "name": "conservation",
+        "status": "PASS"
+      },
+      {
+        "details": "",
+        "name": "dev_only",
+        "status": "PASS"
+      },
+      {
+        "details": "",
+        "name": "provenance",
+        "status": "PASS"
+      },
+      {
+        "details": "",
+        "name": "determinism",
+        "status": "PASS"
+      },
+      {
+        "details": "",
+        "name": "spend_and_models",
+        "status": "PASS"
+      },
+      {
+        "details": "",
+        "name": "judge_routing",
+        "status": "PASS"
+      },
+      {
+        "details": "",
+        "name": "label_isolation",
+        "status": "PASS"
+      },
+      {
+        "details": "",
+        "name": "scoreboard_recompute",
+        "status": "PASS"
+      }
+    ],
+    "decision_hash": "a27e7d3eec3b757fa4508945e00f08109f23d655282f320d55ca435d4ae0a55b",
+    "determinism_verified": true,
+    "passed": true,
+    "second_decision_hash": "a27e7d3eec3b757fa4508945e00f08109f23d655282f320d55ca435d4ae0a55b"
+  },
+  "command": "uv run evallab line run /private/tmp/ov1106/j3line/live-smoke/overlay-spec.json --json",
+  "environment": {
+    "PI_CONFIG_FILES": "/private/tmp/ov1106/shared/nofallback.yml"
+  },
+  "export_scope": "Aggregate scripted runtime proof only; complete original receipt stays private.",
+  "gateway_command": [
+    "omp",
+    "--config",
+    "/private/tmp/ov1106/shared/nofallback.yml",
+    "auth-gateway",
+    "stdio"
+  ],
+  "j3_summary": {
+    "cost_usd": 0,
+    "error": null,
+    "failed_windows": 0,
+    "latency_s": 3.700139250024222,
+    "prompt_template_sha256": "d447dc31c7c496a278b4f8cc2daecc547e8aa1d9689dc1de115e77cd72574592",
+    "reading_index": {
+      "count": 1,
+      "sha256": "446cfa0b6e1144e87b8d49a6fedd4d7fcf742161be027d371ab65a918ea2dc87"
+    },
+    "route": "openai-codex/gpt-6.1-terra",
+    "rubric_sha256": "7e7cb3c4686423ad137ecbfa726be97f54e5a05805157e3d8e8adbc5250afc83",
+    "schema": "evallab.j3_reading/v1",
+    "served_route_counts": {
+      "openai-codex/gpt-6.1-terra": 1
+    },
+    "threshold": 89,
+    "tokens_in": 1078,
+    "tokens_out": 59,
+    "window_count": 1
+  },
+  "kind": "scripted synthetic runtime proof; not model capability evaluation",
+  "recheck": "uv run evallab line check /private/tmp/ov1106/j3line/live-smoke/batches/j3-live-smoke-overlay --json",
+  "schema": "j3_line_runtime_smoke/v1",
+  "source_index": {
+    "count": 4,
+    "sha256": "579854f47a67180f0f38df327d063a0c41286cffe596ad45a59d0d68a8a82bb7"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "schema": "ev1105.j3_calibration/v1",
+  "dev_only": true,
+  "route": "openai-codex/gpt-6.1-terra",
+  "rubric_sha256": "7e7cb3c4686423ad137ecbfa726be97f54e5a05805157e3d8e8adbc5250afc83",
+  "review_threshold": 61,
+  "drop_threshold": 100,
+  "review_fpr_budget": 0.1,
+  "drop_fpr_budget": 0,
+  "original_dev_complete": {
+    "positive": 327,
+    "negative": 336
+  },
+  "original_dev_incomplete": {
+    "positive": 5,
+    "negative": 22
+  },
+  "impossible_control_count": 27,
+  "impossible_control_maximum": 5.0,
+  "input_count": 1438,
+  "inputs_sha256": "c5496ebce9fc0f12d6f321a19debe8fb8d797846fe22a82bc73efdacc4ae4def",
+  "selection": {
+    "review_or_drop": {
+      "threshold": 61,
+      "positive_flags": 188,
+      "negative_flags": 33,
+      "impossible_control_flags": 0
+    },
+    "drop": {
+      "threshold": 100,
+      "positive_flags": 41,
+      "negative_flags": 0,
+      "impossible_control_flags": 0
+    }
+  }
+}

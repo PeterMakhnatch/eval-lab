@@ -676,6 +676,38 @@ def test_ordering_cache_does_not_supply_missing_decision_readings(native_spec: P
     assert core.check_batch(batch, native_spec.parent)["passed"]
 
 
+@pytest.mark.parametrize("live_score,expected", [(None, 100), (0, 0), (95, 95)])
+def test_live_priority_uses_complete_cache_when_live_reading_is_unavailable(
+    native_spec: Path, monkeypatch: pytest.MonkeyPatch, live_score: int | None, expected: int,
+) -> None:
+    cache = _cache(native_spec, 100)
+    spec = read_json(native_spec)
+    spec["autoreview"]["j3"] = {"mode": "live"}
+    spec["models"]["allowed"] = [j3.ROUTE]
+    write_json(native_spec, spec)
+
+    def live(item: hd.RolloutItem) -> dict[str, Any]:
+        return (
+            j3.reading(item, [], "incomplete") if live_score is None
+            else j3.reading(item, _windows(item, live_score))
+        )
+
+    monkeypatch.setattr(j3, "live", live)
+    baseline = core.run_line(native_spec, native_spec.parent)
+    before = read_rows(baseline / "decisions.jsonl")
+    spec["batch_id"] = "live-priority-cache"
+    spec["review_order"] = {"j3_cache": str(cache)}
+    write_json(native_spec, spec)
+    batch = core.run_line(native_spec, native_spec.parent)
+    after = read_rows(batch / "decisions.jsonl")
+    fields = {"review_priority", "review_priority_source"}
+    assert [{k: v for k, v in row.items() if k not in fields} for row in after] == [
+        {k: v for k, v in row.items() if k not in fields} for row in before
+    ]
+    assert all(row["review_priority"] == expected for row in after)
+    assert core.check_batch(batch, native_spec.parent)["passed"]
+
+
 @pytest.mark.parametrize("count", [-1, 1.5, True, "2", None])
 def test_invalid_keep_audit_limit_is_refused(native_spec: Path, count: Any) -> None:
     spec = read_json(native_spec)

@@ -91,7 +91,7 @@ inputs:
   - path: docs/lane-verification.md
     digest: sha256:adc4fee76353ab0f6f2d0f5bd9c629e0ab5fa2addc617f6a93c0e607fd9fe3f3
   - path: docs/line.md
-    digest: sha256:af5f7558932050a66a962157a9af1d0ae3bac4db230cd10fcc9b9ff45c919198
+    digest: sha256:57b8c16a5acd3e7e0af11474ad6a28b92ebffc9d71a9c2b297a11e8a9ef58541
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md

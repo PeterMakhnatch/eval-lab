@@ -609,7 +609,9 @@ def _evaluate(
             if current.decision == "review" and j3.outcome(value).decision != "review":
                 value = {**value, "error": "invalid_input"}
             ar = j3.combine(ar, value, item)
-            if j3_mode == "live":
+            if j3_mode == "live" and (
+                priority_value is None or j3.priority(value, item) is not None
+            ):
                 priority_value = value
         decision = hd.consolidate_decisions(item, task, l0, ar).to_manifest_row()
         if "j3" in ar.details:

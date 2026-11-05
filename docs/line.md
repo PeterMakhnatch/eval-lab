@@ -242,6 +242,9 @@ It does not enable either reader or change any keep, review, or drop decision.
 It also cannot supply a missing reading to an enabled J3 decision stage.
 Without this option, an explicitly enabled J3 stage supplies its own readings
 for ordering. The J3 decision stage and live mode still default to `off`.
+A complete live reading takes precedence over the ordering cache.
+An unavailable live reading does not discard a valid cached priority.
+This precedence changes ordering only, not the live reader's decision.
 
 Every decision and queue row carries `review_priority`, a number from `0` through
 `100`, or `null`. A priority requires the complete expected window set, the frozen

@@ -10,6 +10,8 @@ audience:
 `evallab admit` automates the W3 admission procedure. It uses local deterministic detectors, not model calls.
 The first approved adapter profile reuses the HackBench admission from PR #1888.
 The access command also checks other Hugging Face datasets. It does not admit unknown label semantics.
+The admission entry point does not load unrelated analysis or SQL resources.
+Installed wheels support `access` outside a checkout. Other phases require an Eval Lab Git checkout.
 
 ## Access comes first
 

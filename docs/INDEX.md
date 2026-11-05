@@ -55,7 +55,7 @@ inputs:
   - path: docs/data-architecture.md
     digest: sha256:3da92ed792d6c995bc79be4d078f62af534b020ecaa3c52885d6d4ec677777fe
   - path: docs/dataset-admission.md
-    digest: sha256:77aef7a7865e538ee30dbc477813ff2a951e4be29aeb41a074d84be1af28d972
+    digest: sha256:f9f78467bece09000c7f934272be14b99f5e299ce79a42f418422c835bc02c55
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:efe12fcfc333012d835c097f02b64535305bf108e7f9d820c97327d1072d3633
   - path: docs/docker-lock.md

@@ -149,7 +149,7 @@ inputs:
   - path: src/evallab/egress_verification.py
     digest: sha256:720c19b28da130e1a30fe7df10707c56f34d7acd0f011d8b8712c26d4bd2925a
   - path: src/evallab/entry.py
-    digest: sha256:7b44a7cf6eb5ec31e61aefa962fc00e75cd08f1f2fcdfc08e43f960de1d61eac
+    digest: sha256:3b58523b3df3e382fcb4e23aa92a24bb1a3c49f98586347089f6b8dcfadcd861
   - path: src/evallab/eventlog.py
     digest: sha256:4824bd5e97787140d8051dede9efe83978558f531046c381327e26b227d9410d
   - path: src/evallab/evidence/__init__.py

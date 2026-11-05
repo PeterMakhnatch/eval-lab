@@ -160,3 +160,31 @@ def test_pr_refuses_arbitrary_output_publication(registered, tmp_path):
     with pytest.raises(ValueError, match="Unexpected scoring report fields"):
         publish(root, Namespace(registration=registration, output=output))
     assert not (registration.parent / "aggregate-results.json").exists()
+
+
+def test_access_cli_works_outside_checkout(tmp_path, monkeypatch, capsys):
+    from evallab.entry import main
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HF_TOKEN", "test-token")
+    monkeypatch.setattr(admission.urllib.request, "urlopen", lambda *a, **kw: io.BytesIO(b"actual bytes"))
+    with pytest.raises(SystemExit) as result:
+        main(["admit", "access", "example/data", "--revision", "a" * 40, "--file", "data.jsonl"])
+    assert result.value.code == 0
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["downloaded_bytes"] == 12
+    assert receipt["prefix_sha256"] == admission.hashlib.sha256(b"actual bytes").hexdigest()
+
+
+def test_prepare_cli_requires_checkout(tmp_path, monkeypatch, capsys):
+    from evallab.entry import main
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    with pytest.raises(SystemExit) as result:
+        main(["admit", "prepare", "--output", str(tmp_path / "out"),
+              "--registration", str(tmp_path / "freeze.json"),
+              "--prior-exposure", str(tmp_path / "prior.jsonl")])
+    assert result.value.code == 2
+    assert "Eval Lab Git checkout" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()

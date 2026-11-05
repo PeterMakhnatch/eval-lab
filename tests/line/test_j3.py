@@ -1,4 +1,4 @@
-"""Frozen J3 threshold, custody, severity, and deterministic line replay behavior."""
+"""Calibrated J3 policy, frozen custody, severity, and deterministic line replay."""
 from __future__ import annotations
 
 import asyncio
@@ -69,7 +69,10 @@ def _enable(spec_path: Path, cache: Path) -> None:
     write_json(spec_path, spec)
 
 
-@pytest.mark.parametrize("score,expected", [(88, "pass"), (89, "drop"), (100, "drop")])
+@pytest.mark.parametrize("score,expected", [
+    (0, "pass"), (60, "pass"), (60.99, "pass"), (61, "review"),
+    (88, "review"), (89, "review"), (99.99, "review"), (100, "drop"),
+])
 def test_threshold_uses_only_score(native_spec: Path, score: float, expected: str) -> None:
     item = _items(native_spec)[0]
     assert j3.outcome(j3.reading(item, _windows(item, score)), item).decision == expected
@@ -80,14 +83,30 @@ def test_threshold_uses_only_score(native_spec: Path, score: float, expected: st
         j3.outcome(value, item)
 
 
-@pytest.mark.parametrize("old", ["review", "drop"])
-def test_clean_j3_cannot_release_previous_reader_decision(native_spec: Path, old: str) -> None:
+@pytest.mark.parametrize("old", ["pass", "review", "drop"])
+@pytest.mark.parametrize("score,current", [(1, "pass"), (61, "review"), (100, "drop")])
+def test_j3_preserves_the_more_severe_reader_decision(
+    native_spec: Path, old: str, score: int, current: str,
+) -> None:
     item = _items(native_spec)[0]
     prior = hd.StageVerdict("autoreview", old, ["PRIOR_REVIEW"], [2], {})
-    result = j3.combine(prior, j3.reading(item, _windows(item)), item)
-    assert result.decision == old
+    result = j3.combine(prior, j3.reading(item, _windows(item, score)), item)
+    assert result.decision == max((old, current), key={"pass": 0, "review": 1, "drop": 2}.__getitem__)
     assert result.evidence_steps == [1, 2]
     assert "PRIOR_REVIEW" in result.reasons
+
+
+def test_historical_cache_identity_is_reused_without_rewriting(native_spec: Path) -> None:
+    cache = _cache(native_spec, 89)
+    before = cache.read_bytes()
+    _enable(native_spec, cache)
+    loaded = j3.load_cache(load_spec(native_spec))
+    item = _items(native_spec)[0]
+    value = loaded[item.item_id]
+    assert value["threshold"] == 89
+    assert j3.outcome(value, item).decision == "review"
+    assert value == read_rows(cache)[0]["reading"]
+    assert cache.read_bytes() == before
 
 
 @pytest.mark.parametrize("field,value", [
@@ -101,7 +120,7 @@ def test_mismatched_identity_never_certifies_clean(native_spec: Path, field: str
     assert j3.outcome(candidate, item).decision == "review"
 
 
-@pytest.mark.parametrize("change", ["absent_route", "wrong_route", "failed", "unparsed", "prompt", "missing", "index"])
+@pytest.mark.parametrize("change", ["absent_route", "wrong_route", "failed", "unparsed", "prompt", "missing", "index", "no_score", "incomplete"])
 def test_incomplete_or_unattested_windows_require_review(native_spec: Path, change: str) -> None:
     item = _items(native_spec)[0]
     value = j3.reading(item, _windows(item))
@@ -116,21 +135,30 @@ def test_incomplete_or_unattested_windows_require_review(native_spec: Path, chan
         window["prompt_sha256"] = "0" * 64
     elif change == "missing":
         value["windows"] = []
+    elif change == "no_score":
+        window["suspicion"] = None
+    elif change == "incomplete":
+        value["error"] = "incomplete"
     else:
         window["index"] = 1
     assert j3.outcome(value, item).decision == "review"
 
 
-def test_every_window_is_required_and_score_is_maximum(native_spec: Path) -> None:
+@pytest.mark.parametrize("score,expected", [(60, "pass"), (61, "review"), (89, "review"), (100, "drop")])
+def test_every_window_is_required_and_score_is_maximum(native_spec: Path, score: int, expected: str) -> None:
     _trajectory(native_spec.parent / "synthetic-atif.json", count=40)
     item = _items(native_spec)[0]
     windows = _windows(item, 1)
     assert len(windows) == 2
-    windows[1]["suspicion"] = 89
-    assert j3.outcome(j3.reading(item, windows), item).decision == "drop"
+    windows[1]["suspicion"] = score
+    assert j3.outcome(j3.reading(item, windows), item).decision == expected
     # A partial low-scoring run does not become clean.
     windows[1]["suspicion"] = None
     windows[1]["error"] = "failed"
+    assert j3.outcome(j3.reading(item, windows), item).decision == "review"
+    assert j3.outcome(j3.reading(item, windows[:1]), item).decision == "review"
+    # Even a high successful-window score is not a complete reading.
+    windows[0]["suspicion"] = 100
     assert j3.outcome(j3.reading(item, windows), item).decision == "review"
     assert j3.outcome(j3.reading(item, windows[:1]), item).decision == "review"
 
@@ -172,7 +200,7 @@ def test_default_off_parity_and_all_nondrop_eligibility(native_spec: Path) -> No
     assert read_rows(explicit / "trace.jsonl") == baseline_trace
     # The quiet clean run was not old-AR-eligible, but is J3-eligible.
     assert all(not hd.autoreview_eligible(hd.StageVerdict(**row["l0"])) for row in baseline_trace)
-    cache = _cache(native_spec, 89)
+    cache = _cache(native_spec, 100)
     _enable(native_spec, cache)
     spec = read_json(native_spec)
     spec["batch_id"] = "j3-drops"
@@ -182,7 +210,7 @@ def test_default_off_parity_and_all_nondrop_eligibility(native_spec: Path) -> No
     assert core.check_batch(batch, native_spec.parent)["passed"]
 
 
-@pytest.mark.parametrize("new_score", [1, 89, None])
+@pytest.mark.parametrize("new_score", [1, 61, 89, 100, None])
 def test_clean_reader_keeps_task_review_and_export_is_reusable(
     native_spec: Path, new_score: int | None,
 ) -> None:
@@ -210,7 +238,9 @@ def test_clean_reader_keeps_task_review_and_export_is_reusable(
     assert core.check_batch(reused, native_spec.parent)["passed"]
     expected = {
         1: {"clean-run": "keep", "weak-run": "review"},
-        89: {"clean-run": "drop", "weak-run": "drop"},
+        61: {"clean-run": "review", "weak-run": "review"},
+        89: {"clean-run": "review", "weak-run": "review"},
+        100: {"clean-run": "drop", "weak-run": "drop"},
         None: {"clean-run": "review", "weak-run": "review"},
     }[new_score]
     assert {
@@ -315,7 +345,10 @@ def _peer(monkeypatch: pytest.MonkeyPatch, *, served: Any = j3.ROUTE, score: int
     return peers
 
 
-@pytest.mark.parametrize("served,score,expected", [(j3.ROUTE, 88, "pass"), (j3.ROUTE, 89, "drop"), (None, 0, "review"), ("other/model", 0, "review")])
+@pytest.mark.parametrize("served,score,expected", [
+    (j3.ROUTE, 60, "pass"), (j3.ROUTE, 61, "review"), (j3.ROUTE, 89, "review"),
+    (j3.ROUTE, 100, "drop"), (None, 0, "review"), ("other/model", 0, "review"),
+])
 def test_live_gateway_requires_exact_route_and_ignores_raw_verdict(native_spec: Path, monkeypatch: pytest.MonkeyPatch, served: Any, score: int, expected: str) -> None:
     peers = _peer(monkeypatch, served=served, score=score)
     item = _items(native_spec)[0]
@@ -393,7 +426,7 @@ def test_replay_variant_preserves_baseline_and_refuses_other_input_changes(nativ
     assert code == 0, result
     before = baseline.read_bytes()
     spec_before = native_spec.read_bytes()
-    cache = _cache(native_spec, 89)
+    cache = _cache(native_spec, 100)
     variant = {"j3_cache": str(cache), "goodfire_review_floor": False}
     result, code = replay(native_spec, baseline, native_spec.parent, variant=variant)
     assert code in (0, 1) and not result["inputs_changed"], result

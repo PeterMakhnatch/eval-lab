@@ -66,6 +66,8 @@ inputs:
     digest: sha256:27c954be78fd297f809bec812ea4f5d0582cdd3edbf2b48f70155891ad1de9f9
   - path: docs/features.md
     digest: sha256:d8336213e0fcebb651ae62fafcf74dc83ff6325678bfe2c7cf7e046cd42a77f7
+  - path: docs/fleet.md
+    digest: sha256:e9b69055deb43a7c419e7c34ca7511cfd8df06e60099f45ce7df5175d4ecbfd8
   - path: docs/flight-recorder.md
     digest: sha256:0138627b7592e818cf17532f1541173916e68de1867935abfe6ab343f66475b8
   - path: docs/hack-drop.md
@@ -77,7 +79,7 @@ inputs:
   - path: docs/independent-review.md
     digest: sha256:e8dd4ad2aa408375f6f74b17392f79efb18191b12751938be3d569102ec58fd0
   - path: docs/insights.md
-    digest: sha256:b719f1f8720d23c58ded195e779a63b9fe8406135939be6e2c33f7d385e96f5f
+    digest: sha256:024af6ba8fc2cd0757d4b17888866d2fe28c0fb97b1acb6cfde64d4bda694e16
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/judge-guide.md
@@ -86,8 +88,10 @@ inputs:
     digest: sha256:c334944474b3cee6cd9b3eee2ae9c84fbb1ccb7e58ea31b70b6d6a9c523e6265
   - path: docs/lancedb.md
     digest: sha256:e9bead9abe3e94658028e68f592ff3ef8cf4d43bb86b5199d8031fb19a2cbbe5
+  - path: docs/lane-verification.md
+    digest: sha256:adc4fee76353ab0f6f2d0f5bd9c629e0ab5fa2addc617f6a93c0e607fd9fe3f3
   - path: docs/line.md
-    digest: sha256:b7dd1aef59b8e93f311beb1e03830d998ad5b7ff5a4402d2ddb3a5cd6411311c
+    digest: sha256:c2a6cbaf93692978f64d27b168a1dbaf08cea2b8ad09fc05856b41f94abbadfd
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md
@@ -116,6 +120,8 @@ inputs:
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/production-factory.md
     digest: sha256:a7af38189cd6c7c5c929b096e7189f9ed2b4ee5c78a9a9240206dd6e08c119de
+  - path: docs/program-report.md
+    digest: sha256:761dce310b72e7e128eb3818dde5029a2076360b7d40c7a81313916513580054
   - path: docs/qa-contract.md
     digest: sha256:7109b75163134eaca1db56c99cfafb07f6714777b27ef2b2d46d5c31f1d5d9d2
   - path: docs/qa-task.md
@@ -150,6 +156,8 @@ inputs:
     digest: sha256:8bab1d17040209d7dca7b6cd88e90b8c2c43e439f1376fa7f9125ef37c0f74b6
   - path: docs/scaling.md
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
+  - path: docs/ship.md
+    digest: sha256:ee7e3acddcff82c518f42f93feed4ff605603a2db1457347342e3d09022ead97
   - path: docs/storm-alarms.md
     digest: sha256:0bc85e698e48423c3a23b2462ca7eb6187578a0cb94e9dc6f346d4a1f3363692
   - path: docs/surfaces.md
@@ -175,7 +183,7 @@ inputs:
   - path: docs/trial-treatment.md
     digest: sha256:1c6e4147cc2ba6cc215482e6315f53cb4a0aec7ec2ef768a72d8d87bb85b7023
   - path: docs/trust-engine.md
-    digest: sha256:c57f2971dd93e4f44422d61163ee87abdbba4e51e9fe9df490cc870b48962620
+    digest: sha256:ae9a4212ef5b9b1263abc7176050f0242a82d296c94c6d0b8cf65c9e4e17ab29
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md
@@ -221,6 +229,7 @@ an operator can see what is archived.
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/features.md` | Trial features: one row per trial | `living` | `analyst, builder` |
+| `docs/fleet.md` | Fleet lane supervision | `living` | `builder, operator` |
 | `docs/flight-recorder.md` | Flight recorder prototype | `living` | `builder, analyst, operator` |
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
@@ -240,6 +249,7 @@ an operator can see what is archived.
 | `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/rollout.md` | Rollout engine (`evallab rollout`) | `living` | `builder, operator` |
+| `docs/ship.md` | Ship a pull request | `living` | `builder, operator` |
 | `docs/task-admission.md` | Task admission gate (`evallab tasks admit`) | `living` | `builder, operator` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
@@ -292,6 +302,7 @@ an operator can see what is archived.
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
+| `docs/lane-verification.md` | Verify a lane from its receipts | `living` | `operator, analyst` |
 | `docs/line.md` | Eval Lab assembly line | `living` | `builder, analyst, runner, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
 | `docs/live-watch.md` | Live watch: in-progress trial monitoring | `living` | `analyst, operator` |
@@ -299,6 +310,7 @@ an operator can see what is archived.
 | `docs/monitor-investigations.md` | Monitor investigations (HAR-151) | `living` | `analyst, operator` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
+| `docs/program-report.md` | Receipt-bound program reports | `living` | `analyst, operator` |
 | `docs/qa-task.md` | QA Agent - Task: executed task/grader auditor | `living` | `analyst, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
@@ -404,6 +416,7 @@ an operator can see what is archived.
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
+| `docs/fleet.md` | Fleet lane supervision | `living` | `builder, operator` |
 | `docs/flight-recorder.md` | Flight recorder prototype | `living` | `builder, analyst, operator` |
 | `docs/hack-drop.md` | evallab hack-drop | `living` | `runner, operator` |
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
@@ -412,6 +425,7 @@ an operator can see what is archived.
 | `docs/insights.md` | Insight engine: always-on analysts over experiment results | `living` | `analyst, operator` |
 | `docs/judge-guide.md` | How to judge a run | `living` | `operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
+| `docs/lane-verification.md` | Verify a lane from its receipts | `living` | `operator, analyst` |
 | `docs/line.md` | Eval Lab assembly line | `living` | `builder, analyst, runner, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
 | `docs/live-supervisor.md` | Live Supervisor | `living` | `operator, builder` |
@@ -426,6 +440,7 @@ an operator can see what is archived.
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
 | `docs/production-factory.md` | Production factory (local, DEV only) | `living` | `operator, builder` |
+| `docs/program-report.md` | Receipt-bound program reports | `living` | `analyst, operator` |
 | `docs/qa-contract.md` | QA contract (`evallab.qa`) | `living` | `builder, operator` |
 | `docs/qa-task.md` | QA Agent - Task: executed task/grader auditor | `living` | `analyst, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
@@ -436,6 +451,7 @@ an operator can see what is archived.
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/run-health.md` | Run Health | `living` | `analyst, operator` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
+| `docs/ship.md` | Ship a pull request | `living` | `builder, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-admission.md` | Task admission gate (`evallab tasks admit`) | `living` | `builder, operator` |

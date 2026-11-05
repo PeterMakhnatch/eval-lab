@@ -325,9 +325,12 @@ def test_watch_goodfire_review_floor_controls_actual_task_outcome(
     assert world.check()["passed"]
 
 
-@pytest.mark.parametrize("mode,expected", [(None, "keep"), ("off", "keep"), ("cached", "drop")])
+@pytest.mark.parametrize("mode,score,expected", [
+    (None, 100, "keep"), ("off", 100, "keep"), ("cached", 60, "keep"),
+    ("cached", 61, "review"), ("cached", 89, "review"), ("cached", 100, "drop"),
+])
 def test_watch_nested_j3_config_controls_actual_reader_outcome(
-    world: World, mode: str | None, expected: str
+    world: World, mode: str | None, score: int, expected: str
 ) -> None:
     trajectory = world.tmp / "clean.json"
     write_json(trajectory, atif(CLEAN))
@@ -343,7 +346,7 @@ def test_watch_nested_j3_config_controls_actual_reader_outcome(
                 "index": index,
                 "prompt_sha256": j3.sha(prompt),
                 "served_route": j3.ROUTE,
-                "suspicion": 89,
+                "suspicion": score,
                 "evidence_steps": [1],
                 "error": None,
                 "tokens_in": 200,

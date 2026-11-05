@@ -1,7 +1,8 @@
-"""Lane-local execution adapter; the frozen container transport remains unchanged."""
+"""Contained execution and source-bound admission for the safe postprocess epoch."""
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -52,10 +53,15 @@ def environment():
 
 def quota_probe(omp, output, selected):
     records = []
+    providers = {model.split("/")[0] for model in selected}
     for attempt in range(7):
-        result = subprocess.run([str(omp), "usage", "--json", "--redact"], capture_output=True,
-                                text=True, timeout=90, check=True)
-        document = json.loads(result.stdout)
+        document = {"reports": []}
+        for provider in sorted(providers):
+            subprocess.run([str(omp), "usage", "invalidate", "--provider", provider],
+                           capture_output=True, text=True, timeout=90, check=True)
+            result = subprocess.run([str(omp), "usage", "--provider", provider, "--json", "--redact"],
+                                    capture_output=True, text=True, timeout=90, check=True)
+            document["reports"].extend(json.loads(result.stdout)["reports"])
         fractions = {}
         for report in document["reports"]:
             for limit in report.get("limits", []):
@@ -66,7 +72,6 @@ def quota_probe(omp, output, selected):
                     if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1:
                         raise ValueError("Invalid weekly quota")
                     fractions[provider] = max(fractions.get(provider, 0), value)
-        providers = {model.split("/")[0] for model in selected}
         if not providers <= fractions.keys():
             raise ValueError("Missing selected provider quota")
         records.append({"recorded_at": datetime.now(UTC).isoformat(), "fractions": fractions, "report": document})
@@ -82,76 +87,133 @@ def quota_probe(omp, output, selected):
     raise AssertionError("unreachable")
 
 
+def audit_module(work):
+    import grading
+    module = load("scale_summary")
+    module.NOFALLBACK, module.MODELS = CONFIG, MODELS
+    module.WORK = work / "tasks-v2"
+    transport_sha = hashlib.sha256(TRANSPORT_PATH.read_bytes()).hexdigest()
+    original_campaign, original_run, original_audit = module.campaign_audit, module.run_audit, module.Audit
+    original_transport = ROOT / "research/experiments/ov1104-impossible/container_tool.py"
+    required = {f"research/experiments/ev1105-impmore/{name}" for name in
+                ("campaign.py", "batch.py", "safe_io.py", "grading.py", "container_tool.py")}
+    required |= {f"research/experiments/ov1104-impossible/{name}" for name in
+                 ("batch_runner.py", "container_tool.py")}
+
+    class BoundaryAudit(original_audit):
+        def bind(self, path, expected):
+            if Path(path).resolve() == original_transport and expected == transport_sha:
+                path = TRANSPORT_PATH
+            return super().bind(path, expected)
+
+    def campaign_audit(audit, root):
+        provenance = audit.load(root / "adapter-source.json")
+        module.need(provenance["epoch"] == "safe-postprocess-v1", "Unsafe predecessor epoch")
+        module.need(set(provenance["files"]) == required, "Incomplete adapter source inventory")
+        for relative, expected in provenance["files"].items():
+            audit.bind(ROOT / relative, expected)
+        qualification_path = Path(provenance["qualification_path"])
+        audit.bind(qualification_path, provenance["qualification_sha256"])
+        qualification = audit.load(qualification_path)
+        module.need(qualification["passed"] is True
+                    and qualification["safe_io_sha256"] == provenance["files"]["research/experiments/ev1105-impmore/safe_io.py"]
+                    and qualification["grading_sha256"] == provenance["files"]["research/experiments/ev1105-impmore/grading.py"]
+                    and qualification["transport_sha256"] == transport_sha, "Boundary qualification differs")
+        module.need(bool(qualification["evidence"]), "Empty boundary qualification evidence")
+        for item in qualification["evidence"]:
+            audit.bind(Path(item["path"]), item["sha256"])
+        campaign = audit.load(root / "campaign.json")
+        module.need(campaign["transport_sha256"] == transport_sha, "Unknown contained transport")
+        _, approval = audit.source(root.parent, campaign["approval_sha256"])
+        module.need(approval.get("qualification_sha256") == provenance["qualification_sha256"],
+                    "Qualification differs from the approved execution boundary")
+        audit.bind(original_transport, "f2e8c41fd72e01fc0e0b75b0ef190cde3aa2e92c0321152f995fc5cf52a7d22a")
+        module.TRANSPORT = transport_sha
+        found, metadata = original_campaign(audit, root)
+        metadata.update(runner_epoch=provenance["epoch"], adapter_source_sha256=audit.hash(root / "adapter-source.json"))
+        return found, metadata
+
+    def run_audit(audit, root, planned, outcome, campaign):
+        result = original_run(audit, root, planned, outcome, campaign)
+        if result["admitted"]:
+            try:
+                grade = audit.load(Path(result["grade_path"]))
+                directory = Path(result["grade_path"]).parent
+                cleanup = audit.load(directory / "post-cleanup.json")
+                boundary = audit.load(directory / "grade-boundary.json")
+                config = audit.load(directory / "control/transport.json")
+                grade_config = audit.load(directory / "grader-control/transport.json")
+                grader_inspection = audit.load(directory / "grader-control/grader-inspect.json")
+                grader_start = audit.load(directory / "grader-control/grader-start.json")
+                grader_cleanup = audit.load(directory / "grader-cleanup.json")
+                submitted = audit.load(directory / "submitted-diff.json")
+                module.need(submitted["format"] == "safe-io-source-unified-and-explicit-metadata-v1"
+                            and submitted["post_capture_action"] == "destroy_owned_agent", "Unsafe capture lifecycle")
+                prior = boundary["agent_absence"]
+                module.need(prior["verified_absent"] is True and prior["http_status"] == 404
+                            and prior["container_id"] == config["container_id"], "Agent remains active during grading")
+                module.need(grade_config["container_id"] != config["container_id"]
+                            and grade_config["image_id"] == config["image_id"] == planned["image_id"]
+                            and grade_config["workspace_source"] == config["workspace_source"],
+                            "Separate grader identity differs")
+                checks = grading._validate(grade_config, grader_inspection, grader_start["image_environment"],
+                                           grader_inspection["Config"].get("User", ""), running=True)
+                module.need(checks == grader_start["checks"] and grader_start == boundary["grader_inspection"],
+                            "Grader boundary proof differs")
+                module.need(grader_cleanup["verified_absent"] is True
+                            and grader_cleanup["container_id"] == grade_config["container_id"]
+                            and grader_cleanup["absence"]["http_status"] == 404,
+                            "Grader removal lacks strict Engine absence")
+                module.need(cleanup["verified_absent"] is True and cleanup["container_id"] == config["container_id"]
+                            and cleanup["returncode"] != 0 and any(
+                                marker + config["container_id"] in cleanup["stderr"].lower()
+                                for marker in ("no such object: ", "no such container: ")),
+                            "Owned container absence lacks an independent post-cleanup proof")
+                for name in ("G1", "G2"):
+                    value = grade[name]
+                    module.need(value.get("completed") is True
+                                and value.get("exit_channel") == "docker-engine-exec-inspect-v1"
+                                and value.get("engine_exit_code") == value["rc"]
+                                and value.get("image_environment_sha256") == boundary["image_environment_sha256"]
+                                and value.get("container_id") == grade_config["container_id"]
+                                and isinstance(value.get("exec_id"), str) and len(value["exec_id"]) == 64,
+                                f"{name} lacks an authoritative Engine exit status")
+            except (module.Invalid, OSError, ValueError, KeyError, TypeError) as error:
+                result.update(admitted=False, audit_error=f"{type(error).__name__}: {error}")
+        return result
+
+    module.Audit, module.campaign_audit, module.run_audit = BoundaryAudit, campaign_audit, run_audit
+    return module
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("stage", choices=("canary", "batch", "audit"))
     parser.add_argument("--work", type=Path)
     args, remaining = parser.parse_known_args()
-    environment()
-    transport_sha = __import__("hashlib").sha256(TRANSPORT_PATH.read_bytes()).hexdigest()
-    if args.stage != "audit":
+    if args.stage == "audit":
+        if args.work is None:
+            parser.error("--work is required for audit")
+        module = audit_module(args.work)
+    else:
+        environment()
+        transport_sha = hashlib.sha256(TRANSPORT_PATH.read_bytes()).hexdigest()
         spec = importlib.util.spec_from_file_location("container_tool", TRANSPORT_PATH)
         transport = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(transport)
         sys.modules["container_tool"] = transport
-    if args.stage == "canary":
+        if args.stage == "batch":
+            if args.work is None:
+                parser.error("--work is required for batch")
+            spec = importlib.util.spec_from_file_location("impmore_safe_batch", Path(__file__).with_name("batch.py"))
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module.main(remaining, args.work.resolve(), transport_sha)
         module = load("canary")
-        module.EXPECTED = transport_sha
-        module.NOFALLBACK = CONFIG
+        module.EXPECTED, module.NOFALLBACK = transport_sha, CONFIG
         module.subprocess = process_proxy()
-    elif args.stage == "batch":
-        module = load("batch")
-        module.TRANSPORT = transport_sha
-        module.NOFALLBACK = CONFIG
-        module.MODELS = MODELS
-        module.subprocess = process_proxy()
-        plan = Path(remaining[remaining.index("--plan") + 1])
-        selected = {row["model"] for row in json.loads(plan.read_text())}
-        if not selected <= MODELS:
-            raise ValueError("Unsupported model route")
-        def quota(omp, output):
-            try:
-                return quota_probe(omp, output, selected)
-            except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as error:
-                with output.open("x") as stream:
-                    json.dump({"allowed": False, "probe_failed": True, "error_type": type(error).__name__,
-                               "stop_reason": "quota_probe_failed"}, stream)
-                raise module.QuotaProbeError(str(error)) from error
-
-        module.quota = quota
-        if args.work is None:
-            parser.error("--work is required for batch")
-        remaining += ["--work", str(args.work)]
-    else:
-        module = load("scale_summary")
-        module.NOFALLBACK = CONFIG
-        module.MODELS = MODELS
-        if args.work is None:
-            parser.error("--work is required for audit")
-        module.WORK = args.work / "tasks-v2"
-        original_campaign_audit = module.campaign_audit
-        original_audit = module.Audit
-        original_transport = ROOT / "research/experiments/ov1104-impossible/container_tool.py"
-
-        class TransportAudit(original_audit):
-            def bind(self, path, expected):
-                if Path(path).resolve() == original_transport and expected == transport_sha:
-                    path = TRANSPORT_PATH
-                return super().bind(path, expected)
-
-        def campaign_audit(audit, root):
-            recorded = audit.load(root / "campaign.json")["transport_sha256"]
-            if recorded not in (transport_sha, "f2e8c41fd72e01fc0e0b75b0ef190cde3aa2e92c0321152f995fc5cf52a7d22a"):
-                raise module.Invalid("Unknown contained transport")
-            audit.bind(original_transport, "f2e8c41fd72e01fc0e0b75b0ef190cde3aa2e92c0321152f995fc5cf52a7d22a")
-            module.TRANSPORT = recorded
-            return original_campaign_audit(audit, root)
-
-        module.Audit = TransportAudit
-        module.campaign_audit = campaign_audit
     sys.argv = [str(Path(module.__file__)), *remaining]
-    result = module.main()
-    return result or 0
+    return module.main() or 0
 
 
 if __name__ == "__main__":

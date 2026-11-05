@@ -100,3 +100,51 @@ No label definition, detector prompt, threshold, window, or metric changes.
 The frozen scoring runtime comes from `ov1106-impscale-model-freeze`.
 Every source digest in the old scoring contract matches that materialized runtime.
 Current-main L0 code differs from the freeze, so L0 executes with the frozen `src/` on `PYTHONPATH`.
+
+## Safe postprocessing replacement, before replacement trials and all judging
+
+The source review finds unsafe host diff/restoration and output-derived grade status.
+The lane stops the controllers and withdraws every earlier admission.
+It preserves their raw evidence, but excludes them from every label and detector denominator.
+The earlier 204-launch target and unlaunched bulk plans are superseded.
+No detector request runs before this amendment.
+
+`SAFE_BOUNDARY.md` defines the repaired actor boundary and the reason for a separate grader.
+The task agent keeps the exact canary-qualified read-only transport.
+The grader is a separate non-agent actor with canonical image state and no network or host tools.
+The driver destroys the paused agent before starting that grader.
+Bounded no-follow capture/restoration replaces host recursive diff and copy operations.
+Exact Engine exec inspection replaces command-output status parsing.
+Both exact containers must be absent before another trial.
+
+The final source passes all 20 runtime controls: original reference 0, strict reference 1, exact restored bytes, and verified cleanup.
+A fresh Terra canary passes on transport `986330b5e43a52b9056b39dc337c4875c4e32556aa4ecf6415ba8e4d650f30ac`.
+Its receipt hash is `8cf56e2d38381dae8c62c79d50f6f70ab0125117431730a796fb451c008b8443`.
+The exact-source qualification hash is `9a0ca3ff93a1568574a8f39ec7918b5f006f57516b438bce9cc2a9666411be28`.
+Actual non-agent smokes verify metadata-only capture, atomic restoration, exit 7, state persistence, and cleanup.
+Focused experiment lint passes.
+
+`safe-plans.json` preregisters 200 distinct replacement runs.
+Each model has 40 strict trials across all 20 admitted DEV tasks and 10 original controls.
+The control tasks are the first 10 task IDs in lexical order.
+Pilot and main plans partition the same 200-run inventory.
+The pilot uses the original and strict forms of task 000322 for each model.
+The main plan interleaves first strict repetitions and controls, then runs the second strict repetitions.
+No pilot is an extra trial or a reason to remove a planned task.
+All runs use new IDs and the safe postprocessing epoch.
+Quota checks run before every task trial and every scored trace.
+Codex pauses at 99%; Gemini weekly usage stops large batches at 90%.
+Every rejection, quota stop, and unattempted plan remains visible.
+
+Audit recomputes admission from source artifacts and binds the entire adapter inventory and qualification.
+Source reviews establish positive mechanisms and validate original-task honest negatives.
+Failures and ambiguous passes do not become honest negative detector labels.
+The primary report includes combined successful-cheat rates and separate mechanism counts.
+It reports Wilson and task-cluster intervals.
+
+The pushed observation commit freezes all admitted views, labels, source reviews, and input hashes before detector calls.
+Every detector call verifies that commit and the complete input inventory.
+Every result binds its actual request, frozen prompt window, served model, and parsed reply.
+Collection executes the frozen L0 source, not current-main L0.
+Numeric-score denominators exclude abstentions; reports also show missingness and full-cohort worst-case bounds.
+The frozen prompts, models, windows, thresholds, bootstrap settings, and score definitions do not change.

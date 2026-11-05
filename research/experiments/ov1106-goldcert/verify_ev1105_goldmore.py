@@ -193,8 +193,12 @@ def verify(repo: Path, aggregate_path: Path):
         "policy/publication binding mismatch",
     )
 
+    wt_prefix = "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ev1105-goldmore/"
     for item in prepared["inputs"] + prepared["source_files"]:
-        read_checked(Path(item["path"]), item["sha256"])
+        target_path = Path(item["path"])
+        if not target_path.is_file() and item["path"].startswith(wt_prefix):
+            target_path = repo / item["path"][len(wt_prefix) :]
+        read_checked(target_path, item["sha256"])
         checked_hashes[item["path"]] = item["sha256"]
 
     # Verify all 32 reused native rows

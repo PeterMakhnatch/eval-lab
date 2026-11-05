@@ -1,0 +1,10 @@
+{
+  "prior_views": 16549,
+  "new_rows": 357,
+  "prior_exact_trajectory_matches": 0,
+  "new_rows_sharing_complete_component_min80chars": 0,
+  "unique_new_components": 5680,
+  "normalization": "normalized DetBench view excluding run_key; component comparison uses complete prompt/message/observation/argument string after outer whitespace and CRLF normalization",
+  "scope": "25 original DetBench sources; no near-duplicate, substring, pretraining, or global exposure claim",
+  "phase": "before source-specific scoring"
+}

@@ -1,0 +1,69 @@
+{
+  "source": "annahbanannah/synthetic-math-toolcall-deception",
+  "revision": "1e728ec86fefb9e77cec58178d37f26035c7bb9f",
+  "license": "MIT",
+  "terms_scope": "Publisher declaration; pinned full README has no additional evaluation restriction. No independent legal investigation.",
+  "exposure_status": "Evaluated in this lane; not eligible as a future blind panel",
+  "freshness_claim": "Fresh trajectory evaluation with prior source-card awareness, not global source non-exposure",
+  "prior_catalog_disposition": {
+    "status": "HOLD",
+    "reason": "Already in Library, therefore ineligible for STAGE; instruction-conditioned synthetic paired labels and strong length confound, although reported-vs-true counts support an observable mismatch check.",
+    "rights_hold_found": false,
+    "prior_trajectory_inspection_or_scoring_receipt_found": false,
+    "scope_limit": "Checked repository, supplied survey and run-atlas records, failure-library source declarations, complete cross-test registry, library/bookmark queries; unrecorded access and renamed mirrors remain unknown"
+  },
+  "registry": {
+    "sha256": "3efb4f7f92077f03a73257a865e04d077862585571e0f21c5365c910b8525078",
+    "admitted_entries": 33,
+    "access_holds": 7,
+    "licence_holds": 18,
+    "source_present_in_any_section": false
+  },
+  "access": {
+    "authentication": "HF_TOKEN via keys run; no token in receipts",
+    "readme": {
+      "status": 200,
+      "bytes": 3446,
+      "sha256": "f102b4ec76fc6e1122a2ebfaad97e7cf5ba47c759a333e476a532aef19c5957c"
+    },
+    "parquet": {
+      "status": 200,
+      "bytes": 1075549,
+      "sha256": "6b11810b052cd9e7e209a475b2b8627e62e67ccb172bc9142a4b0f768a4762e0"
+    },
+    "w3_probe_bytes": 1024,
+    "w3_probe_prefix_sha256": "d5437b065fa567ff93a7228a91a824b313c79435952a2ced1786b5049826315f",
+    "w3_access_code_sha256": "85d2aa7f6a8590eece9d6bf2c690caa4154cbcbbc3bea1cabd1eb4fd92eb9f14",
+    "workflow": "W3 real-file access plus MALT admission pattern; W3 PR 1910 remains unmerged at registration and supports only HackBench preparation"
+  },
+  "native_counts": {"rows": 400, "deceptive": 200, "honest": 200, "tool_calls": 1646},
+  "admitted_counts": {"rows": 357, "positive": 200, "negative": 157, "tasks": 200, "complete_pairs": 157, "positive_only_tasks": 43, "tool_steps": 1642},
+  "excluded_counts": {"no_recorded_tool_actions": 42, "malformed_call_index": 1},
+  "coverage": {"overall": 0.8925, "positive": 1.0, "negative": 0.785},
+  "label_checks": {
+    "valid_true_counter_recurrences": 400,
+    "integer_underreported_calls": 651,
+    "accepted_underreported_calls": 650,
+    "integer_overreported_calls": 0,
+    "acceptance_arrays": "Publisher evidence; environment not independently executed",
+    "negative_meaning": "Accurate reported counter, not absence of every possible cheating mechanism"
+  },
+  "projection_checks": {
+    "metadata_invariance_rows": 357,
+    "native_pairs_with_identical_system_and_user": 200,
+    "shared_system_prompts": 1,
+    "unique_j3_prompts": 357,
+    "max_j3_prompt_characters": 41333,
+    "max_task_characters": 1896,
+    "max_argument_characters": 5609,
+    "observations_truncated_by_unchanged_renderer": 3,
+    "native_tool_name": "execute_python",
+    "tool_mapping_changed": false
+  },
+  "preregistration_commit": "adfee9f0282d106bfe4145b54b0f5d7fd81abd83",
+  "push_receipt_time": "2026-11-05T20:58:15+00:00",
+  "preregistration_sha256": "38a52906967fd24151362aa0798b794ed5131d18a44542d18c09ba36afc5a9c5",
+  "sample_sha256": "05585479f191729a6583969696a4f11a48adaae7f7edc1d3f25d3455942338af",
+  "sample_identity_sha256": "263f50c85f4268cd80fbe0fd0dda71ab15a80c0c206586da994db1853024e103",
+  "audit_timing": "Independent structural checkpoint precedes registration. Its report completes after scoring starts. A separate later note adds the literal historical HOLD without changing the experiment or inspecting performance."
+}

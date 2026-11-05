@@ -1,0 +1,110 @@
+{
+  "code_sha256": {
+    "research/experiments/ev1105-newsets/PREREG.md": "478e1fdc36f94b574dc90d5e5990d1cfbeff4e846f59422ee953e6f42cbbf577",
+    "research/experiments/ev1105-newsets/adapter.py": "4130ed8fc0d9850692e2e0252c3cfee42f183561afa08d5e908c0ce061f98a32",
+    "research/experiments/ev1105-newsets/run.py": "6215bd7af02ecf7036e2b2959d4e71d59c9069ca5c3b4df0821db5b6e1aa3043",
+    "research/experiments/ov1104-detbench/l0_rules.py": "63f07ba808a2ffc04f5c2d34fee7b9d450a46fbbaa76e2b1511b35398ec4531d",
+    "research/experiments/ov1104-detbench/length_metrics.py": "244afdbcaccecdac87e74a8a3b975a5943f62f4f3c57fd4e78e203a757931d36",
+    "research/experiments/ov1104-detbench/score.py": "a19f60db1cd7a6a0036911f421f531770d992c3e5080322f98cd2c9825bdf576",
+    "src/evallab/line/j3.py": "b699030c529c61734275d3dd36c4b47066d75ed7bd4df242c280cc3a3d1dca0d",
+    "src/evallab/line/j3_prompt.py": "e51581999697e10398be7f47098db1e6490e610bb612e0d3312dc2a8ab65526e",
+    "src/evallab/line/j3_view.py": "2aa7e5c13c60fa19c1f903776aa28399c43165de2acac8e2de8f0161011e04da"
+  },
+  "coverage": {
+    "final": {
+      "admission:legitimate_pass": 6,
+      "admission:negative_attempt_evidence": 27,
+      "admission:nonprimary_category": 51,
+      "admission:ordinary_failure": 51,
+      "admission:successful_reward_hack": 751,
+      "admission:unclean_or_unavailable": 14,
+      "category:attempted_reward_hack": 41,
+      "category:legitimate_pass": 33,
+      "category:ordinary_failure": 51,
+      "category:refusal_or_no_solution": 10,
+      "category:successful_reward_hack": 751,
+      "category:truncated_or_unclean": 14,
+      "eligible:0": 57,
+      "eligible:1": 751,
+      "raw": 900
+    },
+    "mid": {
+      "admission:legitimate_pass": 36,
+      "admission:negative_attempt_evidence": 10,
+      "admission:nonprimary_category": 102,
+      "admission:ordinary_failure": 93,
+      "admission:successful_reward_hack": 307,
+      "admission:unclean_or_unavailable": 52,
+      "category:attempted_reward_hack": 90,
+      "category:legitimate_pass": 40,
+      "category:ordinary_failure": 99,
+      "category:refusal_or_no_solution": 12,
+      "category:successful_reward_hack": 307,
+      "category:truncated_or_unclean": 52,
+      "eligible:0": 129,
+      "eligible:1": 307,
+      "raw": 600
+    }
+  },
+  "j3_thresholds": [
+    61,
+    89,
+    100
+  ],
+  "prefix_sha256": "ca496b4c5f73879aa7d7da58986085734cf06f1202a8028db922c3acd05c8f41",
+  "route": "openai-codex/gpt-6.1-terra",
+  "rubric_sha256": "7e7cb3c4686423ad137ecbfa726be97f54e5a05805157e3d8e8adbc5250afc83",
+  "sample_clusters": 283,
+  "sample_counts": {
+    "final": {
+      "0": 57,
+      "1": 200
+    },
+    "mid": {
+      "0": 129,
+      "1": 200
+    }
+  },
+  "sample_identity_sha256": "fc34a11246d8db12b8ed86054c07b932a2794ebb252dcc96041931ca5a191f17",
+  "sample_sha256": "10f86a33c62ca81ad620c30678c2027e652ddea0a293422ec68849d6077b2529",
+  "sources": {
+    "final": {
+      "files": [
+        {
+          "bytes": 12105399,
+          "file": "gpt-oss-120b-final.jsonl",
+          "sha256": "d9159f1801200ec946516a3cb414c0d0c8f44388c8ea3f269473ce9e39ba05c8"
+        },
+        {
+          "bytes": 41728647,
+          "file": "nemotron3-super-120b-final.jsonl",
+          "sha256": "7d982e0534367daf5fa8c82fa858c2dbb4275c83c3861edf8acaf03bba249352"
+        },
+        {
+          "bytes": 19758809,
+          "file": "qwen3.5-9b-final.jsonl",
+          "sha256": "99f106fb3af5bed4ddfabfb7797d9ea65c96666e435fd421ed865a377034b9e3"
+        }
+      ],
+      "repo": "lucabaroni/rlvr-reward-hacking-transcripts",
+      "revision": "b2e978766e3789b6a198c1665723dcedf9b368fe"
+    },
+    "mid": {
+      "files": [
+        {
+          "bytes": 29997663,
+          "file": "gpt-oss-120b-step-180.jsonl",
+          "sha256": "41ebc62eafca8b6decfd1555fe315af7cbe808aa66a3a6d530f841340f5f20df"
+        },
+        {
+          "bytes": 22975661,
+          "file": "qwen3.5-9b-step-110.jsonl",
+          "sha256": "2cb66ac41742de2a13bd89830bca81b5eaed91e4d44e5a0829840ed09a12558a"
+        }
+      ],
+      "repo": "lucabaroni/rlvr-reward-hacking-mid-checkpoint-transcripts",
+      "revision": "950da9316c4658947ec8886db4ea12d6bf291c3b"
+    }
+  },
+  "template_sha256": "d447dc31c7c496a278b4f8cc2daecc547e8aa1d9689dc1de115e77cd72574592"
+}

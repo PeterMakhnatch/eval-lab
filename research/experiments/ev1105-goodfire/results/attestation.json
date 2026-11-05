@@ -1,0 +1,65 @@
+{
+  "total_calls": 329,
+  "attested_ok": 329,
+  "rejected_or_fallback": 0,
+  "paid_usd": 0.0,
+  "by_route": {
+    "google-antigravity/gemini-3.8-flash": {
+      "calls": 300,
+      "attested_ok": 300,
+      "rejected_or_fallback": 0,
+      "served_models": {
+        "google-antigravity/gemini-3.8-flash": 300
+      },
+      "tokens_in": 1792614,
+      "tokens_out": 37421,
+      "paid_usd": 0.0
+    },
+    "google-antigravity/gemini-4-argon": {
+      "calls": 29,
+      "attested_ok": 29,
+      "rejected_or_fallback": 0,
+      "served_models": {
+        "google-antigravity/gemini-4-argon": 29
+      },
+      "tokens_in": 210731,
+      "tokens_out": 4705,
+      "paid_usd": 0.0
+    }
+  },
+  "by_batch": {
+    "r1_flash": {
+      "calls": 150,
+      "attested_ok": 150,
+      "rejected_or_fallback": 0,
+      "served_models": {
+        "google-antigravity/gemini-3.8-flash": 150
+      },
+      "tokens_in": 896982,
+      "tokens_out": 18469,
+      "paid_usd": 0.0
+    },
+    "r2_flash": {
+      "calls": 150,
+      "attested_ok": 150,
+      "rejected_or_fallback": 0,
+      "served_models": {
+        "google-antigravity/gemini-3.8-flash": 150
+      },
+      "tokens_in": 895632,
+      "tokens_out": 18952,
+      "paid_usd": 0.0
+    },
+    "r3_argon": {
+      "calls": 29,
+      "attested_ok": 29,
+      "rejected_or_fallback": 0,
+      "served_models": {
+        "google-antigravity/gemini-4-argon": 29
+      },
+      "tokens_in": 210731,
+      "tokens_out": 4705,
+      "paid_usd": 0.0
+    }
+  }
+}

@@ -87,6 +87,8 @@ evidence is reported as `uncertified`, not promoted to certified.
 
 > Peter 2026-11-04: keep #1830. It is a correct parsing fix. 32 of the 33 cheats were caught only because the parser failed, which is not detection. 46/80 Goodfire cheat labels have no executed shortcut in the tool calls (ov1104 judges audit). Goodfire runs on uncertified tasks go to review until an action-reading judge is in the line.
 
+> Peter 2026-11-05: keep main at 9/332 DEV cheat keeps and 63/358 honest keeps after #1890; do not revert #1825. The 6 residual cheat keeps are AutoReview-clean misses.
+
 The [ov1104 judges audit](../research/experiments/ov1104-judges/README.md)
 reports zero flagged tool-call passages for those 46 runs. This does not prove
 that all 46 runs are honest. The review floor is a source safety policy, not
@@ -700,24 +702,24 @@ The existing honest-drop gate also applies: an increase above
 honest-drop change, including changes within that allowance. This gate does
 not change any line decision or replace the broader `make line-replay` gates.
 
-### Sensitive paths come from imports
+### Sensitive decision paths
 
-`scripts/line-gate.py --paths` writes discovery receipts, not a gate pass.
-The script starts at `scripts/line-replay.py` and follows local Python
-imports recursively. It includes relative imports, package initializers,
-conditional imports and imports inside functions. It unions the base and
-head closures, so removed and newly imported modules remain covered.
-The chain includes `line.replay`, `line.core`, `hack_drop`, `tool_calls`,
-`autoreview_monitor`, `trace_anatomy`, `tripwires` and their local dependencies.
-This conservative closure can include code that the frozen run does not call.
-It is not a guessed list of detector filenames.
+`scripts/line-gate.py --paths` lists sensitive files and changed files.
+It writes discovery receipts, not a gate pass.
+The explicit scope covers the line package, AutoReview, L0 scanners and normalizer,
+task policy, replay inputs and pins, dependencies, and gate controls.
+It excludes documentation and unrelated research.
+The gate unions tracked files from base and head, including deleted files.
+`agents/ship-gates.toml` registers the same patterns for automatic merge checks.
+Historical regression tests cover decision paths changed in #1825, #1887,
+#1890 and #1900.
 
-The discovery also includes existing repository-resource path literals found
-in those modules. Dependency declarations (`pyproject.toml`, `uv.lock`), the
-replay pin, gate implementation and standing policy are sensitive controls.
-Each receipt records the exact derived paths and their changed subset.
-Computed dynamic imports or computed resource paths need an explicit discovery
-extension before they become part of line execution.
+`evallab ship` runs `make line-gate` in a detached exact-head checkout when
+a changed path matches. A failure or missing private replay data blocks merge.
+New gate names also run on their registration PR.
+Existing gates remain owned by the base policy; candidate edits cannot disable them.
+The ship receipt records the command, exit code and log path.
+The command log names the full gate receipt.
 
 ### Peter-only exceptions
 

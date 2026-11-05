@@ -141,6 +141,11 @@ Fleet checks completion in a separate thread so GitHub requests do not block rou
 It records `done-verified` or `done-unverified`, with reasons and GitHub responses.
 This verifies delivery metadata, not scientific arithmetic or the truth of every prose claim.
 
+Deliver repository changes with `evallab ship` from a stable checkout.
+Ship automatically runs the private full-DEV line gate for decision-sensitive paths.
+Missing replay data or a gate failure blocks merge, not fleet supervision.
+See [ship](ship.md#path-gates) for the path policy and receipt format.
+
 Use this optional hook after the lane verifier becomes available:
 
 ```json

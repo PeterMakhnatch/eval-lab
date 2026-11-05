@@ -210,7 +210,7 @@ J3 uses the same rubric on Terra, but that does not make it J2b. The blocked com
 - Synthetic smoke exercises score/view admission, raw control binding, paired AUROC edge cases, aggregate projection, and once-only failures.
 - The real enabled 690-row gate passes. Honest drops do not increase in any corpus.
 - Only aggregates enter Git. Full inherited row-level receipts remain private, with hashes and counts in the public exports.
-- Four sequential Sol helpers stay on `openai-codex/gpt-6.1-sol`; their 73 assistant turns show no fallback.
+- Five sequential Sol helpers stay on `openai-codex/gpt-6.1-sol`; their 81 assistant turns show no fallback.
 
 **Recommendation:** retain the default-off flag. The review band is useful, but these results do not support broad automatic activation.
 The drop cutoff misses all impossible-task positives and 341/343 original held-out positives. It also flags 1/1,105 held-out honest runs.

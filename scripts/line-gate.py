@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-import ast
+import fnmatch
 import hashlib
 import importlib.util
 import json
@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,14 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SET = "~/Developer/eval-lab-results/line/replay-v1"
 DECISIONS = ("keep", "review", "drop")
 
+# One path policy for discovery and ship, using full-path fnmatchcase semantics.
+LINE_PATH_PATTERNS = tuple(
+    next(
+        gate for gate in tomllib.loads((ROOT / "agents/ship-gates.toml").read_text())["gate"]
+        if gate["name"] == "line"
+    )["paths"]
+)
+
 
 def git(root: Path, *args: str) -> str:
     return subprocess.run(
@@ -35,69 +44,14 @@ def git(root: Path, *args: str) -> str:
 
 
 def line_paths(root: Path, repository_files: set[str] | None = None) -> list[str]:
-    """Conservative transitive local-import closure, including conditional imports."""
-    pending = [root / "scripts/line-replay.py"]
-    seen: set[Path] = set()
-
-    def module(name: str) -> None:
-        if not name.startswith("evallab"):
-            return
-        parts = name.split(".")
-        for n in range(1, len(parts) + 1):
-            path = root / "src" / Path(*parts[:n])
-            for candidate in (path.with_suffix(".py"), path / "__init__.py"):
-                if candidate.is_file() and candidate not in seen:
-                    pending.append(candidate)
-
-    resources: set[str] = set()
-    while pending:
-        path = pending.pop()
-        if path in seen:
-            continue
-        seen.add(path)
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        package = (
-            ".".join(path.relative_to(root / "src").parts[:-1])
-            if path.is_relative_to(root / "src")
-            else ""
-        )
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    module(alias.name)
-            elif isinstance(node, ast.ImportFrom):
-                prefix = node.module or ""
-                if node.level:
-                    prefix = ".".join(
-                        package.split(".")[: len(package.split(".")) - node.level + 1]
-                        + ([prefix] if prefix else [])
-                    )
-                module(prefix)
-                for alias in node.names:
-                    module(f"{prefix}.{alias.name}")
-            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-                # Repository resource literals, not external frozen input paths.
-                value = node.value
-                if "\n" not in value and len(value) < 240 and not value.startswith("/"):
-                    for candidate in (root / value, path.parent / value):
-                        if candidate.is_relative_to(root):
-                            relative = candidate.relative_to(root).as_posix()
-                            if candidate.is_file() or (
-                                repository_files is not None and relative in repository_files
-                            ):
-                                resources.add(relative)
-    # Environment changes can alter imported behavior. The replay pin and gate
-    # controls are also gate-sensitive, independently of decision-code imports.
-    resources.update(
-        (
-            "pyproject.toml",
-            "uv.lock",
-            "src/evallab/line/replay_sets.json",
-            "scripts/line-gate.py",
-            "policy/standing-approvals.yaml",
-        )
+    """Match tracked paths and supplied revision inventories without reading code."""
+    files = set(git(root, "ls-files", "-z").split("\0"))
+    files.update(repository_files or ())
+    return sorted(
+        path
+        for path in files
+        if path and any(fnmatch.fnmatchcase(path, pattern) for pattern in LINE_PATH_PATTERNS)
     )
-    return sorted(resources | {p.relative_to(root).as_posix() for p in seen})
 
 
 def load_replay_script(root: Path) -> Any:
@@ -343,9 +297,10 @@ def render(report: dict[str, Any]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--head", default="HEAD")
+    parser.add_argument("--head", default=os.environ.get("EVALLAB_SHIP_HEAD", "HEAD"))
     parser.add_argument(
-        "--against", default="origin/main", help="merge-base reference; default origin/main"
+        "--against", default=os.environ.get("EVALLAB_SHIP_BASE", "origin/main"),
+        help="merge-base reference; default origin/main outside ship"
     )
     parser.add_argument(
         "--set", type=Path, default=Path(os.environ.get("EVALLAB_LINE_REPLAY_SET", DEFAULT_SET))
@@ -353,14 +308,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output", type=Path, help="new receipt directory; defaults to a unique /tmp directory"
     )
-    parser.add_argument("--pr", type=int)
+    parser.add_argument("--pr", type=int, default=os.environ.get("EVALLAB_SHIP_PR"))
     parser.add_argument(
         "--j3-cache", type=Path, help="enable frozen cached J3 on candidate head only"
     )
     parser.add_argument(
         "--paths",
         action="store_true",
-        help="list derived paths and changed paths only; not a gate pass",
+        help="list decision-sensitive paths and changed paths only; not a gate pass",
     )
     args = parser.parse_args(argv)
     started = time.monotonic()
@@ -399,29 +354,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         base = git(ROOT, "merge-base", against, head)
         report.update(head=head, base=base, origin_main=main_rev, against=against, pr=args.pr)
-        # Resolve imports at both revisions, so removed and newly imported modules
-        # are both sensitive. git archive avoids inspecting a dirty caller tree.
-        paths: set[str] = set()
+        # Inventory both immutable revisions so new, deleted and renamed paths
+        # remain sensitive. Do not import code or inspect working-tree bytes.
+        repository_files: set[str] = set()
         for rev in (base, head):
-            with tempfile.TemporaryDirectory(prefix="evallab-line-paths-") as scratch:
-                tree = Path(scratch)
-                archive = subprocess.run(
-                    [
-                        "git",
-                        "archive",
-                        rev,
-                        "src/",
-                        "scripts/line-replay.py",
-                        "pyproject.toml",
-                        "uv.lock",
-                    ],
-                    cwd=ROOT,
-                    capture_output=True,
-                    check=True,
-                ).stdout
-                subprocess.run(["tar", "-xf", "-", "-C", str(tree)], input=archive, check=True)
-                repository_files = set(git(ROOT, "ls-tree", "-r", "--name-only", rev).splitlines())
-                paths.update(line_paths(tree, repository_files))
+            repository_files.update(
+                git(ROOT, "ls-tree", "-r", "--name-only", rev).splitlines()
+            )
+        paths = set(line_paths(ROOT, repository_files))
         changed = set(git(ROOT, "diff", "--name-only", "--no-renames", base, head).splitlines())
         report.update(line_paths=sorted(paths), changed_line_paths=sorted(paths & changed))
         if args.paths:

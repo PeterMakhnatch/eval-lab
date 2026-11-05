@@ -124,12 +124,21 @@ def validate(value: Any) -> dict[str, Any]:
 
 
 def cache_files(spec: dict[str, Any]) -> list[Path]:
-    return [hd.check_declared_path(spec["autoreview"]["j3"]["cache"])] if mode(spec) == "cached" else []
+    paths = [spec["autoreview"]["j3"]["cache"]] if mode(spec) == "cached" else []
+    ordering_cache = spec.get("review_order", {}).get("j3_cache")
+    if ordering_cache:
+        paths.append(ordering_cache)
+    return [hd.check_declared_path(path) for path in dict.fromkeys(paths)]
 
 
-def load_cache(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def load_cache(spec: dict[str, Any], *, ordering: bool = False) -> dict[str, dict[str, Any]]:
+    """Ordering may reuse both caches; decision policy reads only its own declared cache."""
     rows: dict[str, dict[str, Any]] = {}
-    for file in cache_files(spec):
+    files = cache_files(spec) if ordering else (
+        [hd.check_declared_path(spec["autoreview"]["j3"]["cache"])]
+        if mode(spec) == "cached" else []
+    )
+    for file in files:
         for row in read_rows(file):
             if not isinstance(row, dict) or set(row) != {"schema", "run_id", "reading"} or row["schema"] != "evallab.j3_cache/v1" or not isinstance(row["run_id"], str) or not row["run_id"]:
                 raise ValueError("invalid label-free J3 cache row")
@@ -140,7 +149,10 @@ def load_cache(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return rows
 
 
-def outcome(value: dict[str, Any], item: hd.RolloutItem | None = None) -> hd.StageVerdict:
+def priority(value: dict[str, Any] | None, item: hd.RolloutItem | None = None) -> int | float | None:
+    """The maximum complete, input-bound, attested J3 score; no decision policy."""
+    if value is None:
+        return None
     validate(value)
     valid = (value["route"] == ROUTE and value["rubric_sha256"] == RUBRIC_SHA
              and value["prompt_template_sha256"] == TEMPLATE_SHA and value["threshold"] == CACHE_THRESHOLD
@@ -151,10 +163,14 @@ def outcome(value: dict[str, Any], item: hd.RolloutItem | None = None) -> hd.Sta
         digest, prompts = prepare(item)
         valid = valid and bool(prompts) and value["input_sha256"] == digest and [w["prompt_sha256"] for w in windows] == [sha(p) for p in prompts]
     valid = valid and all(w["served_route"] == ROUTE and w["error"] is None and w["suspicion"] is not None for w in windows)
-    if not valid:
+    return max(w["suspicion"] for w in windows) if valid else None
+
+
+def outcome(value: dict[str, Any], item: hd.RolloutItem | None = None) -> hd.StageVerdict:
+    score = priority(value, item)
+    if score is None:
         return hd.StageVerdict("autoreview", "review", ["J3_UNAVAILABLE"], [], {})
-    best = max(windows, key=lambda w: w["suspicion"])
-    score = best["suspicion"]
+    best = max(value["windows"], key=lambda w: w["suspicion"])
     decision = "drop" if score >= DROP_THRESHOLD else "review" if score >= REVIEW_THRESHOLD else "pass"
     return hd.StageVerdict("autoreview", decision, ["J3_CLEAN" if decision == "pass" else "J3_SUSPICION"], best["evidence_steps"], {})
 

@@ -222,6 +222,73 @@ Variants cannot refresh a baseline. Other changed input bytes still fail the fro
 All existing regression gates remain active; a variant can report a regression.
 Replay refuses live J3, regardless of its subscription cost.
 
+### Review priority and optional keep audit
+
+Rank a batch with existing J3 readings without enabling the J3 decision stage:
+
+```json
+{
+  "autoreview": {"mode": "off", "max_usd": 0, "j3": {"mode": "off"}},
+  "review_order": {"j3_cache": "/absolute/path/to/j3-cache.jsonl"},
+  "audit": {"rate": 0.05, "seed": "dev-example", "keep_top_n": 0}
+}
+```
+
+Keep the other required spec fields. `review_order.j3_cache` accepts the same
+typed, label-free cache described above. Relative paths resolve against the spec.
+This is a batch-spec option, not a watcher configuration option.
+This ordering-only option makes no model calls and needs no model allowlist.
+It does not enable either reader or change any keep, review, or drop decision.
+It also cannot supply a missing reading to an enabled J3 decision stage.
+Without this option, an explicitly enabled J3 stage supplies its own readings
+for ordering. The J3 decision stage and live mode still default to `off`.
+
+Every decision and queue row carries `review_priority`, a number from `0` through
+`100`, or `null`. A priority requires the complete expected window set, the frozen
+reader identity, current input and prompt hashes, and exact served-route attestation.
+The priority is the maximum window suspicion score. Missing readings, identity
+mismatches, failed or incomplete windows, and missing attestation give `null`.
+Malformed schemas, labels, and conflicting cache readings stop the batch before outputs.
+No length, label, decision, or partial-window score substitutes for J3 priority.
+
+`export/review.jsonl` and `judge-queue.jsonl` put scored rows first, in descending
+priority. Equal scores keep their original intake order. All unscored rows follow
+in original intake order. A score of `0` precedes an unscored row.
+`decisions.jsonl`, `export/kept.jsonl`, and `export/dropped.jsonl` retain intake order.
+`review_priority_source` records the reader, availability, route, rubric and template
+hashes, input hash, reading hash, window count, and maximum-score aggregation.
+It is `null` when no reading exists. A present but invalid reading records `unavailable`.
+The trace receipt binds the ordering cache bytes. Normal checks recompute the priority
+and export order without a new call.
+
+Set `audit.keep_top_n` to a nonnegative integer to select the first N keeps in
+the same priority order. It defaults to `0`, which disables this extra audit.
+The batch writes `export/keep-audit.jsonl` only when N exceeds `0`.
+This separate list contains at most N keeps; it does not remove them from `kept.jsonl`.
+It does not change decisions, stage verdicts, reasons, or the existing random audit flag.
+The Station queue includes these keeps once, even when the random audit also selects them.
+Queue reveal data marks `keep_audit: true`; the scoreboard counts the union of both audit sets.
+The export receipt lists the audit file separately. Its decision totals still count
+the primary keep/drop/review partition, not the duplicate audit rows.
+
+Use the existing Station file-order option to preserve the line's priority order:
+
+```bash
+uv run evallab judge serve --keep-order \
+  --queue line=/absolute/path/to/batch/judge-queue.jsonl \
+  --local-runs /absolute/path/to/batch/runs.jsonl
+```
+
+Without `--keep-order`, Station retains its existing information-value ordering.
+`--blind-order` requests its existing seeded shuffle instead.
+Station hides priorities, source metadata, and audit status until the human submits
+a verdict. It then shows the priority and distinguishes priority audits from random audits.
+Priority ordering is not an unanchored evaluation: position can imply suspicion.
+Ordering and top-N selection apply within each batch, not across historical batches.
+The [production DEV evaluation](../research/experiments/ev1105-queueimpl/README.md)
+measures this fallback, review effort, strict coverage, and historical token load.
+
+
 
 ```bash
 uv run evallab line run ~/Developer/eval-lab-results/line-inputs/dev-example.json --json
@@ -294,10 +361,12 @@ cheat keeps in any corpus.
 4. **Decisions:** reuse hack-drop's consolidation precedence: drop wins over
    review, which wins over keep. Persist decisions before loading labels.
 5. **Judge routing:** queue every review and a deterministic sample of keeps.
-   Audited keeps remain keeps, carry `AUDIT_SAMPLE`, and count toward judge load.
+   Randomly audited keeps remain keeps, carry `AUDIT_SAMPLE`, and count toward judge load.
+   Optional top-N keeps also enter the queue without changing their decision rows.
    Drops and non-audited keeps are not queued. `judge.write: false` still creates
    the batch-local queue but does not append to the external Station queue.
 6. **Exports:** partition all decisions into hack-drop-compatible manifests.
+   Rank the review export by J3 priority and preserve arrival order for missing scores.
    A review export is not an accepted training export or a human verdict.
 7. **Scoreboard and checks:** join independent labels, record quality checks
    and produce JSON plus a readable scoreboard. Existing Station verdicts are
@@ -326,6 +395,8 @@ receipts/intake.json, task.json, trace.json, decisions.json,
          judge.json, export.json, scoreboard.json
 scoreboard.json, SCOREBOARD.md, check.json
 ```
+
+When `audit.keep_top_n` exceeds `0`, the batch also contains `export/keep-audit.jsonl`.
 
 The receipt files live under `receipts/`. Each records its schema, batch, stage,
 code revision and dirty state, start/end times, elapsed seconds, input/output
@@ -398,9 +469,9 @@ must be regenerated.
 
 | Check | What must hold |
 |---|---|
-| Conservation | Every intake run has exactly one decision; keep + drop + review equals intake; audits are a subset of keeps; each export file equals its decisions exactly. |
+| Conservation | Every intake run has exactly one decision; keep + drop + review equals intake; audits are a subset of keeps; primary exports equal their decisions, with review rows in priority order. The optional keep audit equals the ranked top-N keeps. |
 | DEV only | Sources, runs and tasks pass the existing DEV gates; no TEST or answer-key paths (the path as spelled and its symlink target are both judged). A `split` other than exactly `dev` (any key case, any depth, the agent-written steps included) is refused wherever it is declared: manifest rows, every `.json` file of a rollout, task-status files (top level and rows), cached AutoReview rows and Station rows. A JSON list is refused as a manifest, and label files are validated (before any directory, queue or export is written, and again by this check). |
-| Provenance | Receipt input/output hashes match disk and the code revision is recorded. Every stage receipt must list its expected files (for example the export receipt lists all three export files, the judge receipt lists a Station snapshot), so emptying a receipt does not hide a change. |
+| Provenance | Receipt input/output hashes match disk and the code revision is recorded. Each receipt lists its expected files. The export receipt includes the optional keep-audit file when enabled. The trace receipt binds all declared reader and ordering caches. |
 | Determinism | `line run` computes the decisions twice in-process and the two hashes must match; its closing check reuses those two passes. A later `line check` recomputes the decisions once and compares them with the stored decisions and both recorded hashes, and recomputes `trace.jsonl` (L0 and AutoReview evidence) from the inputs. |
 | Spend and models | Spend stays inside the spec cap. Every AutoReview call records the route that actually served it and its fallback count in `trace.jsonl`; the route must equal the requested one, have zero fallbacks and be in `models.allowed`, and the trace receipt's model list must equal the routes in the trace. In live mode each call's cost stays within `max_call_usd`, and calls sum to the receipt spend. |
 | Judge routing | Every review and audit appears exactly once in the local queue; no other run appears. |
@@ -468,7 +539,7 @@ gate runs).
 | `judge-queue.jsonl` | judge receipt | recomputed from the decisions |
 | `verdicts.jsonl` | judge receipt | recomputed from the pinned Station snapshot and the admitted runs; every row is checked for a split other than dev and for label fields outside the Station's own reveal blocks |
 | `evidence/station-inputs/*.jsonl` | judge receipt | the snapshot the verdicts are recomputed from; the folder holds exactly the files the judge receipt lists |
-| `export/*.jsonl` | export receipt | equal the decisions, row for row |
+| `export/*.jsonl` | export receipt | primary exports equal decisions; review order and optional top-N keep audit are recomputed |
 | `receipts/*.json` | not applicable | exactly the seven stages with a fixed set of fields; one `code_rev` and one `code_dirty` (a bool); the batch id; every input exactly `{path, sha256}` and every output exactly `{path, sha256, rows}`, no file listed twice; row totals recomputed from the files; trace errors recomputed from the trace; models and spend only on the trace receipt |
 | `scoreboard.json` | scoreboard receipt lists the labels | recomputed from the batch and the labels, on its own schema version |
 | `SCOREBOARD.md` | not applicable | rendered from `scoreboard.json` and compared (schema version 3 and later); `line check` compares the saved file BEFORE it rewrites it, so a tampered or deleted view fails instead of being repaired |

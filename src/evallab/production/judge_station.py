@@ -22,6 +22,7 @@ import hashlib
 import io
 import json
 import logging
+import math
 import os
 import re
 import threading
@@ -112,6 +113,8 @@ class QueueEntry:
     signals: Mapping[str, str] | None = None
     control: bool = False
     source_queues: tuple[str, ...] = ()
+    review_priority: int | float | None = None
+    review_priority_source: Mapping[str, Any] | None = None
 
 
 def load_queue(path: Path) -> list[QueueEntry]:
@@ -145,6 +148,16 @@ def load_queue(path: Path) -> list[QueueEntry]:
             priority = row.get("priority", 0)
             if isinstance(priority, bool) or not isinstance(priority, int):
                 raise JudgeError(f"{path}:{number}: priority must be a whole number")
+            score, provenance = row.get("review_priority"), row.get("review_priority_source")
+            if "review_priority" in row or "review_priority_source" in row:
+                score = row.get("review_priority")
+                if score is not None and (
+                    type(score) not in (int, float) or not math.isfinite(score) or not 0 <= score <= 100
+                ):
+                    raise JudgeError(f"{path}:{number}: review_priority must be null or a score in [0,100]")
+                provenance = row.get("review_priority_source")
+                if provenance is not None and not isinstance(provenance, dict):
+                    raise JudgeError(f"{path}:{number}: review_priority_source must be an object")
             entry = QueueEntry(
                 run_id.strip(),
                 reason,
@@ -153,6 +166,8 @@ def load_queue(path: Path) -> list[QueueEntry]:
                 str(row.get("source", "queue")),
                 signals,
                 control,
+                review_priority=score,
+                review_priority_source=provenance,
             )
         else:
             entry = QueueEntry(text)
@@ -618,6 +633,10 @@ def _merge_entries(first: QueueEntry, other: QueueEntry) -> QueueEntry:
     signals: dict[str, str] = dict(first.signals or {})
     for name, verdict in (other.signals or {}).items():
         signals[name] = "alarm" if "alarm" in (verdict, signals.get(name)) else "clear"
+    priority_entry = (
+        first if first.review_priority is not None or first.review_priority_source is not None
+        else other
+    )
     return QueueEntry(
         first.run_id,
         " | ".join(reasons) or None,
@@ -627,6 +646,8 @@ def _merge_entries(first: QueueEntry, other: QueueEntry) -> QueueEntry:
         signals or None,
         first.control or other.control,
         tuple(dict.fromkeys([*first.source_queues, *other.source_queues])),
+        review_priority=priority_entry.review_priority,
+        review_priority_source=priority_entry.review_priority_source,
     )
 
 
@@ -926,6 +947,11 @@ class Station:
             revealed["decision"] = decision[:200]
         if isinstance(audit, bool):
             revealed["audit"] = audit
+        if entry.source == "line" or entry.review_priority is not None or entry.review_priority_source is not None:
+            revealed["review_priority"] = entry.review_priority
+            revealed["review_priority_source"] = entry.review_priority_source
+        if isinstance(extra.get("keep_audit"), bool):
+            revealed["keep_audit"] = extra["keep_audit"]
         return revealed
 
     # -- drafts ----------------------------------------------------------- #

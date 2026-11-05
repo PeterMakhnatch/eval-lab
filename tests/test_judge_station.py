@@ -2036,3 +2036,58 @@ def test_the_same_rollout_cannot_be_listed_under_two_run_ids(tmp_path: Path) -> 
     manifest.write_text(json.dumps(row) + "\n" + json.dumps(twin) + "\n", encoding="utf-8")
     with pytest.raises(js.JudgeError, match="already listed"):
         js.LocalRunSource(manifest, FakeSource({}, {}, findings={}), FakeRegistry())
+
+
+def test_line_priority_queue_keeps_file_order_and_reveals_priority_only_after_verdict(
+    tmp_path: Path,
+) -> None:
+    from evallab.production.factory_autoreview import append_judge_queue_entry
+
+    path = tmp_path / "line-queue.jsonl"
+    provenance = {"reader": "j3", "reading_sha256": "a" * 64, "status": "complete"}
+    for row in [
+        {"run_id": CLEAN, "source": "line", "review_priority": 98.5, "review_priority_source": provenance,
+         "reveal": {"decision": "keep", "audit": True, "keep_audit": True}},
+        {"run_id": CHEAT, "source": "line", "review_priority": None, "review_priority_source": None},
+    ]:
+        append_judge_queue_entry(path, js.QueueEntry(**row))
+    source = FakeSource(
+        {rid: AtlasRun(rid, SECRET_SOURCE, "DEV", "pass", _doc()) for rid in (CLEAN, CHEAT)},
+        {}, {},
+    )
+    station = js.Station(
+        source, {"line": js.load_queue(path)}, keep_order=True, state_dir=tmp_path / "state",
+    )
+    server, token = judge_web.make_server(station, 0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        status, queue = _call(base, "/api/queue?name=q1")
+        assert status == 200
+        assert [row["id"] for row in queue["items"]] == [js.blind_id(CLEAN), js.blind_id(CHEAT)]
+        status, view = _call(base, f"/api/run?queue=q1&id={js.blind_id(CLEAN)}")
+        assert status == 200
+        for hidden in ("review_priority", "review_priority_source", "keep_audit"):
+            assert hidden not in json.dumps(queue) + json.dumps(view) + json.dumps(station.state())
+        status, result = _call(
+            base, "/api/verdict", {"queue": "q1", "id": js.blind_id(CLEAN), **_verdict()},
+            {"X-Judge-Token": token, "Content-Type": "application/json"},
+        )
+        assert status == 200
+        assert result["reveal"]["review_priority"] == 98.5
+        assert result["reveal"]["review_priority_source"] == provenance
+        assert result["reveal"]["keep_audit"] is True
+        assert result["reveal"]["decision"] == "keep"
+        assert station.read_verdicts()[0]["revealed"] == result["reveal"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.mark.parametrize("score", [True, -1, 101, "99", float("nan"), float("inf")])
+def test_station_refuses_invalid_review_priority(tmp_path: Path, score: Any) -> None:
+    path = tmp_path / "queue.jsonl"
+    path.write_text(json.dumps({"run_id": CLEAN, "review_priority": score}) + "\n")
+    with pytest.raises(js.JudgeError, match="review_priority"):
+        js.load_queue(path)

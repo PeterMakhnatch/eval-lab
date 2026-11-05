@@ -231,7 +231,12 @@ def _build_scoreboard(batch: Path, repo_root: Path, version: int = SCOREBOARD_VE
     for status in statuses:
         task_side[f"reward1_{status}"] = reward1[status]
     reviews = sum(row["decision"] == "review" for row in rows)
-    audits = sum(row["decision"] == "keep" and bool(row.get("audit")) for row in rows)
+    queue = read_rows(batch / "judge-queue.jsonl")
+    keep_audit = {row["run_id"] for row in queue if row.get("reveal", {}).get("keep_audit")}
+    audits = sum(
+        row["decision"] == "keep" and (bool(row.get("audit")) or row["run_id"] in keep_audit)
+        for row in rows
+    )
     check_path = batch / "check.json"
     board = {
         "schema": "evallab.line_scoreboard/v1",
@@ -246,7 +251,7 @@ def _build_scoreboard(batch: Path, repo_root: Path, version: int = SCOREBOARD_VE
             "audit": audits,
             "total": reviews + audits,
             "per_100_runs": round(100 * (reviews + audits) / len(runs), 4) if runs else 0.0,
-            "queued": len(read_rows(batch / "judge-queue.jsonl")),
+            "queued": len(queue),
         },
         "task_side": task_side,
         "autoreview": {

@@ -118,6 +118,7 @@ def test_mismatched_identity_never_certifies_clean(native_spec: Path, field: str
     candidate = j3.reading(item, _windows(item))
     candidate[field] = value
     assert j3.outcome(candidate, item).decision == "review"
+    assert j3.priority(candidate, item) is None
 
 
 @pytest.mark.parametrize("change", ["absent_route", "wrong_route", "failed", "unparsed", "prompt", "missing", "index", "no_score", "incomplete"])
@@ -142,6 +143,7 @@ def test_incomplete_or_unattested_windows_require_review(native_spec: Path, chan
     else:
         window["index"] = 1
     assert j3.outcome(value, item).decision == "review"
+    assert j3.priority(value, item) is None
 
 
 @pytest.mark.parametrize("score,expected", [(60, "pass"), (61, "review"), (89, "review"), (100, "drop")])
@@ -152,6 +154,7 @@ def test_every_window_is_required_and_score_is_maximum(native_spec: Path, score:
     assert len(windows) == 2
     windows[1]["suspicion"] = score
     assert j3.outcome(j3.reading(item, windows), item).decision == expected
+    assert j3.priority(j3.reading(item, windows), item) == score
     # A partial low-scoring run does not become clean.
     windows[1]["suspicion"] = None
     windows[1]["error"] = "failed"
@@ -161,6 +164,8 @@ def test_every_window_is_required_and_score_is_maximum(native_spec: Path, score:
     windows[0]["suspicion"] = 100
     assert j3.outcome(j3.reading(item, windows), item).decision == "review"
     assert j3.outcome(j3.reading(item, windows[:1]), item).decision == "review"
+    assert j3.priority(j3.reading(item, windows), item) is None
+    assert j3.priority(j3.reading(item, windows[:1]), item) is None
 
 
 def test_task_diff_placeholders_but_missing_trajectory_requires_review(native_spec: Path) -> None:
@@ -369,6 +374,7 @@ def test_live_check_replays_recording_without_second_call_and_cache_agrees(nativ
     assert sum(p.calls for p in peers) == 2
     assert core.check_batch(batch, native_spec.parent)["passed"]
     assert sum(p.calls for p in peers) == 2
+    assert [row["review_priority"] for row in read_rows(batch / "decisions.jsonl")] == [89, 89]
     traces = read_rows(batch / "trace.jsonl")
     cache = native_spec.parent / "from-live.jsonl"
     write_rows(cache, [{"schema": "evallab.j3_cache/v1", "run_id": row["run_id"],
@@ -528,3 +534,166 @@ def test_explicit_legacy_action_still_rejects_conflicting_weak_policy(
     write_json(fixture_spec, spec)
     with pytest.raises(ValueError, match="task_action and task_policy.weak disagree"):
         load_spec(fixture_spec)
+
+
+def _ordering_cache(spec_path: Path, *, keeps: bool = False) -> Path:
+    spec = read_json(spec_path)
+    manifest = Path(spec["sources"][0]["rollouts"])
+    original = read_rows(manifest)[0]
+    ids = ["missing-a", "high", "low", "tie", "unattested", "incomplete", "missing-b", "zero"]
+    write_rows(manifest, [
+        {**original, "id": run_id, "task_id": "plain-task" if keeps else "weak-task"}
+        for run_id in ids
+    ])
+    scores = {"high": 99, "low": 20, "tie": 99, "unattested": 100, "incomplete": 100, "zero": 0}
+    rows = []
+    for item in _items(spec_path):
+        if item.item_id not in scores:
+            continue
+        value = j3.reading(item, _windows(item, scores[item.item_id]))
+        if item.item_id == "unattested":
+            value["windows"][0]["served_route"] = None
+        if item.item_id == "incomplete":
+            value["error"] = "incomplete"
+        rows.append({"schema": "evallab.j3_cache/v1", "run_id": item.item_id, "reading": value})
+    cache = spec_path.parent / "ordering-cache.jsonl"
+    write_rows(cache, rows)
+    return cache
+
+
+def test_ordering_only_cache_ranks_reviews_without_changing_decisions(
+    native_spec: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache = _ordering_cache(native_spec)
+    spec = read_json(native_spec)
+    spec["task_policy"] = {"uncertified": "drop"}
+    manifest = Path(spec["sources"][0]["rollouts"])
+    rows = read_rows(manifest)
+    write_rows(manifest, [
+        *rows,
+        {**rows[0], "id": "kept", "task_id": "plain-task"},
+        {**rows[0], "id": "dropped", "task_id": "unknown-task"},
+    ])
+    write_json(native_spec, spec)
+    baseline = core.run_line(native_spec, native_spec.parent)
+    before = read_rows(baseline / "decisions.jsonl")
+    assert {row["decision"] for row in before} == {"keep", "review", "drop"}
+    spec = read_json(native_spec)
+    spec["batch_id"] = "ordered"
+    spec["review_order"] = {"j3_cache": cache.name}
+    # Neither reader is enabled and no route allowlist or live call is needed.
+    def forbidden(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("ordering-only must not call a model")
+    monkeypatch.setattr(j3, "live", forbidden)
+    monkeypatch.setattr(hd, "run_omp_session", forbidden)
+    write_json(native_spec, spec)
+    batch = core.run_line(native_spec, native_spec.parent)
+    after = read_rows(batch / "decisions.jsonl")
+    assert [
+        {k: v for k, v in row.items() if not k.startswith("review_priority")} for row in after
+    ] == [
+        {k: v for k, v in row.items() if not k.startswith("review_priority")} for row in before
+    ]
+    expected = ["high", "tie", "low", "zero", "missing-a", "unattested", "incomplete", "missing-b"]
+    reviews = read_rows(batch / "export" / "review.jsonl")
+    queue = read_rows(batch / "judge-queue.jsonl")
+    assert [row["run_id"] for row in reviews] == expected
+    assert [row["run_id"] for row in queue] == expected
+    assert [row["review_priority"] for row in reviews] == [99, 99, 20, 0, None, None, None, None]
+    assert queue[0]["review_priority_source"]["status"] == "complete"
+    assert queue[5]["review_priority_source"]["status"] == "unavailable"
+    assert queue[4]["review_priority_source"] is None
+    assert all("j3" not in row["autoreview"]["details"] for row in read_rows(batch / "trace.jsonl"))
+    assert not (batch / "export" / "keep-audit.jsonl").exists()
+    assert core.check_batch(batch, native_spec.parent)["passed"]
+    # The ordering cache has the same provenance protection as a decision cache.
+    rows = read_rows(cache)
+    rows[0]["reading"]["windows"][0]["suspicion"] = 1
+    write_rows(cache, rows)
+    assert not core.check_batch(batch, native_spec.parent)["passed"]
+
+
+@pytest.mark.parametrize("count", [0, 3, 99])
+def test_top_keep_audit_is_separate_and_preserves_keeps(native_spec: Path, count: int) -> None:
+    cache = _ordering_cache(native_spec, keeps=True)
+    baseline = core.run_line(native_spec, native_spec.parent)
+    assert read_rows(baseline / "judge-queue.jsonl") == []
+    assert not (baseline / "export" / "keep-audit.jsonl").exists()
+    spec = read_json(native_spec)
+    spec["batch_id"] = f"keep-audit-{count}"
+    spec["review_order"] = {"j3_cache": str(cache)}
+    spec["audit"]["keep_top_n"] = count
+    write_json(native_spec, spec)
+    batch = core.run_line(native_spec, native_spec.parent)
+    decisions = read_rows(batch / "decisions.jsonl")
+    assert [(r["run_id"], r["decision"], r["reasons"], r["audit"]) for r in decisions] == [
+        (r["run_id"], r["decision"], r["reasons"], r["audit"])
+        for r in read_rows(baseline / "decisions.jsonl")
+    ]
+    assert read_rows(batch / "export" / "kept.jsonl") == decisions
+    expected = ["high", "tie", "low", "zero", "missing-a", "unattested", "incomplete", "missing-b"][:count]
+    artifact = batch / "export" / "keep-audit.jsonl"
+    if count:
+        assert [row["run_id"] for row in read_rows(artifact)] == expected
+    else:
+        assert not artifact.exists()
+    queue = read_rows(batch / "judge-queue.jsonl")
+    assert [row["run_id"] for row in queue] == expected
+    assert all(row["reveal"] == {"decision": "keep", "audit": True, "keep_audit": True} for row in queue)
+    assert read_json(batch / "scoreboard.json")["judge_load"]["total"] == len(expected)
+    assert core.check_batch(batch, native_spec.parent)["passed"]
+
+
+def test_priority_keep_audit_and_random_audit_do_not_duplicate_queue_entries(native_spec: Path) -> None:
+    cache = _ordering_cache(native_spec, keeps=True)
+    spec = read_json(native_spec)
+    spec["review_order"] = {"j3_cache": str(cache)}
+    spec["audit"].update(rate=1, keep_top_n=2)
+    write_json(native_spec, spec)
+    batch = core.run_line(native_spec, native_spec.parent)
+    queue = read_rows(batch / "judge-queue.jsonl")
+    assert [row["run_id"] for row in queue] == [
+        "high", "tie", "low", "zero", "missing-a", "unattested", "incomplete", "missing-b",
+    ]
+    assert [row["run_id"] for row in queue if row["reveal"]["keep_audit"]] == ["high", "tie"]
+    assert read_json(batch / "scoreboard.json")["judge_load"]["audit"] == 8
+    assert core.check_batch(batch, native_spec.parent)["passed"]
+
+
+def test_ordering_cache_does_not_supply_missing_decision_readings(native_spec: Path) -> None:
+    cache = _cache(native_spec, 100)
+    empty = native_spec.parent / "decision-cache.jsonl"
+    write_rows(empty, [])
+    _enable(native_spec, empty)
+    spec = read_json(native_spec)
+    spec["review_order"] = {"j3_cache": str(cache)}
+    write_json(native_spec, spec)
+    batch = core.run_line(native_spec, native_spec.parent)
+    rows = read_rows(batch / "decisions.jsonl")
+    assert {row["decision"] for row in rows} == {"review"}
+    assert all("J3_UNAVAILABLE" in row["reasons"] for row in rows)
+    assert all(row["review_priority"] == 100 for row in rows)
+    assert core.check_batch(batch, native_spec.parent)["passed"]
+
+
+@pytest.mark.parametrize("count", [-1, 1.5, True, "2", None])
+def test_invalid_keep_audit_limit_is_refused(native_spec: Path, count: Any) -> None:
+    spec = read_json(native_spec)
+    spec["audit"]["keep_top_n"] = count
+    write_json(native_spec, spec)
+    with pytest.raises(ValueError, match="keep_top_n"):
+        core.run_line(native_spec, native_spec.parent)
+    assert not Path(spec["out_root"]).exists()
+
+
+def test_ordering_cache_rejects_label_fields_before_outputs(native_spec: Path) -> None:
+    cache = _cache(native_spec)
+    rows = read_rows(cache)
+    rows[0]["is_cheat"] = True
+    write_rows(cache, rows)
+    spec = read_json(native_spec)
+    spec["review_order"] = {"j3_cache": str(cache)}
+    write_json(native_spec, spec)
+    with pytest.raises(ValueError, match="label-free"):
+        core.run_line(native_spec, native_spec.parent)
+    assert not Path(spec["out_root"]).exists()

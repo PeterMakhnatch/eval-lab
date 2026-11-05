@@ -83,7 +83,7 @@ inputs:
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/judge-guide.md
-    digest: sha256:7971564d631c57d5be622ca3a36512acd378575eacc4d0aad9255b3506e3059b
+    digest: sha256:db3107a3889ecc94858c28582d40030d454b6f9a6a8f2eb49a5675a1a258ca68
   - path: docs/ladder.md
     digest: sha256:c334944474b3cee6cd9b3eee2ae9c84fbb1ccb7e58ea31b70b6d6a9c523e6265
   - path: docs/lancedb.md
@@ -91,7 +91,7 @@ inputs:
   - path: docs/lane-verification.md
     digest: sha256:adc4fee76353ab0f6f2d0f5bd9c629e0ab5fa2addc617f6a93c0e607fd9fe3f3
   - path: docs/line.md
-    digest: sha256:cf85c40ba2d3fd9df1c2bab51881760debf19df30f573dcce78d59a65d22e787
+    digest: sha256:af5f7558932050a66a962157a9af1d0ae3bac4db230cd10fcc9b9ff45c919198
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md

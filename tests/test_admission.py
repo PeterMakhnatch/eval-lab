@@ -110,3 +110,53 @@ def test_raw_intake_never_enters_git(tmp_path):
     (tmp_path / ".git").mkdir()
     with pytest.raises(ValueError, match="outside Git"):
         admission.external(tmp_path / "raw")
+
+
+def test_preregister_commits_only_registration_and_pushes(registered):
+    from argparse import Namespace
+
+    from evallab.admission_delivery import preregister
+
+    root, original, _ = registered
+    registration = original.with_name("second-freeze.json")
+    admission.save(registration, admission.load(original))
+    (root / "another-writer.txt").write_text("Do not commit this\n")
+    run(root, "add", "another-writer.txt")
+    receipt = preregister(root, Namespace(registration=registration))
+    admission.check_registration(root, registration, receipt["commit"])
+    assert run(root, "diff", "--cached", "--name-only") == "another-writer.txt"
+    changed = run(root, "diff-tree", "--no-commit-id", "--name-only", "-r", receipt["commit"])
+    assert changed == str(registration.relative_to(root))
+
+
+def test_preregister_preserves_committed_freeze(registered):
+    from argparse import Namespace
+
+    from evallab.admission_delivery import preregister
+
+    root, registration, _ = registered
+    freeze = admission.load(registration)
+    freeze["config"]["threshold"] = 0
+    admission.save(registration, freeze)
+    with pytest.raises(ValueError, match="immutable"):
+        preregister(root, Namespace(registration=registration))
+
+
+def test_pr_refuses_arbitrary_output_publication(registered, tmp_path):
+    from argparse import Namespace
+
+    from evallab.admission_delivery import publish
+
+    root, registration, commit = registered
+    output = tmp_path / "output"
+    output.mkdir()
+    admission.save(output / "freeze.json", admission.load(registration))
+    admission.save(output / "SCORING.json", {
+        "preregistration_commit": commit, "freeze_sha256": admission.digest(registration),
+    })
+    admission.save(output / "aggregate-results.json", {
+        "preregistration_commit": commit, "raw_transcript": "must not publish",
+    })
+    with pytest.raises(ValueError, match="Unexpected scoring report fields"):
+        publish(root, Namespace(registration=registration, output=output))
+    assert not (registration.parent / "aggregate-results.json").exists()

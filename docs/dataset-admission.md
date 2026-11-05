@@ -57,15 +57,14 @@ It preserves all 169 records, with 0 negatives and 60,541 command blocks.
 
 ## Commit, push, then score
 
-Commit the registration and implementation. Push the branch before scoring.
+Commit the implementation before preparation. Use `preregister` to commit and push only the frozen registration.
+The command preserves other staged changes and refuses to replace an existing committed registration.
 The scorer queries the remote branch heads and reads the committed registration and source bytes.
 A local-only commit, changed thresholds, changed code, changed views, or a missing registration blocks scoring.
 The requested commit must remain a current pushed branch head at scoring time.
 
 ```bash
-git add research/experiments/ev1105-w3/freeze.json
-git commit -m 'Preregister W3 local DetBench admission' -- research/experiments/ev1105-w3/freeze.json
-git push -u origin HEAD
+uv run evallab admit preregister --registration research/experiments/ev1105-w3/freeze.json
 uv run evallab admit score \
   --output ~/.local/state/evallab-ev1105/w3/admission \
   --registration research/experiments/ev1105-w3/freeze.json \
@@ -78,8 +77,17 @@ It reports 95% intervals. Without negatives, AUROC, FPR, and superiority over le
 The full line remains incompatible with held-out admission; its explicit abstention is not an L0 result.
 This workflow does not start judges or substitute models. Scoring has no automatic retry after observing outcomes.
 
-Publish only `aggregate-results.json` and the aggregate registration. Never publish raw rows or views.
-Create a PR and deliver it with `uv run evallab ship <pr>` from a stable checkout.
+Use the publication phase to commit aggregate results, push, and create the admission PR.
+It refuses unexpected report fields and per-record identities. It reuses an existing open branch PR on repetition.
+
+```bash
+uv run evallab admit pr \
+  --output ~/.local/state/evallab-ev1105/w3/admission \
+  --registration research/experiments/ev1105-w3/freeze.json
+```
+
+The command publishes only `aggregate-results.json` and the aggregate registration. It never publishes raw rows or views.
+Deliver the PR with `uv run evallab ship <pr>` from a stable checkout.
 Use [ship](ship.md) for exact-head CI, protected merge, merged-revision smoke, and retirement.
 Use `evallab verify-lane` and `evallab report program` for lane receipts and aggregate reporting.
 The existing [fleet](fleet.md) supervisor controls the lane route and quota, not dataset access rights.
@@ -87,5 +95,5 @@ The existing [fleet](fleet.md) supervisor controls the lane route and quota, not
 ## Verification
 
 `uv run pytest tests/test_admission.py` checks inaccessible and empty downloads, missing credentials,
-unpushed registrations, changed thresholds, changed detectors, and raw-data placement.
+unpushed registrations, changed thresholds, changed detectors, isolated registration commits, immutable freezes, and raw-data publication.
 The real W3 receipt records the complete download, the exact prior-exposure join, and the gated 403.

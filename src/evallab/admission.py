@@ -235,6 +235,10 @@ def command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             result = access(args.dataset, args.revision, args.file)
         elif args.admit_command == "prepare":
             result = prepare(root, args)
+        elif args.admit_command in {"preregister", "pr"}:
+            from evallab.admission_delivery import preregister, publish
+
+            result = (preregister if args.admit_command == "preregister" else publish)(root, args)
         else:
             result = score(root, args)
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:
@@ -263,3 +267,10 @@ def register_parser(commands: Any) -> None:
         if phase is not prepare_parser:
             phase.add_argument("--commit", required=True)
     probe.set_defaults(func=command)
+    registration = phases.add_parser("preregister", help="Commit and push the frozen registration before scoring")
+    registration.add_argument("--registration", type=Path, required=True)
+    registration.set_defaults(func=command)
+    publication = phases.add_parser("pr", help="Commit aggregate results, push and create the admission PR")
+    publication.add_argument("--registration", type=Path, required=True)
+    publication.add_argument("--output", type=Path, required=True)
+    publication.set_defaults(func=command)

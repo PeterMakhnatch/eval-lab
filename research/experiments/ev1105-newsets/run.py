@@ -16,7 +16,7 @@ from typing import Any
 from adapter import ROOT, digest, outside, sha, write_json
 
 sys.path.insert(0, str(ROOT / "research/experiments/ov1104-detbench"))
-import l0_rules  # noqa: E402
+import l0_rules as l0_rules  # noqa: E402
 import length_metrics as lm  # noqa: E402
 import score as stats  # noqa: E402
 from detbench_lib import view_to_atif  # noqa: E402
@@ -168,15 +168,10 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--preregistration-commit", required=True)
     args = parser.parse_args()
+    if args.command == "score":
+        parser.error("WITHDRAWN: RLVR sources remain on the historical rights hold; do not resume scoring")
     output = outside(args.output)
     freeze, rows = verify(output, args.preregistration_commit)
-    if args.command == "score":
-        os.environ["PI_CONFIG_FILES"] = CONFIG
-        done = {r["run_key"] for r in records(output / "l0.jsonl")}
-        for row in rows:
-            if row["run_key"] not in done:
-                append(output / "l0.jsonl", l0_rules.evaluate_one((row["run_key"], row["view"], "now")))
-        asyncio.run(score_j3(rows, output))
     result = summarize(rows, output, freeze, args.preregistration_commit)
     print(json.dumps({"attempted": result["attempted"], "completed": result["completed"], "route_counts": result["route_counts"]}))
 

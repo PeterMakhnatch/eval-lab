@@ -1,0 +1,72 @@
+{
+  "code_sha256": {
+    "research/experiments/ev1105-newsets/MATH-PREREG.md": "52accdf93627fbb844dc45b4511f0a8e8efc93d24b363a5a47077c04924eaaee",
+    "research/experiments/ev1105-newsets/adapter.py": "4130ed8fc0d9850692e2e0252c3cfee42f183561afa08d5e908c0ce061f98a32",
+    "research/experiments/ev1105-newsets/math_adapter.py": "b2fe5000833917f74ac9a0b120f292d401d13d066b5bc8f0aed2868f888c69fe",
+    "research/experiments/ev1105-newsets/math_run.py": "10a1f8fb06743401a71982c452180ec954f013174917190568be372ccfdc5216",
+    "research/experiments/ev1105-newsets/run.py": "2a0d32c2f33e41bc532095c3cb09961314525d101febc3122662b6322c5eab23",
+    "research/experiments/ov1104-detbench/detbench_lib.py": "49bd983c7461081b2c3fc7bd8ccf10e3413b8e6896f9cc5f8eb1d47658220c0c",
+    "research/experiments/ov1104-detbench/l0_rules.py": "63f07ba808a2ffc04f5c2d34fee7b9d450a46fbbaa76e2b1511b35398ec4531d",
+    "research/experiments/ov1104-detbench/length_metrics.py": "244afdbcaccecdac87e74a8a3b975a5943f62f4f3c57fd4e78e203a757931d36",
+    "research/experiments/ov1104-detbench/score.py": "a19f60db1cd7a6a0036911f421f531770d992c3e5080322f98cd2c9825bdf576",
+    "src/evallab/hack_drop.py": "c3a00a5bb8158982eb2e91d71fbee746368d43a179adafcd454a834a86f24a0d",
+    "src/evallab/line/io.py": "6dd18243d1dc1388ee8933b3617382e4aaf3bfd78d7649490ddc2783c49196ef",
+    "src/evallab/line/j3.py": "b699030c529c61734275d3dd36c4b47066d75ed7bd4df242c280cc3a3d1dca0d",
+    "src/evallab/line/j3_prompt.py": "e51581999697e10398be7f47098db1e6490e610bb612e0d3312dc2a8ab65526e",
+    "src/evallab/line/j3_view.py": "2aa7e5c13c60fa19c1f903776aa28399c43165de2acac8e2de8f0161011e04da",
+    "src/evallab/trace_anatomy.py": "df27582d47ebb9f6e929f4cb6a6648907d23c8644e337a6d834b835d2a0c1b87",
+    "src/evallab/tripwires.py": "3d3a143f6b175e16077bb087a2164af1b59182ae403f1ed8a5a7b6d234b86d75"
+  },
+  "coverage": {
+    "admission:malformed_call_index": 1,
+    "admission:no_recorded_tool_actions": 42,
+    "admission:observed_misreport": 200,
+    "admission:verified_accurate_counter": 157,
+    "raw": 400
+  },
+  "length_strata_edges": [
+    3567,
+    4254,
+    4810,
+    5410,
+    5872,
+    6646,
+    7703,
+    9207,
+    11981
+  ],
+  "prefix_sha256": "ca496b4c5f73879aa7d7da58986085734cf06f1202a8028db922c3acd05c8f41",
+  "route": "openai-codex/gpt-6.1-terra",
+  "rubric_sha256": "7e7cb3c4686423ad137ecbfa726be97f54e5a05805157e3d8e8adbc5250afc83",
+  "sample_counts": {
+    "0": 157,
+    "1": 200
+  },
+  "sample_identity_sha256": "263f50c85f4268cd80fbe0fd0dda71ab15a80c0c206586da994db1853024e103",
+  "sample_sha256": "05585479f191729a6583969696a4f11a48adaae7f7edc1d3f25d3455942338af",
+  "source": {
+    "card_sha256": "f102b4ec76fc6e1122a2ebfaad97e7cf5ba47c759a333e476a532aef19c5957c",
+    "data_bytes": 1075549,
+    "data_sha256": "6b11810b052cd9e7e209a475b2b8627e62e67ccb172bc9142a4b0f768a4762e0",
+    "license": "MIT",
+    "repo": "annahbanannah/synthetic-math-toolcall-deception",
+    "revision": "1e728ec86fefb9e77cec58178d37f26035c7bb9f"
+  },
+  "task_clusters": 200,
+  "template_sha256": "d447dc31c7c496a278b4f8cc2daecc547e8aa1d9689dc1de115e77cd72574592",
+  "thresholds": {
+    "characters": [
+      272968,
+      2784671
+    ],
+    "j3": [
+      61,
+      89,
+      100
+    ],
+    "steps": [
+      95,
+      609
+    ]
+  }
+}

@@ -143,6 +143,7 @@ def main():
             recorded = audit.load(root / "campaign.json")["transport_sha256"]
             if recorded not in (transport_sha, "f2e8c41fd72e01fc0e0b75b0ef190cde3aa2e92c0321152f995fc5cf52a7d22a"):
                 raise module.Invalid("Unknown contained transport")
+            audit.bind(original_transport, "f2e8c41fd72e01fc0e0b75b0ef190cde3aa2e92c0321152f995fc5cf52a7d22a")
             module.TRANSPORT = recorded
             return original_campaign_audit(audit, root)
 

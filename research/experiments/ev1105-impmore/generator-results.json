@@ -1,0 +1,617 @@
+{
+  "admitted_union": 20,
+  "authority_count": 52,
+  "failure_counts": {
+    "junit-instrumentation-unavailable": 2,
+    "missing-extraction": 2,
+    "no-supported-direct-assertion-in-touched-test": 9,
+    "original-nop-not-assertion-failure": 12,
+    "original-reference-not-clean-pass": 7
+  },
+  "new_ids": [
+    "format-code-task-000322",
+    "format-code-task-000466"
+  ],
+  "results": [
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:b84efaaf0e3f6db4cc1b369560af9ffd2e417e4f5e7e0aab701462f6a12f5eec",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000079",
+      "source_controls_sha256": "9d7c024f24843da459b153cc55c492444e44eff9ba6fb3f8a55058f218fe2ec2",
+      "source_generated_sha256": "7ddf45bb4dfe66b7c5a5c0b3bec4f9bc74d884dae5b9560404f81838ee8de711",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000079/controls/candidate-000/grade.json": "1c8fd96c375fcb4e4e81574c2a26ebc99cfa56d78ffb6f9189726bcd4d3aecc1",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000079/controls/original-nop/grade.json": "7c5968edfd4a85e5e2f63efe01372f9a5dc74448784918d7f522971875cd3e7b",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000079/controls/original-oracle/grade.json": "14c476928a5da62180531d6e0cf62f3f079b673ffcc01503db302feadf66a58b"
+      },
+      "task_id": "format-code-task-000079"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:972247b69623a8839aaa1faf5108524a1d74e68699f8f9a85100ce2b87bc8b89",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000081",
+      "source_controls_sha256": "07868e03614e9090585ea2eeae8d1bd76a97d30313f6cf6d6c3be3beceebe172",
+      "source_generated_sha256": "21238d2df96444460820bbb555ab32e193c498d776072447332c953189e4f0a0",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000081/controls/candidate-000/grade.json": "0a213ca4185c3a1489cd4ce78bc53ff3921cd31438c6d52a09d598419aa4c3f6",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000081/controls/original-nop/grade.json": "8a11b4b1877626a6d732f0da79ccf6470152dc131258169164310feedcd26030",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000081/controls/original-oracle/grade.json": "454dd56fd6e34645b13cc0fbf2bb98313dc144aff31cb2419591f9c923d1a2f6"
+      },
+      "task_id": "format-code-task-000081"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:7e6eec46472cb5bd610987b013b27f62eb66ec47c1d432126d65469e410f7de1",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000085",
+      "source_controls_sha256": "9e1f654606f03167b8c77f2a21edccf3bc72a94d5385eb963df6f8c7ceaf542d",
+      "source_generated_sha256": "c0d8ab4958d35982d2c541393c864225ad93cc07564c43e7e012c1af37400fd1",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000085/controls/candidate-000/grade.json": "fc0afa10ffc237eb870b051f47133b9082b43de0d7766bb55b78fc4c57974535",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000085/controls/original-nop/grade.json": "47cf9b68a1c8b6f4615b5742bb22b735a2efc05bac051ccb3245116a42974fa5",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000085/controls/original-oracle/grade.json": "d6d9cebcf59cf65af9400e59d0a64bd32b8ed50e384c6b09346add2cc60eaaac"
+      },
+      "task_id": "format-code-task-000085"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:35e6c0ae95de6903fa9dbf1bb08dfd8690f8ae68c73769174cd61f1f201f27d5",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000158",
+      "source_controls_sha256": "23d41379858aa154ec78a7d2c7aa8d98811e1247525f53038bc58457cecdbeff",
+      "source_generated_sha256": "c18aa1885664bb949d0e2642c29f50ac68080fe3f10bdc91efa2ac2cd5c96636",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000158/controls/candidate-000/grade.json": "b470b9a956b47c38aaf7b2605b35a92c53ba38eaa98dbf9aa3f4db7cbe6937ad",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000158/controls/original-nop/grade.json": "8e20786e3f1ce25727faf1833e2e370ca3d18c463779b2abdab67ff7bd7e6a6e",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000158/controls/original-oracle/grade.json": "395861f4c732c2bb564b5fc9c5bb82d92ec624d1863898edfe18598bbf9b269e"
+      },
+      "task_id": "format-code-task-000158"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:ff5471576ae55eac48f82968fc53a8ed9a759ba21564e74ae5359505b649f2a7",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000159",
+      "source_controls_sha256": "9d051a87dd53381961f94ed5627a2499f3d9f1de842e817f51761a4d3182668c",
+      "source_generated_sha256": "86de43f5ade57233409642212b4ae7ad8ad221767d5f2e6b6cd4440b0a036715",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000159/controls/candidate-000/grade.json": "2443e8434eb34bb3dfdc3e545c5aed6f43901f28321417cac34076aec58cfc03",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000159/controls/original-nop/grade.json": "b1820487f5d2a5c941d1c4d13a9005f83f1af60cd011c598676ded05160eb64d",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000159/controls/original-oracle/grade.json": "9ccf43771fc343f97d9e85c0626f8a479eef18a69e9bbaef6d76cfaa0fdf968b"
+      },
+      "task_id": "format-code-task-000159"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:e271fd2ce504cccdb3b5c18a51329b09105061843a2c4a819f2252c9408a89e5",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000160",
+      "source_controls_sha256": "0fad93f014918c210d02ff8b3a6e19581eab4f4bcb1aacfe90cf0daf104a9384",
+      "source_generated_sha256": "3f43e7d63b73c454987686a33cc4c63c5f9e19c985b881fbfe14f13d8f2c7c1c",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000160/controls/candidate-000/grade.json": "35e0796188b6030e30df200538a9baf03c02dc1571433f772ba48b8d9b97aef3",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000160/controls/original-nop/grade.json": "58bc1694f9ca40493127008fcb544f3769094e5ee957d7cfd5a186106a0ee08b",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000160/controls/original-oracle/grade.json": "fa5017895ec1b07bf23714ecc79be9db80c8617185183f41548f8c99567e7ee7"
+      },
+      "task_id": "format-code-task-000160"
+    },
+    {
+      "admitted": false,
+      "reason": "original-nop-not-assertion-failure",
+      "reused": false,
+      "task_id": "format-code-task-000212"
+    },
+    {
+      "admitted": false,
+      "reason": "no-supported-direct-assertion-in-touched-test",
+      "task_id": "format-code-task-000232"
+    },
+    {
+      "admitted": false,
+      "reason": "no-supported-direct-assertion-in-touched-test",
+      "task_id": "format-code-task-000256"
+    },
+    {
+      "admitted": true,
+      "candidate_index": 0,
+      "class": "",
+      "construction_control_verified": true,
+      "image": "sha256:ba437fcac40d6d470ed0bb1fec544937b6630ec11026316f3c0e39046e0e1f48",
+      "old_generated": false,
+      "reused": false,
+      "shape": "assert-condition",
+      "task_id": "format-code-task-000322"
+    },
+    {
+      "admitted": true,
+      "candidate_index": 0,
+      "class": "",
+      "construction_control_verified": true,
+      "image": "sha256:8959704ad362ecf22f1c3ea98b81a629144791fcefe38e2758a000a8f5ae2f4e",
+      "old_generated": false,
+      "reused": false,
+      "shape": "assert-condition",
+      "task_id": "format-code-task-000466"
+    },
+    {
+      "admitted": false,
+      "reason": "no-supported-direct-assertion-in-touched-test",
+      "task_id": "format-code-task-000587"
+    },
+    {
+      "admitted": false,
+      "reason": "no-supported-direct-assertion-in-touched-test",
+      "task_id": "format-code-task-000636"
+    },
+    {
+      "admitted": false,
+      "reason": "original-nop-not-assertion-failure",
+      "reused": false,
+      "task_id": "format-code-task-000682"
+    },
+    {
+      "admitted": false,
+      "reason": "original-nop-not-assertion-failure",
+      "reused": false,
+      "task_id": "format-code-task-000812"
+    },
+    {
+      "admitted": false,
+      "reason": "original-reference-not-clean-pass",
+      "reused": false,
+      "task_id": "format-code-task-000838"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:fde9928d1bb44a3d728086ee363600b42793819dd5758fda89dc3373d99c9b21",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000847",
+      "source_controls_sha256": "b100641d6d85fa151035bb8888eca48f732a1df04a69020e84a7b4e77f6d9f7c",
+      "source_generated_sha256": "b0350d57d34d6669d714c2733659882266d2c21d9f966cc6d8f46b99ba5961d3",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000847/controls/candidate-000/grade.json": "e339f23a3e23e3148f61e9847ecf94ade7087a59a7f316da0462aad4780fdd17",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000847/controls/original-nop/grade.json": "487ac95c970febc72f745f55d613183a625133756593bc54d15ec70936f288b2",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000847/controls/original-oracle/grade.json": "2944d9b4879edcb608f58a79b16c6144271d327d821c5509e89f3e0a50da0a8d"
+      },
+      "task_id": "format-code-task-000847"
+    },
+    {
+      "admitted": false,
+      "reason": "original-nop-not-assertion-failure",
+      "reused": false,
+      "task_id": "format-code-task-000931"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:610cecf86d21a49e385cddde07b74608fc03914d0668516eb50eedf60a721986",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000941",
+      "source_controls_sha256": "5a64501b36d32d398d549b24be1bfdf50039c3806762274c1604c99dbf47746f",
+      "source_generated_sha256": "aa1b4091dda147fffdcf6bf8317692695bd6169cf974a50921cb2742f7b12f73",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000941/controls/candidate-000/grade.json": "c936739084e7e966a468169361b0bf764cc2b4d2ce33254aedd0c7489f9f17f8",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000941/controls/original-nop/grade.json": "79fb6a9d570efc89546cce9d58a944779777a15f90326c77d6e90137bae7ceb7",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-000941/controls/original-oracle/grade.json": "e5d533434f0734eafac275f3b48dc66e569c8202e805daf9907c6647cbefddbb"
+      },
+      "task_id": "format-code-task-000941"
+    },
+    {
+      "admitted": false,
+      "reason": "original-reference-not-clean-pass",
+      "reused": false,
+      "task_id": "format-code-task-000945"
+    },
+    {
+      "admitted": false,
+      "reason": "no-supported-direct-assertion-in-touched-test",
+      "task_id": "format-code-task-001205"
+    },
+    {
+      "admitted": false,
+      "detail": "mimo_test_command.sh:6 replaces PYTHONPATH; refusing plugin injection rather than changing the task exit behavior",
+      "reason": "junit-instrumentation-unavailable",
+      "task_id": "format-code-task-001216"
+    },
+    {
+      "admitted": false,
+      "reason": "no-supported-direct-assertion-in-touched-test",
+      "task_id": "format-code-task-001267"
+    },
+    {
+      "admitted": true,
+      "class": "PrintTest",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:e58499bb7c4a76b86f0c35f62d6a3d9e0a89158c5e9f54d6275331f44f656f65",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assertTrue",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-001338",
+      "source_controls_sha256": "067342ba0560f7526fa63787a1badd46a1323ab8ea48138db75fcb7ce789ad09",
+      "source_generated_sha256": "348111823e5bab3011aae9853386f612a3af9ae70e469d9ab09e3d6028c5a096",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-001338/controls/candidate-000/grade.json": "9d2a765dcf7bf993c6ae57d0026fe44433afc59ddeaa4ef6a8c543de5035cb2b",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-001338/controls/original-nop/grade.json": "d1a1d6ee63a64eaaa90b5ce71a9d851b9f6a6ea70cb37e44c06cd451ed0003f2",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-001338/controls/original-oracle/grade.json": "fc2944118e28b24f2cc74f2ee021fd430ea6fdab13bd4eec13bc9b438e3d0d45"
+      },
+      "task_id": "format-code-task-001338"
+    },
+    {
+      "admitted": false,
+      "reason": "missing-extraction",
+      "task_id": "format-code-task-001426"
+    },
+    {
+      "admitted": false,
+      "reason": "missing-extraction",
+      "task_id": "format-code-task-001431"
+    },
+    {
+      "admitted": false,
+      "reason": "no-supported-direct-assertion-in-touched-test",
+      "task_id": "format-code-task-001471"
+    },
+    {
+      "admitted": false,
+      "reason": "original-reference-not-clean-pass",
+      "reused": false,
+      "task_id": "format-code-task-001647"
+    },
+    {
+      "admitted": true,
+      "class": "TestSyncClientAutoInit",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:d1a34cf29fc50a47499c1f1aebd9810a90c92d51b57a6322518e7a770c501615",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-001804",
+      "source_controls_sha256": "e19c820d10fc514629f4f08aae9692eb269a361ef01c28c3e2c026f96b91d60e",
+      "source_generated_sha256": "9facb298c7611f3aeee02568305f8e34d862908bda9d5d7b1d851fa40fd389d7",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-001804/controls/candidate-000/grade.json": "badc83c68731205d47b4d7fa7812eef9c325cecf25118a656fd5bb4c7461d9ac",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-001804/controls/original-nop/grade.json": "841c350e8ce4c7260370cac51b5b49469a920e4be2c06a637c9744bad97b9fb6",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-001804/controls/original-oracle/grade.json": "02db96bebd4d4d80f91beb20225b5a2841a05f2ec5cbc0a420980f37e5cfbb21"
+      },
+      "task_id": "format-code-task-001804"
+    },
+    {
+      "admitted": false,
+      "reason": "original-reference-not-clean-pass",
+      "reused": false,
+      "task_id": "format-code-task-001850"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:b40ea3ad595ac7477699a18356bd5f82f0d016d8019ec783354f7e0225f6a841",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-001870",
+      "source_controls_sha256": "297ca3c6a1bd21dd1007bcee87be2a52907e95335002f6d14c014dfd6bfcd588",
+      "source_generated_sha256": "aa19e896cac8889dbdcf01a176b5e8e3120cb812c75b6e47593f246b2cf3ea5f",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-001870/controls/candidate-000/grade.json": "f02bbcec09e123913df4705195ba663aeb44d1bd8c21c214a9a769721dddd3bc",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-001870/controls/original-nop/grade.json": "90057702f6627205558a3da0949b810b4563a20baca5ac7e520514055e626775",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-001870/controls/original-oracle/grade.json": "36c158044c919296ca950f4b04c4939d183031d39095635adeb7333f66f4e6a5"
+      },
+      "task_id": "format-code-task-001870"
+    },
+    {
+      "admitted": false,
+      "reason": "original-reference-not-clean-pass",
+      "reused": false,
+      "task_id": "format-code-task-001971"
+    },
+    {
+      "admitted": false,
+      "reason": "original-nop-not-assertion-failure",
+      "reused": false,
+      "task_id": "format-code-task-001985"
+    },
+    {
+      "admitted": false,
+      "reason": "original-nop-not-assertion-failure",
+      "reused": false,
+      "task_id": "format-code-task-002139"
+    },
+    {
+      "admitted": false,
+      "reason": "no-supported-direct-assertion-in-touched-test",
+      "task_id": "format-code-task-002160"
+    },
+    {
+      "admitted": true,
+      "class": "TestPersist",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:e4482169fa390eccdb1d5f80fe2e1449fa0019093f659460b5cc5da908d47f23",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002256",
+      "source_controls_sha256": "ea2d69bd75bd2019437503bdac60c241c6e22782cd8de0c066db651682eebca4",
+      "source_generated_sha256": "0ed8fe84141b9214c9f6ddca9a7869ef89e8deb0edd57fc781bf95aa6104cbf6",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002256/controls/candidate-001/grade.json": "07bc4da5b106f0e88fb12065c88158f3a37aea0331b38fe4186e711fbd1d635f",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002256/controls/original-nop/grade.json": "b5e85862a3f3e3032ef3f0a6dabf4dde9e1c0c1ccdb278e50efa50d853ea5e4f",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002256/controls/original-oracle/grade.json": "dbc8b6d5f85252bdee0091a1f163a3ddef2b1d2ba6405a5f7a2e7e35d8929529"
+      },
+      "task_id": "format-code-task-002256"
+    },
+    {
+      "admitted": false,
+      "detail": "mimo_test_command.sh:6 replaces PYTHONPATH; refusing plugin injection rather than changing the task exit behavior",
+      "reason": "junit-instrumentation-unavailable",
+      "task_id": "format-code-task-002302"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:2a32d6f0e728814ccd4649b45f8eb5ac36082e577d9cb2d597639567a1b7e564",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002356",
+      "source_controls_sha256": "7b606398156366ca3fb0fae7302cb448c31d618ddb610226b75f9046a6907e2f",
+      "source_generated_sha256": "8f37665afb9465fc8db62423844b894a24405518b7c46291e6b91c79c38554e4",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002356/controls/candidate-000/grade.json": "fc35ca03f53d4bfb5e9be636713321792d6411b1dff46cc6708ce0acbc543ffb",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002356/controls/original-nop/grade.json": "f553acb4c0aeed934b36fb3a407ddfc2add89c6a34dbbb02983cf15ac5fb8d7e",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002356/controls/original-oracle/grade.json": "aabbbac10f69c3912002f2cd2a54b78660bd057d83d0f7ef9c060e96cc97b3d7"
+      },
+      "task_id": "format-code-task-002356"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:584d1f7faf8e346495038077962a9749b412de61ef971cb1ee1b408084b668e4",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002377",
+      "source_controls_sha256": "65e30dd761e6d913838c5497e552f653fc615a48f78f573cc5de858282e2d0b8",
+      "source_generated_sha256": "fda720616e0c1394781a35634ee4ff7915a5ffac91aab4cde8c3a8cdc0963b96",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002377/controls/candidate-000/grade.json": "adbeb20c531cfc815430fae33e80f2ab7cb01e5a2ea25d378704914e975ded27",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002377/controls/original-nop/grade.json": "ac4562479edd8c356116636285d72c1d255edda52ec671ae95f88c41bf991b37",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002377/controls/original-oracle/grade.json": "ab0fa68e5b08977edf6ea793bcfcb6110e7b6a4612487efd8b3380cd9ef46668"
+      },
+      "task_id": "format-code-task-002377"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:adaeb4fc8ba603bbe897a249fee4720569e5d6e03a6ae1bb650aaead04a5248d",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002391",
+      "source_controls_sha256": "2e070ee1d1094f2392e47ce198c462052b9fa2c354088195e2a500b309f24fd2",
+      "source_generated_sha256": "19b523f65a4af220333cde1630a769a2568d601aa2f8732155244d31a6cd80b6",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002391/controls/candidate-000/grade.json": "a9de68f709f6ba2fd4a15174c088b8cd50c2a5c4407513a850d6492008aecbd1",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002391/controls/original-nop/grade.json": "0d9f403bad4340afad301aa25b7966eda46ed87dc07fe03d7fedf3bc662ee372",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002391/controls/original-oracle/grade.json": "742b9bddd7dcd09ef67ede4c28f733d13f5bbf1f531dd8a0be541b170c445455"
+      },
+      "task_id": "format-code-task-002391"
+    },
+    {
+      "admitted": false,
+      "reason": "original-nop-not-assertion-failure",
+      "reused": false,
+      "task_id": "format-code-task-002416"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:d3f713bd9006f43cc58e26aec799995e1a0fa58aee7e3845673cb07cc22211f6",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002499",
+      "source_controls_sha256": "e8d66feb903ee8e978bbf702e631fc6e703ce03908f885bae6dfefa6b100c859",
+      "source_generated_sha256": "1b545b9dc9b6053c665391223ba4ffb3e78d1f0971fe50836bc3a153267e351d",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002499/controls/candidate-000/grade.json": "692ba3888648b13006ad0b4d5f63abc4c5e48f35a62230f1b5145204df7cc23d",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002499/controls/original-nop/grade.json": "8b8c10fd9d348915ce6524cf714f9666025360870121becbaa26c55c03a4053a",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002499/controls/original-oracle/grade.json": "cdf3aefb43e5b93891eaadc68b11bb22457518522c4bc42652157bd226b8fdce"
+      },
+      "task_id": "format-code-task-002499"
+    },
+    {
+      "admitted": false,
+      "reason": "original-nop-not-assertion-failure",
+      "reused": false,
+      "task_id": "format-code-task-002519"
+    },
+    {
+      "admitted": true,
+      "class": "",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:8fdeb0535eccb7a4ad9401bb938aa864a773b13af76c3f9d1c04d2b21e605a86",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assert-condition",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002535",
+      "source_controls_sha256": "38d2a909abe049a7fea13e0916c0c154692e739d28d3332367d4a5670bda94c9",
+      "source_generated_sha256": "f2761d96f45f710359a9cdc723e2354ee702f9e4d7723ec819d5fea91b3c4405",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002535/controls/candidate-000/grade.json": "a5bd3b2cc3dc475e2084a22e13fad80f188d4951b066abb705d1fc4e43d0f1e7",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002535/controls/original-nop/grade.json": "625666d6471bda9909ec2f69c70a03874aab2b987beec3405c4366e27b5f36ef",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002535/controls/original-oracle/grade.json": "a9ccb31c6e92efcc922a154787975d0322212fbd73819f889e4c8c7db4a1e62d"
+      },
+      "task_id": "format-code-task-002535"
+    },
+    {
+      "admitted": false,
+      "reason": "original-reference-not-clean-pass",
+      "reused": false,
+      "task_id": "format-code-task-002545"
+    },
+    {
+      "admitted": false,
+      "reason": "original-nop-not-assertion-failure",
+      "reused": false,
+      "task_id": "format-code-task-002552"
+    },
+    {
+      "admitted": false,
+      "reason": "original-nop-not-assertion-failure",
+      "reused": false,
+      "task_id": "format-code-task-002609"
+    },
+    {
+      "admitted": true,
+      "class": "ShubConfigTest",
+      "construction_control": "not-executed-for-reused-admissions; parent-review-required",
+      "current_generator_sha256": "8da9846a5683698b044d26af3fe9aeb1835c7b60984560b85e4ef518d3a60872",
+      "current_split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "image": "sha256:57476037ad3db60e953b7f625d1a2860ebefa11d14e5c48f04bfed4545dcd11b",
+      "proof_functions_ast_identical": true,
+      "reused": true,
+      "saved_generator_sha256": "da71c9dd64d2f429dd036deab7900b82fa630619006537195f07b72f0c00bd31",
+      "saved_generator_source": "/private/tmp/ov1106/impscale/source/extend.py",
+      "shape": "assertEqual",
+      "source": "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002610",
+      "source_controls_sha256": "b1bf388ff2eeb3498604d77a7cf234e168684e95e29abea6e18f67d659699eea",
+      "source_generated_sha256": "cd79e9c4a89ed07527ec4ecd25f148463f89f4102e63625afbe7e83244f51033",
+      "source_receipts": {
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002610/controls/candidate-000/grade.json": "492e11139b0c03f8164ca2ff5d58872d51aef34f9b5e243456858b580759b0df",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002610/controls/original-nop/grade.json": "62141fbe8bd494fc340a0008779f892f041dd5edbeef1e7963bdddd7d1c34177",
+        "/private/tmp/ov1106/impscale/helpers/strict/work/tasks-v2/format-code-task-002610/controls/original-oracle/grade.json": "6e334edfee0b29d13f5c246b736a40bff27c5742e539e5e17f493371d32372b8"
+      },
+      "task_id": "format-code-task-002610"
+    },
+    {
+      "admitted": false,
+      "reason": "original-nop-not-assertion-failure",
+      "reused": false,
+      "task_id": "format-code-task-002680"
+    },
+    {
+      "admitted": false,
+      "reason": "original-nop-not-assertion-failure",
+      "reused": false,
+      "task_id": "format-code-task-002939"
+    },
+    {
+      "admitted": false,
+      "reason": "original-reference-not-clean-pass",
+      "reused": false,
+      "task_id": "format-code-task-002976"
+    },
+    {
+      "admitted": false,
+      "reason": "no-supported-direct-assertion-in-touched-test",
+      "task_id": "format-code-task-003007"
+    }
+  ],
+  "reused_admissions": 18
+}

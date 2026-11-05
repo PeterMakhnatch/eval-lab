@@ -1,0 +1,347 @@
+{
+  "schema": "impmore-boundary-qualification-metadata-v1",
+  "qualification_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/safe-qualification.json",
+  "qualification_sha256": "9a0ca3ff93a1568574a8f39ec7918b5f006f57516b438bce9cc2a9666411be28",
+  "qualification": {
+    "schema": "safe-postprocess-qualification-v1",
+    "passed": true,
+    "created_at": "2026-11-05T20:08:44.711094+00:00",
+    "safe_io_sha256": "4d068c112a01c32e0628cd8b5c3e1442fbd28ac466816f94d2cc0fc75b4e791b",
+    "grading_sha256": "42a97e7ef3b75f631e2ba6cea3252729f77124936c4fe9b44af9395fa7834eb7",
+    "transport_sha256": "986330b5e43a52b9056b39dc337c4875c4e32556aa4ecf6415ba8e4d650f30ac",
+    "runtime_control_count": 20,
+    "runtime_controls_passed": 20,
+    "task_ids": [
+      "format-code-task-000079",
+      "format-code-task-000081",
+      "format-code-task-000085",
+      "format-code-task-000158",
+      "format-code-task-000159",
+      "format-code-task-000160",
+      "format-code-task-000322",
+      "format-code-task-000466",
+      "format-code-task-000847",
+      "format-code-task-000941",
+      "format-code-task-001338",
+      "format-code-task-001804",
+      "format-code-task-001870",
+      "format-code-task-002256",
+      "format-code-task-002356",
+      "format-code-task-002377",
+      "format-code-task-002391",
+      "format-code-task-002499",
+      "format-code-task-002535",
+      "format-code-task-002610"
+    ],
+    "model_trials": 0,
+    "evidence": [
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/summary.json",
+        "sha256": "d018ba0224512c5cda8826ac9a6ea2d3979cd1a55c0caf352c89e405327477db"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/qualification-features-v3/receipt-final.json",
+        "sha256": "cc14a8054a5f2b853d04c74d893a6d5db1a86740d753b0725b49dbeb69c13f6d"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/safe-canary/receipt.json",
+        "sha256": "8cf56e2d38381dae8c62c79d50f6f70ab0125117431730a796fb451c008b8443"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/safe-canary/driver-receipt.json",
+        "sha256": "71c4a35fd1a8dd906e633f56b3569d1e1e3c84916aaf43a7e5fb382f8e8dc2bd"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000079/receipt.json",
+        "sha256": "71dd57e4e3d16ac7487f07236a7c445353c597a57c2a190ebd7b71d70faf70bf"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000081/receipt.json",
+        "sha256": "be0e6ff41f75fc673eb2eb6de8337aa845f665196361e96d1de421140de81a04"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000085/receipt.json",
+        "sha256": "483adae1834798eed479247b78cb979558d4286cfd517658e65a7c5993c78c8b"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000158/receipt.json",
+        "sha256": "811eccafabdd37a1dd068c4ef566dd26272ece16afd6a176b6378d8a4e2fc087"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000159/receipt.json",
+        "sha256": "8312b79845db2ac283e0520d62a45fa92eedf16bde1d5eb65f6e57ca83c948e9"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000160/receipt.json",
+        "sha256": "a40d705fa53003e8221e8a5839915a66124522b78f17a72d930b6a56874f2414"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000322/receipt.json",
+        "sha256": "3620f317e0efe149f3f4edc05cbf101db873fead1ecbf089fc6310d7caafeec6"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000466/receipt.json",
+        "sha256": "5827eafcb026a6db977fff6dfaa301f89c3f83b20d1eb431712c3eb67ec6dd8c"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000847/receipt.json",
+        "sha256": "90ba4517ced443855d87fab0ff6cee9ec554ef2a83198a117e5af023d6ae6a4c"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000941/receipt.json",
+        "sha256": "5b891b7c1189bed1f2761934b2f69211055d0e137f4a1a36abf123b6fb865806"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-001338/receipt.json",
+        "sha256": "be3afc14ff7e0d04f260cd7c00c0c86aa11767e12380beb09d8bf79914d6de3a"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-001804/receipt.json",
+        "sha256": "d4352753497c922c2e7b8675aa29ae2261907c211f9de159ad74635fa4366e74"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-001870/receipt.json",
+        "sha256": "78862f601ac63c05bbab2b78681eb4b1366afcb4afa9f96af5ba65ebb5b73f24"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002256/receipt.json",
+        "sha256": "75e9df6da26dfe97ec00e196c9578b55f5a8c5badde266413e93d4a1d4e4b534"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002356/receipt.json",
+        "sha256": "20fbeeff125c454a27962b334fd55820f02a769e75c8aa28259edd762a90c79a"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002377/receipt.json",
+        "sha256": "7f44475ec0b145b3a2da7b4ffa96aaa61311ad57437cad25a4b44f95542d75ad"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002391/receipt.json",
+        "sha256": "8423abec97d16b34591f8ca228369bf291e50f901f15c98aa98116457e3a5347"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002499/receipt.json",
+        "sha256": "6072a3337665d60a13c59ac154916a2cc7f10ef338e3f90fba506bc55a41c263"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002535/receipt.json",
+        "sha256": "a4bf521a887104754937cfbbe66e74e172a6ee6308abcb9a4bbb7c2d75b14692"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002610/receipt.json",
+        "sha256": "b0bf3ec46c00c65b22782fbbb70d5b0525b742ece00376e6811cf83afa207d09"
+      }
+    ]
+  },
+  "runtime_controls": [
+    {
+      "task_id": "format-code-task-000079",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000079/receipt.json",
+      "receipt_sha256": "71dd57e4e3d16ac7487f07236a7c445353c597a57c2a190ebd7b71d70faf70bf"
+    },
+    {
+      "task_id": "format-code-task-000081",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000081/receipt.json",
+      "receipt_sha256": "be0e6ff41f75fc673eb2eb6de8337aa845f665196361e96d1de421140de81a04"
+    },
+    {
+      "task_id": "format-code-task-000085",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000085/receipt.json",
+      "receipt_sha256": "483adae1834798eed479247b78cb979558d4286cfd517658e65a7c5993c78c8b"
+    },
+    {
+      "task_id": "format-code-task-000158",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000158/receipt.json",
+      "receipt_sha256": "811eccafabdd37a1dd068c4ef566dd26272ece16afd6a176b6378d8a4e2fc087"
+    },
+    {
+      "task_id": "format-code-task-000159",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000159/receipt.json",
+      "receipt_sha256": "8312b79845db2ac283e0520d62a45fa92eedf16bde1d5eb65f6e57ca83c948e9"
+    },
+    {
+      "task_id": "format-code-task-000160",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000160/receipt.json",
+      "receipt_sha256": "a40d705fa53003e8221e8a5839915a66124522b78f17a72d930b6a56874f2414"
+    },
+    {
+      "task_id": "format-code-task-000322",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000322/receipt.json",
+      "receipt_sha256": "3620f317e0efe149f3f4edc05cbf101db873fead1ecbf089fc6310d7caafeec6"
+    },
+    {
+      "task_id": "format-code-task-000466",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000466/receipt.json",
+      "receipt_sha256": "5827eafcb026a6db977fff6dfaa301f89c3f83b20d1eb431712c3eb67ec6dd8c"
+    },
+    {
+      "task_id": "format-code-task-000847",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000847/receipt.json",
+      "receipt_sha256": "90ba4517ced443855d87fab0ff6cee9ec554ef2a83198a117e5af023d6ae6a4c"
+    },
+    {
+      "task_id": "format-code-task-000941",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-000941/receipt.json",
+      "receipt_sha256": "5b891b7c1189bed1f2761934b2f69211055d0e137f4a1a36abf123b6fb865806"
+    },
+    {
+      "task_id": "format-code-task-001338",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-001338/receipt.json",
+      "receipt_sha256": "be3afc14ff7e0d04f260cd7c00c0c86aa11767e12380beb09d8bf79914d6de3a"
+    },
+    {
+      "task_id": "format-code-task-001804",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-001804/receipt.json",
+      "receipt_sha256": "d4352753497c922c2e7b8675aa29ae2261907c211f9de159ad74635fa4366e74"
+    },
+    {
+      "task_id": "format-code-task-001870",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-001870/receipt.json",
+      "receipt_sha256": "78862f601ac63c05bbab2b78681eb4b1366afcb4afa9f96af5ba65ebb5b73f24"
+    },
+    {
+      "task_id": "format-code-task-002256",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002256/receipt.json",
+      "receipt_sha256": "75e9df6da26dfe97ec00e196c9578b55f5a8c5badde266413e93d4a1d4e4b534"
+    },
+    {
+      "task_id": "format-code-task-002356",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002356/receipt.json",
+      "receipt_sha256": "20fbeeff125c454a27962b334fd55820f02a769e75c8aa28259edd762a90c79a"
+    },
+    {
+      "task_id": "format-code-task-002377",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002377/receipt.json",
+      "receipt_sha256": "7f44475ec0b145b3a2da7b4ffa96aaa61311ad57437cad25a4b44f95542d75ad"
+    },
+    {
+      "task_id": "format-code-task-002391",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002391/receipt.json",
+      "receipt_sha256": "8423abec97d16b34591f8ca228369bf291e50f901f15c98aa98116457e3a5347"
+    },
+    {
+      "task_id": "format-code-task-002499",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002499/receipt.json",
+      "receipt_sha256": "6072a3337665d60a13c59ac154916a2cc7f10ef338e3f90fba506bc55a41c263"
+    },
+    {
+      "task_id": "format-code-task-002535",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002535/receipt.json",
+      "receipt_sha256": "a4bf521a887104754937cfbbe66e74e172a6ee6308abcb9a4bbb7c2d75b14692"
+    },
+    {
+      "task_id": "format-code-task-002610",
+      "original_reference_rc": 0,
+      "strict_reference_rc": 1,
+      "strict_bytes_match": true,
+      "agent_absence_http": 404,
+      "grader_absence_http": 404,
+      "receipt_path": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/runtime-controls-v4/format-code-task-002610/receipt.json",
+      "receipt_sha256": "b0bf3ec46c00c65b22782fbbb70d5b0525b742ece00376e6811cf83afa207d09"
+    }
+  ],
+  "runtime_control_model_calls": 0,
+  "source_archive": {
+    "archive": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/measurement-source-d9db6a781.tar",
+    "archive_sha256": "6bbec049ccc415a3e8954f26962713458d54b50f5f08fd4a4dd8bbde633f5a96",
+    "extracted": "/Users/petermakhnatch/.local/state/evallab-ev1105/impmore/measurement-source",
+    "regular_files_verified": 886,
+    "commit": "d9db6a78125be872af66a4126489fbd0961c3a16",
+    "checked_binary_consumer": "tarfile r:; data extraction; exact member byte comparison"
+  }
+}

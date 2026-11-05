@@ -354,7 +354,7 @@
           0.947263,
           1.0
         ],
-        "cohens_kappa": 1.0
+        "cohens_kappa": null
       },
       "three_class": {
         "k": 62,

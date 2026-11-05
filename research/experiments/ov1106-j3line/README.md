@@ -14,7 +14,7 @@ All 3 runs use the same 690 DEV rows after merged PR #1890. Labels join only aft
 | J3 on, floor retained | 8 / 104 / 220 | 2.41% [1.23%, 4.68%] | 53 / 252 / 53 | 14.80% [11.50%, 18.86%] | REGRESSION |
 | J3 on, floor removed | 63 / 49 / 220 | 18.98% [15.12%, 23.54%] | 113 / 192 / 53 | 31.56% [26.97%, 36.55%] | REGRESSION |
 
-[The full table](results/line.md) reports keep, review, and drop for every corpus and class. [The JSON](results/line.json) binds exports and exact changed identities.
+[The full table](results/line.md) reports keep, review, and drop for every corpus and class. [The JSON](results/line.json) binds exports and changed-identity counts with index hashes.
 
 J3 with the floor retained catches 1 additional cheat keep. It sends 10 honest CheatBench keeps to review because their historical windows fail attestation or completion. It also changes 13 honest reviews to drops: 12 Terminal Wrench and 1 CheatBench.
 

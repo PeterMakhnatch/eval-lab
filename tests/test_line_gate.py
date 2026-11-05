@@ -243,7 +243,7 @@ def calibrated_gate(tmp_path, repository, monkeypatch):
     data = tmp_path / "replay"
     inputs = data / "inputs"
     inputs.mkdir(parents=True)
-    trajectory = inputs / "trajectory.json"
+    trajectory = inputs / "synthetic-atif.json"
     write_json(trajectory, {
         "schema_version": "ATIF-v1.4", "session_id": "synthetic",
         "agent": {"name": "a", "version": "1"},

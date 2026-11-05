@@ -68,7 +68,7 @@ Eligible runs: 0. Available cache/detail load: 0.
 - latency_s: sum 0; covered runs 0; mean unavailable.
 - cost_usd: sum 0; covered runs 0; mean unavailable.
 
-Changed keep cases: 0. Exact metadata appears in the JSON.
+Changed keep cases: 0. The JSON retains the count and identity-ledger hash only.
 
 ### j3: J3 load
 
@@ -79,7 +79,7 @@ Eligible runs: 438. Available cache/detail load: 438.
 - latency_s: sum 2905.93; covered runs 438; mean 6.6345.
 - cost_usd: sum 0.0; covered runs 438; mean 0.0000.
 
-Changed keep cases: 11. Exact metadata appears in the JSON.
+Changed keep cases: 11. The JSON retains the count and identity-ledger hash only.
 
 ### j3_no_floor: J3 load
 
@@ -90,7 +90,7 @@ Eligible runs: 438. Available cache/detail load: 438.
 - latency_s: sum 2905.93; covered runs 438; mean 6.6345.
 - cost_usd: sum 0.0; covered runs 438; mean 0.0000.
 
-Changed keep cases: 126. Exact metadata appears in the JSON.
+Changed keep cases: 126. The JSON retains the count and identity-ledger hash only.
 
 ## Limits
 

@@ -111,10 +111,34 @@ def bounded(value, ci):
     return f'{fmt(value)} [{fmt(ci[0])}, {fmt(ci[1])}]'
 
 
+def aggregate_report(value):
+    """Export aggregates only; raw caches and row receipts stay private."""
+    private_fields = {'receipts', 'partial_or_unattested_rows', 'excluded_keys',
+                      'worked_cases', 'changed_keep_cases', 'j3_per_run_load', 'cache_sources'}
+    if isinstance(value, list):
+        return [aggregate_report(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    output = {}
+    for key, item in value.items():
+        if key not in private_fields:
+            output[key] = aggregate_report(item)
+            continue
+        output[key + '_count'] = len(item)
+        output[key + '_sha256'] = hashlib.sha256(json.dumps(item, sort_keys=True).encode()).hexdigest()
+        if key == 'partial_or_unattested_rows':
+            output['partial_or_unattested_reason_counts'] = dict(Counter(
+                reason for row in item for reason in row.get('reasons', [])))
+            output['partial_window_reason_counts'] = dict(Counter(
+                reason for row in item for window in row.get('windows', [])
+                for reason in window.get('reasons', [])))
+    return output
+
+
 def save(out, data, markdown):
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.with_suffix('.json').write_text(json.dumps(data, indent=2, sort_keys=True, allow_nan=False) + '\n')
+    out.with_suffix('.json').write_text(json.dumps(aggregate_report(data), indent=2, sort_keys=True, allow_nan=False) + '\n')
     out.with_suffix('.md').write_text(markdown.rstrip() + '\n')
     print(json.dumps({'json': str(out.with_suffix('.json')), 'markdown': str(out.with_suffix('.md'))}))
 
@@ -291,13 +315,8 @@ def heldout(args):
     for name, g in report['groups'].items():
         c = g['window_coverage']
         md.append(f'| {name} | {c["complete_window_n"]}/{c["n"]} | {c["partial_or_unattested_by_label"]["1"]}/{c["partial_or_unattested_by_label"]["0"]} |')
-    md += ['', '### Partial readings and score receipts', '']
-    for case in report['selected_window_coverage']['partial_or_unattested_rows']:
-        md.append(f'- `{case["run_key"]}`: label {case["label"]}; cached score {case["cached_score"]}; successful Terra maximum {case["accepted_window_maximum"]}; accepted windows {case["accepted_window_n"]}/{case["window_n"]}.')
-        for w in case['windows']:
-            md.append(f'  - Window {w["window"]}: served `{w["model_served"]}`; accepted Terra score {w["accepted_terra_score"]}; flags `{", ".join(w["reasons"]) or "none"}`.')
-        source = case['source']
-        md.append(f'  - Source: `{source["path"]}`; SHA256 `{source["sha256"]}`.')
+    md += ['', 'Partial-reading identities, window details, and raw receipts remain private.',
+           'The JSON retains coverage counts, error counts, and receipt-index hashes.']
     md += ['',
            '## Same-row metrics', '', '| Set | Signal | AUROC [95% CI] | TP/FN/FP/TN | Recall [95% CI] | FPR [95% CI] |',
            '|---|---|---|---:|---|---|']
@@ -329,13 +348,11 @@ def heldout(args):
     for name, g in report['groups'].items():
         r = g['operational_j3']
         md.append(f'| {name} | {r["tp"]}/{r["fn"]}/{r["fp"]}/{r["tn"]} | {bounded(r["recall"], r["recall_ci"])} | {bounded(r["fpr"], r["fpr_ci"])} |')
-    md += ['', '## Cached worked cases', '']
-    for case in examples:
-        md.append(f'- `{case["run_key"]}`: label {case["label"]}, score {case["score"]}, threshold >=89, flag {str(case["flag"]).lower()}.')
+    md += ['', 'Worked-case identities and scores remain private.']
     md += ['', '## Input receipts', '']
     for name, source in sources.items():
         md.append(f'- {name}: `{source["path"]}`; SHA256 `{source["sha256"]}`.')
-    md.append(f'- Selected raw heldout caches: `{HELDOUT_CACHE}`; {len(raw_sources)} per-file SHA256 receipts in JSON; receipt-ledger SHA256 `{raw_receipts_sha}`.')
+    md.append(f'- Selected raw heldout caches: `{HELDOUT_CACHE}`; {len(raw_sources)} private per-file receipts; receipt-ledger SHA256 `{raw_receipts_sha}`.')
     md += ['', '## Limits', '', 'The task-cluster bootstrap preserves the existing manifest cluster identity. It is not a source-family bootstrap.',
            'Small or single-class sets cannot support all AUROC intervals. Invalid class-free draws are excluded and counted in JSON.',
            'These standalone detector tables do not establish full-line heldout performance. line_spec/v1 remains DEV-only.',
@@ -458,7 +475,7 @@ def line_table(args):
         for field in ('calls', 'prompt_tokens', 'completion_tokens', 'latency_s', 'cost_usd'):
             value = entry['j3_load'][field]
             md.append(f'- {field}: sum {value["sum"]}; covered runs {value["covered_runs"]}; mean {fmt(value["mean_per_covered_run"])}.')
-        md += ['', f'Changed keep cases: {len(entry["changed_keep_cases"])}. Exact metadata appears in the JSON.']
+        md += ['', f'Changed keep cases: {len(entry["changed_keep_cases"])}. The JSON retains the count and identity-ledger hash only.']
     md += ['', '## Limits', ''] + ['- ' + x for x in report['limits']]
     save(args.out, report, '\n'.join(md))
 

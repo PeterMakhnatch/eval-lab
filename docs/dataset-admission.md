@@ -96,6 +96,6 @@ The existing [fleet](fleet.md) supervisor controls the lane route and quota, not
 
 ## Verification
 
-`uv run pytest tests/test_admission.py` checks inaccessible and empty downloads, missing credentials,
+`uv run pytest tests/test_dataset_admission.py` checks inaccessible and empty downloads, missing credentials,
 unpushed registrations, changed thresholds, changed detectors, isolated registration commits, immutable freezes, and raw-data publication.
 The real W3 receipt records the complete download, the exact prior-exposure join, and the gated 403.

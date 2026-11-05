@@ -82,7 +82,7 @@ def publish(root: Path, args: argparse.Namespace) -> dict[str, str]:
                 "Raw bytes and converted views remain outside Git. Local DetBench detectors and frozen length baselines only.\n"
                 "No labelled negatives: AUROC, FPR and superiority over length remain unavailable.\n\n"
                 "Verification: real pinned download, exact prior-exposure join, gated HTTP 403 refusal, "
-                "unpushed scoring refusal; `uv run pytest tests/test_admission.py`.\n")
+                "unpushed scoring refusal; `uv run pytest tests/test_dataset_admission.py`.\n")
         url = subprocess.check_output(["gh", "pr", "create", "--base", "main", "--head", branch,
                                        "--title", "feat: automate pinned dataset admission (W3)", "--body", body], cwd=root, text=True).strip()
     save(output / "PR.json", {"url": url, "head": git(root, "rev-parse", "HEAD")})

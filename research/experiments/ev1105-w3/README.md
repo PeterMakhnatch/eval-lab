@@ -64,7 +64,7 @@ External receipt root: `~/.local/state/evallab-ev1105/w3/`.
 - `admission/aggregate-results.json`: complete local scoring and length comparisons.
 
 Run commands appear in [the command guide](../../../docs/dataset-admission.md).
-The focused boundary suite is `uv run pytest tests/test_admission.py -q`.
+The focused boundary suite is `uv run pytest tests/test_dataset_admission.py -q`.
 
 ## Complete command sequence
 

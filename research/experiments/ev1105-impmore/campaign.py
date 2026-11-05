@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[3]
 PREVIOUS = ROOT / "research/experiments/ov1106-impscale"
 LANE = Path("/private/tmp/ev1105/impmore")
 CONFIG = Path("/private/tmp/ev1105/shared/nofallback.yml")
+TRANSPORT_PATH = Path(__file__).with_name("container_tool.py")
 MODELS = {"openai-codex/gpt-6.1-sol", "openai-codex/gpt-6.1-terra",
           "google-antigravity/gemini-4-argon", "google-antigravity/gemini-3.8-flash"}
 
@@ -87,12 +88,20 @@ def main():
     parser.add_argument("--work", type=Path)
     args, remaining = parser.parse_known_args()
     environment()
+    transport_sha = __import__("hashlib").sha256(TRANSPORT_PATH.read_bytes()).hexdigest()
+    if args.stage != "audit":
+        spec = importlib.util.spec_from_file_location("container_tool", TRANSPORT_PATH)
+        transport = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(transport)
+        sys.modules["container_tool"] = transport
     if args.stage == "canary":
         module = load("canary")
+        module.EXPECTED = transport_sha
         module.NOFALLBACK = CONFIG
         module.subprocess = process_proxy()
     elif args.stage == "batch":
         module = load("batch")
+        module.TRANSPORT = transport_sha
         module.NOFALLBACK = CONFIG
         module.MODELS = MODELS
         module.subprocess = process_proxy()
@@ -120,6 +129,25 @@ def main():
         if args.work is None:
             parser.error("--work is required for audit")
         module.WORK = args.work / "tasks-v2"
+        original_campaign_audit = module.campaign_audit
+        original_audit = module.Audit
+        original_transport = ROOT / "research/experiments/ov1104-impossible/container_tool.py"
+
+        class TransportAudit(original_audit):
+            def bind(self, path, expected):
+                if Path(path).resolve() == original_transport and expected == transport_sha:
+                    path = TRANSPORT_PATH
+                return super().bind(path, expected)
+
+        def campaign_audit(audit, root):
+            recorded = audit.load(root / "campaign.json")["transport_sha256"]
+            if recorded not in (transport_sha, "f2e8c41fd72e01fc0e0b75b0ef190cde3aa2e92c0321152f995fc5cf52a7d22a"):
+                raise module.Invalid("Unknown contained transport")
+            module.TRANSPORT = recorded
+            return original_campaign_audit(audit, root)
+
+        module.Audit = TransportAudit
+        module.campaign_audit = campaign_audit
     sys.argv = [str(Path(module.__file__)), *remaining]
     result = module.main()
     return result or 0

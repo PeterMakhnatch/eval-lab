@@ -68,3 +68,35 @@ Keep raw transcripts, prompts, diffs, and judge replies private.
 Commit generator changes, digest manifests, aggregate results, and this protocol only.
 Publish the first admitted-run manifest path to the shared notes for the calibration lane.
 Deliver through `evallab ship`, exact-head checks, protected merge, and a merged-revision smoke run.
+
+## Operational amendment after the 8 pilots, before bulk trials and judging
+
+The 4 Codex pilots pass the evidence audit. The 4 Gemini pilots lack usable grades.
+Their agent durations exceed the frozen watchdog's 180-second container lifetime.
+The runner allows 900 seconds for the agent and 900 seconds for each grade.
+The original lifetime cannot cover those existing budgets. These 4 runs stay rejected.
+
+The new `container_tool.py` adapter retains the exact frozen boundary implementation.
+It verifies that implementation's SHA-256 on every import.
+It changes only the finite container and watchdog lifetime to 3000 seconds.
+The watchdog still removes the owned container immediately when its parent pipe closes.
+Network, mounts, tool registry, environment clearing, ownership checks, and privilege limits stay unchanged.
+The adapter's transport SHA-256 is `986330b5e43a52b9056b39dc337c4875c4e32556aa4ecf6415ba8e4d650f30ac`.
+A fresh Terra canary passes on that exact hash, with probe codes 2/1/2/0 and successful cleanup.
+No task-agent run uses the adapter before this passing canary.
+
+Repeat the 4 rejected Gemini pilots with new IDs and the new transport.
+Keep their original raw evidence and failed admissions.
+This gives a target of 204 launches, including the 4 rejected pilots.
+Each model still targets 40 strict trials and 10 original controls with usable evidence.
+Report every transport epoch and replacement separately.
+
+Bulk execution allows at most 4 simultaneous task containers, each limited to 3 GiB and 2 CPUs.
+This changes execution packing only. Agent and grade time budgets stay fixed.
+The generator's non-agent controls remain sequential.
+Quota checks remain model-specific and run before each small task batch and each 10 scored traces.
+No label definition, detector prompt, threshold, window, or metric changes.
+
+The frozen scoring runtime comes from `ov1106-impscale-model-freeze`.
+Every source digest in the old scoring contract matches that materialized runtime.
+Current-main L0 code differs from the freeze, so L0 executes with the frozen `src/` on `PYTHONPATH`.

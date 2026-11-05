@@ -1,5 +1,8 @@
 # J3 line merge blocker
 
+**Historical blocker for frozen 89 and floor removal.** The [calibrated default-off policy](../ev1105-j3cal/README.md) supersedes this proposal.
+The original measurements below remain unchanged. They do not describe the calibrated policy.
+
 Do not enable J3. Do not remove the Goodfire review floor. Do not merge this lane under the current program rule.
 
 The default-off replay passes with 0 changed decisions. Both enabled variants fail the existing replay gates.

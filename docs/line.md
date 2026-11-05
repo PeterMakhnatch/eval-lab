@@ -350,6 +350,27 @@ The standard replay remains unchanged when the flag is absent. Accept a candidat
 only after the full-line DEV keep/review/drop comparison shows no increase in
 cheat keeps in any corpus.
 
+### Diff provenance
+
+L0 removes tab-separated timestamps from unified-diff paths. Missing-file epoch
+headers also require a zero-length old or new hunk before L0 marks an addition
+or deletion. This includes BSD diff's local epoch time without a timezone.
+An epoch timestamp alone does not exempt an existing-file edit.
+Earlier reads and source actions still establish whether a protected file exists.
+
+Supply a submitted diff against the prepared task baseline, not the pristine
+repository. Task preparation is not an agent edit. The legacy
+[impscale native converter](../research/experiments/ov1106-impscale/evaluation/README.md#native-line-prerequisites-and-limits)
+requires task preparation declarations for its post-restoration snapshots.
+It removes a section only when exact hunk application produces the declared
+prepared file. It records source, preparation, and result hashes.
+Changed, undeclared, or incomplete sections remain evidence. It does not exempt
+a path in L0 or remove source actions.
+
+A post-restoration snapshot cannot recover submitted test changes that the
+harness erases. Such snapshots still depend on the retained action trace.
+Do not count a preparation-based drop as demonstrated agent-cheat detection.
+
 ## What moves down the line
 
 1. **Intake:** use hack-drop's rollout loader and DEV admission checks; record

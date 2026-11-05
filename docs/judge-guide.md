@@ -173,7 +173,7 @@ type in the note box; `Ctrl+Enter` submits from there.
 uv run evallab judge build-packet     # once: the 18-case packet and the guide examples
 uv run evallab judge build-controls   # once: a queue of random controls
 uv run evallab judge serve            # then open http://127.0.0.1:8795/ (add --blind-order for the unanchored pass)
-uv run evallab judge serve --queue line=path/to/batch/judge-queue.jsonl --local-runs path/to/batch/runs.jsonl
+uv run evallab judge serve --keep-order --queue line=path/to/batch/judge-queue.jsonl --local-runs path/to/batch/runs.jsonl
 uv run evallab judge report           # how often you agree with the label and each detector
 uv run evallab judge export --out ~/judge-verdicts.csv
 ```
@@ -196,6 +196,12 @@ uv run evallab judge export --out ~/judge-verdicts.csv
   an AutoReview run), or one run id per line. Pass `--queue [NAME=]PATH` to serve any queue,
   `--blind-order` for a seeded shuffle, `--keep-order` to keep file order, `--seed` to change the order, and `evallab judge plan` to see
   how many runs each group holds (this spoils the blind; do not run it before judging).
+- The line queue uses J3 priority when a complete, input-bound, attested reading exists.
+  `--keep-order` preserves its descending scores, stable ties, and arrival-order fallback.
+  Priority and its source remain hidden until you submit a verdict.
+  The reveal shows priority keep audits separately from random audits.
+  Priority ordering can imply suspicion. Use `--blind-order` for an unanchored pass instead.
+  See [line priority and keep audits](line.md#review-priority-and-optional-keep-audit) for the batch options.
 - For native Harbor runs, pass the assembly line's `runs.jsonl` as `--local-runs`. Each row maps
   `run_id` to `rollout_path` and `sha256`. The station admits a run only when it is exactly what
   a Harbor trial looks like (`src/evallab/rollout_admission.py`; an allow-list, not a list of

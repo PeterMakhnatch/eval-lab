@@ -243,7 +243,7 @@ def _autoreview_stage(stage: Any, where: str, row_steps: Any) -> hd.StageVerdict
 
 def _cache(spec: dict[str, Any]) -> tuple[dict[str, hd.StageVerdict], list[Path]]:
     j3_files = j3.cache_files(spec)
-    j3.load_cache(spec)  # Refuse malformed or label-bearing inputs before side effects.
+    j3.load_cache(spec, ordering=True)  # Refuse malformed/label-bearing inputs before side effects.
     if spec["autoreview"]["mode"] != "cached":
         return {}, j3_files
     path = hd.check_declared_path(spec["autoreview"]["cache"])
@@ -510,6 +510,7 @@ def _evaluate(
     call_bound = spec["autoreview"].get("max_call_usd", 0)
     j3_mode = j3.mode(spec)
     j3_cache = j3.load_cache(spec)
+    priority_cache = j3.load_cache(spec, ordering=True)
     j3_halted = False
     for item, run in zip(items, intake, strict=True):
         status_actions = spec["task_policy"]
@@ -589,6 +590,8 @@ def _evaluate(
                 reviewer_func=reviewer,
             )
             record = dict(seen) or None
+        priority_value = priority_cache.get(item.item_id)
+        value = priority_value
         if j3_mode != "off" and "drop" not in (task.decision, l0.decision, ar.decision):
             if j3_mode == "live" and stored_ar is not None:
                 value = stored_ar[item.item_id].details.get("j3")
@@ -606,6 +609,10 @@ def _evaluate(
             if current.decision == "review" and j3.outcome(value).decision != "review":
                 value = {**value, "error": "invalid_input"}
             ar = j3.combine(ar, value, item)
+            if j3_mode == "live" and (
+                priority_value is None or j3.priority(value, item) is not None
+            ):
+                priority_value = value
         decision = hd.consolidate_decisions(item, task, l0, ar).to_manifest_row()
         if "j3" in ar.details:
             # The legacy manifest sanitizer drops nested reader records. The line's
@@ -620,6 +627,24 @@ def _evaluate(
         if audit:
             decision["reasons"] = sorted(set(decision["reasons"]) | {"AUDIT_SAMPLE"})
         decision.update(run_id=item.item_id, corpus=run["corpus"], audit=audit)
+        score = j3.priority(priority_value, item)
+        decision.update(
+            review_priority=score,
+            review_priority_source=(
+                {
+                    "reader": "j3",
+                    "status": "complete" if score is not None else "unavailable",
+                    "route": priority_value["route"],
+                    "rubric_sha256": priority_value["rubric_sha256"],
+                    "prompt_template_sha256": priority_value["prompt_template_sha256"],
+                    "input_sha256": priority_value["input_sha256"],
+                    "reading_sha256": canonical_hash(priority_value),
+                    "aggregation": "max",
+                    "windows": len(priority_value["windows"]),
+                }
+                if priority_value is not None else None
+            ),
+        )
         decisions.append(decision)
         autoreview: dict[str, Any] = {
             "stage": ar.stage,
@@ -637,17 +662,42 @@ def _evaluate(
     return decisions, traces, state
 
 
-def _queue(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _priority_order(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Complete J3 scores first, descending; ties and missing scores keep arrival order."""
+    return sorted(
+        rows,
+        key=lambda row: (
+            row.get("review_priority") is None,
+            -row["review_priority"] if row.get("review_priority") is not None else 0,
+        ),
+    )
+
+
+def _keep_audit(decisions: list[dict[str, Any]], spec: dict[str, Any]) -> list[dict[str, Any]]:
+    count = spec["audit"].get("keep_top_n", 0)
+    if not count:
+        return []
+    return _priority_order([row for row in decisions if row["decision"] == "keep"])[:count]
+
+
+def _queue(decisions: list[dict[str, Any]], spec: dict[str, Any]) -> list[dict[str, Any]]:
+    keep_audit = {row["run_id"] for row in _keep_audit(decisions, spec)}
     return [
         {
             "run_id": row["run_id"],
             "reason": ",".join(row["reasons"]),
             "priority": 1 if row["decision"] == "review" else 0,
             "source": "line",
-            "reveal": {"decision": row["decision"], "audit": row["audit"]},
+            "review_priority": row.get("review_priority"),
+            "review_priority_source": row.get("review_priority_source"),
+            "reveal": {
+                "decision": row["decision"],
+                "audit": row["audit"] or row["run_id"] in keep_audit,
+                "keep_audit": row["run_id"] in keep_audit,
+            },
         }
-        for row in decisions
-        if row["decision"] == "review" or row["audit"]
+        for row in _priority_order(decisions)
+        if row["decision"] == "review" or row["audit"] or row["run_id"] in keep_audit
     ]
 
 
@@ -925,7 +975,7 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
     # exists; runs already in it are refused too, but only a batch that will append is told so.
     _refuse_queue(
         spec,
-        [row["run_id"] for row in _queue(prepared[0])]
+        [row["run_id"] for row in _queue(prepared[0], spec)]
         if prepared is not None and spec["judge"]["write"]
         else [],
     )
@@ -1042,7 +1092,7 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
         len(decisions),
     )
     start = time.time()
-    queue = _queue(decisions)
+    queue = _queue(decisions, spec)
     write_rows(batch / "judge-queue.jsonl", queue)
     # The shared Judge queue is appended only after every check passes (see the end).
     snapshot = _write_snapshot(batch, station_bytes)
@@ -1059,7 +1109,12 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
     exports = []
     for decision, name in (("keep", "kept"), ("drop", "dropped"), ("review", "review")):
         path = batch / "export" / f"{name}.jsonl"
-        write_rows(path, [row for row in decisions if row["decision"] == decision])
+        rows = [row for row in decisions if row["decision"] == decision]
+        write_rows(path, _priority_order(rows) if decision == "review" else rows)
+        exports.append(path)
+    if spec["audit"].get("keep_top_n", 0):
+        path = batch / "export" / "keep-audit.jsonl"
+        write_rows(path, _keep_audit(decisions, spec))
         exports.append(path)
     receipt("export", start, [batch / "decisions.jsonl"], exports, len(decisions), len(decisions))
     score_inputs = [
@@ -1151,7 +1206,7 @@ _BATCH_FILES = frozenset(
     }
 )
 _BATCH_FOLDERS: dict[str, frozenset[str]] = {
-    "export": frozenset({"kept.jsonl", "dropped.jsonl", "review.jsonl"}),
+    "export": frozenset({"kept.jsonl", "dropped.jsonl", "review.jsonl", "keep-audit.jsonl"}),
     "receipts": frozenset(f"{stage}.json" for stage in EXPECTED_REFS),
     "evidence": frozenset(),
     "evidence/station-inputs": frozenset(),
@@ -1264,7 +1319,7 @@ def _refuse_queue(spec: dict[str, Any], run_ids: list[str]) -> None:
 def _external_queue_problem(spec: dict[str, Any], decisions: list[dict[str, Any]]) -> str | None:
     queue = Path(spec["judge"]["queue"])
     external = Counter(r["run_id"] for r in read_rows(queue)) if queue.is_file() else Counter()
-    if all(external[r["run_id"]] == 1 for r in _queue(decisions)):
+    if all(external[r["run_id"]] == 1 for r in _queue(decisions, spec)):
         return None
     return "external queue missing/duplicate run"
 
@@ -1508,10 +1563,21 @@ def _check_batch(
                 "audit sample changed",
             )
         for decision, name in (("keep", "kept"), ("drop", "dropped"), ("review", "review")):
+            rows = [d for d in decisions if d["decision"] == decision]
             require(
                 read_rows(batch / "export" / f"{name}.jsonl")
-                == [d for d in decisions if d["decision"] == decision],
+                == (_priority_order(rows) if decision == "review" else rows),
                 f"export/{name}.jsonl differs from decisions",
+            )
+        if spec["audit"].get("keep_top_n", 0):
+            require(
+                read_rows(batch / "export" / "keep-audit.jsonl") == _keep_audit(decisions, spec),
+                "export/keep-audit.jsonl differs from ranked keeps",
+            )
+        else:
+            require(
+                not (batch / "export" / "keep-audit.jsonl").exists(),
+                "export/keep-audit.jsonl exists while keep_top_n is off",
             )
 
     gate("conservation", conservation)
@@ -1632,6 +1698,8 @@ def _check_batch(
             wanted = EXPECTED_REFS.get(receipt["stage"])
             require(wanted is not None, f"unknown receipt stage: {receipt['stage']}")
             assert wanted is not None
+            if receipt["stage"] == "export" and spec["audit"].get("keep_top_n", 0):
+                wanted = (wanted[0], wanted[1] | {"export/keep-audit.jsonl"})
             for side, names in zip(("inputs", "outputs"), wanted, strict=True):
                 listed = set()
                 for ref in receipt[side]:
@@ -1860,7 +1928,7 @@ def _check_batch(
 
     def routing() -> None:
         require(
-            read_rows(batch / "judge-queue.jsonl") == _queue(decisions),
+            read_rows(batch / "judge-queue.jsonl") == _queue(decisions, spec),
             "Judge queue differs from reviews + audits",
         )
         # verdicts.jsonl is a pure function of the pinned Station snapshot and the admitted runs.

@@ -142,6 +142,11 @@ def load_spec(path: Path) -> dict[str, Any]:
         raise ValueError("only cached J3 accepts a cache path")
     if config["mode"] != "off" and j3.ROUTE not in allowed:
         raise ValueError("J3 requires its frozen subscription route in models.allowed")
+    ordering = spec.get("review_order", {})
+    if not isinstance(ordering, dict) or set(ordering) - {"j3_cache"}:
+        raise ValueError("review_order accepts only j3_cache")
+    if "j3_cache" in ordering:
+        ordering["j3_cache"] = absolute(ordering["j3_cache"])
     audit = spec.setdefault("audit", {"rate": 0.05, "seed": "line"})
     if not isinstance(audit, dict):
         raise ValueError("audit must be an object")
@@ -153,6 +158,8 @@ def load_spec(path: Path) -> dict[str, Any]:
         or not isinstance(audit.get("seed"), str)
     ):
         raise ValueError("audit needs rate in [0,1] and a string seed")
+    if type(audit.get("keep_top_n", 0)) is not int or audit.get("keep_top_n", 0) < 0:
+        raise ValueError("audit.keep_top_n must be a nonnegative integer")
     judge = spec.get("judge")
     if not isinstance(judge, dict) or not isinstance(judge.get("write"), bool):
         raise ValueError("judge needs queue and boolean write")
@@ -185,11 +192,18 @@ def _refuse_shared_files(spec: dict[str, Any]) -> None:
         "labels": [s["labels"] for s in spec["sources"] if s["labels"]],
         "task_status": [spec["task_status"]] if spec["task_status"] else [],
         "cache": [spec["autoreview"]["cache"]] if spec["autoreview"].get("cache") else [],
-        "j3 cache": (
-            [spec["autoreview"]["j3"]["cache"]]
-            if spec["autoreview"].get("j3", {}).get("mode") == "cached"
-            else []
-        ),
+        "j3 cache": [
+            *(
+                [spec["autoreview"]["j3"]["cache"]]
+                if spec["autoreview"].get("j3", {}).get("mode") == "cached"
+                else []
+            ),
+            *(
+                [spec["review_order"]["j3_cache"]]
+                if spec.get("review_order", {}).get("j3_cache")
+                else []
+            ),
+        ],
         "judge queue": [spec["judge"]["queue"]],
         "judge verdicts": [spec["judge"].get("verdicts") or str(STATE_DIR / "verdicts.jsonl")],
     }

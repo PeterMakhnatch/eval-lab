@@ -85,7 +85,7 @@ inputs:
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/judge-guide.md
-    digest: sha256:7971564d631c57d5be622ca3a36512acd378575eacc4d0aad9255b3506e3059b
+    digest: sha256:db3107a3889ecc94858c28582d40030d454b6f9a6a8f2eb49a5675a1a258ca68
   - path: docs/ladder.md
     digest: sha256:c334944474b3cee6cd9b3eee2ae9c84fbb1ccb7e58ea31b70b6d6a9c523e6265
   - path: docs/lancedb.md
@@ -93,7 +93,7 @@ inputs:
   - path: docs/lane-verification.md
     digest: sha256:adc4fee76353ab0f6f2d0f5bd9c629e0ab5fa2addc617f6a93c0e607fd9fe3f3
   - path: docs/line.md
-    digest: sha256:cf85c40ba2d3fd9df1c2bab51881760debf19df30f573dcce78d59a65d22e787
+    digest: sha256:57b8c16a5acd3e7e0af11474ad6a28b92ebffc9d71a9c2b297a11e8a9ef58541
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md
@@ -159,7 +159,7 @@ inputs:
   - path: docs/scaling.md
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
   - path: docs/ship.md
-    digest: sha256:5778f8acd032ef2bc5dc1d5d0a63a01dbcf6379ea7174177a24659352f80f3cc
+    digest: sha256:101c20141b21567bdf6f022be9fef85c4058de26838f7e6e818ccd1a76ddd663
   - path: docs/storm-alarms.md
     digest: sha256:0bc85e698e48423c3a23b2462ca7eb6187578a0cb94e9dc6f346d4a1f3363692
   - path: docs/surfaces.md

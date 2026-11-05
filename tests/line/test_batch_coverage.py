@@ -384,7 +384,7 @@ def _retrace(batch: Path, root: Path, mutate: Callable[[list[dict[str, Any]]], N
         write_rows(
             batch / "export" / f"{name}.jsonl", [d for d in decisions if d["decision"] == decision]
         )
-    queue = core._queue(decisions)
+    queue = core._queue(decisions, spec)
     write_rows(batch / "judge-queue.jsonl", queue)
     check = read_json(batch / "check.json")
     check["decision_hash"] = check["second_decision_hash"] = canonical_hash(decisions)

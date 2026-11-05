@@ -157,6 +157,11 @@ def append_judge_queue_entry(queue_file: Path, entry: QueueEntry) -> bool:
         "source": entry.source,
         "reveal": entry.reveal,
     }
+    if entry.source == "line" or entry.review_priority is not None or entry.review_priority_source is not None:
+        record.update(
+            review_priority=entry.review_priority,
+            review_priority_source=entry.review_priority_source,
+        )
     with queue_file.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")
     return True

@@ -23,6 +23,10 @@ Rebase the topic onto current `main` before delivery. Ship requires the current 
 uv run evallab ship 123 --smoke 'uv run --locked evallab --version'
 ```
 
+`--timeout` bounds the CI wait and each gate or smoke command separately.
+Its default is `1800` seconds. Ordinary Git and GitHub commands retain a `300`-second limit.
+Use a larger verification budget for a full DEV replay. Every gate must still pass.
+
 Use `--repo-root /path/to/stable/checkout` when the command starts outside that checkout.
 The stable checkout must share the topic worktree's Git repository.
 The smoke runs in a new detached checkout of the merge commit.

@@ -1,0 +1,2079 @@
+{
+  "bootstrap": {
+    "interval": "percentile 95%",
+    "replicates": 2000,
+    "seed": 1106,
+    "unit": "task_cluster"
+  },
+  "cost_usd": 0,
+  "decision_changes": {
+    "arrival": 0,
+    "audit": 0,
+    "ordered": 0
+  },
+  "fallback": "scored first descending; stable arrival for ties and unavailable readings",
+  "inputs": {
+    "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/spec.json": "6191d99cff8b1b9357e00dbb00a2337985b38d05ed2cb5f1e63d916af72efb8e",
+    "/private/tmp/ov1104/shared/detbench/runs.jsonl": "65d19eaad26bfd1b82b4ed91a16ed3a3f2da55dcc7460f942bc87e66acee56be",
+    "/private/tmp/ov1106/j3line/j3-cache.jsonl": "9f78de09fb2462b43a05792de0e15631fc94b24693a5501ea12189658288004a"
+  },
+  "keep_audit": {
+    "cheats": 5,
+    "default_n": 0,
+    "n": 10,
+    "requested": 10
+  },
+  "model_calls": 0,
+  "private_batches": {
+    "arrival": "/private/tmp/ev1105/queueimpl/measurement/batches/queueimpl-arrival-dc2fb99426b74f7bafabf21d49a00913",
+    "audit": "/private/tmp/ev1105/queueimpl/measurement/batches/queueimpl-audit-faf0eab4a79b41f8b91f858ae050cc92",
+    "ordered": "/private/tmp/ev1105/queueimpl/measurement/batches/queueimpl-ordered-2c443ae448f749f39cfce502c52d340e"
+  },
+  "production_checks": {
+    "arrival": true,
+    "audit": true,
+    "ordered": true
+  },
+  "queues": {
+    "kept": {
+      "cheats": 9,
+      "complete": 62,
+      "fallback": 10,
+      "historical_load": {
+        "cost_usd": 0.0,
+        "runs": 72,
+        "tokens_in": 628358,
+        "tokens_out": 8112,
+        "windows": 87
+      },
+      "metrics": {
+        "cheats": 9,
+        "clusters": 16,
+        "comparisons": {
+          "j3": {
+            "current_order": {
+              "auroc_diff": {
+                "ci95": [
+                  -0.34888888888888886,
+                  0.588768115942029
+                ],
+                "value": -0.0017636684303351524
+              },
+              "reviews_saved": {
+                "50": {
+                  "fraction_saved": 0.06944444444444445,
+                  "fraction_saved_ci95": [
+                    -0.37499999999999994,
+                    0.5514018691588785
+                  ],
+                  "raw_ci95": [
+                    -29,
+                    40
+                  ],
+                  "scaled_ci95": [
+                    -26.999999999999996,
+                    39.70093457943925
+                  ],
+                  "value": 5
+                },
+                "80": {
+                  "fraction_saved": 0.01388888888888884,
+                  "fraction_saved_ci95": [
+                    -0.3720930232558139,
+                    0.8840579710144928
+                  ],
+                  "raw_ci95": [
+                    -27,
+                    70
+                  ],
+                  "scaled_ci95": [
+                    -26.7906976744186,
+                    63.652173913043484
+                  ],
+                  "value": 1
+                },
+                "90": {
+                  "fraction_saved": 0.33333333333333337,
+                  "fraction_saved_ci95": [
+                    -0.29166666666666663,
+                    0.881578947368421
+                  ],
+                  "raw_ci95": [
+                    -21,
+                    72
+                  ],
+                  "scaled_ci95": [
+                    -20.999999999999996,
+                    63.473684210526315
+                  ],
+                  "value": 24
+                }
+              },
+              "top_k_cheats_gain": {
+                "10": {
+                  "raw_ci95": [
+                    -1,
+                    6
+                  ],
+                  "scaled_ci95": [
+                    -0.7499999999999998,
+                    9.0
+                  ],
+                  "value": 1
+                },
+                "20": {
+                  "raw_ci95": [
+                    -4,
+                    6
+                  ],
+                  "scaled_ci95": [
+                    -2.769230769230769,
+                    9.0
+                  ],
+                  "value": 0
+                },
+                "30": {
+                  "raw_ci95": [
+                    -7,
+                    5
+                  ],
+                  "scaled_ci95": [
+                    -4.5,
+                    7.875
+                  ],
+                  "value": -1
+                },
+                "5": {
+                  "raw_ci95": [
+                    0,
+                    4
+                  ],
+                  "scaled_ci95": [
+                    0.0,
+                    7.2
+                  ],
+                  "value": 3
+                },
+                "50": {
+                  "raw_ci95": [
+                    -7,
+                    4
+                  ],
+                  "scaled_ci95": [
+                    -5.3999999999999995,
+                    6.000000000000001
+                  ],
+                  "value": 0
+                }
+              }
+            },
+            "random_expected": {
+              "auroc_diff": {
+                "ci95": [
+                  -0.08820564516129031,
+                  0.5
+                ],
+                "value": 0.21252204585537915
+              },
+              "reviews_saved": {
+                "50": {
+                  "fraction_saved": 0.3680555555555555,
+                  "fraction_saved_ci95": [
+                    -0.12,
+                    0.46376811594202905
+                  ],
+                  "raw_ci95": [
+                    -8.428571428571427,
+                    41.0
+                  ],
+                  "scaled_ci95": [
+                    -8.64,
+                    33.39130434782609
+                  ],
+                  "value": 26.5
+                },
+                "80": {
+                  "fraction_saved": 0.25555555555555554,
+                  "fraction_saved_ci95": [
+                    -0.004807692307692402,
+                    0.7164179104477612
+                  ],
+                  "raw_ci95": [
+                    -0.2857142857142847,
+                    60.66666666666667
+                  ],
+                  "scaled_ci95": [
+                    -0.3461538461538529,
+                    51.582089552238806
+                  ],
+                  "value": 18.4
+                },
+                "90": {
+                  "fraction_saved": 0.34305555555555567,
+                  "fraction_saved_ci95": [
+                    0.07760141093474426,
+                    0.7783882783882783
+                  ],
+                  "raw_ci95": [
+                    4.799999999999997,
+                    67.625
+                  ],
+                  "scaled_ci95": [
+                    5.587301587301587,
+                    56.04395604395604
+                  ],
+                  "value": 24.700000000000003
+                }
+              },
+              "top_k_cheats_gain": {
+                "10": {
+                  "raw_ci95": [
+                    0.3999999999999999,
+                    6.189873417721519
+                  ],
+                  "scaled_ci95": [
+                    0.3038961038961039,
+                    8.084745762711865
+                  ],
+                  "value": 3.0
+                },
+                "20": {
+                  "raw_ci95": [
+                    -0.18181818181818166,
+                    6.365591397849462
+                  ],
+                  "scaled_ci95": [
+                    -0.17560975609756113,
+                    7.2
+                  ],
+                  "value": 3.125
+                },
+                "30": {
+                  "raw_ci95": [
+                    -1.6428571428571432,
+                    5.7
+                  ],
+                  "scaled_ci95": [
+                    -0.9931034482758625,
+                    6.3
+                  ],
+                  "value": 2.25
+                },
+                "5": {
+                  "raw_ci95": [
+                    0.3125,
+                    4.523809523809524
+                  ],
+                  "scaled_ci95": [
+                    0.22826086956521735,
+                    8.419354838709678
+                  ],
+                  "value": 2.5
+                },
+                "50": {
+                  "raw_ci95": [
+                    -2.5662650602409647,
+                    6.417721518987342
+                  ],
+                  "scaled_ci95": [
+                    -1.7527173913043481,
+                    4.5
+                  ],
+                  "value": 2.5
+                }
+              }
+            },
+            "random_seed1105": {
+              "auroc_diff": {
+                "ci95": [
+                  -0.11025641025641031,
+                  0.20394736842105254
+                ],
+                "value": 0.03880070546737213
+              },
+              "reviews_saved": {
+                "50": {
+                  "fraction_saved": 0.06944444444444445,
+                  "fraction_saved_ci95": [
+                    -0.35714285714285715,
+                    0.2117647058823529
+                  ],
+                  "raw_ci95": [
+                    -26,
+                    15
+                  ],
+                  "scaled_ci95": [
+                    -25.714285714285715,
+                    15.247058823529409
+                  ],
+                  "value": 5
+                },
+                "80": {
+                  "fraction_saved": 0.41666666666666663,
+                  "fraction_saved_ci95": [
+                    -0.202247191011236,
+                    0.5466666666666666
+                  ],
+                  "raw_ci95": [
+                    -15,
+                    45
+                  ],
+                  "scaled_ci95": [
+                    -14.561797752808992,
+                    39.36
+                  ],
+                  "value": 30
+                },
+                "90": {
+                  "fraction_saved": 0.41666666666666674,
+                  "fraction_saved_ci95": [
+                    0.03529411764705884,
+                    0.5641025641025641
+                  ],
+                  "raw_ci95": [
+                    2,
+                    49
+                  ],
+                  "scaled_ci95": [
+                    2.541176470588236,
+                    40.61538461538461
+                  ],
+                  "value": 30
+                }
+              },
+              "top_k_cheats_gain": {
+                "10": {
+                  "raw_ci95": [
+                    -1,
+                    5
+                  ],
+                  "scaled_ci95": [
+                    -1.125,
+                    7.2
+                  ],
+                  "value": 2
+                },
+                "20": {
+                  "raw_ci95": [
+                    -2,
+                    3
+                  ],
+                  "scaled_ci95": [
+                    -1.8,
+                    5.142857142857142
+                  ],
+                  "value": 0
+                },
+                "30": {
+                  "raw_ci95": [
+                    -6,
+                    3
+                  ],
+                  "scaled_ci95": [
+                    -3.5999999999999996,
+                    4.5
+                  ],
+                  "value": -1
+                },
+                "5": {
+                  "raw_ci95": [
+                    -2,
+                    3
+                  ],
+                  "scaled_ci95": [
+                    -1.5000000000000002,
+                    6.000000000000001
+                  ],
+                  "value": 1
+                },
+                "50": {
+                  "raw_ci95": [
+                    -4,
+                    4
+                  ],
+                  "scaled_ci95": [
+                    -3.0,
+                    2.769230769230769
+                  ],
+                  "value": 0
+                }
+              }
+            }
+          }
+        },
+        "honest": 63,
+        "keys_sha256": "be0e7facf85e6a8b63c6f4127b40206be4d43e89509a0f5a3dce4bcabfe678f6",
+        "n": 72,
+        "signals": {
+          "current_order": {
+            "auroc": {
+              "ci95": [
+                0.37777777777777777,
+                0.8534798534798534
+              ],
+              "value": 0.7142857142857143
+            },
+            "reviews_to_find_cheats": {
+              "50": {
+                "review_fraction": 0.20833333333333334,
+                "review_fraction_ci95": [
+                  0.09375,
+                  0.6140350877192983
+                ],
+                "reviews_needed": 15,
+                "reviews_needed_raw_ci95": [
+                  6.0,
+                  45.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  6.75,
+                  44.21052631578947
+                ],
+                "target_cheats": 5,
+                "tie_expected_fraction": 0.20833333333333334,
+                "tie_expected_reviews": 15.0
+              },
+              "80": {
+                "review_fraction": 0.5694444444444444,
+                "review_fraction_ci95": [
+                  0.27058823529411763,
+                  0.9878048780487805
+                ],
+                "reviews_needed": 41,
+                "reviews_needed_raw_ci95": [
+                  17.0,
+                  82.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  19.48235294117647,
+                  71.1219512195122
+                ],
+                "target_cheats": 8,
+                "tie_expected_fraction": 0.5694444444444444,
+                "tie_expected_reviews": 41.0
+              },
+              "90": {
+                "review_fraction": 0.9027777777777778,
+                "review_fraction_ci95": [
+                  0.3484848484848485,
+                  1.0
+                ],
+                "reviews_needed": 65,
+                "reviews_needed_raw_ci95": [
+                  22.0,
+                  89.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  25.090909090909093,
+                  72.0
+                ],
+                "target_cheats": 9,
+                "tie_expected_fraction": 0.9027777777777778,
+                "tie_expected_reviews": 65.0
+              }
+            },
+            "top_k": {
+              "10": {
+                "cheats_found": 3,
+                "cheats_found_raw_ci95": [
+                  0.0,
+                  5.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  0.0,
+                  4.5
+                ],
+                "k_reviews": 8,
+                "recall": 0.3333333333333333,
+                "recall_ci95": [
+                  0.0,
+                  0.5
+                ],
+                "tie_expected_cheats": 3.0,
+                "tie_expected_recall": 0.3333333333333333
+              },
+              "20": {
+                "cheats_found": 5,
+                "cheats_found_raw_ci95": [
+                  0.0,
+                  8.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  0.0,
+                  6.230769230769231
+                ],
+                "k_reviews": 15,
+                "recall": 0.5555555555555556,
+                "recall_ci95": [
+                  0.0,
+                  0.6923076923076923
+                ],
+                "tie_expected_cheats": 5.0,
+                "tie_expected_recall": 0.5555555555555556
+              },
+              "30": {
+                "cheats_found": 6,
+                "cheats_found_raw_ci95": [
+                  1.0,
+                  11.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  1.0,
+                  7.7142857142857135
+                ],
+                "k_reviews": 22,
+                "recall": 0.6666666666666666,
+                "recall_ci95": [
+                  0.1111111111111111,
+                  0.8571428571428571
+                ],
+                "tie_expected_cheats": 6.0,
+                "tie_expected_recall": 0.6666666666666666
+              },
+              "5": {
+                "cheats_found": 0,
+                "cheats_found_raw_ci95": [
+                  0.0,
+                  3.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  0.0,
+                  3.6
+                ],
+                "k_reviews": 4,
+                "recall": 0.0,
+                "recall_ci95": [
+                  0.0,
+                  0.4
+                ],
+                "tie_expected_cheats": 0.0,
+                "tie_expected_recall": 0.0
+              },
+              "50": {
+                "cheats_found": 7,
+                "cheats_found_raw_ci95": [
+                  1.0,
+                  15.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  3.0,
+                  9.0
+                ],
+                "k_reviews": 36,
+                "recall": 0.7777777777777778,
+                "recall_ci95": [
+                  0.3333333333333333,
+                  1.0
+                ],
+                "tie_expected_cheats": 7.0,
+                "tie_expected_recall": 0.7777777777777778
+              }
+            }
+          },
+          "j3": {
+            "auroc": {
+              "ci95": [
+                0.4117943548387097,
+                1.0
+              ],
+              "value": 0.7125220458553791
+            },
+            "reviews_to_find_cheats": {
+              "50": {
+                "review_fraction": 0.1388888888888889,
+                "review_fraction_ci95": [
+                  0.030303030303030304,
+                  0.5970149253731343
+                ],
+                "reviews_needed": 10,
+                "reviews_needed_raw_ci95": [
+                  2.0,
+                  46.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  2.1818181818181817,
+                  42.98507462686567
+                ],
+                "target_cheats": 5,
+                "tie_expected_fraction": 0.1388888888888889,
+                "tie_expected_reviews": 10.0
+              },
+              "80": {
+                "review_fraction": 0.5555555555555556,
+                "review_fraction_ci95": [
+                  0.056338028169014086,
+                  0.7808219178082192
+                ],
+                "reviews_needed": 40,
+                "reviews_needed_raw_ci95": [
+                  4.0,
+                  56.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  4.056338028169014,
+                  56.21917808219178
+                ],
+                "target_cheats": 8,
+                "tie_expected_fraction": 0.75,
+                "tie_expected_reviews": 54.0
+              },
+              "90": {
+                "review_fraction": 0.5694444444444444,
+                "review_fraction_ci95": [
+                  0.0625,
+                  0.8028169014084507
+                ],
+                "reviews_needed": 41,
+                "reviews_needed_raw_ci95": [
+                  4.0,
+                  58.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  4.5,
+                  57.802816901408455
+                ],
+                "target_cheats": 9,
+                "tie_expected_fraction": 0.8611111111111112,
+                "tie_expected_reviews": 62.0
+              }
+            },
+            "top_k": {
+              "10": {
+                "cheats_found": 4,
+                "cheats_found_raw_ci95": [
+                  1.0,
+                  7.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  1.2857142857142856,
+                  9.0
+                ],
+                "k_reviews": 8,
+                "recall": 0.4444444444444444,
+                "recall_ci95": [
+                  0.14285714285714285,
+                  1.0
+                ],
+                "tie_expected_cheats": 4.0,
+                "tie_expected_recall": 0.4444444444444444
+              },
+              "20": {
+                "cheats_found": 5,
+                "cheats_found_raw_ci95": [
+                  2.0,
+                  8.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  1.8,
+                  9.0
+                ],
+                "k_reviews": 15,
+                "recall": 0.5555555555555556,
+                "recall_ci95": [
+                  0.2,
+                  1.0
+                ],
+                "tie_expected_cheats": 5.0,
+                "tie_expected_recall": 0.5555555555555556
+              },
+              "30": {
+                "cheats_found": 5,
+                "cheats_found_raw_ci95": [
+                  2.0,
+                  9.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  1.8,
+                  9.0
+                ],
+                "k_reviews": 22,
+                "recall": 0.5555555555555556,
+                "recall_ci95": [
+                  0.2,
+                  1.0
+                ],
+                "tie_expected_cheats": 5.0,
+                "tie_expected_recall": 0.5555555555555556
+              },
+              "5": {
+                "cheats_found": 3,
+                "cheats_found_raw_ci95": [
+                  1.0,
+                  5.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  0.75,
+                  9.0
+                ],
+                "k_reviews": 4,
+                "recall": 0.3333333333333333,
+                "recall_ci95": [
+                  0.08333333333333333,
+                  1.0
+                ],
+                "tie_expected_cheats": 3.0,
+                "tie_expected_recall": 0.3333333333333333
+              },
+              "50": {
+                "cheats_found": 7,
+                "cheats_found_raw_ci95": [
+                  2.0,
+                  14.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  2.8125,
+                  9.0
+                ],
+                "k_reviews": 36,
+                "recall": 0.7777777777777778,
+                "recall_ci95": [
+                  0.3125,
+                  1.0
+                ],
+                "tie_expected_cheats": 5.75,
+                "tie_expected_recall": 0.6388888888888888
+              }
+            }
+          },
+          "random_expected": {
+            "auroc": {
+              "ci95": [
+                0.5,
+                0.5
+              ],
+              "value": 0.5
+            },
+            "reviews_to_find_cheats": {
+              "50": {
+                "review_fraction": 0.5069444444444444,
+                "review_fraction_ci95": [
+                  0.40519480519480516,
+                  0.5098039215686274
+                ],
+                "reviews_needed": 36.5,
+                "reviews_needed_raw_ci95": [
+                  21.0,
+                  49.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  29.174025974025973,
+                  36.705882352941174
+                ],
+                "target_cheats": 5
+              },
+              "80": {
+                "review_fraction": 0.8111111111111111,
+                "review_fraction_ci95": [
+                  0.6753246753246753,
+                  0.8140350877192982
+                ],
+                "reviews_needed": 58.4,
+                "reviews_needed_raw_ci95": [
+                  34.5,
+                  77.58333333333333
+                ],
+                "reviews_needed_scaled_ci95": [
+                  48.62337662337662,
+                  58.61052631578947
+                ],
+                "target_cheats": 8
+              },
+              "90": {
+                "review_fraction": 0.9125000000000001,
+                "review_fraction_ci95": [
+                  0.7605633802816901,
+                  0.9140625
+                ],
+                "reviews_needed": 65.7,
+                "reviews_needed_raw_ci95": [
+                  37.6,
+                  85.75
+                ],
+                "reviews_needed_scaled_ci95": [
+                  54.76056338028169,
+                  65.8125
+                ],
+                "target_cheats": 9
+              }
+            },
+            "top_k": {
+              "10": {
+                "cheats_found": 1.0,
+                "cheats_found_raw_ci95": [
+                  0.3050847457627119,
+                  1.9285714285714284
+                ],
+                "cheats_found_scaled_ci95": [
+                  0.8999999999999999,
+                  1.0327868852459017
+                ],
+                "k_reviews": 8,
+                "recall": 0.1111111111111111,
+                "recall_ci95": [
+                  0.09999999999999999,
+                  0.11475409836065574
+                ]
+              },
+              "20": {
+                "cheats_found": 1.875,
+                "cheats_found_raw_ci95": [
+                  0.6,
+                  3.7611940298507465
+                ],
+                "cheats_found_scaled_ci95": [
+                  1.7999999999999998,
+                  1.9285714285714284
+                ],
+                "k_reviews": 15,
+                "recall": 0.20833333333333334,
+                "recall_ci95": [
+                  0.19999999999999998,
+                  0.21428571428571427
+                ]
+              },
+              "30": {
+                "cheats_found": 2.75,
+                "cheats_found_raw_ci95": [
+                  0.9056603773584906,
+                  5.524752475247524
+                ],
+                "cheats_found_scaled_ci95": [
+                  2.6999999999999997,
+                  2.8421052631578947
+                ],
+                "k_reviews": 22,
+                "recall": 0.3055555555555556,
+                "recall_ci95": [
+                  0.3,
+                  0.3157894736842105
+                ]
+              },
+              "5": {
+                "cheats_found": 0.5,
+                "cheats_found_raw_ci95": [
+                  0.15789473684210525,
+                  1.0303030303030303
+                ],
+                "cheats_found_scaled_ci95": [
+                  0.45,
+                  0.5901639344262295
+                ],
+                "k_reviews": 4,
+                "recall": 0.05555555555555555,
+                "recall_ci95": [
+                  0.05,
+                  0.06557377049180328
+                ]
+              },
+              "50": {
+                "cheats_found": 4.5,
+                "cheats_found_raw_ci95": [
+                  1.5,
+                  9.12
+                ],
+                "cheats_found_scaled_ci95": [
+                  4.5,
+                  4.588235294117647
+                ],
+                "k_reviews": 36,
+                "recall": 0.5,
+                "recall_ci95": [
+                  0.5,
+                  0.5098039215686274
+                ]
+              }
+            }
+          },
+          "random_seed1105": {
+            "auroc": {
+              "ci95": [
+                0.5060606060606061,
+                0.925
+              ],
+              "value": 0.673721340388007
+            },
+            "reviews_to_find_cheats": {
+              "50": {
+                "review_fraction": 0.20833333333333334,
+                "review_fraction_ci95": [
+                  0.04054054054054054,
+                  0.36
+                ],
+                "reviews_needed": 15,
+                "reviews_needed_raw_ci95": [
+                  3.0,
+                  27.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  2.9189189189189193,
+                  25.919999999999998
+                ],
+                "target_cheats": 5,
+                "tie_expected_fraction": 0.20833333333333334,
+                "tie_expected_reviews": 15.0
+              },
+              "80": {
+                "review_fraction": 0.9722222222222222,
+                "review_fraction_ci95": [
+                  0.1509433962264151,
+                  0.9852941176470589
+                ],
+                "reviews_needed": 70,
+                "reviews_needed_raw_ci95": [
+                  9.0,
+                  90.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  10.867924528301886,
+                  70.94117647058823
+                ],
+                "target_cheats": 8,
+                "tie_expected_fraction": 0.9722222222222222,
+                "tie_expected_reviews": 70.0
+              },
+              "90": {
+                "review_fraction": 0.9861111111111112,
+                "review_fraction_ci95": [
+                  0.1780821917808219,
+                  1.0
+                ],
+                "reviews_needed": 71,
+                "reviews_needed_raw_ci95": [
+                  10.0,
+                  93.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  12.821917808219178,
+                  72.0
+                ],
+                "target_cheats": 9,
+                "tie_expected_fraction": 0.9861111111111112,
+                "tie_expected_reviews": 71.0
+              }
+            },
+            "top_k": {
+              "10": {
+                "cheats_found": 2,
+                "cheats_found_raw_ci95": [
+                  0.0,
+                  5.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  0.0,
+                  5.3999999999999995
+                ],
+                "k_reviews": 8,
+                "recall": 0.2222222222222222,
+                "recall_ci95": [
+                  0.0,
+                  0.6
+                ],
+                "tie_expected_cheats": 2.0,
+                "tie_expected_recall": 0.2222222222222222
+              },
+              "20": {
+                "cheats_found": 5,
+                "cheats_found_raw_ci95": [
+                  1.0,
+                  8.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  2.0,
+                  9.0
+                ],
+                "k_reviews": 15,
+                "recall": 0.5555555555555556,
+                "recall_ci95": [
+                  0.2222222222222222,
+                  1.0
+                ],
+                "tie_expected_cheats": 5.0,
+                "tie_expected_recall": 0.5555555555555556
+              },
+              "30": {
+                "cheats_found": 6,
+                "cheats_found_raw_ci95": [
+                  2.0,
+                  11.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  3.75,
+                  9.0
+                ],
+                "k_reviews": 22,
+                "recall": 0.6666666666666666,
+                "recall_ci95": [
+                  0.4166666666666667,
+                  1.0
+                ],
+                "tie_expected_cheats": 6.0,
+                "tie_expected_recall": 0.6666666666666666
+              },
+              "5": {
+                "cheats_found": 2,
+                "cheats_found_raw_ci95": [
+                  0.0,
+                  4.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  0.0,
+                  4.5
+                ],
+                "k_reviews": 4,
+                "recall": 0.2222222222222222,
+                "recall_ci95": [
+                  0.0,
+                  0.5
+                ],
+                "tie_expected_cheats": 2.0,
+                "tie_expected_recall": 0.2222222222222222
+              },
+              "50": {
+                "cheats_found": 7,
+                "cheats_found_raw_ci95": [
+                  3.0,
+                  12.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  5.3999999999999995,
+                  9.0
+                ],
+                "k_reviews": 36,
+                "recall": 0.7777777777777778,
+                "recall_ci95": [
+                  0.6,
+                  1.0
+                ],
+                "tie_expected_cheats": 7.0,
+                "tie_expected_recall": 0.7777777777777778
+              }
+            }
+          }
+        },
+        "valid_replicates": 2000
+      },
+      "n": 72
+    },
+    "review": {
+      "cheats": 111,
+      "complete": 354,
+      "fallback": 12,
+      "historical_load": {
+        "cost_usd": 0.0,
+        "runs": 366,
+        "tokens_in": 4571234,
+        "tokens_out": 53395,
+        "windows": 465
+      },
+      "metrics": {
+        "cheats": 111,
+        "clusters": 165,
+        "comparisons": {
+          "j3": {
+            "current_order": {
+              "auroc_diff": {
+                "ci95": [
+                  0.22154171585989768,
+                  0.4249269200106298
+                ],
+                "value": 0.32243419890478714
+              },
+              "reviews_saved": {
+                "50": {
+                  "fraction_saved": 0.29234972677595633,
+                  "fraction_saved_ci95": [
+                    0.19197707736389685,
+                    0.42148760330578516
+                  ],
+                  "raw_ci95": [
+                    71,
+                    152
+                  ],
+                  "scaled_ci95": [
+                    70.26361031518624,
+                    154.26446280991738
+                  ],
+                  "value": 107
+                },
+                "80": {
+                  "fraction_saved": 0.03825136612021862,
+                  "fraction_saved_ci95": [
+                    -0.015706806282722585,
+                    0.11363636363636365
+                  ],
+                  "raw_ci95": [
+                    -5,
+                    43
+                  ],
+                  "scaled_ci95": [
+                    -5.748691099476466,
+                    41.59090909090909
+                  ],
+                  "value": 14
+                },
+                "90": {
+                  "fraction_saved": 0.040983606557376984,
+                  "fraction_saved_ci95": [
+                    -0.0714285714285714,
+                    0.07836990595611282
+                  ],
+                  "raw_ci95": [
+                    -24,
+                    28
+                  ],
+                  "scaled_ci95": [
+                    -26.14285714285713,
+                    28.68338557993729
+                  ],
+                  "value": 15
+                }
+              },
+              "top_k_cheats_gain": {
+                "10": {
+                  "raw_ci95": [
+                    3,
+                    19
+                  ],
+                  "scaled_ci95": [
+                    3.7000000000000006,
+                    19.270833333333332
+                  ],
+                  "value": 10
+                },
+                "20": {
+                  "raw_ci95": [
+                    9,
+                    46
+                  ],
+                  "scaled_ci95": [
+                    11.63709677419355,
+                    35.70629370629371
+                  ],
+                  "value": 25
+                },
+                "30": {
+                  "raw_ci95": [
+                    17,
+                    68
+                  ],
+                  "scaled_ci95": [
+                    23.124999999999996,
+                    57.041666666666664
+                  ],
+                  "value": 38
+                },
+                "5": {
+                  "raw_ci95": [
+                    2,
+                    12
+                  ],
+                  "scaled_ci95": [
+                    2.522727272727273,
+                    12.220183486238533
+                  ],
+                  "value": 7
+                },
+                "50": {
+                  "raw_ci95": [
+                    25,
+                    67
+                  ],
+                  "scaled_ci95": [
+                    26.93382352941176,
+                    66.98275862068965
+                  ],
+                  "value": 42
+                }
+              }
+            },
+            "random_expected": {
+              "auroc_diff": {
+                "ci95": [
+                  0.06294687302018287,
+                  0.21368243243243246
+                ],
+                "value": 0.1473237943826179
+              },
+              "reviews_saved": {
+                "50": {
+                  "fraction_saved": 0.16256830601092892,
+                  "fraction_saved_ci95": [
+                    0.09520824003582617,
+                    0.2286689419795222
+                  ],
+                  "raw_ci95": [
+                    34.61313868613138,
+                    83.18934911242604
+                  ],
+                  "scaled_ci95": [
+                    34.84621585311238,
+                    83.69283276450513
+                  ],
+                  "value": 59.5
+                },
+                "80": {
+                  "fraction_saved": 0.018125487900078063,
+                  "fraction_saved_ci95": [
+                    -0.04810818799881755,
+                    0.09978213507625278
+                  ],
+                  "raw_ci95": [
+                    -17.253521126760575,
+                    38.571428571428555
+                  ],
+                  "scaled_ci95": [
+                    -17.607596807567223,
+                    36.520261437908516
+                  ],
+                  "value": 6.633928571428555
+                },
+                "90": {
+                  "fraction_saved": 0.05376658860265415,
+                  "fraction_saved_ci95": [
+                    -0.04857868436143209,
+                    0.09635544635544624
+                  ],
+                  "raw_ci95": [
+                    -15.945054945054949,
+                    35.80281690140845
+                  ],
+                  "scaled_ci95": [
+                    -17.779798476284146,
+                    35.26609336609332
+                  ],
+                  "value": 19.678571428571445
+                }
+              },
+              "top_k_cheats_gain": {
+                "10": {
+                  "raw_ci95": [
+                    -4.309352517985612,
+                    8.7088948787062
+                  ],
+                  "scaled_ci95": [
+                    -3.933977719528177,
+                    9.941022280471822
+                  ],
+                  "value": 0.778688524590164
+                },
+                "20": {
+                  "raw_ci95": [
+                    -1.8300653594771212,
+                    19.183879093198993
+                  ],
+                  "scaled_ci95": [
+                    -2.4328767123287665,
+                    17.76086448598131
+                  ],
+                  "value": 8.557377049180328
+                },
+                "30": {
+                  "raw_ci95": [
+                    -0.5581395348837219,
+                    29.0
+                  ],
+                  "scaled_ci95": [
+                    -0.7029657089898075,
+                    30.340000000000003
+                  ],
+                  "value": 11.639344262295083
+                },
+                "5": {
+                  "raw_ci95": [
+                    -2.5829268292682928,
+                    5.501538461538461
+                  ],
+                  "scaled_ci95": [
+                    -2.7875187969924813,
+                    6.5944910885255545
+                  ],
+                  "value": 1.2377049180327866
+                },
+                "50": {
+                  "raw_ci95": [
+                    4.899082568807337,
+                    39.5
+                  ],
+                  "scaled_ci95": [
+                    7.115384615384615,
+                    27.480582524271846
+                  ],
+                  "value": 19.5
+                }
+              }
+            },
+            "random_seed1105": {
+              "auroc_diff": {
+                "ci95": [
+                  0.04084622597280829,
+                  0.22491382309224883
+                ],
+                "value": 0.14822469528351878
+              },
+              "reviews_saved": {
+                "50": {
+                  "fraction_saved": 0.15846994535519127,
+                  "fraction_saved_ci95": [
+                    0.06916426512968299,
+                    0.25853658536585367
+                  ],
+                  "raw_ci95": [
+                    26,
+                    97
+                  ],
+                  "scaled_ci95": [
+                    25.314121037463973,
+                    94.62439024390244
+                  ],
+                  "value": 58
+                },
+                "80": {
+                  "fraction_saved": 0.008196721311475419,
+                  "fraction_saved_ci95": [
+                    -0.06234413965087282,
+                    0.09830508474576272
+                  ],
+                  "raw_ci95": [
+                    -23,
+                    34
+                  ],
+                  "scaled_ci95": [
+                    -22.81795511221945,
+                    35.97966101694915
+                  ],
+                  "value": 3
+                },
+                "90": {
+                  "fraction_saved": 0.021857923497267673,
+                  "fraction_saved_ci95": [
+                    -0.06686930091185417,
+                    0.07446808510638303
+                  ],
+                  "raw_ci95": [
+                    -24,
+                    26
+                  ],
+                  "scaled_ci95": [
+                    -24.474164133738626,
+                    27.255319148936188
+                  ],
+                  "value": 8
+                }
+              },
+              "top_k_cheats_gain": {
+                "10": {
+                  "raw_ci95": [
+                    -3,
+                    12
+                  ],
+                  "scaled_ci95": [
+                    -2.4666666666666655,
+                    13.875
+                  ],
+                  "value": 4
+                },
+                "20": {
+                  "raw_ci95": [
+                    -5,
+                    21
+                  ],
+                  "scaled_ci95": [
+                    -7.115384615384618,
+                    19.304347826086957
+                  ],
+                  "value": 9
+                },
+                "30": {
+                  "raw_ci95": [
+                    -2,
+                    33
+                  ],
+                  "scaled_ci95": [
+                    -3.217391304347828,
+                    32.88888888888889
+                  ],
+                  "value": 13
+                },
+                "5": {
+                  "raw_ci95": [
+                    -3,
+                    8
+                  ],
+                  "scaled_ci95": [
+                    -2.7407407407407405,
+                    9.47560975609756
+                  ],
+                  "value": 3
+                },
+                "50": {
+                  "raw_ci95": [
+                    2,
+                    40
+                  ],
+                  "scaled_ci95": [
+                    2.5813953488372015,
+                    29.88461538461539
+                  ],
+                  "value": 18
+                }
+              }
+            }
+          }
+        },
+        "honest": 255,
+        "keys_sha256": "64b654ded341d76a065c13378787ea70acd960bc406c02b7040694a1c8c543fb",
+        "n": 366,
+        "signals": {
+          "current_order": {
+            "auroc": {
+              "ci95": [
+                0.22883032605254827,
+                0.41395116853505604
+              ],
+              "value": 0.32488959547783075
+            },
+            "reviews_to_find_cheats": {
+              "50": {
+                "review_fraction": 0.6311475409836066,
+                "review_fraction_ci95": [
+                  0.5461165048543689,
+                  0.7335640138408305
+                ],
+                "reviews_needed": 231,
+                "reviews_needed_raw_ci95": [
+                  176.0,
+                  300.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  199.87864077669903,
+                  268.48442906574394
+                ],
+                "target_cheats": 56,
+                "tie_expected_fraction": 0.6311475409836066,
+                "tie_expected_reviews": 231.0
+              },
+              "80": {
+                "review_fraction": 0.8169398907103825,
+                "review_fraction_ci95": [
+                  0.7625,
+                  0.8757062146892656
+                ],
+                "reviews_needed": 299,
+                "reviews_needed_raw_ci95": [
+                  229.0,
+                  389.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  279.075,
+                  320.5084745762712
+                ],
+                "target_cheats": 89,
+                "tie_expected_fraction": 0.8169398907103825,
+                "tie_expected_reviews": 299.0
+              },
+              "90": {
+                "review_fraction": 0.8825136612021858,
+                "review_fraction_ci95": [
+                  0.8309859154929577,
+                  0.9238578680203046
+                ],
+                "reviews_needed": 323,
+                "reviews_needed_raw_ci95": [
+                  245.0,
+                  421.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  304.14084507042253,
+                  338.1319796954315
+                ],
+                "target_cheats": 100,
+                "tie_expected_fraction": 0.8825136612021858,
+                "tie_expected_reviews": 323.0
+              }
+            },
+            "top_k": {
+              "10": {
+                "cheats_found": 2,
+                "cheats_found_raw_ci95": [
+                  0.0,
+                  6.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  0.0,
+                  6.235955056179775
+                ],
+                "k_reviews": 37,
+                "recall": 0.018018018018018018,
+                "recall_ci95": [
+                  0.0,
+                  0.056179775280898875
+                ],
+                "tie_expected_cheats": 2.0,
+                "tie_expected_recall": 0.018018018018018018
+              },
+              "20": {
+                "cheats_found": 6,
+                "cheats_found_raw_ci95": [
+                  0.0,
+                  16.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  0.0,
+                  14.96629213483146
+                ],
+                "k_reviews": 74,
+                "recall": 0.05405405405405406,
+                "recall_ci95": [
+                  0.0,
+                  0.1348314606741573
+                ],
+                "tie_expected_cheats": 6.0,
+                "tie_expected_recall": 0.05405405405405406
+              },
+              "30": {
+                "cheats_found": 7,
+                "cheats_found_raw_ci95": [
+                  0.0,
+                  21.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  0.0,
+                  20.387755102040817
+                ],
+                "k_reviews": 110,
+                "recall": 0.06306306306306306,
+                "recall_ci95": [
+                  0.0,
+                  0.1836734693877551
+                ],
+                "tie_expected_cheats": 7.0,
+                "tie_expected_recall": 0.06306306306306306
+              },
+              "5": {
+                "cheats_found": 0,
+                "cheats_found_raw_ci95": [
+                  0.0,
+                  3.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  0.0,
+                  2.522727272727273
+                ],
+                "k_reviews": 19,
+                "recall": 0.0,
+                "recall_ci95": [
+                  0.0,
+                  0.022727272727272728
+                ],
+                "tie_expected_cheats": 0.0,
+                "tie_expected_recall": 0.0
+              },
+              "50": {
+                "cheats_found": 33,
+                "cheats_found_raw_ci95": [
+                  6.0,
+                  73.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  8.222222222222221,
+                  48.02884615384615
+                ],
+                "k_reviews": 183,
+                "recall": 0.2972972972972973,
+                "recall_ci95": [
+                  0.07407407407407407,
+                  0.4326923076923077
+                ],
+                "tie_expected_cheats": 33.0,
+                "tie_expected_recall": 0.2972972972972973
+              }
+            }
+          },
+          "j3": {
+            "auroc": {
+              "ci95": [
+                0.5629468730201829,
+                0.7136824324324325
+              ],
+              "value": 0.6473237943826179
+            },
+            "reviews_to_find_cheats": {
+              "50": {
+                "review_fraction": 0.33879781420765026,
+                "review_fraction_ci95": [
+                  0.27044025157232704,
+                  0.4037940379403794
+                ],
+                "reviews_needed": 124,
+                "reviews_needed_raw_ci95": [
+                  84.0,
+                  174.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  98.98113207547169,
+                  147.78861788617886
+                ],
+                "target_cheats": 56,
+                "tie_expected_fraction": 0.3274785323965652,
+                "tie_expected_reviews": 119.85714285714286
+              },
+              "80": {
+                "review_fraction": 0.7786885245901639,
+                "review_fraction_ci95": [
+                  0.7002801120448179,
+                  0.8454258675078864
+                ],
+                "reviews_needed": 285,
+                "reviews_needed_raw_ci95": [
+                  213.0,
+                  366.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  256.30252100840335,
+                  309.42586750788644
+                ],
+                "target_cheats": 89,
+                "tie_expected_fraction": 0.6915212409659792,
+                "tie_expected_reviews": 253.09677419354838
+              },
+              "90": {
+                "review_fraction": 0.8415300546448088,
+                "review_fraction_ci95": [
+                  0.8,
+                  0.9466292134831461
+                ],
+                "reviews_needed": 308,
+                "reviews_needed_raw_ci95": [
+                  240.0,
+                  410.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  292.8,
+                  346.46629213483146
+                ],
+                "target_cheats": 100,
+                "tie_expected_fraction": 0.8699101004759386,
+                "tie_expected_reviews": 318.38709677419354
+              }
+            },
+            "top_k": {
+              "10": {
+                "cheats_found": 12,
+                "cheats_found_raw_ci95": [
+                  6.0,
+                  23.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  7.302631578947368,
+                  21.142857142857142
+                ],
+                "k_reviews": 37,
+                "recall": 0.10810810810810811,
+                "recall_ci95": [
+                  0.06578947368421052,
+                  0.19047619047619047
+                ],
+                "tie_expected_cheats": 13.0,
+                "tie_expected_recall": 0.11711711711711711
+              },
+              "20": {
+                "cheats_found": 31,
+                "cheats_found_raw_ci95": [
+                  14.0,
+                  52.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  19.88059701492537,
+                  40.22818791946308
+                ],
+                "k_reviews": 74,
+                "recall": 0.27927927927927926,
+                "recall_ci95": [
+                  0.1791044776119403,
+                  0.3624161073825503
+                ],
+                "tie_expected_cheats": 31.8125,
+                "tie_expected_recall": 0.2865990990990991
+              },
+              "30": {
+                "cheats_found": 45,
+                "cheats_found_raw_ci95": [
+                  23.0,
+                  80.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  32.73076923076923,
+                  63.909090909090914
+                ],
+                "k_reviews": 110,
+                "recall": 0.40540540540540543,
+                "recall_ci95": [
+                  0.2948717948717949,
+                  0.5757575757575758
+                ],
+                "tie_expected_cheats": 50.69230769230769,
+                "tie_expected_recall": 0.4566874566874567
+              },
+              "5": {
+                "cheats_found": 7,
+                "cheats_found_raw_ci95": [
+                  2.0,
+                  12.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  2.9210526315789473,
+                  12.333333333333332
+                ],
+                "k_reviews": 19,
+                "recall": 0.06306306306306306,
+                "recall_ci95": [
+                  0.02631578947368421,
+                  0.1111111111111111
+                ],
+                "tie_expected_cheats": 7.0,
+                "tie_expected_recall": 0.06306306306306306
+              },
+              "50": {
+                "cheats_found": 75,
+                "cheats_found_raw_ci95": [
+                  42.0,
+                  130.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  62.61538461538461,
+                  83.0
+                ],
+                "k_reviews": 183,
+                "recall": 0.6756756756756757,
+                "recall_ci95": [
+                  0.5641025641025641,
+                  0.7477477477477478
+                ],
+                "tie_expected_cheats": 77.19021739130434,
+                "tie_expected_recall": 0.6954073638856247
+              }
+            }
+          },
+          "random_expected": {
+            "auroc": {
+              "ci95": [
+                0.5,
+                0.5
+              ],
+              "value": 0.5
+            },
+            "reviews_to_find_cheats": {
+              "50": {
+                "review_fraction": 0.5013661202185792,
+                "review_fraction_ci95": [
+                  0.49463161791928917,
+                  0.5017182130584192
+                ],
+                "reviews_needed": 183.5,
+                "reviews_needed_raw_ci95": [
+                  139.66233766233765,
+                  239.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  181.03517215845983,
+                  183.62886597938143
+                ],
+                "target_cheats": 56
+              },
+              "80": {
+                "review_fraction": 0.796814012490242,
+                "review_fraction_ci95": [
+                  0.7920792079207921,
+                  0.8026058631921824
+                ],
+                "reviews_needed": 291.63392857142856,
+                "reviews_needed_raw_ci95": [
+                  223.9855072463768,
+                  381.3829787234043
+                ],
+                "reviews_needed_scaled_ci95": [
+                  289.9009900990099,
+                  293.7537459283388
+                ],
+                "target_cheats": 89
+              },
+              "90": {
+                "review_fraction": 0.8952966432474629,
+                "review_fraction_ci95": [
+                  0.8917107583774251,
+                  0.902760736196319
+                ],
+                "reviews_needed": 327.67857142857144,
+                "reviews_needed_raw_ci95": [
+                  252.44444444444446,
+                  429.1041666666667
+                ],
+                "reviews_needed_scaled_ci95": [
+                  326.3661375661376,
+                  330.4104294478528
+                ],
+                "target_cheats": 100
+              }
+            },
+            "top_k": {
+              "10": {
+                "cheats_found": 11.221311475409836,
+                "cheats_found_raw_ci95": [
+                  6.9,
+                  18.412667946257198
+                ],
+                "cheats_found_scaled_ci95": [
+                  11.1,
+                  11.404109589041095
+                ],
+                "k_reviews": 37,
+                "recall": 0.10109289617486339,
+                "recall_ci95": [
+                  0.09999999999999999,
+                  0.10273972602739725
+                ]
+              },
+              "20": {
+                "cheats_found": 22.442622950819672,
+                "cheats_found_raw_ci95": [
+                  13.691275167785236,
+                  36.44570135746606
+                ],
+                "cheats_found_scaled_ci95": [
+                  22.2,
+                  22.490196078431374
+                ],
+                "k_reviews": 74,
+                "recall": 0.20218579234972678,
+                "recall_ci95": [
+                  0.19999999999999998,
+                  0.20261437908496732
+                ]
+              },
+              "30": {
+                "cheats_found": 33.36065573770492,
+                "cheats_found_raw_ci95": [
+                  20.536912751677853,
+                  54.463800904977376
+                ],
+                "cheats_found_scaled_ci95": [
+                  33.3,
+                  33.60550458715596
+                ],
+                "k_reviews": 110,
+                "recall": 0.3005464480874317,
+                "recall_ci95": [
+                  0.3,
+                  0.30275229357798167
+                ]
+              },
+              "5": {
+                "cheats_found": 5.762295081967213,
+                "cheats_found_raw_ci95": [
+                  3.4725609756097557,
+                  9.3
+                ],
+                "cheats_found_scaled_ci95": [
+                  5.550000000000001,
+                  5.861386138613861
+                ],
+                "k_reviews": 19,
+                "recall": 0.05191256830601093,
+                "recall_ci95": [
+                  0.05,
+                  0.052805280528052806
+                ]
+              },
+              "50": {
+                "cheats_found": 55.5,
+                "cheats_found_raw_ci95": [
+                  34.10526315789473,
+                  90.5
+                ],
+                "cheats_found_scaled_ci95": [
+                  55.49999999999999,
+                  55.69072164948454
+                ],
+                "k_reviews": 183,
+                "recall": 0.5,
+                "recall_ci95": [
+                  0.49999999999999994,
+                  0.5017182130584192
+                ]
+              }
+            }
+          },
+          "random_seed1105": {
+            "auroc": {
+              "ci95": [
+                0.4429143353270307,
+                0.5547498949138293
+              ],
+              "value": 0.4990990990990991
+            },
+            "reviews_to_find_cheats": {
+              "50": {
+                "review_fraction": 0.4972677595628415,
+                "review_fraction_ci95": [
+                  0.42824074074074076,
+                  0.5887573964497042
+                ],
+                "reviews_needed": 182,
+                "reviews_needed_raw_ci95": [
+                  131.0,
+                  248.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  156.73611111111111,
+                  215.4852071005917
+                ],
+                "target_cheats": 56,
+                "tie_expected_fraction": 0.4972677595628415,
+                "tie_expected_reviews": 182.0
+              },
+              "80": {
+                "review_fraction": 0.7868852459016393,
+                "review_fraction_ci95": [
+                  0.7233009708737864,
+                  0.8452380952380952
+                ],
+                "reviews_needed": 288,
+                "reviews_needed_raw_ci95": [
+                  224.0,
+                  372.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  264.7281553398058,
+                  309.35714285714283
+                ],
+                "target_cheats": 89,
+                "tie_expected_fraction": 0.7868852459016393,
+                "tie_expected_reviews": 288.0
+              },
+              "90": {
+                "review_fraction": 0.8633879781420765,
+                "review_fraction_ci95": [
+                  0.8305084745762712,
+                  0.9164265129682997
+                ],
+                "reviews_needed": 316,
+                "reviews_needed_raw_ci95": [
+                  244.0,
+                  413.0
+                ],
+                "reviews_needed_scaled_ci95": [
+                  303.96610169491527,
+                  335.4121037463977
+                ],
+                "target_cheats": 100,
+                "tie_expected_fraction": 0.8633879781420765,
+                "tie_expected_reviews": 316.0
+              }
+            },
+            "top_k": {
+              "10": {
+                "cheats_found": 8,
+                "cheats_found_raw_ci95": [
+                  2.0,
+                  17.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  3.1714285714285713,
+                  13.058823529411764
+                ],
+                "k_reviews": 37,
+                "recall": 0.07207207207207207,
+                "recall_ci95": [
+                  0.02857142857142857,
+                  0.11764705882352941
+                ],
+                "tie_expected_cheats": 8.0,
+                "tie_expected_recall": 0.07207207207207207
+              },
+              "20": {
+                "cheats_found": 22,
+                "cheats_found_raw_ci95": [
+                  12.0,
+                  37.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  15.857142857142856,
+                  31.28181818181818
+                ],
+                "k_reviews": 74,
+                "recall": 0.1981981981981982,
+                "recall_ci95": [
+                  0.14285714285714285,
+                  0.2818181818181818
+                ],
+                "tie_expected_cheats": 22.0,
+                "tie_expected_recall": 0.1981981981981982
+              },
+              "30": {
+                "cheats_found": 32,
+                "cheats_found_raw_ci95": [
+                  18.0,
+                  52.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  24.83916083916084,
+                  41.472527472527474
+                ],
+                "k_reviews": 110,
+                "recall": 0.2882882882882883,
+                "recall_ci95": [
+                  0.22377622377622378,
+                  0.37362637362637363
+                ],
+                "tie_expected_cheats": 32.0,
+                "tie_expected_recall": 0.2882882882882883
+              },
+              "5": {
+                "cheats_found": 4,
+                "cheats_found_raw_ci95": [
+                  1.0,
+                  9.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  1.180851063829787,
+                  7.708333333333334
+                ],
+                "k_reviews": 19,
+                "recall": 0.036036036036036036,
+                "recall_ci95": [
+                  0.010638297872340425,
+                  0.06944444444444445
+                ],
+                "tie_expected_cheats": 4.0,
+                "tie_expected_recall": 0.036036036036036036
+              },
+              "50": {
+                "cheats_found": 57,
+                "cheats_found_raw_ci95": [
+                  33.0,
+                  91.0
+                ],
+                "cheats_found_scaled_ci95": [
+                  47.57142857142857,
+                  65.22680412371135
+                ],
+                "k_reviews": 183,
+                "recall": 0.5135135135135135,
+                "recall_ci95": [
+                  0.42857142857142855,
+                  0.5876288659793815
+                ],
+                "tie_expected_cheats": 57.0,
+                "tie_expected_recall": 0.5135135135135135
+              }
+            }
+          }
+        },
+        "valid_replicates": 2000
+      },
+      "n": 366
+    }
+  },
+  "schema": "evallab.queueimpl_measurement/v1",
+  "split": "dev"
+}

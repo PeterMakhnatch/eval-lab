@@ -347,7 +347,11 @@ function showReveal(rv,agree,verdict,seconds){
   p.appendChild(el("div",null,"You said: "+verdict+(seconds!==undefined?" · "+fmt(seconds):"")));
   p.appendChild(el("div","lbl","Label"));p.appendChild(el("div",null,rv.label.text));
   if(rv.grader)p.appendChild(el("div",null,"Grader result: "+rv.grader));
-  if(rv.decision!==undefined)p.appendChild(el("div",null,"Line decision: "+rv.decision+(rv.audit?" (random audit)":"")));
+  if(rv.decision!==undefined)p.appendChild(el("div",null,"Line decision: "+rv.decision+(rv.keep_audit?" (priority keep audit)":rv.audit?" (random audit)":"")));
+  if(rv.review_priority!==undefined){
+    p.appendChild(el("div",null,"J3 review priority: "+(rv.review_priority===null?"unavailable":rv.review_priority)));
+    if(rv.review_priority_source){const d=el("details");d.appendChild(el("summary",null,"J3 priority source"));d.appendChild(el("pre",null,JSON.stringify(rv.review_priority_source,null,2)));p.appendChild(d)}
+  }
   if(rv.stratum_text)p.appendChild(el("div","lbl","Why you got this run"));
   if(rv.stratum_text)p.appendChild(el("div",null,rv.stratum_text));
   if(rv.queue)p.appendChild(el("div","lbl","Queue: "+rv.queue));

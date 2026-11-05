@@ -1,0 +1,219 @@
+{
+  "bootstrap": {
+    "ci_percentiles": [
+      0.025,
+      0.975
+    ],
+    "replicates": 2000,
+    "seed": 1106,
+    "unit": "task_cluster"
+  },
+  "experiment": "ev1105-queue",
+  "inputs": {
+    "detbench_j0": {
+      "bytes": 210237,
+      "path": "/private/tmp/ov1104/shared/detbench/signals/j0_autoreview.jsonl",
+      "sha256": "56815b5b74fc5a81291f31f0cc60d68c7bb9dd72d2be8b750e163893cf422808"
+    },
+    "detbench_j2b": {
+      "bytes": 1281493,
+      "path": "/private/tmp/ov1104/shared/detbench/signals/j2b_actions_task_diff_v2_flash.jsonl",
+      "sha256": "5f2c96790252ad33f1d5aa4056c2ecc9ea193d06918b2e0015b1ed034fba2938"
+    },
+    "detbench_j3_full": {
+      "bytes": 1265872,
+      "path": "/private/tmp/ov1104/shared/detbench/signals/j3_actions_task_diff_terra_full.jsonl",
+      "sha256": "15e94821fa4b2225ffff0416b394b47feddd95098d7362a99f86f34c0646b0f7"
+    },
+    "detbench_length_chars": {
+      "bytes": 3900321,
+      "path": "/private/tmp/ov1104/shared/detbench/signals/length_chars.jsonl",
+      "sha256": "75bcc657accb7a3469a34a57d106951e3ae8034a5cc35ea515d28f02fecb64d2"
+    },
+    "detbench_length_steps": {
+      "bytes": 3845672,
+      "path": "/private/tmp/ov1104/shared/detbench/signals/length_steps.jsonl",
+      "sha256": "98e5c8a321180a55650e90bcefe6263c1ebae09d05b3bc85591edde3232c861c"
+    },
+    "detbench_runs": {
+      "bytes": 15891247,
+      "path": "/private/tmp/ov1104/shared/detbench/runs.jsonl",
+      "sha256": "65d19eaad26bfd1b82b4ed91a16ed3a3f2da55dcc7460f942bc87e66acee56be"
+    },
+    "dev_j3_cache": {
+      "bytes": 578309,
+      "path": "/private/tmp/ov1106/j3line/j3-cache.jsonl",
+      "sha256": "9f78de09fb2462b43a05792de0e15631fc94b24693a5501ea12189658288004a"
+    },
+    "goodfire_manifest": {
+      "bytes": 52123,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/inputs/corpora/goodfire-manifest.jsonl",
+      "sha256": "c73df23307265400d44ebf3052fe5a373ad8ab6e31992e68fe808ddde7823cbb"
+    },
+    "impscale_audit_labels": {
+      "bytes": 278467,
+      "path": "/private/tmp/ov1106/impscale/helpers/scoring/audit/labels.jsonl",
+      "sha256": "f5fed8179f9fe7bd8d2dfc49ada830c4fc2d8a9cdaa16898adc03c897da9a80b"
+    },
+    "impscale_cohort_manifest": {
+      "bytes": 307159,
+      "path": "/private/tmp/ov1106/impscale/cohort-admitted.jsonl",
+      "sha256": "d491d610017fedd3daedf4458fa2b10158ad7d135cc4822637916d7b7ea28835"
+    },
+    "impscale_j2b": {
+      "bytes": 47559,
+      "path": "/private/tmp/ov1106/impscale/helpers/scoring/signals-v4/j2b_actions_task_diff_v2_flash.jsonl",
+      "sha256": "2f75d36ddc363f0553cfcb5ee8208077c5146c4eaf25be7ef483c4c5c8506d2b"
+    },
+    "impscale_j3": {
+      "bytes": 45588,
+      "path": "/private/tmp/ov1106/impscale/helpers/scoring/signals-v4/j3_actions_task_diff_terra.jsonl",
+      "sha256": "0e108e1f05b310236e81365594da2fe44f79d28e2baf03c58ae87bcc9b32cce6"
+    },
+    "impscale_length_chars": {
+      "bytes": 25323,
+      "path": "/private/tmp/ov1106/impscale/helpers/scoring/signals-v4/length_chars.jsonl",
+      "sha256": "a8abf0ca39f76e2ef53e500a71fa2c455c80c69d8db6aa6123384115a9ebfaa5"
+    },
+    "impscale_length_steps": {
+      "bytes": 24731,
+      "path": "/private/tmp/ov1106/impscale/helpers/scoring/signals-v4/length_steps.jsonl",
+      "sha256": "1fb701e84e9035d10335d81d0af45d6429888af2fbcaaa82e51ac04f233333ec"
+    },
+    "line_batch_decisions": {
+      "bytes": 622604,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-079537600573489cac9124e16da319c8/decisions.jsonl",
+      "sha256": "5e0846c92e44e46e4a772afd76804745036672fbd065435e3135a2a4075807bc"
+    },
+    "line_batch_judge_queue": {
+      "bytes": 82388,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-079537600573489cac9124e16da319c8/judge-queue.jsonl",
+      "sha256": "2c9950ab7e669547800f1950874efd8f307f9e78aa1e38f26ae2630bbd91545d"
+    },
+    "line_batch_kept": {
+      "bytes": 51511,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-079537600573489cac9124e16da319c8/export/kept.jsonl",
+      "sha256": "c53b15c5cdc96568dec9258a10a0207c5959b6777b9a1decac2dc4a993d7b68e"
+    },
+    "line_batch_review": {
+      "bytes": 334671,
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-079537600573489cac9124e16da319c8/export/review.jsonl",
+      "sha256": "29fc5980e92c434042965d1e1b26ae6dbd411f6fc6e3ea40fc6c89a669bd889a"
+    },
+    "longjudge_freeze_calibration": {
+      "bytes": 11685,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ev1105-queue/research/experiments/ov1106-longjudge/freeze-calibration.json",
+      "sha256": "7f77e6b40f7bf26de9e172207963cfb2564ca36e1e215bd4d34d0139bf027b71"
+    },
+    "longjudge_freeze_heldout": {
+      "bytes": 103305,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ev1105-queue/research/experiments/ov1106-longjudge/freeze-heldout.json",
+      "sha256": "f9811fe30aeb6270f01c80433bdf5ad8af0c92b2bd75c716d31ad135c1e3d6ab"
+    },
+    "longjudge_freeze_malt": {
+      "bytes": 45690,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ev1105-queue/research/experiments/ov1106-longjudge/freeze-malt.json",
+      "sha256": "c70914a099450f2dfcb8085adeaa2245fac5fd37968fedd7a2f5cadcf34a21d9"
+    },
+    "longjudge_samples": {
+      "bytes": 222425,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ev1105-queue/research/experiments/ov1106-longjudge/samples.json",
+      "sha256": "3d9d713b7776d9e982e093ea0a3e64f76243e8211691b92761d2ce4e43f7e05b"
+    },
+    "malt_j2b": {
+      "bytes": 147007,
+      "path": "/private/tmp/ov1105/malt/scores/signals/j2b_actions_task_diff_v2_flash.jsonl",
+      "sha256": "b4a914eeb629052e7e7987798600122f0a024e2b370737514b15f3a53444b682"
+    },
+    "malt_j3": {
+      "bytes": 142899,
+      "path": "/private/tmp/ov1105/malt/scores/signals/j3_actions_task_diff_terra.jsonl",
+      "sha256": "b45768f52beaedc2d08cbe13fe2f71b4225a2f54e2e845fac58a3e0a5eadba4a"
+    },
+    "malt_length_chars": {
+      "bytes": 176875,
+      "path": "/private/tmp/ov1105/malt/scores/signals/length_chars.jsonl",
+      "sha256": "feaa2b81094f66ed9396f20441aeef72ab74a999c52f0b3c0e6395120d2ec5d8"
+    },
+    "malt_length_steps": {
+      "bytes": 174938,
+      "path": "/private/tmp/ov1105/malt/scores/signals/length_steps.jsonl",
+      "sha256": "abb8163c27e5d55ddccc56f803786dcc2b5319482e3cfd3133ce380162829076"
+    },
+    "malt_runs": {
+      "bytes": 3665111,
+      "path": "/private/tmp/ov1105/malt/detbench-frozen/runs.jsonl",
+      "sha256": "fd47cf28211eaadb2d5367c177ae706547d6e0a5d3f97c71eb476d04bebbc87e"
+    },
+    "malt_sample": {
+      "bytes": 42272,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ev1105-queue/research/experiments/ov1105-malt/sample.json",
+      "sha256": "bf3729ff0b6791ba5323ac1ca469398ae57793483aee21c4c458072c812aded8"
+    }
+  },
+  "metrics": {
+    "abstain_fallbacks": {
+      "dev_before_zero_sensitivity": 0.5,
+      "primary": -1.0
+    },
+    "auroc": "mann_whitney_ties_half",
+    "target_cheat_recall_percents": [
+      50,
+      80,
+      90
+    ],
+    "tie_breaking": [
+      "stable",
+      "tie_expected"
+    ],
+    "top_k_percents": [
+      5,
+      10,
+      20,
+      30,
+      50
+    ],
+    "views": [
+      "same_row",
+      "full_queue"
+    ]
+  },
+  "prereg_md_sha256": "24c1f44577674db0f0d3f2765fe42930e1ff2d933f5c572916c2b42190b2ccec",
+  "queues": {
+    "dev_keep_audit": {
+      "cheats": 9,
+      "honest": 63,
+      "n": 72,
+      "split": "dev"
+    },
+    "dev_review": {
+      "cheats": 111,
+      "honest": 255,
+      "n": 366,
+      "split": "dev"
+    },
+    "heldout_pooled": {
+      "cheats": 344,
+      "honest": 1106,
+      "n": 1450,
+      "split": "heldout"
+    },
+    "impossible_task": {
+      "cheats": 53,
+      "honest": 27,
+      "n": 80,
+      "split": "heldout"
+    },
+    "malt": {
+      "cheats": 15,
+      "honest": 385,
+      "n": 400,
+      "split": "heldout"
+    }
+  },
+  "random_baseline": {
+    "analytical": "exact uniform permutation expectation without replacement",
+    "seeded_realization_seed": 1105
+  },
+  "schema": "ev1105.queue.prereg/v1"
+}

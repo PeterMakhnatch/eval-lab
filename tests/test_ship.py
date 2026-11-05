@@ -192,6 +192,30 @@ def test_new_gate_runs_before_its_registration_merges(delivery, exit_code):
         assert receipt["gates"] == ["consumer"]
 
 
+def test_gate_timeout_blocks_merge_and_preserves_topic(delivery):
+    args, root, tree, state, git, change = delivery
+    args.timeout = 0.01
+    command = [sys.executable, "-c", "import time; time.sleep(10)"]
+    (tree / "agents/ship-gates.toml").write_text(
+        '[[gate]]\nname = "consumer"\npaths = ["consumer.*"]\n'
+        f"command = {json.dumps(command)}\n"
+    )
+    git("commit", "-am", "register bounded verification", cwd=tree)
+    head = git("rev-parse", "HEAD", cwd=tree)
+    git("push", "origin", "topic")
+    git("update-ref", "refs/pull/42/head", head, cwd=root.parent / "origin.git")
+    pr = json.loads(state.read_text())["pr"]
+    pr.update(headRefOid=head, changedFiles=2)
+    pr["files"].append({"path": "agents/ship-gates.toml"})
+    change(pr=pr)
+    assert run_command(args, root) == 1
+    receipt = json.loads((args.state_dir / "42.json").read_text())
+    assert "timed out" in receipt["error"]
+    assert not json.loads(state.read_text()).get("merges")
+    assert tree.exists()
+    assert git("ls-remote", "--heads", "origin", "topic")
+
+
 def test_pending_waits_for_required_checks(delivery):
     args, root, _, state, _, change = delivery
     change(pending=True)

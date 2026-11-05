@@ -56,9 +56,10 @@ class Ship:
         print(f"ship #{self.pr}: {step}", flush=True)
 
     def run(self, args: list[str], *, cwd: Path | None = None,
-            check: bool = True, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+            check: bool = True, env: dict[str, str] | None = None,
+            timeout: float = 300) -> subprocess.CompletedProcess[str]:
         result = subprocess.run(args, cwd=cwd or self.root, env=env, text=True,
-                                capture_output=True, timeout=300)
+                                capture_output=True, timeout=timeout)
         log = self.directory / f"{self.pr}-{uuid.uuid4().hex}.log"
         # launchd environments can contain credentials. Retain only the probe verdict.
         log.write_text("launchd output withheld (environment secrets)\n" if args[0] == "launchctl"
@@ -160,7 +161,8 @@ class Ship:
                 for gate in selected:
                     env = {**os.environ, "EVALLAB_SHIP_HEAD": pr["headRefOid"],
                            "EVALLAB_SHIP_BASE": pr["baseRefOid"], "EVALLAB_SHIP_PR": str(self.pr)}
-                    result = self.run(gate["command"], cwd=tree, env=env, check=False)
+                    result = self.run(gate["command"], cwd=tree, env=env, check=False,
+                                      timeout=self.timeout)
                     if result.returncode:
                         raise Blocked(f"gate {gate['name']}: {'blocked' if result.returncode == 1 else 'error'} "
                                       f"(exit {result.returncode})\n{result.stdout[-2000:]}")
@@ -296,7 +298,7 @@ class Ship:
         self.save("main-verified")
         if self.smoke and self.data.get("smoke_passed") != {"commit": commit, "command": self.smoke}:
             with self.checkout(commit, "smoke") as tree:
-                self.run(["/bin/sh", "-c", self.smoke], cwd=tree)
+                self.run(["/bin/sh", "-c", self.smoke], cwd=tree, timeout=self.timeout)
             self.save("smoke-passed", smoke_passed={"commit": commit, "command": self.smoke})
         plan = inspect_cleanup(self, pr)
         self.save("cleanup-preflight", cleanup_plan=plan)

@@ -1261,7 +1261,7 @@ inputs:
   - path: src/evallab/sft_tinker.py
     digest: sha256:ef2b46ef1b669b0a61d76331b4c79d36c2219ec2d486a4dff012cba3f89bd813
   - path: src/evallab/ship/__init__.py
-    digest: sha256:f7f46af96e75f6f61817f67591ac68232cb18fcb75ee2ac8918c587717721fb5
+    digest: sha256:f9b541778a1e445b8e941a49bca40407dd8b646e4844ca159d8866485cdef218
   - path: src/evallab/ship/cleanup.py
     digest: sha256:b68661d2fce7aa31195b69c11cc9a9277582cd992a40cbd6ee9e60a1cb5719b2
   - path: src/evallab/smoke.py

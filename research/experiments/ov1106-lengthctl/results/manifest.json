@@ -1,0 +1,25 @@
+{
+  "schema": "lengthctl-reviewed-aggregate-v1",
+  "scored_revision": "5eceeeb4d",
+  "preregistration": "9c66cb3b7",
+  "pairs": 21344,
+  "signals": 368,
+  "populations": 58,
+  "unique_evaluations": 1936,
+  "bootstrap": 2000,
+  "seed": 1106,
+  "files": {
+    "aggregate.json.gz": {
+      "sha256": "12cf92aa0668ca323d6d578313c2443782a8124569fb0422ad73c705b19b155c",
+      "bytes": 2357269,
+      "uncompressed_sha256": "40b865e3c96ef16f84b4e94ec37615db74fb2ad6a95ccc884c54fe5730434e36",
+      "uncompressed_bytes": 36876359
+    },
+    "FULL-SCOREBOARD.md.gz": {
+      "sha256": "11e466229aef66a34b577b20e0ea145e71a2ed0ed0f260c0063fd7acca9a2301",
+      "bytes": 272733,
+      "uncompressed_sha256": "4c4cb55d2e401b7957dba4ed5ccfd916093d13078f15ae50aab21351953f9870",
+      "uncompressed_bytes": 5746513
+    }
+  }
+}

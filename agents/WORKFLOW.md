@@ -64,6 +64,11 @@ gh pr merge <PR_NUMBER> --squash --delete-branch --match-head-commit <EXACT_HEAD
 
 Never pass `--admin` to bypass required checks or branch protections. Native auto-merge is optional: opt in only after all reported CI checks pass, never for a draft or an explicit operator-held PR. A changed head/base requires fresh combined evidence before merging.
 
+`evallab ship <PR_NUMBER>` automates exact-head checks, configured path gates,
+guarded merge, main ancestry proof, optional smoke, and conservative retirement.
+Run it from a stable checkout outside the topic worktree.
+See [the ship runbook](../docs/ship.md) for receipts, recovery, and cleanup holds.
+
 The HAR-46 release path is closed (Linear: Done); its standing delivery contract survives in CHECKS. Merged source code and deployed runtime environments remain distinct: adopting merged code into the active runtime preserves all user and owner state, and merging to `main` is not permission to deploy or disrupt shared-runtime environments. Do not trigger live model execution, billable inferences, or batch queue drains merely to smoke-test adoption.
 
 Dispatcher wake/presence follows current configuration (`dispatch.wake` is presently false); do not run `dispatch --once`, enable wakes, or rewire routing merely to answer status.

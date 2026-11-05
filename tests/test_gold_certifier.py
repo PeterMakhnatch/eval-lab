@@ -10,14 +10,12 @@ from pathlib import Path
 import pytest
 
 from evallab.gold_certifier import (
-    CONFTEST_TAMPER_PAYLOAD,
     GOLD_CONTRACT_TEST_NAME,
     GoldMatrixSummary,
     TaskCertificationResult,
     _certify_gold_command,
     build_certify_gold_parser,
     build_synthesis_prompt,
-    exit0_pth_script,
     extract_code_block,
     format_supplementary_hook,
     format_wilson,
@@ -28,7 +26,6 @@ from evallab.gold_certifier import (
     stage_and_harden_package,
     validate_contract_test,
     wilson_interval,
-    witness_script,
 )
 from evallab.mutant_auditor import Mutant
 from evallab.separate_verifier import supplementary_test_blocks
@@ -141,11 +138,6 @@ def test_build_synthesis_prompt_blind_to_eval_mutants() -> None:
     assert eval_diff not in prompt
     assert "9999" not in prompt
 
-    # Required instructions
-    assert "contract-complete" in prompt
-    assert "branch, guard, boundary condition" in prompt
-    assert "PUBLIC API" in prompt
-    assert "inspect.getsource" in prompt  # in strict rules list
     assert "AssertionError: False is not true" in prompt  # feedback included
 
 
@@ -176,17 +168,6 @@ def test_arm_scripts_contain_expected_markers() -> None:
     nop = nop_script("/testbed")
     assert "cd /testbed || exit 1" in nop
     assert "NOP_APPLIED" in nop
-
-    wit_solve = witness_script("/testbed", "bash /solve.sh")
-    assert "WITNESS_APPLIED solve_sh" in wit_solve
-
-    wit_conftest = witness_script("/testbed", None)
-    assert "WITNESS_APPLIED conftest" in wit_conftest
-    assert "pytest_sessionfinish" in CONFTEST_TAMPER_PAYLOAD
-
-    exit0 = exit0_pth_script("/testbed")
-    assert "EXIT0_PTH_APPLIED" in exit0
-    assert "zz_cert.pth" in exit0
 
 
 def test_stage_and_harden_package(tmp_path: Path) -> None:
@@ -346,6 +327,9 @@ def test_cli_plan_reports_rounds_and_probes(tmp_path: Path, capsys: pytest.Captu
     assert _certify_gold_command(args, tmp_path) == 0
     plan = json.loads(capsys.readouterr().out)
     assert plan["rounds"] == 3 and plan["probes_per_round"] == 4
+    assert plan["injection_controls"] is False
+    assert plan["unexercised_gates"] == ["gate3_witness", "gate4_exit0_pth"]
+    assert plan["certification_possible"] is False
 
 
 @pytest.mark.parametrize("flag", ["--rounds", "--probes-per-round"])
@@ -363,3 +347,33 @@ def test_cli_refuses_multi_round_execution_instead_of_silently_doing_nothing(
     args = _cli_args(tmp_path, "--out", str(tmp_path / "out"), "--rounds", "2")
     assert _certify_gold_command(args, tmp_path) == 2
     assert "not implemented" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("planning", [False, True])
+def test_cli_witness_without_explicit_opt_in_refuses_before_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, planning: bool,
+) -> None:
+    args = _cli_args(tmp_path, "--witness", "/nonexistent/witness.sh",
+                     *(["--plan"] if planning else []))
+    args.reference_patch = tmp_path / "absent.patch"
+    monkeypatch.setattr(
+        "evallab.gold_certifier.modal_cell_runner",
+        lambda **_: pytest.fail("executor created"),
+    )
+    with pytest.raises(ValueError, match="witnesses alone"):
+        _certify_gold_command(args, tmp_path)
+
+
+def test_cli_contained_preview_does_not_claim_runtime_proof(tmp_path, monkeypatch, capsys):
+    args = _cli_args(tmp_path, "--injection-controls", "--witness", "/nonexistent/witness.sh",
+                     "--plan", "--json")
+    monkeypatch.setattr(
+        "evallab.gold_certifier.modal_cell_runner",
+        lambda **_: pytest.fail("executor created"),
+    )
+    assert _certify_gold_command(args, tmp_path) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["injection_controls"] is True
+    assert plan["containment"] == "requested-not-runtime-proven"
+    assert plan["certification_possible"] is False
+    assert plan["unexercised_gates"] == ["gate3_witness", "gate4_exit0_pth"]

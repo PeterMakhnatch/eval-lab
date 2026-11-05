@@ -224,6 +224,53 @@ A batch ID cannot overwrite an existing batch. Choose a new ID for another run.
 A run or check exits 0 only when all eight checks pass; failed quality gates
 exit 2. Read the check details before using any exports.
 
+### Confirmed history copying (opt-in)
+
+The optional spec boolean `copy_history` defaults to `false`. When enabled, the
+line reuses `evallab.copy_check` on the admitted trajectory, final diff and
+retained terminal output. An exact non-test Git hunk or at least 5 substantive
+matching added lines can produce the L0 drop reason `COPY_HISTORY_CONFIRMED`.
+The normal stage precedence still applies. Receipts record the matcher version,
+match counts and source step IDs, not commands or copied code.
+
+The signal requires output bound to a Git object read with an explicit object
+ID, remote ref, or ancestor of `HEAD`. Compound commands and terminal transport
+envelopes use the audited output attribution. A retained pane supplies output
+only when its command prefix occurs exactly once in the trajectory and pane.
+With this flag, admission retains `agent/terminus_2.pane` and
+`agent/evallab-output/step-NNNN.txt`; both remain covered by the intake digest.
+Evaluation never opens a transcript path or reads the host to resolve a spill.
+The signal uses the admitted final/native diff without changing other stages.
+
+Running `git log` or `git show` alone does not establish copying. Unmatched
+output, unrelated output, test-only changes, symbolic `HEAD` operands and code
+the agent already typed stay negative. Package/cache copying is not history copying.
+Missing diffs, clipped output and unavailable retained output limit coverage.
+An explicit object ID can still name the task's base commit. The matcher does
+not prove that the object is outside the permitted baseline. Absence of this
+signal does not prove independent work. Keep the flag OFF unless the task's
+source policy and measured false alarms support its use.
+
+Use `"copy_history": true` for a new batch spec. To compare the candidate against
+the existing frozen baseline without changing any frozen input, use:
+
+```bash
+make line-replay LINE_REPLAY_ARGS='--copy-history'
+# Equivalent wrapper:
+uv run python scripts/line-replay.py --copy-history
+# A separate DEV spec and baseline:
+uv run evallab line replay /absolute/path/to/spec.json \
+  --baseline /absolute/path/to/baseline.json --copy-history --json
+```
+
+The replay flag applies only after the frozen input checks. The candidate batch
+spec records `copy_history: true`, and normal batch checks recompute the signal.
+Replay still compares all corpora and decisions. It refuses the combination
+`--copy-history --write-baseline`; this candidate flag cannot refresh a baseline.
+The standard replay remains unchanged when the flag is absent. Accept a candidate
+only after the full-line DEV keep/review/drop comparison shows no increase in
+cheat keeps in any corpus.
+
 ## What moves down the line
 
 1. **Intake:** use hack-drop's rollout loader and DEV admission checks; record
@@ -592,6 +639,84 @@ could not be built. If frozen inputs or the spec changed, `inputs_changed` is
 is 2. Exit codes are **0 pass**, **1 regression**, **2 invalid
 input/comparison**. Ordinary replay never creates or refreshes a missing
 baseline implicitly.
+
+## Pre-merge line-change gate
+
+`make line-gate ARGS='--pr 123 --output /absolute/new/path/gate'` compares
+committed code, not a refreshed baseline. The direct interface is:
+
+```bash
+git fetch origin
+uv run python scripts/line-gate.py --pr 123 --output /absolute/new/path/gate
+```
+
+The gate resolves `HEAD` and its merge-base with `origin/main`. It creates 2
+clean detached worktrees, runs the full DEV line on each, and removes them.
+`--head REF` selects another committed head. `--against REF` selects the
+merge-base reference for diagnostics, such as `origin/main^` for main's parent.
+Pre-merge delivery uses the default `origin/main`, never a selected older base.
+
+Both revisions use the same frozen `replay-v1` inputs. The gate reuses the
+standard script's manifest, spec-pin, file-hash and path checks. It runs
+`run_line` and full `check_batch`, as replay does, with off/cached AutoReview
+and zero spend. It does not read or refresh the stored decision baseline.
+Changing that baseline cannot hide a base-to-head regression. Native batches
+remain in the frozen set's `batches/`; command, log and batch references remain
+in the gate output directory. A new output directory is required.
+
+`gate.json` and `gate.md` show DEV keep/review/drop counts for every corpus
+and class (`cheat`, `honest`), for base, head and delta. Cohort identities,
+label identities and class denominators must match. Exit codes are:
+
+- **0 PASS:** no per-corpus DEV cheat-keep increase.
+- **1 BLOCK:** at least 1 corpus keeps more DEV cheats.
+- **2 ERROR:** missing replay data, invalid inputs, failed native quality
+  checks, failed execution or an unmatched cohort. An error never passes.
+
+The existing honest-drop gate also applies: an increase above
+`max(1 run, 1 percentage point)` in a corpus blocks. The table reports every
+honest-drop change, including changes within that allowance. This gate does
+not change any line decision or replace the broader `make line-replay` gates.
+
+### Sensitive paths come from imports
+
+`scripts/line-gate.py --paths` writes discovery receipts, not a gate pass.
+The script starts at `scripts/line-replay.py` and follows local Python
+imports recursively. It includes relative imports, package initializers,
+conditional imports and imports inside functions. It unions the base and
+head closures, so removed and newly imported modules remain covered.
+The chain includes `line.replay`, `line.core`, `hack_drop`, `tool_calls`,
+`autoreview_monitor`, `trace_anatomy`, `tripwires` and their local dependencies.
+This conservative closure can include code that the frozen run does not call.
+It is not a guessed list of detector filenames.
+
+The discovery also includes existing repository-resource path literals found
+in those modules. Dependency declarations (`pyproject.toml`, `uv.lock`), the
+replay pin, gate implementation and standing policy are sensitive controls.
+Each receipt records the exact derived paths and their changed subset.
+Computed dynamic imports or computed resource paths need an explicit discovery
+extension before they become part of line execution.
+
+### Peter-only exceptions
+
+Only Peter can change `policy/standing-approvals.yaml`, as specified in
+[operations](operations.md#standing-policy-queue). The gate reads that existing
+policy from the recorded `origin/main` revision, never from candidate code.
+It accepts an optional `line_gate_approvals` list. Each approval must contain
+`approved_by: Peter`, a nonempty `approval_quote`, the integer `pr`, the exact
+40-character `head`, and `corpus_deltas`. The last field must exactly equal
+the changed rows from `gate.json`, reduced to `corpus`, `class` and `delta`,
+in the same order. This names all changed keep/review/drop counts, not just
+the pooled change. No override flag or candidate policy edit grants approval.
+The policy remains unsigned; its existing Peter-only authorship rule applies.
+The shared standing-policy schema validates these records and omits an empty list.
+Existing policy digests remain unchanged when no exception exists. A line
+exception never authorizes queue execution or spending.
+
+CI without the private set prints
+`line gate: replay data unavailable, run locally`. This notice is not a pass.
+The exact-head local pre-merge requirement is in
+[agents/CHECKS.md](../agents/CHECKS.md#local-line-change-gate).
 
 ## Standard replay set
 

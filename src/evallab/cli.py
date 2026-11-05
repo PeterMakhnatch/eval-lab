@@ -5938,6 +5938,9 @@ def parser() -> argparse.ArgumentParser:
 
     report = commands.add_parser("report", help="Render trajectory families and eval cards")
     report_commands = report.add_subparsers(dest="report_command", required=True)
+    from evallab.program_report import register_parser as register_program_report_parser
+
+    register_program_report_parser(report_commands)
     report_family = report_commands.add_parser(
         "family", help="Explain one task family from Parquet and canonical ATIF"
     )
@@ -8119,6 +8122,12 @@ def parser() -> argparse.ArgumentParser:
     from evallab.insights.cli import build_insights_parser
 
     build_insights_parser(commands)
+    from evallab.laneverify import build_verify_lane_parser
+
+    build_verify_lane_parser(commands)
+    from evallab.fleet.cli import build_fleet_parser
+
+    build_fleet_parser(commands)
     from evallab.docker_lock import build_docker_lock_parser
 
     build_docker_lock_parser(commands)
@@ -8149,6 +8158,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.trace_store.cli import register_traces
 
     register_traces(commands)
+    from evallab.ship import register_parser as register_ship_parser
+
+    register_ship_parser(commands)
     return root
 
 

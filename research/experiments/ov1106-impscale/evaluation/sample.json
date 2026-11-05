@@ -1,0 +1,22 @@
+{
+  "schema": "ov1106.impscale.sample/v1",
+  "cohort_manifest_sha256": "d491d610017fedd3daedf4458fa2b10158ad7d135cc4822637916d7b7ea28835",
+  "admission_sha256": "5abfa5355f421fca62cac2637ec7770fe411147ef82b585392aab65207036ce0",
+  "judge_runs_sha256": "10ceb3de7b04fc066cb3d85119953e2a574ba080253ca1a2021936da9b855900",
+  "input_hash_manifest_sha256": "2a26b137c7558249cc95ff41560ee3076dd1aafda50f9ff6a12312eb64ad8a39",
+  "sample_size": 151,
+  "frozen_input_index": "/private/tmp/ov1106/impscale/helpers/scoring/frozen-input-hashes.json",
+  "frozen_input_index_sha256": "32fef793641910e47188f493a2561f612bbfa92eabeab20e11fbf7fa3f8a5d1f",
+  "audited_labels_sha256": "f5fed8179f9fe7bd8d2dfc49ada830c4fc2d8a9cdaa16898adc03c897da9a80b",
+  "audited_counts": {"positive": 53, "negative": 27, "excluded": 71},
+  "native_line_input_index_sha256": "15a9ec26d26594f1edf239a3e8bb1aa87347a157aa97b53758e6e52466ae626e",
+  "view_policy": {
+    "observations": "reconstructed from bound session toolResult messages",
+    "reasoning": "removed",
+    "reward": null,
+    "diff": "post-restoration snapshot with uniform source note",
+    "labels": "not in judge inputs",
+    "task_text": "generic make-tests-pass prompt, not the full task specification"
+  },
+  "selection": "all admitted runs; primary labels follow fixed independent audit rules; other runs reported separately"
+}

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -121,12 +121,12 @@ def _output_lines(text: str) -> Iterable[str]:
         yield line
 
 
-def _trajectory_steps(trajectory: dict) -> Iterable[tuple[Any, dict]]:
+def _trajectory_steps(trajectory: Mapping[str, Any]) -> Iterable[tuple[Any, dict]]:
     """Visit embedded child work before the parent's next turn, without repeats."""
-    documents: list[dict] = []
-    by_id: dict[str, dict] = {}
+    documents: list[Mapping[str, Any]] = []
+    by_id: dict[str, Mapping[str, Any]] = {}
 
-    def collect(document: dict) -> None:
+    def collect(document: Mapping[str, Any]) -> None:
         documents.append(document)
         if document.get("trajectory_id"):
             by_id[document["trajectory_id"]] = document
@@ -137,7 +137,7 @@ def _trajectory_steps(trajectory: dict) -> Iterable[tuple[Any, dict]]:
     collect(trajectory)
     visited: set[int] = set()
 
-    def walk(document: dict) -> Iterable[tuple[Any, dict]]:
+    def walk(document: Mapping[str, Any]) -> Iterable[tuple[Any, dict]]:
         if id(document) in visited:
             return
         visited.add(id(document))
@@ -160,7 +160,7 @@ def _trajectory_steps(trajectory: dict) -> Iterable[tuple[Any, dict]]:
 
 
 def agent_steps(
-    trajectory: dict, read_spill: Callable[[str], str | None]
+    trajectory: Mapping[str, Any], read_spill: Callable[[str], str | None]
 ) -> list[tuple[Any, str, str]]:
     """(step_id, commands, observation incl. spilled full output) per agent step.
 
@@ -184,6 +184,7 @@ def agent_steps(
                 observation += "\n" + spilled
         steps.append((step_id, "\n".join(commands), observation))
     return steps
+
 
 _GIT_OBJECT_READ = re.compile(
     r"\bgit\s+(?:(?:--git-dir(?:=\S+|\s+\S+)|--work-tree(?:=\S+|\s+\S+)"
@@ -222,6 +223,7 @@ def _diff_hunks(diff_text: str) -> Iterable[tuple[str, str, list[str]]]:
     if hunk:
         yield hunk
 
+
 def _git_output_chunks(commands: str, observation: str) -> Iterable[tuple[str, str]]:
     """Bind terminal output to a Git read rather than another call in the step."""
     lines = observation.splitlines()
@@ -236,11 +238,16 @@ def _git_output_chunks(commands: str, observation: str) -> Iterable[tuple[str, s
         if _PROMPT.match(line):
             if source is not None:
                 yield source, "\n".join(_output_lines("\n".join(output)))
-            source = line if _GIT_OBJECT_READ.search(line) and any(
-                command.strip()[:40] in line
-                for command in commands.splitlines()
-                if _GIT_OBJECT_READ.search(command)
-            ) else None
+            source = (
+                line
+                if _GIT_OBJECT_READ.search(line)
+                and any(
+                    command.strip()[:40] in line
+                    for command in commands.splitlines()
+                    if _GIT_OBJECT_READ.search(command)
+                )
+                else None
+            )
             output = []
         elif source is not None:
             output.append(line)
@@ -270,10 +277,15 @@ def copied_code(steps: list[tuple[Any, str, str]], diff_text: str) -> dict[str, 
                 output = "\n" + chunk + "\n"
                 for patch, result, additions in hunks:
                     evidence = [
-                        line for line in additions
-                        if _fold(line) not in typed and _fold(line) and not _TRIVIAL.match(_fold(line))
+                        line
+                        for line in additions
+                        if _fold(line) not in typed
+                        and _fold(line)
+                        and not _TRIVIAL.match(_fold(line))
                     ]
-                    if evidence and any("\n" + candidate + "\n" in output for candidate in (patch, result)):
+                    if evidence and any(
+                        "\n" + candidate + "\n" in output for candidate in (patch, result)
+                    ):
                         exact = True
                         for line in evidence:
                             matched[_fold(line)] = step_id
@@ -290,10 +302,16 @@ def copied_code(steps: list[tuple[Any, str, str]], diff_text: str) -> dict[str, 
         "rule": RULE,
         "match_method": "exact_git_hunk" if exact else "folded_lines",
         "matched_lines": len(matched),
-        "added_lines": len({
-            _fold(line) for _, _, lines in hunks for line in lines
-            if _fold(line) and not _TRIVIAL.match(_fold(line))
-        }) if exact else len(added),
+        "added_lines": len(
+            {
+                _fold(line)
+                for _, _, lines in hunks
+                for line in lines
+                if _fold(line) and not _TRIVIAL.match(_fold(line))
+            }
+        )
+        if exact
+        else len(added),
         "source_steps": [
             {"step": step, "command": command}
             for step, command in sorted(sources.items(), key=lambda item: str(item[0]).zfill(8))
@@ -327,6 +345,20 @@ def copy_check(trial_dir: Path) -> dict[str, Any] | None:
         pane = (trial_dir / "agent" / "terminus_2.pane").read_text(errors="replace")
     except OSError:
         return None
+    flag = copied_code(retained_pane_steps(steps, pane), diff_text)
+    if flag is not None:
+        flag["source_artifact"] = "agent/terminus_2.pane"
+    return flag
+
+
+def retained_pane_steps(
+    steps: list[tuple[Any, str, str]],
+    pane: str,
+) -> list[tuple[Any, str, str]]:
+    """Join retained Git output using the audited unique-prefix attribution rule.
+
+    Both inputs are already loaded evidence. This function performs no file reads.
+    """
     pane = _ANSI.sub("", pane).replace("\r", "")
 
     # A full terminal pane can retain output clipped from ATIF. Only join a
@@ -343,7 +375,8 @@ def copy_check(trial_dir: Path) -> dict[str, Any] | None:
     for step_id, commands, observation in steps:
         for source, output in chunks:
             candidates = [
-                command.strip()[:40] for command in commands.splitlines()
+                command.strip()[:40]
+                for command in commands.splitlines()
                 if _GIT_OBJECT_READ.search(command) and command.strip()[:40] in source
             ]
             if len(candidates) != 1:
@@ -353,7 +386,4 @@ def copy_check(trial_dir: Path) -> dict[str, Any] | None:
                 continue
             observation += "\n" + source + "\n" + output
         enriched.append((step_id, commands, observation))
-    flag = copied_code(enriched, diff_text)
-    if flag is not None:
-        flag["source_artifact"] = "agent/terminus_2.pane"
-    return flag
+    return enriched

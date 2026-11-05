@@ -1,0 +1,20 @@
+{
+  "decision": "REFUSE reconciliation: no exact cell-to-reservation binding or affirmative lifecycle closure",
+  "finalized_reservations": 0,
+  "ledger_mutated": false,
+  "mode": "read-only retained-byte audit; not a runtime smoke",
+  "native_receipt_count": 42,
+  "raw_audit": {
+    "path": "/private/tmp/ov1106/goldcert/helpers/safe/BUDGET-FIX-AUDIT.json",
+    "sha256": "e6db679ee1e24f8860192931592f303275013fbb158e7f44e50f15db2eebf30d"
+  },
+  "receipts_with_cell_bound_reservation_ids": 0,
+  "receipts_with_closure": 0,
+  "reservation_count": 60,
+  "reservation_sum_usd": 3.0,
+  "reservations_with_cell_identity": 0,
+  "reserved_usd": 3.0,
+  "snapshot": "/private/tmp/ov1106/goldcert/helpers/safe/measurement/spend-snapshot.json",
+  "snapshot_sha256": "f12d0f4fb6c39060ddf5a2415cddd6b4c1807a6f69ff09bc3d570d99b42c3818",
+  "unique_reservation_ids": 60
+}

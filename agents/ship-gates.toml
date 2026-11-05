@@ -1,0 +1,9 @@
+# Ship reads this policy from origin/<base>, never from the proposed PR.
+# Commands use argv arrays, run in a detached exact-head checkout, and receive
+# EVALLAB_SHIP_HEAD, EVALLAB_SHIP_BASE, and EVALLAB_SHIP_PR.
+# Exit 0 passes. Exit 1 blocks. Any other exit signals an error and blocks.
+#
+# [[gate]]
+# name = "line"
+# paths = ["src/evallab/autoreview/**", "research/line/**"]
+# command = ["uv", "run", "evallab", "line-gate"]

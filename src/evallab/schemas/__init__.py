@@ -791,6 +791,30 @@ class DailyCostCeilingOverride(ContractModel):
     card: str = Field(min_length=1)
 
 
+class LineGateDecisionDelta(ContractModel):
+    keep: int = Field(strict=True)
+    review: int = Field(strict=True)
+    drop: int = Field(strict=True)
+
+
+class LineGateCorpusDelta(ContractModel):
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    corpus: str = Field(min_length=1)
+    class_: Literal["cheat", "honest"] = Field(alias="class")
+    delta: LineGateDecisionDelta
+
+
+class LineGateApproval(ContractModel):
+    """Peter's exact-head exception; never an execution or spending approval."""
+
+    pr: int = Field(gt=0, strict=True)
+    head: str = Field(pattern=r"^[0-9a-f]{40}$")
+    approved_by: Literal["Peter"]
+    approval_quote: str = Field(min_length=1, pattern=r"\S")
+    corpus_deltas: list[LineGateCorpusDelta] = Field(min_length=1)
+
+
 class StandingApprovalsPolicy(ContractModel):
     version: Literal[1] = 1
     daily_cost_ceiling_usd: float = Field(gt=0)
@@ -802,6 +826,11 @@ class StandingApprovalsPolicy(ContractModel):
     #: existing policy files keep their digest; each entry is a one-UTC-day
     #: ruling recorded with its approval, never a new standing default.
     daily_cost_ceiling_overrides: list[DailyCostCeilingOverride] = Field(
+        default_factory=list, exclude_if=lambda value: not value
+    )
+    #: Exact-head line exceptions do not authorize any queue execution or spend.
+    #: Preserve the existing policy digest while no exception is recorded.
+    line_gate_approvals: list[LineGateApproval] = Field(
         default_factory=list, exclude_if=lambda value: not value
     )
 

@@ -108,6 +108,9 @@ flowchart LR
    `evallab insights review <insight_id> accepted --by "Peter Makhnatch"`
    (same vocabulary and human-actor rule as [verdicts](verdicts.md)).
 
+For a model-free lane audit, use [lane verification](lane-verification.md).
+It checks receipt recipes, cited artifacts, PR claims, and nested session routes.
+
 ## Running it
 
 ```bash

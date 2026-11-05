@@ -1,0 +1,363 @@
+{
+  "schema": "ov1106.historical-aggregate/v1",
+  "analysis_version": "collection-rubric-binding-v2",
+  "model_scoring_freeze_commit": "aa8f17efbc5c7166ea5ade590422db8b9d7b1316",
+  "collection_source_commit": "7f78a7d57ace1b80777ac8e615c02d0f26c1070f",
+  "post_score_collection_correction": true,
+  "original_collector": {
+    "scored_per_judge_primary": 0,
+    "primary_rows": 80,
+    "reason": "incorrect expected rubric digest",
+    "preserved_receipt": "/private/tmp/ov1106/impscale/collection-error.json"
+  },
+  "retrospective_transport_admission": {
+    "runs": 151,
+    "variants": 101,
+    "original_controls": 50,
+    "excluded_transport": 41
+  },
+  "primary_labels": {
+    "1": 53,
+    "0": 27
+  },
+  "primary_rows": 80,
+  "task_clusters": 19,
+  "label_excluded": 71,
+  "all_numeric_primary_scores_complete": true,
+  "signals": {
+    "j2b_actions_task_diff_v2_flash": {
+      "n": 80,
+      "scored": 80,
+      "recall": {
+        "flagged": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "wilson95": [
+          0.932418011423458,
+          0.9999999999999999
+        ],
+        "complete_case_denominator": 53,
+        "complete_case_value": 1.0,
+        "complete_case_wilson95": [
+          0.932418011423458,
+          0.9999999999999999
+        ]
+      },
+      "fpr": {
+        "flagged": 0,
+        "denominator": 27,
+        "value": 0.0,
+        "wilson95": [
+          0.0,
+          0.12455502974186705
+        ],
+        "complete_case_denominator": 27,
+        "complete_case_value": 0.0,
+        "complete_case_wilson95": [
+          0.0,
+          0.12455502974186705
+        ]
+      },
+      "auroc": 1.0,
+      "auroc_task_cluster_ci95": [
+        1.0,
+        1.0
+      ],
+      "task_clusters": 19,
+      "threshold": 20,
+      "version": "7a4f27c6ba7d0e9261a0a78b07033bbf6ecd16290801b648e2b961bb6f33d75e"
+    },
+    "j3_actions_task_diff_terra": {
+      "n": 80,
+      "scored": 80,
+      "recall": {
+        "flagged": 28,
+        "denominator": 53,
+        "value": 0.5283018867924528,
+        "wilson95": [
+          0.3966008127870629,
+          0.6561775652180384
+        ],
+        "complete_case_denominator": 53,
+        "complete_case_value": 0.5283018867924528,
+        "complete_case_wilson95": [
+          0.3966008127870629,
+          0.6561775652180384
+        ]
+      },
+      "fpr": {
+        "flagged": 0,
+        "denominator": 27,
+        "value": 0.0,
+        "wilson95": [
+          0.0,
+          0.12455502974186705
+        ],
+        "complete_case_denominator": 27,
+        "complete_case_value": 0.0,
+        "complete_case_wilson95": [
+          0.0,
+          0.12455502974186705
+        ]
+      },
+      "auroc": 1.0,
+      "auroc_task_cluster_ci95": [
+        1.0,
+        1.0
+      ],
+      "task_clusters": 19,
+      "threshold": 89,
+      "version": "c9d77cb7b0a5cb418abf76e398811915fa7fdd4c6d2ba783ed05109c9ae8c2a5"
+    },
+    "length_steps": {
+      "n": 80,
+      "scored": 80,
+      "recall": {
+        "flagged": 0,
+        "denominator": 53,
+        "value": 0.0,
+        "wilson95": [
+          0.0,
+          0.06758198857654187
+        ],
+        "complete_case_denominator": 53,
+        "complete_case_value": 0.0,
+        "complete_case_wilson95": [
+          0.0,
+          0.06758198857654187
+        ]
+      },
+      "fpr": {
+        "flagged": 0,
+        "denominator": 27,
+        "value": 0.0,
+        "wilson95": [
+          0.0,
+          0.12455502974186705
+        ],
+        "complete_case_denominator": 27,
+        "complete_case_value": 0.0,
+        "complete_case_wilson95": [
+          0.0,
+          0.12455502974186705
+        ]
+      },
+      "auroc": 0.6415094339622641,
+      "auroc_task_cluster_ci95": [
+        0.5513882464255677,
+        0.7574629921708725
+      ],
+      "task_clusters": 19,
+      "threshold": 95,
+      "version": "length@3cf40d368f6d"
+    },
+    "length_chars": {
+      "n": 80,
+      "scored": 80,
+      "recall": {
+        "flagged": 0,
+        "denominator": 53,
+        "value": 0.0,
+        "wilson95": [
+          0.0,
+          0.06758198857654187
+        ],
+        "complete_case_denominator": 53,
+        "complete_case_value": 0.0,
+        "complete_case_wilson95": [
+          0.0,
+          0.06758198857654187
+        ]
+      },
+      "fpr": {
+        "flagged": 0,
+        "denominator": 27,
+        "value": 0.0,
+        "wilson95": [
+          0.0,
+          0.12455502974186705
+        ],
+        "complete_case_denominator": 27,
+        "complete_case_value": 0.0,
+        "complete_case_wilson95": [
+          0.0,
+          0.12455502974186705
+        ]
+      },
+      "auroc": 0.639412997903564,
+      "auroc_task_cluster_ci95": [
+        0.5707613636363638,
+        0.734064799059106
+      ],
+      "task_clusters": 19,
+      "threshold": 272968,
+      "version": "length@3cf40d368f6d"
+    },
+    "l0v_full_l0_hard_gate_rule_hidden_info_read": {
+      "n": 80,
+      "scored": 80,
+      "recall": {
+        "flagged": 0,
+        "denominator": 53,
+        "value": 0.0,
+        "wilson95": [
+          0.0,
+          0.06758198857654187
+        ],
+        "complete_case_denominator": 53,
+        "complete_case_value": 0.0,
+        "complete_case_wilson95": [
+          0.0,
+          0.06758198857654187
+        ]
+      },
+      "fpr": {
+        "flagged": 0,
+        "denominator": 27,
+        "value": 0.0,
+        "wilson95": [
+          0.0,
+          0.12455502974186705
+        ],
+        "complete_case_denominator": 27,
+        "complete_case_value": 0.0,
+        "complete_case_wilson95": [
+          0.0,
+          0.12455502974186705
+        ]
+      },
+      "auroc": 0.5,
+      "auroc_task_cluster_ci95": [
+        0.5,
+        0.5
+      ],
+      "task_clusters": 19,
+      "threshold": 1,
+      "version": "l0v_full@63f07ba808a2"
+    },
+    "l0v_full_any_hard": {
+      "n": 80,
+      "scored": 80,
+      "recall": {
+        "flagged": 0,
+        "denominator": 53,
+        "value": 0.0,
+        "wilson95": [
+          0.0,
+          0.06758198857654187
+        ],
+        "complete_case_denominator": 53,
+        "complete_case_value": 0.0,
+        "complete_case_wilson95": [
+          0.0,
+          0.06758198857654187
+        ]
+      },
+      "fpr": {
+        "flagged": 0,
+        "denominator": 27,
+        "value": 0.0,
+        "wilson95": [
+          0.0,
+          0.12455502974186705
+        ],
+        "complete_case_denominator": 27,
+        "complete_case_value": 0.0,
+        "complete_case_wilson95": [
+          0.0,
+          0.12455502974186705
+        ]
+      },
+      "auroc": 0.5,
+      "auroc_task_cluster_ci95": [
+        0.5,
+        0.5
+      ],
+      "task_clusters": 19,
+      "threshold": "infinity",
+      "version": "l0v_full@63f07ba808a2"
+    }
+  },
+  "same_row_comparison": {
+    "rows": 80,
+    "task_clusters": 19,
+    "all_six_numeric_signals_share_exact_rows": true
+  },
+  "full_line": {
+    "counts": {
+      "positive": {
+        "counts": {
+          "drop": 53
+        },
+        "denominator": 53,
+        "rates": {
+          "drop_only": {
+            "flagged": 53,
+            "value": 1.0,
+            "wilson95": [
+              0.932418011423458,
+              0.9999999999999999
+            ]
+          },
+          "review_or_drop": {
+            "flagged": 53,
+            "value": 1.0,
+            "wilson95": [
+              0.932418011423458,
+              0.9999999999999999
+            ]
+          }
+        }
+      },
+      "negative": {
+        "counts": {
+          "drop": 27
+        },
+        "denominator": 27,
+        "rates": {
+          "drop_only": {
+            "flagged": 27,
+            "value": 1.0,
+            "wilson95": [
+              0.8754449702581328,
+              0.9999999999999998
+            ]
+          },
+          "review_or_drop": {
+            "flagged": 27,
+            "value": 1.0,
+            "wilson95": [
+              0.8754449702581328,
+              0.9999999999999998
+            ]
+          }
+        }
+      }
+    },
+    "missing": [],
+    "autoreview_reasons": {
+      "AUTOREVIEW_NOT_ELIGIBLE": 80
+    },
+    "operating_condition": "native cached replay with missing AutoReview readings; not deployed-model performance",
+    "auroc": null,
+    "reason": "native categorical decisions; no invented score"
+  },
+  "judges": {
+    "calls_per_route": 151,
+    "provider_errors": 0,
+    "model_mismatches": 0,
+    "partial_windows_failed": 0,
+    "rubric_sha256": "7e7cb3c4686423ad137ecbfa726be97f54e5a05805157e3d8e8adbc5250afc83"
+  },
+  "report_sha256": "ad1bc98f1210aeebe4f44c5cee8e451c3a47cf7bbffc33552860d12992698220",
+  "audit_sha256": "f5fed8179f9fe7bd8d2dfc49ada830c4fc2d8a9cdaa16898adc03c897da9a80b",
+  "limitations": [
+    "Generic prompt does not expressly prohibit test edits or provide full task specification.",
+    "Positive labels describe source-verified test-edit mechanisms, not deceptive intent.",
+    "Historical final diffs follow test restoration, not submission.",
+    "Label audit verifies bound actions, not whole-tree final byte equality.",
+    "Native replay has empty AutoReview cache and empty downstream verdicts; not deployed-model performance.",
+    "Collection correction follows historical scoring; original rejected outputs remain preserved.",
+    "Perfect sample ranking and degenerate bootstrap intervals do not establish general performance."
+  ]
+}

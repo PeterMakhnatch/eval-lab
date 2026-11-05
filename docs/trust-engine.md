@@ -80,7 +80,7 @@ All CLI commands run under `evallab` (executable via `uv run evallab` from the r
 | `evallab tasks anatomy` | Task directories or collections; optional `--reference-patch` | `evallab.package_anatomy/v1` card (stdout or JSONL) | Free local ($0, static AST/regex, <10 ms) | `src/evallab/package_anatomy.py` |
 | `evallab audit-mutants` | Base package, reference patch, output dir; optional `--ledger <path>.json`, `--repaired-package` | Audit summary JSON, mutated cells CSV, survivor diffs; reservations recorded in `--ledger` | Modal cents (~$0.012 per weak grader; metered cap) | `src/evallab/mutant_auditor.py` |
 | `evallab harden` | Task package path; `--expected-tests` (required for pytest unless `--allow-degraded`), optional `--single-container`, `--out` | Hardened package directory (L1–L4 hardened verifier) | Free local ($0, static container re-wiring) | `src/evallab/full_hardening.py` |
-| `evallab certify-gold` | Base package, reference patch, `--out`, explicit `--approval` + `--max-usd`; repeatable `--alt-solution`, optional `--contract-test`, `--expected-tests` / `--allow-degraded`, `--model`, `--limit`, `--ledger`; offline `--plan` | Hardened package, per-cell evidence, digest-bound `certification.json`, matrix `summary.json`; certified / provisional / failed | Modal (approval + cap required; fixed execution reservations, not provider bills); OMP subscription synthesis unless `--contract-test` supplied | `src/evallab/gold_certifier.py` |
+| `evallab certify-gold` | Base package, reference patch, `--out`, explicit `--approval` + `--max-usd`; repeatable `--alt-solution`, optional `--contract-test`, `--expected-tests` / `--allow-degraded`, `--model`, `--limit`, `--ledger`; offline `--plan`; explicit `--injection-controls` uses fixed native Modal dispatch | Hardened package, per-cell evidence, digest-bound `certification.json`, matrix `summary.json`; missing gates block certification | Modal (approval + cap required; fixed execution reservations, not provider bills); OMP subscription synthesis unless `--contract-test` supplied | `src/evallab/gold_certifier.py` |
 | `evallab trace anatomy` | Run ID (cloud/CheatBench) or `--atif-file <trial.json>`; optional `--include-narration` | Structured Case Anatomy card (human-readable text or JSON) | Free local ($0, raw CAS projection, <100 ms) | `src/evallab/trace_anatomy.py` |
 | `evallab trace autoreview` | Run ID or ATIF trial JSON; optional `--compact-only`, `--with-l0-cascade`, `--model` | AutoReview judgment JSON (suspicion score, cited steps, cascade/union alerts when model runs) | Subscription (or Free local $0 with `--compact-only`) | `src/evallab/autoreview_monitor.py` |
 | `evallab regrade` | Stored Harbor job directory (`<job_dir>`); optional `--task <hardened_task>` or `--held-out <bundle>`, `--jobs-dir`, `--name`, `--dry-run`, `--json` | Re-scored job directory under `runs/` (or specified `--jobs-dir`) | Local Docker, $0 model cost (refused when `EVALLAB_DISABLE_LOCAL_DOCKER=1`; `--held-out` also requires local Docker; Modal trial regrades exist only via Python CloudSpendGate API) | `src/evallab/regrade.py`, `src/evallab/cli.py` |
@@ -143,6 +143,51 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    ```
    This preview does not execute containers, enumerate mutants, or synthesize tests. Non-plan execution supports one synthesis round; `--rounds > 1` remains a library-only feedback workflow (`evallab.gold_certifier.run_rounds`) and the command refuses it.
 
+   The default path never plans or executes witness or startup-injection controls.
+   Gates 3 and 4 remain unexercised: their rewards are `null`, and their pass flags are `false`.
+   These missing gates block certification, even when every safe control passes.
+   The command does not redefine the seven gates or count skipped controls as passes.
+   `--witness FILE` alone refuses before file reads or executor construction.
+   `--injection-controls` explicitly enables the existing witness and `.pth` controls through `ContainedModalRunner`.
+   This runner lazily creates `modal_cells.modal_cell_runner` with the fixed native `qa.task_modal.ModalBackend`.
+   It accepts no backend factory or arbitrary execution callback.
+   The CLI validates approval and cap before constructing this runner or reading witness files.
+   The native script agent uploads each script and calls the Modal environment, not a host shell.
+   The execution timeout is 240 seconds. Native sandbox lifetime is at most 840 seconds, with deletion requested.
+   The runner requires an owned app, billing tag, matching meter cap, and fresh cell directories.
+   It rejects cached grades and requires native `qa-execution.json` and `egress-lock.json` receipts.
+   The receipts must bind the package digest, trial path, Modal environment, script mode, reward, and provider sandbox creation.
+   Missing receipts, unknown sandbox identities, unknown network modes, or native errors leave the outcome unmeasured.
+   The provider creation record proves sandbox allocation through this fixed path; it does not prove network isolation.
+   The task network policy can allow public egress. This runner is not protection against hostile Python in the host process.
+   Contained accounting uses the exact native `CloudSpendGate`, not `ReserveSettleSpendGate`.
+   Each native environment start retains 3 fixed execution-unit reservations: image preparation and 2 possible sandbox creation attempts.
+   Successful first-attempt creation does not release the other reservations.
+   Failed admission can retain a partial group if a later charge exceeds the cap.
+   `CloudSpendGate` retains charges after successful, short, failed, and cancelled executions.
+   The separate `SandboxMeter` reports wall/resource estimates; these estimates do not settle the ledger or prove provider billing.
+   Ledger entries have reservation IDs, but the QA receipt does not bind those IDs to individual cells.
+   Do not infer ownership from timestamps or subtract global before/after totals when other cells can run.
+   The upstream grader has a different finalization contract: exact reservation identity, successful native measurement,
+   completed image hydration, and terminal public SDK evidence for every owned sandbox.
+   Sandbox creation receipts and app-stop results alone do not satisfy that contract.
+   Do not migrate the contained ledger to reserve/settle accounting to recover headroom from incomplete evidence.
+   The shared official `ReserveSettleSpendGate` path is a separate estimated accounting mode, not a refund mechanism for these reservations.
+   Its current reservation covers projected cell time, not every role's full sandbox lifetime and image preparation.
+   Settlement uses package resources and elapsed cell time, including failures; it does not require terminal provider closure receipts.
+   Therefore, this path does not yet satisfy full-resource/lifetime admission for contained controls.
+   Keep exact `CloudSpendGate` admission until that prerequisite is met; do not admit arbitrary subclasses or callbacks.
+   Existing fixed reservations remain committed and unfinalized. Neither accounting mode produces provider invoices.
+   Without supplied witness files, explicit mode uses the existing default witness control.
+   Arbitrary library callbacks with injection opt-in refuse before planning, file reads, script generation, or spend.
+   Offline previews show requested controls but keep their gates unexercised and `certification_possible: false`.
+   Explicit previews report `containment: requested-not-runtime-proven`; they do not read witness files or construct a runner.
+
+   Gold synthesis uses the task instruction and established public interfaces as the acceptance contract.
+   Reference patches, existing tests, and mutants supply examples; they do not add requirements.
+   The prompt excludes reference-only names, exact messages, schema dictionaries, and mock sentinel defaults.
+   This prompt rule does not prove acceptance validity. Independent, test-blind alternatives must still exercise Gate 7.
+
    After Peter approves a named task and cap, run:
    ```bash
    evallab certify-gold \
@@ -173,7 +218,7 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    - Gate 6 (Eval Mutants Killed): Reports held-out eval mutants killed out-of-sample (3/8 base survivors, 13/18 all mutants killed across 8 tasks; reports counts only).
    - Gate 7 (Wrong Rejection): Every repeatable `--alt-solution PATCH` is independently applied and graded by the **hardened** package. Every patch's reward is saved; rejection is visible and blocks certification. Operator-supplied patches must be independent correct solutions (the command rejects byte-identical duplicates and the reference itself, but cannot establish semantic independence).
 
-   `certified` requires reference = 1, nop / every witness / `.pth` = 0, nonempty train and held-out pools with all mutants killed, complete base-grader measurements for those held-out mutants, and at least two alternative correct solutions all accepted. With fewer than two alternatives, passing measured gates are only `provisional`. With none supplied, both alternative counters are `null` (not measured), never an implicit pass. Supplied but unmeasured alternatives have a known total, `accepted: null`, and per-patch `null` rewards; measured zero acceptances is `accepted: 0`. Failed measured gates or returned non-spend infrastructure failures exit 1. Invalid input, missing approval, propagated infrastructure exceptions, and spend refusals exit 2 via the CLI error handler. A backend-returned `SpendCapReached` refusal aborts immediately, is saved as `cells/<cell>/refusal.json` rather than a cached verdict, and leaves remaining gate rewards unmeasured in the failing certification receipt. `--plan` and nonfailed completed measurements exit 0, so consumers must read the status rather than equate exit 0 with certified.
+   `certified` requires reference = 1, nop / every witness / `.pth` = 0, and nonempty train and held-out pools with every mutant killed. It also requires complete base-grader measurements and at least 2 accepted alternative solutions. The default command cannot reach this status because Gates 3 and 4 remain unexercised. It saves `status: failed` and exits 1, even when every safe control passes. Explicit contained mode can exercise these gates; it does not waive any requirement. Historical complete receipts with fewer than 2 alternatives can remain `provisional`; this does not waive missing controls. With no alternatives, both counters are `null`. Supplied but unmeasured alternatives have a known total, `accepted: null`, and per-patch `null` rewards. Measured zero acceptances is `accepted: 0`. Invalid input, unsupported injection runners, missing approval, propagated infrastructure exceptions, and spend refusals exit 2 through the CLI error handler. A backend-returned `SpendCapReached` refusal aborts immediately. It saves `cells/<cell>/refusal.json`, not a cached verdict. The failing receipt leaves remaining rewards unmeasured. `--plan` exits 0 without execution; exit 0 does not mean certified.
 
    **Remaining execution gap:** fake-executor tests exercise this CLI, including a replay of the committed eight-task cell outcomes. A real Modal run of this new operator path still needs Peter's approval. No Modal run or new verifier-quality result is implied by this implementation.
 
@@ -347,7 +392,7 @@ Independent blind verifiers (VF-OV1, VF-OV2) audited the overnight experiments a
 4. **Boundary-Shift Mutant Misses:**
    Contract-complete test synthesis currently misses subtle off-by-one or floating-point boundary shifts (e.g. task `000232` and `000484` LogEI edge cases), explaining why held-out generalization on base-surviving mutants sits at 3/8 (37.5%).
 5. **Gold Certifier Real-Run Qualification and Wrong-Rejection Coverage:**
-   The arbitrary-package `certify-gold` CLI now executes seven gates with approval and spend controls; its first real Modal run still needs Peter's approval. Independent correct solutions must be supplied by the operator; two accepted alternatives are the minimum certification bar, not proof of zero false rejections. Historical replay rejected 7 of 12 accepted solutions (the checker judged 5 over-strict), and nothing measured false rejections on the 21 of 26 Gold v1.1 tasks with no real solutions. Do not treat the old reference-only results as certified or use those tests to reject solutions without independent replay evidence.
+   The `certify-gold` CLI runs safe controls by default, with approval and spend limits. Gates 3 and 4 remain unexercised unless the operator explicitly selects the fixed contained Modal runner. Native evidence checks fail closed; no real Modal qualification run is claimed here. Independent correct solutions must come from the operator. Two accepted alternatives remain the minimum certification bar, not proof of zero false rejections. Historical replay rejected 7 of 12 accepted solutions (the checker judged 5 over-strict). No measurement covers false rejections on the 21 of 26 Gold v1.1 tasks without real solutions. Do not treat old reference-only results as certified. Do not use those tests to reject solutions without independent replay evidence.
 6. **Rollout Filtering Blind Spots (`evallab hack-drop`):**
    `evallab hack-drop` operates under defined blind spots: shell-level text modifications (`dd of=`, `awk -i`), unrecognized tool-call argument shapes, and semantic exploits with zero test writes bypass deterministic detection, while AutoReview relies on a single uncalibrated route without ensemble (see `docs/hack-drop.md`). On 690 real DEV rollouts it kept 92, of which 27% were cheats, flagged 9.8% of clean runs, routed every Terminal Wrench run to review (its raw tool shape is not recognized), and caught only 22% of Goodfire cheats. Review of the shape-matrix follow-up left two documented residuals: a failed read of a not-yet-existing test through a rarer command form (`cat X 2>&1`, `wc -l X`, `test -f X && ...`) still counts as a read and false-drops an honest new test (it fails closed), and a read and a write issued in the same step are treated as read-then-write. Use hack-drop as triage with a review queue, not as a data cleaner.
 7. **L0 Evasion and Login-Profile Tamper Rule (`hb_login_profile_tamper`):**

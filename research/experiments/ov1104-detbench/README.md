@@ -161,3 +161,37 @@ transfer. These results do not establish unread-positive generalization.
 The extension does not change the original DEV or held-out denominators,
 thresholds, prompts, rules, or historical pooled results. Score it separately
 with the frozen DEV operating points. Never train or tune on these runs.
+
+## Standard length controls (ov1106)
+
+Plain AUROC does not establish evidence beyond run length.
+New signal comparisons use `length_metrics.py` and report these matched-row metrics:
+
+- Raw AUROC for the signal, character length, and step length.
+- Character-length decile AUROC, with a row-weighted mean over mixed-class strata.
+  Fit decile boundaries on the full set before selecting a signal's scored rows.
+  Keep equal lengths together. Report eligible rows and strata.
+- Within-task AUROC, with a row-weighted mean over mixed-class tasks.
+  Report eligible rows and tasks. Use the underlying task, not a run identity.
+- Paired AUROC gain over a logistic label model fitted on DEV log character length.
+  Freeze this model before evaluation. This gain is not a residual-score AUROC.
+  Use `LengthModel.predict_logit` for every length-model metric and DEV threshold.
+  These scores and thresholds use logits, not probabilities. This prevents false
+  ranking ties when probabilities saturate. `LengthModel.predict` still returns
+  probabilities; do not reuse probability thresholds with logit scores.
+- Recall at an empirical FPR no greater than 5%, without splitting score ties.
+  This descriptive ROC point differs from recall at a DEV-frozen threshold.
+  Report the latter separately. Positive-only sets support only frozen-threshold recall.
+- Task-cluster bootstrap 95% intervals, with valid replicate counts.
+  The standard scoreboard uses 2,000 draws and seed 1106.
+
+The stable API is `prepare_rows`, `fit_length_strata`, `fit_length_model`,
+`choose_threshold`, and `evaluate`. `MetricRow` carries the task identity and both lengths.
+Call `evaluate` per population, supplying frozen full-set `strata_edges`,
+the DEV-only `length_model`, and `dev_thresholds` where available.
+All controls use the same complete-case rows as the signal.
+Report missing scores and abstentions separately from operational recall.
+
+The preregistered analysis and complete scoreboard live in
+[`../ov1106-lengthctl/`](../ov1106-lengthctl/).
+The synthetic known-answer tests live in `test_length_metrics.py`.

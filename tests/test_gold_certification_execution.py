@@ -41,6 +41,11 @@ def matrix(tmp_path: Path, alternatives: list[str] | None = None):
         package=package, upgraded=upgraded, reference_patch=PATCH,
         train=train, evals=evals, alternatives=alternatives or [], witnesses=[],
     )
+    # Assessment fixtures represent existing receipts, not executable injection plans.
+    cells.extend([
+        gold.CertificationCell("witness-recorded", "witness", upgraded, "", "RECORDED"),
+        gold.CertificationCell("exit0_pth", "exit0_pth", upgraded, "", "RECORDED"),
+    ])
     outcomes = {c.name: {"status": "executed", "agent_log": c.marker,
                         "reward": 1.0 if c.arm in ("reference", "alternative", "evalbase") else 0.0}
                 for c in cells}
@@ -154,7 +159,16 @@ def test_certify_executes_and_persists_digest_bound_result(tmp_path):
         alternative_patches=["correct-a", "correct-b"],
     )
     assert len(prompts) == 1
-    assert result.status == "certified"
+    assert result.status == "failed"
+    assert result.gate1_reference_passed and result.gate2_nop_passed
+    assert result.train_mutants_killed == result.train_mutants_total
+    assert result.eval_mutants_killed == result.eval_mutants_total
+    assert not result.gate3_witness_passed and not result.gate4_exit0_pth_passed
+    assert result.witness_rewards == {}
+    assert result.witness_reward is None and result.exit0_pth_reward is None
+    plan = json.loads((tmp_path / "out/plan.json").read_text())
+    assert {c["arm"] for c in plan} == {"reference", "nop", "train", "eval", "evalbase", "alternative"}
+    assert {p.name for p in (tmp_path / "out/cells").iterdir()} == {"probe", *(c["name"] for c in plan)}
     receipt = json.loads((tmp_path / "out/certification.json").read_text())
     assert receipt == result.summary()
     assert receipt["package_digest"] == task_directory_digest(tmp_path / "out/package")
@@ -379,7 +393,7 @@ def test_evalbase_measured_rejection_is_valid_not_infrastructure(tmp_path):
     assert result.eval_mutants_base_accepted == 0
 
 
-@pytest.mark.parametrize("cap,refused_arm", [("0.012", "probe"), ("0.072", "witness"), ("0.147", "evalbase")])
+@pytest.mark.parametrize("cap,refused_arm", [("0.012", "probe"), ("0.072", "train"), ("0.117", "evalbase")])
 def test_real_modal_runner_unwraps_backend_cap_refusal(tmp_path, monkeypatch, capsys, cap, refused_arm):
     from evallab.cli import run_cli
 
@@ -514,7 +528,7 @@ def test_dotted_output_directories_keep_distinct_default_ledgers(tmp_path, monke
     monkeypatch.setattr(gold, "synthesize_contract", lambda *_args, **_kwargs: CODE)
     for name in ("gold-v1.1", "gold-v1.2"):
         args.out = tmp_path / name
-        assert gold._certify_gold_command(args, tmp_path) == 0
+        assert gold._certify_gold_command(args, tmp_path) == 1
     assert ledgers == [tmp_path / "gold-v1.1.spend.json", tmp_path / "gold-v1.2.spend.json"]
 
 
@@ -526,3 +540,204 @@ def test_ledger_inside_output_refused_before_executor_creation(tmp_path, monkeyp
         gold._certify_gold_command(args, tmp_path)
     assert not args.out.exists()
 
+
+@pytest.mark.parametrize("options", [{"injection_controls": True}, {"witnesses": ["operator witness"]}])
+def test_injection_request_refused_before_any_certifier_side_effect(tmp_path, options):
+    out = tmp_path / "out"
+    with pytest.raises(ValueError, match="no enforced contained runner"):
+        gold.certify_task(
+            task_id="synthetic", package=tmp_path / "absent", reference_patch=PATCH,
+            out_dir=out, run_cell=lambda *_: pytest.fail("executed"),
+            synthesize=lambda *_: pytest.fail("synthesized"),
+            stage=lambda *_args, **_kw: pytest.fail("hardened"), **options,
+        )
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("options", [{"injection_controls": True}, {"witnesses": ["operator witness"]}])
+def test_planner_refuses_explicit_injection_without_reading_package(tmp_path, options):
+    with pytest.raises(ValueError, match="no enforced contained runner"):
+        gold.plan_certification_cells(
+            package=tmp_path / "absent", upgraded=tmp_path / "absent",
+            reference_patch=PATCH, train=[], evals=[], alternatives=[],
+            **({"witnesses": []} | options),
+        )
+
+
+def test_safe_plan_never_generates_injection_scripts(tmp_path, monkeypatch):
+    for name in ("witness_script", "exit0_pth_script"):
+        monkeypatch.setattr(gold, name, lambda *_: pytest.fail("injection script generated"))
+    base = package_at(tmp_path / "base")
+    result = gold.certify_task(
+        task_id="synthetic", package=base, reference_patch=PATCH, out_dir=tmp_path / "out",
+        run_cell=fake_cell, synthesize=lambda *_: CODE, stage=fake_stage, limit=4,
+        alternative_patches=["correct-a", "correct-b"],
+    )
+    report = gold.GoldMatrixSummary([result]).to_report_dict()
+    for gate in ("gate3_witness", "gate4_exit0_pth"):
+        assert report[gate]["passed"] == 0
+        assert report[gate]["total"] == 1
+    assert result.status == "failed"
+
+
+def contained_runner(tmp_path):
+    from evallab.regrade import CloudSpendGate
+
+    gate = CloudSpendGate(
+        approval="offline deterministic test", cap_usd=1, usd_per_execution=0.005,
+        modal_app_name="gold-offline-test", billing_tag="gold-offline-test",
+    )
+    return gold.ContainedModalRunner(
+        repo_root=tmp_path, spend_gate=gate, meter=gold.SandboxMeter(1),
+    )
+
+
+def native_receipt_cell(cell_dir, package, script):
+    """Provider-free native receipt fixture; never executes the candidate script."""
+    result = fake_cell(cell_dir, package, script)
+    trial = cell_dir / "trial"
+    trial.mkdir(parents=True)
+    (trial / "qa-execution.json").write_text(json.dumps({
+        "environment": "modal", "mode": "shortcut", "job_path": str(trial),
+        "package_digest": task_directory_digest(package),
+        "exception": None, "reward": result["reward"],
+    }))
+    (trial / "egress-lock.json").write_text(json.dumps({
+        "schema_version": 2, "requested": True, "error": None,
+        "applications": [{
+            "source": "creation", "network_mode": "public", "sandbox_id": "sb-offline",
+        }],
+    }))
+    return result
+
+
+def test_contained_explicit_controls_complete_all_gates(tmp_path, monkeypatch):
+    monkeypatch.setattr(gold, "modal_cell_runner", lambda **_: native_receipt_cell)
+    base = package_at(tmp_path / "base")
+    runner = contained_runner(tmp_path)
+    result = gold.certify_task(
+        task_id="synthetic", package=base, reference_patch=PATCH, out_dir=tmp_path / "out",
+        run_cell=runner, synthesize=lambda *_: CODE, stage=fake_stage, limit=4,
+        alternative_patches=["correct-a", "correct-b"], injection_controls=True,
+    )
+    assert result.status == "certified"
+    assert result.witness_rewards == {"witness-0": 0.0}
+    assert result.exit0_pth_reward == 0.0
+    plan = json.loads((tmp_path / "out/plan.json").read_text())
+    assert {c["arm"] for c in plan} == {
+        "reference", "nop", "train", "eval", "evalbase", "alternative", "witness", "exit0_pth",
+    }
+
+
+@pytest.mark.parametrize("damage", [
+    "missing", "unknown_provider", "unknown_network", "no_creation", "foreign_package",
+    "foreign_trial", "error", "cache", "invalid_json",
+])
+def test_contained_runner_rejects_missing_or_unknown_native_evidence(tmp_path, monkeypatch, damage):
+    def execute(cell_dir, package, script):
+        result = native_receipt_cell(cell_dir, package, script)
+        trial = cell_dir / "trial"
+        lock_path = trial / "egress-lock.json"
+        lock = json.loads(lock_path.read_text())
+        execution_path = trial / "qa-execution.json"
+        execution = json.loads(execution_path.read_text())
+        if damage == "missing":
+            lock_path.unlink()
+        elif damage == "invalid_json":
+            lock_path.write_text("[]")
+        elif damage in ("unknown_provider", "unknown_network", "no_creation"):
+            key, value = {
+                "unknown_provider": ("sandbox_id", "docker-host"),
+                "unknown_network": ("network_mode", "unknown"),
+                "no_creation": ("source", "apply"),
+            }[damage]
+            lock["applications"][0][key] = value
+            lock_path.write_text(json.dumps(lock))
+        elif damage == "cache":
+            result["cache_hit"] = True
+        else:
+            key, value = {
+                "foreign_package": ("package_digest", "different"),
+                "foreign_trial": ("job_path", str(tmp_path / "other")),
+                "error": ("exception", "provider failure"),
+            }[damage]
+            execution[key] = value
+            execution_path.write_text(json.dumps(execution))
+        return result
+
+    monkeypatch.setattr(gold, "modal_cell_runner", lambda **_: execute)
+    base = package_at(tmp_path / "base")
+    result = contained_runner(tmp_path)(tmp_path / "cell", base, "inert fixture")
+    assert result["status"] == "failed" and result["reward"] is None
+
+
+def test_witness_only_refuses_even_with_native_runner(tmp_path, monkeypatch):
+    monkeypatch.setattr(gold, "witness_script", lambda *_: pytest.fail("generated"))
+    with pytest.raises(ValueError, match="witnesses alone"):
+        gold.certify_task(
+            task_id="synthetic", package=tmp_path / "absent", reference_patch=PATCH,
+            out_dir=tmp_path / "out", run_cell=contained_runner(tmp_path),
+            synthesize=lambda *_: pytest.fail("synthesized"), witnesses=["inert"],
+        )
+    assert not (tmp_path / "out").exists()
+
+
+def test_arbitrary_callable_containment_attributes_are_not_authority(tmp_path, monkeypatch):
+    def arbitrary(*_):
+        pytest.fail("executed")
+
+    arbitrary.contained = True
+    arbitrary.environment = "modal"
+    monkeypatch.setattr(gold, "witness_script", lambda *_: pytest.fail("generated"))
+    monkeypatch.setattr(gold, "exit0_pth_script", lambda *_: pytest.fail("generated"))
+    with pytest.raises(ValueError, match="no enforced contained runner"):
+        gold.certify_task(
+            task_id="synthetic", package=tmp_path / "absent", reference_patch=PATCH,
+            out_dir=tmp_path / "out", run_cell=arbitrary, injection_controls=True,
+            synthesize=lambda *_: pytest.fail("synthesized"),
+        )
+    assert not (tmp_path / "out").exists()
+
+
+def test_contained_runner_refuses_cached_trial_before_dispatch(tmp_path, monkeypatch):
+    monkeypatch.setattr(gold, "modal_cell_runner", lambda **_: pytest.fail("dispatched"))
+    cell = tmp_path / "cell"
+    (cell / "trial").mkdir(parents=True)
+    with pytest.raises(ValueError, match="fresh cell evidence"):
+        contained_runner(tmp_path)(cell, tmp_path / "absent", "inert")
+
+
+@pytest.mark.parametrize("arm", ["witness", "exit0_pth"])
+@pytest.mark.parametrize("bad", ["missing", "unapplied", "infra", "boolean"])
+def test_integrity_controls_never_pass_without_applied_measured_outcomes(tmp_path, arm, bad):
+    cells, outcomes, upgraded = matrix(tmp_path, ["correct-a", "correct-b"])
+    cell = next(c for c in cells if c.arm == arm)
+    if bad == "missing":
+        del outcomes[cell.name]
+    elif bad == "unapplied":
+        outcomes[cell.name]["agent_log"] = ""
+    elif bad == "infra":
+        outcomes[cell.name]["status"] = "failed"
+    else:
+        outcomes[cell.name]["reward"] = False
+    result = summarize(cells, outcomes, upgraded)
+    if arm == "witness":
+        assert result.witness_rewards[cell.name] is None
+        assert not result.gate3_witness_passed
+    else:
+        assert result.exit0_pth_reward is None
+        assert not result.gate4_exit0_pth_passed
+    assert result.status == "failed"
+
+
+@pytest.mark.parametrize("extra,message", [
+    ([], "--approval"), (["--approval", "offline test"], "--max-usd"),
+    (["--approval", "offline test", "--max-usd", "nan"], "positive finite"),
+])
+def test_cli_contained_controls_validate_approval_and_cap_before_construction(
+    tmp_path, monkeypatch, extra, message,
+):
+    args = cli_args(tmp_path, "--injection-controls", "--witness", "/nonexistent/witness", *extra)
+    monkeypatch.setattr(gold, "ContainedModalRunner", lambda **_: pytest.fail("constructed"))
+    with pytest.raises(ValueError, match=message):
+        gold._certify_gold_command(args, tmp_path)

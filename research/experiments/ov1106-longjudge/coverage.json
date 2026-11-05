@@ -1,0 +1,719 @@
+{
+  "coverage": {
+    "DEV690": {
+      "actual_judges": {
+        "j2b": {
+          "counts": {
+            "abstained": 20,
+            "complete_prompt_checks_runs": 680,
+            "complete_scored_runs": 663,
+            "expected_windows": 846,
+            "failed_windows": 21,
+            "max_valid_window_score_matches": 670,
+            "missing_signal_runs": 0,
+            "no_saved_windows_runs": 10,
+            "prompt_hash_matches": 836,
+            "result_files": 690,
+            "saved_windows": 836,
+            "scored": 670,
+            "scored_with_failed_windows_runs": 7,
+            "scored_with_missing_windows_runs": 0,
+            "selected_runs": 690,
+            "signal_raw_score_matches": 690,
+            "signal_scored_runs": 670,
+            "step_range_matches": 836
+          },
+          "raw_root": "/private/tmp/ov1104/judges/out/j2b__google-antigravity__gemini-3.8-flash/results",
+          "result_manifest": {
+            "files": 690,
+            "path_sha256_manifest_sha256": "3b6eb36776b494c42a43881b745ffab021351ac6e21dab58bc65e61b61ca0bad"
+          },
+          "saved_window_model_served_counts": {
+            "google-antigravity/gemini-3.8-flash": 815,
+            "meta/muse-wonder-full-1.0-contributor": 21
+          },
+          "usage": {
+            "completion_tokens": 86371,
+            "prompt_tokens": 8917078,
+            "total_tokens": 9003449
+          }
+        },
+        "j3": {
+          "counts": {
+            "abstained": 22,
+            "complete_prompt_checks_runs": 680,
+            "complete_scored_runs": 663,
+            "expected_windows": 846,
+            "failed_windows": 22,
+            "max_valid_window_score_matches": 668,
+            "missing_signal_runs": 0,
+            "no_saved_windows_runs": 10,
+            "prompt_hash_matches": 836,
+            "result_files": 690,
+            "saved_windows": 836,
+            "scored": 668,
+            "scored_with_failed_windows_runs": 5,
+            "scored_with_missing_windows_runs": 0,
+            "selected_runs": 690,
+            "signal_raw_score_matches": 690,
+            "signal_scored_runs": 668,
+            "step_range_matches": 836
+          },
+          "raw_root": "/private/tmp/ov1104/judges/out/j2b__openai-codex__gpt-6.1-terra/results",
+          "result_manifest": {
+            "files": 690,
+            "path_sha256_manifest_sha256": "8a2f381ca3072f09904b4fc841c75ffbde6a057a869ad5a31f5356e476f82456"
+          },
+          "saved_window_model_served_counts": {
+            "meta/muse-wonder-full-1.0-contributor": 22,
+            "openai-codex/gpt-6.1-terra": 814
+          },
+          "usage": {
+            "completion_tokens": 96010,
+            "prompt_tokens": 7592657,
+            "total_tokens": 7688667
+          }
+        }
+      },
+      "counts": {
+        "agent_prose_chars_excluded": 17755387,
+        "args_chars": 9824045,
+        "args_chars_lost": 1307997,
+        "args_elided_fields": 267,
+        "args_fields": 19066,
+        "args_kept_source_chars": 8516048,
+        "diff_chars": 365539,
+        "diff_chars_lost": 98456,
+        "diff_elided_runs": 2,
+        "diff_missing_runs": 614,
+        "empty_actions_runs": 10,
+        "n_runs": 690,
+        "n_view_steps": 15672,
+        "n_windows": 846,
+        "obs_chars": 22009059,
+        "obs_chars_lost": 9986363,
+        "obs_elided_fields": 2356,
+        "obs_fields": 12374,
+        "obs_kept_source_chars": 12022696,
+        "rendered_chars": 21468585,
+        "rendered_steps": 14404,
+        "runs_with_elision": 509,
+        "task_chars": 1612175,
+        "task_chars_lost": 4026,
+        "task_elided_runs": 2,
+        "task_missing_runs": 152
+      },
+      "max_window_chars": 59993,
+      "payload_kept_fraction": 0.6452007947449925,
+      "selected_run_keys_sha256": "42137b904cee89e44ce521cea9c5d7e66ab006422800fb1cbede5c61f563d685",
+      "view_manifest": {
+        "files": 690,
+        "path_sha256_manifest_sha256": "03fe9a3aa4a86f929f188ed45d88bf75d30082f6b9c242874fe2bc8fab87547f"
+      },
+      "windows_distribution": {
+        "1": 611,
+        "2": 57,
+        "3": 11,
+        "4": 3,
+        "5": 2,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "11": 1,
+        "15": 1,
+        "19": 1
+      }
+    },
+    "HackBench169": {
+      "actual_judges": {
+        "j2b": {
+          "counts": {
+            "abstained": 0,
+            "complete_prompt_checks_runs": 17,
+            "complete_scored_runs": 17,
+            "expected_windows": 196,
+            "failed_windows": 0,
+            "max_valid_window_score_matches": 17,
+            "missing_result_runs": 152,
+            "missing_signal_runs": 0,
+            "no_saved_windows_runs": 0,
+            "prompt_hash_matches": 196,
+            "result_files": 17,
+            "saved_windows": 196,
+            "scored": 17,
+            "scored_with_failed_windows_runs": 0,
+            "scored_with_missing_windows_runs": 0,
+            "selected_runs": 169,
+            "signal_raw_score_matches": 17,
+            "signal_scored_runs": 17,
+            "step_range_matches": 196
+          },
+          "raw_root": "/private/tmp/ov1105/hackbench/evaluation/judges/j2b_actions_task_diff_v2_flash",
+          "result_manifest": {
+            "files": 17,
+            "path_sha256_manifest_sha256": "7d0cfe1ff8a712d2886d34b3469865368d5fcc1f13d39664cb336fbe36f6b01a"
+          },
+          "saved_window_model_served_counts": {
+            "google-antigravity/gemini-3.8-flash": 196
+          },
+          "usage": {
+            "completion_tokens": 23044,
+            "prompt_tokens": 4748075,
+            "total_tokens": 4771119
+          }
+        },
+        "j3": {
+          "counts": {
+            "missing_result_runs": 169,
+            "missing_signal_runs": 0,
+            "selected_runs": 169,
+            "signal_scored_runs": 0
+          },
+          "raw_root": "/private/tmp/ov1105/hackbench/evaluation/judges/j3_actions_task_diff_terra",
+          "result_manifest": {
+            "files": 0,
+            "path_sha256_manifest_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "saved_window_model_served_counts": {},
+          "usage": {}
+        }
+      },
+      "counts": {
+        "agent_prose_chars_excluded": 51596527,
+        "args_chars": 36901693,
+        "args_chars_lost": 1038529,
+        "args_elided_fields": 495,
+        "args_fields": 60541,
+        "args_kept_source_chars": 35863164,
+        "diff_chars": 0,
+        "diff_chars_lost": 0,
+        "diff_elided_runs": 0,
+        "diff_missing_runs": 169,
+        "empty_actions_runs": 0,
+        "n_runs": 169,
+        "n_view_steps": 52070,
+        "n_windows": 2051,
+        "obs_chars": 99234606,
+        "obs_chars_lost": 24677669,
+        "obs_elided_fields": 13708,
+        "obs_fields": 51845,
+        "obs_kept_source_chars": 74556937,
+        "rendered_chars": 114128257,
+        "rendered_steps": 51901,
+        "runs_with_elision": 169,
+        "task_chars": 1134516,
+        "task_chars_lost": 153543,
+        "task_elided_runs": 114,
+        "task_missing_runs": 0
+      },
+      "max_window_chars": 59996,
+      "payload_kept_fraction": 0.8110996245020587,
+      "selected_run_keys_sha256": "6f6c1380909df2028a20787ce65964af3edea411b16a55f801115c049dcf5603",
+      "view_manifest": {
+        "files": 169,
+        "path_sha256_manifest_sha256": "5a6d840de2952d8bb0ae753abe92ad0bdc98e3c65b9ba2d86662273c4488d0d5"
+      },
+      "windows_distribution": {
+        "1": 2,
+        "2": 17,
+        "3": 5,
+        "4": 2,
+        "5": 17,
+        "6": 1,
+        "7": 16,
+        "9": 13,
+        "10": 21,
+        "11": 3,
+        "12": 6,
+        "13": 32,
+        "15": 2,
+        "16": 2,
+        "19": 1,
+        "20": 9,
+        "23": 1,
+        "26": 1,
+        "33": 14,
+        "37": 1,
+        "40": 1,
+        "46": 2
+      }
+    },
+    "MALT400": {
+      "actual_judges": {
+        "j2b": {
+          "counts": {
+            "abstained": 0,
+            "complete_prompt_checks_runs": 400,
+            "complete_scored_runs": 400,
+            "expected_windows": 483,
+            "failed_windows": 0,
+            "max_valid_window_score_matches": 400,
+            "missing_signal_runs": 0,
+            "no_saved_windows_runs": 0,
+            "prompt_hash_matches": 483,
+            "result_files": 400,
+            "saved_windows": 483,
+            "scored": 400,
+            "scored_with_failed_windows_runs": 0,
+            "scored_with_missing_windows_runs": 0,
+            "selected_runs": 400,
+            "signal_raw_score_matches": 400,
+            "signal_scored_runs": 400,
+            "step_range_matches": 483
+          },
+          "raw_root": "/private/tmp/ov1105/malt/scores/raw/j2b_actions_task_diff_v2_flash/results",
+          "result_manifest": {
+            "files": 400,
+            "path_sha256_manifest_sha256": "894a9cbefe9628bf70f2fb007ccb21d6c05cd1a94a7875a13e888e612f4461e1"
+          },
+          "saved_window_model_served_counts": {
+            "google-antigravity/gemini-3.8-flash": 483
+          },
+          "usage": {
+            "completion_tokens": 51323,
+            "prompt_tokens": 4390099,
+            "total_tokens": 4441422
+          }
+        },
+        "j3": {
+          "counts": {
+            "abstained": 0,
+            "complete_prompt_checks_runs": 400,
+            "complete_scored_runs": 400,
+            "expected_windows": 483,
+            "failed_windows": 0,
+            "max_valid_window_score_matches": 400,
+            "missing_signal_runs": 0,
+            "no_saved_windows_runs": 0,
+            "prompt_hash_matches": 483,
+            "result_files": 400,
+            "saved_windows": 483,
+            "scored": 400,
+            "scored_with_failed_windows_runs": 0,
+            "scored_with_missing_windows_runs": 0,
+            "selected_runs": 400,
+            "signal_raw_score_matches": 400,
+            "signal_scored_runs": 400,
+            "step_range_matches": 483
+          },
+          "raw_root": "/private/tmp/ov1105/malt/scores/raw/j3_actions_task_diff_terra/results",
+          "result_manifest": {
+            "files": 400,
+            "path_sha256_manifest_sha256": "26e9ebf81b67cb2fd8a8ccf4e03d427e37f0d0de2709a1bf648d4e2fa98d29a4"
+          },
+          "saved_window_model_served_counts": {
+            "openai-codex/gpt-6.1-terra": 483
+          },
+          "usage": {
+            "completion_tokens": 47399,
+            "prompt_tokens": 3696841,
+            "total_tokens": 3744240
+          }
+        }
+      },
+      "counts": {
+        "agent_prose_chars_excluded": 8117050,
+        "args_chars": 5678907,
+        "args_chars_lost": 319151,
+        "args_elided_fields": 127,
+        "args_fields": 6293,
+        "args_kept_source_chars": 5359756,
+        "diff_chars": 0,
+        "diff_chars_lost": 0,
+        "diff_elided_runs": 0,
+        "diff_missing_runs": 400,
+        "empty_actions_runs": 0,
+        "n_runs": 400,
+        "n_view_steps": 26988,
+        "n_windows": 483,
+        "obs_chars": 6586472,
+        "obs_chars_lost": 2438700,
+        "obs_elided_fields": 600,
+        "obs_fields": 5322,
+        "obs_kept_source_chars": 4147772,
+        "rendered_chars": 9920925,
+        "rendered_steps": 11615,
+        "runs_with_elision": 193,
+        "task_chars": 342916,
+        "task_chars_lost": 0,
+        "task_elided_runs": 0,
+        "task_missing_runs": 0
+      },
+      "max_window_chars": 60000,
+      "payload_kept_fraction": 0.7751515872440632,
+      "selected_run_keys_sha256": "4c62b20dab5d131f7595a9940906c798c5ef81fa55ce04d704e4cdd217d3deee",
+      "view_manifest": {
+        "files": 400,
+        "path_sha256_manifest_sha256": "05e7b3e325638dce8028c1fe0143aa7daed8721cec774d1077d4a5df418da627"
+      },
+      "windows_distribution": {
+        "1": 335,
+        "2": 48,
+        "3": 16,
+        "4": 1
+      }
+    },
+    "heldout1450": {
+      "actual_judges": {
+        "j2b": {
+          "counts": {
+            "abstained": 2,
+            "complete_prompt_checks_runs": 1450,
+            "complete_scored_runs": 1445,
+            "expected_windows": 1647,
+            "failed_windows": 5,
+            "max_valid_window_score_matches": 1448,
+            "missing_signal_runs": 0,
+            "no_saved_windows_runs": 0,
+            "prompt_hash_matches": 1647,
+            "result_files": 1450,
+            "saved_windows": 1647,
+            "scored": 1448,
+            "scored_with_failed_windows_runs": 3,
+            "scored_with_missing_windows_runs": 0,
+            "selected_runs": 1450,
+            "signal_raw_score_matches": 1450,
+            "signal_scored_runs": 1448,
+            "step_range_matches": 1647
+          },
+          "raw_root": "/private/tmp/ov1104/judges/out/j2b__google-antigravity__gemini-3.8-flash/results",
+          "result_manifest": {
+            "files": 1450,
+            "path_sha256_manifest_sha256": "4c5492a59d34227b20dbe514ddb2150890793b2367cadb4a9e818601028d5471"
+          },
+          "saved_window_model_served_counts": {
+            "None": 3,
+            "google-antigravity/gemini-3.8-flash": 1644
+          },
+          "usage": {
+            "completion_tokens": 174290,
+            "prompt_tokens": 16517835,
+            "total_tokens": 16692125
+          }
+        },
+        "j3": {
+          "counts": {
+            "abstained": 0,
+            "complete_prompt_checks_runs": 1450,
+            "complete_scored_runs": 1448,
+            "expected_windows": 1647,
+            "failed_windows": 5,
+            "max_valid_window_score_matches": 1450,
+            "missing_signal_runs": 0,
+            "no_saved_windows_runs": 0,
+            "prompt_hash_matches": 1647,
+            "result_files": 1450,
+            "saved_windows": 1647,
+            "scored": 1450,
+            "scored_with_failed_windows_runs": 2,
+            "scored_with_missing_windows_runs": 0,
+            "selected_runs": 1450,
+            "signal_raw_score_matches": 1450,
+            "signal_scored_runs": 1450,
+            "step_range_matches": 1647
+          },
+          "raw_root": "/private/tmp/ov1104/judges/out/j2b__openai-codex__gpt-6.1-terra__heldout/results",
+          "result_manifest": {
+            "files": 1450,
+            "path_sha256_manifest_sha256": "28bf0427ef2e5d915f0bf5aced4f6560f10a4aee655bed32602a2f7aefca3d16"
+          },
+          "saved_window_model_served_counts": {
+            "meta/muse-wonder-full-1.0-contributor": 5,
+            "openai-codex/gpt-6.1-terra": 1642
+          },
+          "usage": {
+            "completion_tokens": 193321,
+            "prompt_tokens": 13754506,
+            "total_tokens": 13947827
+          }
+        }
+      },
+      "counts": {
+        "agent_prose_chars_excluded": 15751617,
+        "args_chars": 12666875,
+        "args_chars_lost": 1590881,
+        "args_elided_fields": 277,
+        "args_fields": 35853,
+        "args_kept_source_chars": 11075994,
+        "diff_chars": 1381255,
+        "diff_chars_lost": 14255,
+        "diff_elided_runs": 6,
+        "diff_missing_runs": 1028,
+        "empty_actions_runs": 5,
+        "n_runs": 1450,
+        "n_view_steps": 52580,
+        "n_windows": 1647,
+        "obs_chars": 50934571,
+        "obs_chars_lost": 23145909,
+        "obs_elided_fields": 5354,
+        "obs_fields": 34614,
+        "obs_kept_source_chars": 27788662,
+        "rendered_chars": 41081690,
+        "rendered_steps": 39316,
+        "runs_with_elision": 1130,
+        "task_chars": 350517,
+        "task_chars_lost": 0,
+        "task_elided_runs": 0,
+        "task_missing_runs": 295
+      },
+      "max_window_chars": 59996,
+      "payload_kept_fraction": 0.6110656037600152,
+      "selected_run_keys_sha256": "d35c1c3148e0fec78f9989542aa8fda0e8754f2707c6485f8323c030874805d4",
+      "view_manifest": {
+        "files": 1450,
+        "path_sha256_manifest_sha256": "85f42298d2a9280ed0a313492dea9eba5db61ffc95efdfb4c4c42440e2468e84"
+      },
+      "windows_distribution": {
+        "1": 1351,
+        "2": 45,
+        "3": 22,
+        "4": 23,
+        "5": 6,
+        "6": 3
+      }
+    }
+  },
+  "definitions": {
+    "budgets": {
+      "args": 6000,
+      "diff": 16000,
+      "observation": 2500,
+      "task": 6000,
+      "window": 60000
+    },
+    "complete_prompt_checks_runs": "Every expected window saved with a matching reconstructed prompt hash; independent of score success.",
+    "complete_scored_runs": "Numeric score, every expected window saved, no failed/unparsed windows.",
+    "expected_windows": "Expected windows for rows with a result file; n_windows includes all selected rows, including no-trajectory placeholders.",
+    "heldout_selection": "J3-full membership AND heldout AND not decisive_rule AND pool is not False",
+    "missing_result_runs": "No completed result file; signal abstentions are not zero scores.",
+    "payload": "Normalized non-user/system argument and observation characters; excludes prose, reasoning, task, diff, markers and headers.",
+    "retained": "Sum of min(field length, field budget), not native transcript coverage."
+  },
+  "input_file_sha256": {
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-longjudge/research/experiments/ov1104-judges/judge.py": "32558e3da73fc5671b46d8040c47081c990ed08022a9070831e6259fe96d3d13",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-longjudge/research/experiments/ov1104-judges/prompts.py": "101ceef23c3fc73aef2d4e10f637dab1ef790891bc6a966b51f7efaa9885c6e0",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-longjudge/research/experiments/ov1104-judges/signals.py": "4ae20bdda9c26a673a1b006e42c80807cada892adf894090f43db01635074648",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-longjudge/research/experiments/ov1104-judges/views.py": "29adb9b7090ca9abb3792ffafd3d1a7b66642e601c188ffcc7d7a5cb0be58f8b",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-longjudge/research/experiments/ov1105-malt/sample.json": "bf3729ff0b6791ba5323ac1ca469398ae57793483aee21c4c458072c812aded8",
+    "/private/tmp/ov1104/judges/dev/runs.jsonl": "62ed9fb7c559320a332ba654c6338032cda7bd9d81a882ddb30f4213a76f604b",
+    "/private/tmp/ov1104/shared/detbench/runs.jsonl": "65d19eaad26bfd1b82b4ed91a16ed3a3f2da55dcc7460f942bc87e66acee56be",
+    "/private/tmp/ov1104/shared/detbench/signals/j2b_actions_task_diff_v2_flash.jsonl": "5f2c96790252ad33f1d5aa4056c2ecc9ea193d06918b2e0015b1ed034fba2938",
+    "/private/tmp/ov1104/shared/detbench/signals/j3_actions_task_diff_terra_full.jsonl": "15e94821fa4b2225ffff0416b394b47feddd95098d7362a99f86f34c0646b0f7",
+    "/private/tmp/ov1105/hackbench/evaluation/sample-runs.jsonl": "6ea2edc5a723c5aeb84c5b0c672ba95070d13fc071a7d3e9782a10bf0f721bc4",
+    "/private/tmp/ov1105/hackbench/evaluation/signals/j2b_actions_task_diff_v2_flash.jsonl": "b4f8a39a3d4a969b87d2a8c123db8728bd4c1f5d75b959b2384106d6353c103e",
+    "/private/tmp/ov1105/hackbench/evaluation/signals/j3_actions_task_diff_terra.jsonl": "7a4fd50c38240b79d42aa98714973dd2e7dcc4be712e17482a0b4e663c21e831",
+    "/private/tmp/ov1105/malt/detbench-frozen/runs.jsonl": "fd47cf28211eaadb2d5367c177ae706547d6e0a5d3f97c71eb476d04bebbc87e",
+    "/private/tmp/ov1105/malt/scores/signals/j2b_actions_task_diff_v2_flash.jsonl": "b4a914eeb629052e7e7987798600122f0a024e2b370737514b15f3a53444b682",
+    "/private/tmp/ov1105/malt/scores/signals/j3_actions_task_diff_terra.jsonl": "b45768f52beaedc2d08cbe13fe2f71b4225a2f54e2e845fac58a3e0a5eadba4a"
+  },
+  "j3_mixed_model_lineage": {
+    "DEV690": {
+      "calls_path": "/private/tmp/ov1104/judges/out/j2b__openai-codex__gpt-6.1-terra/calls.jsonl",
+      "calls_sha256": "41abf45510b20ba68a625091e92614d2970c88366d9aa03ad089c7d9286d837e",
+      "counts": {
+        "all_score_producing_windows_attest_terra_runs": 5,
+        "max_valid_terra_score_matches_runs": 5,
+        "mixed_signal_scored_runs": 5,
+        "nonterra_windows": 6,
+        "nonterra_windows_failed_unparsed": 6,
+        "saved_windows": 13,
+        "signal_model_field_reconstruction_matches": 5,
+        "signal_raw_score_matches": 5,
+        "windows_with_matching_call_receipt": 13
+      },
+      "saved_window_model_served_counts": {
+        "meta/muse-wonder-full-1.0-contributor": 6,
+        "openai-codex/gpt-6.1-terra": 7
+      },
+      "window_errors": {
+        "served meta/muse-wonder-full-1.0-contributor, requested openai-codex/gpt-6.1-terra": 6
+      }
+    },
+    "heldout1450": {
+      "calls_path": "/private/tmp/ov1104/judges/out/j2b__openai-codex__gpt-6.1-terra__heldout/calls.jsonl",
+      "calls_sha256": "7b5d09c983e4814308ca2306953c9d9748f072e80fc388a6151ae1a0dbced075",
+      "counts": {
+        "all_score_producing_windows_attest_terra_runs": 2,
+        "max_valid_terra_score_matches_runs": 2,
+        "mixed_signal_scored_runs": 2,
+        "nonterra_windows": 5,
+        "nonterra_windows_failed_unparsed": 5,
+        "saved_windows": 8,
+        "signal_model_field_reconstruction_matches": 2,
+        "signal_raw_score_matches": 2,
+        "windows_with_matching_call_receipt": 8
+      },
+      "saved_window_model_served_counts": {
+        "meta/muse-wonder-full-1.0-contributor": 5,
+        "openai-codex/gpt-6.1-terra": 3
+      },
+      "window_errors": {
+        "served meta/muse-wonder-full-1.0-contributor, requested openai-codex/gpt-6.1-terra": 5
+      }
+    },
+    "interpretation": "signals.py:66-72 joins model_served from all saved windows, including failures. Raw windows and call receipts attest Terra on score-producing windows, with rejected Muse fallback windows. A partial max score is not a complete Terra evaluation. Reconstructed scores and model fields match the combined signal; no different signal is needed to explain the mixed field. These receipts do not establish historical file-copy operations."
+  },
+  "malt_worked_passage_visibility": [
+    {
+      "field": "args",
+      "needle_chars": 25,
+      "needle_sha256": "40d327c105064f391c3ff9cd915c6f720f41789bd831672b8184939ffeccf229",
+      "run_id": "342367",
+      "saved_prompt_matches": {
+        "j2b": true,
+        "j3": true
+      },
+      "source_field_chars": 7769,
+      "source_offset": 2079,
+      "source_present": true,
+      "step": 76,
+      "visible_window_indices": [
+        0
+      ]
+    },
+    {
+      "field": "args",
+      "needle_chars": 36,
+      "needle_sha256": "65511a6c8cd17117e440cb518916abdf05e3e31f88b5920bb665db8d2d7094be",
+      "run_id": "342367",
+      "saved_prompt_matches": {
+        "j2b": true,
+        "j3": true
+      },
+      "source_field_chars": 7769,
+      "source_offset": 2496,
+      "source_present": true,
+      "step": 76,
+      "visible_window_indices": [
+        0
+      ]
+    },
+    {
+      "field": "args",
+      "needle_chars": 26,
+      "needle_sha256": "20848e053c22dd5fda7ccc9486bc796e465fb128454a5a029d9b24cd64febe0b",
+      "run_id": "342625",
+      "saved_prompt_matches": {
+        "j2b": true,
+        "j3": true
+      },
+      "source_field_chars": 2686,
+      "source_offset": 227,
+      "source_present": true,
+      "step": 92,
+      "visible_window_indices": [
+        1
+      ]
+    },
+    {
+      "field": "observation",
+      "needle_chars": 28,
+      "needle_sha256": "9585eb5d02b961503e844dbe04a88abf005dd35531df3db09a1cf981b06014ea",
+      "run_id": "342625",
+      "saved_prompt_matches": {
+        "j2b": true,
+        "j3": true
+      },
+      "source_field_chars": 548,
+      "source_offset": 434,
+      "source_present": true,
+      "step": 93,
+      "visible_window_indices": [
+        1
+      ]
+    },
+    {
+      "field": "args",
+      "needle_chars": 21,
+      "needle_sha256": "b542e5e64c3bc7e7baee6e9958febe47bdf6fa18a0d72a1e8339b8fc1fcfc548",
+      "run_id": "342624",
+      "saved_prompt_matches": {
+        "j2b": true,
+        "j3": true
+      },
+      "source_field_chars": 4284,
+      "source_offset": 3366,
+      "source_present": true,
+      "step": 116,
+      "visible_window_indices": [
+        1
+      ]
+    },
+    {
+      "field": "observation",
+      "needle_chars": 40,
+      "needle_sha256": "4eb550291d75487a62cb9a1503b65e2a2e80a694515de52c2d7eb519d8703b7e",
+      "run_id": "342624",
+      "saved_prompt_matches": {
+        "j2b": true,
+        "j3": true
+      },
+      "source_field_chars": 896,
+      "source_offset": 698,
+      "source_present": true,
+      "step": 117,
+      "visible_window_indices": [
+        1
+      ]
+    },
+    {
+      "field": "observation",
+      "needle_chars": 48,
+      "needle_sha256": "a7cc6936e972f5925b7a09059cd4eb3a8dc17d514cf5bb7a356225df93a14dc9",
+      "run_id": "342624",
+      "saved_prompt_matches": {
+        "j2b": true,
+        "j3": true
+      },
+      "source_field_chars": 896,
+      "source_offset": 793,
+      "source_present": true,
+      "step": 117,
+      "visible_window_indices": [
+        1
+      ]
+    },
+    {
+      "field": "args",
+      "needle_chars": 17,
+      "needle_sha256": "812a25ba76acedd592817e8080761c147af459a18a34e8d92742767ff0f41070",
+      "run_id": "345756",
+      "saved_prompt_matches": {
+        "j2b": true,
+        "j3": true
+      },
+      "source_field_chars": 15061,
+      "source_offset": 860,
+      "source_present": true,
+      "step": 140,
+      "visible_window_indices": [
+        1
+      ]
+    },
+    {
+      "field": "observation",
+      "needle_chars": 31,
+      "needle_sha256": "b18aa2f4fb1477aadff4c3d364578bf73a7240d02dbd9c2f0d67574033fa395e",
+      "run_id": "345756",
+      "saved_prompt_matches": {
+        "j2b": true,
+        "j3": true
+      },
+      "source_field_chars": 10154,
+      "source_offset": 497,
+      "source_present": true,
+      "step": 145,
+      "visible_window_indices": [
+        1
+      ]
+    }
+  ],
+  "reference_comparison": {
+    "metrics_checked": 172,
+    "mismatches": [],
+    "reference_sha256": "1623172344283bf8e1933a1dc6d3d296c7faa1b562edc2eee52495b31c050b6e"
+  },
+  "schema_version": 1,
+  "scope": "Existing-judge coverage only; no calls or tuning; no source labels exported.",
+  "source_sha256": "b1310c61b02fb7f4bfcbbbe6a2242dfb92754da0ccbe100827b042619b74f4ac"
+}

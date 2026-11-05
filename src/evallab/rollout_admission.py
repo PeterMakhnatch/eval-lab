@@ -63,6 +63,8 @@ from evallab.line.io import LABEL_KEYS, MAX_READ_BYTES, canonical_hash
 SIDECARS = ("result.json", "config.json", "run.json", "grade.json", "provenance.json")
 TRAJECTORIES = ("agent/trajectory.json", "trajectory.json")
 DIFFS = ("final.diff", "verifier/agent.diff")
+COPY_PANE = "agent/terminus_2.pane"
+COPY_SPILL = re.compile(r"agent/evallab-output/step-\d{4,}\.txt$")
 TRIAL_FOLDERS = frozenset({"agent", "verifier"})
 IDENTITY_KEYS = frozenset(
     {"task_id", "task_name", "task", "trial_name", "trial_id", "id", "item_id", "record_id"}
@@ -159,8 +161,11 @@ def sealed_inodes(*roots: Path) -> frozenset[tuple[int, int]]:
     return frozenset(found)
 
 
-def _needed(relative: str) -> bool:
-    return relative in {*SIDECARS, *TRAJECTORIES, *DIFFS}
+def _needed(relative: str, *, retain_copy_outputs: bool = False) -> bool:
+    return relative in {*SIDECARS, *TRAJECTORIES, *DIFFS} or (
+        retain_copy_outputs
+        and (relative == COPY_PANE or COPY_SPILL.fullmatch(relative) is not None)
+    )
 
 
 @dataclass
@@ -205,7 +210,12 @@ def _read_whole(path: Path, expected: os.stat_result) -> bytes:
     return data
 
 
-def _read_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> _Tree:
+def _read_tree(
+    root: Path,
+    sealed: frozenset[tuple[int, int]],
+    *,
+    retain_copy_outputs: bool = False,
+) -> _Tree:
     """Walk the trial once: refuse links, sealed hard links and special files; hash every file;
     keep the bytes of the files the caller needs."""
     files: list[tuple[Path, str]] = []
@@ -240,7 +250,7 @@ def _read_tree(root: Path, sealed: frozenset[tuple[int, int]]) -> _Tree:
                     if relative in seen:
                         raise AdmissionRefused(f"two files differ only by case: {path}")
                     seen[relative] = path
-                    needed = _needed(relative)
+                    needed = _needed(relative, retain_copy_outputs=retain_copy_outputs)
                     is_json = relative.endswith(".json")
                     keep = needed or hd.bundle_file_eligible(original)
                     if keep or is_json:
@@ -547,6 +557,7 @@ def admit_rollout(
     expected_sha256: str | None = None,
     sealed: frozenset[tuple[int, int]] = frozenset(),
     require_trajectory: bool = True,
+    retain_copy_outputs: bool = False,
 ) -> Admitted:
     """Admit the rollout at exactly ``listed`` or raise :class:`AdmissionRefused`.
 
@@ -558,6 +569,9 @@ def admit_rollout(
     Everything the caller needs is returned from the one read (``held``, ``trajectories``,
     ``sidecars``, ``diff``), so a caller that builds its rollout from the result never opens a
     file of the rollout again.
+
+    ``retain_copy_outputs`` also holds the fixed pane/spill readset for the opt-in
+    history signal. Every file stays covered by the same digest either way.
     """
     root = _walk_path(listed)
     top = _lstat(root).st_mode
@@ -571,7 +585,7 @@ def admit_rollout(
     if stat.S_ISDIR(top):
         if canonical(root.name) in TRIAL_FOLDERS or _inside_a_trial(root, folder_rollout=True):
             raise AdmissionRefused(f"a folder inside a trial is not a trial: {root}")
-        tree = _read_tree(root, sealed)
+        tree = _read_tree(root, sealed, retain_copy_outputs=retain_copy_outputs)
         kind, digest, names = "trial", tree.digest, names + tree.names
         candidates = [(name, *tree.held[name]) for name in TRAJECTORIES if name in tree.held]
         sidecars = [(name, *tree.held[name]) for name in SIDECARS if name in tree.held]

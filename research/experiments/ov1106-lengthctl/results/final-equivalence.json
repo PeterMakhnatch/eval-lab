@@ -1,0 +1,21 @@
+{
+  "first_aggregate_sha256": "440a8a4dbd7fdd8decd406ddcd6a2109fa3b4a583c700a95bfad862ac98bce7a",
+  "final_aggregate_sha256": "40b865e3c96ef16f84b4e94ec37615db74fb2ad6a95ccc884c54fe5730434e36",
+  "changed_top_level_fields": [
+    "arguments",
+    "invocation",
+    "source_hashes"
+  ],
+  "changed_source_hashes": {
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1106-lengthctl/research/experiments/ov1106-lengthctl/scoreboard.py": {
+      "before": "6524cad64566c037b71ca6d91319ea6d914c8a02cef7ced22e0d53ffcc269f7d",
+      "after": "339a37075e6aa20a842468a0460206de9602e9f1ba86c2e35ac54833e3cc8a5b"
+    }
+  },
+  "all_pairs_exactly_equal": true,
+  "all_evaluations_exactly_equal": true,
+  "all_other_fields_exactly_equal": true,
+  "all_final_top_level_source_hashes_verified": 432,
+  "pairs": 21344,
+  "evaluations": 1936
+}

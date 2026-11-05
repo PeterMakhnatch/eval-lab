@@ -290,12 +290,16 @@ def replay(
     write_baseline: bool = False,
     *,
     variant: dict[str, Any] | None = None,
+    copy_history: bool = False,
 ) -> tuple[dict[str, Any], int]:
     """See :func:`_replay`. Everything it reads is read through the line's reader."""
     from .core import declared_scope
 
     with declared_scope(repo_root):
-        result, status = _replay(spec_path, baseline, repo_root, write_baseline, variant=variant)
+        result, status = _replay(
+            spec_path, baseline, repo_root, write_baseline,
+            variant=variant, copy_history=copy_history,
+        )
         if isinstance(result.get("batch"), str):
             write_json(Path(result["batch"]) / "replay.json", result)
         return result, status
@@ -308,6 +312,7 @@ def _replay(
     write_baseline: bool = False,
     *,
     variant: dict[str, Any] | None = None,
+    copy_history: bool = False,
 ) -> tuple[dict[str, Any], int]:
     """Rerun off/cached inputs without editing the spec or external judge queue.
 
@@ -348,6 +353,8 @@ def _replay(
         ):
             raise ValueError("replay requires autoreview off or cached and a zero spend cap")
         frozen_hash = _frozen_hash(spec)
+        if copy_history and write_baseline:
+            raise ValueError("copy-history candidate replay cannot write a baseline")
         input_hashes = _input_hashes(spec)
         stored = None if write_baseline else read_json(baseline)
         mismatch = None
@@ -367,10 +374,13 @@ def _replay(
                 )
         # Source paths were resolved against the original spec, not this scratch file.
         replay_spec = deepcopy(spec)
+        if copy_history:
+            replay_spec["copy_history"] = True
         if variant is not None:
             result["variant"] = _variant(replay_spec, variant)
             result["variant"]["base_frozen_spec_hash"] = frozen_hash
             result["variant"]["frozen_spec_hash"] = _frozen_hash(replay_spec)
+        result["candidate_overrides"] = {"copy_history": True} if copy_history else {}
         replay_spec["batch_id"] = f"{spec['batch_id']}-replay-{uuid4().hex}"
         replay_spec["judge"]["write"] = False
         from .core import check_batch, run_line

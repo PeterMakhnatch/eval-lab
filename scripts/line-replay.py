@@ -346,6 +346,11 @@ def main(argv: list[str] | None = None) -> int:
         "--goodfire-review-floor", choices=("0", "1"),
         default=os.environ.get("GOODFIRE_REVIEW_FLOOR") or None,
     )
+    parser.add_argument(
+        "--copy-history",
+        action="store_true",
+        help="enable confirmed history-copy detection without changing the frozen set",
+    )
     args = parser.parse_args(argv)
     root = (
         args.replay_set
@@ -367,9 +372,14 @@ def main(argv: list[str] | None = None) -> int:
             variant["j3_cache"] = str(Path(args.j3_cache).expanduser().absolute())
         if args.goodfire_review_floor is not None:
             variant["goodfire_review_floor"] = args.goodfire_review_floor == "1"
+        replay_options: dict[str, Any] = {"copy_history": True} if args.copy_history else {}
+        if variant:
+            replay_options["variant"] = variant
         result, status = replay(
-            root / "spec.json", root / "baseline.json", REPO_ROOT,
-            **({"variant": variant} if variant else {}),
+            root / "spec.json",
+            root / "baseline.json",
+            REPO_ROOT,
+            **replay_options,
         )
         if isinstance(status, bool) or not isinstance(status, int) or status not in (0, 1, 2):
             raise ValueError("replay returned an invalid exit status")

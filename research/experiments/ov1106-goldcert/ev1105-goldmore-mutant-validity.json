@@ -1,0 +1,152 @@
+{
+  "audit_kind": "blind_source_only_mutant_validity_extension",
+  "base_mutant_validity": {
+    "path": "research/experiments/ov1106-goldcert/mutant-validity.json",
+    "sha256": "e24734216590c068d6873ccb318ca7f57986ecb4d316e32d77dbed8ebf63e967"
+  },
+  "category_definitions": {
+    "DEFECT": "The isolated delta necessarily breaks a stated public requirement or established production behavior on a described valid path. This is a static judgment fixed before grading, not an observed run.",
+    "POSSIBLY_VALID": "The delta changes behavior or diagnostics, but the admitted public contract does not require that detail. Reported separately and not counted for or against certification.",
+    "UNCERTAIN": "Available source and instruction evidence do not support a clear judgment about the isolated delta."
+  },
+  "controls": [
+    {
+      "category": "DEFECT",
+      "control_hash_origin": "evallab.mutant_auditor.fresh_mutants(..., extra_operators=True) Mutant.sha256",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "control_name": "train-fb47e972f798442160dfa09c4ae2a794a21c01dc1a0d646ff29294ad6600a9b8",
+      "control_sha256": "fb47e972f798442160dfa09c4ae2a794a21c01dc1a0d646ff29294ad6600a9b8",
+      "instruction": {
+        "excerpt": "I want an action that flips encryption on for them, ideally letting me pick the KMS key. I'd also like to be able to turn encryption back off on a topic if needed.",
+        "line_end": 11,
+        "line_start": 11,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000682/instruction.md",
+        "sha256": "6ae2341089d4403e2e83f2946fde43aa485c29774043588ad6e6e7085cfa2278"
+      },
+      "mutation_delta_sha256": "5a57d94e2276195bb6be68cb76b287e9895e311232f1905925f51d229b0e02e9",
+      "necessarily_violates_public_contract": true,
+      "operator": "negate_condition",
+      "production_evidence": {
+        "explanation": "The delta negates the enabled condition in SetEncryption.process: when enabled=True (or omitted), it sets key = '' (disabling encryption), and when enabled=False, it sets key to the KMS key (enabling encryption).",
+        "mutation_delta": "--- a/c7n/resources/sns.py\n+++ b/c7n/resources/sns.py\n@@ -308,5 +308,5 @@\n         sns = local_session(self.manager.session_factory).client('sns')\n \n-        if self.data.get('enabled', True):\n+        if not (self.data.get('enabled', True)):\n             key = self.data.get('key', 'alias/aws/sns')\n         else:\n",
+        "pristine_locations": "c7n/resources/sns.py:19-48,227-254; c7n/resources/sqs.py:326-358"
+      },
+      "rationale": "Negating the boolean branch inverts explicit enabled=True and enabled=False behavior: enabling encryption writes an empty KmsMasterKeyId and disabling encryption writes a KMS key.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated mutation delta before any grading; not executed",
+      "script_sha256": "04a9ba4dbfde504d52b43c2352b6ad9f585de97ac2cd258c5be0cf6fb078c0ef",
+      "split": "train",
+      "task_id": "000682",
+      "uncertainty_or_limit": "Static control-flow inversion analysis; no AWS calls execute during audit."
+    },
+    {
+      "category": "POSSIBLY_VALID",
+      "control_hash_origin": "evallab.mutant_auditor.fresh_mutants(..., extra_operators=True) Mutant.sha256",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "control_name": "train-bd478d15e9d6c461b63bdaf937ba2b53a5bfe0c7c03b658ec3715f0981ed4a0b",
+      "control_sha256": "bd478d15e9d6c461b63bdaf937ba2b53a5bfe0c7c03b658ec3715f0981ed4a0b",
+      "instruction": {
+        "excerpt": "I want an action that flips encryption on for them, ideally letting me pick the KMS key. I'd also like to be able to turn encryption back off on a topic if needed.",
+        "line_end": 11,
+        "line_start": 11,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000682/instruction.md",
+        "sha256": "6ae2341089d4403e2e83f2946fde43aa485c29774043588ad6e6e7085cfa2278"
+      },
+      "mutation_delta_sha256": "cd3605720e44c1210920da05b175450fe634dd712184fc0058f9aeb428028b75",
+      "necessarily_violates_public_contract": false,
+      "operator": "return_none",
+      "production_evidence": {
+        "explanation": "In pristine c7n (c7n/resources/sqs.py:313-317,349-358), BaseAction subclasses such as DeleteSqsQueue.process and SQS.SetEncryption.process perform service API updates and return None. The delta changes return resources to return None after all sns.set_topic_attributes calls complete.",
+        "mutation_delta": "--- a/c7n/resources/sns.py\n+++ b/c7n/resources/sns.py\n@@ -319,3 +319,3 @@\n                 AttributeValue=key\n             )\n-        return resources\n+        return None\n",
+        "pristine_locations": "c7n/resources/sqs.py:313-317,349-358; c7n/resources/sns.py:227-254"
+      },
+      "rationale": "All SNS set_topic_attributes calls still execute with the expected TopicArn and KmsMasterKeyId. Neither the instruction nor the established BaseAction.process convention in c7n/resources/sqs.py requires returning the resource list from SetEncryption.process.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated mutation delta before any grading; not executed",
+      "script_sha256": "5d6dc5591a91c03fc54408f7903ebb06b363c64de7ce6403b06945dbbd17dc6f",
+      "split": "train",
+      "task_id": "000682",
+      "uncertainty_or_limit": "Callers that inspect the return value of process() would receive None, as in SQS.SetEncryption.process."
+    },
+    {
+      "category": "DEFECT",
+      "control_hash_origin": "evallab.mutant_auditor.fresh_mutants(..., extra_operators=True) Mutant.sha256",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "control_name": "train-03f1561ef9ba93b791f00990a6dceafad726c6d911fa0cb7f713f2e3137d2d5b",
+      "control_sha256": "03f1561ef9ba93b791f00990a6dceafad726c6d911fa0cb7f713f2e3137d2d5b",
+      "instruction": {
+        "excerpt": "For the first item, I'd expect the API on `VacBot` to look something like `is_cleaning` / `is_charging` (boolean properties).",
+        "line_end": 40,
+        "line_start": 40,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-003007/instruction.md",
+        "sha256": "8f83549f73e689134c24a8ae877231b200916848ec6b024b8eb393e0b6e6a3e5"
+      },
+      "mutation_delta_sha256": "dcfd0eac330eabce615a2d792685d2080e44a510b15634032240d01532136eeb",
+      "necessarily_violates_public_contract": true,
+      "operator": "return_none",
+      "production_evidence": {
+        "explanation": "The delta replaces `return self.vacuum_status in CLEANING_STATES` in `VacBot.is_cleaning` with `return None`.",
+        "mutation_delta": "--- a/sucks/__init__.py\n+++ b/sucks/__init__.py\n@@ -361,5 +361,5 @@\n     @property\n     def is_cleaning(self) -> bool:\n-        return self.vacuum_status in CLEANING_STATES\n+        return None\n \n     def send_ping(self):\n",
+        "pristine_locations": "sucks/__init__.py:275-340"
+      },
+      "rationale": "The instruction explicitly requires `is_cleaning` to be a boolean property on `VacBot` indicating whether the vacuum is cleaning. Returning `None` for all states violates this requirement.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated mutation delta before any grading; not executed",
+      "script_sha256": "5f22496a933b21b61cdf52ed1e0a742a6c20c415f9570aba3dba1d09026fd38a",
+      "split": "train",
+      "task_id": "003007",
+      "uncertainty_or_limit": "Static return-value replacement; no runtime execution during audit."
+    },
+    {
+      "category": "DEFECT",
+      "control_hash_origin": "evallab.mutant_auditor.fresh_mutants(..., extra_operators=True) Mutant.sha256",
+      "control_hash_semantics": "mutated production-file bytes; verified",
+      "control_name": "eval-4f29ba1fcd8e2e299ed08a95e7234d38070ad60d5de102c90dd7f217b03ece46",
+      "control_sha256": "4f29ba1fcd8e2e299ed08a95e7234d38070ad60d5de102c90dd7f217b03ece46",
+      "instruction": {
+        "excerpt": "For the first item, I'd expect the API on `VacBot` to look something like `is_cleaning` / `is_charging` (boolean properties).",
+        "line_end": 40,
+        "line_start": 40,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-003007/instruction.md",
+        "sha256": "8f83549f73e689134c24a8ae877231b200916848ec6b024b8eb393e0b6e6a3e5"
+      },
+      "mutation_delta_sha256": "2e58e802c48ad2caba5bb4952ea438b5137f4801978bf42ee7fb3f396b1d38db",
+      "necessarily_violates_public_contract": true,
+      "operator": "return_none",
+      "production_evidence": {
+        "explanation": "The delta replaces `return self.vacuum_status in CHARGING_STATES` in `VacBot.is_charging` with `return None`.",
+        "mutation_delta": "--- a/sucks/__init__.py\n+++ b/sucks/__init__.py\n@@ -357,5 +357,5 @@\n     @property\n     def is_charging(self) -> bool:\n-        return self.vacuum_status in CHARGING_STATES\n+        return None\n \n     @property\n",
+        "pristine_locations": "sucks/__init__.py:275-340"
+      },
+      "rationale": "The instruction explicitly requires `is_charging` to be a boolean property on `VacBot` indicating whether the vacuum is charging. Returning `None` for all states violates this requirement.",
+      "reasoning_basis": "STATIC_INFERENCE from exact instruction, admitted pristine production source, and isolated mutation delta before any grading; not executed",
+      "script_sha256": "527f16f70367955cddaf6123aa833edc92ef7556df1ecfc4796123b9dd482d8b",
+      "split": "eval",
+      "task_id": "003007",
+      "uncertainty_or_limit": "Static return-value replacement; no runtime execution during audit."
+    }
+  ],
+  "schema_version": 1,
+  "scope": {
+    "child_agents": 0,
+    "grader_tuned": false,
+    "hidden_tests_read": false,
+    "model_api_calls": 0,
+    "new_controls_count": 4,
+    "preregistered_before_grading": true,
+    "runtime_or_tests_executed": false,
+    "scores_read": false,
+    "task_ids": [
+      "000682",
+      "003007"
+    ]
+  },
+  "verification": {
+    "classification_counts": {
+      "DEFECT": 3,
+      "POSSIBLY_VALID": 1,
+      "UNCERTAIN": 0
+    },
+    "split_counts": {
+      "eval": 1,
+      "train": 3
+    }
+  }
+}

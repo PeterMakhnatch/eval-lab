@@ -1,0 +1,27 @@
+{
+  "aggregate_contains_no_row_or_task_ids": true,
+  "completed": 357,
+  "independent_pairwise_auroc": 1.0,
+  "independent_within_length_auroc": 1.0,
+  "independent_within_task_auroc": 1.0,
+  "j3_prompt_hash": "ca496b4c5f73879aa7d7da58986085734cf06f1202a8028db922c3acd05c8f41",
+  "j3_untuned": true,
+  "paired_gain_points_match": true,
+  "prompt_receipts_verified": 357,
+  "receipt_sha256": {
+    "aggregate.json": "5dc2145ad9a368b7ae01e93805dd373ec27abe7c7b7bc0bf008229ea8e74d115",
+    "attempts.jsonl": "cd17b793dd2cddbe92ce8d54f70f38665ab1506f69e11958a4bde1d3cb23419f",
+    "freeze.json": "38a52906967fd24151362aa0798b794ed5131d18a44542d18c09ba36afc5a9c5",
+    "judgments.jsonl": "07ff181f7557b37d5d4a100c08c731551acc8d454c93742f8b0d275b868d802a",
+    "l0.jsonl": "9204d3fc8806f157840d7064f353f4b0e2413685d4b268993c812739c79ba0b6",
+    "quota.jsonl": "89104850654b4abee9ad99b6f53ac9bd24cec3789ee060489c2a99e40dd63f84",
+    "sample.json": "05585479f191729a6583969696a4f11a48adaae7f7edc1d3f25d3455942338af"
+  },
+  "selected": 357,
+  "served_routes": {
+    "openai-codex/gpt-6.1-terra": 357
+  },
+  "status": "complete",
+  "threshold_counts_match": true,
+  "unique_attempts": 357
+}

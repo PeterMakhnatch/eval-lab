@@ -1,0 +1,68 @@
+{
+  "helpers": {
+    "audit": {
+      "routes": {
+        "openai-codex/gpt-6.1-sol": 12
+      },
+      "fallbacks": 0,
+      "model_changes": 1,
+      "session_sha256": {
+        "2026-11-05T20-29-41-043Z_01a1ad67-2733-703a-bb50-05d1f94b328d.jsonl": "978dcaacba7f0473309a40db5d5e5fe84332305406ca9b94c9244c0a51698f7a"
+      }
+    },
+    "recovery": {
+      "routes": {
+        "openai-codex/gpt-6.1-sol": 27
+      },
+      "fallbacks": 0,
+      "model_changes": 1,
+      "session_sha256": {
+        "2026-11-05T20-36-33-649Z_01a1ad6d-72f1-75ee-a8dd-e596f55d57d6.jsonl": "c2e52c078731b04f19d34f5d5757253c066e82528da7337a1590c48526362895"
+      }
+    },
+    "math-audit": {
+      "routes": {
+        "openai-codex/gpt-6.1-sol": 18
+      },
+      "fallbacks": 0,
+      "model_changes": 1,
+      "session_sha256": {
+        "2026-11-05T20-52-33-921Z_01a1ad7c-1a01-7630-be98-e04e7a01a937.jsonl": "ef6e0f660c256ad6b6d6b8cf9f156806a8f0278fc177d05ab28d2a6f8cb60fd9"
+      }
+    },
+    "outcome-audit": {
+      "routes": {
+        "openai-codex/gpt-6.1-sol": 12
+      },
+      "fallbacks": 0,
+      "model_changes": 1,
+      "session_sha256": {
+        "2026-11-05T21-16-41-055Z_01a1ad92-2edf-740e-99a3-ccabf80b49c7.jsonl": "2381e7ef94b36648a66b32ecdadfefcd232f6e2cf480b538031ae55ba6d23b5f"
+      }
+    }
+  },
+  "withdrawn_run": {
+    "status": "withdrawn_rights_hold_and_prior_examples",
+    "attempted_rows": 64,
+    "response_rows": 60,
+    "completed_rows": 60,
+    "attempted_without_response": 4,
+    "duplicate_attempts": 0,
+    "served_routes": {
+      "openai-codex/gpt-6.1-terra": 60
+    },
+    "first_attempt": "2026-11-05T20:26:36.987721+00:00",
+    "last_response": "2026-11-05T20:33:18.187093+00:00",
+    "numeric_performance_values_inspected": false,
+    "used_for_replication": false,
+    "preregistration_commit": "bac877a10667812804ef9850a010a1d754bffd95",
+    "receipt_sha256": {
+      "sample.json": "10f86a33c62ca81ad620c30678c2027e652ddea0a293422ec68849d6077b2529",
+      "freeze.json": "9bd941600c6b9cebba4ac88ceee555086f22e858936743e9f92ffa25e6253646",
+      "attempts.jsonl": "161b7a7bbb8a62a2051a5c51653b724c55818d465eab7adff265c9e65c1239fd",
+      "judgments.jsonl": "c18756b9bc52c1d58b86d33c19358f14fa410a42d5e2da90115465d259ca0431",
+      "l0.jsonl": "95ce2a5020962142a0c37747e2a84d88e09d5f901f33792a3564a34d87027076",
+      "quota.jsonl": "cffba9e6e3411d4b53f1a2c44a8fc35aee57f744c118a09386c7b63e1fcc1d79"
+    }
+  }
+}

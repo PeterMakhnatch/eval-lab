@@ -1413,7 +1413,7 @@ inputs:
   - path: src/evallab/trial_treatment.py
     digest: sha256:932748bb92147c7a6c240d9e40ad1baae5b028ade560ee69abc8c93a05fc0d5b
   - path: src/evallab/tripwires.py
-    digest: sha256:76b763a90f38be0cf41ab4c13534a74a18c857f864182fd300c3e3f9d7305bec
+    digest: sha256:71f8844ffa339a68a807207c934e18b8ec443db587a47202df12e5423811b76a
   - path: src/evallab/upstream_adapter.py
     digest: sha256:7ecf5e66b3e99887465bada34fcc09729dbffdc4346f95d79cb793bdd9bb82fb
   - path: src/evallab/upstream_fetch.py

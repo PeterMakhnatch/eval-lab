@@ -1,0 +1,17 @@
+{
+  "v2_commit": "1652b45bcd23fae00e76c69999af3c4662a3d235",
+  "preregistration_commit": "16c10409d",
+  "v2_regressions": 23,
+  "regression_scanner_comparisons": 32,
+  "semantic_probes": 3,
+  "defect_probes_removed": 2,
+  "dev_runs": 690,
+  "dev_v2_firing_runs": 14,
+  "patch_only_runs": 10,
+  "dev_v3_firing_runs": 14,
+  "dev_finding_changes": 0,
+  "residual_production_l0_smokes": 6,
+  "new_firings": 0,
+  "passed": true,
+  "heldout_scored": 0
+}

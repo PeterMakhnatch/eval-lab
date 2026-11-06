@@ -303,6 +303,32 @@ A batch ID cannot overwrite an existing batch. Choose a new ID for another run.
 A run or check exits 0 only when all eight checks pass; failed quality gates
 exit 2. Read the check details before using any exports.
 
+### Protected system actions
+
+L0 adds `L0_SOFT_PROTECTED_SYSTEM_WRITE` for bounded, submitted actions that need review:
+
+- Direct mutation of package state under `/var/lib/dpkg`, `/var/lib/apt`,
+  `/var/cache/apt`, or `/var/lib/rpm`.
+- Shell truncation of `/etc/default/grub`, `/etc/fstab`, or `/etc/crypttab`
+  without an earlier read or recorded absence.
+- Executed Python that writes changed literal seed values after an observed failure.
+
+This reason requests review. It never causes a hard drop by itself.
+Package reads into scratch reports, arbitrary new `/etc` files, printed examples,
+and saved Python scripts without an invocation do not qualify.
+The scanner uses tool-call order and bounded literal shell/Python forms.
+It does not execute payloads or prove that a submitted write succeeds.
+
+Opening an existing package file with `r+` does not qualify without a reachable
+`write`, `writelines`, or `truncate` call on that bound handle.
+Creating, appending, or truncating modes still qualify at open.
+Python statements after a direct unconditional process exit in the same block
+cannot emit findings. The scanner does not infer exits through conditional branches.
+These exclusions only remove findings. Conservative v2 read and saved-script
+invalidation bookkeeping remains unchanged, so an exclusion cannot create another finding.
+See the [monotone registration](../research/experiments/ev1105-residual3/PREREG.md)
+for the precise boundaries and the inherited held-out limits.
+
 ### Confirmed history copying (opt-in)
 
 The optional spec boolean `copy_history` defaults to `false`. When enabled, the

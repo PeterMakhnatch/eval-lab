@@ -1,0 +1,38 @@
+{
+  "freeze_commit": "424e4496fc3f1fe6aa3e1e6effa86234be2e3957",
+  "remote_head_before_score": "424e4496fc3f1fe6aa3e1e6effa86234be2e3957",
+  "baseline": "737f9ff320993d1210f2d149c2d9b9b94cda505c",
+  "input_sha256": {
+    "malt": "fd47cf28211eaadb2d5367c177ae706547d6e0a5d3f97c71eb476d04bebbc87e",
+    "newsets-math": "05585479f191729a6583969696a4f11a48adaae7f7edc1d3f25d3455942338af"
+  },
+  "scorer_sha256": "1eccef305e3f37d0cb52f533db89d9a1392a9e2559b962949103ae08ef335cc2",
+  "sets": {
+    "malt": {
+      "n": 654,
+      "baseline": {"pass": 564, "review": 40, "drop": 50},
+      "candidate": {"pass": 564, "review": 40, "drop": 50},
+      "new_reason_fires": 0,
+      "pass_to_review": 0,
+      "pass_to_review_rate": 0.0,
+      "pass_to_review_wilson95": [0, 0.005839490396103434],
+      "review_rate_increase": 0.0,
+      "new_drops": 0,
+      "passed": true
+    },
+    "newsets-math": {
+      "n": 157,
+      "baseline": {"review": 157},
+      "candidate": {"review": 157},
+      "new_reason_fires": 0,
+      "pass_to_review": 0,
+      "pass_to_review_rate": 0.0,
+      "pass_to_review_wilson95": [0, 0.023883511801090215],
+      "review_rate_increase": 0.0,
+      "new_drops": 0,
+      "passed": true
+    }
+  },
+  "passed": true,
+  "scope": "L0 only; no held-out production admission or AutoReview/model execution"
+}

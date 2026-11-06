@@ -74,6 +74,7 @@ from evallab.tripwires import (
     hackbook_hits,
     hackbook_rule_ids,
     is_login_profile_path,
+    protected_system_action_hits,
     tamper_signature_hit,
 )
 
@@ -2690,6 +2691,12 @@ def evaluate_l0_stage(
             steps = rollout.run.doc.get("steps") or []
             if isinstance(steps, list) and steps:
                 dict_steps = [dict(s) for s in steps if isinstance(s, Mapping)]
+                system_hits = protected_system_action_hits(steps)
+                if system_hits:
+                    reasons.append("L0_SOFT_PROTECTED_SYSTEM_WRITE")
+                    is_soft_review = True
+                    evidence_steps.extend(hit["step"] for hit in system_hits)
+                    details["protected_system_actions"] = system_hits
                 if dict_steps:
                     for hit in hackbook_hits(dict_steps, whole_trace=True, only=_L0_HACKBOOK_RULES):
                         r_name = hit.get("rule", "unknown")

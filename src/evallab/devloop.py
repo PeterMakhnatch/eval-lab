@@ -364,13 +364,22 @@ def _is_asset_path(path_str: str, test_roots: Sequence[str] = ("tests",)) -> boo
 def _asset_needles(path_str: str) -> list[str]:
     """Path strings a test can mention to be affected by an asset change.
 
-    A test selects the asset when it mentions the asset path itself or its
-    immediate parent directory (tests often read a data directory wholesale).
-    Grandparent mentions are too broad for a focused lane.
+    A test selects the asset when it mentions the asset path, its immediate
+    parent directory, or a deeper ancestor directory. Two-segment grouping
+    directories (``research/experiments``, ``src/evallab``) are excluded: they
+    match hundreds of unrelated tests, and the structural consumers that
+    legitimately mention them (for example coverage meta-tests) are covered
+    by the declared-root enumeration rule instead.
     """
     path = PurePosixPath(path_str.replace("\\", "/"))
-    parent = path.parent.as_posix()
-    return [path.as_posix(), parent] if len(path.parent.parts) > 1 else [path.as_posix()]
+    needles = [path.as_posix()]
+    parent = path.parent
+    if len(parent.parts) > 1:
+        needles.append(parent.as_posix())
+    needles.extend(
+        ancestor.as_posix() for ancestor in list(path.parents)[1:] if len(ancestor.parts) >= 3
+    )
+    return needles
 
 
 def _research_roots_for_asset(path_str: str, test_roots: Sequence[str]) -> list[str]:
@@ -511,6 +520,30 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
                 if covering is not None:
                     reasons.setdefault(rel, []).append(f"Declared test under {covering} ({norm})")
                     selected = True
+                elif research_roots:
+                    # Meta-tests that enumerate declared research roots (for
+                    # example coverage checks listing testpaths) structurally
+                    # depend on research/ contents.
+                    content = _content(test_paths[rel])
+                    enumerated = next(
+                        (
+                            root
+                            for root in test_roots
+                            if root.startswith("research/") and root in content
+                        ),
+                        None,
+                    )
+                    if enumerated is not None:
+                        reasons.setdefault(rel, []).append(
+                            f"Enumerates declared root {enumerated} ({norm})"
+                        )
+                        selected = True
+                    else:
+                        for needle in needles:
+                            if needle in content:
+                                reasons.setdefault(rel, []).append(f"Mentions {needle} ({norm})")
+                                selected = True
+                                break
                 else:
                     for needle in needles:
                         if needle in _content(test_paths[rel]):

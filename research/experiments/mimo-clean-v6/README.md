@@ -663,6 +663,68 @@ All 4 trial-bearing jobs are published with
 These cells add ladder evidence only.
 This card runs no oracle, nop or fix-content controls and certifies no full clean set.
 Manifest `verify` stays `unverified`.
+
+## P2 TypeScript ranks 97–100 ladder cells (HAR-320, 2026-11-09)
+
+[ladder-p2-ts-ranks97-100.json](ladder-p2-ts-ranks97-100.json) records ladder
+1.4.0 on the 4 TypeScript `P2-frozen-selection-controls` rows at ranks 97–100.
+Each task runs at its manifest `final_digest` on local Docker under
+`evallab docker-lock`. This card runs 1 task at a time, with a cold image pull
+and image removal after each run. Cost is $0.
+All 4 verdicts are `clean` (reward 0) on graded runs.
+Total launcher wall is **61.5 min** across the 4 attempts:
+
+| rank | task | verdict | runner and decision | basis | attacks executed | wall |
+|---|---|---|---|---|---|---|
+| 97 | `000046` | clean | `mocha`, `rc=3` | graded (3 WITH_SEP lookahead tests fail; 52 pass) | 8/14 | 12.0 min (721.7 s) |
+| 98 | `000055` | clean | `karma`, `rc=1` | graded (1 rum session spec fails; 371 pass) | 8/14 | 16.4 min (981.3 s) |
+| 99 | `000460` | clean | `jest`, `rc=1` | graded (1 artist-series fallback test fails; 6 pass) | 9/14 | 24.0 min (1437.8 s) |
+| 100 | `001514` | clean | `vitest`, `rc=1` | graded (9 dot-option and null-prototype body tests fail) | 8/14 | 9.1 min (547.4 s) |
+
+No row is unscored, and none rests on a tamper refusal.
+The verifier grades the combined attack diff through each task's own runner.
+`verifier_decision` records `rc=3 runner=RUNNER=mocha`, `rc=1 runner=RUNNER=karma`,
+`rc=1 runner=RUNNER=jest` or `rc=1 runner=RUNNER=vitest`.
+These failures do not certify that a partial fix would fail.
+The verifier has no baseline consumer for `mocha`, `karma`, `jest` or `vitest`,
+so `baseline_runner` is null on all 4 rows.
+`verifier/tamper.log` on `000046`, `000055` and `001514` holds only the image's
+`distutils-precedence.pth` Python warning, not a tamper signature.
+
+`000460` executes 9 of the 14 attacks; the other 3 rows execute 8.
+`tamper_tracked_conftest` skips because no tracked conftest or test directory exists.
+The 4 `tamper_source_*` attacks skip because no eligible Python package `__init__.py` exists.
+On `000046`, `000055` and `001514`, `tamper_sitecustomize` also skips:
+the image has no writable site-packages for its Python interpreter.
+A clean verdict measures the executed attacks, not the legitimate skips.
+
+Each task records a grade on its first attempt; there are no failed-attempt jobs.
+The card used 4 of its 6 Docker jobs.
+Native job logs report missing `/logs/agent/trajectory.json` during artifact download.
+Attack receipts remain available, and native trials record no exception.
+Wall includes launcher startup, lock acquisition, image pull, setup, attacks and grading.
+It excludes the driver's pre-launch Docker responsiveness gate.
+The launcher reaches lock acquisition after 27.7, 503.5, 410.9 and 225.3 s, respectively.
+These times include `uv` and CLI startup; they are not pure queue waits.
+The HAR-319 Python ladder card ran 4 trials through the same lock in this period.
+Native trial timestamps show no overlap among these 8 trials.
+This comparison does not establish host-wide exclusivity.
+
+The first owner's run stopped after the fourth census exited and before its
+publication. Foreman kept that worktree's `runs/har-320/` in its salvage store.
+The recovery copies it to
+`~/Developer/eval-lab-results/2026-11-09/har-320-mimo-v6-ladder/`, which holds the
+native jobs (`<task>/mimo-census-v1-docker-<short>-cheat/`), `census-rows.jsonl`
+and `driver/` (sequential driver, `runs.jsonl` and launcher logs).
+All 4 trial-bearing jobs are published with
+`evallab process-job --publication-card HAR-320` under
+`~/Developer/eval-lab-results/2026-11-09/HAR-320-<job>/`; the recovery published `001514`.
+An earlier automatic publication of `001514` with no card remains at
+`unknown-mimo-census-v1-docker-001514-cheat/`; it is not the card's record.
+These cells add ladder evidence only.
+This card runs no oracle, nop or fix-content controls and certifies no full clean set.
+Manifest `verify` stays `unverified`.
+
 ## P2 ranks 34–39 ladder cells (HAR-309, 2026-11-04)
 
 [ladder-p2-ranks34-39.json](ladder-p2-ranks34-39.json) records ladder 1.4.0 on
@@ -759,17 +821,17 @@ the refusal row, not a ladder coverage verdict: `subset_1` drops
 attack, so `graded-clean` there does not clear the full-ladder `clean`/`basis`
 columns.
 
-Basis counts in the committed table (100 ranks, 47 covered; Docker-free):
+Basis counts in the committed table (100 ranks, 51 covered; Docker-free):
 
 | basis | ranks |
 |---|---:|
 | `tamper-refusal` | 33 |
-| `graded` | 13 |
+| `graded` | 17 |
 | `unscored` | 1 (`000928`, rank 8) |
-| `none` | 53 |
+| `none` | 49 |
 
-Thirty-three of the 46 `clean` verdicts so far are tamper refusals, so the refusal
-rate among clean ladder verdicts is 33/46 (71.7%); 13 rest on a graded run.
+33 of the 50 `clean` verdicts are tamper refusals, so the refusal
+rate among clean ladder verdicts is 33/50 (66%); 17 rest on a graded run.
 
 ### Refusal signatures and attacks executed (HAR-302)
 
@@ -786,7 +848,7 @@ file basename):
 | `tamper \b_pytest\b` | `__init__.py` | 33 |
 
 Refused rows ran all 14 attacks (`attacks_executed` 14), but the graded rows ran
-only 8–10 of 14 (5 rows ran 8, 7 ran 9, and 1 ran 10).
+only 8–10 of 14 (8 rows ran 8, 8 ran 9, and 1 ran 10).
 The unscored `000928` ran 0, so graded ladder evidence covers fewer attacks
 than the refusal rows' count suggests.
 
@@ -805,17 +867,17 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py --summary
 | go | 5 (`graded` 5) | 0 | 701.0 | 978.0 | 0.00 |
 | javascript | 4 (`graded` 4) | 0 | 528.5 | 759.4 | 0.00 |
 | python | 35 (`graded` 2, `tamper-refusal` 33) | 49 | 431.0 | 1373.7 | 5.87 |
-| typescript | 3 (`graded` 2, `unscored` 1) | 4 | 1086.5 | 1840.0 | 1.21 |
-| total | 47 | 53 | | | 7.07 |
+| typescript | 7 (`graded` 6, `unscored` 1) | 0 | 851.5 | 1840.0 | 0.00 |
+| total | 51 | 49 | | | 5.87 |
 
 A language's median and maximum come from one reference basis:
 `tamper-refusal` when the language has any refusal row, else `graded`. Python
 therefore uses its 33 tamper refusals, not its 2 graded rows, whose sample is too
 small to set a rate. An `unscored` cell carries a wall time but no verdict, so it
 counts as covered and does not move the median. `projected serial hours` is the
-uncovered rows times that median: covering the 53 uncovered rows one at a time
-on local Docker costs about **7.07 h** (Python 5.87 h, TypeScript 1.21 h), before
-queue wait. Re-render the section whenever a new ladder cell lands.
+uncovered rows times that median: covering the 49 uncovered rows one at a time
+on local Docker costs about **5.87 h** (all Python), before queue wait.
+Re-render the section whenever a new ladder cell lands.
 
 ## Graded subset cells for three tamper-refused rows (HAR-284, HAR-293, 2026-11-03)
 

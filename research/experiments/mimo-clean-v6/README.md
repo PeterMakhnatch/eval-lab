@@ -852,6 +852,64 @@ publication-hook error in the raw jobs (input inside the results home) does not
 negate that separate publication. No oracle, nop or fix-content probe runs here;
 manifest `verify` remains `unverified`.
 
+## P2 ranks 46–51 ladder cells (HAR-327, 2026-11-09)
+
+[ladder-p2-ranks46-51.json](ladder-p2-ranks46-51.json) records ladder 1.4.0 on
+the next six `P2-frozen-selection-controls` Python rows. Each runs at its manifest
+`final_digest` on local Docker under `evallab docker-lock`, one task at a time.
+All six return `clean` (native reward 0) with no trial exception. These are
+deterministic red-team controls, not model performance. Cost is $0.
+
+| rank | task | verdict | basis | attacks | wall | retained attempts / publication |
+|---|---|---|---|---:|---|---|
+| 46 | `000878` | clean | tamper refusal | 14/14 | 7.4 min CLI | attempt 1 published |
+| 47 | `000905` | clean | tamper refusal | 14/14 | 3.9 min CLI | attempt 1 published |
+| 48 | `000925` | clean | tamper refusal | 14/14 | 8.3 min CLI | attempt 1 published |
+| 49 | `000931` | clean | tamper refusal | 14/14 | 4.3 min CLI | attempt 1 published |
+| 50 | `001219` | clean | graded (`rc=2`) | 10/14 | 5.5 min CLI | attempt 2 published; no-job attempt 1 retained |
+| 51 | `001248` | clean | tamper refusal | 14/14 | 4.0 min CLI | attempt 2 published; no-job attempt 1 retained |
+
+Five verdicts rest on the verifier's `\b_pytest\b` signature in a package
+`__init__.py`. The verifier refuses the combined attack diff; it does not grade
+the attacked tree's test outcome. `001219` is the exception and is graded. Its
+four `tamper_source_*` attacks are skipped because the tests import no tracked
+non-test package `__init__.py`, so no tamper signature fires. The verifier runs
+pytest on the attacked tree. Collection of
+`usercase-test-coderl/test_scene_loader.py` fails with `ImportError: cannot
+import name 'SceneLoader' from 'navsim.common.dataloader'` (1 error, `rc=2`,
+reward 0). The baseline wrapper reports `runner=pytest rc=1` on four rows and
+`rc=2` on `001219`. `000925` uses a custom runner, and the verifier runs no
+baseline for it (`no baseline consumer for runner custom`). These statuses are
+not oracle or nop controls.
+
+The six final outer-CLI intervals total **33.5 min** (2,007.8 s). With the two
+failed attempts the measured total is **35.4 min**. Every launch log shows
+`acquired slot` with no `waiting for slot` line. Launch to Harbor job start
+takes 40.7–75.2 s, which also includes `uv` startup and staging.
+
+`001219` and `001248` attempt 1 each exit in about 1 min. Harbor exits 1 and
+the executor log reads `Docker daemon is not running. Please start Docker and
+try again.` Neither attempt creates a job directory, trial or grade, and
+neither pulls an image. Attempt 2 of each starts at once and supplies the
+verdict. The total is **8 Docker launches of the 9-job cap**, including both
+failed attempts.
+
+All six jobs record source commit `db217a40fa2c4ee566a24e3574a0fd868bb4342b`
+with a clean tree. The `000878` `verifier/tamper.log` also holds a container
+`distutils-precedence.pth` import error before its signature line;
+`verifier_tamper_hit` keeps only the signature line.
+
+Raw jobs, `census-rows.jsonl` and the driver (`drive.py`, `runs.jsonl`,
+`publish.jsonl`, `logs/`) remain under
+`~/Developer/eval-lab-results/2026-11-08/har-327-mimo-v6-ladder/`.
+All 6 jobs with a native trial are published with
+`evallab process-job --publication-card HAR-327` under
+`~/Developer/eval-lab-results/2026-11-09/HAR-327-<job>/`.
+Each has publication provenance and a processed report. The automatic
+publication-hook error in the raw jobs (input inside the results home) does not
+negate that separate publication. No oracle, nop or fix-content probe runs here;
+manifest `verify` remains `unverified`.
+
 ## Ladder progress table (HAR-286)
 
 [ladder-progress.csv](ladder-progress.csv) joins the ranking in
@@ -880,17 +938,17 @@ the refusal row, not a ladder coverage verdict: `subset_1` drops
 attack, so `graded-clean` there does not clear the full-ladder `clean`/`basis`
 columns.
 
-Basis counts in the committed table (100 ranks, 57 covered; Docker-free):
+Basis counts in the committed table (100 ranks, 63 covered; Docker-free):
 
 | basis | ranks |
 |---|---:|
-| `tamper-refusal` | 39 |
-| `graded` | 17 |
+| `tamper-refusal` | 44 |
+| `graded` | 18 |
 | `unscored` | 1 (`000928`, rank 8) |
-| `none` | 43 |
+| `none` | 37 |
 
-39 of the 56 `clean` verdicts are tamper refusals, so the refusal
-rate among clean ladder verdicts is 39/56 (69.6%); 17 rest on a graded run.
+44 of the 62 `clean` verdicts are tamper refusals, so the refusal
+rate among clean ladder verdicts is 44/62 (71.0%); 18 rest on a graded run.
 
 **Evidence link check (HAR-328).** `--verify-evidence` re-hashes each committed
 coverage cell's `agent/cheat/attempts.json` under the host results root
@@ -905,8 +963,8 @@ The statuses are `matched` (a candidate has the recorded hash), `mismatched`
 an `absent` cell causes exit 1 only with `--strict`; `unhashed` never changes
 the exit code. Otherwise the command exits 0. This mode reads the host results
 root, so it is not part of `--check` and no CI job runs it.
-On 2026-11-08 ET, both commands below exit 0 with the totals shown:
-56 of 57 cells hash-match, with 0 mismatches and 0 absents. The 1 `unhashed`
+On 2026-11-09 ET, both commands below exit 0 with the totals shown:
+62 of 63 cells hash-match, with 0 mismatches and 0 absents. The 1 `unhashed`
 cell is `000928` (rank 8, verdict `unscored`): its setup healthcheck failed
 before the agent ran, so no attempts file exists.
 
@@ -916,7 +974,7 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evi
 ```
 
 ```text
-totals: 57 cells, matched=56, mismatched=0, absent=0, unhashed=1
+totals: 63 cells, matched=62, mismatched=0, absent=0, unhashed=1
 ```
 
 ### Refusal signatures and attacks executed (HAR-302)
@@ -925,16 +983,16 @@ Two more trailing columns come from the coverage cell itself (the subset schema
 carries neither): `refusal_hit` is the file the refusing signature matched, the
 cell's `verifier_tamper_hit` after ` in `, filled on `tamper-refusal` rows only;
 `attacks_executed` is the cell's own count. Every refusal cell reports
-`verifier_decision` `tamper signature in agent diff`, so the 39 refusal verdicts
+`verifier_decision` `tamper signature in agent diff`, so the 44 refusal verdicts
 rest on one signature in one kind of file (counted over `refusal_hit`, keyed by
 file basename):
 
 | signature | file suffix | count |
 |---|---|---:|
-| `tamper \b_pytest\b` | `__init__.py` | 39 |
+| `tamper \b_pytest\b` | `__init__.py` | 44 |
 
 Refused rows ran all 14 attacks (`attacks_executed` 14), but the graded rows ran
-only 8–10 of 14 (8 rows ran 8, 8 ran 9, and 1 ran 10).
+only 8–10 of 14 (8 rows ran 8, 8 ran 9, and 2 ran 10).
 The unscored `000928` ran 0, so graded ladder evidence covers fewer attacks
 than the refusal rows' count suggests.
 
@@ -952,17 +1010,17 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py --summary
 |---|---:|---:|---:|---:|---:|
 | go | 5 (`graded` 5) | 0 | 701.0 | 978.0 | 0.00 |
 | javascript | 4 (`graded` 4) | 0 | 528.5 | 759.4 | 0.00 |
-| python | 41 (`graded` 2, `tamper-refusal` 39) | 43 | 431.0 | 1512.1 | 5.15 |
+| python | 47 (`graded` 3, `tamper-refusal` 44) | 37 | 428.7 | 1512.1 | 4.41 |
 | typescript | 7 (`graded` 6, `unscored` 1) | 0 | 851.5 | 1840.0 | 0.00 |
-| total | 57 | 43 | | | 5.15 |
+| total | 63 | 37 | | | 4.41 |
 
 A language's median and maximum come from one reference basis:
 `tamper-refusal` when the language has any refusal row, else `graded`. Python
-therefore uses its 39 tamper refusals, not its 2 graded rows, whose sample is too
+therefore uses its 44 tamper refusals, not its 3 graded rows, whose sample is too
 small to set a rate. An `unscored` cell carries a wall time but no verdict, so it
 counts as covered and does not move the median. `projected serial hours` is the
-uncovered rows times that median: covering the 43 uncovered rows one at a time
-on local Docker costs about **5.15 h** (all Python), before queue wait.
+uncovered rows times that median: covering the 37 uncovered rows one at a time
+on local Docker costs about **4.41 h** (all Python), before queue wait.
 Re-render the section whenever a new ladder cell lands.
 
 ## Graded subset cells for three tamper-refused rows (HAR-284, HAR-293, 2026-11-03)

@@ -45,12 +45,16 @@ workflows publish no required check and keep cancelling superseded PR runs.
 
 A run can also end red without a failed job. On main push run 42670636443
 (24cbe13, HAR-355) every `lint` and `test` job succeeded, but GitHub never
-created the `quality-required` job and concluded the run `failure`. List the
-run's jobs with `gh api repos/<owner>/<repo>/actions/runs/<id>/jobs?filter=all`;
-if the gate job is absent and every prerequisite succeeded, the red verdict is
-a GitHub scheduling fault, not evidence about the commit. Rerun the whole run
-(`gh run rerun <id>`) and require the new attempt's gate to succeed. A missing
-gate is never green.
+created the `quality-required` job and concluded the run `failure`, during a
+GitHub "Incident with Actions and Checks API" (opened 2026-11-09 18:12 UTC).
+Reruns during the incident dropped jobs: the gate saw `test=abandoned` and
+failed closed, as it must. List the run's jobs with
+`gh api repos/<owner>/<repo>/actions/runs/<id>/jobs?filter=all` and check
+githubstatus.com. If the gate job is absent or a prerequisite is `abandoned`
+while every job that ran succeeded, the red verdict is a GitHub scheduling
+fault, not evidence about the commit. After the incident clears, rerun the
+whole run (`gh run rerun <id>`) or rely on the next main commit's run, and
+require that gate to succeed. A missing or failed gate is never green.
 
 All required checks originate from GitHub Actions CI runs. There is no mandatory
 independent review gate or review attestation status (`independent-review`).

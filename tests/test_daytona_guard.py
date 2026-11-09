@@ -1,4 +1,20 @@
-"""Deterministic provider/state fixtures; no model or sandbox calls."""
+"""Deterministic provider/state fixtures; no model or sandbox calls.
+
+Coverage recipe for ``src/evallab/daytona_guard.py`` (HAR-360), from the
+repository root, using the locked environment:
+
+    uv run --no-sync --with coverage coverage run --data-file=/tmp/cov \\
+      --source=src/evallab -m pytest -n0 -q -p no:cacheprovider -o addopts= \\
+      tests/test_daytona_guard.py tests/test_harbor_daytona.py \\
+      tests/test_egress_lock.py tests/test_har163_dispatch_fixes.py
+    uv run --no-sync --with coverage coverage report --data-file=/tmp/cov \\
+      --include=src/evallab/daytona_guard.py -m
+
+It reports 438 statements, 0 missed. Keep it that way by injecting every
+provider read, using a temporary state root, and monkeypatching time, urllib,
+fcntl and os instead of touching credentials, network or host permissions.
+"""
+
 
 from __future__ import annotations
 
@@ -6,6 +22,7 @@ import copy
 import json
 import threading
 import urllib.error
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -536,3 +553,347 @@ def test_missing_or_unverified_config_values_fail_closed(tmp_path: Path) -> None
         guard(tmp_path, API(), config_path=broken)
     with pytest.raises(GuardUnavailable):
         guard(tmp_path, API(), config_path=tmp_path / "missing.yaml")
+
+
+# --- redirect, helper, transport, inventory and state refusal arms -----------
+# Everything below stays fake: a dummy API key only reaches request
+# construction, and urllib, fcntl, os and time are monkeypatched, never probed.
+
+DUMMY_KEY = "dummy-daytona-api-key"
+API_ROOT = "https://app.daytona.io/api"
+ZERO = {"cpu": 0.0, "memory_gib": 0.0, "disk_gib": 0.0, "gpu": 0.0, "concurrent_sandboxes": 0.0}
+
+
+def test_redirect_handler_refuses_to_forward_authorization() -> None:
+    handler = module._NoRedirect()
+    assert handler.redirect_request(None, None, 302, "Found", {}, "https://elsewhere.example/") is None
+
+
+def test_helper_number_refuses_overflowing_integer() -> None:
+    with pytest.raises(GuardUnavailable, match="InvalidNumber"):
+        module._number(10 ** 400)
+
+
+def test_helper_counts_stopped_vm_and_unlisted_class_release_compute() -> None:
+    def item(state: str, klass: str) -> dict[str, Any]:
+        return {"state": state, "sandbox_class": klass, "cpu": 4.0, "memory_gib": 8.0,
+                "disk_gib": 10.0, "gpu": 0.0}
+
+    assert module._counts(item("stopped", "linux-vm")) == ZERO
+    assert module._counts(item("paused", "android")) == ZERO
+    assert module._counts(item("paused", "unlisted-class")) == {
+        **ZERO, "disk_gib": 10.0,
+    }
+
+
+def test_relative_state_home_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("XDG_STATE_HOME", "relative/state")
+    with pytest.raises(GuardUnavailable, match="InvalidStateRoot"):
+        DaytonaGuard(fetch=API())
+
+
+@pytest.mark.parametrize("api_url", ["http://app.daytona.io/api", "https://app.daytona.io/api?x=1",
+                                     "https://app.daytona.io/api#fragment",
+                                     "https://key:secret@app.daytona.io/api", "https://"])
+def test_insecure_or_ambiguous_api_url_is_refused(tmp_path: Path, api_url: str) -> None:
+    with pytest.raises(GuardUnavailable, match="InvalidAPIURL"):
+        guard(tmp_path, API(), api_url=api_url)
+
+
+def rewrite_config(tmp_path: Path, mutate: Callable[[dict[str, Any]], None]) -> Path:
+    source = Path(module.__file__).resolve().parents[2] / "policy" / "daytona-limits.yaml"
+    config = yaml.safe_load(source.read_text())
+    mutate(config)
+    path = tmp_path / "limits.yaml"
+    path.write_text(yaml.safe_dump(config))
+    return path
+
+
+@pytest.mark.parametrize("mutate,match", [
+    (lambda config: config.update(schema_version=2), "InvalidConfig"),
+    (lambda config: config.update(schema_version=True), "InvalidConfig"),
+    (lambda config: config.pop("schema_version"), "InvalidConfig"),
+    (lambda config: config.update(region="eu"), "UnsupportedConfigTarget"),
+    (lambda config: config.update(safety_fraction=0.9), "InvalidSafetyFraction"),
+    (lambda config: config.update(per_sandbox={"cpu": 4}), "InvalidPerSandboxLimits$"),
+    (lambda config: config["per_sandbox"].update(cpu=0), "InvalidPerSandboxLimit$"),
+    (lambda config: config.update(concurrent_sandboxes=5), "UnverifiedConcurrentLimit"),
+    (lambda config: config.update(sources="dashboard"), "MissingLimitSources"),
+    (lambda config: config.update(monetary_api="available"), "UnverifiedMonetaryLimit"),
+    (lambda config: config.update(wallet_observed=None), "MissingMonetarySource"),
+])
+def test_guessed_or_unsupported_config_limits_fail_closed(
+    tmp_path: Path, mutate: Callable[[dict[str, Any]], None], match: str,
+) -> None:
+    with pytest.raises(GuardUnavailable, match=match):
+        guard(tmp_path, API(), config_path=rewrite_config(tmp_path, mutate))
+
+
+def test_non_mapping_config_fails_closed(tmp_path: Path) -> None:
+    path = tmp_path / "limits.yaml"
+    path.write_text("- not-a-mapping\n")
+    with pytest.raises(GuardUnavailable, match="InvalidConfig"):
+        guard(tmp_path, API(), config_path=path)
+
+
+class _Response:
+    def __init__(self, status: int, body: Any) -> None:
+        self.status = status
+        self._body = body
+
+    def read(self) -> bytes:
+        return json.dumps(self._body).encode()
+
+    def __enter__(self) -> _Response:
+        return self
+
+    def __exit__(self, *exception: Any) -> bool:
+        return False
+
+
+class Wire:
+    """Fake urllib opener: records requests and routes responses by URL path."""
+
+    def __init__(self) -> None:
+        self.handlers: list[Any] = []
+        self.requests: list[Any] = []
+        self.responses: dict[str, Any] = {
+            "/api-keys/current": (200, {"organizationId": ORG}),
+            f"/organizations/{ORG}/usage": (200, usage()),
+            module._INVENTORY_PATH: (200, {"items": [], "nextCursor": None}),
+        }
+
+    def opener(self, handler: Any) -> Wire:
+        self.handlers.append(handler)
+        return self
+
+    def open(self, request: Any, timeout: int) -> Any:
+        self.requests.append(request)
+        value = self.responses[request.full_url.removeprefix(API_ROOT)]
+        if isinstance(value, Exception):
+            raise value
+        status, body = value
+        return _Response(status, body)
+
+
+@pytest.fixture
+def wire(monkeypatch: pytest.MonkeyPatch) -> Wire:
+    fake = Wire()
+    monkeypatch.setattr(module.urllib.request, "build_opener", fake.opener)
+    monkeypatch.setenv("DAYTONA_API_KEY", DUMMY_KEY)
+    return fake
+
+
+def test_http_get_authenticates_reads_and_keeps_the_no_redirect_handler(
+    tmp_path: Path, wire: Wire,
+) -> None:
+    observed = DaytonaGuard(state_root=tmp_path / "state").observe()
+    assert observed["used"]["cpu"] == 0
+    assert wire.requests[0].full_url == API_ROOT + "/api-keys/current"
+    for request in wire.requests:
+        assert request.full_url.startswith(API_ROOT + "/")
+        assert request.get_header("Authorization") == "Bearer " + DUMMY_KEY
+        assert request.get_method() == "GET"
+    assert len(wire.handlers) == len(wire.requests)
+    assert all(isinstance(handler, module._NoRedirect) for handler in wire.handlers)
+
+
+def test_http_get_maps_transport_failures_without_leaking_bodies(
+    tmp_path: Path, wire: Wire,
+) -> None:
+    capacity = DaytonaGuard(state_root=tmp_path / "state")
+    usage_path = f"/organizations/{ORG}/usage"
+    wire.responses[usage_path] = (503, {"error": SECRET})
+    with pytest.raises(GuardUnavailable, match="HTTP 503") as unavailable:
+        capacity.observe()
+    assert SECRET not in str(unavailable.value)
+    wire.responses[usage_path] = urllib.error.HTTPError("unused", 500, SECRET, {"body": SECRET}, None)
+    with pytest.raises(GuardUnavailable, match="HTTP 500"):
+        capacity.observe()
+    wire.responses[usage_path] = TimeoutError(SECRET)
+    with pytest.raises(GuardUnavailable) as transport:
+        capacity.observe()
+    assert str(transport.value) == "TimeoutError"
+    assert transport.value.__cause__ is None
+
+
+def test_http_get_refuses_without_credentials_using_the_real_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DAYTONA_API_KEY", raising=False)
+    with pytest.raises(GuardUnavailable, match="CredentialsUnavailable") as unavailable:
+        DaytonaGuard(state_root=tmp_path / "state").observe()
+    assert unavailable.value.__cause__ is None
+
+
+def test_injected_fetch_may_return_parsed_json_without_a_status(tmp_path: Path) -> None:
+    api = API()
+    api.overrides["/api-keys/current"] = {"organizationId": ORG}
+    api.overrides[f"/organizations/{ORG}/usage"] = usage()
+    api.overrides[module._INVENTORY_PATH] = {"items": [], "nextCursor": None}
+    assert guard(tmp_path, api).observe()["projected"]["cpu"] == 0
+
+
+@pytest.mark.parametrize("result", [(200,), (True, {}), ("200", {}), (200, {}, 1)])
+def test_malformed_injected_http_results_are_refused(tmp_path: Path, result: Any) -> None:
+    api = API()
+    api.overrides["/api-keys/current"] = result
+    with pytest.raises(GuardUnavailable, match="InvalidHTTPResponse"):
+        guard(tmp_path, api).observe()
+
+
+@pytest.mark.parametrize("code", [404, 500])
+def test_injected_http_error_statuses_are_unavailable(tmp_path: Path, code: int) -> None:
+    api = API()
+    api.overrides["/api-keys/current"] = urllib.error.HTTPError("unused", code, SECRET, {}, None)
+    with pytest.raises(GuardUnavailable, match=f"HTTP {code}") as unavailable:
+        guard(tmp_path, api).observe()
+    assert SECRET not in str(unavailable.value)
+
+
+@pytest.mark.parametrize("items", [["not-an-object"], [None]])
+def test_non_object_inventory_items_are_refused(tmp_path: Path, items: list[Any]) -> None:
+    api = API()
+    api.pages = [{"items": items, "nextCursor": None}]
+    with pytest.raises(GuardUnavailable, match="InvalidSandbox"):
+        guard(tmp_path, api).observe()
+
+
+def test_inventory_from_another_organization_is_refused(tmp_path: Path) -> None:
+    api = API(items=[sandbox(0, organizationId="another-organization")])
+    with pytest.raises(GuardUnavailable, match="OrganizationMismatch"):
+        guard(tmp_path, api).observe()
+
+
+def test_inventory_pagination_limit_refuses_instead_of_truncating(tmp_path: Path) -> None:
+    api = API()
+    api.pages = [{"items": [], "nextCursor": str(index + 1)} for index in range(1000)]
+    with pytest.raises(GuardUnavailable, match="IncompleteInventory"):
+        guard(tmp_path, api).observe()
+    assert len([path for path in api.calls if path.startswith("/sandbox?")]) == 1000
+
+
+@pytest.mark.parametrize("record", [None, [], {"regionUsage": {}}])
+def test_malformed_usage_envelope_is_refused(tmp_path: Path, record: Any) -> None:
+    api = API()
+    api.overrides[f"/organizations/{ORG}/usage"] = (200, record)
+    with pytest.raises(GuardUnavailable, match="IncompleteUsage"):
+        guard(tmp_path, api).observe()
+
+
+def test_non_object_usage_entry_is_refused(tmp_path: Path) -> None:
+    api = API()
+    api.overrides[f"/organizations/{ORG}/usage"] = (200, {"regionUsage": ["us"]})
+    with pytest.raises(GuardUnavailable, match="InvalidUsage"):
+        guard(tmp_path, api).observe()
+
+
+@pytest.mark.parametrize("record", [usage(regionId="eu"),
+                                    {"regionUsage": [usage()["regionUsage"][0]] * 2}])
+def test_missing_or_duplicated_region_usage_is_ambiguous(tmp_path: Path, record: dict[str, Any]) -> None:
+    api = API()
+    api.overrides[f"/organizations/{ORG}/usage"] = (200, record)
+    with pytest.raises(GuardUnavailable, match="AmbiguousRegionUsage"):
+        guard(tmp_path, api).observe()
+
+
+def test_lock_file_open_failure_is_unavailable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    real_open = module.os.open
+
+    def refuse_open(path: Any, *args: Any, **kwargs: Any) -> int:
+        if str(path).endswith("reservations.lock"):
+            raise OSError("ENOSPC")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(module.os, "open", refuse_open)
+    with pytest.raises(GuardUnavailable) as unavailable:
+        guard(tmp_path, API()).observe()
+    assert str(unavailable.value) == "OSError"
+
+
+def test_exclusive_lock_failure_is_unavailable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    real_flock = module.fcntl.flock
+
+    def refuse_lock(fd: int, operation: int) -> Any:
+        if operation == module.fcntl.LOCK_EX:
+            raise OSError("EWOULDBLOCK")
+        return real_flock(fd, operation)
+
+    monkeypatch.setattr(module.fcntl, "flock", refuse_lock)
+    with pytest.raises(GuardUnavailable) as unavailable:
+        guard(tmp_path, API()).observe()
+    assert str(unavailable.value) == "OSError"
+
+
+@pytest.mark.parametrize("damage", ["schema", "reservations", "entry", "requested"])
+def test_invalid_reservation_state_shapes_fail_closed(tmp_path: Path, damage: str) -> None:
+    api = API()
+    capacity = guard(tmp_path, api)
+    capacity.reserve("pending", RESOURCES, ttl_seconds=600)
+    path = tmp_path / "state" / "reservations.json"
+    data = json.loads(path.read_text())
+    if damage == "schema":
+        data["schema_version"] = 2
+    elif damage == "reservations":
+        data["reservations"] = []
+    elif damage == "entry":
+        data["reservations"]["pending"] = ["not-an-entry"]
+    else:
+        data["reservations"]["pending"]["requested_resources"]["cpu"] = 6
+    path.write_text(json.dumps(data))
+    with pytest.raises(GuardUnavailable, match="InvalidReservationState"):
+        capacity.observe()
+
+
+def test_atomic_save_failure_removes_the_temporary_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_replace = module.os.replace
+
+    def refuse_replace(source: Any, destination: Any) -> None:
+        if str(destination).endswith("reservations.json"):
+            raise OSError("EROFS")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(module.os, "replace", refuse_replace)
+    capacity = guard(tmp_path, API())
+    with pytest.raises(GuardUnavailable) as unavailable:
+        capacity.reserve("pending", RESOURCES, ttl_seconds=60)
+    assert str(unavailable.value) == "OSError"
+    assert list((tmp_path / "state").glob("reservations-*.tmp")) == []
+    assert not (tmp_path / "state" / "reservations.json").exists()
+
+
+def test_projected_request_that_overflows_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(AdmissionRefused) as refused:
+        guard(tmp_path, API()).check(RESOURCES, count=10 ** 308)
+    assert refused.value.snapshot["reasons"] == ["invalid-count"]
+
+
+@pytest.mark.parametrize("ttl_seconds", [True, 0, -30, 60.5])
+def test_invalid_reservation_lifetime_is_refused_before_any_provider_read(
+    tmp_path: Path, ttl_seconds: Any,
+) -> None:
+    api = API()
+    with pytest.raises(GuardUnavailable, match="InvalidReservationLifetime"):
+        guard(tmp_path, api).reserve("lane", RESOURCES, ttl_seconds=ttl_seconds)
+    assert api.calls == []
+
+
+def test_visible_same_name_with_other_resources_is_refused(tmp_path: Path) -> None:
+    api = API(items=[sandbox(0, name="lane")])
+    with pytest.raises(AdmissionRefused) as refused:
+        guard(tmp_path, api).reserve("lane", {**RESOURCES, "disk_gib": 9.0}, ttl_seconds=60)
+    assert refused.value.snapshot["reasons"] == ["sandbox-name-resources-mismatch"]
+    assert not (tmp_path / "state" / "reservations.json").exists()
+
+
+def test_non_object_snapshot_and_config_responses_are_refused(tmp_path: Path) -> None:
+    api = API()
+    api.overrides["/snapshots/name"] = (200, ["not-an-object"])
+    api.overrides["/config"] = (200, ["not-an-object"])
+    capacity = guard(tmp_path, api)
+    with pytest.raises(GuardUnavailable, match="InvalidSnapshot"):
+        capacity.snapshot_resources("name")
+    with pytest.raises(GuardUnavailable, match="InvalidConfigResponse"):
+        capacity.default_snapshot()

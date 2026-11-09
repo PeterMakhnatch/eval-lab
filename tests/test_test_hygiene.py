@@ -1,11 +1,15 @@
-"""Unit tests for conftest test hygiene: shard overrides and slow-test budget reporting."""
+"""Test hygiene checks for bare-module imports, shard overrides, and slow-test budgets."""
 
 from __future__ import annotations
 
 import contextlib
 import importlib.util
+import json
 import os
+import tomllib
 import zlib
+from collections.abc import Sequence
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -25,6 +29,202 @@ SHARD_OVERRIDES = _conftest.SHARD_OVERRIDES
 _slow_test_budget_seconds = _conftest._slow_test_budget_seconds
 pytest_runtest_makereport = _conftest.pytest_runtest_makereport
 pytest_terminal_summary = _conftest.pytest_terminal_summary
+
+
+def _find_bare_module_collisions(
+    root: Path,
+    *,
+    testpaths: Sequence[str],
+    pythonpath: Sequence[str] = (),
+    python_files: Sequence[str] = ("test_*.py", "*_test.py"),
+) -> dict[str, tuple[Path, ...]]:
+    """Find repeated names exposed by non-package pytest import directories.
+
+    Inspect filenames only: importing candidates would reproduce the collision
+    before this check can report all affected paths.
+    """
+    import_dirs = {(root / entry).resolve() for entry in pythonpath}
+    excluded = {"__init__.py", "conftest.py"}
+    for entry in testpaths:
+        path = (root / entry).resolve()
+        if path.is_file():
+            if path.suffix == ".py":
+                import_dirs.add(path.parent)
+        else:
+            import_dirs.update(
+                candidate.parent
+                for candidate in path.rglob("*.py")
+                if candidate.is_file()
+                and candidate.name not in excluded
+                and any(fnmatch(candidate.name, pattern) for pattern in python_files)
+            )
+
+    modules: dict[str, set[Path]] = {}
+    for directory in sorted(import_dirs):
+        if (directory / "__init__.py").is_file():
+            continue
+        for path in directory.glob("*.py"):
+            if path.is_file() and path.name not in excluded:
+                modules.setdefault(path.stem, set()).add(path.resolve())
+    return {
+        name: tuple(sorted(paths))
+        for name, paths in sorted(modules.items())
+        if len(paths) > 1
+    }
+
+
+def _assert_unique_bare_modules(root: Path) -> None:
+    """Read the configured import roots even during a focused pytest run."""
+    with (root / "pyproject.toml").open("rb") as stream:
+        options = tomllib.load(stream)["tool"]["pytest"]["ini_options"]
+    collisions = _find_bare_module_collisions(
+        root,
+        testpaths=options["testpaths"],
+        pythonpath=options.get("pythonpath", ()),
+        python_files=options.get("python_files", ("test_*.py", "*_test.py")),
+    )
+    details = "\n".join(
+        f"  {name}:\n" + "\n".join(f"    {path}" for path in paths)
+        for name, paths in collisions.items()
+    )
+    assert not collisions, (
+        "Duplicate bare Python module names in pytest import directories:\n"
+        f"{details}\n"
+        "Rename the colliding modules or make their test directories packages "
+        "with __init__.py."
+    )
+
+
+def _write_hygiene_tree(
+    root: Path,
+    files: Sequence[str],
+    *,
+    testpaths: Sequence[str],
+    pythonpath: Sequence[str] = (),
+    python_files: Sequence[str] | None = None,
+) -> None:
+    options = {"testpaths": list(testpaths), "pythonpath": list(pythonpath)}
+    if python_files is not None:
+        options["python_files"] = list(python_files)
+    (root / "pyproject.toml").write_text(
+        "[tool.pytest.ini_options]\n"
+        + "\n".join(f"{name} = {json.dumps(value)}" for name, value in options.items()),
+        encoding="utf-8",
+    )
+    for name in files:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("raise RuntimeError('candidate modules must not be imported')\n")
+
+
+def test_configured_pytest_import_dirs_have_unique_bare_modules() -> None:
+    _assert_unique_bare_modules(Path(__file__).resolve().parents[1])
+
+
+def test_bare_module_collisions_report_tests_and_sibling_helpers(tmp_path: Path) -> None:
+    files = [
+        f"suites/{directory}/{name}"
+        for directory in ("first", "second")
+        for name in ("score.py", "test_admission.py")
+    ]
+    _write_hygiene_tree(tmp_path, files, testpaths=["suites"])
+
+    with pytest.raises(AssertionError) as error:
+        _assert_unique_bare_modules(tmp_path)
+
+    message = str(error.value)
+    for name in files:
+        assert str(tmp_path / name) in message
+
+
+@pytest.mark.parametrize("packaged", [False, True])
+def test_bare_module_collisions_exclude_conftest_and_packages(
+    tmp_path: Path, packaged: bool
+) -> None:
+    files = [
+        "first/test_first.py",
+        "first/conftest.py",
+        "second/test_second.py",
+        "second/conftest.py",
+    ]
+    if packaged:
+        files.extend(
+            [
+                "second/__init__.py",
+                "second/test_first.py",
+                "first/score.py",
+                "second/score.py",
+            ]
+        )
+    _write_hygiene_tree(tmp_path, files, testpaths=["first", "second"])
+
+    _assert_unique_bare_modules(tmp_path)
+
+
+@pytest.mark.parametrize("second_root", ["single-file", "pythonpath"])
+def test_bare_module_collisions_include_configured_import_roots(
+    tmp_path: Path, second_root: str
+) -> None:
+    testpaths = ["first"]
+    pythonpath = []
+    if second_root == "single-file":
+        testpaths.append("second/check.py")
+    else:
+        pythonpath.append("second")
+    _write_hygiene_tree(
+        tmp_path,
+        ["first/test_first.py", "first/score.py", "second/check.py", "second/score.py"],
+        testpaths=testpaths,
+        pythonpath=pythonpath,
+    )
+
+    with pytest.raises(AssertionError) as error:
+        _assert_unique_bare_modules(tmp_path)
+
+    message = str(error.value)
+    assert f"{tmp_path}/first/score.py" in message
+    assert f"{tmp_path}/second/score.py" in message
+
+
+def test_bare_module_collisions_deduplicate_overlapping_roots(tmp_path: Path) -> None:
+    _write_hygiene_tree(
+        tmp_path,
+        ["suites/nested/test_admission.py", "suites/nested/score.py"],
+        testpaths=["suites", "suites/nested", "suites/nested/test_admission.py", "suites"],
+        pythonpath=["suites/nested", "suites/nested/."],
+    )
+
+    _assert_unique_bare_modules(tmp_path)
+
+
+@pytest.mark.parametrize("python_files", [None, ["check_*.py"]])
+def test_bare_module_collisions_only_use_collectable_test_dirs(
+    tmp_path: Path, python_files: list[str] | None
+) -> None:
+    test_name = "test_active.py" if python_files is None else "check_active.py"
+    files = [f"suites/active/{test_name}", "suites/active/score.py", "suites/helper/score.py"]
+    if python_files is not None:
+        files.append("suites/helper/test_ignored.py")
+    _write_hygiene_tree(
+        tmp_path,
+        files,
+        testpaths=["suites"],
+        python_files=python_files,
+    )
+
+    _assert_unique_bare_modules(tmp_path)
+
+
+def test_bare_module_collisions_honor_python_filename_patterns(tmp_path: Path) -> None:
+    _write_hygiene_tree(
+        tmp_path,
+        ["first/check_first.py", "first/score.py", "second/check_second.py", "second/score.py"],
+        testpaths=["first", "second"],
+        python_files=["check_*.py"],
+    )
+
+    with pytest.raises(AssertionError, match="score"):
+        _assert_unique_bare_modules(tmp_path)
 
 
 class FakeConfig:

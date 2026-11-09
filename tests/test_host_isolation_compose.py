@@ -496,6 +496,23 @@ def test_no_network_multi_uses_an_internal_project_network(sidecar):
     asyncio.run(env.stop(delete=True))
 
 
+def test_phase_switch_records_evidence_for_every_service(sidecar):
+    env = sidecar["make"](isolation_lane="codex")
+    asyncio.run(env.start(force_build=False))
+    asyncio.run(env.set_network_policy(NetworkPolicy(network_mode=NetworkMode.NO_NETWORK)))
+    asyncio.run(env.set_network_policy(NetworkPolicy(network_mode=NetworkMode.PUBLIC)))
+
+    transitions = _record(sidecar)["phase_transitions"]
+    assert [transition["policy"] for transition in transitions] == ["no-network", "public"]
+    assert set(transitions[0]["services"]) == {"main", "verifier"}
+    assert transitions[0]["services"]["verifier"]["networks"] == []
+    assert transitions[0]["services"]["verifier"]["interfaces"] == ["lo", "sit0", "tunl0"]
+    assert set(transitions[1]["services"]) == {"main", "verifier"}
+    assert transitions[1]["services"]["verifier"]["rules_confirmed"] is True
+    assert sidecar["attached"] == {MAIN_CID, SIDE_CID}
+    asyncio.run(env.stop(delete=True))
+
+
 @pytest.mark.parametrize(
     "key,value",
     [

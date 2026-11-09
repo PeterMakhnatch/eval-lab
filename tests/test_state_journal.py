@@ -444,3 +444,8 @@ def test_sidecar_command_has_no_target_workspace_mount(tmp_path: Path) -> None:
     assert f"{tmp_path.resolve()}:/journal" in command
     assert not any(value.endswith(":/app") for value in command)
     assert compose_project_name("Sample.Task__abc") == "sample-task__abc__env"
+
+
+def test_compose_project_name_prefixes_a_non_alphanumeric_start() -> None:
+    assert compose_project_name("_Sample.Task") == "0_sample-task__env"
+    assert compose_project_name(".Sample.Task") == "0-sample-task__env"

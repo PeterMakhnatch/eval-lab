@@ -45,9 +45,17 @@ jobs:
           python3 -m pip install --user uv==0.9.24
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Install Python 3.12
-        run: |
-          uv python install 3.12
+        # HAR-330: the cpython-3.12.12+20251217 linux x86_64
+        # python-build-standalone asset serves 504, so `uv python install`
+        # cannot provision 3.12. setup-python resolves the runner toolcache
+        # first; only-system keeps uv on that interpreter and fails here
+        # rather than downloading a managed build mid-run.
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - run: |
           echo "UV_PYTHON=3.12" >> $GITHUB_ENV
+          echo "UV_PYTHON_PREFERENCE=only-system" >> $GITHUB_ENV
       - name: Cache locked packages and pinned typechecker
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         env:

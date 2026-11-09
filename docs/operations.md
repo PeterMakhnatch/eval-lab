@@ -1530,7 +1530,7 @@ write a small report with digests and a durable artifact URI once object storage
 is configured.
 ## CI: pinned uv via PyPI, not marketplace action
 
-Every workflow installs `uv==0.9.24` with `python3 -m pip install --user uv==0.9.24` followed by `uv python install <ver>` and `UV_PYTHON` export where it needs an interpreter. This replaces the former `astral-sh/setup-uv` step.
+Every workflow installs `uv==0.9.24` with `python3 -m pip install --user uv==0.9.24`. Most workflows then provision interpreters with `uv python install <ver>` and a `UV_PYTHON` export; the required-gate workflows `ci.yml` and `typecheck.yml` instead use SHA-pinned `actions/setup-python` plus `UV_PYTHON_PREFERENCE=only-system` because the `cpython-3.12.12+20251217` linux x86_64 python-build-standalone asset began serving 504 and reddened `quality` on main (HAR-330, run 42567901536). setup-python resolves the runner toolcache before any download, and `only-system` keeps uv on that interpreter — a missing pin fails at the provisioning step rather than uv downloading a managed build mid-run. This replaces the former `astral-sh/setup-uv` step.
 
 `scripts/premerge.sh` owns that version in its `UV_VERSION` constant; workflow literals are copies of it. Harbor comes from PyPI through `uv tool install "harbor==0.21.0"` — never `pip install harbor` — because `uv tool` gives each workflow the same isolated CLI plus resolved console script that local runs use. `tests/test_quality_gates.py::test_every_workflow_pins_uv_and_harbor_to_one_version` imports `HARBOR_CLI_PIN` from `src/evallab/runner.py` and compares every `uv==` and Harbor install in `.github/workflows/` against those two pins, rejecting a workflow that invokes uv without pinning it, so a bump must change premerge, the workflows and that one source constant (HAR-251; loca-lean.yml previously ran `python3 -m pip install harbor==0.21.0`). `evallab doctor` reads the same constant and prints an advisory `harbor-pin` row that names both versions when the local `harbor --version` differs from the CI pin, or when Harbor is not installed, without joining the required set (HAR-265).
 
@@ -1539,9 +1539,11 @@ Rationale (preserves the two invariants that existed before the outage):
 - Exact version pin: `uv==0.9.24` is passed verbatim to pip; no "latest" or floating installer.
 - Supply-chain posture: PyPI (already trusted by `uv sync --locked` and the repo's own lockfile) rather than a new codeload.github.com dependency. No new trust root, no unpinned `curl | sh`, no additional marketplace action.
 
-`uv` lands in `$HOME/.local/bin` (added to `$GITHUB_PATH`) and `uv python install` provisions the exact matrix interpreters (3.12, 3.14) so downstream `uv sync`/`uv run` continue to honour `UV_PYTHON` exactly as before. No cache step was added; correctness over convenience. No other job steps or commands were altered.
+`uv` lands in `$HOME/.local/bin` (added to `$GITHUB_PATH`). In `ci.yml` and `typecheck.yml`, `actions/setup-python` provisions the matrix interpreters (3.12 on lint/typecheck; 3.12 and 3.14 plus 3.12 for `tools/mimoagent-harbor` on the test matrix) and `uv sync`/`uv run` honour `UV_PYTHON` against those system interpreters; the remaining workflows still use `uv python install`. No cache step was added; correctness over convenience. No other job steps or commands were altered.
 
 This change was made because a single throttled codeload path made every job unrunnable even when the rest of the pipeline was healthy. The PyPI path is a different CDN and has never exhibited the same 429/502/503 cascade in our runs. The PR that introduced it will itself run the modified workflows; a green result on that PR is the verification that the jobs remain executable.
+
+The required-gate workflows moved back to `setup-python` (v6 SHA) because a single release asset made every 3.12 job unrunnable even while the sibling 3.14 asset served normally. The runner image already ships the provisioned versions in its toolcache, so the common path performs no network download at all. `test_python_run_steps_follow_an_interpreter_pin` accepts either pin mechanism, and the auxiliary workflows are path-filtered, so the `uv python install` form remains in place there until it shows the same failure.
 
 ## CI: uv package cache and bounded download retries (HAR-252)
 

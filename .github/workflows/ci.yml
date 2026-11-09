@@ -40,9 +40,17 @@ jobs:
           python3 -m pip install --user uv==0.9.24
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Install Python 3.12
-        run: |
-          uv python install 3.12
+        # HAR-330: GitHub began serving 504 for the cpython-3.12.12+20251217
+        # linux x86_64 python-build-standalone asset, so `uv python install`
+        # failed both 1/2 test shards on run 42567901536. setup-python resolves
+        # the runner toolcache before any download; only-system makes a missing
+        # interpreter fail here instead of uv downloading a managed build mid-run.
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - run: |
           echo "UV_PYTHON=3.12" >> $GITHUB_ENV
+          echo "UV_PYTHON_PREFERENCE=only-system" >> $GITHUB_ENV
       - name: Cache locked Python packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         env:
@@ -107,9 +115,16 @@ jobs:
           python3 -m pip install --user uv==0.9.24
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Install Python ${{ matrix.python-version }}
-        run: |
-          uv python install ${{ matrix.python-version }}
+        # HAR-330: same asset outage as the lint job. tools/mimoagent-harbor stays
+        # pinned to 3.12 even on the 3.14 row, so both interpreters are provisioned.
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: |
+            ${{ matrix.python-version }}
+            3.12
+      - run: |
           echo "UV_PYTHON=${{ matrix.python-version }}" >> $GITHUB_ENV
+          echo "UV_PYTHON_PREFERENCE=only-system" >> $GITHUB_ENV
       - name: Cache locked Python packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         env:

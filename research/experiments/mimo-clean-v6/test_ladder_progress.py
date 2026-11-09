@@ -10,6 +10,8 @@ import io
 import json
 import re
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -735,7 +737,7 @@ def test_ladder_progress_a_subset_cell_at_another_digest_is_refused(tmp_path: Pa
 
 @pytest.fixture
 def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A copy of the experiment dir and ranking that ``main`` treats as the repo."""
+    """A copy of the experiment, ranking, and route pages that ``main`` treats as the repo."""
     experiment = tmp_path / "research" / "experiments" / "mimo-clean-v6"
     experiment.mkdir(parents=True)
     for path in EXPERIMENT.glob("ladder-*.json"):
@@ -745,9 +747,310 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     ranking = tmp_path / RANKING
     ranking.parent.mkdir(parents=True)
     shutil.copy(REPO_ROOT / RANKING, ranking)
+    for relative in (
+        "README.md",
+        "docs/mimo/README.md",
+        "research/experiments/mimo-clean-v6/README.md",
+    ):
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(REPO_ROOT / relative, destination)
     monkeypatch.setattr(MODULE, "ROOT", tmp_path)
     monkeypatch.setattr(MODULE, "HERE", experiment)
     return experiment
+
+
+_SYNC_ROUTE = re.compile(
+    rb"v6\s+basis\s+\(100\s+ranks\):\s+(\d+)\s+covered,\s+(\d+)\s+clean,\s+"
+    rb"(\d+)\s+tamper-refusal,\s+(\d+)\s+graded,\s+(\d+)\s+unscored,\s+(\d+)\s+not\s+run"
+)
+_SYNC_EXPERIMENT = "research/experiments/mimo-clean-v6/README.md"
+_SYNC_FRAGMENTS = (
+    ("README.md", b"v6 basis (100 ranks):"),
+    ("docs/mimo/README.md", b"v6 basis (100 ranks):"),
+    (_SYNC_EXPERIMENT, b"Basis counts in the committed table"),
+    (_SYNC_EXPERIMENT, b"### Refusal signatures and attacks executed (HAR-302)"),
+    (_SYNC_EXPERIMENT, b"## Wall time by language and remaining serial hours"),
+)
+
+
+def _sync_pages(experiment: Path) -> tuple[Path, ...]:
+    root = experiment.parents[2]
+    return (root / "README.md", root / "docs/mimo/README.md", experiment / "README.md")
+
+
+def _replace_once(text: bytes, old: bytes, new: bytes) -> bytes:
+    assert text.count(old) == 1, old
+    return text.replace(old, new, 1)
+
+
+def _sync_section(text: bytes, heading: bytes) -> bytes:
+    return text.split(heading, 1)[1].split(b"\n##", 1)[0]
+
+
+def _sync_row(text: bytes, label: bytes) -> bytes:
+    rows = re.findall(rb"(?m)^\| " + re.escape(label) + rb" \|[^\n]*$", text)
+    assert len(rows) == 1, label
+    return rows[0]
+
+
+def _sync_signature_row(text: bytes) -> bytes:
+    section = _sync_section(text, b"### Refusal signatures and attacks executed (HAR-302)")
+    rows = re.findall(rb"(?m)^\| `[^`\n]+` \| `[^`\n]+` \| \d+ \|$", section)
+    assert rows
+    return rows[0]
+
+
+def _sync_covered_anchor(text: bytes) -> bytes:
+    matches = re.findall(rb"\(100 ranks, \d+ covered; Docker-free\):", text)
+    assert len(matches) == 1
+    return matches[0]
+
+
+def _increment_count(text: bytes, found: re.Match[bytes], group: int = 1) -> bytes:
+    start, end = found.span(group)
+    changed = str(int(found[group]) + 1).encode()
+    return text[:start] + changed + text[end:]
+
+
+def _stale_count_row(row: bytes) -> bytes:
+    found = re.search(rb"\|\s*(\d+)", row)
+    assert found is not None
+    return _increment_count(row, found)
+
+
+def _stale_route(text: bytes) -> bytes:
+    found = list(_SYNC_ROUTE.finditer(text))
+    assert len(found) == 1
+    for group in range(6, 0, -1):
+        text = _increment_count(text, found[0], group)
+    return text
+
+
+def _stale_sync_pages(experiment: Path) -> None:
+    root_page, route_page, readme = _sync_pages(experiment)
+    for page in (root_page, route_page):
+        page.write_bytes(_stale_route(page.read_bytes()))
+    text = readme.read_bytes()
+    covered = _sync_covered_anchor(text)
+    count = re.search(rb"(\d+) covered;", covered)
+    assert count is not None
+    text = _replace_once(text, covered, _increment_count(covered, count))
+    basis = _sync_section(text, b"Basis counts in the committed table")
+    summary = _sync_section(text, b"## Wall time by language and remaining serial hours")
+    count_rows = [
+        *(_sync_row(basis, label) for label in (b"`tamper-refusal`", b"`graded`", b"`none`", b"`unscored`")),
+        _sync_signature_row(text),
+        _sync_row(summary, b"total"),
+    ]
+    for row in count_rows:
+        text = _replace_once(text, row, _stale_count_row(row))
+    readme.write_bytes(text)
+
+
+def _sync_snapshot(experiment: Path) -> dict[Path, tuple[bytes, int]]:
+    return {
+        page: (page.read_bytes(), page.stat().st_mtime_ns)
+        for page in (*_sync_pages(experiment), experiment / "ladder-progress.csv")
+    }
+
+
+def test_ladder_progress_sync_docs_restores_exact_bytes_and_is_idempotent(sandbox: Path) -> None:
+    original = {page: page.read_bytes() for page in _sync_pages(sandbox)}
+    csv_before = (sandbox / "ladder-progress.csv").read_bytes()
+    _stale_sync_pages(sandbox)
+    assert all(page.read_bytes() != expected for page, expected in original.items())
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert {page: page.read_bytes() for page in original} == original
+    assert (sandbox / "ladder-progress.csv").read_bytes() == csv_before
+    before_repeat = _sync_snapshot(sandbox)
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert _sync_snapshot(sandbox) == before_repeat
+
+
+def test_ladder_progress_sync_docs_preserves_arbitrary_route_whitespace(sandbox: Path) -> None:
+    page = _sync_pages(sandbox)[0]
+    text = page.read_bytes()
+    found = _SYNC_ROUTE.search(text)
+    assert found is not None
+    wrapped = found[0].replace(b" covered,", b"\tcovered,\n \t", 1)
+    wrapped = wrapped.replace(b" not run", b"\t not\n \t run", 1)
+    text = _replace_once(text, found[0], wrapped)
+    page.write_bytes(text)
+    expected = {path: path.read_bytes() for path in _sync_pages(sandbox)}
+    page.write_bytes(_stale_route(text))
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert {path: path.read_bytes() for path in expected} == expected
+
+
+def test_ladder_progress_sync_docs_preserves_annotations_and_signature_labels(
+    sandbox: Path,
+) -> None:
+    readme = sandbox / "README.md"
+    text = readme.read_bytes()
+    basis = _sync_section(text, b"Basis counts in the committed table")
+    unscored = _sync_row(basis, b"`unscored`")
+    annotated = unscored.removesuffix(b" |") + b" (retained note) |"
+    text = _replace_once(text, unscored, annotated)
+    signature = _sync_signature_row(text)
+    label_end = signature.index(b" |", 2)
+    custom_signature = b"| `custom signature label`" + signature[label_end:]
+    text = _replace_once(text, signature, custom_signature)
+    readme.write_bytes(text)
+    expected = text
+    text = _replace_once(text, annotated, _stale_count_row(annotated))
+    text = _replace_once(text, custom_signature, _stale_count_row(custom_signature))
+    readme.write_bytes(text)
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert readme.read_bytes() == expected
+
+
+@pytest.mark.parametrize(("relative", "anchor"), _SYNC_FRAGMENTS)
+@pytest.mark.parametrize("damage", ["missing", "repeated"])
+def test_ladder_progress_sync_docs_refuses_missing_or_repeated_fragments_atomically(
+    sandbox: Path, relative: str, anchor: bytes, damage: str
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    _stale_sync_pages(sandbox)
+    page = sandbox.parents[2] / relative
+    replacement = b"removed fragment anchor" if damage == "missing" else anchor + b"\n" + anchor
+    page.write_bytes(_replace_once(page.read_bytes(), anchor, replacement))
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    message = str(refused.value)
+    assert relative in message
+    assert _sync_snapshot(sandbox) == before
+
+
+@pytest.mark.parametrize(
+    ("table", "part", "damage"),
+    [
+        ("basis", "covered", "missing"),
+        ("basis", "covered", "repeated"),
+        ("basis", "header", "missing"),
+        ("basis", "header", "repeated"),
+        ("basis", "separator", "missing"),
+        ("basis", "row", "missing"),
+        ("basis", "row", "repeated"),
+        ("signature", "header", "missing"),
+        ("signature", "header", "repeated"),
+        ("signature", "separator", "missing"),
+        ("signature", "row", "missing"),
+        ("signature", "row", "repeated"),
+        ("signature", "row", "unknown-suffix"),
+        ("summary", "header", "missing"),
+        ("summary", "header", "repeated"),
+        ("summary", "separator", "missing"),
+        ("summary", "row", "missing"),
+        ("summary", "row", "repeated"),
+    ],
+)
+def test_ladder_progress_sync_docs_refuses_invalid_table_boundaries_atomically(
+    sandbox: Path, table: str, part: str, damage: str
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    for page in _sync_pages(sandbox)[:2]:
+        page.write_bytes(_stale_route(page.read_bytes()))
+    readme = sandbox / "README.md"
+    text = readme.read_bytes()
+    headings = {
+        "basis": b"Basis counts in the committed table",
+        "signature": b"### Refusal signatures and attacks executed (HAR-302)",
+        "summary": b"## Wall time by language and remaining serial hours",
+    }
+    headers = {
+        "basis": b"| basis | ranks |",
+        "signature": b"| signature | file suffix | count |",
+        "summary": (
+            b"| language | covered | uncovered | median wall (s) | max wall (s) | "
+            b"projected serial hours |"
+        ),
+    }
+    separators = {
+        "basis": b"|---|---:|",
+        "signature": b"|---|---|---:|",
+        "summary": b"|---|---:|---:|---:|---:|---:|",
+    }
+    heading = headings[table]
+    prefix, body = text.split(heading, 1)
+    section, boundary, suffix = body.partition(b"\n##")
+    if part == "covered":
+        anchor = _sync_covered_anchor(section)
+    elif part == "header":
+        anchor = headers[table]
+    elif part == "separator":
+        anchor = separators[table]
+    elif table == "basis":
+        anchor = _sync_row(section, b"`graded`")
+    elif table == "signature":
+        anchor = _sync_signature_row(text)
+    else:
+        anchor = _sync_row(section, b"total")
+    replacement = b"removed table anchor" if damage == "missing" else anchor + b"\n" + anchor
+    if damage == "unknown-suffix":
+        replacement = anchor + b"\n| `unknown signature` | `unmapped-extra.py` | 1 |"
+    section = _replace_once(section, anchor, replacement)
+    text = prefix + heading + section + boundary + suffix
+    readme.write_bytes(text)
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert "README.md" in str(refused.value)
+    if damage == "unknown-suffix":
+        assert "unmapped-extra.py" in str(refused.value)
+    assert _sync_snapshot(sandbox) == before
+
+
+def test_ladder_progress_sync_docs_refuses_an_unmapped_refusal_basename(sandbox: Path) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    refusal = next(row for row in rows if row["refusal_hit"])
+    refusal["refusal_hit"] = "agent/unmapped-signature.py"
+    _stale_sync_pages(sandbox)
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError, match="unmapped-signature.py"):
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert _sync_snapshot(sandbox) == before
+
+
+def test_ladder_progress_sync_docs_builds_cells_instead_of_reading_stale_csv(sandbox: Path) -> None:
+    original = {page: page.read_bytes() for page in _sync_pages(sandbox)}
+    table = sandbox / "ladder-progress.csv"
+    stale = _committed()
+    for row in stale:
+        row.update(basis="none", verdict="not-run", refusal_hit="")
+    table.write_text(render(stale), encoding="utf-8")
+    csv_before = table.read_bytes()
+    _stale_sync_pages(sandbox)
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert {page: page.read_bytes() for page in original} == original
+    assert table.read_bytes() == csv_before
+
+
+def test_ladder_progress_sync_docs_cli_exits_one_without_partial_writes(sandbox: Path) -> None:
+    script = sandbox / "ladder_progress.py"
+    shutil.copy(EXPERIMENT / "ladder_progress.py", script)
+    _stale_sync_pages(sandbox)
+    readme = sandbox / "README.md"
+    readme.write_bytes(
+        _replace_once(
+            readme.read_bytes(),
+            b"## Wall time by language and remaining serial hours",
+            b"## Removed summary heading",
+        )
+    )
+    before = _sync_snapshot(sandbox)
+    result = subprocess.run(
+        [sys.executable, str(script), "--sync-docs"],
+        cwd=sandbox.parents[2],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 1
+    assert "README.md" in result.stderr
+    assert _sync_snapshot(sandbox) == before
 
 
 @pytest.fixture
@@ -1095,6 +1398,11 @@ def test_ladder_progress_evidence_sorts_by_rank_then_task_and_keeps_every_cell()
     [
         ["--verify-evidence", "--check"],
         ["--verify-evidence", "--summary"],
+        ["--sync-docs", "--check"],
+        ["--sync-docs", "--summary"],
+        ["--sync-docs", "--verify-evidence"],
+        ["--sync-docs", "--render-slice", "ladder-p2-ranks52-57.json"],
+        ["--sync-docs", "--strict"],
         ["--strict"],
         ["--strict", "--check"],
         ["--strict", "--summary"],
@@ -1109,7 +1417,7 @@ def test_ladder_progress_evidence_rejects_invalid_cli_modes(
     assert "error:" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("mode", ["--check", "--summary"])
+@pytest.mark.parametrize("mode", ["--check", "--summary", "--sync-docs"])
 def test_ladder_progress_offline_modes_never_touch_results_root(
     sandbox: Path,
     monkeypatch: pytest.MonkeyPatch,

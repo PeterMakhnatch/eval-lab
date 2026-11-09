@@ -67,10 +67,13 @@ of ``--check``.
 
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
-summary with ``--summary``. ``--render-slice CELL`` prints one cell file's
-seven-column README pipe-table rows, so a slice PR pastes generated rows
-instead of hand-copying them. ``check_slice_tables`` compares the README's
-per-slice ladder tables with the committed rows; the test suite calls it.
+summary with ``--summary``. ``--sync-docs`` rebuilds the five tested documentation
+fragments from committed cells, the manifest and the ranking without reading or
+writing the CSV or host results. It validates all three pages before any write.
+``--render-slice CELL`` prints one cell file's seven-column README pipe-table
+rows, so a slice PR pastes generated rows instead of hand-copying them.
+``check_slice_tables`` compares the README's per-slice ladder tables with the
+committed rows; the test suite calls it.
 """
 
 from __future__ import annotations
@@ -139,6 +142,13 @@ EVIDENCE_STATUSES = ("matched", "mismatched", "reward-mismatch", "absent", "unha
 SUBSET_EVIDENCE_STATUSES = ("matched", "reward-mismatch", "absent", "no-trial")
 SUBSET_EVIDENCE_FILES = ("ladder-graded-subset.json", "ladder-graded-subset-p0.json")
 STATUS_WIDTH = 15
+BASIS_ANCHOR = "Basis counts in the committed table"
+SIGNATURE_HEADING = "### Refusal signatures and attacks executed (HAR-302)"
+ROUTE_BASIS = re.compile(
+    r"v6\s+basis\s+\(100\s+ranks\):\s+([0-9]+)\s+covered,\s+"
+    r"([0-9]+)\s+clean,\s+([0-9]+)\s+tamper-refusal,\s+"
+    r"([0-9]+)\s+graded,\s+([0-9]+)\s+unscored,\s+([0-9]+)\s+not\s+run"
+)
 
 
 class ProgressError(RuntimeError):
@@ -494,6 +504,195 @@ def render_summary(rows: Sequence[dict[str, str]]) -> str:
 def _pipe_cells(line: str) -> list[str]:
     """The stripped cells of a Markdown pipe-table line."""
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def _doc_match(pattern: str, text: str, page: Path, anchor: str) -> re.Match[str]:
+    matches = list(re.finditer(pattern, text, flags=re.MULTILINE))
+    if len(matches) != 1:
+        raise ProgressError(f"{page}: expected one {anchor!r}, found {len(matches)}")
+    return matches[0]
+
+
+def _doc_table(text: str, page: Path, anchor: str, headers: Sequence[str]) -> re.Match[str]:
+    start = _doc_match(re.escape(anchor), text, page, anchor).end()
+    heading = re.search(r"(?m)^#{1,6}[ \t]+", text[start:])
+    end = start + heading.start() if heading else len(text)
+    pattern = re.compile(r"(?m)^\|[^\r\n]*(?:\r?\n\|[^\r\n]*)*")
+    tables = list(pattern.finditer(text, start, end))
+    if len(tables) != 1:
+        raise ProgressError(f"{page}: {anchor!r}: expected one table, found {len(tables)}")
+    table = tables[0]
+    lines = table.group().splitlines()
+    if len(lines) < 3 or _pipe_cells(lines[0]) != list(headers):
+        raise ProgressError(f"{page}: {anchor!r}: missing or invalid table header")
+    if any(line.strip().count("|") != len(headers) + 1 or not line.rstrip().endswith("|")
+           for line in lines):
+        raise ProgressError(f"{page}: {anchor!r}: invalid table row")
+    separators = _pipe_cells(lines[1])
+    if len(separators) != len(headers) or any(
+        re.fullmatch(r":?-+:?", cell) is None for cell in separators
+    ):
+        raise ProgressError(f"{page}: {anchor!r}: invalid table separator")
+    return table
+
+
+def _doc_count_table(
+    table: str, page: Path, anchor: str, counts: Mapping[str, int], *, signature: bool = False
+) -> str:
+    edits: list[tuple[int, int, str]] = []
+    seen: set[str] = set()
+    offset = 0
+    for index, line in enumerate(table.splitlines(keepends=True)):
+        if index >= 2:
+            cells = _pipe_cells(line)
+            columns = 3 if signature else 2
+            if len(cells) != columns:
+                raise ProgressError(f"{page}: {anchor!r}: invalid count row {line.strip()!r}")
+            key = cells[1 if signature else 0].strip("` ")
+            if not key or key in seen or key not in counts:
+                raise ProgressError(f"{page}: {anchor!r}: missing, repeated or unknown row {key!r}")
+            if signature and not cells[0]:
+                raise ProgressError(f"{page}: {anchor!r}: missing signature label for {key!r}")
+            seen.add(key)
+            prefix = r"\|[^|\r\n]*\|" + (r"[^|\r\n]*\|" if signature else "")
+            match = re.fullmatch(
+                prefix + r"[ \t]*(?P<count>[0-9]+)(?:[ \t]+[^|\r\n]*)?\|[ \t]*(?:\r?\n)?",
+                line,
+            )
+            if match is None:
+                raise ProgressError(f"{page}: {anchor!r}: invalid count for row {key!r}")
+            edits.append(
+                (offset + match.start("count"), offset + match.end("count"), str(counts.get(key, 0)))
+            )
+        offset += len(line)
+    missing = counts.keys() - seen
+    if missing:
+        raise ProgressError(f"{page}: {anchor!r}: missing count rows for {sorted(missing)}")
+    return _doc_patch(table, edits)
+
+
+def _doc_patch(text: str, edits: Sequence[tuple[int, int, str]]) -> str:
+    for start, end, replacement in sorted(edits, reverse=True):
+        text = text[:start] + replacement + text[end:]
+    return text
+
+
+def _doc_summary(table: str, rows: Sequence[dict[str, str]], page: Path) -> str:
+    seen: set[str] = set()
+    lines = table.splitlines()[2:]
+    for line in lines:
+        cells = _pipe_cells(line)
+        if len(cells) != 6 or cells[0] in seen:
+            raise ProgressError(f"{page}: {SUMMARY_HEADING!r}: invalid or repeated summary row")
+        language, covered, uncovered, median, maximum, projected = cells
+        seen.add(language)
+        if (
+            re.fullmatch(r"[0-9]+(?: \([^)\r\n]+\))?", covered) is None
+            or re.fullmatch(r"[0-9]+", uncovered) is None
+            or re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", projected) is None
+            or (
+                language != "total"
+                and any(
+                    re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", value) is None
+                    for value in (median, maximum)
+                )
+            )
+            or (language == "total" and (median or maximum))
+        ):
+            raise ProgressError(f"{page}: {SUMMARY_HEADING!r}: invalid counts for {language!r}")
+    expected = {row["language"] for row in rows} | {"total"}
+    if seen != expected or _pipe_cells(lines[-1])[0] != "total":
+        raise ProgressError(
+            f"{page}: {SUMMARY_HEADING!r}: expected summary rows {sorted(expected)}, "
+            f"found {sorted(seen)} with total last"
+        )
+    newline = "\r\n" if "\r\n" in table else "\n"
+    return render_summary(rows).rstrip("\n").replace("\n", newline)
+
+
+def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) -> None:
+    """Refresh five tested fragments, validating every page before writing any."""
+    pages = (root / "README.md", root / "docs" / "mimo" / "README.md", cells_dir / "README.md")
+    originals: dict[Path, str] = {}
+    for page in pages:
+        try:
+            originals[page] = page.read_bytes().decode("utf-8")
+        except (OSError, UnicodeError) as error:
+            raise ProgressError(f"{page}: cannot read documentation: {error}") from error
+    counts = basis_counts(rows)
+    covered = len(rows) - counts.get("none", 0)
+    route_counts = (
+        covered,
+        sum(row["verdict"] == "clean" for row in rows),
+        counts.get(REFUSAL_BASIS, 0),
+        counts.get(GRADED_BASIS, 0),
+        counts.get("unscored", 0),
+        counts.get("none", 0),
+    )
+    replacements: dict[Path, str] = {}
+    for page in pages[:2]:
+        text = originals[page]
+        _doc_match(r"v6\s+basis\s+\(100\s+ranks\):", text, page, "v6 basis (100 ranks):")
+        match = _doc_match(ROUTE_BASIS.pattern, text, page, "complete v6 basis sentence")
+        replacements[page] = _doc_patch(
+            text,
+            [
+                (match.start(index), match.end(index), str(count))
+                for index, count in enumerate(route_counts, start=1)
+            ],
+        )
+    page = pages[2]
+    text = originals[page]
+    basis_table = _doc_table(text, page, BASIS_ANCHOR, ("basis", "ranks"))
+    _doc_match(
+        r"\(100\s+ranks,\s+[0-9]+\s+covered;\s+Docker-free\):",
+        text,
+        page,
+        BASIS_ANCHOR + " covered subanchor",
+    )
+    covered_match = _doc_match(
+        re.escape(BASIS_ANCHOR) + r"\s+\(100\s+ranks,\s+([0-9]+)\s+covered;\s+Docker-free\):",
+        text,
+        page,
+        BASIS_ANCHOR + " covered count",
+    )
+    basis_text = _doc_count_table(
+        basis_table.group(),
+        page,
+        BASIS_ANCHOR,
+        {basis: counts.get(basis, 0) for basis in (REFUSAL_BASIS, GRADED_BASIS, "unscored", "none")},
+    )
+    signatures = Counter(
+        row["refusal_hit"].rsplit("/", 1)[-1] for row in rows if row["refusal_hit"]
+    )
+    signature_table = _doc_table(
+        text, page, SIGNATURE_HEADING, ("signature", "file suffix", "count")
+    )
+    signature_text = _doc_count_table(
+        signature_table.group(), page, SIGNATURE_HEADING, signatures, signature=True
+    )
+    summary_table = _doc_table(
+        text,
+        page,
+        SUMMARY_HEADING,
+        (
+            "language", "covered", "uncovered", "median wall (s)", "max wall (s)",
+            "projected serial hours",
+        ),
+    )
+    summary_text = _doc_summary(summary_table.group(), rows, page)
+    replacements[page] = _doc_patch(
+        text,
+        [
+            (covered_match.start(1), covered_match.end(1), str(covered)),
+            (basis_table.start(), basis_table.end(), basis_text),
+            (signature_table.start(), signature_table.end(), signature_text),
+            (summary_table.start(), summary_table.end(), summary_text),
+        ],
+    )
+    for page, replacement in replacements.items():
+        if replacement != originals[page]:
+            page.write_bytes(replacement.encode("utf-8"))
 
 
 def _slice_attacks(value: str, where: str) -> int:
@@ -963,6 +1162,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="print the README pipe-table rows for one ladder cell file",
     )
+    mode.add_argument(
+        "--sync-docs",
+        action="store_true",
+        help="refresh the five tested documentation fragments from committed cells (offline)",
+    )
     parser.add_argument(
         "--results-root",
         type=Path,
@@ -1009,6 +1213,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     rows = build(ROOT, cells_dir=HERE)
     if args.summary:
         print(render_summary(rows), end="")
+        return 0
+    if args.sync_docs:
+        sync_docs(rows, root=ROOT, cells_dir=HERE)
         return 0
     if args.check:
         return 0 if check(render(rows), HERE / OUTPUT_NAME) else 1

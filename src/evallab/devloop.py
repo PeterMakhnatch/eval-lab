@@ -31,6 +31,13 @@ FULL_SUITE_PATTERNS = (
     "sql/",
 )
 
+# CLI entrypoint modules dispatch to every command; nearly a tenth of the
+# suite imports them to reach an unrelated subcommand, so selecting by
+# reference would re-join most of the suite on every cli.py touch. Their
+# tests exercise downstream modules, which keep their own direct
+# references; the full suite remains the safety net via `make premerge`.
+DISPATCH_MODULES = frozenset({"evallab.cli", "evallab.entry"})
+
 DOCS_PATTERNS = (
     "docs/",
     "agents/",
@@ -382,6 +389,25 @@ def _asset_needles(path_str: str) -> list[str]:
     return needles
 
 
+def _package_modules_for_asset(path_str: str) -> list[str]:
+    """Modules whose package tree contains a src/ asset.
+
+    Package data (for example ``src/evallab/insights/lenses/*.md``) is loaded
+    by the enclosing package's code, so tests that reference the package cover
+    the asset. Returns deepest ancestor modules first.
+    """
+    norm = path_str.replace("\\", "/")
+    if not norm.startswith("src/evallab"):
+        return []
+    parent = PurePosixPath(norm).parent
+    modules: list[str] = []
+    while len(parent.parts) > 2:
+        rel = parent.as_posix()[len("src/") :]
+        modules.append(rel.replace("/", "."))
+        parent = parent.parent
+    return modules
+
+
 def _research_roots_for_asset(path_str: str, test_roots: Sequence[str]) -> list[str]:
     """Declared test roots that consume an asset under ``research/<subdir>/``.
 
@@ -446,7 +472,10 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
         command = "uv run --no-sync pytest -q -n0 -p no:cacheprovider -m docs_consumer"
         reasons["docs_consumer"] = [f"Documentation-only change: {', '.join(changed)}"]
     else:
-        targets = {src_path_to_module(path) for path in changed if is_src_path(path)}
+        asset_packages = {module for path in assets for module in _package_modules_for_asset(path)}
+        targets = (
+            {src_path_to_module(path) for path in changed if is_src_path(path)} - DISPATCH_MODULES
+        ) | asset_packages
         cache_path = _devloop_cache_path(root_path) if targets else None
         cache = _load_devloop_cache(cache_path)
         test_paths: dict[str, Path] = {}
@@ -504,6 +533,8 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
                 reasons.setdefault(norm, []).append("Direct test file modification")
             elif is_src_path(norm):
                 target_mod = src_path_to_module(norm)
+                if target_mod in DISPATCH_MODULES:
+                    continue
                 for rel in consumers:
                     if target_mod in inventory[test_paths[rel]]:
                         reasons.setdefault(rel, []).append(f"References {target_mod} ({norm})")
@@ -511,6 +542,7 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
             norm = asset.replace("\\", "/")
             needles = _asset_needles(norm)
             research_roots = _research_roots_for_asset(norm, test_roots)
+            package_modules = _package_modules_for_asset(norm)
             for rel in consumers:
                 selected = False
                 covering = next(
@@ -544,6 +576,22 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
                                 reasons.setdefault(rel, []).append(f"Mentions {needle} ({norm})")
                                 selected = True
                                 break
+                elif package_modules:
+                    matched = next(
+                        (m for m in package_modules if m in inventory[test_paths[rel]]),
+                        None,
+                    )
+                    if matched is not None:
+                        reasons.setdefault(rel, []).append(
+                            f"References package {matched} owning {norm}"
+                        )
+                        selected = True
+                    else:
+                        for needle in needles:
+                            if needle in _content(test_paths[rel]):
+                                reasons.setdefault(rel, []).append(f"Mentions {needle} ({norm})")
+                                selected = True
+                                break
                 else:
                     for needle in needles:
                         if needle in _content(test_paths[rel]):
@@ -566,12 +614,26 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
             reasons["__all__"] = [f"Asset change with no mentioning test: {', '.join(uncovered)}"]
         else:
             modules = sorted(reasons)
-            lane = "focused" if modules else "none"
-            command = (
-                f"uv run --no-sync pytest -q -n0 -p no:cacheprovider {shlex.join(modules)}"
-                if modules
-                else ""
-            )
+            uncovered_src = [
+                norm
+                for path in changed
+                if is_src_path(norm := path.replace("\\", "/"))
+                and src_path_to_module(norm) in DISPATCH_MODULES
+            ]
+            if not modules and uncovered_src:
+                modules = ["__all__"]
+                lane = "full"
+                command = "uv run --no-sync pytest -q -n0 -p no:cacheprovider"
+                reasons["__all__"] = [
+                    f"Dispatcher change selects no focused tests: {', '.join(uncovered_src)}"
+                ]
+            else:
+                lane = "focused" if modules else "none"
+                command = (
+                    f"uv run --no-sync pytest -q -n0 -p no:cacheprovider {shlex.join(modules)}"
+                    if modules
+                    else ""
+                )
 
     return DevloopPlan(
         changed=list(changed),

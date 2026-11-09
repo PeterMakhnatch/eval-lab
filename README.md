@@ -72,14 +72,17 @@ full fleet only 5 are `v6_verified` and 562 `v6_unverified` (reference/nop
 controls only; see [docs/mimo/README.md](docs/mimo/README.md)); the v5 census
 had sampled the fleet, leaving 1,729 rebuilt tasks without a v5 ladder run
 (history). Most v6 Python ladder clean verdicts rest on verifier refusal, not a
-graded run: v6 basis (100 ranks): 47 covered, 46 clean, 33 tamper-refusal,
-13 graded, 1 unscored, 53 not run
+graded run: v6 basis (100 ranks): 51 covered, 50 clean, 33 tamper-refusal,
+17 graded, 1 unscored, 49 not run
 ([ladder-progress.csv](research/experiments/mimo-clean-v6/ladder-progress.csv)).
 The graded rows include the 5 Go cells (`001694` at rank 6; `000048`,
-`000208`, `000427`, `000431` at ranks 89–92) and the 4 JavaScript cells
-(`000112`, `000524`, `001675`, `001849` at ranks 93–96).
+`000208`, `000427`, `000431` at ranks 89–92), the 4 JavaScript cells
+(`000112`, `000524`, `001675`, `001849` at ranks 93–96) and the 4 TypeScript
+cells at ranks 97–100 (`000046`, `000055`, `000460`, `001514`).
 The [JavaScript receipt](research/experiments/mimo-clean-v6/ladder-p2-js-ranks93-96.json)
 records 9/14 attacks per task, graded reward 0, and no tamper refusal.
+The [TypeScript receipt](research/experiments/mimo-clean-v6/ladder-p2-ts-ranks97-100.json)
+records 8 or 9 of 14 attacks per task, graded reward 0, and no tamper refusal.
 Graded subset cells exist for 7 refused rows
 ([original subset cells](research/experiments/mimo-clean-v6/ladder-graded-subset.json);
 [P0 subset cells](research/experiments/mimo-clean-v6/ladder-graded-subset-p0.json)).

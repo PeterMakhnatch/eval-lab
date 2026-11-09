@@ -28,6 +28,7 @@ try:
     from harbor.models.trial.paths import TrialPaths
 
     from evallab.harbor_host_isolation import (
+        _ISOLATION_SUBNET_CANDIDATES,
         ISOLATION_RECORD,
         HostIsolatedDockerEnvironment,
     )
@@ -37,10 +38,18 @@ except ModuleNotFoundError as error:
     ExecResult = DockerEnvironment = EnvironmentConfig = NetworkMode = NetworkPolicy = None
     TrialPaths = HostIsolatedDockerEnvironment = None
     ISOLATION_RECORD = "host-isolation.json"
+    _ISOLATION_SUBNET_CANDIDATES = ()
 
 
 _PREPARE_TOOL = (
     HostIsolatedDockerEnvironment._prepare_tool
+    if HostIsolatedDockerEnvironment is not None
+    else None
+)
+# The fixture replaces ``_daemon_output`` on the class; these tests exercise the
+# real daemon protocol against an injected subprocess.
+_DAEMON_OUTPUT = (
+    HostIsolatedDockerEnvironment._daemon_output
     if HostIsolatedDockerEnvironment is not None
     else None
 )
@@ -1301,3 +1310,436 @@ def test_native_docker_healthcheck_preserves_task_env_outside_clean_setup(
         await env.stop(delete=True)
 
     asyncio.run(exercise())
+
+
+# ---------------------------------------------------------------------------
+# Construction-time refusals and positional argument plumbing.
+# ---------------------------------------------------------------------------
+
+
+def test_claude_lane_reads_its_bridge_port_from_the_environment(native, monkeypatch):
+    monkeypatch.setenv("EVALLAB_CLAUDE_GATEWAY_ISOLATION_PORT", "45123")
+    env = native["make"](isolation_lane="claude-code")
+    assert env._bridge_port == 45123
+    assert native["events"] == []
+
+
+def test_explicit_egress_lock_option_is_refused(native):
+    with pytest.raises(ValueError, match="LockedDockerEnvironment for explicit egress_lock"):
+        native["make"](egress_lock=True)
+    assert native["events"] == []
+
+
+def test_constructor_accepts_positional_baseline_and_phase_policies(native):
+    policy = NetworkPolicy(network_mode=NetworkMode.PUBLIC)
+    env = HostIsolatedDockerEnvironment(
+        native["environment_dir"],
+        "fixture",
+        "fixture__env",
+        native["paths"],
+        native["config"],
+        False,
+        None,
+        [policy],
+    )
+    assert env._declared_phase_policies == (policy,)
+    assert env.network_policy == policy
+
+
+def test_constructor_requires_a_network_baseline_source(native):
+    with pytest.raises(ValueError, match="requires a task environment config"):
+        HostIsolatedDockerEnvironment(
+            native["environment_dir"], "fixture", "fixture__env", native["paths"]
+        )
+
+
+# ---------------------------------------------------------------------------
+# Task Compose parsing fails closed on unusable documents.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("document", "match"),
+    [
+        ("~\n", None),
+        ("- scalar\n- sequence\n", "non-mapping task Compose"),
+        ("services: [oops]\n", "without services"),
+        ("services:\n  1: {}\n", "non-string service"),
+    ],
+)
+def test_task_compose_service_names_fail_closed(native, document, match):
+    (native["environment_dir"] / "docker-compose.yaml").write_text(document)
+    env = native["make"]()
+    if match is None:
+        assert env._task_compose_service_names() == []
+    else:
+        with pytest.raises(ValueError, match=match):
+            env._task_compose_service_names()
+
+
+@pytest.mark.parametrize(
+    ("document", "expected"),
+    [
+        ("- scalar\n", (False, {})),
+        ("services: [oops]\n", (False, {})),
+        ("services:\n  1: {}\n", (False, {})),
+        ("services:\n  main:\n    networks: [oops]\n", (True, {})),
+        ("services:\n  main:\n    networks:\n      net: oops\n", (True, {})),
+    ],
+)
+def test_task_compose_network_meta_ignores_unusable_entries(native, document, expected):
+    (native["environment_dir"] / "docker-compose.yaml").write_text(document)
+    assert native["make"]()._task_compose_network_meta() == expected
+
+
+def test_task_compose_network_aliases_must_be_a_list(native):
+    (native["environment_dir"] / "docker-compose.yaml").write_text(
+        "services:\n  main:\n    networks:\n      net:\n        aliases: alias\n"
+    )
+    with pytest.raises(ValueError, match="non-list network aliases"):
+        native["make"]()._task_compose_network_meta()
+
+
+def test_resolved_sidecar_must_be_a_mapping(native):
+    (native["environment_dir"] / "docker-compose.yaml").write_text(
+        "services:\n  sidecar:\n    image: sidecar:1\n"
+    )
+    native["compose"]["services"]["sidecar"] = "not-a-mapping"
+    with pytest.raises(RuntimeError, match="resolved to a non-mapping"):
+        asyncio.run(native["make"]().start(force_build=False))
+    assert _record(native)["applied"] is False
+
+
+# ---------------------------------------------------------------------------
+# Lock confirmation refuses unusable daemon identity evidence.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("inspected", "match"),
+    [
+        ({"not": "a list"}, "invalid Docker inspect evidence"),
+        ([], "invalid Docker inspect evidence"),
+        (["not-a-container"], "invalid Docker inspect evidence"),
+        ([{"Id": CID, "Config": {"Labels": {}}}], "non-string service"),
+        (
+            [{"Id": CID, "Config": {"Labels": {"com.docker.compose.service": "extra"}}}],
+            "service identity is unconfirmed",
+        ),
+    ],
+)
+def test_confirm_lock_refuses_unusable_daemon_identity(native, inspected, match):
+    env = native["make"]()
+
+    async def evidence(*command):
+        return inspected
+
+    env._daemon_json = evidence
+    with pytest.raises(RuntimeError, match=match):
+        asyncio.run(env._confirm_lock())
+    assert not env._lock_confirmed
+
+
+# ---------------------------------------------------------------------------
+# Container evidence: every unsafe daemon host setting is refused.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "match"),
+    [
+        ("Platform", "windows", "identity/OS/running state is unconfirmed"),
+        ("State.Running", False, "identity/OS/running state is unconfirmed"),
+        ("Id", "c" * 64, "identity/OS/running state is unconfirmed"),
+        ("HostConfig", "not-a-mapping", "host/network/mount evidence"),
+        ("NetworkSettings", [], "host/network/mount evidence"),
+        ("Mounts", {}, "host/network/mount evidence"),
+        ("HostConfig.Privileged", True, "privilege/port flags are unsafe"),
+        ("HostConfig.Privileged", None, "privilege/port flags are unsafe"),
+        ("HostConfig.PublishAllPorts", True, "privilege/port flags are unsafe"),
+        ("HostConfig.CapAdd", ["SYS_ADMIN"], "unsafe host access"),
+        ("HostConfig.Devices", [{"PathOnHost": "/dev/mem"}], "unsafe host access"),
+        ("HostConfig.DeviceRequests", [{"Driver": "nvidia"}], "unsafe host access"),
+        ("HostConfig.DeviceCgroupRules", ["c 1:3 rwm"], "unsafe host access"),
+        ("HostConfig.VolumesFrom", ["host-root"], "unsafe host access"),
+        ("HostConfig.PortBindings", {"80/tcp": [{"HostPort": "80"}]}, "unsafe host access"),
+        ("HostConfig.Links", ["host:alias"], "unsafe host access"),
+        (
+            "HostConfig.ExtraHosts",
+            ["host.docker.internal:0.0.0.0"],
+            "unsafe host access",
+        ),
+        ("HostConfig.CgroupParent", "host.slice", "unsafe host access"),
+        ("HostConfig.PidMode", "host", "unsafe or unknown Docker PidMode"),
+        ("HostConfig.IpcMode", "host", "unsafe or unknown Docker IpcMode"),
+        ("HostConfig.UTSMode", "host", "unsafe or unknown Docker UTSMode"),
+        ("HostConfig.UsernsMode", "host", "unsafe or unknown Docker UsernsMode"),
+        ("HostConfig.CgroupnsMode", "host", "unsafe or unknown Docker CgroupnsMode"),
+        ("HostConfig.Runtime", "nvidia", "unsafe or unknown Docker Runtime"),
+        ("HostConfig.CapDrop", ["NET_RAW"], "capability drops are unconfirmed"),
+        ("HostConfig.SecurityOpt", [], "security options are unsafe"),
+        ("HostConfig.SecurityOpt", "no-new-privileges:true", "security options are unsafe"),
+        ("HostConfig.SecurityOpt", ["seccomp=unconfined"], "security options are unsafe"),
+    ],
+)
+def test_container_evidence_refuses_unsafe_daemon_settings(native, path, value, match):
+    _change(native["inspect"], path, value)
+    with pytest.raises(RuntimeError, match=match):
+        asyncio.run(native["make"]().start(force_build=False))
+    assert native["deleted"]
+    assert _record(native)["applied"] is False
+    assert ("nft", "installed") not in native["events"]
+    assert native["ordinary_exec_caps"] == []
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "CapAdd",
+        "Devices",
+        "DeviceRequests",
+        "DeviceCgroupRules",
+        "VolumesFrom",
+        "PortBindings",
+        "Links",
+        "ExtraHosts",
+        "CgroupParent",
+    ],
+)
+def test_missing_host_access_evidence_refuses_the_container(native, key):
+    del native["inspect"]["HostConfig"][key]
+    with pytest.raises(RuntimeError, match="lacks Docker host-access evidence"):
+        asyncio.run(native["make"]().start(force_build=False))
+    assert native["deleted"]
+    assert _record(native)["applied"] is False
+    assert ("nft", "installed") not in native["events"]
+
+
+# ---------------------------------------------------------------------------
+# Phase confirmation guards (single container).
+# ---------------------------------------------------------------------------
+
+
+def test_no_network_confirmation_refuses_a_retained_bridge(native):
+    env = _v5_agent_env(native)
+    asyncio.run(env.start(force_build=False))
+    with pytest.raises(RuntimeError, match="keeps a public attachment"):
+        asyncio.run(env._confirm_no_network_state())
+    asyncio.run(env.stop(delete=True))
+
+
+def test_public_confirmation_refuses_a_missing_attachment(native):
+    env = _v5_agent_env(native)
+    asyncio.run(env.start(force_build=False))
+    native["inspect"]["NetworkSettings"]["Networks"] = {}
+    with pytest.raises(RuntimeError, match="lacks its bridge attachment"):
+        asyncio.run(env._confirm_public_state())
+    asyncio.run(env.stop(delete=True))
+
+
+def test_public_confirmation_refuses_a_changed_boundary(native):
+    env = _v5_agent_env(native)
+    asyncio.run(env.start(force_build=False))
+    native["listing_after_attach"] = json.dumps({"nftables": [{"table": {"name": "changed"}}]})
+    with pytest.raises(RuntimeError, match="rules changed during network attachment"):
+        asyncio.run(env._confirm_public_state())
+    asyncio.run(env.stop(delete=True))
+
+
+def test_container_network_evidence_must_be_a_mapping(native):
+    env = native["make"]()
+    asyncio.run(env.start(force_build=False))
+    native["inspect"]["NetworkSettings"]["Networks"] = []
+    with pytest.raises(RuntimeError, match="network evidence is missing"):
+        asyncio.run(env._container_networks())
+    asyncio.run(env.stop(delete=True))
+
+
+def test_private_nft_helper_reads_the_confirmed_container(native):
+    env = native["make"]()
+    asyncio.run(env.start(force_build=False))
+    listing = asyncio.run(env._nft("--json", "list", "table", "inet", "evallab_host_isolation"))
+    assert "evallab_host_isolation" in listing
+    assert any(
+        event[:7] == ("daemon", "exec", "--privileged", "--user", "0", "-i", CID)
+        for event in native["events"]
+    )
+    asyncio.run(env.stop(delete=True))
+
+
+def test_container_identity_refuses_a_foreign_compose_project(native):
+    native["inspect"]["Config"]["Labels"]["com.docker.compose.project"] = "other-project"
+    with pytest.raises(RuntimeError, match="identity/OS/running state is unconfirmed"):
+        asyncio.run(native["make"]().start(force_build=False))
+    assert _record(native)["applied"] is False
+
+
+def test_unreadable_existing_record_does_not_claim_another_container(native):
+    record_path = native["paths"].trial_dir / ISOLATION_RECORD
+    record_path.write_text("{not json")
+    env = native["make"]()
+    assert env._resolve_record_path() == record_path
+    asyncio.run(env.start(force_build=False))
+    assert _record(native)["container_id"] == CID
+    asyncio.run(env.stop(delete=True))
+
+
+# ---------------------------------------------------------------------------
+# Phase application refuses allowlists and repeated policies directly.
+# ---------------------------------------------------------------------------
+
+
+def test_phase_application_refuses_allowlists_and_ignores_repeats(native):
+    env = _v5_agent_env(native)
+    asyncio.run(env.start(force_build=False))
+    before = list(native["events"])
+    with pytest.raises(ValueError, match="refuses network allowlists"):
+        asyncio.run(
+            env._apply_network_policy(
+                NetworkPolicy(network_mode=NetworkMode.ALLOWLIST, allowed_hosts=["example.com"])
+            )
+        )
+    asyncio.run(env._apply_network_policy(NetworkPolicy(network_mode=NetworkMode.PUBLIC)))
+    assert native["events"] == before
+    asyncio.run(env.stop(delete=True))
+
+
+# ---------------------------------------------------------------------------
+# Isolated project subnet allocation.
+# ---------------------------------------------------------------------------
+
+
+def test_isolation_network_retries_the_next_subnet(native):
+    env = native["make"]()
+    attempts: list[tuple[str, ...]] = []
+
+    async def daemon(*command):
+        attempts.append(command)
+        if len(attempts) == 1:
+            raise RuntimeError("subnet in use")
+        return NETWORK_ID + "\n"
+
+    env._daemon_output = daemon
+    assert asyncio.run(env._create_isolation_network(internal=True)) == NETWORK_ID
+    assert attempts[0][-2:] == (_ISOLATION_SUBNET_CANDIDATES[0], env._network_name)
+    assert "--internal" in attempts[0]
+    assert attempts[1][-2:] == (_ISOLATION_SUBNET_CANDIDATES[1], env._network_name)
+    assert env._isolation_subnet == _ISOLATION_SUBNET_CANDIDATES[1]
+
+
+def test_exhausted_isolation_subnets_are_refused(native):
+    env = native["make"]()
+    attempts: list[tuple[str, ...]] = []
+
+    async def daemon(*command):
+        attempts.append(command)
+        raise RuntimeError("subnet in use")
+
+    env._daemon_output = daemon
+    with pytest.raises(RuntimeError, match="could not allocate an isolated project subnet"):
+        asyncio.run(env._create_isolation_network(internal=False))
+    assert len(attempts) == len(_ISOLATION_SUBNET_CANDIDATES)
+    assert env._isolation_subnet is None
+
+
+# ---------------------------------------------------------------------------
+# The real daemon protocol helper, against an injected subprocess.
+# ---------------------------------------------------------------------------
+
+
+class _FakeProcess:
+    def __init__(self, *, stdout: bytes = b"", stderr: bytes = b"", returncode: int | None = 0):
+        self.stdout = stdout
+        self.stderr = stderr
+        self.returncode = returncode
+        self.stdin_written: bytes | None = None
+        self.terminated = False
+        self.killed = False
+
+    async def communicate(self, data: bytes | None = None):
+        self.stdin_written = data
+        return self.stdout, self.stderr
+
+    def terminate(self) -> None:
+        self.terminated = True
+        self.returncode = -15
+
+    def kill(self) -> None:
+        self.killed = True
+        self.returncode = -9
+
+    async def wait(self) -> int:
+        return self.returncode
+
+
+def test_daemon_output_pipes_stdin_and_decodes_output(native, monkeypatch):
+    calls: list[tuple[tuple[str, ...], dict[str, Any]]] = []
+    process = _FakeProcess(stdout=b"listing\n")
+
+    async def spawn(*argv, **kwargs):
+        calls.append((argv, kwargs))
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+    env = native["make"]()
+    assert asyncio.run(_DAEMON_OUTPUT(env, "exec", "cid", stdin="rules")) == "listing\n"
+    argv, kwargs = calls[0]
+    assert argv[-2:] == ("exec", "cid")
+    assert argv[0] == "docker"
+    assert kwargs["stdin"] is asyncio.subprocess.PIPE
+    assert kwargs["stdout"] is asyncio.subprocess.PIPE
+    assert kwargs["stderr"] is asyncio.subprocess.PIPE
+    assert process.stdin_written == b"rules"
+
+    calls.clear()
+    asyncio.run(_DAEMON_OUTPUT(env, "info"))
+    assert calls[0][1]["stdin"] is asyncio.subprocess.DEVNULL
+
+
+def test_daemon_output_gives_builds_the_longer_timeout(native, monkeypatch):
+    timeouts: list[int | float] = []
+    process = _FakeProcess()
+
+    async def spawn(*argv, **kwargs):
+        return process
+
+    async def wait_for(awaitable, timeout):
+        timeouts.append(timeout)
+        return await awaitable
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+    monkeypatch.setattr(asyncio, "wait_for", wait_for)
+    env = native["make"]()
+    asyncio.run(_DAEMON_OUTPUT(env, "build", "--tag", "fixture"))
+    asyncio.run(_DAEMON_OUTPUT(env, "image", "inspect", "fixture"))
+    assert timeouts == [180, 30]
+
+
+def test_daemon_output_refuses_a_failing_command(native, monkeypatch):
+    process = _FakeProcess(stderr=b"boom", returncode=17)
+
+    async def spawn(*argv, **kwargs):
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+    env = native["make"]()
+    with pytest.raises(RuntimeError, match=r"Docker build failed \(exit 17\)"):
+        asyncio.run(_DAEMON_OUTPUT(env, "build"))
+
+
+def test_daemon_output_terminates_the_process_when_wait_times_out(native, monkeypatch):
+    process = _FakeProcess(returncode=None)
+
+    async def spawn(*argv, **kwargs):
+        return process
+
+    async def wait_for(awaitable, timeout):
+        awaitable.close()
+        raise TimeoutError
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+    monkeypatch.setattr(asyncio, "wait_for", wait_for)
+    env = native["make"]()
+    with pytest.raises(asyncio.TimeoutError):
+        asyncio.run(_DAEMON_OUTPUT(env, "exec", "cid"))
+    assert process.terminated

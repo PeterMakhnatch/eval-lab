@@ -1,8 +1,8 @@
 """Developer fast-loop command: map changed files to affected test modules.
 
-Maps git diff / working tree changes to pytest modules using direct references
-and transitive imports through evallab modules, avoiding whole-suite runs during
-local development loops.
+Maps git diff / working tree changes to pytest modules using direct module
+references and asset-path mentions, avoiding whole-suite runs during local
+development loops.
 """
 
 from __future__ import annotations
@@ -30,8 +30,6 @@ FULL_SUITE_PATTERNS = (
     "uv.lock",
     "sql/",
 )
-
-EXPERIMENTS_ROOT = "research/experiments/"
 
 DOCS_PATTERNS = (
     "docs/",
@@ -157,9 +155,6 @@ def src_path_to_module(path_str: str) -> str:
     return inner.replace("/", ".")
 
 
-type _ImportStatement = tuple[str, int, str, list[str]]
-
-
 class _ConsumerFeatures(TypedDict):
     tokens: list[str]
     import_names: list[str]
@@ -169,15 +164,14 @@ class _ConsumerFeatures(TypedDict):
 
 @dataclass
 class _DevloopCache:
-    sources: dict[str, list[_ImportStatement]]
     consumers: dict[str, _ConsumerFeatures]
     dirty: bool = False
 
 
-def _import_graph_cache_path(root: Path) -> Path | None:
+def _devloop_cache_path(root: Path) -> Path | None:
     override = os.environ.get("EVALLAB_DEVLOOP_CACHE_DIR")
     if override is not None:
-        return Path(override).expanduser() / "import-graph.json"
+        return Path(override).expanduser() / "consumer-features.json"
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--git-dir"],
@@ -188,43 +182,24 @@ def _import_graph_cache_path(root: Path) -> Path | None:
             timeout=5,
         )
         git_dir = Path(result.stdout.strip())
-        return (root / git_dir) / "devloop/import-graph.json"
+        return (root / git_dir) / "devloop/consumer-features.json"
     except (OSError, subprocess.SubprocessError):
         return None
 
 
-def _load_import_graph_cache(path: Path | None) -> _DevloopCache:
-    empty = _DevloopCache({}, {})
+def _load_devloop_cache(path: Path | None) -> _DevloopCache:
+    empty = _DevloopCache({})
     if path is None:
         return empty
     try:
         with path.open(encoding="utf-8") as stream:
             data = json.load(stream)
-        if not isinstance(data, dict) or data.get("version") != 2:
+        if not isinstance(data, dict) or data.get("version") != 3:
             return empty
-        sources, consumers = data.get("sources"), data.get("consumers")
-        if not isinstance(sources, dict) or not isinstance(consumers, dict):
+        consumers = data.get("consumers")
+        if not isinstance(consumers, dict):
             return empty
-        cache = _DevloopCache({}, {})
-        for digest, records in sources.items():
-            if not isinstance(digest, str) or not isinstance(records, list):
-                return empty
-            statements: list[_ImportStatement] = []
-            for record in records:
-                if not isinstance(record, list) or len(record) != 4:
-                    return empty
-                kind, level, module, names = record
-                if (
-                    kind not in ("import", "from")
-                    or not isinstance(level, int)
-                    or level < 0
-                    or not isinstance(module, str)
-                    or not isinstance(names, list)
-                    or not all(isinstance(name, str) for name in names)
-                ):
-                    return empty
-                statements.append((kind, level, module, names))
-            cache.sources[digest] = statements
+        cache = _DevloopCache({})
         for digest, features in consumers.items():
             if (
                 not isinstance(digest, str)
@@ -265,11 +240,10 @@ def _load_import_graph_cache(path: Path | None) -> _DevloopCache:
         return empty
 
 
-def _write_import_graph_cache(path: Path, cache: _DevloopCache) -> None:
+def _write_devloop_cache(path: Path, cache: _DevloopCache) -> None:
     temporary: str | None = None
     try:
-        merged = _load_import_graph_cache(path)
-        merged.sources.update(cache.sources)
+        merged = _load_devloop_cache(path)
         merged.consumers.update(cache.consumers)
         path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
@@ -277,7 +251,7 @@ def _write_import_graph_cache(path: Path, cache: _DevloopCache) -> None:
         ) as stream:
             temporary = stream.name
             json.dump(
-                {"version": 2, "sources": merged.sources, "consumers": merged.consumers},
+                {"version": 3, "consumers": merged.consumers},
                 stream,
                 separators=(",", ":"),
             )
@@ -288,73 +262,6 @@ def _write_import_graph_cache(path: Path, cache: _DevloopCache) -> None:
         if temporary is not None:
             with suppress(OSError):
                 os.unlink(temporary)
-
-
-def _reverse_import_graph(root: Path, cache: _DevloopCache) -> dict[str, set[str]]:
-    """Map evallab modules to the source modules that import them."""
-    reverse: dict[str, set[str]] = {}
-    for path in (root / "src/evallab").rglob("*.py"):
-        module = src_path_to_module(path.relative_to(root).as_posix())
-        package = module if path.name == "__init__.py" else module.rpartition(".")[0]
-        try:
-            content = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError):
-            continue
-        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        statements = cache.sources.get(digest)
-        if statements is None:
-            statements = []
-            try:
-                tree = ast.parse(content, filename=str(path))
-            except SyntaxError:
-                pass
-            else:
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.Import):
-                        statements.append(("import", 0, "", [alias.name for alias in node.names]))
-                    elif isinstance(node, ast.ImportFrom):
-                        statements.append(
-                            (
-                                "from",
-                                node.level,
-                                node.module or "",
-                                [alias.name for alias in node.names],
-                            )
-                        )
-            cache.sources[digest] = statements
-            cache.dirty = True
-        for kind, level, base, names in statements:
-            if kind == "import":
-                imports = names
-            else:
-                if level:
-                    parts = package.split(".")
-                    if level > len(parts):
-                        continue
-                    prefix = ".".join(parts[: len(parts) - level + 1])
-                    base = f"{prefix}.{base}" if base else prefix
-                imports = [base, *(f"{base}.{name}" for name in names)]
-            for imported in imports:
-                if imported != "evallab" and not imported.startswith("evallab."):
-                    continue
-                # Importing a child also executes its parent packages.
-                parts = imported.split(".")
-                for end in range(1, len(parts) + 1):
-                    dependency = ".".join(parts[:end])
-                    reverse.setdefault(dependency, set()).add(module)
-    return reverse
-
-
-def _importer_closure(module: str, reverse: dict[str, set[str]]) -> set[str]:
-    """Include the changed module and all of its transitive importers."""
-    reachable = {module}
-    pending = [module]
-    while pending:
-        for importer in reverse.get(pending.pop(), ()):
-            if importer not in reachable:
-                reachable.add(importer)
-                pending.append(importer)
-    return reachable
 
 
 def _consumer_features(content: str, test_path: Path) -> tuple[_ConsumerFeatures, list[str]]:
@@ -467,23 +374,28 @@ def _asset_needles(path_str: str) -> list[str]:
     return needles
 
 
-def _experiment_dir(path_str: str) -> str | None:
-    """Return "research/experiments/<exp>" for paths under it, else None."""
+def _research_subdir(path_str: str) -> str | None:
+    """Return "research/<subdir>" for paths nested below it, else None."""
     norm = path_str.replace("\\", "/")
-    if not norm.startswith(EXPERIMENTS_ROOT):
+    if not norm.startswith("research/"):
         return None
-    rest = norm[len(EXPERIMENTS_ROOT) :]
+    rest = norm[len("research/") :]
     parts = rest.split("/")
     if len(parts) < 2 or not parts[0]:
         return None
-    return f"{EXPERIMENTS_ROOT}{parts[0]}"
+    return f"research/{parts[0]}"
 
 
-def _is_experiment_test(consumer: str, exp_dir: str, test_roots: Sequence[str]) -> bool:
-    """Return True if a consumer sits under the experiment's declared test roots."""
+def _is_research_test(consumer: str, test_roots: Sequence[str]) -> bool:
+    """Return True if a consumer sits under a declared research/ test root.
+
+    Research assets are also consumed by sibling experiment test roots: the
+    shared research test roots dynamically read evidence and experiment data
+    (for example coverage recomputation over research/evidence cells), so a
+    changed asset selects every test under declared research/ roots.
+    """
     return any(
-        (root == exp_dir or root.startswith(exp_dir + "/"))
-        and (consumer == root or consumer.startswith(root + "/"))
+        root.startswith("research/") and (consumer == root or consumer.startswith(root + "/"))
         for root in test_roots
     )
 
@@ -528,11 +440,8 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
         reasons["docs_consumer"] = [f"Documentation-only change: {', '.join(changed)}"]
     else:
         targets = {src_path_to_module(path) for path in changed if is_src_path(path)}
-        cache_path = _import_graph_cache_path(root_path) if targets else None
-        cache = _load_import_graph_cache(cache_path)
-        reverse = _reverse_import_graph(root_path, cache) if targets else {}
-        expansions = {target: _importer_closure(target, reverse) for target in targets}
-        targets = {module for reachable in expansions.values() for module in reachable}
+        cache_path = _devloop_cache_path(root_path) if targets else None
+        cache = _load_devloop_cache(cache_path)
         test_paths: dict[str, Path] = {}
         for test_root in test_roots:
             root_candidate = root_path / test_root
@@ -569,7 +478,7 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
             else {}
         )
         if cache.dirty and cache_path is not None:
-            _write_import_graph_cache(cache_path, cache)
+            _write_devloop_cache(cache_path, cache)
         consumers = sorted(test_paths)
         contents: dict[Path, str] = {}
 
@@ -589,23 +498,17 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
             elif is_src_path(norm):
                 target_mod = src_path_to_module(norm)
                 for rel in consumers:
-                    matched = inventory[test_paths[rel]] & expansions[target_mod]
-                    if target_mod in matched:
-                        reason = f"Imports {target_mod} ({norm})"
-                    elif matched:
-                        reason = f"Imports {target_mod} via {min(matched)}"
-                    else:
-                        continue
-                    reasons.setdefault(rel, []).append(reason)
+                    if target_mod in inventory[test_paths[rel]]:
+                        reasons.setdefault(rel, []).append(f"References {target_mod} ({norm})")
         for asset in assets:
             norm = asset.replace("\\", "/")
             needles = _asset_needles(norm)
-            exp_dir = _experiment_dir(norm)
+            research_asset = _research_subdir(norm) is not None
             for rel in consumers:
                 selected = False
-                if exp_dir is not None and _is_experiment_test(rel, exp_dir, test_roots):
+                if research_asset and _is_research_test(rel, test_roots):
                     reasons.setdefault(rel, []).append(
-                        f"Declared test under experiment root {exp_dir} ({norm})"
+                        f"Declared test under research test roots ({norm})"
                     )
                     selected = True
                 else:

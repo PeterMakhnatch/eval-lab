@@ -1274,10 +1274,9 @@ causes exit 1; an `absent` cell or subset causes exit 1 only with `--strict`;
 `unhashed` cells and `no-trial` entries never change the exit code. Otherwise
 the command exits 0. This mode reads the host results root, so it is not part
 of `--check` and no CI job runs it.
-On 2026-11-09 ET, both commands below exit 0 with the totals shown:
-80 of 81 cells hash-match, with 0 mismatches, 0 verifier-mismatches and
-0 absents, and every one of the 13 graded-subset trials matches its recorded
-reward. The 1 `unhashed` cell
+On 2026-11-09 ET, the strict check covers the combined 87-cell projection and exits 0.
+86 of 87 cells hash-match, with 0 mismatches, 0 verifier-mismatches and 0 absents.
+All 13 graded-subset trials match their recorded rewards. The 1 `unhashed` cell
 is `000928` (rank 8, verdict `unscored`): its setup healthcheck failed before
 the agent ran, so no attempts file exists. The 1 `no-trial` entry is
 `har-293-001671-subset2`, which never ran.
@@ -1288,7 +1287,7 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evi
 ```
 
 ```text
-totals: 81 cells, matched=80, mismatched=0, reward-mismatch=0, verifier-mismatch=0, absent=0, unhashed=1
+totals: 87 cells, matched=86, mismatched=0, reward-mismatch=0, verifier-mismatch=0, absent=0, unhashed=1
 subset totals: 14 entries, matched=13, reward-mismatch=0, absent=0, no-trial=1
 ```
 

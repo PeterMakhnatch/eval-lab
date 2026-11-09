@@ -52,6 +52,14 @@ builder names the file. These cells are hand-assembled JSON from job receipts,
 so one wrong edit must fail ``--check`` rather than change a quoted count. The
 subset schema carries none of these fields and skips these rules.
 
+``--verify-evidence`` re-hashes host ``agent/cheat/attempts.json`` files. It
+tries explicit ``published_job`` and ``raw_job`` paths, then date-sorted
+published and raw conventions under ``--results-root``. Each coverage cell is
+``matched``, ``mismatched``, ``absent``, or ``unhashed``. Mismatches exit 1;
+absences exit 1 only with ``--strict``; unhashed cells never change the exit
+code. This mode reads the host results root and is deliberately not part of
+``--check``.
+
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
 summary with ``--summary``.
@@ -62,6 +70,7 @@ from __future__ import annotations
 import argparse
 import csv
 import difflib
+import hashlib
 import io
 import json
 import statistics
@@ -107,6 +116,7 @@ GRADED_BASIS = "graded"
 SECONDS_PER_HOUR = 3600.0
 VERDICT_TOTALS = ("clean", "cracked", "unscored")
 TOTALS_FIELDS = ("tasks", *VERDICT_TOTALS)
+EVIDENCE_STATUSES = ("matched", "mismatched", "absent", "unhashed")
 
 
 class ProgressError(RuntimeError):
@@ -245,7 +255,9 @@ def read_cells(
             _require_manifest_digest(task, manifest)
             _require_attack_counts(task)
             _require_consistent_verdict(task)
-            cells.append({**task, "_source_file": source})
+            cells.append(
+                {**task, "_source_file": source, "_card": task.get("card", data.get("card", ""))}
+            )
         _require_file_totals(data, source)
     return cells
 
@@ -457,6 +469,88 @@ def render_summary(rows: Sequence[dict[str, str]]) -> str:
     return buffer.getvalue()
 
 
+def attempts_candidates(cell: Mapping[str, Any], card: str, results_root: Path) -> list[Path]:
+    """Explicit jobs, published conventions, then raw conventions, without repeats."""
+    card = str(cell.get("card", card) or "")
+    trial = Path(str(cell["trial_name"])) / "agent" / "cheat" / "attempts.json"
+    candidates = [
+        Path(str(cell[key])).expanduser() / trial
+        for key in ("published_job", "raw_job")
+        if cell.get(key)
+    ]
+    dates = sorted(path for path in results_root.expanduser().glob("*") if path.is_dir())
+    candidates.extend(date / f"{card}-{cell['job_name']}" / trial for date in dates)
+    candidates.extend(
+        date
+        / f"{card.lower()}-mimo-v6-ladder"
+        / str(cell["task_id"])
+        / str(cell["job_name"])
+        / trial
+        for date in dates
+    )
+    return list(dict.fromkeys(candidates))
+
+
+def verify_cell(cell: Mapping[str, Any], card: str, results_root: Path) -> dict[str, Any]:
+    """Compare a cell's recorded hash with every candidate until one matches."""
+    result: dict[str, Any] = {
+        "cell": cell,
+        "card": str(cell.get("card", card) or ""),
+        "status": "unhashed",
+        "path": None,
+        "expected": cell.get("attempts_json_sha256"),
+        "actual": None,
+        "candidate_count": 0,
+    }
+    expected = result["expected"]
+    if not isinstance(expected, str) or not expected:
+        return result
+    candidates = attempts_candidates(cell, card, results_root)
+    result.update(status="absent", candidate_count=len(candidates))
+    for path in candidates:
+        if not path.is_file():
+            continue
+        with path.open("rb") as handle:
+            actual = hashlib.file_digest(handle, "sha256").hexdigest()
+        if actual == expected:
+            result.update(status="matched", path=path, actual=actual)
+            return result
+        if result["status"] == "absent":
+            result.update(status="mismatched", path=path, actual=actual)
+    return result
+
+
+def verify_evidence(cells: Sequence[dict[str, Any]], results_root: Path) -> list[dict[str, Any]]:
+    """Check every coverage cell, in rank and task order, without reading the ranking."""
+    ordered = sorted(cells, key=lambda cell: (int(cell["ranking"]["rank"]), str(cell["task_id"])))
+    return [verify_cell(cell, str(cell.get("_card") or ""), results_root) for cell in ordered]
+
+
+def render_evidence(checks: Sequence[dict[str, Any]]) -> str:
+    """One stable line per cell followed by all four status counts."""
+    lines = []
+    for result in checks:
+        cell = result["cell"]
+        status = result["status"]
+        prefix = (
+            f"{status:<10} {cell['task_id']} {result['card']} "
+            f"{cell['job_name']}/{cell['trial_name']}"
+        )
+        if status == "unhashed":
+            detail = "cell records no attempts_json_sha256"
+        elif status == "absent":
+            detail = f"no attempts.json among {result['candidate_count']} candidate paths"
+        else:
+            detail = str(result["path"])
+            if status == "mismatched":
+                detail += f" expected {result['expected'][:12]} got {result['actual'][:12]}"
+        lines.append(f"{prefix} {detail}")
+    counts = Counter(result["status"] for result in checks)
+    totals = ", ".join(f"{status}={counts[status]}" for status in EVIDENCE_STATUSES)
+    lines.append(f"totals: {len(checks)} cells, {totals}")
+    return "\n".join(lines) + "\n"
+
+
 def check(rebuilt: str, target: Path) -> bool:
     """Compare ``rebuilt`` against the committed file; True when it matches."""
     committed = target.read_text(encoding="utf-8") if target.is_file() else ""
@@ -489,7 +583,34 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="print wall time by language and the serial hours left for uncovered rows",
     )
+    mode.add_argument(
+        "--verify-evidence",
+        action="store_true",
+        help="re-hash coverage cells' host attempts.json evidence",
+    )
+    parser.add_argument(
+        "--results-root",
+        type=Path,
+        default=Path("~/Developer/eval-lab-results"),
+        help="host results directory (only read by --verify-evidence)",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="with --verify-evidence, also exit 1 for absent evidence",
+    )
     args = parser.parse_args(argv)
+    if args.strict and not args.verify_evidence:
+        parser.error("--strict requires --verify-evidence")
+    if args.verify_evidence:
+        cells = read_cells(HERE, ROOT, manifest=read_manifest(HERE))
+        checks = verify_evidence(cells, args.results_root)
+        print(render_evidence(checks), end="")
+        counts = Counter(result["status"] for result in checks)
+        failed = counts["mismatched"] > 0 or (args.strict and counts["absent"] > 0)
+        if failed:
+            print(f"{counts['mismatched']} mismatched, {counts['absent']} absent", file=sys.stderr)
+        return int(failed)
     rows = build(ROOT, cells_dir=HERE)
     if args.summary:
         print(render_summary(rows), end="")

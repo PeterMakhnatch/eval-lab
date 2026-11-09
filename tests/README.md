@@ -7,6 +7,7 @@ task admissions function correctly and deterministically.
 
 ## What lives here / entry points
 - `tests/conftest.py`: session hooks that record what the run collected (used by `tests/test_ci_coverage.py`).
+- `tests/test_test_hygiene.py`: Checks bare module names, shard overrides, and slow-test budgets.
 - `tests/fixtures/`: Synthetic fixtures, mock data, and test environments.
 - `tests/golden/`: Golden reference files for digest, report, and artifact comparisons.
 - `tests/test_smoke.py`: Fast smoke verification suite for essential platform paths.
@@ -17,11 +18,14 @@ task admissions function correctly and deterministically.
 - Strict determinism: Tests must be deterministic with injected seams: no host state, network calls, live clock, Docker dependencies, or sleeps (cited in `agents/CHECKS.md` and `AGENTS.md`).
 - Fixture isolation: Tests use pytest temporary paths for temporary I/O; tests never write directly into repo directories (cited in `agents/CHECKS.md`).
 - Default collection covers the `testpaths` in `pyproject.toml` (`tests/`, `dashboard/tests/`, `research/*/tests/`, `research/experiments/library-ladder-coverage/`); use `-n0` and a module path for focused runs during development (cited in `agents/CHECKS.md`).
+- Non-package directories from pytest `testpaths` and `pythonpath` must have distinct bare Python module names.
+  The check excludes directories with `__init__.py` and ignores `conftest.py`.
 
 ## Tests or checks
 - `uv run pytest tests/test_smoke.py`
 - `uv run pytest tests/test_governance.py`
 - `uv run pytest tests/test_preflight.py`
+- `uv run pytest tests/test_test_hygiene.py`
 
 ## What not to add here
 - Do not store actual production data, large corpora, or unredacted credentials here.

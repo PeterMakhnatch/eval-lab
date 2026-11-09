@@ -1,6 +1,6 @@
 # Devloop selection recall
 
-Run date (UTC): 2026-11-09T14:57:07.481090+00:00
+Run date (UTC): 2026-11-09T15:36:53.855632+00:00
 
 ## Method
 
@@ -8,7 +8,7 @@ Replay the most recent failed `quality` PR runs, in descending creation order.
 Extract unique failing Python files from pytest `FAILED` and `ERROR` log lines.
 Compare both planners on each run's archived source, test roots, and configuration.
 Changed files use the merge base between the run head and the recorded `origin/main`.
-Before: `origin/main` (`ac529b697a2a739fa1022d24fb20f744ea57087d`).
+Before: `origin/main` (`f261f301aab977946309881396ebcaf19a6aa52a`).
 After: working-tree `src/evallab/devloop.py`.
 No historical tests run. A full-suite fallback counts every failing file as a hit.
 Selected counts expand a fallback to the archived Python test-consumer inventory.
@@ -26,7 +26,7 @@ Fallback rate = full-suite fallback runs / usable runs.
 | File recall | 100.0% | 100.0% |
 | Mean per-run recall | 100.0% | 100.0% |
 | Fallback rate | 80.0% | 33.3% |
-| Median selected file count | 800.5 | 285.0 |
+| Median selected file count | 800.5 | 29.0 |
 | Hits | 39 | 39 |
 | Misses | 0 | 0 |
 

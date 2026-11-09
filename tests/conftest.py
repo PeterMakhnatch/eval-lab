@@ -198,6 +198,15 @@ def pytest_terminal_summary(
                     durations.setdefault(rep.nodeid, rep.duration)
 
     slow = [(nodeid, dur) for nodeid, dur in durations.items() if dur > budget]
+
+    # HAR-354: Always print the top-10 durations (equivalent of --durations=10) so CI
+    # shard logs carry per-test timing evidence; the junit XML is not uploaded.
+    if durations:
+        slowest = sorted(durations.items(), key=lambda item: item[1], reverse=True)[:10]
+        terminalreporter.section("Slowest test durations")
+        for nodeid, dur in slowest:
+            terminalreporter.write_line(f"{nodeid}: {dur:.2f}s")
+
     if not slow:
         return
 

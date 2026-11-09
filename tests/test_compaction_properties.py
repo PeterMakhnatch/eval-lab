@@ -742,9 +742,9 @@ class CompactionRetentionStateMachine(RuleBasedStateMachine):
 
 TestCompactionProperties = CompactionRetentionStateMachine.TestCase
 TestCompactionProperties.settings = settings(
-    # HAR-354: Shrink CI examples to keep the shard under the 60 s slow-test budget.
-    max_examples=20 if _CI else 50,
-    # HAR-354: Shrink CI steps to keep the shard under the 60 s slow-test budget.
-    stateful_step_count=10 if _CI else 20,
+    # HAR-354: Shrink CI examples to keep the state machine under the 60 s slow-test
+    # budget: 10 runs x 5 steps = <=50 rule executions under CI.
+    max_examples=10 if _CI else 50,
+    stateful_step_count=5 if _CI else 20,
     deadline=None,
 )

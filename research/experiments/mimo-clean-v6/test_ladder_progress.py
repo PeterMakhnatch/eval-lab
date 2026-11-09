@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import collections
 import csv
+import hashlib
 import importlib.util
 import io
 import json
@@ -649,6 +650,260 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(MODULE, "ROOT", tmp_path)
     monkeypatch.setattr(MODULE, "HERE", experiment)
     return experiment
+
+
+@pytest.fixture
+def evidence_sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+    """A minimal cell repo without a ranking, plus an isolated host results root."""
+    repo = tmp_path / "repo"
+    experiment = repo / "research" / "experiments" / "mimo-clean-v6"
+    experiment.mkdir(parents=True)
+    manifest = "task_id,final_digest\n" + "".join(
+        f"{task_id},{digest}\n" for task_id, digest in _manifest().items()
+    )
+    (experiment / "manifest.csv").write_text(manifest, encoding="utf-8")
+    results = tmp_path / "results"
+    results.mkdir()
+    monkeypatch.setattr(MODULE, "ROOT", repo)
+    monkeypatch.setattr(MODULE, "HERE", experiment)
+    return experiment, results
+
+
+ATTEMPTS_BYTES = b'{"attacks": []}\n'
+ATTEMPTS_SHA256 = hashlib.sha256(ATTEMPTS_BYTES).hexdigest()
+
+
+def _evidence_cell(rank: int = 1, **fields: object) -> dict:
+    cell = _cell(rank, "rc=0 runner=x")
+    cell.update(
+        job_name=f"job{rank}",
+        trial_name=f"trial{rank}",
+        attempts_json_sha256=ATTEMPTS_SHA256,
+    )
+    cell.update(fields)
+    return cell
+
+
+def _evidence_file(experiment: Path, cells: list[dict], card: str = "HAR-328") -> None:
+    (experiment / "ladder-evidence.json").write_text(
+        json.dumps({"schema": SCHEMA, "card": card, "tasks": cells}), encoding="utf-8"
+    )
+
+
+def _attempts_file(path: Path, content: bytes = ATTEMPTS_BYTES) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
+    return path
+
+
+@pytest.mark.parametrize("override", [None, "HAR-999"])
+def test_ladder_progress_evidence_matches_published_convention(
+    evidence_sandbox: tuple[Path, Path],
+    capsys: pytest.CaptureFixture[str],
+    override: str | None,
+) -> None:
+    experiment, root = evidence_sandbox
+    cell = _evidence_cell()
+    if override is not None:
+        cell["card"] = override
+    card = override or "HAR-328"
+    _evidence_file(experiment, [cell])
+    path = _attempts_file(root / "2026-11-08" / f"{card}-job1" / "trial1/agent/cheat/attempts.json")
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root)]) == 0
+    output = capsys.readouterr()
+    assert f"matched    t1 {card} job1/trial1" in output.out
+    assert str(path) in output.out
+    assert "totals: 1 cells, matched=1, mismatched=0, absent=0, unhashed=0" in output.out
+    assert output.err == ""
+
+
+def test_ladder_progress_evidence_mismatch_reports_first_existing_path_and_hashes(
+    evidence_sandbox: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    experiment, root = evidence_sandbox
+    published = root / "published"
+    raw = root / "raw"
+    _evidence_file(experiment, [_evidence_cell(published_job=str(published), raw_job=str(raw))])
+    content = b"different evidence"
+    path = _attempts_file(published / "trial1/agent/cheat/attempts.json", content)
+    _attempts_file(raw / "trial1/agent/cheat/attempts.json", b"another mismatch")
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root)]) == 1
+    output = capsys.readouterr()
+    assert "mismatched t1" in output.out
+    assert str(path) in output.out
+    assert f"expected {ATTEMPTS_SHA256[:12]}" in output.out
+    assert f"got {hashlib.sha256(content).hexdigest()[:12]}" in output.out
+    assert "mismatched=1" in output.out
+    assert "1 mismatched, 0 absent" in output.err
+
+
+def test_ladder_progress_evidence_absent_only_fails_in_strict_mode(
+    evidence_sandbox: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    experiment, root = evidence_sandbox
+    _evidence_file(experiment, [_evidence_cell()])
+    args = ["--verify-evidence", "--results-root", str(root)]
+    assert MODULE.main(args) == 0
+    output = capsys.readouterr()
+    assert "absent     t1" in output.out
+    assert "no attempts.json among 0 candidate paths" in output.out
+    assert "absent=1" in output.out
+    assert output.err == ""
+    assert MODULE.main([*args, "--strict"]) == 1
+    strict = capsys.readouterr()
+    assert strict.out == output.out
+    assert "0 mismatched, 1 absent" in strict.err
+
+
+def test_ladder_progress_evidence_matches_explicit_published_and_raw_jobs(
+    evidence_sandbox: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    experiment, root = evidence_sandbox
+    published = root / "explicit-published"
+    raw = root / "explicit-raw"
+    _evidence_file(
+        experiment,
+        [_evidence_cell(1, published_job=str(published)), _evidence_cell(2, raw_job=str(raw))],
+    )
+    paths = [
+        _attempts_file(published / "trial1/agent/cheat/attempts.json"),
+        _attempts_file(raw / "trial2/agent/cheat/attempts.json"),
+    ]
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root)]) == 0
+    output = capsys.readouterr().out
+    assert "matched    t1 HAR-328 job1/trial1" in output
+    assert "matched    t2 HAR-328 job2/trial2" in output
+    assert all(str(path) in output for path in paths)
+    assert "matched=2, mismatched=0, absent=0, unhashed=0" in output
+
+
+def test_ladder_progress_evidence_matches_raw_convention(
+    evidence_sandbox: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    experiment, root = evidence_sandbox
+    _evidence_file(experiment, [_evidence_cell()])
+    path = _attempts_file(
+        root / "2026-11-08/har-328-mimo-v6-ladder/t1/job1/trial1/agent/cheat/attempts.json"
+    )
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root)]) == 0
+    output = capsys.readouterr().out
+    assert "matched    t1" in output
+    assert str(path) in output
+    assert "matched=1" in output
+
+
+@pytest.mark.parametrize("digest", [None, "", False, 7])
+def test_ladder_progress_evidence_unhashed_never_fails_or_counts_as_absent(
+    evidence_sandbox: tuple[Path, Path], capsys: pytest.CaptureFixture[str], digest: object
+) -> None:
+    experiment, root = evidence_sandbox
+    _evidence_file(experiment, [_evidence_cell(attempts_json_sha256=digest)])
+    args = ["--verify-evidence", "--results-root", str(root)]
+    for extra in ([], ["--strict"]):
+        assert MODULE.main([*args, *extra]) == 0
+        output = capsys.readouterr()
+        assert "unhashed   t1" in output.out
+        assert "cell records no attempts_json_sha256" in output.out
+        assert "matched=0, mismatched=0, absent=0, unhashed=1" in output.out
+        assert output.err == ""
+
+
+def test_ladder_progress_evidence_accepts_a_later_matching_candidate(
+    evidence_sandbox: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    experiment, root = evidence_sandbox
+    published = root / "explicit-published"
+    raw = root / "explicit-raw"
+    _evidence_file(experiment, [_evidence_cell(published_job=str(published), raw_job=str(raw))])
+    _attempts_file(published / "trial1/agent/cheat/attempts.json", b"stale")
+    match = _attempts_file(raw / "trial1/agent/cheat/attempts.json")
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root), "--strict"]) == 0
+    output = capsys.readouterr().out
+    assert str(match) in output
+    assert "matched=1, mismatched=0" in output
+
+
+def test_ladder_progress_evidence_candidates_are_ordered_and_deduplicated(tmp_path: Path) -> None:
+    early = tmp_path / "2026-11-07"
+    late = tmp_path / "2026-11-08"
+    late.mkdir()
+    early.mkdir()
+    published = early / "HAR-328-job1"
+    raw = tmp_path / "explicit-raw"
+    cell = _evidence_cell(published_job=str(published), raw_job=str(raw))
+    suffix = Path("trial1/agent/cheat/attempts.json")
+    assert MODULE.attempts_candidates(cell, "HAR-328", tmp_path) == [
+        published / suffix,
+        raw / suffix,
+        late / "HAR-328-job1" / suffix,
+        early / "har-328-mimo-v6-ladder/t1/job1" / suffix,
+        late / "har-328-mimo-v6-ladder/t1/job1" / suffix,
+    ]
+
+
+def test_ladder_progress_evidence_sorts_by_rank_then_task_and_keeps_every_cell() -> None:
+    cells = [
+        _evidence_cell(2, attempts_json_sha256=None),
+        _evidence_cell(1, task_id="z", attempts_json_sha256=None),
+        _evidence_cell(1, task_id="a", attempts_json_sha256=None),
+    ]
+    checks = MODULE.verify_evidence(cells, Path("/unused"))
+    assert [result["cell"]["task_id"] for result in checks] == ["a", "z", "t2"]
+    assert MODULE.render_evidence(checks).endswith(
+        "totals: 3 cells, matched=0, mismatched=0, absent=0, unhashed=3\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--verify-evidence", "--check"],
+        ["--verify-evidence", "--summary"],
+        ["--strict"],
+        ["--strict", "--check"],
+        ["--strict", "--summary"],
+    ],
+)
+def test_ladder_progress_evidence_rejects_invalid_cli_modes(
+    args: list[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as refused:
+        MODULE.main(args)
+    assert refused.value.code == 2
+    assert "error:" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("mode", ["--check", "--summary"])
+def test_ladder_progress_offline_modes_never_touch_results_root(
+    sandbox: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    mode: str,
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("offline mode touched host evidence")
+
+    monkeypatch.setattr(MODULE, "verify_evidence", forbidden)
+    monkeypatch.setattr(Path, "expanduser", forbidden)
+    assert MODULE.main([mode, "--results-root", str(sandbox / "missing-results")]) == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_ladder_progress_evidence_expands_the_default_results_root_at_use_time(
+    evidence_sandbox: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    experiment, root = evidence_sandbox
+    monkeypatch.setenv("HOME", str(root))
+    _evidence_file(experiment, [_evidence_cell()])
+    path = _attempts_file(
+        root
+        / "Developer/eval-lab-results/2026-11-08/HAR-328-job1"
+        / "trial1/agent/cheat/attempts.json"
+    )
+    assert MODULE.main(["--verify-evidence"]) == 0
+    assert str(path) in capsys.readouterr().out
 
 
 def test_ladder_progress_check_refuses_a_cell_at_another_digest(sandbox: Path) -> None:

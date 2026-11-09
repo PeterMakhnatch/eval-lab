@@ -892,6 +892,33 @@ Basis counts in the committed table (100 ranks, 57 covered; Docker-free):
 39 of the 56 `clean` verdicts are tamper refusals, so the refusal
 rate among clean ladder verdicts is 39/56 (69.6%); 17 rest on a graded run.
 
+**Evidence link check (HAR-328).** `--verify-evidence` re-hashes each committed
+coverage cell's `agent/cheat/attempts.json` under the host results root
+(`--results-root`, default `~/Developer/eval-lab-results`). It tries explicit
+`published_job` and `raw_job` paths first, then
+`<root>/*/<CARD>-<job>/<trial>/agent/cheat/attempts.json`, then
+`<root>/*/<card>-mimo-v6-ladder/<task>/<job>/<trial>/agent/cheat/attempts.json`
+(lowercase card for the raw convention; date directories sorted).
+The statuses are `matched` (a candidate has the recorded hash), `mismatched`
+(files exist but none matches), `absent` (no candidate file), and `unhashed`
+(the cell records no hash). A `mismatched` cell always causes exit 1;
+an `absent` cell causes exit 1 only with `--strict`; `unhashed` never changes
+the exit code. Otherwise the command exits 0. This mode reads the host results
+root, so it is not part of `--check` and no CI job runs it.
+On 2026-11-08 ET, both commands below exit 0 with the totals shown:
+50 of 51 cells hash-match, with 0 mismatches and 0 absents. The 1 `unhashed`
+cell is `000928` (rank 8, verdict `unscored`): its setup healthcheck failed
+before the agent ran, so no attempts file exists.
+
+```bash
+uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evidence
+uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evidence --strict
+```
+
+```text
+totals: 51 cells, matched=50, mismatched=0, absent=0, unhashed=1
+```
+
 ### Refusal signatures and attacks executed (HAR-302)
 
 Two more trailing columns come from the coverage cell itself (the subset schema

@@ -188,7 +188,7 @@ def pytest_terminal_summary(
     exitstatus: pytest.ExitCode,
     config: pytest.Config,
 ) -> None:
-    """Report tests that exceeded the session slow-test budget."""
+    """Print per-test durations (>=1s) and report tests over the slow-test budget."""
     budget = _slow_test_budget_seconds()
     durations = dict(config.stash.get(_CALL_DURATIONS, {}))
     if hasattr(terminalreporter, "stats"):
@@ -199,10 +199,15 @@ def pytest_terminal_summary(
 
     slow = [(nodeid, dur) for nodeid, dur in durations.items() if dur > budget]
 
-    # HAR-354: Always print the top-10 durations (equivalent of --durations=10) so CI
-    # shard logs carry per-test timing evidence; the junit XML is not uploaded.
-    if durations:
-        slowest = sorted(durations.items(), key=lambda item: item[1], reverse=True)[:10]
+    # HAR-354: Always print every duration >= 1 s (equivalent of --durations with
+    # --durations-min) so CI shard logs carry per-test timing evidence; the junit
+    # XML is not uploaded.
+    slowest = sorted(
+        ((nodeid, dur) for nodeid, dur in durations.items() if dur >= 1.0),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    if slowest:
         terminalreporter.section("Slowest test durations")
         for nodeid, dur in slowest:
             terminalreporter.write_line(f"{nodeid}: {dur:.2f}s")

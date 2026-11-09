@@ -386,6 +386,5 @@ def test_slow_test_budget_reads_xdist_stats() -> None:
     assert tr.sections == ["Slowest test durations", "Slow tests (budget 60s)"]
     assert tr.lines == [
         "tests/test_worker.py::test_heavy: 88.00s",
-        "tests/test_worker.py::test_light: 0.50s",
         "tests/test_worker.py::test_heavy: 88.00s",
     ]

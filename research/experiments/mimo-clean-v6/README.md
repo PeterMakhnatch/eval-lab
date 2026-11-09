@@ -906,7 +906,7 @@ an `absent` cell causes exit 1 only with `--strict`; `unhashed` never changes
 the exit code. Otherwise the command exits 0. This mode reads the host results
 root, so it is not part of `--check` and no CI job runs it.
 On 2026-11-08 ET, both commands below exit 0 with the totals shown:
-50 of 51 cells hash-match, with 0 mismatches and 0 absents. The 1 `unhashed`
+56 of 57 cells hash-match, with 0 mismatches and 0 absents. The 1 `unhashed`
 cell is `000928` (rank 8, verdict `unscored`): its setup healthcheck failed
 before the agent ran, so no attempts file exists.
 
@@ -916,7 +916,7 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evi
 ```
 
 ```text
-totals: 51 cells, matched=50, mismatched=0, absent=0, unhashed=1
+totals: 57 cells, matched=56, mismatched=0, absent=0, unhashed=1
 ```
 
 ### Refusal signatures and attacks executed (HAR-302)

@@ -302,7 +302,10 @@ def test_install_builds_durable_snapshot_and_plist(world: World, target: str | N
         assert str(world.repo) not in text
         assert "disposable" not in text
     assert "--resume" not in plist["ProgramArguments"]
-    assert not any("cap" in a.lower() or "force" in a.lower() for a in plist["ProgramArguments"])
+    # Option-like args only: release paths embed a random mktemp suffix whose
+    # characters can legally contain "cap"/"force" without being flags.
+    flags = [a for a in plist["ProgramArguments"] if a.startswith("-")]
+    assert not any("cap" in a.lower() or "force" in a.lower() for a in flags)
 
     # The venv imports evallab from the snapshot and the build used the snapshot only.
     (site,) = venv.glob("lib/python*/site-packages")

@@ -275,14 +275,19 @@ def _cell(
     matches: bool = True,
 ) -> dict:
     refused = decision is not None and decision.startswith("tamper signature")
+    executed = 14 if refused else 9
     return {
         "task_id": f"t{rank}",
         "ranking": {"rank": rank, "phase": "P"},
         "ladder_version": "1.4.0",
         "verdict": verdict,
+        "reward": 0.0,
+        "cracking_attacks": [],
         "verifier_decision": decision,
         "verifier_tamper_hit": f"tamper \\b_pytest\\b in pkg{rank}/__init__.py" if refused else None,
-        "attacks_executed": 14 if refused else 9,
+        "attacks_executed": executed,
+        "attacks_total": executed,
+        "attacks_not_executed": {},
         "wall_seconds": 10 * rank,
         "finished_utc": finished,
         "final_digest": f"sha256:cell{rank}" if digest is None else digest,
@@ -295,11 +300,18 @@ def _manifest(n: int = 3) -> dict[str, str]:
     return {f"t{i}": f"sha256:cell{i}" for i in range(1, n + 1)}
 
 
-def _cell_file(tmp_path: Path, cell: dict) -> None:
-    body = {k: v for k, v in cell.items() if k != "_source_file"}
-    (tmp_path / "ladder-a.json").write_text(
-        json.dumps({"schema": SCHEMA, "tasks": [body]}), encoding="utf-8"
-    )
+def _cells_file(tmp_path: Path, cells: list[dict], totals: dict | None = None) -> None:
+    data: dict = {
+        "schema": SCHEMA,
+        "tasks": [{k: v for k, v in cell.items() if k != "_source_file"} for cell in cells],
+    }
+    if totals is not None:
+        data["totals"] = totals
+    (tmp_path / "ladder-a.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+def _cell_file(tmp_path: Path, cell: dict, totals: dict | None = None) -> None:
+    _cells_file(tmp_path, [cell], totals)
 
 
 def test_ladder_progress_a_refusal_cell_names_its_file_and_a_graded_cell_does_not() -> None:
@@ -481,6 +493,128 @@ def test_ladder_progress_a_cell_absent_from_the_manifest_is_refused(tmp_path: Pa
     _cell_file(tmp_path, _cell(1, "rc=0 runner=x"))
     with pytest.raises(ProgressError, match="t1: absent from manifest.csv"):
         MODULE.read_cells(tmp_path, tmp_path, manifest={})
+
+
+@pytest.mark.parametrize(
+    ("overrides", "dropped", "field", "detail"),
+    [
+        # The comparison case must fail on the comparison alone, so it drops the
+        # key the sum rule reads; otherwise that rule would raise a message that
+        # also names attacks_executed and the comparison branch could go untested.
+        (
+            {"attacks_executed": 10, "attacks_total": 9},
+            ("attacks_not_executed",),
+            "attacks_executed",
+            "> attacks_total",
+        ),
+        (
+            {"attacks_executed": 9, "attacks_total": 14, "attacks_not_executed": {}},
+            (),
+            "attacks_not_executed",
+            "!= attacks_total",
+        ),
+        ({"attacks_executed": "9"}, (), "attacks_executed", "is not a count"),
+        ({"attacks_total": "14"}, (), "attacks_total", "is not a count"),
+        ({"attacks_not_executed": None}, (), "attacks_not_executed", "is not a mapping"),
+    ],
+)
+def test_ladder_progress_attack_counts_that_do_not_add_up_are_refused(
+    tmp_path: Path, overrides: dict, dropped: tuple[str, ...], field: str, detail: str
+) -> None:
+    cell = _cell(1, "rc=0 runner=x")
+    cell.update(overrides)
+    for key in dropped:
+        del cell[key]
+    _cell_file(tmp_path, cell)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "t1" in message
+    assert field in message
+    assert detail in message
+
+
+def test_ladder_progress_a_cell_without_attacks_not_executed_is_accepted(tmp_path: Path) -> None:
+    cell = _cell(1, "rc=0 runner=x")
+    cell["attacks_total"] = 14
+    del cell["attacks_not_executed"]
+    _cell_file(tmp_path, cell)
+    [accepted] = MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    assert (accepted["attacks_executed"], accepted["attacks_total"]) == (9, 14)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "field"),
+    [
+        ({"reward": 1.0}, "reward"),
+        ({"cracking_attacks": ["tamper_source_skip"]}, "cracking_attacks"),
+    ],
+)
+def test_ladder_progress_a_clean_verdict_with_a_contradiction_is_refused(
+    tmp_path: Path, overrides: dict, field: str
+) -> None:
+    cell = _cell(1, "rc=1 runner=x", verdict="clean")
+    cell.update(overrides)
+    _cell_file(tmp_path, cell)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "t1" in message
+    assert "clean" in message
+    assert field in message
+
+
+@pytest.mark.parametrize("reward", [0.0, None, "0.5"])
+def test_ladder_progress_a_cracked_verdict_without_reward_is_refused(
+    tmp_path: Path, reward: object
+) -> None:
+    cell = _cell(1, "rc=0 runner=x", verdict="cracked")
+    cell.update(reward=reward, cracking_attacks=["tamper_source_skip"])
+    _cell_file(tmp_path, cell)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "t1" in message
+    assert "cracked" in message
+    assert "reward" in message
+
+
+@pytest.mark.parametrize("field", ["tasks", "clean", "cracked", "unscored"])
+def test_ladder_progress_a_totals_block_that_disagrees_with_its_tasks_is_refused(
+    tmp_path: Path, field: str
+) -> None:
+    totals = {"tasks": 1, "clean": 1, "cracked": 0, "unscored": 0}
+    totals[field] = 99
+    _cell_file(tmp_path, _cell(1, "rc=0 runner=x"), totals=totals)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "ladder-a.json" in message
+    assert f"totals {field}" in message
+
+
+@pytest.mark.parametrize("field", ["tasks", "clean", "cracked", "unscored"])
+def test_ladder_progress_a_totals_block_missing_a_count_is_refused(
+    tmp_path: Path, field: str
+) -> None:
+    totals = {"tasks": 1, "clean": 1, "cracked": 0, "unscored": 0}
+    del totals[field]
+    _cell_file(tmp_path, _cell(1, "rc=0 runner=x"), totals=totals)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "ladder-a.json" in message
+    assert field in message
+
+
+def test_ladder_progress_a_totals_block_that_matches_its_tasks_is_accepted(tmp_path: Path) -> None:
+    clean = _cell(1, "rc=1 runner=x")
+    cracked = _cell(2, "rc=0 runner=x", verdict="cracked")
+    cracked.update(reward=1.0, cracking_attacks=["tamper_source_skip"])
+    totals = {"tasks": 2, "clean": 1, "cracked": 1, "unscored": 0}
+    _cells_file(tmp_path, [clean, cracked], totals)
+    accepted = MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(2))
+    assert [cell["task_id"] for cell in accepted] == ["t1", "t2"]
 
 
 def test_ladder_progress_a_subset_cell_at_another_digest_is_refused(tmp_path: Path) -> None:

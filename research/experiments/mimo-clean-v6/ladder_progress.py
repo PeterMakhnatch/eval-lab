@@ -40,6 +40,18 @@ covered rows by basis, the uncovered rows, the median and maximum
 cell carries a wall time but no verdict, so it counts as covered and does not
 set a median.
 
+A coverage cell must also agree with itself, or the builder raises
+``ProgressError`` naming the ``task_id`` and the field: ``attacks_executed``
+above ``attacks_total``; ``attacks_executed`` plus ``len(attacks_not_executed)``
+unequal to ``attacks_total`` when ``attacks_not_executed`` is present; a
+``clean`` verdict with a nonzero ``reward`` or a non-empty
+``cracking_attacks``; and a ``cracked`` verdict with a missing or non-positive
+``reward``. The file's ``totals`` block must match the counts over its own
+``tasks`` for ``tasks``, ``clean``, ``cracked`` and ``unscored``, else the
+builder names the file. These cells are hand-assembled JSON from job receipts,
+so one wrong edit must fail ``--check`` rather than change a quoted count. The
+subset schema carries none of these fields and skips these rules.
+
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
 summary with ``--summary``.
@@ -93,6 +105,8 @@ SUMMARY_HEADING = "## Wall time by language and remaining serial hours"
 REFUSAL_BASIS = "tamper-refusal"
 GRADED_BASIS = "graded"
 SECONDS_PER_HOUR = 3600.0
+VERDICT_TOTALS = ("clean", "cracked", "unscored")
+TOTALS_FIELDS = ("tasks", *VERDICT_TOTALS)
 
 
 class ProgressError(RuntimeError):
@@ -155,6 +169,68 @@ def _require_manifest_digest(task: Mapping[str, Any], manifest: Mapping[str, str
         )
 
 
+def _require_attack_counts(task: Mapping[str, Any]) -> None:
+    """Refuse a cell whose executed and unexecuted attack counts do not add up."""
+    task_id = str(task["task_id"])
+    total = task.get("attacks_total")
+    if total is None:
+        return
+    if not isinstance(total, int):
+        raise ProgressError(f"{task_id}: attacks_total {total!r} is not a count")
+    executed = task.get("attacks_executed")
+    if not isinstance(executed, int):
+        raise ProgressError(f"{task_id}: attacks_executed {executed!r} is not a count")
+    if executed > total:
+        raise ProgressError(f"{task_id}: attacks_executed {executed} > attacks_total {total}")
+    if "attacks_not_executed" in task:
+        unexecuted = task["attacks_not_executed"]
+        if not isinstance(unexecuted, dict):
+            raise ProgressError(
+                f"{task_id}: attacks_not_executed {unexecuted!r} is not a mapping"
+            )
+        if executed + len(unexecuted) != total:
+            raise ProgressError(
+                f"{task_id}: attacks_executed {executed} + attacks_not_executed "
+                f"{len(unexecuted)} != attacks_total {total}"
+            )
+
+
+def _require_consistent_verdict(task: Mapping[str, Any]) -> None:
+    """Refuse a clean or cracked verdict whose reward or attacks contradict it."""
+    task_id = str(task["task_id"])
+    verdict = task.get("verdict")
+    reward = task.get("reward")
+    if verdict == "clean":
+        if reward != 0:
+            raise ProgressError(f"{task_id}: verdict clean with reward {reward!r}, not 0")
+        cracking = task.get("cracking_attacks") or []
+        if cracking:
+            raise ProgressError(
+                f"{task_id}: verdict clean with {len(cracking)} cracking_attacks, not none"
+            )
+    elif verdict == "cracked" and (not isinstance(reward, (int, float)) or reward <= 0):
+        raise ProgressError(f"{task_id}: verdict cracked with reward {reward!r}, not > 0")
+
+
+def _require_file_totals(data: Mapping[str, Any], source: str) -> None:
+    """Refuse a cell file whose ``totals`` block disagrees with its own tasks."""
+    totals = data.get("totals")
+    if totals is None:
+        return
+    tasks = data.get("tasks", [])
+    counts = {"tasks": len(tasks)}
+    for verdict in VERDICT_TOTALS:
+        counts[verdict] = sum(1 for task in tasks if task.get("verdict") == verdict)
+    for field in TOTALS_FIELDS:
+        if field not in totals:
+            raise ProgressError(f"{source}: totals is missing {field}")
+        stated = totals[field]
+        if stated != counts[field]:
+            raise ProgressError(
+                f"{source}: totals {field} {stated} != {counts[field]} over its tasks"
+            )
+
+
 def read_cells(
     cells_dir: Path, root: Path = ROOT, *, manifest: Mapping[str, str]
 ) -> list[dict[str, Any]]:
@@ -167,7 +243,10 @@ def read_cells(
         source = path.relative_to(root).as_posix()
         for task in data.get("tasks", []):
             _require_manifest_digest(task, manifest)
+            _require_attack_counts(task)
+            _require_consistent_verdict(task)
             cells.append({**task, "_source_file": source})
+        _require_file_totals(data, source)
     return cells
 
 

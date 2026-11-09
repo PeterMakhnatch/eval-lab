@@ -143,8 +143,12 @@ full local reproduction:
    `uv run evallab registry devloop [--run]` may also be used to compute and execute
    targeted tests for changed working-tree modules. Selection uses direct and
    transitive imports through evallab modules, plus textual references, within
-   every declared pytest `testpaths` root. Each invocation inventories consumers
-   once for both selection and reasons. `--json` includes `lane` and per-consumer `reasons`;
+   every declared pytest `testpaths` root. Asset changes (research artifacts,
+   ops scripts, package data) select tests that mention the asset path or a
+   parent directory, tests under a changed experiment's declared test root, and
+   `docs_consumer` tests for markdown; an asset with no covering test falls back
+   to the full suite. Each invocation inventories consumers once for both
+   selection and reasons. `--json` includes `lane` and per-consumer `reasons`;
    with `--run --json`, stdout remains one JSON document, child output streams to
    stderr, and the command returns the child's exit status. Without `--json`,
    child output keeps its normal interactive stdout/stderr streams.

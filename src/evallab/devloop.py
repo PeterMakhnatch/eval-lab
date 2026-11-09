@@ -29,8 +29,9 @@ FULL_SUITE_PATTERNS = (
     "pyproject.toml",
     "uv.lock",
     "sql/",
-    "tests/conftest.py",
 )
+
+EXPERIMENTS_ROOT = "research/experiments/"
 
 DOCS_PATTERNS = (
     "docs/",
@@ -99,6 +100,9 @@ def is_full_suite_trigger(path_str: str) -> bool:
     if any(norm == p or norm.startswith(p) for p in FULL_SUITE_PATTERNS):
         return True
     p = PurePosixPath(norm)
+    # Any conftest.py rewrites collection for its whole subtree.
+    if p.name == "conftest.py":
+        return True
     return len(p.parts) == 1 and p.suffix in CONFIG_SUFFIXES
 
 
@@ -401,9 +405,7 @@ def _referenced_modules(
         features = cached
     # Every module occurrence is a prefix of an evallab token. Overlap retains
     # occurrences inside longer tokens, such as evallab.evallab.consumer.
-    candidates = {
-        token[:end] for token in features["tokens"] for end in range(1, len(token) + 1)
-    }
+    candidates = {token[:end] for token in features["tokens"] for end in range(1, len(token) + 1)}
     matched = candidates & target_modules
     # Preserve textual matching for unusual source filenames, too.
     matched.update(
@@ -442,10 +444,47 @@ def _referenced_modules(
     return matched
 
 
-def _is_unclassified(path_str: str, test_roots: Sequence[str] = ("tests",)) -> bool:
-    """Check if file is unknown / unclassified configuration or root asset."""
-    return is_full_suite_trigger(path_str) or not (
-        is_doc_path(path_str) or is_test_path(path_str, test_roots) or is_src_path(path_str)
+def _is_asset_path(path_str: str, test_roots: Sequence[str] = ("tests",)) -> bool:
+    """Return True for data/config/asset files that tests may mention by path."""
+    return not (
+        is_full_suite_trigger(path_str)
+        or is_doc_path(path_str)
+        or is_test_path(path_str, test_roots)
+        or is_src_path(path_str)
+    )
+
+
+def _asset_needles(path_str: str) -> list[str]:
+    """Path strings a test can mention to be affected by an asset change."""
+    path = PurePosixPath(path_str.replace("\\", "/"))
+    needles = [path.as_posix()]
+    # Parent directories below the top-level root; "research/experiments" stays
+    # specific while bare "research" would match almost every mention.
+    for parent in path.parents:
+        if len(parent.parts) <= 1:
+            break
+        needles.append(parent.as_posix())
+    return needles
+
+
+def _experiment_dir(path_str: str) -> str | None:
+    """Return "research/experiments/<exp>" for paths under it, else None."""
+    norm = path_str.replace("\\", "/")
+    if not norm.startswith(EXPERIMENTS_ROOT):
+        return None
+    rest = norm[len(EXPERIMENTS_ROOT) :]
+    parts = rest.split("/")
+    if len(parts) < 2 or not parts[0]:
+        return None
+    return f"{EXPERIMENTS_ROOT}{parts[0]}"
+
+
+def _is_experiment_test(consumer: str, exp_dir: str, test_roots: Sequence[str]) -> bool:
+    """Return True if a consumer sits under the experiment's declared test roots."""
+    return any(
+        (root == exp_dir or root.startswith(exp_dir + "/"))
+        and (consumer == root or consumer.startswith(root + "/"))
+        for root in test_roots
     )
 
 
@@ -463,27 +502,24 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
     test_roots = _test_roots(root_path)
     # Removed/renamed tests cannot be passed to pytest. Collect the remaining
     # suite instead of silently skipping coverage formerly owned by that file.
-    requires_full_suite = any(
-        is_full_suite_trigger(path)
-        or _is_unclassified(path, test_roots)
-        or (is_test_path(path, test_roots) and not (root_path / path.replace("\\", "/")).is_file())
+    full_triggers = [
+        path
         for path in changed
-    )
+        if is_full_suite_trigger(path)
+        or (is_test_path(path, test_roots) and not (root_path / path.replace("\\", "/")).is_file())
+    ]
+    # Assets (research artifacts, ops scripts, package data) select tests that
+    # mention their path; uncovered assets still fall back to the full suite.
+    assets = [path for path in changed if _is_asset_path(path, test_roots)]
+    markdown_assets = [path for path in changed if path.replace("\\", "/").endswith(".md")]
     reasons: dict[str, list[str]] = {}
 
-    if requires_full_suite:
+    if full_triggers:
         modules = ["__all__"]
         lane = "full"
         command = "uv run --no-sync pytest -q -n0 -p no:cacheprovider"
-        triggering = [
-            p
-            for p in changed
-            if is_full_suite_trigger(p)
-            or _is_unclassified(p, test_roots)
-            or (is_test_path(p, test_roots) and not (root_path / p).is_file())
-        ]
         reasons["__all__"] = [
-            f"Global, configuration, or removed test change: {', '.join(triggering)}"
+            f"Global, configuration, or removed test change: {', '.join(full_triggers)}"
         ]
     elif all(is_doc_path(p) for p in changed):
         modules = []
@@ -498,30 +534,54 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
         expansions = {target: _importer_closure(target, reverse) for target in targets}
         targets = {module for reachable in expansions.values() for module in reachable}
         test_paths: dict[str, Path] = {}
-        if targets:
-            test_paths = {
-                test_file.relative_to(root_path).as_posix(): test_file
-                for test_root in test_roots
-                for pattern in ("test_*.py", "*_test.py")
-                for test_file in (root_path / test_root).rglob(pattern)
-                if test_file.is_file()
-            }
-            # Directly changed consumers need reasons even when their names do
-            # not match pytest's discovery patterns.
-            test_paths.update(
-                {
-                    path.replace("\\", "/"): root_path / path.replace("\\", "/")
-                    for path in changed
-                    if is_test_path(path, test_roots)
-                }
+        for test_root in test_roots:
+            root_candidate = root_path / test_root
+            candidates = (
+                [root_candidate]
+                if root_candidate.is_file()
+                else (
+                    test_file
+                    for pattern in ("test_*.py", "*_test.py")
+                    for test_file in root_candidate.rglob(pattern)
+                )
             )
-        inventory = {
-            path: _referenced_modules(path, targets, cache)
-            for path in sorted(set(test_paths.values()))
-        }
+            for test_file in candidates:
+                if not test_file.is_file():
+                    continue
+                rel = test_file.relative_to(root_path).as_posix()
+                if is_test_path(rel, test_roots):
+                    test_paths[rel] = test_file
+        # Directly changed consumers need reasons even when their names do
+        # not match pytest's discovery patterns.
+        test_paths.update(
+            {
+                path.replace("\\", "/"): root_path / path.replace("\\", "/")
+                for path in changed
+                if is_test_path(path, test_roots)
+            }
+        )
+        inventory = (
+            {
+                path: _referenced_modules(path, targets, cache)
+                for path in sorted(set(test_paths.values()))
+            }
+            if targets
+            else {}
+        )
         if cache.dirty and cache_path is not None:
             _write_import_graph_cache(cache_path, cache)
         consumers = sorted(test_paths)
+        contents: dict[Path, str] = {}
+
+        def _content(test_file: Path) -> str:
+            if test_file not in contents:
+                try:
+                    contents[test_file] = test_file.read_text(encoding="utf-8")
+                except (OSError, UnicodeError):
+                    contents[test_file] = ""
+            return contents[test_file]
+
+        covered_assets: set[str] = set()
         for path_str in changed:
             norm = path_str.replace("\\", "/")
             if is_test_path(norm, test_roots):
@@ -537,13 +597,45 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
                     else:
                         continue
                     reasons.setdefault(rel, []).append(reason)
-        modules = sorted(reasons)
-        lane = "focused" if modules else "none"
-        command = (
-            f"uv run --no-sync pytest -q -n0 -p no:cacheprovider {shlex.join(modules)}"
-            if modules
-            else ""
-        )
+        for asset in assets:
+            norm = asset.replace("\\", "/")
+            needles = _asset_needles(norm)
+            exp_dir = _experiment_dir(norm)
+            for rel in consumers:
+                selected = False
+                if exp_dir is not None and _is_experiment_test(rel, exp_dir, test_roots):
+                    reasons.setdefault(rel, []).append(
+                        f"Declared test under experiment root {exp_dir} ({norm})"
+                    )
+                    selected = True
+                else:
+                    for needle in needles:
+                        if needle in _content(test_paths[rel]):
+                            reasons.setdefault(rel, []).append(f"Mentions {needle} ({norm})")
+                            selected = True
+                            break
+                if selected:
+                    covered_assets.add(norm)
+        if markdown_assets:
+            for rel in consumers:
+                if "docs_consumer" in _content(test_paths[rel]):
+                    reasons.setdefault(rel, []).append(
+                        f"Documentation consumer for {', '.join(markdown_assets)}"
+                    )
+        uncovered = [asset for asset in assets if asset.replace("\\", "/") not in covered_assets]
+        if uncovered:
+            modules = ["__all__"]
+            lane = "full"
+            command = "uv run --no-sync pytest -q -n0 -p no:cacheprovider"
+            reasons["__all__"] = [f"Asset change with no mentioning test: {', '.join(uncovered)}"]
+        else:
+            modules = sorted(reasons)
+            lane = "focused" if modules else "none"
+            command = (
+                f"uv run --no-sync pytest -q -n0 -p no:cacheprovider {shlex.join(modules)}"
+                if modules
+                else ""
+            )
 
     return DevloopPlan(
         changed=list(changed),

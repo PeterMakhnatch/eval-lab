@@ -263,9 +263,7 @@ def test_all_declared_test_roots_are_selected_and_explained(tmp_path) -> None:
     ],
 )
 def test_transitive_import_consumer_is_selected(tmp_path, importer, content) -> None:
-    (tmp_path / "pyproject.toml").write_text(
-        '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n'
-    )
+    (tmp_path / "pyproject.toml").write_text('[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
     source = tmp_path / "src/evallab"
     path = source / importer
     path.parent.mkdir(parents=True)
@@ -278,9 +276,7 @@ def test_transitive_import_consumer_is_selected(tmp_path, importer, content) -> 
     plan = plan_devloop(["src/evallab/b.py"], tmp_path)
 
     assert plan.modules == ["tests/test_consumer.py"]
-    assert plan.reasons == {
-        "tests/test_consumer.py": [f"Imports evallab.b via {intermediate}"]
-    }
+    assert plan.reasons == {"tests/test_consumer.py": [f"Imports evallab.b via {intermediate}"]}
 
 
 def test_transitive_selection_handles_cycles_and_unparseable_sources(tmp_path) -> None:
@@ -394,9 +390,7 @@ def test_import_cache_reuses_content_across_roots_and_resolves_relative_imports(
         (source / "a.py").write_text("from . import b\n")
         (source / "b.py").write_text("value = 1\n")
         (root / "tests").mkdir()
-        (root / "tests/test_consumer.py").write_text(
-            "import evallab.a\nimport evallab.nested.a\n"
-        )
+        (root / "tests/test_consumer.py").write_text("import evallab.a\nimport evallab.nested.a\n")
     parse = ast.parse
     parsed_sources: list[str] = []
     parsed_consumers: list[str] = []
@@ -550,3 +544,74 @@ def test_deleted_or_renamed_test_uses_remaining_suite(tmp_path) -> None:
     assert plan.lane == "full"
     assert plan.modules == ["__all__"]
     assert "tests/test_removed.py" not in plan.command
+
+
+def _write_test(root: Path, rel: str, body: str) -> None:
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body)
+
+
+def test_research_experiment_assets_select_declared_and_mentioning_tests(tmp_path) -> None:
+    """Experiment JSON/markdown select the experiment's tests and path mentions."""
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["research/experiments/exp-a", "tests"]\n'
+    )
+    _write_test(
+        tmp_path,
+        "research/experiments/exp-a/test_exp_a.py",
+        "def test_exp_a(): assert True\n",
+    )
+    _write_test(
+        tmp_path,
+        "tests/test_ladder.py",
+        'DATA = "research/experiments/exp-a/cells.json"\ndef test_ladder(): assert True\n',
+    )
+    _write_test(tmp_path, "tests/test_other.py", "def test_other(): assert True\n")
+    changed = [
+        "research/experiments/exp-a/README.md",
+        "research/experiments/exp-a/cells.json",
+    ]
+    plan = plan_devloop(changed, tmp_path)
+    assert plan.lane == "focused"
+    assert "research/experiments/exp-a/test_exp_a.py" in plan.modules
+    assert "tests/test_ladder.py" in plan.modules
+    assert "tests/test_other.py" not in plan.modules
+
+
+def test_scripts_ops_python_selects_mentioning_tests(tmp_path) -> None:
+    """An ops script change selects tests that mention the script path."""
+    (tmp_path / "pyproject.toml").write_text('[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
+    _write_test(
+        tmp_path,
+        "tests/test_installer.py",
+        'SCRIPT = "scripts/ops/install.sh"\ndef test_installer(): assert True\n',
+    )
+    _write_test(tmp_path, "tests/test_other.py", "def test_other(): assert True\n")
+    (tmp_path / "scripts/ops").mkdir(parents=True)
+    (tmp_path / "scripts/ops/tool.py").write_text("print('ok')\n")
+    plan = plan_devloop(["scripts/ops/tool.py"], tmp_path)
+    # The parent directory mention is a valid selection needle too.
+    assert plan.lane == "focused"
+    assert "tests/test_installer.py" in plan.modules
+    assert "tests/test_other.py" not in plan.modules
+
+
+def test_asset_without_mentioning_test_keeps_full_suite(tmp_path) -> None:
+    """An asset no test mentions still requires the full suite (recall guard)."""
+    (tmp_path / "pyproject.toml").write_text('[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
+    _write_test(tmp_path, "tests/test_other.py", "def test_other(): assert True\n")
+    plan = plan_devloop(["scripts/ops/orphan.py"], tmp_path)
+    assert plan.lane == "full"
+    assert plan.modules == ["__all__"]
+
+
+def test_nested_conftest_change_uses_full_suite(tmp_path) -> None:
+    """Any conftest.py rewrites collection for its subtree, not only tests/."""
+    (tmp_path / "pyproject.toml").write_text('[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
+    _write_test(tmp_path, "tests/test_other.py", "def test_other(): assert True\n")
+    assert is_full_suite_trigger("tests/sub/conftest.py")
+    assert is_full_suite_trigger("research/experiments/exp-a/conftest.py")
+    plan = plan_devloop(["research/experiments/exp-a/conftest.py"], tmp_path)
+    assert plan.lane == "full"
+    assert plan.modules == ["__all__"]

@@ -74,7 +74,7 @@ deliberately not part of ``--check``.
 
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
-summary with ``--summary``. ``--sync-docs`` rebuilds the five tested documentation
+summary with ``--summary``. ``--sync-docs`` rebuilds the ten tested documentation
 fragments from committed cells, the manifest and the ranking without reading or
 writing the CSV or host results. It validates all three pages before any write.
 ``--render-slice CELL`` prints one cell file's seven-column README pipe-table
@@ -626,7 +626,7 @@ def _doc_summary(table: str, rows: Sequence[dict[str, str]], page: Path) -> str:
 
 
 def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) -> None:
-    """Refresh five tested fragments, validating every page before writing any."""
+    """Refresh ten tested fragments, validating every page before writing any."""
     pages = (root / "README.md", root / "docs" / "mimo" / "README.md", cells_dir / "README.md")
     originals: dict[Path, str] = {}
     for page in pages:
@@ -696,6 +696,66 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
         ),
     )
     summary_text = _doc_summary(summary_table.group(), rows, page)
+    refusals = counts.get(REFUSAL_BASIS, 0)
+    clean = route_counts[1]
+    refusal_rate = 100 * refusals / clean if clean else 0.0
+    python_entry = next(entry for entry in summary(rows) if entry["language"] == "python")
+    refusal_rows = [row for row in rows if row["basis"] == REFUSAL_BASIS]
+    all_attacks = sum(row["attacks_executed"] == "14" for row in refusal_rows)
+    short_tasks = [
+        f"`{_slice_task(row['task_id'])}`"
+        for row in sorted(refusal_rows, key=lambda row: int(row["rank"]))
+        if row["attacks_executed"] == "13"
+    ]
+    if len(short_tasks) > 2:
+        short_list = ", ".join(short_tasks[:-1]) + ", and " + short_tasks[-1]
+    else:
+        short_list = " and ".join(short_tasks) or "none"
+    fragments = (
+        (
+            "rate among clean ladder verdicts is",
+            r"([0-9]+)\s+of\s+the\s+([0-9]+)\s+`clean`\s+verdicts\s+are\s+tamper\s+"
+            r"refusals,\s+so\s+the\s+refusal\s+rate\s+among\s+clean\s+ladder\s+verdicts\s+"
+            r"is\s+([0-9]+)\s*/\s*([0-9]+)\s+\(([0-9]+(?:\.[0-9]+)?)\s*%\);\s+"
+            r"([0-9]+)\s+rest\s+on\s+a\s+graded\s+run\.",
+            (refusals, clean, refusals, clean, f"{refusal_rate:.1f}", counts.get(GRADED_BASIS, 0)),
+        ),
+        (
+            "refusal verdicts",
+            r"so\s+the\s+([0-9]+)\s+refusal\s+verdicts",
+            (refusals,),
+        ),
+        (
+            "therefore uses its",
+            r"therefore\s+uses\s+its\s+([0-9]+)\s+tamper\s+refusals,\s+not\s+its\s+"
+            r"([0-9]+)\s+graded\s+rows",
+            (
+                python_entry["bases"].get(REFUSAL_BASIS, 0),
+                python_entry["bases"].get(GRADED_BASIS, 0),
+            ),
+        ),
+        (
+            "refused rows,",
+            r"Of\s+the\s+([0-9]+)\s+refused\s+rows,\s+([0-9]+)\s+ran\s+all\s+14\s+"
+            r"attacks;\s+(`[0-9]{6}`(?:\s*(?:,\s*(?:and\s+)?|and\s+)"
+            r"`[0-9]{6}`)*|none)\s+ran\s+13\s+of\s+14\.",
+            (refusals, all_attacks, short_list),
+        ),
+        (
+            "uncovered rows one at a time",
+            r"covering\s+the\s+([0-9]+)\s+uncovered\s+rows\s+one\s+at\s+a\s+time\s+"
+            r"on\s+local\s+Docker\s+costs\s+about\s+\*\*([0-9]+(?:\.[0-9]+)?)\s+h\*\*",
+            (python_entry["uncovered"], f"{python_entry['projected_hours']:.2f}"),
+        ),
+    )
+    fragment_edits: list[tuple[int, int, str]] = []
+    for anchor, pattern, values in fragments:
+        _doc_match(r"\s+".join(map(re.escape, anchor.split())), text, page, anchor)
+        match = _doc_match(pattern, text, page, f"complete {anchor} fragment")
+        fragment_edits.extend(
+            (match.start(index), match.end(index), str(value))
+            for index, value in enumerate(values, start=1)
+        )
     replacements[page] = _doc_patch(
         text,
         [
@@ -703,6 +763,7 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
             (basis_table.start(), basis_table.end(), basis_text),
             (signature_table.start(), signature_table.end(), signature_text),
             (summary_table.start(), summary_table.end(), summary_text),
+            *fragment_edits,
         ],
     )
     for page, replacement in replacements.items():
@@ -1261,7 +1322,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     mode.add_argument(
         "--sync-docs",
         action="store_true",
-        help="refresh the five tested documentation fragments from committed cells (offline)",
+        help="refresh the ten tested documentation fragments from committed cells (offline)",
     )
     parser.add_argument(
         "--results-root",

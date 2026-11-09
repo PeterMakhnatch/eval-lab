@@ -1242,10 +1242,12 @@ of hand-copying them from the JSON. The cell must run the manifest
 ranking. It does not use the CSV as its source. It needs no Docker or host
 results root.
 
-It updates five count fragments: the two route-page basis sentences, this
-page's basis table and covered count, its signature counts, and its summary
-table. It preserves route sentence spacing, table annotations, and signature
-labels. It leaves all other page text unchanged.
+It updates the two route-page basis sentences and this page's basis table,
+covered count, signature counts, and summary table. It also updates the
+refusal-rate calculation, refusal counts, and refused-row attack counts and task
+IDs. It generates Python's refusal and graded counts and remaining-hours
+projection. It preserves spacing, table annotations, and signature labels.
+It leaves all other page text unchanged.
 
 The command validates every fragment before writing any page. A missing or
 repeated fragment anchor raises `ProgressError` and exits 1 without page writes.
@@ -1256,12 +1258,11 @@ For each slice PR:
 2. Run the command without options to regenerate `ladder-progress.csv`.
 3. Run `--render-slice` with the cell filename. Paste its table into the slice
    section.
-4. Run `--sync-docs` to update the five count fragments.
+4. Run `--sync-docs` to update the count tables and narrative counts. This includes
+   the refusal-rate calculation, refusal counts, refused-row attack counts and
+   task IDs, Python's refusal and graded counts, and Python's remaining-hours
+   projection.
 5. Review and edit the remaining prose manually:
-   - The refusal-rate line.
-   - The refusal and attack narrative.
-   - The statement that Python uses its `N` tamper refusals.
-   - The remaining-hours explanation.
    - The `--verify-evidence` totals, only when supported by an evidence check.
    - Task-specific descriptions and evidence prose affected by the new cells.
 6. Run the drift check and the explicit experiment test file:
@@ -1391,8 +1392,8 @@ small to set a rate. An `unscored` cell carries a wall time but no verdict, so i
 counts as covered and does not move the median. `projected serial hours` is the
 uncovered rows times that median: covering the 7 uncovered rows one at a time
 on local Docker costs about **0.82 h** (all Python), before queue wait.
-Run `--sync-docs` whenever a new ladder cell lands. Review the explanation
-below the table manually.
+Run `--sync-docs` whenever a new ladder cell lands. Review evidence totals and
+task-specific prose manually.
 
 ## Graded subset cells for three tamper-refused rows (HAR-284, HAR-293, 2026-11-03)
 

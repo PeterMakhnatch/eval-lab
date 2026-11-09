@@ -771,6 +771,34 @@ _SYNC_FRAGMENTS = (
     (_SYNC_EXPERIMENT, b"Basis counts in the committed table"),
     (_SYNC_EXPERIMENT, b"### Refusal signatures and attacks executed (HAR-302)"),
     (_SYNC_EXPERIMENT, b"## Wall time by language and remaining serial hours"),
+    (_SYNC_EXPERIMENT, b"rate among clean ladder verdicts is"),
+    (_SYNC_EXPERIMENT, b"refusal verdicts"),
+    (_SYNC_EXPERIMENT, b"therefore uses its"),
+    (_SYNC_EXPERIMENT, b"refused rows,"),
+    (_SYNC_EXPERIMENT, b"uncovered rows one at a time"),
+)
+_SYNC_NARRATIVES = (
+    (
+        rb"[0-9]+ of the [0-9]+ `clean` verdicts are tamper refusals, so the refusal\s+"
+        rb"rate among clean ladder verdicts is [0-9]+/[0-9]+ \([0-9.]+%\); [0-9]+ rest on a graded run\.",
+        b"17 of the 29 `clean` verdicts are tamper refusals, so the refusal\n"
+        b"rate among clean ladder verdicts is 31/43 (53.7%); 61 rest on a graded run.",
+    ),
+    (rb"so the [0-9]+ refusal verdicts", b"so the 17 refusal verdicts"),
+    (
+        rb"therefore uses its [0-9]+ tamper refusals, not its [0-9]+ graded rows",
+        b"therefore uses its 17 tamper refusals, not its 29 graded rows",
+    ),
+    (
+        rb"Of the [0-9]+ refused rows, [0-9]+ ran all 14 attacks; [^\r\n]+ ran 13 of 14\.",
+        b"Of the 17 refused rows, 29 ran all 14 attacks; `999998` and `999999` ran 13 of 14.",
+    ),
+    (
+        rb"covering the [0-9]+ uncovered rows one at a time\s+"
+        rb"on local Docker costs about \*\*[0-9.]+ h\*\*",
+        b"covering the 17 uncovered rows one at a time\n"
+        b"on local Docker costs about **9.99 h**",
+    ),
 )
 
 
@@ -903,6 +931,190 @@ def test_ladder_progress_sync_docs_preserves_annotations_and_signature_labels(
     readme.write_bytes(text)
     assert MODULE.main(["--sync-docs"]) == 0
     assert readme.read_bytes() == expected
+
+
+@pytest.mark.parametrize(("pattern", "stale_fragment"), _SYNC_NARRATIVES)
+def test_ladder_progress_sync_docs_restores_each_narrative_fragment(
+    sandbox: Path, pattern: bytes, stale_fragment: bytes
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    match = re.search(pattern, (sandbox / "README.md").read_bytes())
+    assert match is not None
+    expected_fragment = match.group()
+    before = _sync_snapshot(sandbox)
+    readme = sandbox / "README.md"
+    readme.write_bytes(_replace_once(readme.read_bytes(), expected_fragment, stale_fragment))
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert readme.read_bytes().count(expected_fragment) == 1
+    assert {page: page.read_bytes() for page in before} == {
+        page: content for page, (content, _) in before.items()
+    }
+    for page in (*_sync_pages(sandbox)[:2], sandbox / "ladder-progress.csv"):
+        assert (page.read_bytes(), page.stat().st_mtime_ns) == before[page]
+    after = _sync_snapshot(sandbox)
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert _sync_snapshot(sandbox) == after
+
+
+def test_ladder_progress_sync_docs_preserves_narrative_whitespace_and_crlf(
+    sandbox: Path,
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    for page in _sync_pages(sandbox):
+        page.write_bytes(page.read_bytes().replace(b"\n", b"\r\n"))
+    readme = sandbox / "README.md"
+    text = readme.read_bytes()
+    replacements = []
+    for pattern, stale_fragment in _SYNC_NARRATIVES:
+        match = re.search(pattern, text)
+        assert match is not None
+        expected_fragment = match.group().replace(b"\r\n", b"\n")
+        wrapped = []
+        for fragment in (expected_fragment, stale_fragment):
+            # The task-id list can be regenerated; only its prefix must retain layout.
+            prefix, separator, suffix = fragment.partition(b"; `")
+            prefix = re.sub(rb" (?=[0-9])|(?<=[0-9]) ", b"\t  ", prefix)
+            wrapped.append((prefix + separator + suffix).replace(b"\n", b"\r\n"))
+        text = _replace_once(text, expected_fragment.replace(b"\n", b"\r\n"), wrapped[0])
+        replacements.append(wrapped)
+    readme.write_bytes(text)
+    expected = {page: page.read_bytes() for page in _sync_pages(sandbox)}
+    for restored, stale in replacements:
+        text = _replace_once(text, restored, stale)
+    readme.write_bytes(text)
+    csv_before = (sandbox / "ladder-progress.csv").read_bytes()
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert {page: page.read_bytes() for page in expected} == expected
+    assert (sandbox / "ladder-progress.csv").read_bytes() == csv_before
+
+
+def test_ladder_progress_sync_docs_derives_narratives_from_changed_rows(sandbox: Path) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    python = [row for row in rows if row["language"] == "python"]
+    refusals = [row for row in python if row["basis"] == "tamper-refusal"]
+    graded = [row for row in python if row["basis"] == "graded"]
+    initial_clean = sum(row["verdict"] == "clean" for row in rows)
+    initial_refusals = sum(row["basis"] == "tamper-refusal" for row in rows)
+    initial_graded = sum(row["basis"] == "graded" for row in rows)
+    initial_python_covered = sum(row["basis"] != "none" for row in python)
+    uncovered = sum(row["basis"] == "none" for row in python) + 3
+    for row in refusals[:2]:
+        row.update(basis="graded", refusal_hit="", attacks_executed="9", wall_seconds="36000")
+    for row in graded[:3]:
+        row.update(
+            basis="none", verdict="not-run", refusal_hit="", attacks_executed="", wall_seconds=""
+        )
+    remaining = refusals[2:]
+    go_refusal = next(row for row in rows if row["language"] == "go" and row["basis"] == "graded")
+    go_refusal.update(
+        basis="tamper-refusal",
+        refusal_hit=remaining[0]["refusal_hit"],
+        attacks_executed="14",
+        wall_seconds="1800",
+    )
+    for row in remaining:
+        row.update(attacks_executed="14", wall_seconds="720")
+    for row, rank, suffix in zip(remaining[:2], ("9", "10"), ("900321", "100123"), strict=True):
+        row.update(
+            rank=rank,
+            task_id=row["task_id"].rsplit("-", 1)[0] + "-" + suffix,
+            attacks_executed="13",
+        )
+    remaining[2]["attacks_executed"] = "12"
+    rows.reverse()  # Neither input order nor lexical task-id/rank order is the required order.
+    csv_before = (sandbox / "ladder-progress.csv").read_bytes()
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    text = (sandbox / "README.md").read_bytes()
+    refusal_count = initial_refusals - 1
+    clean_count = initial_clean - 3
+    expected = tuple(fragment.encode() for fragment in (
+        f"{refusal_count} of the {clean_count} `clean` verdicts are tamper refusals, so the refusal\n"
+        f"rate among clean ladder verdicts is {refusal_count}/{clean_count} "
+        f"({100 * refusal_count / clean_count:.1f}%); {initial_graded - 2} rest on a graded run.",
+        f"so the {refusal_count} refusal verdicts",
+        f"therefore uses its {len(refusals) - 2} tamper refusals, not its {len(graded) - 1} graded rows",
+        f"Of the {refusal_count} refused rows, {len(remaining) - 2} ran all 14 attacks; "
+        "`900321` and `100123` ran 13 of 14.",
+        f"covering the {uncovered} uncovered rows one at a time\n"
+        f"on local Docker costs about **{uncovered * 0.2:.2f} h**",
+    ))
+    for fragment in expected:
+        assert text.count(fragment) == 1, fragment
+    assert _sync_row(text, b"python") == (
+        f"| python | {initial_python_covered - 3} (`graded` {len(graded) - 1}, "
+        f"`tamper-refusal` {len(refusals) - 2}) | {uncovered} | 720.0 | 720.0 "
+        f"| {uncovered * 0.2:.2f} |"
+    ).encode()
+    assert (sandbox / "ladder-progress.csv").read_bytes() == csv_before
+    before_repeat = _sync_snapshot(sandbox)
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert _sync_snapshot(sandbox) == before_repeat
+
+
+@pytest.mark.parametrize(
+    ("short_ids", "expected_list"),
+    [
+        ((), b"none"),
+        (("900321",), b"`900321`"),
+        (("900321", "100123", "700456"), b"`900321`, `100123`, and `700456`"),
+    ],
+)
+def test_ladder_progress_sync_docs_derives_short_attack_list_cardinality(
+    sandbox: Path, short_ids: tuple[str, ...], expected_list: bytes
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    refusals = [row for row in rows if row["basis"] == "tamper-refusal"]
+    for row in refusals:
+        row["attacks_executed"] = "14"
+    for rank, (row, suffix) in enumerate(zip(refusals, short_ids, strict=False), start=1):
+        row.update(
+            rank=str(rank),
+            task_id=row["task_id"].rsplit("-", 1)[0] + "-" + suffix,
+            attacks_executed="13",
+        )
+    rows.reverse()
+    expected = (
+        f"Of the {len(refusals)} refused rows, {len(refusals) - len(short_ids)} ran all 14 attacks; "
+    ).encode() + expected_list + b" ran 13 of 14."
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert (sandbox / "README.md").read_bytes().count(expected) == 1
+    before_repeat = _sync_snapshot(sandbox)
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert _sync_snapshot(sandbox) == before_repeat
+
+
+def test_ladder_progress_sync_docs_handles_no_clean_verdicts(sandbox: Path) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    refusal_count = sum(row["basis"] == "tamper-refusal" for row in rows)
+    graded_count = sum(row["basis"] == "graded" for row in rows)
+    for row in rows:
+        row["verdict"] = "not-run"
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    expected = (
+        f"{refusal_count} of the 0 `clean` verdicts are tamper refusals, so the refusal\n"
+        f"rate among clean ladder verdicts is {refusal_count}/0 (0.0%); "
+        f"{graded_count} rest on a graded run."
+    ).encode()
+    assert (sandbox / "README.md").read_bytes().count(expected) == 1
+
+
+@pytest.mark.parametrize(("pattern", "_stale"), _SYNC_NARRATIVES)
+def test_ladder_progress_sync_docs_refuses_incomplete_narratives_atomically(
+    sandbox: Path, pattern: bytes, _stale: bytes
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    match = re.search(pattern, (sandbox / "README.md").read_bytes())
+    assert match is not None
+    fragment = match.group()
+    _stale_sync_pages(sandbox)
+    readme = sandbox / "README.md"
+    invalid = re.sub(rb"[0-9]+", b"unknown", fragment, count=1)
+    readme.write_bytes(_replace_once(readme.read_bytes(), fragment, invalid))
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert _SYNC_EXPERIMENT in str(refused.value)
+    assert _sync_snapshot(sandbox) == before
 
 
 @pytest.mark.parametrize(("relative", "anchor"), _SYNC_FRAGMENTS)

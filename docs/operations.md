@@ -1577,3 +1577,64 @@ Cache trust: entries hold only wheels and index responses, the artifacts
 request is scoped to that pull request, so `main` restores only entries created on
 `main` or by its own runs. This adds no new third-party trust root beyond the
 SHA-pinned `actions/cache` the quality and typecheck jobs already used.
+
+## CI incident quarantine: abandoned typecheck prerequisite (HAR-356)
+
+**Owner: builder**, the existing HAR-356 owner. Quarantine only this CI
+infrastructure signal and its failed attempt for investigation, **not a flaky
+test** or a test exclusion. No tests or gates are disabled. The zero-diagnostic
+typecheck baseline and fail-closed required gates remain unchanged
+([CI contract](../agents/CHECKS.md#ci-contract)).
+
+Investigate any later required-gate failure with an `abandoned` or missing
+prerequisite under this owner. Preserve its run, attempt, job, and head before
+requesting another run. Do not treat a repeated abandonment as resolved.
+
+Observed evidence for original head
+[`720dc63353eaede9c54cc012df46616b1ae94154`](https://github.com/PeterMakhnatch/eval-lab/commit/720dc63353eaede9c54cc012df46616b1ae94154),
+[run 42674380020](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42674380020):
+
+- [Attempt 1](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42674380020/attempts/1)
+  contains only the failed
+  [`typecheck-required` job 129352210372](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42674380020/job/129352210372).
+  Its log records `TY_RESULT: abandoned`, `ty=abandoned`, and exit code 1.
+  No attempt-1 prerequisite `ty` job appears in that attempt or in the
+  [complete check-suite listing](https://api.github.com/repos/PeterMakhnatch/eval-lab/check-suites/115581418337/check-runs?filter=all).
+- [Attempt 2](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42674380020/attempts/2)
+  contains passing
+  [`ty` job 129357168249](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42674380020/job/129357168249)
+  (`All checks passed!`) and
+  [`typecheck-required` job 129357716773](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42674380020/job/129357716773).
+  No test runs in this typecheck workflow.
+
+GitHub provides no upstream abandonment reason in the available attempt or
+check-suite evidence. The cause remains unknown; this entry claims no upstream
+fix. A later passing typecheck does not establish a typechecker or test flake.
+Preserve the failed attempt and its logs: rerun success cannot certify the
+original first attempt.
+
+Inspect with authenticated `gh` access. Always select the attempt explicitly;
+do not replace failed evidence with the latest attempt:
+
+```bash
+gh api repos/PeterMakhnatch/eval-lab/actions/runs/42674380020/attempts/1/jobs --paginate --jq '.jobs[] | {id, name, conclusion, html_url}'
+gh run view 42674380020 --repo PeterMakhnatch/eval-lab --attempt 1 --job 129352210372 --log
+gh api 'repos/PeterMakhnatch/eval-lab/check-suites/115581418337/check-runs?filter=all&per_page=100' --paginate --jq '.check_runs[] | {id, name, conclusion, html_url}'
+gh api repos/PeterMakhnatch/eval-lab/actions/runs/42674380020/attempts/2/jobs --paginate --jq '.jobs[] | {id, name, conclusion, html_url}'
+gh run view 42674380020 --repo PeterMakhnatch/eval-lab --attempt 2 --job 129357168249 --log
+```
+
+The disposable [control PR #1955](https://github.com/PeterMakhnatch/eval-lab/pull/1955)
+submits the unchanged original head against the original base
+`24cbe13b97e25ff813ec75c4dc0b7a0ab234e335`.
+Its new `pull_request`
+[run 42677668572, attempt 1](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42677668572/attempts/1)
+passes both [`ty` job 129363342728](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42677668572/job/129363342728)
+and [`typecheck-required` job 129363706937](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42677668572/job/129363706937).
+This is first-attempt evidence on the original commit, not a rerun of the failed
+attempt or proof of an upstream fix. The control PR is not for merge.
+
+Record delivery-PR evidence separately: the exact head, tested merge SHA,
+run/attempt/job URLs, and terminal results. Require every reported CI check to
+complete successfully, including both `quality-required` and
+`typecheck-required`, under [Definition of Green](../agents/CHECKS.md#definition-of-green).

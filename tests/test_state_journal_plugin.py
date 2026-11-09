@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import signal
+import sys
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from typing import Any
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -67,6 +71,134 @@ def _install_monitor(plugin: StateJournalPlugin, event: SimpleNamespace, name: s
         target_container="container-1",
         target_pid=4242,
     )
+
+
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_command_returns_decoded_output_and_child_exit_code(exit_code: int) -> None:
+    result = asyncio.run(
+        state_journal._command(
+            "sh",
+            "-c",
+            "printf ' output\\377 \\n'; printf ' error\\376 \\n' >&2; exit \"$1\"",
+            "journal-command",
+            str(exit_code),
+            timeout=10,
+        )
+    )
+
+    assert result == (exit_code, "output\ufffd", "error\ufffd")
+
+
+def test_command_timeout_kills_and_reaps_the_real_child(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_subprocess = asyncio.create_subprocess_exec
+    process: asyncio.subprocess.Process | None = None
+    process_wait: AsyncMock | None = None
+
+    async def capture_subprocess(*args: str, **kwargs: Any) -> asyncio.subprocess.Process:
+        nonlocal process, process_wait
+        process = await create_subprocess(*args, **kwargs)
+        process_wait = AsyncMock(wraps=process.wait)
+        monkeypatch.setattr(process, "wait", process_wait)
+        return process
+
+    monkeypatch.setattr(state_journal.asyncio, "create_subprocess_exec", capture_subprocess)
+
+    async def run_command() -> None:
+        try:
+            result = await state_journal._command(
+                "sh", "-c", "exec sleep 30", timeout=0.05
+            )
+            assert result == (124, "", "command timed out after 0s")
+            assert process is not None
+            assert process_wait is not None
+            process_wait.assert_awaited_once_with()
+            assert process.returncode == -signal.SIGKILL
+            with pytest.raises(ChildProcessError):
+                os.waitpid(process.pid, os.WNOHANG)
+        finally:
+            if process is not None:
+                if process.returncode is None:
+                    process.kill()
+                await process.wait()
+
+    asyncio.run(run_command())
+
+
+def test_laminar_import_failure_does_not_block_the_job(
+    tmp_path: Path,
+    context_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EVALLAB_STATE_JOURNAL", "off")
+    monkeypatch.setitem(sys.modules, "evallab.harbor_laminar", None)
+    command = AsyncMock(side_effect=AssertionError("Docker must not run"))
+    monkeypatch.setattr(state_journal, "_command", command)
+    plugin = StateJournalPlugin(context_dir=context_dir)
+    event = _event(tmp_path)
+
+    async def lifecycle() -> None:
+        await plugin.on_job_start(_job(tmp_path))
+        await plugin._on_agent_started(event)
+        await plugin.on_job_end(None)
+
+    assert asyncio.run(lifecycle()) is None
+    assert plugin._laminar is None
+    assert _status(event)["reason"] == "disabled by EVALLAB_STATE_JOURNAL=off"
+    command.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("companion", "hook"),
+    [
+        ("laminar", "on_job_start"),
+        ("laminar", "on_job_end"),
+        ("flight", "on_job_start"),
+        ("flight", "on_job_end"),
+    ],
+)
+def test_companion_cancellation_propagates_the_original_error(
+    tmp_path: Path,
+    context_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    companion: str,
+    hook: str,
+) -> None:
+    import evallab.flight.plugin as flight_plugin
+
+    monkeypatch.setenv("EVALLAB_STATE_JOURNAL", "off")
+    command = AsyncMock(side_effect=AssertionError("Docker must not run"))
+    monkeypatch.setattr(state_journal, "_command", command)
+    laminar = SimpleNamespace(on_job_start=AsyncMock(), on_job_end=AsyncMock())
+    flight = SimpleNamespace(on_job_start=AsyncMock(), on_job_end=AsyncMock())
+    monkeypatch.setattr(flight_plugin, "FlightRecorderPlugin", lambda: flight)
+    plugin = _plugin(context_dir)
+    plugin._laminar = laminar
+    job = _job(tmp_path)
+    flight_config = job.job_dir.parent / ".flight" / f"{job.job_dir.name}.json"
+    flight_config.parent.mkdir(parents=True)
+    flight_config.write_text("{}\n", encoding="utf-8")
+    result = SimpleNamespace(reward=0.75)
+    error = asyncio.CancelledError("the caller cancelled the job")
+    failing_hook = getattr(laminar if companion == "laminar" else flight, hook)
+    failing_hook.side_effect = error
+
+    async def lifecycle() -> None:
+        await plugin.on_job_start(job)
+        if hook == "on_job_end":
+            await plugin.on_job_end(result)
+
+    with pytest.raises(asyncio.CancelledError) as raised:
+        asyncio.run(lifecycle())
+
+    assert raised.value is error
+    failing_hook.assert_awaited_once_with(job if hook == "on_job_start" else result)
+    assert plugin._flight_errors == []
+    assert not (job.job_dir / "flight-unavailable.json").exists()
+    if companion == "laminar":
+        getattr(flight, hook).assert_not_awaited()
+    command.assert_not_awaited()
 
 
 def test_existing_image_is_reused_without_build(
@@ -466,10 +598,12 @@ def test_disabled_observer_runs_successful_companion_hooks(
     assert status["reason"] == "observer stopped without a state diff"
 
 
+@pytest.mark.parametrize("report_failure", [None, "status", "logging"])
 def test_companion_hook_failures_are_swallowed_and_recorded(
     tmp_path: Path,
     context_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
+    report_failure: str | None,
 ) -> None:
     import evallab.flight.plugin as flight_plugin
 
@@ -495,26 +629,50 @@ def test_companion_hook_failures_are_swallowed_and_recorded(
     flight_config.parent.mkdir(parents=True)
     flight_config.write_text("{}\n", encoding="utf-8")
     event = _event(tmp_path)
+    result = SimpleNamespace(reward=0.75)
+    reporter = Mock(side_effect=OSError("observer report unavailable"))
+    if report_failure == "status":
+        write_json = state_journal._atomic_json
+
+        def write_status(path: Path, value: dict[str, Any]) -> None:
+            if path.name == "flight-unavailable.json":
+                reporter(path, value)
+            else:
+                write_json(path, value)
+
+        monkeypatch.setattr(state_journal, "_atomic_json", write_status)
+    elif report_failure == "logging":
+        logger = state_journal.logging.getLogger(state_journal.__name__)
+        monkeypatch.setattr(logger, "warning", reporter)
 
     async def lifecycle() -> None:
         await plugin.on_job_start(job)
         await plugin._on_agent_started(event)
-        await plugin.on_job_end(None)
+        await plugin.on_job_end(result)
 
-    asyncio.run(lifecycle())
+    assert asyncio.run(lifecycle()) is None
+
+    laminar.on_job_start.assert_awaited_once_with(job)
+    laminar.on_job_end.assert_awaited_once_with(result)
+    flight.on_job_start.assert_awaited_once_with(job)
+    flight.on_job_end.assert_awaited_once_with(result)
+    if report_failure is not None:
+        assert reporter.call_count == 2
 
     assert plugin._flight_errors == [
         "job_start: RuntimeError: flight start failed",
         "job_end: RuntimeError: flight end failed",
     ]
-    flight_status = json.loads(
-        (job.job_dir / "flight-unavailable.json").read_text(encoding="utf-8")
-    )
-    assert flight_status == {
-        "schema": "evallab.flight.status/v1",
-        "status": "unavailable",
-        "errors": plugin._flight_errors,
-    }
+    flight_status_path = job.job_dir / "flight-unavailable.json"
+    if report_failure == "status":
+        assert not flight_status_path.exists()
+    else:
+        flight_status = json.loads(flight_status_path.read_text(encoding="utf-8"))
+        assert flight_status == {
+            "schema": "evallab.flight.status/v1",
+            "status": "unavailable",
+            "errors": plugin._flight_errors,
+        }
     status = _status(event)
     assert status["status"] == "unavailable"
     assert status["reason"] == "disabled by EVALLAB_STATE_JOURNAL=off"

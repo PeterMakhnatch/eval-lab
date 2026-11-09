@@ -29,6 +29,18 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install Python 3.12
+        # HAR-339: uv's managed cpython download served 504 and reddened main
+        # (perf run 42582557769, mcp-wheelhouse-platform run 42582557805).
+        # setup-python resolves the runner toolcache before any download;
+        # only-system keeps uv on that interpreter.
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Pin uv to the provisioned interpreter
+        run: |
+          echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
+          echo "UV_PYTHON_PREFERENCE=only-system" >> "$GITHUB_ENV"
       - name: Cache locked Python packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         env:
@@ -37,13 +49,13 @@ jobs:
           path: ~/.cache/uv
           key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-deepplanning-${{ hashFiles('uv.lock', '.github/workflows/deepplanning.yml') }}
           restore-keys: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-test-${{ hashFiles('uv.lock', '.github/workflows/ci.yml') }}
-      - name: Install uv and Python
+      - name: Install uv 0.9.24
         run: |
           python3 -m pip install --user uv==0.9.24
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           uv tool install "harbor==0.21.0"
-          uv python install 3.12
-          uv sync --locked
+      - name: Sync locked environment
+        run: uv sync --locked
       - name: Verify deterministic materialization
         run: |
           cp -a library/tasks/experimental/deepplanning-v1/travel-lisbon-002 "$RUNNER_TEMP/travel-lisbon-first"

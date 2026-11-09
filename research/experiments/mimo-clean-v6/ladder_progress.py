@@ -32,8 +32,17 @@ digest when ``final_digest`` differs or ``digest_matches_manifest`` is not true.
 A task absent from the manifest is refused the same way, so a cell run on a
 stale or wrong package never enters the table.
 
+``--summary`` prints the wall time by language (HAR-322): for each language the
+covered rows by basis, the uncovered rows, the median and maximum
+``wall_seconds``, and the serial Docker hours left for the uncovered rows
+(``uncovered x median``). A language's median comes from one reference basis:
+``tamper-refusal`` when the language has any, else ``graded``. An ``unscored``
+cell carries a wall time but no verdict, so it counts as covered and does not
+set a median.
+
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
-the committed table with ``--check`` (exit 1 on drift).
+the committed table with ``--check`` (exit 1 on drift); print the language
+summary with ``--summary``.
 """
 
 from __future__ import annotations
@@ -43,7 +52,9 @@ import csv
 import difflib
 import io
 import json
+import statistics
 import sys
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -78,6 +89,10 @@ COLUMNS = (
 
 TAMPER_SIGNATURE = "tamper signature"
 GRADED_MARKER = "rc="
+SUMMARY_HEADING = "## Wall time by language and remaining serial hours"
+REFUSAL_BASIS = "tamper-refusal"
+GRADED_BASIS = "graded"
+SECONDS_PER_HOUR = 3600.0
 
 
 class ProgressError(RuntimeError):
@@ -283,6 +298,86 @@ def basis_counts(rows: Sequence[dict[str, str]]) -> dict[str, int]:
     return counts
 
 
+def reference_basis(language: str, bases: Sequence[str]) -> str:
+    """The one basis whose wall times set a language's median."""
+    if REFUSAL_BASIS in bases:
+        return REFUSAL_BASIS
+    if GRADED_BASIS in bases:
+        return GRADED_BASIS
+    raise ProgressError(
+        f"{language}: no {REFUSAL_BASIS} or {GRADED_BASIS} row to set a median; "
+        f"bases are {sorted(bases)}"
+    )
+
+
+def wall_seconds(row: Mapping[str, Any]) -> float:
+    """A row's ``wall_seconds`` as a number; a covered row must carry one."""
+    try:
+        return float(row["wall_seconds"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ProgressError(
+            f"{row.get('task_id')}: wall_seconds {row.get('wall_seconds')!r} is not a number"
+        ) from error
+
+
+def summary(rows: Sequence[dict[str, str]]) -> list[dict[str, Any]]:
+    """One entry per language: covered rows by basis, uncovered rows, wall median/max.
+
+    ``projected_hours`` is ``uncovered x median_seconds``: the serial Docker hours
+    left to cover the language's remaining ranks at its reference-basis wall time.
+    """
+    grouped: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        grouped.setdefault(row["language"], []).append(row)
+    entries: list[dict[str, Any]] = []
+    for language in sorted(grouped):
+        language_rows = grouped[language]
+        covered = [row for row in language_rows if row["basis"] != "none"]
+        bases = Counter(row["basis"] for row in covered)
+        reference = reference_basis(language, sorted(bases))
+        walls = [wall_seconds(row) for row in covered if row["basis"] == reference]
+        if not walls:
+            raise ProgressError(f"{language}: {reference} rows carry no wall time")
+        median = statistics.median(walls)
+        uncovered = len(language_rows) - len(covered)
+        entries.append(
+            {
+                "language": language,
+                "covered": len(covered),
+                "bases": dict(bases),
+                "uncovered": uncovered,
+                "median_seconds": median,
+                "max_seconds": max(walls),
+                "projected_hours": uncovered * median / SECONDS_PER_HOUR,
+            }
+        )
+    return entries
+
+
+def render_summary(rows: Sequence[dict[str, str]]) -> str:
+    """The ``--summary`` table, in the same Markdown pipe-table shape as the README."""
+    buffer = io.StringIO()
+    buffer.write(
+        "| language | covered | uncovered | median wall (s) | max wall (s) "
+        "| projected serial hours |\n"
+    )
+    buffer.write("|---|---:|---:|---:|---:|---:|\n")
+    entries = summary(rows)
+    for entry in entries:
+        bases = ", ".join(f"`{name}` {count}" for name, count in sorted(entry["bases"].items()))
+        buffer.write(
+            f"| {entry['language']} | {entry['covered']} ({bases}) | {entry['uncovered']} "
+            f"| {entry['median_seconds']:.1f} | {entry['max_seconds']:.1f} "
+            f"| {entry['projected_hours']:.2f} |\n"
+        )
+    buffer.write(
+        f"| total | {sum(entry['covered'] for entry in entries)} "
+        f"| {sum(entry['uncovered'] for entry in entries)} | | "
+        f"| {sum(entry['projected_hours'] for entry in entries):.2f} |\n"
+    )
+    return buffer.getvalue()
+
+
 def check(rebuilt: str, target: Path) -> bool:
     """Compare ``rebuilt`` against the committed file; True when it matches."""
     committed = target.read_text(encoding="utf-8") if target.is_file() else ""
@@ -304,13 +399,22 @@ def check(rebuilt: str, target: Path) -> bool:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--check",
         action="store_true",
         help=f"exit 1 if the committed {OUTPUT_NAME} differs from a rebuild",
     )
+    mode.add_argument(
+        "--summary",
+        action="store_true",
+        help="print wall time by language and the serial hours left for uncovered rows",
+    )
     args = parser.parse_args(argv)
     rows = build(ROOT, cells_dir=HERE)
+    if args.summary:
+        print(render_summary(rows), end="")
+        return 0
     if args.check:
         return 0 if check(render(rows), HERE / OUTPUT_NAME) else 1
     (HERE / OUTPUT_NAME).write_text(render(rows), encoding="utf-8")

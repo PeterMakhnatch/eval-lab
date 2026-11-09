@@ -135,6 +135,107 @@ def test_ladder_progress_readme_basis_table_matches_the_committed_table() -> Non
     }
 
 
+def _summary_section() -> str:
+    """The pipe-table lines of the README's summary section, heading-bounded."""
+    heading = f"{MODULE.SUMMARY_HEADING}\n"
+    readme = (EXPERIMENT / "README.md").read_text(encoding="utf-8")
+    assert readme.count(heading) == 1
+    body = readme.split(heading, 1)[1].split("\n## ", 1)[0]
+    return "\n".join(line for line in body.splitlines() if line.startswith("|"))
+
+
+def test_ladder_progress_readme_summary_section_matches_the_rendered_table() -> None:
+    assert _summary_section() == MODULE.render_summary(_committed()).rstrip("\n")
+
+
+def test_ladder_progress_summary_accounts_for_every_row_once() -> None:
+    rows = _committed()
+    entries = MODULE.summary(rows)
+    assert {entry["language"] for entry in entries} == {row["language"] for row in rows}
+    for entry in entries:
+        assert sum(entry["bases"].values()) == entry["covered"]
+    assert sum(entry["covered"] + entry["uncovered"] for entry in entries) == len(rows)
+    assert sum(entry["uncovered"] for entry in entries) == sum(
+        1 for row in rows if row["basis"] == "none"
+    )
+
+
+def test_ladder_progress_summary_total_row_sums_the_languages() -> None:
+    entries = MODULE.summary(_committed())
+    total = [
+        cell.strip()
+        for cell in MODULE.render_summary(_committed()).splitlines()[-1].strip("|").split("|")
+    ]
+    assert total[0] == "total"
+    assert int(total[1]) == sum(entry["covered"] for entry in entries)
+    assert int(total[2]) == sum(entry["uncovered"] for entry in entries)
+    assert total[5] == f"{sum(entry['projected_hours'] for entry in entries):.2f}"
+
+
+def _summary_row(task_id: str, language: str, basis: str, wall: str) -> dict[str, str]:
+    return {
+        "task_id": task_id,
+        "language": language,
+        "basis": basis,
+        "verdict": "none" if basis == "none" else "clean",
+        "wall_seconds": wall,
+    }
+
+
+def test_ladder_progress_summary_takes_the_refusal_median_when_a_refusal_exists() -> None:
+    rows = [
+        _summary_row("t1", "python", "tamper-refusal", "100"),
+        _summary_row("t2", "python", "tamper-refusal", "300"),
+        _summary_row("t3", "python", "graded", "9000"),
+    ]
+    entry = MODULE.summary(rows)[0]
+    assert (entry["median_seconds"], entry["max_seconds"]) == (200.0, 300.0)
+
+
+def test_ladder_progress_summary_falls_back_to_the_graded_median_and_counts_unscored() -> None:
+    rows = [
+        _summary_row("t1", "go", "graded", "100"),
+        _summary_row("t2", "go", "graded", "300"),
+        _summary_row("t3", "go", "unscored", "9000"),
+    ]
+    entry = MODULE.summary(rows)[0]
+    assert (entry["median_seconds"], entry["max_seconds"]) == (200.0, 300.0)
+    assert entry["bases"] == {"graded": 2, "unscored": 1}
+    assert (entry["covered"], entry["uncovered"]) == (3, 0)
+
+
+def test_ladder_progress_summary_projects_uncovered_rows_at_the_language_median() -> None:
+    rows = [
+        _summary_row("t1", "typescript", "graded", "720"),
+        _summary_row("t2", "typescript", "none", ""),
+        _summary_row("t3", "typescript", "none", ""),
+    ]
+    entry = MODULE.summary(rows)[0]
+    assert entry["uncovered"] == 2
+    assert entry["projected_hours"] == pytest.approx(2 * 720 / 3600)
+
+
+def test_ladder_progress_summary_refuses_a_covered_row_without_a_wall_time() -> None:
+    rows = [_summary_row("t1", "go", "graded", "")]
+    with pytest.raises(ProgressError, match="t1"):
+        MODULE.summary(rows)
+
+
+def test_ladder_progress_summary_refuses_a_language_with_no_reference_basis() -> None:
+    rows = [
+        _summary_row("t1", "go", "unscored", "448"),
+        _summary_row("t2", "go", "none", ""),
+    ]
+    with pytest.raises(ProgressError, match="go"):
+        MODULE.summary(rows)
+
+
+def test_ladder_progress_check_and_summary_are_mutually_exclusive() -> None:
+    with pytest.raises(SystemExit) as refused:
+        MODULE.main(["--check", "--summary"])
+    assert refused.value.code == 2
+
+
 def test_ladder_progress_has_exactly_one_row_per_ranking_rank() -> None:
     with (REPO_ROOT / RANKING).open(encoding="utf-8", newline="") as handle:
         expected = [row["task_id"] for row in csv.DictReader(handle)][:100]
@@ -441,3 +542,13 @@ def test_ladder_progress_check_fails_when_a_committed_verdict_is_edited(
     assert "stale" in capsys.readouterr().err
     assert MODULE.main([]) == 0  # regenerating repairs the drift
     assert MODULE.main(["--check"]) == 0
+
+
+def test_ladder_progress_summary_prints_the_table_without_writing_the_csv(
+    sandbox: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    table = sandbox / "ladder-progress.csv"
+    before = table.read_bytes()
+    assert MODULE.main(["--summary"]) == 0
+    assert capsys.readouterr().out == MODULE.render_summary(_committed())
+    assert table.read_bytes() == before

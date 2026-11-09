@@ -790,6 +790,33 @@ only 8–10 of 14 (5 rows ran 8, 7 ran 9, and 1 ran 10).
 The unscored `000928` ran 0, so graded ladder evidence covers fewer attacks
 than the refusal rows' count suggests.
 
+## Wall time by language and remaining serial hours
+
+`ladder_progress.py --summary` (HAR-322) prints this table from the committed
+[ladder-progress.csv](ladder-progress.csv). The table is generated, not
+hand-computed:
+
+```bash
+uv run python research/experiments/mimo-clean-v6/ladder_progress.py --summary
+```
+
+| language | covered | uncovered | median wall (s) | max wall (s) | projected serial hours |
+|---|---:|---:|---:|---:|---:|
+| go | 5 (`graded` 5) | 0 | 701.0 | 978.0 | 0.00 |
+| javascript | 4 (`graded` 4) | 0 | 528.5 | 759.4 | 0.00 |
+| python | 35 (`graded` 2, `tamper-refusal` 33) | 49 | 431.0 | 1373.7 | 5.87 |
+| typescript | 3 (`graded` 2, `unscored` 1) | 4 | 1086.5 | 1840.0 | 1.21 |
+| total | 47 | 53 | | | 7.07 |
+
+A language's median and maximum come from one reference basis:
+`tamper-refusal` when the language has any refusal row, else `graded`. Python
+therefore uses its 33 tamper refusals, not its 2 graded rows, whose sample is too
+small to set a rate. An `unscored` cell carries a wall time but no verdict, so it
+counts as covered and does not move the median. `projected serial hours` is the
+uncovered rows times that median: covering the 53 uncovered rows one at a time
+on local Docker costs about **7.07 h** (Python 5.87 h, TypeScript 1.21 h), before
+queue wait. Re-render the section whenever a new ladder cell lands.
+
 ## Graded subset cells for three tamper-refused rows (HAR-284, HAR-293, 2026-11-03)
 
 [ladder-graded-subset.json](ladder-graded-subset.json) records ladder 1.4.0

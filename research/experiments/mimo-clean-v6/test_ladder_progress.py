@@ -180,6 +180,73 @@ def test_ladder_progress_a_slice_table_wall_edit_is_refused(tmp_path: Path) -> N
     assert "445.9" in str(refused.value)
 
 
+def _readme_table(heading: str) -> str:
+    """The pipe-table lines of one README section, heading-bounded."""
+    readme = (EXPERIMENT / "README.md").read_text(encoding="utf-8")
+    section = readme.split(heading, 1)[1].split("\n## ", 1)[0]
+    return "\n".join(line for line in section.splitlines() if line.startswith("|")) + "\n"
+
+
+@pytest.mark.parametrize(
+    ("name", "heading"),
+    [
+        ("ladder-p2-ranks52-57.json", "## P2 ranks 52–57 ladder cells"),
+        ("ladder-p2-ranks46-51.json", "## P2 ranks 46–51 ladder cells"),
+    ],
+)
+def test_ladder_progress_render_slice_reproduces_the_readme_table(
+    name: str, heading: str
+) -> None:
+    assert MODULE.render_slice(EXPERIMENT / name) == _readme_table(heading)
+
+
+@pytest.mark.parametrize(
+    "path", sorted(EXPERIMENT.glob("ladder-p2-ranks*.json")), ids=lambda path: path.name
+)
+def test_ladder_progress_render_slice_agrees_with_the_committed_table(path: Path) -> None:
+    tasks = json.loads(path.read_text(encoding="utf-8"))["tasks"]
+    assert MODULE.check_slice_tables(
+        "## rendered ladder cells\n" + MODULE.render_slice(path), _committed()
+    ) == len(tasks)
+
+
+def test_ladder_progress_render_slice_names_an_unscored_prior_attempt(
+    tmp_path: Path,
+) -> None:
+    data = json.loads((EXPERIMENT / "ladder-p2-ranks52-57.json").read_text(encoding="utf-8"))
+    task = next(task for task in data["tasks"] if task["ranking"]["rank"] == 55)
+    path = tmp_path / "ladder-tmp.json"
+    path.write_text(
+        json.dumps({"schema": SCHEMA, "card": data["card"], "tasks": [task]}),
+        encoding="utf-8",
+    )
+    rendered = MODULE.render_slice(path)
+    assert "| attempt 2 published; unscored attempt 1 published and retained |" in rendered
+
+
+def test_ladder_progress_render_slice_refuses_a_cell_at_another_digest(
+    tmp_path: Path,
+) -> None:
+    data = json.loads((EXPERIMENT / "ladder-p2-ranks52-57.json").read_text(encoding="utf-8"))
+    task = data["tasks"][0]
+    task["final_digest"] = "sha256:stale"
+    path = tmp_path / "ladder-tmp.json"
+    path.write_text(
+        json.dumps({"schema": SCHEMA, "card": data["card"], "tasks": [task]}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ProgressError, match="sha256:stale"):
+        MODULE.render_slice(path)
+
+
+def test_ladder_progress_render_slice_cli_prints_the_table(
+    sandbox: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert MODULE.main(["--render-slice", "ladder-p2-ranks52-57.json"]) == 0
+    printed = capsys.readouterr().out
+    assert printed == _readme_table("## P2 ranks 52–57 ladder cells")
+
+
 def test_ladder_progress_summary_accounts_for_every_row_once() -> None:
     rows = _committed()
     entries = MODULE.summary(rows)

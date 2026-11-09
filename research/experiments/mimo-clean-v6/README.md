@@ -1110,6 +1110,7 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py          # r
 uv run python research/experiments/mimo-clean-v6/ladder_progress.py --check  # exit 1 on drift
 uv run python research/experiments/mimo-clean-v6/ladder_progress.py \
   --render-slice ladder-p2-ranks52-57.json  # README rows for one cell file
+uv run python research/experiments/mimo-clean-v6/ladder_progress.py --sync-docs
 ```
 
 `--render-slice` prints the seven-column pipe table (`rank`, `task`, `verdict`,
@@ -1117,6 +1118,43 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py \
 one committed cell file. A slice PR pastes those rows into its section instead
 of hand-copying them from the JSON. The cell must run the manifest
 `final_digest`, else the command raises `ProgressError`.
+
+`--sync-docs` rebuilds rows from committed cell JSON, the manifest, and the
+ranking. It does not use the CSV as its source. It needs no Docker or host
+results root.
+
+It updates five count fragments: the two route-page basis sentences, this
+page's basis table and covered count, its signature counts, and its summary
+table. It preserves route sentence spacing, table annotations, and signature
+labels. It leaves all other page text unchanged.
+
+The command validates every fragment before writing any page. A missing or
+repeated fragment anchor raises `ProgressError` and exits 1 without page writes.
+
+For each slice PR:
+
+1. Add the cell JSON and any required manifest or ranking changes to the PR.
+2. Run the command without options to regenerate `ladder-progress.csv`.
+3. Run `--render-slice` with the cell filename. Paste its table into the slice
+   section.
+4. Run `--sync-docs` to update the five count fragments.
+5. Review and edit the remaining prose manually:
+   - The refusal-rate line.
+   - The refusal and attack narrative.
+   - The statement that Python uses its `N` tamper refusals.
+   - The remaining-hours explanation.
+   - The `--verify-evidence` totals, only when supported by an evidence check.
+   - Task-specific descriptions and evidence prose affected by the new cells.
+6. Run the drift check and the explicit experiment test file:
+
+   ```bash
+   uv run python research/experiments/mimo-clean-v6/ladder_progress.py --check
+   uv run pytest research/experiments/mimo-clean-v6/test_ladder_progress.py
+   ```
+
+Include the regenerated CSV and page changes with the cell data in the slice
+PR. The regeneration and tests above need no Docker or host results root.
+Evidence checks remain separate and require the retained host results.
 
 Two trailing columns join the graded-subset cells (schema
 `evallab.mimo-v6-ladder-subset-cells/v1`; coverage readers ignore that schema
@@ -1202,7 +1240,8 @@ than the refusal rows' count suggests.
 
 ## Wall time by language and remaining serial hours
 
-`ladder_progress.py --summary` (HAR-322) prints this table from the committed
+`ladder_progress.py --summary` (HAR-322) rebuilds this table from committed
+cells, the manifest, and the ranking. The published row projection is
 [ladder-progress.csv](ladder-progress.csv). The table is generated, not
 hand-computed:
 
@@ -1225,7 +1264,8 @@ small to set a rate. An `unscored` cell carries a wall time but no verdict, so i
 counts as covered and does not move the median. `projected serial hours` is the
 uncovered rows times that median: covering the 19 uncovered rows one at a time
 on local Docker costs about **2.25 h** (all Python), before queue wait.
-Re-render the section whenever a new ladder cell lands.
+Run `--sync-docs` whenever a new ladder cell lands. Review the explanation
+below the table manually.
 
 ## Graded subset cells for three tamper-refused rows (HAR-284, HAR-293, 2026-11-03)
 

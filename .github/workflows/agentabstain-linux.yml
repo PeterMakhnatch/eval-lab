@@ -26,6 +26,10 @@ env:
 
 jobs:
   canary-controls:
+    # HAR-345: deepplanning-canary and tau-knowledge-lean also had a job named
+    # canary-controls, so their check runs shared one name and a red run here
+    # read as a flake next to a green one there. Keep check names unique.
+    name: agentabstain-linux-canary-controls
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

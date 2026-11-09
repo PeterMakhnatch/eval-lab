@@ -309,6 +309,45 @@ def test_dispatch_only_workflows_exemption_list() -> None:
     assert list(DISPATCH_ONLY_WORKFLOW_EXEMPTIONS.keys()) == []
 
 
+def _duplicate_check_names(workflows: dict[str, dict]) -> dict[str, list[str]]:
+    """Map each check name reported by more than one job to its `file:job` owners.
+
+    GitHub names a job's check run after `name:`, falling back to the job id, and
+    does not prefix the workflow. Foreman's flake detector and reviewers both read
+    that bare name.
+    """
+    owners: dict[str, list[str]] = {}
+    for filename, workflow in workflows.items():
+        for job_id, job in (workflow.get("jobs") or {}).items():
+            name = job.get("name") if isinstance(job, dict) else None
+            owners.setdefault(str(name or job_id), []).append(f"{filename}:{job_id}")
+    return {name: jobs for name, jobs in owners.items() if len(jobs) > 1}
+
+
+def test_every_job_reports_a_check_name_no_other_workflow_uses() -> None:
+    """Two workflows must not report check runs under one name (HAR-345).
+
+    agentabstain-linux failed deterministically on 650dd8e (run 42590293974) while
+    deepplanning-canary passed (run 42590293882); both jobs were `canary-controls`,
+    so the same commit showed one check name red and green and was filed as a flake.
+    """
+    workflows = {
+        path.name: yaml.safe_load(path.read_text(encoding="utf-8")) for path in WORKFLOW_FILES
+    }
+    assert _duplicate_check_names(workflows) == {}
+
+
+def test_check_name_gate_rejects_a_shared_job_id_without_a_name() -> None:
+    job = {"runs-on": "ubuntu-latest", "timeout-minutes": 10, "steps": []}
+    workflows = {
+        "a.yml": {"jobs": {"canary-controls": job}},
+        "b.yml": {"jobs": {"canary-controls": job}},
+        "c.yml": {"jobs": {"canary-controls": {**job, "name": "c-canary-controls"}}},
+    }
+    assert _duplicate_check_names(workflows) == {
+        "canary-controls": ["a.yml:canary-controls", "b.yml:canary-controls"]
+    }
+
 
 @pytest.mark.parametrize("workflow_path", WORKFLOW_FILES, ids=lambda p: p.name)
 def test_workflows_with_pr_or_push_declare_cancel_in_progress_concurrency(

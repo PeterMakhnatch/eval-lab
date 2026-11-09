@@ -533,3 +533,740 @@ def test_native_sandbox_labels_cannot_silently_change_comma_delimited_identity(
     _valid_root_context(trace)
     trace.session_id = "job-one,trial_id=different"
     assert hl.daytona_telemetry_labels(config.trials_dir / config.trial_name) == {}
+
+
+# ---------------------------------------------------------------------------
+# HAR-348: Harbor wrapper boundaries driven directly against the fake runtime.
+# Each wrapper must annotate and end its span, and must hand the original's
+# result, exception or cancellation back unchanged.
+# ---------------------------------------------------------------------------
+
+
+class _RaisingEnabledRuntime(FakeRuntime):
+    """A runtime whose enabled probe itself fails (telemetry must fail open)."""
+
+    @property
+    def enabled(self):
+        raise RuntimeError("runtime probe failed")
+
+    @enabled.setter
+    def enabled(self, value):
+        pass
+
+
+def _spans_named(runtime, name):
+    return [span for span in runtime.spans if span.name == name]
+
+
+def _wrapped_trial_class(original, *, kind, span_name="harbor.phase"):
+    """Throwaway trial class whose ``method`` is wrapped like a Harbor method."""
+
+    class FakeTrial:
+        method = original
+
+        def __init__(self, trial_id, result=None):
+            self._id = trial_id
+            self._result = result
+
+    hl._wrap_trial_method(FakeTrial, "method", span_name=span_name, kind=kind)
+    return FakeTrial
+
+
+def _failing(error, value=None):
+    calls = []
+
+    async def original(self, *args, **kwargs):
+        calls.append((self, args, kwargs))
+        if error is not None:
+            raise error
+        return value
+
+    return original, calls
+
+
+async def _await_outcome(call, error, value):
+    if error is None:
+        assert await call is value
+        return
+    with pytest.raises(type(error)) as raised:
+        await call
+    assert raised.value is error
+
+
+_OUTCOMES = [None, ValueError("original failed"), asyncio.CancelledError()]
+
+
+def _error_name(error):
+    return None if error is None else type(error).__name__
+
+
+def test_trial_method_wrapper_installs_once_and_skips_missing_methods():
+    original, _ = _failing(None)
+    cls = _wrapped_trial_class(original, kind="setup")
+    wrapped = cls.method
+    assert wrapped is not original
+    assert getattr(wrapped, "__evallab_laminar_wrapped__", False) is True
+    hl._wrap_trial_method(cls, "method", span_name="harbor.phase", kind="setup")
+    assert cls.method is wrapped
+    hl._wrap_trial_method(cls, "missing", span_name="harbor.phase", kind="setup")
+    assert not hasattr(cls, "missing")
+
+
+@pytest.mark.parametrize("kind", ["environment", "setup", "stop", "shared_verifier"])
+@pytest.mark.parametrize("state", ["absent", "closed", "disabled", "runtime-error"])
+def test_trial_method_wrappers_pass_through_without_live_enabled_trace(
+    fake_runtime, tmp_path, monkeypatch, kind, state
+):
+    trial_id, _, trace = _register_trace(fake_runtime, tmp_path)
+    span_count = len(fake_runtime.spans)
+    sentinel = object()
+    original, calls = _failing(None, sentinel)
+    cls = _wrapped_trial_class(original, kind=kind)
+    trial = cls(uuid.uuid4() if state == "absent" else trial_id)
+    if state == "closed":
+        trace.closed = True
+    elif state == "disabled":
+        fake_runtime.enabled = False
+    elif state == "runtime-error":
+        monkeypatch.setattr(hl, "_RUNTIME", _RaisingEnabledRuntime())
+
+    assert asyncio.run(trial.method(1, flag=True)) is sentinel
+    assert calls == [(trial, (1,), {"flag": True})]
+    assert len(fake_runtime.spans) == span_count
+    assert trace.phase_spans == {}
+    assert trace.native_stop is None and trace.latest_rewards is None
+
+
+@pytest.mark.parametrize("error", _OUTCOMES)
+def test_environment_wrapper_ends_sandbox_phase_with_error_type(fake_runtime, tmp_path, error):
+    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
+    plugin = hl.LaminarTrialPlugin()
+    sentinel = object()
+    original, calls = _failing(error, sentinel)
+    trial = _wrapped_trial_class(original, kind="environment", span_name="harbor.sandbox_setup")(
+        trial_id
+    )
+
+    async def exercise():
+        await plugin._on_environment_started(_event(config, trial_id))
+        assert len(trace.phase_spans) == 1
+        await _await_outcome(trial.method(), error, sentinel)
+        assert hl._ENVIRONMENT_PHASE.get() is None
+
+    asyncio.run(exercise())
+    assert calls == [(trial, (), {})]
+    (span,) = _spans_named(fake_runtime, "harbor.sandbox_setup")
+    assert span.ended
+    assert span.error_type == _error_name(error)
+    assert trace.phase_spans == {}
+
+
+@pytest.mark.parametrize("error", _OUTCOMES)
+def test_setup_wrapper_opens_and_ends_agent_setup_span(fake_runtime, tmp_path, error):
+    trial_id, _, trace = _register_trace(fake_runtime, tmp_path)
+    sentinel = object()
+    original, calls = _failing(error, sentinel)
+    trial = _wrapped_trial_class(original, kind="setup", span_name="harbor.agent_setup")(trial_id)
+
+    asyncio.run(_await_outcome(trial.method("arg", key="value"), error, sentinel))
+    assert calls == [(trial, ("arg",), {"key": "value"})]
+    (span,) = _spans_named(fake_runtime, "harbor.agent_setup")
+    assert span.ended
+    assert span.error_type == _error_name(error)
+    assert span.metadata == {"trial_id": str(trial_id), "trial_name": trace.trial_name}
+
+
+@pytest.mark.parametrize("error", [None, RuntimeError("stop failed"), asyncio.CancelledError()])
+def test_stop_wrapper_attaches_native_stop_even_when_original_raises(
+    fake_runtime, tmp_path, error
+):
+    trial_id, _, trace = _register_trace(fake_runtime, tmp_path)
+    result = SimpleNamespace(agent_result=SimpleNamespace(metadata=None))
+    _persist_like_native(result, exit_status="LimitsExceeded", stop_reason="trial_budget_exhausted")
+    sentinel = object()
+    original, calls = _failing(error, sentinel)
+    trial = _wrapped_trial_class(original, kind="stop", span_name="harbor.stop")(trial_id, result)
+
+    asyncio.run(_await_outcome(trial.method(), error, sentinel))
+    assert calls == [(trial, (), {})]
+    (span,) = _spans_named(fake_runtime, "harbor.stop")
+    assert span.ended
+    assert span.error_type == _error_name(error)
+    assert span.metadata["native_exit_status"] == "LimitsExceeded"
+    assert span.metadata["stop_reason"] == "trial_budget_exhausted"
+    assert "native_exit_result" not in span.metadata
+    assert trace.native_stop == {
+        "native_exit_status": "LimitsExceeded",
+        "stop_reason": "trial_budget_exhausted",
+    }
+
+
+@pytest.mark.parametrize("kind", ["shared_verifier", "separate_verifier"])
+def test_verifier_wrapper_records_rewards_and_reward_child(fake_runtime, tmp_path, kind):
+    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
+    plugin = hl.LaminarTrialPlugin()
+    verifier_result = SimpleNamespace(rewards={"reward": 1, "label": "pass", "flag": True})
+    original, calls = _failing(None, verifier_result)
+    trial = _wrapped_trial_class(original, kind=kind, span_name="harbor.verifier")(trial_id)
+
+    async def exercise():
+        await plugin._on_verification_started(_event(config, trial_id))
+        assert await trial.method() is verifier_result
+        assert hl._VERIFIER_PHASE.get() is None
+
+    asyncio.run(exercise())
+    assert calls == [(trial, (), {})]
+    expected = {"rewards": {"reward": 1.0}}
+    (span,) = _spans_named(fake_runtime, "harbor.verifier")
+    assert span.ended and span.error_type is None
+    assert span.output == expected
+    assert span.metadata["rewards"] == {"reward": 1.0}
+    (reward,) = _spans_named(fake_runtime, "harbor.reward")
+    assert reward.ended and reward.error_type is None
+    assert reward.output == expected
+    assert reward.metadata == {"trial_id": str(trial_id), "trial_name": trace.trial_name}
+    assert trace.latest_rewards == {"reward": 1.0}
+    assert trace.phase_spans == {}
+
+
+@pytest.mark.parametrize("error", _OUTCOMES[1:])
+def test_verifier_wrapper_ends_phase_with_error_type_and_no_reward(fake_runtime, tmp_path, error):
+    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
+    plugin = hl.LaminarTrialPlugin()
+    original, _ = _failing(error)
+    trial = _wrapped_trial_class(original, kind="shared_verifier")(trial_id)
+
+    async def exercise():
+        await plugin._on_verification_started(_event(config, trial_id))
+        await _await_outcome(trial.method(), error, None)
+
+    asyncio.run(exercise())
+    (span,) = _spans_named(fake_runtime, "harbor.verifier")
+    assert span.ended
+    assert span.error_type == type(error).__name__
+    assert span.output is None
+    assert _spans_named(fake_runtime, "harbor.reward") == []
+    assert trace.latest_rewards is None
+    assert trace.phase_spans == {}
+
+
+class _UnreadableRewards:
+    @property
+    def rewards(self):
+        raise RuntimeError("rewards unreadable")
+
+
+@pytest.mark.parametrize(
+    "verifier_result", [SimpleNamespace(rewards=None), _UnreadableRewards()], ids=["none", "raises"]
+)
+def test_verifier_wrapper_without_usable_rewards_returns_result_unchanged(
+    fake_runtime, tmp_path, verifier_result
+):
+    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
+    plugin = hl.LaminarTrialPlugin()
+    original, _ = _failing(None, verifier_result)
+    trial = _wrapped_trial_class(original, kind="separate_verifier")(trial_id)
+
+    async def exercise():
+        await plugin._on_verification_started(_event(config, trial_id))
+        assert await trial.method() is verifier_result
+
+    asyncio.run(exercise())
+    (span,) = _spans_named(fake_runtime, "harbor.verifier")
+    assert span.ended and span.error_type is None
+    assert span.output is None
+    assert _spans_named(fake_runtime, "harbor.reward") == []
+    assert trace.latest_rewards is None
+    assert trace.phase_spans == {}
+
+
+def _install_egress_wrapper(monkeypatch, original):
+    pytest.importorskip("harbor.environments.daytona.environment")
+    from evallab.harbor_daytona import BoundedDaytonaEnvironment
+
+    # Snapshot the class attribute so monkeypatch restores the real method.
+    monkeypatch.setattr(BoundedDaytonaEnvironment, "_lock_egress", original)
+    hl._wrap_egress_lock()
+    wrapped = BoundedDaytonaEnvironment._lock_egress
+    assert wrapped is not original
+    assert getattr(wrapped, "__evallab_laminar_wrapped__", False) is True
+    hl._wrap_egress_lock()
+    assert BoundedDaytonaEnvironment._lock_egress is wrapped
+    return wrapped
+
+
+def _egress_original(error=None):
+    calls = []
+
+    async def original(self):
+        calls.append(self)
+        if error is not None:
+            raise error
+
+    return original, calls
+
+
+def _daytona_env(context_id, *, network_block_all=True):
+    return SimpleNamespace(
+        context_id=context_id,
+        _sandbox=SimpleNamespace(id="sandbox-1", network_block_all=network_block_all),
+    )
+
+
+def test_egress_lock_wrapper_records_verified_lock_on_span_and_root(
+    fake_runtime, tmp_path, monkeypatch
+):
+    trial_id, _, trace = _register_trace(fake_runtime, tmp_path)
+    original, calls = _egress_original()
+    lock_egress = _install_egress_wrapper(monkeypatch, original)
+    env = _daytona_env(str(trial_id))
+
+    assert asyncio.run(lock_egress(env)) is None
+    assert calls == [env]
+    (span,) = _spans_named(fake_runtime, "harbor.egress_lock")
+    assert span.ended and span.error_type is None
+    assert span.metadata["verified"] is True
+    assert span.metadata["network_block_all"] is True
+    assert span.metadata["sandbox_id"] == "sandbox-1"
+    assert span.metadata["mechanism"] == "daytona update_network_settings(network_block_all=True)"
+    for observed in (trace.metadata, trace.root.metadata):
+        assert observed["egress_lock_observed"] == "verified"
+        assert observed["network_block_all"] is True
+
+
+@pytest.mark.parametrize("error", _OUTCOMES[1:])
+def test_egress_lock_wrapper_never_marks_failed_or_cancelled_lock_verified(
+    fake_runtime, tmp_path, monkeypatch, error
+):
+    trial_id, _, trace = _register_trace(fake_runtime, tmp_path)
+    original, calls = _egress_original(error)
+    lock_egress = _install_egress_wrapper(monkeypatch, original)
+    env = _daytona_env(str(trial_id), network_block_all=False)
+
+    asyncio.run(_await_outcome(lock_egress(env), error, None))
+    assert calls == [env]
+    (span,) = _spans_named(fake_runtime, "harbor.egress_lock")
+    assert span.ended
+    assert span.error_type == type(error).__name__
+    if isinstance(error, asyncio.CancelledError):
+        # Remote state is ambiguous on cancel: nothing is claimed either way.
+        assert "verified" not in span.metadata
+    else:
+        assert span.metadata["verified"] is False
+        assert span.metadata["network_block_all"] is False
+    assert trace.metadata["egress_lock_observed"] == "pending"
+    assert trace.root.metadata["egress_lock_observed"] == "pending"
+
+
+@pytest.mark.parametrize("state", ["no-context", "absent", "closed", "disabled"])
+def test_egress_lock_wrapper_passes_through_without_live_enabled_trace(
+    fake_runtime, tmp_path, monkeypatch, state
+):
+    trial_id, _, trace = _register_trace(fake_runtime, tmp_path)
+    span_count = len(fake_runtime.spans)
+    original, calls = _egress_original()
+    lock_egress = _install_egress_wrapper(monkeypatch, original)
+    context_id = {"no-context": None, "absent": str(uuid.uuid4())}.get(state, str(trial_id))
+    env = _daytona_env(context_id)
+    if state == "closed":
+        trace.closed = True
+    elif state == "disabled":
+        fake_runtime.enabled = False
+
+    assert asyncio.run(lock_egress(env)) is None
+    assert calls == [env]
+    assert len(fake_runtime.spans) == span_count
+    assert trace.metadata["egress_lock_observed"] == "pending"
+
+
+def _install_run_wrapper(monkeypatch, original):
+    Trial = pytest.importorskip("harbor.trial.trial").Trial
+    # Snapshot the class attribute so monkeypatch restores the real Trial.run.
+    monkeypatch.setattr(Trial, "run", original)
+    hl._wrap_trial_run()
+    wrapped = Trial.run
+    assert wrapped is not original
+    assert getattr(wrapped, "__evallab_laminar_wrapped__", False) is True
+    hl._wrap_trial_run()
+    assert Trial.run is wrapped
+    return wrapped
+
+
+def _finished_trial(trial_id, trial_dir):
+    result = SimpleNamespace(
+        verifier_result=SimpleNamespace(rewards={"reward": 0}),
+        exception_info=SimpleNamespace(exception_type="AgentTimeoutError"),
+        agent_result=SimpleNamespace(metadata=None),
+    )
+    _persist_like_native(result, exit_status="InfraError")
+    return SimpleNamespace(_id=trial_id, _result=result, paths=SimpleNamespace(trial_dir=trial_dir))
+
+
+@pytest.mark.parametrize("error", [None, RuntimeError("persist failed"), asyncio.CancelledError()])
+def test_run_finally_closes_root_and_dangling_phases_without_changing_outcome(
+    fake_runtime, tmp_path, monkeypatch, error
+):
+    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
+    plugin = hl.LaminarTrialPlugin()
+    sentinel = object()
+    original, calls = _failing(error, sentinel)
+    run = _install_run_wrapper(monkeypatch, original)
+    trial_dir = tmp_path / config.trial_name
+    trial = _finished_trial(trial_id, trial_dir)
+
+    async def exercise():
+        # END never fires; the agent phase is still open when run unwinds.
+        await plugin._on_agent_started(_event(config, trial_id))
+        await _await_outcome(run(trial), error, sentinel)
+
+    asyncio.run(exercise())
+    assert calls == [(trial, (), {})]
+    assert trace.closed and trace.close_reason == "run-finally"
+    assert trace.native_stop == {"native_exit_status": "InfraError", "stop_reason": None}
+    (agent,) = _spans_named(fake_runtime, "harbor.agent_run")
+    assert agent.ended and agent.error_type == "AgentTimeoutError"
+    root = trace.root
+    assert root.ended and root.error_type == "AgentTimeoutError"
+    assert root.output == {"rewards": {"reward": 0.0}}
+    assert root.metadata["close_reason"] == "run-finally"
+    assert root.metadata["exception_type"] == "AgentTimeoutError"
+    sidechannel = json.loads((trial_dir / hl.TRACE_FILENAME).read_text())
+    assert sidechannel["status"] == "closed"
+    assert sidechannel["close_reason"] == "run-finally"
+    assert sidechannel["rewards"] == {"reward": 0.0}
+    assert sidechannel["native_exit_status"] == "InfraError"
+
+
+@pytest.mark.parametrize("state", ["absent", "closed", "disabled"])
+def test_run_finally_passes_through_without_live_trace(fake_runtime, tmp_path, monkeypatch, state):
+    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
+    trace.close_reason = "end" if state == "closed" else None
+    trace.closed = state == "closed"
+    if state == "absent":
+        trial_id = uuid.uuid4()
+    elif state == "disabled":
+        # A disabled runtime never opens a root, so run has nothing to close.
+        fake_runtime.enabled = False
+        trial_id = uuid.uuid4()
+        assert hl._open_trial_root(_event(config, trial_id), session_id="job-x") is None
+    span_count = len(fake_runtime.spans)
+    sentinel = object()
+    original, calls = _failing(None, sentinel)
+    run = _install_run_wrapper(monkeypatch, original)
+    trial = _finished_trial(trial_id, tmp_path / "unused")
+
+    assert asyncio.run(run(trial)) is sentinel
+    assert calls == [(trial, (), {})]
+    assert len(fake_runtime.spans) == span_count
+    assert trace.closed is (state == "closed")
+    assert trace.close_reason == ("end" if state == "closed" else None)
+    assert not trace.root.ended
+    assert not (tmp_path / "unused").exists()
+
+
+@pytest.mark.parametrize("error", [None, ValueError("original failed")])
+def test_run_finally_telemetry_failure_cannot_change_trial_outcome(
+    fake_runtime, tmp_path, monkeypatch, error
+):
+    trial_id, config, _ = _register_trace(fake_runtime, tmp_path)
+    sentinel = object()
+    original, _ = _failing(error, sentinel)
+    run = _install_run_wrapper(monkeypatch, original)
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("telemetry down")
+
+    monkeypatch.setattr(hl, "_close_trial_root", explode)
+    asyncio.run(_await_outcome(run(_finished_trial(trial_id, tmp_path)), error, sentinel))
+
+
+_WRAPPED_TRIAL_METHODS = (
+    "_setup_agent_environment",
+    "_setup_agent",
+    "_run_shared_verifier",
+    "_run_separate_verifier",
+    "_stop_agent_environment",
+    "run",
+)
+
+
+def _snapshot_plugin_globals(monkeypatch):
+    """Restore every class and module global that on_job_start mutates."""
+    Trial = pytest.importorskip("harbor.trial.trial").Trial
+    pytest.importorskip("harbor.environments.daytona.environment")
+    from evallab.harbor_daytona import BoundedDaytonaEnvironment
+
+    for name in _WRAPPED_TRIAL_METHODS:
+        monkeypatch.setattr(Trial, name, getattr(Trial, name))
+    monkeypatch.setattr(
+        BoundedDaytonaEnvironment, "_lock_egress", BoundedDaytonaEnvironment._lock_egress
+    )
+    for name in ("_WRAPPERS_INSTALLED", "_JOB_SESSION", "_PARENT_METADATA"):
+        monkeypatch.setattr(hl, name, getattr(hl, name))
+    return Trial, BoundedDaytonaEnvironment
+
+
+class _RecordingJob:
+    config = SimpleNamespace(job_name="job-config")
+    _id = "job-1"
+
+    def __init__(self):
+        self.hooks = {}
+
+    def add_hook(self, event, callback):
+        self.hooks[event] = callback
+        return self
+
+
+def test_plugin_hooks_drive_one_trace_through_every_phase(fake_runtime, tmp_path, monkeypatch):
+    TrialEvent = pytest.importorskip("harbor.trial.hooks").TrialEvent
+    Trial, BoundedDaytonaEnvironment = _snapshot_plugin_globals(monkeypatch)
+    monkeypatch.setenv(hl.METADATA_ENV, json.dumps({"job_name": "job-hooks"}))
+    flushed = []
+    monkeypatch.setattr(fake_runtime, "flush_async", lambda: flushed.append(True))
+    plugin = hl.LaminarTrialPlugin()
+    job = _RecordingJob()
+    config = _mimo_config(tmp_path)
+    other = _other_config(tmp_path)
+    trial_id, other_id = uuid.uuid4(), uuid.uuid4()
+    agent_end = _event(config, trial_id, event_value="agent-end")
+    agent_end.result.agent_result = SimpleNamespace(metadata=None)
+    _persist_like_native(agent_end.result, exit_status="HarborCancelled")
+
+    async def exercise():
+        await plugin.on_job_start(job)
+        assert set(job.hooks) == set(TrialEvent)
+        hooks = job.hooks
+        await hooks[TrialEvent.START](_event(other, other_id, event_value="start"))
+        await hooks[TrialEvent.START](_event(config, trial_id, event_value="start"))
+        await hooks[TrialEvent.ENVIRONMENT_START](_event(config, trial_id))
+        await hooks[TrialEvent.AGENT_START](_event(config, trial_id))
+        await hooks[TrialEvent.AGENT_END](agent_end)
+        await hooks[TrialEvent.VERIFICATION_START](_event(config, trial_id))
+        await hooks[TrialEvent.CANCEL](_event(other, other_id, event_value="cancel"))
+        await hooks[TrialEvent.CANCEL](_event(config, trial_id, event_value="cancel"))
+        assert not hl._TRACES[str(trial_id)].closed
+        await hooks[TrialEvent.END](_event(other, other_id))
+        # Harbor's END event carries the same live trial result, stop included.
+        end = _event(config, trial_id, rewards={"reward": 1})
+        end.result.agent_result = agent_end.result.agent_result
+        await hooks[TrialEvent.END](end)
+        await plugin.on_job_end(None)
+
+    asyncio.run(exercise())
+    assert str(other_id) not in hl._TRACES
+    trace = hl._TRACES[str(trial_id)]
+    assert trace.session_id == "job-hooks"
+    assert trace.closed and trace.close_reason == "end"
+    assert trace.native_stop == {"native_exit_status": "HarborCancelled", "stop_reason": None}
+    root = trace.root
+    assert root.ended and root.error_type is None
+    assert root.metadata["cancelled"] is True
+    assert root.output == {"rewards": {"reward": 1.0}}
+    (agent,) = _spans_named(fake_runtime, "harbor.agent_run")
+    assert agent.ended and agent.error_type == "CancelledError"
+    assert agent.metadata["native_exit_status"] == "HarborCancelled"
+    # END closes the phases whose completion wrappers never ran.
+    for name in ("harbor.sandbox_setup", "harbor.verifier"):
+        (span,) = _spans_named(fake_runtime, name)
+        assert span.ended and span.error_type is None
+    assert flushed == [True]
+    # on_job_start installed every Harbor wrapper exactly once.
+    installed = {name: getattr(Trial, name) for name in _WRAPPED_TRIAL_METHODS}
+    assert all(getattr(fn, "__evallab_laminar_wrapped__", False) for fn in installed.values())
+    assert getattr(BoundedDaytonaEnvironment._lock_egress, "__evallab_laminar_wrapped__", False)
+    hl._ensure_wrappers_installed()
+    assert {name: getattr(Trial, name) for name in _WRAPPED_TRIAL_METHODS} == installed
+
+
+def test_phase_hooks_ignore_unknown_closed_and_malformed_events(fake_runtime, tmp_path):
+    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
+    plugin = hl.LaminarTrialPlugin()
+    phase_hooks = (
+        plugin._on_environment_started,
+        plugin._on_agent_started,
+        plugin._on_agent_ended,
+        plugin._on_verification_started,
+    )
+    span_count = len(fake_runtime.spans)
+
+    async def exercise():
+        for hook in phase_hooks:
+            assert await hook(SimpleNamespace()) is None
+            assert await hook(_event(config, uuid.uuid4())) is None
+        trace.closed = True
+        for hook in phase_hooks:
+            assert await hook(_event(config, trial_id)) is None
+
+    asyncio.run(exercise())
+    assert len(fake_runtime.spans) == span_count
+    assert trace.phase_spans == {} and trace.native_stop is None
+
+
+@pytest.mark.parametrize("error", [RuntimeError("telemetry down"), asyncio.CancelledError()])
+def test_lifecycle_hooks_swallow_errors_but_propagate_cancellation(
+    fake_runtime, tmp_path, monkeypatch, error
+):
+    pytest.importorskip("harbor.trial.hooks")
+    _snapshot_plugin_globals(monkeypatch)
+
+    def explode(*args, **kwargs):
+        raise error
+
+    for name in ("_ensure_runtime", "trace_runtime", "_open_trial_root"):
+        monkeypatch.setattr(hl, name, explode)
+    monkeypatch.setattr(hl, "_close_trial_root_from_result", explode)
+    plugin = hl.LaminarTrialPlugin()
+    config = _mimo_config(tmp_path)
+    trial_id = uuid.uuid4()
+    job = _RecordingJob()
+    calls = (
+        lambda: plugin.on_job_start(job),
+        lambda: plugin.on_job_end(None),
+        lambda: plugin._on_trial_started(_event(config, trial_id, event_value="start")),
+        lambda: plugin._on_trial_ended(_event(config, trial_id)),
+        lambda: plugin._on_trial_cancelled(_event(config, trial_id, event_value="cancel")),
+    )
+
+    async def exercise():
+        for call in calls:
+            if isinstance(error, asyncio.CancelledError):
+                with pytest.raises(asyncio.CancelledError) as raised:
+                    await call()
+                assert raised.value is error
+            else:
+                assert await call() is None
+
+    asyncio.run(exercise())
+    assert job.hooks == {}
+    assert str(trial_id) not in hl._TRACES
+
+
+@pytest.mark.parametrize("fails", [False, True], ids=["initialized", "init-raises"])
+def test_ensure_runtime_passes_redaction_inputs_and_fails_open(monkeypatch, fails):
+    hl._reset_for_tests()
+    monkeypatch.setenv(hl.KEY_ENV, "test-key")
+    monkeypatch.setattr(hl, "_PARENT_METADATA", {"bearer_pattern": "  parent-pattern  "})
+    assert hl.trace_runtime() is hl._DISABLED
+    initialized = FakeRuntime()
+    calls = []
+
+    def fake_initialize(**kwargs):
+        calls.append(kwargs)
+        if fails:
+            raise RuntimeError("sdk init failed")
+        return initialized
+
+    monkeypatch.setattr(hl, "initialize_tracing", fake_initialize)
+    runtime = hl._ensure_runtime()
+    assert hl._ensure_runtime() is runtime
+    assert hl.trace_runtime() is runtime
+    (kwargs,) = calls
+    assert kwargs["automatic_openai"] is False
+    assert isinstance(kwargs["secrets"], tuple)
+    assert kwargs["host_paths"] == (str(Path.cwd()), str(Path.home()))
+    assert kwargs["bearer_pattern"] == "parent-pattern"
+    if fails:
+        assert runtime.enabled is False
+        assert runtime.error_type == "RuntimeError"
+    else:
+        assert runtime is initialized
+    hl._reset_for_tests()
+
+
+def test_native_worker_context_is_empty_unless_trial_is_live_and_enabled(fake_runtime, tmp_path):
+    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
+    plugin = hl.LaminarTrialPlugin()
+    root_context = hl.native_worker_context(str(trial_id))
+    assert root_context["parent_context"] == trace.root_context
+    assert root_context["session_id"] == "job-x"
+    assert root_context["trial_id"] == str(trial_id)
+
+    async def during_agent_phase():
+        await plugin._on_agent_started(_event(config, trial_id))
+        return hl.native_worker_context(str(trial_id))
+
+    agent_context = asyncio.run(during_agent_phase())
+    (agent,) = _spans_named(fake_runtime, "harbor.agent_run")
+    assert agent_context["parent_context"] == agent.serialized_context()
+    assert hl.native_worker_context(None) == {}
+    assert hl.native_worker_context(str(uuid.uuid4())) == {}
+    fake_runtime.enabled = False
+    assert hl.native_worker_context(str(trial_id)) == {}
+    fake_runtime.enabled = True
+    trace.root_context = None
+    assert hl.native_worker_context(str(trial_id)) == {}
+
+
+@pytest.mark.parametrize("case", ["disabled", "zero-trace", "malformed-context"])
+def test_native_sandbox_labels_stay_unbound_for_disabled_or_invalid_roots(
+    fake_runtime, tmp_path, case
+):
+    _, config, trace = _register_trace(fake_runtime, tmp_path)
+    _valid_root_context(trace)
+    if case == "disabled":
+        fake_runtime.enabled = False
+    elif case == "zero-trace":
+        zero = str(uuid.UUID(int=0))
+        trace.root_context = json.dumps({"trace_id": zero, "span_id": str(uuid.UUID(int=1))})
+    else:
+        trace.root_context = "not-json"
+    assert hl.daytona_telemetry_labels(config.trials_dir / config.trial_name) == {}
+
+
+def test_native_sandbox_labels_carry_model_session(fake_runtime, tmp_path):
+    _, config, trace = _register_trace(fake_runtime, tmp_path)
+    _valid_root_context(trace)
+    trace.metadata["model_session"] = "session-7"
+    labels = hl.daytona_telemetry_labels(config.trials_dir / config.trial_name)
+    assert labels["model_session"] == "session-7"
+
+
+def test_trial_root_opens_once_and_closes_once(fake_runtime, tmp_path):
+    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
+    again = hl._open_trial_root(_event(config, trial_id, event_value="start"), session_id="job-y")
+    assert again is trace
+    (duplicate,) = [
+        span for span in _spans_named(fake_runtime, "harbor.trial") if span is not trace.root
+    ]
+    assert duplicate.ended and not trace.root.ended
+    hl._close_trial_root(str(trial_id), reason="end", rewards={"reward": 1})
+    hl._close_trial_root(str(trial_id), reason="run-finally", rewards={"reward": 0})
+    assert trace.close_reason == "end"
+    assert trace.latest_rewards == {"reward": 1}
+    assert trace.root.metadata["close_reason"] == "end"
+    assert trace.root.output == {"rewards": {"reward": 1.0}}
+
+
+def test_native_stop_falls_back_to_latest_attributed_step():
+    attributed = SimpleNamespace(agent_result=SimpleNamespace(metadata=None))
+    _persist_like_native(
+        attributed, exit_status="LimitsExceeded", stop_reason="trial_budget_exhausted"
+    )
+    silent = SimpleNamespace(agent_result=None)
+    unknown = {"native_exit_status": None, "stop_reason": None}
+    assert hl._native_stop_from_result(
+        SimpleNamespace(agent_result=None, step_results=[attributed, silent])
+    ) == {"native_exit_status": "LimitsExceeded", "stop_reason": "trial_budget_exhausted"}
+    assert (
+        hl._native_stop_from_result(SimpleNamespace(agent_result=None, step_results=[silent]))
+        == unknown
+    )
+    assert hl._native_stop_from_result(SimpleNamespace(agent_result=None, step_results=5)) == unknown
+
+
+def test_session_resolution_falls_back_to_job_identity():
+    assert hl._resolve_session_from_job(SimpleNamespace(config=None, _id="job-7"), {}) == "job-7"
+    no_identity = SimpleNamespace(config=SimpleNamespace(job_name=hl._UNKNOWN, job_id=None))
+    assert hl._resolve_session_from_job(no_identity, {}) == hl._UNKNOWN
+
+
+def test_parent_metadata_coerces_structured_and_blank_values(monkeypatch):
+    monkeypatch.setenv(
+        hl.METADATA_ENV,
+        json.dumps({"card": {"b": 1, "a": [2]}, "arm": 3, "task": "  "}),
+    )
+    meta = hl._load_parent_metadata()
+    assert meta["card"] == '{"a":[2],"b":1}'
+    assert meta["arm"] == "3"
+    assert meta["task"] is None

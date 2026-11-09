@@ -79,6 +79,44 @@ from evallab.harbor_modal import (  # noqa: E402
     TaskModalEnvironment,
 )
 
+
+@pytest.mark.parametrize("attempts", [0, 2, -1, True, 1.0, "1"])
+def test_single_create_rejects_invalid_attempt_limits_before_native_init(
+    monkeypatch: pytest.MonkeyPatch, attempts: Any,
+) -> None:
+    initialized: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        ModalEnvironment, "__init__",
+        lambda self, *args, **kwargs: initialized.append(kwargs),
+    )
+
+    with pytest.raises(ValueError, match="sandbox_create_max_attempts must be 1 or None"):
+        TaskModalEnvironment(sandbox_create_max_attempts=attempts)
+
+    assert initialized == []
+
+
+def test_single_create_refuses_missing_pinned_entry_without_retrying(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    async def decorated_create(self: Any, **kwargs: Any) -> Any:
+        calls.append(kwargs)
+        return SimpleNamespace(object_id="must-not-be-created")
+
+    monkeypatch.setattr(ModalEnvironment, "_create_sandbox", decorated_create)
+    env = TaskModalEnvironment.__new__(TaskModalEnvironment)
+    env._sandbox_create_max_attempts = 1
+
+    with pytest.raises(
+        RuntimeError, match="pinned Harbor Modal single-create entry is unavailable",
+    ):
+        asyncio.run(env._create_sandbox())
+
+    assert calls == []
+
+
 # --- RegradeModalEnvironment: the entry must actually import -----------------
 
 
@@ -168,6 +206,134 @@ def test_no_network_baseline_records_block_all(tmp_path: Path) -> None:
     record = _record(tmp_path)
     assert record["applied"] is True
     assert record["network_block_all"] is True
+
+
+@pytest.mark.parametrize(
+    ("value", "requested"),
+    [
+        ("1", True),
+        (" TRUE ", True),
+        ("Yes", True),
+        ("0", False),
+        ("false", False),
+        ("no", False),
+        ("", False),
+        ("unexpected", False),
+        (True, True),
+        (False, False),
+    ],
+)
+def test_lock_flag_controls_requested_not_observed_application(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    value: bool | str, requested: bool,
+) -> None:
+    def fake_init(self: Any, *args: Any, **kwargs: Any) -> None:
+        self.trial_paths = SimpleNamespace(trial_dir=tmp_path)
+        self.session_id = "sess-1"
+        self.logger = logging.getLogger("test-modal")
+
+    monkeypatch.setattr(ModalEnvironment, "__init__", fake_init)
+    env = LockedModalEnvironment(evallab_egress_lock=value)
+    env._record_application(
+        source="apply", mode="no-network", hosts=[],
+        sandbox=SimpleNamespace(id="sb-observed"),
+    )
+
+    record = _record(tmp_path)
+    assert record["requested"] is requested
+    assert record["applied"] is True
+    assert record["network_block_all"] is True
+    assert record["sandbox_id"] == "sb-observed"
+
+
+@pytest.mark.parametrize("failure", ["malformed-json", "unreadable"])
+def test_invalid_lock_record_rebuilds_from_accepted_policy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str,
+) -> None:
+    env = _env(tmp_path)
+    record_path = tmp_path / "egress-lock.json"
+    record_path.write_text(
+        '{"applications":' if failure == "malformed-json" else json.dumps({
+            "requested": False,
+            "locked_at": "stale",
+            "untrusted": "discard this",
+            "applications": [{"source": "stale", "applied": True}],
+        })
+    )
+    accepted: list[Any] = []
+
+    async def fake_apply(self: Any, policy: Any) -> None:
+        accepted.append(policy)
+
+    monkeypatch.setattr(ModalEnvironment, "_apply_network_policy", fake_apply)
+    original_read = Path.read_text
+
+    def read_text(path: Path, *args: Any, **kwargs: Any) -> str:
+        if path == record_path and failure == "unreadable":
+            raise PermissionError("existing record is unreadable")
+        return original_read(path, *args, **kwargs)
+
+    policy = SimpleNamespace(
+        network_mode="allowlist", allowed_hosts=["trainer.example"],
+    )
+    with monkeypatch.context() as record_patch:
+        record_patch.setattr(Path, "read_text", read_text)
+        asyncio.run(env._apply_network_policy(policy))
+
+    assert accepted == [policy]
+    record = _record(tmp_path)
+    assert record["schema_version"] == 2
+    assert record["requested"] is True
+    assert record["applied"] is True
+    assert record["network_mode"] == "allowlist"
+    assert record["allowed_hosts"] == ["trainer.example"]
+    assert record["sandbox_id"] == "sb-123"
+    assert record["locked_at"] not in (None, "stale")
+    assert "untrusted" not in record
+    assert record["error"] is None
+    assert len(record["applications"]) == 1
+    application = record["applications"][0]
+    assert application["source"] == "apply"
+    assert application["network_mode"] == "allowlist"
+    assert application["allowed_hosts"] == ["trainer.example"]
+    assert application["applied"] is True
+    assert application["sandbox_id"] == "sb-123"
+
+
+def test_lock_record_write_failure_warns_without_failing_policy_application(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+) -> None:
+    env = _env(tmp_path)
+    record_path = tmp_path / "egress-lock.json"
+    original = '{"applications": [], "requested": true}\n'
+    record_path.write_text(original)
+    accepted: list[Any] = []
+
+    async def fake_apply(self: Any, policy: Any) -> None:
+        accepted.append(policy)
+
+    monkeypatch.setattr(ModalEnvironment, "_apply_network_policy", fake_apply)
+    original_write = Path.write_text
+
+    def write_text(path: Path, *args: Any, **kwargs: Any) -> int:
+        if path == record_path:
+            raise PermissionError("record is read-only")
+        return original_write(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", write_text)
+    policy = SimpleNamespace(network_mode="no-network", allowed_hosts=[])
+    with caplog.at_level(logging.WARNING, logger=env.logger.name):
+        result = asyncio.run(env._apply_network_policy(policy))
+
+    assert result is None
+    assert accepted == [policy]
+    assert record_path.read_text() == original
+    assert caplog.record_tuples == [
+        (
+            env.logger.name, logging.WARNING,
+            "could not write egress-lock.json: record is read-only",
+        )
+    ]
 
 
 def test_open_policy_never_downgrades_applied_record(tmp_path: Path) -> None:
@@ -822,6 +988,63 @@ def test_regrade_subprocess_policy_reaches_native_app_and_labels(tmp_path, monke
     with pytest.raises(ValueError, match="differs at approval"):
         RegradeModalEnvironment(trial_paths=SimpleNamespace(trial_dir=trial))
     assert not captured
+
+
+@pytest.mark.parametrize("policy", [None, [], "not-an-object", 1])
+def test_regrade_refuses_non_object_policy_before_native_construction(
+    monkeypatch: pytest.MonkeyPatch, policy: Any,
+) -> None:
+    from evallab import regrade
+
+    initialized: list[dict[str, Any]] = []
+    monkeypatch.setenv(regrade._REGRADE_MODAL_POLICY_ENV, json.dumps(policy))
+    monkeypatch.setattr(
+        ModalEnvironment, "__init__",
+        lambda self, *args, **kwargs: initialized.append(kwargs),
+    )
+
+    with pytest.raises(ValueError, match="invalid Modal regrade policy"):
+        RegradeModalEnvironment()
+
+    assert initialized == []
+
+
+@pytest.mark.parametrize(
+    ("app_name", "billing_tag", "message"),
+    [
+        (None, None, "requires an owned app and billing tag"),
+        (None, "owned", "Modal app must be the owned billing tag"),
+        ("owned-snapshot", None, "Modal requires an explicit safe billing_tag"),
+    ],
+)
+def test_regrade_refuses_policy_without_owned_app_and_billing_tag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    app_name: str | None, billing_tag: str | None, message: str,
+) -> None:
+    from evallab import regrade
+
+    trial = tmp_path / "out" / "trial"
+    policy = {
+        "trial_dir": str(trial),
+        "approval": "approved scoped snapshot fixture",
+        "cap_usd": 1.0,
+        "usd_per_execution": 0.01,
+        "spend_ledger": None,
+        "modal_app_name": app_name,
+        "billing_tag": billing_tag,
+    }
+    initialized: list[dict[str, Any]] = []
+    monkeypatch.setenv(regrade._REGRADE_MODAL_POLICY_ENV, json.dumps(policy))
+    monkeypatch.setattr(
+        ModalEnvironment, "__init__",
+        lambda self, *args, **kwargs: initialized.append(kwargs),
+    )
+
+    with pytest.raises(ValueError, match=message):
+        RegradeModalEnvironment(trial_paths=SimpleNamespace(trial_dir=trial))
+
+    assert initialized == []
+    assert not trial.exists()
 
 
 def test_explicit_modal_environment_kwargs_ignore_stray_regrade_bridge(monkeypatch):

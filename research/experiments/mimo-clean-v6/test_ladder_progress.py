@@ -343,7 +343,7 @@ def test_ladder_progress_has_exactly_one_row_per_ranking_rank() -> None:
     rows = _committed()
     assert [row["rank"] for row in rows] == [str(n) for n in range(1, 101)]
     assert [row["task_id"] for row in rows] == expected
-    assert {row["verdict"] for row in rows if row["source_file"] == ""} == {"none"}
+    assert {row["verdict"] for row in rows if row["source_file"] == ""} <= {"none"}
 
 
 @pytest.mark.parametrize(

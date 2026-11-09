@@ -67,7 +67,9 @@ of ``--check``.
 
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
-summary with ``--summary``. ``check_slice_tables`` compares the README's
+summary with ``--summary``. ``--render-slice CELL`` prints one cell file's
+seven-column README pipe-table rows, so a slice PR pastes generated rows
+instead of hand-copying them. ``check_slice_tables`` compares the README's
 per-slice ladder tables with the committed rows; the test suite calls it.
 """
 
@@ -126,6 +128,11 @@ SLICE_WALL = re.compile(r"(?P<minutes>[0-9]+(?:\.[0-9]+)?)\s*min\b")
 SLICE_WALL_TOLERANCE = 0.05
 SLICE_COLUMNS = ("rank", "task", "verdict", "wall")
 SLICE_ATTACK_COLUMNS = ("attacks executed", "attacks")
+SLICE_HEADER = (
+    "| rank | task | verdict | basis | attacks | wall | retained attempts / publication |"
+)
+SLICE_SEPARATOR = "|---|---|---|---|---:|---|---|"
+VERIFIER_RC = re.compile(r"rc=(-?[0-9]+)")
 VERDICT_TOTALS = ("clean", "cracked", "unscored")
 TOTALS_FIELDS = ("tasks", *VERDICT_TOTALS)
 EVIDENCE_STATUSES = ("matched", "mismatched", "reward-mismatch", "absent", "unhashed")
@@ -590,6 +597,111 @@ def check_slice_tables(text: str, rows: Sequence[Mapping[str, str]]) -> int:
     return len(tables)
 
 
+def _slice_rank(task: Mapping[str, Any]) -> int:
+    """The cell task's ``ranking.rank`` as an integer."""
+    try:
+        return int(task["ranking"]["rank"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ProgressError(f"{task.get('task_id')}: no integer ranking.rank") from error
+
+
+def _slice_task(task_id: object) -> str:
+    """The backticked task column: the six-digit suffix of the task id."""
+    return str(task_id).rsplit("-", 1)[-1]
+
+
+def _slice_basis(verifier_decision: object) -> str:
+    """The README basis cell: a refusal, the verifier's rc, or unscored."""
+    decision = str(verifier_decision or "")
+    if TAMPER_SIGNATURE in decision:
+        return "tamper refusal"
+    match = VERIFIER_RC.search(decision)
+    if match is not None:
+        return f"graded (`rc={match.group(1)}`)"
+    return "unscored"
+
+
+def _slice_attack_cell(task: Mapping[str, Any]) -> str:
+    """The executed/total attacks cell; both counts must be present."""
+    executed = task.get("attacks_executed")
+    total = task.get("attacks_total")
+    if (
+        isinstance(executed, bool)
+        or not isinstance(executed, int)
+        or isinstance(total, bool)
+        or not isinstance(total, int)
+    ):
+        raise ProgressError(
+            f"{task.get('task_id')}: attacks {executed!r}/{total!r} is not a count pair"
+        )
+    return f"{executed}/{total}"
+
+
+def _slice_wall(task: Mapping[str, Any]) -> str:
+    """The wall cell: ``wall_seconds`` in minutes, one decimal, plus ``min CLI``."""
+    seconds = task.get("wall_seconds")
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
+        raise ProgressError(
+            f"{task.get('task_id')}: wall_seconds {seconds!r} is not a number"
+        )
+    return f"{seconds / 60:.1f} min CLI"
+
+
+def _slice_attempts(task: Mapping[str, Any]) -> str:
+    """The retained-attempts cell: the published attempt and each prior attempt."""
+    prior = task.get("prior_attempts") or []
+    publication = "published" if task.get("published_job") else "not published"
+    parts = [f"attempt {len(prior) + 1} {publication}"]
+    for position, entry in enumerate(prior, start=1):
+        number = entry.get("attempt", position)
+        if entry.get("published_job"):
+            label = str(entry.get("verdict") or "unscored")
+            parts.append(f"{label} attempt {number} published and retained")
+        elif any(entry.get(key) for key in ("job_name", "raw_job", "trial_name")):
+            parts.append(f"attempt {number} retained")
+        else:
+            parts.append(f"no-job attempt {number} retained")
+    return "; ".join(parts)
+
+
+def read_slice_cells(
+    path: Path, *, cells_dir: Path = HERE
+) -> list[dict[str, Any]]:
+    """One cell file's tasks after the manifest and self-consistency checks."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or data.get("schema") != CELLS_SCHEMA:
+        found = data.get("schema") if isinstance(data, dict) else None
+        raise ProgressError(f"{path.name}: schema {found!r} is not {CELLS_SCHEMA}")
+    manifest = read_manifest(cells_dir)
+    tasks = data.get("tasks", [])
+    for task in tasks:
+        _require_manifest_digest(task, manifest)
+        _require_attack_counts(task)
+        _require_consistent_verdict(task)
+    _require_file_totals(data, path.name)
+    return tasks
+
+
+def render_slice(path: Path, *, cells_dir: Path = HERE) -> str:
+    """The README pipe table for one cell file, one row per rank.
+
+    The columns are those of the ranks 46-57 Python slice sections; the rendered
+    rows must be byte-identical to the table the README quotes for that file.
+    """
+    lines = [SLICE_HEADER, SLICE_SEPARATOR]
+    for task in sorted(read_slice_cells(path, cells_dir=cells_dir), key=_slice_rank):
+        task_id = task["task_id"]
+        lines.append(
+            f"| {_slice_rank(task)} | `{_slice_task(task_id)}` "
+            f"| {str(task.get('verdict') or '')} "
+            f"| {_slice_basis(task.get('verifier_decision'))} "
+            f"| {_slice_attack_cell(task)} "
+            f"| {_slice_wall(task)} "
+            f"| {_slice_attempts(task)} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def attempts_candidates(cell: Mapping[str, Any], card: str, results_root: Path) -> list[Path]:
     """Explicit jobs, published conventions, then raw conventions, without repeats."""
     card = str(cell.get("card", card) or "")
@@ -845,6 +957,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="re-hash coverage cells' host attempts.json evidence",
     )
+    mode.add_argument(
+        "--render-slice",
+        metavar="CELL",
+        type=Path,
+        help="print the README pipe-table rows for one ladder cell file",
+    )
     parser.add_argument(
         "--results-root",
         type=Path,
@@ -859,6 +977,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.strict and not args.verify_evidence:
         parser.error("--strict requires --verify-evidence")
+    if args.render_slice is not None:
+        path = args.render_slice
+        if not path.is_absolute() and not path.is_file():
+            path = HERE / path
+        print(render_slice(path), end="")
+        return 0
     if args.verify_evidence:
         cells = read_cells(HERE, ROOT, manifest=read_manifest(HERE))
         checks = verify_evidence(cells, args.results_root)

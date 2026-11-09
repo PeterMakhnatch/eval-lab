@@ -1043,7 +1043,15 @@ runner), `unscored` (neither), or `none` (no committed cell; verdict `none`).
 ```bash
 uv run python research/experiments/mimo-clean-v6/ladder_progress.py          # regenerate
 uv run python research/experiments/mimo-clean-v6/ladder_progress.py --check  # exit 1 on drift
+uv run python research/experiments/mimo-clean-v6/ladder_progress.py \
+  --render-slice ladder-p2-ranks52-57.json  # README rows for one cell file
 ```
+
+`--render-slice` prints the seven-column pipe table (`rank`, `task`, `verdict`,
+`basis`, `attacks`, `wall`, `retained attempts / publication`) for every task in
+one committed cell file. A slice PR pastes those rows into its section instead
+of hand-copying them from the JSON. The cell must run the manifest
+`final_digest`, else the command raises `ProgressError`.
 
 Two trailing columns join the graded-subset cells (schema
 `evallab.mimo-v6-ladder-subset-cells/v1`; coverage readers ignore that schema

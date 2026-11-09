@@ -42,6 +42,14 @@ jobs:
         run: |
           echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
           echo "UV_PYTHON_PREFERENCE=only-system" >> "$GITHUB_ENV"
+      - name: Cache locked Python packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2
+        with:
+          path: ~/.cache/uv
+          key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-agentabstain-${{ hashFiles('uv.lock', '.github/workflows/agentabstain-linux.yml') }}
+          restore-keys: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-test-${{ hashFiles('uv.lock', '.github/workflows/ci.yml') }}
       - name: Install uv 0.9.24
         run: |
           python3 -m pip install --user uv==0.9.24
@@ -49,7 +57,9 @@ jobs:
       - name: Install Harbor 0.21.0
         run: uv tool install "harbor==0.21.0"
       - name: Materialize, regenerate, and run local controls
-        run: python3 scripts/agentabstain/ci.py
+        # setup-python's toolcache interpreter has no PyYAML (the runner's
+        # /usr/bin/python3 did), so import evallab through the locked env.
+        run: uv run --locked python scripts/agentabstain/ci.py
       - name: Locate generated canary
         id: generated
         run: echo "path=$(find derived/harbor-tasks/agentabstain -mindepth 1 -maxdepth 1 -type d -print -quit)" >> "$GITHUB_OUTPUT"

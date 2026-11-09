@@ -141,10 +141,10 @@ full local reproduction:
    is missing or invalid. The full test suite and runtime smoke do not run; this is
    **not** CI green. During inner development loops, `make loop` or
    `uv run evallab registry devloop [--run]` may also be used to compute and execute
-   targeted tests for changed working-tree modules. Selection uses direct imports
-   and textual references within every declared pytest `testpaths` root, not
-   transitive dependencies. Each invocation inventories consumers once for both
-   selection and reasons. `--json` includes `lane` and per-consumer `reasons`;
+   targeted tests for changed working-tree modules. Selection uses direct and
+   transitive imports through evallab modules, plus textual references, within
+   every declared pytest `testpaths` root. Each invocation inventories consumers
+   once for both selection and reasons. `--json` includes `lane` and per-consumer `reasons`;
    with `--run --json`, stdout remains one JSON document, child output streams to
    stderr, and the command returns the child's exit status. Without `--json`,
    child output keeps its normal interactive stdout/stderr streams.

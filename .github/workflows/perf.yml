@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
       - name: Classify exact change set
@@ -72,16 +72,25 @@ jobs:
         if: needs.scope.outputs.profile == 'true'
         with:
           fetch-depth: 0
+      - name: Install Python 3.12
+        if: needs.scope.outputs.profile == 'true'
+        # HAR-339: uv's managed cpython download served 504 and reddened main
+        # (perf run 42582557769, mcp-wheelhouse-platform run 42582557805).
+        # setup-python resolves the runner toolcache before any download;
+        # only-system keeps uv on that interpreter.
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Pin uv to the provisioned interpreter
+        if: needs.scope.outputs.profile == 'true'
+        run: |
+          echo "UV_PYTHON=3.12" >> $GITHUB_ENV
+          echo "UV_PYTHON_PREFERENCE=only-system" >> $GITHUB_ENV
       - name: Install uv 0.9.24 from PyPI
         if: needs.scope.outputs.profile == 'true'
         run: |
           python3 -m pip install --user uv==0.9.24
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-      - name: Install Python 3.12
-        if: needs.scope.outputs.profile == 'true'
-        run: |
-          uv python install 3.12
-          echo "UV_PYTHON=3.12" >> $GITHUB_ENV
       - name: Cache locked Python packages
         if: needs.scope.outputs.profile == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

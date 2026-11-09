@@ -41,10 +41,11 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Install Python 3.12
         # HAR-330: GitHub began serving 504 for the cpython-3.12.12+20251217
-        # linux x86_64 python-build-standalone asset, so `uv python install`
-        # failed both 1/2 test shards on run 42567901536. setup-python resolves
-        # the runner toolcache before any download; only-system makes a missing
-        # interpreter fail here instead of uv downloading a managed build mid-run.
+        # linux x86_64 python-build-standalone asset, so uv's managed
+        # interpreter download failed both 1/2 test shards on run 42567901536.
+        # setup-python resolves the runner toolcache before any download;
+        # only-system makes a missing interpreter fail here instead of uv
+        # downloading a managed build mid-run.
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"

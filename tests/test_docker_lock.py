@@ -23,15 +23,27 @@ from evallab.docker_lock import (
     ENV_SLOTS,
     DockerLock,
     DockerLockTimeout,
+    _docker_lock_run_command,
     _docker_lock_status_command,
+    _read_queue_file,
     _write_queue_file,
+    build_docker_lock_parser,
     default_slots,
+    default_state_dir,
     docker_slot,
     get_status,
+    pid_alive,
     queue_path,
     read_queue,
     run_with_lock,
 )
+
+
+def _cli_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="evallab")
+    commands = parser.add_subparsers(dest="command_name", required=True)
+    build_docker_lock_parser(commands)
+    return parser
 
 
 def _lock(label: str, state_dir: Path, **kwargs: object) -> DockerLock:
@@ -420,9 +432,7 @@ def test_heartbeat_updates_entry_then_stops_when_ticket_disappears(
 # (j) An unreadable queue file does not kill the heartbeat; it retries.
 
 
-def test_heartbeat_continues_after_oserror(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_heartbeat_continues_after_oserror(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     now = 600.0
     lock = DockerLock(
         "flaky",
@@ -472,10 +482,7 @@ def test_status_command_prints_empty_text(
     monkeypatch.setenv(ENV_DIR, str(tmp_path))
     code = _docker_lock_status_command(_status_args(name="other"), tmp_path)
     assert code == 0
-    assert (
-        capsys.readouterr().out.strip()
-        == "docker-lock 'other': no holders or waiters"
-    )
+    assert capsys.readouterr().out.strip() == "docker-lock 'other': no holders or waiters"
 
 
 def test_status_command_prints_holders_and_waiters(
@@ -553,3 +560,168 @@ def test_status_command_emits_json(
     assert payload["name"] == "docker"
     assert payload["holders"] == []
     assert payload["waiters"] == []
+
+
+# (l) The `evallab docker-lock` parser and `run` dispatch.
+
+
+def test_parser_parses_run_and_status() -> None:
+    parser = _cli_parser()
+
+    run_args = parser.parse_args(
+        ["docker-lock", "run", "--slots", "1", "LABEL", "--", "sh", "-c", "true"]
+    )
+    assert run_args.docker_lock_command == "run"
+    assert run_args.slots == 1
+    assert run_args.name == "docker"
+    assert run_args.timeout is None
+    assert run_args.label == "LABEL"
+    # Some Python versions keep the "--" in a REMAINDER list; dispatch strips it.
+    assert run_args.command in (["sh", "-c", "true"], ["--", "sh", "-c", "true"])
+    assert run_args.func is _docker_lock_run_command
+
+    status_args = parser.parse_args(["docker-lock", "status", "--json"])
+    assert status_args.docker_lock_command == "status"
+    assert status_args.json is True
+    assert status_args.name == "docker"
+    assert status_args.func is _docker_lock_status_command
+
+
+def test_parser_requires_a_docker_lock_subcommand() -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        _cli_parser().parse_args(["docker-lock"])
+    assert excinfo.value.code == 2
+
+
+def test_parsed_run_dispatches_child_exit_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(ENV_DIR, str(tmp_path))
+    args = _cli_parser().parse_args(
+        ["docker-lock", "run", "--slots", "1", "LABEL", "--", "sh", "-c", "exit 5"]
+    )
+    assert args.func(args, tmp_path) == 5
+    assert read_queue(state_dir=tmp_path) == []
+
+
+def _run_args(command: list[str] | None) -> argparse.Namespace:
+    return argparse.Namespace(label="LABEL", command=command, slots=1, name="docker", timeout=None)
+
+
+def test_run_command_strips_dash_separator(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(ENV_DIR, str(tmp_path))
+    calls: list[tuple[str, list[str], dict[str, object]]] = []
+
+    def fake_run(label: str, command: list[str], **kwargs: object) -> int:
+        calls.append((label, list(command), kwargs))
+        return 7
+
+    monkeypatch.setattr(docker_lock, "run_with_lock", fake_run)
+    code = _docker_lock_run_command(_run_args(["--", "sh", "-c", "true"]), tmp_path)
+    assert code == 7
+    assert calls == [
+        ("LABEL", ["sh", "-c", "true"], {"slots": 1, "name": "docker", "timeout": None})
+    ]
+
+
+@pytest.mark.parametrize("command", [None, [], ["--"]])
+def test_run_command_without_command_returns_2(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    command: list[str] | None,
+) -> None:
+    monkeypatch.setenv(ENV_DIR, str(tmp_path))
+    assert _docker_lock_run_command(_run_args(command), tmp_path) == 2
+    assert "LABEL and CMD are required" in capsys.readouterr().err
+    assert not queue_path(state_dir=tmp_path).exists()
+
+
+def test_run_with_lock_without_command_returns_2(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert run_with_lock("demo", [], state_dir=tmp_path) == 2
+    assert "no command given" in capsys.readouterr().err
+    assert not queue_path(state_dir=tmp_path).exists()
+
+
+def test_run_child_killed_by_sigterm_returns_143(tmp_path: Path) -> None:
+    code = run_with_lock(
+        "signalled",
+        ["sh", "-c", "kill -TERM $$"],
+        state_dir=tmp_path,
+        poll_interval=0.01,
+        heartbeat_interval=5.0,
+    )
+    assert code == 128 + 15
+    assert read_queue(state_dir=tmp_path) == []
+
+
+# (m) State dir resolution, name validation and pid liveness.
+
+
+def test_default_state_dir_env_override_and_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(ENV_DIR, str(tmp_path / "locks"))
+    assert default_state_dir() == tmp_path / "locks"
+    assert queue_path() == tmp_path / "locks" / "docker.queue.json"
+
+    monkeypatch.delenv(ENV_DIR)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    assert default_state_dir() == tmp_path / "home" / ".cache" / "evallab" / "docker-lock"
+
+
+@pytest.mark.parametrize("name", ["", ".", "..", "a/b", "a\\b"])
+def test_invalid_lock_names_are_rejected(tmp_path: Path, name: str) -> None:
+    with pytest.raises(ValueError, match="invalid lock name"):
+        queue_path(name, state_dir=tmp_path)
+
+
+def test_pid_alive_handles_nonpositive_and_kill_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert pid_alive(0) is False
+    assert pid_alive(-1) is False
+    assert pid_alive(os.getpid()) is True
+
+    def raise_with(exc: BaseException):
+        def fake_kill(pid: int, sig: int) -> None:
+            raise exc
+
+        return fake_kill
+
+    monkeypatch.setattr(docker_lock.os, "kill", raise_with(PermissionError()))
+    assert pid_alive(12345) is True
+    monkeypatch.setattr(docker_lock.os, "kill", raise_with(ProcessLookupError()))
+    assert pid_alive(12345) is False
+    monkeypatch.setattr(docker_lock.os, "kill", raise_with(OSError("boom")))
+    assert pid_alive(12345) is False
+
+
+# (n) Missing, unreadable, empty, invalid or non-list queue files read as empty.
+
+
+@pytest.mark.parametrize(
+    "content",
+    [None, "", "   \n", "{not json", '{"label": "x"}', '"text"', "42"],
+    ids=["missing", "empty", "blank", "invalid-json", "object", "string", "number"],
+)
+def test_bad_queue_files_read_as_empty(tmp_path: Path, content: str | None) -> None:
+    path = queue_path(state_dir=tmp_path)
+    if content is not None:
+        path.write_text(content, encoding="utf-8")
+    assert _read_queue_file(path) == []
+    assert read_queue(state_dir=tmp_path) == []
+
+
+def test_unreadable_queue_file_reads_as_empty(tmp_path: Path) -> None:
+    path = queue_path(state_dir=tmp_path)
+    path.mkdir()
+    assert _read_queue_file(path) == []
+
+
+def test_queue_file_list_drops_non_dict_entries(tmp_path: Path) -> None:
+    path = queue_path(state_dir=tmp_path)
+    path.write_text('[{"label": "kept"}, "junk", 3, null, ["x"]]', encoding="utf-8")
+    assert _read_queue_file(path) == [{"label": "kept"}]

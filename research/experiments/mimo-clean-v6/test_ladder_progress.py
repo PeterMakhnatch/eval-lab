@@ -149,6 +149,37 @@ def test_ladder_progress_readme_summary_section_matches_the_rendered_table() -> 
     assert _summary_section() == MODULE.render_summary(_committed()).rstrip("\n")
 
 
+def _slice_rows() -> list[dict[str, object]]:
+    return MODULE.read_slice_tables((EXPERIMENT / "README.md").read_text(encoding="utf-8"))
+
+
+def test_ladder_progress_readme_slice_tables_match_the_committed_table() -> None:
+    readme = (EXPERIMENT / "README.md").read_text(encoding="utf-8")
+    assert MODULE.check_slice_tables(readme, _committed()) >= 60
+
+
+def test_ladder_progress_no_task_appears_in_two_slice_tables() -> None:
+    headings: dict[str, list[str]] = collections.defaultdict(list)
+    for table in _slice_rows():
+        headings[str(table["task"])].append(str(table["heading"]))
+    repeated = {task: seen for task, seen in headings.items() if len(seen) > 1}
+    assert not repeated, repeated
+
+
+def test_ladder_progress_a_slice_table_wall_edit_is_refused(tmp_path: Path) -> None:
+    readme = (EXPERIMENT / "README.md").read_text(encoding="utf-8")
+    row = "| 46 | `000878` | clean | tamper refusal | 14/14 | 7.4 min CLI |"
+    assert readme.count(row) == 1
+    copy = tmp_path / "README.md"
+    copy.write_text(readme.replace(row, row.replace("7.4 min", "9.9 min")), encoding="utf-8")
+    edited = copy.read_text(encoding="utf-8")
+    assert edited != readme
+    with pytest.raises(ProgressError, match="000878") as refused:
+        MODULE.check_slice_tables(edited, _committed())
+    assert "9.9" in str(refused.value)
+    assert "445.9" in str(refused.value)
+
+
 def test_ladder_progress_summary_accounts_for_every_row_once() -> None:
     rows = _committed()
     entries = MODULE.summary(rows)

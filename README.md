@@ -72,8 +72,8 @@ full fleet only 5 are `v6_verified` and 562 `v6_unverified` (reference/nop
 controls only; see [docs/mimo/README.md](docs/mimo/README.md)); the v5 census
 had sampled the fleet, leaving 1,729 rebuilt tasks without a v5 ladder run
 (history). Most v6 Python ladder clean verdicts rest on verifier refusal, not a
-graded run: v6 basis (100 ranks): 75 covered, 74 clean, 55 tamper-refusal,
-19 graded, 1 unscored, 25 not run
+graded run: v6 basis (100 ranks): 81 covered, 80 clean, 61 tamper-refusal,
+19 graded, 1 unscored, 19 not run
 ([ladder-progress.csv](research/experiments/mimo-clean-v6/ladder-progress.csv)).
 The graded rows include the 5 Go cells (`001694` at rank 6; `000048`,
 `000208`, `000427`, `000431` at ranks 89–92), the 4 JavaScript cells

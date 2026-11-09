@@ -55,10 +55,15 @@ subset schema carries none of these fields and skips these rules.
 ``--verify-evidence`` re-hashes host ``agent/cheat/attempts.json`` files. It
 tries explicit ``published_job`` and ``raw_job`` paths, then date-sorted
 published and raw conventions under ``--results-root``. Each coverage cell is
-``matched``, ``mismatched``, ``absent``, or ``unhashed``. Mismatches exit 1;
-absences exit 1 only with ``--strict``; unhashed cells never change the exit
-code. This mode reads the host results root and is deliberately not part of
-``--check``.
+``matched``, ``mismatched``, ``absent``, or ``unhashed``. A matched cell's
+``result.json`` reward must equal the cell's ``reward``, else the cell is
+``reward-mismatch``. Every ``subsets[]`` entry of ``ladder-graded-subset.json``
+and ``ladder-graded-subset-p0.json`` is then checked the same way by
+``job_name``/``trial_name`` and reported ``matched``, ``reward-mismatch``,
+``absent``, or ``no-trial``. Reward mismatches exit 1; absent evidence exits 1
+only with ``--strict``; unhashed cells and no-trial entries never change the
+exit code. This mode reads the host results root and is deliberately not part
+of ``--check``.
 
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
@@ -123,7 +128,10 @@ SLICE_COLUMNS = ("rank", "task", "verdict", "wall")
 SLICE_ATTACK_COLUMNS = ("attacks executed", "attacks")
 VERDICT_TOTALS = ("clean", "cracked", "unscored")
 TOTALS_FIELDS = ("tasks", *VERDICT_TOTALS)
-EVIDENCE_STATUSES = ("matched", "mismatched", "absent", "unhashed")
+EVIDENCE_STATUSES = ("matched", "mismatched", "reward-mismatch", "absent", "unhashed")
+SUBSET_EVIDENCE_STATUSES = ("matched", "reward-mismatch", "absent", "no-trial")
+SUBSET_EVIDENCE_FILES = ("ladder-graded-subset.json", "ladder-graded-subset-p0.json")
+STATUS_WIDTH = 15
 
 
 class ProgressError(RuntimeError):
@@ -604,8 +612,26 @@ def attempts_candidates(cell: Mapping[str, Any], card: str, results_root: Path) 
     return list(dict.fromkeys(candidates))
 
 
+def _read_reward(path: Path) -> Any:
+    """A ``result.json`` verifier reward; None when the file or block is absent."""
+    if not path.is_file():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    verifier = data.get("verifier_result")
+    if not isinstance(verifier, Mapping):
+        return None
+    rewards = verifier.get("rewards")
+    if not isinstance(rewards, Mapping):
+        return None
+    return rewards.get("reward")
+
+
 def verify_cell(cell: Mapping[str, Any], card: str, results_root: Path) -> dict[str, Any]:
-    """Compare a cell's recorded hash with every candidate until one matches."""
+    """Compare a cell's recorded hash with every candidate until one matches.
+
+    A matched cell's trial ``result.json`` reward must equal the cell's
+    ``reward``; a differing reward makes the cell ``reward-mismatch``.
+    """
     result: dict[str, Any] = {
         "cell": cell,
         "card": str(cell.get("card", card) or ""),
@@ -614,6 +640,9 @@ def verify_cell(cell: Mapping[str, Any], card: str, results_root: Path) -> dict[
         "expected": cell.get("attempts_json_sha256"),
         "actual": None,
         "candidate_count": 0,
+        "reward_path": None,
+        "expected_reward": cell.get("reward"),
+        "actual_reward": None,
     }
     expected = result["expected"]
     if not isinstance(expected, str) or not expected:
@@ -626,11 +655,93 @@ def verify_cell(cell: Mapping[str, Any], card: str, results_root: Path) -> dict[
         with path.open("rb") as handle:
             actual = hashlib.file_digest(handle, "sha256").hexdigest()
         if actual == expected:
-            result.update(status="matched", path=path, actual=actual)
+            reward_path = path.parents[2] / "result.json"
+            actual_reward = _read_reward(reward_path)
+            status = (
+                "matched" if actual_reward == result["expected_reward"] else "reward-mismatch"
+            )
+            result.update(
+                status=status,
+                path=path,
+                actual=actual,
+                reward_path=reward_path,
+                actual_reward=actual_reward,
+            )
             return result
         if result["status"] == "absent":
             result.update(status="mismatched", path=path, actual=actual)
     return result
+
+
+def read_subset_evidence(cells_dir: Path) -> list[dict[str, Any]]:
+    """Every ``tasks[].subsets[]`` entry of the two graded-subset cell files."""
+    entries: list[dict[str, Any]] = []
+    for name in SUBSET_EVIDENCE_FILES:
+        path = cells_dir / name
+        if not path.is_file():
+            continue
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or data.get("schema") != SUBSET_CELLS_SCHEMA:
+            raise ProgressError(f"{name}: unexpected schema {data.get('schema')!r}")
+        for task in data.get("tasks", []):
+            for subset in task.get("subsets", []):
+                entries.append({**subset, "task_id": task["task_id"], "_source_file": name})
+    return entries
+
+
+def _subset_card(job_name: str) -> str:
+    """The upper-case card prefix of a subset job name (``har-284-...`` -> ``HAR-284``)."""
+    return "-".join(job_name.split("-")[:2]).upper()
+
+
+def subset_candidates(entry: Mapping[str, Any], results_root: Path) -> list[Path]:
+    """Published then raw ``result.json`` paths for one subset entry, without repeats."""
+    job_name = str(entry["job_name"])
+    trial = str(entry["trial_name"])
+    card = _subset_card(job_name)
+    suffix = Path(trial) / "result.json"
+    dates = sorted(path for path in results_root.expanduser().glob("*") if path.is_dir())
+    candidates = [date / f"{card}-{job_name}" / suffix for date in dates]
+    candidates.extend(
+        date / f"{card.lower()}-graded-subset" / job_name / suffix for date in dates
+    )
+    return list(dict.fromkeys(candidates))
+
+
+def verify_subset(entry: Mapping[str, Any], results_root: Path) -> dict[str, Any]:
+    """Compare one subset entry's recorded reward with its job's ``result.json``."""
+    job_name = str(entry.get("job_name") or "")
+    trial = entry.get("trial_name")
+    result: dict[str, Any] = {
+        "entry": entry,
+        "card": _subset_card(job_name) if job_name else "",
+        "status": "no-trial",
+        "path": None,
+        "expected": entry.get("reward"),
+        "actual": None,
+        "candidate_count": 0,
+    }
+    if not trial:
+        return result
+    candidates = subset_candidates(entry, results_root)
+    result.update(status="absent", candidate_count=len(candidates))
+    for path in candidates:
+        if not path.is_file():
+            continue
+        actual = _read_reward(path)
+        if actual == result["expected"]:
+            result.update(status="matched", path=path, actual=actual)
+            return result
+        if result["status"] == "absent":
+            result.update(status="reward-mismatch", path=path, actual=actual)
+    return result
+
+
+def verify_subsets(
+    entries: Sequence[Mapping[str, Any]], results_root: Path
+) -> list[dict[str, Any]]:
+    """Check every subset entry in file, task, and subset order."""
+    return [verify_subset(entry, results_root) for entry in entries]
 
 
 def verify_evidence(cells: Sequence[dict[str, Any]], results_root: Path) -> list[dict[str, Any]]:
@@ -639,20 +750,27 @@ def verify_evidence(cells: Sequence[dict[str, Any]], results_root: Path) -> list
     return [verify_cell(cell, str(cell.get("_card") or ""), results_root) for cell in ordered]
 
 
-def render_evidence(checks: Sequence[dict[str, Any]]) -> str:
-    """One stable line per cell followed by all four status counts."""
+def render_evidence(
+    checks: Sequence[dict[str, Any]], subset_checks: Sequence[dict[str, Any]] = ()
+) -> str:
+    """One stable line per coverage cell and subset entry, then each totals line."""
     lines = []
     for result in checks:
         cell = result["cell"]
         status = result["status"]
         prefix = (
-            f"{status:<10} {cell['task_id']} {result['card']} "
+            f"{status:<{STATUS_WIDTH}} {cell['task_id']} {result['card']} "
             f"{cell['job_name']}/{cell['trial_name']}"
         )
         if status == "unhashed":
             detail = "cell records no attempts_json_sha256"
         elif status == "absent":
             detail = f"no attempts.json among {result['candidate_count']} candidate paths"
+        elif status == "reward-mismatch":
+            detail = (
+                f"{result['reward_path']} expected reward {result['expected_reward']!r} "
+                f"got {result['actual_reward']!r}"
+            )
         else:
             detail = str(result["path"])
             if status == "mismatched":
@@ -661,6 +779,32 @@ def render_evidence(checks: Sequence[dict[str, Any]]) -> str:
     counts = Counter(result["status"] for result in checks)
     totals = ", ".join(f"{status}={counts[status]}" for status in EVIDENCE_STATUSES)
     lines.append(f"totals: {len(checks)} cells, {totals}")
+    if subset_checks:
+        for result in subset_checks:
+            entry = result["entry"]
+            status = result["status"]
+            trial = entry.get("trial_name") or "-"
+            prefix = (
+                f"{status:<{STATUS_WIDTH}} subset {result['card']} "
+                f"{entry['job_name']}/{trial}"
+            )
+            if status == "no-trial":
+                detail = "entry records no trial_name"
+            elif status == "absent":
+                detail = f"no result.json among {result['candidate_count']} candidate paths"
+            elif status == "reward-mismatch":
+                detail = (
+                    f"{result['path']} expected reward {result['expected']!r} "
+                    f"got {result['actual']!r}"
+                )
+            else:
+                detail = str(result["path"])
+            lines.append(f"{prefix} {detail}")
+        subset_counts = Counter(result["status"] for result in subset_checks)
+        totals = ", ".join(
+            f"{status}={subset_counts[status]}" for status in SUBSET_EVIDENCE_STATUSES
+        )
+        lines.append(f"subset totals: {len(subset_checks)} entries, {totals}")
     return "\n".join(lines) + "\n"
 
 
@@ -710,7 +854,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="with --verify-evidence, also exit 1 for absent evidence",
+        help="with --verify-evidence, also exit 1 for absent cell or subset evidence",
     )
     args = parser.parse_args(argv)
     if args.strict and not args.verify_evidence:
@@ -718,11 +862,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.verify_evidence:
         cells = read_cells(HERE, ROOT, manifest=read_manifest(HERE))
         checks = verify_evidence(cells, args.results_root)
-        print(render_evidence(checks), end="")
+        subset_checks = verify_subsets(read_subset_evidence(HERE), args.results_root)
+        print(render_evidence(checks, subset_checks), end="")
         counts = Counter(result["status"] for result in checks)
-        failed = counts["mismatched"] > 0 or (args.strict and counts["absent"] > 0)
+        subset_counts = Counter(result["status"] for result in subset_checks)
+        failed = (
+            counts["mismatched"] > 0
+            or counts["reward-mismatch"] > 0
+            or subset_counts["reward-mismatch"] > 0
+            or (args.strict and (counts["absent"] > 0 or subset_counts["absent"] > 0))
+        )
         if failed:
-            print(f"{counts['mismatched']} mismatched, {counts['absent']} absent", file=sys.stderr)
+            print(
+                f"{counts['mismatched']} mismatched, "
+                f"{counts['reward-mismatch']} reward-mismatch, "
+                f"{counts['absent']} absent, "
+                f"{subset_counts['reward-mismatch']} subset reward-mismatch, "
+                f"{subset_counts['absent']} subset absent",
+                file=sys.stderr,
+            )
         return int(failed)
     rows = build(ROOT, cells_dir=HERE)
     if args.summary:

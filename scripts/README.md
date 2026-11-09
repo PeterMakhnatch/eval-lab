@@ -7,6 +7,7 @@ and promotion helpers.
 
 ## What lives here / entry points
 - `scripts/premerge.sh`: Pre-merge validation gate executing local quality checks.
+- `scripts/devloop_recall.py`: Stdlib-only replay of failed PR quality runs to compare devloop test-selection recall.
 - `scripts/ci/check_harbor_skips.py`: JUnit skip-reason summary and Harbor-named skip gate for native CI.
 - `scripts/ci/propose_shard_pins.py`: Per-shard serial seconds from CI JUnit reports under the crc32 rule and current `SHARD_OVERRIDES`, plus the proposed pin set that balances the test shards (refresh `tests/conftest.py` from it).
 - `scripts/fleet-status.sh`: Fleet tracking and active status report script.

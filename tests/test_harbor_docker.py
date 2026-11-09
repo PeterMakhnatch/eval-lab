@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import socket
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +24,11 @@ try:
     from harbor.models.trial.config import EnvironmentConfig as NativeEnvironmentConfig
     from harbor.models.trial.paths import TrialPaths
 
-    from evallab.harbor_docker import EGRESS_LOCK_RECORD, LockedDockerEnvironment
+    from evallab.harbor_docker import (
+        EGRESS_LOCK_RECORD,
+        LockedDockerEnvironment,
+        verifier_context_must_build,
+    )
 except ModuleNotFoundError as error:
     if not (error.name == "harbor" or (error.name or "").startswith("harbor.")):
         raise
@@ -39,6 +46,15 @@ except ModuleNotFoundError as error:
     TrialPaths = None
     EGRESS_LOCK_RECORD = "egress-lock.json"
     LockedDockerEnvironment = None
+    verifier_context_must_build = None
+
+
+# The native fixture replaces ``_daemon_output`` on the class; these tests
+# exercise the real daemon protocol against an injected subprocess.
+_DAEMON_OUTPUT = (
+    LockedDockerEnvironment._daemon_output if LockedDockerEnvironment is not None else None
+)
+_DAEMON_JSON = LockedDockerEnvironment._daemon_json if LockedDockerEnvironment is not None else None
 
 
 @pytest.fixture(autouse=True)
@@ -47,6 +63,29 @@ def _require_harbor_runtime():
 
 
 CID = "a" * 64
+
+
+class _FakeProcess:
+    def __init__(self, *, stdout: bytes = b"", stderr: bytes = b"", returncode: int | None = 0):
+        self.stdout = stdout
+        self.stderr = stderr
+        self.returncode = returncode
+        self.terminated = False
+        self.killed = False
+
+    async def communicate(self):
+        return self.stdout, self.stderr
+
+    def terminate(self) -> None:
+        self.terminated = True
+        self.returncode = -15
+
+    def kill(self) -> None:
+        self.killed = True
+        self.returncode = -9
+
+    async def wait(self) -> int:
+        return self.returncode
 
 
 def _record(paths: TrialPaths) -> dict[str, Any]:
@@ -189,7 +228,7 @@ def native(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         elif op == "up":
             state.update(up=True, running=True, deleted=False)
         elif op == "ps":
-            return ExecResult(stdout=CID, stderr=None, return_code=0)
+            return ExecResult(stdout=state.get("ps_output", CID), stderr=None, return_code=0)
         elif op == "exec":
             state["exec_applied"].append(_record(paths)["applied"])
         elif op == "down":
@@ -318,6 +357,117 @@ def test_symlink_escape_in_harbor_mount_is_refused(native, tmp_path):
     assert _record(native["paths"])["applied"] is False
 
 
+def test_mount_escaping_the_trial_directory_is_refused(native, tmp_path, monkeypatch):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.setattr(
+        LockedDockerEnvironment, "_allowed_mounts", lambda _self: {"/logs/agent": outside}
+    )
+    with pytest.raises(ValueError, match="escaping the trial directory"):
+        native["make"](mounts=[{"type": "bind", "source": str(outside), "target": "/logs/agent"}])
+    assert _record(native["paths"])["applied"] is False
+
+
+def test_mount_at_the_trial_root_is_refused(native, monkeypatch):
+    root = native["paths"].trial_dir
+    monkeypatch.setattr(
+        LockedDockerEnvironment, "_allowed_mounts", lambda _self: {"/logs/agent": root}
+    )
+    with pytest.raises(ValueError, match="escaping the trial directory"):
+        native["make"](mounts=[{"type": "bind", "source": str(root), "target": "/logs/agent"}])
+    assert _record(native["paths"])["applied"] is False
+
+
+def test_duplicate_mount_target_is_refused(native):
+    agent = {
+        "type": "bind",
+        "source": str(native["paths"].agent_dir),
+        "target": "/logs/agent",
+    }
+    with pytest.raises(ValueError, match="unexpected or duplicate host mount sources"):
+        native["make"](mounts=[agent, dict(agent)])
+    assert _record(native["paths"])["applied"] is False
+
+
+@pytest.mark.parametrize("source", ["relative/agent", "logs/agent"])
+def test_relative_mount_source_is_refused(native, source):
+    with pytest.raises(ValueError, match="unexpected or duplicate host mount sources"):
+        native["make"](mounts=[{"type": "bind", "source": source, "target": "/logs/agent"}])
+    assert _record(native["paths"])["applied"] is False
+
+
+def test_extra_mount_options_are_refused(native):
+    mount = {
+        "type": "bind",
+        "source": str(native["paths"].agent_dir),
+        "target": "/logs/agent",
+        "propagation": "rshared",
+    }
+    with pytest.raises(ValueError, match="unsupported mount options"):
+        native["make"](mounts=[mount])
+    assert _record(native["paths"])["applied"] is False
+
+
+@pytest.mark.parametrize("bind", [{"propagation": "shared"}, {"flag": True}, ["z"]])
+def test_bind_propagation_and_unknown_bind_options_are_refused(native, bind):
+    mount = {
+        "type": "bind",
+        "source": str(native["paths"].agent_dir),
+        "target": "/logs/agent",
+        "bind": bind,
+    }
+    with pytest.raises(ValueError, match="bind propagation or unknown bind options"):
+        native["make"](mounts=[mount])
+    assert _record(native["paths"])["applied"] is False
+
+
+def test_unknown_bind_labeling_is_refused(native):
+    mount = {
+        "type": "bind",
+        "source": str(native["paths"].agent_dir),
+        "target": "/logs/agent",
+        "bind": {"selinux": "x"},
+    }
+    with pytest.raises(ValueError, match="unknown bind labeling"):
+        native["make"](mounts=[mount])
+    assert _record(native["paths"])["applied"] is False
+
+
+def test_non_directory_trial_mount_is_refused(native):
+    agent_dir = native["paths"].agent_dir
+    agent_dir.rmdir()
+    agent_dir.write_text("not a directory")
+    with pytest.raises(ValueError, match="must be directories"):
+        native["make"]()
+    assert _record(native["paths"])["applied"] is False
+
+
+@pytest.mark.parametrize("kind", ["fifo", "socket"])
+def test_special_files_in_trial_mount_are_refused(native, kind):
+    # A short root keeps AF_UNIX socket paths under the platform limit.
+    with tempfile.TemporaryDirectory(prefix="el", dir="/tmp") as root:
+        paths = TrialPaths(Path(root) / "trial")
+        paths.mkdir()
+        special = paths.agent_dir / "entry"
+        mounts = [{"type": "bind", "source": str(paths.agent_dir), "target": "/logs/agent"}]
+        if kind == "fifo":
+            os.mkfifo(special)
+            try:
+                with pytest.raises(ValueError, match="sockets/devices/FIFOs"):
+                    native["make"](trial_paths=paths, mounts=mounts)
+            finally:
+                special.unlink(missing_ok=True)
+        else:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            try:
+                sock.bind(str(special))
+                with pytest.raises(ValueError, match="sockets/devices/FIFOs"):
+                    native["make"](trial_paths=paths, mounts=mounts)
+            finally:
+                sock.close()
+        assert _record(paths)["applied"] is False
+
+
 @pytest.mark.parametrize("info", [{"OSType": "windows"}, {}, None, []])
 def test_non_linux_or_missing_daemon_evidence_refuses_before_native_start(native, info):
     env = native["make"]()
@@ -336,6 +486,7 @@ def test_non_linux_or_missing_daemon_evidence_refuses_before_native_start(native
         ("cap_add", ["NET_ADMIN"]),
         ("volumes_from", ["host"]),
         ("security_opt", ["seccomp:unconfined"]),
+        ("cap_drop", []),
     ],
 )
 def test_unsafe_resolved_compose_is_refused_before_creation(native, key, value):
@@ -387,6 +538,72 @@ def test_missing_and_additional_boundary_evidence_are_refused(native, mutation):
     with pytest.raises(RuntimeError):
         asyncio.run(native["make"]().start(force_build=False))
     assert _record(native["paths"])["applied"] is False and native["exec_applied"] == []
+
+
+@pytest.mark.parametrize("ps_output", ["", f"{CID}\n{'b' * 64}\n"])
+def test_lock_confirmation_requires_exactly_one_container(native, ps_output):
+    native["ps_output"] = ps_output
+    with pytest.raises(RuntimeError, match="single Docker container"):
+        asyncio.run(native["make"]().start(force_build=False))
+    assert _record(native["paths"])["applied"] is False
+    assert native["up"] is True and native["deleted"] is True
+    assert native["exec_applied"] == []
+
+
+def test_invalid_inspect_evidence_is_refused(native):
+    native["inspect"] = []
+    with pytest.raises(RuntimeError, match="invalid Docker inspect evidence"):
+        asyncio.run(native["make"]().start(force_build=False))
+    assert _record(native["paths"])["applied"] is False and native["deleted"] is True
+
+
+def test_missing_host_network_or_mount_evidence_is_refused(native):
+    native["inspect"]["NetworkSettings"] = []
+    with pytest.raises(RuntimeError, match="lacks Docker host/network/mount evidence"):
+        asyncio.run(native["make"]().start(force_build=False))
+    assert _record(native["paths"])["applied"] is False and native["deleted"] is True
+
+
+def test_resolved_compose_without_services_is_refused(native):
+    native["compose"] = {"version": "2"}
+    with pytest.raises(RuntimeError, match="has no services"):
+        asyncio.run(native["make"]().start(force_build=False))
+    assert native["up"] is False
+    assert _record(native["paths"])["applied"] is False and native["deleted"] is True
+
+
+def test_startup_without_confirmation_is_refused(native, monkeypatch):
+    async def native_start(self, force_build):
+        self._native_started = True
+
+    async def native_stop(self, delete):
+        self._native_stopped = delete
+
+    monkeypatch.setattr(DockerEnvironment, "start", native_start)
+    monkeypatch.setattr(DockerEnvironment, "stop", native_stop)
+    env = native["make"]()
+    with pytest.raises(RuntimeError, match="without confirmation"):
+        asyncio.run(env.start(force_build=False))
+    assert env._native_started is True and env._native_stopped is True
+    assert env._lock_confirmed is False
+    assert _record(native["paths"])["applied"] is False
+    assert native["exec_applied"] == []
+
+
+def test_additional_containers_are_refused_after_confirmation(native):
+    env = native["make"]()
+    asyncio.run(env.start(force_build=False))
+    with pytest.raises(RuntimeError, match="additional containers"):
+        asyncio.run(env._run_docker_compose_command(["run", "extra"]))
+    assert native["exec_applied"] == [True]
+    asyncio.run(env.stop(delete=True))
+
+
+def test_phase_assertion_requires_a_confirmed_lock(native):
+    env = native["make"]()
+    with pytest.raises(RuntimeError, match="require a confirmed lock"):
+        asyncio.run(env._apply_network_policy(NetworkPolicy()))
+    assert native["exec_applied"] == [] and native["up"] is False
 
 
 @pytest.mark.parametrize("error", [RuntimeError("daemon unavailable"), asyncio.CancelledError()])
@@ -458,6 +675,54 @@ def test_none_pseudo_network_requires_native_driver_confirmation(native, driver)
         asyncio.run(env.start(force_build=False))
         assert _record(native["paths"])["applied"] is True
         asyncio.run(env.stop(delete=False))
+
+
+@pytest.mark.parametrize(
+    "mutation,match",
+    [
+        ("non-dict-endpoint", "endpoint is unconfirmed"),
+        ("missing-network-id", "endpoint is unconfirmed"),
+        ("ipv4-address", "has an address"),
+        ("ipv6-address", "has an address"),
+        ("mac-address", "has an address"),
+        ("address-prefix", "address prefix"),
+        ("inspect-not-a-list", "network inspection is unconfirmed"),
+        ("inspect-two-networks", "network inspection is unconfirmed"),
+    ],
+)
+def test_none_driver_endpoint_evidence_is_confirmed_individually(native, mutation, match):
+    endpoint = {
+        "NetworkID": "none-id",
+        "IPAddress": "",
+        "Gateway": "",
+        "GlobalIPv6Address": "",
+        "IPv6Gateway": "",
+        "MacAddress": "",
+        "IPPrefixLen": 0,
+        "GlobalIPv6PrefixLen": 0,
+    }
+    native["inspect"]["NetworkSettings"]["Networks"] = {"none": endpoint}
+    if mutation == "non-dict-endpoint":
+        native["inspect"]["NetworkSettings"]["Networks"]["none"] = []
+    elif mutation == "missing-network-id":
+        endpoint.pop("NetworkID")
+    elif mutation == "ipv4-address":
+        endpoint["IPAddress"] = "172.17.0.2"
+    elif mutation == "ipv6-address":
+        endpoint["GlobalIPv6Address"] = "fd00::1"
+    elif mutation == "mac-address":
+        endpoint["MacAddress"] = "02:42:ac:11:00:02"
+    elif mutation == "address-prefix":
+        endpoint["IPPrefixLen"] = 16
+    elif mutation == "inspect-not-a-list":
+        native["none_network"] = {"Id": "none-id"}
+    else:
+        native["none_network"] = [native["none_network"][0], dict(native["none_network"][0])]
+    env = native["make"]()
+    with pytest.raises(RuntimeError, match=match):
+        asyncio.run(env.start(force_build=False))
+    assert _record(native["paths"])["applied"] is False and native["exec_applied"] == []
+    assert native["deleted"] is True
 
 
 def test_unwritable_success_receipt_never_allows_setup_exec(native, monkeypatch):
@@ -614,3 +879,70 @@ def test_separate_verifier_does_not_reuse_the_agent_image(native, tmp_path: Path
     agent = native["make"]()
     agent._build_verifier_image_instead_of_agent_image()
     assert agent.task_env_config.docker_image == "fixture:locked"
+
+
+def test_verifier_context_must_build_requires_a_docker_image(tmp_path: Path) -> None:
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "Dockerfile").write_text("FROM scratch\n")
+    (tests / "test.sh").write_text("#!/bin/sh\n")
+    assert verifier_context_must_build(tests, None) is False
+    assert verifier_context_must_build(tests, "") is False
+    assert verifier_context_must_build(tests, "agent:image") is True
+
+
+def test_daemon_output_decodes_success_stdout(native, monkeypatch):
+    calls: list[tuple[str, ...]] = []
+    process = _FakeProcess(stdout=b"daemon-json\n")
+
+    async def spawn(*argv, **kwargs):
+        calls.append(argv)
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+    env = native["make"]()
+    assert asyncio.run(_DAEMON_OUTPUT(env, "info")) == "daemon-json\n"
+    assert calls[0][0] == "docker" and calls[0][-1] == "info"
+
+
+def test_daemon_output_refuses_a_failing_command(native, monkeypatch):
+    process = _FakeProcess(stderr=b"denied", returncode=1)
+
+    async def spawn(*argv, **kwargs):
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+    env = native["make"]()
+    with pytest.raises(RuntimeError, match="Docker info failed: denied"):
+        asyncio.run(_DAEMON_OUTPUT(env, "info"))
+
+
+def test_daemon_output_terminates_the_process_when_wait_times_out(native, monkeypatch):
+    process = _FakeProcess(returncode=None)
+
+    async def spawn(*argv, **kwargs):
+        return process
+
+    async def wait_for(awaitable, timeout):
+        awaitable.close()
+        raise TimeoutError
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+    monkeypatch.setattr(asyncio, "wait_for", wait_for)
+    env = native["make"]()
+    with pytest.raises(TimeoutError):
+        asyncio.run(_DAEMON_OUTPUT(env, "info"))
+    assert process.terminated
+
+
+def test_daemon_json_decodes_daemon_output(native):
+    env = native["make"]()
+    commands: list[tuple[str, ...]] = []
+
+    async def output(*command):
+        commands.append(command)
+        return '{"OSType": "linux"}'
+
+    env._daemon_output = output
+    assert asyncio.run(_DAEMON_JSON(env, "info", "--format", "{{json .}}")) == {"OSType": "linux"}
+    assert commands == [("info", "--format", "{{json .}}")]

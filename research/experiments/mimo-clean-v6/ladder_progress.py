@@ -175,17 +175,24 @@ def _require_attack_counts(task: Mapping[str, Any]) -> None:
     total = task.get("attacks_total")
     if total is None:
         return
+    if not isinstance(total, int):
+        raise ProgressError(f"{task_id}: attacks_total {total!r} is not a count")
     executed = task.get("attacks_executed")
     if not isinstance(executed, int):
         raise ProgressError(f"{task_id}: attacks_executed {executed!r} is not a count")
     if executed > total:
         raise ProgressError(f"{task_id}: attacks_executed {executed} > attacks_total {total}")
-    unexecuted = task.get("attacks_not_executed")
-    if unexecuted is not None and executed + len(unexecuted) != total:
-        raise ProgressError(
-            f"{task_id}: attacks_executed {executed} + attacks_not_executed "
-            f"{len(unexecuted)} != attacks_total {total}"
-        )
+    if "attacks_not_executed" in task:
+        unexecuted = task["attacks_not_executed"]
+        if not isinstance(unexecuted, dict):
+            raise ProgressError(
+                f"{task_id}: attacks_not_executed {unexecuted!r} is not a mapping"
+            )
+        if executed + len(unexecuted) != total:
+            raise ProgressError(
+                f"{task_id}: attacks_executed {executed} + attacks_not_executed "
+                f"{len(unexecuted)} != attacks_total {total}"
+            )
 
 
 def _require_consistent_verdict(task: Mapping[str, Any]) -> None:
@@ -201,7 +208,7 @@ def _require_consistent_verdict(task: Mapping[str, Any]) -> None:
             raise ProgressError(
                 f"{task_id}: verdict clean with {len(cracking)} cracking_attacks, not none"
             )
-    elif verdict == "cracked" and (reward is None or reward <= 0):
+    elif verdict == "cracked" and (not isinstance(reward, (int, float)) or reward <= 0):
         raise ProgressError(f"{task_id}: verdict cracked with reward {reward!r}, not > 0")
 
 

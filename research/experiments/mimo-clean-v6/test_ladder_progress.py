@@ -496,27 +496,42 @@ def test_ladder_progress_a_cell_absent_from_the_manifest_is_refused(tmp_path: Pa
 
 
 @pytest.mark.parametrize(
-    ("overrides", "field"),
+    ("overrides", "dropped", "field", "detail"),
     [
-        ({"attacks_executed": 10, "attacks_total": 9}, "attacks_executed"),
+        # The comparison case must fail on the comparison alone, so it drops the
+        # key the sum rule reads; otherwise that rule would raise a message that
+        # also names attacks_executed and the comparison branch could go untested.
+        (
+            {"attacks_executed": 10, "attacks_total": 9},
+            ("attacks_not_executed",),
+            "attacks_executed",
+            "> attacks_total",
+        ),
         (
             {"attacks_executed": 9, "attacks_total": 14, "attacks_not_executed": {}},
+            (),
             "attacks_not_executed",
+            "!= attacks_total",
         ),
-        ({"attacks_executed": "9"}, "attacks_executed"),
+        ({"attacks_executed": "9"}, (), "attacks_executed", "is not a count"),
+        ({"attacks_total": "14"}, (), "attacks_total", "is not a count"),
+        ({"attacks_not_executed": None}, (), "attacks_not_executed", "is not a mapping"),
     ],
 )
 def test_ladder_progress_attack_counts_that_do_not_add_up_are_refused(
-    tmp_path: Path, overrides: dict, field: str
+    tmp_path: Path, overrides: dict, dropped: tuple[str, ...], field: str, detail: str
 ) -> None:
     cell = _cell(1, "rc=0 runner=x")
     cell.update(overrides)
+    for key in dropped:
+        del cell[key]
     _cell_file(tmp_path, cell)
     with pytest.raises(ProgressError) as refused:
         MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
     message = str(refused.value)
     assert "t1" in message
     assert field in message
+    assert detail in message
 
 
 def test_ladder_progress_a_cell_without_attacks_not_executed_is_accepted(tmp_path: Path) -> None:
@@ -549,9 +564,9 @@ def test_ladder_progress_a_clean_verdict_with_a_contradiction_is_refused(
     assert field in message
 
 
-@pytest.mark.parametrize("reward", [0.0, None])
+@pytest.mark.parametrize("reward", [0.0, None, "0.5"])
 def test_ladder_progress_a_cracked_verdict_without_reward_is_refused(
-    tmp_path: Path, reward: float | None
+    tmp_path: Path, reward: object
 ) -> None:
     cell = _cell(1, "rc=0 runner=x", verdict="cracked")
     cell.update(reward=reward, cracking_attacks=["tamper_source_skip"])
@@ -575,7 +590,7 @@ def test_ladder_progress_a_totals_block_that_disagrees_with_its_tasks_is_refused
         MODULE.read_cells(tmp_path, tmp_path, manifest=_manifest(1))
     message = str(refused.value)
     assert "ladder-a.json" in message
-    assert field in message
+    assert f"totals {field}" in message
 
 
 @pytest.mark.parametrize("field", ["tasks", "clean", "cracked", "unscored"])

@@ -1,10 +1,13 @@
-"""Native ingress rejects unsafe/malformed input and never falsely acknowledges loss."""
+"""Credential relay readiness, redirect isolation, and native ingress failure contracts."""
 
 from __future__ import annotations
 
 import gzip
 import json
+import urllib.request
 from dataclasses import replace
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from threading import Thread
 
 import pytest
 from fastapi.testclient import TestClient
@@ -244,3 +247,250 @@ def test_binding_window_cannot_silently_truncate_json_values(invalid_timestamp):
     }
     with pytest.raises(ValueError):
         bridge.model_session_bindings(json.dumps([binding]))
+
+
+class _ReadinessClock:
+    def __init__(self, *, max_sleeps):
+        self.started = 43210.25
+        self.now = self.started
+        self.max_sleeps = max_sleeps
+        self.reads = 0
+        self.sleeps = []
+
+    def __call__(self):
+        self.reads += 1
+        assert self.reads <= 2 * self.max_sleeps + 8, "Readiness clock polling did not terminate"
+        return self.now
+
+    def sleep(self, seconds):
+        assert seconds == 2
+        assert len(self.sleeps) < self.max_sleeps, "Readiness exceeded its sleep limit"
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+class _ReadinessUpstream:
+    def __init__(self, config, clock, outcomes, *, poll_elapsed=0):
+        self.config = config
+        self.clock = clock
+        self.outcomes = outcomes
+        self.poll_elapsed = poll_elapsed
+        self.calls = 0
+
+    def __call__(self, request, *, timeout, native):
+        assert request.full_url == self.config.model_upstream.rstrip("/") + "/health"
+        assert request.get_method() == "GET"
+        assert request.data is None
+        assert request.get_header("Authorization") == "Bearer " + self.config.model_api_key
+        assert timeout == 10
+        assert native is False
+        assert self.calls < len(self.outcomes), "Readiness exceeded its upstream poll limit"
+        outcome = self.outcomes[self.calls]
+        self.calls += 1
+        self.clock.now += self.poll_elapsed
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome, b"health response", "text/plain"
+
+
+def test_ready_succeeds_on_first_health_poll_without_model_generation(config):
+    config = replace(config, model_upstream=config.model_upstream + "/")
+    clock = _ReadinessClock(max_sleeps=0)
+    upstream = _ReadinessUpstream(config, clock, [200], poll_elapsed=0.75)
+    with TestClient(
+        bridge.create_bridge_app(config, exchange=upstream, clock=clock, sleep=clock.sleep)
+    ) as client:
+        response = client.get(
+            "/ready", headers={"Authorization": "Bearer " + config.chat_capability}
+        )
+    assert response.status_code == 200
+    assert response.json() == {
+        "ready": True,
+        "elapsed_s": 0.75,
+        "health_failures": {},
+        "model_requests": 0,
+    }
+    assert upstream.calls == 1
+    assert clock.sleeps == []
+
+
+@pytest.mark.parametrize(
+    ("outcomes", "expected_failures"),
+    [
+        ([503, 503, 429, 503, 429, 200], {"503": 3, "429": 2}),
+        (
+            [OSError("offline"), TimeoutError("slow"), OSError("offline"), TimeoutError("slow"), 200],
+            {"OSError": 2, "TimeoutError": 2},
+        ),
+        (
+            [503, OSError("offline"), 429, TimeoutError("slow"), 503, 200],
+            {"503": 2, "OSError": 1, "429": 1, "TimeoutError": 1},
+        ),
+    ],
+    ids=["repeated-statuses", "distinct-exception-classes", "mixed-failures"],
+)
+def test_ready_preserves_every_health_failure_until_eventual_success(
+    config, outcomes, expected_failures
+):
+    failures = len(outcomes) - 1
+    clock = _ReadinessClock(max_sleeps=failures)
+    upstream = _ReadinessUpstream(config, clock, outcomes)
+    with TestClient(
+        bridge.create_bridge_app(config, exchange=upstream, clock=clock, sleep=clock.sleep)
+    ) as client:
+        response = client.get(
+            "/ready", headers={"Authorization": "Bearer " + config.chat_capability}
+        )
+    assert response.status_code == 200
+    assert response.json() == {
+        "ready": True,
+        "elapsed_s": failures * 2,
+        "health_failures": expected_failures,
+        "model_requests": 0,
+    }
+    assert upstream.calls == len(outcomes)
+    assert clock.sleeps == [2] * failures
+
+
+def test_ready_stops_at_exact_1200_second_deadline_without_an_extra_poll(config):
+    clock = _ReadinessClock(max_sleeps=600)
+    upstream = _ReadinessUpstream(config, clock, [503] * 600)
+    with TestClient(
+        bridge.create_bridge_app(config, exchange=upstream, clock=clock, sleep=clock.sleep)
+    ) as client:
+        response = client.get(
+            "/ready", headers={"Authorization": "Bearer " + config.chat_capability}
+        )
+    assert response.status_code == 200
+    assert response.json() == {
+        "ready": False,
+        "elapsed_s": 1200,
+        "health_failures": {"503": 600},
+        "model_requests": 0,
+    }
+    assert upstream.calls == 600
+    assert clock.sleeps == [2] * 600
+    assert clock.now == clock.started + 1200
+
+
+@pytest.mark.parametrize("credential", ["missing", "wrong", "telemetry"])
+def test_ready_rejects_non_chat_capabilities_before_any_collaborator_call(config, credential):
+    def forbidden(*args, **kwargs):
+        pytest.fail("Unauthorized readiness must not poll, read the clock, or sleep")
+
+    headers = {
+        "missing": {},
+        "wrong": {"Authorization": "Bearer wrong-capability"},
+        "telemetry": {"Authorization": "Bearer " + config.telemetry_capability},
+    }[credential]
+    with TestClient(
+        bridge.create_bridge_app(config, exchange=forbidden, clock=forbidden, sleep=forbidden)
+    ) as client:
+        response = client.get("/ready", headers=headers)
+    assert response.status_code == 401
+
+
+@pytest.fixture
+def exchange_http_server(monkeypatch):
+    monkeypatch.setenv("no_proxy", "127.0.0.1")
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1")
+    requests = []
+    responses = {
+        "/redirect": (302, b"original redirect body", "text/plain; charset=utf-8"),
+        "/destination": (201, b'{"accepted":true}', "application/json"),
+        "/unavailable": (503, b"upstream unavailable", "text/plain; charset=utf-8"),
+    }
+
+    class Handler(BaseHTTPRequestHandler):
+        def setup(self):
+            super().setup()
+            self.connection.settimeout(2)
+
+        def _respond(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+            requests.append(
+                (self.command, self.path, self.headers.get("Authorization"), body)
+            )
+            status, response_body, content_type = responses[self.path]
+            self.send_response(status)
+            if self.path == "/redirect":
+                self.send_header("Location", "/destination")
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(response_body)))
+            self.end_headers()
+            self.wfile.write(response_body)
+
+        def do_POST(self):
+            self._respond()
+
+        def do_GET(self):
+            self._respond()
+
+        def log_message(self, _format, *args):
+            pass
+
+    with HTTPServer(("127.0.0.1", 0), Handler) as server:
+        thread = Thread(
+            target=server.serve_forever,
+            kwargs={"poll_interval": 0.01},
+            daemon=True,
+        )
+        thread.start()
+        try:
+            yield f"http://127.0.0.1:{server.server_port}", requests
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+            assert not thread.is_alive(), "Local exchange server did not stop"
+
+
+def test_native_exchange_preserves_redirect_without_forwarding_credential(config, exchange_http_server):
+    base_url, requests = exchange_http_server
+    credential = "Bearer " + config.laminar_api_key
+    request = urllib.request.Request(
+        base_url + "/redirect",
+        data=b"native export payload",
+        headers={"Authorization": credential},
+        method="POST",
+    )
+
+    response = bridge._exchange(request, timeout=2, native=True)
+
+    assert response == (302, b"original redirect body", "text/plain; charset=utf-8")
+    assert requests == [("POST", "/redirect", credential, b"native export payload")]
+
+
+def test_non_native_exchange_follows_post_redirect(config, exchange_http_server):
+    base_url, requests = exchange_http_server
+    credential = "Bearer " + config.model_api_key
+    request = urllib.request.Request(
+        base_url + "/redirect",
+        data=b"model request payload",
+        headers={"Authorization": credential},
+        method="POST",
+    )
+
+    response = bridge._exchange(request, timeout=2, native=False)
+
+    assert response == (201, b'{"accepted":true}', "application/json")
+    assert requests == [
+        ("POST", "/redirect", credential, b"model request payload"),
+        ("GET", "/destination", credential, b""),
+    ]
+
+
+@pytest.mark.parametrize("native", [True, False])
+def test_exchange_returns_http_error_body_status_and_type(config, exchange_http_server, native):
+    base_url, requests = exchange_http_server
+    credential = "Bearer " + config.laminar_api_key
+    request = urllib.request.Request(
+        base_url + "/unavailable",
+        data=b"export payload",
+        headers={"Authorization": credential},
+        method="POST",
+    )
+
+    response = bridge._exchange(request, timeout=2, native=native)
+
+    assert response == (503, b"upstream unavailable", "text/plain; charset=utf-8")
+    assert requests == [("POST", "/unavailable", credential, b"export payload")]

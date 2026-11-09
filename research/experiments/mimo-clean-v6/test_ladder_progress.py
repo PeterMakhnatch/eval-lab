@@ -1106,6 +1106,27 @@ def _result_file(trial: Path, reward: object = 0.0) -> Path:
     return path
 
 
+def _verifier_files(
+    trial: Path,
+    *,
+    tamper: str | None = "tamper \\b_pytest\\b in pkg/__init__.py",
+    runner: str | None = "pytest",
+    reward: str | None = "0",
+) -> Path:
+    """A trial ``verifier/`` directory; a None field writes no file."""
+    verifier = trial / "verifier"
+    verifier.mkdir(parents=True, exist_ok=True)
+    if tamper is not None:
+        (verifier / "tamper.log").write_text(f"{tamper}\n", encoding="utf-8")
+    if runner is not None:
+        (verifier / "baseline_runner.txt").write_text(
+            f"RUNNER_B={runner}\n", encoding="utf-8"
+        )
+    if reward is not None:
+        (verifier / "reward.txt").write_text(f"{reward}\n", encoding="utf-8")
+    return verifier
+
+
 def _subset_entry(
     job_name: str = "har-328-subset1",
     trial_name: str | None = "har-328-subset1__abc",
@@ -1151,7 +1172,8 @@ def test_ladder_progress_evidence_matches_published_convention(
     assert f"{'matched':<15} t1 {card} job1/trial1" in output.out
     assert str(path) in output.out
     assert (
-        "totals: 1 cells, matched=1, mismatched=0, reward-mismatch=0, absent=0, unhashed=0"
+        "totals: 1 cells, matched=1, mismatched=0, reward-mismatch=0, "
+        "verifier-mismatch=0, absent=0, unhashed=0"
         in output.out
     )
     assert output.err == ""
@@ -1174,7 +1196,7 @@ def test_ladder_progress_evidence_mismatch_reports_first_existing_path_and_hashe
     assert f"expected {ATTEMPTS_SHA256[:12]}" in output.out
     assert f"got {hashlib.sha256(content).hexdigest()[:12]}" in output.out
     assert "mismatched=1" in output.out
-    assert "1 mismatched, 0 reward-mismatch, 0 absent, 0 subset reward-mismatch" in output.err
+    assert "1 mismatched, 0 reward-mismatch, 0 verifier-mismatch, 0 absent, 0 subset reward-mismatch" in output.err
 
 
 def test_ladder_progress_evidence_absent_only_fails_in_strict_mode(
@@ -1192,7 +1214,7 @@ def test_ladder_progress_evidence_absent_only_fails_in_strict_mode(
     assert MODULE.main([*args, "--strict"]) == 1
     strict = capsys.readouterr()
     assert strict.out == output.out
-    assert "0 mismatched, 0 reward-mismatch, 1 absent" in strict.err
+    assert "0 mismatched, 0 reward-mismatch, 0 verifier-mismatch, 1 absent" in strict.err
 
 
 def test_ladder_progress_evidence_matches_explicit_published_and_raw_jobs(
@@ -1216,7 +1238,7 @@ def test_ladder_progress_evidence_matches_explicit_published_and_raw_jobs(
     assert f"{'matched':<15} t1 HAR-328 job1/trial1" in output
     assert f"{'matched':<15} t2 HAR-328 job2/trial2" in output
     assert all(str(path) in output for path in paths)
-    assert "matched=2, mismatched=0, reward-mismatch=0, absent=0, unhashed=0" in output
+    assert "matched=2, mismatched=0, reward-mismatch=0, verifier-mismatch=0, absent=0, unhashed=0" in output
 
 
 def test_ladder_progress_evidence_matches_raw_convention(
@@ -1247,7 +1269,7 @@ def test_ladder_progress_evidence_unhashed_never_fails_or_counts_as_absent(
         output = capsys.readouterr()
         assert f"{'unhashed':<15} t1" in output.out
         assert "cell records no attempts_json_sha256" in output.out
-        assert "matched=0, mismatched=0, reward-mismatch=0, absent=0, unhashed=1" in output.out
+        assert "matched=0, mismatched=0, reward-mismatch=0, verifier-mismatch=0, absent=0, unhashed=1" in output.out
         assert output.err == ""
 
 
@@ -1293,7 +1315,7 @@ def test_ladder_progress_evidence_a_reward_mismatch_fails(
     assert f"{'reward-mismatch':<15} t1 HAR-328 job1/trial1" in output.out
     assert f"{result} expected reward 0.0 got 1.0" in output.out
     assert "matched=0, mismatched=0, reward-mismatch=1" in output.out
-    assert "0 mismatched, 1 reward-mismatch, 0 absent" in output.err
+    assert "0 mismatched, 1 reward-mismatch, 0 verifier-mismatch, 0 absent" in output.err
 
 
 def test_ladder_progress_evidence_a_none_reward_is_matched(
@@ -1309,6 +1331,115 @@ def test_ladder_progress_evidence_a_none_reward_is_matched(
     assert "reward-mismatch=0" in output.out
     assert output.err == ""
 
+
+def test_ladder_progress_evidence_matching_verifier_files_are_matched(
+    evidence_sandbox: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    experiment, root = evidence_sandbox
+    _evidence_file(
+        experiment,
+        [
+            _evidence_cell(
+                verifier_tamper_hit="tamper \\b_pytest\\b in pkg/__init__.py",
+                baseline_runner="runner=pytest rc=1",
+            )
+        ],
+    )
+    attempts = _attempts_file(root / "2026-11-08/HAR-328-job1/trial1/agent/cheat/attempts.json")
+    _result_file(attempts.parents[2])
+    _verifier_files(attempts.parents[2])
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root)]) == 0
+    output = capsys.readouterr()
+    assert f"{'matched':<15} t1 HAR-328 job1/trial1" in output.out
+    assert "verifier-mismatch=0" in output.out
+    assert output.err == ""
+
+
+@pytest.mark.parametrize(
+    ("cell_fields", "verifier", "diff"),
+    [
+        pytest.param(
+            {"verifier_tamper_hit": "tamper \\b_pytest\\b in pkg/__init__.py"},
+            {"tamper": "tamper \\b_pytest\\b in other/__init__.py"},
+            "verifier_tamper_hit",
+            id="tamper-hit",
+        ),
+        pytest.param(
+            {"baseline_runner": "baseline_sec=4 runner=pytest rc=1"},
+            {"runner": "unittest"},
+            "baseline_runner",
+            id="baseline-runner",
+        ),
+        pytest.param(
+            {},
+            {"reward": "1"},
+            "reward",
+            id="reward",
+        ),
+    ],
+)
+def test_ladder_progress_evidence_a_differing_verifier_file_fails(
+    evidence_sandbox: tuple[Path, Path],
+    capsys: pytest.CaptureFixture[str],
+    cell_fields: dict,
+    verifier: dict,
+    diff: str,
+) -> None:
+    experiment, root = evidence_sandbox
+    _evidence_file(experiment, [_evidence_cell(**cell_fields)])
+    attempts = _attempts_file(root / "2026-11-08/HAR-328-job1/trial1/agent/cheat/attempts.json")
+    _result_file(attempts.parents[2])
+    _verifier_files(
+        attempts.parents[2],
+        tamper=verifier.get("tamper"),
+        runner=verifier.get("runner", "pytest"),
+        reward=verifier.get("reward", "0"),
+    )
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root)]) == 1
+    output = capsys.readouterr()
+    assert f"{'verifier-mismatch':<15} t1 HAR-328 job1/trial1" in output.out
+    assert f"{diff}: cell" in output.out
+    assert "verifier-mismatch=1" in output.out
+    assert "0 mismatched, 0 reward-mismatch, 1 verifier-mismatch, 0 absent" in output.err
+
+
+def test_ladder_progress_evidence_a_tamper_log_with_no_signature_is_matched(
+    evidence_sandbox: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    experiment, root = evidence_sandbox
+    _evidence_file(experiment, [_evidence_cell()])
+    attempts = _attempts_file(root / "2026-11-08/HAR-328-job1/trial1/agent/cheat/attempts.json")
+    _result_file(attempts.parents[2])
+    _verifier_files(
+        attempts.parents[2], tamper="container import warning only", runner="pytest"
+    )
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root)]) == 0
+    output = capsys.readouterr()
+    assert f"{'matched':<15} t1 HAR-328 job1/trial1" in output.out
+    assert "verifier-mismatch=0" in output.out
+    assert output.err == ""
+
+
+def test_ladder_progress_evidence_absent_verifier_files_keep_the_matched_status(
+    evidence_sandbox: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    experiment, root = evidence_sandbox
+    _evidence_file(
+        experiment,
+        [
+            _evidence_cell(
+                verifier_tamper_hit="tamper \\b_pytest\\b in pkg/__init__.py",
+                baseline_runner="runner=pytest rc=1",
+            )
+        ],
+    )
+    attempts = _attempts_file(root / "2026-11-08/HAR-328-job1/trial1/agent/cheat/attempts.json")
+    _result_file(attempts.parents[2])
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root)]) == 0
+    output = capsys.readouterr()
+    assert f"{'matched':<15} t1 HAR-328 job1/trial1" in output.out
+    assert "verifier-mismatch=0" in output.out
+    assert output.err == ""
 
 def test_ladder_progress_evidence_matches_subset_rewards_and_skips_no_trial(
     evidence_sandbox: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
@@ -1389,7 +1520,8 @@ def test_ladder_progress_evidence_sorts_by_rank_then_task_and_keeps_every_cell()
     checks = MODULE.verify_evidence(cells, Path("/unused"))
     assert [result["cell"]["task_id"] for result in checks] == ["a", "z", "t2"]
     assert MODULE.render_evidence(checks).endswith(
-        "totals: 3 cells, matched=0, mismatched=0, reward-mismatch=0, absent=0, unhashed=3\n"
+        "totals: 3 cells, matched=0, mismatched=0, reward-mismatch=0, "
+        "verifier-mismatch=0, absent=0, unhashed=3\n"
     )
 
 

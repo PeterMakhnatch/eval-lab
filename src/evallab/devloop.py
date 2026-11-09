@@ -362,42 +362,40 @@ def _is_asset_path(path_str: str, test_roots: Sequence[str] = ("tests",)) -> boo
 
 
 def _asset_needles(path_str: str) -> list[str]:
-    """Path strings a test can mention to be affected by an asset change."""
+    """Path strings a test can mention to be affected by an asset change.
+
+    A test selects the asset when it mentions the asset path itself or its
+    immediate parent directory (tests often read a data directory wholesale).
+    Grandparent mentions are too broad for a focused lane.
+    """
     path = PurePosixPath(path_str.replace("\\", "/"))
-    needles = [path.as_posix()]
-    # Parent directories below the top-level root; "research/experiments" stays
-    # specific while bare "research" would match almost every mention.
-    for parent in path.parents:
-        if len(parent.parts) <= 1:
-            break
-        needles.append(parent.as_posix())
-    return needles
+    parent = path.parent.as_posix()
+    return [path.as_posix(), parent] if len(path.parent.parts) > 1 else [path.as_posix()]
 
 
-def _research_subdir(path_str: str) -> str | None:
-    """Return "research/<subdir>" for paths nested below it, else None."""
+def _research_roots_for_asset(path_str: str, test_roots: Sequence[str]) -> list[str]:
+    """Declared test roots that consume an asset under ``research/<subdir>/``.
+
+    The asset's own ``research/<subdir>`` (or ``research/experiments/<exp>``)
+    declared test roots cover it; the shared ``research/experiments/tests``
+    root dynamically reads sibling research data (for example coverage
+    recomputation over research/evidence cells), so it covers every
+    research asset.
+    """
     norm = path_str.replace("\\", "/")
     if not norm.startswith("research/"):
-        return None
-    rest = norm[len("research/") :]
-    parts = rest.split("/")
-    if len(parts) < 2 or not parts[0]:
-        return None
-    return f"research/{parts[0]}"
-
-
-def _is_research_test(consumer: str, test_roots: Sequence[str]) -> bool:
-    """Return True if a consumer sits under a declared research/ test root.
-
-    Research assets are also consumed by sibling experiment test roots: the
-    shared research test roots dynamically read evidence and experiment data
-    (for example coverage recomputation over research/evidence cells), so a
-    changed asset selects every test under declared research/ roots.
-    """
-    return any(
-        root.startswith("research/") and (consumer == root or consumer.startswith(root + "/"))
+        return []
+    parts = norm.split("/")
+    if len(parts) < 3 or not parts[1]:
+        return []
+    asset_dir = "/".join(parts[:3]) if parts[1] == "experiments" else "/".join(parts[:2])
+    return [
+        root
         for root in test_roots
-    )
+        if root == "research/experiments/tests"
+        or root == asset_dir
+        or root.startswith(asset_dir + "/")
+    ]
 
 
 def affected_test_modules(changed: Sequence[str], root: Path) -> list[str]:
@@ -503,13 +501,15 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
         for asset in assets:
             norm = asset.replace("\\", "/")
             needles = _asset_needles(norm)
-            research_asset = _research_subdir(norm) is not None
+            research_roots = _research_roots_for_asset(norm, test_roots)
             for rel in consumers:
                 selected = False
-                if research_asset and _is_research_test(rel, test_roots):
-                    reasons.setdefault(rel, []).append(
-                        f"Declared test under research test roots ({norm})"
-                    )
+                covering = next(
+                    (root for root in research_roots if rel == root or rel.startswith(root + "/")),
+                    None,
+                )
+                if covering is not None:
+                    reasons.setdefault(rel, []).append(f"Declared test under {covering} ({norm})")
                     selected = True
                 else:
                     for needle in needles:

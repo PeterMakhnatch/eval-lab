@@ -692,6 +692,66 @@ def test_uv_download_governance_rejects_unprotected_fixture_jobs(
         assert any(expected in problem for problem in problems), problems
 
 
+# HAR-331: on run 42567901536 (main, 8ca2ab5) the 3.14 test row passed all 13152
+# tests, then `uv sync --project tools/mimoagent-harbor --python 3.12` downloaded
+# CPython 3.12 from a GitHub release asset that answered 504 past uv's retries,
+# and the job went red; its re-run passed. A `--python` request must name an
+# interpreter an earlier `uv python install` already provisioned, so no download
+# happens late in a job, outside the interpreter step's cache and retry loop.
+_UV_PYTHON_INSTALL = re.compile(r"(?<![\w./-])uv\s+python\s+install\s+(?P<versions>[^&|;#\n]+)")
+_UV_PYTHON_REQUEST = re.compile(r"--python[\s=]+(?P<version>[^\s;&|]+)")
+
+
+def _late_interpreter_problems(workflow: dict) -> list[str]:
+    problems: list[str] = []
+    for job_name, job in (workflow.get("jobs") or {}).items():
+        if not isinstance(job, dict):
+            continue
+        installed: set[str] = set()
+        for index, run in _step_runs(job):
+            for line in run.splitlines():
+                if match := _UV_PYTHON_INSTALL.search(line):
+                    installed.update(match["versions"].split())
+                    continue
+                for request in _UV_PYTHON_REQUEST.finditer(line):
+                    if request["version"] not in installed:
+                        problems.append(
+                            f"job '{job_name}' step {index} requests --python "
+                            f"{request['version']} that no earlier `uv python install` provides"
+                        )
+    return problems
+
+
+@pytest.mark.parametrize("workflow_path", WORKFLOW_FILES, ids=lambda p: p.name)
+def test_interpreter_requests_follow_their_install(workflow_path: Path) -> None:
+    """Every `--python X` must name an interpreter the job already installed."""
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    problems = _late_interpreter_problems(workflow)
+    assert not problems, f"'{workflow_path.name}' violates HAR-331: " + "; ".join(problems)
+
+
+@pytest.mark.parametrize(
+    ("install", "expected"),
+    [
+        ("uv python install ${{ matrix.python-version }} 3.12", None),
+        ("uv python install ${{ matrix.python-version }}", "--python 3.12"),
+        (None, "--python 3.12"),
+    ],
+)
+def test_late_interpreter_gate_rejects_unprovisioned_requests(
+    install: str | None, expected: str | None
+) -> None:
+    steps: list[dict] = []
+    if install is not None:
+        steps.append({"run": install})
+    steps.append({"run": "uv sync --project tools/mimoagent-harbor --locked --python 3.12"})
+    problems = _late_interpreter_problems({"jobs": {"test": {"steps": steps}}})
+    if expected is None:
+        assert problems == []
+    else:
+        assert any(expected in problem for problem in problems), problems
+
+
 _UV_VERSION_DECLARATION = re.compile(r'^readonly UV_VERSION="(?P<version>[^"]+)"\s*$', re.MULTILINE)
 _UV_PIN = re.compile(r"\buv==(?P<version>[0-9][\w.]*)")
 _UV_COMMAND = re.compile(

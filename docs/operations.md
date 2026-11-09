@@ -1539,7 +1539,7 @@ Rationale (preserves the two invariants that existed before the outage):
 - Exact version pin: `uv==0.9.24` is passed verbatim to pip; no "latest" or floating installer.
 - Supply-chain posture: PyPI (already trusted by `uv sync --locked` and the repo's own lockfile) rather than a new codeload.github.com dependency. No new trust root, no unpinned `curl | sh`, no additional marketplace action.
 
-`uv` lands in `$HOME/.local/bin` (added to `$GITHUB_PATH`) and `uv python install` provisions the exact matrix interpreters (3.12, 3.14) so downstream `uv sync`/`uv run` continue to honour `UV_PYTHON` exactly as before. No cache step was added; correctness over convenience. No other job steps or commands were altered.
+`uv` lands in `$HOME/.local/bin` (added to `$GITHUB_PATH`) and `uv python install` provisions the exact matrix interpreters (3.12, 3.14) so downstream `uv sync`/`uv run` continue to honour `UV_PYTHON` exactly as before. The original change added no cache step; HAR-331 later cached the interpreters in `ci.yml` (see below).
 
 This change was made because a single throttled codeload path made every job unrunnable even when the rest of the pipeline was healthy. The PyPI path is a different CDN and has never exhibited the same 429/502/503 cascade in our runs. The PR that introduced it will itself run the modified workflows; a green result on that PR is the verification that the jobs remain executable.
 
@@ -1575,3 +1575,26 @@ Cache trust: entries hold only wheels and index responses, the artifacts
 request is scoped to that pull request, so `main` restores only entries created on
 `main` or by its own runs. This adds no new third-party trust root beyond the
 SHA-pinned `actions/cache` the quality and typecheck jobs already used.
+
+## CI: interpreters installed up front, cached and retried (HAR-331)
+
+Run 42567901536 on `main` (8ca2ab5) failed `test (3.14, 1/2)` after all 13152 tests
+passed. The native Harbor step then ran
+`uv sync --project tools/mimoagent-harbor --python 3.12`, which downloaded CPython
+3.12 from a `python-build-standalone` GitHub release asset. That asset answered
+`504 Gateway Timeout` for longer than uv's 5 HTTP retries. The re-run passed. No test
+was flaky; the job made a late network download outside any cache.
+
+Both `ci.yml` jobs now:
+
+- restore `~/.local/share/uv/python` (uv's managed-interpreter directory on Linux)
+  through `actions/cache`, keyed by the uv version and the installed versions, so a
+  cache hit downloads no interpreter;
+- install every interpreter the job uses in the interpreter step, before the suite
+  (the test job installs its matrix version and 3.12); and
+- wrap `uv python install` in a 3-attempt shell loop that waits 30 s, then 60 s, so a
+  release-asset outage longer than uv's own retries still recovers.
+
+`tests/test_quality_gates.py::test_interpreter_requests_follow_their_install` fails a
+workflow job whose `--python X` request names an interpreter that no earlier
+`uv python install` in that job provides.

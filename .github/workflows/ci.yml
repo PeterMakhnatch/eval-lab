@@ -39,9 +39,23 @@ jobs:
         run: |
           python3 -m pip install --user uv==0.9.24
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Restore uv-managed Python interpreters
+        # HAR-331: interpreters come from GitHub release assets, which answered 504
+        # for longer than uv's 5 HTTP retries on run 42567901536. A cache hit skips
+        # the download; the shell loop rides out a longer outage on a miss.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2
+        with:
+          path: ~/.local/share/uv/python
+          key: uv-python-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12
       - name: Install Python 3.12
         run: |
-          uv python install 3.12
+          for attempt in 1 2 3; do
+            uv python install 3.12 && break
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            sleep $((attempt * 30))
+          done
           echo "UV_PYTHON=3.12" >> $GITHUB_ENV
       - name: Cache locked Python packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -106,9 +120,23 @@ jobs:
         run: |
           python3 -m pip install --user uv==0.9.24
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-      - name: Install Python ${{ matrix.python-version }}
+      - name: Restore uv-managed Python interpreters
+        # HAR-331: see the lint job. The 3.14 row also needs 3.12 for
+        # tools/mimoagent-harbor; installing it here, before the suite, keeps a
+        # release-download outage from failing the job after the tests pass.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2
+        with:
+          path: ~/.local/share/uv/python
+          key: uv-python-0.9.24-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python-version }}-3.12
+      - name: Install Python ${{ matrix.python-version }} and the 3.12 mimoagent-harbor interpreter
         run: |
-          uv python install ${{ matrix.python-version }}
+          for attempt in 1 2 3; do
+            uv python install ${{ matrix.python-version }} 3.12 && break
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            sleep $((attempt * 30))
+          done
           echo "UV_PYTHON=${{ matrix.python-version }}" >> $GITHUB_ENV
       - name: Cache locked Python packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -148,6 +176,8 @@ jobs:
           uv run --no-sync python -c 'import harbor.job_diff'
           # HAR-271: tools/mimoagent-harbor needs a 3.12 interpreter even on the
           # 3.14 matrix row; the worker tests spawn tools/mimoagent-harbor/.venv.
+          # The interpreter step installs 3.12 up front (HAR-331), so this sync
+          # downloads no interpreter.
           uv sync --project tools/mimoagent-harbor --locked --python 3.12
           # Every file listed here skips (or covers only its stubs) when Harbor is
           # absent, so the main pytest step cannot exercise it. HAR-260:

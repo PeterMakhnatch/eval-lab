@@ -86,7 +86,9 @@ cache, but save only to their own keys. No project `.venv` is cached. Locked
 sync, all checks and every test shard still run on a cache hit. Cache-transfer
 segments abort after two minutes; existing job caps are unchanged. On
 cancellation, inspect setup and checker/test durations separately before
-blaming a test hang.
+blaming a test hang. The `ci.yml` lint and test jobs also cache uv-managed
+interpreters (`~/.local/share/uv/python`) and install every interpreter they use,
+with a shell retry loop, before the first sync (HAR-331).
 
 Run focused checks or explicit premerge before pushing. Regenerate `docs/INDEX.md`
 and `docs/repo-map.md` with `make docs` when generator inputs change or a

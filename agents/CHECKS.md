@@ -43,6 +43,15 @@ so GitHub still replaces a pending, superseded run and the matrix does not fan
 out per push, while the newest head always gets its own verdict. Auxiliary
 workflows publish no required check and keep cancelling superseded PR runs.
 
+A run can also end red without a failed job. On main push run 42670636443
+(24cbe13, HAR-355) every `lint` and `test` job succeeded, but GitHub never
+created the `quality-required` job and concluded the run `failure`. List the
+run's jobs with `gh api repos/<owner>/<repo>/actions/runs/<id>/jobs?filter=all`;
+if the gate job is absent and every prerequisite succeeded, the red verdict is
+a GitHub scheduling fault, not evidence about the commit. Rerun the whole run
+(`gh run rerun <id>`) and require the new attempt's gate to succeed. A missing
+gate is never green.
+
 All required checks originate from GitHub Actions CI runs. There is no mandatory
 independent review gate or review attestation status (`independent-review`).
 Past `independent-review` commit statuses in GitHub history are historical artifacts,

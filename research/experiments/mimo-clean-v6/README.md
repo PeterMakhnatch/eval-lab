@@ -1180,7 +1180,7 @@ Basis counts in the committed table (100 ranks, 81 covered; Docker-free):
 61 of the 80 `clean` verdicts are tamper refusals, so the refusal
 rate among clean ladder verdicts is 61/80 (76.3%); 19 rest on a graded run.
 
-**Evidence link check (HAR-328, HAR-335).** `--verify-evidence` re-hashes each
+**Evidence link check (HAR-328, HAR-335, HAR-350).** `--verify-evidence` re-hashes each
 committed coverage cell's `agent/cheat/attempts.json` under the host results
 root (`--results-root`, default `~/Developer/eval-lab-results`). It tries
 explicit `published_job` and `raw_job` paths first, then
@@ -1189,21 +1189,30 @@ explicit `published_job` and `raw_job` paths first, then
 (lowercase card for the raw convention; date directories sorted).
 The statuses are `matched` (a candidate has the recorded hash), `mismatched`
 (files exist but none matches), `reward-mismatch` (the matched trial's
-`result.json` reward differs from the cell's `reward`), `absent` (no candidate
-file), and `unhashed` (the cell records no hash). The command then reads every
+`result.json` reward differs from the cell's `reward`), `verifier-mismatch`
+(the matched trial's `verifier/` files disagree with the cell), `absent`
+(no candidate file), and `unhashed` (the cell records no hash). For each
+hash-matched cell the check also re-reads the trial's `verifier/tamper.log`
+(the last `tamper ` line), `verifier/baseline_runner.txt` and
+`verifier/reward.txt`: a cell's non-null `verifier_tamper_hit`,
+`baseline_runner` runner name or `reward` that differs gives
+`verifier-mismatch`; null cell fields are not compared, and an absent verifier
+file skips its comparison, so a graded cell with no `tamper ` line stays
+`matched`. The command then reads every
 `subsets[]` entry of `ladder-graded-subset.json` and
 `ladder-graded-subset-p0.json` and finds its `result.json` under
 `<root>/*/<CARD>-<job>/<trial>/result.json` or the raw
 `<card>-graded-subset/<job>/<trial>/result.json`; a subset entry is `matched`,
 `reward-mismatch`, `absent`, or `no-trial` (the entry has no `trial_name`).
-A `mismatched` or `reward-mismatch` cell or subset always causes exit 1;
-an `absent` cell or subset causes exit 1 only with `--strict`; `unhashed` cells
-and `no-trial` entries never change the exit code. Otherwise the command exits
-0. This mode reads the host results root, so it is not part of `--check` and no
-CI job runs it.
+A `mismatched`, `reward-mismatch` or `verifier-mismatch` cell or subset always
+causes exit 1; an `absent` cell or subset causes exit 1 only with `--strict`;
+`unhashed` cells and `no-trial` entries never change the exit code. Otherwise
+the command exits 0. This mode reads the host results root, so it is not part
+of `--check` and no CI job runs it.
 On 2026-11-09 ET, both commands below exit 0 with the totals shown:
-80 of 81 cells hash-match, with 0 mismatches and 0 absents, and every one of
-the 13 graded-subset trials matches its recorded reward. The 1 `unhashed` cell
+80 of 81 cells hash-match, with 0 mismatches, 0 verifier-mismatches and
+0 absents, and every one of the 13 graded-subset trials matches its recorded
+reward. The 1 `unhashed` cell
 is `000928` (rank 8, verdict `unscored`): its setup healthcheck failed before
 the agent ran, so no attempts file exists. The 1 `no-trial` entry is
 `har-293-001671-subset2`, which never ran.
@@ -1214,7 +1223,7 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evi
 ```
 
 ```text
-totals: 81 cells, matched=80, mismatched=0, reward-mismatch=0, absent=0, unhashed=1
+totals: 81 cells, matched=80, mismatched=0, reward-mismatch=0, verifier-mismatch=0, absent=0, unhashed=1
 subset totals: 14 entries, matched=13, reward-mismatch=0, absent=0, no-trial=1
 ```
 

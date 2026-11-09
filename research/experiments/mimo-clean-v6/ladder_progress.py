@@ -56,14 +56,21 @@ subset schema carries none of these fields and skips these rules.
 tries explicit ``published_job`` and ``raw_job`` paths, then date-sorted
 published and raw conventions under ``--results-root``. Each coverage cell is
 ``matched``, ``mismatched``, ``absent``, or ``unhashed``. A matched cell's
-``result.json`` reward must equal the cell's ``reward``, else the cell is
-``reward-mismatch``. Every ``subsets[]`` entry of ``ladder-graded-subset.json``
-and ``ladder-graded-subset-p0.json`` is then checked the same way by
-``job_name``/``trial_name`` and reported ``matched``, ``reward-mismatch``,
-``absent``, or ``no-trial``. Reward mismatches exit 1; absent evidence exits 1
-only with ``--strict``; unhashed cells and no-trial entries never change the
-exit code. This mode reads the host results root and is deliberately not part
-of ``--check``.
+trial ``result.json`` reward must equal the cell's ``reward``, else the cell is
+``reward-mismatch``. A matched cell's hand-copied verifier fields are then
+re-read from the trial's ``verifier/`` directory: the last ``tamper `` line of
+``tamper.log`` is the ``verifier_tamper_hit``, the runner name in
+``baseline_runner.txt`` is the cell ``baseline_runner``'s runner, and
+``reward.txt`` is the ``reward``. A differing non-null cell field makes the
+cell ``verifier-mismatch``; a cell field that is null is not compared, and an
+absent verifier file skips that comparison. Every ``subsets[]`` entry of
+``ladder-graded-subset.json`` and ``ladder-graded-subset-p0.json`` is then
+checked the same way by ``job_name``/``trial_name`` and reported ``matched``,
+``reward-mismatch``, ``absent``, or ``no-trial``. A ``mismatched``,
+``reward-mismatch`` or ``verifier-mismatch`` cell or subset exits 1; absent
+evidence exits 1 only with ``--strict``; unhashed cells and no-trial entries
+never change the exit code. This mode reads the host results root and is
+deliberately not part of ``--check``.
 
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
@@ -136,9 +143,17 @@ SLICE_HEADER = (
 )
 SLICE_SEPARATOR = "|---|---|---|---|---:|---|---|"
 VERIFIER_RC = re.compile(r"rc=(-?[0-9]+)")
+VERIFIER_RUNNER = re.compile(r"(?:RUNNER_B|runner)=(\S+)")
 VERDICT_TOTALS = ("clean", "cracked", "unscored")
 TOTALS_FIELDS = ("tasks", *VERDICT_TOTALS)
-EVIDENCE_STATUSES = ("matched", "mismatched", "reward-mismatch", "absent", "unhashed")
+EVIDENCE_STATUSES = (
+    "matched",
+    "mismatched",
+    "reward-mismatch",
+    "verifier-mismatch",
+    "absent",
+    "unhashed",
+)
 SUBSET_EVIDENCE_STATUSES = ("matched", "reward-mismatch", "absent", "no-trial")
 SUBSET_EVIDENCE_FILES = ("ladder-graded-subset.json", "ladder-graded-subset-p0.json")
 STATUS_WIDTH = 15
@@ -937,11 +952,81 @@ def _read_reward(path: Path) -> Any:
     return rewards.get("reward")
 
 
+def _runner_name(text: str) -> str | None:
+    """The runner name of a ``RUNNER_B=<name>`` or ``runner=<name>`` status."""
+    match = VERIFIER_RUNNER.search(text)
+    return match.group(1) if match is not None else None
+
+
+def _verifier_diffs(cell: Mapping[str, Any], verifier_dir: Path) -> list[str]:
+    """Every cell verifier field that the trial's ``verifier/`` files disprove.
+
+    ``verifier_tamper_hit``, ``baseline_runner`` and ``reward`` were hand-copied
+    from ``tamper.log`` (the last ``tamper `` line), ``baseline_runner.txt``
+    and ``reward.txt``. Only non-null cell fields are compared; an absent
+    verifier file skips its comparison, so a graded cell whose ``tamper.log``
+    holds no ``tamper `` line still matches. ``baseline_runner`` compares only
+    the runner name: cell formats vary by slice (``RUNNER_B=pytest``,
+    ``runner=pytest rc=1``, ``baseline_sec=N runner=pytest rc=1``), while the
+    file always records ``RUNNER_B=<name>``.
+    """
+    evidence: list[tuple[str, bool, Any, Any]] = []
+    tamper_log = verifier_dir / "tamper.log"
+    tamper_hit = None
+    if tamper_log.is_file():
+        try:
+            lines = tamper_log.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            lines = []
+        tamper_hit = next(
+            (line for line in reversed(lines) if line.startswith("tamper ")), None
+        )
+    evidence.append(
+        (
+            "verifier_tamper_hit",
+            tamper_log.is_file(),
+            cell.get("verifier_tamper_hit"),
+            tamper_hit,
+        )
+    )
+    runner_file = verifier_dir / "baseline_runner.txt"
+    runner = None
+    if runner_file.is_file():
+        try:
+            runner = _runner_name(runner_file.read_text(encoding="utf-8"))
+        except OSError:
+            runner = None
+    expected_runner = None
+    if cell.get("baseline_runner") is not None:
+        expected_runner = _runner_name(str(cell["baseline_runner"])) or cell["baseline_runner"]
+    evidence.append(("baseline_runner", runner_file.is_file(), expected_runner, runner))
+    reward_file = verifier_dir / "reward.txt"
+    reward = None
+    if reward_file.is_file():
+        try:
+            raw = reward_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            raw = ""
+        try:
+            reward = float(raw)
+        except ValueError:
+            reward = raw or None
+    evidence.append(("reward", reward_file.is_file(), cell.get("reward"), reward))
+    return [
+        f"{name}: cell {expected!r} != verifier {actual!r}"
+        for name, present, expected, actual in evidence
+        if present and expected is not None and expected != actual
+    ]
+
+
 def verify_cell(cell: Mapping[str, Any], card: str, results_root: Path) -> dict[str, Any]:
     """Compare a cell's recorded hash with every candidate until one matches.
 
     A matched cell's trial ``result.json`` reward must equal the cell's
-    ``reward``; a differing reward makes the cell ``reward-mismatch``.
+    ``reward``; a differing reward makes the cell ``reward-mismatch``. The
+    trial's ``verifier/`` files must also agree with the cell's non-null
+    ``verifier_tamper_hit``, ``baseline_runner`` and ``reward``; a differing
+    value makes the cell ``verifier-mismatch``.
     """
     result: dict[str, Any] = {
         "cell": cell,
@@ -954,6 +1039,8 @@ def verify_cell(cell: Mapping[str, Any], card: str, results_root: Path) -> dict[
         "reward_path": None,
         "expected_reward": cell.get("reward"),
         "actual_reward": None,
+        "verifier_path": None,
+        "verifier_diffs": [],
     }
     expected = result["expected"]
     if not isinstance(expected, str) or not expected:
@@ -966,17 +1053,24 @@ def verify_cell(cell: Mapping[str, Any], card: str, results_root: Path) -> dict[
         with path.open("rb") as handle:
             actual = hashlib.file_digest(handle, "sha256").hexdigest()
         if actual == expected:
-            reward_path = path.parents[2] / "result.json"
+            trial = path.parents[2]
+            reward_path = trial / "result.json"
             actual_reward = _read_reward(reward_path)
-            status = (
-                "matched" if actual_reward == result["expected_reward"] else "reward-mismatch"
-            )
+            verifier_diffs = _verifier_diffs(cell, trial / "verifier")
+            if verifier_diffs:
+                status = "verifier-mismatch"
+            elif actual_reward != result["expected_reward"]:
+                status = "reward-mismatch"
+            else:
+                status = "matched"
             result.update(
                 status=status,
                 path=path,
                 actual=actual,
                 reward_path=reward_path,
                 actual_reward=actual_reward,
+                verifier_path=trial / "verifier",
+                verifier_diffs=verifier_diffs,
             )
             return result
         if result["status"] == "absent":
@@ -1082,6 +1176,8 @@ def render_evidence(
                 f"{result['reward_path']} expected reward {result['expected_reward']!r} "
                 f"got {result['actual_reward']!r}"
             )
+        elif status == "verifier-mismatch":
+            detail = f"{result['verifier_path']}: " + "; ".join(result["verifier_diffs"])
         else:
             detail = str(result["path"])
             if status == "mismatched":
@@ -1197,6 +1293,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         failed = (
             counts["mismatched"] > 0
             or counts["reward-mismatch"] > 0
+            or counts["verifier-mismatch"] > 0
             or subset_counts["reward-mismatch"] > 0
             or (args.strict and (counts["absent"] > 0 or subset_counts["absent"] > 0))
         )
@@ -1204,6 +1301,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(
                 f"{counts['mismatched']} mismatched, "
                 f"{counts['reward-mismatch']} reward-mismatch, "
+                f"{counts['verifier-mismatch']} verifier-mismatch, "
                 f"{counts['absent']} absent, "
                 f"{subset_counts['reward-mismatch']} subset reward-mismatch, "
                 f"{subset_counts['absent']} subset absent",

@@ -320,9 +320,12 @@ def test_slow_test_budget_terminal_summary_reports_over_budget() -> None:
     with patch.dict(os.environ, {}, clear=True):
         pytest_terminal_summary(tr, pytest.ExitCode.OK, config)  # type: ignore[arg-type]
 
-    assert tr.sections == ["Slow tests (budget 60s)"]
-    assert len(tr.lines) == 1
-    assert tr.lines[0] == "tests/test_compaction.py::test_heavy: 75.34s"
+    assert tr.sections == ["Slowest test durations", "Slow tests (budget 60s)"]
+    assert tr.lines == [
+        "tests/test_compaction.py::test_heavy: 75.34s",
+        "tests/test_fast.py::test_quick: 1.20s",
+        "tests/test_compaction.py::test_heavy: 75.34s",
+    ]
 
 
 def test_slow_test_budget_terminal_summary_omitted_when_all_fast() -> None:
@@ -337,8 +340,11 @@ def test_slow_test_budget_terminal_summary_omitted_when_all_fast() -> None:
     with patch.dict(os.environ, {}, clear=True):
         pytest_terminal_summary(tr, pytest.ExitCode.OK, config)  # type: ignore[arg-type]
 
-    assert tr.sections == []
-    assert tr.lines == []
+    assert tr.sections == ["Slowest test durations"]
+    assert tr.lines == [
+        "tests/test_b.py::test_2: 59.90s",
+        "tests/test_a.py::test_1: 5.00s",
+    ]
 
 
 def test_slow_test_budget_configurable_via_env() -> None:
@@ -355,8 +361,12 @@ def test_slow_test_budget_configurable_via_env() -> None:
         tr = FakeTerminalReporter()
         pytest_terminal_summary(tr, pytest.ExitCode.OK, config)  # type: ignore[arg-type]
 
-        assert tr.sections == ["Slow tests (budget 10s)"]
-        assert tr.lines == ["tests/test_mid.py::test_medium: 15.20s"]
+        assert tr.sections == ["Slowest test durations", "Slow tests (budget 10s)"]
+        assert tr.lines == [
+            "tests/test_mid.py::test_medium: 15.20s",
+            "tests/test_fast.py::test_quick: 2.00s",
+            "tests/test_mid.py::test_medium: 15.20s",
+        ]
 
 
 def test_slow_test_budget_reads_xdist_stats() -> None:
@@ -373,5 +383,8 @@ def test_slow_test_budget_reads_xdist_stats() -> None:
     with patch.dict(os.environ, {}, clear=True):
         pytest_terminal_summary(tr, pytest.ExitCode.OK, config)  # type: ignore[arg-type]
 
-    assert tr.sections == ["Slow tests (budget 60s)"]
-    assert tr.lines == ["tests/test_worker.py::test_heavy: 88.00s"]
+    assert tr.sections == ["Slowest test durations", "Slow tests (budget 60s)"]
+    assert tr.lines == [
+        "tests/test_worker.py::test_heavy: 88.00s",
+        "tests/test_worker.py::test_heavy: 88.00s",
+    ]

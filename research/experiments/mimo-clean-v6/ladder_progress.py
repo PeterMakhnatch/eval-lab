@@ -62,7 +62,8 @@ code. This mode reads the host results root and is deliberately not part of
 
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
-summary with ``--summary``.
+summary with ``--summary``. ``check_slice_tables`` compares the README's
+per-slice ladder tables with the committed rows; the test suite calls it.
 """
 
 from __future__ import annotations
@@ -73,6 +74,7 @@ import difflib
 import hashlib
 import io
 import json
+import re
 import statistics
 import sys
 from collections import Counter
@@ -114,6 +116,11 @@ SUMMARY_HEADING = "## Wall time by language and remaining serial hours"
 REFUSAL_BASIS = "tamper-refusal"
 GRADED_BASIS = "graded"
 SECONDS_PER_HOUR = 3600.0
+SLICE_MARKER = " ladder cells"
+SLICE_WALL = re.compile(r"(?P<minutes>[0-9]+(?:\.[0-9]+)?)\s*min\b")
+SLICE_WALL_TOLERANCE = 0.05
+SLICE_COLUMNS = ("rank", "task", "verdict", "wall")
+SLICE_ATTACK_COLUMNS = ("attacks executed", "attacks")
 VERDICT_TOTALS = ("clean", "cracked", "unscored")
 TOTALS_FIELDS = ("tasks", *VERDICT_TOTALS)
 EVIDENCE_STATUSES = ("matched", "mismatched", "absent", "unhashed")
@@ -467,6 +474,112 @@ def render_summary(rows: Sequence[dict[str, str]]) -> str:
         f"| {sum(entry['projected_hours'] for entry in entries):.2f} |\n"
     )
     return buffer.getvalue()
+
+
+def _pipe_cells(line: str) -> list[str]:
+    """The stripped cells of a Markdown pipe-table line."""
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def _slice_attacks(value: str, where: str) -> int:
+    """The executed count of an ``N/M`` attacks cell."""
+    executed, separator, _ = value.partition("/")
+    if not separator or not executed.strip().isdigit():
+        raise ProgressError(f"{where}: attacks cell {value!r} is not N/M")
+    return int(executed)
+
+
+def read_slice_tables(text: str) -> list[dict[str, Any]]:
+    """Every README row of every pipe table under a ``## ... ladder cells`` heading.
+
+    A section without a table (HAR-244 states its three rows in prose) yields
+    no rows. Each row carries ``heading``, ``rank``, ``task`` (the backticked
+    rank suffix), ``verdict``, ``wall_minutes``, and ``attacks`` (``None``
+    without an ``attacks`` or ``attacks executed`` column).
+    """
+    rows: list[dict[str, Any]] = []
+    for section in re.split(r"(?m)^## ", text)[1:]:
+        heading, _, body = section.partition("\n")
+        if SLICE_MARKER not in heading:
+            continue
+        table = [line for line in body.splitlines() if line.startswith("|")]
+        if not table:
+            continue
+        header = [cell.lower() for cell in _pipe_cells(table[0])]
+        missing = [name for name in SLICE_COLUMNS if name not in header]
+        if missing:
+            raise ProgressError(
+                f"slice table {heading!r} lacks column(s): {', '.join(missing)}"
+            )
+        attacks = next(
+            (index for index, name in enumerate(header) if name in SLICE_ATTACK_COLUMNS),
+            None,
+        )
+        for line in table[1:]:
+            cells = _pipe_cells(line)
+            if len(cells) != len(header):
+                raise ProgressError(
+                    f"slice table {heading!r} row {line!r} has {len(cells)} "
+                    f"cell(s), not {len(header)}"
+                )
+            if all(set(cell) <= set("-: ") for cell in cells):
+                continue
+            record = dict(zip(header, cells, strict=True))
+            where = f"slice table {heading!r} rank {record['rank']}"
+            match = SLICE_WALL.search(record["wall"])
+            if match is None:
+                raise ProgressError(f"{where}: wall cell {record['wall']!r} has no minutes")
+            rows.append(
+                {
+                    "heading": heading,
+                    "rank": int(record["rank"]),
+                    "task": record["task"].strip("`"),
+                    "verdict": record["verdict"],
+                    "wall_minutes": float(match.group("minutes")),
+                    "attacks": _slice_attacks(cells[attacks], where) if attacks is not None else None,
+                }
+            )
+    return rows
+
+
+def check_slice_tables(text: str, rows: Sequence[Mapping[str, str]]) -> int:
+    """Refuse any README slice row that disagrees with ``rows``; return the row count.
+
+    Compares rank and task suffix, the verdict's leading word, wall minutes
+    within ``SLICE_WALL_TOLERANCE``, and, where the table has an attacks
+    column, the executed attack count.
+    """
+    by_rank = {int(row["rank"]): row for row in rows}
+    tables = read_slice_tables(text)
+    for table in tables:
+        rank = int(table["rank"])
+        task = str(table["task"])
+        row = by_rank.get(rank)
+        if row is None:
+            raise ProgressError(f"rank {rank} (`{task}`): absent from ladder-progress.csv")
+        if not str(row["task_id"]).endswith(task):
+            raise ProgressError(
+                f"rank {rank} (`{task}`): ladder-progress.csv names `{row['task_id']}`"
+            )
+        leading = str(table["verdict"]).split()
+        verdict = leading[0].rstrip(":") if leading else ""
+        if verdict != row["verdict"]:
+            raise ProgressError(
+                f"rank {rank} (`{task}`): verdict {verdict!r} disagrees "
+                f"with {row['verdict']!r}"
+            )
+        seconds = wall_seconds(row)
+        if abs(float(table["wall_minutes"]) - seconds / 60) > SLICE_WALL_TOLERANCE:
+            raise ProgressError(
+                f"rank {rank} (`{task}`): wall {table['wall_minutes']} min "
+                f"disagrees with {seconds:g} s"
+            )
+        if table["attacks"] is not None and int(table["attacks"]) != int(row["attacks_executed"]):
+            raise ProgressError(
+                f"rank {rank} (`{task}`): attacks executed {table['attacks']} "
+                f"disagree with {row['attacks_executed']}"
+            )
+    return len(tables)
 
 
 def attempts_candidates(cell: Mapping[str, Any], card: str, results_root: Path) -> list[Path]:

@@ -471,12 +471,12 @@ def test_python_run_steps_follow_an_interpreter_pin(workflow_path: Path) -> None
     40802303644) when ubuntu-latest moved to 26.04: bare python3 resolved to a
     different interpreter and the wheelhouse path lost 3.12. Every job that
     executes python code must first pin the interpreter with
-    actions/setup-python or `uv python install`.
+    actions/setup-python; a uv-managed download is not a pin since HAR-339, so
+    that line no longer satisfies this check.
 
     Exempted: `python3 -m pip install --user uv==...` bootstrap lines, which are
-    version-agnostic (uv is a self-contained binary on PATH), and the
-    `uv python install` line itself, which is the pin. Invocation is checked per
-    run-script line so a pin earlier in the same script still counts.
+    version-agnostic (uv is a self-contained binary on PATH). Invocation is
+    checked per run-script line so a pin earlier in the same script still counts.
     """
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
     jobs = workflow.get("jobs") or {}
@@ -493,9 +493,6 @@ def test_python_run_steps_follow_an_interpreter_pin(workflow_path: Path) -> None
             if "actions/setup-python" in uses:
                 pinned = True
             for line in run.splitlines():
-                if "uv python install" in line:
-                    pinned = True
-                    continue
                 if _UV_BOOTSTRAP_LINE.search(line):
                     continue
                 if _PYTHON_RUN_LINE.search(line):
@@ -503,10 +500,195 @@ def test_python_run_steps_follow_an_interpreter_pin(workflow_path: Path) -> None
                         f"Job '{job_name}' in '{workflow_path.name}' invokes a bare "
                         f"python interpreter at step {index} "
                         f"({step.get('name') or '<unnamed>'}) before pinning one. "
-                        "Add an earlier actions/setup-python step or run "
-                        "`uv python install <version>` first (HAR-245; bare python3 "
-                        "broke tau-knowledge-lean when ubuntu-latest moved to 26.04)."
+                        "Add an earlier actions/setup-python step "
+                        "(HAR-245; bare python3 broke tau-knowledge-lean when "
+                        "ubuntu-latest moved to 26.04)."
                     )
+
+
+# HAR-339: GitHub served 504 for the cpython-3.12 linux x86_64
+# python-build-standalone asset, so uv's managed interpreter download reddened main
+# in perf (run 42582557769) and mcp-wheelhouse-platform (run 42582557805) on
+# 2cd8dae87; HAR-330 had repaired only ci.yml and typecheck.yml. Every workflow now
+# takes that shape: SHA-pinned setup-python resolves the runner toolcache before any
+# download, and UV_PYTHON_PREFERENCE=only-system keeps uv on that interpreter instead
+# of downloading a managed build mid-run.
+SETUP_PYTHON_V6 = "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
+_ONLY_SYSTEM = "UV_PYTHON_PREFERENCE=only-system"
+_UV_PYTHON_INSTALL_LINE = re.compile(r"(?<![\w./-])uv\s+python\s+install\b")
+_UV_COMMAND_LINE = re.compile(
+    r"(?<![\w./-])uv\s+(?:sync|run|tool|pip|venv|python|lock|export|add|remove)\b"
+    r"|(?<![\w./-])uvx\b"
+)
+
+
+def _only_system_effective_at(job: dict, step_index: int) -> bool:
+    """True when only-system governs the uv commands starting at ``step_index``.
+
+    A GITHUB_ENV write only affects later steps, so an export in the same script
+    as its uv command does not count; a step ``env:`` mapping does.
+    """
+    job_env = job.get("env") or {}
+    if isinstance(job_env, dict) and (
+        str(job_env.get("UV_PYTHON_PREFERENCE", "")).strip("\"'") == "only-system"
+    ):
+        return True
+    for index, step in enumerate(job.get("steps") or []):
+        if not isinstance(step, dict):
+            continue
+        if index > step_index:
+            break
+        env = step.get("env") or {}
+        if isinstance(env, dict) and (
+            str(env.get("UV_PYTHON_PREFERENCE", "")).strip("\"'") == "only-system"
+        ):
+            return True
+        run = step.get("run") or ""
+        if index < step_index and isinstance(run, str) and _ONLY_SYSTEM in run:
+            return True
+    return False
+
+
+def _python_provisioning_problems(workflow: dict) -> list[str]:
+    """Report jobs that run python or uv without a pinned setup-python interpreter."""
+    problems: list[str] = []
+    for job_name, job in (workflow.get("jobs") or {}).items():
+        if not isinstance(job, dict):
+            continue
+        steps = [step for step in (job.get("steps") or []) if isinstance(step, dict)]
+        scripts = [
+            (index, step["run"])
+            for index, step in enumerate(steps)
+            if isinstance(step.get("run"), str)
+        ]
+        uv_steps = [(index, run) for index, run in scripts if _UV_COMMAND_LINE.search(run)]
+        python_steps = [
+            (index, run)
+            for index, run in scripts
+            if any(
+                _PYTHON_RUN_LINE.search(line) and not _UV_BOOTSTRAP_LINE.search(line)
+                for line in run.splitlines()
+            )
+        ]
+        if not uv_steps and not python_steps:
+            continue
+        setup = [
+            (index, step)
+            for index, step in enumerate(steps)
+            if "actions/setup-python" in str(step.get("uses") or "")
+        ]
+        if not setup:
+            problems.append(
+                f"job '{job_name}' runs python or uv without an actions/setup-python step"
+            )
+            continue
+        for index, step in setup:
+            uses = str(step.get("uses"))
+            if not uses.startswith(SETUP_PYTHON_V6):
+                problems.append(
+                    f"job '{job_name}' provisions python with '{uses}'; pin "
+                    f"'{SETUP_PYTHON_V6} # v6'"
+                )
+            version = str((step.get("with") or {}).get("python-version", "")).strip()
+            if not version:
+                problems.append(
+                    f"job '{job_name}' setup-python step {index} declares no python-version"
+                )
+        first_use = min(index for index, _ in uv_steps + python_steps)
+        first_setup = min(index for index, _ in setup)
+        if first_setup > first_use:
+            problems.append(
+                f"job '{job_name}' runs python or uv at step {first_use} before its "
+                f"setup-python step {first_setup}"
+            )
+        if uv_steps and not _only_system_effective_at(job, uv_steps[0][0]):
+            problems.append(
+                f"job '{job_name}' runs a uv command without an earlier "
+                f"{_ONLY_SYSTEM} export, so uv may download a managed interpreter"
+            )
+    return problems
+
+
+def test_workflows_never_provision_python_with_uv() -> None:
+    """No workflow may install an interpreter with uv (HAR-339).
+
+    The check is literal on the whole file, comments included: a commented-out or
+    paraphrased copy of the command is what the next author copies back.
+    """
+    offenders = []
+    for workflow_path in WORKFLOW_FILES:
+        text = workflow_path.read_text(encoding="utf-8")
+        for number, line in enumerate(text.splitlines(), 1):
+            if _UV_PYTHON_INSTALL_LINE.search(line):
+                offenders.append(f"{workflow_path.name}:{number}: {line.strip()}")
+    assert not offenders, (
+        "uv must not provision interpreters: actions/setup-python resolves the "
+        "runner toolcache and UV_PYTHON_PREFERENCE=only-system keeps uv on it "
+        "(HAR-339; perf run 42582557769 and mcp-wheelhouse-platform run "
+        f"42582557805 failed on a 504 from the uv-managed download): {offenders}"
+    )
+
+
+@pytest.mark.parametrize("workflow_path", WORKFLOW_FILES, ids=lambda p: p.name)
+def test_jobs_provision_python_with_pinned_setup_python(workflow_path: Path) -> None:
+    """Every job that runs python or uv pins the interpreter with setup-python v6.
+
+    A uv-managed download is not a pin: one broken release asset makes every job
+    that needs it unrunnable even while the runner image already ships the same
+    interpreter in its toolcache (HAR-339).
+    """
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    problems = _python_provisioning_problems(workflow)
+    assert not problems, f"'{workflow_path.name}' violates HAR-339: " + "; ".join(problems)
+
+
+def _provisioning_fixture(
+    *,
+    setup_uses: str = SETUP_PYTHON_V6,
+    python_version: str | None = "3.12",
+    only_system: bool = True,
+    sync: str = "uv sync --locked",
+) -> dict:
+    setup_step: dict = {"name": "Install Python", "uses": setup_uses, "with": {}}
+    if python_version is not None:
+        setup_step["with"]["python-version"] = python_version
+    steps: list[dict] = [
+        {"uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262"},
+        setup_step,
+    ]
+    if only_system:
+        steps.append({"run": f'echo "{_ONLY_SYSTEM}" >> "$GITHUB_ENV"'})
+    steps.append({"name": "Sync", "run": sync})
+    return {
+        "jobs": {
+            "fixture": {"runs-on": "ubuntu-latest", "timeout-minutes": 10, "steps": steps}
+        }
+    }
+
+
+@pytest.mark.parametrize(
+    ("fixture", "expected"),
+    [
+        ({}, None),
+        ({"only_system": False}, "only-system"),
+        ({"setup_uses": "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065"}, "v6"),
+        ({"python_version": None}, "python-version"),
+    ],
+)
+def test_python_provisioning_gate_rejects_unpinned_fixture_jobs(
+    fixture: dict, expected: str | None
+) -> None:
+    """The gate must fail a job with a stale setup-python pin or no only-system.
+
+    A fixture keeps the failure mode independent of the repository's own
+    workflows, so dropping a pin later fails here even after the real workflows
+    are repaired.
+    """
+    problems = _python_provisioning_problems(_provisioning_fixture(**fixture))
+    if expected is None:
+        assert problems == []
+    else:
+        assert any(expected in problem for problem in problems), problems
 
 
 def test_workbench_certification_workflows_cadence_and_path_isolation() -> None:

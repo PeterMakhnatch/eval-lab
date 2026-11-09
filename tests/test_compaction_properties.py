@@ -26,6 +26,8 @@ from evallab.storage.parquet_compaction import (
     deduplicate_and_sort,
 )
 
+_CI = os.environ.get("CI") == "true"
+
 
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
@@ -477,7 +479,8 @@ def _write_job(
     st.integers(min_value=1, max_value=2),
     st.integers(min_value=1, max_value=2),
 )
-@settings(max_examples=30, deadline=None)
+# HAR-354: Shrink CI examples to keep the shard under the 60 s slow-test budget.
+@settings(max_examples=10 if _CI else 30, deadline=None)
 def test_property_compaction_idempotence_and_byte_stability(
     num_jobs: int,
     num_trials: int,
@@ -533,7 +536,8 @@ def test_property_compaction_idempotence_and_byte_stability(
     st.integers(min_value=1, max_value=2),
     st.integers(min_value=1, max_value=2),
 )
-@settings(max_examples=30, deadline=None)
+# HAR-354: Shrink CI examples to keep the shard under the 60 s slow-test budget.
+@settings(max_examples=10 if _CI else 30, deadline=None)
 def test_property_zero_row_loss_and_pk_deduplication(
     num_jobs: int,
     rows_per_table: int,
@@ -594,7 +598,8 @@ def test_property_zero_row_loss_and_pk_deduplication(
         max_size=20,
     ),
 )
-@settings(max_examples=50, deadline=None)
+# HAR-354: Shrink CI examples to keep the shard under the 60 s slow-test budget.
+@settings(max_examples=15 if _CI else 50, deadline=None)
 def test_property_deduplicate_and_sort_invariants(
     table_name: str,
     key_tuples: list[tuple[str, str, int]],
@@ -736,4 +741,10 @@ class CompactionRetentionStateMachine(RuleBasedStateMachine):
 
 
 TestCompactionProperties = CompactionRetentionStateMachine.TestCase
-TestCompactionProperties.settings = settings(max_examples=50, stateful_step_count=20, deadline=None)
+TestCompactionProperties.settings = settings(
+    # HAR-354: Shrink CI examples to keep the shard under the 60 s slow-test budget.
+    max_examples=20 if _CI else 50,
+    # HAR-354: Shrink CI steps to keep the shard under the 60 s slow-test budget.
+    stateful_step_count=10 if _CI else 20,
+    deadline=None,
+)

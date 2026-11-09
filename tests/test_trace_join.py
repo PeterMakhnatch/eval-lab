@@ -431,6 +431,29 @@ def test_resolving_without_a_session_id_is_refused(catalog: Any) -> None:
         resolve_session(None, fetch=_fetch(catalog), placeholder="?")
 
 
+def test_an_embedded_only_session_resolves_to_its_document(catalog: Any) -> None:
+    """A subagent document with no root row is still an answer, not a failure."""
+    catalog.execute(
+        f"INSERT INTO trajectory_documents VALUES ('doc-embedded', '{EVIDENCE_TRIAL_ID}', "
+        "'embedded-only-session', 'subagent-1', 'subagent:subagent-1')"
+    )
+    resolution = resolve_session(
+        "embedded-only-session", fetch=_fetch(catalog), placeholder="?"
+    )
+
+    assert len(resolution.matches) == 1
+    assert not resolution.matches[0].is_root_document
+    assert resolution.trial.document_id == "doc-embedded"
+
+
+def test_a_malformed_session_row_is_refused() -> None:
+    def fetch(sql: str, params: tuple[Any, ...]) -> list[tuple[Any, ...]]:
+        return [(1, 2, 3)]
+
+    with pytest.raises(TraceError, match="3 columns, expected 11"):
+        resolve_session("any-session", fetch=fetch)
+
+
 def test_session_lookup_sql_reads_only_derived_catalog_tables() -> None:
     sql = session_lookup_sql()
     assert "%s" in sql

@@ -26,6 +26,10 @@ env:
 
 jobs:
   canary-controls:
+    # HAR-345: deepplanning-canary and tau-knowledge-lean also had a job named
+    # canary-controls, so their check runs shared one name and a red run here
+    # read as a flake next to a green one there. Keep check names unique.
+    name: agentabstain-linux-canary-controls
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -40,8 +44,19 @@ jobs:
           echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
       - name: Install Harbor 0.21.0
         run: uv tool install "harbor==0.21.0"
+      - name: Cache locked Python packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2
+        with:
+          path: ~/.cache/uv
+          key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-agentabstain-${{ hashFiles('uv.lock', '.github/workflows/agentabstain-linux.yml') }}
+          restore-keys: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-test-${{ hashFiles('uv.lock', '.github/workflows/ci.yml') }}
       - name: Materialize, regenerate, and run local controls
-        run: python3 scripts/agentabstain/ci.py
+        # HAR-345: ci.py imports evallab, which needs PyYAML. Bare python3 found it
+        # only in the Ubuntu system interpreter (apt python3-yaml); a setup-python
+        # toolcache interpreter has none (run 42590293974). Run it in the locked env.
+        run: uv run --locked --no-dev python scripts/agentabstain/ci.py
       - name: Locate generated canary
         id: generated
         run: echo "path=$(find derived/harbor-tasks/agentabstain -mindepth 1 -maxdepth 1 -type d -print -quit)" >> "$GITHUB_OUTPUT"

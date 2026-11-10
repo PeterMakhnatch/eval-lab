@@ -1,9 +1,4 @@
-"""Shared Modal cell runner: idempotent keyed cells, reserve/settle spend gate, resume, error classes.
-
-Addresses:
-1. CloudSpendGate reserved a flat rate up front and never settled, exhausting caps prematurely.
-2. Completed cell results were not reused across runs, paying multiple times on restarts.
-"""
+"""Native Modal cell execution, keyed cache reuse and reserve/settle spend accounting."""
 
 from __future__ import annotations
 
@@ -17,14 +12,7 @@ import threading
 import time
 import tomllib
 import uuid
-from collections.abc import Callable, Sequence
-from concurrent.futures import (
-    FIRST_COMPLETED,
-    CancelledError,
-    Future,
-    ThreadPoolExecutor,
-    wait,
-)
+from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -43,8 +31,6 @@ ESTIMATE_MARGIN: float = 1.25
 PROJECTED_CELL_SECONDS: int = 240
 #: Default flat reservation amount in USD when no calibration or package estimate is available
 DEFAULT_RESERVATION_USD: float = 0.01
-#: Default max concurrency for batch execution
-DEFAULT_CONCURRENCY: int = 8
 #: Default retry count for infrastructure errors
 DEFAULT_MAX_RETRIES: int = 3
 
@@ -948,50 +934,10 @@ class CellSpec:
             timeout_seconds=self.timeout_seconds,
         )
 
-@dataclass
-class CellPlan:
-    """Offline plan for a set of cells."""
-
-    total: int
-    cached: int
-    uncached: int
-    estimated_spend_usd: float
-    cap_usd: float
-    fits_cap: bool
-    cells: list[CellSpec]
-
-    def summary(self) -> str:
-        return (
-            f"Plan: {self.total} cells ({self.cached} cached, {self.uncached} uncached) | "
-            f"Est. uncached spend: ${self.estimated_spend_usd:.4f} (Cap: ${self.cap_usd:.4f}) | "
-            f"Fits cap: {self.fits_cap}"
-        )
-
-
-@dataclass
-class CellBatchStatus:
-    """Live status view of a cell execution batch."""
-
-    planned: int = 0
-    cached: int = 0
-    running: int = 0
-    done: int = 0
-    failed: int = 0
-    cap_stopped: bool = False
-    spend: dict[str, float] = field(default_factory=dict)
-
-    def summary_line(self) -> str:
-        s = self.spend
-        return (
-            f"cells: {self.planned} planned | {self.cached} cached | {self.running} running | "
-            f"{self.done} done | {self.failed} failed | "
-            f"spend: ${s.get('settled_usd', 0.0):.4f} settled, "
-            f"${s.get('reserved_usd', 0.0):.4f} reserved (cap ${s.get('cap_usd', 0.0):.4f})"
-        )
 
 
 class ModalCellRunner:
-    """Bounded-concurrency cell runner with idempotent caching and reserve/settle spend."""
+    """Single-cell runner with idempotent caching and reserve/settle spend."""
 
     def __init__(
         self,
@@ -1030,34 +976,6 @@ class ModalCellRunner:
                 pass
         return None
 
-    def plan(self, cells: Sequence[CellSpec]) -> CellPlan:
-        """Plan a batch of cells, checking cache hits and estimating spend."""
-        cached_count = 0
-        total = len(cells)
-        uncached_cells: list[CellSpec] = []
-        for c in cells:
-            if self.check_cache(c.key()) is not None:
-                cached_count += 1
-            else:
-                uncached_cells.append(c)
-        uncached = len(uncached_cells)
-        est_spend = sum(
-            self.spend_gate.estimate_reservation(
-                package=c.package, backend="modal", timeout_seconds=c.timeout_seconds
-            )
-            for c in uncached_cells
-        )
-        current_effective = self.spend_gate.effective_spend_usd
-        fits = (current_effective + est_spend) <= (self.spend_gate.cap_usd + 1e-9)
-        return CellPlan(
-            total=total,
-            cached=cached_count,
-            uncached=uncached,
-            estimated_spend_usd=round(est_spend, 4),
-            cap_usd=self.spend_gate.cap_usd,
-            fits_cap=fits,
-            cells=list(cells),
-        )
 
     def run_cell(self, cell: CellSpec) -> dict[str, Any]:
         """Execute a single cell or return valid cached result."""
@@ -1206,209 +1124,6 @@ class ModalCellRunner:
 
             raise RuntimeError("Unexpected end of cell retry loop")
 
-    def run_batch(
-        self,
-        cells: Sequence[CellSpec],
-        *,
-        concurrency: int = DEFAULT_CONCURRENCY,
-        on_status: Callable[[CellBatchStatus], None] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Run a batch of cells with bounded concurrency, cache reuse, and live status."""
-        status = CellBatchStatus(planned=len(cells))
-        status.spend = self.spend_gate.summary()
-        results: list[dict[str, Any] | None] = [None] * len(cells)
-
-        # 1. Filter cache hits and deduplicate uncached cells by key (S2)
-        uncached_indices_by_key: dict[str, list[int]] = {}
-        unique_cells: list[CellSpec] = []
-        for idx, cell in enumerate(cells):
-            key = cell.key()
-            cached = self.check_cache(key)
-            if cached is not None:
-                results[idx] = cached
-                status.cached += 1
-                status.done += 1
-            else:
-                if key not in uncached_indices_by_key:
-                    uncached_indices_by_key[key] = []
-                    unique_cells.append(cell)
-                uncached_indices_by_key[key].append(idx)
-
-        status.spend = self.spend_gate.summary()
-        if on_status:
-            on_status(status)
-
-        if not unique_cells:
-            return [r for r in results if r is not None]
-
-        # 2. Dispatch uncached cells with bounded concurrency and dynamic submission (S4, B4)
-        lock = threading.Lock()
-        pool = ThreadPoolExecutor(max_workers=concurrency)
-        try:
-            cell_iter = iter(unique_cells)
-            futures: dict[Future[dict[str, Any]], CellSpec] = {}
-
-            def submit_next() -> bool:
-                with lock:
-                    if status.cap_stopped:
-                        return False
-                    if self.spend_gate.settled_usd >= self.spend_gate.cap_usd:
-                        status.cap_stopped = True
-                        return False
-                try:
-                    next_cell = next(cell_iter)
-                except StopIteration:
-                    return False
-                with lock:
-                    status.running += 1
-                    status.spend = self.spend_gate.summary()
-                    if on_status:
-                        on_status(status)
-                fut = pool.submit(self.run_cell, next_cell)
-                futures[fut] = next_cell
-                return True
-
-            # Prime pool with up to concurrency tasks
-            for _ in range(concurrency):
-                if not submit_next():
-                    break
-
-            while futures:
-                done_futs: list[Future[dict[str, Any]]] = []
-                for fut in list(futures.keys()):
-                    if fut.done():
-                        done_futs.append(fut)
-                if not done_futs:
-                    done_set, _ = wait(list(futures.keys()), return_when=FIRST_COMPLETED)
-                    done_futs = list(done_set)
-
-                for fut in done_futs:
-                    cell = futures.pop(fut)
-                    with lock:
-                        status.running -= 1
-                    key = cell.key()
-                    matching_indices = uncached_indices_by_key.get(key, [])
-                    try:
-                        res = fut.result()
-                        for i in matching_indices:
-                            results[i] = res
-                        with lock:
-                            status.done += len(matching_indices)
-                            status.spend = self.spend_gate.summary()
-                            # B4: Re-check cap after settle
-                            if self.spend_gate.settled_usd >= self.spend_gate.cap_usd:
-                                status.cap_stopped = True
-                            if on_status:
-                                on_status(status)
-                    except CellCapReachedError as exc:
-                        with lock:
-                            status.cap_stopped = True
-                            status.failed += len(matching_indices)
-                            status.spend = self.spend_gate.summary()
-                            if on_status:
-                                on_status(status)
-                        err_res = {
-                            "cell_key": key,
-                            "task": cell.task_id or Path(cell.package).name,
-                            "variant": cell.variant,
-                            "status": "cap_reached",
-                            "reason": str(exc),
-                            "error": str(exc),
-                            "reward": None,
-                            "wall_s": 0.0,
-                            "est_usd": 0.0,
-                            "agent_log": "",
-                            "test_output_tail": "",
-                            "evidence_sha256": "",
-                            "cache_hit": False,
-                            "attempts": 0,
-                        }
-                        for i in matching_indices:
-                            results[i] = err_res
-                        for pending in list(futures.keys()):
-                            pending.cancel()
-                    except (CancelledError, asyncio.CancelledError):
-                        with lock:
-                            status.spend = self.spend_gate.summary()
-                            if on_status:
-                                on_status(status)
-                        err_res = {
-                            "cell_key": key,
-                            "task": cell.task_id or Path(cell.package).name,
-                            "variant": cell.variant,
-                            "status": "cap_stopped" if status.cap_stopped else "cancelled",
-                            "reason": "spend cap reached" if status.cap_stopped else "cancelled",
-                            "error": "spend cap reached" if status.cap_stopped else "cancelled",
-                            "reward": None,
-                            "wall_s": 0.0,
-                            "est_usd": 0.0,
-                            "agent_log": "",
-                            "test_output_tail": "",
-                            "evidence_sha256": "",
-                            "cache_hit": False,
-                            "attempts": 0,
-                        }
-                        for i in matching_indices:
-                            results[i] = err_res
-                    except Exception as exc:
-                        with lock:
-                            status.failed += len(matching_indices)
-                            status.spend = self.spend_gate.summary()
-                            if self.spend_gate.settled_usd >= self.spend_gate.cap_usd:
-                                status.cap_stopped = True
-                            if on_status:
-                                on_status(status)
-                        err_res = {
-                            "cell_key": key,
-                            "task": cell.task_id or Path(cell.package).name,
-                            "variant": cell.variant,
-                            "status": "failed",
-                            "reason": str(exc),
-                            "error": str(exc),
-                            "reward": None,
-                            "wall_s": 0.0,
-                            "est_usd": 0.0,
-                            "agent_log": "",
-                            "test_output_tail": "",
-                            "evidence_sha256": "",
-                            "cache_hit": False,
-                            "attempts": 0,
-                        }
-                        for i in matching_indices:
-                            results[i] = err_res
-
-                    # Submit next cell if possible
-                    if not status.cap_stopped:
-                        submit_next()
-
-        except (KeyboardInterrupt, asyncio.CancelledError):
-            pool.shutdown(wait=False, cancel_futures=True)
-            raise
-        finally:
-            pool.shutdown(wait=False, cancel_futures=True)
-
-        # Fill any remaining None entries (e.g. skipped due to cap_stopped)
-        for idx, res in enumerate(results):
-            if res is None:
-                c = cells[idx]
-                results[idx] = {
-                    "cell_key": c.key(),
-                    "task": c.task_id or Path(c.package).name,
-                    "variant": c.variant,
-                    "status": "cap_stopped" if status.cap_stopped else "cancelled",
-                    "reason": "Execution skipped: spend cap reached" if status.cap_stopped else "Execution cancelled",
-                    "error": "spend cap reached" if status.cap_stopped else "cancelled",
-                    "reward": None,
-                    "wall_s": 0.0,
-                    "est_usd": 0.0,
-                    "agent_log": "",
-                    "test_output_tail": "",
-                    "evidence_sha256": "",
-                    "cache_hit": False,
-                    "attempts": 0,
-                }
-
-        return [r for r in results if r is not None]
 
 
 def modal_cell_runner(

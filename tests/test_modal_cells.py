@@ -1,4 +1,4 @@
-"""Unit tests for evallab.modal_cells: keyed cells, reserve/settle spend, concurrency, errors, resume."""
+"""Modal single-cell execution, reserve/settle spend accounting and locking."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 
 from evallab.modal_cells import (
-    CellBatchStatus,
     CellCancelledError,
     CellCapReachedError,
     CellError,
@@ -401,70 +400,6 @@ def test_error_classification_with_fake_backend(tmp_path: Path) -> None:
     assert estimate_modal_cost(pkg, 10.0) > 0.0
 
 
-# ---------------------------------------------------------------------------
-# 7. Resume after simulated stop
-# ---------------------------------------------------------------------------
-
-
-def test_resume_after_simulated_stop(tmp_path: Path) -> None:
-    pkg = _make_dummy_package(tmp_path / "pkg")
-    results_dir = tmp_path / "results"
-    ledger = tmp_path / "resume-ledger.json"
-
-    cells = [
-        CellSpec(package=pkg, variant=f"cell-{i}", submission=f"echo {i}") for i in range(6)
-    ]
-
-    # Run 1: Allow only 3 cells before hitting cap
-    gate1 = ReserveSettleSpendGate(
-        approval="resume-app",
-        cap_usd=0.035,  # Enough for 3 reservations of $0.01
-        default_reservation_usd=0.01,
-        spend_ledger=ledger,
-    )
-    backend1 = FakeBackend(tmp_path, gate1)
-    gate1.estimate_cost = lambda *_: 0.01
-    runner1 = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate1,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend1,
-    )
-
-    batch1 = runner1.run_batch(cells, concurrency=2)
-    # Exactly 3 cells ran and finished, remaining 3 stopped by cap
-    assert len(batch1) == 6
-    assert sum(1 for r in batch1 if r.get("status") == "executed") == 3
-    assert sum(1 for r in batch1 if r.get("status") in {"cap_stopped", "cap_reached"}) == 3
-    assert len(backend1.calls) == 3
-    # Run 2: Resume with increased cap ($0.10)
-    gate2 = ReserveSettleSpendGate(
-        approval="resume-app",
-        cap_usd=0.10,
-        default_reservation_usd=0.01,
-        spend_ledger=ledger,
-    )
-    backend2 = FakeBackend(tmp_path, gate2)
-    gate2.estimate_cost = lambda *_: 0.01
-    runner2 = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate2,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend2,
-    )
-
-    plan2 = runner2.plan(cells)
-    assert plan2.cached == 3
-    assert plan2.uncached == 3
-
-    statuses: list[CellBatchStatus] = []
-    batch2 = runner2.run_batch(cells, concurrency=2, on_status=statuses.append)
-    assert len(batch2) == 6
-    # Only 3 new calls were dispatched to the backend!
-    assert len(backend2.calls) == 3
-
-    cache_hits = sum(1 for r in batch2 if r.get("cache_hit") is True)
-    assert cache_hits == 3
 
 
 # ---------------------------------------------------------------------------
@@ -668,71 +603,6 @@ def test_b3_non_completed_statuses_counted_in_totals(tmp_path: Path) -> None:
     assert gate.settled_usd >= prev_settled
 
 
-def test_b4_under_reservation_and_cap_enforcement(tmp_path: Path) -> None:
-    """B4: Cap is enforced even when reservation < actual cost; overrun <= 1 in-flight cell."""
-    pkg = _make_dummy_package(tmp_path / "pkg")
-    results_dir = tmp_path / "results"
-    ledger = tmp_path / "cap-ledger.json"
-
-    gate = ReserveSettleSpendGate(
-        approval="under-reserve-app",
-        cap_usd=0.10,
-        default_reservation_usd=0.02,
-        spend_ledger=ledger,
-    )
-    # Measured cost is 0.04 (larger than reservation 0.02)
-    gate.estimate_cost = lambda *_: 0.04
-    backend = FakeBackend(tmp_path, gate)
-
-    runner = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend,
-    )
-
-    cells = [CellSpec(package=pkg, variant=f"v{i}", submission=f"s{i}") for i in range(12)]
-    results = runner.run_batch(cells, concurrency=4)
-
-    assert len(results) == 12
-    # Overrun cannot exceed cap plus one in-flight cell
-    assert gate.settled_usd <= 0.10 + 0.04
-    # Status counters should reflect cap_stopped
-    cap_stopped_count = sum(
-        1 for r in results if r.get("status") in {"cap_stopped", "cap_reached"}
-    )
-    assert cap_stopped_count > 0
-
-
-def test_b4_200_cheap_cells_flow_under_cap(tmp_path: Path) -> None:
-    """B4: 200 cheap cells ($0.002 each) under $1.50 cap are NOT stopped by reservations."""
-    pkg = _make_dummy_package(tmp_path / "pkg")
-    results_dir = tmp_path / "results"
-    ledger = tmp_path / "cheap-ledger.json"
-
-    gate = ReserveSettleSpendGate(
-        approval="cheap-app",
-        cap_usd=1.50,
-        default_reservation_usd=0.05,  # Large reservation released at settle time
-        spend_ledger=ledger,
-    )
-    # Actual cost is only $0.002
-    gate.estimate_cost = lambda *_: 0.002
-    backend = FakeBackend(tmp_path, gate)
-
-    runner = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend,
-    )
-
-    cells = [CellSpec(package=pkg, variant=f"c{i}", submission=f"echo {i}") for i in range(200)]
-    results = runner.run_batch(cells, concurrency=4)
-
-    assert len(results) == 200
-    assert all(r.get("status") == "executed" for r in results)
-    assert gate.settled_usd == pytest.approx(200 * 0.002, abs=1e-4)
 
 
 def test_s1_stale_reconcile_preserves_spend(tmp_path: Path) -> None:
@@ -774,88 +644,6 @@ def test_s1_stale_reconcile_preserves_spend(tmp_path: Path) -> None:
     assert rewritten["settled_usd"] == pytest.approx(0.05)
 
 
-def test_s2_batch_deduplication(tmp_path: Path) -> None:
-    """S2: Duplicate cells within a single batch are executed only once."""
-    pkg = _make_dummy_package(tmp_path / "pkg")
-    results_dir = tmp_path / "results"
-
-    gate = ReserveSettleSpendGate(approval="dedup-app", cap_usd=1.0)
-    gate.estimate_cost = lambda *_: 0.01
-    backend = FakeBackend(tmp_path, gate)
-
-    runner = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend,
-    )
-
-    cell = CellSpec(package=pkg, variant="same", submission="echo identical")
-    results = runner.run_batch([cell, cell, cell], concurrency=3)
-
-    assert len(results) == 3
-    # Only 1 backend call made despite 3 inputs
-    assert len(backend.calls) == 1
-    assert all(r.get("status") == "executed" for r in results)
-
-
-def test_s3_plan_uses_exact_reservation_formula(tmp_path: Path) -> None:
-    """S3: plan() computes estimated spend using estimate_reservation()."""
-    pkg = _make_dummy_package(tmp_path / "pkg", cpus=4, memory_mb=16384)
-    gate = ReserveSettleSpendGate(
-        approval="plan-app",
-        cap_usd=1.0,
-        default_reservation_usd=0.01,
-    )
-    runner = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=tmp_path / "results",
-    )
-
-    cells = [CellSpec(package=pkg, variant=f"v{i}", submission="s") for i in range(5)]
-    plan = runner.plan(cells)
-
-    expected_per_cell = gate.estimate_reservation(
-        package=pkg, timeout_seconds=cells[0].timeout_seconds
-    )
-    assert plan.estimated_spend_usd == pytest.approx(5 * expected_per_cell, abs=1e-4)
-
-
-def test_s4_run_batch_ordering_and_error_reporting(tmp_path: Path) -> None:
-    """S4: run_batch preserves exact input order and includes error information."""
-    pkg = _make_dummy_package(tmp_path / "pkg")
-    results_dir = tmp_path / "results"
-
-    gate = ReserveSettleSpendGate(approval="order-app", cap_usd=1.0)
-    gate.estimate_cost = lambda *_: 0.01
-
-    class ExplodingBackend(FakeBackend):
-        def run_container_trial(self, package: Path, **kwargs: Any) -> FakeObservation:
-            if "fail" in str(kwargs.get("script", "")):
-                raise RuntimeError("Explosion on cell 1")
-            return super().run_container_trial(package, **kwargs)
-
-    backend = ExplodingBackend(tmp_path, gate)
-    runner = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend,
-    )
-
-    cells = [
-        CellSpec(package=pkg, variant="c0", submission="echo ok0"),
-        CellSpec(package=pkg, variant="c1", submission="echo fail"),
-        CellSpec(package=pkg, variant="c2", submission="echo ok2"),
-    ]
-    results = runner.run_batch(cells, concurrency=1)
-
-    assert len(results) == 3
-    assert results[0]["status"] == "executed"
-    assert results[1]["status"] == "failed"
-    assert "Explosion on cell 1" in results[1]["error"]
-    assert results[2]["status"] == "executed"
 
 
 def test_s5_failed_verdict_not_cached_and_oserror_narrowing(tmp_path: Path) -> None:
@@ -913,95 +701,6 @@ def test_s6_charge_fallback_micro_charge(tmp_path: Path) -> None:
     assert ledger_data["settled_usd"] == pytest.approx(0.005)
 
 
-# ---------------------------------------------------------------------------
-# 7. FIX-S1-1738-R2 Regression Tests
-# ---------------------------------------------------------------------------
-
-
-def test_b_new_1_200_cheap_cells_unpatched_estimate_cost(tmp_path: Path) -> None:
-    """B-NEW-1 (d): 200 cheap cells with unpatched estimate_cost (real task.toml) run under $1.50 cap."""
-    pkg = _make_dummy_package(tmp_path / "pkg", cpus=2, memory_mb=8192)
-    results_dir = tmp_path / "results"
-    ledger = tmp_path / "b_new_1_ledger.json"
-
-    gate = ReserveSettleSpendGate(
-        approval="b-new-1-app",
-        cap_usd=1.50,
-        spend_ledger=ledger,
-    )
-    # estimate_cost is UNPATCHED: gate computes real rate from task.toml
-    assert gate.estimate_reservation(pkg) == pytest.approx(0.03966, abs=1e-3)
-
-    class FastCheapBackend(FakeBackend):
-        def run_container_trial(self, package: Path, **kwargs: Any) -> FakeObservation:
-            self.calls.append({"package": package})
-            self.spend_gate.charge()
-            return FakeObservation(status="executed", reason=None, facts={"reward": 1.0})
-
-    # Simulate measured cost of $0.002 per cell during trial run by intercepting wall seconds
-    # while leaving reservation sizing unpatched (which uses integer projected cell seconds)
-    real_estimate_cost = gate.estimate_cost
-
-    def mock_estimate_cost(package: Path | str, wall_seconds: float) -> float:
-        if isinstance(wall_seconds, int):
-            return real_estimate_cost(package, wall_seconds)
-        return 0.002
-
-    gate.estimate_cost = mock_estimate_cost  # type: ignore[assignment]
-
-    backend = FastCheapBackend(tmp_path, gate)
-    runner = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend,
-    )
-
-    cells = [CellSpec(package=pkg, variant=f"c{i}", submission=f"echo {i}") for i in range(200)]
-    results = runner.run_batch(cells, concurrency=10)
-
-    assert len(results) == 200
-    assert all(r["status"] == "executed" for r in results)
-    assert gate.settled_usd == pytest.approx(200 * 0.002, abs=1e-4)
-    assert gate.reserved_usd == 0.0
-
-
-def test_b_new_1_measured_exceeds_reservation_exact_bound(tmp_path: Path) -> None:
-    """B-NEW-1 (d): Measured cost exceeds reservation; total settled stays within exact bound."""
-    pkg = _make_dummy_package(tmp_path / "pkg")
-    results_dir = tmp_path / "results_exceed"
-    ledger = tmp_path / "exceed-ledger.json"
-
-    cap = 0.10
-    reservation_usd = 0.003
-    actual_usd = 0.04
-    concurrency = 8
-    n_cells = 12
-
-    gate = ReserveSettleSpendGate(
-        approval="exceed-app",
-        cap_usd=cap,
-        default_reservation_usd=reservation_usd,
-        spend_ledger=ledger,
-    )
-    gate.estimate_cost = lambda *_: actual_usd  # type: ignore[assignment]
-    gate.estimate_reservation = lambda *_, **__: reservation_usd  # type: ignore[assignment]
-
-    backend = FakeBackend(tmp_path, gate)
-    runner = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend,
-    )
-
-    cells = [CellSpec(package=pkg, variant=f"v{i}", submission=f"s{i}", timeout_seconds=10) for i in range(n_cells)]
-    results = runner.run_batch(cells, concurrency=concurrency)
-
-    # Exact bound: cap + in_flight_cells * (kill_timeout_cost - reservation)
-    max_overrun_bound = cap + concurrency * (actual_usd - reservation_usd)
-    assert gate.settled_usd <= max_overrun_bound + 1e-9
-    assert any(r["status"] in {"cap_stopped", "cap_reached"} for r in results)
 
 
 def test_should_1_retry_overrun_cap_check(tmp_path: Path) -> None:

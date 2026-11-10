@@ -1320,15 +1320,27 @@ A missing or repeated fragment anchor raises `ProgressError` and exits 1 without
 page writes. A receipt that does not list every committed coverage cell and
 graded-subset entry also raises `ProgressError` without page writes.
 
-For each slice PR:
+The ranked ladder is closed at 100/100 coverage: every rank has a committed
+coverage cell, and the 2026-11-10 strict check matched 99 cells and all 13
+recorded subset trials. A later change therefore does not add a rank. It
+re-runs one rank's cell, or it adds a graded-subset cell for a refused row.
+What the ladder still owes is the 174 pending control cells for 90 tasks
+(10.36 projected serial hours) in
+[pending-controls.json](pending-controls.json), and the ungraded
+`tamper_source_*` attacks on the 80 refusal rows; see "Pending v6 control cells
+by ranking phase" and [ladder-evidence-receipt.json](ladder-evidence-receipt.json).
 
-1. Add the cell JSON and any required manifest or ranking changes to the PR.
+For a re-run or a new subset cell:
+
+1. Add the replacement coverage cell JSON, or the subset entry to
+   `ladder-graded-subset.json`, with any required manifest or ranking change.
 2. Run the command without options to regenerate `ladder-progress.csv`.
-3. Run `--render-slice` with the cell filename. Paste its table into the slice
-   section.
-4. On the Mac that holds the results root, run the evidence check with
-   `--write-receipt`. It writes `ladder-evidence-receipt.json` with each cell
-   and subset status and the totals:
+3. For a coverage cell, run `--render-slice` with the cell filename and replace
+   that rank's row in its section. A subset cell has no rank row: record it in
+   the subset section and its JSON.
+4. If a coverage cell changed, run the evidence check with `--write-receipt` on
+   the Mac that holds the results root. It writes `ladder-evidence-receipt.json`
+   with each cell and subset status and the totals:
 
    ```bash
    uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evidence --strict --write-receipt
@@ -1339,18 +1351,22 @@ For each slice PR:
    task IDs, Python's refusal and graded counts, Python's remaining-hours
    projection, and the evidence-check sentences and totals from the receipt.
 6. Review and edit task-specific descriptions and evidence prose affected by
-   the new cells manually.
-7. Run the drift check and the explicit experiment test file:
+   the new cell manually. Do not edit a generated anchor sentence.
+7. Run `--sync-docs`, then prove that the generated pages did not drift, and run
+   the drift check and the explicit experiment test file:
 
    ```bash
+   uv run python research/experiments/mimo-clean-v6/ladder_progress.py --sync-docs
+   git diff --exit-code README.md docs/mimo/README.md research/experiments/mimo-clean-v6/README.md
    uv run python research/experiments/mimo-clean-v6/ladder_progress.py --check
    uv run pytest research/experiments/mimo-clean-v6/test_ladder_progress.py
    ```
 
 Include the regenerated CSV, the receipt, and page changes with the cell data in
-the slice PR. `--sync-docs`, the drift check, and the tests read only committed
-files, so they need no Docker or host results root. Only step 4 needs the
-retained host results.
+the PR. `--sync-docs`, the drift check, and the tests read only committed files,
+so they need no Docker or host results root. Only step 4 needs the retained host
+results. `--sync-docs` owns the generated fragments on the three pages; the
+`git diff --exit-code` line proves that no anchor drifted.
 
 Two trailing columns join the graded-subset cells (schema
 `evallab.mimo-v6-ladder-subset-cells/v1`; coverage readers ignore that schema

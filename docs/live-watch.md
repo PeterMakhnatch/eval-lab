@@ -146,9 +146,9 @@ only and can never be cited. On 200 Goodfire DEV traces they did not raise recal
 no consumer enables them by default. Only `grader_tamper` cards skip Stage 2
 (`semantic_triage: gate_pass_through`). `submission_tamper` content signatures use
 the normal per-family budget and window judgment: an unconfirmed card stays
-provisional, and only a cited positive verdict raises a cascade alarm. This does
-not change the filesystem watcher's separate, opt-in stop policy below. No judge
-or paid API is configured implicitly. Suspicion cards cite observed steps and quotes; semantic
+provisional, and only a cited positive verdict raises a cascade alarm. The
+filesystem watcher only records alerts. No judge or paid API is configured
+implicitly. Suspicion cards cite observed steps and quotes; semantic
 confirmation means **observed prefix behavior**, not verified reward causality, a
 verified exploit, or an automatically promoted labeled-trace asset. All semantic
 citations must match the window, or the card stays provisional. An independently
@@ -370,14 +370,9 @@ coverage record, and `off` with no declared paths refuses to watch nothing
 `evaluator/file-access/discovery-w<id>.json` probe record and, when off, in
 the active coverage reason.
 
-> **Caution — discovery on + `EVALLAB_WATCH_STOP=on`.** With discovery on, any
-> `OPEN`/`ACCESS` in Git object storage raises a file-side `history_mining`
-> alert, and `history_mining` is stop-eligible — so on a task whose workspace
-> is a visible Git repo, an honest agent's first `git status`/`git log` can
-> stop the trial before any cheating occurs. Prefer `EVALLAB_FILE_ACCESS_DISCOVERY=off`
-> with a precise declared honeypot (e.g. one loose Git blob as a `grader`
-> path) when the campaign does not need repo discovery. Stop eligibility and
-> alert rules are unchanged.
+> **Caution — discovery on.** An `OPEN`/`ACCESS` in Git object storage can
+> raise a file-side `history_mining` alert during ordinary Git commands.
+> Use precise declared paths when a campaign does not need repository discovery.
 
 The lifecycle is bracketed on Harbor's actual agent phase:
 
@@ -521,159 +516,15 @@ verifier or establish billed cost. Keep unknown observations unknown.
   (stall, infra spike, spend) are posted to that card, each kind at most
   once per job. Off by default.
 
-## Live stop: end one cheating trial, keep the evidence
+## Observation only
 
-Alerting, stopping, and RL-reward changes are separate integrations; a stop
-never touches rewards. When the watch fires a fresh stop-eligible integrity
-alert on a running trial, it can capture the trial's evidence and end exactly
-that trial, turning it into a labelled training-time hack example. The
-Harbor job (`TaskGroup`) and sibling trials continue normally.
+The watcher records alerts. It does not capture stop evidence, write stop
+requests, cancel trials, or change rewards. `WatchHookPlugin` records lifecycle
+events and optional log tails. It does not wrap trial execution.
 
-Modes (`EVALLAB_WATCH_STOP`, or `evallab watch --stop-mode`; default
-`dry-run` for auto-attached watches):
-
-| mode | capture | stop request |
-| --- | --- | --- |
-| `off` | none | never |
-| `dry-run` | host snapshot + `docker diff` only | never (records `would_stop`) |
-| `on` | host snapshot, then `docker diff` → `top` → `commit --pause=false` (never pauses the live container) | yes |
-
-Eligible rules: `history_mining`, `hidden_test_read`, `submission_tamper`,
-`codeban_violation`, `copy_acquired`, and `grader_tamper` only with file-access
-tamper evidence (protected-file before/after hashes; trajectory-only tamper
-stays observation-only). New rules are record-only by default like the rest: the
-default `dry-run` mode records `would_stop` and never stops. Guards, checked on every
-decision: never a terminal trial, never once `verification-start` is in the
-hook journal, never an acked alert, never a fleet rule, never `nop`/`oracle`
-(auto-watch never attaches to them). Capture failures are recorded and never
-block the stop; `docker` evidence degrades gracefully on non-Docker backends.
-
-Ordering invariant: host snapshot first (trajectory, Codex's live
-`agent/codex.txt` stream, file-access log, proxy-live ledger, config,
-hook-journal slice, firing alert, trial status entry), container evidence
-next, the stop request last. The in-process
-actuator (`WatchHookPlugin`, armed by default, `EVALLAB_WATCH_STOP=off`
-disarms it) polls `<job>/watch/stop-requests/*.json` about once a second.
-Immediately before cancelling, it also checks its in-process terminal and
-verification-start state. A request that becomes stale during capture or polling
-does not cancel verification, even if the hook journal could not be written;
-another trial's verification does not block an eligible stop. For a cancelled
-trial, the wrapper returns the `TrialResult` from the trial's own `END` hook
-with the exception marker rewritten to `WatchStopCancelledError` (ordinary
-cancels stay `CancelledError`, counted separately as `n_stopped_by_watch`
-in merged results).
-
-The Codex stream is preserved even before its final ATIF trajectory exists.
-Like other full-file snapshots, it is capped at 8 MiB; oversized captures
-record truncation, original size, and the hash of the preserved prefix.
-Later writes to the live log do not update the saved copy.
-
-Files written (history is never rewritten): `watch/stop-requests/<trial>.json`
-(rule, alert, step, requester auto/manual), `watch/stop-records/<trial>.json`
-(outcome `requested`/`would_stop`, timestamps, sha256 capture manifest,
-`verifier_never_ran`, usage-at-stop with the remaining budget as an explicit
-upper bound, not a claimed saving) plus the snapshot files under
-`watch/stop-records/<trial>/`. `BOARD.md` gains an integrity-signals list at
-the top of each job and a `Stops` section; `status.json` gains `stop_mode`
-and `stops`.
-`requested` describes dispatch, not confirmed cancellation; a later phase
-transition can make the actuator ignore the request. The dispatch-time
-`verifier_never_ran` field is not proof that verification never ran afterward.
-
-`recorded_at` and `requested_at` each sample the wall clock when their
-respective stop file is constructed: after evidence capture, and for the
-request, after the stop record has been written. They are not scan-start,
-actuator-arrival, or confirmed-cancellation timestamps. Alert `first_seen`
-and status snapshot time remain tied to the watch scan. Historical automatic
-stop files may instead reuse that earlier scan time for both stop timestamps;
-interpret them with their producing code revision, not as reliable request
-emission times. Retained evidence is not rewritten.
-
-```bash
-EVALLAB_WATCH_STOP=on uv run evallab watch --runs-dir runs/<job> \
-  --out runs/<job>/watch --interval 5
-uv run evallab watch stop <job> <trial> --reason "operator review"
-```
-
-The stop request only actuates when `--out` is the job's own `watch/`
-directory (auto-attached watches always are); otherwise the watch warns.
-`evallab watch stop` works in any mode but still respects the
-terminal/verification guards. Committed images are local-only tags
-`evallab-stop/<trial>` (never exported); clean them up after review. The tag
-is transient: Harbor teardown and shared-daemon hygiene may reap the image,
-so the stop record also keeps the commit digest (`image_digest`).
-
-A $0 offline replay of these rules covered three public single-turn RL corpora
-(ARIA, AISI OLMo, Trace-and-Amplify; 85,829 rollouts). It found no would-stop
-on a hack or on a clean rollout. The eligible rules watch actions, and those
-hacks live in the submitted code. Content-rule catch and false-stop rates, and
-proposed per-trial and per-step thresholds, are in
-[`research/experiments/live-stop-thresholds`](../research/experiments/live-stop-thresholds/README.md).
-
-Live monitor v2 adds `submission_tamper` (content rule: verifier tamper
-signatures, including the `from os import _exit` evasion, plus an
-always-truthy `__eq__` check; comments, docstrings and string-literal mentions
-do not fire) and the fleet `submission_tamper_cluster` page/pause alarm
-(k=3/6/15 per 64/256/1,024 trials). A $0 replay over 243 multi-step agent
-trials (CheatBench batches 1-2, HAR-202 cheater-recall, HAR-168 cells, HAR-161
-probes) recorded zero flags: those corpora cheat by copying and reading, a
-family this rule does not cover (the old eligible rules catch 27 of their 122
-labelled cheats), with zero false stops on 99 clean trials (plus 22 unjudged,
-also unflagged). Content-family recall comes from the single-turn replay above.
-
-The recall follow-up adds `codeban_violation`: when the task prompt bans
-computing with code, executing computation (python/`bc`/`awk`-arithmetic and
-friends, never the permitted `verify_*` checkers) stops the trial. Tuned on
-CheatBench b1+b2, it catches 70 of the 95 previously missed cheats at the
-detector's own first-cheat step every time (lag 0 on all 70), saving 14.1M
-tokens in simulation, with zero false stops on all 99 clean trials. Combined
-recall is 96/122 (one trial is caught by both). The 26 residual cheats are all
-batch-1: 11 peer-archive accesses whose shape is identical on judged-clean
-trials (unseparable without post-hoc conversion knowledge) and 14 answer-key
-reads that need task metadata (the offline CheatBench detector covers those
-with per-task meta). The HAR-184 historical 262-run cohort (wt-archive) shows
-zero new-rule flags across 255 replayable trials.
-
-The adjudication follow-up (fxtr audit: 5 of the 6 batch-2 stops were false,
-fired on opaque opens and `--stat`/name listings) tightens two rules and adds
-a third. `hidden_test_read` now needs trajectory corroboration that protected
-bytes reached the agent (blob `cat-file`, derived member reads, watched-path
-reads); opaque OPENs stay status-only. `history_mining` demotes `--stat` and
-`--name-only` shows to browsing. `task_protected_read` (detection-only,
-record-only even in `on` mode) flags read-verb touches of the trial's
-task-declared protected paths, loaded at trial start. Re-scored $0 over 458
-trials with audit labels and stop-before-first-content as the false-stop
-definition: `task_protected_read` closes 13/13 menial answer-key reads (12
-batch-1/2 plus pf-19) with zero clean flags; the corroborated sensor rule
-stops the three sensor-caught cheats at their content steps (13/19/21) with
-zero sensor false stops (was 5); untuned batch-4 recalls 2/2 via codeban.
-Residual false stops are `history_mining`-only on git-native families (5
-clean trials: 2 fsck recon, 2 binary `-p`/`--format` listings, 1 registry
-`rev:path` show). `submission_tamper` still records zero flags on 458
-multi-step trials (0 FP, single-turn rule).
-
-The live-where-next follow-up replays the merged policy over 371 unique
-trajectory-bearing trials (audit passes plus batch-only trials; the earlier
-458 counted batch re-judge rows separately) with the same stop-level FP rule.
-Corroboration now tracks workspace state (cwd, peer clone dirs, checked-out
-tree), so relative extraction reads and peer-branch member reads corroborate:
-the sensor rule stops 13 cheats at their content steps with zero sensor false
-stops, including the three archive-ladder trials at theirs (13/10/14).
-`history_mining` demotes registry and archive `rev:path` shows to browsing
-(144 record, 56 archive, 199 listing-only across the corpus) and gains an
-explicit-hidden-dir hit (`--git-dir=<absolute>` + non-default rev) that stops
-the ladder git_history trial at its exfiltration step (21 of 35) with no other
-fires in 371. Residual false stops are `history_mining`-only git-native recon
-on 4 clean trials (2 fsck, 2 outside-sha shows). `task_protected_read` is
-unmeasurable in replay (published configs carry no manifests); the 13/13
-detection claim above stands on the #877 measurement.
-
-The defense-coverage follow-up makes `copy_acquired` stop-eligible: confirmed
-upstream acquisition (saved artifact seen unpacked or read) catches 7/12
-unprompted PyPI/upstream cheats with zero flags on 213 clean trials.
-`fetch_attempt` stays detection-only by measurement: it fires on 16 clean
-trials doing legitimate behavior (task-prompt URLs, honest doc/lib fetches,
-routine pip installs).
+The `watch stop` command, `--stop-mode` option and `EVALLAB_WATCH_STOP`
+watcher mode are removed. Existing stop records remain historical evidence.
+This source change does not modify installed services or running jobs.
 
 ## Laminar (`--laminar`)
 

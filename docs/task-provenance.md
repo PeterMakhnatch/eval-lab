@@ -8,8 +8,6 @@ audience:
 
 # Task Provenance
 
-`src/evallab/provenance.py` records the corpus origin of every task so that downstream analysis can distinguish evidence types.
-
 ## Taxonomy
 
 - `harbor-native`: task shipped by Harbor. `family` names the benchmark (`terminal-bench-3` for the TB3 corpus at the external root).
@@ -35,12 +33,4 @@ Matches preflight style: reports `UNKNOWN [unavailable]` with reason instead of 
 ## Downstream use
 
 When comparing results, filter or stratify by `origin` and `family`. A `harbor-native/terminal-bench-3` trial and a `local-lab` trial are not interchangeable evidence; the field makes the distinction queryable and auditable.
-
-
-`report` output begins with a deterministic table of every configured corpus root (tb3_root, local-lab, proposed) and its status (found with task_count or unavailable with path and reason), followed by the task table. Output is byte-stable across runs with identical repo state.
-
-```
-python -m evallab.provenance classify <task_ref>
-python -m evallab.provenance report [--tb3-root PATH]
-```
 

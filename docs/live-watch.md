@@ -1054,21 +1054,6 @@ same opt-in settings as `task_quality_reader`, `task_quality_audit_retriever`,
 and `task_quality_audit_source_digest`; constructing a runtime never enables
 model calls implicitly.
 
-For paired defensive retrieval studies,
-`evallab.production.tq_fixture.build_task_quality_fixture` publishes a **new**
-SQLite fixture and returns per-row source/hash provenance. Supply a pinned
-snapshot hash, the canonical `CorpusRegistry`, explicit task IDs and a
-`FixtureIssue` loader. Every identity must clear DEV admission, permanent seals
-and TEST assignments in **all** keys before the loader or content projection
-runs. The existing read-only actor projector handles relational copying;
-explicit legacy support defaults only missing trust fields to provisional/empty,
-never changes the source schema, and rejects other drift. The fixture replaces
-inherited issues with the supplied source labels and reduces traces to one
-bounded failed-run diagnostic per task, without scripts or raw actions.
-Before publication a second fresh canonical projection removes excluded bytes
-from SQLite free pages and FTS segments as well as from live rows.
-
-The fixture does not promote source status/trust or invent missing repairs.
 Confirmed issues can carry a source-labelled explanation and genuine retained
 original-to-repaired grader diffs in `metadata_json.task_quality_evidence`.
 Retrieval verifies the full diff's SHA-256 before showing at most 2,000 characters,

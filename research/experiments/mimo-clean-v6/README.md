@@ -1343,9 +1343,11 @@ For a re-run or a new subset cell:
 3. For a coverage cell, run `--render-slice` with the cell filename and replace
    that rank's row in its section. A subset cell has no rank row: record it in
    the subset section and its JSON.
-4. If a coverage cell changed, run the evidence check with `--write-receipt` on
-   the Mac that holds the results root. It writes `ladder-evidence-receipt.json`
-   with each cell and subset status and the totals:
+4. If a coverage cell changed or a subset entry changed, run the evidence check
+   with `--write-receipt` on the Mac that holds the results root. It writes
+   `ladder-evidence-receipt.json` with each cell and subset status and the
+   totals. The receipt must list the new cell or subset entry, because
+   `--sync-docs` rejects a receipt that omits one:
 
    ```bash
    uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evidence --strict --write-receipt

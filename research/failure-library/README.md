@@ -74,7 +74,7 @@ item the lab holds, inside and outside this library: Failure Library findings
 and runs, cloud trace store runs and `task_issues`, answer keys, grader repairs,
 staged cross-test sets, seeker cells and Run Health findings. One item is one
 labelled subject (run, task or repair pair) from one source, with its kind,
-polarity (real negatives are items; unlabelled subjects are not), label type,
+polarity (positive, negative, or an explicitly unjudged/attempted gold state), label type,
 granularity, declared split and the strict split after
 `CorpusRegistry` seals (`research/answer-keys/splits/assignments.csv`), licence,
 actor-transcript availability and the `evallab trace run --runs` selector.
@@ -93,6 +93,34 @@ uv run evallab failures bank build [--source SLUG ...]
 uv run evallab failures bank stats
 uv run evallab failures bank verify
 ```
+
+The action-localized DEV seed uses the same `IssueItem` rows and `IssueBank` store.
+It contains 156 binary runs: 54 executed positives and 102 reviewed controls.
+The full source panels also retain 23 attempted and 144 unjudged runs.
+These 167 null-state rows have null polarity. They never enter the control denominator.
+
+```sh
+uv run evallab failures bank build --source goodfire-action-v1 --source impossible-task-final
+uv run evallab failures bank gold-counts --json
+```
+
+`evallab.gold.load_rows(repo_root, state_root=None)` returns these source panels.
+`evallab.gold.load_trajectory(row, repo_root=repo_root)` returns the canonical `TrajectoryIR`.
+The loader checks the current split and trajectory hash before marking `StepRecord.is_cheating`.
+`TrajectoryIR.source_event_map` and `IssueItem.step_locators` retain typed `SourceEventRef` records.
+Step ID 0 is valid. A locator uses an ID, not a list position.
+
+Goodfire gold views retain all source branches and their parent links.
+Tool-result citations map to their ancestor call, never to a sibling branch.
+The ordinary line view keeps its existing final-path projection.
+Impossible-task views bind original session file/line citations to the prepared action IDs.
+Submitted-diff citations remain supporting artifacts, not extra cheating actions.
+The loader stores derived actor views under `<state>/bank/trajectories/`, outside Git.
+
+Each row keeps the fine source mechanism, label provenance, exposure, task/grader references,
+and availability. Unknown availability stays null. Retained input artifacts do not prove a runnable environment.
+Both seed panels are exposed DEV data. The impossible-task variant confound and invalid campaign status remain explicit.
+These panels do not establish blind detector accuracy.
 
 ### Detector coverage and catch/miss matrix
 

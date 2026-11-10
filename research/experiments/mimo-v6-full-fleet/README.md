@@ -219,6 +219,34 @@ not promoted merely because a reference/nop pair passes. Modal execution stays
 inside this mission's separate **$4 total** cap; cost projections/reservations
 are not provider billing receipts.
 
+## Ranked ladder cells against fleet digests
+
+The cheat ladder was ranked on the earlier clean-v6 packages, then the fleet was
+rebuilt with `separate-verifier@10`. A ranked cell therefore establishes a
+verdict only for the bytes it ran. `fleet-ladder-join.csv` joins the 100 ranked
+cells in `../mimo-clean-v6/ladder-progress.csv` onto this census by task, and
+compares the cell's own `final_digest` with the fleet package digest. It is
+generated, never hand-edited:
+
+```bash
+uv run python research/experiments/mimo-v6-full-fleet/ladder_join.py --check
+```
+
+Two ranked tasks, `000495` and `001694`, are not fleet members, so they have no
+row. `digest_match=yes` means the cell ran the fleet digest, `no` means it ran
+different bytes, and `no-cell` means no ranked cell exists for that task.
+
+| Bucket | Fleet tasks | Have a ranked cell | Cell ran the fleet digest |
+|---|---:|---:|---:|
+| `v6_unverified` | 562 | 95 | 14 |
+| `v6_verified` | 5 | 3 | 1 |
+| All fleet tasks | 567 | 98 | 15 |
+
+These are counts of measurements, not fleet acceptance: a `clean` cell at the
+fleet digest is evidence about these bytes, and a cell at another digest
+measures other bytes. The join decides how much of the fleet the ladder actually
+observed on its release packages.
+
 ## Capped native controls
 
 `run_controls.py` uses the first-party `Executor.execute_direct` / `RunRequest`

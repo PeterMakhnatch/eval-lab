@@ -1460,6 +1460,40 @@ on local Docker costs about **0.00 h**: since HAR-357 every rank has a cell.
 Run `--sync-docs` whenever a new ladder cell lands. Review evidence totals and
 task-specific prose manually.
 
+## Pending v6 control cells by ranking phase
+
+`ladder_progress.py --pending-controls` (HAR-367) joins the
+`remaining_original_controls` list of
+[pending-controls.json](pending-controls.json) with the v5 ranking, so the
+controls still owed are visible per ranking phase instead of as one flat
+inventory. A phase row counts only the tasks that still owe control cells.
+Cells of a task the inventory marks `runnable` fill the `runnable cells`
+column: the two held tasks `000803` and `000838` contribute the four cells
+that are not runnable. Each row is generated, not hand-computed:
+
+```bash
+uv run python research/experiments/mimo-clean-v6/ladder_progress.py --pending-controls
+```
+
+| phase | tasks | oracle cells | nop cells | runnable cells | projected serial hours |
+|---|---:|---:|---:|---:|---:|
+| P0-proven-leak-prior | 3 | 3 | 3 | 6 | 0.35 |
+| P1-proven-defect-prior | 3 | 3 | 3 | 2 | 0.35 |
+| P2-frozen-selection-controls | 84 | 82 | 84 | 166 | 9.66 |
+| unranked | 0 | 0 | 0 | 0 | 0.00 |
+| total | 90 | 88 | 90 | 174 | 10.36 |
+
+`projected serial hours` uses the measured repeat-3 cell means quoted under
+"Actual batch wall and local-versus-Modal projection" above: **4.19 min for an
+oracle x3 cell** and **2.81 min for a nop x3 cell**. One pending agent cell is
+already one repeat-3 control, so its mean covers that cell's three runs and
+the projection is `cells x mean`, not three times that. The hours count every
+pending cell, including the four held ones. Twelve of the ninety tasks are not
+Python; their cells are projected with the Python means, so those rows are an
+estimate rather than a measurement of those languages. The mode reads only the
+ranking and the inventory: it launches no Docker trial and reads no results
+root. The offline test suite compares this section with the renderer.
+
 ## Graded subset cells for three tamper-refused rows (HAR-284, HAR-293, 2026-11-03)
 
 [ladder-graded-subset.json](ladder-graded-subset.json) records ladder 1.4.0

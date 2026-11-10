@@ -97,9 +97,10 @@ class AntigravityCliCapture(AntigravityCli):
     def _stream_sanitizer() -> str:
         return r"""import json,re,sys
 k=re.compile(r'(token|secret|password|credential|authorization|api[_-]?key)',re.I)
+n=re.compile(r'tokens$',re.I)
 b=re.compile(r'(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+')
 def clean(v,key=None):
- if key is not None and k.search(key): return '<redacted>'
+ if key is not None and k.search(key) and not (type(v) is int and n.search(key)): return '<redacted>'
  if isinstance(v,dict): return {str(a):clean(c,str(a)) for a,c in v.items()}
  if isinstance(v,list): return [clean(a) for a in v]
  if isinstance(v,str): return b.sub('Bearer <redacted>',v)

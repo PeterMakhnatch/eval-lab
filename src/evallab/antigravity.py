@@ -21,11 +21,18 @@ UNAVAILABLE_PRINT_MODE_REASON = (
 
 _SECRET_KEY_RE = re.compile(r"(?:token|secret|password|credential|authorization|api[_-]?key)", re.I)
 _BEARER_RE = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+")
+# Usage records name their counts ``input_tokens`` etc.; an integer is a count,
+# never a credential, so it survives the secret-key match.
+_TOKEN_COUNT_KEY_RE = re.compile(r"tokens$", re.I)
 
 
 def _redact(value: Any, *, key: str | None = None) -> Any:
     """Copy JSON data while removing credential-shaped values."""
-    if key is not None and _SECRET_KEY_RE.search(key):
+    if (
+        key is not None
+        and _SECRET_KEY_RE.search(key)
+        and not (type(value) is int and _TOKEN_COUNT_KEY_RE.search(key))
+    ):
         return "<redacted>"
     if isinstance(value, dict):
         return {str(k): _redact(v, key=str(k)) for k, v in value.items()}

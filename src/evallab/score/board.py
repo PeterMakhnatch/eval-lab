@@ -146,8 +146,11 @@ def render(board: dict) -> str:
             loc = row["localization"]
             loc_text = show_rate(loc["operating_points"]["0.05"]["first_citation"]) if loc["status"] == "available" else loc["status"]
             recorded = row["cost"]["cost_usd"]
+            if recorded["value"] is None:
+                recorded = row["cost"]["historical_recorded_usd"]
             cost_text = "unknown" if recorded["value"] is None else f"${recorded['value']:.4f} ({recorded['recorded']}/{recorded['eligible']})"
-            lines.append(f"| {row['tool']} | {coverage['eligible']} / {coverage['scored']} / {coverage['missing']} | "
+            name = row["tool"] + (" [VARIANT/MODEL CONFOUND]" if cohort == "B" else "")
+            lines.append(f"| {name} | {coverage['eligible']} / {coverage['scored']} / {coverage['missing']} | "
                 f"{points[0]} | {points[1]} | {number(row['auroc']['value'])} {interval(row['auroc']['ci95'])} | "
                 f"{contrasts[0]} | {contrasts[1]} | {loc_text} | {cost_text} |")
         lines += ["", "### Identical-row length operating points and paired differences", "",

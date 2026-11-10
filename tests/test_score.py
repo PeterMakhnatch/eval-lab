@@ -126,6 +126,9 @@ def test_localization_nearby_actions_do_not_cross_branches():
     point = score(runs, prediction, coordinates, {"0.05": 89}, draws=40, seed=1)["operating_points"]["0.05"]
     assert point["first_citation"]["k"] == 0
     assert point["within_5_actions"]["k"] == 1
+    coordinates["positive"]["branches"] = {0: None, 8: None, 9: None}
+    point = score(runs, prediction, coordinates, {"0.05": 89}, draws=40, seed=1)["operating_points"]["0.05"]
+    assert point["within_5_actions"]["k"] == 0
     missing = score(runs, {}, coordinates, {"0.05": 89}, draws=40, seed=1)
     assert missing["status"] == "missing"
     assert missing["operating_points"]["0.05"]["first_citation"]["k"] is None

@@ -27,6 +27,7 @@ def command(args: argparse.Namespace, repo_root: Path, **_: Any) -> int:
     value["threshold_calibration"] = config["threshold_calibration"]
     value["length_definition"] = config["length_definition"]
     value["exposure"] = config["exposure"]
+    value["first_action_definition"] = config["first_action_definition"]
     value["score_cpu_seconds"] = time.process_time() - started
     value["score_wall_seconds"] = time.monotonic() - wall_started
     args.out.mkdir(parents=True, exist_ok=False)

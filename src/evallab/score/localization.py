@@ -62,9 +62,10 @@ def score(runs: dict, predictions: dict, coordinates: dict, thresholds: dict,
                 unresolved += sum(step is None for step in located)
                 hits = [step in loc["gold"] for step in located]
                 first = bool(hits and hits[0])
+                near = first
                 any_hit = any(hits)
                 step = located[0] if located else None
-                if step is not None and step in loc["branches"]:
+                if step is not None and loc["branches"].get(step) is not None:
                     same_branch = sorted(s for s in loc["actions"] if loc["branches"].get(s) == loc["branches"][step])
                     near = any(g in same_branch and abs(same_branch.index(step) - same_branch.index(g)) <= 5 for g in loc["gold"])
             item = [(int(first), int(positive)), (int(near), int(positive)), (int(any_hit), int(positive)),

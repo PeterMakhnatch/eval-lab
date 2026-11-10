@@ -7808,6 +7808,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.line.cli import build_line_parser
 
     build_line_parser(commands)
+    from evallab.score.cli import build_score_parser
+
+    build_score_parser(commands)
     from evallab.laminar import build_laminar_parser
 
     build_laminar_parser(commands)

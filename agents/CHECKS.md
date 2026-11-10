@@ -179,9 +179,7 @@ superseded PR revisions promptly; `ci.yml` and `typecheck.yml` set
 gate (HAR-232).
 
 Heavy certification suites retain automatic PR path triggers (including workbench
-edits); no weekly schedule is added as implied authorization. Similarly, the
-dose-ladder workflow retains automatic triggers; its dispatch-only reduction is
-superseded.
+edits); no weekly schedule is added as implied authorization.
 
 ## Deterministic-test rule
 

@@ -279,10 +279,7 @@ It profiles ingest, projection, facts, digest render, a 100-spec queue tick,
 and `scripts/fleet-status.sh`. Harbor dispatch is stubbed. Ingest writes only
 to a scratch database named `evallab_speed_prof` (or
 `$EVAL_LAB_PROFILE_DATABASE_URL`). The shared `evallab` catalog is refused.
-`gh` is stubbed so fleet-status does not hit the network. CI runs the same
-command plus `--scratch-dir /dev/shm/evallab-speed` (see the 2026-10-29 note below;
-on Linux pass it locally too) in `.github/workflows/perf.yml` and fails when a median
-exceeds the committed budget by more than `tolerance_pct`.
+`gh` is stubbed so fleet-status does not hit the network.
 
 **One retry before a breach fails the run** (2026-11-01, HAR-247): the budget
 step passes `--reprofile`, so a median over its ceiling re-profiles **only the
@@ -359,9 +356,6 @@ change to catalog round-trips, which is the FORGE open item on
 `queue.py`, not this grant. Re-measure with `scripts/profile/harness.py`
 (the `ingest+projection` row) if the committed corpus grows.
 
-CI ratchet: `scripts/profile/budgets.json` + `.github/workflows/perf.yml`.
-An injected `digest=500` slowdown against a 5 ms budget fails with
-`digest: median 653.170 ms exceeds budget 5.000 ms + 10%`.
 
 ### `projection` and `facts` measured the runner's disk (2026-10-29)
 

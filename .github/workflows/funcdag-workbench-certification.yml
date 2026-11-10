@@ -6,7 +6,6 @@ on:
     paths:
       - "library/tasks/experimental/syn-funcdag-*/**"
       - "src/evallab/task_workbench.py"
-      - "tests/test_synthetic_funcdag.py"
       - "tests/test_task_workbench.py"
       - ".github/workflows/funcdag-workbench-certification.yml"
   workflow_dispatch:

@@ -149,6 +149,43 @@ def test_failed_card_rehome_keeps_original_publication(tmp_path: Path, monkeypat
     assert (old / "result.json").read_bytes() == before
 
 
+@pytest.mark.parametrize("failure", ["copy", "verification", "promotion"])
+@pytest.mark.parametrize("collision", [False, True])
+def test_failed_republish_preserves_publication_and_indexes(
+    tmp_path: Path, monkeypatch, failure: str, collision: bool
+) -> None:
+    job = _job(tmp_path)
+    home = tmp_path / "results"
+    published = Path(publish_job(job, root=home)["published"])
+    before = {p.relative_to(home): p.read_bytes() for p in home.rglob("*") if p.is_file()}
+    if collision:
+        job = _job(tmp_path / ".worktrees" / "other")
+    (job / "result.json").write_text('{"id": "new-result"}', encoding="utf-8")
+    raw = {p.relative_to(job): p.read_bytes() for p in job.rglob("*") if p.is_file()}
+
+    if failure == "promotion":
+        replace = os.replace
+
+        def fail_promotion(source, destination):
+            if Path(source).name == "job":
+                raise OSError("promotion failed")
+            return replace(source, destination)
+
+        monkeypatch.setattr("evallab.results_home.os.replace", fail_promotion)
+    else:
+        def fail_copy(source, destination):
+            Path(destination).write_bytes(b"incomplete")
+            if failure == "copy":
+                raise OSError("copy failed")
+
+        monkeypatch.setattr("evallab.results_home.shutil.copyfile", fail_copy)
+    with pytest.raises(OSError):
+        publish_job(job, root=home)
+    assert {p.relative_to(home): p.read_bytes() for p in home.rglob("*") if p.is_file()} == before
+    assert {p.relative_to(job): p.read_bytes() for p in job.rglob("*") if p.is_file()} == raw
+    assert [p.name for p in published.parent.iterdir()] == [published.name]
+
+
 @pytest.mark.parametrize("card", ["../HAR-126", "HAR-126"])
 def test_explicit_card_cannot_escape_or_override_recorded_identity(
     tmp_path: Path, card: str

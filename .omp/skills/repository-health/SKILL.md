@@ -11,7 +11,7 @@ Use the current task's relevant WORKFLOW, CHECKS, STRUCTURE, and retention contr
 
 - Compare `scripts/premerge.sh`, CHECKS, and current `.github/workflows/` for local/hosted contract drift; local results are not exact-head hosted green.
 - Linear/direct Peter assignments own current work. Historical board/claims, cached status, and mission inventories are not present ownership/contact/spend authority.
-- Preserve immutable Harbor job evidence, CAS, queue events/leases, backups and unclassified unique drafts. Producer-owned artifacts are regenerated, not hand-patched; an ignored parent is not a deletion license. Run `make docs` only when its inputs/checkpoint require it.
+- Preserve immutable Harbor job evidence, CAS, queue events/leases, backups and unclassified unique drafts. Producer-owned artifacts are regenerated, not hand-patched; an ignored parent is not a deletion license.
 - Register a required new root entry in STRUCTURE in the same change. Prefer schema/test/tool enforcement over another sticky instruction.
 
 ## Worktree/runtime hazards

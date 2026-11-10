@@ -12,7 +12,6 @@ import pytest
 from evallab.automation import NightlyCycle
 from evallab.contextpack import parse_doc, select_docs
 from evallab.digest import DigestRenderer
-from evallab.docindex import generate_index
 from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.schemas import (
     AutoRunRule,
@@ -170,7 +169,7 @@ def test_status_update_file_default_path(tmp_path: Path) -> None:
 
 
 def test_status_excluded_from_all_mission_context_packs(tmp_path: Path) -> None:
-    """Prove STATUS.md is excluded from context packs for all 4 missions but listed in docindex."""
+    """Prove STATUS.md is excluded from context packs for all 4 missions."""
     repo = _setup_mock_repo(tmp_path)
     status_path = update_status_file(repo, target_date=TARGET_DATE)
     assert status_path.is_file()
@@ -183,10 +182,6 @@ def test_status_excluded_from_all_mission_context_packs(tmp_path: Path) -> None:
             f"docs/STATUS.md must not be selected for mission {mission}"
         )
 
-    # 2. Prove docindex accepts and lists it in archive and historical tables
-    index_text = generate_index(docs_dir=repo / "docs", root=repo)
-    assert "`docs/STATUS.md`" in index_text
-    assert "## Archive" in index_text
     doc_meta = parse_doc(status_path, root=repo)
     assert doc_meta.status == "historical"
 

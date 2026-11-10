@@ -30,9 +30,7 @@ Read the PR body, then the changed paths. Shared files and money paths
 need the actual hunks. Confirm ownership in `agents/OWNERS.md` and the
 current assignment cover every written path. Follow current
 `agents/WORKFLOW.md` ownership and `agents/CHECKS.md`, not a frozen board
-lease. Verify that explicit `make docs` was run before review if
-documentation or code symbols were touched, so `docs/INDEX.md` and
-`docs/repo-map.md` are fresh.
+lease.
 
 ## 3. Handoff
 
@@ -47,8 +45,6 @@ Trust verification, not prose:
 - named acceptance criteria met with a command, test, or artifact path
 - focused tests covering changed behavior recorded for code changes;
   run only explicitly assigned focused verification at the final checkpoint
-- explicit `make docs` run, and `python -m evallab.docindex check` /
-  `python -m evallab.repomap check` pass cleanly when doc/code topology moved
 - a claim without a run, log, or test that would fail on the bug is a draft
 
 The author remains responsible for CI fixes and protected merge when that is

@@ -12,7 +12,7 @@ The package owns CLI dispatch, policy-controlled execution, immutable evidence i
 
 ## Where to look
 
-Use existing modules for the requested surface: `cli.py`, `runner.py`, `queue.py`, `quota.py`, `execution_contracts.py`, `preflight.py`, `evidence_store.py`, `state_events.py`, `trajectory_ir.py`, `interpretation/feature_registry.py`, and the relevant package. The generated `docs/repo-map.md` is lookup, not mandatory reading.
+Use existing modules for the requested surface: `cli.py`, `runner.py`, `queue.py`, `quota.py`, `execution_contracts.py`, `preflight.py`, `evidence_store.py`, `state_events.py`, `trajectory_ir.py`, `interpretation/feature_registry.py`, and the relevant package.
 
 ## Verification
 

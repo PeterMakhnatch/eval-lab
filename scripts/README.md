@@ -12,7 +12,6 @@ and promotion helpers.
 - `scripts/ci/propose_shard_pins.py`: Per-shard serial seconds from CI JUnit reports under the crc32 rule and current `SHARD_OVERRIDES`, plus the proposed pin set that balances the test shards (refresh `tests/conftest.py` from it).
 - `scripts/fleet-status.sh`: Fleet tracking and active status report script.
 - `scripts/line-replay.py`: Standard frozen `replay-v1` assembly-line regression gate (see `docs/line.md`).
-- `scripts/setup-git.sh`: Local git hooks and repository configuration helper.
 - `scripts/promote_codex_bundle.py`: Sanitization and promotion utility for reviewed run evidence.
 - `scripts/profile/harness.py`: Performance profiling harness and latency budget check.
 - `scripts/review_pr.py`: Advisory independent PR review (shallow or parallel deep lanes), fix verification, and served-model attestation ([usage](../docs/independent-review.md)).

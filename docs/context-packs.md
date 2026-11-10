@@ -198,8 +198,7 @@ deterministic order from **most expendable to most essential**:
      in the protected mission brief.
 3. **Tier 3 (Living Documentation — Shed First by Priority Tier)**:
    - **Category 0 (Lowest Priority / Most Expendable)**: Supplemental research
-     notes (`docs/research/*.md`) and broad catalog maps (`docs/INDEX.md`,
-     `docs/repo-map.md`).
+     notes (`docs/research/*.md`).
    - **Category 1 (Medium-Low Priority)**: Cross-cutting architectural documents
      with 3 or 4 audiences (`len(audience) >= 3`, e.g. `docs/engineering.md`,
      `docs/architecture.md`, `docs/archive/platform-architecture.md`).
@@ -245,9 +244,8 @@ When `--path` is supplied (repeatable for multiple files or directories):
    Each kept section is emitted under the doc title with a `*Source: path#heading*`
    line. When retained, `docs/NOW.md` is included in full.
 6. **Ordering & Truncation**: Retained docs are ordered by `(score desc, path)`.
-   When budget binds on a path-scoped pack, generated lookup inventories
-   (`docs/INDEX.md`, `docs/repo-map.md`) are shed first, and the current-state
-   router `docs/NOW.md` is shed last. Between those boundaries, the existing
+   When budget binds on a path-scoped pack, the current-state router
+   `docs/NOW.md` is shed last. The existing
    relevance policy is unchanged: lowest occurrence count first, then largest
    rendered section size descending, then path — never the audience category.
    A frequent path mention in a generated inventory cannot evict the current-state
@@ -274,8 +272,6 @@ mission brief and instructions protected).
 - **Tokens Shed**: ~58,307 tokens across 23 dropped section(s)/doc(s)
 - **Retained Living Docs**: 5
 - **Dropped Items (in order shed)**:
-  - `docs/INDEX.md` (~3,369 tokens shed)
-  - `docs/repo-map.md` (~5,236 tokens shed)
   ...
 ```
 

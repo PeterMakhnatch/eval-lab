@@ -19,24 +19,13 @@ current cleanup instructions. Module-location rules live in `src/evallab/AGENTS.
 
 | Product | Writer | Read-only verification / scope |
 |---|---|---|
-| `docs/INDEX.md` | `python -m evallab.docindex generate -o docs/INDEX.md` | `python -m evallab.docindex check`; indexes front-matter and hand-written doc digests (excludes generated `repo-map.md` and `STATUS.md` from inputs digest list) |
-| `docs/repo-map.md` | `python -m evallab.repomap generate -o docs/repo-map.md` | `python -m evallab.repomap check`; recursive Python discovery with structural declaration digests (resilient to function body edits) |
 | `docs/STATUS.md` | `evallab status --update` | Generated catalog snapshot (`status: historical`, excluded from context packs); not a clean-checkout byte-freshness invariant |
 | `research/lessons.md` | Python API `evallab.lessons.generate_lessons_file` | `python -m evallab.lessons` checks statistical evidence and freshness |
 | `research/registration/inventory.json` | Registration workflow | `evallab registry audit --json`; cleanup does not register or recertify tasks |
 
-Run **`make docs`** for both deterministic documentation generators. Review the
-result before committing; their freshness checks are read-only and required by
-[CHECKS.md](../agents/CHECKS.md). `research/experiments/STATUS.md` is an August 15
-historical report, not another output of `evallab status`.
+`research/experiments/STATUS.md` is an August 15 historical report, not another
+output of `evallab status`.
 
-The optional Git merge driver produces a **provisional** index from the working
-tree available during merge. It reports failures and preserves the conflict;
-it cannot certify that every merged source file is already installed. Run
-`make docs` after merge/rebase, before final checks and exact-head review.
-`scripts/setup-git.sh` configures only the driver; it never changes hook
-configuration, which is shared by linked worktrees. Previously installed hooks
-are now read-only notices. No repository hook stages, commits, or amends files.
 
 ## Authority and retention
 

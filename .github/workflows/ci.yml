@@ -62,10 +62,6 @@ jobs:
           restore-keys: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-test-${{ hashFiles('uv.lock', '.github/workflows/ci.yml') }}
       - run: uv sync --locked --no-group observability
       - run: uv run --no-sync ruff check .
-      - name: Documentation front-matter and index freshness
-        run: uv run --no-sync python -m evallab.docindex check
-      - name: Repository map freshness
-        run: uv run --no-sync python -m evallab.repomap check
       - name: Governance contracts and frozen root
         run: uv run --no-sync python -m evallab.governance check
       - name: Clean-checkout task registry and inventory audit

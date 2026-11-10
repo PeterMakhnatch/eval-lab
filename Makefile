@@ -1,11 +1,10 @@
-.PHONY: help sync check prepush premerge docs smoke smoke-ci db-up db-down db-init doctor controls ingest summarize loop line-replay line-gate
+.PHONY: help sync check prepush premerge smoke smoke-ci db-up db-down db-init doctor controls ingest summarize loop line-replay line-gate
 
 help:
 	@echo "sync       Install locked Python dependencies"
 	@echo "check      Run static gates only (no tests; not CI green)"
 	@echo "prepush    Run static gates and selected tests: make prepush TESTS='tests/test_foo.py'"
 	@echo "premerge   Explicit full Python 3.12 CI reproduction"
-	@echo "docs       Regenerate committed documentation build products (docs/INDEX.md, docs/repo-map.md)"
 	@echo "smoke      Run the full local doctor/Harbor/Postgres/Parquet/digest smoke"
 	@echo "smoke-ci   Run the Docker-free smoke subset with real queue and Parquet"
 	@echo "db-up      Start local PostgreSQL"
@@ -29,11 +28,6 @@ prepush:
 
 premerge:
 	scripts/premerge.sh
-
-# The documentation index includes the generated repository map's digest.
-docs:
-	uv run python -m evallab.repomap generate -o docs/repo-map.md
-	uv run python -m evallab.docindex generate -o docs/INDEX.md
 
 smoke:
 	uv run python -m evallab.smoke

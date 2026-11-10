@@ -188,12 +188,9 @@ checkout stays on `main`. A change merges when every CI check on the exact PR
 head is green ([agents/CHECKS.md](agents/CHECKS.md)). Agents start with
 [AGENTS.md](AGENTS.md).
 
-`docs/INDEX.md`, `docs/repo-map.md` and `docs/STATUS.md` are generated; refresh
-them instead of editing them:
+`docs/STATUS.md` is a generated catalog snapshot. Refresh it instead of editing it:
 
 ```bash
-uv run python -m evallab.repomap generate
-uv run python -m evallab.docindex generate
 uv run evallab status --update
 ```
 

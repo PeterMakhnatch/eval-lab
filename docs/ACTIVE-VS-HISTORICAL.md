@@ -51,7 +51,7 @@ This guide defines the lifecycle boundaries, retention guarantees, and archival 
 | **Columnar Data (`derived/parquet/`)** | Live queryable Parquet partitions used by DuckDB attach surfaces. | Historical compacted partition archives. | Rebuildable on demand from Zone 1 evidence via `evallab data backfill` or `evallab.storage.parquet_compaction`. |
 | **Research & Analysis (`research/`)** | Active campaign proposals and working SQL queries (`research/analysis/queries.sql`). | Completed investigation reports, benchmark writeups, and historical discovery ledgers. | Historical analysis reports are append-only context; do not edit historical findings retroactively. |
 | **Task Packages (`library/tasks/`)** | Active benchmark tasks registered in `library/tasks/` with verifiable oracles. | Deprecated candidate tasks or superseded benchmark versions. | Preserved with origin classifications and immutable reference solutions. |
-| **Generated Docs (`docs/repo-map.md`, `INDEX.md`, `STATUS.md`)** | Live projections reflecting HEAD codebase state. | Historical documentation versions in git history. | Regenerated deterministically via CLI tools; never hand-edited. |
+| **Generated Docs (`docs/STATUS.md`)** | Live projections reflecting HEAD codebase state. | Historical documentation versions in git history. | Regenerated deterministically via CLI tools; never hand-edited. |
 
 ---
 

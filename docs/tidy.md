@@ -11,7 +11,7 @@ The platform janitor enforcing tenet **T7** (*janitorial duty inside every contr
 specified in `docs/archive/platform-architecture.md` (T7, §2.6, §8).
 
 `evallab tidy` sweeps the repository and linked worktrees for working tree debt,
-untracked strays, stale worktrees, unindexed documentation, and retention violations.
+untracked strays, stale worktrees, and retention violations.
 
 `--dry-run` is the default. The command reports findings with byte counts and reasons.
 Under `--dry-run`, the exit code is non-zero (1) exactly when at least one item is
@@ -69,15 +69,6 @@ are fully contained in `origin/main`.
 - **Action under `--apply`:** Deletes clean local branches (across all namespaces except
   main/integrate/current) that are merged and confirmed to have no open PR and no active worktree.
 
-### 3. Unindexed Documentation
-Inspects documentation files under `docs/` using `evallab.docindex` to identify markdown
-files absent from the generated `docs/INDEX.md` or carrying missing/invalid YAML front-matter.
-- **Front-matter contract:** Requires `status: living | historical` and `audience` covering
-  valid roles (`builder`, `analyst`, `runner`, `operator`).
-- **Action under `--apply`:** **Report only.** Documentation files represent knowledge
-  records and are never deleted by tidy sweeps. Operators fix front-matter or regenerate
-  the index via `python -m evallab.docindex generate`.
-
 ### 4. Untracked Strays
 Inspects untracked files not ignored by `.gitignore`. Classifies every untracked file into
 either **recognized junk** or **unrecognized stray (possible draft)**.
@@ -115,5 +106,4 @@ The following paths are never touched, never swept as strays, and never eligible
 | Responsibility | Tool | Mutates | Artifacts / Safety |
 |---|---|---|---|
 | Working tree hygiene | `evallab tidy` | Clean stale worktrees, merged branches, recognized junk strays | Fast sweep; preserves dirty worktrees, open PRs, drafts |
-| Documentation index | `evallab.docindex` | `docs/INDEX.md` | Deterministic index generation and validation |
 | Evidence retention & pruning | `evallab gc` | `runs/<job>` (compress 14d, prune 60d) | Leaves immutable tombstones in `.tombstones/`, emits queue events |

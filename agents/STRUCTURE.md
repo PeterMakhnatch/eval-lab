@@ -148,10 +148,8 @@ Rules that fall out of the buckets:
 - `library/` content is version-pinned and immutable once registered; changing
   a task means a new version, never an edit in place.
 - `research/` content states its provenance (which runs, which corpus digest).
-- Most documentation in `docs/` is hand-authored design and policy; deterministic
-  indexes and maps (`docs/INDEX.md`, `docs/repo-map.md`) are explicitly generated
-  via `make docs` (the `evallab.docindex` and `evallab.repomap` `generate` commands),
-  and living status snapshot `docs/STATUS.md` is generated via `evallab status --update`.
+- Most documentation in `docs/` is hand-authored design and policy; the
+  status snapshot `docs/STATUS.md` is generated via `evallab status --update`.
   Nothing in `queue/`, `runs/`, `derived/`, or `backups/` is hand-edited.
 - Ownership boundaries (`agents/OWNERS.md` lanes and `research/inbox/board.md`
   claims) follow these paths.
@@ -178,7 +176,7 @@ lines and use these five sections in order:
 Exemptions from this requirement:
 - Dot-directories (`.github`, `.githooks`, `.omp`, `.claude`, and gitignored dot roots)
 - Runtime or ignored roots (`derived`, `runs`, `queue`, `backups`, `exports`, `logs`)
-- `docs/` (which carries `docs/INDEX.md` as its directory index)
+- `docs/`
 
 Presence and line-length limits are enforced deterministically by
 `python -m evallab.governance check`.

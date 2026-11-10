@@ -447,6 +447,182 @@ def test_teardown_records_runner_crash_without_raising(tmp_path: Path, sandbox: 
     assert "FileNotFoundError" in str(record["reason"])
 
 
+def test_default_runner_runs_pinned_modal_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append((argv, kwargs))
+        return completed(argv, stdout="[]")
+
+    monkeypatch.setattr(modal_ops.subprocess, "run", fake_run)
+
+    result = modal_ops.default_runner(tmp_path)(["app", "list", "--json"])
+
+    assert result.stdout == "[]"
+    assert calls == [
+        (
+            [
+                "uv",
+                "run",
+                "--project",
+                "tools/modal-mimo-serve",
+                "--locked",
+                "modal",
+                "app",
+                "list",
+                "--json",
+            ],
+            {
+                "capture_output": True,
+                "text": True,
+                "check": False,
+                "timeout": 180,
+                "cwd": tmp_path,
+            },
+        )
+    ]
+
+
+def test_teardown_ignores_candidates_missing_from_queue(tmp_path: Path, sandbox: None) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    spec = make_spec("vanished-job", SELFHOSTED, "01AAAAAAAAAAAAAAAAAAAAAAAA")
+    runner = drain_runner()
+
+    assert stop_selfhosted_app_if_drained(queue, tmp_path, [spec], runner=runner) is None
+    assert runner.calls == []
+
+
+def test_teardown_ignores_candidates_whose_lookup_fails(
+    tmp_path: Path, sandbox: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    spec = make_spec("unreadable-job", SELFHOSTED, "01AAAAAAAAAAAAAAAAAAAAAAAA")
+    place(queue, "done", spec)
+
+    def broken_locate(spec_id: str, *args: object) -> Path:
+        raise PermissionError("queue directory unreadable")
+
+    monkeypatch.setattr(queue, "locate", broken_locate)
+    runner = drain_runner()
+
+    assert stop_selfhosted_app_if_drained(queue, tmp_path, [spec], runner=runner) is None
+    assert runner.calls == []
+
+
+def _listing_runner(
+    app_list: subprocess.CompletedProcess[str],
+    container_list: subprocess.CompletedProcess[str],
+) -> FakeRunner:
+    return FakeRunner(
+        {
+            ("app", "stop", "--yes", MODAL_APP_NAME): completed(
+                ["app", "stop", "--yes", MODAL_APP_NAME]
+            ),
+            ("app", "list", "--json"): app_list,
+            ("container", "list", "--json"): container_list,
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    ("app_list", "container_list", "app_state", "container_count"),
+    [
+        pytest.param(
+            completed(["app", "list", "--json"], stdout=json.dumps({"apps": []})),
+            completed(["container", "list", "--json"], stdout="not json"),
+            None,
+            None,
+            id="app-list-object-container-list-garbage",
+        ),
+        pytest.param(
+            completed(["app", "list", "--json"], returncode=1, stderr="auth expired"),
+            completed(["container", "list", "--json"], stdout=json.dumps({"items": []})),
+            None,
+            None,
+            id="app-list-failed-container-list-object",
+        ),
+        pytest.param(
+            completed(
+                ["app", "list", "--json"],
+                stdout=json.dumps([{"description": "unrelated-app", "state": "stopped"}]),
+            ),
+            completed(["container", "list", "--json"], stdout="[]"),
+            None,
+            0,
+            id="app-absent-from-list",
+        ),
+        pytest.param(
+            completed(
+                ["app", "list", "--json"],
+                stdout=json.dumps(["garbage", {"description": MODAL_APP_NAME, "state": None}]),
+            ),
+            completed(["container", "list", "--json"], stdout=json.dumps(["garbage"])),
+            None,
+            0,
+            id="app-state-null",
+        ),
+    ],
+)
+def test_teardown_fails_closed_on_malformed_modal_listings(
+    tmp_path: Path,
+    sandbox: None,
+    app_list: subprocess.CompletedProcess[str],
+    container_list: subprocess.CompletedProcess[str],
+    app_state: str | None,
+    container_count: int | None,
+) -> None:
+    """An unreadable app list must never be recorded as a successful stop."""
+    queue = DirectoryQueue(tmp_path / "queue")
+    spec = make_spec("drained-job", SELFHOSTED, "01AAAAAAAAAAAAAAAAAAAAAAAA")
+    place(queue, "done", spec)
+    (tmp_path / "runs" / spec.name).mkdir(parents=True)
+    runner = _listing_runner(app_list, container_list)
+
+    record = stop_selfhosted_app_if_drained(
+        queue,
+        tmp_path,
+        [spec],
+        runner=runner,
+        now=MOMENT,
+        clock=lambda: 0.0,
+        sleeper=lambda seconds: None,
+        poll_timeout_seconds=0,
+    )
+
+    assert record is not None
+    assert record["stopped"] is False
+    assert record["app_state"] == app_state
+    assert record["container_count"] == container_count
+    assert record["polls"] == 1
+    assert record["reason"] == f"modal-app-not-stopped: state={app_state} after 1 poll(s)"
+    events = [event for event in load_events(queue.events_path) if event.event == TEARDOWN_EVENT]
+    assert [event.reason_code for event in events] == ["modal_stop_failed"]
+
+
+def test_teardown_records_missing_job_dirs(tmp_path: Path, sandbox: None) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    present = make_spec("present-job", SELFHOSTED, "01AAAAAAAAAAAAAAAAAAAAAAAA")
+    absent = make_spec("absent-job", SELFHOSTED, "01BBBBBBBBBBBBBBBBBBBBBBBB")
+    place(queue, "done", present)
+    place(queue, "failed", absent)
+    present_dir = tmp_path / "runs" / present.name
+    present_dir.mkdir(parents=True)
+
+    record = stop_selfhosted_app_if_drained(
+        queue, tmp_path, [present, absent], runner=drain_runner(), now=MOMENT
+    )
+
+    assert record is not None
+    assert record["stopped"] is True
+    assert record["job_dirs_missing"] == [(tmp_path / "runs" / absent.name).as_posix()]
+    assert (present_dir / TEARDOWN_FILENAME).is_file()
+    assert not (tmp_path / "runs" / absent.name).exists()
+    events = [event for event in load_events(queue.events_path) if event.event == TEARDOWN_EVENT]
+    assert sorted(event.job_name for event in events) == [absent.name, present.name]
+
+
 def _daytona_stub(monkeypatch: pytest.MonkeyPatch, client: object) -> None:
     import types
 
@@ -580,6 +756,37 @@ def test_describe_teardown_marks_daytona_unknown() -> None:
     }
     assert describe_teardown(record).endswith(
         "daytona sandboxes: n/a (daytona-credentials-missing)"
+    )
+
+
+def test_describe_teardown_reports_skip_reason() -> None:
+    record = {"app": MODAL_APP_NAME, "stopped": False, "reason": "queue-not-drained"}
+    assert describe_teardown(record) == "modal teardown skipped: queue-not-drained"
+
+
+@pytest.mark.parametrize(
+    ("sandboxes", "suffix"),
+    [
+        pytest.param(None, "", id="absent"),
+        pytest.param(["not", "a", "mapping"], "", id="non-mapping"),
+        pytest.param({"total": None, "reason": None}, "", id="unknown-without-reason"),
+        pytest.param(
+            {"total": 9, "harbor_managed": 7, "matched": 2, "reason": None},
+            "; daytona sandboxes: 2 job-matched / 7 harbor-managed / 9 total",
+            id="job-matched",
+        ),
+    ],
+)
+def test_describe_teardown_daytona_suffix(sandboxes: object, suffix: str) -> None:
+    record = {
+        "app": MODAL_APP_NAME,
+        "stopped": True,
+        "app_state": "stopped",
+        "container_count": 0,
+        "daytona_sandboxes": sandboxes,
+    }
+    assert describe_teardown(record) == (
+        f"modal teardown: stopped {MODAL_APP_NAME} (state=stopped, containers=0){suffix}"
     )
 
 

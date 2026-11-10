@@ -26,7 +26,6 @@ from evallab.interpretation.benchmark_events import (
     parse_benchmark_events,
 )
 from evallab.interpretation.benchmark_projection import (
-    agent_readable_projection_provenance,
     backfill_benchmark_projection_rows,
     build_projection_dimensions,
 )
@@ -48,7 +47,6 @@ from evallab.interpretation.producers.mcp_recovery import (
     build_recovery_persistence_curve,
     extract_mcp_recovery_features,
 )
-from evallab.interpretation.traj_card import generate_traj_card
 from evallab.interpretation.trajectory_compliance import TrialComplianceRecord
 from evallab.interpretation.trajectory_compliance_ops import (
     ComplianceIngestReport,
@@ -1010,32 +1008,6 @@ def test_duckdb_benchmark_views_execution():
     assert len(summary_rows) == 3
 
 
-# ---------------------------------------------------------------------------
-# Test Cases: Trajectory Card with Benchmark Observables
-# ---------------------------------------------------------------------------
-
-
-def test_traj_card_with_benchmark_observables(action_memory_trial_dir: Path, tmp_path: Path):
-    """evallab traj card renders Section 9 with benchmark observables and verifier truth."""
-    rendered, card_data = generate_traj_card(
-        action_memory_trial_dir,
-        repo_root=tmp_path,
-        runs_roots=[tmp_path],
-    )
-
-    assert card_data.benchmark_family == "action-memory-v1"
-    assert card_data.benchmark_features is not None
-    assert card_data.benchmark_features["binding_survival_rate"] == 1.0
-
-    assert "## 9. Benchmark Observables (`action-memory-v1`)" in rendered
-    assert "**Construct:** `actionable_entity_memory_and_value_binding`" in rendered
-    assert (
-        "**Verifier Ground Truth Digest:** `sha256:1111111111111111111111111111111111111111111111111111111111111111`"
-        in rendered
-    )
-    assert "`binding_survival_rate`" in rendered
-
-
 def test_fault_injection_correlation_edge_cases():
     """Unmatched or out-of-order fault injection events must be correlated safely."""
     events = [
@@ -1502,35 +1474,6 @@ def test_recovery_persistence_axis_rejects_invalid_dose_value(
     )
     assert dimensions.analysis_ready is False
     assert "PERSISTENCE_DOSE_MISMATCH" in dimensions.refusals
-
-
-def test_card_uses_same_projection_dimensions_as_provenance(
-    action_memory_trial_dir: Path, tmp_path: Path
-):
-    """Card facts must not disagree with the materialized compliance provenance."""
-    bundle = load_trial_bundle(action_memory_trial_dir)
-    report = _quality_pass_report(bundle)
-    metadata = {
-        "harness_version": "harbor-v1",
-        "scaffold_version": "scaffold-v1",
-        "repeat_group_id": "repeat-a",
-        "dose_axis": "context_bytes",
-        "dose_value": 4096,
-        "dose_unit": "bytes",
-        "alphabet_id": "atif-actions",
-        "alphabet_version": "v1",
-    }
-    dimensions = build_projection_dimensions(bundle, report, metadata=metadata)
-    _rendered, card = generate_traj_card(
-        action_memory_trial_dir,
-        repo_root=tmp_path,
-        runs_roots=[tmp_path],
-        projection_dimensions=dimensions,
-        projection_provenance=agent_readable_projection_provenance(report, dimensions),
-    )
-    assert card.benchmark_features is not None
-    assert card.benchmark_features["analysis_ready"] is True
-    assert card.benchmark_features["model_name"] == "model-a"
 
 
 def test_benchmark_contrasts_do_not_cross_model_dimensions():

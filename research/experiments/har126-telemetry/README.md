@@ -62,15 +62,6 @@ SAMPLER_PID=$!
 echo "Sampler running (PID $SAMPLER_PID) -> $TELEMETRY_OUT"
 ```
 
-Or using the standalone script:
-```bash
-python3 scripts/telemetry_sampler.py \
-  --out "$TELEMETRY_OUT" \
-  --runs-dir runs \
-  --interval 15.0 &
-SAMPLER_PID=$!
-```
-
 ### Stopping After a Round
 ```bash
 kill -TERM "$SAMPLER_PID"

@@ -53,8 +53,8 @@ For every clean-set manifest row, four checks on the FINAL clean package
     A refusal-clean row therefore does not show the tests reject the other
     attacks; only a graded cell does. With all four `tamper_source_*`
     attacks removed, the remaining 10 attacks, graded together, returned
-    reward 0 on all seven rows tried; the source tampers stay ungraded on
-    those rows. At the 2026-11-09 commit the v6 table holds 100 covered
+    reward 0 on all 7 rows tried; the source tampers stay ungraded on
+    those rows. At the 2026-11-10 commit the v6 table holds 100 covered
     rows: 99 clean (80 tamper-refusal, 19 graded) and 1 unscored (`000928`,
     whose setup healthcheck failed before the agent ran). Per-row basis and
     counts are in

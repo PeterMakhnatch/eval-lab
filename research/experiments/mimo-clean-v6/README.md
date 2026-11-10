@@ -1309,11 +1309,16 @@ results root.
 
 It updates the two route-page basis sentences and this page's basis table,
 covered count, signature counts, and summary table. It also updates the
-refusal-rate calculation, refusal counts, and refused-row attack counts and task
-IDs. It generates Python's refusal and graded counts and remaining-hours
-projection. It rewrites the evidence-check sentences and the two totals lines
-from the committed `ladder-evidence-receipt.json`. It preserves spacing, table
-annotations, and signature labels. It leaves all other page text unchanged.
+refusal-rate calculation, refusal counts, refused-row attack counts and task
+IDs, and the graded rows' executed-attack range, histogram, and the unscored
+row's attack count. It generates Python's refusal and graded counts and
+remaining-hours projection. It rewrites the `docs/mimo/verification.md` clause
+(c) sentences: the refusal-signature count, the graded rows' attack range, the
+graded-subset row count, and the covered, clean, refusal, graded and unscored
+counts with the receipt's check date. It rewrites the evidence-check sentences
+and the two totals lines from the committed `ladder-evidence-receipt.json`. It
+preserves spacing, table annotations, and signature labels. It leaves all other
+page text unchanged.
 
 The command validates the receipt and every fragment before writing any page.
 A missing or repeated fragment anchor raises `ProgressError` and exits 1 without
@@ -1348,8 +1353,10 @@ For a re-run or a new subset cell:
 
 5. Run `--sync-docs` to update the count tables and narrative counts. This includes
    the refusal-rate calculation, refusal counts, refused-row attack counts and
-   task IDs, Python's refusal and graded counts, Python's remaining-hours
-   projection, and the evidence-check sentences and totals from the receipt.
+   task IDs, the graded rows' attack range and histogram, the graded-subset row
+   count, the verification page's clause (c) counts and check date, Python's
+   refusal and graded counts, Python's remaining-hours projection, and the
+   evidence-check sentences and totals from the receipt.
 6. Review and edit task-specific descriptions and evidence prose affected by
    the new cell manually. Do not edit a generated anchor sentence.
 7. Run `--sync-docs`, then prove that the generated pages did not drift, and run
@@ -1471,7 +1478,7 @@ file basename):
 
 Of the 80 refused rows, 78 ran all 14 attacks; `001987` and `002351` ran 13 of 14.
 Both skip `tamper_tracked_conftest` because no tracked conftest or test directory exists.
-The graded rows ran only 8–10 of 14 (8 rows ran 8, 9 ran 9, and 2 ran 10).
+The graded rows ran only 8–10 of 14 (8 rows ran 8, 9 rows ran 9, and 2 rows ran 10).
 The unscored `000928` ran 0, so graded ladder evidence covers fewer attacks
 than the refusal rows' count suggests.
 

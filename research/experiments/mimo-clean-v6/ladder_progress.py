@@ -101,11 +101,12 @@ inventory, so it touches no Docker and no results root.
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
 summary with ``--summary``. ``--sync-docs`` rebuilds the tested documentation
-fragments from committed cells, the manifest and the ranking, and the evidence
-sentences and totals lines from the committed receipt, without reading or
-writing the CSV or host results. A receipt that does not list every committed
-cell and subset entry raises ``ProgressError``. It validates the receipt and all
-three pages before any write.
+fragments from committed cells, the manifest and the ranking, the graded-attack
+range and histogram, the subset row count, and the evidence sentences, check
+date and totals lines from the committed receipt, without reading or writing
+the CSV or host results. A receipt that does not list every committed cell and
+subset entry raises ``ProgressError``. It validates the receipt and all four
+pages before any write.
 ``--render-slice CELL`` prints one cell file's seven-column README pipe-table
 rows, so a slice PR pastes generated rows instead of hand-copying them.
 ``check_slice_tables`` compares the README's per-slice ladder tables with the
@@ -857,6 +858,102 @@ def _subset_totals_line(entries: int, counts: Mapping[str, int]) -> str:
     return f"subset totals: {entries} entries, {totals}"
 
 
+def _executed_attacks(rows: Sequence[dict[str, str]], basis: str) -> list[int]:
+    """The ``attacks_executed`` counts of the rows on ``basis``, ascending."""
+    attacks: list[int] = []
+    for row in rows:
+        if row["basis"] != basis:
+            continue
+        value = row["attacks_executed"]
+        if not value.isdigit():
+            raise ProgressError(
+                f"{row['task_id']}: {basis} row without an attacks_executed count: {value!r}"
+            )
+        attacks.append(int(value))
+    return sorted(attacks)
+
+
+def _attack_span(rows: Sequence[dict[str, str]]) -> tuple[int, int]:
+    """The lowest and highest ``attacks_executed`` count of the graded rows."""
+    attacks = _executed_attacks(rows, GRADED_BASIS)
+    if not attacks:
+        raise ProgressError(f"no {GRADED_BASIS} row, so the graded-attack counts are stale")
+    return attacks[0], attacks[-1]
+
+
+def _attack_histogram(rows: Sequence[dict[str, str]]) -> str:
+    """The graded rows per ``attacks_executed`` count, e.g. ``8 rows ran 8, 9 ran 9``."""
+    histogram = Counter(_executed_attacks(rows, GRADED_BASIS))
+    return _prose_list(
+        [
+            f"{count} {'row' if count == 1 else 'rows'} ran {executed}"
+            for executed, count in sorted(histogram.items())
+        ]
+    )
+
+
+def _verification_edits(
+    receipt: Mapping[str, Any], rows: Sequence[dict[str, str]], text: str, page: Path
+) -> list[tuple[int, int, str]]:
+    """Edits that rewrite the verification page's clause (c) hand counts.
+
+    The counts come from the rows (bases, covered, clean, subset rows), the
+    graded rows' ``attacks_executed`` span, and the receipt's check date. The
+    refusal sentence claims one signature, so a second signature raises.
+    """
+    counts = basis_counts(rows)
+    covered = len(rows) - counts.get("none", 0)
+    clean = sum(row["verdict"] == "clean" for row in rows)
+    refusals = counts.get(REFUSAL_BASIS, 0)
+    graded = counts.get(GRADED_BASIS, 0)
+    unscored = counts.get("unscored", 0)
+    subsets = sum(row["subset_verdict"] != "none" for row in rows)
+    low, high = _attack_span(rows)
+    signatures = Counter(
+        row["refusal_hit"].rsplit("/", 1)[-1] for row in rows if row["refusal_hit"]
+    )
+    if len(signatures) != 1:
+        raise ProgressError(
+            f"{page}: the one-signature sentence is stale; refusals match {sorted(signatures)}"
+        )
+    fragments = (
+        (
+            "refusals matched one signature",
+            r"All\s+([0-9]+)\s+v6\s+refusals\s+matched\s+one\s+signature,\s+"
+            r"`tamper\s+\\b_pytest\\b`\s+in\s+a\s+package\s+`([^`\s]+)`\s+that\s+a\s+"
+            r"`tamper_source_\*`\s+attack\s+planted\.",
+            (refusals, next(iter(signatures))),
+        ),
+        (
+            "graded v6 rows",
+            r"the\s+([0-9]+)\s+graded\s+v6\s+rows\s+ran\s+([0-9]+)[–-]([0-9]+)\s+"
+            r"of\s+the\s+14\.",
+            (graded, low, high),
+        ),
+        (
+            "reward 0 on all",
+            r"returned\s+reward\s+0\s+on\s+all\s+([0-9]+|[a-z]+)\s+rows\s+tried",
+            (subsets,),
+        ),
+        (
+            "v6 table holds",
+            r"At\s+the\s+([0-9]{4}-[0-9]{2}-[0-9]{2})\s+commit\s+the\s+v6\s+table\s+holds\s+"
+            r"([0-9]+)\s+covered\s+rows:\s+([0-9]+)\s+clean\s+\(([0-9]+)\s+tamper-refusal,\s+"
+            r"([0-9]+)\s+graded\)\s+and\s+([0-9]+)\s+unscored",
+            (receipt["checked_date_et"], covered, clean, refusals, graded, unscored),
+        ),
+    )
+    edits: list[tuple[int, int, str]] = []
+    for anchor, pattern, values in fragments:
+        _doc_match(r"\s+".join(map(re.escape, anchor.split())), text, page, anchor)
+        match = _doc_match(pattern, text, page, f"complete {anchor} fragment")
+        edits.extend(
+            (match.start(index), match.end(index), str(value))
+            for index, value in enumerate(values, start=1)
+        )
+    return edits
+
+
 def _evidence_edits(
     receipt: Mapping[str, Any], text: str, page: Path
 ) -> list[tuple[int, int, str]]:
@@ -961,7 +1058,12 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
     ``ladder-evidence-receipt.json``, never from the host results root.
     """
     receipt = read_receipt(cells_dir, root)
-    pages = (root / "README.md", root / "docs" / "mimo" / "README.md", cells_dir / "README.md")
+    pages = (
+        root / "README.md",
+        root / "docs" / "mimo" / "README.md",
+        cells_dir / "README.md",
+        root / "docs" / "mimo" / "verification.md",
+    )
     originals: dict[Path, str] = {}
     for page in pages:
         try:
@@ -1034,6 +1136,7 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
     clean = route_counts[1]
     refusal_rate = 100 * refusals / clean if clean else 0.0
     python_entry = next(entry for entry in summary(rows) if entry["language"] == "python")
+    graded_low, graded_high = _attack_span(rows)
     refusal_rows = [row for row in rows if row["basis"] == REFUSAL_BASIS]
     all_attacks = sum(row["attacks_executed"] == "14" for row in refusal_rows)
     short_list = _prose_list(
@@ -1079,6 +1182,16 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
             r"on\s+local\s+Docker\s+costs\s+about\s+\*\*([0-9]+(?:\.[0-9]+)?)\s+h\*\*",
             (python_entry["uncovered"], f"{python_entry['projected_hours']:.2f}"),
         ),
+        (
+            "graded rows ran only",
+            r"graded\s+rows\s+ran\s+only\s+([0-9]+)[–-]([0-9]+)\s+of\s+14\s+\(([^()]*)\)",
+            (graded_low, graded_high, _attack_histogram(rows)),
+        ),
+        (
+            "unscored `000928` ran",
+            r"The\s+unscored\s+`000928`\s+ran\s+([0-9]+),",
+            (sum(_executed_attacks(rows, "unscored")),),
+        ),
     )
     fragment_edits: list[tuple[int, int, str]] = []
     for anchor, pattern, values in fragments:
@@ -1099,6 +1212,9 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
             *_evidence_edits(receipt, text, page),
         ],
     )
+    page = pages[3]
+    text = originals[page]
+    replacements[page] = _doc_patch(text, _verification_edits(receipt, rows, text, page))
     for page, replacement in replacements.items():
         if replacement != originals[page]:
             _write_atomic(page, replacement.encode("utf-8"))

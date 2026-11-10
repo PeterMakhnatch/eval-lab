@@ -24,7 +24,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 sys.path.insert(0, str(REPO / "src"))
 
-from evallab.hackbook import match_task  # noqa: E402
+from evallab.hackbook.matcher import match_task  # noqa: E402
 
 UPSTREAM_ROOT = (
     Path.home() / "Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench"

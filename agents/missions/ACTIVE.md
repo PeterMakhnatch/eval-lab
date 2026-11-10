@@ -154,9 +154,3 @@ key file was removed. Partial local-Qwen campaigns remain separate.
    later. Preserve the primary checkout on `main` and all user changes; do not
    page persistent peers or remap roles/models without Peter's authorization.
 
-## Archive
-
-Historical completed mission logs and narrative records:
-- `agents/archive/2026-08-15-missions-m001-m004-a001.md` (Wave 1: M001–M004, A001)
-- `agents/archive/2026-08-15-missions-m005-m008.md` (Wave 1: M005–M008)
-- `agents/archive/2026-08-27-mission-board-pre-hygiene.md` (Pre-hygiene verbatim board snapshot)

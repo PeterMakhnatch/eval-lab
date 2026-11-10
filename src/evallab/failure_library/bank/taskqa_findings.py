@@ -343,6 +343,8 @@ def _one(
 def _from_issue(
     item: IssueItem, *, digest: str | None = None, key_id: str | None = None
 ) -> TaskItem:
+    if item.polarity is None:
+        raise ValueError("Unjudged or attempted gold rows are not task QA controls")
     return TaskItem(
         item_id=item.item_id,
         source=item.source,

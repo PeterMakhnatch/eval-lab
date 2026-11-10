@@ -21,15 +21,24 @@ def register(subparsers: Any) -> None:
     )
     stats = actions.add_parser("stats", help="Counts by source, kind, polarity and split")
     stats.add_argument("--json", action="store_true", help="Print the manifest as JSON")
+    gold_counts = actions.add_parser("gold-counts", help="Count seed labels, actions, assets and exposure")
+    gold_counts.add_argument("--json", action="store_true", help="Print the counts as JSON")
     actions.add_parser("sources", help="List the registered source slugs")
     actions.add_parser("verify", help="Check local item bytes against the manifest")
-    for action in (build, stats):
+    for action in (build, stats, gold_counts):
         action.add_argument("--state-root", type=Path, default=None)
     parser.set_defaults(func=_run, state_root=None)
 
 
 def _run(args: argparse.Namespace, root: Path, **_: Any) -> int:
     bank = IssueBank(root, state_root=args.state_root)
+    if args.bank_command == "gold-counts":
+        from evallab.gold import load_rows
+        from evallab.gold.counts import counts
+
+        result = counts(load_rows(root, args.state_root))
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
     if args.bank_command == "sources":
         for slug, module in available_sources().items():
             print(f"{slug}\t{module}")

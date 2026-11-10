@@ -320,6 +320,8 @@ def is_circular(item: IssueItem, identity: Identity) -> bool:
 
 def decide(item: IssueItem, findings: Sequence[Finding]) -> tuple[str, str, Finding | None]:
     """(cell, reason, deciding finding) for one item and one identity's findings."""
+    if item.polarity is None:
+        return "unknown", "unjudged_label", None
     usable = [f for f in findings if f.applies_to(item)]
     if item.actor_transcript is False:
         return "unknown", "no_actor_transcript", usable[0] if usable else None
@@ -470,6 +472,9 @@ def summarize(cells: Sequence[Cell]) -> list[dict[str, Any]]:
     for cell in cells:
         for source in (cell.item.source, ALL_SOURCES):
             counter = groups[(cell.identity, source, cell.item.kind)]
+            if cell.item.polarity is None:
+                counter["unjudged"] += 1
+                continue
             if cell.circular:
                 counter["circular"] += 1
                 continue
@@ -502,6 +507,7 @@ def summarize(cells: Sequence[Cell]) -> list[dict[str, Any]]:
                 "far": _rate(c["neg:false_alarm"], judged_neg),
                 "far_ci": wilson(c["neg:false_alarm"], judged_neg),
                 "circular": c["circular"],
+                "unjudged": c["unjudged"],
             }
         )
     return rows

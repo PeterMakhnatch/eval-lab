@@ -39,6 +39,7 @@ from evallab.failure_library.records import Split
 from evallab.failure_library.sources import normalize_split
 from evallab.failure_library.store import _atomic_write, _line, default_state_root
 from evallab.schemas import ContractModel
+from evallab.trajectory_ir import SourceEventRef
 
 if TYPE_CHECKING:
     from evallab.production.corpus_queue import CorpusRegistry
@@ -95,6 +96,18 @@ class Provenance(ContractModel):
     ref: str = Field(min_length=1)  # row key, file#row, PR number, ...
     digest: str | None = None  # sha256 of the source bytes when known
     note: str | None = Field(default=None, max_length=300)
+    who: str | None = None
+    how: str | None = None
+    version: str | None = None
+
+
+class ExposureEvent(ContractModel):
+    """An exposure fact, separate from the protected split assignment."""
+
+    consumer: str
+    purpose: str
+    at: str | None = None
+    artifact_sha256: str | None = None
 
 
 class IssueItem(ContractModel):
@@ -104,7 +117,7 @@ class IssueItem(ContractModel):
     item_id: str = Field(pattern=r"^ib-[0-9a-f]{16}$")
     source: str = Field(pattern=_SLUG)
     kind: Kind
-    polarity: Polarity
+    polarity: Polarity | None
     label_type: LabelType
     label: str = Field(min_length=1, max_length=200)  # source-native label text
     granularity: Granularity
@@ -119,6 +132,39 @@ class IssueItem(ContractModel):
     actor_transcript: bool | None = None  # None: the source does not say
     harness_selector: str | None = None  # how `evallab trace run --runs` reaches it
     provenance: Provenance
+    label_state: Literal["executed-positive", "reviewed-control", "attempted", "unjudged"] | None = None
+    mechanism: str | None = None
+    step_locators: tuple[SourceEventRef, ...] = ()
+    task_ref: str | None = None
+    task_digest: str | None = None
+    grader_ref: str | None = None
+    grader_digest: str | None = None
+    task_available: bool | None = None
+    grader_available: bool | None = None
+    trajectory_available: bool | None = None
+    trajectory_ref: str | None = None
+    trajectory_digest: str | None = None
+    exposure: Literal["exposed", "unexposed", "unknown"] = "unknown"
+    exposure_events: tuple[ExposureEvent, ...] = ()
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _gold_state(self) -> IssueItem:
+        if self.label_state is None:
+            if self.polarity is None:
+                raise ValueError("Null polarity requires an explicit gold label state")
+            return self
+        expected = {"executed-positive": "positive", "reviewed-control": "negative"}.get(
+            self.label_state
+        )
+        if self.polarity != expected:
+            raise ValueError("Gold label state contradicts polarity")
+        if self.label_state == "executed-positive" and not any(
+            ref.normalized_step_id is not None and ref.event_kind in {"call", "result"}
+            and ref.resolution != "unmatched-result" for ref in self.step_locators
+        ):
+            raise ValueError("Executed-positive needs a resolved source action")
+        return self
 
     @model_validator(mode="after")
     def _deterministic_id(self) -> IssueItem:

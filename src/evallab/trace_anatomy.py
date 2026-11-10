@@ -389,6 +389,7 @@ def load_cloud_run(
     registry: Any,
     connection: sqlite3.Connection | None = None,
     admitted: frozenset[str] | None = None,
+    include_branches: bool = False,
 ) -> LoadedRun:
     """An admitted DEV cloud trace: the raw CAS bundle when present, else the DB projection."""
     own = connection is None
@@ -404,6 +405,11 @@ def load_cloud_run(
         admitted = admitted if admitted is not None else admitted_task_ids(connection, registry)
         if str(row["split"]).strip().casefold() != "dev" or row["task_id"] not in admitted:
             raise RefusedRun("run is not an admitted DEV run")
+        if include_branches:
+            from evallab.gold.projection import cloud_events
+
+            doc = cloud_events(connection, trace_id)
+            return LoadedRun(trace_id, "db-source-events", doc)
         uri = row["raw_cas_uri"]
         if uri:
             from evallab.production.cloud_trace_db import S3CompatibleCAS
@@ -512,7 +518,7 @@ def atif_run(doc: Any, name: str) -> LoadedRun:
     return LoadedRun(
         name,
         "atif",
-        {"steps": unpacked_steps},
+        {**doc, "steps": unpacked_steps},
         None,
         None,
         len(json.dumps(unpacked_steps, ensure_ascii=False)),
@@ -526,6 +532,7 @@ def load_run(
     database: Path = DEFAULT_DATABASE,
     cas_dir: Path = DEFAULT_CAS_DIR,
     results_root: Path | None = None,
+    include_branches: bool = False,
 ) -> LoadedRun:
     """Resolve a run id (cloud trace id or CheatBench item id) through the DEV gate."""
     registry = _registry(repo_root)
@@ -535,7 +542,10 @@ def load_run(
         return load_cheatbench_run(
             run_id, registry=registry, results_root=results_root or default_results_root()
         )
-    return load_cloud_run(run_id, database=database, cas_dir=cas_dir, registry=registry)
+    return load_cloud_run(
+        run_id, database=database, cas_dir=cas_dir, registry=registry,
+        include_branches=include_branches,
+    )
 
 
 # --------------------------------------------------------------------------- #

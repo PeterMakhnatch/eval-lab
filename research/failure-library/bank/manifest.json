@@ -272,6 +272,41 @@
         }
       ]
     },
+    "goodfire-action-v1": {
+      "by_actor_transcript": {
+        "True": 150
+      },
+      "by_granularity": {
+        "run": 150
+      },
+      "by_kind": {
+        "cheat": 150
+      },
+      "by_kind_polarity_split": {
+        "cheat|None|DEV": 69,
+        "cheat|negative|DEV": 70,
+        "cheat|positive|DEV": 11
+      },
+      "by_label_type": {
+        "consensus": 150
+      },
+      "by_license": {
+        "none-declared; internal only; no rehosting": 150
+      },
+      "by_polarity": {
+        "None": 69,
+        "negative": 70,
+        "positive": 11
+      },
+      "by_split": {
+        "DEV": 150
+      },
+      "count": 150,
+      "itemized": true,
+      "positive_units": 0,
+      "runnable_in_harness": 0,
+      "sha256": "4e07fc01991a06b8b7888db92118e5ea84c1b9a654402276cbd1fc936fecd6e0"
+    },
     "grader-repairs": {
       "by_actor_transcript": {
         "None": 143
@@ -307,6 +342,41 @@
       "positive_units": 0,
       "runnable_in_harness": 0,
       "sha256": "f911861a020f37528a4b620e0bd03c57c6070aa065511e18abdeae92c5937cf1"
+    },
+    "impossible-task-final": {
+      "by_actor_transcript": {
+        "True": 173
+      },
+      "by_granularity": {
+        "run": 173
+      },
+      "by_kind": {
+        "cheat": 173
+      },
+      "by_kind_polarity_split": {
+        "cheat|None|DEV": 98,
+        "cheat|negative|DEV": 32,
+        "cheat|positive|DEV": 43
+      },
+      "by_label_type": {
+        "executed": 173
+      },
+      "by_license": {
+        "lab traces; underlying task licences vary": 173
+      },
+      "by_polarity": {
+        "None": 98,
+        "negative": 32,
+        "positive": 43
+      },
+      "by_split": {
+        "DEV": 173
+      },
+      "count": 173,
+      "itemized": true,
+      "positive_units": 0,
+      "runnable_in_harness": 0,
+      "sha256": "e7175a8dc6f917c1a72fea073df3c39103e74833d463f99bb8a170de36c9d8bb"
     },
     "library-findings": {
       "by_actor_transcript": {
@@ -493,12 +563,13 @@
   "split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
   "totals": {
     "by_polarity_split": {
-      "negative|DEV": 67811,
+      "None|DEV": 167,
+      "negative|DEV": 67913,
       "negative|TEST": 807,
       "negative|cross_test": 13666,
       "negative|cross_test(summary)": 0,
       "negative|heldout": 79074,
-      "positive|DEV": 53746,
+      "positive|DEV": 53800,
       "positive|TEST": 1738,
       "positive|cross_test": 6100,
       "positive|cross_test(summary)": 169,
@@ -519,7 +590,9 @@
       "cross-test|cheat(summary)": 169,
       "cross-test|grader_wrong_pass": 106,
       "cross-test|task_defect": 2797,
+      "goodfire-action-v1|cheat": 150,
       "grader-repairs|grader_repair": 143,
+      "impossible-task-final|cheat": 173,
       "library-findings|grader_unfair_fail": 3101,
       "library-findings|grader_wrong_pass": 1899,
       "library-findings|task_defect": 266,
@@ -530,6 +603,6 @@
       "run-health|runaway": 72,
       "seeker|infra": 49
     },
-    "items": 253018
+    "items": 253341
   }
 }

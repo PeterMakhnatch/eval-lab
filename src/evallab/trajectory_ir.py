@@ -81,6 +81,24 @@ class ObservationResultRecord:
 
 
 @dataclass(frozen=True)
+class SourceEventRef:
+    """A source coordinate and its explicit projection onto an action step."""
+
+    source_event_id: str
+    normalized_step_id: int | None
+    source_path: str = ""
+    source_sha256: str = ""
+    source_line: int | None = None
+    call_id: str | None = None
+    parent_event_id: str | None = None
+    branch_id: str | None = None
+    on_final_parent_path: bool | None = None
+    event_kind: str = "message"
+    resolution: str = "direct"
+    transform_version: str = "source-events/v1"
+
+
+@dataclass(frozen=True)
 class StepRecord:
     """Full-fidelity trajectory step record."""
 
@@ -102,6 +120,7 @@ class StepRecord:
     llm_call_count: int | None = None
     is_copied_context: bool | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    is_cheating: bool = False
 
 
 @dataclass(frozen=True)
@@ -137,6 +156,7 @@ class TrajectoryIR:
     source_path: str | None = None
     source_sha256: str | None = None
     loss_report: TrajectoryLossReport | None = None
+    source_event_map: tuple[SourceEventRef, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         """Convert TrajectoryIR into a comprehensive dictionary."""
@@ -316,11 +336,16 @@ def build_trajectory_ir(
     raw_steps = raw_data.get("steps")
     steps_raw: list[Any] = raw_steps if isinstance(raw_steps, list) else []
     step_records: list[StepRecord] = []
+    used_ids: set[int] = set()
 
     for idx, raw_step in enumerate(steps_raw, start=1):
         if not isinstance(raw_step, dict):
             continue
-        step_id = int(raw_step.get("step_id") or idx)
+        value = raw_step.get("step_id")
+        step_id = int(value) if value is not None else idx
+        if step_id in used_ids:
+            raise ValueError(f"Duplicate normalized step identity: {step_id}")
+        used_ids.add(step_id)
         source = str(raw_step.get("source") or "agent")
         timestamp = raw_step.get("timestamp")
         step_model = raw_step.get("model_name") or model_name
@@ -498,6 +523,18 @@ def build_trajectory_ir(
             )
         )
 
+    event_map = tuple(
+        SourceEventRef(**entry) for entry in raw_data.get("source_event_map", ())
+    )
+    event_keys: set[tuple[str, str]] = set()
+    for entry in event_map:
+        key = (entry.source_path, entry.source_event_id)
+        if key in event_keys:
+            raise ValueError(f"Duplicate source event identity: {key}")
+        event_keys.add(key)
+        if entry.normalized_step_id is not None and entry.normalized_step_id not in used_ids:
+            raise ValueError(f"Source event targets missing step: {key}")
+
     # Audit loss manifest
     loss_report = audit_trajectory_loss(raw_data, source_path=source_path)
 
@@ -519,6 +556,7 @@ def build_trajectory_ir(
         source_path=source_path or None,
         source_sha256=source_sha256 or None,
         loss_report=loss_report,
+        source_event_map=event_map,
     )
 
 

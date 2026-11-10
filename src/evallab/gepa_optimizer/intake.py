@@ -42,7 +42,7 @@ def replay_spec_for_candidate(
 
     Model, limits and other behavioral settings remain unchanged. The
     ``task_package`` kind rebinds the task itself to a validated candidate
-    package (see ``evallab.task_candidate``): the base spec's task must be the
+    package: the base spec's task must be the
     original, and the candidate package must have passed validity checks
     before replay. Stale preamble/toolbox levers are cleared because the
     candidate carries its own instruction.

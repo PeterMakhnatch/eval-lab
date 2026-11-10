@@ -66,11 +66,10 @@ The code layout is strictly modularized across authoritative domain packages and
 - `src/evallab/storage/`: Filesystem paths (`paths.py`), DuckDB unified attach (`attach.py`), Parquet compaction (`parquet_compaction.py`), and historical backfill (`data_backfill.py`).
 - `src/evallab/evidence/`: Canonical ATIF normalization (`atif.py`), fact extraction (`facts.py`), and event marts (`event_mart.py`).
 - `src/evallab/interpretation/`: Canonical trajectory intermediate representation (`trajectory_ir.py`), bounded model context (`evidence_pack.py`), machine evaluation (`trajectory_judgment.py`), quality screening (`trajectory_quality.py`), and platform governance gates (`trajectory_acceptance.py`).
-- `src/evallab/recovery/`: State recovery certification (`certify.py`), bundles (`bundle.py`), and paired pilots (`pilot.py`, `wrapper.py`).
 - Top-level modules (`src/evallab/*.py`):
   - Execution runners & queues: `runner.py`, `queue.py`, `preflight.py`, `quota.py`
-  - Task registries & authoring: `registry.py`, `ladder.py`, `screen.py`, `task_workbench.py`, `authoring.py`
-  - Synthetic generation: `seqgen.py`, `synthetic_funcdag.py`, `synthetic_transform.py`, `synthetic_cert.py`
+  - Task registries & authoring: `registry.py`, `ladder.py`, `screen.py`, `task_workbench.py`
+  - Synthetic generation: `synthetic_funcdag.py`, `synthetic_transform.py`, `synthetic_cert.py`
   - CLI & reporting: `cli.py` (the `src/evallab/cli/` directory is empty; do not add modules there), `status.py`, `verdicts.py`
 
 ---

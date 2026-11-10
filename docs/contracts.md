@@ -39,7 +39,6 @@ its descriptive outcomes remain available with the refusal.
 | Trial | `src/evallab/evidence/atif.py` | trial_id |
 | Trajectory | `src/evallab/evidence/atif.py` | trial_id |
 | CraftRecord | `src/evallab/craft.py` | (task_ref, facets_schema_version) |
-| Proposal | `src/evallab/authoring.py` | proposal_id |
 | Lesson | `src/evallab/lessons.py` | lesson_id |
 | ExperimentSpec | `src/evallab/schemas/__init__.py` | spec_id |
 | QueueEvent | `src/evallab/schemas/__init__.py` | event_id |

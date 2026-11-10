@@ -1325,42 +1325,6 @@ def _validate_timeouts_and_artifacts(
             continue
         artifacts.append(item)
     return artifacts
-    raw_artifacts = config.get("artifacts")
-    if not isinstance(raw_artifacts, list):
-        diagnostics.append(
-            _diag("artifacts_invalid", "task.toml", "artifacts must be an explicit list")
-        )
-        return []
-    artifacts: list[str] = []
-    for item in raw_artifacts:
-        if not isinstance(item, str):
-            diagnostics.append(
-                _diag("artifact_path_invalid", "task.toml", "artifact paths must be strings")
-            )
-            continue
-        pure = PurePosixPath(item)
-        if not pure.is_absolute() or ".." in pure.parts or not item.startswith("/app/"):
-            diagnostics.append(
-                _diag(
-                    "artifact_path_escape",
-                    "task.toml",
-                    f"artifact path {item!r} must be absolute under /app",
-                )
-            )
-        if any(part in FORBIDDEN_AGENT_IMAGE_PARTS for part in pure.parts):
-            diagnostics.append(
-                _diag(
-                    "hidden_artifact_exposure",
-                    "task.toml",
-                    f"artifact path {item!r} exposes a hidden task component",
-                )
-            )
-        artifacts.append(item)
-    if len(artifacts) != len(set(artifacts)):
-        diagnostics.append(
-            _diag("artifact_duplicate", "task.toml", "artifact paths must be unique")
-        )
-    return artifacts
 
 
 def _docker_logical_lines(text: str) -> list[str]:

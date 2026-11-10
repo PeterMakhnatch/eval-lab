@@ -9,19 +9,16 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from evallab.qa import (
+from evallab.qa.answer_key import AnswerKey, load_answer_key
+from evallab.qa.models import (
     AnswerKeyItem,
     Finding,
     KeyPair,
     Refutation,
-    append_scoreboard,
     expected_root_causes,
-    load_answer_key,
     load_findings_dir,
-    score_findings,
 )
-from evallab.qa.answer_key import AnswerKey
-from evallab.qa.score import SCOREBOARD_COLUMNS
+from evallab.qa.score import SCOREBOARD_COLUMNS, append_scoreboard, score_findings
 
 
 def _finding(

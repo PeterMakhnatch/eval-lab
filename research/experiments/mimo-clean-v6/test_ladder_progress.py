@@ -258,6 +258,51 @@ def test_ladder_progress_render_slice_cli_prints_the_table(
     assert printed == _readme_table("## P2 ranks 52–57 ladder cells")
 
 
+def _slice_cell_file(tmp_path: Path, cell: dict) -> Path:
+    """A one-task slice file whose task digest matches its tmp manifest."""
+    (tmp_path / MODULE.MANIFEST_NAME).write_text(
+        f"task_id,final_digest\n{cell['task_id']},{cell['final_digest']}\n", encoding="utf-8"
+    )
+    path = tmp_path / "ladder-tmp.json"
+    path.write_text(
+        json.dumps(
+            {"schema": SCHEMA, "tasks": [{k: v for k, v in cell.items() if k != "_source_file"}]}
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_ladder_progress_render_slice_refuses_a_task_without_a_rank(tmp_path: Path) -> None:
+    cell = _cell(1, "rc=0 runner=x")
+    cell["ranking"] = {}
+    with pytest.raises(ProgressError, match="t1: no integer ranking.rank"):
+        MODULE.render_slice(_slice_cell_file(tmp_path, cell), cells_dir=tmp_path)
+
+
+def test_ladder_progress_render_slice_refuses_a_boolean_attack_count(tmp_path: Path) -> None:
+    cell = _cell(1, "rc=0 runner=x")
+    cell.update(attacks_executed=True, attacks_total=True)
+    with pytest.raises(ProgressError, match="t1: attacks True/True is not a count pair"):
+        MODULE.render_slice(_slice_cell_file(tmp_path, cell), cells_dir=tmp_path)
+
+
+def test_ladder_progress_render_slice_refuses_a_wall_time_that_is_not_a_number(
+    tmp_path: Path,
+) -> None:
+    cell = _cell(1, "rc=0 runner=x")
+    cell["wall_seconds"] = "10"
+    with pytest.raises(ProgressError, match="t1: wall_seconds '10' is not a number"):
+        MODULE.render_slice(_slice_cell_file(tmp_path, cell), cells_dir=tmp_path)
+
+
+def test_ladder_progress_read_slice_cells_refuses_another_schema(tmp_path: Path) -> None:
+    path = tmp_path / "ladder-tmp.json"
+    path.write_text(json.dumps({"schema": "other/v1", "tasks": []}), encoding="utf-8")
+    with pytest.raises(ProgressError, match="ladder-tmp.json: schema 'other/v1' is not"):
+        MODULE.read_slice_cells(path, cells_dir=tmp_path)
+
+
 def test_ladder_progress_summary_accounts_for_every_row_once() -> None:
     rows = _committed()
     entries = MODULE.summary(rows)
@@ -337,6 +382,16 @@ def test_ladder_progress_summary_refuses_a_language_with_no_reference_basis() ->
         _summary_row("t2", "go", "none", ""),
     ]
     with pytest.raises(ProgressError, match="go"):
+        MODULE.summary(rows)
+
+
+def test_ladder_progress_summary_refuses_a_reference_basis_with_no_wall_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The guard is unreachable while ``reference_basis`` names a present basis."""
+    rows = [_summary_row("t1", "go", "unscored", "448")]
+    monkeypatch.setattr(MODULE, "reference_basis", lambda language, bases: MODULE.GRADED_BASIS)
+    with pytest.raises(ProgressError, match="go: graded rows carry no wall time"):
         MODULE.summary(rows)
 
 
@@ -568,6 +623,32 @@ def test_ladder_progress_has_exactly_one_row_per_ranking_rank() -> None:
     assert {row["verdict"] for row in rows if row["source_file"] == ""} <= {"none"}
 
 
+def _ranking_file(tmp_path: Path, ranks: list[int]) -> Path:
+    """A tmp ranking CSV holding the one column ``read_ranking`` reads."""
+    path = tmp_path / RANKING
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(["rank", *(str(rank) for rank in ranks)]) + "\n", encoding="utf-8")
+    return path
+
+
+def test_ladder_progress_a_missing_ranking_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ProgressError, match="ranking is missing"):
+        MODULE.read_ranking(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "ranks",
+    [list(range(1, 100)), [*range(1, 100), 99]],
+    ids=["last-rank-missing", "one-rank-repeated"],
+)
+def test_ladder_progress_a_ranking_that_omits_or_repeats_a_rank_is_refused(
+    tmp_path: Path, ranks: list[int]
+) -> None:
+    _ranking_file(tmp_path, ranks)
+    with pytest.raises(ProgressError, match="does not hold ranks 1-100 once each"):
+        MODULE.read_ranking(tmp_path)
+
+
 @pytest.mark.parametrize(
     ("decision", "basis"),
     [
@@ -678,6 +759,11 @@ def test_ladder_progress_a_cell_for_a_different_task_is_refused() -> None:
     cell["task_id"] = "other"
     with pytest.raises(ProgressError, match="rank 1"):
         assemble(_ranking(), [cell])
+
+
+def test_ladder_progress_a_cell_at_a_rank_the_ranking_omits_is_refused() -> None:
+    with pytest.raises(ProgressError, match="cells name ranks missing from the ranking: \\[2\\]"):
+        assemble(_ranking(1), [_cell(2, "rc=0 runner=x")])
 
 
 def test_ladder_progress_cell_files_with_another_schema_are_ignored(tmp_path: Path) -> None:
@@ -955,6 +1041,16 @@ def test_ladder_progress_a_subset_cell_at_another_digest_is_refused(tmp_path: Pa
     (tmp_path / "ladder-sub.json").write_text(json.dumps(subset_file), encoding="utf-8")
     with pytest.raises(ProgressError, match="sha256:stale"):
         MODULE.read_subset_cells(tmp_path, tmp_path, manifest=_manifest(1))
+
+
+def test_ladder_progress_subset_evidence_with_another_schema_is_refused(tmp_path: Path) -> None:
+    (tmp_path / MODULE.SUBSET_EVIDENCE_FILES[0]).write_text(
+        json.dumps({"schema": "other/v1", "tasks": []}), encoding="utf-8"
+    )
+    with pytest.raises(
+        ProgressError, match="ladder-graded-subset.json: unexpected schema 'other/v1'"
+    ):
+        MODULE.read_subset_evidence(tmp_path)
 
 
 @pytest.fixture
@@ -1650,6 +1746,147 @@ def test_ladder_progress_committed_receipt_lists_every_committed_cell() -> None:
     cells = MODULE.read_cells(EXPERIMENT, REPO_ROOT, manifest=MODULE.read_manifest(EXPERIMENT))
     assert len(receipt["cells"]) == len(cells)
     assert "/Users/" not in (EXPERIMENT / MODULE.RECEIPT_NAME).read_text(encoding="utf-8")
+
+
+def _git_result(returncode: int, stdout: str, stderr: str = "") -> subprocess.CompletedProcess:
+    return subprocess.CompletedProcess(["git"], returncode, stdout, stderr)
+
+
+def test_ladder_progress_head_commit_refuses_a_git_probe_that_cannot_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise OSError("git is not installed")
+
+    monkeypatch.setattr(MODULE.subprocess, "run", refuse)
+    with pytest.raises(
+        ProgressError, match="cannot read the eval-lab commit: git is not installed"
+    ):
+        MODULE.head_commit(REPO_ROOT)
+
+
+@pytest.mark.parametrize(
+    ("result", "detail"),
+    [
+        (_git_result(1, "", "fatal: not a git repository"), "fatal: not a git repository"),
+        (_git_result(0, "f8cc7ce\n"), ""),
+    ],
+    ids=["failed-command", "short-sha"],
+)
+def test_ladder_progress_head_commit_refuses_an_unusable_answer(
+    monkeypatch: pytest.MonkeyPatch, result: subprocess.CompletedProcess, detail: str
+) -> None:
+    monkeypatch.setattr(MODULE.subprocess, "run", lambda *args, **kwargs: result)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.head_commit(REPO_ROOT)
+    assert str(refused.value) == f"{REPO_ROOT}: cannot read the eval-lab commit: {detail}"
+
+
+def test_ladder_progress_receipt_with_another_schema_is_refused(sandbox: Path) -> None:
+    receipt = _sandbox_receipt(sandbox)
+    receipt["schema"] = "other/v1"
+    _write_sandbox_receipt(sandbox, receipt)
+    with pytest.raises(ProgressError, match=f"schema is not {MODULE.RECEIPT_SCHEMA}"):
+        MODULE.read_receipt(sandbox, sandbox.parents[2])
+
+
+@pytest.mark.parametrize("key", ["cells", "subsets"])
+def test_ladder_progress_receipt_section_that_is_not_a_list_is_refused(
+    sandbox: Path, key: str
+) -> None:
+    receipt = _sandbox_receipt(sandbox)
+    receipt[key] = {"status": "matched"}
+    _write_sandbox_receipt(sandbox, receipt)
+    with pytest.raises(ProgressError, match=f"{key} is not a list of entries"):
+        MODULE.read_receipt(sandbox, sandbox.parents[2])
+
+
+def test_ladder_progress_receipt_with_a_non_boolean_strict_is_refused(sandbox: Path) -> None:
+    receipt = _sandbox_receipt(sandbox)
+    receipt["strict"] = "yes"
+    _write_sandbox_receipt(sandbox, receipt)
+    with pytest.raises(ProgressError, match="strict 'yes' is not true or false"):
+        MODULE.read_receipt(sandbox, sandbox.parents[2])
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("checked_utc", "2026-11-10 05:57:54"),
+        ("checked_date_et", "11/10/2026"),
+        ("eval_lab_commit", "f8cc7ce"),
+    ],
+)
+def test_ladder_progress_receipt_with_malformed_metadata_is_refused(
+    sandbox: Path, field: str, value: str
+) -> None:
+    receipt = _sandbox_receipt(sandbox)
+    receipt[field] = value
+    _write_sandbox_receipt(sandbox, receipt)
+    with pytest.raises(ProgressError, match=f"{field} {value!r} is malformed"):
+        MODULE.read_receipt(sandbox, sandbox.parents[2])
+
+
+def _extra_receipt_cell(receipt: dict) -> str:
+    receipt["cells"].append({**receipt["cells"][0], "task_id": "t-extra", "job_name": "j-extra"})
+    return "unexpected ['t-extra (j-extra)']"
+
+
+def _repeated_receipt_cell(receipt: dict) -> str:
+    receipt["cells"].insert(1, dict(receipt["cells"][0]))
+    return "out of order or repeated"
+
+
+def _reordered_receipt_cells(receipt: dict) -> str:
+    receipt["cells"][0], receipt["cells"][1] = receipt["cells"][1], receipt["cells"][0]
+    return "out of order or repeated"
+
+
+RECEIPT_CELL_DAMAGES = (_extra_receipt_cell, _repeated_receipt_cell, _reordered_receipt_cells)
+
+
+@pytest.mark.parametrize(
+    "damage", RECEIPT_CELL_DAMAGES, ids=lambda damage: damage.__name__.strip("_")
+)
+def test_ladder_progress_a_receipt_that_does_not_list_the_committed_cells_is_refused(
+    sandbox: Path, damage: object
+) -> None:
+    receipt = _sandbox_receipt(sandbox)
+    detail = damage(receipt)  # type: ignore[operator]
+    _write_sandbox_receipt(sandbox, receipt)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_receipt(sandbox, sandbox.parents[2])
+    assert "do not match the committed cells" in str(refused.value)
+    assert detail in str(refused.value)
+
+
+@pytest.mark.parametrize(
+    "damage", RECEIPT_CELL_DAMAGES, ids=lambda damage: damage.__name__.strip("_")
+)
+def test_ladder_progress_sync_docs_cli_exits_one_on_a_receipt_of_other_cells(
+    sandbox: Path, damage: object
+) -> None:
+    script = sandbox / "ladder_progress.py"
+    shutil.copy(EXPERIMENT / "ladder_progress.py", script)
+    receipt = _sandbox_receipt(sandbox)
+    detail = damage(receipt)  # type: ignore[operator]
+    _write_sandbox_receipt(sandbox, receipt)
+    receipt_before = (sandbox / MODULE.RECEIPT_NAME).read_bytes()
+    _stale_sync_pages(sandbox)
+    before = _sync_snapshot(sandbox)
+    result = subprocess.run(
+        [sys.executable, str(script), "--sync-docs"],
+        cwd=sandbox.parents[2],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 1
+    assert "do not match the committed cells" in result.stderr
+    assert detail in result.stderr
+    assert _sync_snapshot(sandbox) == before
+    assert (sandbox / MODULE.RECEIPT_NAME).read_bytes() == receipt_before
 
 
 def test_ladder_progress_sync_docs_restores_stale_evidence_prose_from_the_receipt(

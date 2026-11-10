@@ -222,15 +222,15 @@ def render(rows: Sequence[dict[str, str]]) -> str:
 
 
 def _check(name: str, rebuilt: str) -> bool:
-    """Compare ``rebuilt`` against the committed file; True when it matches."""
+    """Compare ``rebuilt`` against the committed file's bytes; True when equal."""
     target = HERE / name
-    committed = target.read_text(encoding="utf-8") if target.is_file() else ""
-    if committed == rebuilt:
+    committed = target.read_bytes() if target.is_file() else b""
+    if committed == rebuilt.encode("utf-8"):
         print(f"{name}: reproduces from committed evidence")
         return True
     print(f"{name}: stale; rerun without --check to regenerate", file=sys.stderr)
     diff = difflib.unified_diff(
-        committed.splitlines(),
+        committed.decode("utf-8", "replace").splitlines(),
         rebuilt.splitlines(),
         fromfile=f"{name} (committed)",
         tofile=f"{name} (rebuilt)",
@@ -253,7 +253,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     rebuilt = render(rows)
     if args.check:
         return 0 if _check(JOIN_NAME, rebuilt) else 1
-    (HERE / JOIN_NAME).write_text(rebuilt, encoding="utf-8")
+    (HERE / JOIN_NAME).write_bytes(rebuilt.encode("utf-8"))
     print(f"wrote {JOIN_NAME}: {len(rows)} rows")
     return 0
 

@@ -118,8 +118,8 @@ def join_root(tmp_path: Path) -> Path:
 def test_committed_join_reproduces_from_committed_inputs() -> None:
     # A hand edit, or a refreshed census or ladder cell that was not regenerated,
     # is drift: --check and this test both fail until ladder_join.py rewrites it.
-    committed = (DIR / MODULE["JOIN_NAME"]).read_text(encoding="utf-8")
-    assert MODULE["render"](MODULE["build"]()) == committed
+    committed = (DIR / MODULE["JOIN_NAME"]).read_bytes()
+    assert MODULE["render"](MODULE["build"]()).encode("utf-8") == committed
 
 
 def test_check_exits_one_on_drift_and_zero_when_committed(
@@ -131,9 +131,13 @@ def test_check_exits_one_on_drift_and_zero_when_committed(
     assert namespace["HERE"] == DIR
     monkeypatch.setitem(namespace, "HERE", tmp_path)
     committed = tmp_path / MODULE["JOIN_NAME"]
+    rebuilt = MODULE["render"](MODULE["build"]())
     committed.write_text("stale\n", encoding="utf-8")
     assert MODULE["main"](["--check"]) == 1
-    committed.write_text(MODULE["render"](MODULE["build"]()), encoding="utf-8")
+    # Same lines, different bytes: --check is byte equality, not text equality.
+    committed.write_bytes(rebuilt.replace("\n", "\r\n").encode("utf-8"))
+    assert MODULE["main"](["--check"]) == 1
+    committed.write_bytes(rebuilt.encode("utf-8"))
     assert MODULE["main"](["--check"]) == 0
 
 

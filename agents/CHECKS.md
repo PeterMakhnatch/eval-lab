@@ -201,6 +201,13 @@ explicit per-call `derived_root`; linked worktrees otherwise share the primary
 checkout's derived store. Keep real canary inputs read-only and verify persisted
 labels in the isolated store, not by restoring shared data after the test.
 
+An autouse `subprocess.Popen` guard rejects `codex`, `claude`, `agy`,
+`cursor-agent`, `opencode`, `omp`, `security`, and `gemini` before they launch
+outside the current test's `tmp_path` and `_isolate_temp_root` directories.
+Use injected subprocess runners or fake executables inside either directory.
+The guard checks the selected executable, including PATH lookup and explicit
+overrides, and resolves symlinks; a link to a host executable is not a fake.
+
 Event filenames are not a chronology guarantee: same-millisecond ULIDs may sort
 out of order. Check semantic reason codes, or order by recorded timestamps when
 the latest event matters; inject reversed IDs and a fixed clock for that boundary.

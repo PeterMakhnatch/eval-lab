@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import contextlib
+import inspect
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import zlib
 from collections.abc import Generator
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -104,6 +107,71 @@ def _isolate_temp_root(monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None,
     monkeypatch.setattr(tempfile, "tempdirb", None, raising=False)
     monkeypatch.setenv("TMPDIR", str(root))
     yield root
+
+
+@pytest.fixture(autouse=True)
+def _isolate_host_cli_processes(
+    request: pytest.FixtureRequest,
+    tmp_path: Path,
+    _isolate_temp_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only per-test fake executables may launch under host CLI names."""
+    denied = {
+        "codex",
+        "claude",
+        "agy",
+        "cursor-agent",
+        "opencode",
+        "omp",
+        "security",
+        "gemini",
+    }
+    roots = (tmp_path.resolve(), _isolate_temp_root.resolve())
+    original_init = subprocess.Popen.__init__
+    original_which = shutil.which
+    signature = inspect.signature(original_init)
+
+    def guarded_init(process: Any, *args: Any, **kwargs: Any) -> None:
+        parameters = signature.bind(process, *args, **kwargs).arguments
+        executable = parameters.get("executable")
+        if executable is None:
+            if parameters.get("shell", False):
+                executable = "/bin/sh"
+            else:
+                command = parameters["args"]
+                if isinstance(command, (str, bytes, os.PathLike)):
+                    executable = command
+                elif command:
+                    executable = command[0]
+                else:
+                    return original_init(process, *args, **kwargs)
+        executable = os.fsdecode(executable)
+        cwd = Path(os.fsdecode(parameters.get("cwd") or os.getcwd())).resolve()
+        if os.path.dirname(executable):
+            resolved = (cwd / executable).resolve()
+        else:
+            # Relative PATH entries use the child's cwd, not the pytest cwd.
+            search_path = os.pathsep.join(
+                str(cwd / entry) for entry in os.get_exec_path(parameters.get("env"))
+            )
+            found = original_which(executable, path=search_path)
+            resolved = Path(found).resolve() if found is not None else None
+        binary = Path(executable).name
+        if binary not in denied and resolved is not None:
+            binary = resolved.name
+        if binary in denied and (
+            resolved is None or not any(resolved.is_relative_to(root) for root in roots)
+        ):
+            pytest.fail(
+                f"Blocked host CLI {binary!r} in {request.node.nodeid}: "
+                f"{resolved or executable} is outside this test's temporary roots",
+                pytrace=False,
+            )
+        return original_init(process, *args, **kwargs)
+
+    # Preserve the Popen class for runtime annotations and subclassing.
+    monkeypatch.setattr(subprocess.Popen, "__init__", guarded_init)
 
 
 @pytest.fixture(autouse=True, scope="session")

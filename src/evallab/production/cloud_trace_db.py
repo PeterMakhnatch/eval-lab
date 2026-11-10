@@ -24,7 +24,7 @@ import tempfile
 import threading
 from array import array
 from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, replace
 from dataclasses import field as dataclass_field
 from functools import lru_cache
@@ -311,47 +311,14 @@ def _record(record: Mapping[str, Any], columns: Sequence[str], defaults: Mapping
 
 
 class S3CompatibleCAS:
-    """Opaque immutable bundles on S3/R2/Tigris, optionally mirrored locally.
-
-    Configure ``EVALLAB_S3_BUCKET`` and optional ``EVALLAB_S3_ENDPOINT_URL``;
-    credentials come from ``AWS_ACCESS_KEY_ID``/``AWS_SECRET_ACCESS_KEY`` and
-    optional ``AWS_SESSION_TOKEN``. ``AWS_REGION``/``AWS_DEFAULT_REGION`` override
-    the region (``auto`` for custom endpoints, otherwise ``us-east-1``). Passing
-    only ``local_directory`` requires no S3 SDK initialization or credentials.
-    """
+    """Immutable local bundles addressed by their SHA-256 digest."""
 
     def __init__(
         self,
         *,
-        local_directory: str | Path | None = None,
-        bucket: str | None = None,
-        endpoint_url: str | None = None,
-        client: Any | None = None,
+        local_directory: str | Path,
     ) -> None:
-        self.local_directory = None if local_directory is None else Path(local_directory)
-        self.bucket = bucket if bucket is not None else os.environ.get("EVALLAB_S3_BUCKET")
-        endpoint = endpoint_url if endpoint_url is not None else os.environ.get("EVALLAB_S3_ENDPOINT_URL")
-        self._client = client
-        if client is not None and not self.bucket:
-            raise ValueError("an S3 client requires a bucket")
-        if self.bucket and self._client is None:
-            import boto3
-            from botocore.config import Config
-
-            access_key = os.environ.get("AWS_ACCESS_KEY_ID")
-            secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
-            if not access_key or not secret_key:
-                raise ValueError("S3 requires AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY")
-            self._client = boto3.client(
-                "s3", endpoint_url=endpoint,
-                region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
-                or ("auto" if endpoint else "us-east-1"),
-                aws_access_key_id=access_key, aws_secret_access_key=secret_key,
-                aws_session_token=os.environ.get("AWS_SESSION_TOKEN"),
-                config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
-            )
-        if self.local_directory is None and self._client is None:
-            raise ValueError("configure EVALLAB_S3_BUCKET or a local_directory")
+        self.local_directory = Path(local_directory)
 
     @staticmethod
     def _digest(uri: str) -> str:
@@ -367,8 +334,6 @@ class S3CompatibleCAS:
         return data
 
     def _mirror(self, data: bytes, digest: str) -> None:
-        if self.local_directory is None:
-            return
         destination = self.local_directory / "sha256" / digest
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists():
@@ -388,30 +353,16 @@ class S3CompatibleCAS:
                 temporary.unlink(missing_ok=True)
 
     def put_bytes(self, data: bytes) -> str:
-        """Upload exact bytes, returning their backend-independent CAS URI."""
+        """Store exact bytes, returning their backend-independent CAS URI."""
         digest = hashlib.sha256(data).hexdigest()
-        if self._client is not None:
-            self._client.put_object(
-                Bucket=self.bucket, Key=f"sha256/{digest}", Body=data,
-                ContentType="application/octet-stream", Metadata={"sha256": digest},
-            )
         self._mirror(data, digest)
         return f"cas://sha256/{digest}"
 
     def get_bytes(self, uri: str) -> bytes:
-        """Read and verify full bytes; missing objects and transport errors propagate."""
+        """Read and verify full bytes; missing objects and file errors propagate."""
         digest = self._digest(uri)
-        if self.local_directory is not None:
-            path = self.local_directory / "sha256" / digest
-            if path.exists():
-                return self._verify(path.read_bytes(), digest)
-        if self._client is None:
-            raise FileNotFoundError(uri)
-        response = self._client.get_object(Bucket=self.bucket, Key=f"sha256/{digest}")
-        with closing(response["Body"]) as stream:
-            data = self._verify(stream.read(), digest)
-        self._mirror(data, digest)
-        return data
+        path = self.local_directory / "sha256" / digest
+        return self._verify(path.read_bytes(), digest)
 
     def put_bundle(self, bundle: Mapping[str, Any] | Sequence[Any]) -> str:
         """Store a deterministic JSON bundle; use put_bytes for tar/other binaries."""

@@ -414,15 +414,12 @@ discloses `inspect_scout_installed=false`, `format=jsonl`, and
 `Transcript.model_validate_json(line)` for each line; do not assume Scout's
 `transcripts_from` reads arbitrary JSONL.
 
-`S3CompatibleCAS` stores exact bytes under `cas://sha256/<digest>` and verifies
-downloaded or mirrored bytes before returning them. Configure
-`EVALLAB_S3_BUCKET`, `EVALLAB_S3_ENDPOINT_URL` for R2/Tigris/custom S3, and
-`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`; session credentials additionally
-use `AWS_SESSION_TOKEN`. `AWS_REGION` or `AWS_DEFAULT_REGION` overrides the
-default (`auto` for custom endpoints, `us-east-1` for AWS S3). `put_bytes` /
-`get_bytes` preserve raw traces or binary task packages; `put_bundle` /
-`get_bundle` handle deterministic JSON bundles. Pass `local_directory=` for
-an offline CAS, or alongside S3 configuration for an atomic local mirror.
+`S3CompatibleCAS` stores exact bytes locally under `cas://sha256/<digest>`.
+It verifies the SHA-256 digest before returning bytes.
+Pass `local_directory=` to select the local CAS.
+`put_bytes` / `get_bytes` preserve raw traces or binary task packages.
+`put_bundle` / `get_bundle` handle deterministic JSON bundles.
+Remote S3/R2/Tigris upload and retrieval are no longer supported.
 CAS references do not assert that the corresponding object has been ingested.
 
 **Blinded CheatBench runs (not in the cloud database).** CheatBench facet run ids are

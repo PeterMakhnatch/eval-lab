@@ -373,7 +373,6 @@ def test_all_runtime_stores_use_data_root(runtime: CloudRuntime, tmp_path: Path)
         }
         assert paths == {(data_root / filename).resolve()}
     assert runtime.cas.local_directory == data_root / "cas"
-    assert not runtime.cas.bucket
     uri = runtime.cas.put_bytes(b"exact local CAS bytes\x00\xff")
     assert runtime.cas.get_bytes(uri) == b"exact local CAS bytes\x00\xff"
     assert (data_root / "cas/sha256" / uri.rsplit("/", 1)[-1]).is_file()

@@ -237,7 +237,7 @@ class CloudRuntime:
             cleanup.callback(self.queue.close)
             self.database = CloudTraceDatabase(self.data_root / "cloud-trace-db.sqlite")
             cleanup.callback(self.database.close)
-            self.cas = S3CompatibleCAS(local_directory=self.cas_root, bucket="")
+            self.cas = S3CompatibleCAS(local_directory=self.cas_root)
             roots = [self.repo_root, self.data_root]
             self.app = create_app(
                 self.queue,

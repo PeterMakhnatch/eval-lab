@@ -471,7 +471,7 @@ def _actor_source(root: Path) -> tuple[Path, Path, str, bytes]:
     )
     parent = root.parent.resolve()
     source, cas_root = parent / "actor-source.sqlite", parent / "source-cas"
-    cas = S3CompatibleCAS(local_directory=cas_root, bucket="")
+    cas = S3CompatibleCAS(local_directory=cas_root)
     body = b"An inert, operator-approved evidence object.\n"
     uri = cas.put_bytes(body)
     denied_uri = cas.put_bytes(b"Unapproved object, not for the actor projection.\n")

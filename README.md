@@ -71,10 +71,18 @@ Not done yet: most clean-set rows are still `unverified`. In the 567-task v6
 full fleet only 5 are `v6_verified` and 562 `v6_unverified` (reference/nop
 controls only; see [docs/mimo/README.md](docs/mimo/README.md)); the v5 census
 had sampled the fleet, leaving 1,729 rebuilt tasks without a v5 ladder run
-(history). Most v6 Python ladder clean verdicts rest on verifier refusal, not a
-graded run: v6 basis (100 ranks): 100 covered, 99 clean, 80 tamper-refusal,
-19 graded, 1 unscored, 0 not run
+(history). The ranked v6 ladder is 100/100 covered: v6 basis (100 ranks): 100
+covered, 99 clean, 80 tamper-refusal, 19 graded, 1 unscored, 0 not run
 ([ladder-progress.csv](research/experiments/mimo-clean-v6/ladder-progress.csv)).
+The strict evidence check matched 99 of 100 cells and 13 of 13 recorded subset
+trials ([ladder-evidence-receipt.json](research/experiments/mimo-clean-v6/ladder-evidence-receipt.json)).
+The remaining v6 gap is the pending controls: 174 control cells for 90 tasks,
+10.36 projected serial hours
+([pending-controls.json](research/experiments/mimo-clean-v6/pending-controls.json);
+phase table in the
+[pending-controls section](research/experiments/mimo-clean-v6/README.md#pending-v6-control-cells-by-ranking-phase)).
+Most v6 Python ladder clean verdicts rest on verifier refusal, not a graded run,
+and the `tamper_source_*` attacks on the 80 refusal rows are ungraded.
 The graded rows include the 5 Go cells (`001694` at rank 6; `000048`,
 `000208`, `000427`, `000431` at ranks 89–92), the 4 JavaScript cells
 (`000112`, `000524`, `001675`, `001849` at ranks 93–96) and the 4 TypeScript

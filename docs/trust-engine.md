@@ -145,7 +145,10 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
      --reference-patch library/tasks/my-task/reference.patch \
      --plan --json
    ```
-   This preview does not execute containers, enumerate mutants, or synthesize tests. Non-plan execution supports one synthesis round; `--rounds > 1` remains a library-only feedback workflow (`evallab.gold_certifier.run_rounds`) and the command refuses it.
+   The preview does not execute containers, enumerate mutants, or synthesize tests.
+   The command supports 1 synthesis round.
+   It no longer accepts `--rounds` or `--probes-per-round`.
+   The research feedback workflow remains available through `evallab.gold_certifier.run_rounds`.
 
    The default path never plans or executes witness or startup-injection controls.
    Gates 3 and 4 remain unexercised: their rewards are `null`, and their pass flags are `false`.

@@ -1104,18 +1104,6 @@ def build_certify_gold_parser(subparsers: Any) -> None:
         help="Offline planning: show parameters and Python targets without executing or synthesizing",
     )
     parser.add_argument("--json", action="store_true", help="Output summary as JSON")
-    parser.add_argument(
-        "--rounds",
-        type=int,
-        default=1,
-        help="Synthesis rounds; round r+1 is fed the probe mutants that survived round r (default 1)",
-    )
-    parser.add_argument(
-        "--probes-per-round",
-        type=int,
-        default=DEFAULT_PROBES_PER_ROUND,
-        help="Fresh probe mutants graded per round (never train or eval mutants)",
-    )
     parser.set_defaults(func=_certify_gold_command)
 
 
@@ -1129,9 +1117,6 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
 
     package = args.package.resolve()
     task_id = args.task_id or package.name
-    if args.rounds < 1 or args.probes_per_round < 1:
-        print("error: --rounds and --probes-per-round must be >= 1", file=sys.stderr)
-        return 1
 
     if args.plan:
         plan_dict = {
@@ -1141,8 +1126,6 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
             "model": args.model,
             "metered_cap_usd": args.max_usd if args.max_usd is not None else 0.95,
             "mutant_limit": args.limit,
-            "rounds": args.rounds,
-            "probes_per_round": args.probes_per_round,
             "injection_controls": args.injection_controls,
             "containment": "requested-not-runtime-proven" if args.injection_controls else "disabled",
             "unexercised_gates": ["gate3_witness", "gate4_exit0_pth"],
@@ -1162,13 +1145,6 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
     if not args.out:
         print("error: --out is required unless --plan", file=sys.stderr)
         return 1
-    if args.rounds > 1:
-        print(
-            "error: --rounds > 1 is not implemented in the command (use evallab.gold_certifier.run_rounds); "
-            "only --plan accepts it",
-            file=sys.stderr,
-        )
-        return 2
 
     if not args.approval or not args.approval.strip():
         raise ValueError("Modal execution requires --approval (recorded approval text)")

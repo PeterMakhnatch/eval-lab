@@ -154,11 +154,14 @@ full local reproduction:
    is missing or invalid. The full test suite and runtime smoke do not run; this is
    **not** CI green. During inner development loops, `make loop` or
    `uv run evallab registry devloop [--run]` may also be used to compute and execute
-   targeted tests for changed working-tree modules. Selection uses direct and
-   transitive imports through evallab modules, plus textual references, within
-   every declared pytest `testpaths` root. Each invocation inventories consumers
-   once for both selection and reasons. `--json` includes `lane` and per-consumer `reasons`;
-   with `--run --json`, stdout remains one JSON document, child output streams to
+   targeted tests for changed working-tree modules. Selection uses direct
+   references to changed evallab modules within every declared pytest
+   `testpaths` root. Asset changes (research artifacts, ops scripts, package
+   data) select tests that mention the asset path or a parent directory, tests
+   under declared research/ test roots for research/ assets, and
+   `docs_consumer` tests for markdown; an asset with no covering test falls back
+   to the full suite. Each invocation inventories consumers once for both
+   selection and reasons. `--json` includes `lane` and per-consumer `reasons`;
    stderr, and the command returns the child's exit status. Without `--json`,
    child output keeps its normal interactive stdout/stderr streams.
 3. **Explicit full local reproduction (`make premerge` or `scripts/premerge.sh [--full]`)**:

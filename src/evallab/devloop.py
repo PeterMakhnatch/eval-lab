@@ -1,8 +1,8 @@
 """Developer fast-loop command: map changed files to affected test modules.
 
-Maps git diff / working tree changes to pytest modules using direct references
-and transitive imports through evallab modules, avoiding whole-suite runs during
-local development loops.
+Maps git diff / working tree changes to pytest modules using direct module
+references and asset-path mentions, avoiding whole-suite runs during local
+development loops.
 """
 
 from __future__ import annotations
@@ -29,8 +29,14 @@ FULL_SUITE_PATTERNS = (
     "pyproject.toml",
     "uv.lock",
     "sql/",
-    "tests/conftest.py",
 )
+
+# CLI entrypoint modules dispatch to every command; nearly a tenth of the
+# suite imports them to reach an unrelated subcommand, so selecting by
+# reference would re-join most of the suite on every cli.py touch. Their
+# tests exercise downstream modules, which keep their own direct
+# references; the full suite remains the safety net via `make premerge`.
+DISPATCH_MODULES = frozenset({"evallab.cli", "evallab.entry"})
 
 DOCS_PATTERNS = (
     "docs/",
@@ -99,6 +105,9 @@ def is_full_suite_trigger(path_str: str) -> bool:
     if any(norm == p or norm.startswith(p) for p in FULL_SUITE_PATTERNS):
         return True
     p = PurePosixPath(norm)
+    # Any conftest.py rewrites collection for its whole subtree.
+    if p.name == "conftest.py":
+        return True
     return len(p.parts) == 1 and p.suffix in CONFIG_SUFFIXES
 
 
@@ -153,9 +162,6 @@ def src_path_to_module(path_str: str) -> str:
     return inner.replace("/", ".")
 
 
-type _ImportStatement = tuple[str, int, str, list[str]]
-
-
 class _ConsumerFeatures(TypedDict):
     tokens: list[str]
     import_names: list[str]
@@ -165,15 +171,14 @@ class _ConsumerFeatures(TypedDict):
 
 @dataclass
 class _DevloopCache:
-    sources: dict[str, list[_ImportStatement]]
     consumers: dict[str, _ConsumerFeatures]
     dirty: bool = False
 
 
-def _import_graph_cache_path(root: Path) -> Path | None:
+def _devloop_cache_path(root: Path) -> Path | None:
     override = os.environ.get("EVALLAB_DEVLOOP_CACHE_DIR")
     if override is not None:
-        return Path(override).expanduser() / "import-graph.json"
+        return Path(override).expanduser() / "consumer-features.json"
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--git-dir"],
@@ -184,43 +189,24 @@ def _import_graph_cache_path(root: Path) -> Path | None:
             timeout=5,
         )
         git_dir = Path(result.stdout.strip())
-        return (root / git_dir) / "devloop/import-graph.json"
+        return (root / git_dir) / "devloop/consumer-features.json"
     except (OSError, subprocess.SubprocessError):
         return None
 
 
-def _load_import_graph_cache(path: Path | None) -> _DevloopCache:
-    empty = _DevloopCache({}, {})
+def _load_devloop_cache(path: Path | None) -> _DevloopCache:
+    empty = _DevloopCache({})
     if path is None:
         return empty
     try:
         with path.open(encoding="utf-8") as stream:
             data = json.load(stream)
-        if not isinstance(data, dict) or data.get("version") != 2:
+        if not isinstance(data, dict) or data.get("version") != 3:
             return empty
-        sources, consumers = data.get("sources"), data.get("consumers")
-        if not isinstance(sources, dict) or not isinstance(consumers, dict):
+        consumers = data.get("consumers")
+        if not isinstance(consumers, dict):
             return empty
-        cache = _DevloopCache({}, {})
-        for digest, records in sources.items():
-            if not isinstance(digest, str) or not isinstance(records, list):
-                return empty
-            statements: list[_ImportStatement] = []
-            for record in records:
-                if not isinstance(record, list) or len(record) != 4:
-                    return empty
-                kind, level, module, names = record
-                if (
-                    kind not in ("import", "from")
-                    or not isinstance(level, int)
-                    or level < 0
-                    or not isinstance(module, str)
-                    or not isinstance(names, list)
-                    or not all(isinstance(name, str) for name in names)
-                ):
-                    return empty
-                statements.append((kind, level, module, names))
-            cache.sources[digest] = statements
+        cache = _DevloopCache({})
         for digest, features in consumers.items():
             if (
                 not isinstance(digest, str)
@@ -261,11 +247,10 @@ def _load_import_graph_cache(path: Path | None) -> _DevloopCache:
         return empty
 
 
-def _write_import_graph_cache(path: Path, cache: _DevloopCache) -> None:
+def _write_devloop_cache(path: Path, cache: _DevloopCache) -> None:
     temporary: str | None = None
     try:
-        merged = _load_import_graph_cache(path)
-        merged.sources.update(cache.sources)
+        merged = _load_devloop_cache(path)
         merged.consumers.update(cache.consumers)
         path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
@@ -273,7 +258,7 @@ def _write_import_graph_cache(path: Path, cache: _DevloopCache) -> None:
         ) as stream:
             temporary = stream.name
             json.dump(
-                {"version": 2, "sources": merged.sources, "consumers": merged.consumers},
+                {"version": 3, "consumers": merged.consumers},
                 stream,
                 separators=(",", ":"),
             )
@@ -284,73 +269,6 @@ def _write_import_graph_cache(path: Path, cache: _DevloopCache) -> None:
         if temporary is not None:
             with suppress(OSError):
                 os.unlink(temporary)
-
-
-def _reverse_import_graph(root: Path, cache: _DevloopCache) -> dict[str, set[str]]:
-    """Map evallab modules to the source modules that import them."""
-    reverse: dict[str, set[str]] = {}
-    for path in (root / "src/evallab").rglob("*.py"):
-        module = src_path_to_module(path.relative_to(root).as_posix())
-        package = module if path.name == "__init__.py" else module.rpartition(".")[0]
-        try:
-            content = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError):
-            continue
-        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        statements = cache.sources.get(digest)
-        if statements is None:
-            statements = []
-            try:
-                tree = ast.parse(content, filename=str(path))
-            except SyntaxError:
-                pass
-            else:
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.Import):
-                        statements.append(("import", 0, "", [alias.name for alias in node.names]))
-                    elif isinstance(node, ast.ImportFrom):
-                        statements.append(
-                            (
-                                "from",
-                                node.level,
-                                node.module or "",
-                                [alias.name for alias in node.names],
-                            )
-                        )
-            cache.sources[digest] = statements
-            cache.dirty = True
-        for kind, level, base, names in statements:
-            if kind == "import":
-                imports = names
-            else:
-                if level:
-                    parts = package.split(".")
-                    if level > len(parts):
-                        continue
-                    prefix = ".".join(parts[: len(parts) - level + 1])
-                    base = f"{prefix}.{base}" if base else prefix
-                imports = [base, *(f"{base}.{name}" for name in names)]
-            for imported in imports:
-                if imported != "evallab" and not imported.startswith("evallab."):
-                    continue
-                # Importing a child also executes its parent packages.
-                parts = imported.split(".")
-                for end in range(1, len(parts) + 1):
-                    dependency = ".".join(parts[:end])
-                    reverse.setdefault(dependency, set()).add(module)
-    return reverse
-
-
-def _importer_closure(module: str, reverse: dict[str, set[str]]) -> set[str]:
-    """Include the changed module and all of its transitive importers."""
-    reachable = {module}
-    pending = [module]
-    while pending:
-        for importer in reverse.get(pending.pop(), ()):
-            if importer not in reachable:
-                reachable.add(importer)
-                pending.append(importer)
-    return reachable
 
 
 def _consumer_features(content: str, test_path: Path) -> tuple[_ConsumerFeatures, list[str]]:
@@ -401,9 +319,7 @@ def _referenced_modules(
         features = cached
     # Every module occurrence is a prefix of an evallab token. Overlap retains
     # occurrences inside longer tokens, such as evallab.evallab.consumer.
-    candidates = {
-        token[:end] for token in features["tokens"] for end in range(1, len(token) + 1)
-    }
+    candidates = {token[:end] for token in features["tokens"] for end in range(1, len(token) + 1)}
     matched = candidates & target_modules
     # Preserve textual matching for unusual source filenames, too.
     matched.update(
@@ -442,11 +358,79 @@ def _referenced_modules(
     return matched
 
 
-def _is_unclassified(path_str: str, test_roots: Sequence[str] = ("tests",)) -> bool:
-    """Check if file is unknown / unclassified configuration or root asset."""
-    return is_full_suite_trigger(path_str) or not (
-        is_doc_path(path_str) or is_test_path(path_str, test_roots) or is_src_path(path_str)
+def _is_asset_path(path_str: str, test_roots: Sequence[str] = ("tests",)) -> bool:
+    """Return True for data/config/asset files that tests may mention by path."""
+    return not (
+        is_full_suite_trigger(path_str)
+        or is_doc_path(path_str)
+        or is_test_path(path_str, test_roots)
+        or is_src_path(path_str)
     )
+
+
+def _asset_needles(path_str: str) -> list[str]:
+    """Path strings a test can mention to be affected by an asset change.
+
+    A test selects the asset when it mentions the asset path, its immediate
+    parent directory, or a deeper ancestor directory. Two-segment grouping
+    directories (``research/experiments``, ``src/evallab``) are excluded: they
+    match hundreds of unrelated tests, and the structural consumers that
+    legitimately mention them (for example coverage meta-tests) are covered
+    by the declared-root enumeration rule instead.
+    """
+    path = PurePosixPath(path_str.replace("\\", "/"))
+    needles = [path.as_posix()]
+    parent = path.parent
+    if len(parent.parts) > 1:
+        needles.append(parent.as_posix())
+    needles.extend(
+        ancestor.as_posix() for ancestor in list(path.parents)[1:] if len(ancestor.parts) >= 3
+    )
+    return needles
+
+
+def _package_modules_for_asset(path_str: str) -> list[str]:
+    """Modules whose package tree contains a src/ asset.
+
+    Package data (for example ``src/evallab/insights/lenses/*.md``) is loaded
+    by the enclosing package's code, so tests that reference the package cover
+    the asset. Returns deepest ancestor modules first.
+    """
+    norm = path_str.replace("\\", "/")
+    if not norm.startswith("src/evallab"):
+        return []
+    parent = PurePosixPath(norm).parent
+    modules: list[str] = []
+    while len(parent.parts) > 2:
+        rel = parent.as_posix()[len("src/") :]
+        modules.append(rel.replace("/", "."))
+        parent = parent.parent
+    return modules
+
+
+def _research_roots_for_asset(path_str: str, test_roots: Sequence[str]) -> list[str]:
+    """Declared test roots that consume an asset under ``research/<subdir>/``.
+
+    The asset's own ``research/<subdir>`` (or ``research/experiments/<exp>``)
+    declared test roots cover it; the shared ``research/experiments/tests``
+    root dynamically reads sibling research data (for example coverage
+    recomputation over research/evidence cells), so it covers every
+    research asset.
+    """
+    norm = path_str.replace("\\", "/")
+    if not norm.startswith("research/"):
+        return []
+    parts = norm.split("/")
+    if len(parts) < 3 or not parts[1]:
+        return []
+    asset_dir = "/".join(parts[:3]) if parts[1] == "experiments" else "/".join(parts[:2])
+    return [
+        root
+        for root in test_roots
+        if root == "research/experiments/tests"
+        or root == asset_dir
+        or root.startswith(asset_dir + "/")
+    ]
 
 
 def affected_test_modules(changed: Sequence[str], root: Path) -> list[str]:
@@ -463,27 +447,24 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
     test_roots = _test_roots(root_path)
     # Removed/renamed tests cannot be passed to pytest. Collect the remaining
     # suite instead of silently skipping coverage formerly owned by that file.
-    requires_full_suite = any(
-        is_full_suite_trigger(path)
-        or _is_unclassified(path, test_roots)
-        or (is_test_path(path, test_roots) and not (root_path / path.replace("\\", "/")).is_file())
+    full_triggers = [
+        path
         for path in changed
-    )
+        if is_full_suite_trigger(path)
+        or (is_test_path(path, test_roots) and not (root_path / path.replace("\\", "/")).is_file())
+    ]
+    # Assets (research artifacts, ops scripts, package data) select tests that
+    # mention their path; uncovered assets still fall back to the full suite.
+    assets = [path for path in changed if _is_asset_path(path, test_roots)]
+    markdown_assets = [path for path in changed if path.replace("\\", "/").endswith(".md")]
     reasons: dict[str, list[str]] = {}
 
-    if requires_full_suite:
+    if full_triggers:
         modules = ["__all__"]
         lane = "full"
         command = "uv run --no-sync pytest -q -n0 -p no:cacheprovider"
-        triggering = [
-            p
-            for p in changed
-            if is_full_suite_trigger(p)
-            or _is_unclassified(p, test_roots)
-            or (is_test_path(p, test_roots) and not (root_path / p).is_file())
-        ]
         reasons["__all__"] = [
-            f"Global, configuration, or removed test change: {', '.join(triggering)}"
+            f"Global, configuration, or removed test change: {', '.join(full_triggers)}"
         ]
     elif all(is_doc_path(p) for p in changed):
         modules = []
@@ -491,59 +472,168 @@ def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
         command = "uv run --no-sync pytest -q -n0 -p no:cacheprovider -m docs_consumer"
         reasons["docs_consumer"] = [f"Documentation-only change: {', '.join(changed)}"]
     else:
-        targets = {src_path_to_module(path) for path in changed if is_src_path(path)}
-        cache_path = _import_graph_cache_path(root_path) if targets else None
-        cache = _load_import_graph_cache(cache_path)
-        reverse = _reverse_import_graph(root_path, cache) if targets else {}
-        expansions = {target: _importer_closure(target, reverse) for target in targets}
-        targets = {module for reachable in expansions.values() for module in reachable}
+        asset_packages = {module for path in assets for module in _package_modules_for_asset(path)}
+        targets = (
+            {src_path_to_module(path) for path in changed if is_src_path(path)} - DISPATCH_MODULES
+        ) | asset_packages
+        cache_path = _devloop_cache_path(root_path) if targets else None
+        cache = _load_devloop_cache(cache_path)
         test_paths: dict[str, Path] = {}
-        if targets:
-            test_paths = {
-                test_file.relative_to(root_path).as_posix(): test_file
-                for test_root in test_roots
-                for pattern in ("test_*.py", "*_test.py")
-                for test_file in (root_path / test_root).rglob(pattern)
-                if test_file.is_file()
-            }
-            # Directly changed consumers need reasons even when their names do
-            # not match pytest's discovery patterns.
-            test_paths.update(
-                {
-                    path.replace("\\", "/"): root_path / path.replace("\\", "/")
-                    for path in changed
-                    if is_test_path(path, test_roots)
-                }
+        for test_root in test_roots:
+            root_candidate = root_path / test_root
+            candidates = (
+                [root_candidate]
+                if root_candidate.is_file()
+                else (
+                    test_file
+                    for pattern in ("test_*.py", "*_test.py")
+                    for test_file in root_candidate.rglob(pattern)
+                )
             )
-        inventory = {
-            path: _referenced_modules(path, targets, cache)
-            for path in sorted(set(test_paths.values()))
-        }
+            for test_file in candidates:
+                if not test_file.is_file():
+                    continue
+                rel = test_file.relative_to(root_path).as_posix()
+                if is_test_path(rel, test_roots):
+                    test_paths[rel] = test_file
+        # Directly changed consumers need reasons even when their names do
+        # not match pytest's discovery patterns.
+        test_paths.update(
+            {
+                path.replace("\\", "/"): root_path / path.replace("\\", "/")
+                for path in changed
+                if is_test_path(path, test_roots)
+            }
+        )
+        inventory = (
+            {
+                path: _referenced_modules(path, targets, cache)
+                for path in sorted(set(test_paths.values()))
+            }
+            if targets
+            else {}
+        )
         if cache.dirty and cache_path is not None:
-            _write_import_graph_cache(cache_path, cache)
+            _write_devloop_cache(cache_path, cache)
         consumers = sorted(test_paths)
+        contents: dict[Path, str] = {}
+
+        def _content(test_file: Path) -> str:
+            if test_file not in contents:
+                try:
+                    contents[test_file] = test_file.read_text(encoding="utf-8")
+                except (OSError, UnicodeError):
+                    contents[test_file] = ""
+            return contents[test_file]
+
+        covered_assets: set[str] = set()
         for path_str in changed:
             norm = path_str.replace("\\", "/")
             if is_test_path(norm, test_roots):
                 reasons.setdefault(norm, []).append("Direct test file modification")
             elif is_src_path(norm):
                 target_mod = src_path_to_module(norm)
+                if target_mod in DISPATCH_MODULES:
+                    continue
                 for rel in consumers:
-                    matched = inventory[test_paths[rel]] & expansions[target_mod]
-                    if target_mod in matched:
-                        reason = f"Imports {target_mod} ({norm})"
-                    elif matched:
-                        reason = f"Imports {target_mod} via {min(matched)}"
+                    if target_mod in inventory[test_paths[rel]]:
+                        reasons.setdefault(rel, []).append(f"References {target_mod} ({norm})")
+        for asset in assets:
+            norm = asset.replace("\\", "/")
+            needles = _asset_needles(norm)
+            research_roots = _research_roots_for_asset(norm, test_roots)
+            package_modules = _package_modules_for_asset(norm)
+            for rel in consumers:
+                selected = False
+                covering = next(
+                    (root for root in research_roots if rel == root or rel.startswith(root + "/")),
+                    None,
+                )
+                if covering is not None:
+                    reasons.setdefault(rel, []).append(f"Declared test under {covering} ({norm})")
+                    selected = True
+                elif research_roots:
+                    # Meta-tests that enumerate declared research roots (for
+                    # example coverage checks listing testpaths) structurally
+                    # depend on research/ contents.
+                    content = _content(test_paths[rel])
+                    enumerated = next(
+                        (
+                            root
+                            for root in test_roots
+                            if root.startswith("research/") and root in content
+                        ),
+                        None,
+                    )
+                    if enumerated is not None:
+                        reasons.setdefault(rel, []).append(
+                            f"Enumerates declared root {enumerated} ({norm})"
+                        )
+                        selected = True
                     else:
-                        continue
-                    reasons.setdefault(rel, []).append(reason)
-        modules = sorted(reasons)
-        lane = "focused" if modules else "none"
-        command = (
-            f"uv run --no-sync pytest -q -n0 -p no:cacheprovider {shlex.join(modules)}"
-            if modules
-            else ""
-        )
+                        for needle in needles:
+                            if needle in content:
+                                reasons.setdefault(rel, []).append(f"Mentions {needle} ({norm})")
+                                selected = True
+                                break
+                elif package_modules:
+                    matched = next(
+                        (m for m in package_modules if m in inventory[test_paths[rel]]),
+                        None,
+                    )
+                    if matched is not None:
+                        reasons.setdefault(rel, []).append(
+                            f"References package {matched} owning {norm}"
+                        )
+                        selected = True
+                    else:
+                        for needle in needles:
+                            if needle in _content(test_paths[rel]):
+                                reasons.setdefault(rel, []).append(f"Mentions {needle} ({norm})")
+                                selected = True
+                                break
+                else:
+                    for needle in needles:
+                        if needle in _content(test_paths[rel]):
+                            reasons.setdefault(rel, []).append(f"Mentions {needle} ({norm})")
+                            selected = True
+                            break
+                if selected:
+                    covered_assets.add(norm)
+        if markdown_assets:
+            for rel in consumers:
+                if "docs_consumer" in _content(test_paths[rel]):
+                    reasons.setdefault(rel, []).append(
+                        f"Documentation consumer for {', '.join(markdown_assets)}"
+                    )
+        uncovered = [asset for asset in assets if asset.replace("\\", "/") not in covered_assets]
+        if uncovered:
+            modules = ["__all__"]
+            lane = "full"
+            command = "uv run --no-sync pytest -q -n0 -p no:cacheprovider"
+            reasons["__all__"] = [f"Asset change with no mentioning test: {', '.join(uncovered)}"]
+        else:
+            modules = sorted(reasons)
+            uncovered_src = [
+                norm
+                for path in changed
+                if is_src_path(norm := path.replace("\\", "/"))
+                and src_path_to_module(norm) in DISPATCH_MODULES
+            ]
+            if not modules and uncovered_src:
+                modules = ["__all__"]
+                lane = "full"
+                command = "uv run --no-sync pytest -q -n0 -p no:cacheprovider"
+                reasons["__all__"] = [
+                    f"Dispatcher change selects no focused tests: {', '.join(uncovered_src)}"
+                ]
+            else:
+                lane = "focused" if modules else "none"
+                command = (
+                    f"uv run --no-sync pytest -q -n0 -p no:cacheprovider {shlex.join(modules)}"
+                    if modules
+                    else ""
+                )
 
     return DevloopPlan(
         changed=list(changed),

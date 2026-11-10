@@ -135,7 +135,7 @@ inputs:
   - path: src/evallab/detectors.py
     digest: sha256:99dea321bae648312949763e03b35dce0fbb29be4862d9f45880c64ca306a7c2
   - path: src/evallab/devloop.py
-    digest: sha256:0230a66375e511020b7c7055132fe2a3f5936914b04c608d7e2f8c30f51bbda8
+    digest: sha256:9738ac322e34bf8d29cdccef6f5ecf864a8ed01d7da75cf279b31ca71cbd65fc
   - path: src/evallab/digest.py
     digest: sha256:5fb598fe93b5168d0b5f9c6fd0e81a9fa67712235730cc4f70004a8d8c1a0561
   - path: src/evallab/dispatch_guards.py

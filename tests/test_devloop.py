@@ -244,59 +244,37 @@ def test_all_declared_test_roots_are_selected_and_explained(tmp_path) -> None:
     plan = plan_devloop(["src/evallab/cohort.py"], tmp_path)
     assert plan.modules == sorted(expected)
     assert plan.reasons == {
-        consumer: ["Imports evallab.cohort (src/evallab/cohort.py)"] for consumer in expected
+        consumer: ["References evallab.cohort (src/evallab/cohort.py)"] for consumer in expected
     }
     for consumer in expected:
         assert affected_test_modules([consumer], tmp_path) == [consumer]
 
 
-@pytest.mark.parametrize(
-    ("importer", "content"),
-    [
-        ("a.py", "import evallab.b\n"),
-        ("a.py", "from evallab import b\n"),
-        ("a.py", "from . import b\n"),
-        ("a.py", "from .b import value\n"),
-        ("nested/a.py", "from .. import b\n"),
-        ("nested/a.py", "from ..b import value\n"),
-        ("nested/__init__.py", "from .. import b\n"),
-    ],
-)
-def test_transitive_import_consumer_is_selected(tmp_path, importer, content) -> None:
-    (tmp_path / "pyproject.toml").write_text(
-        '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n'
-    )
+def test_changed_module_selects_consumers_referencing_it(tmp_path) -> None:
+    """A changed src module selects tests that reference it directly."""
+    (tmp_path / "pyproject.toml").write_text('[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
     source = tmp_path / "src/evallab"
-    path = source / importer
-    path.parent.mkdir(parents=True)
-    path.write_text(content)
+    source.mkdir(parents=True)
+    (source / "a.py").write_text("import evallab.b\n")
     (source / "b.py").write_text("value = 1\n")
     (tmp_path / "tests").mkdir()
-    intermediate = src_path_to_module(f"src/evallab/{importer}")
-    (tmp_path / "tests/test_consumer.py").write_text(f"import {intermediate}\n")
+    (tmp_path / "tests/test_consumer.py").write_text("import evallab.a\n")
+    (tmp_path / "tests/test_direct.py").write_text("import evallab.b\n")
 
     plan = plan_devloop(["src/evallab/b.py"], tmp_path)
 
-    assert plan.modules == ["tests/test_consumer.py"]
-    assert plan.reasons == {
-        "tests/test_consumer.py": [f"Imports evallab.b via {intermediate}"]
-    }
+    # Only the test that references the changed module itself is selected;
+    # importers of importers are out of scope for the focused lane.
+    assert plan.modules == ["tests/test_direct.py"]
+    assert plan.reasons == {"tests/test_direct.py": ["References evallab.b (src/evallab/b.py)"]}
 
 
-def test_transitive_selection_handles_cycles_and_unparseable_sources(tmp_path) -> None:
+def test_reference_matching_handles_unparseable_sources(tmp_path) -> None:
     files = {
-        "src/evallab/b.py": "import evallab.a\n",
-        "src/evallab/a.py": "import evallab.b\n",
-        "src/evallab/c.py": "from evallab.a import value\n",
-        "src/evallab/unparseable.py": "import evallab.b\nnot valid Python !\n",
-        "src/evallab/external.py": "import external.b\nfrom external import b\n",
-        "src/evallab/invalid_relative.py": "from ... import b\n",
+        "src/evallab/b.py": "value = 1\n",
+        "tests/test_direct.py": "import evallab.b\n",
         "tests/test_chain.py": "import evallab.c\n",
-        "tests/test_indirect.py": "from evallab import a, c\n",
-        "tests/test_multiple.py": "from evallab import a, b, c\n",
-        "tests/test_unparseable.py": "import evallab.unparseable\n",
-        "tests/test_external.py": "import evallab.external\n",
-        "tests/test_invalid_relative.py": "import evallab.invalid_relative\n",
+        "tests/test_unparseable.py": "# evallab.b\nnot valid Python !\n",
     }
     for name, content in files.items():
         path = tmp_path / name
@@ -305,26 +283,17 @@ def test_transitive_selection_handles_cycles_and_unparseable_sources(tmp_path) -
 
     plan = plan_devloop(["src/evallab/b.py"], tmp_path)
 
-    assert plan.modules == [
-        "tests/test_chain.py",
-        "tests/test_indirect.py",
-        "tests/test_multiple.py",
-    ]
+    assert plan.modules == ["tests/test_direct.py", "tests/test_unparseable.py"]
     assert plan.reasons == {
-        "tests/test_chain.py": ["Imports evallab.b via evallab.c"],
-        "tests/test_indirect.py": ["Imports evallab.b via evallab.a"],
-        "tests/test_multiple.py": ["Imports evallab.b (src/evallab/b.py)"],
+        "tests/test_direct.py": ["References evallab.b (src/evallab/b.py)"],
+        "tests/test_unparseable.py": ["References evallab.b (src/evallab/b.py)"],
     }
 
 
 def test_source_inventory_is_once_per_plan_and_fresh(tmp_path, monkeypatch) -> None:
-    source = tmp_path / "src/evallab"
-    source.mkdir(parents=True)
-    importer = source / "a.py"
-    importer.write_text("import evallab.b\n")
-    (source / "b.py").write_text("value = 1\n")
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests/test_consumer.py").write_text("import evallab.a\n")
+    consumer = tmp_path / "tests/test_consumer.py"
+    consumer.write_text("import evallab.b\n")
     read_text = Path.read_text
     reads: list[Path] = []
 
@@ -336,13 +305,12 @@ def test_source_inventory_is_once_per_plan_and_fresh(tmp_path, monkeypatch) -> N
     changed = ["src/evallab/b.py", "src/evallab/missing.py"]
     first = plan_devloop(changed, tmp_path)
     assert first.modules == ["tests/test_consumer.py"]
-    assert reads.count(importer) == reads.count(source / "b.py") == 1
-    assert reads.count(tmp_path / "tests/test_consumer.py") == 1
+    assert reads.count(consumer) == 1
 
-    importer.write_text("import external.b\n")
+    consumer.write_text("import external.b\n")
     second = plan_devloop(changed, tmp_path)
     assert second.modules == []
-    assert reads.count(importer) == reads.count(source / "b.py") == 2
+    assert reads.count(consumer) == 2
 
 
 @pytest.mark.parametrize(
@@ -377,63 +345,43 @@ def test_separate_string_constants_do_not_join_module_references(tmp_path) -> No
 
     assert plan.modules == ["tests/test_joined.py"]
     assert plan.reasons == {
-        "tests/test_joined.py": ["Imports evallab.alpha (src/evallab/alpha.py)"]
+        "tests/test_joined.py": ["References evallab.alpha (src/evallab/alpha.py)"]
     }
 
 
-def test_import_cache_reuses_content_across_roots_and_resolves_relative_imports(
-    tmp_path, monkeypatch
-) -> None:
+def test_consumer_feature_cache_reuses_content_across_roots(tmp_path, monkeypatch) -> None:
     cache = tmp_path / "cache"
     monkeypatch.setenv("EVALLAB_DEVLOOP_CACHE_DIR", str(cache))
     first_root = tmp_path / "first"
     second_root = tmp_path / "second"
-    for root, package in [(first_root, ""), (second_root, "nested/")]:
-        source = root / "src/evallab" / package
-        source.mkdir(parents=True)
-        (source / "a.py").write_text("from . import b\n")
-        (source / "b.py").write_text("value = 1\n")
+    for root in (first_root, second_root):
+        (root / "src/evallab").mkdir(parents=True)
+        (root / "src/evallab/b.py").write_text("value = 1\n")
         (root / "tests").mkdir()
-        (root / "tests/test_consumer.py").write_text(
-            "import evallab.a\nimport evallab.nested.a\n"
-        )
+        (root / "tests/test_consumer.py").write_text("import evallab.b\n")
     parse = ast.parse
-    parsed_sources: list[str] = []
     parsed_consumers: list[str] = []
 
     def record_parse(content, filename="<unknown>", *args, **kwargs):
-        if "/src/evallab/" in str(filename):
-            parsed_sources.append(str(filename))
-        elif "/tests/" in str(filename):
+        if "/tests/" in str(filename):
             parsed_consumers.append(str(filename))
         return parse(content, filename, *args, **kwargs)
 
     monkeypatch.setattr(ast, "parse", record_parse)
     first = plan_devloop(["src/evallab/b.py"], first_root)
     assert first.modules == ["tests/test_consumer.py"]
-    assert len(parsed_sources) == 2
     assert len(parsed_consumers) == 1
-    assert (cache / "import-graph.json").is_file()
+    assert (cache / "consumer-features.json").is_file()
 
-    second = plan_devloop(["src/evallab/nested/b.py"], second_root)
-    assert second.reasons == {
-        "tests/test_consumer.py": ["Imports evallab.nested.b via evallab.nested.a"]
-    }
-    assert len(parsed_sources) == 2
-    assert len(parsed_consumers) == 1
-
-    modified = second_root / "src/evallab/nested/a.py"
-    modified.write_text("import external.b\n")
-    third = plan_devloop(["src/evallab/nested/b.py"], second_root)
-    assert third.modules == []
-    assert parsed_sources[-1] == str(modified)
-    assert len(parsed_sources) == 3
+    # Identical consumer content in a second root is served from the cache.
+    second = plan_devloop(["src/evallab/b.py"], second_root)
+    assert second.modules == ["tests/test_consumer.py"]
     assert len(parsed_consumers) == 1
 
     consumer = second_root / "tests/test_consumer.py"
     consumer.write_text("import external.b\n")
-    fourth = plan_devloop(["src/evallab/nested/b.py"], second_root)
-    assert fourth.modules == []
+    third = plan_devloop(["src/evallab/b.py"], second_root)
+    assert third.modules == []
     assert parsed_consumers == [
         str(first_root / "tests/test_consumer.py"),
         str(consumer),
@@ -459,8 +407,8 @@ def test_oversized_consumer_constants_are_permanent_cache_misses(tmp_path, monke
 
     assert first.modules == second.modules == ["tests/test_consumer.py"]
     assert parsed_consumers == [str(consumer), str(consumer)]
-    data = json.loads((cache / "import-graph.json").read_text())
-    assert data["version"] == 2
+    data = json.loads((cache / "consumer-features.json").read_text())
+    assert data["version"] == 3
     assert len(data["consumers"]) == 1
     assert next(iter(data["consumers"].values()))["constant_text"] is None
 
@@ -476,7 +424,7 @@ def test_overlapping_consumers_preserve_direct_selection_and_reasons(tmp_path) -
         "tests/support.py": "from evallab import alpha\n",
         # Raw references select consumers even if their Python cannot be parsed.
         "tests/test_text.py": "# evallab.alphabet\nnot valid Python !\n",
-        "tests/test_transitive.py": "from evallab import wrapper\n",
+        "tests/test_wrapper.py": "from evallab import wrapper\n",
         "src/evallab/wrapper.py": "from evallab import alpha, beta\n",
         "outside/test_ignored.py": "from evallab import alpha, beta\n",
     }
@@ -500,7 +448,6 @@ def test_overlapping_consumers_preserve_direct_selection_and_reasons(tmp_path) -
         "tests/support.py": [alpha_reference],
         "tests/test_shared.py": [alpha_reference, beta_reference],
         "tests/test_text.py": [alpha_reference],
-        "tests/test_transitive.py": [],
     }
     assert plan.changed == changed
     assert plan.lane == "focused"
@@ -509,14 +456,12 @@ def test_overlapping_consumers_preserve_direct_selection_and_reasons(tmp_path) -
     for consumer, references in expected_references.items():
         for module, source in references:
             assert any(module in reason and source in reason for reason in plan.reasons[consumer])
-    assert plan.reasons["tests/test_transitive.py"] == [
-        "Imports evallab.alpha via evallab.wrapper",
-        "Imports evallab.beta via evallab.wrapper",
-    ]
+    # Transitive-only consumers (via src wrappers) stay out of the focused lane.
+    assert "tests/test_wrapper.py" not in plan.modules
     assert plan.command == (
         "uv run --no-sync pytest -q -n0 -p no:cacheprovider "
         "dashboard/tests/beta_test.py tests/nested/test_alpha.py tests/support.py "
-        "tests/test_shared.py tests/test_text.py tests/test_transitive.py"
+        "tests/test_shared.py tests/test_text.py"
     )
     assert affected_test_modules(changed, tmp_path) == plan.modules
 
@@ -550,3 +495,74 @@ def test_deleted_or_renamed_test_uses_remaining_suite(tmp_path) -> None:
     assert plan.lane == "full"
     assert plan.modules == ["__all__"]
     assert "tests/test_removed.py" not in plan.command
+
+
+def _write_test(root: Path, rel: str, body: str) -> None:
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body)
+
+
+def test_research_experiment_assets_select_declared_and_mentioning_tests(tmp_path) -> None:
+    """Experiment JSON/markdown select the experiment's tests and path mentions."""
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["research/experiments/exp-a", "tests"]\n'
+    )
+    _write_test(
+        tmp_path,
+        "research/experiments/exp-a/test_exp_a.py",
+        "def test_exp_a(): assert True\n",
+    )
+    _write_test(
+        tmp_path,
+        "tests/test_ladder.py",
+        'DATA = "research/experiments/exp-a/cells.json"\ndef test_ladder(): assert True\n',
+    )
+    _write_test(tmp_path, "tests/test_other.py", "def test_other(): assert True\n")
+    changed = [
+        "research/experiments/exp-a/README.md",
+        "research/experiments/exp-a/cells.json",
+    ]
+    plan = plan_devloop(changed, tmp_path)
+    assert plan.lane == "focused"
+    assert "research/experiments/exp-a/test_exp_a.py" in plan.modules
+    assert "tests/test_ladder.py" in plan.modules
+    assert "tests/test_other.py" not in plan.modules
+
+
+def test_scripts_ops_python_selects_mentioning_tests(tmp_path) -> None:
+    """An ops script change selects tests that mention the script path."""
+    (tmp_path / "pyproject.toml").write_text('[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
+    _write_test(
+        tmp_path,
+        "tests/test_installer.py",
+        'SCRIPT = "scripts/ops/install.sh"\ndef test_installer(): assert True\n',
+    )
+    _write_test(tmp_path, "tests/test_other.py", "def test_other(): assert True\n")
+    (tmp_path / "scripts/ops").mkdir(parents=True)
+    (tmp_path / "scripts/ops/tool.py").write_text("print('ok')\n")
+    plan = plan_devloop(["scripts/ops/tool.py"], tmp_path)
+    # The parent directory mention is a valid selection needle too.
+    assert plan.lane == "focused"
+    assert "tests/test_installer.py" in plan.modules
+    assert "tests/test_other.py" not in plan.modules
+
+
+def test_asset_without_mentioning_test_keeps_full_suite(tmp_path) -> None:
+    """An asset no test mentions still requires the full suite (recall guard)."""
+    (tmp_path / "pyproject.toml").write_text('[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
+    _write_test(tmp_path, "tests/test_other.py", "def test_other(): assert True\n")
+    plan = plan_devloop(["scripts/ops/orphan.py"], tmp_path)
+    assert plan.lane == "full"
+    assert plan.modules == ["__all__"]
+
+
+def test_nested_conftest_change_uses_full_suite(tmp_path) -> None:
+    """Any conftest.py rewrites collection for its subtree, not only tests/."""
+    (tmp_path / "pyproject.toml").write_text('[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
+    _write_test(tmp_path, "tests/test_other.py", "def test_other(): assert True\n")
+    assert is_full_suite_trigger("tests/sub/conftest.py")
+    assert is_full_suite_trigger("research/experiments/exp-a/conftest.py")
+    plan = plan_devloop(["research/experiments/exp-a/conftest.py"], tmp_path)
+    assert plan.lane == "full"
+    assert plan.modules == ["__all__"]

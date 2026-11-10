@@ -170,13 +170,16 @@ type in the note box; `Ctrl+Enter` submits from there.
 ## Running the station
 
 ```
-uv run evallab judge build-packet     # once: the 18-case packet and the guide examples
-uv run evallab judge build-controls   # once: a queue of random controls
+# Existing packet, guide, and control queues remain readable.
 uv run evallab judge serve            # then open http://127.0.0.1:8795/ (add --blind-order for the unanchored pass)
 uv run evallab judge serve --keep-order --queue line=path/to/batch/judge-queue.jsonl --local-runs path/to/batch/runs.jsonl
 uv run evallab judge report           # how often you agree with the label and each detector
 uv run evallab judge export --out ~/judge-verdicts.csv
 ```
+
+The one-off `build-packet` and `build-controls` commands are retired.
+Use existing queue files or pass a queue with `--queue`.
+This change does not modify stored queues or verdicts.
 
 - The page makes no network calls and calls no model. It binds to 127.0.0.1 only.
 - Only runs admitted as DEV are shown. A TEST or held-out run is refused, never displayed.

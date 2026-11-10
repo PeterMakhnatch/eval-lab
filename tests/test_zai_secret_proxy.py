@@ -1103,6 +1103,54 @@ def test_adapter_rewrites_connection_to_internal_proxy(
     assert opencode_cfg["provider"]["zai-coding-plan"]["options"]["baseURL"] == module.ZAI_PROXY_URL
 
 
+def test_adapter_run_removes_proxy_auth_after_failure_and_reraises(
+    zai_adapter_module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = zai_adapter_module
+
+    class AgentBlewUp(RuntimeError):
+        pass
+
+    async def failing_run(self, instruction, environment, context) -> None:
+        del self, instruction, environment, context
+        raise AgentBlewUp("agent run failed")
+
+    monkeypatch.setattr(module.OpenCode, "run", failing_run, raising=False)
+    agent = module.SecretSafeZaiOpenCodeAgent(
+        model_name="zai-coding-plan/glm-5.3-flash",
+    )
+
+    with pytest.raises(AgentBlewUp, match="agent run failed"):
+        asyncio.run(agent.run("do the task", environment=object(), context=object()))
+
+    assert [command for command, _ in agent.exec_calls] == [
+        module.CREATE_PROXY_AUTH_COMMAND,
+        module.REMOVE_PROXY_AUTH_COMMAND,
+    ]
+    for _, env in agent.exec_calls:
+        assert env is not None
+        assert SECRET_SENTINEL not in env.values()
+
+
+def test_adapter_model_connection_checks_non_zai_provider(
+    zai_adapter_module: ModuleType,
+) -> None:
+    module = zai_adapter_module
+    agent = module.SecretSafeZaiOpenCodeAgent(
+        model_name="zai-coding-plan/glm-5.3-flash",
+    )
+    agent.connection = _Connection(provider="openai", api_key=SECRET_SENTINEL)
+    # A valid Z.ai model selector is re-checked, then the connection is rewired.
+    resolved = agent.model_connection
+    assert resolved.api_key == module.ZAI_PROXY_TOKEN
+    assert resolved.base_url == module.ZAI_PROXY_URL
+
+    # With no model selector, the foreign provider itself must fail closed.
+    agent.model_name = None
+    with pytest.raises(ValueError, match="only accepts models under 'zai-coding-plan/'"):
+        _ = agent.model_connection
+
+
 def test_adapter_rejects_non_zai_models(zai_adapter_module: ModuleType) -> None:
     module = zai_adapter_module
     # Missing provider prefix
@@ -1154,6 +1202,44 @@ def test_adapter_refuses_secret_in_exec_command(
         )
 
 
+def test_adapter_refuses_host_secret_under_another_env_name(
+    zai_adapter_module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = zai_adapter_module
+    monkeypatch.setenv("ZAI_CODING_PLAN_API_KEY", SECRET_SENTINEL)
+    agent = module.SecretSafeZaiOpenCodeAgent(
+        model_name="zai-coding-plan/glm-5.3-flash",
+    )
+    with pytest.raises(ValueError, match="cannot enter the task exec environment"):
+        asyncio.run(
+            agent.exec_as_agent(
+                object(),
+                "echo hello",
+                env={"UNRELATED_VARIABLE": SECRET_SENTINEL},
+            )
+        )
+
+
+def test_adapter_allows_scrubbed_exec_passthrough(
+    zai_adapter_module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = zai_adapter_module
+    capability = "trial-capability-token"
+    monkeypatch.setenv(module.ZAI_PROXY_CAPABILITY_ENV, capability)
+    agent = module.SecretSafeZaiOpenCodeAgent(
+        model_name="zai-coding-plan/glm-5.3-flash",
+    )
+    result = asyncio.run(
+        agent.exec_as_agent(
+            object(),
+            "echo hello",
+            env={"ZAI_CODING_PLAN_API_KEY": capability},
+        )
+    )
+    assert result == "ok"
+    assert agent.exec_calls == [("echo hello", {"ZAI_CODING_PLAN_API_KEY": capability})]
+
+
 def test_collected_zai_secret_values_checks_both_file_and_path_envs(
     zai_adapter_module: ModuleType, tmp_path: Path
 ) -> None:
@@ -1172,6 +1258,42 @@ def test_collected_zai_secret_values_checks_both_file_and_path_envs(
     assert "host-file-secret-value" in collected
     assert "container-path-secret-value" in collected
     assert "env-secret-value" in collected
+
+
+def test_collected_zai_secret_values_includes_proxy_capability(
+    zai_adapter_module: ModuleType,
+) -> None:
+    module = zai_adapter_module
+    capability = "trial-capability-token"
+    collected = module.collected_zai_secret_values(
+        {module.ZAI_PROXY_CAPABILITY_ENV: capability}
+    )
+    assert capability in collected
+
+
+def test_collected_zai_secret_values_ignores_unreadable_secret_file(
+    zai_adapter_module: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = zai_adapter_module
+    secret_file = tmp_path / "host_secret"
+    secret_file.write_text("host-file-secret-value\n", encoding="utf-8")
+    # Non-owner-only mode makes the shared collector skip this file, so only
+    # the adapter's own read_text failure path decides the result.
+    secret_file.chmod(0o644)
+    original_read_text = Path.read_text
+
+    def unreadable(path: Path, *args: Any, **kwargs: Any) -> str:
+        if path == secret_file:
+            raise PermissionError("secret file is unreadable")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", unreadable)
+    collected = module.collected_zai_secret_values(
+        {module.ZAI_SECRET_FILE_ENV: str(secret_file)}
+    )
+    assert "host-file-secret-value" not in collected
 
 
 def test_adapter_sanitizes_trajectories(

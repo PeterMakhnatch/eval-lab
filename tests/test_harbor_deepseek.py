@@ -54,6 +54,7 @@ class _Connection:
 class _MiniSweAgent:
     def __init__(self, connection: _Connection, **kwargs: Any) -> None:
         self.connection = connection
+        self.received_kwargs = kwargs
         self.exec_calls: list[tuple[str, dict[str, str] | None]] = []
         self.logs_dir = Path(".")
 
@@ -208,6 +209,40 @@ def test_wrapper_rejects_real_secret_in_exec_environment(
                 object(),
                 "mini-swe-agent --yolo",
                 env={"DEEPSEEK_API_KEY": SECRET_SENTINEL},
+            )
+        )
+
+
+def test_wrapper_rejects_host_secret_under_another_env_name(
+    wrapper_module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", SECRET_SENTINEL)
+    agent = wrapper_module.SecretSafeDeepSeekMiniSweAgent(
+        _Connection(provider="deepseek", api_key=SECRET_SENTINEL)
+    )
+
+    with pytest.raises(ValueError, match="cannot enter the task exec environment"):
+        asyncio.run(
+            agent.exec_as_agent(
+                object(),
+                "mini-swe-agent --yolo",
+                env={"UNRELATED_VARIABLE": SECRET_SENTINEL},
+            )
+        )
+
+
+def test_wrapper_rejects_secret_in_exec_command(wrapper_module: ModuleType) -> None:
+    agent = wrapper_module.SecretSafeDeepSeekMiniSweAgent(
+        _Connection(provider="deepseek", api_key=SECRET_SENTINEL)
+    )
+
+    with pytest.raises(ValueError, match="cannot enter the task exec command"):
+        asyncio.run(agent.exec_as_agent(object(), "cat /run/secrets/deepseek_key"))
+
+    with pytest.raises(ValueError, match="cannot enter the task exec command"):
+        asyncio.run(
+            agent.exec_as_agent(
+                object(), 'export DEEPSEEK_API_KEY="$(cat /tmp/key)"'
             )
         )
 
@@ -1413,3 +1448,10 @@ def test_adapter_rejects_invalid_effort_before_harbor_setup(wrapper_module: Modu
         wrapper_module.SecretSafeDeepSeekMiniSweAgent(
             _Connection(provider="deepseek"), reasoning_effort="medium"
         )
+
+
+def test_adapter_forwards_valid_effort_to_harbor(wrapper_module: ModuleType) -> None:
+    agent = wrapper_module.SecretSafeDeepSeekMiniSweAgent(
+        _Connection(provider="deepseek"), reasoning_effort="high"
+    )
+    assert agent.received_kwargs["reasoning_effort"] == "high"

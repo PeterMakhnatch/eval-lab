@@ -199,7 +199,7 @@ class DifficultyVariantContract:
        Fake prose-only perturbations that decouple task instructions from verifier tests are
        forbidden.
     3. Authoring Boundary: Structural mutations requiring environment or verifier changes
-       must pass through `evallab.authoring` and explicit candidate registration with controls.
+       require explicit candidate registration with controls.
     """
 
     task_id: str

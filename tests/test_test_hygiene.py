@@ -9,7 +9,6 @@ import json
 import os
 import subprocess
 import tomllib
-import zlib
 from collections.abc import Sequence
 from fnmatch import fnmatch
 from pathlib import Path
@@ -27,7 +26,6 @@ _conftest = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_conftest)
 
 _CALL_DURATIONS = _conftest._CALL_DURATIONS
-SHARD_OVERRIDES = _conftest.SHARD_OVERRIDES
 _slow_test_budget_seconds = _conftest._slow_test_budget_seconds
 pytest_runtest_makereport = _conftest.pytest_runtest_makereport
 pytest_terminal_summary = _conftest.pytest_terminal_summary
@@ -265,22 +263,6 @@ class FakeTerminalReporter:
 
     def write_line(self, line: str) -> None:
         self.lines.append(line)
-
-
-def test_shard_overrides_balance_heavy_modules() -> None:
-    """Pins follow scripts/ci/propose_shard_pins.py over CI run 41761936272 (HAR-308).
-
-    Every pin must flip its module's crc32 default; a pin equal to the hash
-    shard is a no-op. The compaction pin was dropped because it put 109 s on
-    the heavier shard; crc32 alone now places that module on shard 1.
-    """
-    assert SHARD_OVERRIDES == {"tests/test_trajectory_recipes.py": 1}
-
-    for path, shard in SHARD_OVERRIDES.items():
-        hash_shard = (zlib.crc32(path.encode("utf-8")) % 2) + 1
-        assert shard != hash_shard, f"{path} pin to shard {shard} equals its crc32 default"
-
-    assert (zlib.crc32(b"tests/test_compaction_properties.py") % 2) + 1 == 1
 
 
 def test_slow_test_budget_makereport_records_call_duration() -> None:

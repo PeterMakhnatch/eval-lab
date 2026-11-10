@@ -20,9 +20,6 @@ GLM-5.3-Flash. Not owned: trainer, template choice, serving (HAR-64/66).
   dispositions with reasons, session-identity dedupe preferring unredacted
   copies, registry + TB3/TB4 lineage rejects, redaction/secret quarantines,
   deterministic manifest + `contract.json`.
-- `scripts/sft_consumer_check.py` — renders records through the real
-  GLM-5.3-Flash tokenizer/chat template (HF snapshot `eb9eb208`, offline) and
-  audits the assistant-only mask; `--account` emits per-record token counts.
 - `tests/test_sft_records.py` — 14 behavioral tests incl. explicitly labeled
   mini protocol fixtures (both wire formats). Not model evidence.
 

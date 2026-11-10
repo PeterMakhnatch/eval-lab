@@ -122,24 +122,6 @@ def tidy_fixture_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         capture_output=True,
     )
 
-    # 3. Unindexed documentation with front-matter issues
-    docs_dir = root / "docs"
-    docs_dir.mkdir(parents=True, exist_ok=True)
-    (docs_dir / "valid.md").write_text(
-        "---\nstatus: living\naudience:\n  - builder\n  - operator\n---\n# Valid Doc\n",
-        encoding="utf-8",
-    )
-    (docs_dir / "orphan.md").write_text(
-        "# Orphan Doc without front-matter\n",
-        encoding="utf-8",
-    )
-    # Write a committed index (stale or missing orphan)
-    (docs_dir / "INDEX.md").write_text(
-        "---\nstatus: living\naudience:\n  - builder\n  - analyst\n  - runner\n  - operator\n---\n"
-        "<!-- generated-by: docindex v1 -->\n\n# Documentation index\n",
-        encoding="utf-8",
-    )
-
     # 4. Untracked files: recognized junk vs draft work-in-progress
     (root / "temp_scratch.tmp").write_text("temporary junk\n", encoding="utf-8")
     (root / "test_output_run.log").write_text("test logs\n", encoding="utf-8")
@@ -207,13 +189,6 @@ def test_tidy_fixture_findings(tidy_fixture_repo: Path) -> None:
     assert "role/merged-orphan" in branch_names
     assert "role/clean-feat" in branch_names
     assert "role/dirty-feat" in branch_names
-
-    # 3. Unindexed docs
-    doc_paths = {d.path.name: d for d in report.docs}
-    assert "orphan.md" in doc_paths
-    assert "missing YAML front-matter" in doc_paths["orphan.md"].reason
-    for doc in report.docs:
-        assert doc.actionable is False
 
     # 4. Untracked strays
     stray_map = {s.path.name: s for s in report.strays}
@@ -283,7 +258,6 @@ def test_apply_preserves_dirty_worktrees_and_drafts(tidy_fixture_repo: Path) -> 
     assert (tidy_fixture_repo / "new_draft_feature.py").is_file()
 
     # 4. Docs and retention items PRESERVED (report only)
-    assert (tidy_fixture_repo / "docs/orphan.md").is_file()
     assert (tidy_fixture_repo / "derived/parquet/trials/trial_001.parquet").is_file()
     assert (tidy_fixture_repo / "runs/unpromoted-job-001/result.json").is_file()
     assert (tidy_fixture_repo / "queue/events.jsonl").is_file()
@@ -646,11 +620,6 @@ def test_exit_code_agreement_fixtures(tmp_path: Path) -> None:
 
     # Draft file (unrecognized stray)
     (preserved_repo / "my_draft_feature.py").write_text("def draft(): pass\n", encoding="utf-8")
-
-    # Unindexed doc (report only)
-    docs_dir = preserved_repo / "docs"
-    docs_dir.mkdir()
-    (docs_dir / "orphan.md").write_text("# Orphan\n", encoding="utf-8")
 
     rep_preserved = collect_tidy_report(preserved_repo)
     assert rep_preserved.total_findings_count > 0

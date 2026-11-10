@@ -59,8 +59,6 @@ export UV_PYTHON="${PYTHON_FLOOR}"
 # workflows (see agents/CHECKS.md). `observability` stays opt-in everywhere.
 uv sync --locked --group benchmarks --group lance
 uv run --no-sync ruff check .
-uv run --no-sync python -m evallab.docindex check
-uv run --no-sync python -m evallab.repomap check
 uv run --no-sync python -m evallab.governance check
 uv run --no-sync evallab registry audit --json
 uv run --no-sync python -m evallab.lessons

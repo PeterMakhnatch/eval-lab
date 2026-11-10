@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-# Read-only notice after a merge.
-#
-# Automatic commit/amend behavior has been removed so no hook mutates a reviewed
-# Git head. Generated documentation build products (docs/INDEX.md, docs/repo-map.md)
-# must be updated explicitly via `make docs` and verified with `make check`.
-set -uo pipefail
-
-echo "post-merge notice: if merge brought in changes to documentation or repository structure, run 'make docs' to regenerate build products."

@@ -73,8 +73,6 @@ trigger and dependency handling fail closed, including merge-group support.
 |---|---|---|
 | Locked install | `uv sync --locked` (tests: `--no-group observability --group benchmarks --group lance --group inspect`) | uv 0.9.24; Python 3.12 and 3.14; `observability` stays opt-in, `lance` is an opt-in group for lancedb contract tests, `inspect` is an opt-in group for the Inspect log adapter and METR scout reader tests (HAR-287) |
 | Lint | `uv run ruff check .` | locked Ruff; Python 3.12 |
-| Doc index freshness | `uv run python -m evallab.docindex check` | locked; Python 3.12 |
-| Repository map freshness | `uv run python -m evallab.repomap check` | locked; Python 3.12 |
 | Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze, sealed paths matched by root `.ignore` |
 | Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |
 | Lessons freshness | `uv run python -m evallab.lessons` | locked; statistical lessons lineage |
@@ -101,10 +99,7 @@ segments abort after two minutes; existing job caps are unchanged. On
 cancellation, inspect setup and checker/test durations separately before
 blaming a test hang.
 
-Run focused checks or explicit premerge before pushing. Regenerate `docs/INDEX.md`
-and `docs/repo-map.md` with `make docs` when generator inputs change or a
-merge/rebase requires refresh, and review the generated diff — not unconditionally
-before every freshness check. Freshness checks are read-only and never stage or amend.
+Run focused checks or explicit premerge before pushing.
 
 ### Local line-change gate
 
@@ -145,7 +140,7 @@ full local reproduction:
 
 1. **Static checkpoint (`make check` or `scripts/premerge.sh --static`)**:
    Runs static gates only (locked install with `benchmarks` and `lance` groups,
-   `ruff`, `docindex`, `repomap`, `governance`, `registry audit`, `lessons`, and
+   `ruff`, `governance`, `registry audit`, `lessons`, and
    `ty@0.0.71`). No tests or runtime smoke are executed; this is **not** CI green.
 2. **Focused prepush checkpoint (`make prepush TESTS='tests/test_foo.py [pytest args]'` or `scripts/premerge.sh --focused TEST_FILE [PYTEST_ARGS...]`)**:
    Runs the same static gates and typecheck, followed by explicitly selected pytest

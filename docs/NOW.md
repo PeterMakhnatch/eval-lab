@@ -134,9 +134,7 @@ denominator. Do not report rates over rows with `status != 'featured'`.
 - `src/evallab/cli/` and `src/evallab/execution/` are empty reserved directories.
   CLI is `src/evallab/cli.py`. Runner/queue are top-level modules.
 - Do not add SciPy/statsmodels/lifelines without a named analysis consumer.
-- Do not treat `docs/INDEX.md`, `docs/repo-map.md`, or `docs/STATUS.md` as a
-  tour. The first two are generated inventories; STATUS is a catalog snapshot
-  and goes stale.
+- Do not treat `docs/STATUS.md` as a tour. It is a catalog snapshot and goes stale.
 
 ## Read only the route for the task
 

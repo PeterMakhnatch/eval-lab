@@ -8,7 +8,6 @@ Sweeps:
    merged, or whose registration Git reports prunable (skips dirty; missing branches
    classify unproven and are preserved, never removed).
 2. Merged local branches: all namespaces except main/integrate/current fully contained in origin/main without open PR.
-3. Unindexed docs: docs/ absent from docs/INDEX.md or with missing/invalid front-matter.
 4. Untracked strays: untracked files not gitignored, distinguishing recognized junk from drafts.
 5: Retention violations: Z3 hot partitions >7d, unpromoted Z1 jobs >14d, events.jsonl >30d
    (report only).
@@ -32,7 +31,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from evallab.docindex import collect_check_issues
 from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
 
 NEVER_TOUCH_PREFIXES: tuple[str, ...] = (
@@ -193,15 +191,6 @@ class BranchFinding:
 
 
 @dataclass(frozen=True)
-class DocFinding:
-    path: Path
-    size_bytes: int
-    issue: str
-    reason: str
-    actionable: bool = False
-
-
-@dataclass(frozen=True)
 class StrayFinding:
     path: Path
     size_bytes: int
@@ -224,7 +213,6 @@ class RetentionFinding:
 class TidyReport:
     worktrees: list[WorktreeFinding] = field(default_factory=list)
     branches: list[BranchFinding] = field(default_factory=list)
-    docs: list[DocFinding] = field(default_factory=list)
     strays: list[StrayFinding] = field(default_factory=list)
     retention: list[RetentionFinding] = field(default_factory=list)
     apply: bool = False
@@ -237,7 +225,6 @@ class TidyReport:
         return (
             len(self.worktrees)
             + len(self.branches)
-            + len(self.docs)
             + len(self.strays)
             + len(self.retention)
         )
@@ -254,7 +241,6 @@ class TidyReport:
     def total_bytes(self) -> int:
         return (
             sum(w.size_bytes for w in self.worktrees)
-            + sum(d.size_bytes for d in self.docs)
             + sum(s.size_bytes for s in self.strays)
             + sum(r.size_bytes for r in self.retention)
         )
@@ -891,32 +877,6 @@ def sweep_branches(
     return sorted(findings, key=lambda f: f.branch)
 
 
-def sweep_unindexed_docs(root: Path) -> list[DocFinding]:
-    """Sweep docs/ for unindexed markdown files and front-matter issues."""
-    docs_dir = root / "docs"
-    index_path = root / "docs/INDEX.md"
-    if not docs_dir.is_dir():
-        return []
-
-    issues = collect_check_issues(docs_dir, index_path, root=root)
-    findings: list[DocFinding] = []
-
-    for issue in issues:
-        doc_path = root / issue.path
-        size = doc_path.stat().st_size if doc_path.is_file() else 0
-        findings.append(
-            DocFinding(
-                path=doc_path,
-                size_bytes=size,
-                issue=issue.message,
-                reason=f"docindex issue: {issue.message}",
-                actionable=False,
-            )
-        )
-
-    return sorted(findings, key=lambda f: f.path.as_posix())
-
-
 def sweep_untracked_strays(root: Path) -> list[StrayFinding]:
     """Sweep working tree for untracked files that are not gitignored."""
     res = subprocess.run(
@@ -1117,11 +1077,10 @@ def collect_tidy_report(
     now: datetime | None = None,
     apply: bool = False,
 ) -> TidyReport:
-    """Run all five sweeps and compile a unified TidyReport."""
+    """Run the sweeps and compile a unified TidyReport."""
     return TidyReport(
         worktrees=sweep_worktrees(root, current_worktree=current_worktree),
         branches=sweep_branches(root, gh_checker=gh_checker),
-        docs=sweep_unindexed_docs(root),
         strays=sweep_untracked_strays(root),
         retention=sweep_retention_violations(root, now=now),
         apply=apply,
@@ -1263,17 +1222,6 @@ def format_tidy_report(report: TidyReport, root: Path) -> str:
             action_tag = " [eligible for deletion]" if b.actionable else ""
             lines.append(f"- `{b.branch}` — {b.reason}{action_tag}")
     lines.append("")
-    # 3. Unindexed docs
-    doc_bytes = sum(d.size_bytes for d in report.docs)
-    lines.append(f"## 3. Unindexed docs ({len(report.docs)} items, {format_bytes(doc_bytes)})")
-    if not report.docs:
-        lines.append("  (clean — all documentation indexed and valid)")
-    else:
-        for d in report.docs:
-            rel = _rel_path_str(d.path, root)
-            lines.append(f"- `{rel}` ({format_bytes(d.size_bytes)}) — {d.reason}")
-    lines.append("")
-
     # 4. Untracked strays
     stray_bytes = sum(s.size_bytes for s in report.strays)
     lines.append(

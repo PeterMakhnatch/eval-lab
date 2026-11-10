@@ -643,8 +643,7 @@ def render_mission_brief_template(mission_type: str, task_ref: str | None = None
     lines.append(
         "Use included excerpts first. Reopen cited paths/headings only for omitted "
         "requirements or dependencies needed by the assignment; omission never waives "
-        "required rules or checks. Do not crawl `docs/INDEX.md` or `docs/repo-map.md` "
-        "as default reading; those are generated inventories."
+        "required rules or checks."
     )
     lines.append("")
 
@@ -775,8 +774,7 @@ def doc_priority_key(doc: DocMetadata, mission_type: str) -> tuple[int, int, int
     """Calculate truncation priority sort key for living docs (lowest priority first).
 
     Priority hierarchy (most expendable to most essential):
-    - Category 0: Supplemental research notes (`docs/research/*`) and
-      catalog indexes (`docs/INDEX.md`, `docs/repo-map.md`).
+    - Category 0: Supplemental research notes (`docs/research/*`).
     - Category 1: Broad multi-audience platform references (3 or 4 audiences).
     - Category 2: Dual-audience technical specifications (2 audiences).
     - Category 3: Single-audience primary mission workbenches/guides (1 audience).
@@ -787,10 +785,9 @@ def doc_priority_key(doc: DocMetadata, mission_type: str) -> tuple[int, int, int
     - Lexicographical file path (deterministic tie-breaker).
     """
     is_research = doc.path.startswith("docs/research/")
-    is_index = doc.path in ("docs/INDEX.md", "docs/repo-map.md")
     if doc.path == "docs/NOW.md":
         cat = 4
-    elif is_research or is_index:
+    elif is_research:
         cat = 0
     elif len(doc.audience) >= 3:
         cat = 1
@@ -1062,10 +1059,9 @@ def build_context_pack(
     if normalized_paths and doc_scores:
         drop_order = sorted(
             docs,
-            # Lookup inventories shed first; the current-state safety/router doc last.
+            # Shed the current-state safety/router doc last.
             key=lambda d: (
                 d.path == "docs/NOW.md",
-                d.path not in ("docs/INDEX.md", "docs/repo-map.md"),
                 doc_scores.get(d.path, 0),
                 -doc_rendered_sizes.get(d.path, 0),
                 d.path,

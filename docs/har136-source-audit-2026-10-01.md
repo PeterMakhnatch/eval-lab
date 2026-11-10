@@ -8,7 +8,7 @@ audience:
 
 # HAR-136 source inventory and retirement decisions
 
-Complete **240-module** snapshot at commit `dd5ff4d77e548fd5afcf40fbe5ff149d4e1fa92b` (2026-10-01), starting from [the generated repository map](repo-map.md). Physical source size: **194,118 lines**, including blanks/comments and every package initializer. This is a pinned audit, not an assertion that later main has the same size.
+Complete **240-module** snapshot at commit `dd5ff4d77e548fd5afcf40fbe5ff149d4e1fa92b` (2026-10-01). Physical source size: **194,118 lines**, including blanks/comments and every package initializer. This is a pinned audit, not an assertion that later main has the same size.
 
 ## Method and evidence limits
 

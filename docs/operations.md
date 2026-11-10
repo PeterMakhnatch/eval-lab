@@ -262,6 +262,13 @@ Set `"score_rules": ["counted_verdict"]` to score authoritative
 `process-job` reports rather than raw reward. A `counted_pass` scores 1 and a
 `counted_fail` scores 0. Excluded, missing, malformed or mismatched reports are
 unavailable, with a persisted null score; they are never fabricated failures.
+
+`process-job` uses `ingest_and_project` for catalog ingestion and native projections.
+Catalog or projection failure stops publication. Use `--no-ingest` for explicit report-only processing.
+The report keeps native reward, countability, detector evidence, and watch evidence separate.
+It no longer estimates self-hosted GPU cost from trial time.
+Historical billed-session receipts and measured ledger usage remain available.
+
 A finite verifier reward after `AgentTimeoutError`, `TrialBudgetExhaustedError`
 or `LoopBreakStop` is an agent outcome, not infrastructure failure. A stop with
 no finite reward remains unavailable; unrelated execution errors remain errors.

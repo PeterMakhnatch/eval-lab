@@ -16,13 +16,8 @@ beyond wiring:
 * catalog ingest with cost from the proxy ledger: :func:`evallab.ledger.
   build_cost_block` (source ``proxy_ledger_x_pinned_price``) for the job
   block, split evenly across trials exactly like
-  :func:`evallab.database.trial_cost_columns`. The self-hosted route is
-  zero-priced per token, so ``cost_usd`` stays ``None`` with the ledger's
-  reason and a time-based estimate from
-  :func:`evallab.execution_contracts.mimo_selfhosted_trial_cost_usd`
-  (trial wall time x server rate / concurrency, sandbox excluded) rides
-  along as ``cost_estimate_usd``. Missing data is ``None`` with a reason,
-  never 0.
+  :func:`evallab.database.trial_cost_columns`. Missing data is ``None``
+  with a reason, never 0. Historical billed-session receipts remain separate.
 * stitching: :mod:`evallab.step_layers` is the one shared stitching
   library (``discover_trajectory_parts`` + ``stitch_steps`` +
   ``coverage_record``). Token sums and step counts here come from its
@@ -434,8 +429,6 @@ def _process_trial(
         "cost_attempted_usd": None,  # filled at job level (ledger split)
         "cost_source": "proxy_ledger_x_pinned_price",
         "cost_reason": None,  # filled at job level (ledger reason)
-        "cost_estimate_usd": None,  # self-hosted time-based estimate
-        "cost_estimate_reason": None,
         "trial_wall_hours": wall_hours,
         "trial_wall_reason": wall_reason,
         "trial_concurrency": _trial_concurrency(result),
@@ -794,17 +787,9 @@ def _tokens_line(record: dict[str, Any]) -> str:
 
 def _cost_line(record: dict[str, Any]) -> str:
     cost, reason = record.get("cost_usd"), record.get("cost_reason")
-    estimate, estimate_reason = record.get("cost_estimate_usd"), record.get("cost_estimate_reason")
     line = f"- cost: `{cost}` ({record.get('cost_source')}"
     line += f"; {reason}" if reason else ""
     line += ")"
-    if estimate is not None:
-        line += (
-            f"; self-hosted time estimate `${estimate:.4f}` "
-            "(shared GPU, not additive; see `evallab spend day`)"
-        )
-    elif estimate_reason:
-        line += f"; estimate unavailable: {estimate_reason}"
     return line
 
 
@@ -858,38 +843,6 @@ def _trial_proxy_tokens(totals: dict[str, Any], n_trials: int) -> dict[str, Any]
     return tokens
 
 
-def _selfhosted_estimate(
-    record: dict[str, Any], result: dict[str, Any]
-) -> tuple[float | None, str | None]:
-    """Time-based cost estimate for zero-priced self-hosted trials.
-
-    Returns (estimate, None), or (None, reason) when the trial is not a
-    self-hosted trial or the wall time is unknown. The sandbox input is
-    unavailable at finalize, so the estimate excludes it (like the
-    ledger's own zero-priced reason states).
-    """
-    from evallab.execution_contracts import (
-        is_mimo_selfhosted_model,
-        mimo_selfhosted_trial_cost_usd,
-    )
-
-    config = result.get("config")
-    agent = config.get("agent") if isinstance(config, dict) else None
-    model = agent.get("model_name") if isinstance(agent, dict) else None
-    if not is_mimo_selfhosted_model(model):
-        return None, "not a self-hosted route trial"
-    wall_hours = record.get("trial_wall_hours")
-    if not isinstance(wall_hours, (int, float)):
-        return None, record.get("trial_wall_reason") or "trial wall time unknown"
-    try:
-        estimate = mimo_selfhosted_trial_cost_usd(
-            float(wall_hours), record.get("trial_concurrency") or 1, 0.0
-        )
-    except ValueError as exc:
-        return None, str(exc)
-    return estimate, None
-
-
 def _session_spend_suffix(summary: dict[str, Any]) -> str | None:
     """Allocated billed-GPU + Daytona estimate suffix, or None without receipt.
 
@@ -918,12 +871,6 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
     """Short markdown job report with the per-trial summary table."""
     summary = report.get("summary") or {}
     allocated = _session_spend_suffix(summary)
-    legacy_estimate = (
-        f"; self-hosted time estimate `${summary.get('cost_estimate_usd', 0):.4f}`"
-        " (shared GPU, not additive; see `evallab spend day`)"
-        if allocated is None and summary.get("cost_estimate_usd") is not None
-        else ""
-    )
     lines = [
         f"# Job report: `{report['job_name']}`",
         "",
@@ -938,7 +885,7 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
         f"- tokens: step-sum used `{summary.get('tokens_used')}` "
         f"vs attributable attempted ceiling `{summary.get('tokens_attempted')}`",
         f"- cost: `{summary.get('cost_usd')}` ({summary.get('cost_source')})"
-        + (allocated if allocated is not None else legacy_estimate),
+        + (allocated or ""),
         f"- ingest: {summary.get('ingest')}",
         *_setup_deviation_lines(report.get("setup_deviations")),
         *_watch_job_lines(report),
@@ -958,11 +905,13 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _project_job(job_path: Path, parquet_root: Path) -> dict[str, Any]:
-    """Rebuild the existing fact/features projections without a catalog."""
+def _project_job(
+    job_path: Path, parquet_root: Path, *, database_url: str | None = None, root: Path | None = None
+) -> dict[str, Any]:
+    """Build native projections once, with optional canonical catalog ingestion."""
     from dataclasses import replace
 
-    from evallab.evidence.atif import project_jobs
+    from evallab.evidence.atif import ingest_and_project, project_jobs
     from evallab.interpretation.features import trial_features, write_features
     from evallab.results import JobRecord, TrialRecord, load_job
     from evallab.storage.paths import trial_parquet_path
@@ -980,7 +929,13 @@ def _project_job(job_path: Path, parquet_root: Path) -> dict[str, Any]:
         replace(job, result={**job.result, "id": job_id}, trials=tuple(trials))
         for job_id, trials in groups.items()
     ]
-    tables, failures = project_jobs(jobs, parquet_root)
+    if database_url is None:
+        tables, failures = project_jobs(jobs, parquet_root)
+    else:
+        result = ingest_and_project(
+            database_url, jobs, root=root or job_path.parent, output_root=parquet_root
+        )
+        tables, failures = result.tables, result.failures
     if failures:
         raise ValueError("; ".join(failure.message for failure in failures))
     for projected_job in jobs:
@@ -1016,9 +971,8 @@ def process_job(
 
     Writes per-trial and job reports under ``output_dir`` (default
     ``<job>/processed/``) and ingests the job into the catalog unless
-    ``ingest`` is False. Returns the JSON-serializable job report. A
-    missing catalog raises nothing: the ingest outcome (or skip) is
-    recorded in the report.
+    ``ingest`` is False. Returns the JSON-serializable job report.
+    Catalog and projection failures propagate; report-only processing remains explicit.
 
     ``session_spend`` is an optional billed-session receipt
     (``evallab.session_spend/v1`` JSON). When given, the receipt is
@@ -1027,10 +981,7 @@ def process_job(
     is written or any publication replaced, and the computed allocation
     is stored in ``report['summary']['session_spend']``. Settled proxy
     cost/tokens are never overwritten and no per-trial GPU share is
-    invented. Without a receipt the legacy shared-GPU estimate keeps
-    its non-additive label. Reprocessing after the bills land requires
-    passing the receipt again: allocation is post-session accounting,
-    not automatic pre-bill metering.
+    invented. Reprocessing after the bills land requires passing the receipt again.
 
     ``publication_card`` is an explicit publish-time HAR issue assignment
     for jobs whose frozen name/question_ref has none; native inputs stay intact.
@@ -1117,13 +1068,6 @@ def process_job(
             record["tokens_attempted_proxy"] = (
                 used_input + used_output + attempted_input + attempted_output
             )
-        estimate, estimate_reason = _selfhosted_estimate(record, trial_result)
-        record["cost_estimate_usd"] = estimate
-        record["cost_estimate_reason"] = (
-            "shared GPU, not additive; excludes sandbox and warm periods; see evallab spend day"
-            if estimate is not None
-            else estimate_reason
-        )
         record["task_package_digest"] = task_identity.get("task_package_digest")
         record["counts"] = _attach_trial_counts(
             record, trial_result, label_root=label_root, task_identity=task_identity
@@ -1168,42 +1112,34 @@ def process_job(
         for record in trial_reports
         if isinstance((record["tokens_steps"] or {}).get("total_tokens"), int)
     ]
-    measured_estimate = [
-        record["cost_estimate_usd"]
-        for record in trial_reports
-        if isinstance(record["cost_estimate_usd"], (int, float))
-    ]
     stop_histogram: dict[str, int] = {}
     for record in trial_reports:
         stop_histogram[str(record["stop_reason"])] = (
             stop_histogram.get(str(record["stop_reason"]), 0) + 1
         )
 
-    ingest_note: str
-    if ingest:
-        try:
-            from evallab import database
-            from evallab.results import load_job
+    ingest_note = "ingest disabled by caller"
+    projection: dict[str, Any] | None = None
+    if ingest or parquet_root is not None:
+        from evallab.storage.paths import derived_root_from_environment
+
+        url = None
+        if ingest:
             from evallab.runner import database_url_from_environment
 
             url = database_url_from_environment(database_url)
-            job_record = load_job(job_path)
-            database.initialize(url)
-            database.ingest(url, [job_record], root=repo_root)
-            ingest_note = f"ingested into {database.identity(url)}"
-        except Exception as exc:  # noqa: BLE001 -- ingest gaps are recorded, not raised
-            ingest_note = f"ingest skipped: {type(exc).__name__}: {exc}"
-    else:
-        ingest_note = "ingest disabled by caller"
-
-    projection: dict[str, Any] | None = None
-    if parquet_root is not None:
-        from evallab.storage.paths import derived_root_from_environment
-
         projection = _project_job(
             job_path,
-            derived_root_from_environment(repo_root, explicit=Path(parquet_root)),
+            derived_root_from_environment(
+                repo_root, explicit=Path(parquet_root) if parquet_root is not None else None
+            ),
+            database_url=url,
+            root=repo_root,
         )
+        if url is not None:
+            from evallab import database
+
+            ingest_note = f"ingested into {database.identity(url)}"
 
     rows = [
         {
@@ -1248,8 +1184,6 @@ def process_job(
             "cost_measured": len(measured_cost),
             "cost_source": block.get("source"),
             "cost_reason": block.get("reason"),
-            "cost_estimate_usd": sum(measured_estimate) if measured_estimate else None,
-            "cost_estimate_measured": len(measured_estimate),
             "ingest": ingest_note,
             "n_counted_pass": counts_summary["n_counted_pass"],
             "n_counted_fail": counts_summary["n_counted_fail"],

@@ -46,8 +46,7 @@ eval-lab/
 │   ├── run-explorer.md        run & analysis explorer
 │   ├── research-questions.md  what this lab studies
 │   ├── prompts/               living mission-prompt sets + living README
-│   ├── archive/               historical documents (README.md indexes them) and
-│   │                          archive/prompts/: superseded briefs + legacy mission sets
+│   ├── archive/               historical documents (README.md indexes them)
 │   ├── checkpoints/           dated hands-on integrator verification records
 │   ├── research/              Research-lane docs (survey, external datasets,
 │   │                          synthetic tasks, trajectory intelligence)

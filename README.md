@@ -37,6 +37,8 @@ Every task version is identified by a content digest. A fix is never an edit
 in place: it is a new variant with a lineage record pointing to its parent
 ([docs/task-variants.md](docs/task-variants.md)). Raw Harbor job directories
 are the source of truth; databases and Parquet tables are rebuilt from them.
+Ingest verification includes catalog identities after source directories move.
+A catalog query failure stops verification; it does not mean the catalog is empty.
 
 ```mermaid
 flowchart LR

@@ -992,21 +992,13 @@ def ingest_and_project(
     # paths describe the deterministic target even when a later write is recorded
     # as a projection exception.
     projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] = {}
-    try:
-        ingest_catalog(
-            database_url,
-            ordered_jobs,
-            root=root,
-            derived_root=derived_root,
-            projections_by_job=projections_by_job,
-        )
-    except TypeError:
-        ingest_catalog(
-            database_url,
-            ordered_jobs,
-            root=root,
-            derived_root=derived_root,
-        )
+    ingest_catalog(
+        database_url,
+        ordered_jobs,
+        root=root,
+        derived_root=derived_root,
+        projections_by_job=projections_by_job,
+    )
 
     tables, failures = project_jobs(
         ordered_jobs,
@@ -1052,12 +1044,9 @@ def project_jobs(
                 else None
             )
             if job_projections:
-                try:
-                    rebuilt = rebuild_from_raw(
-                        [job], derived_root, projections_by_job=job_projections
-                    )
-                except TypeError:
-                    rebuilt = rebuild_from_raw([job], derived_root)
+                rebuilt = rebuild_from_raw(
+                    [job], derived_root, projections_by_job=job_projections
+                )
             else:
                 rebuilt = rebuild_from_raw([job], derived_root)
         except Exception as exc:  # Projection failure is data, not an agent result.

@@ -104,7 +104,7 @@ def test_catalog_finishes_before_projection_failure_is_returned(
     monkeypatch.setattr(
         facts_module,
         "ingest_catalog",
-        lambda url, jobs, root, derived_root: calls.append("fact-catalog"),
+        lambda url, jobs, root, derived_root, projections_by_job: calls.append("fact-catalog"),
     )
 
     def fail_projection(jobs, output_root):

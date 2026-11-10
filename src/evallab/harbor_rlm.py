@@ -52,8 +52,7 @@ FILE_TREE_COMMAND = "find . -maxdepth 3 -type f | head -200"
 def resolve_agent_policy(spec: str) -> RlmPolicy:
     """Catalog policy id or path to a policy JSON (e.g. a GEPA candidate).
 
-    Mirrors ``bench_runner.load_policy`` so a Harbor trial runs the exact
-    candidate file GEPA wrote. Relative paths resolve against the caller cwd
+    Relative paths resolve against the caller cwd
     (the Harbor working directory, host-side). Catalog ids never end in
     ``.json``, so the suffix dispatch is unambiguous.
     """

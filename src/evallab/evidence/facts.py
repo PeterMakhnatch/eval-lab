@@ -542,7 +542,6 @@ def _terminal_root_trajectory(
             return None, False
         seen.add(nxt.source_path)
         current = nxt
-    return current, True
 
 
 def _live_step_keys(projection: TrialTrajectoryProjection) -> set[tuple[str, int]]:

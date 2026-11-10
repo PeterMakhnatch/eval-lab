@@ -8,6 +8,9 @@ Counts and reconciles the four durable evidence stores:
 
 Completeness is an invariant: every trial directory must be either projected
 into the Parquet analytics surface or explicitly accounted for with a named reason.
+
+Catalog identities remain in scope after source directories move or disappear.
+Catalog query failures stop verification; they never count as an empty catalog.
 """
 
 from __future__ import annotations
@@ -290,34 +293,9 @@ def verify_ingest(
         rel = u.path.relative_to(root).as_posix() if u.path.is_relative_to(root) else str(u.path)
         unprojectable_by_reason[u.reason].append(rel)
 
-    # 2. Query catalog
-    catalog_jobs: dict[str, dict[str, Any]] = {}
-    catalog_trials: dict[str, dict[str, Any]] = {}
-
+    # 2. Query the complete catalog. Relocation does not retire native identities.
     loader = catalog_loader or _default_catalog_loader
-    try:
-        catalog_jobs, catalog_trials = loader(db_url)
-    except Exception as exc:
-        print(f"warning: catalog query failed ({type(exc).__name__}: {exc})", file=sys.stderr)
-    if catalog_loader is None:
-
-        def retained_in_checkout(info: dict[str, Any]) -> bool:
-            raw_path = Path(str(info.get("path") or ""))
-            candidate = raw_path if raw_path.is_absolute() else root / raw_path
-            try:
-                candidate.resolve().relative_to(root)
-            except ValueError:
-                return False
-            return candidate.exists()
-
-        catalog_jobs = {
-            job_id: info for job_id, info in catalog_jobs.items() if retained_in_checkout(info)
-        }
-        catalog_trials = {
-            trial_id: info
-            for trial_id, info in catalog_trials.items()
-            if info.get("job_id") in catalog_jobs and retained_in_checkout(info)
-        }
+    catalog_jobs, catalog_trials = loader(db_url)
 
     # 3. Scan Parquet partitions
     parquet_jobs: set[str] = set()

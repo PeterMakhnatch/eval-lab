@@ -260,6 +260,7 @@ def test_ingest_verify_cli_output(
 ) -> None:
     """CLI entry point python -m evallab.ingest_verify renders summary and json hermetically."""
     from evallab.ingest_verify import main
+    monkeypatch.setattr("evallab.ingest_verify._default_catalog_loader", lambda _url: ({}, {}))
 
     empty_root = tmp_path / "empty_repo"
     empty_root.mkdir()
@@ -512,3 +513,25 @@ def test_ingest_verify_cli_output_missing_then_complete(
     complete = json.loads(capsys.readouterr().out)
     assert complete["is_complete"] is True
     assert complete["gaps"] == []
+
+
+def test_default_catalog_keeps_relocated_native_identity(tmp_path, monkeypatch):
+    jobs = {
+        "native-job": {"id": "native-job", "name": "relocated", "path": "/missing/old-worktree/job"}
+    }
+    monkeypatch.setattr("evallab.ingest_verify._default_catalog_loader", lambda _url: (jobs, {}))
+    result = verify_ingest(tmp_path, derived_root=tmp_path / "derived", search_roots=[])
+    assert result.catalog_jobs_count == 1
+    assert [(gap.entity_id, gap.reason) for gap in result.gaps] == [
+        ("native-job", "missing_jobs_parquet")
+    ]
+    assert not result.is_complete
+
+
+def test_catalog_failure_is_not_an_empty_catalog(tmp_path, monkeypatch):
+    def unavailable(_url):
+        raise ConnectionError("catalog unavailable")
+
+    monkeypatch.setattr("evallab.ingest_verify._default_catalog_loader", unavailable)
+    with pytest.raises(ConnectionError, match="catalog unavailable"):
+        verify_ingest(tmp_path, search_roots=[])

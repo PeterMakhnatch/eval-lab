@@ -1282,7 +1282,16 @@ def evidence_sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[P
     return experiment, results
 
 
-ATTEMPTS_BYTES = b'{"attacks": []}\n'
+ATTEMPTS_BYTES = json.dumps(
+    {
+        "schema": "evallab.cheat.attempts/v1",
+        "version": "1.4.0",
+        "attacks": [
+            {"name": f"attack-{i}", "status": "executed", "detail": "", "evidence": []}
+            for i in range(1, 10)
+        ],
+    }
+).encode()
 ATTEMPTS_SHA256 = hashlib.sha256(ATTEMPTS_BYTES).hexdigest()
 
 
@@ -1385,10 +1394,202 @@ def test_ladder_progress_evidence_matches_published_convention(
     assert str(path) in output.out
     assert (
         "totals: 1 cells, matched=1, mismatched=0, reward-mismatch=0, "
-        "verifier-mismatch=0, absent=0, unhashed=0"
+        "verifier-mismatch=0, attacks-mismatch=0, absent=0, unhashed=0"
         in output.out
     )
     assert output.err == ""
+
+
+@pytest.mark.parametrize(
+    ("cell_fields", "statuses", "omit_names", "diff"),
+    [
+        pytest.param(
+            {"ladder_version": "1.5.0"},
+            {},
+            False,
+            "ladder_version: cell '1.5.0' != attempts '1.4.0'",
+            id="ladder-version",
+        ),
+        pytest.param(
+            {"ladder_version": "1.5.0"},
+            {},
+            True,
+            "ladder_version: cell '1.5.0' != attempts '1.4.0'",
+            id="omitted-names-still-checks-version",
+        ),
+        pytest.param(
+            {"attacks_executed": 8},
+            {},
+            True,
+            "attacks_executed: cell 8 != attempts 9",
+            id="attacks-executed-without-names",
+        ),
+        pytest.param(
+            {"attacks_total": 10},
+            {},
+            True,
+            "attacks_total: cell 10 != attempts 9",
+            id="attacks-total-without-names",
+        ),
+        pytest.param(
+            {
+                "attacks_executed": 7,
+                "attacks_not_executed": {"wrong-z": "not run", "wrong-a": "not run"},
+            },
+            {"attack-8": "skipped", "attack-9": "failed"},
+            False,
+            "attacks_not_executed: cell ['wrong-a', 'wrong-z'] "
+            "!= attempts ['attack-8', 'attack-9']",
+            id="nonexecuted-names",
+        ),
+    ],
+)
+def test_ladder_progress_evidence_attack_metadata_mismatch_fails_at_a_matching_hash(
+    evidence_sandbox: tuple[Path, Path],
+    capsys: pytest.CaptureFixture[str],
+    cell_fields: dict,
+    statuses: dict,
+    omit_names: bool,
+    diff: str,
+) -> None:
+    experiment, root = evidence_sandbox
+    data = json.loads(ATTEMPTS_BYTES)
+    for attack in data["attacks"]:
+        attack["status"] = statuses.get(attack["name"], attack["status"])
+    content = json.dumps(data).encode()
+    digest = hashlib.sha256(content).hexdigest()
+    cell = _evidence_cell(attempts_json_sha256=digest, **cell_fields)
+    if omit_names:
+        cell.pop("attacks_not_executed")
+    _evidence_file(experiment, [cell])
+    path = _attempts_file(
+        root / "2026-11-08/HAR-328-job1/trial1/agent/cheat/attempts.json", content
+    )
+    _result_file(path.parents[2])
+    check = MODULE.verify_cell(cell, "HAR-328", root)
+    assert check["expected"] == check["actual"] == digest
+    assert check["attacks_diffs"] == [diff]
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root)]) == 1
+    output = capsys.readouterr()
+    assert f"{'attacks-mismatch':<15} t1 HAR-328 job1/trial1" in output.out
+    assert str(path) in output.out
+    assert diff in output.out
+    assert (
+        "totals: 1 cells, matched=0, mismatched=0, reward-mismatch=0, "
+        "verifier-mismatch=0, attacks-mismatch=1, absent=0, unhashed=0" in output.out
+    )
+    assert (
+        "0 mismatched, 0 reward-mismatch, 0 verifier-mismatch, 1 attacks-mismatch, "
+        "0 absent" in output.err
+    )
+
+
+@pytest.mark.parametrize("omit_names", [False, True], ids=["matching-names", "omitted-names"])
+def test_ladder_progress_evidence_matching_attack_metadata_is_accepted(
+    evidence_sandbox: tuple[Path, Path],
+    capsys: pytest.CaptureFixture[str],
+    omit_names: bool,
+) -> None:
+    experiment, root = evidence_sandbox
+    data = json.loads(ATTEMPTS_BYTES)
+    data["attacks"][-2]["status"] = "skipped"
+    data["attacks"][-1]["status"] = "failed"
+    data["attacks"].reverse()
+    content = json.dumps(data).encode()
+    cell = _evidence_cell(
+        attempts_json_sha256=hashlib.sha256(content).hexdigest(),
+        attacks_executed=7,
+        attacks_not_executed={"attack-9": "cell detail", "attack-8": "another detail"},
+    )
+    if omit_names:
+        cell.pop("attacks_not_executed")
+    _evidence_file(experiment, [cell])
+    path = _attempts_file(
+        root / "2026-11-08/HAR-328-job1/trial1/agent/cheat/attempts.json", content
+    )
+    _result_file(path.parents[2])
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root), "--strict"]) == 0
+    output = capsys.readouterr()
+    assert f"{'matched':<15} t1 HAR-328 job1/trial1" in output.out
+    assert str(path) in output.out
+    assert (
+        "totals: 1 cells, matched=1, mismatched=0, reward-mismatch=0, "
+        "verifier-mismatch=0, attacks-mismatch=0, absent=0, unhashed=0" in output.out
+    )
+    assert output.err == ""
+
+
+def test_ladder_progress_evidence_reports_every_attack_difference_in_stable_order(
+    evidence_sandbox: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    experiment, root = evidence_sandbox
+    data = json.loads(ATTEMPTS_BYTES)
+    for attack in data["attacks"][-3:]:
+        attack["status"] = "failed"
+    data["attacks"].reverse()
+    content = json.dumps(data).encode()
+    cell = _evidence_cell(
+        attempts_json_sha256=hashlib.sha256(content).hexdigest(),
+        ladder_version="1.5.0",
+        attacks_executed=7,
+        attacks_total=10,
+        attacks_not_executed={"wrong-z": "", "wrong-m": "", "wrong-a": ""},
+    )
+    _evidence_file(experiment, [cell])
+    path = _attempts_file(
+        root / "2026-11-08/HAR-328-job1/trial1/agent/cheat/attempts.json", content
+    )
+    _result_file(path.parents[2])
+    diffs = [
+        "ladder_version: cell '1.5.0' != attempts '1.4.0'",
+        "attacks_executed: cell 7 != attempts 6",
+        "attacks_total: cell 10 != attempts 9",
+        "attacks_not_executed: cell ['wrong-a', 'wrong-m', 'wrong-z'] "
+        "!= attempts ['attack-7', 'attack-8', 'attack-9']",
+    ]
+    check = MODULE.verify_cell(cell, "HAR-328", root)
+    assert check["attacks_diffs"] == diffs
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root)]) == 1
+    output = capsys.readouterr()
+    assert f"{'attacks-mismatch':<15} t1 HAR-328 job1/trial1" in output.out
+    assert str(path) in output.out
+    assert "; ".join(diffs) in output.out
+    assert "attacks-mismatch=1" in output.out
+    assert "1 attacks-mismatch" in output.err
+
+
+@pytest.mark.parametrize("status", ["reward-mismatch", "verifier-mismatch"])
+def test_ladder_progress_evidence_attack_mismatch_preserves_existing_status_precedence(
+    evidence_sandbox: tuple[Path, Path],
+    capsys: pytest.CaptureFixture[str],
+    status: str,
+) -> None:
+    experiment, root = evidence_sandbox
+    cell = _evidence_cell(ladder_version="1.5.0")
+    if status == "verifier-mismatch":
+        cell["baseline_runner"] = "runner=pytest rc=1"
+    _evidence_file(experiment, [cell])
+    path = _attempts_file(root / "2026-11-08/HAR-328-job1/trial1/agent/cheat/attempts.json")
+    _result_file(path.parents[2], reward=1.0)
+    if status == "verifier-mismatch":
+        _verifier_files(path.parents[2], tamper=None, runner="unittest")
+    check = MODULE.verify_cell(cell, "HAR-328", root)
+    assert check["status"] == status
+    assert check["attacks_diffs"] == ["ladder_version: cell '1.5.0' != attempts '1.4.0'"]
+    assert MODULE.main(["--verify-evidence", "--results-root", str(root)]) == 1
+    output = capsys.readouterr()
+    assert f"{status:<15} t1 HAR-328 job1/trial1" in output.out
+    reward_count = int(status == "reward-mismatch")
+    verifier_count = int(status == "verifier-mismatch")
+    assert (
+        f"matched=0, mismatched=0, reward-mismatch={reward_count}, "
+        f"verifier-mismatch={verifier_count}, attacks-mismatch=0, absent=0, unhashed=0"
+        in output.out
+    )
+    assert (
+        f"0 mismatched, {reward_count} reward-mismatch, {verifier_count} verifier-mismatch, "
+        "0 attacks-mismatch, 0 absent" in output.err
+    )
 
 
 def test_ladder_progress_evidence_mismatch_reports_first_existing_path_and_hashes(
@@ -1408,7 +1609,10 @@ def test_ladder_progress_evidence_mismatch_reports_first_existing_path_and_hashe
     assert f"expected {ATTEMPTS_SHA256[:12]}" in output.out
     assert f"got {hashlib.sha256(content).hexdigest()[:12]}" in output.out
     assert "mismatched=1" in output.out
-    assert "1 mismatched, 0 reward-mismatch, 0 verifier-mismatch, 0 absent, 0 subset reward-mismatch" in output.err
+    assert (
+        "1 mismatched, 0 reward-mismatch, 0 verifier-mismatch, 0 attacks-mismatch, "
+        "0 absent, 0 subset reward-mismatch" in output.err
+    )
 
 
 def test_ladder_progress_evidence_absent_only_fails_in_strict_mode(
@@ -1426,7 +1630,10 @@ def test_ladder_progress_evidence_absent_only_fails_in_strict_mode(
     assert MODULE.main([*args, "--strict"]) == 1
     strict = capsys.readouterr()
     assert strict.out == output.out
-    assert "0 mismatched, 0 reward-mismatch, 0 verifier-mismatch, 1 absent" in strict.err
+    assert (
+        "0 mismatched, 0 reward-mismatch, 0 verifier-mismatch, 0 attacks-mismatch, "
+        "1 absent" in strict.err
+    )
 
 
 def test_ladder_progress_evidence_matches_explicit_published_and_raw_jobs(
@@ -1450,7 +1657,10 @@ def test_ladder_progress_evidence_matches_explicit_published_and_raw_jobs(
     assert f"{'matched':<15} t1 HAR-328 job1/trial1" in output
     assert f"{'matched':<15} t2 HAR-328 job2/trial2" in output
     assert all(str(path) in output for path in paths)
-    assert "matched=2, mismatched=0, reward-mismatch=0, verifier-mismatch=0, absent=0, unhashed=0" in output
+    assert (
+        "matched=2, mismatched=0, reward-mismatch=0, verifier-mismatch=0, "
+        "attacks-mismatch=0, absent=0, unhashed=0" in output
+    )
 
 
 def test_ladder_progress_evidence_matches_raw_convention(
@@ -1481,7 +1691,10 @@ def test_ladder_progress_evidence_unhashed_never_fails_or_counts_as_absent(
         output = capsys.readouterr()
         assert f"{'unhashed':<15} t1" in output.out
         assert "cell records no attempts_json_sha256" in output.out
-        assert "matched=0, mismatched=0, reward-mismatch=0, verifier-mismatch=0, absent=0, unhashed=1" in output.out
+        assert (
+            "matched=0, mismatched=0, reward-mismatch=0, verifier-mismatch=0, "
+            "attacks-mismatch=0, absent=0, unhashed=1" in output.out
+        )
         assert output.err == ""
 
 
@@ -1527,7 +1740,10 @@ def test_ladder_progress_evidence_a_reward_mismatch_fails(
     assert f"{'reward-mismatch':<15} t1 HAR-328 job1/trial1" in output.out
     assert f"{result} expected reward 0.0 got 1.0" in output.out
     assert "matched=0, mismatched=0, reward-mismatch=1" in output.out
-    assert "0 mismatched, 1 reward-mismatch, 0 verifier-mismatch, 0 absent" in output.err
+    assert (
+        "0 mismatched, 1 reward-mismatch, 0 verifier-mismatch, 0 attacks-mismatch, "
+        "0 absent" in output.err
+    )
 
 
 def test_ladder_progress_evidence_a_none_reward_is_matched(
@@ -1612,7 +1828,10 @@ def test_ladder_progress_evidence_a_differing_verifier_file_fails(
     assert f"{'verifier-mismatch':<15} t1 HAR-328 job1/trial1" in output.out
     assert f"{diff}: cell" in output.out
     assert "verifier-mismatch=1" in output.out
-    assert "0 mismatched, 0 reward-mismatch, 1 verifier-mismatch, 0 absent" in output.err
+    assert (
+        "0 mismatched, 0 reward-mismatch, 1 verifier-mismatch, 0 attacks-mismatch, "
+        "0 absent" in output.err
+    )
 
 
 def test_ladder_progress_evidence_a_tamper_log_with_no_signature_is_matched(
@@ -1733,7 +1952,7 @@ def test_ladder_progress_evidence_sorts_by_rank_then_task_and_keeps_every_cell()
     assert [result["cell"]["task_id"] for result in checks] == ["a", "z", "t2"]
     assert MODULE.render_evidence(checks).endswith(
         "totals: 3 cells, matched=0, mismatched=0, reward-mismatch=0, "
-        "verifier-mismatch=0, absent=0, unhashed=3\n"
+        "verifier-mismatch=0, attacks-mismatch=0, absent=0, unhashed=3\n"
     )
 
 

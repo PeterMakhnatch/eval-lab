@@ -1365,7 +1365,7 @@ Basis counts in the committed table (100 ranks, 100 covered; Docker-free):
 80 of the 99 `clean` verdicts are tamper refusals, so the refusal
 rate among clean ladder verdicts is 80/99 (80.8%); 19 rest on a graded run.
 
-**Evidence link check (HAR-328, HAR-335, HAR-350).** `--verify-evidence` re-hashes each
+**Evidence link check (HAR-328, HAR-335, HAR-350, HAR-366).** `--verify-evidence` re-hashes each
 committed coverage cell's `agent/cheat/attempts.json` under the host results
 root (`--results-root`, default `~/Developer/eval-lab-results`). It tries
 explicit `published_job` and `raw_job` paths first, then
@@ -1375,7 +1375,8 @@ explicit `published_job` and `raw_job` paths first, then
 The statuses are `matched` (a candidate has the recorded hash), `mismatched`
 (files exist but none matches), `reward-mismatch` (the matched trial's
 `result.json` reward differs from the cell's `reward`), `verifier-mismatch`
-(the matched trial's `verifier/` files disagree with the cell), `absent`
+(the matched trial's `verifier/` files disagree with the cell), `attacks-mismatch`
+(the matched attempts file disagrees with the cell's attack fields), `absent`
 (no candidate file), and `unhashed` (the cell records no hash). For each
 hash-matched cell the check also re-reads the trial's `verifier/tamper.log`
 (the last `tamper ` line), `verifier/baseline_runner.txt` and
@@ -1383,19 +1384,26 @@ hash-matched cell the check also re-reads the trial's `verifier/tamper.log`
 `baseline_runner` runner name or `reward` that differs gives
 `verifier-mismatch`; null cell fields are not compared, and an absent verifier
 file skips its comparison, so a graded cell with no `tamper ` line stays
-`matched`. The command then reads every
+`matched`. The check also reads the matched attempts file's `version` and
+`attacks` list. It compares `version` with `ladder_version`, the executed count
+with `attacks_executed`, and the list length with `attacks_total`. When the cell
+includes `attacks_not_executed`, its keys must equal the non-executed attack names.
+Every status other than `executed` counts as non-executed. A difference gives
+`attacks-mismatch`; the report names each differing field and both values.
+The command then reads every
 `subsets[]` entry of `ladder-graded-subset.json` and
 `ladder-graded-subset-p0.json` and finds its `result.json` under
 `<root>/*/<CARD>-<job>/<trial>/result.json` or the raw
 `<card>-graded-subset/<job>/<trial>/result.json`; a subset entry is `matched`,
 `reward-mismatch`, `absent`, or `no-trial` (the entry has no `trial_name`).
-A `mismatched`, `reward-mismatch` or `verifier-mismatch` cell or subset always
-causes exit 1; an `absent` cell or subset causes exit 1 only with `--strict`;
+A `mismatched`, `reward-mismatch`, `verifier-mismatch` or `attacks-mismatch`
+cell always causes exit 1. A subset `reward-mismatch` also causes exit 1.
+An `absent` cell or subset causes exit 1 only with `--strict`;
 `unhashed` cells and `no-trial` entries never change the exit code. Otherwise
 the command exits 0. This mode reads the host results root, so it is not part
 of `--check` and no CI job runs it.
-On 2026-11-09 ET, the strict check covers the combined 100-cell projection and exits 0.
-99 of 100 cells hash-match, with 0 mismatches, 0 verifier-mismatches and 0 absents.
+On 2026-11-10 ET, the strict check covers the combined 100-cell projection and exits 0.
+99 of 100 cells match, with 0 hash, reward, verifier or attack mismatches and 0 absents.
 All 13 graded-subset trials match their recorded rewards. The 1 `unhashed` cell
 is `000928` (rank 8, verdict `unscored`): its setup healthcheck failed before
 the agent ran, so no attempts file exists. The 1 `no-trial` entry is
@@ -1407,7 +1415,7 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evi
 ```
 
 ```text
-totals: 100 cells, matched=99, mismatched=0, reward-mismatch=0, verifier-mismatch=0, absent=0, unhashed=1
+totals: 100 cells, matched=99, mismatched=0, reward-mismatch=0, verifier-mismatch=0, attacks-mismatch=0, absent=0, unhashed=1
 subset totals: 14 entries, matched=13, reward-mismatch=0, absent=0, no-trial=1
 ```
 

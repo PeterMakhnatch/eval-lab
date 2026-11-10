@@ -63,14 +63,24 @@ re-read from the trial's ``verifier/`` directory: the last ``tamper `` line of
 ``baseline_runner.txt`` is the cell ``baseline_runner``'s runner, and
 ``reward.txt`` is the ``reward``. A differing non-null cell field makes the
 cell ``verifier-mismatch``; a cell field that is null is not compared, and an
-absent verifier file skips that comparison. Every ``subsets[]`` entry of
-``ladder-graded-subset.json`` and ``ladder-graded-subset-p0.json`` is then
-checked the same way by ``job_name``/``trial_name`` and reported ``matched``,
-``reward-mismatch``, ``absent``, or ``no-trial``. A ``mismatched``,
-``reward-mismatch`` or ``verifier-mismatch`` cell or subset exits 1; absent
-evidence exits 1 only with ``--strict``; unhashed cells and no-trial entries
-never change the exit code. This mode reads the host results root and is
-deliberately not part of ``--check``.
+absent verifier file skips that comparison. The hash-matched ``attempts.json``
+must also agree with the cell: its ``version`` equals ``ladder_version``, its
+``executed`` attack count equals ``attacks_executed``, and its attack count
+equals ``attacks_total``. When ``attacks_not_executed`` is present, its keys
+must equal the names of all attacks whose status is not ``executed``.
+Every attack field difference is reported in a stable order, with name sets
+sorted. Differences make the cell ``attacks-mismatch`` unless a
+``verifier-mismatch`` or ``reward-mismatch`` takes precedence, in that order.
+Every ``subsets[]`` entry of ``ladder-graded-subset.json`` and
+``ladder-graded-subset-p0.json`` is then checked the same way by
+``job_name``/``trial_name`` and reported ``matched``, ``reward-mismatch``,
+``absent``, or ``no-trial``; the attack comparisons do not apply to subsets.
+A ``mismatched``, ``reward-mismatch``, ``verifier-mismatch`` or
+``attacks-mismatch`` coverage cell exits 1. A subset ``reward-mismatch``
+also exits 1; absent evidence exits 1 only with ``--strict``. Unhashed cells
+and no-trial entries never change the exit code. This mode reads the host
+results root and is deliberately not part of
+``--check``.
 
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
@@ -151,6 +161,7 @@ EVIDENCE_STATUSES = (
     "mismatched",
     "reward-mismatch",
     "verifier-mismatch",
+    "attacks-mismatch",
     "absent",
     "unhashed",
 )
@@ -1080,6 +1091,34 @@ def _verifier_diffs(cell: Mapping[str, Any], verifier_dir: Path) -> list[str]:
     ]
 
 
+def _attacks_diffs(cell: Mapping[str, Any], attempts_path: Path) -> list[str]:
+    """Every attack field that the hash-matched ``attempts.json`` disproves."""
+    data = json.loads(attempts_path.read_text(encoding="utf-8"))
+    attacks = data["attacks"]
+    evidence = [
+        ("ladder_version", cell.get("ladder_version"), data["version"]),
+        (
+            "attacks_executed",
+            cell.get("attacks_executed"),
+            sum(attack["status"] == "executed" for attack in attacks),
+        ),
+        ("attacks_total", cell.get("attacks_total"), len(attacks)),
+    ]
+    if "attacks_not_executed" in cell:
+        evidence.append(
+            (
+                "attacks_not_executed",
+                sorted(cell["attacks_not_executed"]),
+                sorted({attack["name"] for attack in attacks if attack["status"] != "executed"}),
+            )
+        )
+    return [
+        f"{name}: cell {expected!r} != attempts {actual!r}"
+        for name, expected, actual in evidence
+        if expected != actual
+    ]
+
+
 def verify_cell(cell: Mapping[str, Any], card: str, results_root: Path) -> dict[str, Any]:
     """Compare a cell's recorded hash with every candidate until one matches.
 
@@ -1087,7 +1126,13 @@ def verify_cell(cell: Mapping[str, Any], card: str, results_root: Path) -> dict[
     ``reward``; a differing reward makes the cell ``reward-mismatch``. The
     trial's ``verifier/`` files must also agree with the cell's non-null
     ``verifier_tamper_hit``, ``baseline_runner`` and ``reward``; a differing
-    value makes the cell ``verifier-mismatch``.
+    value makes the cell ``verifier-mismatch``. The matched ``attempts.json``
+    must also agree with ``ladder_version``, ``attacks_executed`` and
+    ``attacks_total``. When ``attacks_not_executed`` is present, its keys must
+    equal the names of all attacks whose status is not ``executed``.
+    Collect every attack difference in field order, sorting name sets.
+    ``verifier-mismatch``, then ``reward-mismatch``, take precedence over
+    ``attacks-mismatch``.
     """
     result: dict[str, Any] = {
         "cell": cell,
@@ -1102,6 +1147,7 @@ def verify_cell(cell: Mapping[str, Any], card: str, results_root: Path) -> dict[
         "actual_reward": None,
         "verifier_path": None,
         "verifier_diffs": [],
+        "attacks_diffs": [],
     }
     expected = result["expected"]
     if not isinstance(expected, str) or not expected:
@@ -1118,10 +1164,13 @@ def verify_cell(cell: Mapping[str, Any], card: str, results_root: Path) -> dict[
             reward_path = trial / "result.json"
             actual_reward = _read_reward(reward_path)
             verifier_diffs = _verifier_diffs(cell, trial / "verifier")
+            attacks_diffs = _attacks_diffs(cell, path)
             if verifier_diffs:
                 status = "verifier-mismatch"
             elif actual_reward != result["expected_reward"]:
                 status = "reward-mismatch"
+            elif attacks_diffs:
+                status = "attacks-mismatch"
             else:
                 status = "matched"
             result.update(
@@ -1132,6 +1181,7 @@ def verify_cell(cell: Mapping[str, Any], card: str, results_root: Path) -> dict[
                 actual_reward=actual_reward,
                 verifier_path=trial / "verifier",
                 verifier_diffs=verifier_diffs,
+                attacks_diffs=attacks_diffs,
             )
             return result
         if result["status"] == "absent":
@@ -1239,6 +1289,8 @@ def render_evidence(
             )
         elif status == "verifier-mismatch":
             detail = f"{result['verifier_path']}: " + "; ".join(result["verifier_diffs"])
+        elif status == "attacks-mismatch":
+            detail = f"{result['path']}: " + "; ".join(result["attacks_diffs"])
         else:
             detail = str(result["path"])
             if status == "mismatched":
@@ -1311,7 +1363,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     mode.add_argument(
         "--verify-evidence",
         action="store_true",
-        help="re-hash coverage cells' host attempts.json evidence",
+        help=(
+            "re-hash coverage cells' host attempts.json evidence and compare "
+            "ladder version, executed/total attack counts, and non-executed names "
+            "when attacks_not_executed is present; exit 1 on mismatches"
+        ),
     )
     mode.add_argument(
         "--render-slice",
@@ -1355,6 +1411,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             counts["mismatched"] > 0
             or counts["reward-mismatch"] > 0
             or counts["verifier-mismatch"] > 0
+            or counts["attacks-mismatch"] > 0
             or subset_counts["reward-mismatch"] > 0
             or (args.strict and (counts["absent"] > 0 or subset_counts["absent"] > 0))
         )
@@ -1363,6 +1420,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"{counts['mismatched']} mismatched, "
                 f"{counts['reward-mismatch']} reward-mismatch, "
                 f"{counts['verifier-mismatch']} verifier-mismatch, "
+                f"{counts['attacks-mismatch']} attacks-mismatch, "
                 f"{counts['absent']} absent, "
                 f"{subset_counts['reward-mismatch']} subset reward-mismatch, "
                 f"{subset_counts['absent']} subset absent",

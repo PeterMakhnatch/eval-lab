@@ -34,6 +34,15 @@ TASK = "format-code-task-000001"
 LEDGER = "research/experiments/mimo-clean-v6/ladder-fixture.json"
 FLEET_DIGEST = "sha256:" + "a" * 64
 CELL_DIGEST = "sha256:" + "b" * 64
+ROUTE_PAGE = Path(__file__).resolve().parents[1] / "docs/mimo/README.md"
+OPEN_ITEMS = "## Open items"
+ROUTE_COUNTS = re.compile(
+    r"holds (?P<tasks>\d[\d,]*) fleet tasks, "
+    r"(?P<with_cell>\d[\d,]*) with a ranked cell, and "
+    r"(?P<at_digest>\d[\d,]*) whose cell ran the fleet digest; "
+    r"(?P<no_cell>\d[\d,]*) have no ranked cell and "
+    r"(?P<other>\d[\d,]*) cells ran other bytes"
+)
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -82,6 +91,13 @@ def readme_counts() -> list[tuple[str, int, int, int]]:
         key = "all" if label == "All fleet tasks" else label.strip("`")
         counts.append((key, int(total), int(with_cell), int(at_digest)))
     return counts
+
+
+def open_items() -> str:
+    sections = ROUTE_PAGE.read_text(encoding="utf-8").split(OPEN_ITEMS)
+    assert len(sections) == 2, f"{ROUTE_PAGE} must contain exactly one {OPEN_ITEMS!r}"
+    section = re.split(r"^## ", sections[1], maxsplit=1, flags=re.MULTILINE)[0]
+    return " ".join(section.split())
 
 
 @pytest.fixture
@@ -221,6 +237,31 @@ def test_join_rows_carry_no_host_paths() -> None:
 
 def test_readme_counts_equal_the_join_csv() -> None:
     assert readme_counts() == MODULE["bucket_counts"](_rows())
+
+
+def test_route_page_open_items_quote_the_join_csv() -> None:
+    match = ROUTE_COUNTS.search(open_items())
+    assert match is not None, "Open items must quote the fleet/ladder join counts"
+    tasks, with_cell, at_digest, no_cell, other = (
+        int(match[name].replace(",", ""))
+        for name in ("tasks", "with_cell", "at_digest", "no_cell", "other")
+    )
+    rows = _rows()
+    all_row = next(entry for entry in MODULE["bucket_counts"](rows) if entry[0] == "all")
+    assert (tasks, with_cell, at_digest) == all_row[1:]
+    assert no_cell == sum(row["digest_match"] == MODULE["MATCH_NONE"] for row in rows)
+    assert other == with_cell - at_digest
+
+
+def test_route_page_links_both_subset_receipts() -> None:
+    paragraph = next(
+        bullet for bullet in open_items().split(" - ") if "ladder-graded-subset.json" in bullet
+    )
+    assert "ladder-graded-subset-p0.json" in paragraph
+    targets = {Path(target).name: target for target in re.findall(r"\]\((\.\./[^)]+)\)", paragraph)}
+    for receipt in ("ladder-graded-subset.json", "ladder-graded-subset-p0.json"):
+        assert receipt in targets, f"Open items must link {receipt}"
+        assert (ROUTE_PAGE.parent / targets[receipt]).resolve().is_file()
 
 
 def test_builder_joins_a_cell_at_another_digest_in_isolation(join_root: Path) -> None:

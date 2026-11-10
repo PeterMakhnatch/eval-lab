@@ -153,7 +153,7 @@ the verification gates in `agents/CHECKS.md`.
 | Analysis or interpretation | Analysis/interpretation scoped instructions and the relevant `docs/analysis-loop.md` sections; identify the actual corpus and consumer. |
 | Experiment results, claims, analyst agents | `docs/insights.md` (`evallab insights`: claim ledger, signals, analyst lenses, referee, board); state stays in `~/.local/state/evallab-insights`. |
 | Task authoring or registration | The task's own contract plus relevant `docs/task-workbench.md` / `docs/task-registry.md` sections; retain execution approval and immutable-version rules. |
-| MiMo RL code tasks (clean set, transforms, verification) | `docs/mimo/README.md`, then the page it links for the affected transform or check; the canonical manifest is `research/experiments/mimo-clean-v5/manifest.csv`. |
+| MiMo RL code tasks (clean set, transforms, verification) | `docs/mimo/README.md`, then the page it links for the affected transform or check; the current build target is `research/experiments/mimo-v6-full-fleet` and its `manifest.csv`. The `research/experiments/mimo-clean-v5/manifest.csv` manifest is history. |
 
 Use targeted lookup for a missing concept or symbol. Read `docs/research/` and
 `agents/archive/` only when historical evidence is needed, not as default context.

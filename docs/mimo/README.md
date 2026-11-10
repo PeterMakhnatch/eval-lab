@@ -136,7 +136,13 @@ Receipts, newest first: `research/experiments/mimo-clean-v6/`,
 - v6 ladder evidence is mostly refusal, not graded runs: the v6 basis counts
   sit in the Measured results row for the cheat ladder
   ([ladder-progress.csv](../../research/experiments/mimo-clean-v6/ladder-progress.csv);
-  subset cells: [ladder-graded-subset.json](../../research/experiments/mimo-clean-v6/ladder-graded-subset.json)).
+  subset cells: [ladder-graded-subset.json](../../research/experiments/mimo-clean-v6/ladder-graded-subset.json);
+  P0 subset: [ladder-graded-subset-p0.json](../../research/experiments/mimo-clean-v6/ladder-graded-subset-p0.json)).
+- The ranked ladder observed only part of the v6 fleet: the
+  [fleet/ladder join](../../research/experiments/mimo-v6-full-fleet/fleet-ladder-join.csv)
+  holds 567 fleet tasks, 98 with a ranked cell, and 15 whose cell ran the fleet
+  digest; 469 have no ranked cell and 83 cells ran other bytes. These counts are
+  the joined rows, not fleet acceptance.
 - Full-fleet coverage (v5 history): 1,729 built tasks had no ladder run on v5;
   294 lacked a do-nothing run; 172 reference tasks awaited a v5 probe. For the
   567-task v6 fleet only 5 are `v6_verified`; see the Current build target.

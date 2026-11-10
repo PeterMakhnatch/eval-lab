@@ -29,7 +29,7 @@ For every clean-set manifest row, four checks on the FINAL clean package
     reason — e.g. source-tamper attacks on tasks with no imported package
     `__init__`), and the benchmark's own verifier returns reward 0 for every
     trial. Reward 0 alone does not say how the verifier produced it. Each
-    covered v6 cell records its basis, derived from the cell's
+    covered v6 row names its basis, derived from the cell's
     `verifier_decision` by `ladder_progress.classify_basis`:
 
     - **tamper-refusal** — the verifier refused the agent diff on a tamper

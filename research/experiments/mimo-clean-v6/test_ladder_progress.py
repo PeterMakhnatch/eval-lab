@@ -1354,6 +1354,58 @@ def test_ladder_progress_sync_docs_derives_the_evidence_sentence_from_the_receip
     )
 
 
+def test_ladder_progress_sync_docs_synchronizes_each_strictness_repeatedly(
+    sandbox: Path,
+) -> None:
+    receipt = _sandbox_receipt(sandbox)
+    relative_pages = ("README.md", "docs/mimo/README.md", _SYNC_EXPERIMENT)
+    phrases = {
+        False: (
+            "The non-strict evidence check matched",
+            "the non-strict evidence check matched",
+            "non-strict check matched",
+        ),
+        True: (
+            "The strict evidence check matched",
+            "the strict evidence check matched",
+            "strict check matched",
+        ),
+    }
+    for strict in (False, True):
+        receipt["strict"] = strict
+        _write_sandbox_receipt(sandbox, receipt)
+        assert MODULE.main(["--sync-docs"]) == 0
+        for relative, phrase in zip(relative_pages, phrases[strict], strict=True):
+            text = " ".join(
+                (sandbox.parents[2] / relative).read_text(encoding="utf-8").split()
+            )
+            assert phrase in text, (strict, relative)
+        before_repeat = _sync_snapshot(sandbox)
+        assert MODULE.main(["--sync-docs"]) == 0
+        assert _sync_snapshot(sandbox) == before_repeat
+
+
+@pytest.mark.parametrize("damage", ["missing", "repeated"])
+def test_ladder_progress_sync_docs_refuses_a_damaged_non_strict_evidence_anchor(
+    sandbox: Path, damage: str
+) -> None:
+    receipt = _sandbox_receipt(sandbox)
+    receipt["strict"] = False
+    _write_sandbox_receipt(sandbox, receipt)
+    assert MODULE.main(["--sync-docs"]) == 0
+    page = _sync_pages(sandbox)[0]
+    anchor = b"The non-strict evidence check matched"
+    text = page.read_bytes()
+    assert text.count(anchor) == 1
+    replacement = b"removed evidence anchor" if damage == "missing" else anchor + b"\n" + anchor
+    page.write_bytes(_replace_once(text, anchor, replacement))
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.main(["--sync-docs"])
+    assert "README.md" in str(refused.value)
+    assert _sync_snapshot(sandbox) == before
+
+
 def test_ladder_progress_sync_docs_preserves_arbitrary_route_whitespace(sandbox: Path) -> None:
     page = _sync_pages(sandbox)[0]
     text = page.read_bytes()

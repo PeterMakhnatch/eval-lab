@@ -982,19 +982,24 @@ _PENDING_SENTENCE = {
     ),
 }
 
+# Each entry is (error label, anchor pattern, fragment pattern). The anchor
+# accepts either generated strictness form, so a receipt flip resynchronizes.
 _EVIDENCE_SENTENCE = {
     "root": (
-        "The strict evidence check matched",
+        "The (non-)strict evidence check matched",
+        r"The\s+(?:strict|non-strict)\s+evidence\s+check\s+matched",
         r"The\s+(strict|non-strict)\s+evidence\s+check\s+matched\s+([0-9]+)\s+of\s+([0-9]+)\s+"
         r"cells\s+and\s+([0-9]+)\s+of\s+([0-9]+)\s+recorded\s+subset\s+trials",
     ),
     "route": (
-        "the strict evidence check matched",
+        "the (non-)strict evidence check matched",
+        r"the\s+(?:strict|non-strict)\s+evidence\s+check\s+matched",
         r"the\s+(strict|non-strict)\s+evidence\s+check\s+matched\s+([0-9]+)\s+cells\s+"
         r"and\s+([0-9]+)\s+subset\s+trials",
     ),
     "experiment": (
-        "strict check matched",
+        "the (non-)strict check matched",
+        r"the\s+([0-9]{4}-[0-9]{2}-[0-9]{2})\s+(?:strict|non-strict)\s+check\s+matched",
         r"the\s+([0-9]{4}-[0-9]{2}-[0-9]{2})\s+(strict|non-strict)\s+check\s+matched\s+"
         r"([0-9]+)\s+cells\s+and\s+"
         r"((?:all\s+)?[0-9]+(?:\s+of\s+[0-9]+)?\s+recorded\s+subset\s+trials)",
@@ -1055,9 +1060,9 @@ def _evidence_sentence_edits(
             f"{subset_clause}\nrecorded subset trials".replace("\n", newline),
         ),
     }[kind]
-    anchor, pattern = _EVIDENCE_SENTENCE[kind]
-    _doc_match(r"\s+".join(map(re.escape, anchor.split())), text, page, anchor)
-    match = _doc_match(pattern, text, page, f"complete {anchor} fragment")
+    label, anchor, pattern = _EVIDENCE_SENTENCE[kind]
+    _doc_match(anchor, text, page, label)
+    match = _doc_match(pattern, text, page, f"complete {label} fragment")
     return [
         (match.start(index), match.end(index), str(value))
         for index, value in enumerate(values, start=1)

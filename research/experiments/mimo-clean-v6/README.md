@@ -1309,26 +1309,43 @@ results root.
 
 It updates the two route-page basis sentences and this page's basis table,
 covered count, signature counts, and summary table. It also updates the
-refusal-rate calculation, refusal counts, and refused-row attack counts and task
-IDs. It generates Python's refusal and graded counts and remaining-hours
-projection. It rewrites the evidence-check sentences and the two totals lines
-from the committed `ladder-evidence-receipt.json`. It preserves spacing, table
-annotations, and signature labels. It leaves all other page text unchanged.
+refusal-rate calculation, refusal counts, refused-row attack counts and task
+IDs, and the graded rows' executed-attack range, histogram, and the unscored
+row's attack count. It generates Python's refusal and graded counts and
+remaining-hours projection. It rewrites the `docs/mimo/verification.md` clause
+(c) sentences: the refusal-signature count, the graded rows' attack range, the
+graded-subset row count, and the covered, clean, refusal, graded and unscored
+counts with the receipt's check date. It rewrites the evidence-check sentences
+and the two totals lines from the committed `ladder-evidence-receipt.json`. It
+preserves spacing, table annotations, and signature labels. It leaves all other
+page text unchanged.
 
 The command validates the receipt and every fragment before writing any page.
 A missing or repeated fragment anchor raises `ProgressError` and exits 1 without
 page writes. A receipt that does not list every committed coverage cell and
 graded-subset entry also raises `ProgressError` without page writes.
 
-For each slice PR:
+The ranked ladder is closed at 100/100 coverage: every rank has a committed
+coverage cell, and the 2026-11-10 strict check matched 99 cells and all 13
+recorded subset trials. A later change therefore does not add a rank. It
+re-runs one rank's cell, or it adds a graded-subset cell for a refused row.
+What the ladder still owes is the 174 pending control cells for 90 tasks
+(10.36 projected serial hours) in
+[pending-controls.json](pending-controls.json), and the ungraded
+`tamper_source_*` attacks on the 80 refusal rows; see "Pending v6 control cells
+by ranking phase" and [ladder-evidence-receipt.json](ladder-evidence-receipt.json).
 
-1. Add the cell JSON and any required manifest or ranking changes to the PR.
+For a re-run or a new subset cell:
+
+1. Add the replacement coverage cell JSON, or the subset entry to
+   `ladder-graded-subset.json`, with any required manifest or ranking change.
 2. Run the command without options to regenerate `ladder-progress.csv`.
-3. Run `--render-slice` with the cell filename. Paste its table into the slice
-   section.
-4. On the Mac that holds the results root, run the evidence check with
-   `--write-receipt`. It writes `ladder-evidence-receipt.json` with each cell
-   and subset status and the totals:
+3. For a coverage cell, run `--render-slice` with the cell filename and replace
+   that rank's row in its section. A subset cell has no rank row: record it in
+   the subset section and its JSON.
+4. If a coverage cell changed, run the evidence check with `--write-receipt` on
+   the Mac that holds the results root. It writes `ladder-evidence-receipt.json`
+   with each cell and subset status and the totals:
 
    ```bash
    uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evidence --strict --write-receipt
@@ -1336,21 +1353,27 @@ For each slice PR:
 
 5. Run `--sync-docs` to update the count tables and narrative counts. This includes
    the refusal-rate calculation, refusal counts, refused-row attack counts and
-   task IDs, Python's refusal and graded counts, Python's remaining-hours
-   projection, and the evidence-check sentences and totals from the receipt.
+   task IDs, the graded rows' attack range and histogram, the graded-subset row
+   count, the verification page's clause (c) counts and check date, Python's
+   refusal and graded counts, Python's remaining-hours projection, and the
+   evidence-check sentences and totals from the receipt.
 6. Review and edit task-specific descriptions and evidence prose affected by
-   the new cells manually.
-7. Run the drift check and the explicit experiment test file:
+   the new cell manually. Do not edit a generated anchor sentence.
+7. Run `--sync-docs`, then prove that the generated pages did not drift, and run
+   the drift check and the explicit experiment test file:
 
    ```bash
+   uv run python research/experiments/mimo-clean-v6/ladder_progress.py --sync-docs
+   git diff --exit-code README.md docs/mimo/README.md research/experiments/mimo-clean-v6/README.md
    uv run python research/experiments/mimo-clean-v6/ladder_progress.py --check
    uv run pytest research/experiments/mimo-clean-v6/test_ladder_progress.py
    ```
 
 Include the regenerated CSV, the receipt, and page changes with the cell data in
-the slice PR. `--sync-docs`, the drift check, and the tests read only committed
-files, so they need no Docker or host results root. Only step 4 needs the
-retained host results.
+the PR. `--sync-docs`, the drift check, and the tests read only committed files,
+so they need no Docker or host results root. Only step 4 needs the retained host
+results. `--sync-docs` owns the generated fragments on the three pages; the
+`git diff --exit-code` line proves that no anchor drifted.
 
 Two trailing columns join the graded-subset cells (schema
 `evallab.mimo-v6-ladder-subset-cells/v1`; coverage readers ignore that schema
@@ -1455,7 +1478,7 @@ file basename):
 
 Of the 80 refused rows, 78 ran all 14 attacks; `001987` and `002351` ran 13 of 14.
 Both skip `tamper_tracked_conftest` because no tracked conftest or test directory exists.
-The graded rows ran only 8–10 of 14 (8 rows ran 8, 9 ran 9, and 2 ran 10).
+The graded rows ran only 8–10 of 14 (8 rows ran 8, 9 rows ran 9, and 2 rows ran 10).
 The unscored `000928` ran 0, so graded ladder evidence covers fewer attacks
 than the refusal rows' count suggests.
 
@@ -1519,8 +1542,15 @@ the projection is `cells x mean`, not three times that. The hours count every
 pending cell, including the four held ones. Twelve of the ninety tasks are not
 Python; their cells are projected with the Python means, so those rows are an
 estimate rather than a measurement of those languages. The mode reads only the
-ranking and the inventory: it launches no Docker trial and reads no results
-root. The offline test suite compares this section with the renderer.
+manifest, the ranking and the inventory: it launches no Docker trial and reads
+no results root. The offline test suite compares this section with the renderer.
+
+Before printing, `--pending-controls` checks the inventory against
+[manifest.csv](manifest.csv) (HAR-371). An entry whose `final_digest` differs
+from its manifest row, a task absent from the manifest, or an entry task set
+unequal to `remaining_original_task_ids` raises `ProgressError` naming the
+task, and the mode exits 1 with that message. A rebuilt package or an edited
+list cannot therefore project hours for bytes the ladder never graded.
 
 ## Graded subset cells for three tamper-refused rows (HAR-284, HAR-293, 2026-11-03)
 

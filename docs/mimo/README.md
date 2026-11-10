@@ -118,12 +118,21 @@ Measured results:
 | Reference fixes under the v5 grader | 87 graded 1 and 4 `1-noexec` in the v5 census; remaining `fail:0` cells are triaged in the receipt. 001431's grader shape is closed by the `@9` fold ([clean-set.md](clean-set.md), "Verifier fold (@9 for 001431)"). |
 | Do-nothing | 0 everywhere it ran; `0-noexec` rows lack proof the tests ran and stay unverified. |
 
-Receipts, newest first: `research/experiments/mimo-clean-v5-census/`,
-`mimo-clean-v4-census/`, `mimo-clean-census/` (v3), `fix-probe-v2/`,
-`cheat-tamper-ladder/`.
+Receipts, newest first: `research/experiments/mimo-clean-v6/`,
+`mimo-clean-v5-census/`, `mimo-clean-v4-census/`, `mimo-clean-census/` (v3),
+`fix-probe-v2/`, `cheat-tamper-ladder/`.
 
 ## Open items
 
+- The ranked v6 ladder is complete at 100/100 coverage: every rank has a cell,
+  and the strict evidence check matched 99 cells and 13 subset trials
+  ([ladder-evidence-receipt.json](../../research/experiments/mimo-clean-v6/ladder-evidence-receipt.json)).
+  The remaining v6 gap is the pending controls: 174 control cells for 90 tasks
+  (10.36 projected serial hours) in
+  [pending-controls.json](../../research/experiments/mimo-clean-v6/pending-controls.json),
+  rendered by ranking phase in the
+  [pending-controls section](../../research/experiments/mimo-clean-v6/README.md#pending-v6-control-cells-by-ranking-phase);
+  and the ungraded `tamper_source_*` attacks on the 80 refusal rows.
 - v6 ladder evidence is mostly refusal, not graded runs: the v6 basis counts
   sit in the Measured results row for the cheat ladder
   ([ladder-progress.csv](../../research/experiments/mimo-clean-v6/ladder-progress.csv);

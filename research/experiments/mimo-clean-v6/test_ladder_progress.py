@@ -152,7 +152,9 @@ def test_ladder_progress_readme_summary_section_matches_the_rendered_table() -> 
 
 
 def test_ladder_progress_readme_pending_controls_section_matches_the_rendered_table() -> None:
-    controls = MODULE.read_pending_controls(EXPERIMENT / MODULE.PENDING_NAME)
+    controls = MODULE.read_pending_controls(
+        EXPERIMENT / MODULE.PENDING_NAME, MODULE.read_manifest(EXPERIMENT)
+    )
     assert _readme_table(MODULE.PENDING_HEADING) == MODULE.render_pending_controls(
         controls, MODULE.read_ranking(REPO_ROOT)
     )
@@ -338,10 +340,32 @@ def test_ladder_progress_summary_refuses_a_language_with_no_reference_basis() ->
         MODULE.summary(rows)
 
 
-def _pending_controls_file(tmp_path: Path, entries: list[dict]) -> Path:
+def _pending_controls_file(
+    tmp_path: Path, entries: list[dict], *, task_ids: list[str] | None = None
+) -> Path:
+    """Write a tmp inventory; fill each entry's digest and the remaining task list."""
+    filled = [
+        {"final_digest": f"sha256:{entry.get('task_id') or ''}", **entry} for entry in entries
+    ]
+    listed = [str(entry.get("task_id") or "") for entry in entries] if task_ids is None else task_ids
     path = tmp_path / MODULE.PENDING_NAME
-    path.write_text(json.dumps({"remaining_original_controls": entries}), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {"remaining_original_task_ids": listed, "remaining_original_controls": filled}
+        ),
+        encoding="utf-8",
+    )
     return path
+
+
+def _pending_manifest(path: Path) -> dict[str, str]:
+    """The ``task_id`` to digest map the tmp inventory claims for itself."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        entry["task_id"]: entry["final_digest"]
+        for entry in data["remaining_original_controls"]
+        if "task_id" in entry
+    }
 
 
 def test_ladder_progress_pending_controls_place_an_absent_task_on_the_unranked_row(
@@ -356,7 +380,9 @@ def test_ladder_progress_pending_controls_place_an_absent_task_on_the_unranked_r
     )
     rows = {
         row["phase"]: row
-        for row in MODULE.pending_controls(MODULE.read_pending_controls(path), _ranking(1))
+        for row in MODULE.pending_controls(
+            MODULE.read_pending_controls(path, _pending_manifest(path)), _ranking(1)
+        )
     }
     assert (rows["P"]["tasks"], rows["P"]["oracle_cells"]) == (1, 1)
     assert (rows["unranked"]["tasks"], rows["unranked"]["oracle_cells"]) == (1, 1)
@@ -373,7 +399,9 @@ def test_ladder_progress_pending_controls_count_no_runnable_cells_for_a_held_tas
     )
     rows = {
         row["phase"]: row
-        for row in MODULE.pending_controls(MODULE.read_pending_controls(path), _ranking(1))
+        for row in MODULE.pending_controls(
+            MODULE.read_pending_controls(path, _pending_manifest(path)), _ranking(1)
+        )
     }
     row = rows["P"]
     assert (row["tasks"], row["oracle_cells"], row["nop_cells"], row["runnable_cells"]) == (
@@ -394,7 +422,9 @@ def test_ladder_progress_pending_controls_hours_use_one_mean_per_repeat_three_ce
 
 
 def test_ladder_progress_pending_controls_total_row_sums_the_phase_rows() -> None:
-    controls = MODULE.read_pending_controls(EXPERIMENT / MODULE.PENDING_NAME)
+    controls = MODULE.read_pending_controls(
+        EXPERIMENT / MODULE.PENDING_NAME, MODULE.read_manifest(EXPERIMENT)
+    )
     entries = MODULE.pending_controls(controls, MODULE.read_ranking(REPO_ROOT))
     assert [entry["phase"] for entry in entries][-2:] == ["unranked", "total"]
     for field in ("tasks", "oracle_cells", "nop_cells", "runnable_cells"):
@@ -404,7 +434,9 @@ def test_ladder_progress_pending_controls_total_row_sums_the_phase_rows() -> Non
 
 
 def test_ladder_progress_pending_controls_render_totals_every_pending_cell() -> None:
-    controls = MODULE.read_pending_controls(EXPERIMENT / MODULE.PENDING_NAME)
+    controls = MODULE.read_pending_controls(
+        EXPERIMENT / MODULE.PENDING_NAME, MODULE.read_manifest(EXPERIMENT)
+    )
     rendered = MODULE.render_pending_controls(controls, MODULE.read_ranking(REPO_ROOT))
     total = [
         cell.strip() for cell in rendered.splitlines()[-1].strip("|").split("|")
@@ -417,6 +449,16 @@ def test_ladder_progress_pending_controls_render_totals_every_pending_cell() -> 
         "174",
         f"{MODULE.projected_control_hours(88, 90):.2f}",
     ]
+
+
+def test_ladder_progress_committed_pending_controls_match_the_manifest() -> None:
+    data = json.loads((EXPERIMENT / MODULE.PENDING_NAME).read_text(encoding="utf-8"))
+    manifest = MODULE.read_manifest(EXPERIMENT)
+    entries = data["remaining_original_controls"]
+    assert len(entries) == 90
+    assert {entry["task_id"]: entry["final_digest"] for entry in entries} == {
+        task: manifest[task] for task in data["remaining_original_task_ids"]
+    }
 
 
 @pytest.mark.parametrize(
@@ -432,7 +474,7 @@ def test_ladder_progress_pending_controls_refuse_an_invalid_entry(
 ) -> None:
     path = _pending_controls_file(tmp_path, [entry])
     with pytest.raises(ProgressError, match=message):
-        MODULE.read_pending_controls(path)
+        MODULE.read_pending_controls(path, _pending_manifest(path))
 
 
 def test_ladder_progress_pending_controls_refuse_a_repeated_task(tmp_path: Path) -> None:
@@ -442,9 +484,73 @@ def test_ladder_progress_pending_controls_refuse_a_repeated_task(tmp_path: Path)
             {"task_id": "t1", "agents": ["oracle"], "runnable": True},
             {"task_id": "t1", "agents": ["nop"], "runnable": True},
         ],
+        task_ids=["t1"],
     )
     with pytest.raises(ProgressError, match="repeats task t1"):
-        MODULE.read_pending_controls(path)
+        MODULE.read_pending_controls(path, _pending_manifest(path))
+
+
+def test_ladder_progress_pending_controls_refuse_a_digest_that_differs_from_the_manifest(
+    tmp_path: Path,
+) -> None:
+    path = _pending_controls_file(
+        tmp_path, [{"task_id": "t1", "agents": ["oracle"], "runnable": True}]
+    )
+    manifest = _pending_manifest(path)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["remaining_original_controls"][0]["final_digest"] = "sha256:stale"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_pending_controls(path, manifest)
+    message = str(refused.value)
+    assert "t1" in message
+    assert "sha256:stale" in message
+
+
+def test_ladder_progress_pending_controls_refuse_a_task_absent_from_the_manifest(
+    tmp_path: Path,
+) -> None:
+    path = _pending_controls_file(
+        tmp_path, [{"task_id": "t1", "agents": ["oracle"], "runnable": True}]
+    )
+    with pytest.raises(ProgressError, match="t1: absent from manifest.csv"):
+        MODULE.read_pending_controls(path, {})
+
+
+def test_ladder_progress_pending_controls_refuse_an_entry_outside_the_remaining_tasks(
+    tmp_path: Path,
+) -> None:
+    path = _pending_controls_file(
+        tmp_path,
+        [
+            {"task_id": "t1", "agents": ["oracle"], "runnable": True},
+            {"task_id": "t2", "agents": ["oracle"], "runnable": True},
+        ],
+        task_ids=["t1"],
+    )
+    with pytest.raises(ProgressError, match="t2: has a control entry but is not"):
+        MODULE.read_pending_controls(path, _pending_manifest(path))
+
+
+def test_ladder_progress_pending_controls_refuse_a_remaining_task_without_an_entry(
+    tmp_path: Path,
+) -> None:
+    path = _pending_controls_file(
+        tmp_path,
+        [{"task_id": "t1", "agents": ["oracle"], "runnable": True}],
+        task_ids=["t1", "t2"],
+    )
+    with pytest.raises(ProgressError, match="t2: in remaining_original_task_ids but has no"):
+        MODULE.read_pending_controls(path, _pending_manifest(path))
+
+
+def test_ladder_progress_pending_controls_refuse_an_inventory_without_remaining_tasks(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / MODULE.PENDING_NAME
+    path.write_text(json.dumps({"remaining_original_controls": []}), encoding="utf-8")
+    with pytest.raises(ProgressError, match="no remaining_original_task_ids list"):
+        MODULE.read_pending_controls(path, {})
 
 
 def test_ladder_progress_check_and_summary_are_mutually_exclusive() -> None:
@@ -867,6 +973,7 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     for relative in (
         "README.md",
         "docs/mimo/README.md",
+        "docs/mimo/verification.md",
         "research/experiments/mimo-clean-v6/README.md",
     ):
         destination = tmp_path / relative
@@ -882,9 +989,14 @@ _SYNC_ROUTE = re.compile(
     rb"(\d+)\s+tamper-refusal,\s+(\d+)\s+graded,\s+(\d+)\s+unscored,\s+(\d+)\s+not\s+run"
 )
 _SYNC_EXPERIMENT = "research/experiments/mimo-clean-v6/README.md"
+_SYNC_VERIFICATION = "docs/mimo/verification.md"
 _SYNC_FRAGMENTS = (
     ("README.md", b"v6 basis (100 ranks):"),
     ("docs/mimo/README.md", b"v6 basis (100 ranks):"),
+    (_SYNC_VERIFICATION, b"matched one signature"),
+    (_SYNC_VERIFICATION, b"graded v6 rows"),
+    (_SYNC_VERIFICATION, b"reward 0 on all"),
+    (_SYNC_VERIFICATION, b"v6 table holds"),
     (_SYNC_EXPERIMENT, b"Basis counts in the committed table"),
     (_SYNC_EXPERIMENT, b"### Refusal signatures and attacks executed (HAR-302)"),
     (_SYNC_EXPERIMENT, b"## Wall time by language and remaining serial hours"),
@@ -893,6 +1005,8 @@ _SYNC_FRAGMENTS = (
     (_SYNC_EXPERIMENT, b"therefore uses its"),
     (_SYNC_EXPERIMENT, b"refused rows,"),
     (_SYNC_EXPERIMENT, b"uncovered rows one at a time"),
+    (_SYNC_EXPERIMENT, b"graded rows ran only"),
+    (_SYNC_EXPERIMENT, b"unscored `000928` ran"),
     (_SYNC_EXPERIMENT, b"cell projection and exits"),
     (_SYNC_EXPERIMENT, b"cells match, with"),
     (_SYNC_EXPERIMENT, b"graded-subset trials match their recorded rewards"),
@@ -928,7 +1042,12 @@ _SYNC_NARRATIVES = (
 
 def _sync_pages(experiment: Path) -> tuple[Path, ...]:
     root = experiment.parents[2]
-    return (root / "README.md", root / "docs/mimo/README.md", experiment / "README.md")
+    return (
+        root / "README.md",
+        root / "docs/mimo/README.md",
+        experiment / "README.md",
+        root / "docs/mimo/verification.md",
+    )
 
 
 def _replace_once(text: bytes, old: bytes, new: bytes) -> bytes:
@@ -979,8 +1098,19 @@ def _stale_route(text: bytes) -> bytes:
     return text
 
 
+def _stale_number(text: bytes, pattern: bytes) -> bytes:
+    """Increment the first number of the single ``pattern`` match."""
+    found = re.search(pattern, text)
+    assert found is not None, pattern
+    number = re.search(rb"[0-9]+", found.group())
+    assert number is not None, pattern
+    start = found.start() + number.start()
+    end = start + len(number.group())
+    return text[:start] + str(int(number.group()) + 1).encode() + text[end:]
+
+
 def _stale_sync_pages(experiment: Path) -> None:
-    root_page, route_page, readme = _sync_pages(experiment)
+    root_page, route_page, readme, verification = _sync_pages(experiment)
     for page in (root_page, route_page):
         page.write_bytes(_stale_route(page.read_bytes()))
     text = readme.read_bytes()
@@ -997,7 +1127,20 @@ def _stale_sync_pages(experiment: Path) -> None:
     ]
     for row in count_rows:
         text = _replace_once(text, row, _stale_count_row(row))
+    text = _stale_number(
+        text, rb"graded rows ran only [0-9]+(?:\xe2\x80\x93|-)[0-9]+ of 14 \([^()]*\)"
+    )
+    text = _stale_number(text, rb"ran [0-9]+, so graded")
     readme.write_bytes(text)
+    stale_verification = verification.read_bytes()
+    for pattern in (
+        rb"All [0-9]+ v6 refusals",
+        rb"the [0-9]+ graded v6 rows",
+        rb"on all [0-9]+ rows tried",
+        rb"At the [0-9-]+ commit",
+    ):
+        stale_verification = _stale_number(stale_verification, pattern)
+    verification.write_bytes(stale_verification)
 
 
 def _sync_snapshot(experiment: Path) -> dict[Path, tuple[bytes, int]]:
@@ -1205,6 +1348,76 @@ def test_ladder_progress_sync_docs_derives_short_attack_list_cardinality(
     before_repeat = _sync_snapshot(sandbox)
     MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
     assert _sync_snapshot(sandbox) == before_repeat
+
+
+def test_ladder_progress_sync_docs_derives_the_verification_page_counts(sandbox: Path) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    receipt = MODULE.read_receipt(sandbox, sandbox.parents[2])
+    refusals = [row for row in rows if row["basis"] == "tamper-refusal"]
+    subset = next(row for row in rows if row["subset_verdict"] != "none")
+    for row in refusals[:2]:
+        row.update(basis="graded", refusal_hit="", attacks_executed="10")
+    subset["subset_verdict"] = "none"
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    text = (sandbox.parents[2] / "docs/mimo/verification.md").read_text(encoding="utf-8")
+    wrapped = " ".join(text.split())
+    refusal_count = len(refusals) - 2
+    graded_count = sum(row["basis"] == "graded" for row in rows)
+    subset_rows = sum(row["subset_verdict"] != "none" for row in rows)
+    covered = len(rows) - sum(row["basis"] == "none" for row in rows)
+    clean = sum(row["verdict"] == "clean" for row in rows)
+    unscored = sum(row["basis"] == "unscored" for row in rows)
+    for fragment in (
+        f"All {refusal_count} v6 refusals matched one signature, `tamper \\b_pytest\\b` "
+        "in a package `__init__.py` that a `tamper_source_*` attack planted.",
+        f"the {graded_count} graded v6 rows ran 8–10 of the 14.",
+        f"returned reward 0 on all {subset_rows} rows tried",
+        f"At the {receipt['checked_date_et']} commit the v6 table holds {covered} covered "
+        f"rows: {clean} clean ({refusal_count} tamper-refusal, {graded_count} graded) and "
+        f"{unscored} unscored",
+    ):
+        assert wrapped.count(fragment) == 1, fragment
+
+
+def test_ladder_progress_sync_docs_derives_the_graded_attack_histogram(sandbox: Path) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    graded = [row for row in rows if row["basis"] == "graded"]
+    for row in graded:
+        row["attacks_executed"] = "9"
+    for row, executed in zip(graded[:3], ("11", "11", "12"), strict=True):
+        row["attacks_executed"] = executed
+    for row in rows:
+        if row["basis"] == "unscored":
+            row["attacks_executed"] = "4"
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    readme = " ".join((sandbox / "README.md").read_text(encoding="utf-8").split())
+    histogram = f"{len(graded) - 3} rows ran 9, 2 rows ran 11, and 1 row ran 12"
+    assert readme.count(f"The graded rows ran only 9–12 of 14 ({histogram}).") == 1
+    assert readme.count("The unscored `000928` ran 4,") == 1
+    verification = " ".join(
+        (sandbox.parents[2] / "docs/mimo/verification.md").read_text(encoding="utf-8").split()
+    )
+    assert verification.count(f"the {len(graded)} graded v6 rows ran 9–12 of the 14.") == 1
+
+
+def test_ladder_progress_sync_docs_refuses_two_refusal_signatures_atomically(sandbox: Path) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    refusal = next(row for row in rows if row["refusal_hit"])
+    refusal["refusal_hit"] = "agent/build/__main__.py"
+    _stale_sync_pages(sandbox)
+    readme = sandbox / "README.md"
+    signature_row = _sync_signature_row(readme.read_bytes())
+    readme.write_bytes(
+        _replace_once(
+            readme.read_bytes(),
+            signature_row,
+            signature_row + b"\n| `other signature` | `__main__.py` | 1 |",
+        )
+    )
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError, match="one-signature"):
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert _sync_snapshot(sandbox) == before
 
 
 def test_ladder_progress_sync_docs_handles_no_clean_verdicts(sandbox: Path) -> None:
@@ -2404,8 +2617,26 @@ def test_ladder_progress_pending_controls_prints_the_table_without_writing_the_c
     table = sandbox / "ladder-progress.csv"
     before = table.read_bytes()
     assert MODULE.main(["--pending-controls"]) == 0
-    controls = MODULE.read_pending_controls(sandbox / MODULE.PENDING_NAME)
+    controls = MODULE.read_pending_controls(
+        sandbox / MODULE.PENDING_NAME, MODULE.read_manifest(sandbox)
+    )
     assert capsys.readouterr().out == MODULE.render_pending_controls(
         controls, MODULE.read_ranking(MODULE.ROOT)
     )
     assert table.read_bytes() == before
+
+
+def test_ladder_progress_pending_controls_exit_one_on_one_altered_digest(
+    sandbox: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = sandbox / MODULE.PENDING_NAME
+    data = json.loads(path.read_text(encoding="utf-8"))
+    altered = data["remaining_original_controls"][0]
+    task_id = altered["task_id"]
+    digest = altered["final_digest"] = "sha256:" + "0" * 64
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert MODULE.main(["--pending-controls"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert task_id in captured.err
+    assert digest in captured.err

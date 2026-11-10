@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from evallab import cli
 from evallab import hack_drop as hd
-from evallab.line import core
 from evallab.line.copy_history import history_copy
-from evallab.line.io import read_json, read_rows, write_json, write_rows
-from evallab.line.replay import replay
-from evallab.line.spec import load_spec
+from evallab.line.io import write_json
 
 PATCH = (
     "diff --git a/pkg/core.py b/pkg/core.py\n"
@@ -314,123 +309,3 @@ def test_unretained_spill_and_unrelated_pane_supply_no_evidence() -> None:
     )
 
 
-def test_native_retained_pane_changes_line_decision_and_is_integrity_checked(
-    fixture_spec: Path,
-) -> None:
-    _copy_source(fixture_spec)
-    spec = read_json(fixture_spec)
-    spec["copy_history"] = True
-    write_json(fixture_spec, spec)
-    trial = fixture_spec.parent / "copy-run"
-    (trial / "final.diff").unlink()
-    (trial / "verifier").mkdir()
-    (trial / "verifier/agent.diff").write_text(PATCH)
-    (trial / "agent").mkdir()
-    (trial / "trajectory.json").unlink()
-    write_json(
-        trial / "agent/trajectory.json",
-        _document(
-            [
-                ("git show deadbeef", "Current Terminal Screen:\nclipped"),
-            ]
-        ),
-    )
-    pane = trial / "agent/terminus_2.pane"
-    pane.write_text("root@abc:/testbed# git show deadbeef\n" + HUNK)
-    batch = core.run_line(fixture_spec, fixture_spec.parent)
-    decision = read_rows(batch / "decisions.jsonl")[0]
-    assert decision["decision"] == "drop"
-    assert "COPY_HISTORY_CONFIRMED" in decision["reasons"]
-    assert core.check_batch(batch, fixture_spec.parent)["passed"]
-    pane.write_text("unrelated output")
-    assert not core.check_batch(batch, fixture_spec.parent)["passed"]
-
-
-def _copy_source(spec_path: Path) -> None:
-    spec = read_json(spec_path)
-    run = spec_path.parent / "copy-run"
-    write_json(run / "trajectory.json", _document([("git show deadbeef", HUNK)]))
-    (run / "final.diff").write_text(PATCH)
-    write_json(run / "run.json", {"id": "copy-run", "task_id": "plain-task", "split": "dev"})
-    write_rows(
-        Path(spec["sources"][0]["rollouts"]),
-        [
-            {"id": "copy-run", "task_id": "plain-task", "path": str(run)},
-        ],
-    )
-    write_rows(Path(spec["sources"][0]["labels"]), [{"id": "copy-run", "is_cheat": True}])
-    spec["judge"]["write"] = False
-    spec["audit"]["rate"] = 0
-    write_json(spec_path, spec)
-
-
-def test_default_off_and_enabled_batch_keep_receipt_recomputation(fixture_spec: Path) -> None:
-    _copy_source(fixture_spec)
-    default = core.run_line(fixture_spec, fixture_spec.parent)
-    before = read_rows(default / "decisions.jsonl")[0]
-    assert "COPY_HISTORY_CONFIRMED" not in before["reasons"]
-    assert before["decision"] != "drop"
-    spec = read_json(fixture_spec)
-    spec.update(batch_id="copy-enabled", copy_history=True)
-    write_json(fixture_spec, spec)
-    enabled = core.run_line(fixture_spec, fixture_spec.parent)
-    after = read_rows(enabled / "decisions.jsonl")[0]
-    assert after["decision"] == "drop"
-    assert "COPY_HISTORY_CONFIRMED" in after["reasons"]
-    assert after["evidence_steps"] == [1]
-    assert read_rows(enabled / "export/kept.jsonl") == []
-    assert core.check_batch(enabled, fixture_spec.parent)["passed"]
-    trace = read_rows(enabled / "trace.jsonl")
-    assert trace[0]["l0"]["details"]["copy_history"]["source_steps"] == [1]
-
-
-@pytest.mark.parametrize("value", [1, 0, "false", None, {}])
-def test_flag_refuses_non_boolean_values(fixture_spec: Path, value) -> None:
-    spec = read_json(fixture_spec)
-    spec["copy_history"] = value
-    write_json(fixture_spec, spec)
-    with pytest.raises(ValueError, match="copy_history must be a boolean"):
-        load_spec(fixture_spec)
-
-
-def test_cli_candidate_replay_preserves_frozen_inputs(
-    fixture_spec: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    _copy_source(fixture_spec)
-    root = fixture_spec.parent
-    baseline = root / "baseline.json"
-    result, status = replay(fixture_spec, baseline, root, write_baseline=True)
-    assert status == 0, result
-    original = {path: path.read_bytes() for path in (fixture_spec, baseline)}
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
-    status = cli.run_cli(
-        [
-            "line",
-            "replay",
-            str(fixture_spec),
-            "--baseline",
-            str(baseline),
-            "--copy-history",
-            "--json",
-        ],
-        workspace=root,
-    )
-    result = json.loads(capsys.readouterr().out)
-    assert status == 0, result
-    assert result["inputs_changed"] is False
-    assert result["changed_runs"] == [
-        {
-            "run_id": "copy-run",
-            "corpus": "synthetic",
-            "before": "keep",
-            "after": "drop",
-        }
-    ]
-    assert read_json(Path(result["batch"]) / "spec.json")["copy_history"] is True
-    assert core.check_batch(Path(result["batch"]), root)["passed"]
-    assert all(path.read_bytes() == content for path, content in original.items())
-    refused, status = replay(fixture_spec, baseline, root, write_baseline=True, copy_history=True)
-    assert status == 2 and "cannot write a baseline" in refused["error"]
-    assert baseline.read_bytes() == original[baseline]

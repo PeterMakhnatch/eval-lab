@@ -14,6 +14,9 @@ Inputs, all committed:
   equal ``../mimo-clean-v6/manifest.csv``'s ``final_digest`` for the task, which
   HAR-312 pins equal.
 
+A manifest that repeats a task is refused, because a dict built from its rows
+would let the later row win over the earlier one without a word.
+
 ``digest_match`` is ``yes`` when the cell ran the fleet digest, ``no`` when it
 ran different bytes, and ``no-cell`` when the task has no ranked cell at all.
 A cell is a measurement of whatever bytes it ran; nothing here promotes a cell
@@ -85,10 +88,21 @@ def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _manifest(path: Path) -> dict[str, dict[str, str]]:
+    """Index manifest rows by task; a repeat would silently win over an earlier row."""
+    index: dict[str, dict[str, str]] = {}
+    for row in _read_csv(path):
+        task = row["task_id"]
+        if task in index:
+            raise JoinError(f"{path} repeats {task}")
+        index[task] = row
+    return index
+
+
 def fleet_rows(root: Path = ROOT) -> list[dict[str, str]]:
     """The census rows, with each fleet digest checked against the manifest."""
     census = _read_csv(root / CENSUS)
-    manifest = {row["task_id"]: row for row in _read_csv(root / FLEET_MANIFEST)}
+    manifest = _manifest(root / FLEET_MANIFEST)
     if len({row["task_id"] for row in census}) != len(census):
         raise JoinError(f"{CENSUS} repeats a task_id")
     for row in census:
@@ -115,7 +129,7 @@ def fleet_rows(root: Path = ROOT) -> list[dict[str, str]]:
 def ladder_cells(root: Path = ROOT) -> dict[str, dict[str, str]]:
     """Every ranked cell, keyed by task, with the digest it actually ran."""
     progress = _read_csv(root / PROGRESS)
-    manifest = {row["task_id"]: row for row in _read_csv(root / CLEAN_MANIFEST)}
+    manifest = _manifest(root / CLEAN_MANIFEST)
     if len({row["task_id"] for row in progress}) != len(progress):
         raise JoinError(f"{PROGRESS} ranks a task twice")
     ranks = [int(row["rank"]) for row in progress]

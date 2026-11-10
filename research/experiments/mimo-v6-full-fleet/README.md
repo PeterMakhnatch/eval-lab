@@ -234,7 +234,9 @@ uv run python research/experiments/mimo-v6-full-fleet/ladder_join.py --check
 
 Two ranked tasks, `000495` and `001694`, are not fleet members, so they have no
 row. `digest_match=yes` means the cell ran the fleet digest, `no` means it ran
-different bytes, and `no-cell` means no ranked cell exists for that task.
+different bytes, and `no-cell` means no ranked cell exists for that task. A
+manifest that repeats a task is refused by task id, so no later row can
+overwrite an earlier one.
 
 | Bucket | Fleet tasks | Have a ranked cell | Cell ran the fleet digest |
 |---|---:|---:|---:|

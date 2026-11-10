@@ -7,17 +7,19 @@ clean-v6 manifest currently produce; every fleet task has exactly one row and a
 task with no ranked cell keeps its cell columns empty; a cell that ran other
 bytes is ``no`` and one that ran the fleet digest is ``yes``; the README count
 table is those counts rather than a second hand-maintained number; and the
-builder refuses inputs that disagree about a digest or a verdict.
+builder refuses inputs that disagree about a digest or a verdict, repeat a task
+in a manifest, or otherwise break the contract it reads.
 """
 
 from __future__ import annotations
 
+import ast
 import csv
 import io
 import json
 import re
 import runpy
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 
 import pytest
@@ -245,29 +247,129 @@ def test_builder_marks_a_cell_at_the_fleet_digest_yes(join_root: Path) -> None:
     assert rows[0]["ladder_digest"] == rows[0]["fleet_digest"] == FLEET_DIGEST
 
 
+def change(relative: str, old: str, new: str) -> Callable[[Path], None]:
+    def apply(root: Path) -> None:
+        rewrite(root / relative, old, new)
+
+    return apply
+
+
+def append_row(relative: str, row: Sequence[str]) -> Callable[[Path], None]:
+    def apply(root: Path) -> None:
+        with (root / relative).open("a", encoding="utf-8", newline="") as handle:
+            csv.writer(handle, lineterminator="\n").writerow(row)
+
+    return apply
+
+
+def remove(relative: str) -> Callable[[Path], None]:
+    def apply(root: Path) -> None:
+        (root / relative).unlink()
+
+    return apply
+
+
+def truncate(relative: str) -> Callable[[Path], None]:
+    def apply(root: Path) -> None:
+        (root / relative).write_text("", encoding="utf-8")
+
+    return apply
+
+
+#: One case per refusal the builder can report: the mutation, and a fragment of
+#: the message that must name the broken input. A manifest row that repeats a
+#: task is refused rather than letting the later row overwrite the earlier one,
+#: so the fleet and the clean manifest each get their own case.
+REFUSALS: list[tuple[str, Callable[[Path], None], str]] = [
+    ("missing-input", remove(MODULE["CENSUS"]), "input is missing: "),
+    ("empty-input", truncate(MODULE["CENSUS"]), "input is empty: "),
+    ("missing-ledger", remove(LEDGER), "cell ledger is missing: "),
+    (
+        "census-repeats-a-task",
+        append_row(MODULE["CENSUS"], (TASK, "python", "v6_verified", FLEET_DIGEST)),
+        "repeats a task_id",
+    ),
+    (
+        "census-task-absent-from-fleet-manifest",
+        change(MODULE["CENSUS"], TASK, "format-code-task-999999"),
+        "is in the census but not in",
+    ),
+    (
+        "census-vs-fleet-manifest",
+        change(MODULE["FLEET_MANIFEST"], FLEET_DIGEST, "sha256:" + "c" * 64),
+        "census digest",
+    ),
+    (
+        "fleet-manifest-repeats-a-task",
+        append_row(MODULE["FLEET_MANIFEST"], (TASK, FLEET_DIGEST)),
+        f"{MODULE['FLEET_MANIFEST']} repeats {TASK}",
+    ),
+    (
+        "progress-ranks-a-task-twice",
+        append_row(MODULE["PROGRESS"], (2, TASK, "clean", "graded", LEDGER)),
+        "ranks a task twice",
+    ),
+    (
+        "progress-repeats-a-rank",
+        append_row(MODULE["PROGRESS"], (1, "format-code-task-000002", "clean", "graded", LEDGER)),
+        "repeats a rank",
+    ),
+    (
+        "ledger-manifest",
+        change(LEDGER, MODULE["CLEAN_MANIFEST"], "research/experiments/other/manifest.csv"),
+        "is bound to",
+    ),
+    ("missing-entry", change(LEDGER, TASK, "format-code-task-999999"), "entries for"),
+    ("ledger-records-no-digest", change(LEDGER, CELL_DIGEST, ""), "records no digest"),
+    (
+        "ledger-verdict",
+        change(LEDGER, '"verdict": "clean"', '"verdict": "unscored"'),
+        "ledger verdict",
+    ),
+    (
+        "clean-manifest-repeats-a-task",
+        append_row(MODULE["CLEAN_MANIFEST"], (TASK, CELL_DIGEST)),
+        f"{MODULE['CLEAN_MANIFEST']} repeats {TASK}",
+    ),
+    (
+        "ranked-but-absent-from-clean-manifest",
+        change(MODULE["CLEAN_MANIFEST"], TASK, "format-code-task-999999"),
+        "is ranked but absent from",
+    ),
+    (
+        "cell-vs-clean-manifest",
+        change(MODULE["CLEAN_MANIFEST"], CELL_DIGEST, "sha256:" + "d" * 64),
+        "cell digest",
+    ),
+]
+
+
 @pytest.mark.parametrize(
-    ("relative", "old", "new", "message"),
-    [
-        (MODULE["FLEET_MANIFEST"], FLEET_DIGEST, "sha256:" + "c" * 64, "disagrees with manifest"),
-        (
-            MODULE["CLEAN_MANIFEST"],
-            CELL_DIGEST,
-            "sha256:" + "d" * 64,
-            "disagrees with research/experiments/mimo-clean-v6/manifest.csv",
-        ),
-        (
-            LEDGER,
-            MODULE["CLEAN_MANIFEST"],
-            "research/experiments/other/manifest.csv",
-            "is bound to",
-        ),
-        (LEDGER, TASK, "format-code-task-999999", "entries for"),
-    ],
-    ids=["census-vs-fleet-manifest", "cell-vs-clean-manifest", "ledger-manifest", "missing-entry"],
+    ("mutate", "message"),
+    [case[1:] for case in REFUSALS],
+    ids=[case[0] for case in REFUSALS],
 )
 def test_a_disagreeing_input_is_refused(
-    join_root: Path, relative: str, old: str, new: str, message: str
+    join_root: Path, mutate: Callable[[Path], None], message: str
 ) -> None:
-    rewrite(join_root / relative, old, new)
+    mutate(join_root)
     with pytest.raises(MODULE["JoinError"], match=re.escape(message)):
         MODULE["build"](join_root)
+
+
+def test_every_join_error_needs_a_refusal_case() -> None:
+    """A raise without a case, or a case whose raise is gone, fails here."""
+    tree = ast.parse((DIR / "ladder_join.py").read_text(encoding="utf-8"))
+    sites = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Raise)
+        and isinstance(node.exc, ast.Call)
+        and isinstance(node.exc.func, ast.Name)
+        and node.exc.func.id == "JoinError"
+    ]
+    # 14 contract checks at f8cc7ce60, plus the manifest repeat check: one site,
+    # which the fleet and the clean manifest case each exercise.
+    assert len(sites) == 15
+    assert len(REFUSALS) == 16
+    assert len({message for _, _, message in REFUSALS}) == len(REFUSALS)

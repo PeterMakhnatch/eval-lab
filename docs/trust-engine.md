@@ -75,6 +75,10 @@ flowchart TD
 
 All CLI commands run under `evallab` (executable via `uv run evallab` from the repository, or by activating `.venv`). Note that relative task and trace paths resolve against the repository root, not the shell's current working directory. Shared Modal executions are managed through `src/evallab/modal_cells.py` using reserve-then-settle spend gating (`ReserveSettleSpendGate`) and content-addressed execution caching. Every CLI signature listed below has been verified against `--help` in the worktree; operational behaviors, environment requirements (such as local Docker for regrade), and stub limits are documented explicitly below.
 
+The shared Modal module no longer plans or schedules batches.
+Certification uses `modal_cell_runner`; historical research callers still use `ModalCellRunner.run_cell`.
+Both paths retain their existing cache, reservation, and settlement behavior.
+
 | Command | Input | Output | Cost Class | Code Location |
 |---|---|---|---|---|
 | `evallab tasks anatomy` | Task directories or collections; optional `--reference-patch` | `evallab.package_anatomy/v1` card (stdout or JSONL) | Free local ($0, static AST/regex, <10 ms) | `src/evallab/package_anatomy.py` |

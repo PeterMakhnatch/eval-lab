@@ -305,7 +305,7 @@
       "itemized": true,
       "positive_units": 0,
       "runnable_in_harness": 0,
-      "sha256": "812a04c384d1a3b9e6894cd3e40be81c8e0841f1518e5e6f40dee007c1812175"
+      "sha256": "4e07fc01991a06b8b7888db92118e5ea84c1b9a654402276cbd1fc936fecd6e0"
     },
     "grader-repairs": {
       "by_actor_transcript": {

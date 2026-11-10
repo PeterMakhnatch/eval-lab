@@ -77,7 +77,8 @@ def goodfire(ctx: BankContext):
                      if row["is_cheat"] is False else "attempted"
                      if row["label"] == "considered_only" else "unjudged")
             fields = _common(ctx, source, run_id, identity["task_id"], state, row["label"],
-                             digest, f"{path}:{number}", "R1/R2 model-reader consensus",
+                             digest, f"{path.relative_to(ctx.repo_root)}:{number}",
+                             "R1/R2 model-reader consensus",
                              "primary executed-action review; publisher controls reviewed separately")
             loaded = load_cloud_run(run_id, database=ctx.cloud_db, registry=ctx.registry,
                                     connection=db, include_branches=True)

@@ -82,6 +82,11 @@ _MANIFEST_FILENAME = "run_manifest.json"
 
 _COMPOSE_FILENAMES = ("docker-compose.yaml", "docker-compose.yml")
 
+# Host-path prefix shared by both compose mount syntaxes: the ``src:dest``
+# short form and the ``{type, source, target}`` long form.
+def _looks_like_host_path(source: str) -> bool:
+    return source.startswith(("/", ".", "~")) or re.match(r"^[A-Za-z]:[/\\]", source) is not None
+
 
 def adapter_digest() -> str:
     """SHA-256 digest of this adapter module and the version string."""
@@ -171,7 +176,13 @@ def _validate_compose_shape(data: dict[str, Any], path: Path) -> None:
                     raise ValueError(f"service {name!r} attempts docker socket mount {mount!r} in {path}")
                 if isinstance(mount, str) and ":" in mount:
                     src = mount.split(":")[0].strip()
-                    if src.startswith(("/", ".", "~")) or re.match(r"^[A-Za-z]:/", src):
+                    if _looks_like_host_path(src):
+                        raise ValueError(f"service {name!r} attempts forbidden host bind mount {mount!r} in {path}")
+                elif isinstance(mount, dict):
+                    src = mount.get("source", mount.get("src"))
+                    if mount.get("type") == "bind" or (
+                        isinstance(src, str) and _looks_like_host_path(src)
+                    ):
                         raise ValueError(f"service {name!r} attempts forbidden host bind mount {mount!r} in {path}")
 
 def _without_staging_changes(

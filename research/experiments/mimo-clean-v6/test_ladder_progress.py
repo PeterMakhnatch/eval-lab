@@ -893,6 +893,13 @@ _SYNC_FRAGMENTS = (
     (_SYNC_EXPERIMENT, b"therefore uses its"),
     (_SYNC_EXPERIMENT, b"refused rows,"),
     (_SYNC_EXPERIMENT, b"uncovered rows one at a time"),
+    (_SYNC_EXPERIMENT, b"cell projection and exits"),
+    (_SYNC_EXPERIMENT, b"cells match, with"),
+    (_SYNC_EXPERIMENT, b"graded-subset trials match their recorded rewards"),
+    (_SYNC_EXPERIMENT, b"The `unhashed` cells:"),
+    (_SYNC_EXPERIMENT, b"The `no-trial` entries:"),
+    (_SYNC_EXPERIMENT, b"\ntotals: "),
+    (_SYNC_EXPERIMENT, b"subset totals: "),
 )
 _SYNC_NARRATIVES = (
     (
@@ -1379,6 +1386,169 @@ def test_ladder_progress_sync_docs_cli_exits_one_without_partial_writes(sandbox:
     )
     assert result.returncode == 1
     assert "README.md" in result.stderr
+    assert _sync_snapshot(sandbox) == before
+
+
+_EVIDENCE_PROSE = (
+    (
+        rb"On [0-9-]+ ET, the [a-z-]+ check covers the combined [0-9]+-cell projection "
+        rb"and exits [0-9]+\.",
+        b"On 1999-01-01 ET, the non-strict check covers the combined 7-cell projection "
+        b"and exits 1.",
+    ),
+    (
+        rb"[0-9]+ of [0-9]+ cells match, with [^\n]+ absents\.",
+        b"1 of 2 cells match, with 3 hash, 4 reward, 5 verifier and 6 attack "
+        b"mismatches and 7 absents.",
+    ),
+    (
+        rb"[0-9]+ of [0-9]+ graded-subset trials match [^\n]+ absents\.",
+        b"7 of 8 graded-subset trials match their recorded rewards, with "
+        b"9 reward-mismatches and 10 absents.",
+    ),
+    (rb"The `unhashed` cells: [^\n]+\.", b"The `unhashed` cells: none."),
+    (rb"The `no-trial` entries: `[^`\n]+`\.", b"The `no-trial` entries: `a`, `b`, and `c`."),
+    (rb"(?m)^totals: [^\n]+$", b"totals: 1 cells, matched=1"),
+    (rb"(?m)^subset totals: [^\n]+$", b"subset totals: 2 entries, matched=2"),
+)
+
+
+def _stale_evidence_prose(readme: Path) -> None:
+    text = readme.read_bytes()
+    for pattern, stale in _EVIDENCE_PROSE:
+        found = re.findall(pattern, text)
+        assert len(found) == 1, pattern
+        text = _replace_once(text, found[0], stale)
+    readme.write_bytes(text)
+
+
+def _sandbox_receipt(sandbox: Path) -> dict:
+    return json.loads((sandbox / MODULE.RECEIPT_NAME).read_text(encoding="utf-8"))
+
+
+def _write_sandbox_receipt(sandbox: Path, receipt: dict) -> None:
+    (sandbox / MODULE.RECEIPT_NAME).write_text(
+        json.dumps(receipt, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def test_ladder_progress_committed_receipt_lists_every_committed_cell() -> None:
+    receipt = MODULE.read_receipt(EXPERIMENT, REPO_ROOT)
+    cells = MODULE.read_cells(EXPERIMENT, REPO_ROOT, manifest=MODULE.read_manifest(EXPERIMENT))
+    assert len(receipt["cells"]) == len(cells)
+    assert "/Users/" not in (EXPERIMENT / MODULE.RECEIPT_NAME).read_text(encoding="utf-8")
+
+
+def test_ladder_progress_sync_docs_restores_stale_evidence_prose_from_the_receipt(
+    sandbox: Path,
+) -> None:
+    readme = sandbox / "README.md"
+    original = readme.read_bytes()
+    receipt_before = (sandbox / MODULE.RECEIPT_NAME).read_bytes()
+    _stale_evidence_prose(readme)
+    assert readme.read_bytes() != original
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert readme.read_bytes() == original
+    assert (sandbox / MODULE.RECEIPT_NAME).read_bytes() == receipt_before
+    before_repeat = _sync_snapshot(sandbox)
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert _sync_snapshot(sandbox) == before_repeat
+
+
+def test_ladder_progress_sync_docs_derives_evidence_prose_from_the_receipt(sandbox: Path) -> None:
+    receipt = _sandbox_receipt(sandbox)
+    later = [cell for cell in receipt["cells"] if cell["status"] == "matched" and cell["rank"] > 8]
+    unhashed, absent = later[0], later[1]
+    unhashed["status"], absent["status"] = "unhashed", "absent"
+    receipt["totals"].update(
+        matched=receipt["totals"]["matched"] - 2,
+        unhashed=receipt["totals"]["unhashed"] + 1,
+        absent=receipt["totals"]["absent"] + 1,
+    )
+    receipt.update(strict=True, exit_code=1, checked_date_et="2026-12-01")
+    _write_sandbox_receipt(sandbox, receipt)
+    assert MODULE.main(["--sync-docs"]) == 0
+    raw = (sandbox / "README.md").read_text(encoding="utf-8")
+    text = " ".join(raw.split())
+    totals = receipt["totals"]
+    assert (
+        "On 2026-12-01 ET, the strict check covers the combined 100-cell projection and exits 1."
+        in text
+    )
+    assert (
+        f"{totals['matched']} of 100 cells match, with 0 hash, 0 reward, 0 verifier "
+        "and 0 attack mismatches and 1 absents."
+    ) in text
+    suffix = unhashed["task_id"].rsplit("-", 1)[-1]
+    assert (
+        "The `unhashed` cells: `000928` (rank 8, verdict `unscored`) and "
+        f"`{suffix}` (rank {unhashed['rank']}, verdict `{unhashed['verdict']}`)."
+    ) in text
+    assert (
+        f"\ntotals: 100 cells, matched={totals['matched']}, mismatched=0, reward-mismatch=0, "
+        f"verifier-mismatch=0, attacks-mismatch=0, absent=1, unhashed=2\n"
+    ) in raw
+
+
+def _drop_matched_cell(receipt: dict) -> str:
+    cell = next(cell for cell in receipt["cells"] if cell["status"] == "matched")
+    receipt["cells"].remove(cell)
+    receipt["totals"]["matched"] -= 1
+    return f"missing ['{cell['task_id']} ({cell['job_name']})']"
+
+
+def _drop_subset_entry(receipt: dict) -> str:
+    entry = next(entry for entry in receipt["subsets"] if entry["status"] == "matched")
+    receipt["subsets"].remove(entry)
+    receipt["subset_totals"]["matched"] -= 1
+    return entry["job_name"]
+
+
+def _overcount_totals(receipt: dict) -> str:
+    receipt["totals"]["matched"] += 1
+    return "totals"
+
+
+def _unknown_status(receipt: dict) -> str:
+    receipt["cells"][0]["status"] = "lost"
+    return "unknown status"
+
+
+def _wrong_exit_code(receipt: dict) -> str:
+    receipt["exit_code"] = 1
+    return "exit_code"
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [_drop_matched_cell, _drop_subset_entry, _overcount_totals, _unknown_status, _wrong_exit_code],
+    ids=lambda damage: damage.__name__.strip("_"),
+)
+def test_ladder_progress_sync_docs_refuses_a_stale_receipt_without_writes(
+    sandbox: Path, damage: object
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    receipt = _sandbox_receipt(sandbox)
+    detail = damage(receipt)  # type: ignore[operator]
+    _write_sandbox_receipt(sandbox, receipt)
+    _stale_sync_pages(sandbox)
+    _stale_evidence_prose(sandbox / "README.md")
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert MODULE.RECEIPT_NAME in str(refused.value)
+    assert detail in str(refused.value)
+    assert _sync_snapshot(sandbox) == before
+
+
+def test_ladder_progress_sync_docs_refuses_a_missing_receipt_without_writes(
+    sandbox: Path,
+) -> None:
+    (sandbox / MODULE.RECEIPT_NAME).unlink()
+    _stale_sync_pages(sandbox)
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError, match="cannot read the evidence receipt"):
+        MODULE.main(["--sync-docs"])
     assert _sync_snapshot(sandbox) == before
 
 
@@ -2022,6 +2192,61 @@ def test_ladder_progress_evidence_matches_subset_rewards_and_skips_no_trial(
     assert output.err == ""
 
 
+def test_ladder_progress_write_receipt_records_every_status_without_host_paths(
+    evidence_sandbox: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    experiment, root = evidence_sandbox
+    monkeypatch.setattr(MODULE, "head_commit", lambda _root: "a" * 40)
+    _evidence_file(
+        experiment,
+        [_evidence_cell(1), _evidence_cell(2, attempts_json_sha256=None), _evidence_cell(3)],
+    )
+    path = _attempts_file(root / "2026-11-08/HAR-328-job1/trial1/agent/cheat/attempts.json")
+    _result_file(path.parents[2])
+    _subset_evidence_file(
+        experiment,
+        [_subset_entry(), _subset_entry(job_name="har-328-subset2", trial_name=None)],
+    )
+    args = ["--verify-evidence", "--strict", "--write-receipt", "--results-root", str(root)]
+    assert MODULE.main(args) == 1
+    assert "wrote ladder-evidence-receipt.json: exit_code=1" in capsys.readouterr().out
+    text = (experiment / MODULE.RECEIPT_NAME).read_text(encoding="utf-8")
+    assert str(root.parent) not in text
+    receipt = json.loads(text)
+    assert [(cell["task_id"], cell["status"]) for cell in receipt["cells"]] == [
+        ("t1", "matched"),
+        ("t2", "unhashed"),
+        ("t3", "absent"),
+    ]
+    assert receipt["totals"] == {
+        "matched": 1,
+        "mismatched": 0,
+        "reward-mismatch": 0,
+        "verifier-mismatch": 0,
+        "attacks-mismatch": 0,
+        "absent": 1,
+        "unhashed": 1,
+    }
+    assert [(entry["job_name"], entry["status"]) for entry in receipt["subsets"]] == [
+        ("har-328-subset1", "absent"),
+        ("har-328-subset2", "no-trial"),
+    ]
+    assert receipt["subset_totals"] == {
+        "matched": 0,
+        "reward-mismatch": 0,
+        "absent": 1,
+        "no-trial": 1,
+    }
+    assert (receipt["strict"], receipt["exit_code"], receipt["eval_lab_commit"]) == (
+        True,
+        1,
+        "a" * 40,
+    )
+    assert MODULE.read_receipt(experiment, experiment.parents[2]) == receipt
+
+
 def test_ladder_progress_evidence_an_absent_subset_job_is_reported(
     evidence_sandbox: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -2085,6 +2310,9 @@ def test_ladder_progress_evidence_sorts_by_rank_then_task_and_keeps_every_cell()
         ["--sync-docs", "--verify-evidence"],
         ["--sync-docs", "--render-slice", "ladder-p2-ranks52-57.json"],
         ["--sync-docs", "--strict"],
+        ["--write-receipt"],
+        ["--write-receipt", "--check"],
+        ["--write-receipt", "--sync-docs"],
         ["--strict"],
         ["--strict", "--check"],
         ["--strict", "--summary"],

@@ -1311,11 +1311,14 @@ It updates the two route-page basis sentences and this page's basis table,
 covered count, signature counts, and summary table. It also updates the
 refusal-rate calculation, refusal counts, and refused-row attack counts and task
 IDs. It generates Python's refusal and graded counts and remaining-hours
-projection. It preserves spacing, table annotations, and signature labels.
-It leaves all other page text unchanged.
+projection. It rewrites the evidence-check sentences and the two totals lines
+from the committed `ladder-evidence-receipt.json`. It preserves spacing, table
+annotations, and signature labels. It leaves all other page text unchanged.
 
-The command validates every fragment before writing any page. A missing or
-repeated fragment anchor raises `ProgressError` and exits 1 without page writes.
+The command validates the receipt and every fragment before writing any page.
+A missing or repeated fragment anchor raises `ProgressError` and exits 1 without
+page writes. A receipt that does not list every committed coverage cell and
+graded-subset entry also raises `ProgressError` without page writes.
 
 For each slice PR:
 
@@ -1323,23 +1326,31 @@ For each slice PR:
 2. Run the command without options to regenerate `ladder-progress.csv`.
 3. Run `--render-slice` with the cell filename. Paste its table into the slice
    section.
-4. Run `--sync-docs` to update the count tables and narrative counts. This includes
+4. On the Mac that holds the results root, run the evidence check with
+   `--write-receipt`. It writes `ladder-evidence-receipt.json` with each cell
+   and subset status and the totals:
+
+   ```bash
+   uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evidence --strict --write-receipt
+   ```
+
+5. Run `--sync-docs` to update the count tables and narrative counts. This includes
    the refusal-rate calculation, refusal counts, refused-row attack counts and
-   task IDs, Python's refusal and graded counts, and Python's remaining-hours
-   projection.
-5. Review and edit the remaining prose manually:
-   - The `--verify-evidence` totals, only when supported by an evidence check.
-   - Task-specific descriptions and evidence prose affected by the new cells.
-6. Run the drift check and the explicit experiment test file:
+   task IDs, Python's refusal and graded counts, Python's remaining-hours
+   projection, and the evidence-check sentences and totals from the receipt.
+6. Review and edit task-specific descriptions and evidence prose affected by
+   the new cells manually.
+7. Run the drift check and the explicit experiment test file:
 
    ```bash
    uv run python research/experiments/mimo-clean-v6/ladder_progress.py --check
    uv run pytest research/experiments/mimo-clean-v6/test_ladder_progress.py
    ```
 
-Include the regenerated CSV and page changes with the cell data in the slice
-PR. The regeneration and tests above need no Docker or host results root.
-Evidence checks remain separate and require the retained host results.
+Include the regenerated CSV, the receipt, and page changes with the cell data in
+the slice PR. `--sync-docs`, the drift check, and the tests read only committed
+files, so they need no Docker or host results root. Only step 4 needs the
+retained host results.
 
 Two trailing columns join the graded-subset cells (schema
 `evallab.mimo-v6-ladder-subset-cells/v1`; coverage readers ignore that schema
@@ -1402,16 +1413,25 @@ An `absent` cell or subset causes exit 1 only with `--strict`;
 `unhashed` cells and `no-trial` entries never change the exit code. Otherwise
 the command exits 0. This mode reads the host results root, so it is not part
 of `--check` and no CI job runs it.
+
+With `--write-receipt`, the check also writes `ladder-evidence-receipt.json`
+(schema `evallab.mimo-v6-ladder-evidence-receipt/v1`). The receipt holds the
+check time in UTC and its ET date, the eval-lab commit, the `strict` flag, the
+exit code, the status of each coverage cell and subset entry, and both totals
+blocks. It holds no host paths. `--sync-docs` generates the next paragraph's
+counts, task lists, and the totals block below from this receipt.
+
 On 2026-11-10 ET, the strict check covers the combined 100-cell projection and exits 0.
-99 of 100 cells match, with 0 hash, reward, verifier or attack mismatches and 0 absents.
-All 13 graded-subset trials match their recorded rewards. The 1 `unhashed` cell
-is `000928` (rank 8, verdict `unscored`): its setup healthcheck failed before
-the agent ran, so no attempts file exists. The 1 `no-trial` entry is
-`har-293-001671-subset2`, which never ran.
+99 of 100 cells match, with 0 hash, 0 reward, 0 verifier and 0 attack mismatches and 0 absents.
+13 of 13 graded-subset trials match their recorded rewards, with 0 reward-mismatches and 0 absents.
+The `unhashed` cells: `000928` (rank 8, verdict `unscored`).
+The setup healthcheck of `000928` failed before the agent ran, so no attempts
+file exists.
+The `no-trial` entries: `har-293-001671-subset2`. That subset never ran.
 
 ```bash
 uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evidence
-uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evidence --strict
+uv run python research/experiments/mimo-clean-v6/ladder_progress.py --verify-evidence --strict --write-receipt
 ```
 
 ```text

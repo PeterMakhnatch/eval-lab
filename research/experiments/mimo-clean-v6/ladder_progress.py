@@ -79,8 +79,11 @@ A ``mismatched``, ``reward-mismatch``, ``verifier-mismatch`` or
 ``attacks-mismatch`` coverage cell exits 1. A subset ``reward-mismatch``
 also exits 1; absent evidence exits 1 only with ``--strict``. Unhashed cells
 and no-trial entries never change the exit code. This mode reads the host
-results root and is deliberately not part of
-``--check``.
+results root and is deliberately not part of ``--check``. With
+``--write-receipt`` it also writes
+``ladder-evidence-receipt.json``: the check time, the eval-lab commit, the
+``strict`` flag, the exit code, every cell's and subset entry's status, and
+the totals, with no host paths.
 
 ``--pending-controls`` prints the control cells the v6 inventory still owes,
 by ranking phase (HAR-367): for each phase of the v5 ranking, the tasks whose
@@ -93,9 +96,12 @@ Docker and no results root.
 
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
-summary with ``--summary``. ``--sync-docs`` rebuilds the ten tested documentation
-fragments from committed cells, the manifest and the ranking without reading or
-writing the CSV or host results. It validates all three pages before any write.
+summary with ``--summary``. ``--sync-docs`` rebuilds the tested documentation
+fragments from committed cells, the manifest and the ranking, and the evidence
+sentences and totals lines from the committed receipt, without reading or
+writing the CSV or host results. A receipt that does not list every committed
+cell and subset entry raises ``ProgressError``. It validates the receipt and all
+three pages before any write.
 ``--render-slice CELL`` prints one cell file's seven-column README pipe-table
 rows, so a slice PR pastes generated rows instead of hand-copying them.
 ``check_slice_tables`` compares the README's per-slice ladder tables with the
@@ -110,13 +116,17 @@ import difflib
 import hashlib
 import io
 import json
+import os
 import re
 import statistics
+import subprocess
 import sys
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[3]
 HERE = Path(__file__).resolve().parent
@@ -187,6 +197,11 @@ EVIDENCE_STATUSES = (
 SUBSET_EVIDENCE_STATUSES = ("matched", "reward-mismatch", "absent", "no-trial")
 SUBSET_EVIDENCE_FILES = ("ladder-graded-subset.json", "ladder-graded-subset-p0.json")
 STATUS_WIDTH = 15
+RECEIPT_NAME = "ladder-evidence-receipt.json"
+RECEIPT_SCHEMA = "evallab.mimo-v6-ladder-evidence-receipt/v1"
+RECEIPT_ZONE = ZoneInfo("America/New_York")
+RECEIPT_CELL_FIELDS = ("rank", "task_id", "card", "job_name", "trial_name", "verdict")
+RECEIPT_SUBSET_FIELDS = ("task_id", "job_name", "trial_name")
 BASIS_ANCHOR = "Basis counts in the committed table"
 SIGNATURE_HEADING = "### Refusal signatures and attacks executed (HAR-302)"
 ROUTE_BASIS = re.compile(
@@ -778,8 +793,136 @@ def _doc_summary(table: str, rows: Sequence[dict[str, str]], page: Path) -> str:
     return render_summary(rows).rstrip("\n").replace("\n", newline)
 
 
+def _prose_list(items: Sequence[str]) -> str:
+    """``a``, ``a and b``, or ``a, b, and c``; ``none`` without items."""
+    if len(items) > 2:
+        return ", ".join(items[:-1]) + ", and " + items[-1]
+    return " and ".join(items) or "none"
+
+
+def _prose_list_pattern(item: str) -> str:
+    """A regex for a :func:`_prose_list` of ``item`` matches, wrapped at any whitespace."""
+    return rf"none|{item}(?:(?:,\s+(?:and\s+)?|\s+and\s+){item})*"
+
+
+def _totals_line(cells: int, counts: Mapping[str, int]) -> str:
+    """The ``--verify-evidence`` coverage totals line."""
+    totals = ", ".join(f"{status}={counts.get(status, 0)}" for status in EVIDENCE_STATUSES)
+    return f"totals: {cells} cells, {totals}"
+
+
+def _subset_totals_line(entries: int, counts: Mapping[str, int]) -> str:
+    """The ``--verify-evidence`` graded-subset totals line."""
+    totals = ", ".join(
+        f"{status}={counts.get(status, 0)}" for status in SUBSET_EVIDENCE_STATUSES
+    )
+    return f"subset totals: {entries} entries, {totals}"
+
+
+def _evidence_edits(
+    receipt: Mapping[str, Any], text: str, page: Path
+) -> list[tuple[int, int, str]]:
+    """Edits that rewrite the evidence sentences and both totals lines from ``receipt``."""
+    cells = receipt["cells"]
+    subsets = receipt["subsets"]
+    totals = receipt["totals"]
+    subset_totals = receipt["subset_totals"]
+    unhashed = _prose_list(
+        [
+            f"`{_slice_task(cell['task_id'])}` (rank {cell['rank']}, verdict `{cell['verdict']}`)"
+            for cell in cells
+            if cell["status"] == "unhashed"
+        ]
+    )
+    no_trial = _prose_list(
+        [f"`{subset['job_name']}`" for subset in subsets if subset["status"] == "no-trial"]
+    )
+    unhashed_item = r"`[^`\s]+`\s+\(rank\s+[0-9]+,\s+verdict\s+`[^`\s]+`\)"
+    fragments = (
+        (
+            "cell projection and exits",
+            r"On\s+([0-9]{4}-[0-9]{2}-[0-9]{2})\s+ET,\s+the\s+(strict|non-strict)\s+check\s+"
+            r"covers\s+the\s+combined\s+([0-9]+)-cell\s+projection\s+and\s+exits\s+([0-9]+)\.",
+            (
+                receipt["checked_date_et"],
+                "strict" if receipt["strict"] else "non-strict",
+                len(cells),
+                receipt["exit_code"],
+            ),
+        ),
+        (
+            "cells match, with",
+            r"([0-9]+)\s+of\s+([0-9]+)\s+cells\s+match,\s+with\s+([0-9]+)\s+hash,\s+"
+            r"([0-9]+)\s+reward,\s+([0-9]+)\s+verifier\s+and\s+([0-9]+)\s+attack\s+"
+            r"mismatches\s+and\s+([0-9]+)\s+absents\.",
+            (
+                totals["matched"],
+                len(cells),
+                totals["mismatched"],
+                totals["reward-mismatch"],
+                totals["verifier-mismatch"],
+                totals["attacks-mismatch"],
+                totals["absent"],
+            ),
+        ),
+        (
+            "graded-subset trials match their recorded rewards",
+            r"([0-9]+)\s+of\s+([0-9]+)\s+graded-subset\s+trials\s+match\s+their\s+recorded\s+"
+            r"rewards,\s+with\s+([0-9]+)\s+reward-mismatches\s+and\s+([0-9]+)\s+absents\.",
+            (
+                subset_totals["matched"],
+                len(subsets) - subset_totals["no-trial"],
+                subset_totals["reward-mismatch"],
+                subset_totals["absent"],
+            ),
+        ),
+        (
+            "The `unhashed` cells:",
+            rf"The\s+`unhashed`\s+cells:\s+({_prose_list_pattern(unhashed_item)})\.",
+            (unhashed,),
+        ),
+        (
+            "The `no-trial` entries:",
+            rf"The\s+`no-trial`\s+entries:\s+({_prose_list_pattern(r'`[^`\s]+`')})\.",
+            (no_trial,),
+        ),
+        (
+            "totals:",
+            r"^(totals:[ \t]+[0-9]+[ \t]+cells(?:,[ \t]+[a-z-]+=[0-9]+)+)[ \t]*\r?$",
+            (_totals_line(len(cells), totals),),
+        ),
+        (
+            "subset totals:",
+            r"^(subset[ \t]+totals:[ \t]+[0-9]+[ \t]+entries(?:,[ \t]+[a-z-]+=[0-9]+)+)[ \t]*\r?$",
+            (_subset_totals_line(len(subsets), subset_totals),),
+        ),
+    )
+    edits: list[tuple[int, int, str]] = []
+    for anchor, pattern, values in fragments:
+        words = r"\s+".join(map(re.escape, anchor.split()))
+        _doc_match(("^" if anchor.endswith("totals:") else "") + words, text, page, anchor)
+        match = _doc_match(pattern, text, page, f"complete {anchor} fragment")
+        edits.extend(
+            (match.start(index), match.end(index), str(value))
+            for index, value in enumerate(values, start=1)
+        )
+    return edits
+
+
+def _write_atomic(path: Path, data: bytes) -> None:
+    """Replace ``path`` with ``data`` through a sibling temporary file."""
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_bytes(data)
+    os.replace(temporary, path)
+
+
 def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) -> None:
-    """Refresh ten tested fragments, validating every page before writing any."""
+    """Refresh the tested fragments, validating the receipt and every page before any write.
+
+    The evidence sentences and totals lines come from the committed
+    ``ladder-evidence-receipt.json``, never from the host results root.
+    """
+    receipt = read_receipt(cells_dir, root)
     pages = (root / "README.md", root / "docs" / "mimo" / "README.md", cells_dir / "README.md")
     originals: dict[Path, str] = {}
     for page in pages:
@@ -855,15 +998,13 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
     python_entry = next(entry for entry in summary(rows) if entry["language"] == "python")
     refusal_rows = [row for row in rows if row["basis"] == REFUSAL_BASIS]
     all_attacks = sum(row["attacks_executed"] == "14" for row in refusal_rows)
-    short_tasks = [
-        f"`{_slice_task(row['task_id'])}`"
-        for row in sorted(refusal_rows, key=lambda row: int(row["rank"]))
-        if row["attacks_executed"] == "13"
-    ]
-    if len(short_tasks) > 2:
-        short_list = ", ".join(short_tasks[:-1]) + ", and " + short_tasks[-1]
-    else:
-        short_list = " and ".join(short_tasks) or "none"
+    short_list = _prose_list(
+        [
+            f"`{_slice_task(row['task_id'])}`"
+            for row in sorted(refusal_rows, key=lambda row: int(row["rank"]))
+            if row["attacks_executed"] == "13"
+        ]
+    )
     fragments = (
         (
             "rate among clean ladder verdicts is",
@@ -917,11 +1058,12 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
             (signature_table.start(), signature_table.end(), signature_text),
             (summary_table.start(), summary_table.end(), summary_text),
             *fragment_edits,
+            *_evidence_edits(receipt, text, page),
         ],
     )
     for page, replacement in replacements.items():
         if replacement != originals[page]:
-            page.write_bytes(replacement.encode("utf-8"))
+            _write_atomic(page, replacement.encode("utf-8"))
 
 
 def _slice_attacks(value: str, where: str) -> int:
@@ -1402,10 +1544,17 @@ def verify_subsets(
     return [verify_subset(entry, results_root) for entry in entries]
 
 
+def _evidence_order(cells: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Coverage cells in the rank, then task order that every evidence check uses."""
+    return sorted(cells, key=lambda cell: (int(cell["ranking"]["rank"]), str(cell["task_id"])))
+
+
 def verify_evidence(cells: Sequence[dict[str, Any]], results_root: Path) -> list[dict[str, Any]]:
     """Check every coverage cell, in rank and task order, without reading the ranking."""
-    ordered = sorted(cells, key=lambda cell: (int(cell["ranking"]["rank"]), str(cell["task_id"])))
-    return [verify_cell(cell, str(cell.get("_card") or ""), results_root) for cell in ordered]
+    return [
+        verify_cell(cell, str(cell.get("_card") or ""), results_root)
+        for cell in _evidence_order(cells)
+    ]
 
 
 def render_evidence(
@@ -1439,8 +1588,7 @@ def render_evidence(
                 detail += f" expected {result['expected'][:12]} got {result['actual'][:12]}"
         lines.append(f"{prefix} {detail}")
     counts = Counter(result["status"] for result in checks)
-    totals = ", ".join(f"{status}={counts[status]}" for status in EVIDENCE_STATUSES)
-    lines.append(f"totals: {len(checks)} cells, {totals}")
+    lines.append(_totals_line(len(checks), counts))
     if subset_checks:
         for result in subset_checks:
             entry = result["entry"]
@@ -1463,11 +1611,172 @@ def render_evidence(
                 detail = str(result["path"])
             lines.append(f"{prefix} {detail}")
         subset_counts = Counter(result["status"] for result in subset_checks)
-        totals = ", ".join(
-            f"{status}={subset_counts[status]}" for status in SUBSET_EVIDENCE_STATUSES
-        )
-        lines.append(f"subset totals: {len(subset_checks)} entries, {totals}")
+        lines.append(_subset_totals_line(len(subset_checks), subset_counts))
     return "\n".join(lines) + "\n"
+
+
+def evidence_failed(
+    counts: Mapping[str, int], subset_counts: Mapping[str, int], *, strict: bool
+) -> bool:
+    """Whether ``--verify-evidence`` exits 1 for these cell and subset status counts."""
+    return (
+        counts.get("mismatched", 0) > 0
+        or counts.get("reward-mismatch", 0) > 0
+        or counts.get("verifier-mismatch", 0) > 0
+        or counts.get("attacks-mismatch", 0) > 0
+        or subset_counts.get("reward-mismatch", 0) > 0
+        or (strict and (counts.get("absent", 0) > 0 or subset_counts.get("absent", 0) > 0))
+    )
+
+
+def _cell_identity(cell: Mapping[str, Any]) -> dict[str, Any]:
+    """The receipt fields that tie one status to one committed coverage cell."""
+    return {
+        "rank": int(cell["ranking"]["rank"]),
+        "task_id": str(cell["task_id"]),
+        "card": str(cell.get("card", str(cell.get("_card") or "")) or ""),
+        "job_name": str(cell["job_name"]),
+        "trial_name": str(cell["trial_name"]),
+        "verdict": str(cell["verdict"]),
+    }
+
+
+def _subset_identity(entry: Mapping[str, Any]) -> dict[str, Any]:
+    """The receipt fields that tie one status to one committed subset entry."""
+    trial = entry.get("trial_name")
+    return {
+        "task_id": str(entry["task_id"]),
+        "job_name": str(entry["job_name"]),
+        "trial_name": str(trial) if trial else None,
+    }
+
+
+def evidence_receipt(
+    checks: Sequence[dict[str, Any]],
+    subset_checks: Sequence[dict[str, Any]],
+    *,
+    strict: bool,
+    checked: datetime,
+    commit: str,
+) -> dict[str, Any]:
+    """Every cell and subset status with the totals; no host paths."""
+    counts = Counter(result["status"] for result in checks)
+    subset_counts = Counter(result["status"] for result in subset_checks)
+    return {
+        "schema": RECEIPT_SCHEMA,
+        "checked_utc": checked.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "checked_date_et": checked.astimezone(RECEIPT_ZONE).date().isoformat(),
+        "eval_lab_commit": commit,
+        "strict": strict,
+        "exit_code": int(evidence_failed(counts, subset_counts, strict=strict)),
+        "cells": [{**_cell_identity(result["cell"]), "status": result["status"]} for result in checks],
+        "subsets": [
+            {**_subset_identity(result["entry"]), "status": result["status"]}
+            for result in subset_checks
+        ],
+        "totals": {status: counts[status] for status in EVIDENCE_STATUSES},
+        "subset_totals": {status: subset_counts[status] for status in SUBSET_EVIDENCE_STATUSES},
+    }
+
+
+def head_commit(root: Path) -> str:
+    """The checked-out eval-lab commit that a receipt records."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ProgressError(f"{root}: cannot read the eval-lab commit: {error}") from error
+    commit = result.stdout.strip()
+    if result.returncode != 0 or re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+        raise ProgressError(f"{root}: cannot read the eval-lab commit: {result.stderr.strip()}")
+    return commit
+
+
+def write_receipt(receipt: Mapping[str, Any], cells_dir: Path) -> Path:
+    """Write ``ladder-evidence-receipt.json`` atomically; return its path."""
+    path = cells_dir / RECEIPT_NAME
+    _write_atomic(path, (json.dumps(receipt, indent=2) + "\n").encode("utf-8"))
+    return path
+
+
+def read_receipt(cells_dir: Path, root: Path = ROOT) -> dict[str, Any]:
+    """The committed receipt after it is checked against the committed cells.
+
+    The receipt must list every coverage cell (in evidence order) and every
+    graded-subset entry once, with a known status, totals that count those
+    statuses, and an ``exit_code`` that those counts and ``strict`` give.
+    """
+    path = cells_dir / RECEIPT_NAME
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise ProgressError(f"{RECEIPT_NAME}: cannot read the evidence receipt: {error}") from error
+    if not isinstance(data, dict) or data.get("schema") != RECEIPT_SCHEMA:
+        raise ProgressError(f"{RECEIPT_NAME}: schema is not {RECEIPT_SCHEMA}")
+    rerun = "; rerun --verify-evidence --strict --write-receipt on the host"
+    cells = _evidence_order(read_cells(cells_dir, root, manifest=read_manifest(cells_dir)))
+    sections = (
+        (
+            "cells",
+            [_cell_identity(cell) for cell in cells],
+            RECEIPT_CELL_FIELDS,
+            EVIDENCE_STATUSES,
+            "totals",
+            lambda entry: f"{entry['task_id']} ({entry['job_name']})",
+        ),
+        (
+            "subsets",
+            [_subset_identity(entry) for entry in read_subset_evidence(cells_dir)],
+            RECEIPT_SUBSET_FIELDS,
+            SUBSET_EVIDENCE_STATUSES,
+            "subset_totals",
+            lambda entry: f"{entry['job_name']}/{entry['trial_name'] or '-'}",
+        ),
+    )
+    for key, expected, fields, statuses, totals_key, label in sections:
+        entries = data.get(key)
+        if not isinstance(entries, list) or not all(isinstance(entry, dict) for entry in entries):
+            raise ProgressError(f"{RECEIPT_NAME}: {key} is not a list of entries")
+        found = [{field: entry.get(field) for field in fields} for entry in entries]
+        if found != expected:
+            missing = [label(entry) for entry in expected if entry not in found]
+            unexpected = [label(entry) for entry in found if entry not in expected]
+            raise ProgressError(
+                f"{RECEIPT_NAME}: {key} do not match the committed {key}: "
+                f"missing {missing}, unexpected {unexpected}"
+                + ("" if missing or unexpected else ", out of order or repeated")
+                + rerun
+            )
+        unknown = [label(entry) for entry in entries if entry.get("status") not in statuses]
+        if unknown:
+            raise ProgressError(f"{RECEIPT_NAME}: {key} with an unknown status: {unknown}")
+        counts = Counter(entry["status"] for entry in entries)
+        totals = {status: counts[status] for status in statuses}
+        if data.get(totals_key) != totals:
+            raise ProgressError(
+                f"{RECEIPT_NAME}: {totals_key} {data.get(totals_key)!r} != {totals} over its {key}"
+            )
+    strict = data.get("strict")
+    if not isinstance(strict, bool):
+        raise ProgressError(f"{RECEIPT_NAME}: strict {strict!r} is not true or false")
+    exit_code = int(evidence_failed(data["totals"], data["subset_totals"], strict=strict))
+    if data.get("exit_code") != exit_code:
+        raise ProgressError(
+            f"{RECEIPT_NAME}: exit_code {data.get('exit_code')!r} != {exit_code} for its totals"
+        )
+    for field, pattern in (
+        ("checked_utc", r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"),
+        ("checked_date_et", r"[0-9]{4}-[0-9]{2}-[0-9]{2}"),
+        ("eval_lab_commit", r"[0-9a-f]{40}"),
+    ):
+        if not isinstance(data.get(field), str) or re.fullmatch(pattern, data[field]) is None:
+            raise ProgressError(f"{RECEIPT_NAME}: {field} {data.get(field)!r} is malformed")
+    return data
 
 
 def check(rebuilt: str, target: Path) -> bool:
@@ -1525,7 +1834,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     mode.add_argument(
         "--sync-docs",
         action="store_true",
-        help="refresh the ten tested documentation fragments from committed cells (offline)",
+        help=(
+            "refresh the tested documentation fragments from committed cells and "
+            f"{RECEIPT_NAME} (offline)"
+        ),
     )
     parser.add_argument(
         "--results-root",
@@ -1538,9 +1850,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="with --verify-evidence, also exit 1 for absent cell or subset evidence",
     )
+    parser.add_argument(
+        "--write-receipt",
+        action="store_true",
+        help=f"with --verify-evidence, write every status and the totals to {RECEIPT_NAME}",
+    )
     args = parser.parse_args(argv)
     if args.strict and not args.verify_evidence:
         parser.error("--strict requires --verify-evidence")
+    if args.write_receipt and not args.verify_evidence:
+        parser.error("--write-receipt requires --verify-evidence")
     if args.render_slice is not None:
         path = args.render_slice
         if not path.is_absolute() and not path.is_file():
@@ -1558,14 +1877,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(render_evidence(checks, subset_checks), end="")
         counts = Counter(result["status"] for result in checks)
         subset_counts = Counter(result["status"] for result in subset_checks)
-        failed = (
-            counts["mismatched"] > 0
-            or counts["reward-mismatch"] > 0
-            or counts["verifier-mismatch"] > 0
-            or counts["attacks-mismatch"] > 0
-            or subset_counts["reward-mismatch"] > 0
-            or (args.strict and (counts["absent"] > 0 or subset_counts["absent"] > 0))
-        )
+        failed = evidence_failed(counts, subset_counts, strict=args.strict)
+        if args.write_receipt:
+            receipt = evidence_receipt(
+                checks,
+                subset_checks,
+                strict=args.strict,
+                checked=datetime.now(UTC),
+                commit=head_commit(ROOT),
+            )
+            path = write_receipt(receipt, HERE)
+            print(f"wrote {path.name}: exit_code={receipt['exit_code']}")
         if failed:
             print(
                 f"{counts['mismatched']} mismatched, "

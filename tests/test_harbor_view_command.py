@@ -14,6 +14,7 @@ import json
 import runpy
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -138,6 +139,25 @@ def _two_trial_job(tmp_path: Path, name: str = "job-a") -> Path:
     return _make_job(
         tmp_path / "jobs", name, {"trial-1": {"reward": 1.0}, "trial-2": {"reward": 0.0}}
     )
+
+
+@pytest.fixture(autouse=True)
+def _viewer_roots_inside_tmp_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep implicit viewer roots inside ``tmp_path``.
+
+    Without ``--out`` the command allocates one with ``tempfile.mkdtemp``
+    (harbor_view.py:1260). Patching the module attribute keeps every test,
+    including the ``runpy`` entry point that re-imports ``tempfile``, from
+    leaving directories in the shared system temp directory.
+    """
+    real_mkdtemp = tempfile.mkdtemp
+
+    def scoped_mkdtemp(
+        suffix: str | None = None, prefix: str | None = None, dir: str | None = None
+    ) -> str:
+        return real_mkdtemp(suffix=suffix, prefix=prefix, dir=dir or str(tmp_path))
+
+    monkeypatch.setattr(tempfile, "mkdtemp", scoped_mkdtemp)
 
 
 # ---------------------------------------------------------------------------
@@ -383,6 +403,7 @@ def test_view_command_launches_viewer_with_parser_defaults(
     root_line = next(line for line in out.splitlines() if line.startswith("viewer root: "))
     viewer_root = Path(root_line.removeprefix("viewer root: "))
     assert viewer_root.is_dir()
+    assert viewer_root.is_relative_to(tmp_path)
     assert viewer_root.name.startswith("evallab-view-")
     [(cmd, kwargs)] = fake.calls
     assert cmd[:6] == ["harbor", "view", str(viewer_root), "--jobs", "--port", "8080"]
@@ -636,4 +657,6 @@ def test_module_entry_point_exits_zero_with_no_launch(
         runpy.run_path(str(Path(harbor_view.__file__)), run_name="__main__")
 
     assert excinfo.value.code == 0
-    assert "viewer root: " in capsys.readouterr().out
+    out = capsys.readouterr().out
+    root_line = next(line for line in out.splitlines() if line.startswith("viewer root: "))
+    assert Path(root_line.removeprefix("viewer root: ")).is_relative_to(tmp_path)

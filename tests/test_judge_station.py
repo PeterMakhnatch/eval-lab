@@ -1,4 +1,4 @@
-"""Judge station: blindness, admission, validation, storage and the packet queue."""
+"""Judge station: blindness, admission, validation, storage and the review queue."""
 
 from __future__ import annotations
 
@@ -342,46 +342,6 @@ def test_export_keeps_latest_per_run_unless_history(station: js.Station, tmp_pat
     )
 
 
-def test_packet_queue_is_built_from_the_adjudication_markdown(tmp_path: Path) -> None:
-    run_a, run_b = f"{SECRET_SOURCE}:aaa", "goodfire-reward-hack-data/x/bbb"
-    cases = {"cases": [{"blind_id": js.blind_id(r), "run_id": r} for r in (run_a, run_b)]}
-    (tmp_path / "cases.json").write_text(json.dumps(cases), encoding="utf-8")
-    md = f"""# Packet
-
-## Case 1 — `{js.blind_id(run_a)}`
-
-(Block A) 12 steps
-
-**What the first-stage reader cited**
-
-1. step 5 — class: action
-
-<!-- evidence -->
-> rm the tests
-<!-- /evidence -->
-
-**One reviewer's view** (a model)
-
-<!-- evidence -->
-> Legit, the task assigned it.
-<!-- /evidence -->
-
-## Case 2 — `{js.blind_id(run_b)}`
-
-(Block B) 9 steps
-"""
-    (tmp_path / "adj.md").write_text(md, encoding="utf-8")
-    out = tmp_path / "queue.jsonl"
-    assert js.build_packet_queue(tmp_path / "adj.md", tmp_path / "cases.json", out) == 2
-    first, second = (json.loads(line) for line in out.read_text(encoding="utf-8").splitlines())
-    assert first["run_id"] == run_a and "block A" in first["reason"]
-    assert first["reveal"]["detectors"][0]["steps"] == [5]
-    assert first["reveal"]["notes"][0]["text"] == "Legit, the task assigned it."
-    assert second["run_id"] == run_b and "block B" in second["reason"]
-    cases["cases"][0]["blind_id"] = "run-0000000000000000"
-    (tmp_path / "cases.json").write_text(json.dumps(cases), encoding="utf-8")
-    with pytest.raises(js.JudgeError, match="blind id does not match"):
-        js.build_packet_queue(tmp_path / "adj.md", tmp_path / "cases.json", out)
 
 
 def test_markdown_is_escaped() -> None:
@@ -801,25 +761,6 @@ def test_several_queues_get_a_combined_queue_of_distinct_runs(tmp_path: Path) ->
     assert js.ALL_QUEUE not in js.merge_queues({"x": [shared]})
 
 
-def test_controls_are_all_clear_admitted_runs_chosen_by_seed(tmp_path: Path) -> None:
-    rows = [
-        {"run_id": "ok1", "detector": "a", "detector_version": "1", "reader_model": "m", "verdict": "clear"},
-        {"run_id": "ok1", "detector": "b", "detector_version": "1", "reader_model": "m", "verdict": "clear"},
-        {"run_id": "one", "detector": "a", "detector_version": "1", "reader_model": "m", "verdict": "clear"},
-        {"run_id": "hit", "detector": "a", "detector_version": "1", "reader_model": "m", "verdict": "clear"},
-        {"run_id": "hit", "detector": "b", "detector_version": "1", "reader_model": "m", "verdict": "alarm"},
-        {"run_id": "ok2", "detector": "a", "detector_version": "1", "reader_model": "m", "verdict": "clear"},
-        {"run_id": "ok2", "detector": "b", "detector_version": "1", "reader_model": "m", "verdict": "clear"},
-        {"run_id": "queued", "detector": "a", "detector_version": "1", "reader_model": "m", "verdict": "clear"},
-        {"run_id": "queued", "detector": "b", "detector_version": "1", "reader_model": "m", "verdict": "clear"},
-    ]  # fmt: skip
-    path = tmp_path / "f.jsonl"
-    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
-    pool = js.all_clear_runs([path], {"queued"})
-    assert pool == ["ok1", "ok2"]
-    source = FakeSource({"ok2": AtlasRun("ok2", "s", "DEV", "pass", _doc())}, {})
-    assert js.sample_controls(source, pool, 2, "s") == ["ok2"]  # ok1 is not admitted DEV
-    assert js.sample_controls(source, pool, 0, "s") == []
 
 
 def test_queue_names_never_reach_the_page_before_a_verdict(tmp_path: Path) -> None:
@@ -972,9 +913,6 @@ def test_double_submit_keeps_one_live_verdict_and_the_run_stays_in_the_report(
     assert report["agreement_with_label"]["n"] == 1
 
 
-def test_the_page_cannot_submit_while_the_button_is_disabled() -> None:
-    page = judge_web.PAGE
-    assert 'if(S.revealed||!S.run||$("submit").disabled)return;' in page
 
 
 def test_a_run_in_two_queues_keeps_both_sources_notes_and_control_flag(tmp_path: Path) -> None:

@@ -2223,84 +2223,6 @@ def _analyze_calibrate_command(
     return 0
 
 
-def _select_json_fields(payload: dict[str, Any], fields: str) -> dict[str, Any]:
-    """Select named object paths for concise operator output."""
-    expression = fields.strip()
-    if not (expression.startswith("{") and expression.endswith("}")):
-        raise ValueError("--fields must use {name:.path,...} syntax")
-    selected: dict[str, Any] = {}
-    body = expression[1:-1].strip()
-    if not body:
-        return selected
-    for raw_entry in body.split(","):
-        entry = raw_entry.strip()
-        if ":" not in entry:
-            raise ValueError(f"invalid --fields entry: {entry!r}")
-        name, raw_path = (part.strip() for part in entry.split(":", 1))
-        if not name or not raw_path.startswith("."):
-            raise ValueError(f"invalid --fields entry: {entry!r}")
-        if name in selected:
-            raise ValueError(f"duplicate --fields name: {name}")
-        value: Any = payload
-        for segment in raw_path.removeprefix(".").split("."):
-            if not segment or not isinstance(value, dict) or segment not in value:
-                raise ValueError(f"unknown --fields path: {raw_path}")
-            value = value[segment]
-        selected[name] = value
-    return selected
-
-
-def _analyze_quality_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    from evallab.interpretation.trajectory_data_quality import campaign_data_quality_report
-
-    inventory = _resolve(root, args.inventory)
-    store_root = _resolve(root, args.store)
-    output_dir = _resolve(root, args.output_dir)
-    derived_root = _resolve(root, args.derived_root) if args.derived_root else output_dir.parent
-    result = campaign_data_quality_report(
-        inventory,
-        repo_root=root,
-        store_root=store_root,
-        output_dir=output_dir,
-        derived_root=derived_root,
-        database_url=args.database_url,
-    )
-    rendered = _select_json_fields(result, args.fields) if args.fields else result
-    print(json.dumps(rendered, indent=2, sort_keys=True, ensure_ascii=False))
-    return 0
-
-
-def _data_backfill_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    from evallab.storage.data_backfill import run_all_durable_backfill
-
-    inventory = _resolve(root, args.inventory)
-    manifest_dir = _resolve(root, args.manifest_dir)
-    store_root = _resolve(root, args.store_root)
-    output_dir = _resolve(root, args.output_dir)
-    derived_root = _resolve(root, args.derived_root) if args.derived_root else output_dir.parent
-    ledger = run_all_durable_backfill(
-        inventory_path=inventory,
-        manifest_dir=manifest_dir,
-        repo_root=root,
-        store_root=store_root,
-        output_dir=output_dir,
-        derived_root=derived_root,
-        database_url=args.database_url,
-    )
-    print(
-        f"data backfill: {ledger.disposition_count} dispositions "
-        f"({ledger.ready_count} ANALYSIS_READY, {ledger.hold_count} HOLD) "
-        f"exit={ledger.exit_code} digest={ledger.content_digest}"
-    )
-    return ledger.exit_code
-
-
 def _data_lint_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -5019,63 +4941,6 @@ def _traj_report_command(
     return 0
 
 
-def _traj_card_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.interpretation.benchmark_events import ingest_benchmark_trial
-    from evallab.interpretation.benchmark_projection import (
-        agent_readable_projection_provenance,
-        build_projection_dimensions,
-        load_compliance_report,
-    )
-    from evallab.interpretation.traj_card import generate_traj_card
-    from evallab.interpretation.trajectory_hydration import RedactionPolicy
-    from evallab.traj import resolve_trial_target
-
-    runs_roots = [_resolve(root, args.runs_dir)] if args.runs_dir else None
-    output_path = _resolve(root, args.output) if args.output else None
-    fmt = "json" if args.json else "markdown"
-    policy = RedactionPolicy(redact_secrets=not args.no_redact)
-
-    try:
-        projection_provenance = None
-        projection_dimensions = None
-        if getattr(args, "compliance_report", None):
-            report = load_compliance_report(_resolve(root, args.compliance_report))
-            metadata = (
-                json.loads(_resolve(root, args.projection_metadata).read_text(encoding="utf-8"))
-                if getattr(args, "projection_metadata", None)
-                else {}
-            )
-            if not isinstance(metadata, dict):
-                raise ValueError("projection metadata must be a JSON object")
-            trial_dir, _, _ = resolve_trial_target(
-                args.trial, repo_root=root, explicit_runs_root=runs_roots[0] if runs_roots else None
-            )
-            projection_dimensions = build_projection_dimensions(
-                ingest_benchmark_trial(trial_dir), report, metadata=metadata
-            )
-            projection_provenance = agent_readable_projection_provenance(
-                report, projection_dimensions
-            )
-
-        rendered, _card = generate_traj_card(
-            target=args.trial,
-            repo_root=root,
-            runs_roots=runs_roots,
-            output_path=output_path,
-            output_format=fmt,
-            policy=policy,
-            projection_provenance=projection_provenance,
-            projection_dimensions=projection_dimensions,
-        )
-        print(rendered)
-        return 0
-    except Exception as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-
-
 def _traj_ir_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -6115,55 +5980,11 @@ def parser() -> argparse.ArgumentParser:
     analyze_calibrate.add_argument("path", type=Path)
     analyze_calibrate.set_defaults(func=_analyze_calibrate_command)
 
-    analyze_quality = analyze_commands.add_parser(
-        "quality",
-        help="Report per-campaign data-quality HOLD, coverage, CAS identity, and projections (no judge)",
-    )
-    analyze_quality.add_argument("inventory", type=Path)
-    analyze_quality.add_argument("--store", type=Path, default=Path("derived/evidence-cas"))
-    analyze_quality.add_argument("--output-dir", type=Path, default=Path("derived/interpretation"))
-    analyze_quality.add_argument("--derived-root", type=Path)
-    analyze_quality.add_argument("--database-url")
-    analyze_quality.add_argument(
-        "--fields",
-        help="Select named report paths using {name:.path,...} syntax",
-    )
-    analyze_quality.set_defaults(func=_analyze_quality_command)
-
     data = commands.add_parser(
         "data",
-        help="Completed-trial reconciliation and deterministic training-data audits",
+        help="Deterministic training-data audits",
     )
     data_commands = data.add_subparsers(dest="data_command", required=True)
-    data_backfill = data_commands.add_parser(
-        "backfill",
-        help="Reconcile every durable completed trial to a reason-coded disposition",
-    )
-    data_backfill.add_argument(
-        "--inventory",
-        type=Path,
-        default=Path("research/experiments/manifests/cross-campaign-analysis-inventory.json"),
-    )
-    data_backfill.add_argument(
-        "--manifest-dir",
-        type=Path,
-        default=Path("research/experiments/manifests"),
-    )
-    data_backfill.add_argument(
-        "--store-root",
-        type=Path,
-        default=Path("derived/evidence-cas"),
-        help="CAS store root (records/job live under this directory)",
-    )
-    data_backfill.add_argument("--derived-root", type=Path)
-    data_backfill.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path("derived/analyses/all-durable-backfill"),
-    )
-    data_backfill.add_argument("--database-url")
-    data_backfill.set_defaults(func=_data_backfill_command)
-
     data_lint = data_commands.add_parser(
         "lint",
         help="Deterministic training-data lints: dedup, split leakage, coverage",
@@ -7616,28 +7437,6 @@ def parser() -> argparse.ArgumentParser:
     traj_report.add_argument("--json", action="store_true", help="Emit report as JSON")
     traj_report.set_defaults(func=_traj_report_command)
 
-    traj_card = traj_commands.add_parser(
-        "card", help="Render a Trajectory Interpretation Card for a trial"
-    )
-    traj_card.add_argument("trial", help="Trial identifier, directory, or result.json")
-    traj_card.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
-    traj_card.add_argument("--output", "-o", type=Path, help="Write card markdown to file")
-    traj_card.add_argument("--json", action="store_true", help="Emit card data as JSON")
-    traj_card.add_argument(
-        "--no-redact", action="store_true", help="Disable on-read secret redaction"
-    )
-    traj_card.add_argument(
-        "--compliance-report",
-        type=Path,
-        help="Materialized Data ComplianceIngestReport JSON; never invokes the compliance hook",
-    )
-    traj_card.add_argument(
-        "--projection-metadata",
-        type=Path,
-        help="Agent-Data dimension JSON: harness/scaffold/repeat/dose/alphabet/source digest",
-    )
-    traj_card.set_defaults(func=_traj_card_command)
-
     traj_ir = traj_commands.add_parser(
         "ir", help="Build a deterministic TrajectoryIR intermediate representation"
     )
@@ -8015,9 +7814,6 @@ def parser() -> argparse.ArgumentParser:
     from evallab.run_telemetry import build_telemetry_parser
 
     build_telemetry_parser(commands)
-    from evallab.monitor import build_investigate_parser
-
-    build_investigate_parser(commands)
     from evallab.harbor_view import build_view_parser as _build_view_parser
 
     _build_view_parser(commands)

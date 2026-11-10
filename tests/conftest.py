@@ -128,11 +128,12 @@ def _isolate_host_cli_processes(
         "gemini",
     }
     roots = (tmp_path.resolve(), _isolate_temp_root.resolve())
-    original_popen = subprocess.Popen
-    signature = inspect.signature(original_popen)
+    original_init = subprocess.Popen.__init__
+    original_which = shutil.which
+    signature = inspect.signature(original_init)
 
-    def guarded_popen(*args: Any, **kwargs: Any) -> Any:
-        parameters = signature.bind(*args, **kwargs).arguments
+    def guarded_init(process: Any, *args: Any, **kwargs: Any) -> None:
+        parameters = signature.bind(process, *args, **kwargs).arguments
         executable = parameters.get("executable")
         if executable is None:
             if parameters.get("shell", False):
@@ -144,7 +145,7 @@ def _isolate_host_cli_processes(
                 elif command:
                     executable = command[0]
                 else:
-                    return original_popen(*args, **kwargs)
+                    return original_init(process, *args, **kwargs)
         executable = os.fsdecode(executable)
         cwd = Path(os.fsdecode(parameters.get("cwd") or os.getcwd())).resolve()
         if os.path.dirname(executable):
@@ -154,7 +155,7 @@ def _isolate_host_cli_processes(
             search_path = os.pathsep.join(
                 str(cwd / entry) for entry in os.get_exec_path(parameters.get("env"))
             )
-            found = shutil.which(executable, path=search_path)
+            found = original_which(executable, path=search_path)
             resolved = Path(found).resolve() if found is not None else None
         binary = Path(executable).name
         if binary not in denied and resolved is not None:
@@ -167,9 +168,10 @@ def _isolate_host_cli_processes(
                 f"{resolved or executable} is outside this test's temporary roots",
                 pytrace=False,
             )
-        return original_popen(*args, **kwargs)
+        return original_init(process, *args, **kwargs)
 
-    monkeypatch.setattr(subprocess, "Popen", guarded_popen)
+    # Preserve the Popen class for runtime annotations and subclassing.
+    monkeypatch.setattr(subprocess.Popen, "__init__", guarded_init)
 
 
 @pytest.fixture(autouse=True, scope="session")

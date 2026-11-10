@@ -152,7 +152,9 @@ def test_ladder_progress_readme_summary_section_matches_the_rendered_table() -> 
 
 
 def test_ladder_progress_readme_pending_controls_section_matches_the_rendered_table() -> None:
-    controls = MODULE.read_pending_controls(EXPERIMENT / MODULE.PENDING_NAME)
+    controls = MODULE.read_pending_controls(
+        EXPERIMENT / MODULE.PENDING_NAME, MODULE.read_manifest(EXPERIMENT)
+    )
     assert _readme_table(MODULE.PENDING_HEADING) == MODULE.render_pending_controls(
         controls, MODULE.read_ranking(REPO_ROOT)
     )
@@ -338,10 +340,32 @@ def test_ladder_progress_summary_refuses_a_language_with_no_reference_basis() ->
         MODULE.summary(rows)
 
 
-def _pending_controls_file(tmp_path: Path, entries: list[dict]) -> Path:
+def _pending_controls_file(
+    tmp_path: Path, entries: list[dict], *, task_ids: list[str] | None = None
+) -> Path:
+    """Write a tmp inventory; fill each entry's digest and the remaining task list."""
+    filled = [
+        {"final_digest": f"sha256:{entry.get('task_id') or ''}", **entry} for entry in entries
+    ]
+    listed = [str(entry.get("task_id") or "") for entry in entries] if task_ids is None else task_ids
     path = tmp_path / MODULE.PENDING_NAME
-    path.write_text(json.dumps({"remaining_original_controls": entries}), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {"remaining_original_task_ids": listed, "remaining_original_controls": filled}
+        ),
+        encoding="utf-8",
+    )
     return path
+
+
+def _pending_manifest(path: Path) -> dict[str, str]:
+    """The ``task_id`` to digest map the tmp inventory claims for itself."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        entry["task_id"]: entry["final_digest"]
+        for entry in data["remaining_original_controls"]
+        if "task_id" in entry
+    }
 
 
 def test_ladder_progress_pending_controls_place_an_absent_task_on_the_unranked_row(
@@ -356,7 +380,9 @@ def test_ladder_progress_pending_controls_place_an_absent_task_on_the_unranked_r
     )
     rows = {
         row["phase"]: row
-        for row in MODULE.pending_controls(MODULE.read_pending_controls(path), _ranking(1))
+        for row in MODULE.pending_controls(
+            MODULE.read_pending_controls(path, _pending_manifest(path)), _ranking(1)
+        )
     }
     assert (rows["P"]["tasks"], rows["P"]["oracle_cells"]) == (1, 1)
     assert (rows["unranked"]["tasks"], rows["unranked"]["oracle_cells"]) == (1, 1)
@@ -373,7 +399,9 @@ def test_ladder_progress_pending_controls_count_no_runnable_cells_for_a_held_tas
     )
     rows = {
         row["phase"]: row
-        for row in MODULE.pending_controls(MODULE.read_pending_controls(path), _ranking(1))
+        for row in MODULE.pending_controls(
+            MODULE.read_pending_controls(path, _pending_manifest(path)), _ranking(1)
+        )
     }
     row = rows["P"]
     assert (row["tasks"], row["oracle_cells"], row["nop_cells"], row["runnable_cells"]) == (
@@ -394,7 +422,9 @@ def test_ladder_progress_pending_controls_hours_use_one_mean_per_repeat_three_ce
 
 
 def test_ladder_progress_pending_controls_total_row_sums_the_phase_rows() -> None:
-    controls = MODULE.read_pending_controls(EXPERIMENT / MODULE.PENDING_NAME)
+    controls = MODULE.read_pending_controls(
+        EXPERIMENT / MODULE.PENDING_NAME, MODULE.read_manifest(EXPERIMENT)
+    )
     entries = MODULE.pending_controls(controls, MODULE.read_ranking(REPO_ROOT))
     assert [entry["phase"] for entry in entries][-2:] == ["unranked", "total"]
     for field in ("tasks", "oracle_cells", "nop_cells", "runnable_cells"):
@@ -404,7 +434,9 @@ def test_ladder_progress_pending_controls_total_row_sums_the_phase_rows() -> Non
 
 
 def test_ladder_progress_pending_controls_render_totals_every_pending_cell() -> None:
-    controls = MODULE.read_pending_controls(EXPERIMENT / MODULE.PENDING_NAME)
+    controls = MODULE.read_pending_controls(
+        EXPERIMENT / MODULE.PENDING_NAME, MODULE.read_manifest(EXPERIMENT)
+    )
     rendered = MODULE.render_pending_controls(controls, MODULE.read_ranking(REPO_ROOT))
     total = [
         cell.strip() for cell in rendered.splitlines()[-1].strip("|").split("|")
@@ -417,6 +449,16 @@ def test_ladder_progress_pending_controls_render_totals_every_pending_cell() -> 
         "174",
         f"{MODULE.projected_control_hours(88, 90):.2f}",
     ]
+
+
+def test_ladder_progress_committed_pending_controls_match_the_manifest() -> None:
+    data = json.loads((EXPERIMENT / MODULE.PENDING_NAME).read_text(encoding="utf-8"))
+    manifest = MODULE.read_manifest(EXPERIMENT)
+    entries = data["remaining_original_controls"]
+    assert len(entries) == 90
+    assert {entry["task_id"]: entry["final_digest"] for entry in entries} == {
+        task: manifest[task] for task in data["remaining_original_task_ids"]
+    }
 
 
 @pytest.mark.parametrize(
@@ -432,7 +474,7 @@ def test_ladder_progress_pending_controls_refuse_an_invalid_entry(
 ) -> None:
     path = _pending_controls_file(tmp_path, [entry])
     with pytest.raises(ProgressError, match=message):
-        MODULE.read_pending_controls(path)
+        MODULE.read_pending_controls(path, _pending_manifest(path))
 
 
 def test_ladder_progress_pending_controls_refuse_a_repeated_task(tmp_path: Path) -> None:
@@ -442,9 +484,73 @@ def test_ladder_progress_pending_controls_refuse_a_repeated_task(tmp_path: Path)
             {"task_id": "t1", "agents": ["oracle"], "runnable": True},
             {"task_id": "t1", "agents": ["nop"], "runnable": True},
         ],
+        task_ids=["t1"],
     )
     with pytest.raises(ProgressError, match="repeats task t1"):
-        MODULE.read_pending_controls(path)
+        MODULE.read_pending_controls(path, _pending_manifest(path))
+
+
+def test_ladder_progress_pending_controls_refuse_a_digest_that_differs_from_the_manifest(
+    tmp_path: Path,
+) -> None:
+    path = _pending_controls_file(
+        tmp_path, [{"task_id": "t1", "agents": ["oracle"], "runnable": True}]
+    )
+    manifest = _pending_manifest(path)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["remaining_original_controls"][0]["final_digest"] = "sha256:stale"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_pending_controls(path, manifest)
+    message = str(refused.value)
+    assert "t1" in message
+    assert "sha256:stale" in message
+
+
+def test_ladder_progress_pending_controls_refuse_a_task_absent_from_the_manifest(
+    tmp_path: Path,
+) -> None:
+    path = _pending_controls_file(
+        tmp_path, [{"task_id": "t1", "agents": ["oracle"], "runnable": True}]
+    )
+    with pytest.raises(ProgressError, match="t1: absent from manifest.csv"):
+        MODULE.read_pending_controls(path, {})
+
+
+def test_ladder_progress_pending_controls_refuse_an_entry_outside_the_remaining_tasks(
+    tmp_path: Path,
+) -> None:
+    path = _pending_controls_file(
+        tmp_path,
+        [
+            {"task_id": "t1", "agents": ["oracle"], "runnable": True},
+            {"task_id": "t2", "agents": ["oracle"], "runnable": True},
+        ],
+        task_ids=["t1"],
+    )
+    with pytest.raises(ProgressError, match="t2: has a control entry but is not"):
+        MODULE.read_pending_controls(path, _pending_manifest(path))
+
+
+def test_ladder_progress_pending_controls_refuse_a_remaining_task_without_an_entry(
+    tmp_path: Path,
+) -> None:
+    path = _pending_controls_file(
+        tmp_path,
+        [{"task_id": "t1", "agents": ["oracle"], "runnable": True}],
+        task_ids=["t1", "t2"],
+    )
+    with pytest.raises(ProgressError, match="t2: in remaining_original_task_ids but has no"):
+        MODULE.read_pending_controls(path, _pending_manifest(path))
+
+
+def test_ladder_progress_pending_controls_refuse_an_inventory_without_remaining_tasks(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / MODULE.PENDING_NAME
+    path.write_text(json.dumps({"remaining_original_controls": []}), encoding="utf-8")
+    with pytest.raises(ProgressError, match="no remaining_original_task_ids list"):
+        MODULE.read_pending_controls(path, {})
 
 
 def test_ladder_progress_check_and_summary_are_mutually_exclusive() -> None:
@@ -2404,8 +2510,26 @@ def test_ladder_progress_pending_controls_prints_the_table_without_writing_the_c
     table = sandbox / "ladder-progress.csv"
     before = table.read_bytes()
     assert MODULE.main(["--pending-controls"]) == 0
-    controls = MODULE.read_pending_controls(sandbox / MODULE.PENDING_NAME)
+    controls = MODULE.read_pending_controls(
+        sandbox / MODULE.PENDING_NAME, MODULE.read_manifest(sandbox)
+    )
     assert capsys.readouterr().out == MODULE.render_pending_controls(
         controls, MODULE.read_ranking(MODULE.ROOT)
     )
     assert table.read_bytes() == before
+
+
+def test_ladder_progress_pending_controls_exit_one_on_one_altered_digest(
+    sandbox: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = sandbox / MODULE.PENDING_NAME
+    data = json.loads(path.read_text(encoding="utf-8"))
+    altered = data["remaining_original_controls"][0]
+    task_id = altered["task_id"]
+    digest = altered["final_digest"] = "sha256:" + "0" * 64
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert MODULE.main(["--pending-controls"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert task_id in captured.err
+    assert digest in captured.err

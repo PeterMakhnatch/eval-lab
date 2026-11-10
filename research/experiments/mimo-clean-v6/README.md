@@ -1519,8 +1519,15 @@ the projection is `cells x mean`, not three times that. The hours count every
 pending cell, including the four held ones. Twelve of the ninety tasks are not
 Python; their cells are projected with the Python means, so those rows are an
 estimate rather than a measurement of those languages. The mode reads only the
-ranking and the inventory: it launches no Docker trial and reads no results
-root. The offline test suite compares this section with the renderer.
+manifest, the ranking and the inventory: it launches no Docker trial and reads
+no results root. The offline test suite compares this section with the renderer.
+
+Before printing, `--pending-controls` checks the inventory against
+[manifest.csv](manifest.csv) (HAR-371). An entry whose `final_digest` differs
+from its manifest row, a task absent from the manifest, or an entry task set
+unequal to `remaining_original_task_ids` raises `ProgressError` naming the
+task, and the mode exits 1 with that message. A rebuilt package or an edited
+list cannot therefore project hours for bytes the ladder never graded.
 
 ## Graded subset cells for three tamper-refused rows (HAR-284, HAR-293, 2026-11-03)
 

@@ -76,8 +76,8 @@ covered, 99 clean, 80 tamper-refusal, 19 graded, 1 unscored, 0 not run
 ([ladder-progress.csv](research/experiments/mimo-clean-v6/ladder-progress.csv)).
 The strict evidence check matched 99 of 100 cells and 13 of 13 recorded subset
 trials ([ladder-evidence-receipt.json](research/experiments/mimo-clean-v6/ladder-evidence-receipt.json)).
-The remaining v6 gap is the pending controls: 174 control cells for 90 tasks,
-10.36 projected serial hours
+The remaining v6 gap is the pending controls: 178 pending cells for
+90 tasks, 174 runnable, 10.36 projected serial hours
 ([pending-controls.json](research/experiments/mimo-clean-v6/pending-controls.json);
 phase table in the
 [pending-controls section](research/experiments/mimo-clean-v6/README.md#pending-v6-control-cells-by-ranking-phase)).

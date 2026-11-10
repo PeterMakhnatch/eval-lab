@@ -127,7 +127,8 @@ Receipts, newest first: `research/experiments/mimo-clean-v6/`,
 - The ranked v6 ladder is complete at 100/100 coverage: every rank has a cell,
   and the strict evidence check matched 99 cells and 13 subset trials
   ([ladder-evidence-receipt.json](../../research/experiments/mimo-clean-v6/ladder-evidence-receipt.json)).
-  The remaining v6 gap is the pending controls: 174 control cells for 90 tasks
+  The remaining v6 gap is the pending controls: 178 pending cells for
+  90 tasks, 174 runnable
   (10.36 projected serial hours) in
   [pending-controls.json](../../research/experiments/mimo-clean-v6/pending-controls.json),
   rendered by ranking phase in the

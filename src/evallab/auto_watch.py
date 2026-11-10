@@ -7,16 +7,7 @@ ledger and the Harbor hook journal (``<job>/watch/hooks.jsonl``, written by
 under ``<job>/watch/`` -- never into trial directories. A lifecycle hook
 record triggers a pass immediately instead of at the next interval.
 
-The watch is read-only toward the run by default (``dry-run``): it records
-what it *would* stop plus the pre-stop evidence, but writes no stop
-request. ``EVALLAB_WATCH_STOP=on`` arms the live stop: fresh
-stop-eligible integrity alerts (``history_mining``, ``hidden_test_read``,
-file-evidenced ``grader_tamper``) capture evidence and write one stop
-request per trial, which the in-process actuator
-(:mod:`evallab.harbor_watch_hooks`) honors by ending exactly that trial.
-Guards (terminal, verification-started, acked, fleet, model-free) always
-apply; a manual ``evallab watch stop`` works in any mode. Rewards are never
-touched.
+The watch only records alerts. It does not request or apply trial stops.
 
 Model-free agents (``nop``, ``oracle``) are skipped: they have no model
 behavior to watch. A watcher that fails to start or crashes never fails
@@ -120,16 +111,13 @@ def _default_run_watch(*, runs_dirs: list[Path], out_dir: Path) -> dict[str, Any
     # and so this module stays cheap to import from the executor.
     from evallab.laminar import exporter_from_env
     from evallab.live_watch import WatchThresholds, run_watch
-    from evallab.watch_stop import stop_mode_from_env
 
     # Laminar export requires a key and explicit EVALLAB_LAMINAR=1/true/on opt-in.
-    # The stop mode defaults to dry-run (record would-stop, never request).
     return run_watch(
         runs_dirs=runs_dirs,
         out_dir=out_dir,
         thresholds=WatchThresholds(),
         laminar=exporter_from_env(out_dir),
-        stop_mode=stop_mode_from_env(),
     )
 
 

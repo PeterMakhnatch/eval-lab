@@ -30,6 +30,25 @@ def _isolate_claude_usage(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _isolate_host_credential_probes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Credential discovery never starts host CLIs or queries the Keychain.
+
+    ``available_credentials`` calls these module-level probes, so an unstubbed
+    caller started the real ``cursor-agent`` and ``agy`` CLIs (HAR-373). Their
+    probe classes keep their own tests through injected runners.
+    """
+    from evallab import credentials
+
+    for name in (
+        "probe_claude_keychain",
+        "probe_claude_gateway",
+        "probe_cursor_session",
+        "probe_antigravity_session",
+    ):
+        monkeypatch.setattr(credentials, name, lambda: False)
+
+
+@pytest.fixture(autouse=True)
 def _isolate_results_home(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Generator[Path, None, None]:

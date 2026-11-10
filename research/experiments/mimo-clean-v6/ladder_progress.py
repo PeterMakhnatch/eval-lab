@@ -91,8 +91,12 @@ by ranking phase (HAR-367): for each phase of the v5 ranking, the tasks whose
 counts, the cells of tasks marked runnable, and the serial hours those cells
 need at the measured repeat-3 means quoted in the v6 README. A control whose
 task is outside the ranking lands on an ``unranked`` row, and the last row is
-the total. The mode reads only the ranking and the inventory, so it touches no
-Docker and no results root.
+the total. Before printing, every entry is checked against ``manifest.csv``
+(HAR-371): a ``final_digest`` that differs, a task absent from the manifest,
+or an entry task set unequal to ``remaining_original_task_ids`` raises
+``ProgressError`` naming the task, and the mode exits 1 with that message. The
+check costs nothing offline and reads only the manifest, the ranking and the
+inventory, so it touches no Docker and no results root.
 
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
@@ -561,12 +565,18 @@ def render_summary(rows: Sequence[dict[str, str]]) -> str:
     return buffer.getvalue()
 
 
-def read_pending_controls(path: Path) -> list[dict[str, Any]]:
+def read_pending_controls(path: Path, manifest: Mapping[str, str]) -> list[dict[str, Any]]:
     """The ``remaining_original_controls`` entries of ``pending-controls.json``.
 
     Refuse a repeated task, an agent other than ``oracle`` or ``nop``, and a
     ``runnable`` value that is not a boolean, so the pending table counts only
     cells the inventory can actually run.
+
+    Also pin every entry to the packages it projects hours for: an entry's
+    ``final_digest`` must equal the ``manifest.csv`` digest for its task, its
+    task must be a manifest row, and the entry task set must equal
+    ``remaining_original_task_ids``. A rebuilt package or an edited list
+    therefore fails here instead of projecting hours for the wrong bytes.
     """
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -577,6 +587,13 @@ def read_pending_controls(path: Path) -> list[dict[str, Any]]:
     entries = data.get("remaining_original_controls")
     if not isinstance(entries, list):
         raise ProgressError(f"{path}: no remaining_original_controls list")
+    remaining = data.get("remaining_original_task_ids")
+    if not isinstance(remaining, list) or not all(
+        isinstance(task, str) and task for task in remaining
+    ):
+        raise ProgressError(f"{path}: no remaining_original_task_ids list")
+    if len(set(remaining)) != len(remaining):
+        raise ProgressError(f"{path}: remaining_original_task_ids repeats a task_id")
     seen: set[str] = set()
     controls: list[dict[str, Any]] = []
     for entry in entries:
@@ -594,7 +611,28 @@ def read_pending_controls(path: Path) -> list[dict[str, Any]]:
         runnable = entry.get("runnable")
         if not isinstance(runnable, bool):
             raise ProgressError(f"{task_id}: runnable {runnable!r} is not a boolean")
+        expected = manifest.get(task_id)
+        digest = str(entry.get("final_digest") or "")
+        if expected is None:
+            raise ProgressError(
+                f"{task_id}: absent from {MANIFEST_NAME}; cannot check its control digest"
+            )
+        if digest != expected:
+            raise ProgressError(
+                f"{task_id}: control final_digest {digest} != manifest final_digest {expected}"
+            )
         controls.append({"task_id": task_id, "agents": list(agents), "runnable": runnable})
+    listed = set(remaining)
+    unrecorded = sorted(listed - seen)
+    if unrecorded:
+        raise ProgressError(
+            f"{unrecorded[0]}: in remaining_original_task_ids but has no control entry"
+        )
+    unlisted = sorted(seen - listed)
+    if unlisted:
+        raise ProgressError(
+            f"{unlisted[0]}: has a control entry but is not in remaining_original_task_ids"
+        )
     return controls
 
 
@@ -1867,7 +1905,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(render_slice(path), end="")
         return 0
     if args.pending_controls:
-        controls = read_pending_controls(HERE / PENDING_NAME)
+        try:
+            controls = read_pending_controls(HERE / PENDING_NAME, read_manifest(HERE))
+        except ProgressError as error:
+            print(f"{PENDING_NAME}: {error}", file=sys.stderr)
+            return 1
         print(render_pending_controls(controls, read_ranking(ROOT)), end="")
         return 0
     if args.verify_evidence:

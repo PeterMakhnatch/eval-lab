@@ -151,6 +151,13 @@ def test_ladder_progress_readme_summary_section_matches_the_rendered_table() -> 
     assert _summary_section() == MODULE.render_summary(_committed()).rstrip("\n")
 
 
+def test_ladder_progress_readme_pending_controls_section_matches_the_rendered_table() -> None:
+    controls = MODULE.read_pending_controls(EXPERIMENT / MODULE.PENDING_NAME)
+    assert _readme_table(MODULE.PENDING_HEADING) == MODULE.render_pending_controls(
+        controls, MODULE.read_ranking(REPO_ROOT)
+    )
+
+
 def _slice_rows() -> list[dict[str, object]]:
     return MODULE.read_slice_tables((EXPERIMENT / "README.md").read_text(encoding="utf-8"))
 
@@ -329,6 +336,115 @@ def test_ladder_progress_summary_refuses_a_language_with_no_reference_basis() ->
     ]
     with pytest.raises(ProgressError, match="go"):
         MODULE.summary(rows)
+
+
+def _pending_controls_file(tmp_path: Path, entries: list[dict]) -> Path:
+    path = tmp_path / MODULE.PENDING_NAME
+    path.write_text(json.dumps({"remaining_original_controls": entries}), encoding="utf-8")
+    return path
+
+
+def test_ladder_progress_pending_controls_place_an_absent_task_on_the_unranked_row(
+    tmp_path: Path,
+) -> None:
+    path = _pending_controls_file(
+        tmp_path,
+        [
+            {"task_id": "t1", "agents": ["oracle"], "runnable": True},
+            {"task_id": "gone", "agents": ["oracle", "nop"], "runnable": True},
+        ],
+    )
+    rows = {
+        row["phase"]: row
+        for row in MODULE.pending_controls(MODULE.read_pending_controls(path), _ranking(1))
+    }
+    assert (rows["P"]["tasks"], rows["P"]["oracle_cells"]) == (1, 1)
+    assert (rows["unranked"]["tasks"], rows["unranked"]["oracle_cells"]) == (1, 1)
+    assert rows["unranked"]["nop_cells"] == 1
+    assert rows["total"]["tasks"] == 2
+    assert rows["total"]["oracle_cells"] == 2
+
+
+def test_ladder_progress_pending_controls_count_no_runnable_cells_for_a_held_task(
+    tmp_path: Path,
+) -> None:
+    path = _pending_controls_file(
+        tmp_path, [{"task_id": "t1", "agents": ["oracle", "nop"], "runnable": False}]
+    )
+    rows = {
+        row["phase"]: row
+        for row in MODULE.pending_controls(MODULE.read_pending_controls(path), _ranking(1))
+    }
+    row = rows["P"]
+    assert (row["tasks"], row["oracle_cells"], row["nop_cells"], row["runnable_cells"]) == (
+        1,
+        1,
+        1,
+        0,
+    )
+    assert row["projected_hours"] == pytest.approx(
+        (MODULE.ORACLE_CELL_MINUTES + MODULE.NOP_CELL_MINUTES) / 60
+    )
+
+
+def test_ladder_progress_pending_controls_hours_use_one_mean_per_repeat_three_cell() -> None:
+    assert (MODULE.ORACLE_CELL_MINUTES, MODULE.NOP_CELL_MINUTES) == (4.19, 2.81)
+    assert MODULE.projected_control_hours(3, 0) == pytest.approx(3 * 4.19 / 60)
+    assert MODULE.projected_control_hours(0, 2) == pytest.approx(2 * 2.81 / 60)
+
+
+def test_ladder_progress_pending_controls_total_row_sums_the_phase_rows() -> None:
+    controls = MODULE.read_pending_controls(EXPERIMENT / MODULE.PENDING_NAME)
+    entries = MODULE.pending_controls(controls, MODULE.read_ranking(REPO_ROOT))
+    assert [entry["phase"] for entry in entries][-2:] == ["unranked", "total"]
+    for field in ("tasks", "oracle_cells", "nop_cells", "runnable_cells"):
+        assert entries[-1][field] == sum(entry[field] for entry in entries[:-1])
+    assert sum(entry["oracle_cells"] + entry["nop_cells"] for entry in entries[:-1]) == 178
+    assert entries[-1]["runnable_cells"] == 174
+
+
+def test_ladder_progress_pending_controls_render_totals_every_pending_cell() -> None:
+    controls = MODULE.read_pending_controls(EXPERIMENT / MODULE.PENDING_NAME)
+    rendered = MODULE.render_pending_controls(controls, MODULE.read_ranking(REPO_ROOT))
+    total = [
+        cell.strip() for cell in rendered.splitlines()[-1].strip("|").split("|")
+    ]
+    assert total == [
+        "total",
+        "90",
+        "88",
+        "90",
+        "174",
+        f"{MODULE.projected_control_hours(88, 90):.2f}",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("entry", "message"),
+    [
+        ({"task_id": "t1", "agents": ["oracle", "cheat"], "runnable": True}, "cheat"),
+        ({"task_id": "t1", "agents": ["oracle"], "runnable": "yes"}, "runnable"),
+        ({"agents": ["oracle"], "runnable": True}, "task_id"),
+    ],
+)
+def test_ladder_progress_pending_controls_refuse_an_invalid_entry(
+    tmp_path: Path, entry: dict, message: str
+) -> None:
+    path = _pending_controls_file(tmp_path, [entry])
+    with pytest.raises(ProgressError, match=message):
+        MODULE.read_pending_controls(path)
+
+
+def test_ladder_progress_pending_controls_refuse_a_repeated_task(tmp_path: Path) -> None:
+    path = _pending_controls_file(
+        tmp_path,
+        [
+            {"task_id": "t1", "agents": ["oracle"], "runnable": True},
+            {"task_id": "t1", "agents": ["nop"], "runnable": True},
+        ],
+    )
+    with pytest.raises(ProgressError, match="repeats task t1"):
+        MODULE.read_pending_controls(path)
 
 
 def test_ladder_progress_check_and_summary_are_mutually_exclusive() -> None:
@@ -744,6 +860,7 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         shutil.copy(path, experiment / path.name)
     shutil.copy(EXPERIMENT / "ladder-progress.csv", experiment / "ladder-progress.csv")
     shutil.copy(EXPERIMENT / "manifest.csv", experiment / "manifest.csv")
+    shutil.copy(EXPERIMENT / MODULE.PENDING_NAME, experiment / MODULE.PENDING_NAME)
     ranking = tmp_path / RANKING
     ranking.parent.mkdir(parents=True)
     shutil.copy(REPO_ROOT / RANKING, ranking)
@@ -1742,6 +1859,8 @@ def test_ladder_progress_evidence_sorts_by_rank_then_task_and_keeps_every_cell()
     [
         ["--verify-evidence", "--check"],
         ["--verify-evidence", "--summary"],
+        ["--pending-controls", "--summary"],
+        ["--pending-controls", "--verify-evidence"],
         ["--sync-docs", "--check"],
         ["--sync-docs", "--summary"],
         ["--sync-docs", "--verify-evidence"],
@@ -1761,7 +1880,7 @@ def test_ladder_progress_evidence_rejects_invalid_cli_modes(
     assert "error:" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("mode", ["--check", "--summary", "--sync-docs"])
+@pytest.mark.parametrize("mode", ["--check", "--summary", "--pending-controls", "--sync-docs"])
 def test_ladder_progress_offline_modes_never_touch_results_root(
     sandbox: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1829,4 +1948,17 @@ def test_ladder_progress_summary_prints_the_table_without_writing_the_csv(
     before = table.read_bytes()
     assert MODULE.main(["--summary"]) == 0
     assert capsys.readouterr().out == MODULE.render_summary(_committed())
+    assert table.read_bytes() == before
+
+
+def test_ladder_progress_pending_controls_prints_the_table_without_writing_the_csv(
+    sandbox: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    table = sandbox / "ladder-progress.csv"
+    before = table.read_bytes()
+    assert MODULE.main(["--pending-controls"]) == 0
+    controls = MODULE.read_pending_controls(sandbox / MODULE.PENDING_NAME)
+    assert capsys.readouterr().out == MODULE.render_pending_controls(
+        controls, MODULE.read_ranking(MODULE.ROOT)
+    )
     assert table.read_bytes() == before

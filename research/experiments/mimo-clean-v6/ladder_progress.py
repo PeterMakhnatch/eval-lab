@@ -72,6 +72,15 @@ evidence exits 1 only with ``--strict``; unhashed cells and no-trial entries
 never change the exit code. This mode reads the host results root and is
 deliberately not part of ``--check``.
 
+``--pending-controls`` prints the control cells the v6 inventory still owes,
+by ranking phase (HAR-367): for each phase of the v5 ranking, the tasks whose
+``pending-controls.json`` record is incomplete, their oracle and nop cell
+counts, the cells of tasks marked runnable, and the serial hours those cells
+need at the measured repeat-3 means quoted in the v6 README. A control whose
+task is outside the ranking lands on an ``unranked`` row, and the last row is
+the total. The mode reads only the ranking and the inventory, so it touches no
+Docker and no results root.
+
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
 summary with ``--summary``. ``--sync-docs`` rebuilds the ten tested documentation
@@ -130,6 +139,16 @@ COLUMNS = (
 TAMPER_SIGNATURE = "tamper signature"
 GRADED_MARKER = "rc="
 SUMMARY_HEADING = "## Wall time by language and remaining serial hours"
+PENDING_NAME = "pending-controls.json"
+PENDING_HEADING = "## Pending v6 control cells by ranking phase"
+PENDING_AGENTS = ("oracle", "nop")
+UNRANKED = "unranked"
+# Measured repeat-3 cell means from README.md, section "Actual batch wall and
+# local-versus-Modal projection": "Python oracle x3 averages 4.19 min/cell
+# (n=8); Python nop x3 averages 2.81 min/cell (n=12)". One pending agent cell
+# is one repeat-3 control, so each mean already covers that cell's three runs.
+ORACLE_CELL_MINUTES = 4.19
+NOP_CELL_MINUTES = 2.81
 REFUSAL_BASIS = "tamper-refusal"
 GRADED_BASIS = "graded"
 SECONDS_PER_HOUR = 3600.0
@@ -513,6 +532,129 @@ def render_summary(rows: Sequence[dict[str, str]]) -> str:
         f"| {sum(entry['uncovered'] for entry in entries)} | | "
         f"| {sum(entry['projected_hours'] for entry in entries):.2f} |\n"
     )
+    return buffer.getvalue()
+
+
+def read_pending_controls(path: Path) -> list[dict[str, Any]]:
+    """The ``remaining_original_controls`` entries of ``pending-controls.json``.
+
+    Refuse a repeated task, an agent other than ``oracle`` or ``nop``, and a
+    ``runnable`` value that is not a boolean, so the pending table counts only
+    cells the inventory can actually run.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ProgressError(f"pending controls are unreadable: {path}: {error}") from error
+    if not isinstance(data, dict):
+        raise ProgressError(f"{path}: top level is not an object")
+    entries = data.get("remaining_original_controls")
+    if not isinstance(entries, list):
+        raise ProgressError(f"{path}: no remaining_original_controls list")
+    seen: set[str] = set()
+    controls: list[dict[str, Any]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ProgressError(f"{path}: remaining_original_controls holds a non-object entry")
+        task_id = str(entry.get("task_id") or "")
+        if not task_id:
+            raise ProgressError(f"{path}: a control entry has no task_id")
+        if task_id in seen:
+            raise ProgressError(f"{path}: repeats task {task_id}")
+        seen.add(task_id)
+        agents = entry.get("agents")
+        if not isinstance(agents, list) or any(agent not in PENDING_AGENTS for agent in agents):
+            raise ProgressError(f"{task_id}: agents {agents!r} are not cells of {PENDING_AGENTS}")
+        runnable = entry.get("runnable")
+        if not isinstance(runnable, bool):
+            raise ProgressError(f"{task_id}: runnable {runnable!r} is not a boolean")
+        controls.append({"task_id": task_id, "agents": list(agents), "runnable": runnable})
+    return controls
+
+
+def projected_control_hours(oracle_cells: int, nop_cells: int) -> float:
+    """Serial hours for pending repeat-3 controls at the measured cell means.
+
+    Each pending cell is one repeat-3 control, and the README means are per
+    such cell, so a cell costs its agent's mean once; the three runs are
+    already inside it.
+    """
+    minutes = oracle_cells * ORACLE_CELL_MINUTES + nop_cells * NOP_CELL_MINUTES
+    return minutes / 60.0
+
+
+def _pending_entry(
+    name: str, tasks: int, oracle_cells: int, nop_cells: int, runnable_cells: int
+) -> dict[str, Any]:
+    """One pending-controls row from a phase's cell counts."""
+    return {
+        "phase": name,
+        "tasks": tasks,
+        "oracle_cells": oracle_cells,
+        "nop_cells": nop_cells,
+        "runnable_cells": runnable_cells,
+        "projected_hours": projected_control_hours(oracle_cells, nop_cells),
+    }
+
+
+def pending_controls(
+    controls: Sequence[Mapping[str, Any]], ranking: Sequence[Mapping[str, str]]
+) -> list[dict[str, Any]]:
+    """One row per ranking phase, then ``unranked``, then ``total``.
+
+    A control whose task is absent from the ranking lands on the ``unranked``
+    row rather than being dropped. ``runnable_cells`` counts the oracle and nop
+    cells of a task the inventory marks runnable; ``projected_hours`` counts
+    every pending cell, so it measures the phase's whole debt.
+    """
+    phase_of = {row["task_id"]: row["phase"] for row in ranking}
+    grouped: dict[str, dict[str, int]] = {}
+    for control in controls:
+        phase = phase_of.get(str(control["task_id"]), UNRANKED)
+        counts = grouped.setdefault(phase, {"tasks": 0, "oracle": 0, "nop": 0, "runnable": 0})
+        agents = [str(agent) for agent in control["agents"]]
+        counts["tasks"] += 1
+        counts["oracle"] += agents.count("oracle")
+        counts["nop"] += agents.count("nop")
+        if control["runnable"]:
+            counts["runnable"] += len(agents)
+    empty = {"tasks": 0, "oracle": 0, "nop": 0, "runnable": 0}
+    entries = [
+        _pending_entry(
+            phase, counts["tasks"], counts["oracle"], counts["nop"], counts["runnable"]
+        )
+        for phase, counts in sorted(grouped.items())
+        if phase != UNRANKED
+    ]
+    unranked = grouped.get(UNRANKED, empty)
+    entries.append(
+        _pending_entry(
+            UNRANKED, unranked["tasks"], unranked["oracle"], unranked["nop"], unranked["runnable"]
+        )
+    )
+    fields = ("tasks", "oracle_cells", "nop_cells", "runnable_cells")
+    total = _pending_entry(
+        "total", *(sum(entry[field] for entry in entries) for field in fields)
+    )
+    return [*entries, total]
+
+
+def render_pending_controls(
+    controls: Sequence[Mapping[str, Any]], ranking: Sequence[Mapping[str, str]]
+) -> str:
+    """The ``--pending-controls`` table, in the README's Markdown pipe-table shape."""
+    buffer = io.StringIO()
+    buffer.write(
+        "| phase | tasks | oracle cells | nop cells | runnable cells "
+        "| projected serial hours |\n"
+    )
+    buffer.write("|---|---:|---:|---:|---:|---:|\n")
+    for entry in pending_controls(controls, ranking):
+        buffer.write(
+            f"| {entry['phase']} | {entry['tasks']} | {entry['oracle_cells']} "
+            f"| {entry['nop_cells']} | {entry['runnable_cells']} "
+            f"| {entry['projected_hours']:.2f} |\n"
+        )
     return buffer.getvalue()
 
 
@@ -1309,6 +1451,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="print wall time by language and the serial hours left for uncovered rows",
     )
     mode.add_argument(
+        "--pending-controls",
+        action="store_true",
+        help="print pending control cells by ranking phase and their serial hours",
+    )
+    mode.add_argument(
         "--verify-evidence",
         action="store_true",
         help="re-hash coverage cells' host attempts.json evidence",
@@ -1343,6 +1490,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not path.is_absolute() and not path.is_file():
             path = HERE / path
         print(render_slice(path), end="")
+        return 0
+    if args.pending_controls:
+        controls = read_pending_controls(HERE / PENDING_NAME)
+        print(render_pending_controls(controls, read_ranking(ROOT)), end="")
         return 0
     if args.verify_evidence:
         cells = read_cells(HERE, ROOT, manifest=read_manifest(HERE))

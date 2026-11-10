@@ -39,7 +39,7 @@ from typing import Any, Protocol
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from evallab.live_watch import WatchThresholds, evaluate_alerts
-from evallab.production import command_prefilter, stage0_triage, window_cascade
+from evallab.production import command_prefilter, window_cascade
 from evallab.production.asset_exporter import (
     LABEL_VERIFICATION_SCHEMA,
     _measured_reward,
@@ -822,10 +822,7 @@ class MisalignmentLiveWorker:
 
     ``judge`` follows :data:`trace_cheap.JudgeFn`. Supplying it explicitly is the
     spend boundary; ``None`` records unavailable semantic coverage, never makes
-    an API call. ``reference_examples`` (see :func:`window_cascade.retrieved_examples`)
-    optionally adds Tier-2 reference steps to each judge prompt; if it fails the card is
-    judged without them and says so. An emit failure propagates rather than pretending
-    persistence.
+    an API call. An emit failure propagates rather than pretending persistence.
 
     Alert cards carry the trace feature flags fired up to the flagged step and up to
     ``alert_playbook_cards`` matched Trace-Watcher playbook cards (``0`` turns it off).
@@ -846,7 +843,6 @@ class MisalignmentLiveWorker:
         gate_policy: GatePolicy | None = None,
         structural_context: Mapping[str, Any] | None = None,
         prefix_fraction: float = 1.0,
-        reference_examples: window_cascade.ExamplesFn | None = None,
         alert_playbook_cards: int = window_cascade.MAX_PLAYBOOK_CARDS,
         stage2_playbook_cards: int = 0,
         judge_pass_through: bool = False,
@@ -871,7 +867,6 @@ class MisalignmentLiveWorker:
         self._sink = emit
         self._registry = registry
         self._judge = judge
-        self._reference_examples = reference_examples
         self._alert_playbook_cards = alert_playbook_cards
         self._stage2_playbook_cards = stage2_playbook_cards
         self._judge_pass_through = judge_pass_through
@@ -888,9 +883,6 @@ class MisalignmentLiveWorker:
         self._runs: dict[str, _Run] = {}
         self._finished: OrderedDict[str, _Run] = OrderedDict()
         self._finished_capacity = finished_run_capacity
-        self._run_triage_events: dict[
-            tuple[str, str, tuple[str, ...]], dict[str, Any]
-        ] = {}
         self._seq = 0
         self._lock = threading.RLock()
         self._pool = (
@@ -1046,90 +1038,6 @@ class MisalignmentLiveWorker:
             if isinstance(stored, Mapping):
                 event = dict(stored)
         return event
-
-    def ingest_run_facets(
-        self,
-        run_id: str,
-        facet: Mapping[str, Any],
-        *,
-        task_id: str | None = None,
-        step_ids: Sequence[int] | None = None,
-        rules: tuple[str, ...] = stage0_triage.DEFAULT_RULES,
-    ) -> dict[str, Any]:
-        """Journal an admitted whole-run diagnostic, never gate or confirm a verdict.
-
-        The bound registry must have assignment authority. Callers supply the task
-        identity and original step IDs for Atlas runs not observed by this worker;
-        otherwise the observed task identity and steps are authoritative. Repeats
-        are rechecked before returning the previously journaled event.
-        """
-        with self._lock:
-            if self._closed:
-                raise RuntimeError("monitor worker is closed")
-            if not isinstance(run_id, str) or not run_id.strip():
-                raise ValueError("run_id is required")
-            registry = self._promotion_registry(self._registry)
-            if registry is None or not registry.has_assignment_authority():
-                raise ValueError("Stage-0 requires authoritative split assignments")
-            run = self._runs.get(run_id)
-            observed_task = run.task_id if run is not None and run.task_id != "unknown" else None
-            if task_id is not None and (
-                not isinstance(task_id, str)
-                or not task_id.strip()
-                or CorpusRegistry.task_name(task_id) == "unknown"
-            ):
-                raise ValueError("task_id must be a non-empty, known task identity")
-            if observed_task and task_id and (
-                CorpusRegistry.task_name(observed_task) != CorpusRegistry.task_name(task_id)
-            ):
-                raise ValueError("task_id conflicts with the observed run")
-            identity = observed_task or task_id
-            if identity is None:
-                raise ValueError("Stage-0 requires a task_id bound to the run")
-            if registry.assigned_test_anywhere(item_id=run_id, task_id=identity) or (
-                registry.sealed_identity(item_id=run_id, task_id=identity) is not None
-            ):
-                raise ValueError("Stage-0 refuses TEST or sealed run identities")
-            known_steps = run.steps if run is not None else step_ids
-            if known_steps is None:
-                raise ValueError("Stage-0 requires original step_ids for an unobserved run")
-            facet = copy.deepcopy(dict(facet)) if isinstance(facet, Mapping) else facet
-            problems = stage0_triage.validate_facet(facet, step_ids=known_steps)
-            if problems:
-                raise ValueError("invalid facet: " + "; ".join(problems))
-            rule_names = tuple(rules)
-            verdict = stage0_triage.triage(facet, rule_names)
-            if verdict.run_id != run_id:
-                raise ValueError("invalid facet: run_id does not match the target run")
-            digest = hashlib.sha256(_canon(facet).encode("utf-8")).hexdigest()
-            key = (run_id, digest, rule_names)
-            previous = self._run_triage_events.get(key)
-            if previous is not None:
-                return copy.deepcopy(previous)
-            event = self._emit(
-                run_id,
-                "monitor.run_triage",
-                {
-                    "stage0_version": stage0_triage.STAGE0_VERSION,
-                    "facet_version": facet["facet_version"],
-                    "task_id": identity,
-                    "split_assignments_digest": registry.split_assignments_digest,
-                    "rule_names": list(rule_names),
-                    "alarm": verdict.alarm,
-                    "reasons": list(verdict.reasons),
-                    "suspicion": verdict.suspicion,
-                    "evidence_steps": list(verdict.evidence_steps),
-                    "facet_model": facet["facet_model"],
-                    "facet_sha256": digest,
-                    "scope": "whole_run",
-                    "eligibility": "diagnostic",
-                    "confirmation_scope": "model_extracted_facets",
-                    "outcome_verified": False,
-                },
-                prefix_step=run.max_step_id if run is not None else None,
-            )
-            self._run_triage_events[key] = copy.deepcopy(event)
-            return event
 
     def ingest_event(self, event: Mapping[str, Any]) -> list[dict[str, Any]]:
         """Consume one journal event; cumulative snapshots are scored one step at a time."""
@@ -1670,18 +1578,8 @@ class MisalignmentLiveWorker:
     ) -> None:
         if isinstance(steps, _FrozenPrefix):
             steps = steps.materialize()
-        with self._lock:
-            run = self._runs.get(run_id)
-            task_id = run.task_id if run is not None else "unknown"
         for card in cards:
             window = window_cascade.build_window(steps, card["evidence"][0]["step"])
-            examples: list[str] = []
-            examples_error = None
-            if self._reference_examples is not None:
-                try:
-                    examples = list(self._reference_examples(card, task_id, window))
-                except Exception as exc:
-                    examples_error = f"{type(exc).__name__}: {exc}"[:200]
             lead = card.get("playbook")
             playbook = (
                 lead["cards"][: self._stage2_playbook_cards]
@@ -1689,7 +1587,7 @@ class MisalignmentLiveWorker:
                 else []
             )
             messages = window_cascade.build_messages(
-                card, window, prefix, examples, playbook_cards=playbook
+                card, window, prefix, playbook_cards=playbook
             )
             try:
                 assert self._judge is not None
@@ -1720,8 +1618,6 @@ class MisalignmentLiveWorker:
                     "window_truncated": window.truncated,
                     "verdict": outcome.reason,
                     "judged_prefix": prefix,
-                    "reference_examples": len(examples),
-                    "reference_examples_error": examples_error,
                     "playbook_cards": [item["card_id"] for item in playbook],
                 },
             }

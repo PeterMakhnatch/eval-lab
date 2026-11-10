@@ -508,9 +508,6 @@ verifier or establish billed cost. Keep unknown observations unknown.
   limit, minutes since last update, open alerts) plus a fleet section.
 - `alerts.jsonl` — append-only. Alerts dedup by `(trial, rule)`; a second
   pass appends nothing new.
-- `--notify-lin HAR-NNN` (off by default) posts one batched `lin comment`
-  with new high/medium alerts, at most every 15 minutes (shared Linear rate
-  limit). Tests never call `lin`.
 - Auto-attached dispatch watches notify only when the spec opts in with
   `watch_notify_lin: true` (requires `linear_card`): critical alerts
   (stall, infra spike, spend) are posted to that card, each kind at most
@@ -526,31 +523,12 @@ The `watch stop` command, `--stop-mode` option and `EVALLAB_WATCH_STOP`
 watcher mode are removed. Existing stop records remain historical evidence.
 This source change does not modify installed services or running jobs.
 
-## Laminar (`--laminar`)
+## Local watcher output
 
-Live export is off by default, even when `LMNR_PROJECT_API_KEY` is present.
-`evallab watch --laminar` explicitly opts in; auto-attached watches additionally
-require `EVALLAB_LAMINAR=1`, `true`, or `on` (case-insensitive). Both paths
-require `LMNR_PROJECT_API_KEY` and use one Cloud trace per trial:
+The watcher does not export trials or alerts to Laminar. The `--laminar`
+and `--notify-lin` options are removed. Automatic watches also stop initializing
+Laminar exporters. Existing native SDK traces and stored exports remain unchanged.
 
-- Native live-SDK trials reuse the actual UUID and root span ID in
-  `laminar-trace.json`. Watch never projects duplicate roots, LLM calls or
-  tools for those trials. New alerts are redacted, derived-watch spans
-  attached to the actual SDK root, not to invented SDK step identities.
-  Their timestamps record the watch observation, which may happen after
-  trial closure. An unavailable SDK identity stays unknown; local alerts
-  still work and no synthetic replacement trace or parent is exported.
-- Trials without an SDK sidechannel retain the live ATIF projection:
-  the trial-name-derived ID is stable across passes and replays
-  (`evallab.laminar.laminar_trace_uuid`); completed agent steps are `LLM`
-  spans with `TOOL` children attributed `evallab.step_id`.
-  `harbor.trial` (session = job; metadata job, trial, task, reward, exception)
-  is sent when `result.json` lands. New alerts attach beneath the projected
-  step they cite.
-
-Text is clipped to 16k characters, known provider secrets are replaced, and a
-value matching a secret pattern is withheld. Export is fail-open: errors are
-kept in `laminar.json` and the spans are retried on the next pass.
 
 `evallab laminar signals` creates or updates the four Signals defined in
 `evallab.laminar.SIGNALS` (`copied_upstream_fix`, `stuck_loop`,

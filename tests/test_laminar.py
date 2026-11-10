@@ -42,9 +42,7 @@ from evallab.laminar import (
     format_comparison,
     our_verdicts,
     step_spans,
-    trial_trace_id,
 )
-from evallab.live_watch import run_watch
 
 TRIAL = "task-1__abc"
 COPY = (
@@ -101,17 +99,6 @@ class Recorder:
         return 200
 
 
-def _pass(runs: Path, out: Path, recorder: Recorder, secrets: list[str] | None = None) -> dict:
-    exporter = LaminarExporter(
-        api_key="k-123456789",
-        out_dir=out,
-        endpoint="http://x",
-        transport=recorder,
-        secrets=secrets or [],
-    )
-    return run_watch(runs_dirs=[runs], out_dir=out, laminar=exporter)
-
-
 def _write(runs: Path, steps: list[dict], result: dict | None = None) -> Path:
     trial = runs / "job" / TRIAL
     (trial / "agent").mkdir(parents=True, exist_ok=True)
@@ -155,62 +142,6 @@ def test_explicit_opt_in_still_requires_a_key(tmp_path: Path) -> None:
     assert exporter_from_env(tmp_path, environ={}, enabled=True) is None
 
 
-def test_live_trial_exports_finished_steps_then_root_once(tmp_path: Path) -> None:
-
-
-    runs, out, rec = tmp_path / "runs", tmp_path / "out", Recorder()
-    _write(runs, STEPS[:3])
-    _pass(runs, out, rec)
-    first = {s.name for s in rec.posts[-1]}
-    # The last step's observation may still change, and the root waits for result.json.
-    assert "turn 2" in first and "turn 3" not in first and "harbor.trial" not in first
-
-    _write(
-        runs,
-        STEPS,
-        {
-            "finished_at": "2026-10-05T10:01:00+00:00",
-            "verifier_result": {"rewards": {"reward": 1.0}},
-        },
-    )
-    _pass(runs, out, rec)
-    second = [s for s in rec.posts[-1]]
-    names = {s.name for s in second}
-    assert {"turn 3", "turn 4", "harbor.trial"} <= names and "turn 2" not in names
-    assert all(s.trace_id.hex() == trial_trace_id(TRIAL) for s in second)
-
-    posted = len(rec.posts)
-    _pass(runs, out, rec)
-    assert len(rec.posts) == posted, "an unchanged finished trial must not be re-exported"
-
-
-def test_alert_becomes_span_event_under_cited_step(tmp_path: Path) -> None:
-    runs, out, rec = tmp_path / "runs", tmp_path / "out", Recorder()
-    _write(runs, STEPS)
-    summary = _pass(runs, out, rec)
-    fetch = next(a for a in summary["statuses"][0]["open_alerts"] if a["rule"] == "fetch_attempt")
-    spans = {s.span_id.hex(): s for post in rec.posts for s in post}
-    alert = next(s for s in spans.values() if s.name == "evallab.alert.fetch_attempt")
-    parent = spans[alert.parent_span_id.hex()]
-    step = {a.key: a.value.string_value for a in parent.attributes}["evallab.step_id"]
-    assert f"head#{step}" == fetch["step_ref"] == "head#3"
-    assert [e.name for e in alert.events] == ["fetch_attempt"]
-
-
-def test_failed_export_is_retried_and_secrets_never_leave(tmp_path: Path) -> None:
-    runs, out, rec = tmp_path / "runs", tmp_path / "out", Recorder()
-    secret = "sk-live-0123456789abcdef"
-    steps = [*STEPS[:2], _step(3, f"echo {secret}\n", secret), STEPS[3]]
-    _write(runs, steps, {"finished_at": "2026-10-05T10:01:00+00:00"})
-    rec.fail = True
-    failed = _pass(runs, out, rec, secrets=[secret])
-    assert failed["laminar"]["ok"] is False and not rec.posts
-    rec.fail = False
-    _pass(runs, out, rec, secrets=[secret])
-    assert {"turn 2", "turn 3", "harbor.trial"} <= {s.name for s in rec.posts[-1]}
-    assert secret.encode() not in b"".join(s.SerializeToString() for s in rec.posts[-1])
-
-
 def test_apply_signals_creates_missing_and_patches_existing() -> None:
     calls: list[tuple[str, str, Any]] = []
     existing = {"signals": [{"id": "s-1", "name": "stuck_loop"}, {"id": "s-9", "name": "other"}]}
@@ -245,71 +176,6 @@ def test_apply_signals_creates_missing_and_patches_existing() -> None:
         assert schema["required"] == list(schema["properties"]), (
             "the API rejects schemas without required"
         )
-
-
-def test_sdk_trial_uses_actual_trace_without_projected_root_or_llm_duplicates(
-    tmp_path: Path,
-) -> None:
-    runs, out, rec = tmp_path / "runs", tmp_path / "out", Recorder()
-    secret = "sk-private-watch-0123456789"
-    steps = [
-        *STEPS[:2],
-        _step(
-            3,
-            COPY.rstrip("\n")
-            + f" # {secret} Authorization: Bearer WATCH_AUTH_CANARY /Users/private-owner/config\n",
-            "Successfully downloaded pkg\n  inflating: /tmp/p/pkg/core.py\n",
-        ),
-        STEPS[3],
-    ]
-    trial = _write(runs, steps, {"finished_at": "2026-10-05T10:01:00+00:00"})
-    trace = "c12b7448-5585-42d9-918b-2c3fe3b373f0"
-    parent = "a12b7448558542d9"
-    (trial / "laminar-trace.json").write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "trace_id": trace,
-                "root_span_id": parent,
-                "trial_name": TRIAL,
-                "status": "closed",
-            }
-        )
-    )
-    summary = _pass(runs, out, rec, secrets=[secret])
-    assert summary["statuses"][0]["laminar_trace_id"] == trace
-    spans = [span for post in rec.posts for span in post]
-    assert any(span.name == "evallab.alert.fetch_attempt" for span in spans)
-    assert all(
-        {attribute.key: attribute.value.string_value for attribute in span.attributes}[
-            "lmnr.span.type"
-        ]
-        == "DEFAULT"
-        for span in spans
-    )
-    assert all(
-        span.trace_id.hex() == trace.replace("-", "") and span.parent_span_id.hex() == parent
-        for span in spans
-    )
-    payload = b"".join(span.SerializeToString() for span in spans)
-    assert all(
-        value not in payload
-        for value in (secret.encode(), b"WATCH_AUTH_CANARY", b"/Users/private-owner/config")
-    )
-    assert b"Bearer [REDACTED]" in payload
-    posted = len(rec.posts)
-    _pass(runs, out, rec, secrets=[secret])
-    assert len(rec.posts) == posted
-
-
-def test_unavailable_sdk_identity_never_falls_back_to_synthetic_cloud_trace(tmp_path: Path) -> None:
-    runs, out, rec = tmp_path / "runs", tmp_path / "out", Recorder()
-    trial = _write(runs, STEPS, {"finished_at": "2026-10-05T10:01:00+00:00"})
-    (trial / "laminar-trace.json").write_text('{"trace_id": null}')
-    summary = _pass(runs, out, rec)
-    assert summary["statuses"][0]["laminar_trace_id"] is None
-    assert any(alert["rule"] == "fetch_attempt" for alert in summary["statuses"][0]["open_alerts"])
-    assert not rec.posts
 
 
 def test_signal_comparison_reads_runs_of_the_actual_sdk_trace(tmp_path: Path) -> None:
@@ -362,19 +228,6 @@ def test_byok_route_is_sent_with_every_signal() -> None:
     assert all((b["llmProfileId"], b["model"]) == ("p-1", "glm-5.3-flash") for b in bodies)
 
 
-def test_infra_death_is_an_error_span_in_the_trace(tmp_path: Path) -> None:
-    runs, out, rec = tmp_path / "runs", tmp_path / "out", Recorder()
-    death = {"exception_type": "DaytonaNotFoundError", "exception_message": "sandbox not found"}
-    _write(runs, STEPS, {"finished_at": "2026-10-05T10:01:00+00:00", "exception_info": death})
-    _pass(runs, out, rec)
-    spans = rec.posts[-1]
-    names = [s.name for s in spans]
-    exc = spans[names.index("harbor.exception")]
-    assert exc.status.code == exc.status.STATUS_CODE_ERROR
-    assert "DaytonaNotFoundError: sandbox not found" in exc.status.message
-    assert names.index("harbor.exception") < names.index("harbor.trial")
-
-
 # --- Command path, comparison report, and workspace profile --------------------------------
 #
 # Everything below injects its HTTP seam (openers, monkeypatched module functions, or a
@@ -411,28 +264,6 @@ def _localhost(status: int, received: list[bytes], headers: list[dict[str, str]]
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
-
-
-@pytest.mark.parametrize(
-    "marker",
-    [
-        "directory",  # the marker cannot be read at all (OSError, not FileNotFoundError)
-        json.dumps({"trace_id": "00000000-0000-0000-0000-000000000000", "trial_name": TRIAL}),
-        json.dumps({"trace_id": "not-a-uuid", "trial_name": TRIAL}),
-    ],
-)
-def test_unreadable_or_null_sdk_identity_is_unknown_not_projected(
-    tmp_path: Path, marker: str
-) -> None:
-    runs, out, rec = tmp_path / "runs", tmp_path / "out", Recorder()
-    trial = _write(runs, STEPS, {"finished_at": "2026-10-05T10:01:00+00:00"})
-    if marker == "directory":
-        (trial / "laminar-trace.json").mkdir()
-    else:
-        (trial / "laminar-trace.json").write_text(marker)
-    summary = _pass(runs, out, rec)
-    assert summary["statuses"][0]["laminar_trace_id"] is None
-    assert not rec.posts, "an unknown SDK identity never falls back to a synthetic trace"
 
 
 def test_invalid_step_timestamp_reuses_the_previous_step_time() -> None:
@@ -526,13 +357,14 @@ def test_attribute_values_keep_bool_int_float_and_string_arrays() -> None:
 
 def test_default_transport_posts_otlp_to_the_configured_endpoint(tmp_path: Path) -> None:
     runs, received, headers = tmp_path / "runs", [], []
-    _write(runs, STEPS, {"finished_at": "2026-10-05T10:01:00+00:00"})
+    trial = _write(runs, STEPS, {"finished_at": "2026-10-05T10:01:00+00:00"})
     with _localhost(200, received, headers) as url:
         exporter = LaminarExporter(
             api_key="k-123456789", out_dir=tmp_path / "out", endpoint=url, secrets=[]
         )
-        summary = run_watch(runs_dirs=[runs], out_dir=tmp_path / "out", laminar=exporter)
-    assert summary["laminar"]["ok"] is True
+        exporter.sync_trial(runs / "job", trial, finished=True)
+        outcome = exporter.flush()
+    assert outcome["ok"] is True
     assert headers[0]["authorization"] == "Bearer k-123456789"
     assert headers[0]["content-type"] == "application/x-protobuf"
     request = ExportTraceServiceRequest.FromString(b"".join(received))
@@ -556,15 +388,6 @@ def test_default_transport_reports_an_http_error_without_raising(tmp_path: Path)
         outcome = exporter.flush()
     assert outcome["ok"] is False and outcome["error"] == "HTTP 503"
     assert received, "the transport must send the encoded spans before reporting the failure"
-
-
-def test_malformed_result_json_still_exports_the_root_span(tmp_path: Path) -> None:
-    runs, out, rec = tmp_path / "runs", tmp_path / "out", Recorder()
-    trial = _write(runs, STEPS)
-    (trial / "result.json").write_text("not json")
-    summary = _pass(runs, out, rec)
-    assert summary["laminar"]["ok"] is True
-    assert {"harbor.trial", "turn 4"} <= {span.name for span in rec.posts[-1]}
 
 
 def test_fleet_and_unscoped_alerts_never_become_spans(tmp_path: Path) -> None:

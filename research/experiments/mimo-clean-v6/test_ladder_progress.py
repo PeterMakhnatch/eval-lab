@@ -993,6 +993,12 @@ _SYNC_VERIFICATION = "docs/mimo/verification.md"
 _SYNC_FRAGMENTS = (
     ("README.md", b"v6 basis (100 ranks):"),
     ("docs/mimo/README.md", b"v6 basis (100 ranks):"),
+    ("README.md", b"The strict evidence check matched"),
+    ("README.md", b"The remaining v6 gap is the pending controls:"),
+    ("docs/mimo/README.md", b"the strict evidence check matched"),
+    ("docs/mimo/README.md", b"The remaining v6 gap is the pending controls:"),
+    (_SYNC_EXPERIMENT, b"strict check matched"),
+    (_SYNC_EXPERIMENT, b"What the ladder still owes is the"),
     (_SYNC_VERIFICATION, b"matched one signature"),
     (_SYNC_VERIFICATION, b"graded v6 rows"),
     (_SYNC_VERIFICATION, b"reward 0 on all"),
@@ -1037,6 +1043,17 @@ _SYNC_NARRATIVES = (
         b"covering the 17 uncovered rows one at a time\n"
         b"on local Docker costs about **9.99 h**",
     ),
+)
+_SYNC_SENTENCES = (
+    ("README.md", rb"The strict evidence check matched [^\n]+"),
+    ("README.md", rb"The remaining v6 gap is the pending controls:[^\n]+\n[^\n]+"),
+    ("docs/mimo/README.md", rb"the strict evidence check matched [^\n]+"),
+    (
+        "docs/mimo/README.md",
+        rb"The remaining v6 gap is the pending controls:[^\n]+\n[^\n]+",
+    ),
+    (_SYNC_EXPERIMENT, rb"strict check matched [^\n]+\n[^\n]+"),
+    (_SYNC_EXPERIMENT, rb"What the ladder still owes is the [^\n]+\n[^\n]+"),
 )
 
 
@@ -1112,7 +1129,10 @@ def _stale_number(text: bytes, pattern: bytes) -> bytes:
 def _stale_sync_pages(experiment: Path) -> None:
     root_page, route_page, readme, verification = _sync_pages(experiment)
     for page in (root_page, route_page):
-        page.write_bytes(_stale_route(page.read_bytes()))
+        text = _stale_route(page.read_bytes())
+        text = _stale_number(text, rb"matched\s+[0-9]+(?:\s+of\s+[0-9]+)?\s+cells")
+        text = _stale_number(text, rb"pending cells for\s+[0-9]+ tasks")
+        page.write_bytes(text)
     text = readme.read_bytes()
     covered = _sync_covered_anchor(text)
     count = re.search(rb"(\d+) covered;", covered)
@@ -1131,6 +1151,8 @@ def _stale_sync_pages(experiment: Path) -> None:
         text, rb"graded rows ran only [0-9]+(?:\xe2\x80\x93|-)[0-9]+ of 14 \([^()]*\)"
     )
     text = _stale_number(text, rb"ran [0-9]+, so graded")
+    text = _stale_number(text, rb"strict check matched\s+[0-9]+\s+cells")
+    text = _stale_number(text, rb"pending cells for\s+[0-9]+ tasks")
     readme.write_bytes(text)
     stale_verification = verification.read_bytes()
     for pattern in (
@@ -1161,6 +1183,79 @@ def test_ladder_progress_sync_docs_restores_exact_bytes_and_is_idempotent(sandbo
     before_repeat = _sync_snapshot(sandbox)
     assert MODULE.main(["--sync-docs"]) == 0
     assert _sync_snapshot(sandbox) == before_repeat
+
+
+@pytest.mark.parametrize(("relative", "pattern"), _SYNC_SENTENCES)
+def test_ladder_progress_sync_docs_restores_one_stale_sentence_per_page(
+    sandbox: Path, relative: str, pattern: bytes
+) -> None:
+    expected = {page: page.read_bytes() for page in _sync_pages(sandbox)}
+    page = sandbox.parents[2] / relative
+    found = re.search(pattern, page.read_bytes())
+    assert found is not None, pattern
+    numbers = list(re.finditer(rb"[0-9]+", found.group()))
+    assert numbers
+    last = numbers[-1]
+    stale = (
+        found.group()[: last.start()]
+        + str(int(last.group()) + 1).encode()
+        + found.group()[last.end() :]
+    )
+    page.write_bytes(_replace_once(page.read_bytes(), found.group(), stale))
+    assert page.read_bytes() != expected[page]
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert {path: path.read_bytes() for path in expected} == expected
+
+
+def test_ladder_progress_sync_docs_derives_the_pending_sentence_from_the_inventory(
+    sandbox: Path,
+) -> None:
+    path = sandbox / MODULE.PENDING_NAME
+    data = json.loads(path.read_text(encoding="utf-8"))
+    held = next(entry for entry in data["remaining_original_controls"] if entry["runnable"])
+    held["runnable"] = False
+    path.write_text(json.dumps(data), encoding="utf-8")
+    controls = MODULE.read_pending_controls(path, MODULE.read_manifest(sandbox))
+    pending, runnable, tasks, hours = MODULE._pending_counts(controls)
+    assert runnable == 174 - len(held["agents"])
+    assert MODULE.main(["--sync-docs"]) == 0
+    for relative in ("README.md", "docs/mimo/README.md", _SYNC_EXPERIMENT):
+        text = " ".join((sandbox.parents[2] / relative).read_text(encoding="utf-8").split())
+        assert f"{pending} pending cells for" in text
+        assert f"{tasks} tasks, {runnable} runnable" in text
+        assert f"{hours:.2f} projected serial hours" in text
+
+
+def test_ladder_progress_sync_docs_derives_the_evidence_sentence_from_the_receipt(
+    sandbox: Path,
+) -> None:
+    receipt = _sandbox_receipt(sandbox)
+    cell = next(entry for entry in receipt["cells"] if entry["status"] == "matched")
+    cell["status"] = "unhashed"
+    receipt["totals"]["matched"] -= 1
+    receipt["totals"]["unhashed"] += 1
+    receipt["checked_date_et"] = "2026-12-02"
+    _write_sandbox_receipt(sandbox, receipt)
+    assert MODULE.main(["--sync-docs"]) == 0
+    matched = receipt["totals"]["matched"]
+    pages = {
+        relative: " ".join(
+            (sandbox.parents[2] / relative).read_text(encoding="utf-8").split()
+        )
+        for relative in ("README.md", "docs/mimo/README.md", _SYNC_EXPERIMENT)
+    }
+    assert (
+        f"The strict evidence check matched {matched} of 100 cells and 13 of 13 "
+        "recorded subset trials" in pages["README.md"]
+    )
+    assert (
+        f"the strict evidence check matched {matched} cells and 13 subset trials"
+        in pages["docs/mimo/README.md"]
+    )
+    assert (
+        f"the 2026-12-02 strict check matched {matched} cells and all 13 "
+        "recorded subset trials" in pages[_SYNC_EXPERIMENT]
+    )
 
 
 def test_ladder_progress_sync_docs_preserves_arbitrary_route_whitespace(sandbox: Path) -> None:

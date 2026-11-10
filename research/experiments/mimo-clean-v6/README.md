@@ -1308,7 +1308,10 @@ ranking. It does not use the CSV as its source. It needs no Docker or host
 results root.
 
 It updates the two route-page basis sentences and this page's basis table,
-covered count, signature counts, and summary table. It also updates the
+covered count, signature counts, and summary table. It rewrites the
+evidence-match sentence on the two route pages and this page, and the
+pending-control sentence on all three pages, from the committed
+`ladder-evidence-receipt.json` and `pending-controls.json`. It also updates the
 refusal-rate calculation, refusal counts, refused-row attack counts and task
 IDs, and the graded rows' executed-attack range, histogram, and the unscored
 row's attack count. It generates Python's refusal and graded counts and
@@ -1320,7 +1323,8 @@ and the two totals lines from the committed `ladder-evidence-receipt.json`. It
 preserves spacing, table annotations, and signature labels. It leaves all other
 page text unchanged.
 
-The command validates the receipt and every fragment before writing any page.
+The command validates the receipt, the inventory, and every fragment before
+writing any page.
 A missing or repeated fragment anchor raises `ProgressError` and exits 1 without
 page writes. A receipt that does not list every committed coverage cell and
 graded-subset entry also raises `ProgressError` without page writes.
@@ -1329,8 +1333,8 @@ The ranked ladder is closed at 100/100 coverage: every rank has a committed
 coverage cell, and the 2026-11-10 strict check matched 99 cells and all 13
 recorded subset trials. A later change therefore does not add a rank. It
 re-runs one rank's cell, or it adds a graded-subset cell for a refused row.
-What the ladder still owes is the 174 pending control cells for 90 tasks
-(10.36 projected serial hours) in
+What the ladder still owes is the 178 pending cells for 90 tasks,
+174 runnable (10.36 projected serial hours) in
 [pending-controls.json](pending-controls.json), and the ungraded
 `tamper_source_*` attacks on the 80 refusal rows; see "Pending v6 control cells
 by ranking phase" and [ladder-evidence-receipt.json](ladder-evidence-receipt.json).
@@ -1357,7 +1361,8 @@ For a re-run or a new subset cell:
    the refusal-rate calculation, refusal counts, refused-row attack counts and
    task IDs, the graded rows' attack range and histogram, the graded-subset row
    count, the verification page's clause (c) counts and check date, Python's
-   refusal and graded counts, Python's remaining-hours projection, and the
+   refusal and graded counts, Python's remaining-hours projection, the
+   evidence-match and pending-control sentences on the three pages, and the
    evidence-check sentences and totals from the receipt.
 6. Review and edit task-specific descriptions and evidence prose affected by
    the new cell manually. Do not edit a generated anchor sentence.
@@ -1366,7 +1371,7 @@ For a re-run or a new subset cell:
 
    ```bash
    uv run python research/experiments/mimo-clean-v6/ladder_progress.py --sync-docs
-   git diff --exit-code README.md docs/mimo/README.md research/experiments/mimo-clean-v6/README.md
+   git diff --exit-code README.md docs/mimo/README.md docs/mimo/verification.md research/experiments/mimo-clean-v6/README.md
    uv run python research/experiments/mimo-clean-v6/ladder_progress.py --check
    uv run pytest research/experiments/mimo-clean-v6/test_ladder_progress.py
    ```
@@ -1374,7 +1379,7 @@ For a re-run or a new subset cell:
 Include the regenerated CSV, the receipt, and page changes with the cell data in
 the PR. `--sync-docs`, the drift check, and the tests read only committed files,
 so they need no Docker or host results root. Only step 4 needs the retained host
-results. `--sync-docs` owns the generated fragments on the three pages; the
+results. `--sync-docs` owns the generated fragments on the four pages; the
 `git diff --exit-code` line proves that no anchor drifted.
 
 Two trailing columns join the graded-subset cells (schema

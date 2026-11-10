@@ -101,12 +101,13 @@ inventory, so it touches no Docker and no results root.
 Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
 summary with ``--summary``. ``--sync-docs`` rebuilds the tested documentation
-fragments from committed cells, the manifest and the ranking, the graded-attack
-range and histogram, the subset row count, and the evidence sentences, check
-date and totals lines from the committed receipt, without reading or writing
-the CSV or host results. A receipt that does not list every committed cell and
-subset entry raises ``ProgressError``. It validates the receipt and all four
-pages before any write.
+fragments from committed cells, the manifest, the ranking and the pending-control
+inventory: the graded-attack range and histogram, the subset row count, the
+evidence-match and pending-control sentences on the three route pages, and the
+evidence section, check date and totals lines from the committed receipt,
+without reading or writing the CSV or host results. A receipt that does not list
+every committed cell and subset entry raises ``ProgressError``. It validates the
+receipt, the inventory and all four pages before any write.
 ``--render-slice CELL`` prints one cell file's seven-column README pipe-table
 rows, so a slice PR pastes generated rows instead of hand-copying them.
 ``check_slice_tables`` compares the README's per-slice ladder tables with the
@@ -954,6 +955,115 @@ def _verification_edits(
     return edits
 
 
+_PENDING_SENTENCE = {
+    "root": (
+        "The remaining v6 gap is the pending controls:",
+        r"The\s+remaining\s+v6\s+gap\s+is\s+the\s+pending\s+controls:\s+[0-9]+\s+"
+        r"(?:pending\s+)?(?:control\s+)?cells\s+for\s+[0-9]+\s+tasks,"
+        r"(?:\s+[0-9]+\s+runnable,)?\s+[0-9]+\.[0-9]+\s+projected\s+serial\s+hours",
+        "The remaining v6 gap is the pending controls: {pending} pending cells for\n"
+        "{tasks} tasks, {runnable} runnable, {hours:.2f} projected serial hours",
+    ),
+    "route": (
+        "The remaining v6 gap is the pending controls:",
+        r"The\s+remaining\s+v6\s+gap\s+is\s+the\s+pending\s+controls:\s+[0-9]+\s+"
+        r"(?:pending\s+)?(?:control\s+)?cells\s+for\s+[0-9]+\s+tasks"
+        r"(?:,\s+[0-9]+\s+runnable)?\s+\([0-9]+\.[0-9]+\s+projected\s+serial\s+hours\)",
+        "The remaining v6 gap is the pending controls: {pending} pending cells for\n"
+        "  {tasks} tasks, {runnable} runnable\n"
+        "  ({hours:.2f} projected serial hours)",
+    ),
+    "experiment": (
+        "What the ladder still owes is the",
+        r"\bthe\s+[0-9]+\s+pending\s+(?:control\s+)?cells\s+for\s+[0-9]+\s+tasks"
+        r"(?:,\s+[0-9]+\s+runnable)?\s+\([0-9]+\.[0-9]+\s+projected\s+serial\s+hours\)",
+        "the {pending} pending cells for {tasks} tasks,\n"
+        "{runnable} runnable ({hours:.2f} projected serial hours)",
+    ),
+}
+
+_EVIDENCE_SENTENCE = {
+    "root": (
+        "The strict evidence check matched",
+        r"The\s+(strict|non-strict)\s+evidence\s+check\s+matched\s+([0-9]+)\s+of\s+([0-9]+)\s+"
+        r"cells\s+and\s+([0-9]+)\s+of\s+([0-9]+)\s+recorded\s+subset\s+trials",
+    ),
+    "route": (
+        "the strict evidence check matched",
+        r"the\s+(strict|non-strict)\s+evidence\s+check\s+matched\s+([0-9]+)\s+cells\s+"
+        r"and\s+([0-9]+)\s+subset\s+trials",
+    ),
+    "experiment": (
+        "strict check matched",
+        r"the\s+([0-9]{4}-[0-9]{2}-[0-9]{2})\s+(strict|non-strict)\s+check\s+matched\s+"
+        r"([0-9]+)\s+cells\s+and\s+"
+        r"((?:all\s+)?[0-9]+(?:\s+of\s+[0-9]+)?\s+recorded\s+subset\s+trials)",
+    ),
+}
+
+
+def _pending_counts(controls: Sequence[Mapping[str, Any]]) -> tuple[int, int, int, float]:
+    """Pending cells, runnable cells, tasks, and serial hours from the inventory."""
+    pending = sum(len(control["agents"]) for control in controls)
+    runnable = sum(len(control["agents"]) for control in controls if control["runnable"])
+    oracle = sum(control["agents"].count("oracle") for control in controls)
+    nop = sum(control["agents"].count("nop") for control in controls)
+    return pending, runnable, len(controls), projected_control_hours(oracle, nop)
+
+
+def _pending_sentence_edits(
+    controls: Sequence[Mapping[str, Any]], text: str, page: Path, kind: str
+) -> list[tuple[int, int, str]]:
+    """Edits that rewrite a page's pending-control sentence from the inventory."""
+    pending, runnable, tasks, hours = _pending_counts(controls)
+    anchor, pattern, template = _PENDING_SENTENCE[kind]
+    _doc_match(r"\s+".join(map(re.escape, anchor.split())), text, page, anchor)
+    match = _doc_match(pattern, text, page, f"complete {anchor} fragment")
+    newline = "\r\n" if "\r\n" in text else "\n"
+    return [
+        (
+            match.start(),
+            match.end(),
+            template.format(
+                pending=pending, runnable=runnable, tasks=tasks, hours=hours
+            ).replace("\n", newline),
+        )
+    ]
+
+
+def _evidence_sentence_edits(
+    receipt: Mapping[str, Any], text: str, page: Path, kind: str
+) -> list[tuple[int, int, str]]:
+    """Edits that rewrite a page's evidence-match sentence from ``receipt``."""
+    strictness = "strict" if receipt["strict"] else "non-strict"
+    matched = receipt["totals"]["matched"]
+    subset_matched = receipt["subset_totals"]["matched"]
+    subset_total = len(receipt["subsets"]) - receipt["subset_totals"]["no-trial"]
+    newline = "\r\n" if "\r\n" in text else "\n"
+    subset_clause = (
+        f"all {subset_total}"
+        if subset_matched == subset_total
+        else f"{subset_matched} of {subset_total}"
+    )
+    values = {
+        "root": (strictness, matched, len(receipt["cells"]), subset_matched, subset_total),
+        "route": (strictness, matched, subset_matched),
+        "experiment": (
+            receipt["checked_date_et"],
+            strictness,
+            matched,
+            f"{subset_clause}\nrecorded subset trials".replace("\n", newline),
+        ),
+    }[kind]
+    anchor, pattern = _EVIDENCE_SENTENCE[kind]
+    _doc_match(r"\s+".join(map(re.escape, anchor.split())), text, page, anchor)
+    match = _doc_match(pattern, text, page, f"complete {anchor} fragment")
+    return [
+        (match.start(index), match.end(index), str(value))
+        for index, value in enumerate(values, start=1)
+    ]
+
+
 def _evidence_edits(
     receipt: Mapping[str, Any], text: str, page: Path
 ) -> list[tuple[int, int, str]]:
@@ -1055,9 +1165,11 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
     """Refresh the tested fragments, validating the receipt and every page before any write.
 
     The evidence sentences and totals lines come from the committed
-    ``ladder-evidence-receipt.json``, never from the host results root.
+    ``ladder-evidence-receipt.json``, never from the host results root. The
+    pending-control sentences come from ``pending-controls.json``.
     """
     receipt = read_receipt(cells_dir, root)
+    controls = read_pending_controls(cells_dir / PENDING_NAME, read_manifest(cells_dir))
     pages = (
         root / "README.md",
         root / "docs" / "mimo" / "README.md",
@@ -1081,7 +1193,8 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
         counts.get("none", 0),
     )
     replacements: dict[Path, str] = {}
-    for page in pages[:2]:
+    for position, page in enumerate(pages[:2]):
+        kind = "root" if position == 0 else "route"
         text = originals[page]
         _doc_match(r"v6\s+basis\s+\(100\s+ranks\):", text, page, "v6 basis (100 ranks):")
         match = _doc_match(ROUTE_BASIS.pattern, text, page, "complete v6 basis sentence")
@@ -1090,7 +1203,9 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
             [
                 (match.start(index), match.end(index), str(count))
                 for index, count in enumerate(route_counts, start=1)
-            ],
+            ]
+            + _evidence_sentence_edits(receipt, text, page, kind)
+            + _pending_sentence_edits(controls, text, page, kind),
         )
     page = pages[2]
     text = originals[page]
@@ -1210,6 +1325,8 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
             (summary_table.start(), summary_table.end(), summary_text),
             *fragment_edits,
             *_evidence_edits(receipt, text, page),
+            *_evidence_sentence_edits(receipt, text, page, "experiment"),
+            *_pending_sentence_edits(controls, text, page, "experiment"),
         ],
     )
     page = pages[3]

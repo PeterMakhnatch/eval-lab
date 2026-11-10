@@ -27,7 +27,7 @@ inputs:
   - path: src/evallab/analyst.py
     digest: sha256:e06b6a73713bd9ccf6fd595896e11bc07add35b3aaf8388135b7b345d4c60310
   - path: src/evallab/antigravity.py
-    digest: sha256:1407365175bd5ee8d6565a0e4ce68793062ead3cee0784851d57f3fa3e352eea
+    digest: sha256:d3f0b39cbcb17fe1f289919b16a9a681ee14062f83db8fe8b69a5c8c8eda79b1
   - path: src/evallab/ast_walk.py
     digest: sha256:229a2d9242a6e3db43f1439c5c3335dfdfeb393f8fc4f69000472ab84b7963fd
   - path: src/evallab/audit_mimo.py

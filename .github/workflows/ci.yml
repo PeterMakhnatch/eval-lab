@@ -86,7 +86,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.14"]
+        # Pull requests run the 3.12 floor only: the hosted runner pool is shared by every
+        # lane, and the 3.14 rows doubled the test jobs each push queued behind. `main`
+        # pushes, `merge_group` and manual runs keep the full 3.12 + 3.14 matrix, so a 3.14
+        # regression is caught on the merged revision (agents/CHECKS.md).
+        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.12", "3.14"]') }}
         shard: ["1/2", "2/2"]
     # HAR-297: the catalog, verdict and z2-table suites run only against a live
     # database; without this service they skip on every CI run. Files are sharded

@@ -336,67 +336,6 @@ def register_parser(commands: Any) -> None:
     scope.add_argument("--replace", action="store_true", help="Overwrite an existing, different file")
     scope.set_defaults(func=_command)
 
-    progress = actions.add_parser(
-        "export-gate-progress",
-        help="Write task-qa/gate-progress-v1.json from the OQ-6 coverage summary and v4 checkpoint (counts only)",
-    )
-    progress.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
-    progress.add_argument(
-        "--coverage-summary", type=Path, required=True,
-        help="coverage.py --aggregate-only output (oq6.stage-continuation-coverage-summary/v1)",
-    )
-    progress.add_argument(
-        "--checkpoint-summary", type=Path, required=True,
-        help="checkpoint-v4-summary.json (oq6.v4-checkpoint-aggregate/v1)",
-    )
-    progress.add_argument(
-        "--output-directory", type=Path, required=True,
-        help="The task-qa state directory that receives gate-progress-v1.json",
-    )
-    progress.add_argument("--replace", action="store_true", help="Overwrite an existing, different file")
-    progress.set_defaults(func=_command)
-
-    staged_findings = actions.add_parser(
-        "export-trace-findings",
-        help="Write trace-harness/findings-v1.jsonl from retained trace-findings/v1 files (validated, newest per key)",
-    )
-    staged_findings.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
-    staged_findings.add_argument(
-        "--findings", type=Path, action="append", required=True,
-        help="A trace-findings/v1 JSONL file (repeatable; a later file wins a tie)",
-    )
-    staged_findings.add_argument(
-        "--output-directory", type=Path, required=True,
-        help="The trace-harness state directory that receives findings-v1.jsonl",
-    )
-    staged_findings.add_argument("--replace", action="store_true", help="Overwrite an existing, different file")
-    staged_findings.set_defaults(func=_command)
-
-    preflight = actions.add_parser(
-        "deploy-preflight",
-        help="Read-only check of the data files the Modal cloud tabs need; prints, never runs, the deploy commands",
-    )
-    preflight.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
-    preflight.add_argument(
-        "--state-root", type=Path, default=Path("~/.local/state/evallab-prod-live"),
-        help="Live state directory holding run-atlas/ and trace-tools/",
-    )
-    preflight.add_argument(
-        "--inventory", type=Path,
-        default=Path("~/Developer/research-context/bridge/2026-10-27-run-atlas/ts9-defensive-inventory/inventory.json"),
-        help="TS-9 defensive inventory (staged reduced)",
-    )
-    preflight.add_argument(
-        "--registry", type=Path,
-        default=Path("~/Developer/research-context/bridge/2026-10-27-run-atlas/cross-test-registry.json"),
-        help="Cross-test registry (staged reduced)",
-    )
-    preflight.add_argument(
-        "--stage-directory", type=Path,
-        help="Keep the staged copies here (a new or empty directory); default: a temporary directory that is deleted",
-    )
-    preflight.set_defaults(func=_command)
-
     sb1 = actions.add_parser(
         "seeker-error-first",
         help="SB-1 two-turn error-first Reward Seeker campaign; --plan (default) is free",
@@ -505,12 +444,6 @@ def register_parser(commands: Any) -> None:
 def _resolve(root: Path, path: Path) -> Path:
     path = path.expanduser()
     return (path if path.is_absolute() else root / path).resolve()
-
-
-def _resolve_parent(root: Path, path: Path) -> Path:
-    """Resolve the parents only, so a linked final component is still seen (and refused)."""
-    path = path.expanduser()
-    return _resolve(root, path.parent) / path.name
 
 
 def _database(root: Path, value: str | None) -> str | Path:
@@ -1077,37 +1010,6 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             )
             _emit({"command": args.prod_command, **receipt}, args)
             return 0
-        if args.prod_command == "export-gate-progress":
-            from evallab.production import gate_progress
-
-            receipt = gate_progress.write_progress(
-                _resolve(root, args.output_directory),
-                gate_progress.export_progress(
-                    _resolve(root, args.coverage_summary), _resolve(root, args.checkpoint_summary)
-                ),
-                replace=args.replace,
-            )
-            _emit({"command": args.prod_command, **receipt}, args)
-            return 0
-        if args.prod_command == "export-trace-findings":
-            from evallab.production.findings_export import export_findings
-
-            receipt = export_findings(
-                [_resolve_parent(root, path) for path in args.findings],
-                _resolve_parent(root, args.output_directory),
-                replace=args.replace,
-            )
-            _emit({"command": args.prod_command, **receipt}, args)
-            return 0
-        if args.prod_command == "deploy-preflight":
-            from evallab.production.deploy_preflight import run_preflight
-
-            report = run_preflight(
-                args.state_root, repo_root=root, inventory=args.inventory.expanduser(),
-                registry=args.registry.expanduser(), stage_directory=args.stage_directory,
-            )
-            _emit({"command": args.prod_command, **report}, args)
-            return 0 if report["ok"] else 1
         if args.prod_command == "seeker-error-first":
             receipt, exit_code = _seeker_error_first(args, root)
             _emit({"command": args.prod_command, **receipt}, args)

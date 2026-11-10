@@ -1,7 +1,7 @@
 """Read-only per-task trial dossier rows (HAR-186).
 
-Membership comes only from the ``trials`` census view (queried with
-``task_names`` + ``read_only=True``). Copy facts always come from the
+Membership comes only from the read-only ``trials`` census view, restricted
+by ``task_names``. Copy facts always come from the
 original source trial first, so they survive a missing or ambiguous
 publication; the publication alias only resolves reader verdicts the
 original job name cannot reach in the store. Every source keeps its own
@@ -387,7 +387,6 @@ def _collect(
         roots=roots,
         derived_root=derived_root,
         task_names=aliases,
-        read_only=True,
     )
     try:
         cursor = con.execute("SELECT * FROM trials")

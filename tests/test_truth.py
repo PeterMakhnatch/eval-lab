@@ -16,9 +16,6 @@ from evallab.cohort import (
     power_requirements,
     render_markdown,
 )
-from evallab.evidence.facts import rebuild_from_raw
-from evallab.report import draft_eval_card, family_report, render_family_report
-from evallab.results import load_job
 from evallab.schemas import CohortComparisonSpec
 
 
@@ -369,183 +366,12 @@ def test_power_reports_mde_and_required_n_k_tradeoffs(capsys: pytest.CaptureFixt
     assert "minimum detectable per-attempt difference" in capsys.readouterr().out
 
 
-def test_family_report_joins_parquet_to_raw_atif_and_explains_results(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    job_path = _write_job(
-        tmp_path / "runs",
-        name="family-job",
-        agent="agent-a",
-        model="model-a",
-        task_rewards={"task-family": [1.0, 0.0]},
-        with_atif=True,
-    )
-    job = load_job(job_path)
-    parquet = tmp_path / "derived/parquet"
-    rebuild_from_raw([job], parquet)
-
-    report = family_report("task-family", parquet_root=parquet, raw_roots=[tmp_path / "runs"])
-    assert report["n_trials"] == 2
-    assert report["first_failure_step_distribution"] == [{"step": 2, "trials": 2}]
-    assert report["loop_detection"]["trials"] == 2
-    assert report["verification_before_done"] == {
-        "heuristic": "recognizable test, lint, typecheck, check, or verify tool call in raw ATIF",
-        "yes": 1,
-        "no": 1,
-        "unknown": 0,
-    }
-    rendered = render_family_report(report)
-    assert "2 trials across 1 jobs" in rendered
-    assert "Step 2: 2 trial(s)" in rendered
-    assert "verification ran in 1 trial(s)" in rendered
-    assert (
-        cli.run_cli(
-            [
-                "report",
-                "family",
-                "task-family",
-                "--parquet-dir",
-                "derived/parquet",
-                "--raw-root",
-                "runs",
-            ],
-            workspace=tmp_path,
-        )
-        == 0
-    )
-    assert "# Trajectory family report: task-family" in capsys.readouterr().out
-    output_root = tmp_path / "derived/reports"
-    assert not output_root.exists()
-    assert (
-        cli.run_cli(
-            [
-                "report",
-                "family",
-                "task-family",
-                "--parquet-dir",
-                "derived/parquet",
-                "--raw-root",
-                "runs",
-                "--output-dir",
-                "derived/reports",
-            ],
-            workspace=tmp_path,
-        )
-        == 0
-    )
-    assert (output_root / "family-task-family.json").is_file()
-    assert (output_root / "family-task-family.md").is_file()
 
 
-def test_family_report_reads_compacted_and_recent_partitions(tmp_path: Path) -> None:
-    jobs = [
-        _write_job(
-            tmp_path / "runs",
-            name=name,
-            agent="agent-a",
-            model="model-a",
-            task_rewards={"mixed-family": [reward]},
-        )
-        for name, reward in (("compacted", 1.0), ("recent", 0.0))
-    ]
-    parquet = tmp_path / "derived/parquet"
-    rebuild_from_raw([load_job(path) for path in jobs], parquet)
-    source = next(parquet.rglob("trial_facts.parquet"))
-    destination = parquet / "compact/dt=2026-10-02/trial_facts.parquet"
-    destination.parent.mkdir(parents=True)
-    source.rename(destination)
-
-    report = family_report("mixed-family", parquet_root=parquet, raw_roots=[tmp_path / "runs"])
-    assert report["n_trials"] == 2
-    assert report["n_jobs"] == 2
 
 
-def test_family_report_does_not_call_zero_steps_a_trajectory_length(tmp_path: Path) -> None:
-    job_path = _write_job(
-        tmp_path / "runs",
-        name="control-job",
-        agent="oracle",
-        model=None,
-        task_rewards={"control-task": [1.0]},
-        with_atif=False,
-    )
-    parquet = tmp_path / "derived/parquet"
-    rebuild_from_raw([load_job(job_path)], parquet)
-
-    report = family_report("control-task", parquet_root=parquet, raw_roots=[tmp_path / "runs"])
-
-    assert report["steps"]["n"] == 0
-    assert "No trajectory step counts were available" in render_family_report(report)
 
 
-def test_completed_spec_drafts_eval_card_with_digests_intervals_and_threats(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _write_job(
-        tmp_path / "runs",
-        name="completed-eval",
-        agent="agent-a",
-        model="model-a",
-        task_rewards={"task-a": [1.0], "task-b": [0.0]},
-    )
-    spec_path = tmp_path / "queue/done/agent-spec.json"
-    _write_json(
-        spec_path,
-        {
-            "schema_version": 1,
-            "name": "completed-eval",
-            "hypothesis": "The pinned agent can solve this task family.",
-            "purpose": "practice",
-            "task": "task-family",
-            "agent": "agent-a",
-            "model": "model-a",
-            "attempts": 1,
-            "submitted_by": "truth-test",
-        },
-    )
-    template_source = Path(__file__).parents[1] / "research/cards/TEMPLATE.md"
-    template = tmp_path / "research/cards/TEMPLATE.md"
-    template.parent.mkdir(parents=True)
-    template.write_text(template_source.read_text(encoding="utf-8"), encoding="utf-8")
-
-    output = tmp_path / "research/cards/completed-eval.md"
-    assert (
-        cli.run_cli(
-            ["report", "card", "queue/done/agent-spec.json"],
-            workspace=tmp_path,
-        )
-        == 0
-    )
-    assert not output.exists()
-    assert "# Eval card: completed-eval" in capsys.readouterr().out
-    card_path, card = draft_eval_card(
-        spec_path,
-        repo_root=tmp_path,
-        output_path=output,
-    )
-    rendered = card_path.read_text(encoding="utf-8")
-    assert card["numbers"]["n_tasks"] == 2
-    assert card["numbers"]["bootstrap_95"] is not None
-    assert "Config digest: `sha256:" in rendered
-    assert "model-a" in rendered
-    assert "Not determined automatically" in rendered
-    assert "generalization is weak" in rendered
-    with pytest.raises(FileExistsError, match="refusing to overwrite"):
-        draft_eval_card(spec_path, repo_root=tmp_path, output_path=output)
-    assert (
-        cli.run_cli(
-            [
-                "report",
-                "card",
-                "queue/done/agent-spec.json",
-                "--output",
-                "research/cards/cli-card.md",
-            ],
-            workspace=tmp_path,
-        )
-        == 0
-    )
-    assert "config digest: sha256:" in capsys.readouterr().out
 
 
 def test_graded_agent_stops_preserve_verifier_reward_under_both_policies(

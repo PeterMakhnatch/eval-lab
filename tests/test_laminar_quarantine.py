@@ -34,7 +34,6 @@ from evallab.production.trace_harness import HarnessOptions, HarnessRun
 from evallab.readers import laminar_import, laminar_signals
 from evallab.trace_store import laminar_quarantine as quarantine
 from evallab.trace_store.core import GOODFIRE_DATASET, TracePayload, trace_uuid
-from evallab.trace_store.fetch import fetch
 from evallab.trace_store.laminar import PROJECT_ID, LaminarTarget
 from evallab.trace_store.laminar_quarantine import QuarantinedTrace
 
@@ -200,46 +199,6 @@ def test_watch_summary_carries_the_quarantined_count() -> None:
     assert _summary({"quarantined": 3})["quarantined"] == 3
 
 
-# --- fetch ----------------------------------------------------------------------------------
-
-
-class SqlOpener:
-    def __init__(self, rows: list[dict[str, Any]]) -> None:
-        self.rows = rows
-        self.requests = 0
-
-    def __call__(self, request: Any, *, timeout: int) -> io.BytesIO:
-        self.requests += 1
-        return io.BytesIO(json.dumps({"data": self.rows}).encode())
-
-
-def test_fetch_run_id_of_a_quarantined_trace_makes_no_hosted_call() -> None:
-    opener = SqlOpener([{"trace_id": trace_uuid("own-ok")}])
-    result = fetch(
-        "laminar", run_id=QUARANTINED, opener=opener, api_key="k", spend_recorder=lambda *a, **k: None,
-    )
-    assert (result["rows"], result["skipped_quarantined"], opener.requests) == ([], 1, 0)
-
-
-def test_fetch_query_skips_and_counts_quarantined_rows() -> None:
-    rows = [
-        {"trace_id": QUARANTINED, "name": "a"}, {"trace_id": OK_ID, "name": "b"},
-        {"id": QUARANTINED}, {"count": 3},
-    ]
-    opener = SqlOpener(rows)
-    result = fetch(
-        "laminar", query="SELECT 1", opener=opener, api_key="k", spend_recorder=lambda *a, **k: None,
-    )
-    assert result["rows"] == [{"trace_id": OK_ID, "name": "b"}, {"count": 3}]
-    assert result["skipped_quarantined"] == 2
-
-
-def test_fetch_run_id_of_an_admitted_trace_still_queries() -> None:
-    opener = SqlOpener([{"trace_id": trace_uuid("own-ok")}])
-    result = fetch(
-        "laminar", run_id="own-ok", opener=opener, api_key="k", spend_recorder=lambda *a, **k: None,
-    )
-    assert (len(result["rows"]), result["skipped_quarantined"], opener.requests) == (1, 0, 1)
 
 
 # --- live exporter and importer -------------------------------------------------------------

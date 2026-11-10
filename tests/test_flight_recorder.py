@@ -15,7 +15,6 @@ from _pytest.capture import CaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 
 from evallab.flight.gateway import MetadataGateway, client_hello_sni, dns_metadata
-from evallab.flight.invisibility import canonicalize, diff_probes
 from evallab.flight.timeline import build_timeline
 
 TRIAL_ID = "00000000-0000-0000-0000-000000000042"
@@ -243,53 +242,14 @@ def test_flight_plugin_wiring_is_opt_in(tmp_path: Path, monkeypatch: MonkeyPatch
     assert queue._setup_hooks is original
 
 
-def _probe_dump(**overrides: object) -> dict[str, object]:
-    base: dict[str, object] = {
-        "ps": [["sleep", "sleep 300"], ["python3", "python3 /tmp/invisibility-probe.py"]],
-        "env": ["HOME=/root", "HOSTNAME=abc123", "PATH=/usr/bin"],
-        "mounts": ["overlay / fuse-overlayfs rw 0 0"],
-        "mountinfo": ["1 2 0:1 / / rw - overlay overlay rw"],
-        "inotify": {"inotify_fds": 0, "other_fds": 3},
-        "dns": {"resolv.conf": "nameserver 8.8.8.8\n", "connect_8_8_8_8_53": "NetworkUnreachable"},
-        "timing": {"open_read_close_ns": 1_000_000},
-    }
-    base.update(overrides)
-    return base
 
 
-def test_invisibility_diff_clean_on_noise_only() -> None:
-    plain = _probe_dump()
-    monitored = _probe_dump(
-        ps=[["python3", "python3 /tmp/invisibility-probe.py"], ["sleep", "sleep 300"]],
-        env=["PATH=/usr/bin", "HOME=/root", "HOSTNAME=abc123"],
-        timing={"open_read_close_ns": 2_500_000},
-    )
-    report = diff_probes(plain, monitored)
-    assert report["pass"] is True
-    assert all(check["pass"] for check in report["checks"].values())
 
 
-def test_invisibility_diff_flags_environment_change() -> None:
-    plain = _probe_dump()
-    monitored = _probe_dump(env=["HOME=/root", "PATH=/usr/bin", "EVALLAB_SNOOP=1"])
-    report = diff_probes(plain, monitored)
-    assert report["pass"] is False
-    assert report["checks"]["env"]["pass"] is False
-    assert report["checks"]["env"]["only_monitored"] == ['"EVALLAB_SNOOP=1"']
-    assert report["checks"]["ps"]["pass"] is True
 
 
-def test_invisibility_diff_flags_slowdown() -> None:
-    plain = _probe_dump()
-    monitored = _probe_dump(timing={"open_read_close_ns": 50_000_000})
-    report = diff_probes(plain, monitored)
-    assert report["checks"]["timing"]["pass"] is False
 
 
-def test_canonicalize_drops_volatile_mount_prefixes() -> None:
-    left = canonicalize("mountinfo", ["11 22 0:5 / /proc rw - proc proc rw"])
-    right = canonicalize("mountinfo", ["99 88 0:5 / /proc rw - proc proc rw"])
-    assert left == right
 
 
 def _packet(payload: bytes, *, src: str = "172.19.0.3", dst: str = "1.1.1.1",
@@ -493,10 +453,6 @@ def test_cli_show_emits_full_timeline_bodies(tmp_path: Path, capsys: CaptureFixt
     assert call["detail"]["request_body"]["messages"][0]["content"] == "do it"
 
 
-def test_invisibility_diff_rejects_changed_connect_reachability() -> None:
-    plain = _probe_dump(timing={"open_read_close_ns": 1, "connect_outcome": "connected"})
-    monitored = _probe_dump(timing={"open_read_close_ns": 1, "connect_outcome": "OSError"})
-    assert diff_probes(plain, monitored)["checks"]["timing"]["pass"] is False
 
 
 def test_full_body_timeline_is_private_on_disk(tmp_path: Path) -> None:

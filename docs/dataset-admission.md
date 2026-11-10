@@ -91,7 +91,6 @@ uv run evallab admit pr \
 The command publishes only `aggregate-results.json` and the aggregate registration. It never publishes raw rows or views.
 Deliver the PR with `uv run evallab ship <pr>` from a stable checkout.
 Use [ship](ship.md) for exact-head CI, protected merge, merged-revision smoke, and retirement.
-Use `evallab verify-lane` and `evallab report program` for lane receipts and aggregate reporting.
 The existing [fleet](fleet.md) supervisor controls the lane route and quota, not dataset access rights.
 
 ## Verification

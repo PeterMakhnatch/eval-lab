@@ -205,6 +205,27 @@ def test_adapter_rejects_unallowed_providers(
         wrapper_module.SecretSafeGlmSelfhostedMiniSweAgent(conn, model_name="bare-model-id")
 
 
+def test_adapter_rejects_non_allowed_connection_provider(
+    wrapper_module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(GLM_SELFHOSTED_BASE_URL_ENV, TEST_BASE_URL)
+    conn = _Connection(provider="openai")
+    agent = wrapper_module.SecretSafeGlmSelfhostedMiniSweAgent(conn)
+    with pytest.raises(ValueError, match="got provider 'openai'"):
+        _ = agent.model_connection
+
+
+def test_adapter_accepts_absent_model_selector(
+    wrapper_module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(GLM_SELFHOSTED_BASE_URL_ENV, TEST_BASE_URL)
+    conn = _Connection(provider="glm-selfhosted")
+    agent = wrapper_module.SecretSafeGlmSelfhostedMiniSweAgent(conn)
+    assert wrapper_module._validate_model_provider(None) is None
+    resolved = agent.model_connection
+    assert resolved.base_url == TEST_BASE_URL
+
+
 def test_adapter_fail_closed_when_endpoint_unset(
     wrapper_module: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -315,6 +336,28 @@ def test_adapter_blocks_secret_in_command(
                 object(), 'export GLM_SELFHOSTED_API_KEY="$(cat /tmp/key)"'
             )
         )
+
+
+def test_adapter_allows_scrubbed_exec_passthrough(
+    wrapper_module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(GLM_SELFHOSTED_BASE_URL_ENV, TEST_BASE_URL)
+    conn = _Connection(
+        provider="glm-selfhosted",
+        model="glm-selfhosted/glm-5.3-flash",
+    )
+    agent = wrapper_module.SecretSafeGlmSelfhostedMiniSweAgent(conn)
+    result = asyncio.run(
+        agent.exec_as_agent(
+            object(),
+            "mini-swe-agent --yolo",
+            env={"MSWEA_API_KEY": GLM_SELFHOSTED_PROXY_TOKEN},
+        )
+    )
+    assert result == "ok"
+    assert agent.exec_calls == [
+        ("mini-swe-agent --yolo", {"MSWEA_API_KEY": GLM_SELFHOSTED_PROXY_TOKEN})
+    ]
 
 
 def test_adapter_sanitizes_trajectories(

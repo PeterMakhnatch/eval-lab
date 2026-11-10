@@ -283,6 +283,6 @@ Each detector and baseline use the same rows. Counts and intervals do not borrow
 | steps | inapplicable | inapplicable | inapplicable | inapplicable | inapplicable |
 
 Historical inference costs stay unknown when absent. New inference cost: $0; model calls: 0.
-Cached metric computation: 12.149 wall seconds; 12.121 CPU seconds.
+Cached metric computation: 18.643 wall seconds; 16.751 CPU seconds.
 Native policy counts (scored cached decisions only; publisher construct): `drop=252, keep=66, review=372`.
 Policy decision coverage: `eligible=690, missing=0, scored=690`.

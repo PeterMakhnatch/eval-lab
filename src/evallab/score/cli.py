@@ -7,6 +7,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from evallab.results_home import results_root
+
 from . import board, inputs, localization
 
 
@@ -36,7 +38,12 @@ def command(args: argparse.Namespace, repo_root: Path, **_: Any) -> int:
     # Read the saved authority, not the in-memory object.
     (args.out / "SCOREBOARD.md").write_text(board.render(json.loads(path.read_text())))
     (args.out / "items.jsonl").write_text("".join(json.dumps(row, sort_keys=True, allow_nan=False) + "\n" for row in receipt))
-    print(f"{path}\n{args.out / 'SCOREBOARD.md'}")
+    (args.out / "freeze.json").write_bytes(args.freeze.read_bytes())
+    receipts = {name: {"path": str((args.out / name).resolve()), "sha256": inputs.digest(args.out / name)}
+                for name in ("scoreboard.json", "freeze.json", "items.jsonl")}
+    summary = board.summary(value, receipts)
+    (args.out / "summary.json").write_text(json.dumps(summary, separators=(",", ":"), allow_nan=False) + "\n")
+    print(f"{path}\n{args.out / 'SCOREBOARD.md'}\n{args.out / 'summary.json'}")
     return 0
 
 
@@ -46,5 +53,6 @@ def build_score_parser(commands: Any) -> None:
     parser.add_argument("--freeze", type=Path, required=True, help="Pinned DEV input, prediction, and threshold manifest")
     parser.add_argument("--tools", choices=("all-retained",), default="all-retained")
     parser.add_argument("--mode", choices=("cached",), default="cached")
-    parser.add_argument("--out", type=Path, required=True, help="New output directory; existing data are never overwritten")
+    parser.add_argument("--out", type=Path, default=results_root() / "score" / "qa-v1",
+                        help="New output directory (default: results home/score/qa-v1); never overwrite existing data")
     parser.set_defaults(func=command)

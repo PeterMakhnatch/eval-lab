@@ -88,6 +88,28 @@ def build(cohorts: dict, predictions: dict, config: dict, coordinates: dict, pol
     return board, receipt
 
 
+def summary(board: dict, receipts: dict) -> dict:
+    """Small aggregate publication; full statistics and per-item joins stay external."""
+    rows = []
+    for row in board["rows"]:
+        points = {}
+        for budget, point in row["operating_points"].items():
+            points[budget] = {key: point[key] for key in ("threshold", "status", "budget_claim")}
+            for name in ("recall", "observed_honest_alarm", "unresolved_honest", "worst_case_honest_alarm"):
+                rate = point[name]
+                ci = rate.get("task_ci95")
+                points[budget][name] = {"k": rate["k"], "n": rate["n"], "rate": rate["rate"],
+                                       "task_ci95": [ci["low"], ci["high"]] if ci else None}
+        rows.append({**{key: row[key] for key in ("cohort", "tool", "identity", "status", "coverage", "auroc")},
+                     "operating_points": points,
+                     "paired": {name: {"n": pair["paired"], "auroc_difference": pair["auroc_difference"]}
+                                for name, pair in row["paired"].items()},
+                     "localization": row["localization"], "cost": row["cost"]})
+    return {"schema": "evallab.score_summary/v1", "split": board["split"], "mode": board["mode"],
+            "cohorts": board["cohorts"], "bootstrap": board["bootstrap"], "receipts": receipts,
+            "untouched": board["untouched"], "rows": rows}
+
+
 def number(value: float | None) -> str:
     return "N/A" if value is None else f"{value:.3f}"
 

@@ -867,6 +867,7 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     for relative in (
         "README.md",
         "docs/mimo/README.md",
+        "docs/mimo/verification.md",
         "research/experiments/mimo-clean-v6/README.md",
     ):
         destination = tmp_path / relative
@@ -882,9 +883,14 @@ _SYNC_ROUTE = re.compile(
     rb"(\d+)\s+tamper-refusal,\s+(\d+)\s+graded,\s+(\d+)\s+unscored,\s+(\d+)\s+not\s+run"
 )
 _SYNC_EXPERIMENT = "research/experiments/mimo-clean-v6/README.md"
+_SYNC_VERIFICATION = "docs/mimo/verification.md"
 _SYNC_FRAGMENTS = (
     ("README.md", b"v6 basis (100 ranks):"),
     ("docs/mimo/README.md", b"v6 basis (100 ranks):"),
+    (_SYNC_VERIFICATION, b"matched one signature"),
+    (_SYNC_VERIFICATION, b"graded v6 rows"),
+    (_SYNC_VERIFICATION, b"reward 0 on all"),
+    (_SYNC_VERIFICATION, b"v6 table holds"),
     (_SYNC_EXPERIMENT, b"Basis counts in the committed table"),
     (_SYNC_EXPERIMENT, b"### Refusal signatures and attacks executed (HAR-302)"),
     (_SYNC_EXPERIMENT, b"## Wall time by language and remaining serial hours"),
@@ -893,6 +899,8 @@ _SYNC_FRAGMENTS = (
     (_SYNC_EXPERIMENT, b"therefore uses its"),
     (_SYNC_EXPERIMENT, b"refused rows,"),
     (_SYNC_EXPERIMENT, b"uncovered rows one at a time"),
+    (_SYNC_EXPERIMENT, b"graded rows ran only"),
+    (_SYNC_EXPERIMENT, b"unscored `000928` ran"),
     (_SYNC_EXPERIMENT, b"cell projection and exits"),
     (_SYNC_EXPERIMENT, b"cells match, with"),
     (_SYNC_EXPERIMENT, b"graded-subset trials match their recorded rewards"),
@@ -928,7 +936,12 @@ _SYNC_NARRATIVES = (
 
 def _sync_pages(experiment: Path) -> tuple[Path, ...]:
     root = experiment.parents[2]
-    return (root / "README.md", root / "docs/mimo/README.md", experiment / "README.md")
+    return (
+        root / "README.md",
+        root / "docs/mimo/README.md",
+        experiment / "README.md",
+        root / "docs/mimo/verification.md",
+    )
 
 
 def _replace_once(text: bytes, old: bytes, new: bytes) -> bytes:
@@ -979,8 +992,19 @@ def _stale_route(text: bytes) -> bytes:
     return text
 
 
+def _stale_number(text: bytes, pattern: bytes) -> bytes:
+    """Increment the first number of the single ``pattern`` match."""
+    found = re.search(pattern, text)
+    assert found is not None, pattern
+    number = re.search(rb"[0-9]+", found.group())
+    assert number is not None, pattern
+    start = found.start() + number.start()
+    end = start + len(number.group())
+    return text[:start] + str(int(number.group()) + 1).encode() + text[end:]
+
+
 def _stale_sync_pages(experiment: Path) -> None:
-    root_page, route_page, readme = _sync_pages(experiment)
+    root_page, route_page, readme, verification = _sync_pages(experiment)
     for page in (root_page, route_page):
         page.write_bytes(_stale_route(page.read_bytes()))
     text = readme.read_bytes()
@@ -997,7 +1021,20 @@ def _stale_sync_pages(experiment: Path) -> None:
     ]
     for row in count_rows:
         text = _replace_once(text, row, _stale_count_row(row))
+    text = _stale_number(
+        text, rb"graded rows ran only [0-9]+(?:\xe2\x80\x93|-)[0-9]+ of 14 \([^()]*\)"
+    )
+    text = _stale_number(text, rb"ran [0-9]+, so graded")
     readme.write_bytes(text)
+    stale_verification = verification.read_bytes()
+    for pattern in (
+        rb"All [0-9]+ v6 refusals",
+        rb"the [0-9]+ graded v6 rows",
+        rb"on all [0-9]+ rows tried",
+        rb"At the [0-9-]+ commit",
+    ):
+        stale_verification = _stale_number(stale_verification, pattern)
+    verification.write_bytes(stale_verification)
 
 
 def _sync_snapshot(experiment: Path) -> dict[Path, tuple[bytes, int]]:
@@ -1205,6 +1242,76 @@ def test_ladder_progress_sync_docs_derives_short_attack_list_cardinality(
     before_repeat = _sync_snapshot(sandbox)
     MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
     assert _sync_snapshot(sandbox) == before_repeat
+
+
+def test_ladder_progress_sync_docs_derives_the_verification_page_counts(sandbox: Path) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    receipt = MODULE.read_receipt(sandbox, sandbox.parents[2])
+    refusals = [row for row in rows if row["basis"] == "tamper-refusal"]
+    subset = next(row for row in rows if row["subset_verdict"] != "none")
+    for row in refusals[:2]:
+        row.update(basis="graded", refusal_hit="", attacks_executed="10")
+    subset["subset_verdict"] = "none"
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    text = (sandbox.parents[2] / "docs/mimo/verification.md").read_text(encoding="utf-8")
+    wrapped = " ".join(text.split())
+    refusal_count = len(refusals) - 2
+    graded_count = sum(row["basis"] == "graded" for row in rows)
+    subset_rows = sum(row["subset_verdict"] != "none" for row in rows)
+    covered = len(rows) - sum(row["basis"] == "none" for row in rows)
+    clean = sum(row["verdict"] == "clean" for row in rows)
+    unscored = sum(row["basis"] == "unscored" for row in rows)
+    for fragment in (
+        f"All {refusal_count} v6 refusals matched one signature, `tamper \\b_pytest\\b` "
+        "in a package `__init__.py` that a `tamper_source_*` attack planted.",
+        f"the {graded_count} graded v6 rows ran 8–10 of the 14.",
+        f"returned reward 0 on all {subset_rows} rows tried",
+        f"At the {receipt['checked_date_et']} commit the v6 table holds {covered} covered "
+        f"rows: {clean} clean ({refusal_count} tamper-refusal, {graded_count} graded) and "
+        f"{unscored} unscored",
+    ):
+        assert wrapped.count(fragment) == 1, fragment
+
+
+def test_ladder_progress_sync_docs_derives_the_graded_attack_histogram(sandbox: Path) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    graded = [row for row in rows if row["basis"] == "graded"]
+    for row in graded:
+        row["attacks_executed"] = "9"
+    for row, executed in zip(graded[:3], ("11", "11", "12"), strict=True):
+        row["attacks_executed"] = executed
+    for row in rows:
+        if row["basis"] == "unscored":
+            row["attacks_executed"] = "4"
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    readme = " ".join((sandbox / "README.md").read_text(encoding="utf-8").split())
+    histogram = f"{len(graded) - 3} rows ran 9, 2 rows ran 11, and 1 row ran 12"
+    assert readme.count(f"The graded rows ran only 9–12 of 14 ({histogram}).") == 1
+    assert readme.count("The unscored `000928` ran 4,") == 1
+    verification = " ".join(
+        (sandbox.parents[2] / "docs/mimo/verification.md").read_text(encoding="utf-8").split()
+    )
+    assert verification.count(f"the {len(graded)} graded v6 rows ran 9–12 of the 14.") == 1
+
+
+def test_ladder_progress_sync_docs_refuses_two_refusal_signatures_atomically(sandbox: Path) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    refusal = next(row for row in rows if row["refusal_hit"])
+    refusal["refusal_hit"] = "agent/build/__main__.py"
+    _stale_sync_pages(sandbox)
+    readme = sandbox / "README.md"
+    signature_row = _sync_signature_row(readme.read_bytes())
+    readme.write_bytes(
+        _replace_once(
+            readme.read_bytes(),
+            signature_row,
+            signature_row + b"\n| `other signature` | `__main__.py` | 1 |",
+        )
+    )
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError, match="one-signature"):
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert _sync_snapshot(sandbox) == before
 
 
 def test_ladder_progress_sync_docs_handles_no_clean_verdicts(sandbox: Path) -> None:

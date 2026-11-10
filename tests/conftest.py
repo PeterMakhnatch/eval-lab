@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import shutil
+import tempfile
 import zlib
 from collections.abc import Generator
 from datetime import UTC, datetime
@@ -66,6 +69,57 @@ def _isolate_results_home(
     isolated = tmp_path / "results-home"
     monkeypatch.setenv(ENV_VAR, str(isolated))
     yield isolated
+
+
+_PENDING_TEMP_ROOTS: list[Path] = []
+
+
+@pytest.fixture(autouse=True)
+def _isolate_temp_root(monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
+    """Every test gets its own tempfile root so nothing lands in the shared
+    system temp directory.
+
+    Tests and the children they spawn that call ``tempfile.mkdtemp``,
+    ``TemporaryDirectory`` and friends without ``dir=`` used to leave folders
+    in the shared system temp directory (HAR-374: 25 from the DeepSeek adapter
+    tests alone). Point ``tempfile.tempdir`` at a per-test directory for
+    in-process calls and ``TMPDIR`` at the same directory for subprocesses.
+    The directory sits directly in the real temp root to keep AF_UNIX socket
+    paths under the macOS 104-byte limit.
+    ``tempdirb`` is cleared (on 3.13+, where it exists) so a bytes-tempdir
+    cached before the redirect is recomputed from the patched root. Broader
+    fixtures that still need the shared root — the ``postgres_server``
+    servers, whose directories deliberately outlive single tests — capture
+    it at module import, before this fixture runs.
+
+    Removal is deferred to the session sweep below: tests may patch
+    ``os.lstat``/``os.scandir`` through the shared ``monkeypatch`` fixture,
+    and ``monkeypatch`` tears down after this fixture, so ``shutil.rmtree``
+    here would run against patched ``os`` functions.
+    """
+    root = Path(tempfile.mkdtemp(prefix="evl-t-")).resolve()
+    _PENDING_TEMP_ROOTS.append(root)
+    monkeypatch.setattr(tempfile, "tempdir", str(root))
+    # tempdirb exists on 3.13+ only; raising=False keeps 3.12 working.
+    monkeypatch.setattr(tempfile, "tempdirb", None, raising=False)
+    monkeypatch.setenv("TMPDIR", str(root))
+    yield root
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _sweep_per_test_temp_roots() -> Generator[None, None, None]:
+    """Remove every per-test tempfile root once the session ends.
+
+    At session teardown no function-scoped monkeypatch is active, so the
+    real ``os`` functions are guaranteed for ``rmtree``; under xdist each
+    worker sweeps the roots its own tests created.
+    """
+    yield
+    for root in _PENDING_TEMP_ROOTS:
+        # Best effort; a stray empty dir is still harmless.
+        with contextlib.suppress(Exception):
+            shutil.rmtree(root, ignore_errors=True)
+    _PENDING_TEMP_ROOTS.clear()
 
 
 _COLLECTED_MODULES: pytest.StashKey[frozenset[str]] = pytest.StashKey()

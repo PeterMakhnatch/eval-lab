@@ -31,6 +31,14 @@ from evallab.production.corpus_queue import (
     source_record_digest,
 )
 
+# Real shared temp root, captured at import before the conftest per-test
+# tempdir redirect runs. The postgres fixture directory deliberately outlives
+# single tests (the server is module-scoped but instantiates lazily inside
+# function-scoped requests), so it must not go under the per-test root, which
+# teardown removes.
+_SHARED_TEMP_ROOT = Path(tempfile.gettempdir()).resolve()
+
+
 DATASET = "tb4-audit-v1"
 SECONDARY_KEY = "envcheck-tb4-39"  # real secondary assignments key, not a corpus
 FROZEN_TOKEN = "test-only-explicit-frozen-evaluation"
@@ -124,7 +132,7 @@ def postgres_server() -> Iterator[str]:
     initdb, pg_ctl = shutil.which("initdb"), shutil.which("pg_ctl")
     if initdb is None or pg_ctl is None:
         pytest.skip("local PostgreSQL server binaries are not installed")
-    with tempfile.TemporaryDirectory(prefix="cq-postgres-") as directory:
+    with tempfile.TemporaryDirectory(prefix="cq-postgres-", dir=_SHARED_TEMP_ROOT) as directory:
         root = Path(directory).resolve()
         data = root / "data"
         subprocess.run(

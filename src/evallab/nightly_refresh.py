@@ -175,7 +175,6 @@ def refresh_trials(config: RefreshConfig, roots: list[Path]) -> dict[str, Any]:
         repo_root=config.data_root or shared_checkout_root(config.repo_root),
         roots=roots,
         derived_root=config.state_dir / "parquet",
-        read_only=True,
     )
     try:
         con.execute("SET threads = 1")

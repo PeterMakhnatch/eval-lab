@@ -111,21 +111,16 @@ directory name. It is empty when the audit never ran and never changes a counts
 verdict.
 
 The view joins existing `trial_facts`, `reward_facts`, and HAR-159 `features`
-Parquet by native identity. Historical worktree-local projections can be read;
-backfills write only to the selected existing Parquet store. Missing projections
-run the local `process-job` producer with catalog ingest and publication disabled,
-using temporary report output so existing processed reports and post-session spend
-allocations are not replaced. The native raw files are not rewritten. No provider,
-queue, sandbox, or Laminar API call is made. Projection failures remain visible in
-`projection_error`, never disappear from the census.
+Parquet by native identity. It reads historical worktree-local projections.
+Every census query is read-only. Missing projections use the existing producers
+in memory. Queries write no Parquet, catalog records, reports, or source evidence.
+No provider, queue, sandbox, or Laminar API call occurs.
+Projection failures remain visible in `projection_error`.
 
-Read-only consumers can call
-`connect_trials(..., task_names=[...], read_only=True)`. The exact recorded task-name
-filter is applied after native deduplication and before selected projection reads.
-Missing projections are computed in memory, without `process-job`, Parquet writes,
-catalog mutation, or report publication; `info["in_memory_projections"]` reports
-the affected sources. Ordinary callers retain the existing backfill behavior.
-`evallab task <task_id> [--json]` uses this mode and adds the task's existing health,
+Consumers can call `connect_trials(..., task_names=[...])`. The recorded task-name
+filter applies after native deduplication and before projection reads.
+`info["in_memory_projections"]` identifies sources reconstructed in memory.
+`evallab task <task_id> [--json]` adds the task's existing health,
 repair, test, exploit, and per-source reader evidence. See
 [the task dossier](harbor-view.md#read-only-task-dossier-har-186) and the
 `.omp/skills/task-dossier/SKILL.md` agent wrapper.

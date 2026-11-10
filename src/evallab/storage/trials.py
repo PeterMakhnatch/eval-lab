@@ -28,10 +28,9 @@ pair second, full posture/projection reads only for survivors.
   validated (trial_facts exactly one, reward names unique, features one
   row; a present-but-empty reward file is a valid unscored trial, while
   a file with only foreign rows is not a present projection).
-* Gaps trigger one cached ``process_job`` backfill per job with reports
-  isolated in a ``TemporaryDirectory``; only parquet projections persist.
-  After success the shared target reads first; after failure only
-  freshness-proven values survive, everything else is an explicit error.
+* Gaps use the existing deterministic producers in memory only. A read never
+  writes Parquet, catalogs, reports, or the source evidence. Unavailable
+  evidence remains null with an explicit projection error.
 * Posture and cut-short come straight from
   ``evallab.interpretation.trial_posture`` (pinned dependency, direct
   calls); ``reward`` is the exact ``reward`` dimension with a
@@ -45,7 +44,6 @@ import argparse
 import contextlib
 import json
 import sys
-import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -59,7 +57,6 @@ from evallab.contamination import COLUMNS as CONTAMINATION_COLUMNS
 from evallab.contamination import load_labels
 from evallab.harbor_watch_hooks import read_hook_journal
 from evallab.interpretation.trial_posture import cut_short_by_our_limits, trial_posture
-from evallab.process_job import process_job
 from evallab.storage.paths import (
     ParquetPartition,
     derived_root_from_environment,
@@ -374,7 +371,7 @@ def _validate_table_rows(
 def _hot_partitions(
     hot: HotPartitions, target_root: Path, table: str, job_id: str, trial_id: str
 ) -> list[ParquetPartition]:
-    """Include new backfill files without rescanning the entire Parquet lake."""
+    """Prefer the selected store without rescanning the entire Parquet lake."""
     path = trial_parquet_path(target_root, job_id, trial_id, table)
     candidates = hot.get((table, job_id, trial_id), [])
     target = (
@@ -595,7 +592,7 @@ def _resolve_projections(
 
 
 def _null_untrusted(values: dict[str, Any], trusted: set[str]) -> None:
-    """Drop values without freshness proof after a failed backfill in place."""
+    """Drop projection values without freshness proof before raw reconstruction."""
     if "trial_facts" not in trusted:
         values["primary_reward"] = None
     if "reward_facts" not in trusted:
@@ -604,34 +601,6 @@ def _null_untrusted(values: dict[str, Any], trusted: set[str]) -> None:
         values["reward"] = values["primary_reward"]
     if "features" not in trusted:
         values["stop_reason"] = values["copy_verdict"] = None
-
-
-def _backfill_job(
-    *,
-    repo_root: Path,
-    job_dir: Path,
-    target_root: Path,
-    cache: dict[str, str | None],
-) -> str | None:
-    """One cached backfill attempt per job; returns an error string or None."""
-    key = str(job_dir)
-    if key not in cache:
-        target_root.resolve().mkdir(parents=True, exist_ok=True)
-        try:
-            with tempfile.TemporaryDirectory(prefix="evallab-trials-backfill-") as tmp:
-                process_job(
-                    str(job_dir),
-                    root=str(repo_root),
-                    output_dir=tmp,
-                    ingest=False,
-                    publish=False,
-                    parquet_root=str(target_root.resolve()),
-                )
-        except Exception as exc:  # noqa: BLE001 -- backfill gaps are row errors
-            cache[key] = f"backfill failed: {type(exc).__name__}: {exc}"
-        else:
-            cache[key] = None
-    return cache[key]
 
 
 def _read_only_projection(
@@ -668,16 +637,14 @@ def connect_trials(
     roots: Sequence[Path] | None = None,
     derived_root: Path | None = None,
     task_names: Sequence[str] | None = None,
-    read_only: bool = False,
 ) -> tuple[duckdb.DuckDBPyConnection, dict[str, Any]]:
     """Build the transient ``trials`` view; the caller closes the connection.
 
     ``roots=None`` scans the main/worktree roots; an explicit ``roots``
     (even empty) is the whole selection. ``derived_root`` overrides the
-    projection roots and becomes the backfill target, otherwise reads fan
-    out over the existing derived roots while backfills write to the
-    shared selected store. Keep ``info`` alive while the connection is
-    open (it holds the registered Arrow tables).
+    projection roots, otherwise reads span the existing derived roots.
+    Keep ``info`` alive while the connection is open (it holds the
+    registered Arrow tables).
 
     An ``audit`` relation exposes the existing derived ``audit.parquet``
     projection (missing file = a typed empty relation; a corrupt file is
@@ -688,8 +655,8 @@ def connect_trials(
     ``trial``), so census queries can drop passes the audit calls cheats.
 
     ``task_names`` restricts the native task names before projection work.
-    ``read_only`` forbids backfill writes: cache gaps are projected transiently
-    from the same raw evidence producers, with unavailable evidence left null.
+    Cache gaps are projected transiently from the same raw evidence producers,
+    with unavailable evidence left null. Persistent ingestion is explicit.
     """
     repo = Path(repo_root).resolve()
     scan_roots = [_resolve(repo, Path(p)) for p in roots] if roots is not None else list(trials_roots(repo))
@@ -750,9 +717,7 @@ def connect_trials(
             cold[table] = table_rows
             if table_error is not None:
                 lake_errors.append(table_error)
-        backfill_cache: dict[str, str | None] = {}
         records: list[dict[str, Any]] = []
-        backfilled: list[str] = []
         in_memory: list[str] = []
         projection_errors: dict[str, str] = {}
         source_notes: set[str] = set()
@@ -783,34 +748,12 @@ def connect_trials(
                     hot=hot, target_root=target_root, cold=cold,
                 )
                 source_notes.update(notes)
-                if problems and read_only:
+                if problems:
                     error = _read_only_projection(row, values, trusted)
                     if error is None:
                         in_memory.append(f"{job_id}/{trial_id}")
                     else:
                         error = "; ".join([*problems, error])
-                elif problems:
-                    backfill_error = _backfill_job(
-                        repo_root=repo,
-                        job_dir=job_dir,
-                        target_root=target_root,
-                        cache=backfill_cache,
-                    )
-                    if backfill_error is None:
-                        backfilled.append(f"{job_id}/{trial_id}")
-                        values, trusted, problems, rereread = _resolve_projections(
-                            row=row,
-                            job_id=job_id,
-                            trial_id=trial_id,
-                            hot=hot,
-                            target_root=target_root,
-                            cold=cold,
-                        )
-                        source_notes.update(rereread)
-                        error = "; ".join(problems) if problems else None
-                    else:
-                        _null_untrusted(values, trusted)
-                        error = "; ".join([*problems, backfill_error])
                 else:
                     error = None
             cut_short = cut_short_by_our_limits(values["stop_reason"])
@@ -889,9 +832,6 @@ def connect_trials(
         "target_derived_root": str(target_root),
         "n_inventory": len(inventory),
         "n_rows": len(rows),
-        "n_backfilled": len(backfilled),
-        "backfilled": backfilled,
-        "read_only": read_only,
         "task_names": list(task_names) if task_names is not None else None,
         "in_memory_projections": in_memory,
         "unreadable_paths": unreadable,

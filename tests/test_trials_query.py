@@ -1,19 +1,14 @@
 """Behavioral tests for the transient trials census (HAR-178).
 
-Real DuckDB plus tiny parquet fixtures throughout. Posture enters
-through the real module with per-trial fixture overrides (the cut-short
-mapping always runs for real); ``process_job`` runs for real on the
-backfill paths, with a call-through counter proving per-job caching and
-a call-forbidding spy proving warm reuse. No SQL-text, column-order, or
-parser-wiring assertions: those are covered by behavior below.
+Real DuckDB plus tiny parquet fixtures throughout. Posture enters through
+the real module with per-trial fixture overrides. Querying preserves raw
+evidence and existing projections, including on cache gaps.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
-import shutil
 from pathlib import Path
 
 import pyarrow as pa
@@ -266,11 +261,6 @@ def test_census_mixed_jobs_and_nested_roots(tmp_path, monkeypatch):
         assert finished_rows == [(2,)]
         sneak = _fetch(con, 'SELECT COUNT(*) FROM "trials" WHERE "trial" = \'sneaky\'')[1]
         assert sneak == [(0,)]
-        partial_err = _fetch(
-            con, 'SELECT "projection_error" FROM "trials" WHERE "trial" = \'trial-partial\''
-        )[1]
-        assert "missing projections" in partial_err[0][0]
-        assert "backfill failed:" in partial_err[0][0]
     finally:
         con.close()
 
@@ -321,28 +311,6 @@ def test_native_pair_dedup_prefers_recorded_original(tmp_path, monkeypatch):
         con.close()
 
 
-def test_missing_projection_error_row_and_source_untouched(tmp_path):
-    runs = tmp_path / "runs"
-    derived = tmp_path / "derived"
-    derived.mkdir(parents=True)
-    job = _make_job(runs, "job-no-result", job_id="job-no-result", n_total=0, finished=False)
-    _make_trial(job, "task-a__u1", trial_id="tu-1", job_id="job-no-result",
-                trial_name="trial-unfinished", task_name="task-a")
-
-    con, _ = _open(tmp_path, [runs], derived)
-    try:
-        rows = _fetch(
-            con,
-            'SELECT "trial", "reward", "integrity", "projection_error" FROM "trials"',
-        )[1]
-        assert len(rows) == 1
-        name, reward, integrity, error = rows[0]
-        assert name == "trial-unfinished"
-        assert reward is None and integrity is None
-        assert not (job / "processed").exists()
-    finally:
-        con.close()
-
 
 def test_existing_projections_reused(tmp_path, monkeypatch):
     runs = tmp_path / "runs"
@@ -352,7 +320,7 @@ def test_existing_projections_reused(tmp_path, monkeypatch):
     def _forbid(*args, **kwargs):
         raise AssertionError("backfill must not run when projections are fresh")
 
-    monkeypatch.setattr("evallab.storage.trials.process_job", _forbid)
+    monkeypatch.setattr("evallab.process_job.process_job", _forbid)
     job = _make_job(runs, "job-calm", job_id="job-calm", n_total=1)
     _make_trial(job, "task__c1", trial_id="tc-1", job_id="job-calm",
                 trial_name="trial-calm", task_name="task")
@@ -462,70 +430,6 @@ def test_legit_clauses_unknown_false_independent(tmp_path, monkeypatch):
     finally:
         con.close()
 
-
-def test_backfill_success_then_warm_reuse(tmp_path, monkeypatch):
-    runs = tmp_path / "runs"
-    derived = tmp_path / "derived"
-    fixture = (
-        Path(__file__).resolve().parent / "fixtures" / "terminus2" / "job-terminus2"
-    )
-    assert fixture.is_dir()
-    shutil.copytree(fixture, runs / "job-terminus2")
-    decoy = derived / "job_id=job-terminus2" / "trial_id=trial-terminus-continued"
-    decoy.mkdir(parents=True, exist_ok=True)
-    for table, payload in (
-        ("trial_facts", [{"job_id": "job-terminus2", "trial_id": "trial-terminus-continued",
-                          "primary_reward": 7.5}]),
-        ("reward_facts", [{"job_id": "job-terminus2", "trial_id": "trial-terminus-continued",
-                           "reward_name": "reward", "reward_value": 7.5}]),
-        ("features", [{"job": "job", "trial": "trial",
-                       "copy_verdict": "stale", "stop_reason": "stale"}]),
-    ):
-        path = decoy / f"{table}.parquet"
-        pq.write_table(pa.Table.from_pylist(payload), path)
-        old = 946684800.0
-        os.utime(path, (old, old))
-
-    import evallab.process_job as process_job_module
-
-    calls: list[str] = []
-    real_process_job = process_job_module.process_job
-
-    def counting(job_dir, **kwargs):
-        calls.append(str(job_dir))
-        return real_process_job(job_dir, **kwargs)
-
-    monkeypatch.setattr("evallab.storage.trials.process_job", counting)
-
-    con, info = _open(tmp_path, [runs], derived)
-    try:
-        assert len(calls) == 1
-        assert info["projection_errors"] == {}
-        rewards = dict(
-            (r[0], r[1])
-            for r in _fetch(con, 'SELECT "trial", "reward" FROM "trials"')[1]
-        )
-        assert rewards["trial-continued"] == 1.0
-        assert rewards["trial-summarized"] == 1.0
-        assert rewards["trial-failed"] is None
-        first = sorted(_fetch(con, 'SELECT * FROM "trials" ORDER BY "trial"')[1])
-    finally:
-        con.close()
-
-    def _forbid(*args, **kwargs):
-        raise AssertionError("warm query must reuse projections without backfill")
-
-    monkeypatch.setattr("evallab.storage.trials.process_job", _forbid)
-    con, info = _open(tmp_path, [runs], derived)
-    try:
-        assert info["n_backfilled"] == 0
-        assert info["projection_errors"] == {}
-        second = sorted(_fetch(con, 'SELECT * FROM "trials" ORDER BY "trial"')[1])
-        assert second == first
-    finally:
-        con.close()
-
-
 def test_revision_and_cold_projections_join_natively(tmp_path, monkeypatch):
     runs = tmp_path / "runs"
     derived = tmp_path / "derived"
@@ -534,7 +438,7 @@ def test_revision_and_cold_projections_join_natively(tmp_path, monkeypatch):
     def _forbid(*args, **kwargs):
         raise AssertionError("lake projections must be reused without backfill")
 
-    monkeypatch.setattr("evallab.storage.trials.process_job", _forbid)
+    monkeypatch.setattr("evallab.process_job.process_job", _forbid)
     job = _make_job(runs, "job-lake", job_id="job-lake", n_total=2)
     _make_trial(job, "rev__a", trial_id="t-rev", job_id="job-lake",
                 trial_name="trial-rev", task_name="t")
@@ -699,10 +603,10 @@ def test_read_only_task_selection_projects_cache_gaps_without_writes(tmp_path, m
     def forbid_backfill(*args, **kwargs):
         raise AssertionError("read-only task lookup attempted a persistent backfill")
 
-    monkeypatch.setattr("evallab.storage.trials.process_job", forbid_backfill)
+    monkeypatch.setattr("evallab.process_job.process_job", forbid_backfill)
     con, info = connect_trials(
         repo_root=tmp_path, roots=[runs], derived_root=derived,
-        task_names=["mimo-v2.6-rl/format-code-task-000792"], read_only=True,
+        task_names=["mimo-v2.6-rl/format-code-task-000792"],
     )
     try:
         assert con.execute(
@@ -711,7 +615,6 @@ def test_read_only_task_selection_projects_cache_gaps_without_writes(tmp_path, m
         ).fetchall() == [
             ("selected-trial", 1.0, 0.0, 0.0, "task_complete", False, None),
         ]
-        assert info["n_backfilled"] == 0
         assert info["in_memory_projections"] == ["selected-job/selected-trial"]
     finally:
         con.close()
@@ -731,7 +634,7 @@ def test_read_only_projection_preserves_absent_reward_and_stop_evidence(tmp_path
     _write_json(trial / "result.json", result)
     con, _ = connect_trials(
         repo_root=tmp_path, roots=[runs], derived_root=tmp_path / "absent",
-        task_names=["format-code-task-000788"], read_only=True,
+        task_names=["format-code-task-000788"],
     )
     try:
         assert con.execute(

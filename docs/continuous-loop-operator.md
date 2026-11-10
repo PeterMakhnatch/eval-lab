@@ -21,7 +21,6 @@ drain recovery; the control-loop facade has no dispatch path. Data still owns
 | `src/evallab/ops_continuous.py` | Gate stack and state-dir oracles |
 | `src/evallab/continuous_control_plane.py` | Campaign `WorkloadOwner` adapter and non-dispatching loop facade |
 | `scripts/ops/keychain-inject.sh` | Secret *reference* probe (no values) |
-| `scripts/ops/cloud-worker-bootstrap.sh` | Vendor-neutral worker template |
 | `scripts/ops/launchd/com.petermakhnatch.evallab.continuous-operator.plist` | Disabled launchd unit |
 | `scripts/ops/systemd/evallab-continuous-operator.service` | Disabled systemd unit |
 | `scripts/ops/systemd/evallab-continuous-operator.timer` | Inactive timer |
@@ -57,7 +56,6 @@ scripts/ops/continuous-operator recover --state-dir /tmp/op-state
 scripts/ops/continuous-operator rotate-logs --state-dir /tmp/op-state
 scripts/ops/continuous-operator rotate-cas --state-dir /tmp/op-state
 scripts/ops/keychain-inject.sh
-scripts/ops/cloud-worker-bootstrap.sh
 ```
 
 `--agent codex` (or any non-oracle/nop) on `dry-run` returns `billable_refused`.
@@ -134,7 +132,6 @@ policy fields also keep the operator DISABLED.
   `/etc/evallab/trusted-approval-keys.json` (uid/gid 65532, mode 0440).
   Docker secret `evallab-approval-hmac` uid/gid 65532 mode 0440. tmpfs only
   `/tmp:mode=0700`. Do not `docker compose up`.
-- Cloud bootstrap prints the worker protocol and exits `0` without starting a VM.
 
 ## Drain vs kill
 

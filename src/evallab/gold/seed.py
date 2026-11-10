@@ -232,5 +232,5 @@ def impossible(ctx: BankContext):
                                  "G1_pass": row["G1_pass"], "G2_pass": row["G2_pass"],
                                  "source_verified": review.get("source_verified"),
                                  "variant_input_ref": str(directory / "input-tree"),
-                                 "variant_input_sha256": receipt.get("variant_sha256"),
+                                 "source_variant_sha256": receipt.get("variant_sha256"),
                                  "campaign_status": "INCOMPLETE_OR_INVALID"})

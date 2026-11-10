@@ -9,6 +9,10 @@ def counts(rows: list[IssueItem]) -> dict[str, Any]:
     groups: dict[str, Any] = {}
     for source in sorted({row.source for row in rows}):
         selected = [row for row in rows if row.source == source]
+        resolved = [row for row in selected if any(
+            ref.normalized_step_id is not None and ref.event_kind in {"call", "result"}
+            and ref.resolution != "unmatched-result" for ref in row.step_locators
+        )]
         groups[source] = {
             "rows": len(selected),
             "label_state": dict(sorted(Counter(row.label_state for row in selected).items())),
@@ -16,10 +20,10 @@ def counts(rows: list[IssueItem]) -> dict[str, Any]:
             "by_label_state_mechanism": dict(sorted(Counter(
                 f"{row.label_state}|{row.mechanism}" for row in selected
             ).items())),
-            "with_resolved_steps": sum(any(
-                ref.normalized_step_id is not None and ref.event_kind in {"call", "result"}
-                and ref.resolution != "unmatched-result" for ref in row.step_locators
-            ) for row in selected),
+            "with_resolved_steps": len(resolved),
+            "resolved_steps_by_label_state": dict(sorted(Counter(
+                row.label_state for row in resolved
+            ).items())),
             **{field: dict(sorted(Counter(
                 "unknown" if getattr(row, field) is None else str(getattr(row, field)).lower()
                 for row in selected

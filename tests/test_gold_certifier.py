@@ -299,7 +299,6 @@ def test_cli_plan_offline(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
             "--plan",
         ]
     )
-    assert args.rounds == 1  # default keeps the one-round behavior
 
     rc = _certify_gold_command(args, tmp_path)
     assert rc == 0
@@ -322,31 +321,15 @@ def _cli_args(tmp_path: Path, *extra: str) -> argparse.Namespace:
     )
 
 
-def test_cli_plan_reports_rounds_and_probes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    args = _cli_args(tmp_path, "--plan", "--json", "--rounds", "3", "--probes-per-round", "4")
+def test_cli_plan_reports_unexercised_gates(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    args = _cli_args(tmp_path, "--plan", "--json")
     assert _certify_gold_command(args, tmp_path) == 0
     plan = json.loads(capsys.readouterr().out)
-    assert plan["rounds"] == 3 and plan["probes_per_round"] == 4
     assert plan["injection_controls"] is False
     assert plan["unexercised_gates"] == ["gate3_witness", "gate4_exit0_pth"]
     assert plan["certification_possible"] is False
 
 
-@pytest.mark.parametrize("flag", ["--rounds", "--probes-per-round"])
-def test_cli_rejects_non_positive_rounds_and_probes(
-    tmp_path: Path, flag: str, capsys: pytest.CaptureFixture[str]
-) -> None:
-    args = _cli_args(tmp_path, "--plan", flag, "0")
-    assert _certify_gold_command(args, tmp_path) == 1
-    assert "must be >= 1" in capsys.readouterr().err
-
-
-def test_cli_refuses_multi_round_execution_instead_of_silently_doing_nothing(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    args = _cli_args(tmp_path, "--out", str(tmp_path / "out"), "--rounds", "2")
-    assert _certify_gold_command(args, tmp_path) == 2
-    assert "not implemented" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("planning", [False, True])

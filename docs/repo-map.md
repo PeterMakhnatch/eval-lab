@@ -485,7 +485,7 @@ inputs:
   - path: src/evallab/host_isolation.py
     digest: sha256:658d839cd81510be60590a285b4e0aeb1ae4facd9171795d526f1b992b4210ca
   - path: src/evallab/host_task_staging.py
-    digest: sha256:d6c3c919544e53867717084e3a39169cb196d4a2ce88c20ec4d36ebd1f759e4d
+    digest: sha256:800c24c35e5dad4d8c0cdb0106e511a901f35a7e99e171a1b2e0c4fb77d5cb37
   - path: src/evallab/hub_trials.py
     digest: sha256:5ddf94cc407d03f2b871faec2ac225973b17946ba22ac7dbf6b5f5920e64f59e
   - path: src/evallab/ingest_verify.py

@@ -42,7 +42,11 @@ from evallab.execution_contracts import (
     MAX_TRIAL_TIMEOUT_SECONDS,
     PRIVATE_PERSIST_MODE,
     ZAI_MINISWE_AGENT_IMPORT_PATH,
+    ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS,
     ZAI_OPENAPI_MODEL_SELECTOR,
+    ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
+    ZAI_OPENAPI_PROXY_TOKEN,
+    ZAI_OPENAPI_PROXY_URL,
     RunRequest,
     build_command,
     resolve_harbor_agent,
@@ -215,6 +219,101 @@ def test_wrapper_sanitizes_trajectories(
     assert native_data["content"] == "<redacted>"
     assert atif_data["authorization"] == "<redacted>"
     assert native.stat().st_mode & 0o777 == PRIVATE_PERSIST_MODE
+
+def test_model_connection_scrubs_credentials_and_base_urls(
+    wrapper_module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``model_connection.env`` must never carry a Z.ai provider credential."""
+    monkeypatch.delenv(ZAI_OPENAPI_PROXY_CAPABILITY_ENV, raising=False)
+    upstream_url = "https://open.bigmodel.cn/api/paas/v4"
+    leaked = {
+        "ZAI_OPENAPI_API_KEY": SECRET_SENTINEL,
+        "OPENAI_BASE_URL": upstream_url,
+        "OPENAI_API_BASE": upstream_url,
+        "ZAI_BASE_URL": upstream_url,
+        "UNRELATED_SETTING": "keep-me",
+    }
+    agent = wrapper_module.SecretSafeZaiMiniSweAgent(
+        _Connection(provider="zai", model="zai/glm-5.3-flash", env=dict(leaked))
+    )
+
+    resolved = agent.model_connection
+
+    for name in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS:
+        assert name not in resolved.env
+    for name, value in resolved.env.items():
+        if name.endswith("_BASE_URL") or name.endswith("_API_BASE"):
+            assert value == ZAI_OPENAPI_PROXY_URL, name
+    assert SECRET_SENTINEL not in resolved.env.values()
+    assert resolved.env["UNRELATED_SETTING"] == "keep-me"
+    assert resolved.env["MSWEA_API_KEY"] == ZAI_OPENAPI_PROXY_TOKEN
+    assert resolved.env["ZAI_API_KEY"] == ZAI_OPENAPI_PROXY_TOKEN
+    assert resolved.api_key == ZAI_OPENAPI_PROXY_TOKEN
+    assert resolved.base_url == ZAI_OPENAPI_PROXY_URL
+    assert resolved.configured_base_url == ZAI_OPENAPI_PROXY_URL
+
+
+def test_model_connection_uses_capability_token_and_agent_model(
+    wrapper_module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(ZAI_OPENAPI_PROXY_CAPABILITY_ENV, "capability-token-123")
+    agent = wrapper_module.SecretSafeZaiMiniSweAgent(
+        _Connection(provider="zai"),
+        model_name="zai/glm-5.3-flash",
+    )
+    resolved = agent.model_connection
+    assert resolved.api_key == "capability-token-123"
+    assert resolved.env["MSWEA_API_KEY"] == "capability-token-123"
+    assert resolved.env["ZAI_API_KEY"] == "capability-token-123"
+
+
+def test_model_connection_rejects_unallowed_model(wrapper_module: ModuleType) -> None:
+    agent = wrapper_module.SecretSafeZaiMiniSweAgent(
+        _Connection(provider="zai", model_name="zai/glm-4")
+    )
+    with pytest.raises(ValueError, match="requires model in"):
+        _ = agent.model_connection
+
+
+def test_wrapper_rejects_unallowed_model_name_argument(
+    wrapper_module: ModuleType,
+) -> None:
+    with pytest.raises(ValueError, match="requires model in"):
+        wrapper_module.SecretSafeZaiMiniSweAgent(
+            _Connection(provider="zai"), model_name="glm-4"
+        )
+
+
+def test_wrapper_blocks_host_secret_value_in_exec_env(
+    wrapper_module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TINKER_API_KEY", SECRET_SENTINEL)
+    agent = wrapper_module.SecretSafeZaiMiniSweAgent(
+        _Connection(provider="zai", model="zai/glm-5.3-flash")
+    )
+    with pytest.raises(ValueError, match="cannot enter the task exec environment"):
+        asyncio.run(
+            agent.exec_as_agent(
+                object(),
+                "echo hello",
+                env={"INNOCENT_LABEL": SECRET_SENTINEL},
+            )
+        )
+
+
+def test_wrapper_exec_as_agent_passes_clean_environment(
+    wrapper_module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ZAI_OPENAPI_PROXY_CAPABILITY_ENV, raising=False)
+    agent = wrapper_module.SecretSafeZaiMiniSweAgent(
+        _Connection(provider="zai", model="zai/glm-5.3-flash")
+    )
+    clean_env = {"TASK_LABEL": "value"}
+    result = asyncio.run(
+        agent.exec_as_agent(object(), "echo hello", env=dict(clean_env))
+    )
+    assert result == "ok"
+    assert agent.exec_calls == [("echo hello", clean_env)]
 
 
 # ---------------------------------------------------------------------------

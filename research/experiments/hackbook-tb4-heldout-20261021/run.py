@@ -28,7 +28,7 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "src"))
 
-from evallab.hackbook import match_target  # noqa: E402
+from evallab.hackbook.matcher import match_target  # noqa: E402
 
 EXPOSURE = REPO / "research/answer-keys/splits/exposure.jsonl"
 DEFAULT_VIEWS = Path.home() / "Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs"

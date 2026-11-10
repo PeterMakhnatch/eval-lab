@@ -20,9 +20,6 @@ from evallab.hackbook import (
     list_entries,
     load_hackbook,
     load_taxonomy,
-    match_target,
-    match_task,
-    match_trace,
     search_entries,
     validate_no_tb4_test_leak,
 )
@@ -31,6 +28,9 @@ from evallab.hackbook.matcher import (
     calibrate_pool,
     extract_structural_signals,
     load_task_surface,
+    match_target,
+    match_task,
+    match_trace,
     read_outcome,
     score_trace,
     task_gate_ids,
@@ -511,18 +511,6 @@ def test_reference_patch_feeds_the_untested_block_signal(tmp_path: Path) -> None
         match_task(task, entries, reference=tmp_path / "missing.patch")
 
 
-def test_cli_reference_flag_reports_the_blocks(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    task = _reference_task(tmp_path / "pkg")
-    patch = tmp_path / "fix.patch"
-    _write(patch, REFERENCE_PATCH)
-    code, out = _cli(capsys, "match", str(task), "--reference", str(patch), "--json")
-    assert code == 0
-    result = json.loads(out)
-    hit = next(m for m in result["matches"] if m["entry_id"] == "HB-TS01-009")
-    assert "untested_reference_subblock" in hit["matched_signals"]
-    assert any("app/pricing.py:11" in ref for ref in hit["evidence_refs"])
 
 
 def test_solution_code_without_a_patch_still_flags_functions_no_test_calls(tmp_path: Path) -> None:
@@ -934,32 +922,6 @@ def test_task_gate_lists_the_weaknesses_the_task_package_really_has(tmp_path: Pa
     assert payload["task_gate"] == gate
 
 
-def test_fleet_rates_flag_entries_that_fire_on_the_whole_fleet(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    fleet = tmp_path / "fleet"
-    for name in ("a", "b", "c"):
-        _trace_file(fleet / name / "actions.jsonl", ["git log --all --oneline"])
-    rates = tmp_path / "rates.json"
-    code, _ = _cli(
-        capsys, "calibrate", str(fleet), "--kind", "trace", "--write-rates", str(rates), "--json"
-    )
-    body = json.loads(rates.read_text())
-    assert code == 0 and body["schema"] == "evallab.hackbook.fleet-rates/v0" and body["n"] == 3
-    assert body["rates"]["HB-RS03-001"] == 1.0
-
-    probe = _trace_file(tmp_path / "probe.jsonl", ["git log --all --oneline"])
-    plain = match_target(probe, entries=SYNTHETIC, emit_findings_dir=tmp_path / "plain")
-    assert len(plain["findings"]) == 1
-    gated = match_target(
-        probe, entries=SYNTHETIC, fleet_rates=rates, emit_findings_dir=tmp_path / "gated"
-    )
-    hit = next(m for m in gated["matches"] if m["entry_id"] == "HB-RS03-001")
-    assert hit["fleet_rate"] == 1.0 and hit["non_discriminating"] is True
-    assert gated["findings"] == []  # a hit that every fleet member shares is never a finding
-    lenient = match_target(probe, entries=SYNTHETIC, fleet_rates={"HB-RS03-001": 0.6})
-    lenient_hit = next(m for m in lenient["matches"] if m["entry_id"] == "HB-RS03-001")
-    assert lenient_hit["fleet_rate"] == 0.6 and lenient_hit["non_discriminating"] is False
 
 
 def test_context_tripwires_stay_below_the_strong_tier_and_are_not_emitted(tmp_path: Path) -> None:
@@ -989,18 +951,6 @@ def test_calibrate_flags_entries_that_fire_on_most_of_a_pool(tmp_path: Path) -> 
     assert report["entries"]["HB-TS04-001"]["share"] == 0.75
 
 
-def test_calibrate_cli_reports_the_universal_entries(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    pool = tmp_path / "pool"
-    for name in ("a", "b"):
-        _write(pool / name / "instruction.md", "do it\n")
-        _write(pool / name / "tests" / "test_x.py", 'sys.path.insert(0, "/app")\n')
-    code, out = _cli(capsys, "calibrate", str(pool), "--json", "--threshold", "0.9")
-    report = json.loads(out)
-    assert code == 0 and report["schema"] == "evallab.hackbook.calibration/v0"
-    assert report["n"] == 2 and report["zero_hit"] == 0
-    assert "HB-TS04-001" in report["universal"]  # fires on both packages of the pool
 
 
 # --------------------------------------------------------------------------- CLI
@@ -1029,18 +979,6 @@ def test_cli_list_show_search(capsys: pytest.CaptureFixture[str]) -> None:
     assert code == 0 and "HB-" in out
 
 
-def test_cli_match(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    task = _planted_task(tmp_path / "pkg")
-    code, out = _cli(capsys, "match", str(task), "--json", "--top", "5")
-    payload = json.loads(out)
-    assert code == 0 and payload["kind"] == "task" and 0 < len(payload["matches"]) <= 5
-    findings = tmp_path / "findings"
-    code, out = _cli(capsys, "match", str(task), "--emit-findings", str(findings))
-    assert code == 0 and "task planted-task" in out and "qa.finding/v1" in out
-    assert load_findings_dir(findings)
-    trace = _atif(tmp_path / "trajectory.json")
-    code, out = _cli(capsys, "match", str(trace), "--kind", "trace", "--class", "RS03")
-    assert code == 0 and "RS03" in out
 
 
 def test_cli_coverage(capsys: pytest.CaptureFixture[str]) -> None:
@@ -1133,9 +1071,3 @@ def test_direction_keeps_the_side_the_caller_hunts_plus_either(tmp_path: Path) -
         match_task(task, direction="pass")
 
 
-def test_cli_match_direction(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    task = _planted_task(tmp_path / "pkg")
-    code, out = _cli(capsys, "match", str(task), "--json", "--direction", "false_pass")
-    payload = json.loads(out)
-    assert code == 0 and payload["matches"]
-    assert {m["direction"] for m in payload["matches"]} <= {"false_pass", "either"}

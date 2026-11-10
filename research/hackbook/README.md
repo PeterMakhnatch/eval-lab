@@ -3,7 +3,7 @@
 **Hackbook v0** (`evallab.hackbook.entry/v0`) is Eval Lab's versioned catalog of known task-side benchmark defects (`TS01`–`TS11`) and run-side reward-hacking / evaluation failure modes (`RS01`–`RS08`). Each entry records:
 
 - **`mechanism`**: How the task defect or run-side behavior produces an unearned pass (`false_pass`) or undeserved failure (`false_fail`).
-- **`signatures`**: File globs, file regexes, trajectory command regexes, diff regexes, and canonical `structural_signals` used by `evallab hackbook match`.
+- **`signatures`**: File globs, file regexes, trajectory command regexes, diff regexes, and canonical `structural_signals` used by internal matcher consumers.
 - **`detection_recipe`**: Concrete `static_check`, `tripwire_rule`, or `probe_test` recipe aligned with the 11 canonical `detection_method_ids` (`reference_mutation`, `differential_tests`, `reward_seeker`, `static_review`, `failure_clustering`, `trace_judge`, `tripwires`, `fixed_task_rerun`, `controls`, `equivalent_rewrite`, `grader_fuzz`).
 - **`exploit_template`**: Preconditions, probe steps, illustrative snippet, and differential verdict (`original_grader` vs `fixed_grader`) for reward-seeker / control verification.
 - **`fix_pattern`**: Target fix location (`grader`, `environment`, `instruction`, `answer key / reference`, `task`), summary, verification checklist (`reference passes 3/3`, `nop fails 3/3`, `witness fails 3/3`), and example diff or rule.
@@ -53,59 +53,25 @@ evallab hackbook show hardcoded-fixture-outputs --json
 # Relevance search across the catalog
 evallab hackbook search "conftest sitecustomize" --limit 5
 
-# Match a task package, exported view, or trajectory against the catalog
-evallab hackbook match path/to/task_dir --kind task --top 10
-evallab hackbook match path/to/task_dir --direction false_pass   # reward seeker: entries that can yield a wrong pass (plus either)
-evallab hackbook match path/to/trial_dir --kind trace --task path/to/task_dir
-evallab hackbook match path/to/view_dir --kind view --emit-findings /tmp/findings
-
-# Share of a pool each entry fires on (flags entries that cannot tell its tasks/traces apart)
-evallab hackbook calibrate path/to/pool_of_task_dirs --threshold 0.4
-evallab hackbook calibrate path/to/trace_dirs --kind trace --write-rates fleet-rates.json
-
-# Flag entries that fire on (nearly) every item of a fleet; they are never emitted as findings
-evallab hackbook match path/to/task_dir --fleet-rates fleet-rates.json
+# Inspect catalog coverage and defensive playbook cards
+evallab hackbook coverage
+evallab hackbook cards
 ```
 
 ```python
 from pathlib import Path
-from evallab.hackbook import load_hackbook, match_target, match_task, match_trace
+from evallab.hackbook import load_hackbook
+from evallab.hackbook.matcher import match_task, match_trace
 
 entries = load_hackbook()
 task_hits = match_task(Path("path/to/task"), entries)
 trace_hits = match_trace(Path("path/to/trajectory.json"), entries)
 ```
 
-### Rule QC on labelled DEV units
-
-`hackbook qc` accepts either raw traces (`id`, `label`, `agent_steps`, optional
-`steps`) or precomputed units (`case_id`, `label`, `fired`, a list of registered
-runtime rule IDs). The input modes are mutually exclusive:
-
-```bash
-evallab hackbook qc --input admitted-traces.jsonl --dataset-id trace-dev
-evallab hackbook qc --cases-input admitted-step-cases.jsonl --dataset-id exact-step-dev \
-  --out /tmp/hackbook-step-qc.json --detail-out /tmp/hackbook-step-detail.json
-```
-
-Precomputed units preserve context-dependent detections without rescanning isolated
-steps or attributing every earlier prefix hit to the current step. Labels are
-`positive`, `clean` or `unscored`; duplicate unit IDs, invalid labels and unknown
-rule IDs are rejected before outputs are written. Missing or ambiguous passage
-evidence is not clean, and a false `passage_positive` flag alone does not certify it.
-The producer must establish cross-key DEV clearance before reading actor inputs
-and must keep publisher labels out of detector inputs.
-
-The [native-coordinate case builder](../experiments/tw4-passage-localization-20261027/metrics.py)
-keeps exact-anchor QC separate from window-localization diagnostics. Its windows
-use native index distance, not list offsets, and context-only hits cannot erase a
-candidate-alert miss. Do not move carrier-addressed gold labels silently.
-
-Reports retain schema-v1 all-rule marginal counts; the detail output also exposes
-`verdict_marginal_true_positive_n`, which is not reduced by diagnostic cofirings.
-Before/after alert unions cover Hackbook verdict rules only, not the complete live
-Stage-1 monitor with legacy alerts and citable-evidence filtering. Candidate-alert
-eligibility is also distinct from pre-action DENY (`gate=True`).
+The standalone `match`, `calibrate`, and `qc` commands are retired.
+Internal task and trace consumers still use the unchanged matcher module.
+Recorded QC reports and the pure scoring functions remain available.
+The historical measurements below describe the retired command interface.
 
 ### Source-only runtime diagnostics
 

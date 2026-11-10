@@ -35,6 +35,13 @@ from evallab.production.cloud_trace_db import (
 )
 from evallab.production.corpus_queue import CorpusRegistry
 
+# Real shared temp root, captured at import before the conftest per-test
+# tempdir redirect runs. The postgres fixture directory deliberately outlives
+# single tests (reaped across sessions), so it must not go under the per-test
+# root, which teardown removes.
+_SHARED_TEMP_ROOT = Path(tempfile.gettempdir()).resolve()
+
+
 _ENVIRONMENT = (
     "DATABASE_URL", "EVALLAB_CLOUD_DATABASE_URL", "EVALLAB_S3_BUCKET",
     "EVALLAB_S3_ENDPOINT_URL", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
@@ -146,9 +153,15 @@ def postgres_server() -> Iterator[str]:
                 break
     if initdb is None or pg_ctl is None:
         pytest.skip("native PostgreSQL server binaries are not installed")
-    for stale in Path(tempfile.gettempdir()).resolve().glob("cloud-trace-pg-*"):
+    # The conftest temp-root redirect patches tempfile.tempdir per test, but
+    # this module-scoped fixture instantiates lazily inside function-scoped
+    # requests. _SHARED_TEMP_ROOT was captured at import, before any redirect,
+    # so the reaper and mkdtemp keep using the real shared root.
+    for stale in _SHARED_TEMP_ROOT.glob("cloud-trace-pg-*"):
         _reap_postgres_directory(stale, pg_ctl)
-    root = Path(tempfile.mkdtemp(prefix="cloud-trace-pg-")).resolve()
+    root = Path(
+        tempfile.mkdtemp(prefix="cloud-trace-pg-", dir=_SHARED_TEMP_ROOT)
+    ).resolve()
     data = root / "data"
     lock = (root / ".fixture-lock").open("w+")
     fcntl.flock(lock, fcntl.LOCK_EX)

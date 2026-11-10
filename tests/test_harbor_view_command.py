@@ -141,25 +141,6 @@ def _two_trial_job(tmp_path: Path, name: str = "job-a") -> Path:
     )
 
 
-@pytest.fixture(autouse=True)
-def _viewer_roots_inside_tmp_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep implicit viewer roots inside ``tmp_path``.
-
-    Without ``--out`` the command allocates one with ``tempfile.mkdtemp``
-    (harbor_view.py:1260). Patching the module attribute keeps every test,
-    including the ``runpy`` entry point that re-imports ``tempfile``, from
-    leaving directories in the shared system temp directory.
-    """
-    real_mkdtemp = tempfile.mkdtemp
-
-    def scoped_mkdtemp(
-        suffix: str | None = None, prefix: str | None = None, dir: str | None = None
-    ) -> str:
-        return real_mkdtemp(suffix=suffix, prefix=prefix, dir=dir or str(tmp_path))
-
-    monkeypatch.setattr(tempfile, "mkdtemp", scoped_mkdtemp)
-
-
 # ---------------------------------------------------------------------------
 # Argument and build refusals
 # ---------------------------------------------------------------------------
@@ -402,8 +383,10 @@ def test_view_command_launches_viewer_with_parser_defaults(
     assert "running: harbor view " in out
     root_line = next(line for line in out.splitlines() if line.startswith("viewer root: "))
     viewer_root = Path(root_line.removeprefix("viewer root: "))
+    # The viewer root must stay inside the test's tempfile root, never in the
+    # shared system temp directory (conftest redirects tempfile.tempdir per test).
     assert viewer_root.is_dir()
-    assert viewer_root.is_relative_to(tmp_path)
+    assert viewer_root.is_relative_to(Path(tempfile.gettempdir()))
     assert viewer_root.name.startswith("evallab-view-")
     [(cmd, kwargs)] = fake.calls
     assert cmd[:6] == ["harbor", "view", str(viewer_root), "--jobs", "--port", "8080"]
@@ -659,4 +642,8 @@ def test_module_entry_point_exits_zero_with_no_launch(
     assert excinfo.value.code == 0
     out = capsys.readouterr().out
     root_line = next(line for line in out.splitlines() if line.startswith("viewer root: "))
-    assert Path(root_line.removeprefix("viewer root: ")).is_relative_to(tmp_path)
+    # Same invariant: the entry point's viewer root stays in the test's
+    # tempfile root, not the shared system temp directory.
+    assert Path(root_line.removeprefix("viewer root: ")).is_relative_to(
+        Path(tempfile.gettempdir())
+    )

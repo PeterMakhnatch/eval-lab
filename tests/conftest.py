@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import tempfile
 import zlib
 from collections.abc import Generator
 from datetime import UTC, datetime
@@ -47,6 +49,33 @@ def _isolate_results_home(
     isolated = tmp_path / "results-home"
     monkeypatch.setenv(ENV_VAR, str(isolated))
     yield isolated
+
+
+@pytest.fixture(autouse=True)
+def _isolate_temp_root(monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
+    """Every test gets its own tempfile root so nothing lands in the shared
+    system temp directory.
+
+    Tests and the children they spawn that call ``tempfile.mkdtemp``,
+    ``TemporaryDirectory`` and friends without ``dir=`` used to leave folders
+    in the shared system temp directory (HAR-374: 25 from the DeepSeek adapter
+    tests alone). Point ``tempfile.tempdir`` at a per-test directory for
+    in-process calls and ``TMPDIR`` at the same directory for subprocesses.
+    The directory sits directly in the real temp root to keep AF_UNIX socket
+    paths under the macOS 104-byte limit, and is removed at teardown.
+    ``tempdirb`` is cleared (on 3.13+, where it exists) so a bytes-tempdir
+    cached before the redirect is recomputed from the patched root. Broader
+    fixtures that still need the shared root — the ``postgres_server``
+    servers, whose directories deliberately outlive single tests — capture
+    it at module import, before this fixture runs.
+    """
+    root = Path(tempfile.mkdtemp(prefix="evl-t-")).resolve()
+    monkeypatch.setattr(tempfile, "tempdir", str(root))
+    # tempdirb exists on 3.13+ only; raising=False keeps 3.12 working.
+    monkeypatch.setattr(tempfile, "tempdirb", None, raising=False)
+    monkeypatch.setenv("TMPDIR", str(root))
+    yield root
+    shutil.rmtree(root, ignore_errors=True)
 
 
 _COLLECTED_MODULES: pytest.StashKey[frozenset[str]] = pytest.StashKey()

@@ -28,7 +28,7 @@ Details: [docs/mimo/README.md](docs/mimo/README.md),
 
 | Area | Question | Main tools | State |
 |---|---|---|---|
-| **Task and grader integrity** | Can this task be passed without doing the work? | `hack scan`, `tasks admit`, `cheat run`, `hack mutate`, `vcheck`, `audit`; hardening transforms (`tasks derive`, `mimo-clean`) | Applied to the 2,698 MiMo code tasks |
+| **Task and grader integrity** | Can this task be passed without doing the work? | `hack scan`, `tasks admit`, `cheat run`, `hack mutate`, `audit`; hardening transforms (`tasks derive`, `mimo-clean`) | Applied to the 2,698 MiMo code tasks |
 | **Cheating detection** | Did this trajectory cheat? | `detectors` scorecard, rules and LLM readers, `watch` (live alert and stop), Integrity dashboard, CheatBench port | Scored on labelled corpora |
 | **Execution and evidence** | Run it once, keep the proof | `run`, `matrix`, `submit`/`approve`/`tick`; local Docker, Daytona, Modal; model-call capture; ATIF → Parquet/DuckDB | Daily use |
 | **Experiments on clean tasks** | Does a model, prompt or training change help? | Baselines, SFT and GEPA pilots, synthetic benchmarks, Harbor ↔ Inspect ↔ Karotte interop | Small pilots |
@@ -94,9 +94,7 @@ records 8 or 9 of 14 attacks per task, graded reward 0, and no tamper refusal.
 Graded subset cells exist for 7 refused rows
 ([original subset cells](research/experiments/mimo-clean-v6/ladder-graded-subset.json);
 [P0 subset cells](research/experiments/mimo-clean-v6/ladder-graded-subset-p0.json)).
-The other MiMo domains have not been cleaned; and `vcheck`, the
-red/blue grader audit modelled on Tokenless EnvCheck, is built but has not run
-a campaign.
+The other MiMo domains have not been cleaned.
 
 ## Quick start
 

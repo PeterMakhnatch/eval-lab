@@ -20,7 +20,6 @@ from typing import Any, NamedTuple
 
 from evallab import hack_drop as hd
 from evallab.line import j3
-from evallab.line.copy_history import history_copy
 from evallab.line.io import (
     LABEL_KEYS,
     canonical_hash,
@@ -354,7 +353,6 @@ def _admit_sources(spec: dict[str, Any], root: Path) -> Intake:
                 run_id=run_id,
                 sealed=sealed,
                 require_trajectory=False,
-                retain_copy_outputs=spec.get("copy_history", False),
             )
         except AdmissionRefused as error:
             raise hd.RefusedRun(f"rollout not admitted: {error.detail}") from error
@@ -527,19 +525,6 @@ def _evaluate(
             status_actions=status_actions,
         )
         l0 = hd.evaluate_l0_stage(item)
-        if spec.get("copy_history", False):
-            copied = history_copy(item)
-            if copied is not None:
-                l0 = hd.StageVerdict(
-                    "l0",
-                    "drop",
-                    sorted(set(l0.reasons) | {"COPY_HISTORY_CONFIRMED"}),
-                    sorted(
-                        set(l0.evidence_steps)
-                        | {step for step in copied["source_steps"] if isinstance(step, int)}
-                    ),
-                    {**l0.details, "copy_history": copied},
-                )
         record: dict[str, Any] | None = None
         if stored_ar is not None and mode == "live":
             stored = stored_ar[item.item_id]

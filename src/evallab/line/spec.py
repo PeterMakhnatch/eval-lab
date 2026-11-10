@@ -35,8 +35,8 @@ def load_spec(path: Path) -> dict[str, Any]:
         r"[A-Za-z0-9][A-Za-z0-9_.-]*", spec["batch_id"]
     ):
         raise ValueError("batch_id must be a safe single directory name")
-    if "copy_history" in spec and not isinstance(spec["copy_history"], bool):
-        raise ValueError("copy_history must be a boolean")
+    if "copy_history" in spec:
+        raise ValueError("copy_history is no longer supported")
 
     def absolute(value: Any, *, link: bool = True) -> str:
         if not isinstance(value, str) or not value.strip():

@@ -329,52 +329,9 @@ invalidation bookkeeping remains unchanged, so an exclusion cannot create anothe
 See the [monotone registration](../research/experiments/ev1105-residual3/PREREG.md)
 for the precise boundaries and the inherited held-out limits.
 
-### Confirmed history copying (opt-in)
+The native line no longer offers the optional history-copy mode or its replay flag.
+The retained L0 rules and default replay decisions do not change.
 
-The optional spec boolean `copy_history` defaults to `false`. When enabled, the
-line reuses `evallab.copy_check` on the admitted trajectory, final diff and
-retained terminal output. An exact non-test Git hunk or at least 5 substantive
-matching added lines can produce the L0 drop reason `COPY_HISTORY_CONFIRMED`.
-The normal stage precedence still applies. Receipts record the matcher version,
-match counts and source step IDs, not commands or copied code.
-
-The signal requires output bound to a Git object read with an explicit object
-ID, remote ref, or ancestor of `HEAD`. Compound commands and terminal transport
-envelopes use the audited output attribution. A retained pane supplies output
-only when its command prefix occurs exactly once in the trajectory and pane.
-With this flag, admission retains `agent/terminus_2.pane` and
-`agent/evallab-output/step-NNNN.txt`; both remain covered by the intake digest.
-Evaluation never opens a transcript path or reads the host to resolve a spill.
-The signal uses the admitted final/native diff without changing other stages.
-
-Running `git log` or `git show` alone does not establish copying. Unmatched
-output, unrelated output, test-only changes, symbolic `HEAD` operands and code
-the agent already typed stay negative. Package/cache copying is not history copying.
-Missing diffs, clipped output and unavailable retained output limit coverage.
-An explicit object ID can still name the task's base commit. The matcher does
-not prove that the object is outside the permitted baseline. Absence of this
-signal does not prove independent work. Keep the flag OFF unless the task's
-source policy and measured false alarms support its use.
-
-Use `"copy_history": true` for a new batch spec. To compare the candidate against
-the existing frozen baseline without changing any frozen input, use:
-
-```bash
-make line-replay LINE_REPLAY_ARGS='--copy-history'
-# Equivalent wrapper:
-uv run python scripts/line-replay.py --copy-history
-# A separate DEV spec and baseline:
-uv run evallab line replay /absolute/path/to/spec.json \
-  --baseline /absolute/path/to/baseline.json --copy-history --json
-```
-
-The replay flag applies only after the frozen input checks. The candidate batch
-spec records `copy_history: true`, and normal batch checks recompute the signal.
-Replay still compares all corpora and decisions. It refuses the combination
-`--copy-history --write-baseline`; this candidate flag cannot refresh a baseline.
-The standard replay remains unchanged when the flag is absent. Accept a candidate
-only after the full-line DEV keep/review/drop comparison shows no increase in
-cheat keeps in any corpus.
 
 ### Diff provenance
 

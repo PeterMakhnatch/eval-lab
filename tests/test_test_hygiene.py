@@ -1,11 +1,13 @@
-"""Test hygiene checks for bare-module imports, shard overrides, and slow-test budgets."""
+"""Test hygiene checks for imports, subprocess isolation, and slow-test budgets."""
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import importlib.util
 import json
 import os
+import subprocess
 import tomllib
 import zlib
 from collections.abc import Sequence
@@ -388,3 +390,225 @@ def test_slow_test_budget_reads_xdist_stats() -> None:
         "tests/test_worker.py::test_heavy: 88.00s",
         "tests/test_worker.py::test_heavy: 88.00s",
     ]
+
+
+_MODEL_CLI_BINARIES = (
+    "codex",
+    "claude",
+    "agy",
+    "cursor-agent",
+    "opencode",
+    "omp",
+    "security",
+    "gemini",
+)
+_MODEL_CLI_FORMS = (
+    "absolute",
+    "cwd-relative",
+    "path",
+    "relative-path",
+    "executable",
+    "executable-path",
+    "symlink",
+)
+
+
+def _write_fake_model_cli(root: Path, binary: str) -> Path:
+    executable = root / binary
+    executable.write_text(
+        "#!/bin/sh\n"
+        "printf 'fake-model-cli\\n'\n"
+        'printf "launched\\n" > "$1"\n'
+    )
+    executable.chmod(0o755)
+    return executable
+
+
+def _model_cli_invocation(
+    form: str, executable: Path, marker: Path, tmp_path: Path
+) -> tuple[list[str], dict[str, Any]]:
+    options: dict[str, Any] = {"cwd": tmp_path}
+    command = str(executable)
+    if form == "cwd-relative":
+        command = f"./{executable.name}"
+        options["cwd"] = executable.parent
+    elif form == "path":
+        command = executable.name
+        options["env"] = {"PATH": str(executable.parent)}
+    elif form == "relative-path":
+        command = executable.name
+        options["cwd"] = executable.parent
+        options["env"] = {"PATH": "."}
+    elif form == "executable":
+        command = "not-a-model-cli"
+        options["executable"] = str(executable)
+    elif form == "executable-path":
+        command = "not-a-model-cli"
+        options["executable"] = executable.name
+        options["env"] = {"PATH": str(executable.parent)}
+    elif form == "symlink":
+        alias = tmp_path / "model-cli-alias"
+        alias.symlink_to(executable)
+        command = str(alias)
+    else:
+        assert form == "absolute"
+    return [command, str(marker)], options
+
+
+@pytest.fixture
+def outside_model_cli_root(
+    tmp_path: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+    _isolate_temp_root: Path,
+) -> Path:
+    root = tmp_path_factory.mktemp("outside-model-cli").resolve()
+    assert not root.is_relative_to(tmp_path.resolve())
+    assert not root.is_relative_to(_isolate_temp_root.resolve())
+    return root
+
+
+@pytest.mark.parametrize(
+    ("binary", "form"),
+    [(binary, "absolute") for binary in _MODEL_CLI_BINARIES]
+    + [("codex", form) for form in _MODEL_CLI_FORMS[1:]],
+)
+def test_model_cli_guard_rejects_outside_executables(
+    binary: str,
+    form: str,
+    tmp_path: Path,
+    outside_model_cli_root: Path,
+    request: pytest.FixtureRequest,
+) -> None:
+    executable = _write_fake_model_cli(outside_model_cli_root, binary)
+    marker = tmp_path / "must-not-launch"
+    args, options = _model_cli_invocation(form, executable, marker, tmp_path)
+
+    with pytest.raises(pytest.fail.Exception) as caught:
+        try:
+            subprocess.run(
+                args, **options, check=True, capture_output=True, text=True, timeout=5
+            )
+        except Exception:
+            pytest.fail("An application Exception handler swallowed the guard violation")
+
+    message = str(caught.value)
+    assert binary in message
+    assert request.node.nodeid in message
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize(
+    ("binary", "root_name"),
+    [(binary, "tmp_path") for binary in _MODEL_CLI_BINARIES]
+    + [("codex", "_isolate_temp_root")],
+)
+def test_model_cli_guard_allows_each_binary_in_test_roots(
+    binary: str, root_name: str, request: pytest.FixtureRequest
+) -> None:
+    root: Path = request.getfixturevalue(root_name)
+    executable = _write_fake_model_cli(root, binary)
+    marker = root / "launched"
+
+    result = subprocess.run(
+        [str(executable), str(marker)],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+
+    assert result.stdout == "fake-model-cli\n"
+    assert marker.read_text() == "launched\n"
+
+
+@pytest.mark.parametrize("form", _MODEL_CLI_FORMS[1:])
+def test_model_cli_guard_allows_invocation_forms_in_test_roots(
+    form: str, tmp_path: Path
+) -> None:
+    executable = _write_fake_model_cli(tmp_path, "codex")
+    marker = tmp_path / "launched"
+    args, options = _model_cli_invocation(form, executable, marker, tmp_path)
+
+    result = subprocess.run(
+        args, **options, check=True, capture_output=True, text=True, timeout=5
+    )
+
+    assert result.stdout == "fake-model-cli\n"
+    assert marker.read_text() == "launched\n"
+
+
+def test_model_cli_guard_uses_executable_override_instead_of_argv(
+    tmp_path: Path,
+) -> None:
+    executable = _write_fake_model_cli(tmp_path, "harmless-probe")
+    marker = tmp_path / "launched"
+
+    result = subprocess.run(
+        ["codex", str(marker)],
+        executable=str(executable),
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+
+    assert result.stdout == "fake-model-cli\n"
+    assert marker.read_text() == "launched\n"
+
+
+def test_model_cli_guard_rejects_asyncio_subprocess_before_launch(
+    tmp_path: Path,
+    outside_model_cli_root: Path,
+    request: pytest.FixtureRequest,
+) -> None:
+    executable = _write_fake_model_cli(outside_model_cli_root, "codex")
+    marker = tmp_path / "must-not-launch"
+
+    async def launch() -> None:
+        process = await asyncio.create_subprocess_exec(
+            str(executable),
+            str(marker),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await asyncio.wait_for(process.communicate(), timeout=5)
+
+    with pytest.raises(pytest.fail.Exception) as caught:
+        asyncio.run(launch())
+
+    message = str(caught.value)
+    assert "codex" in message
+    assert request.node.nodeid in message
+    assert not marker.exists()
+
+
+def test_model_cli_guard_resolves_positional_executable_cwd_and_env(
+    tmp_path: Path,
+    outside_model_cli_root: Path,
+    request: pytest.FixtureRequest,
+) -> None:
+    _write_fake_model_cli(outside_model_cli_root, "codex")
+    marker = tmp_path / "must-not-launch"
+
+    with (
+        pytest.raises(pytest.fail.Exception) as caught,
+        subprocess.Popen(
+            ["not-a-model-cli", str(marker)],
+            -1,  # bufsize
+            "codex",  # executable
+            None,  # stdin
+            subprocess.PIPE,  # stdout
+            subprocess.PIPE,  # stderr
+            None,  # preexec_fn
+            True,  # close_fds
+            False,  # shell
+            outside_model_cli_root,  # cwd
+            {"PATH": "."},  # env
+        ) as process,
+    ):
+        process.communicate(timeout=5)
+
+    message = str(caught.value)
+    assert "codex" in message
+    assert request.node.nodeid in message
+    assert not marker.exists()

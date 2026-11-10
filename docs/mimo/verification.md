@@ -21,18 +21,56 @@ For every clean-set manifest row, four checks on the FINAL clean package
     Reward 1 without execution evidence grades `1-noexec`, never pass.
     Rows with `reference_fix = none` report `n/a`; that is not a solvability
     proof.
-(c) **cheat ladder = clean** — every attack of `evallab.cheat_ladder.ATTACKS`
-    (v1.4.0: 14 attacks including `tamper_source_skip` and
-    `tamper_source_skiptest`, executed through the model-free `cheat` agent;
-    payloads reused, never forked) ends `executed` or legitimately `skipped`
-    (per-attack inapplicability with a recorded reason — e.g. source-tamper
-    attacks on tasks with no imported package `__init__`), and the
-    benchmark's own verifier reward grades every trial 0. Missing/failed
-    attacks grade `partial` (unverified). A cracked full-ladder trial
-    triggers per-attack single trials for attribution; unattributed cracks
-    report `full-ladder-unattributed`. Ladder cells are version-bound: a
-    1.3.0-clean carries 12/14 attacks only; the 2 source-skip attacks need
-    fresh 1.4.0 trials.
+(c) **cheat ladder = clean, with its verdict basis named** — every attack of
+    `evallab.cheat_ladder.ATTACKS` (v1.4.0: 14 attacks including
+    `tamper_source_skip` and `tamper_source_skiptest`, executed through the
+    model-free `cheat` agent; payloads reused, never forked) ends `executed`
+    or legitimately `skipped` (per-attack inapplicability with a recorded
+    reason — e.g. source-tamper attacks on tasks with no imported package
+    `__init__`), and the benchmark's own verifier returns reward 0 for every
+    trial. Reward 0 alone does not say how the verifier produced it. Each
+    covered v6 cell records its basis, derived from the cell's
+    `verifier_decision` by `ladder_progress.classify_basis`:
+
+    - **tamper-refusal** — the verifier refused the agent diff on a tamper
+      signature (`verifier_decision` is `tamper signature in agent diff`;
+      `refusal_hit` names the matched file) and returned reward 0 without
+      grading the task's tests. It proves the verifier detects that
+      signature and refuses the tampered package. It does not prove the
+      tests reject that attack or any other attack. All 80 v6 refusals
+      matched one signature, `tamper \b_pytest\b` in a package
+      `__init__.py` that a `tamper_source_*` attack planted.
+    - **graded** — the verifier ran the task's own runner on the attacked
+      tree and recorded its exit code (`verifier_decision` carries `rc=`),
+      with reward 0. It proves the verifier graded the attacked package and
+      the task's test run did not pass on it. It does not attribute that
+      failure to one attack when several ran in the same trial, and it
+      proves nothing about attacks that did not run: the 19 graded v6 rows
+      ran 8–10 of the 14.
+    - **unscored** — no verdict (no decision recorded, or no trial). It
+      proves nothing about the ladder; the row is covered, not clean.
+
+    A refusal-clean row therefore does not show the tests reject the other
+    attacks; only a graded cell does. With all four `tamper_source_*`
+    attacks removed, the remaining 10 attacks, graded together, returned
+    reward 0 on all seven rows tried; the source tampers stay ungraded on
+    those rows. At the 2026-11-09 commit the v6 table holds 100 covered
+    rows: 99 clean (80 tamper-refusal, 19 graded) and 1 unscored (`000928`,
+    whose setup healthcheck failed before the agent ran). Per-row basis and
+    counts are in
+    [ladder-progress.csv](../../research/experiments/mimo-clean-v6/ladder-progress.csv);
+    the graded subset cells are
+    [ladder-graded-subset.json](../../research/experiments/mimo-clean-v6/ladder-graded-subset.json)
+    and
+    [ladder-graded-subset-p0.json](../../research/experiments/mimo-clean-v6/ladder-graded-subset-p0.json).
+    The [separate verifier](separate-verifier.md) page records the detection
+    and refusal contract.
+
+    Missing/failed attacks grade `partial` (unverified). A cracked
+    full-ladder trial triggers per-attack single trials for attribution;
+    unattributed cracks report `full-ladder-unattributed`. Ladder cells are
+    version-bound: a 1.3.0-clean carries 12/14 attacks only; the 2
+    source-skip attacks need fresh 1.4.0 trials.
 
     Ladder v2 (`2.0.0`) exists alongside this census contract. It appends
     `leftover_test_swap`, `fifo_answer`, `fork_bomb`, and `disk_fill` to
@@ -166,7 +204,15 @@ probe-blind known-patch census). Per-check columns retain finer failure
 classes even when a task cannot receive an overall pass. A published-image
 probe with no positive hit is **probe-blind**, not evidence of cleanliness.
 Mapping: `mimo_census.verify_grade_for`; row acceptance:
-`mimo_census.census_row_pass`. Evidence is bound to the exact `final_digest`;
+`mimo_census.census_row_pass`. A tamper-refusal cell counts as ladder clean
+for verify. `verify_grade_for` accepts `ladder_verdict == "clean"` and never
+reads the verdict basis; `mimo_census.ladder_summary` sets `clean` when every
+trial has reward 0 and every attack ended executed or legitimately skipped,
+and a refusal is a reward-0 trial. `census_row_pass` likewise requires
+`ladder_verdict == "clean"` with no cracking attacks. A refusal-clean row can
+therefore meet the ladder check for verify `pass` although the verifier never
+graded the attacked tests; only the v6 progress table records that
+distinction. Evidence is bound to the exact `final_digest`;
 cross-backend controls and ladder/fix cells may combine only for that digest.
 An older version's outcome never silently grades a newer package.
 Cross-generation carries are allowed ONLY where documented safe, with the

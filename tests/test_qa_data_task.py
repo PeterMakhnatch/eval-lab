@@ -602,7 +602,7 @@ def cas_task(
     case: Case, task_id: str = "terminal-bench/cas-task", *,
     variants: Sequence[dict[str, dict[str, bytes]]] | None = None,
 ) -> tuple[S3CompatibleCAS, dict[str, str]]:
-    cas = S3CompatibleCAS(local_directory=case.root / "state/cas", bucket="")
+    cas = S3CompatibleCAS(local_directory=case.root / "state/cas")
     variants = variants if variants is not None else [{
         "original_package": {
             "tests/test.sh": b"pytest /tests\n", "README.md": b"CAS package documentation\n",

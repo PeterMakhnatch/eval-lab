@@ -415,7 +415,7 @@ def load_cloud_run(
             from evallab.production.cloud_trace_db import S3CompatibleCAS
 
             try:
-                data = S3CompatibleCAS(local_directory=cas_dir, bucket="").get_bytes(uri)
+                data = S3CompatibleCAS(local_directory=cas_dir).get_bytes(uri)
             except FileNotFoundError:
                 data = None
             if data is not None:

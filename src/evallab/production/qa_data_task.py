@@ -368,7 +368,7 @@ def task(
     requested = list(dict.fromkeys(_relative_file(value).as_posix() for value in files))
     if variant < 0 or kind not in {"original_package", "repaired_package"}:
         raise QaDataError("expected a nonnegative --variant and --kind original_package or repaired_package")
-    cas = S3CompatibleCAS(local_directory=ctx.state_dir / "cas", bucket="")
+    cas = S3CompatibleCAS(local_directory=ctx.state_dir / "cas")
     packages = _cas_packages(cas, row["cas_uri"])
     if not any(package.available for package in packages.values()):
         local = _package(ctx, row)

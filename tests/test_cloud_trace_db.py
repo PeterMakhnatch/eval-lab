@@ -1,7 +1,7 @@
 """Synthetic storage fixtures only: no shared database, cloud I/O, or Docker.
 
 The PostgreSQL variant uses an isolated native server when its binaries exist.
-All S3 calls are injected; environment credentials are cleared for every test.
+The CAS fixtures use only local files.
 """
 
 from __future__ import annotations
@@ -9,7 +9,6 @@ from __future__ import annotations
 import atexit
 import fcntl
 import hashlib
-import io
 import os
 import shutil
 import sqlite3
@@ -22,7 +21,6 @@ from typing import Any
 from urllib.parse import quote
 from uuid import uuid4
 
-import boto3
 import psycopg
 import pytest
 from psycopg import sql
@@ -620,23 +618,6 @@ def test_missing_database_configuration_and_environment_precedence(monkeypatch: 
         CloudTraceDatabase("mysql://unsupported/db")
 
 
-class MemoryS3:
-    def __init__(self) -> None:
-        self.objects: dict[tuple[str, str], bytes] = {}
-        self.puts: list[dict] = []
-        self.gets: list[dict] = []
-        self.last_body: io.BytesIO | None = None
-
-    def put_object(self, **kwargs: Any) -> None:
-        self.puts.append(kwargs)
-        self.objects[kwargs["Bucket"], kwargs["Key"]] = kwargs["Body"]
-
-    def get_object(self, **kwargs: Any) -> dict:
-        self.gets.append(kwargs)
-        self.last_body = io.BytesIO(self.objects[kwargs["Bucket"], kwargs["Key"]])
-        return {"Body": self.last_body}
-
-
 def test_local_cas_deterministic_bundles_and_binary_bytes(tmp_path: Path) -> None:
     cas = S3CompatibleCAS(local_directory=tmp_path)
     uri = cas.put_bundle({"z": [1, "café"], "a": True})
@@ -650,27 +631,8 @@ def test_local_cas_deterministic_bundles_and_binary_bytes(tmp_path: Path) -> Non
     assert not list((tmp_path / "sha256").glob("tmp*"))
 
 
-def test_s3_upload_download_and_local_read_through_mirror(tmp_path: Path) -> None:
-    client = MemoryS3()
-    cas = S3CompatibleCAS(bucket="fixture-bucket", client=client)
-    uri = cas.put_bytes(b"full raw trace")
-    digest = uri.rsplit("/", 1)[1]
-    assert client.puts[0]["Key"] == f"sha256/{digest}"
-    assert client.puts[0]["Metadata"] == {"sha256": digest}
-    reader = S3CompatibleCAS(bucket="fixture-bucket", client=client, local_directory=tmp_path)
-    assert reader.get_bytes(uri) == b"full raw trace"
-    assert client.last_body is not None and client.last_body.closed
-    assert reader.get_bytes(uri) == b"full raw trace"
-    assert len(client.gets) == 1
-    assert (tmp_path / "sha256" / digest).read_bytes() == b"full raw trace"
-    mirrored = reader.put_bundle({"task": "fixture"})
-    assert reader.get_bundle(mirrored) == {"task": "fixture"}
-    assert len(client.puts) == 2
-
-
-def test_corrupted_remote_and_local_objects_are_never_accepted(tmp_path: Path) -> None:
-    client = MemoryS3()
-    cas = S3CompatibleCAS(bucket="fixture", client=client, local_directory=tmp_path)
+def test_corrupted_local_objects_are_never_accepted(tmp_path: Path) -> None:
+    cas = S3CompatibleCAS(local_directory=tmp_path)
     uri = cas.put_bytes(b"original")
     path = tmp_path / "sha256" / uri.rsplit("/", 1)[1]
     path.write_bytes(b"corrupt local")
@@ -678,12 +640,6 @@ def test_corrupted_remote_and_local_objects_are_never_accepted(tmp_path: Path) -
         cas.get_bytes(uri)
     with pytest.raises(ValueError, match="integrity"):
         cas.put_bytes(b"original")
-    path.unlink()
-    client.objects["fixture", client.puts[0]["Key"]] = b"corrupt remote"
-    with pytest.raises(ValueError, match="integrity"):
-        cas.get_bytes(uri)
-    assert client.last_body is not None and client.last_body.closed
-    assert not path.exists()
 
 
 @pytest.mark.parametrize("uri", [
@@ -696,63 +652,15 @@ def test_cas_rejects_noncanonical_uris(tmp_path: Path, uri: str) -> None:
         S3CompatibleCAS(local_directory=tmp_path).get_bytes(uri)
 
 
-def test_cas_missing_objects_and_remote_errors_propagate(tmp_path: Path) -> None:
+def test_cas_missing_objects_and_invalid_bundles_propagate(tmp_path: Path) -> None:
     cas = S3CompatibleCAS(local_directory=tmp_path)
     with pytest.raises(FileNotFoundError):
         cas.get_bytes("cas://sha256/" + "0" * 64)
 
-    class BrokenS3(MemoryS3):
-        def put_object(self, **kwargs: Any) -> None:
-            raise OSError("synthetic transport failure")
-
-    remote = S3CompatibleCAS(bucket="fixture", client=BrokenS3(), local_directory=tmp_path)
-    with pytest.raises(OSError, match="transport"):
-        remote.put_bytes(b"not uploaded")
-    assert not (tmp_path / "sha256").exists()
     with pytest.raises(ValueError):
         cas.put_bundle({"not_json": float("nan")})
 
 
-def test_s3_environment_configuration_uses_explicit_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
-    for key, value in {
-        "EVALLAB_S3_BUCKET": "fixture", "EVALLAB_S3_ENDPOINT_URL": "https://fixture.r2.example",
-        "AWS_ACCESS_KEY_ID": "fixture-access", "AWS_SECRET_ACCESS_KEY": "fixture-secret",
-        "AWS_SESSION_TOKEN": "fixture-session", "AWS_REGION": "fixture-region",
-    }.items():
-        monkeypatch.setenv(key, value)
-    captured: dict[str, Any] = {}
-    client = MemoryS3()
-
-    def create(service: str, **kwargs: Any) -> MemoryS3:
-        assert service == "s3"
-        captured.update(kwargs)
-        return client
-
-    monkeypatch.setattr(boto3, "client", create)
-    cas = S3CompatibleCAS()
-    assert cas.get_bytes(cas.put_bytes(b"roundtrip")) == b"roundtrip"
-    assert captured["endpoint_url"] == "https://fixture.r2.example"
-    assert captured["aws_access_key_id"] == "fixture-access"
-    assert captured["aws_secret_access_key"] == "fixture-secret"
-    assert captured["aws_session_token"] == "fixture-session"
-    assert captured["region_name"] == "fixture-region"
-    assert captured["config"].signature_version == "s3v4"
-    assert captured["config"].s3["addressing_style"] == "path"
-
-
-def test_cas_configuration_never_probes_ambient_credential_chains(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    def forbidden(*args: Any, **kwargs: Any) -> Any:
-        raise AssertionError("unexpected SDK initialization")
-
-    monkeypatch.setattr(boto3, "client", forbidden)
-    with pytest.raises(ValueError, match="configure"):
-        S3CompatibleCAS()
-    with pytest.raises(ValueError, match="bucket"):
-        S3CompatibleCAS(client=MemoryS3())
-    with pytest.raises(ValueError, match="AWS_ACCESS_KEY_ID"):
-        S3CompatibleCAS(bucket="fixture")
-    local = S3CompatibleCAS(local_directory=tmp_path)
-    assert local.get_bytes(local.put_bytes(b"offline")) == b"offline"
 
 
 @pytest.mark.parametrize("fts", (True, False), ids=("sqlite-fts", "sqlite-like"))

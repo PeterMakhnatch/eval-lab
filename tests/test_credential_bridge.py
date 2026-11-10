@@ -12,11 +12,16 @@ from threading import Thread
 import pytest
 from fastapi.testclient import TestClient
 from google.protobuf.json_format import MessageToJson
+from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
+    ExportLogsServiceRequest,
+    ExportLogsServiceResponse,
+)
 from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import (
     ExportMetricsServiceRequest,
     ExportMetricsServiceResponse,
 )
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+    ExportTraceServiceRequest,
     ExportTraceServiceResponse,
 )
 
@@ -494,3 +499,299 @@ def test_exchange_returns_http_error_body_status_and_type(config, exchange_http_
 
     assert response == (503, b"upstream unavailable", "text/plain; charset=utf-8")
     assert requests == [("POST", "/unavailable", credential, b"export payload")]
+
+
+_TRACE_ID = "00112233445566778899aabbccddeeff"
+_SPAN_ID = "0123456789abcdef"
+
+
+def _forbidden_exchange(*args, **kwargs):
+    pytest.fail("A refused request must not reach the model or Laminar")
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"model_api_key": ""}, "Model credentials are required"),
+        ({"chat_capability": ""}, "Model credentials are required"),
+        ({"laminar_api_key": None}, "both its capability and Laminar key"),
+        ({"telemetry_capability": None}, "both its capability and Laminar key"),
+    ],
+    ids=["no-model-key", "no-chat-capability", "ingest-without-laminar-key", "laminar-key-without-ingest"],
+)
+def test_bridge_config_refuses_incomplete_credentials(config, changes, message):
+    with pytest.raises(ValueError, match=message):
+        replace(config, **changes)
+
+
+def test_chat_only_relay_refuses_native_ingest_with_empty_bearer(config):
+    chat_only = replace(config, telemetry_capability=None, laminar_api_key=None)
+    with TestClient(bridge.create_bridge_app(chat_only, exchange=_forbidden_exchange)) as client:
+        response = client.post(
+            "/v1/traces",
+            content=b"",
+            headers={"Authorization": "Bearer ", "Content-Type": "application/x-protobuf"},
+        )
+    assert response.status_code == 401
+
+
+@pytest.mark.parametrize(
+    ("raw", "message"),
+    [
+        ('{"app_id": "ap-protocol-smoke"}', "must be a JSON array"),
+        ('["ap-protocol-smoke"]', "needs its actual parent context"),
+        ('[{"app_id": "ap-protocol-smoke", "started_at_ns": 0}]', "needs its actual parent context"),
+        (
+            '[{"app_id": "ap-protocol-smoke", "parent": "' + _SPAN_ID + '", "started_at_ns": 0}]',
+            "needs its actual parent context",
+        ),
+    ],
+    ids=["object-not-array", "string-binding", "missing-parent", "string-parent"],
+)
+def test_model_session_bindings_refuse_bindings_without_parent_context(raw, message):
+    with pytest.raises(ValueError, match=message):
+        bridge.model_session_bindings(raw)
+
+
+def test_model_session_bindings_load_operator_supplied_windows():
+    raw = json.dumps(
+        [
+            {
+                "app_id": " ap-protocol-smoke ",
+                "parent": {
+                    "trace_id": _TRACE_ID.upper(),
+                    "span_id": _SPAN_ID,
+                    "session_id": "shared-model-session",
+                },
+                "started_at_ns": 10,
+                "ended_at_ns": 20,
+            },
+            {
+                "app_id": "ap-open-window",
+                "parent": {
+                    "trace_id": _TRACE_ID,
+                    "span_id": _SPAN_ID,
+                    "session_id": "second-model-session",
+                },
+                "started_at_ns": 30,
+            },
+        ]
+    )
+
+    first, second = bridge.model_session_bindings(raw)
+
+    assert first.app_id == "ap-protocol-smoke"
+    assert first.parent.trace_id == _TRACE_ID
+    assert (first.started_at_ns, first.ended_at_ns) == (10, 20)
+    assert second.parent.session_id == "second-model-session"
+    assert second.ended_at_ns is None
+
+
+def test_health_reports_transport_without_auth_or_upstream_call(config):
+    with TestClient(bridge.create_bridge_app(config, exchange=_forbidden_exchange)) as client:
+        response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "purpose": "credential_transport_not_model_health"}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b"\xff",
+        b"not-json",
+        b"[]",
+        json.dumps({"model": "other/model", "messages": []}).encode(),
+        json.dumps({"messages": []}).encode(),
+        json.dumps({"model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B", "stream": True}).encode(),
+        json.dumps({"model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B", "stream": None}).encode(),
+    ],
+    ids=["not-utf8", "not-json", "not-object", "wrong-model", "no-model", "stream-true", "stream-null"],
+)
+def test_chat_rejects_unrelayable_bodies_before_model_call(config, body):
+    with TestClient(bridge.create_bridge_app(config, exchange=_forbidden_exchange)) as client:
+        response = client.post(
+            "/v1/chat/completions",
+            content=body,
+            headers={"Authorization": "Bearer " + config.chat_capability},
+        )
+    assert response.status_code == 400
+
+
+def test_streamed_native_body_over_frame_limit_is_refused(config, monkeypatch):
+    payload = _native_metric().SerializeToString()
+    monkeypatch.setattr(bridge, "_MAX_FRAME", len(payload) - 1)
+    with TestClient(bridge.create_bridge_app(config, exchange=_forbidden_exchange)) as client:
+        response = _post(client, config, payload)
+    assert response.status_code == 413
+    assert response.text == "native OTLP frame too large"
+
+
+@pytest.mark.parametrize("encoding", ["br", "x-gzip"])
+def test_unsupported_content_encoding_is_refused(config, encoding):
+    payload = gzip.compress(_native_metric().SerializeToString())
+    with TestClient(bridge.create_bridge_app(config, exchange=_forbidden_exchange)) as client:
+        response = _post(client, config, payload, **{"Content-Encoding": encoding})
+    assert response.status_code == 400
+
+
+def test_gzip_native_metric_is_decompressed_and_exported(config):
+    exported = []
+
+    def accept(request, **_kwargs):
+        exported.append(
+            bridge.decode_otlp(request.data, "application/x-protobuf", ExportTraceServiceRequest)
+        )
+        return 200, b"", "application/x-protobuf"
+
+    payload = gzip.compress(_native_metric().SerializeToString())
+    with TestClient(bridge.create_bridge_app(config, exchange=accept)) as client:
+        response = _post(client, config, payload, **{"Content-Encoding": "GZIP"})
+    assert response.status_code == 200
+    assert len(exported) == 1
+    spans = exported[0].resource_spans[0].scope_spans[0].spans
+    assert len(spans) == 1
+    assert spans[0].parent_span_id.hex() == _SPAN_ID
+
+
+def test_metric_without_data_is_skipped_not_exported(config):
+    request = _native_metric()
+    scope = request.resource_metrics[0].scope_metrics[0]
+    scope.metrics.clear()
+    scope.metrics.add(name="daytona.sandbox.descriptor-only", unit="%")
+    with TestClient(bridge.create_bridge_app(config, exchange=_forbidden_exchange)) as client:
+        response = _post(client, config, request.SerializeToString())
+    assert response.status_code == 200
+    acknowledgment = ExportMetricsServiceResponse.FromString(response.content)
+    assert not acknowledgment.HasField("partial_success")
+
+
+def test_converted_frame_over_limit_is_refused_before_laminar(config, monkeypatch):
+    payload = _native_metric().SerializeToString()
+    # The input fits exactly; the converted span frame is larger than the input.
+    monkeypatch.setattr(bridge, "_MAX_FRAME", len(payload))
+    with TestClient(bridge.create_bridge_app(config, exchange=_forbidden_exchange)) as client:
+        response = _post(client, config, payload)
+    assert response.status_code == 413
+    assert response.text == "converted native OTLP frame too large"
+
+
+def _native_trace_json():
+    span = {
+        "traceId": _TRACE_ID,
+        "spanId": _SPAN_ID,
+        "name": "agent.step",
+        "startTimeUnixNano": "1770000000000000000",
+        "endTimeUnixNano": "1770000000000000001",
+    }
+    return json.dumps({"resourceSpans": [{"scopeSpans": [{"spans": [span]}]}]}).encode()
+
+
+def _post_traces(client, config, payload):
+    return client.post(
+        "/v1/traces",
+        content=payload,
+        headers={
+            "Authorization": "Bearer " + config.telemetry_capability,
+            "Content-Type": "application/json",
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        (200, b"", "application/x-protobuf"),
+        (202, b"{}", "application/json; charset=utf-8"),
+        (200, b'{"status":"accepted"}', "application/json"),
+    ],
+    ids=["empty-protobuf", "empty-json-otlp", "plain-json-http"],
+)
+def test_native_json_traces_are_forwarded_and_answered_as_json(config, reply):
+    exported = []
+
+    def accept(request, *, timeout):
+        assert timeout == 2
+        exported.append(request)
+        return reply
+
+    with TestClient(bridge.create_bridge_app(config, exchange=accept)) as client:
+        response = _post_traces(client, config, _native_trace_json())
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    assert response.json() == {}
+    (request,) = exported
+    assert request.full_url == bridge._CLOUD_BASE.rstrip("/") + "/v1/traces"
+    assert request.get_header("Authorization") == "Bearer " + config.laminar_api_key
+    assert request.get_header("Content-type") == "application/x-protobuf"
+    forwarded = bridge.decode_otlp(request.data, "application/x-protobuf", ExportTraceServiceRequest)
+    span = forwarded.resource_spans[0].scope_spans[0].spans[0]
+    assert (span.name, span.trace_id.hex(), span.span_id.hex()) == ("agent.step", _TRACE_ID, _SPAN_ID)
+
+
+@pytest.mark.parametrize(
+    ("reply", "message"),
+    [
+        ((200, b"{not-json", "application/json"), "invalid Laminar acknowledgment"),
+        ((200, b"\xff\xfe", "application/json"), "invalid Laminar acknowledgment"),
+        ((200, b"\xff", "application/x-protobuf"), "invalid Laminar OTLP acknowledgment"),
+        (
+            (200, b'{"partialSuccess": {"unknownField": 1}}', "application/json"),
+            "invalid Laminar OTLP acknowledgment",
+        ),
+    ],
+    ids=["json-unparseable", "json-not-utf8", "protobuf-undecodable", "json-not-otlp-schema"],
+)
+@pytest.mark.parametrize("route", ["traces", "metrics"])
+def test_bad_laminar_acknowledgment_is_not_relayed_as_success(config, reply, message, route):
+    def exchange(*args, **kwargs):
+        return reply
+
+    with TestClient(bridge.create_bridge_app(config, exchange=exchange)) as client:
+        if route == "traces":
+            response = _post_traces(client, config, _native_trace_json())
+        else:
+            response = _post(client, config, _native_metric().SerializeToString())
+    assert response.status_code == 502
+    assert response.text == message
+
+
+def _native_log(text):
+    request = ExportLogsServiceRequest()
+    record = request.resource_logs.add().scope_logs.add().log_records.add()
+    record.time_unix_nano = 1770000000000000000
+    record.body.string_value = text
+    return request
+
+
+def test_native_logs_copy_sanitized_laminar_partial_success(config):
+    exported = []
+    upstream = ExportLogsServiceResponse()
+    upstream.partial_success.rejected_log_records = 2
+    upstream.partial_success.error_message = "dropped for " + config.laminar_api_key
+
+    def exchange(request, **_kwargs):
+        exported.append(request)
+        return 200, upstream.SerializeToString(), "application/x-protobuf"
+
+    payload = _native_log("agent saw " + config.model_api_key).SerializeToString()
+    with TestClient(bridge.create_bridge_app(config, exchange=exchange)) as client:
+        response = client.post(
+            "/v1/logs",
+            content=payload,
+            headers={
+                "Authorization": "Bearer " + config.telemetry_capability,
+                "Content-Type": "application/x-protobuf",
+            },
+        )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/x-protobuf"
+    acknowledgment = ExportLogsServiceResponse.FromString(response.content)
+    assert acknowledgment.partial_success.rejected_log_records == 2
+    assert "dropped for" in acknowledgment.partial_success.error_message
+    assert config.laminar_api_key not in acknowledgment.partial_success.error_message
+    (request,) = exported
+    assert request.full_url.endswith("/v1/logs")
+    forwarded = bridge.decode_otlp(request.data, "application/x-protobuf", ExportLogsServiceRequest)
+    body = forwarded.resource_logs[0].scope_logs[0].log_records[0].body.string_value
+    assert body.startswith("agent saw ")
+    assert config.model_api_key not in body

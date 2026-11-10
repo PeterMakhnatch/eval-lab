@@ -198,14 +198,7 @@ _CALL_DURATIONS: pytest.StashKey[dict[str, float]] = pytest.StashKey()
 DEFAULT_SLOW_TEST_BUDGET_SECONDS: float = 60.0
 
 # Shard pins that flip a test module's crc32 shard to balance CI shard load.
-# Measured in CI run 41761936272 (2026-11-04, seconds averaged over 3.12 and 3.14):
-#   - tests/test_trajectory_recipes.py: 0.26 s (hash shard 2); kept, removing it widens the gap.
-#   - tests/test_compaction_properties.py: 109.37 s, unpinned (was pinned to shard 2): the
-#     pin put it on the heavier shard (harmful); crc32 places it on shard 1.
-# Serial seconds shard 1 / shard 2 under these pins: 921.96 / 930.14 averaged.
-SHARD_OVERRIDES: dict[str, int] = {
-    "tests/test_trajectory_recipes.py": 1,
-}
+SHARD_OVERRIDES: dict[str, int] = {}
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

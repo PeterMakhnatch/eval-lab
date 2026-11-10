@@ -1165,14 +1165,11 @@ def diagnose_atif(
 ) -> TrialDiagnosis:
     """Diagnose one ATIF trajectory document without a Harbor trial directory.
 
-    Document-level entry point for imported trajectories (for example Reef
-    episodes via ``evallab.evidence.reef_intake``): the caller supplies the
+    Document-level entry point for imported trajectories: the caller supplies the
     recorded outcome alongside the trajectory. Outcome semantics match
     :func:`diagnose_trial` (infra/unscored never carry modes). Without a
     trial directory there is no outline, so view-derived equivalents feed
-    the detectors and no heuristic label is proposed. Signature stability:
-    keep this entry point alongside :func:`render_diagnosis_text`, which
-    ReefTraffic attaches to Reef reports.
+    the detectors and no heuristic label is proposed.
     """
     raw_steps = trajectory.get("steps")
     steps = (

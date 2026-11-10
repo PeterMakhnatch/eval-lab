@@ -542,29 +542,6 @@ def test_interval_cache_sees_result_and_ages_quiet_trials(tmp_path: Path) -> Non
     assert "stalled" not in {a["rule"] for a in done["statuses"][0]["open_alerts"]}
 
 
-def test_notify_uses_injected_runner_only(tmp_path: Path) -> None:
-    out = tmp_path / "state"
-    runs = tmp_path / "runs"
-    _write_trial(runs, "job", "task__a1", COPY_STEPS)
-    calls: list = []
-
-    def fake_runner(cmd: list[str], **kwargs: object) -> None:
-        calls.append(cmd)
-
-    summary = run_watch(
-        runs_dirs=[runs], out_dir=out, notify_lin="HAR-999", notify_runner=fake_runner
-    )
-    assert summary["notified"] is True
-    assert calls and calls[0][:3] == ["lin", "comment", "HAR-999"]
-    assert "copy_acquired" in calls[0][3]
-    # Rate limit: a second pass within 15 minutes must not re-notify.
-    summary2 = run_watch(
-        runs_dirs=[runs], out_dir=out, notify_lin="HAR-999", notify_runner=fake_runner
-    )
-    assert summary2["notified"] is False
-    assert len(calls) == 1
-
-
 def _proxy_module() -> Any:
     import importlib.util
 

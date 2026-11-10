@@ -28,17 +28,14 @@ ledger would have to be published to the trial dir -- e.g. an append-only
 from __future__ import annotations
 
 import argparse
-import contextlib
 import json
 import re
-import subprocess
 import sys
 import time
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from evallab.edit_signals import unwrap_shell_wrapper
 from evallab.file_access import (
@@ -52,9 +49,6 @@ from evallab.peer_content import watched_blob_shas
 from evallab.task_protected import load_task_manifest
 from evallab.tripwires import CLUSTER_ALPHA, CLUSTER_P0, cluster_threshold, scan_prefix
 from evallab.watch_stop import INTEGRITY_BOARD_RULES
-
-if TYPE_CHECKING:
-    from evallab.laminar import LaminarExporter
 
 LIVE_WATCH_SCHEMA = "evallab.live_watch/v1"
 
@@ -100,7 +94,6 @@ class WatchThresholds:
     proxy_error_spike_minutes: float = 10.0
     parse_error_threshold: int = 3
     parse_error_streak_threshold: int = 3
-    notify_minutes: float = 15.0
     default_input_token_limit: int = 2_500_000
     default_output_token_limit: int = 131_072
     #: Clean flag rate the submission-tamper run alarm is calibrated against.
@@ -1842,50 +1835,14 @@ def _write_board(
     (out_dir / "BOARD.md").write_text("\n".join(lines), encoding="utf-8")
 
 
-def _notify(
-    out_dir: Path,
-    new_alerts: list[dict[str, Any]],
-    issue_id: str,
-    now: float,
-    thresholds: WatchThresholds,
-    runner: Callable[..., Any] = subprocess.run,
-) -> bool:
-    """Post one batched ``lin comment`` for new high/medium alerts, rate-limited."""
-    notable = [alert for alert in new_alerts if alert["severity"] in ("high", "medium")]
-    if not notable:
-        return False
-    state_path = out_dir / ".lin_notify.json"
-    try:
-        last = float((_read_json(state_path) or {}).get("last_notify", 0))
-    except (ValueError, TypeError):
-        last = 0.0
-    if now - last < thresholds.notify_minutes * 60.0:
-        return False
-    body_lines = ["evallab watch: new high/medium alerts"]
-    for alert in notable:
-        ref = f" {alert['step_ref']}" if alert.get("step_ref") else ""
-        body_lines.append(
-            f"- [{alert['severity']}] {alert['rule']} {alert['trial']}{ref}: {alert['detail']}"
-        )
-        if alert.get("quote"):
-            body_lines.append(f"  `{alert['quote'][:160]}`")
-    runner(["lin", "comment", issue_id, "\n".join(body_lines)], check=True)
-    with contextlib.suppress(OSError):
-        state_path.write_text(json.dumps({"last_notify": now}), encoding="utf-8")
-    return True
-
-
 def run_watch(
     *,
     runs_dirs: list[Path],
     out_dir: Path,
     thresholds: WatchThresholds | None = None,
     from_config: bool = False,
-    notify_lin: str | None = None,
     now: float | None = None,
     cache: dict[str, TrialScan] | None = None,
-    notify_runner: Callable[..., Any] = subprocess.run,
-    laminar: LaminarExporter | None = None,
 ) -> dict[str, Any]:
     """Single watch pass: scan trials, evaluate alerts, write outputs.
 
@@ -1916,10 +1873,6 @@ def run_watch(
             job_dir, trial_dir, thresholds=limits, from_config=from_config, now=moment, hooks=hooks
         )
         statuses.append(status)
-        if laminar is not None:
-            status["laminar_trace_id"] = laminar.sync_trial(
-                job_dir, trial_dir, finished=status["state"] == "finished"
-            )
         # Without a trajectory, hook record, or file-access log there is no
         # activity time to age, so rescan.
         fa_key = str(trial_dir / FILE_ACCESS_LOG)
@@ -1938,10 +1891,6 @@ def run_watch(
         open_alerts.extend(trial_alerts)
     fleet = evaluate_fleet_alerts(statuses, thresholds=limits, now=moment)
     open_alerts.extend(fleet)
-    laminar_outcome = None
-    if laminar is not None:
-        laminar.sync_alerts(open_alerts)
-        laminar_outcome = laminar.flush()
 
     known = _read_existing_alert_keys(out_dir)
     fresh = [alert for alert in open_alerts if (alert["trial"], alert["rule"]) not in known]
@@ -1958,17 +1907,12 @@ def run_watch(
     _write_status(out_dir, statuses, fleet, limits, moment)
     _write_board(out_dir, statuses, fleet)
 
-    notified = False
-    if notify_lin is not None:
-        notified = _notify(out_dir, fresh, notify_lin, moment, limits, runner=notify_runner)
     return {
         "trials": len(statuses),
         "open_alerts": len(open_alerts),
         "new_alerts": len(fresh),
-        "notified": notified,
         "statuses": statuses,
         "fleet_alerts": fleet,
-        "laminar": laminar_outcome,
     }
 
 
@@ -1986,14 +1930,6 @@ def _watch_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
     thresholds = WatchThresholds(
         spend_cap_usd=getattr(args, "spend_cap_usd", None),
     )
-    laminar = None
-    if getattr(args, "laminar", False):
-        from evallab.laminar import LAMINAR_KEY_ENV, exporter_from_env
-
-        laminar = exporter_from_env(out_dir, enabled=True)
-        if laminar is None:
-            print(f"watch: --laminar needs {LAMINAR_KEY_ENV} (use `keys run --`)", file=sys.stderr)
-            return 2
     cache: dict[str, TrialScan] = {}
     while True:
         summary = run_watch(
@@ -2001,20 +1937,12 @@ def _watch_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
             out_dir=out_dir,
             thresholds=thresholds,
             from_config=args.limits_from_config,
-            notify_lin=args.notify_lin,
             cache=cache,
-            laminar=laminar,
         )
-        exported = summary["laminar"]
-        suffix = ""
-        if exported is not None:
-            suffix = f"; laminar {exported['spans']} spans" + (
-                "" if exported["ok"] else f" FAILED ({exported['error']}), will retry"
-            )
         print(
             f"watch: {summary['trials']} trials, "
             f"{summary['open_alerts']} open alerts "
-            f"({summary['new_alerts']} new){suffix}"
+            f"({summary['new_alerts']} new)"
         )
         if not args.interval or args.interval <= 0 or args.once:
             return 0
@@ -2091,21 +2019,10 @@ def build_watch_parser(commands: argparse._SubParsersAction) -> None:
         help="Read token limits from trial/job config instead of defaults",
     )
     watch.add_argument(
-        "--notify-lin",
-        default=None,
-        help="Linear issue id for batched high/medium alerts (off by default)",
-    )
-    watch.add_argument(
         "--spend-cap-usd",
         type=float,
         default=None,
         help="Fleet spend cap in USD for running trials (alerts at 80%% and 100%%)",
-    )
-    watch.add_argument(
-        "--laminar",
-        action="store_true",
-        help="Export each trial as a live Laminar trace with alerts as span events "
-        "(needs LMNR_PROJECT_API_KEY)",
     )
     watch_sub = watch.add_subparsers(dest="watch_command")
     ack = watch_sub.add_parser(

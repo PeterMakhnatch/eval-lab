@@ -29,7 +29,8 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from detbench_lib import RUNS, SIGNALS, read_jsonl, signal_row, view_to_atif, write_jsonl  # noqa: E402
+from detbench_lib import RUNS, SIGNALS, signal_row, view_to_atif, write_jsonl  # noqa: E402
+from score import load_runs  # noqa: E402
 
 RAW_DIR = Path("/private/tmp/ov1104/detbench/l0")
 
@@ -428,9 +429,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--raw-dir", type=Path, default=RAW_DIR)
     args = ap.parse_args(argv)
 
-    rows = read_jsonl(args.runs)
-    if args.sets:
-        rows = [r for r in rows if r["set"] in set(args.sets)]
+    rows = list(load_runs(args.runs, args.sets).values())
     key = "view" if args.view == "full" else "view_actions_only"
     if args.counterfactual and args.counterfactual2:
         raise SystemExit("choose --counterfactual or --counterfactual2, not both")

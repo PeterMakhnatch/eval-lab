@@ -17,7 +17,6 @@ import classify
 
 STATE = Path.home() / ".local/state"
 NP36 = STATE / "evallab-worker-evidence/np36-tw1-20261029"
-NP38 = STATE / "evallab-np38-cm1"
 OUT = STATE / "evallab-worker-evidence/np43-tw1-20261029"
 SEED = 20261029
 PER_KIND = 20
@@ -76,7 +75,7 @@ def render(case: int, run: list[dict], event: dict) -> str:
 def main() -> int:
     events = json.loads((OUT / "events.json").read_text())
     pool: dict[str, list[tuple[str, str, int]]] = {k: [] for k in "abcd"}
-    for population in sorted(events):
+    for population in ("pairs", "goodfire_other", "cheatbench"):
         for key in sorted(events[population]):
             for n, event in enumerate(events[population][key]["events"]):
                 pool[event["kind"]].append((population, key, n))
@@ -94,11 +93,6 @@ def main() -> int:
         needed.setdefault(population, set()).add(key)
     runs: dict[tuple[str, str], list[dict]] = {}
     for population, keys in needed.items():
-        if population == "linuxarena":
-            for key in keys:
-                with (NP38 / "runs" / f"{key}.pkl").open("rb") as handle:
-                    runs[(population, key)] = list(pickle.load(handle)["steps"])
-            continue
         name = {"pairs": "pairs", "goodfire_other": "goodfire_dev", "cheatbench": "cheatbench"}[
             population
         ]

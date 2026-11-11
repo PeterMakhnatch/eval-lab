@@ -6,7 +6,7 @@ Populations (same run sets and loaders as p0-f9d7d6-3 where it used them):
   cheatbench  the 150 CheatBench DEV runs
   goodfire_dev  every strict ``goodfire-dev`` run (2,388 with a verdict)
   cm18 / np21 staged cross-test sets (positives and established negatives only; read-only)
-  np33        staged cross-test sets agentcheck / caught_not_taught / PostTrainBench (read-only)
+  np33        staged cross-test sets agentcheck / PostTrainBench (read-only)
 """
 
 from __future__ import annotations
@@ -67,6 +67,8 @@ def np33_runs() -> list[HarnessRun]:
     sample = json.loads((STAGED_NP33 / "sample.json").read_text())
     runs = []
     for row in sample["runs"]:
+        if row["set"] == "cnt":
+            continue
         with (STAGED_NP33 / "runs" / f"{row['key']}.pkl").open("rb") as handle:
             steps = tuple(pickle.load(handle)["steps"])
         runs.append(

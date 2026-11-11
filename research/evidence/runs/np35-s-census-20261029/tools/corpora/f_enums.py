@@ -4,6 +4,11 @@
 
 import sys, os, glob
 from collections import Counter
+from evallab.gold.exclusions import source_exclusion
+
+exclusion = source_exclusion(sys.argv[1])
+if exclusion:
+    raise ValueError(f"Excluded trace source {exclusion['name']}: {exclusion['reason']}")
 
 sys.dont_write_bytecode = True
 os.environ["EVALLAB_DISABLE_LOCAL_DOCKER"] = "1"

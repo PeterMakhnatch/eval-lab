@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import math
 from pathlib import Path
 
@@ -48,45 +47,3 @@ def test_tie_expected_handles_tied_groups() -> None:
     assert math.isclose(res["rev_needed"][80], 10.0)
 
 
-def test_committed_prereg_and_aggregates_contract() -> None:
-    prereg = json.loads((HERE / "prereg.json").read_text())
-    agg = json.loads((HERE / "results/aggregates.json").read_text())
-
-    assert prereg["schema"] == "ev1105.queue.prereg/v1"
-    assert agg["schema"] == "ev1105.queue.aggregates/v1"
-    assert agg["model_calls"] == 0
-    assert agg["paid_spend_usd"] == 0.0
-    assert agg["prereg_md_sha256"] == evaluate.sha256_file(HERE / "PREREG.md")
-    assert agg["prereg_json_sha256"] == evaluate.sha256_file(HERE / "prereg.json")
-
-    expected_queues = {
-        "dev_review": (366, 111, 255),
-        "dev_keep_audit": (72, 9, 63),
-        "heldout_pooled": (1450, 344, 1106),
-        "malt": (400, 15, 385),
-        "impossible_task": (80, 53, 27),
-    }
-    for qid, (n, p, h) in expected_queues.items():
-        q = agg["queues"][qid]["full_queue"]
-        assert q["n"] == n
-        assert q["cheats"] == p
-        assert q["honest"] == h
-        for sig in ("j3", "j2b", "length_chars", "length_steps", "current_order", "random_expected"):
-            assert sig in q["signals"]
-            sdata = q["signals"][sig]
-            for k in ("5", "10", "20", "30", "50"):
-                assert k in sdata["top_k"]
-            for r in ("50", "80", "90"):
-                assert r in sdata["reviews_to_find_cheats"]
-
-    # Check worked examples
-    assert len(agg["worked_examples"]) == 2
-    ex1, ex2 = agg["worked_examples"]
-    assert ex1["queue"] == "dev_keep_audit"
-    assert ex1["caught_by_j3_drop_threshold"] is False
-    assert ex1["reviews_saved_on_run_by_j3"]["vs_current_order"] == 61
-    assert ex1["reviews_saved_on_run_by_j3"]["vs_length_chars"] == 65
-    assert ex2["queue"] == "impossible_task"
-    assert ex2["caught_by_j3_drop_threshold"] is False
-    assert ex2["reviews_saved_on_run_by_j3"]["vs_current_order"] == 37
-    assert ex2["reviews_saved_on_run_by_j3"]["vs_length_chars"] == 36

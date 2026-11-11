@@ -1,22 +1,7 @@
-"""Prospective study registrations, including cohorts with no admitted rows."""
+"""Scoring locks for labelled-only cohorts; empty studies do not register Gold sources."""
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
-FRESH_SOURCE = "goodfire-dev-fresh-labels-v1"
 LABELLED_ONLY = "labelled-only, unscored"
-REGISTRATIONS = (Path("research/evidence/ev1110-gold-fresh/cohort.json"),)
-
-
-def registrations(repo_root: Path) -> dict[str, dict]:
-    result = {}
-    for relative in REGISTRATIONS:
-        path = repo_root / relative
-        if path.is_file():
-            value = json.loads(path.read_text())
-            result[value["source"]] = value
-    return result
 
 
 def check_scoring(registry: dict[str, dict], selected: set[str], unlocked: set[str]) -> None:

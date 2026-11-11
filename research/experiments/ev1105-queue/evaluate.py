@@ -26,6 +26,8 @@ DETBENCH = ROOT / "research/experiments/ov1104-detbench"
 sys.path.insert(0, str(DETBENCH))
 import score as detbench_score  # noqa: E402
 
+from evallab.gold.exclusions import source_exclusion  # noqa: E402
+
 TOP_K_PERCENTS = (5, 10, 20, 30, 50)
 TARGET_RECALL_PERCENTS = (50, 80, 90)
 HELDOUT_JUDGE_SETS = (
@@ -867,6 +869,10 @@ def run_evaluation(prereg_path: Path, out_dir: Path) -> dict[str, Any]:
         for line in Path(prereg["inputs"]["detbench_runs"]["path"]).read_text().splitlines()
         if line.strip()
     ]
+    for row in detbench_runs:
+        exclusion = source_exclusion(row["set"])
+        if exclusion:
+            raise ValueError(f"Excluded trace source {exclusion['name']}: {exclusion['reason']}")
     detbench_by_key = {r["run_key"]: r for r in detbench_runs}
     dev_by_key = {k: r for k, r in detbench_by_key.items() if r["split"] == "dev"}
 

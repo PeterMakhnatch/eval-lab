@@ -124,17 +124,15 @@ FACET_TOKEN_CAP = 40_000_000  # facet input tokens, all attempts
 
 PQ4 = "research/evidence/runs/corpus-expansion-pq4-20261028/corpora/"
 ADAPTERS = {
-    "cnt": PQ4 + "amirgroup-codes__caught_not_taught",
     "agentcheck": PQ4 + "aminembarek2__agentcheck",
     "ptb": PQ4 + "aisa-group__PostTrainBench-Trajectories",
 }
 CORPUS_LABEL = {
-    "cnt": "caught_not_taught",
     "agentcheck": "agentcheck (CIRCULAR labels)",
     "ptb": "PostTrainBench-Trajectories",
 }
 #: Registry counts (positive, negative) the pool must reproduce. agentcheck: 28 positives (10 scored) / 91.
-EXPECTED = {"cnt": (46, 160), "agentcheck": (28, 91), "ptb": (109, 1439)}
+EXPECTED = {"agentcheck": (28, 91), "ptb": (109, 1439)}
 AGENTCHECK_SCORED_POSITIVES = 10
 #: PostTrainBench allocation: positives are water-filled over benchmark strata up to this total, and every
 #: stratum draws NEG_RATIO negatives per positive (nearest in step count), so the positive rate is the same in
@@ -142,14 +140,9 @@ AGENTCHECK_SCORED_POSITIVES = 10
 #: brief's positive count; the cap of 700 calls cuts the plan at a round boundary (README section 1).
 PTB_POS_CAP = 60
 NEG_RATIO = 1
-#: caught_not_taught: only the untrusted arm is read (46 positives, 80 untrusted-honest negatives); the 80
-#: trusted-arm negatives (another model, carries a model-identity marker) are not sent to a model.
-CNT_DRAWN_STRATA = ("positive", "negative_untrusted")
 #: agentcheck: all 10 scored positives and this many seeded negatives (of 91).
 AGENTCHECK_NEG_CAP = 40
 DATASET_TERMS = {
-    "cnt": ["caught_not_taught", "caught-not-taught", "caught not taught", "amirgroup", "Saeedi", "Aghazadeh",
-            "controlarena"],
     "agentcheck": ["agentcheck", "Aminembarek2", "Amine Mbarek"],
     "ptb": ["posttrainbench", "post-train-bench", "post train bench", "aisa-group", "aisa group"],
 }
@@ -612,33 +605,6 @@ def to_atif(steps: list[dict[str, Any]], kind: str) -> list[dict[str, Any]]:
     return out
 
 
-def _cnt_pool() -> list[dict[str, Any]]:
-    module = load_adapter("cnt")
-    pool = []
-    for s in module.specs():
-        state, ident = s["gold"]["state"], s["identity"]
-        if state not in ("positive", "negative"):
-            continue
-        raw = s["_steps"]
-        trusted = ident["arm"] != "untrusted"
-        nudges = sum(1 for st in raw if st["role"] == "user" and st["text"].strip().casefold().startswith(NUDGE))
-        diff = next((len(st["text"]) for st in raw if st["role"] == "final_diff"), 0)
-        task, pair = ident["main_name"], ident["pair"]
-        pool.append({
-            "set": "cnt", "key": sha(f"cnt:{ident['id']}")[:16], "label": state == "positive",
-            "stratum": "positive" if state == "positive" else ("negative_trusted" if trusted else "negative_untrusted"),
-            "task": sha(f"cnt:{task}")[:12], "cluster_alt": sha(f"cnt:{task}|{pair}")[:12],
-            "family": sha(f"cnt:{pair}|{ident['arm']}")[:12],
-            # same main task, same acting model pair, same arm: a positive (untrusted) never matches a trusted negative
-            "match1": sha(f"cnt:{task}|{pair}|{ident['arm']}")[:12], "match2": sha(f"cnt:{pair}|{ident['arm']}")[:12],
-            "terms": terms_of("cnt", [ident["id"], ident["problem_id"], ident["main_name"], ident["side_name"], pair]),
-            "steps": to_atif(raw, "cnt"),
-            "feat": {"n_steps": len(raw), "diff_chars": diff, "nudge": int(nudges > 0)},
-            "meta": {"arm": ident["arm"], "pair": sha(f"cnt:{pair}")[:6]},
-        })
-    return pool
-
-
 def _agentcheck_pool() -> tuple[list[dict[str, Any]], dict[str, int]]:
     module = load_adapter("agentcheck")
     pool, seen = [], Counter()
@@ -861,7 +827,7 @@ def load_run(key: str) -> dict[str, Any]:
 
 
 def sample_keys() -> list[dict[str, Any]]:
-    return json.loads(SAMPLE.read_text())["runs"]
+    return [row for row in json.loads(SAMPLE.read_text())["runs"] if row["set"] in ADAPTERS]
 
 
 def runs_manifest_sha(keys: list[str]) -> str:
@@ -879,18 +845,6 @@ def sample() -> None:
     chosen: list[dict[str, Any]] = []
     manifest: dict[str, Any] = {}
     mismatches: list[str] = []
-
-    cnt = _cnt_pool()
-    got = (sum(r["label"] for r in cnt), sum(not r["label"] for r in cnt))
-    print("cnt pool", got, "expected", EXPECTED["cnt"], flush=True)
-    if got != EXPECTED["cnt"]:
-        mismatches.append(f"cnt: pool {got}, registry {EXPECTED['cnt']}")
-    cnt_drawn = [r for r in cnt if r["stratum"] in CNT_DRAWN_STRATA]
-    manifest["cnt"] = {"pool": dict(Counter(r["stratum"] for r in cnt)),
-                       "drawn": dict(Counter(r["stratum"] for r in cnt_drawn)),
-                       "rule": "every labelled run of the untrusted arm (positives and untrusted-honest negatives); "
-                               "the 80 trusted-arm negatives are not drawn"}  # fmt: skip
-    chosen += cnt_drawn
 
     ac, totals = _agentcheck_pool()
     print("agentcheck pool", totals, flush=True)
@@ -2012,7 +1966,7 @@ def score(partial: bool, rescore: str | None) -> None:
     finals = final_facets()
     features = json.loads(FEATURES.read_text())
     n_round = complete_round(sample_doc["runs"], casc, finals)
-    runs = [r for r in sample_doc["runs"] if r["round"] <= n_round]
+    runs = [r for r in sample_doc["runs"] if r["set"] in ADAPTERS and r["round"] <= n_round]
     missing_casc = [r["key"] for r in runs if r["key"] not in casc]
     missing_facets = [r["key"] for r in runs if r["key"] not in finals]
     if (missing_casc or missing_facets) and not partial:
@@ -2125,7 +2079,7 @@ def _scored_rows() -> tuple[list[dict[str, Any]], int]:
     return [{**r, "feat": features[r["key"]],
              "reading": detector_readings(casc.get(r["key"]),
                                           facet_rows[r["key"]]["record"] if r["key"] in facet_rows else None)}
-            for r in sample_doc["runs"] if r["round"] <= n_round], n_round
+            for r in sample_doc["runs"] if r["set"] in ADAPTERS and r["round"] <= n_round], n_round
 
 
 def descriptive_loto() -> None:
@@ -2143,7 +2097,7 @@ def descriptive_loto() -> None:
                 "resampling, not significance; the dropped task is numbered in task-hash order",
         "tool_sha256": file_sha(Path(__file__)), "sets": {},
     }
-    for name in ("cnt", "agentcheck"):
+    for name in ("agentcheck",):
         rows = [r for r in per if r["set"] == name]
         items = [thl.Item(r["key"], r["feat"]["n_steps"], r["label"], r["task"], r["cluster_alt"], r["family"])
                  for r in rows]
@@ -2165,7 +2119,7 @@ def descriptive_loto() -> None:
                 out["sets"][name][d][f"delta_vs_{fname}"] = results
     RESULTS.mkdir(parents=True, exist_ok=True)
     (RESULTS / "loto-descriptive.json").write_text(json.dumps(out, indent=1, sort_keys=True) + "\n")
-    print(json.dumps(out["sets"]["cnt"]["facets_susp_ge_2"], indent=1))
+    print(json.dumps(out["sets"]["agentcheck"]["facets_susp_ge_2"], indent=1))
 
 
 # ------------------------------------------------------------------ spend ledger

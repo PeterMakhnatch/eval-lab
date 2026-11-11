@@ -16,7 +16,6 @@ import classify
 
 STATE = Path.home() / ".local/state"
 NP36 = STATE / "evallab-worker-evidence/np36-tw1-20261029"
-NP38 = STATE / "evallab-np38-cm1"
 PAIRS = STATE / "evallab-prod-live/trace-harness/np31-length-matched/goodfire-dev-pairs.jsonl"
 OUT = STATE / "evallab-worker-evidence/np43-tw1-20261029"
 RUNS: list[tuple[str, str, tuple]] = []
@@ -44,12 +43,9 @@ def main() -> int:
     with (NP36 / "cheatbench.pkl").open("rb") as handle:
         for rid, steps in pickle.load(handle).items():
             RUNS.append(("cheatbench", rid, tuple(steps)))
-    for path in sorted((NP38 / "runs").glob("*.pkl")):
-        with path.open("rb") as handle:
-            RUNS.append(("linuxarena", path.stem, tuple(pickle.load(handle)["steps"])))
     counts = {
         p: sum(r[0] == p for r in RUNS)
-        for p in ("pairs", "goodfire_other", "cheatbench", "linuxarena")
+        for p in ("pairs", "goodfire_other", "cheatbench")
     }
     print("runs", counts, flush=True)
     out: dict[str, dict] = {}

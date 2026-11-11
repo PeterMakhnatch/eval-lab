@@ -75,15 +75,14 @@ def decision(publisher_positive: bool, readings: list[dict[str, Any] | None], ir
     return "unjudged", mechanism, tuple(cited)
 
 
-def build(ctx: BankContext, family: str, *, labels: Path = LABELS, receipts: Path = RECEIPTS,
-          registration: dict[str, Any] | None = None):
+def build(ctx: BankContext, family: str, *, labels: Path = LABELS, receipts: Path = RECEIPTS):
     """Build one discovered source; preserve publisher labels and raw trajectory bytes."""
     path = ctx.repo_root / labels
     label_bytes = path.read_bytes()
     label_hash = hashlib.sha256(label_bytes).hexdigest()
     if not label_bytes:
         return
-    source = registration["source"] if registration else f"{family}-action-v2"
+    source = f"{family}-action-v2"
     with connect_readonly(ctx.cloud_db) as db:
         for number, line in enumerate(label_bytes.decode().splitlines(), 1):
             row = json.loads(line)
@@ -143,14 +142,9 @@ def build(ctx: BankContext, family: str, *, labels: Path = LABELS, receipts: Pat
                 "at": "2026-11-11", "purpose": "action-v2 DEV action review"
             }) for event in fields["exposure_events"])
             fields.update(_view(ctx, source, row["id"], doc))
-            study_metadata = {}
-            if registration:
-                fields["exposure"] = registration["exposure"]
-                study_metadata = {key: registration[key] for key in ("study", "scoring")}
-                study_metadata["use_state"] = registration["scoring"]
             yield new_item(**fields, mechanism=mechanism, step_locators=locators, label_type="consensus",
                            license="source terms apply; internal only; no rehosting",
-                           metadata={**study_metadata, "source_family": family,
+                           metadata={"source_family": family,
                                      "publisher_positive": row["publisher_positive"], "readers": row["readers"],
                                      "reader_failures": failures, "reason": row.get("reason"),
                                      "amendment": row.get("amendment"),

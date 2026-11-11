@@ -5,10 +5,9 @@ from typing import Any
 from evallab.failure_library.bank import IssueItem
 
 
-def counts(rows: list[IssueItem], registrations: dict[str, dict] | None = None) -> dict[str, Any]:
-    registrations = registrations or {}
+def counts(rows: list[IssueItem]) -> dict[str, Any]:
     groups: dict[str, Any] = {}
-    for source in sorted({row.source for row in rows} | registrations.keys()):
+    for source in sorted({row.source for row in rows}):
         selected = [row for row in rows if row.source == source]
         resolved = [row for row in selected if any(
             ref.normalized_step_id is not None and ref.event_kind in {"call", "result"}
@@ -35,8 +34,6 @@ def counts(rows: list[IssueItem], registrations: dict[str, dict] | None = None) 
             ).items())) for field in ("task_available", "grader_available", "trajectory_available",
                                      "exposure", "split")},
         }
-        if source in registrations:
-            groups[source]["registration"] = registrations[source]
     return {"rows": len(rows), "binary_rows": sum(
         row.label_state in {"executed-positive", "reviewed-control"} for row in rows
     ), "sources": groups, "protocol": dict(sorted(Counter(row.protocol for row in rows).items())),

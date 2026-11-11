@@ -25,8 +25,6 @@ REPO = HERE.parents[4]
 STATE = Path.home() / ".local/state"
 OUT = STATE / "evallab-worker-evidence/np43-tw1-20261029"
 PAIRS = STATE / "evallab-prod-live/trace-harness/np31-length-matched/goodfire-dev-pairs.jsonl"
-NP38 = STATE / "evallab-np38-cm1"
-NP38_PUBLIC = REPO / "research/evidence/runs/np38-cm1-linuxarena-20261029/results/sample.json"
 NP36_GATE = REPO / "research/evidence/runs/np36-grader-tamper-20261029/results/strict_gate.json"
 
 
@@ -133,29 +131,9 @@ def main() -> int:
         gf("cheatbench", r, False) for r in sorted(cb_ids) if not cb.positive[r]
     ]
 
-    sample = json.loads((NP38 / "sample.json").read_text())
-    public = json.loads(NP38_PUBLIC.read_text())
-    manifest = "\n".join(
-        f"{k}:{sha(NP38 / 'runs' / f'{k}.pkl')}" for k in sorted(r["key"] for r in sample["runs"])
-    )
-    la_checks = {
-        "sample_sha256_matches_np38_public": sha(NP38 / "sample.json")
-        == public.get("sample_sha256"),
-        "runs_manifest_sha256_matches": hashlib.sha256(manifest.encode()).hexdigest()
-        == public.get("runs_manifest_sha256"),
-        "S": sum(r["stratum"] == "S" for r in sample["runs"]),
-        "non_S": sum(r["stratum"] != "S" for r in sample["runs"]),
-    }
-    groups["linuxarena_S"] = [
-        gf("linuxarena", r["key"], True) for r in sample["runs"] if r["stratum"] == "S"
-    ]
-    groups["linuxarena_nonS"] = [
-        gf("linuxarena", r["key"], False) for r in sample["runs"] if r["stratum"] != "S"
-    ]
 
     out = {
         "strict_gate": gate,
-        "linuxarena_integrity": la_checks,
         "cheatbench_admitted_with_verdict": len(cb_ids),
         "groups": {name: summarize(rows) for name, rows in groups.items()},
     }
@@ -167,7 +145,7 @@ def main() -> int:
         print(
             name, s["runs"], "alarm", s["alarm_runs"], s["run_category"], "events", s["event_kinds"]
         )
-    print(gate, la_checks)
+    print(gate)
     return 0
 
 

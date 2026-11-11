@@ -52,10 +52,11 @@ import json
 import re
 import shlex
 import sys
-import urllib.request
 from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 from typing import Any
+
+from evallab.failure_library.runs.io import download_bytes
 
 DATASET = "steinad/CheatBench"
 REVISION = "461360b34e93644955563dcc9243c6cc1a53bd0f"
@@ -1066,14 +1067,16 @@ def source_url() -> str:
 
 
 def fetch_parquet(dest: str | Path, *, downloader: Callable[[str], bytes] | None = None) -> Path:
-    """Download the pinned parquet to ``dest`` and verify its sha256.
+    """Verify and materialize the pin; acquire bytes through the shared source reader.
 
     ``downloader`` is injectable so tests never reach the network.
     """
     dest = Path(dest)
     if dest.is_file() and hashlib.sha256(dest.read_bytes()).hexdigest() == SHA256:
         return dest
-    payload = (downloader or _anonymous_download)(source_url())
+    payload = downloader(source_url()) if downloader else download_bytes(
+        source_url(), user_agent=USER_AGENT, timeout=300,
+    )
     actual = hashlib.sha256(payload).hexdigest()
     if actual != SHA256:
         raise CheatbenchError(
@@ -1082,12 +1085,6 @@ def fetch_parquet(dest: str | Path, *, downloader: Callable[[str], bytes] | None
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(payload)
     return dest
-
-
-def _anonymous_download(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=300) as response:  # noqa: S310
-        return response.read()
 
 
 def fetch(split: str, dest: str | Path) -> Path:

@@ -1,9 +1,0 @@
---- a/impedance/models/circuits/circuits.py
-+++ b/impedance/models/circuits/circuits.py
-@@ -102,5 +102,5 @@
-             parameters, conf = circuit_fit(frequencies, impedance,
-                                            self.circuit, self.initial_guess,
--                                           self.constants, method=method,
-+                                           self.constants,
-                                            bounds=bounds)
-             self.parameters_ = parameters

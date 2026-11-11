@@ -1,7 +1,0 @@
-{
-  "approved_at": "",
-  "approved_by": "",
-  "binding_sha256": "f2d8e50e9d372f031f4350cd8eb160098f3c03ba80ea71a7b25d282ec42246d8",
-  "cap_usd": 3,
-  "note": "STAGED template, NOT an authorization: approved_by/approved_at are blank. Precomputed binding for the sealed-split pilot (phase gepa, 4 train [0758, 1990, 2836, 0308] + 2 val [0688, 0036]; 0390/0109 replaced after the sealed rebind, see ../train-exclusions.json and heldout-exclusions.json; max_metric_calls 10, cost_limit 1.0, cap $3, harbor_env daytona; expected $2.73 = $1.98 model API-equiv (coding-plan subscription quota) + $0.75 metered Daytona sandbox; student zai-coding-plan/glm-5.3-flash -- the self-hosted distill route is BLOCKED on this lane without new transport code, see README.md; split manifest sha256:c3df70a5551c47d6c695abb3b8e51ca009b48d606289de4f637a7c1329e49f58). Recompute after ANY flag/code/split change (see APPROVAL.md). Signed file is runtime state: keep outside the repo, never commit."
-}

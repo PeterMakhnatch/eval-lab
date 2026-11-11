@@ -1,9 +1,0 @@
---- a/src/iris/vendors/__init__.py
-+++ b/src/iris/vendors/__init__.py
-@@ -60,5 +60,5 @@
-     def send_message(self, message):
-         for tries, vendor in enumerate(self.app_specific_vendors_iter.get(message.get('application'), self.vendors_iter)[message['mode']]):
--            if tries > self.max_tries_per_message:
-+            if tries >= self.max_tries_per_message:
-                 logger.warning('Exhausted %d tries for message %s', tries, message)
-                 break

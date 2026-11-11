@@ -1,7 +1,0 @@
-!!! CRITICAL ERROR: Daemon communication failure !!!
-[debug] 0xdeadbeef corrupted packet received
-Some unparseable lines here
-Anthropic — 1 account
-  invalid structure without percentages
-  ● Broken line without data
-Google Antigravity — corrupted

@@ -1,9 +1,0 @@
---- a/robo/acquisition/LogEI.py
-+++ b/robo/acquisition/LogEI.py
-@@ -80,5 +80,5 @@
-                 b = np.log(sigma) + norm.logpdf(z[i])
-                 # log(y+z) is tricky, we distinguish two cases:
--                if np.any(eta - par_s) > mu:
-+                if np.any(eta - par_s) >= mu:
-                     # When y>0, z>0, we define a=ln(y), b=ln(z).
-                     # Then y+z = exp[ max(a,b) + ln(1 + exp(-|b-a|)) ],

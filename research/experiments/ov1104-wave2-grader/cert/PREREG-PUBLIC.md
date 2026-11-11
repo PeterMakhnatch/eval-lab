@@ -1,7 +1,0 @@
-# Public GCS semantic validation
-
-Register before running this validation and before reading current grade outputs. The instruction-only source review shows that strict 002139 replication chooses gs.py, while prior synthesized contracts import gcp and inspect reference-specific cached-client and logger properties. An original-grader score alone therefore cannot settle instruction-level correctness.
-
-Freeze a separate operator-written public API check derived only from instruction.md. Run it unchanged on all four filename-unconstrained alternatives 4–7, retaining every result. Use bb.fetch2.Fetch, download(), and checkstatus(); never import a specific GCS implementation module or inspect source/private implementation state. Stub the Google storage API, not the fetcher. Check default/override filenames, requested bucket/object, payload output, NotFound conversion, missing output failure, empty output failure/removal, missing blob failure, and network-access denial before storage operations.
-
-Preserve original-grader and Gold results separately. A public-check pass is not an original-grader pass and not a Gold certificate. No public failure permits candidate replacement or post-score check modification. The script runs at /tmp/public_gcs.py inside the task sandbox and does not modify grading or test files. It shares the $2 total Modal cap. Record the frozen script SHA-256 before any run and report all 4 candidates as its denominator.

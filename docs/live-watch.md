@@ -673,7 +673,13 @@ The live ledger operates fail-open: logging errors to stderr and never
 disrupting ongoing trials. Request/response bodies, prompts, and credentials
 are strictly excluded. Multi-trial jobs disambiguate records via `attempt_id`.
 
-## Live production control plane
+## Production queue and historical factory contracts
+
+The autonomous factory, control plane, relay, and factory UI are retired.
+Only the queue and source operations shown by `evallab prod --help` remain supported.
+The older factory and HTTP examples below are historical, not launch instructions.
+Use `evallab score` instead of the retired QC report export.
+Installed services and their stored state are not changed.
 
 ### Production CLI
 
@@ -2127,7 +2133,10 @@ the request and records `control.requested`, `control.acknowledged`, and finally
 `control.applied` or `control.expired`. Only an applied event changes the displayed
 execution state.
 
-## Outbox relay
+## Historical outbox relay
+
+The relay and replay UI described below are retired.
+These examples document the old event contract, not current launch commands.
 
 `evallab.production.outbox_relay.OutboxRelay(queue, publisher, quarantine=...)`
 drains `ContinuousWorkQueue.pending_outbox` and publishes each complete

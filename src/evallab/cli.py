@@ -5,7 +5,6 @@ import json
 import os
 import re
 import shlex
-import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
@@ -114,7 +113,6 @@ from evallab.runner import (
     database_url_from_environment,
     load_matrix,
     run_matrix,
-    subscription_environment,
 )
 from evallab.status import build_status_snapshot, render_status_text, snapshot_as_dict
 from evallab.status_generator import generate_status_markdown, update_status_file
@@ -327,40 +325,6 @@ def _doctor_command(
     return _doctor(root)
 
 
-# The dashboard's one Streamlit pin; scripts/ops/launchd/install-dashboard.sh installs the same.
-STREAMLIT_REQUIREMENT = "streamlit==1.61.1"
-
-
-def _dashboard_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    environment = subscription_environment()
-    environment["DATABASE_URL"] = database_url_from_environment(args.database_url)
-    environment[DERIVED_ROOT_ENV] = str(derived_root_from_environment(root))
-    environment["PYTHONPATH"] = str(root)
-    try:
-        completed = subprocess.run(
-            [
-                "uv",
-                "run",
-                "--with",
-                STREAMLIT_REQUIREMENT,
-                "streamlit",
-                "run",
-                str(root / "dashboard/app.py"),
-                f"--server.address={args.address}",
-                f"--server.port={args.port}",
-                "--server.headless=true",
-                "--browser.gatherUsageStats=false",
-                "--client.toolbarMode=viewer",
-            ],
-            cwd=root,
-            env=environment,
-            check=False,
-        )
-    except KeyboardInterrupt:
-        return 130
-    return completed.returncode
 
 
 def _status_command(
@@ -4481,12 +4445,6 @@ def _review_command(
     return 2
 
 
-def _production_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.production.feeder import run_command
-
-    return run_command(args, root)
 
 
 # ---------------------------------------------------------------------------
@@ -4510,50 +4468,6 @@ def parser() -> argparse.ArgumentParser:
     )
     doctor.set_defaults(func=_doctor_command)
 
-    dashboard = commands.add_parser("dashboard", help="Open the read-only research overview")
-    dashboard.add_argument("--address", default="127.0.0.1")
-    dashboard.add_argument("--port", type=int, default=8501)
-    dashboard.add_argument("--database-url")
-    dashboard.set_defaults(func=_dashboard_command)
-
-    production = commands.add_parser(
-        "production", help="Local production dashboard and DEV-only recorded public replay ($0)"
-    )
-    production_commands = production.add_subparsers(dest="production_command", required=True)
-    for name in ("demo", "serve", "replay"):
-        command = production_commands.add_parser(
-            name,
-            help={
-                "demo": "Serve a fresh journal and replay real DEV evidence; no model or sandbox",
-                "serve": "Serve an existing SQLite production journal",
-                "replay": "Append recorded DEV evidence and computed prefix scores to a journal",
-            }[name],
-        )
-        command.add_argument("--database", type=Path, required=name != "demo")
-        command.add_argument(
-            "--allowed-root",
-            type=Path,
-            action="append",
-            default=[],
-            help="Additional trusted local evidence root (repeatable)",
-        )
-        if name != "replay":
-            command.add_argument("--export-root", type=Path)
-            command.add_argument("--port", type=int, default=8765)
-            command.add_argument(
-                "--token", help="Operator capability (otherwise generated; terminal only)"
-            )
-        if name != "serve":
-            command.add_argument("--speed", type=float, default=20, help="Replay events/second")
-            command.add_argument("--limit", type=int, help="Recordings per cycle (not trace steps)")
-            command.add_argument("--source", choices=("tb4-dev", "mimo", "both"), default="both")
-            command.add_argument(
-                "--loop", action="store_true", help="Replay with fresh run IDs until Ctrl-C"
-            )
-            command.add_argument(
-                "--tb4-port-root", type=Path, help="Retained pinned Karotte port checkout"
-            )
-        command.set_defaults(func=_production_command)
 
     status = commands.add_parser(
         "status",
@@ -6864,12 +6778,6 @@ def parser() -> argparse.ArgumentParser:
     from evallab.failure_library.cli import build_failures_parser
 
     build_failures_parser(commands)
-    from evallab.insights.cli import build_insights_parser
-
-    build_insights_parser(commands)
-    from evallab.fleet.cli import build_fleet_parser
-
-    build_fleet_parser(commands)
     from evallab.docker_lock import build_docker_lock_parser
 
     build_docker_lock_parser(commands)

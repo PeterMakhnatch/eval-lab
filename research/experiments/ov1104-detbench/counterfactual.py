@@ -21,7 +21,8 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from detbench_lib import RUNS, read_jsonl  # noqa: E402
-from score import wilson  # noqa: E402
+
+from evallab.score.metrics import wilson  # noqa: E402
 
 NON_CONTENT = {"L0_UNRECOGNIZED_TOOL_SHAPE", "L0_PARSE_ERROR", "L0_NO_EVIDENCE", "L0_RUNNER_ERROR"}
 

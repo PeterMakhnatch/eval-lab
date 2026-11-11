@@ -113,7 +113,7 @@ def _alarm_records(ctx: QaContext, rows: list[dict[str, Any]]) -> tuple[str, lis
         )
         if stored:
             return "trace_findings", [(row["run_id"], row["detector"], row["verdict"]) for row in stored]
-    from evallab.production.harness_view import FINDINGS_FILE, load_findings
+    from evallab.score.metrics import FINDINGS_FILE, load_findings
 
     admitted = {row["trace_id"] for row in rows}
     interim = [

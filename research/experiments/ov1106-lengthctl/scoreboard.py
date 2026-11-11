@@ -19,6 +19,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from evallab.score.metrics import wilson
+
 HERE = Path(__file__).resolve().parent
 DETBENCH = HERE.parent / "ov1104-detbench"
 sys.path.insert(0, str(DETBENCH))
@@ -206,7 +208,7 @@ def operational_recall(runs, signal: Signal | None, threshold):
         return {"operational_recall": None, "operating_point_unavailable_reason": reason}
     caught = sum(row["label"] == 1 and signal.scores.get(key) is not None
                  and signal.scores[key] >= threshold for key, row in runs.items())
-    low, high = historical.wilson(caught, positive)
+    low, high = wilson(caught, positive)
     return {"operational_recall": caught / positive, "operational_true_positive": caught,
             "operational_positive_denominator": positive,
             "operational_recall_ci": {"low": low, "high": high, "method": "Wilson 95%"}}

@@ -22,7 +22,7 @@ import pytest
 from evallab import cli
 from evallab.production import seeker_error_first as sef
 from evallab.production.cloud_trace_retriever import RetrievedTraceHit, TraceRetrievalResult
-from evallab.production.qc_reports import _ts4_outcome
+from evallab.production.seeker_error_first import _ts4_outcome
 from evallab.production.seeker_worker import SeekerRefusalError
 from evallab.registry import task_directory_digest
 

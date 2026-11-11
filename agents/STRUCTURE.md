@@ -38,11 +38,6 @@ eval-lab/
 │                              toolchains the lab shells out to by subprocess
 │                              and never imports (own uv.lock; never root
 │                              workspace members)
-├── dashboard/                 read-only research overview (Streamlit app +
-│                              explorer, projection, queries, own tests/).
-│                              Platform lane per agents/OWNERS.md. Separate
-│                              from src/ because it is a presentation surface
-│                              over committed evidence, never an execution path.
 ├── containers/                repo-owned container entrypoints and images used
 │                              by Platform services (for example state-journal);
 │                              committed runtime definitions, not generated state
@@ -83,7 +78,6 @@ Ask which question the thing answers:
 | "What did we find out / what is our ground truth?" | `research/` |
 | "What is the lab allowed to do unattended?" | `policy/` |
 | "How does the lab software work?" | `src/` (+ `tests/`, `sql/`, `scripts/`) |
-| "How do I *look* at what the lab produced?" | `dashboard/` (read-only presentation over committed evidence) |
 | "What did the integrator verify by hand, on what date?" | `docs/checkpoints/` (append-only history — correct by dated note, never rewrite) |
 | "What defines a repo-owned service container?" | `containers/` (Platform runtime definitions and entrypoints) |
 | "What is local runtime or recovery state?" | `runs/`, `queue/`, `derived/`, `backups/`, catalog — determine authority before cleanup |

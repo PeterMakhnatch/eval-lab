@@ -9,7 +9,7 @@ Usage (from the eval-lab worktree):
   uv run python research/experiments/ov1104-detbench/threshold_portability.py \
       [--runs ...] [--signals-dir ...] [--out research/experiments/ov1104-detbench/results/THRESHOLD-PORTABILITY.md]
 
-Uses score.choose_threshold and score.combine, so the thresholds and the combinations are exactly
+Uses the native score metrics and study combinations, so the thresholds and combinations are exactly
 the ones SIGNAL-MATRIX.md reports. DEV only; no held-out row is read.
 """
 
@@ -23,7 +23,9 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from detbench_lib import RUNS, SIGNALS  # noqa: E402
-from score import INF, choose_threshold, combine, load_runs, load_signal  # noqa: E402
+from score import combine, load_runs, load_signal  # noqa: E402
+
+from evallab.score.metrics import INF, choose_threshold  # noqa: E402
 
 SINGLES = [
     "length_chars",

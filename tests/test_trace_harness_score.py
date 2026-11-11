@@ -583,9 +583,6 @@ def by_identity(document: dict[str, Any]) -> dict[tuple[str, tuple[str, ...], st
     }
 
 
-def assert_ui_model_accepts(path: Path) -> None:
-    view = pytest.importorskip("evallab.production.harness_view")
-    view.Scorecard.model_validate(read_document(path))
 
 
 def test_publish_maps_singles_and_combos_to_scorecard_rows(tmp_path: Path) -> None:
@@ -612,7 +609,6 @@ def test_publish_maps_singles_and_combos_to_scorecard_rows(tmp_path: Path) -> No
     assert either["cost_usd_per_1k_runs"] == both["cost_usd_per_1k_runs"] == 2.0
     assert facets["published"] is None and either["published"] is None
     assert all(not (r["rule"] != "single" and r["published"]) for r in rows.values())
-    assert_ui_model_accepts(target)
 
 
 def test_publish_only_the_fixed_budgets_and_requires_one_of_them(tmp_path: Path) -> None:
@@ -654,7 +650,6 @@ def test_publish_two_model_readers_and_same_detector_with_two_readers(tmp_path: 
     rows = by_identity(read_document(target))
     assert ("c", ("facets",), "single", HAIKU) in rows and ("c", ("facets",), "single", "openai/gpt-5-mini") in rows
     assert ("c", ("facets", "scout"), "any", "anthropic/claude-haiku-5-5+kimi-code:k3.1-pro-highspeed") in rows
-    assert_ui_model_accepts(target)
 
 
 def test_combo_repeating_a_detector_and_pooled_identities_are_not_published(tmp_path: Path) -> None:
@@ -689,7 +684,6 @@ def test_publish_merges_other_corpora_and_replaces_the_scored_one(tmp_path: Path
     assert len(rows) == 4 and rows[("alpha", ("facets",), "single", HAIKU)] == alpha_before
     assert not any(key[1] == ("facets", "cascade") for key in rows)
     assert rows[("beta", ("facets",), "single", HAIKU)]["budgets"][0]["hits"] == 3
-    assert_ui_model_accepts(target)
 
 
 def test_corpus_without_negatives_is_skipped_and_writes_nothing(tmp_path: Path) -> None:
@@ -740,7 +734,6 @@ def test_gate_blocked_combo_is_excluded_unless_forced_and_published_flags_follow
     forced = ths.score_corpus(cohort, records, combos=combos, force_combos=True)
     assert ths.publish_scorecard(forced, tmp_path / "forced.json")[0] == 3
     assert ("cheatbench", ("facets", "cascade"), "any", HAIKU) in by_identity(read_document(tmp_path / "forced.json"))
-    assert_ui_model_accepts(tmp_path / "forced.json")
 
 
 def test_publish_is_atomic_when_the_replace_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -133,16 +132,11 @@ def test_status_writes_nothing(tmp_path: Path) -> None:
     assert not (scratch / "status.json").exists()
 
 
-def test_cli_and_dashboard_share_the_same_projection(tmp_path: Path, capsys) -> None:
-    if str(ROOT) not in sys.path:
-        sys.path.insert(0, str(ROOT))
-    from dashboard.projection import dashboard_view, load_operator_snapshot
+def test_cli_preserves_the_status_projection(tmp_path: Path, capsys) -> None:
 
     scratch = _copy("complete", tmp_path)
     _attach_saved_analysis(scratch)
     snapshot = build_status_snapshot(scratch, generated_at=FIXED)
-    dashboard = load_operator_snapshot(scratch, generated_at=FIXED)
-    assert snapshot_as_dict(snapshot) == dashboard_view(dashboard)
 
     code = run_cli(["status", "--json", "--from", str(scratch)], workspace=scratch)
     assert code == 0

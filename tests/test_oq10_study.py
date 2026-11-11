@@ -26,7 +26,6 @@ def module(name: str):
 
 study = module("study")
 freeze = module("freeze_study")
-driver = module("run_study")
 
 
 def prepared(tmp_path):
@@ -141,44 +140,6 @@ def test_actual_prompt_and_attested_response_bytes_are_enforced(tmp_path, monkey
                           paired=None, native_helper=native)
 
 
-def test_orphan_attempts_and_cache_inclusive_usage_are_counted_once(tmp_path):
-    directory = tmp_path / "calls/kimi/C0001"
-    directory.mkdir(parents=True)
-    (directory / "call-consumed.json").write_text("{}")
-    receipt = {"usage": {"input": 10, "cacheRead": 20, "cacheWrite": 30}, "tokens_in": 60,
-               "tokens_out": 7, "reasoning_tokens": 3, "cost_usd": None, "billing_mode": "subscription"}
-    (directory / "receipt.json").write_text(json.dumps(receipt))
-    usage = driver.reconcile_usage(tmp_path, "kimi", ["C0001", "C0001"])
-    assert usage["consumed_native_slots"] == 1
-    assert (usage["input_tokens"], usage["output_tokens"], usage["reasoning_tokens"]) == (60, 7, 3)
-    assert usage["actual_paid_usd"] is None
-    orphan = tmp_path / "calls/kimi/C0002"
-    orphan.mkdir()
-    (orphan / "call-consumed.json").write_text("{}")
-    usage = driver.reconcile_usage(tmp_path, "kimi", ["C0001", "C0002"])
-    assert usage["consumed_native_slots"] == 2 and usage["orphan_without_receipt"] == 1
-    assert usage["input_tokens"] is usage["output_tokens"] is None
-
-
-def test_unknown_usage_is_null_not_zero_or_a_crash(tmp_path):
-    directory = tmp_path / "calls/kimi/C0001"
-    directory.mkdir(parents=True)
-    (directory / "receipt.json").write_text(json.dumps({"usage": None, "cost_usd": None, "billing_mode": "subscription"}))
-    usage = driver.reconcile_usage(tmp_path, "kimi", ["C0001"])
-    assert usage["consumed_native_slots"] == 1 and usage["input_tokens"] is None
-
-
-def test_slot_partition_preserves_unsent_orphans_and_terminal_missing(tmp_path):
-    records = [
-        {"role": "kimi", "case_id": "C0001", "status": "ok", "prediction": {"status": "ok"},
-         "flags": {gate: False for gate in study.GATES}},
-        {"role": "kimi", "case_id": "C0002", "status": "missing", "flags": {gate: None for gate in study.GATES}},
-    ]
-    (tmp_path / "quota-pending/kimi/C0004").mkdir(parents=True)
-    result = driver.slot_coverage(tmp_path, "kimi", [f"C000{i}" for i in range(1, 6)], records,
-                                  {"slots": [{"case_id": "C0001"}, {"case_id": "C0003"}]})
-    assert result == {"planned": 5, "complete": 1, "terminal_missing": 1,
-                      "consumed_without_final_quality": 1, "quota_unsent": 1, "not_yet_sent": 1}
 
 
 def test_proof_replay_cannot_call_a_provider_without_prior_consumption(tmp_path, monkeypatch):

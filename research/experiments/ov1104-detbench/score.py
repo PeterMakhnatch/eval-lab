@@ -14,9 +14,7 @@ import argparse
 import bisect
 import json
 import math
-import random
 import sys
-from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -25,197 +23,15 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from detbench_lib import RUNS, SIGNALS, read_jsonl  # noqa: E402
 
-Row = tuple[str, int, float]  # (cluster, label, score)
-INF = float("inf")
-
-
-# ----------------------------------------------------------------------------- statistics
-def wilson(k: int, n: int, z: float = 1.959964) -> tuple[float | None, float | None]:
-    if n <= 0:
-        return (None, None)
-    p = k / n
-    denom = 1 + z * z / n
-    centre = (p + z * z / (2 * n)) / denom
-    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
-    return (max(0.0, centre - half), min(1.0, centre + half))
-
-
-def auroc(rows: Sequence[Row]) -> float | None:
-    """Mann-Whitney AUROC with ties counted 0.5; None when a class is missing."""
-    pos = [s for _, y, s in rows if y == 1]
-    neg = [s for _, y, s in rows if y == 0]
-    if not pos or not neg:
-        return None
-    scored = sorted(((s, y) for _, y, s in rows), key=lambda t: t[0])
-    rank_sum = 0.0
-    i = 0
-    n = len(scored)
-    while i < n:
-        j = i
-        while j + 1 < n and scored[j + 1][0] == scored[i][0]:
-            j += 1
-        avg_rank = (i + j) / 2 + 1  # 1-based average rank of the tie block
-        rank_sum += avg_rank * sum(1 for k in range(i, j + 1) if scored[k][1] == 1)
-        i = j + 1
-    n_pos, n_neg = len(pos), len(neg)
-    return (rank_sum - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
-
-
-def _by_cluster(rows: Iterable[Row]) -> dict[str, list[Row]]:
-    out: dict[str, list[Row]] = defaultdict(list)
-    for r in rows:
-        out[r[0]].append(r)
-    return out
-
-
-Block = tuple[tuple[tuple[int, int], ...], tuple[tuple[int, int], ...]]
-
-
-def _prep_blocks(rows: Sequence[Row], c2i: Mapping[str, int]) -> list[Block]:
-    scored = sorted(((s, y, c2i[c]) for c, y, s in rows), key=lambda t: t[0])
-    raw: list[tuple[Counter[int], Counter[int]]] = []
-    i = 0
-    n = len(scored)
-    while i < n:
-        j = i
-        while j + 1 < n and scored[j + 1][0] == scored[i][0]:
-            j += 1
-        pos_c: Counter[int] = Counter()
-        neg_c: Counter[int] = Counter()
-        for k in range(i, j + 1):
-            if scored[k][1] == 1:
-                pos_c[scored[k][2]] += 1
-            else:
-                neg_c[scored[k][2]] += 1
-        raw.append((pos_c, neg_c))
-        i = j + 1
-    merged: list[tuple[Counter[int], Counter[int]]] = []
-    for pos_c, neg_c in raw:
-        if merged and not pos_c and not merged[-1][0]:
-            merged[-1][1].update(neg_c)
-        elif merged and not neg_c and not merged[-1][1]:
-            merged[-1][0].update(pos_c)
-        else:
-            merged.append((Counter(pos_c), Counter(neg_c)))
-    return [(tuple(p.items()), tuple(ng.items())) for p, ng in merged]
-
-
-def _auroc_from_blocks(blocks: Sequence[Block], w: Sequence[int]) -> float | None:
-    neg_cum = 0.0
-    u_sum = 0.0
-    pos_tot = 0
-    for pos_items, neg_items in blocks:
-        n_b = sum(w[c] * cnt for c, cnt in neg_items) if neg_items else 0
-        p_b = sum(w[c] * cnt for c, cnt in pos_items) if pos_items else 0
-        if p_b:
-            u_sum += p_b * (neg_cum + 0.5 * n_b)
-            pos_tot += p_b
-        neg_cum += n_b
-    if not pos_tot or not neg_cum:
-        return None
-    return u_sum / (pos_tot * neg_cum)
-
-
-def bootstrap_auroc(rows: Sequence[Row], b: int, seed: int) -> tuple[float | None, float | None]:
-    """Cluster bootstrap 95% CI of AUROC (percentile)."""
-    groups = _by_cluster(rows)
-    keys = list(groups)
-    if len(keys) < 2 or auroc(rows) is None:
-        return (None, None)
-    c2i = {c: idx for idx, c in enumerate(keys)}
-    blocks = _prep_blocks(rows, c2i)
-    n_clusters = len(keys)
-    rng = random.Random(seed)
-    values: list[float] = []
-    for _ in range(b):
-        w = [0] * n_clusters
-        for _ in keys:
-            w[c2i[rng.choice(keys)]] += 1
-        a = _auroc_from_blocks(blocks, w)
-        if a is not None:
-            values.append(a)
-    if len(values) < max(10, b // 2):
-        return (None, None)
-    values.sort()
-    return (values[int(0.025 * (len(values) - 1))], values[int(0.975 * (len(values) - 1))])
-
-
-def bootstrap_auroc_diff(
-    rows_a: Mapping[str, Row], rows_b: Mapping[str, Row], b: int, seed: int
-) -> tuple[float | None, float | None, float | None]:
-    """Paired cluster bootstrap of AUROC(a) - AUROC(b) over the run_keys both cover."""
-    common = sorted(set(rows_a) & set(rows_b))
-    if not common:
-        return (None, None, None)
-    list_a = [rows_a[k] for k in common]
-    list_b = [rows_b[k] for k in common]
-    ga = _by_cluster(list_a)
-    keys = list(ga)
-    pa, pb = auroc(list_a), auroc(list_b)
-    if pa is None or pb is None or len(keys) < 2:
-        return (None if pa is None or pb is None else pa - pb, None, None)
-    c2i = {c: idx for idx, c in enumerate(keys)}
-    blocks_a = _prep_blocks(list_a, c2i)
-    blocks_b = _prep_blocks(list_b, c2i)
-    n_clusters = len(keys)
-    rng = random.Random(seed)
-    diffs: list[float] = []
-    for _ in range(b):
-        w = [0] * n_clusters
-        for _ in keys:
-            w[c2i[rng.choice(keys)]] += 1
-        xa, xb = _auroc_from_blocks(blocks_a, w), _auroc_from_blocks(blocks_b, w)
-        if xa is not None and xb is not None:
-            diffs.append(xa - xb)
-    if len(diffs) < max(10, b // 2):
-        return (pa - pb, None, None)
-    diffs.sort()
-    return (pa - pb, diffs[int(0.025 * (len(diffs) - 1))], diffs[int(0.975 * (len(diffs) - 1))])
-
-
-def choose_threshold(dev_rows: Sequence[Row], target_fpr: float) -> float:
-    """Highest-recall threshold whose FPR on the DEV negatives is <= target; +inf if none."""
-    neg = sorted((s for _, y, s in dev_rows if y == 0), reverse=True)
-    pos = [s for _, y, s in dev_rows if y == 1]
-    if not neg:
-        return INF
-    best_t, best_recall = INF, -1.0
-    for t in sorted({s for _, _, s in dev_rows}, reverse=True):
-        fpr = sum(1 for s in neg if s >= t) / len(neg)
-        if fpr > target_fpr:
-            continue
-        recall = sum(1 for s in pos if s >= t) / len(pos) if pos else 0.0
-        if recall > best_recall:
-            best_recall, best_t = recall, t
-    return best_t
-
-
-def rates_at(rows: Sequence[Row], t: float, abstained_neg: int = 0, abstained_pos: int = 0) -> dict[str, Any]:
-    """Recall and FPR at threshold t; abstained rows count as not flagged."""
-    tp = sum(1 for _, y, s in rows if y == 1 and s >= t)
-    fp = sum(1 for _, y, s in rows if y == 0 and s >= t)
-    n_pos = sum(1 for _, y, _ in rows if y == 1) + abstained_pos
-    n_neg = sum(1 for _, y, _ in rows if y == 0) + abstained_neg
-    recall = tp / n_pos if n_pos else None
-    fpr = fp / n_neg if n_neg else None
-    out: dict[str, Any] = {
-        "threshold": None if t == INF else t,
-        "tp": tp,
-        "n_pos": n_pos,
-        "fp": fp,
-        "n_neg": n_neg,
-        "recall": recall,
-        "recall_ci": wilson(tp, n_pos),
-        "fpr": fpr,
-        "fpr_ci": wilson(fp, n_neg),
-    }
-    for p in (0.01, 0.05, 0.20):
-        if recall is None or fpr is None:
-            out[f"precision_at_{int(p * 100)}pct"] = None
-        else:
-            denom = recall * p + fpr * (1 - p)
-            out[f"precision_at_{int(p * 100)}pct"] = recall * p / denom if denom else None
-    return out
+from evallab.score.metrics import (  # noqa: E402
+    INF,
+    Row,
+    auroc,
+    bootstrap_auroc,
+    bootstrap_auroc_diff,
+    choose_threshold,
+    rates_at,
+)
 
 
 # ----------------------------------------------------------------------------- data

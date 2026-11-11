@@ -37,5 +37,12 @@ The JSON includes family-macro rates, clustered intervals, unresolved alarm boun
 `qa.findings` requires an explicit DEV binding, exact task digest, and matching runtime boundary.
 An absent binding stays missing. Scoring never starts QA tools or inspects protected row payloads.
 
+`evallab.score.metrics` owns the retained Wilson and task-cluster bootstrap implementations.
+It also owns the label-independent findings parser.
+`IssueBank` owns its writer lock. The Seeker driver owns its receipt checks.
+Historical study callers import the native metric primitives directly.
+The retained study writers are not the recommended measurement path.
+
 2026-11-10: Add cached DEV scoring. Preserve old score paths and the unchanged line gate.
 2026-11-10: Add cached task/grader QA and the executed-action run join. Preserve offline metrics and the line gate.
+2026-11-10: Retire factory dashboards and QC report exports. Move native metric and receipt primitives without changing cached measurements.

@@ -22,10 +22,9 @@ HERE = Path(__file__).resolve().parent
 DETBENCH = Path('/private/tmp/ov1104/shared/detbench')
 MALT = Path.home() / '.local/state/eval-lab/ov1105-malt-060fefc3a'
 HELDOUT_SETS = {
-    'reflex-sentinel', 'caught-not-taught', 'flake-laundering', 'sleight-bench',
+    'reflex-sentinel', 'flake-laundering',
     'researcharena-benchmark-gaming', 'kernelbench-hard-runs', 'beam-tripwire',
-    'latent-agent-sandbox-episodes', 'trusted-monitoring-logs',
-    'resolvebench-support-agents', 'cape-bench',
+    'latent-agent-sandbox-episodes',
 }
 
 

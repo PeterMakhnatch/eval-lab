@@ -40,6 +40,7 @@ from evallab.failure_library.bank import (
     new_item,
 )
 from evallab.failure_library.records import Split
+from evallab.gold.exclusions import source_exclusion
 
 SOURCE = "cloud-traces"
 STORE = "cloud-trace-db:agent_traces"
@@ -180,6 +181,8 @@ def _goodfire_state(row: Mapping[str, Any]) -> str | None:
 
 
 def _cheat_verdict(row: Mapping[str, Any]) -> tuple[str, LabelType, str] | None:
+    if source_exclusion(str(row["dataset_id"])):
+        return None
     if row["dataset_id"] == GOODFIRE_DATASET:
         state = _goodfire_state(row)
         if state is None:

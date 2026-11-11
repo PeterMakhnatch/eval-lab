@@ -184,7 +184,7 @@ def test_sealed_or_unadmitted_dev_declaration_is_never_dev(
         assert found[key].harness_selector is None and found[key].actor_transcript is None
 
 
-def test_source_labelled_neither_runs_are_negatives_with_their_label_type(
+def test_training_copies_are_excluded_without_changing_native_labels(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     db, context = make(tmp_path, monkeypatch, {"t1", "t2", "t3", "t4", "t5"})
@@ -202,12 +202,8 @@ def test_source_labelled_neither_runs_are_negatives_with_their_label_type(
     db.commit()
     found = items(context())
 
-    assert set(found) == {"human:cheat", "rule:cheat", "judged:cheat", "tb4-hack:cheat"}
-    assert (found["human:cheat"].polarity, found["human:cheat"].label_type, found["human:cheat"].license) == (
-        "negative", "human", "MIT",
-    )
+    assert set(found) == {"rule:cheat", "tb4-hack:cheat"}
     assert (found["rule:cheat"].polarity, found["rule:cheat"].label_type) == ("negative", "detector")
-    assert (found["judged:cheat"].polarity, found["judged:cheat"].label_type) == ("positive", "judge")
     assert found["tb4-hack:cheat"].label_type == "executed"
 
 
@@ -224,7 +220,7 @@ def test_cross_key_test_on_canonical_identity_tightens_split(
     db = Db(tmp_path / "cloud.sqlite")
     monkeypatch.setattr(cloud_traces, "_admitted", lambda _connection, _ctx: frozenset({"t1"}))
     for trace, item in (("sealed", "cheatbench-actions-v1:test"), ("open", "cheatbench-actions-v1:dev")):
-        db.run(trace, task="t1", dataset="qa-trace-sft-v0", outcome="source_label:exploit-pass", exploit=True,
+        db.run(trace, task="t1", dataset="cheatbench-actions-v1", outcome="source_label:exploit-pass", exploit=True,
                receipt={"canonical_admission": {"dataset_id": "cheatbench-actions-v1", "item_id": item}})
     db.commit()
     found = items(CanonicalContext(repo_root=tmp_path, state_root=tmp_path / "s", cloud_db=db.path))

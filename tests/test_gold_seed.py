@@ -256,3 +256,31 @@ def test_channel_projection_reads_sqlite_columns_not_row_values() -> None:
         {"i": 7, "k": "narration", "l": 6, "t": "answer"},
         {"i": 7, "k": "call", "l": 7, "t": "echo ok"},
     ]
+
+
+def test_excluded_source_refuses_gold_and_attempted_never_becomes_control(tmp_path, monkeypatch):
+    import evallab.gold as gold
+
+    bank = IssueBank(tmp_path, state_root=tmp_path / "state")
+    bank.items_root.mkdir(parents=True)
+    attempted = _item("attempted")
+    bank.items_path(attempted.source).write_text(attempted.model_dump_json() + "\n")
+    excluded = new_item(
+        source="assistant-axis", subject_id="turn-only", subject_type="run", kind="cheat",
+        polarity="negative", label_type="judge", label="unflagged", granularity="step",
+        declared_split="cross_test", split="cross_test",
+        provenance=Provenance(store="test", ref="turn-only"),
+    ).model_dump()
+    bank.items_path("assistant-axis").write_text(json.dumps(excluded) + "\n")
+    monkeypatch.setattr(gold, "SOURCES", ("assistant-axis",))
+    assert load_rows(tmp_path, tmp_path / "state") == []
+    excluded["label_state"] = "reviewed-control"
+    bank.items_path("assistant-axis").write_text(json.dumps(excluded) + "\n")
+    with pytest.raises(ValueError, match="Excluded gold source assistant-axis"):
+        load_rows(tmp_path, tmp_path / "state")
+    monkeypatch.setattr(gold, "SOURCES", (attempted.source,))
+    monkeypatch.setattr(BankContext, "registry", property(lambda self: _Gate()))
+    [loaded] = load_rows(tmp_path, tmp_path / "state")
+    assert loaded.label_state == "attempted" and loaded.polarity is None
+    with pytest.raises(ValidationError):
+        type(loaded).model_validate({**loaded.model_dump(), "polarity": "negative"})

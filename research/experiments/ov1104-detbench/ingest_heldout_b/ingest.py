@@ -1,5 +1,5 @@
 """Held-out ingest, slice ho-b: evilgenie-escalation, sdf-shortcut-taking,
-researcharena-benchmark-gaming, sleight-bench, paichecker.
+researcharena-benchmark-gaming. Task/grader records remain in the certify inventory.
 
 Label-free views go to the shared views root through detbench_lib; label rows go to
 the worker folder as runs.<set_id>.jsonl. Only aggregates are printed.
@@ -181,72 +181,10 @@ def researcharena(entry: dict[str, Any]) -> tuple[Iterator[dict[str, Any]], Coun
     return gen(), excluded
 
 
-# ---------------------------------------------------------------- sleight-bench
-
-def sleight(entry: dict[str, Any]) -> tuple[Iterator[dict[str, Any]], Counter[str]]:
-    ad = load_adapter(entry["adapter"]["module_path"])
-
-    def gen():
-        for spec in ad.specs():
-            yield {
-                "native_id": spec["trace_key"],
-                "steps": spec["_steps"],
-                "label": int(spec["positive"]),
-                "label_type": "constructed",
-                "natural": False,
-                "cluster": spec["pair_key"],
-                "read_by": [],
-                "label_state": "attack" if spec["positive"] else "benign",
-                "extra": {"segment_pair_key": spec["segment_pair_key"], "category_key": spec["labels"]["category_key"]},
-            }
-
-    return gen(), Counter()
-
-
-# ---------------------------------------------------------------- paichecker
-
-PAI_ORDER = ("repo", "base_commit", "problem_statement", "hints_text", "test_patch", "FAIL_TO_PASS", "PASS_TO_PASS", "patch")
-
-
-def _pai_text(ai: dict[str, Any]) -> str:
-    parts = []
-    for f in PAI_ORDER:
-        v = ai[f]
-        if isinstance(v, list):
-            v = "\n".join(v)
-        parts.append(f"=== {f} ===\n{v if v is not None else ''}")
-    return "\n\n".join(parts)
-
-
-def paichecker(entry: dict[str, Any]) -> tuple[Iterator[dict[str, Any]], Counter[str]]:
-    ad = load_adapter(entry["adapter"]["module_path"])
-
-    def gen():
-        for spec in ad.specs():
-            ai, gold, ident = spec["auditor_input"], spec["gold"], spec["identity"]
-            yield {
-                "native_id": hashed_id(ident["instance_id"]),
-                "steps": [{"step_id": 0, "source": "agent", "message": _pai_text(ai)}],
-                "task_text": None,
-                "diff": ai["patch"],
-                "label": int(gold["positive"]),
-                "label_type": "human",
-                "natural": None,
-                "cluster": f"{ident['sub_corpus']}:{ident['repo']}",
-                "read_by": [],
-                "label_state": "misaligned" if gold["positive"] else "no_misalignment",
-                "extra": {"sub_corpus": ident["sub_corpus"], "families": gold["families"], "unit": "task"},
-            }
-
-    return gen(), Counter()
-
-
 SETS: dict[str, Callable[[dict[str, Any]], tuple[Iterator[dict[str, Any]], Counter[str]]]] = {
     "evilgenie-escalation": evilgenie,
     "sdf-shortcut-taking": sdf,
     "researcharena-benchmark-gaming": researcharena,
-    "sleight-bench": sleight,
-    "paichecker": paichecker,
 }
 
 

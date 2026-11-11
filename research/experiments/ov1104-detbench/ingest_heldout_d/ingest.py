@@ -7,7 +7,6 @@ Assigned sets (in order):
 3. rhb-delivery-queue
 4. flake-laundering
 5. kobayashi-maru (deterministic stratified sample of 3,000 with seed 1104 from 8,705 primary scoreable rows)
-6. rsi-benchmark-monitor-training (instructed: natural=false)
 
 No model calls, no network calls, no transcript or raw-id persistence in receipts.
 """
@@ -559,95 +558,12 @@ def ingest_kobayashi_maru() -> dict[str, Any]:
     }
 
 
-def ingest_rsi_benchmark() -> dict[str, Any]:
-    t0 = time.time()
-    set_id = "rsi-benchmark-monitor-training"
-    source_family = "scaleapi/rsi-benchmark agent-safety-monitor-training (public train + validation)"
-    adapter_path = STUDY_ROOT / "research/evidence/runs/corpus-expansion-pv17-20261029/corpora/scaleapi__rsi-benchmark/tools/adapter.py"
-    mod = load_module("rsi_adapter", adapter_path)
-
-    rows_out: list[dict[str, Any]] = []
-    counts: Counter[str] = Counter()
-    state_counts: Counter[str] = Counter()
-    excluded_reasons: Counter[str] = Counter()
-    clusters: set[str] = set()
-    scenarios: set[str] = set()
-    seen_ids: set[str] = set()
-
-    for spec in mod.specs():
-        counts["total_specs"] += 1
-        state = spec["gold"]["state"]
-        reason = spec["gold"]["reason"]
-        state_counts[state] += 1
-        if state not in ("positive", "negative"):
-            counts["excluded"] += 1
-            excluded_reasons[f"{state}:{reason}"] += 1
-            continue
-        label = 1 if state == "positive" else 0
-        native_id = spec["identity"]["run_id_sha256"]
-        assert native_id not in seen_ids, f"Duplicate native_id in {set_id}"
-        seen_ids.add(native_id)
-
-        scenario = spec["identity"]["scenario"]
-        actor = spec["identity"]["actor"]
-        cluster = sha256_hex(f"{scenario}:{actor}")
-        scenario_key = sha256_hex(scenario)
-        clusters.add(cluster)
-        scenarios.add(scenario_key)
-
-        run_key = f"{set_id}:{native_id}"
-        view = build_view(run_key=run_key, atif_steps=spec["_steps"], task_text=None, reward=None, diff=None)
-        full_path, act_path = write_views(set_id, native_id, view)
-        n_steps, n_chars = view_size(view)
-
-        rows_out.append(
-            runs_row(
-                set_id=set_id,
-                native_id=native_id,
-                split="heldout",
-                label=label,
-                label_type="executed",
-                natural=False,
-                cluster=cluster,
-                source_family=source_family,
-                view_full=full_path,
-                view_actions=act_path,
-                n_steps=n_steps,
-                n_chars=n_chars,
-                read_by=[],
-                extra={
-                    "primary": True,
-                    "label_state": state,
-                    "fa_basis": "established",
-                    "decisive_rule": False,
-                    "scenario_key": scenario_key,
-                },
-            )
-        )
-        counts["written"] += 1
-        counts["pos" if label == 1 else "neg"] += 1
-
-    out_file = WORKER_DIR / f"runs.{set_id}.jsonl"
-    write_jsonl(out_file, rows_out)
-    return {
-        "set_id": set_id,
-        "counts": dict(counts),
-        "state_counts": dict(state_counts),
-        "excluded_reasons": dict(excluded_reasons),
-        "unique_clusters": len(clusters),
-        "unique_scenarios": len(scenarios),
-        "elapsed_sec": round(time.time() - t0, 2),
-        "out_file": str(out_file),
-    }
-
-
 HANDLERS = {
     "mistrace-reward-hacking": ingest_mistrace,
     "reward-pressure-study-2": ingest_reward_pressure_study_2,
     "rhb-delivery-queue": ingest_rhb_delivery_queue,
     "flake-laundering": ingest_flake_laundering,
     "kobayashi-maru": ingest_kobayashi_maru,
-    "rsi-benchmark-monitor-training": ingest_rsi_benchmark,
 }
 
 

@@ -204,12 +204,26 @@ class IssueItem(ContractModel):
     exposure_events: tuple[ExposureEvent, ...] = ()
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    def gold_exclusion(self) -> dict[str, str] | None:
+        """Keep source exclusions separate from historical labels and custody."""
+        from evallab.gold.exclusions import source_exclusion
+
+        return (
+            source_exclusion(self.source)
+            or source_exclusion(self.provenance.store)
+            or source_exclusion(self.subject_id.split(":", 1)[0])
+            or source_exclusion(self.subject_id.split("/", 1)[0])
+        )
+
     @model_validator(mode="after")
     def _gold_state(self) -> IssueItem:
         if self.label_state is None:
             if self.polarity is None:
                 raise ValueError("Null polarity requires an explicit gold label state")
             return self
+        exclusion = self.gold_exclusion()
+        if exclusion is not None:
+            raise ValueError(f"Excluded gold source {exclusion['name']}: {exclusion['reason']}")
         expected = {"executed-positive": "positive", "reviewed-control": "negative"}.get(
             self.label_state
         )
@@ -467,6 +481,9 @@ class IssueBank:
                     if not line.strip():
                         continue
                     item = IssueItem.model_validate_json(line)
+                    exclusion = item.gold_exclusion()
+                    if item.kind == "cheat" and exclusion and exclusion["procedure"] in {"R1", "R3", "R7"}:
+                        continue
                     if split is not None and item.split != split:
                         continue
                     if kind is not None and item.kind != kind:

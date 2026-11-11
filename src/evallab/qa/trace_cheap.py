@@ -11,9 +11,8 @@ Pipeline (one trial in, ``qa.finding/v1`` out):
      or, by default, the hackbook matcher ranks one: the judge is asked about
      that one mechanism (the v2 harness);
    - *proposed mode* (opt-in ``propose=True``) when anything can be proposed: up
-     to :data:`MAX_PROPOSALS` leads from tripwire hackbook hits, ranked hackbook
-     matches (:func:`evallab.hackbook.matcher.match_trace`) and, with a
-     ``retriever``, labelled DEV analogues from
+     to :data:`MAX_PROPOSALS` leads from the shared tripwire evidence and, with
+     a ``retriever``, labelled DEV analogues from
      :class:`evallab.production.cloud_trace_db.CloudTraceRetriever` (target
      task excluded). The judge must pick one candidate the actions witness;
    - *discovery mode* otherwise: the whole hackbook short list.
@@ -177,14 +176,6 @@ def tripwire_prefilter(steps: Sequence[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def hackbook_candidates(
-    traj: Path, *, task_dir: Path | None = None, root: Path | None = None
-) -> list[dict[str, Any]]:
-    """Ranked hackbook matches for the trace (empty when nothing matches)."""
-    from evallab.hackbook.matcher import match_trace
-
-    result = match_trace(traj, task_dir=task_dir, root=root)
-    return [m for m in result.get("matches", []) if float(m.get("score", 0)) > 0]
 
 
 def _entry_text(entry_id: str, root: Path | None, limit: int = 600) -> str:
@@ -252,26 +243,16 @@ def retrieved_proposals(
 
 
 def propose_candidates(
-    traj: Path,
     actions: Sequence[dict[str, Any]],
     prefilter: dict[str, Any],
     *,
     root: Path | None = None,
-    task_dir: Path | None = None,
     task_id: str | None = None,
     retriever: CloudTraceRetriever | None = None,
-    matcher: bool = True,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Ranked candidate leads plus a receipt of what each source contributed."""
-    receipt: dict[str, Any] = {"query": None, "retrieval_error": None, "matcher_error": None}
-    hackbook_ids = list(prefilter.get("entry_ids") or [])
-    if matcher:
-        try:
-            hackbook_ids += [m["entry_id"] for m in hackbook_candidates(
-                traj, task_dir=task_dir, root=root
-            )]
-        except Exception as exc:  # deterministic leads fail open
-            receipt["matcher_error"] = str(exc)[:200]
+    receipt: dict[str, Any] = {"query": None, "retrieval_error": None}
+    hackbook_ids = prefilter.get("entry_ids") or []
     proposals = [
         {"id": entry_id, "source": "hackbook", "text": _entry_text(entry_id, root, 300)}
         for entry_id in list(dict.fromkeys(hackbook_ids))[:MAX_HACKBOOK_PROPOSALS]
@@ -471,7 +452,6 @@ def run_trace_cheap(
     *,
     judge: JudgeFn | None = None,
     model: str = DEFAULT_MODEL,
-    task_dir: Path | None = None,
     task_id: str | None = None,
     root: Path | None = None,
     candidate_fn: Callable[[Path], list[dict[str, Any]]] | None = None,
@@ -481,10 +461,10 @@ def run_trace_cheap(
 ) -> dict[str, Any]:
     """Full pipeline for one trial; returns ``{finding, mode, ...}`` (no writes).
 
-    ``candidate_fn`` supplies caller-known candidates and replaces the hackbook
-    matcher. By default the top hackbook match is confirmed and no match means
-    short-list discovery. ``propose=True`` instead turns every lead (matcher,
-    tripwire hackbook hits, ``retriever`` analogues) into a proposed candidate
+    ``candidate_fn`` supplies caller-known candidates instead of tripwire leads.
+    By default the first tripwire lead is confirmed; no lead means short-list
+    discovery. ``propose=True`` instead turns tripwire hits and retrieval
+    analogues into a proposed candidate
     list; it is opt-in because OQ-3 measured no net gain (see
     ``research/experiments/oq3-discovery-cascade``).
     """
@@ -496,7 +476,7 @@ def run_trace_cheap(
     if candidate_fn is not None:
         candidates = candidate_fn(traj)
     elif not propose:
-        candidates = hackbook_candidates(traj, task_dir=task_dir, root=root)
+        candidates = [{"entry_id": entry_id} for entry_id in prefilter["entry_ids"]]
     else:
         candidates = []
     candidate = candidates[0] if candidates else None
@@ -504,8 +484,7 @@ def run_trace_cheap(
     proposal_receipt: dict[str, Any] = {}
     if candidate is None and propose:
         proposals, proposal_receipt = propose_candidates(
-            traj, actions, prefilter, root=root, task_dir=task_dir, task_id=resolved_task,
-            retriever=retriever, matcher=candidate_fn is None,
+            actions, prefilter, root=root, task_id=resolved_task, retriever=retriever,
         )
     mode = "confirmation" if candidate else "proposed" if proposals else "discovery"
 
@@ -583,7 +562,6 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
         result = run_trace_cheap(
             args.target,
             model=args.model,
-            task_dir=args.task_dir,
             task_id=args.task_id,
             root=root,
             offline=args.offline,
@@ -620,9 +598,6 @@ def add_trace_cheap_commands(sub: Any) -> None:
     )
     p.add_argument("target", type=Path, help="Trial dir, or its agent/trajectory.json")
     p.add_argument("--model", default=DEFAULT_MODEL, help="OpenRouter model id")
-    p.add_argument(
-        "--task-dir", type=Path, default=None, help="Task package (hackbook task gating)"
-    )
     p.add_argument("--task-id", default=None, help="Subject task id (default: trial dir name)")
     p.add_argument("--out", type=Path, default=None, help="Write the finding JSON here")
     p.add_argument(

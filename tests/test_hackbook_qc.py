@@ -8,7 +8,7 @@ from typing import Any, Literal
 import pytest
 
 from evallab.hackbook.qc import ScoredCase, ruleset_sha256, scan_trace_rules, score_cases
-from evallab.tripwires import HACKBOOK_RULES, scan_trace, to_findings
+from evallab.tripwires import HACKBOOK_RULES
 
 VERDICT_A = "hb_startup_hook_write"
 VERDICT_B = "hb_runner_shadow"
@@ -291,50 +291,5 @@ def test_scan_trace_rules_returns_deduplicated_real_rule_hits() -> None:
     clean = [_bash("pwd")]
     assert scan_trace_rules(clean, steps=clean) == frozenset()
 
-
-
-def test_frozen_policy_demotes_real_findings_without_erasing_context() -> None:
-    rule_id = "hb_timer_patch"
-    _, detail = _score(
-        [
-            _case("shared-positive", "positive", rule_id, VERDICT_B),
-            _case("clean", "clean", rule_id),
-        ],
-        (rule_id, VERDICT_B),
-    )
-    policy = detail["policy"]
-    assert policy["demoted_rule_ids"] == [rule_id]
-    steps = [_bash("python -c 'import time; time.time = lambda: 1'")]
-    original = scan_trace(steps)
-    pruned = scan_trace(steps, qc_policy=policy)
-    before = next(hit for hit in original["hackbook"] if hit["rule"] == rule_id)
-    after = next(hit for hit in pruned["hackbook"] if hit["rule"] == rule_id)
-    assert before["eligibility"] == "verdict"
-    assert after["eligibility"] == "diagnostic"
-    assert after["gate"] is False
-    assert after["evidence"] == before["evidence"]
-    assert rule_id in {finding["rule"] for finding in to_findings(original, task_id="synthetic")}
-    assert rule_id not in {finding["rule"] for finding in to_findings(pruned, task_id="synthetic")}
-    assert any(
-        hit["rule"] == rule_id and hit["channel"] == "hackbook_cue"
-        for row in pruned["entry_accounting"].values()
-        for hit in row["hits"]
-    )
-
-
-@pytest.mark.parametrize(
-    "change",
-    [
-        {"ruleset_sha256": "0" * 64},
-        {"demoted_rule_ids": ["unknown_rule"]},
-        {"demoted_rule_ids": [DIAGNOSTIC]},
-    ],
-)
-def test_frozen_policy_rejects_stale_or_nonverdict_rule_universes(
-    change: dict[str, Any],
-) -> None:
-    _, detail = _score([_case("p", "positive"), _case("c", "clean")])
-    with pytest.raises(ValueError):
-        scan_trace([_bash("pwd")], qc_policy={**detail["policy"], **change})
 
 

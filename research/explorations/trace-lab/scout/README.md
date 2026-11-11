@@ -1,5 +1,10 @@
 # Scout over HAR-81 + HAR-90 (local, $0, no models)
 
+The optional `scanners.py` wrapper is retired. Use `evallab.tripwires` for
+current trace-rule evidence. Existing scans, validation data, and screenshots
+remain unchanged. `rules.py` stays for the historical HAR-119/HAR-128 replay tools.
+The scanner commands below document historical runs, not a supported command.
+
 Inspect Scout as a reproducible transcript-scanning layer over 54 Harbor
 trials (44 HAR-81 + 10 HAR-90): raw fragments and normalized whole-runs
 side by side, plus our probe-03 capability labels surfaced inside
@@ -26,7 +31,6 @@ UV="uv run --no-project --python 3.12 --with inspect-scout==0.5.3 --with harbor=
   superseded HAR-90-only scans from the prior setup
   (`scan_id=WHnhfogjpsQQjZ9zQUA5s3`: 16 transcripts x 3 scanners = 48 rows;
   plus `scan_id=WeuebA7h4i7aMnq6d525mH`).
-- `scanners.py` — 4 text scanners plus 6 computed rule scanners (no model calls, no label lookup).
 - `rules.py` — rule module shared with Engineering (`RULES_HANDOFF.md`); calls probe-03's `capabilities.py` on Eval Lab step records.
 - `import_evallab.py` — reusable Eval Lab importer: trial/job/runs-root inputs, `--db` transcripts dir, Eval Lab metadata + tool calls.
 - `tests/` — 22 deterministic tests (golden trial, rule-family spots, full 44/44 frozen-row match, importer metadata/calls).

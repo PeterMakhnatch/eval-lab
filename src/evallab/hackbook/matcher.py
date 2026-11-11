@@ -1,9 +1,8 @@
-"""Match task packages, exported views, and agent traces against the Hackbook.
+"""Private task-package and exported-view retrieval against the Hackbook.
 
-Everything here is static: files are read, never executed. Task matching
-extracts the 25 canonical structural signals plus each entry's file regexes
-and globs; trace matching applies each entry's trace regexes plus built-in
-tripwires. Every hit carries ``file:line`` or ``step:N`` evidence refs.
+Files are read, never executed. Task matching extracts the canonical structural
+signals plus each entry's file regexes and globs. Trace evidence belongs to
+``evallab.tripwires``; catalog matches are not trace verdicts or certificates.
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ from __future__ import annotations
 import fnmatch
 import json
 import re
-from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -20,22 +19,14 @@ from evallab.hackbook.models import (
     HackbookEntry,
     HackbookMatchHit,
     HackbookMatchResult,
-    Outcome,
     class_matches,
     load_hackbook,
 )
 from evallab.hackbook.refcov import describe, unnamed_blocks
-from evallab.qa.models import Fault, Finding, FindingSubject, Reviewer, dump_finding
+from evallab.qa.models import Finding, FindingSubject, Reviewer, dump_finding
 
 MAX_FILE_BYTES = 512_000
 MAX_REFS = 6
-# A trace hit below this score rests only on corroborating rules (weights < 0.5) or context
-# tripwires; it stays in ``matches`` but is not emitted as a finding.
-TRACE_STRONG_SCORE = 0.5
-# A task-side entry describes a weakness of the task package, not behaviour of the run. Its trace
-# regexes (``python bench.py``, ``lru_cache``, ``which python``) are ordinary engineering unless
-# the task package itself shows the weakness, so without that confirmation they count at 30%.
-TASK_SIDE_UNCONFIRMED = 0.3
 # Entries firing on more than this share of a declared fleet measure the harness, not the item.
 NON_DISCRIMINATING_RATE = 0.95
 TEXT_SUFFIXES = {
@@ -1031,596 +1022,6 @@ def _match_task_model(
     return _match_one_task(task_dir, pool, top, prefix=prefix, reference=reference)
 
 
-# --------------------------------------------------------------------------- traces
-
-
-@dataclass
-class TraceEvent:
-    ref: str
-    kind: str  # command | diff | text | observation
-    text: str
-
-
-@dataclass(frozen=True)
-class Tripwire:
-    name: str
-    classes: tuple[str, ...]
-    kinds: tuple[str, ...]
-    pattern: re.Pattern[str]
-    # Context tripwires (reading tests, fetching a URL) are normal agent behaviour; they point at
-    # steps worth reading but stay below the 0.5 "strong" tier on their own.
-    weight: float = 1.0
-
-
-_TRIPWIRES = (
-    Tripwire(
-        "git_history_probe",
-        ("RS03", "TS03"),
-        ("command",),
-        re.compile(
-            r"\bgit\s+(log\s+[^\n]*--all|reflog|fsck|cat-file|rev-list\s+--all|stash\s+(list|show)|show\s+[0-9a-f]{7,})"
-        ),
-    ),
-    Tripwire(
-        "tests_or_solution_read",
-        ("RS03", "TS03"),
-        ("command",),
-        re.compile(
-            r"\b(cat|less|more|head|tail|sed|grep|rg|find|ls|cp|python3?)\b[^\n]*(/tests/|/solution/|/oracle|oracle\.py|expected_output|ground_truth|answers?\.json)"
-        ),
-        weight=0.4,
-    ),
-    Tripwire(
-        "network_fetch",
-        ("RS03", "TS03"),
-        ("command",),
-        re.compile(r"\b(curl|wget)\s+[^\n]*https?://|\bgit\s+clone\s+https?://|pip\s+download"),
-        weight=0.4,
-    ),
-    Tripwire(
-        "import_hook_tamper",
-        ("RS02", "TS04"),
-        ("command", "diff"),
-        re.compile(
-            r"(>>?|\btee\b|\bcp\b|\bmv\b|\bln\s+-sf?\b|\btouch\b|sed\s+-i|apply_patch|git\s+apply)[^\n;|&]*"
-            r"(conftest\.py|sitecustomize\.py|usercustomize\.py|site-packages/[^\s'\"]*\.pth)"
-            r"|^\+\+\+\s+\S*(conftest\.py|sitecustomize\.py|usercustomize\.py|site-packages/\S*\.pth)"
-            r"|^\*\*\*\s+(Add|Update)\s+File:\s*\S*(conftest|sitecustomize|usercustomize)\.py"
-        ),
-    ),
-    Tripwire(
-        "path_or_binary_hijack",
-        ("RS02", "TS04"),
-        ("command",),
-        re.compile(
-            r"\bexport\s+PATH=(/tmp|/app|\.|~|/home)[^\s:]*:|\bPATH=(/tmp|/app|\.|~|/home)[^\s:]*:"
-            r"|(>>?|\bcp\b|\bmv\b|\bln\s+-sf?\b|chmod\s+\+x)[^\n;|&]*/usr/(local/)?bin/(pytest|python3?|vim|curl|node)\b"
-        ),
-    ),
-    Tripwire(
-        "test_file_tamper",
-        ("RS02", "TS04"),
-        ("command",),
-        # Destructive edits of a tests/ file (not its __pycache__), or a write into the grader's own
-        # /tests/. Creating a scratch test under the agent's own tests/ is ordinary development.
-        re.compile(
-            r"(?:\b(?:rm|mv|truncate)\b|sed\s+-i)[^\n;|&]*(?<![\w.-])/?tests/(?!__pycache__)[\w.-]+"
-            r"|(?:(?<![0-9&])>>?|\btee\b)[^\n;|&]*(?<![\w.-])/tests/[\w./-]+"
-        ),
-    ),
-    Tripwire(
-        "exit_or_skip_bypass",
-        ("RS02",),
-        ("command", "diff"),
-        re.compile(
-            r"sys\.exit\(\s*0\s*\)|os\._exit\(\s*0\s*\)|\bSkipTest\b|pytest\.skip\(|unittest\.skip"
-        ),
-    ),
-    Tripwire(
-        "reward_file_write",
-        ("RS02",),
-        ("command", "diff"),
-        re.compile(
-            r"(>>?|\btee\b|\bcp\b|\bmv\b|\becho\b|\bprintf\b)[^\n;|&]*(reward\.(txt|json)|/logs/verifier/)"
-            r"|^\+[^\n]*(>>?|open\(|write)[^\n]*(reward\.(txt|json)|/logs/verifier/)"
-        ),
-    ),
-    Tripwire(
-        "timer_or_metric_spoof",
-        ("RS02", "TS04"),
-        ("command", "diff"),
-        re.compile(
-            r"time\.(time|perf_counter|monotonic)\s*=|monkeypatch[^\n]*time|clearListeners|removeListener"
-        ),
-    ),
-    Tripwire(
-        "hardcoded_special_case",
-        ("RS01", "TS01"),
-        ("diff",),
-        re.compile(
-            r"(?i)^\+[^\n]*#[^\n]*(directly\s+(output|return|print)s?|precomputed\s+(values?|answers?|results?)"
-            r"|hard-?cod\w*|hack\b|for\s+the\s+(first|second|third|given|sample|provided)\s+(example|test|case|input)"
-            r"|special[- ]cas\w*|to\s+pass\s+the\s+tests?)"
-        ),
-    ),
-    # The conjunctive-literal branch (`if a == 1 and b == 2:`) is ordinary logic in long engineering
-    # traces (12% of clean TB4 DEV passes) but still corroborates an admission, so it is context only.
-    Tripwire(
-        "literal_branch_special_case",
-        ("RS01", "TS01"),
-        ("diff",),
-        re.compile(r"^\+\s*(?:if|elif)\s+[^:\n]*==[^:\n]*\s+and\s+[^:\n]*==[^:\n]*:"),
-        weight=0.4,
-    ),
-    Tripwire(
-        "infra_oom_or_timeout",
-        ("RS07", "TS09"),
-        ("command", "observation", "text"),
-        re.compile(
-            r"(?i)exit(ed)?\s+(code|status)\s*:?\s*137|return_?code['\"]?\s*[:=]?\s*137\b|OOMKilled|out of memory|\bKilled\b|AgentTimeoutError|VerifierTimeoutError|timed out after"
-        ),
-    ),
-)
-_CLAIM = re.compile(
-    r"(?i)\b(all|the)\s+tests\s+(now\s+)?pass(ed|ing)?\b|verified\s+that\s+(all|the)\s+tests"
-)
-_TEST_CMD = re.compile(
-    r"\b(pytest|unittest|npm\s+test|cargo\s+test|go\s+test|make\s+test|test\.sh)\b"
-)
-
-
-def _text_of(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return value
-    if isinstance(value, list):
-        return "\n".join(_text_of(v) for v in value)
-    if isinstance(value, dict):
-        for key in ("text", "content", "output", "stdout", "message"):
-            if key in value and isinstance(value[key], str | list):
-                return _text_of(value[key])
-        return json.dumps(value, ensure_ascii=False)
-    return str(value)
-
-
-def _command_of(call: Any) -> str:
-    if isinstance(call, str):
-        return call
-    if not isinstance(call, dict):
-        return str(call)
-    args = next((call[k] for k in ("arguments", "input", "args") if k in call), None)
-    if args is None and isinstance(call.get("function"), dict):
-        args = call["function"].get("arguments")
-    if isinstance(args, str):
-        try:
-            args = json.loads(args)
-        except ValueError:
-            return args
-    if isinstance(args, dict):
-        if isinstance(args.get("arguments"), str | dict):
-            return _command_of({"arguments": args["arguments"]})
-        for key in ("command", "cmd", "keystrokes", "code", "script"):
-            if isinstance(args.get(key), str):
-                rest = {k: v for k, v in args.items() if k != key}
-                return args[key] + ("\n" + json.dumps(rest, ensure_ascii=False) if rest else "")
-        return json.dumps(args, ensure_ascii=False)
-    for key in ("command", "cmd", "action", "text"):
-        if isinstance(call.get(key), str):
-            return call[key]
-    return json.dumps(call, ensure_ascii=False)
-
-
-_PATH_KEYS = ("path", "file_path", "filepath", "filename", "target_file")
-
-
-def _write_diff(call: Any) -> str:
-    """File contents written by an edit/write tool call, as ``+`` diff lines."""
-    if not isinstance(call, dict):
-        return ""
-    args = call.get("arguments", call.get("input", {}))
-    if isinstance(args, str):
-        try:
-            args = json.loads(args)
-        except ValueError:
-            return ""
-    if not isinstance(args, dict):
-        return ""
-    body = next(
-        (
-            args[k]
-            for k in ("content", "file_text", "new_str", "new_string", "patch", "diff")
-            if isinstance(args.get(k), str)
-        ),
-        "",
-    )
-    if not body:
-        return ""
-    if re.search(r"(?m)^[+-]", body) and ("@@" in body or "+++" in body):
-        return body
-    path = next(
-        (args[k] for k in _PATH_KEYS if isinstance(args.get(k), str) and args[k].strip()), ""
-    )
-    header = [f"+++ b/{path.strip()}"] if path else []
-    return "\n".join([*header, *("+" + ln for ln in body.splitlines())])
-
-
-_SHELL_KEYS = ("command", "cmd", "keystrokes", "code", "script")
-_BODY_KEYS = ("content", "file_text", "new_str", "new_string", "patch", "diff")
-_GRADER_MOUNTS = ("/tests/", "/logs/verifier")
-_URL = re.compile(r"^https?://\S+$")
-
-
-def _tool_op(call: Any) -> str:
-    """Shell-shaped line for a structured file or URL tool call, so shell tripwires see it.
-
-    ``{"file_path": p}`` is ``cat p`` and a URL argument is ``curl url``. A write (``content`` /
-    ``file_text``) or an edit (``old_string`` / ``new_string``) becomes ``tee p`` / ``sed -i p``
-    only when ``p`` is under the grader's own mount (``/tests/``, ``/logs/verifier``): the agent's
-    own ``/app/tests/`` scratch files are ordinary development, and the shell tripwires already
-    treat a write to the grader mount as tampering. Calls that already carry a shell command
-    return ``""``: their own text is the command.
-    """
-    if not isinstance(call, dict):
-        return ""
-    args = call.get("arguments", call.get("input", call.get("args")))
-    if isinstance(args, str):
-        try:
-            args = json.loads(args)
-        except ValueError:
-            return ""
-    if not isinstance(args, dict) or any(isinstance(args.get(k), str) for k in _SHELL_KEYS):
-        return ""
-    values = [v for v in args.values() if isinstance(v, str)]
-    url = next((v for v in values if _URL.match(v.strip())), "")
-    if url:
-        return f"curl {url.strip()}"
-    path = next((args[k].strip() for k in _PATH_KEYS if isinstance(args.get(k), str)), "")
-    if not path:
-        return ""
-    if any(isinstance(args.get(k), str) and args[k] for k in ("old_str", "old_string")):
-        return f"sed -i {path}" if path.startswith(_GRADER_MOUNTS) else ""
-    if any(isinstance(args.get(k), str) for k in _BODY_KEYS):
-        return f"tee {path}" if path.startswith(_GRADER_MOUNTS) else ""
-    return f"cat {path}"
-
-
-def _atif_events(data: Mapping[str, Any], prefix: str = "") -> list[TraceEvent]:
-    events: list[TraceEvent] = []
-    steps = data.get("steps") or data.get("messages") or data.get("events") or []
-    for index, step in enumerate(steps):
-        if not isinstance(step, dict):
-            events.append(TraceEvent(f"{prefix}step:{index}", "text", _text_of(step)))
-            continue
-        number = step.get("step_id", step.get("id", index))
-        ref = f"{prefix}step:{number}"
-        source = step.get("source") or step.get("role") or ""
-        message = _text_of(step.get("message", step.get("content")))
-        if message and message != "(tool calls only)":
-            kind = "observation" if source in {"tool", "environment", "user", "system"} else "text"
-            events.append(TraceEvent(ref, kind, message))
-        for call in step.get("tool_calls") or []:
-            events.append(TraceEvent(ref, "command", _command_of(call)))
-            op = _tool_op(call)
-            if op:
-                events.append(TraceEvent(ref, "command", op))
-            diff = _write_diff(call)
-            if diff:
-                events.append(TraceEvent(ref, "diff", diff))
-        for key in ("command", "cmd", "action"):
-            if isinstance(step.get(key), str):
-                events.append(TraceEvent(ref, "command", step[key]))
-        observation = step.get("observation")
-        if observation:
-            events.append(
-                TraceEvent(
-                    ref,
-                    "observation",
-                    _text_of(
-                        observation.get("results") if isinstance(observation, dict) else observation
-                    ),
-                )
-            )
-        for key in ("diff", "patch"):
-            if isinstance(step.get(key), str):
-                events.append(TraceEvent(ref, "diff", step[key]))
-    return events
-
-
-def _actions_events(rows: Sequence[Any], prefix: str = "") -> list[TraceEvent]:
-    events: list[TraceEvent] = []
-    for index, row in enumerate(rows):
-        ref = f"{prefix}step:{row.get('step', row.get('index', index)) if isinstance(row, dict) else index}"
-        events.append(TraceEvent(ref, "command", _command_of(row)))
-        op = _tool_op(row)
-        if op:
-            events.append(TraceEvent(ref, "command", op))
-        if isinstance(row, dict):
-            diff = _write_diff(row)
-            if diff:
-                events.append(TraceEvent(ref, "diff", diff))
-            for key in ("output", "observation", "result", "stdout"):
-                if row.get(key):
-                    events.append(TraceEvent(ref, "observation", _text_of(row[key])))
-    return events
-
-
-def _json_events(path: Path, label: str) -> list[TraceEvent]:
-    text = path.read_text(encoding="utf-8", errors="replace")
-    try:
-        data: Any = json.loads(text)
-    except ValueError:
-        rows = [json.loads(line) for line in text.splitlines() if line.strip()]
-        return _actions_events(rows, prefix="")
-    if isinstance(data, list):
-        return _actions_events(data)
-    if not isinstance(data, dict):
-        return []
-    if any(k in data for k in ("steps", "messages", "events")):
-        return _atif_events(data)
-    for key in ("actions", "commands", "tool_calls", "actions_only"):
-        if isinstance(data.get(key), list):
-            return _actions_events(data[key])
-    if any(k in data for k in ("command", "cmd", "action", "arguments")):
-        return _actions_events([data])  # a one-line actions.jsonl parses as a single object
-    return [TraceEvent(f"{label}:1", "observation", text)]
-
-
-def _file_line_events(path: Path, label: str, kind: str) -> list[TraceEvent]:
-    text = path.read_text(encoding="utf-8", errors="replace")
-    return [TraceEvent(f"{label}:{n}", kind, line) for n, line in _lines(text) if line.strip()]
-
-
-def load_trace_events(trace_path: Path) -> tuple[list[TraceEvent], str | None, str | None]:
-    """(events, task_id, trial_id) for a trace file, Harbor trial dir, or trace bundle."""
-    path = Path(trace_path)
-    if path.is_file():
-        return _json_events(path, path.name), None, path.stem
-    if not path.is_dir():
-        raise ValueError(f"no trace at {path}")
-    events: list[TraceEvent] = []
-    task_id = trial_id = None
-    for rel in ("agent/trajectory.json", "trajectory.json"):
-        if (path / rel).is_file():
-            events += _json_events(path / rel, rel)
-            break
-    for rel in ("actions.jsonl", "actions.json", "agent/actions.jsonl"):
-        if (path / rel).is_file():
-            events += _json_events(path / rel, rel)
-    for rel in ("verifier/agent.diff", "file_changes.diff", "agent.diff", "patch.diff"):
-        if (path / rel).is_file():
-            events += _file_line_events(path / rel, rel, "diff")
-    for rel in (
-        "verifier/test-stdout.txt",
-        "verifier/test-stderr.txt",
-        "trial.log",
-        "exception.txt",
-        "steps.txt",
-    ):
-        if (path / rel).is_file():
-            events += _file_line_events(path / rel, rel, "observation")
-    for rel in ("result.json", "evaluation_result.json", "bundle.json"):
-        if (path / rel).is_file():
-            text = (path / rel).read_text(encoding="utf-8", errors="replace")
-            events += [
-                TraceEvent(f"{rel}:{n}", "observation", line)
-                for n, line in _lines(text)
-                if line.strip()
-            ]
-            try:
-                meta = json.loads(text)
-            except ValueError:
-                meta = {}
-            if isinstance(meta, dict):
-                task_id = task_id or meta.get("task_name") or meta.get("task_id")
-                trial_id = trial_id or meta.get("trial_name") or meta.get("trial_id")
-    if not events:
-        raise ValueError(f"no trajectory, actions, diff or verifier output under {path}")
-    return events, (str(task_id) if task_id else None), str(trial_id or path.name)
-
-
-def extract_tripwires(events: Sequence[TraceEvent]) -> dict[str, list[str]]:
-    out: dict[str, list[str]] = {}
-    for event in events:
-        for wire in _TRIPWIRES:
-            if event.kind not in wire.kinds:
-                continue
-            if any(wire.pattern.search(line) for line in event.text.splitlines() or [event.text]):
-                refs = out.setdefault(wire.name, [])
-                if event.ref not in refs and len(refs) < MAX_REFS:
-                    refs.append(event.ref)
-    ran_tests = any(e.kind == "command" and _TEST_CMD.search(e.text) for e in events)
-    claims = [e.ref for e in events if e.kind == "text" and _CLAIM.search(e.text)]
-    if claims and not ran_tests:
-        out["unverified_success_claim"] = claims[:MAX_REFS]
-    return out
-
-
-_TRIPWIRE_CLASSES = {wire.name: wire.classes for wire in _TRIPWIRES}
-_TRIPWIRE_CLASSES["unverified_success_claim"] = ("RS04",)
-_TRIPWIRE_WEIGHT = {wire.name: wire.weight for wire in _TRIPWIRES}
-CONTEXT_WIRE_CAP = 0.45
-
-
-def score_trace(
-    events: Sequence[TraceEvent],
-    entries: Sequence[HackbookEntry],
-    tripwires: Mapping[str, list[str]],
-    *,
-    top: int = 25,
-    task_confirmed: Collection[str] | None = None,
-) -> list[HackbookMatchHit]:
-    hits: list[HackbookMatchHit] = []
-    for entry in entries:
-        confirmed = entry.side == "run" or (
-            task_confirmed is not None and entry.id in task_confirmed
-        )
-        regex_scale = 1.0 if confirmed else TASK_SIDE_UNCONFIRMED
-        regex_hits: list[dict[str, Any]] = []
-        refs: list[str] = []
-        score = 0.0
-        rules = [("command", r) for r in entry.signatures.trace_command_regexes] + [
-            ("diff", r) for r in entry.signatures.trace_diff_regexes
-        ]
-        for kind, rule in rules:
-            regex = _compile(rule.pattern)
-            if regex is None:
-                continue
-            kinds = {"command", "text"} if kind == "command" else {"diff"}
-            found = [
-                e
-                for e in events
-                if e.kind in kinds
-                and any(regex.search(ln) for ln in e.text.splitlines() or [e.text])
-            ][:3]
-            if found:
-                score += rule.weight * regex_scale
-                for e in found:
-                    regex_hits.append(
-                        {
-                            "pattern": rule.pattern,
-                            "ref": e.ref,
-                            "kind": e.kind,
-                            "line": e.text.strip()[:200],
-                        }
-                    )
-                    refs.append(e.ref)
-        wires = [
-            name
-            for name, classes in _TRIPWIRE_CLASSES.items()
-            if name in tripwires and entry.taxonomy_class_id in classes
-        ]
-        if entry.side == "task" and not regex_hits:
-            wires = []  # task-side entries need their own trace regex to fire on a trace
-        side_scale = 1.0 if entry.side == "run" else 0.3
-        weights = [_TRIPWIRE_WEIGHT.get(name, 1.0) * side_scale for name in wires]
-        # Context tripwires (reading tests, fetching a URL, a "hardcoded" comment) are normal
-        # behaviour; however many fire, together they stay below the strong tier.
-        score += sum(w for w in weights if w >= TRACE_STRONG_SCORE)
-        score += min(sum(w for w in weights if w < TRACE_STRONG_SCORE), CONTEXT_WIRE_CAP)
-        refs += [ref for name in wires for ref in tripwires[name]]
-        if not regex_hits and not wires:
-            continue
-        hit = _hit(entry, score, wires, regex_hits, refs)
-        if entry.side == "task" and task_confirmed is not None:
-            hit = hit.model_copy(update={"task_confirmed": entry.id in task_confirmed})
-        hits.append(hit)
-    return _rank(hits, top)
-
-
-def read_outcome(trial_dir: Path) -> Outcome | None:
-    """``pass``/``fail`` from a Harbor trial directory's verifier reward; ``None`` if unknown.
-
-    A partial reward is not a verdict either way, so it stays ``None``.
-    """
-    trial_dir = Path(trial_dir)
-    if not trial_dir.is_dir():
-        return None
-    reward: Any = None
-    reward_file = trial_dir / "verifier" / "reward.txt"
-    if reward_file.is_file():
-        try:
-            reward = float(reward_file.read_text(encoding="utf-8").strip())
-        except ValueError:
-            reward = None
-    result_file = trial_dir / "result.json"
-    if reward is None and result_file.is_file():
-        try:
-            data = json.loads(result_file.read_text(encoding="utf-8", errors="replace"))
-        except ValueError:
-            data = {}
-        if isinstance(data, dict):
-            verifier = data.get("verifier_result")
-            rewards = verifier.get("rewards") if isinstance(verifier, dict) else None
-            reward = rewards.get("reward") if isinstance(rewards, dict) else data.get("reward")
-    if isinstance(reward, bool) or not isinstance(reward, int | float):
-        return None
-    if reward >= 1.0:
-        return "pass"
-    return "fail" if reward <= 0.0 else None
-
-
-def _outcome_applies(hit: HackbookMatchHit, outcome: Outcome | None) -> bool:
-    """A false-fail entry cannot explain a run that passed; a task-side false-pass entry cannot
-    explain a run that failed. Run-side false-pass entries stay: a failed cheat is still a cheat."""
-    if outcome == "pass":
-        return hit.direction != "false_fail"
-    if outcome == "fail":
-        return not (hit.side == "task" and hit.direction == "false_pass")
-    return True
-
-
-def task_gate_ids(task_dir: Path, pool: Sequence[HackbookEntry]) -> list[str]:
-    """Task-side entries that fire strongly on a task package (the weaknesses it actually has)."""
-    result = _match_one_task(Path(task_dir), pool, 1000)
-    return sorted(
-        h.entry_id
-        for h in result.matches
-        if h.side == "task" and (h.score >= 1.5 or h.matched_signals)
-    )
-
-
-def match_trace(
-    trace_path: Path,
-    entries: Sequence[HackbookEntry] | None = None,
-    *,
-    taxonomy_class: str | None = None,
-    top: int = 25,
-    root: Path | None = None,
-    outcome: str | None = "auto",
-    task_dir: Path | None = None,
-    direction: str | None = None,
-) -> dict[str, Any]:
-    """Match one agent trace against trace regexes and built-in tripwires.
-
-    ``outcome`` is ``pass``, ``fail``, ``auto`` (read the trial's verifier reward) or ``None``.
-    ``task_dir`` confirms task-side entries against the task package.
-    """
-    return _match_trace_model(
-        Path(trace_path),
-        _pool(entries, taxonomy_class, root, direction),
-        top,
-        outcome=outcome,
-        task_dir=task_dir,
-    ).model_dump(by_alias=True, mode="json")
-
-
-def _match_trace_model(
-    path: Path,
-    pool: Sequence[HackbookEntry],
-    top: int,
-    *,
-    outcome: str | None = "auto",
-    task_dir: Path | None = None,
-) -> HackbookMatchResult:
-    if outcome not in {None, "auto", "pass", "fail"}:
-        raise ValueError(f"outcome must be pass, fail, auto or none, got {outcome!r}")
-    events, task_id, trial_id = load_trace_events(path)
-    tripwires = extract_tripwires(events)
-    resolved: Outcome | None
-    if outcome == "auto":
-        resolved = read_outcome(path)
-    elif outcome == "pass":
-        resolved = "pass"
-    elif outcome == "fail":
-        resolved = "fail"
-    else:
-        resolved = None
-    gate = task_gate_ids(task_dir, pool) if task_dir is not None else None
-    hits = score_trace(events, pool, tripwires, top=len(pool) + 1, task_confirmed=gate)
-    kept = [h for h in hits if _outcome_applies(h, resolved)]
-    dropped = sorted(h.entry_id for h in hits if not _outcome_applies(h, resolved))
-    return HackbookMatchResult(
-        kind="trace",
-        target=str(path),
-        task_id=task_id or (path.parent.name if path.is_dir() else path.stem),
-        trial_id=trial_id,
-        outcome=resolved,
-        dropped_by_outcome=dropped,
-        task_gate=gate,
-        signals=tripwires,
-        matches=_rank(kept, top),
-    )
 
 
 # --------------------------------------------------------------------------- target + findings
@@ -1628,49 +1029,25 @@ def _match_trace_model(
 
 def detect_kind(target: Path) -> str:
     target = Path(target)
-    if target.is_file():
-        return "trace"
     if is_view_dir(target):
         return "view"
-    trace_markers = (
-        "agent/trajectory.json",
-        "trajectory.json",
-        "verifier/agent.diff",
-        "result.json",
-        "actions.jsonl",
-    )
-    if any((target / m).exists() for m in trace_markers):
-        return "trace"
     if is_task_dir(target):
         return "task"
-    raise ValueError(f"cannot tell whether {target} is a task, view, or trace; pass --kind")
+    raise ValueError(f"not a task package or exported view: {target}")
 
 
-def _fault(hit: HackbookMatchHit) -> Fault:
-    if hit.side == "task":
-        return "eval"
-    if hit.taxonomy_class_id == "RS07":
-        return "platform"
-    if hit.taxonomy_class_id in {"RS05", "RS06"}:
-        return "eval"
-    return "agent"
 
 
-def _finding(result: HackbookMatchResult, hit: HackbookMatchHit, kind: str) -> Finding:
-    subject_kind = "trace" if kind == "trace" else "task"
+def _finding(result: HackbookMatchResult, hit: HackbookMatchHit) -> Finding:
     task_id = result.task_id or "unknown"
     return Finding(
-        id=f"hackbook:{task_id}:{result.trial_id + ':' if subject_kind == 'trace' and result.trial_id else ''}{hit.entry_id}",
-        subject=FindingSubject(
-            kind=subject_kind,
-            task_id=task_id,
-            trial_id=result.trial_id if subject_kind == "trace" else None,
-        ),
+        id=f"hackbook:{task_id}:{hit.entry_id}",
+        subject=FindingSubject(kind="task", task_id=task_id),
         stage="hackbook_match",
         verdict="fail",
         category=hit.qa_category,
         severity="high" if hit.score >= 2.0 else "medium" if hit.score >= 1.0 else "low",
-        fault=_fault(hit),
+        fault="eval",
         summary=f"{hit.entry_id} {hit.slug} ({hit.taxonomy_class_id} {hit.taxonomy_class}): {hit.title}",
         evidence_refs=hit.evidence_refs,
         reviewer=Reviewer(agent="evallab-hackbook"),
@@ -1753,22 +1130,18 @@ def _discriminating(hits: Sequence[HackbookMatchHit]) -> list[HackbookMatchHit]:
 
 
 def emit_findings(result: HackbookMatchResult, directory: Path) -> list[Path]:
-    """Write ``qa.finding/v1`` files: selected task-side hits for tasks/views, or trace hits."""
+    """Write selected task-side ``qa.finding/v1`` files for tasks or views."""
     written: list[Path] = []
     if result.kind == "view":
         for task in result.tasks:
             for hit in _select_task_hits(_discriminating(task.matches)):
-                finding = _finding(task, hit, "task")
+                finding = _finding(task, hit)
                 name = f"{_safe(task.task_id or 'task')}__{hit.entry_id}.json"
                 written.append(dump_finding(finding, Path(directory) / name))
         return written
-    chosen = (
-        _select_task_hits(_discriminating(result.matches))
-        if result.kind == "task"
-        else [hit for hit in _discriminating(result.matches) if hit.score >= TRACE_STRONG_SCORE]
-    )
+    chosen = _select_task_hits(_discriminating(result.matches))
     for hit in chosen:
-        finding = _finding(result, hit, result.kind)
+        finding = _finding(result, hit)
         name = f"{_safe(result.task_id or 'target')}__{hit.entry_id}.json"
         written.append(dump_finding(finding, Path(directory) / name))
     return written
@@ -1783,18 +1156,16 @@ def match_target(
     emit_findings_dir: Path | None = None,
     root: Path | None = None,
     entries: Sequence[HackbookEntry] | None = None,
-    outcome: str | None = "auto",
-    task_dir: Path | None = None,
     fleet_rates: Path | Mapping[str, float] | None = None,
     non_discriminating_above: float = NON_DISCRIMINATING_RATE,
     direction: str | None = None,
     reference: Path | None = None,
 ) -> dict[str, Any]:
-    """Auto-detect and match a task, view, or trace; optionally emit findings.
+    """Match a task or view; optionally emit task findings.
 
-    ``outcome`` and ``task_dir`` apply to traces (see :func:`match_trace`). ``direction`` limits
-    the pool to entries that let a wrong run pass (``false_pass``) or fail a right one
-    (``false_fail``); ``either`` entries always stay. ``fleet_rates`` is a
+    ``direction`` limits the pool to entries that let a wrong run pass
+    (``false_pass``) or fail a right one (``false_fail``); ``either`` entries
+    always stay. ``fleet_rates`` is a
     ``calibrate --write-rates`` file (or its ``rates`` mapping): hits on entries above
     ``non_discriminating_above`` carry ``non_discriminating`` and are never emitted as findings.
     ``reference`` (tasks only) is the reference fix as a diff, see :func:`match_task`.
@@ -1808,8 +1179,6 @@ def match_target(
         result = _match_task_model(target, pool, top, reference)
         if resolved == "view" and result.kind != "view":
             raise ValueError(f"not an exported view (bundle.json + tasks/): {target}")
-    elif resolved == "trace":
-        result = _match_trace_model(target, pool, top, outcome=outcome, task_dir=task_dir)
     else:
         raise ValueError(f"unknown kind {kind!r}")
     if fleet_rates is not None:
@@ -1831,14 +1200,12 @@ def calibrate_pool(
     threshold: float = 0.4,
     root: Path | None = None,
 ) -> dict[str, Any]:
-    """Firing share of every entry and signal over a pool of task packages or trace dirs.
+    """Firing share of every entry and signal over a pool of task packages.
 
-    An entry that fires on at least ``threshold`` of a pool cannot tell that pool's tasks (or
-    runs) apart: it is the signature of harness boilerplate or a generic regex, not of a defect.
-    ``universal`` lists them; fix or gate those entries before trusting ``match`` on the pool.
+    ``universal`` identifies task metadata that does not distinguish packages.
     """
-    if kind not in {"task", "trace"}:
-        raise ValueError(f"calibrate kind must be task or trace, got {kind!r}")
+    if kind != "task":
+        raise ValueError(f"calibration requires task packages, got {kind!r}")
     pool_dir = Path(pool_dir)
     children = sorted(
         p
@@ -1854,19 +1221,15 @@ def calibrate_pool(
         if kind == "task" and not is_task_dir(child):
             continue
         try:
-            result = (
-                _match_one_task(child, pool, 100)
-                if kind == "task"
-                else _match_trace_model(child, pool, 100)
-            )
+            result = _match_one_task(child, pool, 100)
         except ValueError:
-            continue  # not a task package / trace
+            continue  # not a task package
         scanned += 1
-        hits = [h for h in result.matches if kind == "trace" or h.side == "task"]
+        hits = [h for h in result.matches if h.side == "task"]
         strong = [
             h
             for h in hits
-            if h.score >= (TRACE_STRONG_SCORE if kind == "trace" else 1.5) or h.matched_signals
+            if h.score >= 1.5 or h.matched_signals
         ]
         zero_hit += not hits
         zero_strong += not strong

@@ -6,9 +6,8 @@ denominators are unknown, not zero. Report marginal counts use all active rules
 for the v1 disjoint-count invariant. Pruning instead uses verdict-only marginal
 counts: a diagnostic co-fire cannot erase an alert's unique coverage.
 
-Before/after detail unions contain verdict-eligible rules only. Demoted rules
-remain context evidence in ``all_rules``. The emitted frozen policy can be
-passed to ``scan_trace(qc_policy=...)``; emitting it is not runtime deployment.
+Before/after detail unions contain verdict-eligible rules only. Demotion
+recommendations remain diagnostic. They do not change runtime rule eligibility.
 """
 
 from __future__ import annotations
@@ -176,37 +175,6 @@ def score_cases(
     return report, detail
 
 
-def apply_qc_policy(
-    report: dict[str, Any], policy: Mapping[str, Any]
-) -> dict[str, Any]:
-    """Apply a frozen demotion-only policy, retaining diagnostic hit evidence."""
-    from evallab.tripwires import HACKBOOK_RULES, prefix_entry_accounting
-
-    if policy.get("schema") != "evallab.hackbook_qc_policy/v1":
-        raise ValueError("unknown Hackbook QC policy schema")
-    if policy.get("ruleset_sha256") != ruleset_sha256(HACKBOOK_RULES):
-        raise ValueError("QC policy does not match the current rule metadata")
-    rule_ids = policy.get("demoted_rule_ids")
-    if not isinstance(rule_ids, list) or any(not isinstance(item, str) for item in rule_ids):
-        raise ValueError("QC policy requires a list of demoted rule IDs")
-    demoted = frozenset(rule_ids)
-    verdict = {rule["id"] for rule in HACKBOOK_RULES if rule["eligibility"] == "verdict"}
-    if not demoted <= verdict:
-        raise ValueError("QC policy may only demote current verdict-eligible rules")
-    result = dict(report)
-    result["hackbook"] = [
-        {**hit, "eligibility": "diagnostic", "gate": False}
-        if hit["rule"] in demoted
-        else dict(hit)
-        for hit in report["hackbook"]
-    ]
-    result["qc_policy"] = {
-        "schema": policy["schema"],
-        "ruleset_sha256": policy["ruleset_sha256"],
-        "demoted_rule_ids": sorted(demoted),
-    }
-    result["entry_accounting"] = prefix_entry_accounting(result)
-    return result
 
 
 def scan_trace_rules(

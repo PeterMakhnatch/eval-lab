@@ -8414,10 +8414,9 @@ def scan_trace(
     watched_prefixes: Sequence[str] = (),
     trial_dir: Path | None = None,
     structural_context: Mapping[str, Any] | None = None,
-    qc_policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Offline tripwires; an optional frozen QC policy only demotes alert tiers."""
-    report = _scan(
+    """Offline tripwire evidence with the registered rule eligibility."""
+    return _scan(
         agent_steps,
         whole_trace=True,
         steps=steps,
@@ -8429,11 +8428,6 @@ def scan_trace(
         trial_dir=trial_dir,
         structural_context=structural_context,
     )
-    if qc_policy is not None:
-        from evallab.hackbook.qc import apply_qc_policy
-
-        return apply_qc_policy(report, qc_policy)
-    return report
 
 
 #: Severity per tripwire rule in ``qa.finding/v1`` findings.

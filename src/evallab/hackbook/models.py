@@ -28,7 +28,6 @@ TB4_AUDIT_DIR = Path("research/answer-keys/tb4-audit-v1")
 
 Side = Literal["task", "run"]
 Direction = Literal["false_pass", "false_fail", "either"]
-Outcome = Literal["pass", "fail"]
 # executed: a witness or differential replay was run against the grader; observed: seen in an
 # archived real agent run by a deterministic check of the submission, actions or verifier output,
 # not replayed; claimed: the source says so.
@@ -182,7 +181,7 @@ class HackbookEntry(_Model):
 
 
 class HackbookMatchHit(_Model):
-    """One ranked Hackbook entry matched against a task or trace."""
+    """One ranked Hackbook entry matched against a task package."""
 
     entry_id: str
     slug: str
@@ -197,9 +196,6 @@ class HackbookMatchHit(_Model):
     regex_hits: list[dict[str, Any]] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
     detection_recipe: DetectionRecipe
-    # True when the trace was matched together with its task package and this task-side entry
-    # also fires on that package (the weakness exists and the run touched it); None otherwise.
-    task_confirmed: bool | None = None
     # Share of a declared fleet this entry fires on (``--fleet-rates``); ``non_discriminating``
     # marks entries above the prevalence gate: they measure the harness, not the task or run.
     fleet_rate: float | None = None
@@ -209,16 +205,12 @@ class HackbookMatchHit(_Model):
 
 
 class HackbookMatchResult(_Model):
-    """Match output for one task, one trace, or one exported view."""
+    """Match output for one task package or exported view."""
 
     schema_: Literal["evallab.hackbook.match/v0"] = Field(default=MATCH_SCHEMA, alias="schema")
-    kind: Literal["task", "trace", "view"]
+    kind: Literal["task", "view"]
     target: str
     task_id: str | None = None
-    trial_id: str | None = None
-    outcome: Outcome | None = None
-    dropped_by_outcome: list[str] = Field(default_factory=list)
-    task_gate: list[str] | None = None
     signals: dict[str, list[str]] = Field(default_factory=dict)
     matches: list[HackbookMatchHit] = Field(default_factory=list)
     tasks: list[HackbookMatchResult] = Field(default_factory=list)

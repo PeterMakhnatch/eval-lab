@@ -62,17 +62,15 @@ a fix pattern, and examples labelled `executed` / `observed` / `claimed`.
 .venv/bin/evallab hackbook list
 .venv/bin/evallab hackbook show HB-TS01-007
 .venv/bin/evallab hackbook search "golden file"
-.venv/bin/evallab hackbook match <task-dir> [--kind task|trace] [--direction false_pass] [--emit-findings DIR] [--json]
 .venv/bin/evallab hackbook coverage [--json]
-.venv/bin/evallab hackbook calibrate <pool-of-tasks-or-traces> [--write-rates FILE]
 ```
 
-- Inputs/outputs: `match` takes a task package, an exported view, or a
-  trace/trial dir and emits ranked entry hits (or `qa.finding/v1` findings
-  with `--emit-findings`). `coverage` prints entries/examples by taxonomy
-  class, source, and evidence status. Data: `research/hackbook/entries.jsonl`.
-- Models/lanes: no model needed; entries are matched deterministically.
-  Consumed by Task QA, the seeker, and the trace tools.
+- Inputs/outputs: the private task matcher takes a task package or exported
+  view and emits task metadata leads. Trace tools use `evallab.tripwires.scan_trace`
+  for step-level evidence, not a weighted catalog score. `coverage` prints
+  entries/examples by taxonomy class, source, and evidence status.
+  Data: `research/hackbook/entries.jsonl`.
+- Models/lanes: no model is needed for catalog lookup or tripwire evidence.
 - Measured: 57 entries over 18 classes (#1126, #1131, later #1148/#1158/#1160);
   `coverage` on merged main reports 57 entries (48 task-side, 9 run-side),
   39/57 with executed evidence, 211 examples (74 executed / 2 observed /
@@ -80,9 +78,8 @@ a fix pattern, and examples labelled `executed` / `observed` / `claimed`.
   strict 1-to-1 category recall 68.6% (59/86), precision 48.4%, F1 0.567.
 - Caveats: that recall is mostly in-sample — 47 of the 59 matched DEV
   findings are cited as catalog examples; on uncited DEV findings recall
-  is 12/28 (43%). On full trajectories (not action-only views) the matcher
-  flags clean passes about as often as wrong ones unless the outcome and
-  task gates are used (`--outcome auto --task DIR`). The hackbook.md §3
+  is 12/28 (43%). The weighted trace matcher and its outcome gates are retired.
+  Trace QA uses the shared tripwire engine. The historical hackbook.md §3
   receipt table overcounts examples; `evallab hackbook coverage` is the
   live count. Verifier verdicts: `status-0800.md` rows 1–6.
 

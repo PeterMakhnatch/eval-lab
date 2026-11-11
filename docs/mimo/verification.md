@@ -51,7 +51,7 @@ For every clean-set manifest row, four checks on the FINAL clean package
       proves nothing about the ladder; the row is covered, not clean.
 
     A refusal-clean row therefore does not show the tests reject the other
-    attacks; only a graded cell does. With all four `tamper_source_*`
+    attacks; only a graded cell does. With all 4 `tamper_source_*`
     attacks removed, the remaining 10 attacks, graded together, returned
     reward 0 on all 7 rows tried; the source tampers stay ungraded on
     those rows. At the 2026-11-10 commit the v6 table holds 100 covered

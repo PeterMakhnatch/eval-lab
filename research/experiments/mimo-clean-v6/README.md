@@ -1316,7 +1316,10 @@ the pending-control table, the held-task clause, the non-Python count and the
 four inventory paragraph counts from that inventory and the ranking. It also
 updates the refusal-rate calculation, refusal counts, refused-row attack counts and task
 IDs, and the graded rows' executed-attack range, histogram, and the unscored
-row's attack count. It generates Python's refusal and graded counts and
+row's attack count. It rewrites the source-tamper `N refusal rows` count on
+both README pages from the `tamper-refusal` basis count. It rewrites only the
+last column of the HAR-284/293 and HAR-299 subset tables from each task's
+`unmeasured_attacks`. It generates Python's refusal and graded counts and
 remaining-hours projection. It rewrites the `docs/mimo/verification.md` clause
 (c) sentences: the refusal-signature count, the graded rows' attack range, the
 graded-subset row count, and the covered, clean, refusal, graded and unscored
@@ -1367,6 +1370,9 @@ For a re-run or a new subset cell:
    evidence-match and pending-control sentences on the route page and this
    page, the pending-control table, the held-task clause and the inventory
    prose counts, and the evidence-check sentences and totals from the receipt.
+   It also rewrites the source-tamper `N refusal rows` counts on both README
+   pages and the last column of the HAR-284/293 and HAR-299 subset tables from
+   each task's `unmeasured_attacks`.
 6. Review and edit task-specific descriptions and evidence prose affected by
    the new cell manually. Do not edit a generated anchor sentence.
 7. Run `--sync-docs`, then prove that the generated pages did not drift, and run
@@ -1382,8 +1388,10 @@ For a re-run or a new subset cell:
 Include the regenerated CSV, the receipt, and page changes with the cell data in
 the PR. `--sync-docs`, the drift check, and the tests read only committed files,
 so they need no Docker or host results root. Only step 4 needs the retained host
-results. `--sync-docs` owns the generated fragments on the three pages; the
-`git diff --exit-code` line proves that no anchor drifted.
+results. `--sync-docs` owns the generated fragments on the three pages, including
+both README source-tamper refusal-row counts and both subset tables' last column.
+The subset 1 and subset 2 narrative cells remain hand-written.
+The `git diff --exit-code` line proves that no anchor drifted.
 
 Two trailing columns join the graded-subset cells (schema
 `evallab.mimo-v6-ladder-subset-cells/v1`; coverage readers ignore that schema

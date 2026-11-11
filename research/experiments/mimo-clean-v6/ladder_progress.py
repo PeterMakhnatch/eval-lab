@@ -107,7 +107,9 @@ the committed table with ``--check`` (exit 1 on drift); print the language
 summary with ``--summary``. ``--sync-docs`` rebuilds the tested documentation
 fragments from committed cells, the manifest, the ranking and the pending-control
 inventory: the graded-attack range and histogram, the subset row count and
-dropped/remaining attack counts, the evidence-match and pending-control
+dropped/remaining attack counts, the refusal-row counts on both README pages,
+the subset tables' unmeasured attacks from each task's ``unmeasured_attacks``,
+the evidence-match and pending-control
 sentences on the MiMo route page and this page, the pending-control table, the
 held clause and the four inventory prose counts, and the evidence section,
 check date and totals lines from the committed receipt, without reading or
@@ -231,6 +233,11 @@ GRADED_LANGUAGE_LABELS = {
     "typescript": "TypeScript",
 }
 GRADED_ATTACK_LANGUAGES = ("go", "javascript", "typescript")
+_REFUSAL_ROWS = r"`tamper_source_\*`\s+attacks\s+on\s+the\s+([0-9]+)\s+refusal\s+rows"
+_SUBSET_TABLE_HEADERS = (
+    ("task", "subset 1", "subset 2", "basis now", "reward", "attacks still unmeasured"),
+    ("rank", "task", "subset 2", "basis now", "reward", "attacks still unmeasured"),
+)
 
 
 class ProgressError(RuntimeError):
@@ -443,10 +450,10 @@ def _newest_cell(cells: Sequence[dict[str, Any]]) -> dict[str, Any]:
     return max(cells, key=lambda cell: (str(cell.get("finished_utc") or ""), cell["_source_file"]))
 
 
-def read_subset_cells(
+def _read_subset_files(
     cells_dir: Path, root: Path = ROOT, *, manifest: Mapping[str, str]
-) -> list[dict[str, Any]]:
-    """Flatten ``tasks[].subsets[]`` of every subset-schema ``ladder-*.json``, by task.
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Read validated subsets and their task records from every subset-schema file.
 
     Every subset's ``attacks`` and ``attacks_dropped`` must be disjoint, without
     repeats, and union to the file's ``ladder_attacks``. Each task's
@@ -472,6 +479,14 @@ def read_subset_cells(
         by_task.setdefault(str(subset["task_id"]), []).append(subset)
     for task in tasks:
         _require_task_attack_lists(task, by_task.get(str(task["task_id"]), []))
+    return subsets, tasks
+
+
+def read_subset_cells(
+    cells_dir: Path, root: Path = ROOT, *, manifest: Mapping[str, str]
+) -> list[dict[str, Any]]:
+    """Flatten validated ``tasks[].subsets[]`` of every subset-schema ``ladder-*.json``."""
+    subsets, _ = _read_subset_files(cells_dir, root, manifest=manifest)
     return subsets
 
 
@@ -976,6 +991,60 @@ def _doc_patch(text: str, edits: Sequence[tuple[int, int, str]]) -> str:
     for start, end, replacement in sorted(edits, reverse=True):
         text = text[:start] + replacement + text[end:]
     return text
+
+
+def _refusal_row_edits(text: str, page: Path, count: int) -> list[tuple[int, int, str]]:
+    """Change only the count in the page's source-tamper refusal-row phrase."""
+    match = _doc_match(_REFUSAL_ROWS, text, page, "source-tamper refusal rows")
+    return [(match.start(1), match.end(1), str(count))]
+
+
+def _unmeasured_cell(names: Sequence[str]) -> str:
+    """The last cell of a graded-subset table, from a task's unmeasured attacks."""
+    if not names:
+        return "none"
+    if all(name.startswith("tamper_source_") for name in names):
+        return f"the {len(names)} `tamper_source_*`"
+    return ", ".join(f"`{name}`" for name in names)
+
+
+def _subset_table_edits(
+    text: str, page: Path, subset_tasks: Sequence[Mapping[str, Any]]
+) -> list[tuple[int, int, str]]:
+    """Rewrite only the unmeasured-attack cells of the two exact-header tables."""
+    tasks = {
+        name: task
+        for task in subset_tasks
+        for name in (str(task["task_id"]), _slice_task(task["task_id"]))
+    }
+    edits: list[tuple[int, int, str]] = []
+    for headers in _SUBSET_TABLE_HEADERS:
+        header = "| " + " | ".join(headers) + " |"
+        match = _doc_match("^" + re.escape(header) + r"(?=\r?$)", text, page, header)
+        table = re.compile(r"\|[^\r\n]*(?:\r?\n\|[^\r\n]*)*").match(text, match.start())
+        assert table is not None
+        lines = table.group().splitlines(keepends=True)
+        if len(lines) < 3 or any(
+            line.strip().count("|") != len(headers) + 1 or not line.rstrip().endswith("|")
+            for line in lines
+        ):
+            raise ProgressError(f"{page}: {header!r}: invalid table row")
+        if any(re.fullmatch(r":?-+:?", cell) is None for cell in _pipe_cells(lines[1])):
+            raise ProgressError(f"{page}: {header!r}: invalid table separator")
+        offset = table.start() + len(lines[0]) + len(lines[1])
+        for line in lines[2:]:
+            task_id = _pipe_cells(line)[headers.index("task")].strip("`")
+            task = tasks.get(task_id)
+            if task is None:
+                raise ProgressError(f"{page}: {task_id}: task absent from subset files")
+            cell = re.search(r"\|[ \t]*([^|\r\n]*?)[ \t]*\|[ \t]*(?:\r?\n)?\Z", line)
+            assert cell is not None
+            edits.append((
+                offset + cell.start(1), offset + cell.end(1),
+                _unmeasured_cell(task["unmeasured_attacks"]),
+            ))
+            offset += len(line)
+    return edits
 
 
 def _doc_summary(table: str, rows: Sequence[dict[str, str]], page: Path) -> str:
@@ -1566,12 +1635,14 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
     ``ladder-evidence-receipt.json``, never from the host results root. The
     pending-control sentences, the pending table, the held clause and the
     inventory prose counts come from ``pending-controls.json`` and the ranking.
+    Both README refusal-row counts come from the coverage basis counts, and the
+    subset tables' last cells come from each subset task's ``unmeasured_attacks``.
     """
     receipt = read_receipt(cells_dir, root)
     manifest = read_manifest(cells_dir)
     inventory = read_pending_inventory(cells_dir / PENDING_NAME, manifest)
     controls = inventory["controls"]
-    subsets = read_subset_cells(cells_dir, root, manifest=manifest)
+    subsets, subset_tasks = _read_subset_files(cells_dir, root, manifest=manifest)
     pages = (
         root / "docs" / "mimo" / "README.md",
         cells_dir / "README.md",
@@ -1606,7 +1677,8 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
         ]
         + _evidence_sentence_edits(receipt, text, page, "route")
         + _pending_sentence_edits(controls, text, page, "route")
-        + _graded_sentence_edits(rows, text, page),
+        + _graded_sentence_edits(rows, text, page)
+        + _refusal_row_edits(text, page, counts.get(REFUSAL_BASIS, 0)),
     )
     page = pages[1]
     text = originals[page]
@@ -1729,6 +1801,8 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
             *_evidence_sentence_edits(receipt, text, page, "experiment"),
             *_pending_sentence_edits(controls, text, page, "experiment"),
             *_pending_inventory_edits(inventory, read_ranking(root), text, page),
+            *_refusal_row_edits(text, page, refusals),
+            *_subset_table_edits(text, page, subset_tasks),
         ],
     )
     page = pages[2]

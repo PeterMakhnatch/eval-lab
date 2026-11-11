@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -149,39 +149,23 @@ def test_laminar_import_failure_does_not_block_the_job(
     command.assert_not_awaited()
 
 
-@pytest.mark.parametrize(
-    ("companion", "hook"),
-    [
-        ("laminar", "on_job_start"),
-        ("laminar", "on_job_end"),
-        ("flight", "on_job_start"),
-        ("flight", "on_job_end"),
-    ],
-)
-def test_companion_cancellation_propagates_the_original_error(
+@pytest.mark.parametrize("hook", ["on_job_start", "on_job_end"])
+def test_laminar_cancellation_propagates_the_original_error(
     tmp_path: Path,
     context_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
-    companion: str,
     hook: str,
 ) -> None:
-    import evallab.flight.plugin as flight_plugin
-
     monkeypatch.setenv("EVALLAB_STATE_JOURNAL", "off")
     command = AsyncMock(side_effect=AssertionError("Docker must not run"))
     monkeypatch.setattr(state_journal, "_command", command)
     laminar = SimpleNamespace(on_job_start=AsyncMock(), on_job_end=AsyncMock())
-    flight = SimpleNamespace(on_job_start=AsyncMock(), on_job_end=AsyncMock())
-    monkeypatch.setattr(flight_plugin, "FlightRecorderPlugin", lambda: flight)
     plugin = _plugin(context_dir)
     plugin._laminar = laminar
     job = _job(tmp_path)
-    flight_config = job.job_dir.parent / ".flight" / f"{job.job_dir.name}.json"
-    flight_config.parent.mkdir(parents=True)
-    flight_config.write_text("{}\n", encoding="utf-8")
     result = SimpleNamespace(reward=0.75)
     error = asyncio.CancelledError("the caller cancelled the job")
-    failing_hook = getattr(laminar if companion == "laminar" else flight, hook)
+    failing_hook = getattr(laminar, hook)
     failing_hook.side_effect = error
 
     async def lifecycle() -> None:
@@ -194,10 +178,6 @@ def test_companion_cancellation_propagates_the_original_error(
 
     assert raised.value is error
     failing_hook.assert_awaited_once_with(job if hook == "on_job_start" else result)
-    assert plugin._flight_errors == []
-    assert not (job.job_dir / "flight-unavailable.json").exists()
-    if companion == "laminar":
-        getattr(flight, hook).assert_not_awaited()
     command.assert_not_awaited()
 
 
@@ -555,13 +535,11 @@ def test_incomplete_image_context_fails_open_with_unavailable_status(
     assert status["reason"] == plugin.image_error
 
 
-def test_disabled_observer_runs_successful_companion_hooks(
+def test_disabled_observer_runs_successful_laminar_hooks(
     tmp_path: Path,
     context_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import evallab.flight.plugin as flight_plugin
-
     async def fake_command(*args: str, timeout: float) -> tuple[int, str, str]:
         assert args[:2] == ("docker", "stop")
         return 0, "", ""
@@ -569,15 +547,9 @@ def test_disabled_observer_runs_successful_companion_hooks(
     monkeypatch.setattr(state_journal, "_command", fake_command)
     monkeypatch.setenv("EVALLAB_STATE_JOURNAL", "off")
     laminar = SimpleNamespace(on_job_start=AsyncMock(), on_job_end=AsyncMock())
-    flight = SimpleNamespace(on_job_start=AsyncMock(), on_job_end=AsyncMock())
-    monkeypatch.setattr(flight_plugin, "FlightRecorderPlugin", lambda: flight)
     plugin = _plugin(context_dir)
     plugin._laminar = laminar
     job = _job(tmp_path)
-    job.job_dir.mkdir(parents=True)
-    flight_config = job.job_dir.parent / ".flight" / f"{job.job_dir.name}.json"
-    flight_config.parent.mkdir(parents=True)
-    flight_config.write_text("{}\n", encoding="utf-8")
     event = _event(tmp_path)
 
     async def lifecycle() -> None:
@@ -590,23 +562,17 @@ def test_disabled_observer_runs_successful_companion_hooks(
 
     laminar.on_job_start.assert_awaited_once_with(job)
     laminar.on_job_end.assert_awaited_once_with(None)
-    flight.on_job_start.assert_awaited_once_with(job)
-    flight.on_job_end.assert_awaited_once_with(None)
     assert plugin.image_error == "disabled by EVALLAB_STATE_JOURNAL=off"
     status = _status(event)
     assert status["status"] == "unavailable"
     assert status["reason"] == "observer stopped without a state diff"
 
 
-@pytest.mark.parametrize("report_failure", [None, "status", "logging"])
-def test_companion_hook_failures_are_swallowed_and_recorded(
+def test_laminar_hook_failures_do_not_block_the_journal(
     tmp_path: Path,
     context_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
-    report_failure: str | None,
 ) -> None:
-    import evallab.flight.plugin as flight_plugin
-
     async def fake_command(*args: str, timeout: float) -> tuple[int, str, str]:
         raise AssertionError("disabled observer must not invoke Docker")
 
@@ -616,34 +582,11 @@ def test_companion_hook_failures_are_swallowed_and_recorded(
         on_job_start=AsyncMock(side_effect=RuntimeError("laminar start failed")),
         on_job_end=AsyncMock(side_effect=RuntimeError("laminar end failed")),
     )
-    flight = SimpleNamespace(
-        on_job_start=AsyncMock(side_effect=RuntimeError("flight start failed")),
-        on_job_end=AsyncMock(side_effect=RuntimeError("flight end failed")),
-    )
-    monkeypatch.setattr(flight_plugin, "FlightRecorderPlugin", lambda: flight)
     plugin = _plugin(context_dir)
     plugin._laminar = laminar
     job = _job(tmp_path)
-    job.job_dir.mkdir(parents=True)
-    flight_config = job.job_dir.parent / ".flight" / f"{job.job_dir.name}.json"
-    flight_config.parent.mkdir(parents=True)
-    flight_config.write_text("{}\n", encoding="utf-8")
     event = _event(tmp_path)
     result = SimpleNamespace(reward=0.75)
-    reporter = Mock(side_effect=OSError("observer report unavailable"))
-    if report_failure == "status":
-        write_json = state_journal._atomic_json
-
-        def write_status(path: Path, value: dict[str, Any]) -> None:
-            if path.name == "flight-unavailable.json":
-                reporter(path, value)
-            else:
-                write_json(path, value)
-
-        monkeypatch.setattr(state_journal, "_atomic_json", write_status)
-    elif report_failure == "logging":
-        logger = state_journal.logging.getLogger(state_journal.__name__)
-        monkeypatch.setattr(logger, "warning", reporter)
 
     async def lifecycle() -> None:
         await plugin.on_job_start(job)
@@ -654,25 +597,6 @@ def test_companion_hook_failures_are_swallowed_and_recorded(
 
     laminar.on_job_start.assert_awaited_once_with(job)
     laminar.on_job_end.assert_awaited_once_with(result)
-    flight.on_job_start.assert_awaited_once_with(job)
-    flight.on_job_end.assert_awaited_once_with(result)
-    if report_failure is not None:
-        assert reporter.call_count == 2
-
-    assert plugin._flight_errors == [
-        "job_start: RuntimeError: flight start failed",
-        "job_end: RuntimeError: flight end failed",
-    ]
-    flight_status_path = job.job_dir / "flight-unavailable.json"
-    if report_failure == "status":
-        assert not flight_status_path.exists()
-    else:
-        flight_status = json.loads(flight_status_path.read_text(encoding="utf-8"))
-        assert flight_status == {
-            "schema": "evallab.flight.status/v1",
-            "status": "unavailable",
-            "errors": plugin._flight_errors,
-        }
     status = _status(event)
     assert status["status"] == "unavailable"
     assert status["reason"] == "disabled by EVALLAB_STATE_JOURNAL=off"

@@ -1307,10 +1307,10 @@ of hand-copying them from the JSON. The cell must run the manifest
 ranking. It does not use the CSV as its source. It needs no Docker or host
 results root.
 
-It updates the two route-page basis sentences and this page's basis table,
+It updates the route page's basis sentence and this page's basis table,
 covered count, signature counts, and summary table. It rewrites the
-evidence-match sentence on the two route pages and this page, and the
-pending-control sentence on all three pages, from the committed
+evidence-match sentence on the route page and this page, and the
+pending-control sentence on the route page and this page, from the committed
 `ladder-evidence-receipt.json` and `pending-controls.json`. It also updates the
 refusal-rate calculation, refusal counts, refused-row attack counts and task
 IDs, and the graded rows' executed-attack range, histogram, and the unscored
@@ -1362,8 +1362,8 @@ For a re-run or a new subset cell:
    task IDs, the graded rows' attack range and histogram, the graded-subset row
    count, the verification page's clause (c) counts and check date, Python's
    refusal and graded counts, Python's remaining-hours projection, the
-   evidence-match and pending-control sentences on the three pages, and the
-   evidence-check sentences and totals from the receipt.
+   evidence-match and pending-control sentences on the route page and this
+   page, and the evidence-check sentences and totals from the receipt.
 6. Review and edit task-specific descriptions and evidence prose affected by
    the new cell manually. Do not edit a generated anchor sentence.
 7. Run `--sync-docs`, then prove that the generated pages did not drift, and run
@@ -1371,7 +1371,7 @@ For a re-run or a new subset cell:
 
    ```bash
    uv run python research/experiments/mimo-clean-v6/ladder_progress.py --sync-docs
-   git diff --exit-code README.md docs/mimo/README.md docs/mimo/verification.md research/experiments/mimo-clean-v6/README.md
+   git diff --exit-code docs/mimo/README.md docs/mimo/verification.md research/experiments/mimo-clean-v6/README.md
    uv run python research/experiments/mimo-clean-v6/ladder_progress.py --check
    uv run pytest research/experiments/mimo-clean-v6/test_ladder_progress.py
    ```
@@ -1379,7 +1379,7 @@ For a re-run or a new subset cell:
 Include the regenerated CSV, the receipt, and page changes with the cell data in
 the PR. `--sync-docs`, the drift check, and the tests read only committed files,
 so they need no Docker or host results root. Only step 4 needs the retained host
-results. `--sync-docs` owns the generated fragments on the four pages; the
+results. `--sync-docs` owns the generated fragments on the three pages; the
 `git diff --exit-code` line proves that no anchor drifted.
 
 Two trailing columns join the graded-subset cells (schema

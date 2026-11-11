@@ -1526,7 +1526,7 @@ task-specific prose manually.
 controls still owed are visible per ranking phase instead of as one flat
 inventory. A phase row counts only the tasks that still owe control cells.
 Cells of a task the inventory marks `runnable` fill the `runnable cells`
-column: the two held tasks `000803` and `000838` contribute the four cells
+column: the 2 held tasks `000803` and `000838` contribute the 4 cells
 that are not runnable. Each row is generated, not hand-computed:
 
 ```bash
@@ -1546,11 +1546,13 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py --pending-co
 oracle x3 cell** and **2.81 min for a nop x3 cell**. One pending agent cell is
 already one repeat-3 control, so its mean covers that cell's three runs and
 the projection is `cells x mean`, not three times that. The hours count every
-pending cell, including the four held ones. Twelve of the ninety tasks are not
+pending cell, including the four held ones. 12 of the 90 tasks are not
 Python; their cells are projected with the Python means, so those rows are an
 estimate rather than a measurement of those languages. The mode reads only the
 manifest, the ranking and the inventory: it launches no Docker trial and reads
-no results root. The offline test suite compares this section with the renderer.
+no results root. `--sync-docs` rewrites this table, the held clause and the
+four inventory counts above; the offline test suite compares this section with
+the renderer.
 
 Before printing, `--pending-controls` checks the inventory against
 [manifest.csv](manifest.csv) (HAR-371). An entry whose `final_digest` differs

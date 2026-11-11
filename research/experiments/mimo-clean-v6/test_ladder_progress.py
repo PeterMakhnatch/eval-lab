@@ -713,6 +713,47 @@ def test_ladder_progress_pending_controls_refuse_a_malformed_container(
         MODULE.read_pending_controls(path, {})
 
 
+def _pending_inventory_file(tmp_path: Path, tasks: list[dict]) -> Path:
+    """A tmp inventory with one valid control entry and the given ``tasks`` rows."""
+    path = _pending_controls_file(
+        tmp_path, [{"task_id": "t1", "agents": ["oracle"], "runnable": True}]
+    )
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["tasks"] = tasks
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize(
+    ("tasks", "message"),
+    [
+        (
+            [
+                {"task_id": "t1", "language": "python", "pending_agents": [], "runnable": True},
+                {"task_id": "t1", "language": "python", "pending_agents": [], "runnable": True},
+            ],
+            "tasks repeats t1",
+        ),
+        (
+            [{"task_id": "t1", "language": "python", "pending_agents": ["custom"], "runnable": True}],
+            "not cells of",
+        ),
+        (
+            [{"task_id": "t1", "language": "python", "pending_agents": [], "runnable": "yes"}],
+            "not a boolean",
+        ),
+        ([], "t1: remaining task is absent from tasks"),
+    ],
+    ids=["repeated-task", "unknown-agent", "runnable-not-boolean", "missing-task"],
+)
+def test_ladder_progress_pending_inventory_refuses_a_malformed_tasks_list(
+    tmp_path: Path, tasks: list[dict], message: str
+) -> None:
+    path = _pending_inventory_file(tmp_path, tasks)
+    with pytest.raises(ProgressError, match=re.escape(message)):
+        MODULE.read_pending_inventory(path, _pending_manifest(path))
+
+
 def test_ladder_progress_check_and_summary_are_mutually_exclusive() -> None:
     with pytest.raises(SystemExit) as refused:
         MODULE.main(["--check", "--summary"])
@@ -1632,6 +1673,224 @@ def test_ladder_progress_sync_docs_derives_the_pending_sentence_from_the_invento
         assert f"{pending} pending cells for" in text
         assert f"{tasks} tasks, {runnable} runnable" in text
         assert f"{hours:.2f} projected serial hours" in text
+
+
+def test_ladder_progress_sync_docs_restores_the_pending_controls_table(sandbox: Path) -> None:
+    readme = sandbox / "README.md"
+    original = readme.read_bytes()
+    section = _sync_section(original, MODULE.PENDING_HEADING.encode())
+    row = _sync_row(section, b"total")
+    readme.write_bytes(_replace_once(original, row, _stale_count_row(row)))
+    assert readme.read_bytes() != original
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert readme.read_bytes() == original
+
+
+def test_ladder_progress_sync_docs_derives_the_pending_controls_table(sandbox: Path) -> None:
+    path = sandbox / MODULE.PENDING_NAME
+    data = json.loads(path.read_text(encoding="utf-8"))
+    entry = next(
+        control
+        for control in data["remaining_original_controls"]
+        if control["agents"] == ["oracle", "nop"]
+    )
+    entry["agents"] = ["oracle"]
+    task = next(item for item in data["tasks"] if item["task_id"] == entry["task_id"])
+    task["pending_agents"] = ["oracle"]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    controls = MODULE.read_pending_controls(path, MODULE.read_manifest(sandbox))
+    expected = MODULE.render_pending_controls(
+        controls, MODULE.read_ranking(sandbox.parents[2])
+    )
+    assert MODULE.main(["--sync-docs"]) == 0
+    readme = (sandbox / "README.md").read_text(encoding="utf-8")
+    section = readme.split(MODULE.PENDING_HEADING, 1)[1].split("\n## ", 1)[0]
+    table = "\n".join(line for line in section.splitlines() if line.startswith("|")) + "\n"
+    assert table == expected
+
+
+def test_ladder_progress_sync_docs_restores_the_held_clause(sandbox: Path) -> None:
+    readme = sandbox / "README.md"
+    original = readme.read_bytes()
+    stale = _stale_number(original, rb"the [0-9]+ held tasks")
+    assert stale != original
+    readme.write_bytes(stale)
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert readme.read_bytes() == original
+
+
+def test_ladder_progress_sync_docs_derives_the_held_clause_from_the_inventory(
+    sandbox: Path,
+) -> None:
+    path = sandbox / MODULE.PENDING_NAME
+    data = json.loads(path.read_text(encoding="utf-8"))
+    held = next(entry for entry in data["remaining_original_controls"] if not entry["runnable"])
+    task = next(item for item in data["tasks"] if item["task_id"] == held["task_id"])
+    held["agents"] = held["agents"][:1]
+    task["pending_agents"] = task["pending_agents"][:1]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    controls = data["remaining_original_controls"]
+    ids = " and ".join(
+        f"`{control['task_id'].rsplit('-', 1)[-1]}`"
+        for control in controls
+        if not control["runnable"]
+    )
+    cells = sum(len(control["agents"]) for control in controls if not control["runnable"])
+    assert MODULE.main(["--sync-docs"]) == 0
+    text = " ".join((sandbox / "README.md").read_text(encoding="utf-8").split())
+    assert f"the 2 held tasks {ids} contribute the {cells} cells that are not runnable" in text
+    assert "92 tasks have 180 outstanding control cells. Of those, **176 are runnable**" in text
+
+
+def test_ladder_progress_sync_docs_restores_the_non_python_count(sandbox: Path) -> None:
+    readme = sandbox / "README.md"
+    original = readme.read_bytes()
+    stale = _stale_number(original, rb"[0-9]+ of the [0-9]+ tasks are not")
+    assert stale != original
+    readme.write_bytes(stale)
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert readme.read_bytes() == original
+
+
+def test_ladder_progress_sync_docs_derives_the_non_python_count_from_the_inventory(
+    sandbox: Path,
+) -> None:
+    path = sandbox / MODULE.PENDING_NAME
+    data = json.loads(path.read_text(encoding="utf-8"))
+    remaining = set(data["remaining_original_task_ids"])
+    task = next(
+        item
+        for item in data["tasks"]
+        if item["task_id"] in remaining and item["language"] == "python"
+    )
+    task["language"] = "go"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert MODULE.main(["--sync-docs"]) == 0
+    text = " ".join((sandbox / "README.md").read_text(encoding="utf-8").split())
+    assert "13 of the 90 tasks are not Python" in text
+
+
+def test_ladder_progress_sync_docs_restores_the_inventory_counts(sandbox: Path) -> None:
+    readme = sandbox / "README.md"
+    original = readme.read_bytes()
+    stale = _stale_number(original, rb"Across the [0-9]+-task inventory")
+    stale = _stale_number(stale, rb"[0-9]+ tasks have [0-9]+ outstanding control")
+    stale = _stale_number(stale, rb"tasks have [0-9]+ outstanding control")
+    stale = _stale_number(stale, rb"Of those, \*\*[0-9]+ are runnable")
+    assert stale != original
+    readme.write_bytes(stale)
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert readme.read_bytes() == original
+
+
+def test_ladder_progress_sync_docs_derives_the_inventory_counts(sandbox: Path) -> None:
+    path = sandbox / MODULE.PENDING_NAME
+    data = json.loads(path.read_text(encoding="utf-8"))
+    by_id = {item["task_id"]: item for item in data["tasks"]}
+    entry = next(
+        control
+        for control in data["remaining_original_controls"]
+        if control["runnable"] and by_id[control["task_id"]]["language"] == "python"
+    )
+    data["remaining_original_controls"] = [
+        control
+        for control in data["remaining_original_controls"]
+        if control["task_id"] != entry["task_id"]
+    ]
+    data["remaining_original_task_ids"] = [
+        task_id
+        for task_id in data["remaining_original_task_ids"]
+        if task_id != entry["task_id"]
+    ]
+    by_id[entry["task_id"]]["pending_agents"] = []
+    path.write_text(json.dumps(data), encoding="utf-8")
+    tasks = data["tasks"]
+    pending_cells = sum(len(item["pending_agents"]) for item in tasks)
+    runnable_cells = sum(len(item["pending_agents"]) for item in tasks if item["runnable"])
+    remaining = data["remaining_original_task_ids"]
+    non_python = sum(by_id[task_id]["language"] != "python" for task_id in remaining)
+    pending_tasks = sum(bool(item["pending_agents"]) for item in tasks)
+    assert MODULE.main(["--sync-docs"]) == 0
+    text = " ".join((sandbox / "README.md").read_text(encoding="utf-8").split())
+    assert (
+        f"Across the {len(tasks)}-task inventory, {pending_tasks} tasks have "
+        f"{pending_cells} outstanding control cells. Of those, "
+        f"**{runnable_cells} are runnable**"
+    ) in text
+    assert f"{non_python} of the {len(remaining)} tasks are not Python" in text
+    controls = MODULE.read_pending_controls(path, MODULE.read_manifest(sandbox))
+    pending, runnable, control_tasks, _ = MODULE._pending_counts(controls)
+    assert control_tasks == len(remaining)
+    assert f"{pending} pending cells for {control_tasks} tasks, {runnable} runnable" in text
+
+
+_PENDING_INVENTORY_ANCHORS = (
+    rb"Across the [0-9]+-task inventory",
+    (
+        rb"the [0-9]+ held tasks `000803` and `000838` contribute the [0-9]+ cells"
+        rb"\s+that are not"
+    ),
+    rb"[0-9]+ of the [0-9]+ tasks are not\s+Python",
+)
+
+
+@pytest.mark.parametrize("anchor", _PENDING_INVENTORY_ANCHORS)
+@pytest.mark.parametrize("damage", ["missing", "repeated"])
+def test_ladder_progress_sync_docs_refuses_a_damaged_inventory_anchor_atomically(
+    sandbox: Path, anchor: bytes, damage: str
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    readme = sandbox / "README.md"
+    text = readme.read_bytes()
+    found = re.search(anchor, text)
+    assert found is not None, anchor
+    fragment = found.group()
+    replacement = (
+        b"removed inventory anchor" if damage == "missing" else fragment + b"\n" + fragment
+    )
+    readme.write_bytes(_replace_once(text, fragment, replacement))
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert _SYNC_EXPERIMENT in str(refused.value)
+    assert _sync_snapshot(sandbox) == before
+
+
+@pytest.mark.parametrize("damage", ["missing", "repeated"])
+def test_ladder_progress_sync_docs_refuses_a_damaged_pending_heading_atomically(
+    sandbox: Path, damage: str
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    readme = sandbox / "README.md"
+    heading = MODULE.PENDING_HEADING.encode()
+    text = readme.read_bytes()
+    assert text.count(heading) == 1
+    replacement = (
+        b"removed pending heading" if damage == "missing" else heading + b"\n" + heading
+    )
+    readme.write_bytes(_replace_once(text, heading, replacement))
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert _SYNC_EXPERIMENT in str(refused.value)
+    assert _sync_snapshot(sandbox) == before
+
+
+def test_ladder_progress_sync_docs_refuses_a_missing_pending_table_atomically(
+    sandbox: Path,
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    readme = sandbox / "README.md"
+    text = readme.read_bytes()
+    section = _sync_section(text, MODULE.PENDING_HEADING.encode())
+    table = b"\n".join(line for line in section.splitlines() if line.startswith(b"|"))
+    assert table
+    readme.write_bytes(_replace_once(text, table, b"removed pending table"))
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert MODULE.PENDING_HEADING in str(refused.value)
+    assert _sync_snapshot(sandbox) == before
 
 
 def test_ladder_progress_sync_docs_derives_the_evidence_sentence_from_the_receipt(

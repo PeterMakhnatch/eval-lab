@@ -173,7 +173,7 @@ stubs (rewritten; 9/9 in-container, then 1 under @3).
 pytest named-id presence check, and computes agent changes against the
 verifier's complete post-setup pristine workdir instead of BASE's tracked
 tree. No `@2`/`@3` symbol or template byte changes, so their records stay
-valid. Ships in `mimo-clean-v3` (see `docs/mimo/clean-set.md`).
+valid. Ships in `mimo-clean-v3`.
 
 ### The bug (found by the fleet census on Daytona)
 
@@ -420,8 +420,7 @@ the 29 legitimate reference fixes the v4 census triaged as grader gaps
 (G1–G8; receipt `research/experiments/mimo-clean-v4-census/README.md`
 §"The 30 oracle fail:0": 29 grader gaps + 1 PRE + 1 ENV, zero
 `fail:oracle-wrong`). No `@2`–`@6` symbol or template byte changes, so
-their records stay valid. Ships in `mimo-clean-v5` (see
-`docs/mimo/clean-set.md`).
+their records stay valid. Ships in `mimo-clean-v5`.
 
 ### The eight shapes (all: tests visibly pass, rc 0, `@6` grades 0)
 
@@ -466,8 +465,7 @@ Files`-line alternative would certify zero passing tests.
 `tests/test_separate_verifier.py`) keeps every `@7` guarantee and fixes
 the two shapes the v5 regrade surfaced on `@7` packages (both graded 0
 with tests visibly passing, rc 0). No `@2`–`@7` symbol or template byte
-changes, so their records stay valid. Ships in `mimo-clean-v5` (see
-`docs/mimo/clean-set.md`).
+changes, so their records stay valid. Ships in `mimo-clean-v5`.
 
 | id | shape | `@8` fix | anti-cheat preserved |
 |---|---|---|---|
@@ -494,7 +492,7 @@ changes, so their records stay valid. Ships in `mimo-clean-v5` (see
 `@8` rule — the orphan loop is byte-identical — and fixes the shape that
 kept 001431 red on `@8` packages. No `@2`–`@8` symbol or template byte
 changes, so their records stay valid. Ships in `mimo-clean-v5` as a
-per-row fold for 001431 only (see `docs/mimo/clean-set.md`); the next full
+per-row fold for 001431 only; the next full
 rebuild goes uniform `@9`.
 
 ### Ground truth (measured, local Docker $0)
@@ -647,8 +645,7 @@ is made.
 `@10` also fixes the repeat-3 oracle failure measured on the
 opaque-wrapper tasks `000245` (TypeScript) and `000048` (Go), and
 folds those two rows onto `@10` in `mimo-clean-v5`
-(`SEPARATE_V10_TASKS` in `src/evallab/mimo_clean.py`; see
-`docs/mimo/clean-set.md`) while keeping the other 2,696 v5 rows on
+(`SEPARATE_V10_TASKS` in `src/evallab/mimo_clean.py`) while keeping the other 2,696 v5 rows on
 their banked digests (incl. 001431 on `@9`).
 
 ### Root cause (traced through the verifier container)

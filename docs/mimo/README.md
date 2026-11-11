@@ -56,25 +56,27 @@ Two upstream layers, neither fixed:
 - **FineEnvs** Harbor conversion (1.1 → 1.3.0): no image was ever rebuilt; the
   git strip only runs when a branch points past the base, so unreachable fix
   objects survive (Vals: 67% of code tasks). The grader runs as root in the
-  agent's container. Details and a draft upstream report: [fineenvs-audit.md](fineenvs-audit.md).
+  agent's container.
 
 ## Every problem, and what closes it
 
+Historical guides remain at the `pre-deslop-2026-11-10` tag.
+
 | Id | Problem | Closed by (in the v5 chain) | Evidence |
 |---|---|---|---|
-| V1 | Fix commit on a branch past the base | `strip-future-history@1` | [vals-routes.md](vals-routes.md) |
+| V1 | Fix commit on a branch past the base | `strip-future-history@1` | Historical guide |
 | V2 | Fix commit kept as unreachable git objects | `strip-future-history@1` (rebuilds `.git` from the base closure) | same; ladder `git_history` 1.3.0+ |
-| V3 | File mtimes point at the files the fix touches | `mtime-normalize@2` (works on Modal's lazy layers) | [vals-routes.md](vals-routes.md) |
+| V3 | File mtimes point at the files the fix touches | `mtime-normalize@2` (works on Modal's lazy layers) | Historical guide |
 | V4 | Agent parses pack files itself when git is blocked | closed by V2 (objects are gone) | same |
-| V5 | Build/module caches hold the fixed tree | `purge-build-caches@4`; `@5` for 20 node build-output tasks | [vals-routes.md](vals-routes.md), [node-build-leak.md](node-build-leak.md) |
-| V6 | Download the fixed release / upstream over the network | `agent-network-none@1` (agent phase only; graders keep network) | [vals-routes.md](vals-routes.md) |
-| V7 | Prompt wording | opt-in `instruction-explicit-rules@1`, **not** in the chain (changes the task) | [vals-routes.md](vals-routes.md), [mimoagent-harness.md](mimoagent-harness.md) |
+| V5 | Build/module caches hold the fixed tree | `purge-build-caches@4`; `@5` for 20 node build-output tasks | [node-build-leak.md](node-build-leak.md) |
+| V6 | Download the fixed release / upstream over the network | `agent-network-none@1` (agent phase only; graders keep network) | Historical guide |
+| V7 | Prompt wording | opt-in `instruction-explicit-rules@1`, **not** in the chain (changes the task) | Historical guide |
 | E1 | Installed/build/venv/stray copies of the fixed project | `purge-installed-copies@2` (all Python tasks; copies reset to base bytes) | `research/experiments/purge-installed-copies-v2/` |
 | E2 | Grader tampering (tracked conftest, sitecustomize, PATH shims, reward writers, in-source exit, pytest patching, module-level skips, Go `TestMain`/`os.Exit`, JS `process.exit`) | `separate-verifier@8` | [separate-verifier.md](separate-verifier.md) |
 | E3 | Grader in the agent's container, agent is root | `separate-verifier@8`: fresh verifier, own checkout and base, takes only the agent's file changes | same |
 | E4 | No reference fixes ship | 564 recovered from leaked history and replayed (oracle 1, do-nothing 0) | `research/experiments/mimo-reference-fixes/` |
 | E5 | Broken environments | Python ledger repairs; 32 discarded; 11 `env-broken` in v5 | `research/experiments/python-task-ledger/` |
-| E6 | Graders that download at test time | verifier keeps network; prefetch where needed | [vals-routes.md](vals-routes.md) |
+| E6 | Graders that download at test time | verifier keeps network; prefetch where needed | Historical guide |
 
 The grader went through eight versions in three days. Each step closed a hole
 or a false 0 found by measurement. `@8` grades by **fail-to-pass against the
@@ -115,7 +117,7 @@ Measured results:
 |---|---|
 | Cheat ladder on clean packages | 0 cracked across all census rounds (v3 283 scored, v4 100-task sample, v5 261 clean + 7 unscored). On the published packages the same ladder cracks them (e.g. 002402, 002552). v6 basis (100 ranks): 100 covered, 99 clean, 80 tamper-refusal, 19 graded, 1 unscored, 0 not run, over the ranked rows in [ladder-progress.csv](../../research/experiments/mimo-clean-v6/ladder-progress.csv). The one `unscored` rank is 000928 (setup fails). Most v6 clean verdicts rest on the verifier refusing the attacked tree, not on a graded run. The 19 graded rows comprise the Python ranks 13, 21, 50 (`001219`, [HAR-327 receipt](../../research/experiments/mimo-clean-v6/ladder-p2-ranks46-51.json)) and 52 (`001553`, [HAR-332 receipt](../../research/experiments/mimo-clean-v6/ladder-p2-ranks52-57.json)); the 5 Go cells (`001694` at rank 6; `000048`, `000208`, `000427`, `000431` at ranks 89–92); the 4 JavaScript cells (`000112`, `000524`, `001675`, `001849` at ranks 93–96); and the 6 TypeScript cells (`000632` at rank 7, `001763` at rank 9; `000046`, `000055`, `000460`, `001514` at ranks 97–100). The Go cells run `go test`; the JavaScript cells run Jest, Mocha or Node and execute 9/14 attacks each ([HAR-310 receipt](../../research/experiments/mimo-clean-v6/ladder-p2-js-ranks93-96.json)); the TypeScript ranks 97–100 cells run Mocha, Karma, Jest or Vitest and execute 8 or 9 of 14 attacks ([HAR-320 receipt](../../research/experiments/mimo-clean-v6/ladder-p2-ts-ranks97-100.json)). These graded failures are not tamper refusals. Subset cells for refused rows are in [ladder-graded-subset.json](../../research/experiments/mimo-clean-v6/ladder-graded-subset.json). |
 | Fix-content probe | 12 real leaks found on earlier clean chains, all closed in v5 (11 Python copies by `purge-installed-copies@2`, 000919 by `purge-build-caches@5`); v5 re-probe of those 12: 0 hits. 6 not fixable by a transform → excluded above. |
-| Reference fixes under the v5 grader | 87 graded 1 and 4 `1-noexec` in the v5 census; remaining `fail:0` cells are triaged in the receipt. 001431's grader shape is closed by the `@9` fold ([clean-set.md](clean-set.md), "Verifier fold (@9 for 001431)"). |
+| Reference fixes under the v5 grader | 87 graded 1 and 4 `1-noexec` in the v5 census; remaining `fail:0` cells are triaged in the receipt. 001431's grader shape is closed by the `@9` fold. |
 | Do-nothing | 0 everywhere it ran; `0-noexec` rows lack proof the tests ran and stay unverified. |
 
 Receipts, newest first: `research/experiments/mimo-clean-v6/`,
@@ -147,8 +149,7 @@ Receipts, newest first: `research/experiments/mimo-clean-v6/`,
 - Full-fleet coverage (v5 history): 1,729 built tasks had no ladder run on v5;
   294 lacked a do-nothing run; 172 reference tasks awaited a v5 probe. For the
   567-task v6 fleet only 5 are `v6_verified`; see the Current build target.
-- 001431 is not open: it folds onto `separate-verifier@9` (see
-  [clean-set.md](clean-set.md), "Verifier fold (@9 for 001431)").
+- 001431 is not open: it folds onto `separate-verifier@9`.
 - Next rebuild should move the whole fleet to `purge-build-caches@5`
   (kept selective in v5 to avoid re-grading 405 banked rows).
 - 1,518 non-Python tasks: 136 have reference fixes; the rest of the Go and
@@ -158,7 +159,7 @@ Receipts, newest first: `research/experiments/mimo-clean-v6/`,
 
 ## Running MiMo agents on the clean set
 
-[mimoagent-harness.md](mimoagent-harness.md): Xiaomi's harness on the clean
+Xiaomi's harness runs on the clean
 packages, with the opt-in antihack guard and explicit-rules addendum recorded
 per trial. Default runs keep both off; the task-level fixes above are what
 make the tasks clean.

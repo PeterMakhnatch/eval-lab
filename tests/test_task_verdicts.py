@@ -2,18 +2,14 @@
 
 from __future__ import annotations
 
-import csv
 import importlib.util
-import json
 import tomllib
 from pathlib import Path
 
 import pytest
 
-from evallab.registry import task_directory_digest
 from evallab.task_health_tags import (
     KNOWN_TAGS,
-    generate_health_tags,
     metadata_bytes,
     verdict_tag,
 )
@@ -247,145 +243,3 @@ def test_metadata_bytes_manages_verdict_namespace_and_description():
         metadata_bytes(original, ["health:sound"], description="  ")
 
 
-def _csv(path: Path, fields: list[str], rows: list[dict]) -> None:
-    with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def _task_parent(root: Path, task_id: str) -> tuple[Path, str]:
-    parent = root / "sources" / task_id
-    (parent / "tests").mkdir(parents=True)
-    (parent / "task.toml").write_text(
-        f'[task]\nname = "mimo-v2.6-rl/{task_id}"\n'
-        '[metadata]\ncategory = "Python"\ntags = ["original"]\n',
-        encoding="utf-8",
-    )
-    (parent / "instruction.md").write_text("Implement the requested behavior.\n")
-    (parent / "tests/test.sh").write_text("#!/bin/sh\nexit 0\n")
-    return parent, task_directory_digest(parent)
-
-
-def test_probe_feed_binds_probed_task_and_leaves_others_not_probed(tmp_path: Path):
-    root = tmp_path / "repo"
-    probed = "format-code-task-000001"
-    plain = "format-code-task-000002"
-    parents = {}
-    for task_id in (probed, plain):
-        parents[task_id] = _task_parent(root, task_id)
-    _csv(
-        root / "ledger.csv",
-        [
-            "task_id",
-            "status",
-            "reason",
-            "run",
-            "run_digest",
-            "run_variant_status",
-            "verdict",
-            "verdict_evidence",
-        ],
-        [
-            {
-                "task_id": probed,
-                "status": "review",
-                "reason": "HAR-161 exploit probe cracked it (fixture)",
-                "run": "original",
-                "run_digest": parents[probed][1],
-                "run_variant_status": "",
-                "verdict": "fix",
-                "verdict_evidence": "build.py:PROBE_CRACKED#fixture",
-            },
-            {
-                "task_id": plain,
-                "status": "usable",
-                "reason": "nop sound",
-                "run": "original",
-                "run_digest": parents[plain][1],
-                "run_variant_status": "",
-                "verdict": "keep",
-                "verdict_evidence": "ledger:status=usable",
-            },
-        ],
-    )
-    _csv(
-        root / "locked.csv",
-        ["task_id", "locked_nop", "note"],
-        [
-            {"task_id": probed, "locked_nop": "sound", "note": ""},
-            {"task_id": plain, "locked_nop": "sound", "note": ""},
-        ],
-    )
-    _csv(
-        root / "history.csv",
-        ["task_id", "runs", "clean_pass", "copied_pass", "fail", "infra"],
-        [
-            {
-                "task_id": probed,
-                "runs": "0",
-                "clean_pass": "0",
-                "copied_pass": "0",
-                "fail": "0",
-                "infra": "0",
-            },
-            {
-                "task_id": plain,
-                "runs": "0",
-                "clean_pass": "0",
-                "copied_pass": "0",
-                "fail": "0",
-                "infra": "0",
-            },
-        ],
-    )
-    (root / "pool.json").write_text(
-        json.dumps(
-            {
-                "pool": [
-                    {
-                        "task_id": task_id,
-                        "task_version_digest": digest,
-                        "task": f"sources/{task_id}",
-                    }
-                    for task_id, (_, digest) in ((probed, parents[probed]), (plain, parents[plain]))
-                ]
-            }
-        )
-    )
-    feed = root / "probe.json"
-    feed.write_text(
-        json.dumps(
-            {
-                probed: {
-                    "verdict": "cracked",
-                    "trial": None,
-                    "task_package_digest": parents[probed][1],
-                }
-            }
-        )
-    )
-    report = generate_health_tags(
-        root,
-        ledger_path=Path("ledger.csv"),
-        locked_nop_path=Path("locked.csv"),
-        history_path=Path("history.csv"),
-        pool_path=Path("pool.json"),
-        exploit_path=Path("probe.json"),
-        source_root=root,
-        variants_root=Path("derived/variants"),
-        view_root=Path("derived/view"),
-    )
-    by_task = {row["task_id"]: row for row in report["tasks"]}
-    cracked = by_task[probed]
-    assert cracked["tags"] == ["health:cracked", "solve:never-run", "verdict:fix"]
-    assert cracked["exploit"]["verdict"] == "cracked"
-    assert cracked["exploit"]["digest_match"] is True
-    metadata = tomllib.loads((Path(cracked["package"]) / "task.toml").read_bytes().decode())
-    assert metadata["metadata"]["description"] == "HAR-161 exploit probe cracked it (fixture)"
-    untouched = by_task[plain]
-    assert untouched["tags"] == ["health:sound", "solve:never-run", "verdict:keep"]
-    assert untouched["exploit"]["verdict"] == "not-probed"
-    assert untouched["exploit"]["digest_match"] is None
-    metadata = tomllib.loads((Path(untouched["package"]) / "task.toml").read_bytes().decode())
-    assert "description" not in metadata["metadata"]

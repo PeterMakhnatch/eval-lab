@@ -34,5 +34,9 @@ are retired. Preserve existing Inspect logs and Parquet evidence. New run eviden
 uses the native Harbor path and the results home. The one-off DeepSeek lane and
 bundle-promotion scripts are retired; existing promotion markers and quota
 sidecars remain readable.
+The `tasks pull-hf`, `tasks catalog`, `tasks health-collect`, and `tasks health-tags`
+commands are retired. Native catalog consumers and historical health parsers remain.
+Existing task-factory runbooks describe historical production, not supported commands.
+Preserve their stored manifests, task variants, and labels.
 
 Tracked `derived/parquet/` snapshots, `research/lessons.md`, `docs/STATUS.md` and historical digests are reviewed source artifacts. Preserve local runtime changes before cleanup, and promote changed reports or snapshots through reviewed changes rather than treating generated data as disposable. Raw runs and evidence CAS keep their existing preservation rules. See [generated/cache policy](GENERATED-CACHE-POLICY.md), [operations](operations.md), [verification gates](../agents/CHECKS.md) and [delivery/worktree rules](../agents/WORKFLOW.md).

@@ -13,9 +13,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab import cli
 from evallab.registry import harbor_task_digest, task_directory_digest
-from evallab.storage.attach import attach
 from evallab.task_catalog import (
     CatalogError,
     build_catalog,
@@ -120,11 +118,6 @@ def _fake_downloader(fixture: Path):
     return download
 
 
-@pytest.fixture(autouse=True)
-def isolated_cli(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
-    monkeypatch.setattr(cli, "load_local_env", lambda _path: None)
-    monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
 
 
 # ---------------------------------------------------------------- intake
@@ -631,34 +624,6 @@ def test_export_provisional_then_split_gated(tmp_path: Path, capsys) -> None:
     capsys.readouterr()
 
 
-def test_cli_pull_refusal_build_and_show(tmp_path: Path, capsys) -> None:
-    code = cli.run_cli(["tasks", "pull-hf", "TestOrg/repo@latest"], workspace=tmp_path)
-    assert code == 2
-    assert "refused" in capsys.readouterr().err
-
-    derived = _pulled_snapshot(tmp_path)
-    code = cli.run_cli(
-        ["tasks", "catalog", "build", "--derived-root", str(derived)], workspace=tmp_path)
-    assert code == 0
-    out = capsys.readouterr().out
-    assert "task_versions: 2 rows" in out
-
-    code = cli.run_cli(
-        ["tasks", "catalog", "show", "alpha-task", "--derived-root", str(derived)],
-        workspace=tmp_path,
-    )
-    assert code == 0
-    shown = capsys.readouterr().out
-    assert "task_id=alpha-task" in shown
-    assert "harbor_digest: sha256:" in shown
-    assert "split_group: fake:alpha-task" in shown
-
-    result = attach(repo_root=tmp_path, explicit_derived=derived)
-    try:
-        names = {row[0] for row in result.connection.execute("SHOW TABLES").fetchall()}
-    finally:
-        result.connection.close()
-    assert {"task_versions", "v_task_outcomes", "v_task_audit"} <= names
 
 
 def _valid_variant_record() -> dict:

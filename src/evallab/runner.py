@@ -2537,7 +2537,7 @@ def _cleanup_stage(staging_dir: Path | None) -> None:
 
 
 def _make_snapshot_writable(staging_dir: Path) -> None:
-    # Pinned task stores (e.g. `evallab tasks pull-hf` snapshots) are 555/444.
+    # Pinned task stores are read-only (555/444).
     # copytree preserves those modes. Only the private copy becomes writable;
     # package digests cover bytes, not modes. Never chmod through a symlink.
     for path in (staging_dir, *staging_dir.rglob("*")):

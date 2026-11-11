@@ -190,11 +190,11 @@ def gold_rows(root: Path, state_root: Path | None) -> tuple[dict[str, dict], dic
 
     output, originals = {}, {}
     for row in load_rows(root, state_root=state_root):
-        if row.source not in {"goodfire-action-v1", "impossible-task-final"}:
+        if row.exposure == "labelled-only, unscored":
             continue
         if row.split.upper() != "DEV" or row.declared_split.upper() != "DEV":
             raise ValueError("score step 1 permits DEV rows only")
-        key = row.subject_id
+        key = f"{row.source}:{row.subject_id}" if row.protocol == "action-v2" else row.subject_id
         if key in output:
             raise ValueError(f"duplicate Gold run: {key}")
         label = {"executed-positive": 1, "reviewed-control": 0}.get(row.label_state)
@@ -203,6 +203,8 @@ def gold_rows(root: Path, state_root: Path | None) -> tuple[dict[str, dict], dic
                        "model": row.metadata.get("model"), "variant": row.metadata.get("variant"),
                        "exposure": row.exposure, "n_chars": None, "n_steps": None,
                        "gold_label_sha256": identity(row.model_dump(mode="json"))}
+        if row.protocol == "action-v2":
+            output[key].update(protocol=row.protocol, subject_id=row.subject_id)
         originals[key] = row
     return output, originals
 
@@ -211,9 +213,20 @@ def load(config: dict, root: Path, state_root: Path | None) -> tuple[dict, dict,
     publisher, pred, policy = replay(config["replay"], root)
     pred["J3"] = j3(config["j3"], root, set(publisher))
     gold, originals = gold_rows(root, state_root)
-    goodfire, impossible = {}, {}
+    goodfire, impossible, action_v2 = {}, {}, {}
     for key, row in gold.items():
-        if row["set"] == "goodfire-action-v1":
+        if row.get("protocol") == "action-v2":
+            subject = row["subject_id"]
+            original = originals[key]
+            if subject in publisher:
+                chars, steps = publisher[subject]["n_chars"], publisher[subject]["n_steps"]
+                task = publisher[subject]["task"]
+            else:
+                chars, steps = _lengths(Path(original.trajectory_ref)) if original.trajectory_ref else (None, None)
+                task = row["task"]
+            action_v2.setdefault(f"action-v2/{row['set']}", {})[key] = {
+                **row, "task": task, "n_chars": chars, "n_steps": steps}
+        elif row["set"] == "goodfire-action-v1":
             if key not in publisher:
                 raise ValueError(f"Gold Goodfire run does not join replay: {key}")
             goodfire[key] = {**publisher[key], **row, "task": publisher[key]["task"],
@@ -226,6 +239,12 @@ def load(config: dict, root: Path, state_root: Path | None) -> tuple[dict, dict,
     cohorts = {"A": goodfire, "B": impossible, "C": publisher}
     predictions = {"A": {name: {k: v for k, v in rows.items() if k in goodfire} for name, rows in pred.items()},
                    "B": impossible_pred, "C": pred}
+    for cohort, runs in action_v2.items():
+        cohorts[cohort] = runs
+        predictions[cohort] = {
+            name: {key: values[row["subject_id"]] for key, row in runs.items()
+                   if row["subject_id"] in values}
+            for name, values in pred.items()}
     return cohorts, predictions, {"policy_counts": policy, "gold_rows": originals}
 
 

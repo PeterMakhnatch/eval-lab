@@ -117,7 +117,9 @@ def build(ctx: BankContext, family: str):
                 if hashlib.sha256(data).hexdigest() != identity["sha256"]:
                     raise ValueError("Action-v2 reader receipt hash differs")
                 value = json.loads(data)
-                if (identity["model"] != MODEL or value["model_served"] != MODEL
+                transport_failure = value.get("parsed") is None and value.get("reader_error", "").startswith("transport status ")
+                expected_model = None if transport_failure else MODEL
+                if (identity["model"] != expected_model or value["model_served"] != expected_model
                         or value["id"] != row["id"] or value["protocol"] != "action-v2"
                         or value["reader"] != index + 1 or identity["temperature"] != (0.0, 0.2)[index]
                         or value["response_sha256"] != identity["response_sha256"]):
@@ -141,5 +143,6 @@ def build(ctx: BankContext, family: str):
                            license="source terms apply; internal only; no rehosting",
                            metadata={"protocol": "action-v2", "source_family": family,
                                      "publisher_positive": row["publisher_positive"], "readers": row["readers"],
-                                     "reader_failures": failures,
+                                     "reader_failures": failures, "reason": row.get("reason"),
+                                     "amendment": row.get("amendment"),
                                      "outcome_evidence": [r.get("outcome") if r else None for r in readings]})

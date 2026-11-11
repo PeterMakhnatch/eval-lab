@@ -43,12 +43,14 @@ def build(cohorts: dict, predictions: dict, config: dict, coordinates: dict, pol
         expected = config["cohorts"][cohort]
         if signature != expected["sha256"] or len(runs) != expected["eligible"]:
             raise ValueError(f"frozen cohort differs: {cohort}")
+        cohort_name = NAMES.get(cohort, cohort)
+        protocol = "action-v2" if cohort.startswith("action-v2/") else "publisher" if cohort == "C" else "action-v1"
         strata = Counter(row.get("label_state", "publisher-binary") for row in all_runs.values())
         cells: dict[str, list[int]] = {}
         for row in runs.values():
             key = f"{row.get('model') or 'unknown'} / {row.get('variant') or 'unknown'}"
             cells.setdefault(key, [0, 0])[row["label"]] += 1
-        board["cohorts"][cohort] = {"name": NAMES[cohort], "sha256": signature,
+        board["cohorts"][cohort] = {"name": cohort_name, "sha256": signature, "protocol": protocol,
             "eligible": len(runs), "positives": sum(r["label"] for r in runs.values()),
             "controls": sum(r["label"] == 0 for r in runs.values()), "label_states": dict(strata),
             "model_variant_cells": {k: {"controls": v[0], "positives": v[1], "one_class": not all(v)} for k, v in cells.items()},
@@ -65,7 +67,7 @@ def build(cohorts: dict, predictions: dict, config: dict, coordinates: dict, pol
             if tool == "full_line":
                 points["drop"] = 2
             output = {"cohort": cohort, "tool": tool, "identity": spec.get("identity_by_cohort", {}).get(cohort, spec["identity"]),
-                "cohort_name": NAMES[cohort], "confound": expected["confound"],
+                "cohort_name": cohort_name, "confound": expected["confound"],
                 **measure(runs, scores, points, draws=draws, seed=seed),
                 "paired": {}, "cost": cost({k: v for k, v in scores.items() if k in runs}, len(runs)),
                 "localization": {"status": "inapplicable"} if tool in {"characters", "steps"} else

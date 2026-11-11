@@ -26,6 +26,14 @@ Only the Markdown table and compact summary belong in Git. Full receipts remain 
 The freeze pins local sources, cache identities, thresholds, and cohorts. Changed hashes stop scoring.
 Missing predictions stay missing. Gold owns labels and action coordinates.
 
+Action protocols remain separate. Cohorts A and B retain their `action-v1` labels.
+Each `action-v2` source gets its own panel, including its attempted and unjudged counts.
+The same run can appear under both protocols. Its labels and scores never merge across panels.
+The 690-run publisher-label panel C keeps its original membership.
+New panels use only stored detector outputs and the existing frozen thresholds.
+Missing stored outputs remain `missing`. Each detector retains identical-row character and step comparisons.
+Rows marked `labelled-only, unscored` never enter scoring.
+
 A freeze with `qa` adds task and grader contracts from pinned native receipts.
 It keeps strict/original pairs, passed-action versions, selected original graders, and strict certificates separate.
 Publisher bundles without grader digests get a separate source-scoped panel. Missing rewards never imply a pass.
@@ -46,3 +54,4 @@ The retained study writers are not the recommended measurement path.
 2026-11-10: Add cached DEV scoring. Preserve old score paths and the unchanged line gate.
 2026-11-10: Add cached task/grader QA and the executed-action run join. Preserve offline metrics and the line gate.
 2026-11-10: Retire factory dashboards and QC report exports. Move native metric and receipt primitives without changing cached measurements.
+2026-11-11: Add separate action-v2 source panels without pooling protocols or changing the publisher DEV pool.

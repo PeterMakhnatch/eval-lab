@@ -303,6 +303,85 @@ def test_ladder_progress_read_slice_cells_refuses_another_schema(tmp_path: Path)
         MODULE.read_slice_cells(path, cells_dir=tmp_path)
 
 
+_SLICE_HEADER = ("rank", "task", "verdict", "basis", "attacks", "wall")
+
+
+def _slice_markdown(
+    rows: list[list[str]], *, header: tuple[str, ...] = _SLICE_HEADER
+) -> str:
+    """One README slice section with a well-formed header and the given body rows."""
+    lines = [
+        "## P2 ranks 1-2 ladder cells",
+        "| " + " | ".join(header) + " |",
+        "|" + "---|" * len(header),
+        *(("| " + " | ".join(row) + " |") for row in rows),
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _slice_row(**overrides: str) -> dict[str, str]:
+    """A committed ladder row that agrees with :func:`_slice_markdown`'s one row."""
+    row = {
+        "rank": "1",
+        "task_id": "mimo-000001",
+        "verdict": "clean",
+        "basis": MODULE.GRADED_BASIS,
+        "attacks_executed": "14",
+        "wall_seconds": "60",
+        "language": "python",
+    }
+    row.update(overrides)
+    return row
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        (
+            _slice_markdown([["1", "`000001`", "clean", "graded", "fourteen", "1.0 min CLI"]]),
+            "is not N/M",
+        ),
+        (
+            _slice_markdown(
+                [["1", "`000001`", "clean"]], header=("rank", "task", "verdict")
+            ),
+            r"lacks column\(s\): wall",
+        ),
+        (_slice_markdown([["1", "`000001`", "clean"]]), r"has 3 cell\(s\), not 6"),
+        (
+            _slice_markdown([["1", "`000001`", "clean", "graded", "14/14", "no clock"]]),
+            "has no minutes",
+        ),
+    ],
+    ids=["attacks-not-a-pair", "missing-column", "short-row", "wall-without-minutes"],
+)
+def test_ladder_progress_read_slice_tables_refuse_a_malformed_row(
+    text: str, message: str
+) -> None:
+    with pytest.raises(ProgressError, match=message):
+        MODULE.read_slice_tables(text)
+
+
+@pytest.mark.parametrize(
+    ("rows", "message"),
+    [
+        ([], r"absent from ladder-progress\.csv"),
+        ([_slice_row(task_id="mimo-000002")], r"ladder-progress\.csv names `mimo-000002`"),
+        ([_slice_row(verdict="cracked")], "verdict 'clean' disagrees with 'cracked'"),
+        ([_slice_row(attacks_executed="13")], "attacks executed 14 disagree with 13"),
+    ],
+    ids=["absent-rank", "other-task", "other-verdict", "other-attack-count"],
+)
+def test_ladder_progress_check_slice_tables_refuse_a_row_that_disagrees(
+    rows: list[dict[str, str]], message: str
+) -> None:
+    text = _slice_markdown(
+        [["1", "`000001`", "clean", "graded", "14/14", "1.0 min CLI"]]
+    )
+    with pytest.raises(ProgressError, match=message):
+        MODULE.check_slice_tables(text, rows)
+
+
 def test_ladder_progress_summary_accounts_for_every_row_once() -> None:
     rows = _committed()
     entries = MODULE.summary(rows)
@@ -605,6 +684,32 @@ def test_ladder_progress_pending_controls_refuse_an_inventory_without_remaining_
     path = tmp_path / MODULE.PENDING_NAME
     path.write_text(json.dumps({"remaining_original_controls": []}), encoding="utf-8")
     with pytest.raises(ProgressError, match="no remaining_original_task_ids list"):
+        MODULE.read_pending_controls(path, {})
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        ("not json", "pending controls are unreadable"),
+        ("[]", "top level is not an object"),
+        ('{"remaining_original_task_ids": []}', "no remaining_original_controls list"),
+        (
+            '{"remaining_original_controls": [], "remaining_original_task_ids": ["t1", "t1"]}',
+            "remaining_original_task_ids repeats a task_id",
+        ),
+        (
+            '{"remaining_original_controls": [42], "remaining_original_task_ids": ["t1"]}',
+            "remaining_original_controls holds a non-object entry",
+        ),
+    ],
+    ids=["unreadable", "top-level-list", "controls-not-a-list", "repeated-remaining", "non-object-entry"],
+)
+def test_ladder_progress_pending_controls_refuse_a_malformed_container(
+    tmp_path: Path, content: str, message: str
+) -> None:
+    path = tmp_path / MODULE.PENDING_NAME
+    path.write_text(content, encoding="utf-8")
+    with pytest.raises(ProgressError, match=message):
         MODULE.read_pending_controls(path, {})
 
 
@@ -1051,6 +1156,17 @@ def test_ladder_progress_subset_evidence_with_another_schema_is_refused(tmp_path
         ProgressError, match="ladder-graded-subset.json: unexpected schema 'other/v1'"
     ):
         MODULE.read_subset_evidence(tmp_path)
+
+
+@pytest.mark.parametrize("top_level", [[], None], ids=["list", "null"])
+def test_ladder_progress_subset_evidence_with_a_non_object_top_level_is_refused(
+    tmp_path: Path, top_level: object
+) -> None:
+    name = MODULE.SUBSET_EVIDENCE_FILES[0]
+    (tmp_path / name).write_text(json.dumps(top_level), encoding="utf-8")
+    with pytest.raises(ProgressError, match="top level is not an object") as refused:
+        MODULE.read_subset_evidence(tmp_path)
+    assert name in str(refused.value)
 
 
 @pytest.fixture
@@ -1837,6 +1953,18 @@ def test_ladder_progress_sync_docs_refuses_an_unmapped_refusal_basename(sandbox:
     assert _sync_snapshot(sandbox) == before
 
 
+def test_ladder_progress_sync_docs_refuses_an_unreadable_page_without_writing(
+    sandbox: Path,
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    page = sandbox.parents[2] / "docs" / "mimo" / "README.md"
+    page.write_bytes(b"\xff\xfe not UTF-8")
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError, match="cannot read documentation"):
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert _sync_snapshot(sandbox) == before
+
+
 def test_ladder_progress_sync_docs_builds_cells_instead_of_reading_stale_csv(sandbox: Path) -> None:
     original = {page: page.read_bytes() for page in _sync_pages(sandbox)}
     table = sandbox / "ladder-progress.csv"
@@ -1875,6 +2003,58 @@ def test_ladder_progress_sync_docs_cli_exits_one_without_partial_writes(sandbox:
     assert result.returncode == 1
     assert "README.md" in result.stderr
     assert _sync_snapshot(sandbox) == before
+
+
+def test_ladder_progress_a_document_table_row_with_the_wrong_width_is_refused() -> None:
+    text = "counts\n| basis | ranks |\n|---|---:|\n| `graded` | 3 |\n| broken |\n"
+    with pytest.raises(ProgressError, match="invalid table row"):
+        MODULE._doc_table(text, Path("README.md"), "counts", ("basis", "ranks"))
+
+
+def test_ladder_progress_a_document_count_row_with_the_wrong_width_is_refused() -> None:
+    table = "| basis | ranks |\n|---|---:|\n| `graded` | 3 | 4 |\n"
+    with pytest.raises(ProgressError, match="invalid count row"):
+        MODULE._doc_count_table(table, Path("README.md"), "counts", {"graded": 3})
+
+
+def test_ladder_progress_a_signature_row_without_a_label_is_refused() -> None:
+    table = "| signature | file suffix | count |\n|---|---|---:|\n|  | `sig.py` | 1 |\n"
+    with pytest.raises(ProgressError, match="missing signature label"):
+        MODULE._doc_count_table(
+            table, Path("README.md"), "signatures", {"sig.py": 1}, signature=True
+        )
+
+
+def test_ladder_progress_a_document_count_cell_that_is_not_a_number_is_refused() -> None:
+    table = "| basis | ranks |\n|---|---:|\n| `graded` | many |\n"
+    with pytest.raises(ProgressError, match="invalid count for row"):
+        MODULE._doc_count_table(table, Path("README.md"), "counts", {"graded": 3})
+
+
+def test_ladder_progress_a_summary_row_with_a_non_numeric_count_is_refused() -> None:
+    headers = (
+        "language", "covered", "uncovered", "median wall (s)", "max wall (s)",
+        "projected serial hours",
+    )
+    table = (
+        "| " + " | ".join(headers) + " |\n|---|---:|---:|---:|---:|---:|\n"
+        "| python | many | 0 | 1.0 | 2.0 | 0.0 |\n"
+    )
+    rows = [_summary_row("t1", "python", "graded", "60")]
+    with pytest.raises(ProgressError, match="invalid counts for 'python'"):
+        MODULE._doc_summary(table, rows, Path("README.md"))
+
+
+def test_ladder_progress_a_graded_row_without_an_attack_count_is_refused() -> None:
+    row = {**_summary_row("t1", "python", MODULE.GRADED_BASIS, "60"), "attacks_executed": "many"}
+    with pytest.raises(ProgressError, match="without an attacks_executed count"):
+        MODULE._executed_attacks([row], MODULE.GRADED_BASIS)
+
+
+def test_ladder_progress_a_table_without_a_graded_row_has_stale_attack_counts() -> None:
+    rows = [_summary_row("t1", "python", MODULE.REFUSAL_BASIS, "60")]
+    with pytest.raises(ProgressError, match="graded-attack counts are stale"):
+        MODULE._attack_span(rows)
 
 
 _EVIDENCE_PROSE = (

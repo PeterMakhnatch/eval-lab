@@ -107,6 +107,7 @@ def summary(board: dict, receipts: dict) -> dict:
                      "localization": row["localization"], "cost": row["cost"]})
     return {"schema": "evallab.score_summary/v1", "split": board["split"], "mode": board["mode"],
             "cohorts": board["cohorts"], "bootstrap": board["bootstrap"], "receipts": receipts,
+            "qa": board.get("qa"),
             "untouched": board["untouched"], "rows": rows}
 
 
@@ -146,6 +147,10 @@ def render(board: dict) -> str:
         "| Contract | Unit | State |", "|---|---|---|"]
     for name, contract in board["contracts"].items():
         lines.append(f"| {name} | {contract['unit']} | {contract['status']}: {contract.get('reason', '')} |")
+    if "qa" in board:
+        from .qa import render as render_qa
+
+        lines.extend(render_qa(board["qa"]))
     for cohort, info in board["cohorts"].items():
         lines += ["", f"## {cohort}: {info['name']}", "",
             f"Eligible: {info['eligible']}; positives: {info['positives']}; controls: {info['controls']}.",

@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from evallab import task_workbench
+from evallab import task_lint
 
 ROOT = Path(__file__).parents[1]
 MANIFEST = ROOT / "library/benchmarks/tau-knowledge/cohort.manifest.json"
@@ -454,8 +454,8 @@ def test_hardened_sidecar_runtime_is_syntactically_valid(tmp_path: Path) -> None
         "ENV OPENAI_BASE_URL=${TAU3_SIMULATOR_SCHEME}://"
         "${TAU3_SIMULATOR_AUTHORITY}${TAU3_SIMULATOR_BASE_PATH}" in sidecar_dockerfile
     )
-    diagnostics: list[task_workbench.Diagnostic] = []
-    task_workbench._validate_build_network(
+    diagnostics: list[task_lint.Diagnostic] = []
+    task_lint._validate_build_network(
         sidecar_dockerfile,
         "environment/runtime-server/Dockerfile",
         diagnostics,

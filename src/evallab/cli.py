@@ -6323,7 +6323,7 @@ def parser() -> argparse.ArgumentParser:
     )
     registry_promote.add_argument(
         "--certification-packet",
-        help="Durable task_workbench certification.json to bind",
+        help="Durable native package-check certification.json to bind (not a Gold certificate)",
     )
     registry_promote.add_argument(
         "--json",
@@ -6351,7 +6351,7 @@ def parser() -> argparse.ArgumentParser:
     )
     registry_register.add_argument(
         "--certification-packet",
-        help="Durable task_workbench certification.json required for new registration",
+        help="Durable native package-check certification.json required for new registration",
     )
     registry_register.add_argument(
         "--json",

@@ -32,7 +32,7 @@ from evallab.schemas import (
     TaskRegistryRecord,
 )
 from evallab.storage.paths import shared_checkout_root
-from evallab.task_workbench import (
+from evallab.task_lint import (
     ISOLATION_DIAGNOSTIC_CODES,
     LEAKAGE_DIAGNOSTIC_CODES,
 )
@@ -90,7 +90,7 @@ class TaskControlEvidenceError(RegistryError):
 
 
 class TaskCertificationError(RegistryError):
-    """Raised when a bound workbench certificate is missing, replayed, or tampered."""
+    """Raised when a bound package-check packet is missing, replayed, or tampered."""
 
 
 class TaskUsageNotAllowedError(RegistryError):
@@ -265,7 +265,7 @@ def certification_envelope_from_packet(
     task_path: str,
     package_digest: str,
 ) -> TaskCertificationEnvelope:
-    """Read and validate a durable workbench packet against one exact task identity."""
+    """Bind a retained package-check packet to one exact task identity, not Gold status."""
     repo_root = repo_root.resolve()
     packet = (
         (repo_root / packet_path).resolve()

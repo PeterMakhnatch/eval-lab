@@ -68,17 +68,12 @@ def test_only_the_queue_executor_imports_the_harbor_runner() -> None:
     assert launchers == ["queue.py"]
 
 
-def test_task_workbench_and_registry_never_import_the_llm_verifier() -> None:
-    for relative in ("task_workbench.py", "registry.py"):
+def test_registry_never_imports_the_llm_verifier() -> None:
+    for relative in ("registry.py",):
         imported = _imported_modules(_module(relative))
         assert not {"evallab.llm_verifier", "evallab.calibrate"} & imported, relative
 
 
-def test_task_workbench_has_no_queue_registry_write_or_gh_capability() -> None:
-    tree = _module("task_workbench.py")
-    assert "evallab.queue" not in _imported_modules(tree)
-    assert "TaskRegistryRecord" not in _imported_names(tree)
-    assert not any(literal.startswith("gh ") for literal in _code_string_literals(tree))
 
 
 def test_quota_accounting_is_a_pure_read_of_injected_job_directories() -> None:

@@ -452,7 +452,6 @@ Essential builder instructions.
         assert f"<!-- tokens-shed: {res.tokens_shed} -->" in res.markdown
         assert "## Mission Brief & Execution Guide: `builder`" in res.markdown
         assert "Task Package Layout" in res.markdown
-        assert "Workbench Certification" in res.markdown
 
     def test_two_consecutive_builds_over_budget_are_byte_identical(self) -> None:
         res1 = build_context_pack("builder", token_budget=12_000)

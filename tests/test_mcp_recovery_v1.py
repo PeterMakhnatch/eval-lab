@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from evallab.benchmark_program_contracts import FaultClass
-from evallab.task_workbench import CandidateSource, inspect_candidate
+from evallab.task_lint import CandidateSource, check_package
 
 ROOT = Path(__file__).resolve().parents[1] / "library" / "benchmarks" / "mcp-recovery-v1"
 
@@ -584,7 +584,7 @@ def test_retained_evidence_archive_allows_canonical_reconstruction(tmp_path):
     assert fp_evidence.reward == 1.0
     assert fp_evidence.task_digest == digest
 
-def test_all_20_campaign0_cells_materialize_and_pass_workbench_static(monkeypatch):
+def test_all_20_campaign0_cells_materialize_and_pass_package_checks(monkeypatch):
     wheelhouse = Path("/tmp/mcp-recovery-linux-wheelhouse")
     provenance = Path("/tmp/mcp-recovery-linux-resolver-provenance.json")
     if not wheelhouse.is_dir() or not provenance.is_file():
@@ -595,13 +595,12 @@ def test_all_20_campaign0_cells_materialize_and_pass_workbench_static(monkeypatc
     monkeypatch.setenv("MCP_RECOVERY_WHEELHOUSE", str(wheelhouse))
     monkeypatch.setenv("MCP_RECOVERY_RESOLVER_PROVENANCE", str(provenance))
     materializer = load("materializer")
-    repo_root = Path(__file__).resolve().parents[1]
     paths = materializer.materialize_all_campaign0(seed=42)
     assert len(paths) == 20
     source = CandidateSource("https://github.com/PeterMakhnatch/eval-lab", "local/mcp-recovery@1.0.0", "MIT", "03-synthetic")
     for path in paths:
-        inspection = inspect_candidate(repo_root=repo_root, task_path=path, source=source)
-        assert inspection.static_passed is True, f"{path.name}: {inspection.diagnostics}"
+        diagnostics = check_package(path, source=source)
+        assert not diagnostics, f"{path.name}: {diagnostics}"
 
 
 def test_runtime_state_module_not_shadowed_by_sibling_benchmark(monkeypatch):

@@ -7,7 +7,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 import pytest
 
-from evallab.task_workbench import WorkbenchError, compare_quality_audits, run_cli
+from evallab.task_lint import WorkbenchError, compare_quality_audits
 
 
 def _write(path: Path, value: object) -> None:
@@ -183,18 +183,9 @@ def test_native_mode_rejects_mixed_or_incomplete_arguments(
     native_pair: tuple[Path, Path, Path, Path],
 ) -> None:
     review, contract, original, repaired = native_pair
-    assert run_cli(["audit-compare", "--review-result", str(review)]) == 2
-    assert (
-        run_cli(
-            [
-                "audit-compare",
-                str(original),
-                str(repaired),
-                "--review-result",
-                str(review),
-                "--repair-contract",
-                str(contract),
-            ]
+    with pytest.raises(WorkbenchError):
+        compare_quality_audits(review_result_path=review)
+    with pytest.raises(WorkbenchError):
+        compare_quality_audits(
+            original, repaired, review_result_path=review, repair_contract_path=contract
         )
-        == 2
-    )

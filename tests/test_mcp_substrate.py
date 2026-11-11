@@ -42,7 +42,7 @@ from evallab.mcp_substrate import (
     validate_mcp_compose_document,
     validate_target_base_runtime,
 )
-from evallab.task_workbench import _validate_compose_topology
+from evallab.task_lint import _validate_compose_topology
 
 REAL_WHEELHOUSE = Path("/tmp/fastmcp3_wheelhouse")
 
@@ -972,7 +972,7 @@ def test_stage_platform_wheelhouse_single_pass_bytes_and_lock(tmp_path: Path):
 
 def test_task_workbench_validates_nested_sidecar_build_proof(tmp_path: Path):
 
-    from evallab.task_workbench import (
+    from evallab.task_lint import (
         _validate_build_context_contents,
         _validate_compose_topology,
         _validate_offline_build_proofs,
@@ -1019,7 +1019,7 @@ def test_task_workbench_validates_nested_sidecar_build_proof(tmp_path: Path):
 
 
 def test_task_workbench_rejects_nested_sidecar_proof_mismatch_and_escapes(tmp_path: Path):
-    from evallab.task_workbench import (
+    from evallab.task_lint import (
         _validate_compose_topology,
     )
 
@@ -1041,7 +1041,7 @@ def test_task_workbench_rejects_nested_sidecar_proof_mismatch_and_escapes(tmp_pa
 
 def test_task_workbench_rejects_tampered_sidecar_proof_fields(tmp_path: Path):
 
-    from evallab.task_workbench import (
+    from evallab.task_lint import (
         _validate_compose_topology,
         _validate_offline_build_proofs,
     )
@@ -1108,7 +1108,7 @@ def test_task_workbench_rejects_tampered_sidecar_proof_fields(tmp_path: Path):
 
 def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Path):
 
-    from evallab.task_workbench import (
+    from evallab.task_lint import (
         _validate_compose_topology,
         _validate_offline_build_proofs,
     )

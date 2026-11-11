@@ -9,7 +9,7 @@ from typing import Any
 
 from evallab.results_home import results_root
 
-from . import board, inputs, localization, qa, qa_inputs
+from . import board, inputs, localization, online, qa, qa_inputs
 
 
 def command(args: argparse.Namespace, repo_root: Path, **_: Any) -> int:
@@ -37,6 +37,12 @@ def command(args: argparse.Namespace, repo_root: Path, **_: Any) -> int:
         value["contracts"] = {name: dict(spec) for name, spec in value["contracts"].items()}
         for name in ("task_qa", "grader_qa"):
             value["contracts"][name].update(status="DEV diagnostic only", reason="Frozen native subject-level joins; no run-level pooling.")
+    if "online" in config:
+        value["online"], online_receipts = online.build(extra["gold_rows"], cohorts, config["online"], repo_root)
+        receipt.extend(online_receipts)
+        value["contracts"] = {name: dict(spec) for name, spec in value["contracts"].items()}
+        value["contracts"]["online"].update(
+            status="DEV diagnostic only", reason="Native causal replay; rules execute locally, models use exact-prefix caches only.")
     value["score_cpu_seconds"] = time.process_time() - started
     value["score_wall_seconds"] = time.monotonic() - wall_started
     args.out.mkdir(parents=True, exist_ok=False)
@@ -61,7 +67,7 @@ def command(args: argparse.Namespace, repo_root: Path, **_: Any) -> int:
 
 
 def build_score_parser(commands: Any) -> None:
-    parser = commands.add_parser("score", help="Score only frozen cached DEV outputs; never run a detector")
+    parser = commands.add_parser("score", help="Score frozen DEV outputs and causal watcher replay; never call a model")
     parser.add_argument("--gold", type=Path, help="Existing Gold IssueBank state root (default: Failure Library)")
     parser.add_argument("--freeze", type=Path, required=True, help="Pinned DEV input, prediction, and threshold manifest")
     parser.add_argument("--tools", choices=("all-retained",), default="all-retained")

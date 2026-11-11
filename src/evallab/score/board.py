@@ -108,6 +108,7 @@ def summary(board: dict, receipts: dict) -> dict:
     return {"schema": "evallab.score_summary/v1", "split": board["split"], "mode": board["mode"],
             "cohorts": board["cohorts"], "bootstrap": board["bootstrap"], "receipts": receipts,
             "qa": board.get("qa"),
+            "online": board.get("online"),
             "untouched": board["untouched"], "rows": rows}
 
 
@@ -151,6 +152,10 @@ def render(board: dict) -> str:
         from .qa import render as render_qa
 
         lines.extend(render_qa(board["qa"]))
+    if "online" in board:
+        from .online import render as render_online
+
+        lines.extend(render_online(board["online"]))
     for cohort, info in board["cohorts"].items():
         lines += ["", f"## {cohort}: {info['name']}", "",
             f"Eligible: {info['eligible']}; positives: {info['positives']}; controls: {info['controls']}.",

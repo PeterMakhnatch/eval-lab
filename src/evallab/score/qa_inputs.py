@@ -140,6 +140,10 @@ def load(config: dict, root: Path, gold: dict) -> dict:
     for key, native in sorted(gold.items()):
         if native.split.upper() != "DEV" or native.declared_split.upper() != "DEV":
             raise ValueError("QA join permits DEV only")
+        # These QA receipts bind only the original action-v1 studies.
+        # New offline source panels do not expand the frozen QA population.
+        if native.source not in {"goodfire-action-v1", "impossible-task-final"}:
+            continue
         if native.source == "impossible-task-final":
             variant = native.metadata["variant"]
             row = construction_subjects[native.task_id, variant]

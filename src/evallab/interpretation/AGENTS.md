@@ -1,14 +1,14 @@
 # Interpretation
 
 ## Purpose
-Bounded cited evidence packs, machine judgments, acceptance records, interpretation IR, and feature registry.
+Bounded cited monitor evidence, machine judgments, interpretation IR, trial posture, and feature extraction.
 
 ## What lives here / entry points
-- `evidence_pack.py`: Bounded evidence packaging and token budget enforcement.
-- `trajectory_judgment.py`: Evaluator contracts and automated judgments.
-- `trajectory_acceptance.py`: Platform governance and acceptance decisions.
+- `monitor_evidence.py`: Bounded evidence packaging and citation validation.
+- `monitor_contracts.py`, `monitor_agent.py`: Evaluator contracts and automated judgments.
+- `trial_posture.py`: Evidence-based trial disposition.
 - `trajectory_ir.py`: Runtime and citation TrajectoryIR (distinct from root `trajectory_ir.py`).
-- `feature_registry.py`: Canonical feature extraction registry.
+- `features.py`: Canonical feature extraction registry.
 
 ## Invariants or rules
 - Inputs stay bounded and cite immutable evidence.

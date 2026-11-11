@@ -84,9 +84,13 @@ def test_factory_idle_refresh_does_not_reset_last_useful_output(tmp_path):
     assert "useful_age_h=3.0" in detail
 
 
+@pytest.mark.parametrize("omp_version,version_ok", [
+    ("18.18.8", True), ("18.18.9", True), ("18.19.0", False),
+    ("19.18.8", False), ("unparsed", False),
+])
 @pytest.mark.parametrize("values,expected", [([True, False], True), ([False, False], False), ([True, True], False)])
 def test_doctor_detects_ignored_no_fallback_overlay_and_does_not_expose_credentials(
-    tmp_path, monkeypatch, values, expected,
+    tmp_path, monkeypatch, values, expected, omp_version, version_ok,
 ):
     (tmp_path / "uv.lock").write_text("package = []\n")
     executable = tmp_path / "keys"
@@ -109,6 +113,8 @@ def test_doctor_detects_ignored_no_fallback_overlay_and_does_not_expose_credenti
 
     def command(argv, **kwargs):
         assert "-p" not in argv and "download" not in argv
+        if argv == ["omp", "--version"]:
+            return subprocess.CompletedProcess(argv, 0, omp_version, "")
         if argv[:3] == ["omp", "config", "get"]:
             return subprocess.CompletedProcess(argv, 0, json.dumps({"value": next(config_values)}), "")
         if argv[1:] == ["has", "HF_TOKEN"] or argv[:2] == ["gh", "auth"]:
@@ -126,6 +132,8 @@ def test_doctor_detects_ignored_no_fallback_overlay_and_does_not_expose_credenti
         tmp_path, home=tmp_path, now=NOW, run=command,
     )}
     assert checks["omp-no-fallback"][0] is expected
+    assert checks["omp-version"][0] is version_ok
+    assert f"installed={omp_version}" in checks["omp-version"][1]
     assert checks["keys"][0] is False
     assert checks["postgres-schema"][0] is False
     assert checks["github"][0] is True

@@ -73,7 +73,7 @@ Ask which question the thing answers:
 | The thing answers… | It goes in |
 |---|---|
 | "How do agents coordinate?" | `agents/` |
-| "Why is the system designed this way?" / "What should be built?" | `docs/` (briefs → `docs/prompts/`) |
+| "Why is the system designed this way?" / "What should be built?" | `docs/` |
 | "What can we run an agent against?" | `library/` |
 | "What did we find out / what is our ground truth?" | `research/` |
 | "What is the lab allowed to do unattended?" | `policy/` |

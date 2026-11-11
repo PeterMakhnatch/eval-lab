@@ -11,7 +11,7 @@ from evallab.trace_anatomy import RefusedRun, load_atif_file
 from evallab.trajectory_ir import TrajectoryIR, build_trajectory_ir
 
 SOURCES = ("goodfire-action-v1", "impossible-task-final", "goodfire-action-v2",
-           "terminal-wrench-action-v2", "cheatbench-action-v2", "c1c5-action-v2", "sol-astra-action-v2")
+           "terminal-wrench-action-v2", "cheatbench-action-v2", "c1c5-action-v2")
 
 
 def load_rows(repo_root: Path, state_root: Path | None = None) -> list[IssueItem]:

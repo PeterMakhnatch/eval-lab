@@ -5,7 +5,7 @@ Dependency-light shared Pydantic contracts, currently in `__init__.py`.
 
 ## What lives here / entry points
 - `__init__.py`: Primary schema definitions and model exports.
-- Top-level contract companions: `execution_contracts.py`, `capability_contract.py`.
+- Top-level execution contract companion: `execution_contracts.py`.
 
 ## Invariants or rules
 - Validate strictly and fail closed on invalid contracts.

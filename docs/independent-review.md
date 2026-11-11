@@ -8,13 +8,6 @@ audience:
 
 Use a different model family to look for concrete bugs before merging agent work:
 
-```bash
-uv run python scripts/review_pr.py 1234 --contract /tmp/change-contract.md
-uv run python scripts/review_pr.py 1234 --head <40-hex sha>    # pin the review to one commit
-uv run python scripts/review_pr.py 1234 --verify-fixes /private/tmp/previous/REVIEW.md
-uv run python scripts/review_pr.py 1234 --check /private/tmp/previous/receipt.json   # merge-time rule
-uv run python scripts/review_pr.py 1234 --mode shallow    # force the cheap static review
-```
 
 The default is `google-antigravity/gemini-4-argon`, using the operator's existing
 Gemini subscription login. `--model PROVIDER/MODEL` selects another exact route;
@@ -156,8 +149,3 @@ coverage and no blocker found: never a valid result); **2** any other invalid or
 `--check` exits **0**/**1** for a verified PASS/BLOCK of the current head, **4** when the head
 differs, **2** otherwise.
 
-Synthetic, model-free tests:
-
-```bash
-uv run pytest tests/test_independent_review_contract.py tests/test_review_pr.py
-```

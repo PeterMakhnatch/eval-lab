@@ -6690,8 +6690,7 @@ def parser() -> argparse.ArgumentParser:
         help=(
             "Billed-session receipt JSON (evallab.session_spend/v1) for the "
             "allocated GPU share. Reprocessing after the bills land requires "
-            "passing the receipt again; without it the legacy shared-GPU "
-            "estimate keeps its non-additive label."
+            "passing the receipt again."
         ),
     )
     process_job_parser.add_argument(

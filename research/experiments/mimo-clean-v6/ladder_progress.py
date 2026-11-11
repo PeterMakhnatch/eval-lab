@@ -50,7 +50,11 @@ unequal to ``attacks_total`` when ``attacks_not_executed`` is present; a
 ``tasks`` for ``tasks``, ``clean``, ``cracked`` and ``unscored``, else the
 builder names the file. These cells are hand-assembled JSON from job receipts,
 so one wrong edit must fail ``--check`` rather than change a quoted count. The
-subset schema carries none of these fields and skips these rules.
+subset schema carries none of these fields and skips these rules, but its
+``attacks`` and ``attacks_dropped`` lists must be disjoint, without repeats,
+and union to the file's ``ladder_attacks``. Each task's ``graded_attacks`` and
+``unmeasured_attacks`` must restate its newest ``graded-clean`` subset. Any
+disagreement raises ``ProgressError`` naming the task.
 
 ``--verify-evidence`` re-hashes host ``agent/cheat/attempts.json`` files. It
 tries explicit ``published_job`` and ``raw_job`` paths, then date-sorted
@@ -102,11 +106,12 @@ Pure stdlib; no Docker. Regenerate with ``python ladder_progress.py``; verify
 the committed table with ``--check`` (exit 1 on drift); print the language
 summary with ``--summary``. ``--sync-docs`` rebuilds the tested documentation
 fragments from committed cells, the manifest, the ranking and the pending-control
-inventory: the graded-attack range and histogram, the subset row count, the
-evidence-match and pending-control sentences on the MiMo route page and this
-page, and the evidence section, check date and totals lines from the committed
-receipt, without reading or writing the CSV or host results. A receipt that
-does not list every committed cell and subset entry raises ``ProgressError``.
+inventory: the graded-attack range and histogram, the subset row count and
+dropped/remaining attack counts, the evidence-match and pending-control
+sentences on the MiMo route page and this page, and the evidence section, check
+date and totals lines from the committed receipt, without reading or writing
+the CSV or host results. A receipt that does not list every committed cell and
+subset entry raises ``ProgressError``.
 It validates the receipt, the inventory and all three pages before any write.
 ``--render-slice CELL`` prints one cell file's seven-column README pipe-table
 rows, so a slice PR pastes generated rows instead of hand-copying them.
@@ -349,6 +354,68 @@ def _require_file_totals(data: Mapping[str, Any], source: str) -> None:
             )
 
 
+def _attack_names(value: object, where: str, field: str) -> list[str]:
+    """One attack list's names; a non-list or a non-name raises naming the task."""
+    if not isinstance(value, list) or not all(isinstance(name, str) for name in value):
+        raise ProgressError(f"{where}: {field} {value!r} is not a list of attack names")
+    return value
+
+
+def _require_unique(names: Sequence[str], where: str, field: str) -> None:
+    """Refuse a list that names one attack twice."""
+    repeated = sorted(name for name, count in Counter(names).items() if count > 1)
+    if repeated:
+        raise ProgressError(f"{where}: {field} repeats {repeated}")
+
+
+def _require_subset_split(
+    task_id: str, subset: Mapping[str, Any], ladder: Sequence[str]
+) -> None:
+    """Refuse a subset whose attacks and dropped lists do not split the ladder exactly."""
+    where = f"{task_id}: subset {subset.get('subset')}"
+    attacks = _attack_names(subset.get("attacks"), where, "attacks")
+    dropped = _attack_names(subset.get("attacks_dropped"), where, "attacks_dropped")
+    _require_unique(attacks, where, "attacks")
+    _require_unique(dropped, where, "attacks_dropped")
+    shared = sorted(set(attacks) & set(dropped))
+    if shared:
+        raise ProgressError(f"{where}: attacks and attacks_dropped overlap on {shared}")
+    listed = set(attacks) | set(dropped)
+    expected = set(ladder)
+    if listed != expected:
+        raise ProgressError(
+            f"{where}: attacks and attacks_dropped do not union to ladder_attacks "
+            f"(missing {sorted(expected - listed)}, extra {sorted(listed - expected)})"
+        )
+
+
+def _require_task_attack_lists(
+    task: Mapping[str, Any], subsets: Sequence[Mapping[str, Any]]
+) -> None:
+    """Refuse task lists that do not restate its newest ``graded-clean`` subset."""
+    task_id = str(task["task_id"])
+    stated = {field: task.get(field) for field in ("graded_attacks", "unmeasured_attacks")}
+    if all(value is None for value in stated.values()):
+        return
+    newest = _newest_graded_subset(subsets)
+    if newest is None:
+        raise ProgressError(f"{task_id}: declares graded_attacks without a graded-clean subset")
+    for field, subset_field in (
+        ("graded_attacks", "attacks"),
+        ("unmeasured_attacks", "attacks_dropped"),
+    ):
+        names = _attack_names(stated[field], task_id, field)
+        _require_unique(names, task_id, field)
+        expected = set(newest[subset_field])
+        extra = sorted(set(names) - expected)
+        missing = sorted(expected - set(names))
+        if extra or missing:
+            raise ProgressError(
+                f"{task_id}: {field} differs from subset {newest['subset']} "
+                f"(missing {missing}, extra {extra})"
+            )
+
+
 def read_cells(
     cells_dir: Path, root: Path = ROOT, *, manifest: Mapping[str, str]
 ) -> list[dict[str, Any]]:
@@ -378,17 +445,32 @@ def _newest_cell(cells: Sequence[dict[str, Any]]) -> dict[str, Any]:
 def read_subset_cells(
     cells_dir: Path, root: Path = ROOT, *, manifest: Mapping[str, str]
 ) -> list[dict[str, Any]]:
-    """Flatten ``tasks[].subsets[]`` of every subset-schema ``ladder-*.json``, by task."""
+    """Flatten ``tasks[].subsets[]`` of every subset-schema ``ladder-*.json``, by task.
+
+    Every subset's ``attacks`` and ``attacks_dropped`` must be disjoint, without
+    repeats, and union to the file's ``ladder_attacks``. Each task's
+    ``graded_attacks`` and ``unmeasured_attacks`` must restate its newest
+    ``graded-clean`` subset. A disagreement raises ``ProgressError`` naming the task.
+    """
     subsets: list[dict[str, Any]] = []
+    tasks: list[dict[str, Any]] = []
     for path in sorted(cells_dir.glob(CELLS_GLOB)):
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict) or data.get("schema") != SUBSET_CELLS_SCHEMA:
             continue
         source = path.relative_to(root).as_posix()
+        ladder = _attack_names(data.get("ladder_attacks"), source, "ladder_attacks")
         for task in data.get("tasks", []):
             _require_manifest_digest(task, manifest)
             for subset in task.get("subsets", []):
+                _require_subset_split(str(task["task_id"]), subset, ladder)
                 subsets.append({**subset, "task_id": task["task_id"], "_source_file": source})
+            tasks.append(task)
+    by_task: dict[str, list[dict[str, Any]]] = {}
+    for subset in subsets:
+        by_task.setdefault(str(subset["task_id"]), []).append(subset)
+    for task in tasks:
+        _require_task_attack_lists(task, by_task.get(str(task["task_id"]), []))
     return subsets
 
 
@@ -396,6 +478,20 @@ def _newest_subset(subsets: Sequence[dict[str, Any]]) -> dict[str, Any]:
     """The highest-numbered subset supersedes earlier ones; a repeated number: last listed wins."""
     newest = subsets[0]
     for subset in subsets[1:]:
+        if int(subset["subset"]) >= int(newest["subset"]):
+            newest = subset
+    return newest
+
+
+def _newest_graded_subset(
+    subsets: Sequence[Mapping[str, Any]],
+) -> Mapping[str, Any] | None:
+    """The newest ``graded-clean`` subset, or ``None`` when the task has none."""
+    graded = [subset for subset in subsets if subset.get("verdict") == "graded-clean"]
+    if not graded:
+        return None
+    newest = graded[0]
+    for subset in graded[1:]:
         if int(subset["subset"]) >= int(newest["subset"]):
             newest = subset
     return newest
@@ -1010,14 +1106,56 @@ def _graded_sentence_edits(
     return edits
 
 
+def _subset_attack_split(
+    subsets: Sequence[Mapping[str, Any]], page: Path
+) -> tuple[int, int]:
+    """The dropped and remaining attack counts every newest ``graded-clean`` subset states.
+
+    The sentence that quotes them names ``tamper_source_*`` attacks, so a
+    dropped name outside that family also raises.
+    """
+    by_task: dict[str, list[Mapping[str, Any]]] = {}
+    for subset in subsets:
+        by_task.setdefault(str(subset["task_id"]), []).append(subset)
+    dropped: set[frozenset[str]] = set()
+    remaining: set[frozenset[str]] = set()
+    for entries in by_task.values():
+        newest = _newest_graded_subset(entries)
+        if newest is None:
+            continue
+        dropped.add(frozenset(newest["attacks_dropped"]))
+        remaining.add(frozenset(newest["attacks"]))
+    if not dropped:
+        raise ProgressError(f"{page}: no graded-clean subset states an attack split")
+    for label, states in (("dropped", dropped), ("remaining", remaining)):
+        if len(states) != 1:
+            listed = "; ".join(sorted(", ".join(sorted(names)) for names in states))
+            raise ProgressError(
+                f"{page}: the graded-clean subsets disagree on the {label} attacks: {listed}"
+            )
+    dropped_names = next(iter(dropped))
+    ungraded = sorted(name for name in dropped_names if not name.startswith("tamper_source_"))
+    if ungraded:
+        raise ProgressError(
+            f"{page}: the sentence names `tamper_source_*` attacks, but the graded "
+            f"subsets drop {ungraded}"
+        )
+    return len(dropped_names), len(next(iter(remaining)))
+
+
 def _verification_edits(
-    receipt: Mapping[str, Any], rows: Sequence[dict[str, str]], text: str, page: Path
+    receipt: Mapping[str, Any],
+    rows: Sequence[dict[str, str]],
+    text: str,
+    page: Path,
+    subsets: Sequence[Mapping[str, Any]] = (),
 ) -> list[tuple[int, int, str]]:
     """Edits that rewrite the verification page's clause (c) hand counts.
 
     The counts come from the rows (bases, covered, clean, subset rows), the
-    graded rows' ``attacks_executed`` span, and the receipt's check date. The
-    refusal sentence claims one signature, so a second signature raises.
+    graded rows' ``attacks_executed`` span, the graded subsets' dropped and
+    remaining attack counts, and the receipt's check date. The refusal sentence
+    claims one signature, so a second signature raises.
     """
     counts = basis_counts(rows)
     covered = len(rows) - counts.get("none", 0)
@@ -1025,8 +1163,9 @@ def _verification_edits(
     refusals = counts.get(REFUSAL_BASIS, 0)
     graded = counts.get(GRADED_BASIS, 0)
     unscored = counts.get("unscored", 0)
-    subsets = sum(row["subset_verdict"] != "none" for row in rows)
+    subset_rows = sum(row["subset_verdict"] != "none" for row in rows)
     low, high = _attack_span(rows)
+    dropped, remaining = _subset_attack_split(subsets, page)
     signatures = Counter(
         row["refusal_hit"].rsplit("/", 1)[-1] for row in rows if row["refusal_hit"]
     )
@@ -1035,6 +1174,12 @@ def _verification_edits(
             f"{page}: the one-signature sentence is stale; refusals match {sorted(signatures)}"
         )
     fragments = (
+        (
+            "With all",
+            r"With\s+all\s+([0-9]+|[a-z]+)\s+`tamper_source_\*`\s+attacks\s+removed,\s+"
+            r"the\s+remaining\s+([0-9]+|[a-z]+)\s+attacks",
+            (dropped, remaining),
+        ),
         (
             "refusals matched one signature",
             r"All\s+([0-9]+)\s+v6\s+refusals\s+matched\s+one\s+signature,\s+"
@@ -1051,7 +1196,7 @@ def _verification_edits(
         (
             "reward 0 on all",
             r"returned\s+reward\s+0\s+on\s+all\s+([0-9]+|[a-z]+)\s+rows\s+tried",
-            (subsets,),
+            (subset_rows,),
         ),
         (
             "v6 table holds",
@@ -1276,7 +1421,9 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
     pending-control sentences come from ``pending-controls.json``.
     """
     receipt = read_receipt(cells_dir, root)
-    controls = read_pending_controls(cells_dir / PENDING_NAME, read_manifest(cells_dir))
+    manifest = read_manifest(cells_dir)
+    controls = read_pending_controls(cells_dir / PENDING_NAME, manifest)
+    subsets = read_subset_cells(cells_dir, root, manifest=manifest)
     pages = (
         root / "docs" / "mimo" / "README.md",
         cells_dir / "README.md",
@@ -1437,7 +1584,9 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
     )
     page = pages[2]
     text = originals[page]
-    replacements[page] = _doc_patch(text, _verification_edits(receipt, rows, text, page))
+    replacements[page] = _doc_patch(
+        text, _verification_edits(receipt, rows, text, page, subsets)
+    )
     for page, replacement in replacements.items():
         if replacement != originals[page]:
             _write_atomic(page, replacement.encode("utf-8"))

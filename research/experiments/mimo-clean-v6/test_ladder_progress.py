@@ -932,12 +932,21 @@ def test_ladder_progress_subset_columns_read_none_without_a_subset_file(tmp_path
 def test_ladder_progress_each_reader_keeps_only_its_schema(tmp_path: Path) -> None:
     subset_file = {
         "schema": MODULE.SUBSET_CELLS_SCHEMA,
+        "ladder_attacks": ["a_graded", "a_dropped"],
         "tasks": [
             {
                 "task_id": "t1",
                 "final_digest": "sha256:cell1",
                 "digest_matches_manifest": True,
-                "subsets": [{"subset": 1, "verdict": "still-refused", "reward": 0.0}],
+                "subsets": [
+                    {
+                        "subset": 1,
+                        "verdict": "still-refused",
+                        "reward": 0.0,
+                        "attacks": ["a_graded"],
+                        "attacks_dropped": ["a_dropped"],
+                    }
+                ],
             }
         ],
     }
@@ -1134,6 +1143,7 @@ def test_ladder_progress_a_totals_block_that_matches_its_tasks_is_accepted(tmp_p
 def test_ladder_progress_a_subset_cell_at_another_digest_is_refused(tmp_path: Path) -> None:
     subset_file = {
         "schema": MODULE.SUBSET_CELLS_SCHEMA,
+        "ladder_attacks": ["a_graded"],
         "tasks": [
             {
                 "task_id": "t1",
@@ -1146,6 +1156,193 @@ def test_ladder_progress_a_subset_cell_at_another_digest_is_refused(tmp_path: Pa
     (tmp_path / "ladder-sub.json").write_text(json.dumps(subset_file), encoding="utf-8")
     with pytest.raises(ProgressError, match="sha256:stale"):
         MODULE.read_subset_cells(tmp_path, tmp_path, manifest=_manifest(1))
+
+
+_SUBSET_LADDER = ("git_history", "tamper_source_skip", "verifier_peek")
+
+
+def _subset_cell_file(
+    tmp_path: Path,
+    subsets: list[dict],
+    *,
+    task_lists: dict | None = None,
+    ladder: tuple[str, ...] = _SUBSET_LADDER,
+) -> None:
+    """A one-task subset file whose task digest matches ``_manifest(1)``."""
+    task: dict = {
+        "task_id": "t1",
+        "final_digest": "sha256:cell1",
+        "digest_matches_manifest": True,
+        "subsets": subsets,
+    }
+    if task_lists is not None:
+        task.update(task_lists)
+    data = {
+        "schema": MODULE.SUBSET_CELLS_SCHEMA,
+        "ladder_attacks": list(ladder),
+        "tasks": [task],
+    }
+    (tmp_path / "ladder-sub.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_ladder_progress_a_subset_that_repeats_an_attack_is_refused(tmp_path: Path) -> None:
+    _subset_cell_file(
+        tmp_path,
+        [
+            {
+                "subset": 2,
+                "verdict": "graded-clean",
+                "attacks": ["git_history", "git_history"],
+                "attacks_dropped": ["verifier_peek"],
+            }
+        ],
+    )
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_subset_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "t1" in message
+    assert "repeats ['git_history']" in message
+
+
+def test_ladder_progress_a_subset_whose_lists_overlap_is_refused(tmp_path: Path) -> None:
+    _subset_cell_file(
+        tmp_path,
+        [
+            {
+                "subset": 2,
+                "verdict": "graded-clean",
+                "attacks": ["git_history", "verifier_peek"],
+                "attacks_dropped": ["tamper_source_skip", "verifier_peek"],
+            }
+        ],
+    )
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_subset_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "t1" in message
+    assert "overlap on ['verifier_peek']" in message
+
+
+def test_ladder_progress_a_subset_that_does_not_union_to_the_ladder_is_refused(
+    tmp_path: Path,
+) -> None:
+    _subset_cell_file(
+        tmp_path,
+        [
+            {
+                "subset": 2,
+                "verdict": "graded-clean",
+                "attacks": ["git_history"],
+                "attacks_dropped": ["verifier_peek"],
+            }
+        ],
+    )
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_subset_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "t1" in message
+    assert "do not union to ladder_attacks" in message
+    assert "missing ['tamper_source_skip']" in message
+
+
+def test_ladder_progress_a_subset_attack_list_that_is_not_a_list_is_refused(
+    tmp_path: Path,
+) -> None:
+    _subset_cell_file(
+        tmp_path,
+        [
+            {
+                "subset": 2,
+                "verdict": "graded-clean",
+                "attacks": "git_history",
+                "attacks_dropped": ["tamper_source_skip", "verifier_peek"],
+            }
+        ],
+    )
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_subset_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "t1" in message
+    assert "is not a list of attack names" in message
+
+
+def test_ladder_progress_task_lists_that_differ_from_the_newest_graded_subset_are_refused(
+    tmp_path: Path,
+) -> None:
+    _subset_cell_file(
+        tmp_path,
+        [
+            {
+                "subset": 2,
+                "verdict": "graded-clean",
+                "attacks": ["git_history", "tamper_source_skip"],
+                "attacks_dropped": ["verifier_peek"],
+            }
+        ],
+        task_lists={
+            "graded_attacks": ["git_history"],
+            "unmeasured_attacks": ["verifier_peek"],
+        },
+    )
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_subset_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "t1" in message
+    assert "graded_attacks differs from subset 2" in message
+    assert "missing ['tamper_source_skip']" in message
+
+
+def test_ladder_progress_task_lists_without_a_graded_clean_subset_are_refused(
+    tmp_path: Path,
+) -> None:
+    _subset_cell_file(
+        tmp_path,
+        [
+            {
+                "subset": 1,
+                "verdict": "still-refused",
+                "attacks": ["git_history", "tamper_source_skip"],
+                "attacks_dropped": ["verifier_peek"],
+            }
+        ],
+        task_lists={
+            "graded_attacks": ["git_history", "tamper_source_skip"],
+            "unmeasured_attacks": ["verifier_peek"],
+        },
+    )
+    with pytest.raises(ProgressError) as refused:
+        MODULE.read_subset_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    message = str(refused.value)
+    assert "t1" in message
+    assert "without a graded-clean subset" in message
+
+
+def test_ladder_progress_task_lists_restate_the_newest_graded_clean_subset(
+    tmp_path: Path,
+) -> None:
+    _subset_cell_file(
+        tmp_path,
+        [
+            {
+                "subset": 1,
+                "verdict": "graded-clean",
+                "attacks": ["git_history", "tamper_source_skip"],
+                "attacks_dropped": ["verifier_peek"],
+            },
+            {
+                "subset": 2,
+                "verdict": "graded-clean",
+                "attacks": ["git_history"],
+                "attacks_dropped": ["tamper_source_skip", "verifier_peek"],
+            },
+        ],
+        task_lists={
+            "graded_attacks": ["git_history"],
+            "unmeasured_attacks": ["tamper_source_skip", "verifier_peek"],
+        },
+    )
+    subsets = MODULE.read_subset_cells(tmp_path, tmp_path, manifest=_manifest(1))
+    assert [subset["subset"] for subset in subsets] == [1, 2]
 
 
 def test_ladder_progress_subset_evidence_with_another_schema_is_refused(tmp_path: Path) -> None:
@@ -1365,6 +1562,8 @@ def _stale_sync_pages(experiment: Path) -> None:
     readme.write_bytes(text)
     stale_verification = verification.read_bytes()
     for pattern in (
+        rb"With all [0-9]+ ",
+        rb"remaining [0-9]+ attacks",
         rb"All [0-9]+ v6 refusals",
         rb"the [0-9]+ graded v6 rows",
         rb"on all [0-9]+ rows tried",
@@ -1730,6 +1929,101 @@ def test_ladder_progress_sync_docs_derives_the_verification_page_counts(sandbox:
         f"{unscored} unscored",
     ):
         assert wrapped.count(fragment) == 1, fragment
+
+
+def test_ladder_progress_sync_docs_derives_the_subset_attack_split(sandbox: Path) -> None:
+    root = sandbox.parents[2]
+    page = root / "docs/mimo/verification.md"
+    subsets = MODULE.read_subset_cells(sandbox, root, manifest=MODULE.read_manifest(sandbox))
+    dropped, remaining = MODULE._subset_attack_split(subsets, page)
+    assert (dropped, remaining) == (4, 10)
+    text = " ".join(page.read_text(encoding="utf-8").split())
+    assert text.count(
+        f"all {dropped} `tamper_source_*` attacks removed, the remaining {remaining} attacks"
+    ) == 1
+
+
+@pytest.mark.parametrize("stale_group", ["dropped", "remaining"])
+def test_ladder_progress_sync_docs_restores_each_subset_attack_count(
+    sandbox: Path, stale_group: str
+) -> None:
+    page = sandbox.parents[2] / "docs/mimo/verification.md"
+    original = page.read_text(encoding="utf-8")
+    found = re.search(
+        r"With\s+all\s+(\d+)\s+`tamper_source_\*`\s+attacks\s+removed,\s+"
+        r"the\s+remaining\s+(\d+)\s+attacks",
+        original,
+    )
+    assert found is not None
+    group = 1 if stale_group == "dropped" else 2
+    start, end = found.span(group)
+    stale = original[:start] + str(int(found.group(group)) + 1) + original[end:]
+    page.write_text(stale, encoding="utf-8")
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert page.read_text(encoding="utf-8") == original
+
+
+def test_ladder_progress_subset_split_refuses_disagreeing_dropped_sets(tmp_path: Path) -> None:
+    subsets = [
+        {
+            "task_id": "t1",
+            "subset": 2,
+            "verdict": "graded-clean",
+            "attacks": ["git_history"],
+            "attacks_dropped": ["tamper_source_skip", "tamper_source_exit"],
+        },
+        {
+            "task_id": "t2",
+            "subset": 2,
+            "verdict": "graded-clean",
+            "attacks": ["git_history", "tamper_source_exit"],
+            "attacks_dropped": ["tamper_source_skip"],
+        },
+    ]
+    with pytest.raises(ProgressError) as refused:
+        MODULE._subset_attack_split(subsets, tmp_path / "verification.md")
+    message = str(refused.value)
+    assert "verification.md" in message
+    assert "disagree on the dropped attacks" in message
+
+
+def test_ladder_progress_subset_split_refuses_a_dropped_attack_outside_the_named_family(
+    tmp_path: Path,
+) -> None:
+    subsets = [
+        {
+            "task_id": "t1",
+            "subset": 2,
+            "verdict": "graded-clean",
+            "attacks": ["tamper_source_skip"],
+            "attacks_dropped": ["git_history"],
+        },
+    ]
+    with pytest.raises(ProgressError) as refused:
+        MODULE._subset_attack_split(subsets, tmp_path / "verification.md")
+    message = str(refused.value)
+    assert "tamper_source_" in message
+    assert "git_history" in message
+
+
+def test_ladder_progress_subset_split_refuses_without_a_graded_clean_subset(
+    tmp_path: Path,
+) -> None:
+    subsets = [
+        {
+            "task_id": "t1",
+            "subset": 1,
+            "verdict": "still-refused",
+            "attacks": ["git_history"],
+            "attacks_dropped": ["tamper_source_skip"],
+        },
+    ]
+    with pytest.raises(ProgressError, match="no graded-clean subset states an attack split"):
+        MODULE._subset_attack_split(subsets, tmp_path / "verification.md")
+
+
+def test_ladder_progress_check_exits_zero_on_the_committed_subset_files(sandbox: Path) -> None:
+    assert MODULE.main(["--check"]) == 0
 
 
 def test_ladder_progress_sync_docs_derives_the_graded_attack_histogram(sandbox: Path) -> None:

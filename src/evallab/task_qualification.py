@@ -288,7 +288,6 @@ def _import_fails_in_agent_code(lines: Sequence[str], header_lineno: int) -> boo
     if innermost is None:
         return False
     return not innermost.startswith("/") or innermost.startswith("/app/")
-    return None
 
 
 def grader_stdout_texts(trial_dir: Path) -> list[str]:

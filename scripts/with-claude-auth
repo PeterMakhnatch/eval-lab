@@ -25,7 +25,6 @@ fi
 
 if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
     echo "with-claude-auth: refusing to run; no Claude OAuth token available" >&2
-    echo "with-claude-auth: run scripts/claude-token-setup.sh first" >&2
     exit 78
 fi
 

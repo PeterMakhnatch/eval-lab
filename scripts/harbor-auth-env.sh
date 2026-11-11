@@ -9,7 +9,6 @@
 # login Keychain and is read into the process environment at runtime. Nothing
 # here prints, logs, or writes the token.
 #
-# Store the token first with:  scripts/claude-token-setup.sh
 # Check status any time with:  scripts/auth-status.sh
 
 HARBOR_CLAUDE_KEYCHAIN_SERVICE="${HARBOR_CLAUDE_KEYCHAIN_SERVICE:-harbor-practice-claude-oauth}"
@@ -28,7 +27,6 @@ _harbor_auth_token="$(
 
 if [ -z "$_harbor_auth_token" ]; then
     echo "harbor-auth-env: no Claude OAuth token in Keychain" >&2
-    echo "harbor-auth-env: run scripts/claude-token-setup.sh first" >&2
     unset _harbor_auth_token
 else
     # Claude Code CLI (Harbor's claude-code agent) subscription auth.

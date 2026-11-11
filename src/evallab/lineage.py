@@ -17,8 +17,7 @@ from typing import Any
 import duckdb
 import yaml
 
-from evallab.contextpack import parse_front_matter
-from evallab.storage.attach import attach
+from evallab.storage.attach import attach, parse_front_matter
 
 
 @dataclass(frozen=True)

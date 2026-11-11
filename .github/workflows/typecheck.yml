@@ -1,7 +1,7 @@
 name: typecheck
 
 # Static type checking stays in its own workflow so the zero-diagnostic
-# gate is independently visible. See docs/engineering.md.
+# gate is independently visible. See docs/SYSTEM.md.
 
 on:
   pull_request:

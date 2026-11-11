@@ -5,6 +5,7 @@ CI has no derived/, runs/, or PostgreSQL — tests must pass without them.
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -20,6 +21,9 @@ from evallab.storage.attach import (
     TABLES,
     attach,
     build_sql_preamble,
+    extract_title,
+    parse_doc,
+    parse_front_matter,
 )
 
 
@@ -1327,3 +1331,119 @@ def test_attach_keeps_live_views_and_exported_sql_on_the_same_snapshot(
     finally:
         result.connection.close()
         exported.close()
+
+
+class TestFrontMatterParsing:
+    """Test front-matter extraction and validation."""
+
+    def test_parse_valid_yaml_list(self) -> None:
+        content = """---
+status: living
+audience:
+  - builder
+  - analyst
+---
+
+# Architecture
+
+This is the body content.
+"""
+        fm, body = parse_front_matter(content)
+        assert fm is not None
+        assert fm["status"] == "living"
+        assert fm["audience"] == ["builder", "analyst"]
+        assert body == "# Architecture\n\nThis is the body content."
+
+    def test_parse_valid_yaml_inline_list(self) -> None:
+        content = """---
+status: historical
+audience: [operator, runner]
+---
+
+# Incident Report
+"""
+        fm, body = parse_front_matter(content)
+        assert fm is not None
+        assert fm["status"] == "historical"
+        assert fm["audience"] == ["operator", "runner"]
+        assert body == "# Incident Report"
+
+    def test_parse_valid_single_string_audience(self) -> None:
+        content = """---
+status: living
+audience: builder
+---
+
+# Single Audience Doc
+"""
+        fm, body = parse_front_matter(content)
+        assert fm is not None
+        assert fm["status"] == "living"
+        assert fm["audience"] == "builder"
+
+    def test_parse_no_front_matter(self) -> None:
+        content = """# Plain Document
+
+No front matter here.
+"""
+        fm, body = parse_front_matter(content)
+        assert fm is None
+        assert body == content.strip()
+
+    def test_parse_malformed_yaml(self) -> None:
+        content = """---
+status: [broken yaml: {unclosed
+---
+
+# Title
+"""
+        fm, body = parse_front_matter(content)
+        assert fm is None
+        assert body == content.strip()
+
+    def test_extract_title_from_h1(self) -> None:
+        body = "\n\n# Real Title\n\nSome paragraph."
+        assert extract_title(body, "Fallback") == "Real Title"
+
+    def test_extract_title_fallback(self) -> None:
+        body = "Paragraph without H1.\n## H2 Section"
+        assert extract_title(body, "Fallback Title") == "Fallback Title"
+
+
+@pytest.mark.parametrize(
+    ("status", "audience", "expected_status", "expected_audience"),
+    [
+        ("living", "[builder, operator]", "living", ("builder", "operator")),
+        ("historical", "Builder", "historical", ("builder",)),
+        ("unsupported", "[]", "unclassified", ()),
+    ],
+)
+def test_parse_doc_metadata_and_digest(
+    tmp_path: Path,
+    status: str,
+    audience: str,
+    expected_status: str,
+    expected_audience: tuple[str, ...],
+) -> None:
+    path = tmp_path / "docs" / "test-doc.md"
+    path.parent.mkdir()
+    content = f"---\nstatus: {status}\naudience: {audience}\n---\n\n# Test Doc\n\nProse.\n"
+    path.write_text(content, encoding="utf-8")
+    doc = parse_doc(path, root=tmp_path)
+    assert doc.path == "docs/test-doc.md"
+    assert doc.status == expected_status
+    assert doc.audience == expected_audience
+    assert doc.title == "Test Doc"
+    assert doc.body == "# Test Doc\n\nProse."
+    assert doc.raw_content == content
+    assert doc.content_digest == f"sha256:{hashlib.sha256(content.encode('utf-8')).hexdigest()}"
+
+
+@pytest.mark.parametrize("content", ["# Plain\n", "---\n[not, metadata]\n---\n# Plain\n"])
+def test_parse_doc_without_metadata(tmp_path: Path, content: str) -> None:
+    path = tmp_path / "plain.md"
+    path.write_text(content, encoding="utf-8")
+    doc = parse_doc(path, root=tmp_path)
+    assert doc.status == "unclassified"
+    assert doc.audience == ()
+    assert doc.body == content.strip()

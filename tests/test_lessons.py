@@ -10,7 +10,6 @@ import duckdb
 import pytest
 
 from evallab.cohort import NOT_COMPARABLE, wilson_interval
-from evallab.contextpack import parse_front_matter
 from evallab.interpretation.trajectory_quality import (
     QualityStatus,
     TrajectoryQualityReport,
@@ -41,6 +40,7 @@ from evallab.lessons import (
     render_lessons_markdown,
 )
 from evallab.lineage import compute_file_digest, resolve_lineage
+from evallab.storage.attach import parse_front_matter
 
 pytestmark = pytest.mark.docs_consumer
 PYTEST_DIGEST = "sha256:pytest111111111111111111111111111111111111111111111111111111111111"

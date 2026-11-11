@@ -9,7 +9,7 @@ every process, tab, and worktree on the machine contends on the same files.
 Queue mutations are serialised with ``fcntl.flock`` on a mutex file and the
 queue file itself is replaced atomically. Entries whose pid is dead or whose
 heartbeat is older than the TTL are pruned, so a crashed holder cannot pin a
-slot forever. See ``docs/docker-lock.md``.
+slot forever. See ``docs/execution-tiers.md``.
 """
 
 from __future__ import annotations

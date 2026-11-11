@@ -25,15 +25,14 @@ Three rules shape every decision in this module, and they outrank coverage:
 `craft classify` (the LLM facet pass) and `craft patterns` are deliberately not
 here. Classify submits through the queue and must carry `purpose="craft"` once
 `ExperimentSpec.purpose` becomes required (WS-E item 1); patterns depends on
-classify for several facets. See `docs/craft.md` for the facet-by-facet split
+classify for several facets. See `docs/SYSTEM.md` for the facet-by-facet split
 between what this module determines and what genuinely needs the model.
 
 Entry point: `python -m evallab.craft scan --tb3` (or `--tb4` for the pinned
 v4.0.0 lane), `python -m evallab.craft plan --tb4` for the read-only
 migration inventory, and `python -m evallab.craft compile --tb4-root <v4>` for
 the executable pinned TB4 Harbor job plan. CLI wiring into `evallab craft ...`
-is described in `docs/craft.md` and left undone here because `cli.py` is leased
-to another mission this round.
+is described in `docs/SYSTEM.md`; use the standalone module entry above.
 """
 
 from __future__ import annotations
@@ -72,8 +71,7 @@ FACETS_SCHEMA_VERSION = "craft/1"
 
 #: Number of tasks processed per classification batch.
 #: Bounded at 10 to balance grouping efficiency against memory overhead and
-#: prompt context window limits when classify is extended to LLM passes
-#: (docs/archive/platform-architecture.md §6).
+#: prompt context window limits when classify is extended to LLM passes.
 DEFAULT_BATCH_SIZE: int = 10
 
 #: Where the TB3 corpus lives on this workstation. Injectable (env var, then
@@ -328,7 +326,7 @@ _LANGUAGE_BY_SUFFIX: dict[str, str] = {
 
 #: Facets this module never fills, with the reason each is out of deterministic
 #: reach. Recorded on every row so the null is self-explaining in the data, not
-#: only in a document. Keep in sync with the table in `docs/craft.md`.
+#: only in a document. Keep in sync with the table in `docs/SYSTEM.md`.
 LLM_ONLY_FACETS: dict[str, str] = {
     "instruction_style": (
         "rhetorical register (imperative|narrative|spec) is a judgement about "
@@ -348,8 +346,8 @@ LLM_ONLY_FACETS: dict[str, str] = {
 class CraftRecord(ContractModel):
     """One task's deterministic facets.
 
-    Fields follow `docs/archive/build-plan.md` WS-A. Three columns are additions to that
-    list, each forced by rule 1 or rule 2 above and marked here:
+    Fields follow the CRAFT contract in `docs/SYSTEM.md`. Three columns extend
+    that list, each forced by rule 1 or rule 2 above and marked here:
 
     - `verifier_signals` — the mechanism families actually observed. Without it,
       `verifier_type` is an unsourced label, and the `unit_js` mechanism the

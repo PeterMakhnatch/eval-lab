@@ -8,8 +8,8 @@ clock (`agents/CHECKS.md`).
 The defects these tests exist to prevent, in order of how expensive they would
 be:
 
-1. **An unavailable reading rendering as plenty.** This is the original defect
-   `docs/quota-accounting.md` was written to close, reproduced in a new unit.
+1. **An unavailable reading rendering as plenty.** `docs/operations.md`
+   describes this defect, reproduced in a new unit.
    `test_unavailable_headroom_never_renders_as_plenty` asserts that no number
    at all reaches the operator when the allowance could not be measured, and
    that the sentence saying so does reach them.

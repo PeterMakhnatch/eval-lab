@@ -24,7 +24,7 @@ repository commit itself is not a key field, source files are hashed as
 docstring-free ASTs, and ``harbor_terminus.py`` (which also writes the
 trajectory) is not hashed; the parser digest covers
 ``src/evallab/mimo_tool_calls.py`` only. Field sources are documented in
-``docs/trial-treatment.md``.
+``docs/execution-tiers.md``.
 """
 
 from __future__ import annotations

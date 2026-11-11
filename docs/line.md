@@ -64,7 +64,7 @@ original spec's directory, not the shell's working directory.
 `labels` and `task_status` may be `null`. Without labels, counts still exist but
 label-dependent rates with zero denominators are unavailable, not measured as
 zero. Task status comes from the task-side manifest described in
-[hack-drop](hack-drop.md); rollout labels are not certification evidence.
+[task quality](task-quality.md#rollout-filtering); rollout labels are not certification evidence.
 Every task carries its own decision reason: `TASK_CERTIFIED`, `TASK_PROVISIONAL`,
 `TASK_UNCERTIFIED` or `TASK_WEAK`. A task absent from the manifest is `uncertified` (reason
 `NO_EVIDENCE`) and reports `TASK_UNCERTIFIED`; the line never emits `TASK_STATUS_UNKNOWN`,
@@ -1059,17 +1059,15 @@ calls; running Harbor; reading TEST evidence; service installation.
 
 ## Relationship to hack-drop and the production factory
 
-[hack-drop](hack-drop.md) owns the loaders, task/L0/AutoReview stage functions,
+[Hack-drop](task-quality.md#rollout-filtering) owns the loaders, task/L0/AutoReview stage functions,
 decision consolidation and report primitives. The line orchestrates those
 functions with persistent batch receipts, quality gates and a replay baseline;
 it is not an alternate detector implementation. Its exports retain hack-drop's
 identifier/reason/evidence metadata rather than embedding raw transcript text.
 
-The [production factory](production-factory.md) is a different execution shape:
-it journals and replays DEV traces step by step through the production monitor
-and has its own durable cursors, runtime guards and optional AutoReview modes.
-The batch line reuses its existing Judge Station queue format and appender.
-Neither a batch receipt nor a passing replay proves that the factory service is
-running, enables its live AutoReview, deploys a model, certifies a task, or
-licenses training. Production runtime behavior and approvals remain governed by
-the factory's own commands and policy.
+The autonomous production factory is retired.
+The retained production monitor journals and replays DEV traces with durable cursors and runtime guards.
+The batch line reuses the existing Judge Station queue format and appender.
+Neither a batch receipt nor a passing replay proves service health or grants execution approval.
+These receipts do not deploy a model, certify a task, or license training.
+See [live watch](live-watch.md) for the retained monitor and its observation boundaries.

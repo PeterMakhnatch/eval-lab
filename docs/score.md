@@ -68,3 +68,27 @@ The retained study writers are not the recommended measurement path.
 2026-11-10: Retire factory dashboards and QC report exports. Move native metric and receipt primitives without changing cached measurements.
 2026-11-11: Add separate action-v2 source panels without pooling protocols or changing the publisher DEV pool.
 2026-11-11: Record 70 source exclusions. Remove incompatible trace registrations and withdrawn panel producers without deleting raw evidence. Keep frozen cohort membership and action-v1 label identities fixed.
+
+## Retired card and grid products
+
+The card generator and LADDER grid frontend are retired.
+Keep existing cards, queue specs, receipts, and preregistrations as historical evidence.
+Use cached score receipts for current frozen comparisons.
+Use explicit native experiment specs and queue approval for new execution.
+There is no card or ladder compatibility command.
+
+The retained research rules still apply:
+
+- Use the task as the evidence unit. Repeated attempts are not independent tasks.
+- Keep realized first-k results separate from unbiased pass@k estimates and independent-attempt planning transforms.
+- State the measured population, missing outcomes, source identity, setup, and uncertainty.
+- Keep measured verifier outcomes separate from harness exits and capability eligibility.
+- Quote the frozen preregistration and decision rule without changing them after results.
+- Treat an underpowered or indistinguishable result as a result, not an omitted cell.
+- Verify contamination, task/verifier identity, setup, lineage, and source receipts before publication.
+
+Historical automatically drafted cards still require human publication review.
+Their original input digests remain useful even though their producer is removed.
+Source retirement grants neither publication authority nor a new experiment.
+
+2026-11-11: Consolidate card/grid guidance here. Retire the unused context compiler and route directly to native manuals.

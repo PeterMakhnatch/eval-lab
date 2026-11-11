@@ -7,9 +7,9 @@ audience:
 
 # Operations
 
-## Continuous-loop operator (disabled)
-
-**No services or runs authorized.** Templates, validate/dry-run oracles, and the pause/drain/kill runbook live in [`docs/continuous-loop-operator.md`](continuous-loop-operator.md). Units stay disabled; do not bootstrap launchd or systemd from this checkout.
+The queue, native runners, and evidence stores remain the operating surface.
+The continuous operator, Fleet supervisor, and GEPA engines are retired.
+Their historical journals and campaign receipts remain evidence, not runnable instructions.
 
 ## Local database
 
@@ -92,364 +92,6 @@ prior day's budget across midnight.
 
 The legacy `run` and `matrix` commands are restricted to Oracle/no-op controls.
 All real-model work must pass through the queue and standing policy.
-
-## Optional GEPA experiments
-
-Normal `run`, `submit`, and `tick` operations do **not** start an optimizer.
-GEPA is an explicit outer experiment over unchanged Harbor task packages:
-candidate supplementary instructions → normal Lab execution → score and bounded
-task/trajectory feedback → another proposed candidate. The evaluator uses the
-same registered agent/model profiles and native extra-instruction path as the
-runner. Unregistered model/harness combinations fail before submission.
-
-Install the optional pinned engine in the working checkout:
-
-```bash
-uv sync --locked
-uv pip install -r research/experiments/harness-gepa/requirements.txt
-```
-
-Campaign JSON accepts `"enabled": false` to disable optimization before loading
-GEPA or creating execution state. Calling the dedicated `run` command explicitly
-opts in when that field is omitted or true. The committed
-`research/experiments/harness-gepa/glm-flash-event-summary.json` example is disabled;
-its task and model pins are configuration, not permission to spend.
-
-```bash
-uv run --no-sync python -m evallab.gepa_optimizer run campaign.json \
-  --proposer-approval-ref proposer-approval.json
-uv run --no-sync python -m evallab.gepa_optimizer status campaign.json
-uv run --no-sync python -m evallab.gepa_optimizer stop campaign.json
-uv run --no-sync python -m evallab.gepa_optimizer resume campaign.json
-```
-
-`stop` prevents the next optimizer evaluation or reflection request. It does not
-cancel a provider request already in flight or revoke a separately approved
-queue spec. Use the normal Lab queue lifecycle for those jobs. `resume` only
-clears the campaign stop marker; it does not launch a run. Concurrent invocations
-of the same campaign are refused.
-
-Candidate evaluation defaults to `"candidate_evaluation": "review"`. A proposed
-instruction is retained by its full content digest and reported as
-`candidate_review_required` **without submitting it**. Inspect it with `status`,
-then permit that exact artifact to reach the normal evaluation gate:
-
-```bash
-uv run --no-sync python -m evallab.gepa_optimizer approve-candidate campaign.json \
-  --candidate FULL_SHA256
-```
-
-Run the campaign again to continue. Candidate review is **not** paid-run approval:
-target specs still need the normal per-spec authorization. Set
-`"candidate_evaluation": "automatic"` only when automatic proposal submission is
-intended; it still does not approve or dispatch billable jobs.
-
-The proposer authorization binds the exact campaign configuration, seed digest,
-qualified GEPA release and qualification mode. Its request journal prevents
-automatic retries of ambiguous requests and reuses completed responses on resume.
-Proposer and target budgets are separate; catalog-based dollar estimates are not
-authoritative subscription billing. Broker-backed targets require all five
-`provider_ceilings` fields, while a proposer has its own request and cost limits.
-
-### Subscription rewriting with Codex
-
-GEPA's reflection LM can use the authenticated `codex exec` CLI instead of an
-API key. The installed **Codex CLI 0.162.1** is the qualified version; a different
-version fails preflight rather than silently changing the protocol.
-
-```json
-{
-  "proposer_transport": "codex",
-  "proposer_model": "codex/gpt-6-astra",
-  "max_proposer_requests": 2,
-  "max_proposer_cost_usd": null,
-  "max_target_attempts": 22
-}
-```
-
-Use an explicitly pinned **native Codex account model**, not an OMP provider
-selector. On September 30, `codex login status` confirmed ChatGPT authentication,
-but the local configured `gpt-6.1-sol` was rejected by the provider with HTTP 400.
-The authenticated app-server `model/list` advertised `gpt-6-astra` as its default,
-and that model completed a real GEPA reflection. Account discovery starts no
-inference thread; an advertised model still needs a live route proof.
-
-The child receives no API credentials or provider-override environment variables.
-It ignores user config, project instructions and rules, disables shell/browser/
-MCP/plugin/hook features, and runs ephemerally in an empty read-only workspace.
-Read-only is **not host file-read isolation**. The file-patch tool has no disable
-flag in this CLI release; the OS write sandbox and transcript rejection remain
-its boundary. Only a complete single-turn text response is usable. Nonterminal
-startup warnings are retained; actual errors, model reroutes, tool attempts and
-incomplete/multiple turns are refused.
-
-`max_proposer_requests` bounds **CLI invocations**, not physical upstream calls,
-subscription quota or dollars. The null cost cap explicitly selects count-only
-accounting; reported/billed costs remain unknown, never fabricated as `$0`.
-Completed unknown-cost subscription responses may resume within the count bound.
-API routes retain their separate dollar caps and missing-cost refusal. Ambiguous
-or failed responses never become automatic retries or provider/model fallbacks.
-The same frozen proposer authorization and candidate-review gate still apply.
-
-The disabled `research/experiments/har110-python-gepa/campaign-codex.json` keeps
-the existing distill target, six development tasks and upstream-fetch scoring.
-It does not modify the historical GLM campaign or authorize Modal/target trials.
-Its [subscription smoke receipt](../research/experiments/har110-python-gepa/subscription-smoke.json)
-records real reflection from six retained distill seed evaluations and response
-replay without another model request. This proves the rewriting path, **not**
-student improvement; candidate rollout and held-out scoring remain separate.
-
-
-The Z.ai/OpenCode proxy accepts OpenCode's native bare model IDs and preserves
-streaming with final usage capture. Its input reservation is deliberately a
-conservative byte bound, not a tokenizer estimate: leave reservation headroom
-for the agent's tool definitions even when observed usage is smaller. The Flash
-example permits one proposer request and uses a 12-request, 12k-output-token,
-$0.25 API-equivalent target ceiling. Its 120k input ceiling is reservation
-headroom, not an instruction to consume that many tokens.
-
-On Apple Silicon, Docker Desktop 4.86.0 fixed the `nftables fib inet` support
-required by Harbor's allowlist. Upgrade an older Docker Desktop in an approved
-maintenance window rather than disabling Harbor's network checks or introducing
-another runtime. See [Docker's release notes](https://docs.docker.com/desktop/release-notes/#4860).
-
-Campaign grouping does not create a new task type. Keep native jobs under
-`runs/<job>/<trial>`, the frozen campaign and immutable instruction candidates
-under its `output_dir`, and link evaluations by task-package digest, candidate
-digest, model/profile and job/trial ID. Native job names are campaign-scoped:
-independent campaigns do not reuse each other's trials. Resume uses an existing
-completed receipt's recorded in-repository job path after provenance checks;
-missing retained evidence must be restored, not silently rerun.
-
-For native-reward searches, use the existing `CohortComparisonSpec` with
-`declared_variable="preamble_content_sha256"` and `pairing_key="task_digest"` for
-seed-versus-candidate analysis. A GEPA callback reading a cached result is not
-another trial or another unit of spend. A nonempty seed is supplementary
-instruction content; an exact zero-byte instruction seed represents stock with
-no addendum. Whitespace is a different candidate, and an empty Python toolbox is
-invalid. Retain failed infrastructure attempts and their evidence and spend
-outside the scored comparison.
-Run `evallab compare <spec.json>` without `--index` for already-owned native
-jobs. That flag assigns legacy/raw job ownership; it is not a general comparison
-index and correctly refuses to replace a job's original experiment/spec ID.
-
-The [2026-09-15 Flash pilot receipt](../research/evidence/gepa-flash-event-summary-20260915.json)
-links the two scored runs, exact proposal and standard comparison. Both passed;
-GEPA retained the original seed on the score tie. The proposal also used more
-provider calls, so it was not adopted. This one search-visible task establishes
-workflow execution, not held-out improvement.
-
-Neither search selection nor candidate review changes task files, the seed, or
-the instructions used by future ordinary runs. Adoption is explicit: reference
-the retained candidate path and digest in a subsequent experiment spec. Search
-scores use development tasks; freeze the artifact before a separate held-out
-comparison. Missing traces remain missing, and infrastructure failures never
-become reward zero.
-
-Campaigns default to `"score_mode": "native_reward"`, evaluating candidates by
-raw primary verifier reward. Setting `"score_mode": "quality_gated_request_efficiency"`
-conditions request-efficiency utility on the existing native grade:
-`1 / (1 + requests)` when that grade is exactly 1.0, and 0 otherwise.
-This does not certify the verifier or replace independent output checks.
-Raw rewards and evaluation receipts remain unchanged;
-unresolved or missing provider accounting halts the run rather than reporting a
-free zero score. Selection evaluates common-pool utility but vetoes any per-task
-native reward regression and retains the seed on utility ties.
-
-### Counted stock seed reuse and the overnight gate
-
-Set `"score_rules": ["counted_verdict"]` to score authoritative
-`process-job` reports rather than raw reward. A `counted_pass` scores 1 and a
-`counted_fail` scores 0. Excluded, missing, malformed or mismatched reports are
-unavailable, with a persisted null score; they are never fabricated failures.
-
-`process-job` uses `ingest_and_project` for catalog ingestion and native projections.
-Catalog or projection failure stops publication. Use `--no-ingest` for explicit report-only processing.
-The report keeps native reward, countability, detector evidence, and watch evidence separate.
-It no longer estimates self-hosted GPU cost from trial time.
-Historical billed-session receipts and measured ledger usage remain available.
-
-A finite verifier reward after `AgentTimeoutError`, `TrialBudgetExhaustedError`
-or `LoopBreakStop` is an agent outcome, not infrastructure failure. A stop with
-no finite reward remains unavailable; unrelated execution errors remain errors.
-The raw reward, canonical counts, report path and byte digest remain in the
-evaluation receipt. Do not combine this rule with `upstream_fetch_zero`:
-canonical counts exclude fetch-based passes only after an exact upstream
-artifact is saved/listed and then observed unpacked or read, with recorded,
-target-bound evidence. A pip `Successfully downloaded` line naming the exact
-pinned artifact is save evidence, but still needs later bound unpack/read.
-Package-only success summaries and exit code 0 do not suffice.
-Directory spelling is normalized; failed or unknown attempts remain visible
-as non-deciding flags, even on a native pass. Preexisting local image mirrors
-are addressed by task/variant usability, not successful-fetch counts. The legacy opt-in
-`upstream_fetch_zero` objective deliberately retains its separate **any-attempt**
-policy; an attempted fetch still zeros that objective regardless of outcome.
-
-Capped terminal observations can use retained in-trial output only when
-re-capping the saved bytes exactly reproduces the recorded observation.
-The evidence includes its path and SHA-256; all command and fresh-unpack
-guards still apply. Reading an old directory is not proof of this download.
-This post-G5 reader enhancement is prospective: the original G5 primary
-counts stay frozen, and its retrospective replay is labelled sensitivity.
-
-`LabEvaluator.import_seed_evaluation(job_dir, example)` imports a finished,
-retained single-trial stock job for the exact empty instruction seed. It requires
-the counted rule and verifies task-package, agent/model and addendum provenance.
-With a retained target base spec, its full native `experiment-spec.json` must
-match the frozen harness digest, environment, attempts, concurrency, timeout,
-provider limits and policy. Terminus-2 retains provider limits in that base
-spec, not campaign-level `provider_ceilings`. Native job bytes are not rewritten.
-The deterministic budget identity is counted once, later empty-seed evaluations
-reuse the same job, and another native repeat cannot overwrite that seed receipt.
-Both import and every cached empty-seed reuse reject declared toolbox digests
-and nonempty or invalid toolbox metadata; a retained stock receipt cannot hide
-later augmentation of its native job.
-Reused evidence is not a fresh launch or a claim of zero historical cost.
-
-For HAR-135, `research/experiments/ovn-sft-v0/gepa_gate.py freeze` takes explicit
-`--proposal`, `--eval-tasks` and `--out` paths. It binds their bytes and freezes
-the first ten training tasks and repeat 1. This metadata check does not replace
-the independent G1 contamination audit. `select` takes `--manifest`, `--seed`,
-up to two `--candidates` receipts, and `--out`; each candidate receipt binds
-`candidate_id`, `candidate_path`, timezone-aware `frozen_at` and `rows`.
-Selection normally requires all ten seed/candidate outcomes to be countable.
-An explicit pre-candidate `seed_exclusions` ruling may remove canonical
-excluded repeat-1 seeds from every arm without replacing them: keep the ten-task
-parent, bind `approved_by`, `declared_at`, `source_ref` and native excluded `rows`,
-and supply only the remaining tasks for stock and every candidate. A declaration
-after candidate freeze, reintroduced task, or later candidate-only exclusion
-cannot establish a paired improvement. HAR-135's 08:25Z ruling removes 001647
-(infra), 000341 and 001870 (copied/tainted), leaving the fixed seven in parent order.
-More counted passes wins; a pass tie wins only with known, strictly fewer settled
-proxy input-plus-output tokens. Unknown usage is not zero and an exact seed tie
-retains stock. Native Harbor usage stays separate.
-Build rows from verified evaluator receipts and retain each row's candidate,
-native configuration/lock and capture bindings. The selector verifies supplied
-instruction bytes and coverage, not that those bytes generated every supplied row.
-The $2 total gate ceiling still requires the ordinary pre-dispatch spend check
-and serving-session accounting. This training selection is exploratory; G5
-analysis follows the frozen [overnight preregistration](../research/experiments/ovn-sft-v0/PREREG.md).
-
-
-### Python toolbox candidates and Oracle contrast
-
-`research/experiments/harness-gepa/python-toolbox.json` is a disabled example
-using `"candidate_kind": "python_toolbox"` and the competent stdlib seed
-`repl_tools.py`. GEPA revises that Python module, not the fixed skill descriptor.
-The module exposes `read_window`, `smart_grep`, `check_output`, and the seed's
-`read` / `grep` / `check` CLI. Output validation checks format, **not task
-correctness**. Input/output bounds are explicit; arbitrary regex execution time
-is still limited by the containing trial, not guaranteed by Python's regex engine.
-
-The normal queue binds `toolbox_path` and `toolbox_sha256`. The runner stages a
-job-private two-file `repl-tools` bundle and uses Harbor's existing `--skill`
-upload, placing code at `/harbor/skills/repl-tools/repl_tools.py`. No candidate is
-imported or executed on the host. Syntax/API rejection is labeled static
-validation without fabricating a native trial. The job retains the Python file
-and descriptor; consumption checks their bytes against the native top-level
-`lock.skills` digest. Comparisons declare `toolset_digest`, not a changed prompt
-or model setting. Injection alone does not prove the model used the helper;
-inspect the actual invocation/edit trace before attributing a benefit.
-
-A development example may include `oracle_reference` with exactly
-`trial_path`, `result_sha256`, and `task_package_digest`. Before evaluation, the
-reference must identify a finished, successful, no-model Oracle run on that
-same package, with matching native result and job provenance. Reflection gets
-bounded, redacted reference actions/file transitions versus agent evidence.
-Oracle arguments and raw stdout are withheld because they may contain answers.
-Missing command traces remain missing; observed file transitions are not
-automatically task requirements. Final/held-out examples remain forbidden.
-
-The direct GEPA/LiteLLM Coding Plan route remains refused. The disabled toolbox
-example now selects `"proposer_transport": "opencode"` with the official
-`zai-coding-plan/glm-5.3-flash` selector and separate `proposer_ceilings`.
-[Z.ai explicitly supports OpenCode](https://docs.z.ai/devpack/tool/opencode);
-this launches that real CLI, not a spoofed client or another provider.
-
-The proposer transport currently supports installed OpenCode **1.18.9 on
-macOS with Seatbelt and Command Line Tools git**. It records the actual binary
-digest. The target Harbor adapter's separate OpenCode pin is unchanged.
-Each proposal has a private home/config, no enabled tools/plugins/MCP/sharing,
-and a default-deny OS profile: only its workspace is writable, external shell
-execution is denied, and egress is limited to the exact loopback broker port.
-Startup git discovery is confined to that workspace. The existing Z.ai broker,
-not the CLI's self-report, enforces **one physical upstream request per
-proposal**. OpenCode's outer session retry loop still exists; the broker
-prevents further upstream calls and the parent stops on a failed response or
-tool attempt. There is no automatic paid retry.
-
-Successful journal receipts retain the source response and reconciled broker
-usage/model identity. Subscription billing remains unknown. Unknown or failed
-requests remain charged and halt new proposals, including requests with changed
-feedback. Preserve historical ledgers when continuing a campaign: a fresh output
-directory is not a budget reset. The committed example remains disabled and is
-not permission to spend. HAR-59's offline OpenCode/Harbor protocol proof uses a
-declared loopback response fixture, not a live model proposal.
-
-Rejected target responses now retain bounded HTTP-status and
-encoding/media/charset classifications, never arbitrary headers or bodies.
-Historical HAR-54 response details were not captured and cannot be recovered
-from this new instrumentation; their reserved usage remains unresolved.
-
-The disabled `har59-bench-development.json` consumes HAR-61/PR439's eight
-digest-pinned TB2/FACET development packages through this same campaign schema.
-Its three validation packages are deliberately **not** supplied as GEPA
-`validation_task_ids`, which are search-visible selection data. Package
-availability/admission remains owned by the benchmark lane and Peter. The full
-cohort exceeds the existing two-target residual allowance; this prepared
-projection grants neither task eligibility nor additional execution budget.
-
-`--qualification` uses free local controls and a deterministic proposer fixture.
-It can demonstrate real code injection, feedback, selection and comparison, but
-is **not model-learned improvement**, held-out benefit, or task admission.
-
-### Bounded GEPA and genuine Omni composition
-
-`research/experiments/harness-gepa/har53-gepa.json` and `har53-omni.json`
-are disabled examples for the frozen multi-task study. Use the same
-`run` / `status` / `approve-candidate` / `stop` / `resume` interface above;
-configuration and a release pin are never spending permission.
-
-`"engine": "omni"` uses the pinned upstream `optimize_best_of` primitive
-with **GEPA, AutoResearch, and Meta-Harness**, all starting from the same seed,
-then a fresh GEPA continuation from the common-pool winner. Exploration is
-serial for the single native target slot. Stage directories, seeds, candidate
-digests, measured common-pool scores and native receipt links are retained.
-Ties or regressions retain the stage's input seed. Completed-stage resumption
-revalidates retained native evidence rather than proposing again.
-
-`max_evals` bounds upstream evaluator calls, including cached lookups; it is
-not a count of paid native trials. `max_target_attempts` reserves a native
-attempt before a new queue submission. An optional `shared_budget` binds an
-output directory and aggregate target-attempt, proposer-request and reported
-proposer-cost limits across campaigns/stages and independent repetitions.
-Failed or ambiguous reservations remain charged; missing state is not a
-counter reset, and cached replay does not reserve a new request. Existing
-target proxy ceilings and per-spec queue approval still apply. The estimated
-proposer-cost stop is **not** a hard provider billing guarantee.
-
-The released subprocess engines need a qualified OS sandbox, provider
-transport and physical-request meter. On the current macOS/Flash route,
-`run` returns `engine_unavailable` with per-engine reasons **before inference**.
-It does not replace those engines or call a GEPA-only result Omni. Unavailable
-engines do not prevent a separately authorized ordinary GEPA campaign.
-
-Reflection receives task feedback, not the eval server's transient `_budget`
-counters, so the same second-round request keeps its identity across review
-interruptions. Harbor's in-flight `result.json` is also not a completed result:
-resumption retains the exact pending queue specification until `finished_at`.
-No automatic retry or adoption follows from either repair.
-
-The [HAR-53 receipt](../research/evidence/har53-gepa-omni-20260915.json)
-records 16 native trials and four proposer requests, the exact instruction
-artifacts, standard portable comparisons, and shared local CAS/source-history
-restoration. All development and confirmation rewards were one, so the seed
-was retained. Confirmation groups consequently share one policy. The two
-sealed Lisbon grades remain zero, but their rejection exposes an undeclared
-output-schema/exact-text contract; they are not clean planning-capability
-failures. The report claims neither held-out improvement nor a live Omni result.
-
-For Cartesian evaluation grid expansion and budget-bounded experiment generation, see [`docs/ladder.md`](ladder.md).
 
 ## Paid execution requires a recorded authorisation
 
@@ -631,7 +273,7 @@ time are recorded.
 missing, malformed, or expired, including a failed or timed-out probe. The
 historical Codex bootstrap and stale-reading behavior described below applies
 to artifact-based Codex readings; Claude's free live probe needs no paid call
-to recover. See [Claude quota accounting](quota-accounting.md#claude-code-live-subscription-headroom-and-dispatch-gate)
+to recover. See [quota measurement](#quota-measurement-and-portable-sidecars)
 for dispatch sidecars and deterministic tests. `--despite-quota` does not
 override `subscription_quota_unavailable`.
 
@@ -654,7 +296,7 @@ The artifact-based Codex reading is only as fresh as the last paid trial. The re
   so after any quiet period every reading is stale and the first paid run
   becomes impossible — permanently, not until some timer expires.
 - **Trusting a stale reading silently is how a lockout arrives unannounced.**
-  This repository has measured the drift: `docs/quota-accounting.md` records
+  This repository has measured the drift: the historical quota receipt records
   the account moving 71% → 91% in roughly five hours of ordinary interactive
   use, none of it the lab's. A five-hour-old figure has a demonstrated capacity
   to be twenty points wrong.
@@ -1052,9 +694,8 @@ Steps run in the exact order below:
   queue error event (e.g. `parquet_compaction_failed`, `lessons_generation_failed`). The cycle is
   **not** quarantined, and subsequent pipeline steps continue executing.
 
-For queue event burst detection and alarm generation rules, see [`docs/storm-alarms.md`](storm-alarms.md).
-For the section ordering and formatting contracts of nightly digests and status projections, see [`docs/surfaces.md`](surfaces.md).
-For telemetry surfaces, span tracing with Phoenix, and diagnostic entry points, see [`docs/observability.md`](observability.md).
+For queue event bursts and deterministic status projections, see [live watch](live-watch.md#storm-alarms-and-deterministic-status).
+For native tracing and diagnostics, see [the tracing contract](live-watch.md#native-atif-to-otlp-export).
 
 ### Idempotence
 
@@ -1323,7 +964,7 @@ the exception taxonomy still count self-test trials, so the filter changes what
 is readable and not what is reported.
 
 Nightly also validates and enqueues the pinned suite in
-[`canaries.md`](canaries.md) before draining the queue. A changed task digest or
+[execution tiers](execution-tiers.md#canary-suite-and-drift-interpretation) before draining the queue. A changed task digest or
 floating source ref quarantines the cycle before dispatch. Digest excursions
 are labeled harness-drift suspects, never capability news.
 
@@ -1723,3 +1364,174 @@ Record delivery-PR evidence separately: the exact head, tested merge SHA,
 run/attempt/job URLs, and terminal results. Require every reported CI check to
 complete successfully, including both `quality-required` and
 `typecheck-required`, under [Definition of Green](../agents/CHECKS.md#definition-of-green).
+
+## Agent profiles and model routes
+
+`profiles.py` owns immutable adapter/model identity and qualification evidence.
+There is no dedicated `evallab profiles` command.
+Controls have no model credential. Billable profiles require a pinned model and a declared secret source.
+Secret sources contain identifiers, never token values.
+The subscription environment uses an allowlist and removes key-shaped names.
+
+Qualification states remain separate:
+`declared → installed → credential-ready → smoke-passed → canary-qualified`.
+A declared model name or readable credential does not establish a successful run.
+Report the dated proving trial, exact model, CLI version, and harness.
+Old profile tables do not establish present availability.
+
+Profile preflight fails closed without a wired probe or with failed/expired identity evidence.
+A preflight refusal occurs before a trial exists. It is not reward 0.
+Credential failures are operational failures, not capability measurements.
+Tests inject the home, clock, environment, credential probe, and subprocess runner.
+
+Use the suitable subscription route before a paid API route.
+A rate limit requires waiting for its reset, not changing the same job to an API.
+Pin the native account model, adapter, and CLI version for each experiment.
+Check `harbor_codex.PINNED_CODEX_VERSION`, the profile registry, and the native runtime contract.
+The retained `gepa_optimizer/codex_transport.py` supports native QA callers.
+It does not retain a GEPA optimization command.
+
+Claude gateway execution uses the host bridge in `containers/claude_gateway_bridge.py`.
+The sandbox receives a per-trial capability, not a provider credential.
+The bridge checks returned model identity and records bounded usage.
+The Keychain and gateway paths have different qualification evidence.
+Do not treat a historical success on one route as qualification of the other.
+The full adapter and backend rules remain in [execution tiers](execution-tiers.md).
+
+## Quota measurement and portable sidecars
+
+`Headroom` reports the provider's account-wide allowance.
+`ConsumptionLedger` reports the lab's recorded trials and usage.
+The provider counter cannot attribute a percentage to the lab.
+No counter movement below its measurement resolution proves zero consumption.
+`paid_trials` and `trials_with_observed_usage` have different denominators.
+Missing usage stays unavailable.
+
+Codex headroom reads retained `payload.rate_limits`, not transcript text or credentials.
+When a trial has no rollout snapshots, the reader accepts its retained
+`agent/quota/*.rate-limits.json` sidecars.
+This is a fallback, never an addition to the same rollout history.
+The reading uses the source observation time, never the sidecar modification time.
+The sidecar whitelist excludes prompts, reasoning, account identifiers, and credentials.
+Its source hash identifies omitted raw evidence without recreating that content.
+A committed reading is a dated snapshot, not a current balance.
+
+Claude dispatch reads `omp usage -p anthropic --json -r` through a bounded subprocess.
+This is a usage lookup, not inference.
+The reader retains only the exact `anthropic:5h` and `anthropic:7d` windows.
+Both windows and their fetch time must validate.
+Missing, malformed, timed-out, or expired readings pause Claude dispatch.
+The historical Codex bootstrap rule does not apply to that refreshable live reader.
+
+Claude dispatch records the sanitized observation in `claude-dispatch-quota.json`,
+`lab-metadata.json`, and each trial's `agent/quota/claude-dispatch.json`.
+Each retry gets a fresh reading for that attempt.
+The record proves what admission observed, not what the lab consumed.
+`evallab preflight` and `python -m evallab.quota` remain disk-only reporting surfaces.
+
+### Spend reconciliation
+
+```sh
+uv run evallab spend reconcile --since 2026-10-30T21:00:00Z --threshold-usd 1.00
+uv run evallab spend reconcile --threshold-usd 2.00 --json
+uv run evallab spend scan-omp --since 2026-10-30T21:00:00Z
+```
+
+Reconciliation compares provider balances over a half-open `[since, until)` window.
+Exit 3 means `UNVERIFIED`: a requested endpoint fails or no numeric comparison exists.
+A discrepancy strictly above the threshold exits 1.
+Non-baseline windows require explicit starting counters. Unknown baselines stay unknown.
+Subscription list-price equivalents do not enter cash spend by default.
+Modal remains `NOT MEASURED` without live billing evidence.
+`scan-omp --write` changes the spend ledger. Use it only under current authority.
+Deduplication checks route, time, and token/cost identity against existing rows.
+
+### Spend windows and source attribution
+
+```sh
+uv run evallab spend check --since <window-start> --cap-usd <cap> --candidate-usd <estimate>
+uv run evallab spend day --date YYYY-MM-DD
+```
+
+For `spend check`, exit 3 refuses an over-cap launch. Exit 2 means unverifiable spend and also refuses launch.
+An exit 0 does not replace current execution approval.
+The day report resolves a dated ceiling at 00:00 UTC for that day.
+Launch admission resolves the ceiling at the current window end.
+An old `--since` never renews an expired approval.
+
+Card attribution requires explicit `linear_card` provenance or an exact historical binding.
+Task, model, app, and harness names do not establish card ownership.
+Conflicting bindings remain `unattributed`.
+Modal bills remain app residuals without complete app/window ownership evidence.
+Daytona dollars remain estimates when the provider supplies quota but no billed usage.
+Provider billing tags remain queryable labels, not inferred card ownership or additional approval.
+Do not enter the same Modal actuals again in a generic model-call ledger.
+
+## Retained LoRA training and serving
+
+The SFT producer commands are retired. Retained exports and isolated training tools remain.
+The HAR-129 source evidence lives in `research/experiments/har129-lora/`.
+It proves that dated study, not present authorization or current cost.
+
+Training accepts an existing `evallab.sft_terminus/1` export with
+`conversations.jsonl`, `manifest.json`, and its conversation digest.
+Run the offline mask audit before any approved training:
+
+```sh
+uv run --project tools/modal-mimo-sft --locked python tools/modal-mimo-sft/sft.py dry-run \
+  --data <export> --epochs 1
+```
+
+Report sequence tokens, trained tokens, longest row, and manifest digest.
+Rows above the training limit fail by label. Do not truncate them.
+The training limit and served context limit are different contracts.
+For last-turn loss, history matches the model-visible messages; only the target carries its reasoning.
+The rendered target and mask must match the native template.
+
+Paid training needs separate current approval before `train --confirm-spend`.
+The trainer audits the exact prepared row order, input IDs, and labels before training.
+Retain adapter file hashes, data hashes, loss history, memory, duration, and audit counts.
+Serving uses the isolated `tools/modal-mimo-serve` project and a declared LoRA binding.
+Only admitted adapter names can appear in a queue selector.
+An admitted name does not create or deploy an adapter.
+Require its training receipt, serving path, and native returned-model identity.
+A base-model echo cannot satisfy an adapter request.
+
+Before paired evaluation, require byte-identical base output at temperature 0,
+valid Terminus turns, and an adapter-application proof.
+Equal greedy text alone cannot show whether an adapter applies.
+Retain the base/base, adapter/adapter, and base/adapter probe evidence.
+Training, serving, parity requests, and teardown remain owner-controlled paid operations.
+Do not deploy or stop shared apps as a repository smoke.
+
+## Retained rollout accounting
+
+The `evallab rollout` frontend is retired.
+Its retained result files remain historical evidence with the following accounting limits.
+
+`results.jsonl` publishes each terminal task/attempt atomically.
+Non-done queue states retain an error and null reward/pass.
+After clean settlement, native verifier reward defines the benchmark result.
+Native agent exceptions remain visible and can independently prevent SFT admission.
+Missing verifier reward is an unmeasured result, not zero.
+
+`summary.json` counts only measured completions in throughput and pass-rate denominators.
+Costs include failed and unmeasured persisted outcomes.
+Any missing model-cost or sandbox-duration evidence leaves the corresponding total null.
+After driver death, compare persisted results with the authorized spec list.
+Missing specs remain unmeasured.
+
+Model usage comes from the strict proxy lifecycle ledger.
+Settled tokens exclude unresolved reservations.
+Settled dollars require a complete recorded price table; a cumulative dollar number alone is insufficient.
+Accounting errors do not replace a native grade or dispatcher error.
+Sandbox cost remains an estimate. A zero token price does not price a self-hosted serving app.
+Provider invoices, unresolved exposure, and serving-session costs remain separate.
+
+## Scaling and work orders
+
+Use current measured queue, storage, and query limits before selecting new infrastructure.
+Object storage requires durable transfer/recovery needs. Remote execution requires an approved runtime and cost envelope.
+A workflow engine or analytical database requires a measured bottleneck that the existing queue or DuckDB cannot meet.
+Old builder work orders, model price tables, and operating demos remain in Git history.
+They are not live assignments, current prices, or permission to restore retired products.

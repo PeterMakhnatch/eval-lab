@@ -8,14 +8,16 @@ still returned.
 
 from __future__ import annotations
 
+import hashlib
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import duckdb
+import yaml
 
-from evallab.contextpack import parse_doc
 from evallab.runner import database_url_from_environment
 from evallab.storage.parquet_compaction import PRIMARY_KEYS
 from evallab.storage.paths import (
@@ -24,6 +26,91 @@ from evallab.storage.paths import (
     derived_root_from_environment,
     discover_parquet_partitions,
 )
+
+VALID_STATUSES = ("living", "historical")
+VALID_AUDIENCES = ("builder", "analyst", "runner", "operator")
+FRONT_MATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+
+
+def repo_root() -> Path:
+    """Return the repository root for this checkout."""
+    return Path(__file__).resolve().parents[3]
+
+
+@dataclass(frozen=True)
+class DocMetadata:
+    """Metadata and content for a repository documentation file."""
+
+    path: str
+    title: str
+    status: str
+    audience: tuple[str, ...]
+    body: str
+    raw_content: str
+    content_digest: str
+
+
+def parse_front_matter(content: str) -> tuple[dict[str, Any] | None, str]:
+    """Extract YAML front-matter and body from markdown content."""
+    match = FRONT_MATTER_PATTERN.match(content)
+    if not match:
+        return None, content.strip()
+
+    front_matter_raw = match.group(1)
+    body = content[match.end() :].strip()
+
+    try:
+        parsed = yaml.safe_load(front_matter_raw)
+        if isinstance(parsed, dict):
+            return parsed, body
+    except Exception:
+        pass
+
+    return None, content.strip()
+
+
+def extract_title(body: str, fallback: str) -> str:
+    """Extract first markdown H1 header title or use fallback."""
+    for line in body.splitlines():
+        line = line.strip()
+        if line.startswith("# "):
+            return line[2:].strip()
+    return fallback
+
+
+def parse_doc(file_path: Path, root: Path | None = None) -> DocMetadata:
+    """Parse a single markdown documentation file into DocMetadata."""
+    resolved_root = root if root is not None else repo_root()
+    content = file_path.read_text(encoding="utf-8")
+    content_digest = f"sha256:{hashlib.sha256(content.encode('utf-8')).hexdigest()}"
+
+    fm, body = parse_front_matter(content)
+    rel_path = file_path.resolve().relative_to(resolved_root.resolve()).as_posix()
+    title = extract_title(body, file_path.stem.replace("-", " ").capitalize())
+
+    status = "unclassified"
+    audience: list[str] = []
+
+    if fm:
+        raw_status = str(fm.get("status", "")).strip().lower()
+        if raw_status in VALID_STATUSES:
+            status = raw_status
+
+        raw_audience = fm.get("audience", [])
+        if isinstance(raw_audience, str):
+            audience = [raw_audience.strip().lower()]
+        elif isinstance(raw_audience, (list, tuple)):
+            audience = [str(a).strip().lower() for a in raw_audience]
+
+    return DocMetadata(
+        path=rel_path,
+        title=title,
+        status=status,
+        audience=tuple(audience),
+        body=body,
+        raw_content=content,
+        content_digest=content_digest,
+    )
 
 
 @dataclass(frozen=True)

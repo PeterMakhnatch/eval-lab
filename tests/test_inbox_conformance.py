@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.contextpack import parse_front_matter
+from evallab.storage.attach import parse_front_matter
 
 pytestmark = pytest.mark.docs_consumer
 REPO_ROOT = Path(__file__).resolve().parents[1]

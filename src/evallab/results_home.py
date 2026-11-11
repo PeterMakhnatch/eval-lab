@@ -11,6 +11,11 @@ runner writes ``repository`` and ``repository-provenance/`` into the job
 directory, and publish copies them. A backfilled job that predates that
 snapshot says so, with the reason, instead of guessing.
 
+Publication stages and verifies every copied file before replacing a prior
+snapshot. A failed promotion restores the prior directory. A failed rollback
+retains the staged prior copy for explicit repair. Publication never queries
+GitHub; callers can supply recorded PR evidence through ``pr_lookup``.
+
 ``INDEX.md`` and ``INDEX-all.md`` are derived views of the home.
 ``write_index`` renders both from every published job (the repair path);
 ``update_index``, which publishing uses, splices one job's rows into the
@@ -28,6 +33,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
@@ -277,42 +283,6 @@ def _pr_number(commit: str | None, lookup: Callable[[str], str | None] | None) -
     return {"number": int(digits.group()), "reason": None}
 
 
-def default_pr_lookup(commit: str) -> str | None:
-    """Ask gh which PR contains a commit. None when gh is absent or fails."""
-    try:
-        completed = subprocess.run(
-            [
-                "gh",
-                "pr",
-                "list",
-                "--search",
-                commit,
-                "--state",
-                "all",
-                "--json",
-                "number",
-                "--limit",
-                "1",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if completed.returncode != 0:
-        return None
-    try:
-        rows = json.loads(completed.stdout)
-    except json.JSONDecodeError:
-        return None
-    if isinstance(rows, list) and rows and isinstance(rows[0], dict):
-        number = rows[0].get("number")
-        return str(number) if isinstance(number, int) else None
-    return None
-
-
 def build_provenance(
     job_dir: Path,
     *,
@@ -411,16 +381,14 @@ def build_provenance(
 
 
 def _copy_file(source: Path, dest: Path) -> None:
-    """Byte copy. Never a hard link and never a symlink.
-
-    A hard link would share the source inode, so replacing a published tree
-    on a later publish (``shutil.rmtree``) would delete the source file too.
-    Sources are read-only; the only writes are under the results root.
-    """
+    """Copy and verify bytes without sharing the source inode."""
     dest.parent.mkdir(parents=True, exist_ok=True)
-    if dest.is_symlink() or dest.exists():
-        dest.unlink()
     shutil.copyfile(source, dest)
+    with source.open("rb") as original, dest.open("rb") as copied:
+        if hashlib.file_digest(original, "sha256").digest() != hashlib.file_digest(
+            copied, "sha256"
+        ).digest():
+            raise OSError(f"Published copy differs from source: {source}")
 
 
 def _copy_tree(source: Path, dest: Path, *, skip_processed: bool = False) -> int:
@@ -465,7 +433,9 @@ def _origin_key(source: Path) -> str:
     return source.parent.name
 
 
-def _destination(home: Path, day: str, card: str, source: Path) -> tuple[Path, str | None]:
+def _destination(
+    home: Path, day: str, card: str, source: Path
+) -> tuple[Path, str | None, tuple[Path, Path] | None]:
     """``<day>/<card>-<job>/``, plus the other source when the name collides.
 
     The same source republished replaces its own copy. A different source
@@ -476,12 +446,10 @@ def _destination(home: Path, day: str, card: str, source: Path) -> tuple[Path, s
     existing = _read_json(base / "provenance.json") or {}
     other = existing.get("source_path")
     if not isinstance(other, str) or other == str(source):
-        return base, None
+        return base, None, None
     renamed = home / day / f"{card}-{source.name}~{_origin_key(Path(other))}"
-    if not renamed.exists():
-        base.rename(renamed)
     own = home / day / f"{card}-{source.name}~{_origin_key(source)}"
-    return own, other
+    return own, other, (base, renamed) if not renamed.exists() else None
 
 
 def _is_processed_report_file(name: str) -> bool:
@@ -582,30 +550,53 @@ def publish_job(
             if reason != "no card in job name, spec question_ref, or explicit linear_card"
         ]
     card = provenance["card"] or "unknown"
-    dest, collided_with = _destination(home, day, card, source)
+    dest, collided_with, relocation = _destination(home, day, card, source)
     provenance["source_path"] = str(source)
     provenance["collided_with"] = collided_with
-    if dest.exists():
-        shutil.rmtree(dest)
-    dest.mkdir(parents=True)
-    copied = _copy_tree(source, dest, skip_processed=custom_reports)
-    if custom_reports:
-        assert report_root is not None
-        processed_dest = dest / "processed"
-        processed_dest.mkdir(parents=True, exist_ok=True)
-        for child in sorted(report_root.iterdir()):
-            if child.is_symlink() or not child.is_file():
-                continue
-            if not _is_processed_report_file(child.name):
-                continue
-            _copy_file(child, processed_dest / child.name)
-            copied += 1
-    (dest / "provenance.json").write_text(
-        json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    diff_source = source / "repository-provenance" / "uncommitted.diff"
-    if diff_source.is_file():
-        _copy_file(diff_source, dest / "uncommitted.diff")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{dest.name}-", dir=dest.parent))
+    staged = staging / "job"
+    previous_copy = staging / "previous"
+    installed = False
+    relocated = False
+    try:
+        copied = _copy_tree(source, staged, skip_processed=custom_reports)
+        if custom_reports:
+            assert report_root is not None
+            processed_dest = staged / "processed"
+            processed_dest.mkdir(parents=True, exist_ok=True)
+            for child in sorted(report_root.iterdir()):
+                if child.is_symlink() or not child.is_file():
+                    continue
+                if not _is_processed_report_file(child.name):
+                    continue
+                _copy_file(child, processed_dest / child.name)
+                copied += 1
+        (staged / "provenance.json").write_text(
+            json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        diff_source = source / "repository-provenance" / "uncommitted.diff"
+        if diff_source.is_file():
+            _copy_file(diff_source, staged / "uncommitted.diff")
+        try:
+            if relocation is not None:
+                os.replace(*relocation)
+                relocated = True
+            if dest.exists():
+                os.replace(dest, previous_copy)
+            os.replace(staged, dest)
+        except BaseException:
+            if previous_copy.exists():
+                os.replace(previous_copy, dest)
+            if relocated:
+                assert relocation is not None
+                os.replace(relocation[1], relocation[0])
+            raise
+        installed = True
+    finally:
+        # A failed rollback retains both copies for explicit custody repair.
+        if installed or not previous_copy.exists():
+            shutil.rmtree(staging)
     # Rehome only this exact source after its replacement is complete. An
     # unrelated same-name job or failed replacement must keep its snapshot.
     for previous_path, _ in previous:

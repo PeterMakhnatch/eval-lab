@@ -1,18 +1,14 @@
 # Operator and CI tooling
 
-## Purpose
-`scripts/` houses automation utilities for operators, continuous integration, and
-fleet maintenance. It provides hooks, verification tools, profiling harnesses,
-and promotion helpers.
+Start with [the native operator guide](../README.md). This directory holds the
+delivery and evidence tools that guide references. Native application logic
+belongs in `src/evallab/`, not a second operator workflow.
 
 ## What lives here / entry points
 - `scripts/premerge.sh`: Pre-merge validation gate executing local quality checks.
-- `scripts/ci/check_harbor_skips.py`: JUnit skip-reason summary and Harbor-named skip gate for native CI.
-- `scripts/fleet-status.sh`: Fleet tracking and active status report script.
+- `scripts/ci/check_harbor_skips.py`: JUnit skip census for native CI. The native file inventory remains until full discovery is safe.
 - `scripts/line-replay.py`: Standard frozen `replay-v1` assembly-line regression gate (see `docs/line.md`).
 - `scripts/promote_codex_bundle.py`: Sanitization and promotion utility for reviewed run evidence.
-- `scripts/profile/harness.py`: Performance profiling harness and latency budget check.
-- `scripts/ops/`: System service units and continuous-operator daemon configurations.
 
 ## Invariants or rules
 - Platform-owned tooling: `scripts/` belongs to the Platform lane and provides operator and CI automation (cited in `agents/STRUCTURE.md` and `agents/OWNERS.md`).
@@ -24,6 +20,10 @@ and promotion helpers.
 - `uv run pytest tests/test_profile_harness.py`
 - `uv run pytest tests/test_promotion_opencode_r2.py`
 - `bash scripts/premerge.sh`
+
+The [CI contract](../agents/CHECKS.md) owns current checks and the native discovery
+boundary. Existing `scripts/ops/` files are service configuration, not permission
+to install, unload, or change a service. Follow the current approval boundary.
 
 ## What not to add here
 - Do not store one-off ad-hoc shell commands or throwaway analysis scripts here.

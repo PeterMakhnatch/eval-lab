@@ -1,11 +1,18 @@
 ---
-status: living
+status: historical
+source_revision: 7f2d2eed8c8dd80369d3fca2e0889f640ae964a6
 audience:
   - analyst
   - operator
 ---
 
 # Live watch: in-progress trial monitoring
+
+> **Historical manual, not current operator instructions.**
+> Use [the native operator guide](../README.md) for current routes.
+> The [pinned source](https://github.com/PeterMakhnatch/eval-lab/blob/7f2d2eed8c8dd80369d3fca2e0889f640ae964a6/docs/live-watch.md)
+> fixes the revision for historical commands, examples, and relative links.
+> The retained text below does not authorize retired tools, service changes, or spending.
 
 `evallab watch` reads Harbor trial directories **while runs are in progress**
 and raises deterministic alerts. Alerting is read-only: it never touches

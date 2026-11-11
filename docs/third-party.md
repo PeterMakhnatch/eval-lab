@@ -146,6 +146,8 @@ Neither an access receipt nor redistribution provenance claims native upstream a
 Keep `retry.modelFallback: false`. Reject any saved fallback response or a served model different from the pinned launch route.
 The contract replays saved session-v3 events through the worker launch without a live model call.
 Doctor tests config resolution with a true control overlay followed by a false overlay through `PI_CONFIG_FILES`.
+The worker appends its selected YAML to that same variable. Its no-fallback overlay therefore wins over inherited config.
+Do not rely on `--config` alone.
 This proves the config surface, not provider availability or a live response.
 
 For new approved work, use the current `best-model` selection order:

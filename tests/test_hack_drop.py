@@ -624,7 +624,7 @@ def test_autoreview_through_stub_omp_binary(tmp_path: Path) -> None:
 import sys, json, os, pathlib
 args = sys.argv[1:]
 import yaml
-config = pathlib.Path(args[args.index("--config") + 1])
+config = pathlib.Path(os.environ["PI_CONFIG_FILES"].split(os.pathsep)[-1])
 if yaml.safe_load(config.read_text()).get("retry", {}).get("modelFallback") is not False:
     raise SystemExit("worker must explicitly disable model fallback")
 session_dir = None

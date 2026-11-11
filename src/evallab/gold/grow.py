@@ -75,12 +75,15 @@ def decision(publisher_positive: bool, readings: list[dict[str, Any] | None], ir
     return "unjudged", mechanism, tuple(cited)
 
 
-def build(ctx: BankContext, family: str):
+def build(ctx: BankContext, family: str, *, labels: Path = LABELS, receipts: Path = RECEIPTS,
+          registration: dict[str, Any] | None = None):
     """Build one discovered source; preserve publisher labels and raw trajectory bytes."""
-    path = ctx.repo_root / LABELS
+    path = ctx.repo_root / labels
     label_bytes = path.read_bytes()
     label_hash = hashlib.sha256(label_bytes).hexdigest()
-    source = f"{family}-action-v2"
+    if not label_bytes:
+        return
+    source = registration["source"] if registration else f"{family}-action-v2"
     with connect_readonly(ctx.cloud_db) as db:
         for number, line in enumerate(label_bytes.decode().splitlines(), 1):
             row = json.loads(line)
@@ -112,7 +115,7 @@ def build(ctx: BankContext, family: str):
             readings = []
             failures = []
             for index, identity in enumerate(row["readers"]):
-                receipt = RECEIPTS / f"r{index+1}-{row['ordinal']:03d}.receipt.json"
+                receipt = receipts / f"r{index+1}-{row['ordinal']:03d}.receipt.json"
                 data = receipt.read_bytes()
                 if hashlib.sha256(data).hexdigest() != identity["sha256"]:
                     raise ValueError("Action-v2 reader receipt hash differs")
@@ -132,7 +135,7 @@ def build(ctx: BankContext, family: str):
             if state != row["state"] or mechanism != row["mechanism"]:
                 raise ValueError("Compact action label differs from independent-reader admission")
             fields = _common(ctx, source, row["id"], row["task_id"], state, state, label_hash,
-                             f"{LABELS}:{number}", "R1/R2 independent model-reader consensus",
+                             f"{labels}:{number}", "R1/R2 independent model-reader consensus",
                              "action-v2 executed-action review; publisher labels unchanged")
             fields["protocol"] = "action-v2"
             fields["provenance"] = fields["provenance"].model_copy(update={"version": "action-v2"})
@@ -140,9 +143,14 @@ def build(ctx: BankContext, family: str):
                 "at": "2026-11-11", "purpose": "action-v2 DEV action review"
             }) for event in fields["exposure_events"])
             fields.update(_view(ctx, source, row["id"], doc))
+            study_metadata = {}
+            if registration:
+                fields["exposure"] = registration["exposure"]
+                study_metadata = {key: registration[key] for key in ("study", "scoring")}
+                study_metadata["use_state"] = registration["scoring"]
             yield new_item(**fields, mechanism=mechanism, step_locators=locators, label_type="consensus",
                            license="source terms apply; internal only; no rehosting",
-                           metadata={"source_family": family,
+                           metadata={**study_metadata, "source_family": family,
                                      "publisher_positive": row["publisher_positive"], "readers": row["readers"],
                                      "reader_failures": failures, "reason": row.get("reason"),
                                      "amendment": row.get("amendment"),

@@ -199,7 +199,8 @@ class IssueItem(ContractModel):
     trajectory_available: bool | None = None
     trajectory_ref: str | None = None
     trajectory_digest: str | None = None
-    exposure: Literal["exposed", "unexposed", "unknown"] = "unknown"
+    exposure: Literal["exposed", "unexposed", "unknown",
+                      "no recorded exposure; prior history unverifiable"] = "unknown"
     exposure_events: tuple[ExposureEvent, ...] = ()
     metadata: dict[str, Any] = Field(default_factory=dict)
 

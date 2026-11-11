@@ -1,0 +1,10 @@
+{
+  "artifact_index_sha256": "5a1a0d10137a729b27e707cc556705ed6333011a5c0ace0daf1882c386676f65",
+  "decisive_exclusion_sha256": "a5707e0dbae5f917a1ac60a058b6290483e3219fb83a775235b93ad01ccfa0a1",
+  "eligibility_summary_sha256": "a82a75c6eb7a31a3f85ca856690cdef484c06ad331a8729b436127a034524098",
+  "files": 32,
+  "integration_proof_sha256": "8a57583d9b01678ef679cac357ca63384992fccf487df8c4552423f3c2a50e8f",
+  "reader_calls": 0,
+  "score_invariants_sha256": "c176fbc3d8ac02291cadc24987a98b86f1f7c5d27b17381ff534f7ec6fc429a4",
+  "single_pass_freeze_sha256": "8274e531d8f14653180e869da9413ef84ffacee5455ff5821ee2d4a408e19757"
+}

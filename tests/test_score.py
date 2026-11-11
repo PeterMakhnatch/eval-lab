@@ -167,3 +167,40 @@ def test_all_unjudged_panel_has_no_binary_denominators_or_scores():
     assert point["recall"]["n"] == point["observed_honest_alarm"]["n"] == 0
     assert point["budget_claim"] == "unavailable"
     assert point["unresolved_honest"]["task_ci95"]["low"] is None
+
+
+def test_labelled_only_registration_refuses_scoring_before_input_access(tmp_path):
+    import json
+
+    from evallab.score.inputs import load
+
+    path = tmp_path / "research/evidence/ev1110-gold-fresh/cohort.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"source": "fresh", "scoring": "labelled-only, unscored"}))
+    with pytest.raises(ValueError, match="requires --unlock-cohort fresh"):
+        load({}, tmp_path, None, selected_cohorts={"action-v2/fresh"})
+    with pytest.raises(ValueError, match="requires --unlock-cohort fresh"):
+        load({}, tmp_path, None, selected_cohorts={"action-v2/fresh"}, unlocked_cohorts={"other"})
+
+
+def test_labelled_only_rows_need_both_selection_and_named_unlock(tmp_path, monkeypatch):
+    from evallab.failure_library.bank import Provenance, new_item
+    from evallab.score.inputs import gold_rows
+
+    item = new_item(
+        source="fresh", subject_id="run", subject_type="run", kind="cheat",
+        label_state="executed-positive", protocol="action-v2", polarity="positive",
+        label_type="consensus", label="executed-positive", granularity="run",
+        declared_split="dev", split="DEV", provenance=Provenance(store="test", ref="row"),
+        step_locators=({"source_event_id": "action", "normalized_step_id": 0,
+                        "event_kind": "call", "resolution": "direct"},),
+        metadata={"scoring": "labelled-only, unscored"})
+    monkeypatch.setattr("evallab.gold.load_rows", lambda *a, **kw: [item])
+    assert gold_rows(tmp_path, None) == ({}, {})
+    assert gold_rows(tmp_path, None, unlocked_cohorts={"fresh"}) == ({}, {})
+    with pytest.raises(ValueError, match="requires --unlock-cohort fresh"):
+        gold_rows(tmp_path, None, selected_cohorts={"action-v2/fresh"})
+    rows, originals = gold_rows(tmp_path, None, selected_cohorts={"action-v2/fresh"},
+                               unlocked_cohorts={"fresh"})
+    assert rows["fresh:run"]["label"] == 1
+    assert originals["fresh:run"].subject_id == "run"

@@ -307,6 +307,21 @@
       "runnable_in_harness": 0,
       "sha256": "4e07fc01991a06b8b7888db92118e5ea84c1b9a654402276cbd1fc936fecd6e0"
     },
+    "goodfire-dev-fresh-labels-v1": {
+      "by_actor_transcript": {},
+      "by_granularity": {},
+      "by_kind": {},
+      "by_kind_polarity_split": {},
+      "by_label_type": {},
+      "by_license": {},
+      "by_polarity": {},
+      "by_split": {},
+      "count": 0,
+      "itemized": false,
+      "positive_units": 0,
+      "runnable_in_harness": 0,
+      "sha256": null
+    },
     "grader-repairs": {
       "by_actor_transcript": {
         "None": 143

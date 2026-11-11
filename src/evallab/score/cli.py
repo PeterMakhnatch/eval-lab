@@ -22,7 +22,9 @@ def command(args: argparse.Namespace, repo_root: Path, **_: Any) -> int:
         raise ValueError("score thresholds must use >=")
     for ref in config["code_sources"]:
         inputs.source(ref, repo_root)
-    cohorts, predictions, extra = inputs.load(config["inputs"], repo_root, args.gold)
+    cohorts, predictions, extra = inputs.load(
+        config["inputs"], repo_root, args.gold, selected_cohorts=set(config["cohorts"]),
+        unlocked_cohorts=set(getattr(args, "unlock_cohort", None) or ()))
     coordinates = localization.resolved(extra["gold_rows"], repo_root)
     value, receipt = board.build(cohorts, predictions, config, coordinates, extra["policy_counts"])
     value["freeze_file_sha256"] = inputs.digest(args.freeze)
@@ -72,6 +74,8 @@ def build_score_parser(commands: Any) -> None:
     parser.add_argument("--freeze", type=Path, required=True, help="Pinned DEV input, prediction, and threshold manifest")
     parser.add_argument("--tools", choices=("all-retained",), default="all-retained")
     parser.add_argument("--mode", choices=("cached",), default="cached")
+    parser.add_argument("--unlock-cohort", action="append", default=None, metavar="NAME",
+                        help="Explicitly permit one named labelled-only cohort selected by the freeze")
     parser.add_argument("--out", type=Path, default=results_root() / "score" / "qa-v1",
                         help="New output directory (default: results home/score/qa-v1); never overwrite existing data")
     parser.set_defaults(func=command)

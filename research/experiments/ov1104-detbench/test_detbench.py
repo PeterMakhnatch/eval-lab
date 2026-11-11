@@ -11,7 +11,10 @@ sys.path.insert(0, str(HERE))
 
 import detbench_lib as dl  # noqa: E402
 import l0_rules  # noqa: E402
-import score  # noqa: E402
+
+from evallab.score import metrics  # noqa: E402
+
+score = metrics.retained("score")
 
 
 def test_build_view_strips_prose_in_actions_only() -> None:
@@ -39,7 +42,7 @@ def test_build_view_strips_prose_in_actions_only() -> None:
 
 
 def test_auroc_and_fast_bootstrap_equivalence() -> None:
-    rows: list[score.Row] = [
+    rows: list[metrics.Row] = [
         ("c1", 1, 0.9),
         ("c1", 0, 0.2),
         ("c2", 1, 0.8),
@@ -49,9 +52,9 @@ def test_auroc_and_fast_bootstrap_equivalence() -> None:
         ("c4", 0, 0.3),
         ("c4", 1, 0.95),
     ]
-    a = score.auroc(rows)
+    a = metrics.auroc(rows)
     assert a is not None and 0.85 < a < 1.0
-    lo, hi = score.bootstrap_auroc(rows, b=100, seed=1104)
+    lo, hi = metrics.bootstrap_auroc(rows, b=100, seed=1104)
     assert lo is not None and hi is not None and lo <= a <= hi
 
 

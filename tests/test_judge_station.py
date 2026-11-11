@@ -1979,7 +1979,7 @@ def test_the_same_rollout_cannot_be_listed_under_two_run_ids(tmp_path: Path) -> 
 def test_line_priority_queue_keeps_file_order_and_reveals_priority_only_after_verdict(
     tmp_path: Path,
 ) -> None:
-    from evallab.production.factory_autoreview import append_judge_queue_entry
+    from evallab.production.judge_station import append_judge_queue_entry
 
     path = tmp_path / "line-queue.jsonl"
     provenance = {"reader": "j3", "reading_sha256": "a" * 64, "status": "complete"}

@@ -915,8 +915,7 @@ def run_line(spec_path: Path, repo_root: Path) -> Path:
 
 def _run_line(spec_path: Path, repo_root: Path) -> Path:
     from evallab.line.scoreboard import build_scoreboard, render_scoreboard
-    from evallab.production.factory_autoreview import append_judge_queue_entry
-    from evallab.production.judge_station import STATE_DIR, QueueEntry
+    from evallab.production.judge_station import STATE_DIR, QueueEntry, append_judge_queue_entry
 
     spec = load_spec(spec_path)
     intake_started = time.time()

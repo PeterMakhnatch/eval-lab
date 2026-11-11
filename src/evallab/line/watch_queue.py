@@ -1,8 +1,8 @@
 """Idempotent, crash-safe publication of an increment's review/audit runs to a Judge Station queue.
 
-The Station queue format and its idempotent appender are the production factory's
-(``append_judge_queue_entry``: one row per ``run_id``, a repeated run is skipped). That helper
-alone is not enough for a long-running watcher: two writers can race its read-then-append, and a
+The Station queue format and its idempotent appender
+(``append_judge_queue_entry``: one row per ``run_id``, a repeated run is skipped)
+alone does not protect a long-running watcher: two writers can race its read-then-append, and a
 crash can leave a torn last line. This module adds, around the same helper, an exclusive lock
 and a copy-append-fsync-rename so the queue file is always either the old or the new complete
 file. The queue named in a watch config is owned by that watcher (one writer); a foreign writer
@@ -46,8 +46,7 @@ def read_queue_ids(queue: Path) -> list[str]:
 
 def publish(queue: Path, rows: list[dict[str, Any]]) -> int:
     """Append the rows whose run is not queued yet; return how many were added."""
-    from evallab.production.factory_autoreview import append_judge_queue_entry
-    from evallab.production.judge_station import QueueEntry
+    from evallab.production.judge_station import QueueEntry, append_judge_queue_entry
 
     queue.parent.mkdir(parents=True, exist_ok=True)
     with queue.with_name(queue.name + ".lock").open("a+") as lock:

@@ -234,51 +234,6 @@ def register_parser(commands: Any) -> None:
     )
     cheatbench.set_defaults(func=_command)
 
-    export = actions.add_parser(
-        "export-qc-reports",
-        help="Write validated Trust & QC dashboard reports from a live database; never upload",
-        description=(
-            "Generates the trust-tier census from a read-only database and validates recorded "
-            "Hackbook QC and tune-vs-cross-test reports with the dashboard's own validator, "
-            "copying them byte for byte. Publishes one new directory; uploads nothing."
-        ),
-    )
-    export.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
-    export.add_argument("--source-database", type=Path, required=True)
-    export.add_argument("--output-directory", type=Path, required=True)
-    export.add_argument(
-        "--hackbook-qc", type=Path, action="append", default=[],
-        help="Recorded evallab.hackbook_qc/v1 report (evallab hackbook qc --out); repeatable",
-    )
-    export.add_argument(
-        "--tune-cross-test", type=Path, action="append", default=[],
-        help="Recorded evallab.tune_cross_test/v1 report; repeatable",
-    )
-    export.add_argument(
-        "--ts4-manifest", type=Path,
-        help="Recorded TS-3/TS-4 manifest.json (cross-key audit, strictly-DEV task list, and any "
-        "declared affirmative-DEV orthogonal selection); requires --ts4-cells",
-    )
-    export.add_argument(
-        "--ts4-cells", type=Path,
-        help="Retained per-cell results (<dataset>/<task>/<model>/<turn>/result.json); counts "
-        "executed differentials per arm and never above its evaluated cells",
-    )
-    export.add_argument(
-        "--cm4-directory", type=Path,
-        help="Recorded CM-4 results directory (freeze, score2-*, crosskey, judge receipts)",
-    )
-    export.add_argument(
-        "--oq5-directory", type=Path,
-        help="Recorded OQ-5 results directory (dev-summary, cross-summary, freeze); with "
-        "--cm5-directory, --ts4-manifest, --ts4-cells and --cm4-directory builds the system playbook",
-    )
-    export.add_argument(
-        "--cm5-directory", type=Path,
-        help="Recorded CM-5 results directory (freeze, e2escore-*, judge receipts)",
-    )
-    export.add_argument("--generated-at", metavar="ISO", help="Census timestamp (default: now, UTC)")
-    export.set_defaults(func=_command)
 
     facets = actions.add_parser(
         "import-run-facets",
@@ -320,36 +275,6 @@ def register_parser(commands: Any) -> None:
     findings.add_argument("--jsonl", type=Path, required=True, help="Append-only findings JSONL")
     findings.set_defaults(func=_command)
 
-    reliability = actions.add_parser(
-        "import-field-reliability",
-        help="Write run-atlas/field-reliability-v1.json from a VF-11 blind re-rate receipt (agreement and n only)",
-    )
-    reliability.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
-    reliability.add_argument("--receipt", type=Path, required=True, help="VF-11 receipt JSON")
-    reliability.add_argument(
-        "--output-directory", type=Path, required=True,
-        help="The run-atlas state directory that receives field-reliability-v1.json",
-    )
-    reliability.add_argument(
-        "--replace", action="store_true", help="Overwrite an existing, different file",
-    )
-    reliability.set_defaults(func=_command)
-
-    scope = actions.add_parser(
-        "export-detector-scope",
-        help="Write trace-tools/detector-scope-v1.json from retained CM-11, CM-11b and CM-9 receipts (counts only)",
-    )
-    scope.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
-    scope.add_argument("--hackbench-directory", type=Path, required=True, help="CM-11 receipt directory (union-command.json, freeze.json)")
-    scope.add_argument("--cascade-measurement", type=Path, required=True, help="CM-11b measurement.json (cascade v8 on DEV)")
-    scope.add_argument("--goodfire-scores", type=Path, required=True, help="CM-9 e2escore-*-g.json (Stage 1 per trace)")
-    scope.add_argument("--cheatbench-scores", type=Path, required=True, help="CM-9 e2escore-*-cb.json (Stage 1 per trace)")
-    scope.add_argument(
-        "--output-directory", type=Path, required=True,
-        help="The trace-tools state directory that receives detector-scope-v1.json",
-    )
-    scope.add_argument("--replace", action="store_true", help="Overwrite an existing, different file")
-    scope.set_defaults(func=_command)
 
     sb1 = actions.add_parser(
         "seeker-error-first",
@@ -412,29 +337,6 @@ def register_parser(commands: Any) -> None:
     )
     sb1.set_defaults(func=_command)
 
-    known = actions.add_parser(
-        "seeker-known-hacks",
-        help="Validate retained DEV seeker witnesses; default dry-run writes nothing",
-        description=(
-            "Export full retained trajectories separately from local-only known-hack labels. "
-            "No models or graders run. --stage writes local JSONL; only --apply writes the "
-            "explicit cloud trace database. Never upload the local labels JSONL."
-        ),
-    )
-    known.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
-    known.add_argument("--cells-root", type=Path, required=True)
-    known.add_argument("--state-dir", type=Path, help="Local staging/labels directory")
-    known.add_argument("--assignments-csv", type=Path, help="Split ledger (default: repository copy)")
-    known.add_argument("--cloud-trace-db", help="Explicit database target; used only with --apply")
-    known.add_argument(
-        "--visible-tests", action="store_true",
-        help="Require hide_tests=false instead of the default hidden-tests condition",
-    )
-    known_mode = known.add_mutually_exclusive_group()
-    known_mode.add_argument("--dry-run", action="store_true", help="Default: validate/count; write nothing")
-    known_mode.add_argument("--stage", action="store_true", help="Write staging and local labels only")
-    known_mode.add_argument("--apply", action="store_true", help="Stage and ingest ordinary traces; labels stay local")
-    known.set_defaults(func=_command)
 
 
 
@@ -644,22 +546,6 @@ def _export_cluster_scope(args: argparse.Namespace, root: Path) -> dict[str, Any
     )
 
 
-def _export_qc_reports(args: argparse.Namespace, root: Path) -> dict[str, Any]:
-    from evallab.production.qc_reports import export_qc_reports
-
-    return export_qc_reports(
-        source_database=_local_path(root, args.source_database),
-        output_directory=_local_path(root, args.output_directory),
-        repo_root=root,
-        hackbook_qc=tuple(_local_path(root, path) for path in args.hackbook_qc),
-        tune_cross_test=tuple(_local_path(root, path) for path in args.tune_cross_test),
-        ts4_manifest=_optional_path(root, args.ts4_manifest),
-        ts4_cells=_optional_path(root, args.ts4_cells),
-        cm4_directory=_optional_path(root, args.cm4_directory),
-        oq5_directory=_optional_path(root, args.oq5_directory),
-        cm5_directory=_optional_path(root, args.cm5_directory),
-        generated_at=args.generated_at,
-    )
 
 
 def _seeker_error_first(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], int]:
@@ -803,9 +689,6 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
         if args.prod_command == "export-cluster-scope":
             _emit({"command": args.prod_command, **_export_cluster_scope(args, root)}, args)
             return 0
-        if args.prod_command == "export-qc-reports":
-            _emit({"command": args.prod_command, **_export_qc_reports(args, root)}, args)
-            return 0
         if args.prod_command == "import-run-facets":
             from evallab.production.cloud_trace_db import CloudTraceDatabase, import_run_facets
             from evallab.production.corpus_queue import CorpusRegistry
@@ -838,55 +721,10 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 )
             _emit({"command": args.prod_command, **receipt}, args)
             return 0
-        if args.prod_command == "import-field-reliability":
-            from evallab.production.field_reliability import (
-                from_vf11_receipt,
-                write_field_reliability,
-            )
-
-            document = from_vf11_receipt(
-                json.loads(_resolve(root, args.receipt).read_text(encoding="utf-8"))
-            )
-            receipt = write_field_reliability(
-                _resolve(root, args.output_directory), document, replace=args.replace,
-            )
-            _emit({"command": args.prod_command, **receipt}, args)
-            return 0
-        if args.prod_command == "export-detector-scope":
-            from evallab.production import detector_scope
-
-            document = detector_scope.build_scope([
-                *detector_scope.from_hackbench(_resolve(root, args.hackbench_directory)),
-                *detector_scope.from_cascade_measurement(_resolve(root, args.cascade_measurement)),
-                *detector_scope.from_stage1_scores(
-                    _resolve(root, args.goodfire_scores), _resolve(root, args.cheatbench_scores),
-                ),
-            ])
-            receipt = detector_scope.write_scope(
-                _resolve(root, args.output_directory), document, replace=args.replace,
-            )
-            _emit({"command": args.prod_command, **receipt}, args)
-            return 0
         if args.prod_command == "seeker-error-first":
             receipt, exit_code = _seeker_error_first(args, root)
             _emit({"command": args.prod_command, **receipt}, args)
             return exit_code
-        if args.prod_command == "seeker-known-hacks":
-            from evallab.production.seeker_known_hacks import DEFAULT_STATE_DIR, export_known_hacks
-
-            receipt = export_known_hacks(
-                _local_path(root, args.cells_root),
-                state_dir=_local_path(root, args.state_dir) if args.state_dir else DEFAULT_STATE_DIR,
-                assignments_csv=(
-                    _local_path(root, args.assignments_csv)
-                    if args.assignments_csv else root / "research/answer-keys/splits/assignments.csv"
-                ),
-                mode="apply" if args.apply else "stage" if args.stage else "dry-run",
-                database=_database(root, args.cloud_trace_db) if args.cloud_trace_db else None,
-                expected_hide_tests=not args.visible_tests,
-            )
-            _emit({"command": args.prod_command, **receipt}, args)
-            return 0
         if args.prod_command == "status":
             with _open_status_queue(args, root) as connection:
                 _emit({"command": args.prod_command, **_snapshot(connection)}, args)

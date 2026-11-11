@@ -33,7 +33,7 @@ not even be launched with its prompt (the runner raised ``OSError``/``ValueError
 model was called) is ``outcome='prompt_rejected'``, kept apart from
 ``generation_failed_or_truncated``.
 
-Retained ``result.json`` is compatible with ``evallab.production.qc_reports``
+Retained ``result.json`` preserves the historical QC receipt contract
 (``attestation_ok``, ``requested_model_route``, ``served_*``, ``hide_tests``,
 ``llm_stdout_sha256`` == sha256(``response.jsonl``), ``llm_solve_sha256`` ==
 ``executed_solve_sha256``, ``original_reward``, ``repaired_reward``,
@@ -69,12 +69,8 @@ from typing import Any, Literal, Protocol
 from evallab.candidate_runner import run_candidate
 from evallab.execution_backend import ExecutionBackendConfig
 from evallab.failure_library.store import default_state_root
+from evallab.production.actor_cas import read_owned_file
 from evallab.production.cloud_trace_retriever import TraceRetrievalResult
-from evallab.production.qc_reports import (
-    _served_requested_route,
-    _ts4_outcome,
-    _verify_factorial_cell_digests,
-)
 from evallab.production.seeker_worker import (
     _TOKEN_RE,
     MECHANISM_CLASSES,
@@ -142,6 +138,36 @@ _SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 _SERVED_ROUTE_REASONS = frozenset({"served_route_mismatch", "missing_served_route"})
 # C0 controls except tab (\x09) and newline (\x0a), and lone UTF-16 surrogates.
 _PROMPT_CONTROL_CHARS = re.compile("[\x00-\x08\x0b-\x1f\ud800-\udfff]")
+
+
+def _served_requested_route(cell: dict[str, Any], route: str) -> bool:
+    provider, model = cell.get("served_provider"), cell.get("served_model")
+    return bool(model) and route in (model, f"{provider}/{model}")
+
+
+def _ts4_outcome(cell: dict[str, Any], model: str) -> tuple[bool, bool]:
+    """(attested, executed differential); a differential only counts on an attested cell."""
+    ok = cell.get("attestation_ok") is True and _served_requested_route(cell, model)
+    hit = ok and cell.get("original_reward") == 1.0 and cell.get("repaired_reward") == 0.0
+    return ok, hit
+
+
+def _verify_factorial_cell_digests(cell: dict[str, Any], cell_directory: Path) -> None:
+    """Refuse a factorial cell whose recorded LLM stdout digest does not bind its file."""
+    expected = cell.get("llm_stdout_sha256")
+    if expected is None:
+        return
+    if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+        raise ValueError(f"{cell_directory} has a malformed llm_stdout_sha256")
+    artifact = cell_directory / "response.jsonl"
+    try:
+        payload = read_owned_file(artifact)
+    except FileNotFoundError as exc:
+        raise ValueError(
+            f"{cell_directory} records llm_stdout_sha256 but response.jsonl is missing"
+        ) from exc
+    if hashlib.sha256(payload).hexdigest() != expected:
+        raise ValueError(f"{artifact} does not match the recorded llm_stdout_sha256")
 
 
 class CohortError(ValueError):

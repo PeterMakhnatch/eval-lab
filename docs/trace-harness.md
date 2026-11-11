@@ -29,6 +29,11 @@ local-only, counts only here). "Reader" is the model that reads the trace.
 
 ## Components
 
+The table records measurements before the factory retirement.
+It is not a current command list.
+The autonomous Atlas, Scout, and Docent watch producers are retired.
+Use `evallab score` for current cached measurements and `evallab --help` for supported commands.
+
 | component | command | reads | writes | consumed by | latest measured number | reader |
 |---|---|---|---|---|---|---|
 | Stage 1: tripwires, incremental monitor, command cues (`tripwires.py` RULES_VERSION 3, `production/monitor_worker.py`, `production/command_prefilter.py`) | no CLI; library calls (`scan_trace`, `scan_prefix`, `MisalignmentLiveWorker`) | agent steps of one run (observed prefix) | nothing; cards are in memory. Frozen results: `trace-tools/cascade-stage1-goodfire-dev.jsonl` | window cascade; `atlas clusters --replay-rules`; tool scorecard (Stage-1 baseline) | "any card" on GF-200: 60/80 enacted, 32/70 clean (TT-4 README). HB-169: 105 alarmed; exact gold command 9/169 = 5.3% (CM-11) | none, deterministic |
@@ -68,9 +73,6 @@ Trace Tools operations (offline, read-only unless stated):
   and `laminar_copy` harness detectors skip and count. Signal filters have no trace-id
   predicate, so they stay excluded by the required opt-in tag: `laminar signals` and the
   opt-in upload guard refuse if a copy carries that tag. `owner_cleanup` still reads them.
-- `scout-watch` keeps a derived `coverage-v1.json` (ledger SHA-256 plus projection and
-  scanner contract) and opens the transcript store only when a transcript exists.
-  Admission is re-decided every sweep.
 - `python -m evallab.readers.metr_campaign_plan prepare|export`: offline planner for the
   frozen 200 Goodfire runs plus the disjoint rest of admitted DEV. `export` converts only
   already-stored METR results into `trace-findings/v1`; an unread run has no finding, a

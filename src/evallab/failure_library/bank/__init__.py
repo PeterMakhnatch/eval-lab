@@ -20,18 +20,22 @@ of counts instead of items.
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import importlib
 import json
 import os
 import pkgutil
 import re
+import tempfile
+import threading
 from collections import Counter
 from collections.abc import Iterable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, BinaryIO, Literal
 
 from pydantic import Field, model_validator
 
@@ -81,6 +85,56 @@ CLOUD_DB_ENV = "EVALLAB_CLOUD_TRACE_DB"
 PROD_LIVE_ENV = "EVALLAB_PROD_LIVE_ROOT"
 CROSS_TEST_REGISTRY_ENV = "EVALLAB_CROSS_TEST_REGISTRY"
 TASK_PACKAGE_ROOTS_ENV = "EVALLAB_TASK_PACKAGE_ROOTS"
+
+
+_THREAD_LOCK = threading.RLock()
+_HELD_LOCKS: dict[Path, tuple[BinaryIO, int]] = {}
+
+
+@contextmanager
+def bank_writer_lock(bank: IssueBank) -> Iterator[None]:
+    """Serialize writers sharing either a manifest or local item directory.
+
+    Locks live outside the checkout, and are keyed by the protected path rather
+    than ``state_root`` alone: two state roots can still share one manifest.
+    The process lock makes the file locks thread-safe and reentrant, so the core
+    build hook can nest inside a refresh without acquiring its own lock twice.
+    """
+    lock_root = Path(tempfile.gettempdir()) / f"evallab-issue-bank-locks-{os.getuid()}"
+    keys = sorted(
+        {str(bank.manifest_path.resolve()), str(bank.items_root.resolve())}
+    )
+    with _THREAD_LOCK:
+        lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        acquired: list[Path] = []
+        try:
+            for key in keys:
+                path = lock_root / (hashlib.sha256(key.encode()).hexdigest() + ".lock")
+                held = _HELD_LOCKS.get(path)
+                if held is not None:
+                    _HELD_LOCKS[path] = (held[0], held[1] + 1)
+                else:
+                    descriptor = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+                    handle = os.fdopen(descriptor, "a+b")
+                    try:
+                        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+                    except BaseException:
+                        handle.close()
+                        raise
+                    _HELD_LOCKS[path] = (handle, 1)
+                acquired.append(path)
+            yield
+        finally:
+            for path in reversed(acquired):
+                handle, depth = _HELD_LOCKS[path]
+                if depth > 1:
+                    _HELD_LOCKS[path] = (handle, depth - 1)
+                else:
+                    del _HELD_LOCKS[path]
+                    try:
+                        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                    finally:
+                        handle.close()
 
 
 def make_item_id(source: str, subject_id: str, kind: str, locator: str = "") -> str:
@@ -337,8 +391,6 @@ class IssueBank:
 
     def build(self, ctx: BankContext, sources: Iterable[str] | None = None) -> dict[str, Any]:
         """Rebuild the named sources (all by default); return the updated manifest."""
-        from evallab.failure_library.bank.refresh import bank_writer_lock
-
         with bank_writer_lock(self):
             known = available_sources()
             wanted = list(known) if sources is None else list(sources)

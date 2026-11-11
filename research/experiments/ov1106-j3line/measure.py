@@ -20,6 +20,8 @@ from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from evallab.score.metrics import wilson
+
 HERE = Path(__file__).resolve().parent
 DETBENCH = Path('/private/tmp/ov1104/shared/detbench')
 RAW_CACHE = Path('/private/tmp/ov1104/judges/out/j2b__openai-codex__gpt-6.1-terra/results')
@@ -443,7 +445,7 @@ def line_table(args):
         for (corpus, label), c in sorted(counts.items()):
             n = sum(c.values())
             item = {'corpus': corpus, 'label': label, 'n': n, 'keep': c['keep'], 'review': c['review'],
-                    'drop': c['drop'], 'keep_rate': c['keep'] / n, 'keep_rate_ci95': score.wilson(c['keep'], n)}
+                    'drop': c['drop'], 'keep_rate': c['keep'] / n, 'keep_rate_ci95': wilson(c['keep'], n)}
             table.append(item)
             md.append(f'| {name} | {corpus} | {"cheat" if label else "honest"} | {n} | {c["keep"]} | {c["review"]} | {c["drop"]} | {bounded(item["keep_rate"], item["keep_rate_ci95"])} |')
         if reference is None:

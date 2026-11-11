@@ -111,6 +111,41 @@ class QueueEntry:
     review_priority_source: Mapping[str, Any] | None = None
 
 
+def append_judge_queue_entry(queue_file: Path, entry: QueueEntry) -> bool:
+    """Append a QueueEntry to the Judge Station queue file idempotently.
+
+    Returns True if appended, False if run_id was already present.
+    """
+    queue_file.parent.mkdir(parents=True, exist_ok=True)
+    if queue_file.is_file():
+        existing = queue_file.read_text(encoding="utf-8").splitlines()
+        for line in existing:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+                if row.get("run_id") == entry.run_id:
+                    return False
+            except Exception:
+                continue
+    record = {
+        "run_id": entry.run_id,
+        "reason": entry.reason,
+        "priority": entry.priority,
+        "source": entry.source,
+        "reveal": entry.reveal,
+    }
+    if entry.source == "line" or entry.review_priority is not None or entry.review_priority_source is not None:
+        record.update(
+            review_priority=entry.review_priority,
+            review_priority_source=entry.review_priority_source,
+        )
+    with queue_file.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
+    return True
+
+
 def load_queue(path: Path) -> list[QueueEntry]:
     """Read a queue file: JSON objects with ``run_id`` or one bare id per line."""
     entries: dict[str, QueueEntry] = {}

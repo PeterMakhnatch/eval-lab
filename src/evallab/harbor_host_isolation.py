@@ -39,7 +39,6 @@ from harbor.environments.capabilities import (  # ty: ignore[unresolved-import]
     EnvironmentCapabilities,
 )
 from harbor.environments.docker.docker import (  # ty: ignore[unresolved-import]
-    DockerEnvironment,
     _sanitize_docker_compose_project_name,
 )
 from harbor.models.task.config import NetworkMode, NetworkPolicy  # ty: ignore[unresolved-import]

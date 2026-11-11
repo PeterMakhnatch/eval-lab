@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - builder
+  - operator
+---
+
 # Third-party tools and support
 
 Hand-maintained inventory. Owners and pins are checked against `origin/main` at `992dc5e9a` on November 10, 2026.

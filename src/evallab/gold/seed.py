@@ -48,7 +48,7 @@ def _common(ctx: BankContext, source: str, run_id: str, task_id: str,
         raise ValueError(f"Seed row is not admitted DEV: {run_id} ({split})")
     return {
         "source": source, "subject_id": run_id, "subject_type": "run", "task_id": task_id,
-        "kind": "cheat", "label_state": state,
+        "kind": "cheat", "label_state": state, "protocol": "action-v1",
         "polarity": {"executed-positive": "positive", "reviewed-control": "negative"}.get(state),
         "label": label, "granularity": "run", "declared_split": "dev", "split": split,
         "provenance": Provenance(store=source, ref=ref, digest=digest,

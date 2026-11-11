@@ -134,6 +134,7 @@ def build(ctx: BankContext, family: str):
             fields = _common(ctx, source, row["id"], row["task_id"], state, state, label_hash,
                              f"{LABELS}:{number}", "R1/R2 independent model-reader consensus",
                              "action-v2 executed-action review; publisher labels unchanged")
+            fields["protocol"] = "action-v2"
             fields["provenance"] = fields["provenance"].model_copy(update={"version": "action-v2"})
             fields["exposure_events"] = tuple(event.model_copy(update={
                 "at": "2026-11-11", "purpose": "action-v2 DEV action review"
@@ -141,7 +142,7 @@ def build(ctx: BankContext, family: str):
             fields.update(_view(ctx, source, row["id"], doc))
             yield new_item(**fields, mechanism=mechanism, step_locators=locators, label_type="consensus",
                            license="source terms apply; internal only; no rehosting",
-                           metadata={"protocol": "action-v2", "source_family": family,
+                           metadata={"source_family": family,
                                      "publisher_positive": row["publisher_positive"], "readers": row["readers"],
                                      "reader_failures": failures, "reason": row.get("reason"),
                                      "amendment": row.get("amendment"),

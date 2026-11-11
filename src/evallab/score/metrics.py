@@ -272,6 +272,8 @@ def clustered_rates(runs: dict[str, dict], flags: dict[str, bool], *, draws: int
     names = ("recall", "honest_alarm")
     pairs = {task: [(counts[2 + y] - (counts[4 + y] if other is not None else 0), counts[y])
                     for y in (1, 0)] for task, counts in groups.items()}
+    if not pairs:
+        return {name: _interval([], draws) for name in names}
     return dict(zip(names, clustered_count_rates(pairs, draws=draws, seed=seed), strict=True))
 
 

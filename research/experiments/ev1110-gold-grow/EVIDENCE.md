@@ -21,7 +21,7 @@ Citation resolution: 483/496.
 | goodfire | 0 | 0 | 1 | 68 |
 | terminal-wrench | 100 | 121 | 7 | 76 |
 
-These are reader-qualified decisions, not new registry admissions.
+The public Gold loader admits these rows in protocol-separated sources.
 
 ## External receipts
 

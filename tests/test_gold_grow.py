@@ -61,3 +61,47 @@ def test_result_citation_resolves_to_the_executed_action():
     assert mechanism == "reward_or_verification_fabrication"
     assert {ref.normalized_step_id for ref in refs} == {7}
     assert {ref.source_event_id for ref in refs} == {"action", "result"}
+
+
+def test_protocol_overlap_keeps_labels_separate_and_unscored_rows_absent(tmp_path, monkeypatch):
+    import json
+
+    from evallab.failure_library.bank import BankContext, IssueBank, Provenance, new_item
+    from evallab.gold import load_rows
+    from evallab.gold.counts import counts
+    from evallab.score.inputs import digest, load
+
+    monkeypatch.setattr(BankContext, "strict_split", lambda self, split, **_: split.upper())
+    bank = IssueBank(tmp_path, state_root=tmp_path / "state")
+    bank.items_root.mkdir(parents=True)
+    for protocol, state in (("action-v1", "reviewed-control"), ("action-v2", "unjudged")):
+        source = f"goodfire-{protocol}"
+        item = new_item(source=source, subject_id="same-run", subject_type="run", kind="cheat",
+                        label_state=state, protocol=protocol,
+                        polarity="negative" if state == "reviewed-control" else None,
+                        label_type="consensus", label=state, granularity="run",
+                        declared_split="dev", split="DEV", provenance=Provenance(store="test", ref="row"))
+        rows = [item]
+        if protocol == "action-v2":
+            rows.append(new_item(**{k: v for k, v in item.model_dump().items() if k != "item_id"}
+                                 | {"subject_id": "fresh-run", "metadata": {"use_state": "labelled-only, unscored"}}))
+        bank.items_path(source).write_text("".join(row.model_dump_json() + "\n" for row in rows))
+    intake, labels = tmp_path / "runs.jsonl", tmp_path / "labels.jsonl"
+    intake.write_text(json.dumps({"run_id": "same-run", "task_id": "task", "corpus": "goodfire"}) + "\n")
+    labels.write_text('{"id":"same-run","is_cheat":false}\n')
+    config = {"replay": {"runs": {"path": str(intake), "sha256": digest(intake)},
+                         "labels": [{"path": str(labels), "sha256": digest(labels)}],
+                         "trace": {"path": str(tmp_path / "absent-trace")},
+                         "decisions": {"path": str(tmp_path / "absent-decisions")},
+                         "trajectories": {"same-run": {"unavailable": "fixture"}}},
+              "j3": {"path": str(tmp_path / "absent-j3")}, "impossible_signals": {}}
+    cohorts, predictions, _ = load(config, tmp_path, bank.state_root)
+    panel = cohorts["action-v2/goodfire-action-v2"]
+    assert set(panel) == {"goodfire-action-v2:same-run"}
+    assert panel["goodfire-action-v2:same-run"]["label"] is None
+    assert cohorts["A"]["same-run"]["label"] == 0
+    assert set(cohorts["C"]) == {"same-run"}
+    assert predictions["action-v2/goodfire-action-v2"]["L0"] == {}
+    totals = counts(load_rows(tmp_path, bank.state_root))
+    assert totals["binary_rows"] == 1
+    assert totals["protocol"] == {"action-v1": 1, "action-v2": 2}

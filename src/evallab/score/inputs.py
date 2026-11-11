@@ -190,7 +190,7 @@ def gold_rows(root: Path, state_root: Path | None) -> tuple[dict[str, dict], dic
 
     output, originals = {}, {}
     for row in load_rows(root, state_root=state_root):
-        if row.exposure == "labelled-only, unscored":
+        if row.metadata.get("use_state") == "labelled-only, unscored":
             continue
         if row.split.upper() != "DEV" or row.declared_split.upper() != "DEV":
             raise ValueError("score step 1 permits DEV rows only")

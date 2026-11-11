@@ -160,6 +160,15 @@ def test_superseded_by_is_empty_without_a_current_later_verdict() -> None:
     assert gaps["4.0.0"]["superseded_by"] == ""
 
 
+def test_cells_without_an_evidence_date_are_refused(tmp_path: Path) -> None:
+    # A cell with no date cannot be ordered against another source, so the row
+    # would silently read the wrong evidence.
+    package = Package("library/tasks/task", "peter/task")
+    cells = [Cell(package.path, "4.0.0", "clean", None, "cells.json", "")]
+    with pytest.raises(MODULE["CoverageError"], match="cells carry no evidence date"):
+        assemble([package], cells, root=tmp_path)
+
+
 def test_a_new_package_directory_gets_explicit_none_rows(tmp_path: Path) -> None:
     _package(tmp_path, "library/tasks/brand-new", "peter/brand-new")
     packages = discover_packages(tmp_path)
@@ -178,12 +187,46 @@ def test_the_guard_reports_a_package_without_a_row() -> None:
     assert gaps == [("library/tasks/lonely", version) for version in LADDER_VERSIONS]
 
 
+def test_a_missing_library_tasks_directory_is_refused(tmp_path: Path) -> None:
+    # No library/tasks at all: this root is not a checkout the builder can read.
+    with pytest.raises(
+        MODULE["CoverageError"], match="library tasks directory is missing"
+    ):
+        discover_packages(tmp_path)
+
+
+def test_a_library_with_no_task_packages_is_refused(tmp_path: Path) -> None:
+    # The directory exists but holds no task.toml: an empty library is a bad
+    # root, not a library with zero rows.
+    (tmp_path / "library/tasks").mkdir(parents=True)
+    with pytest.raises(MODULE["CoverageError"], match="no task packages found under"):
+        discover_packages(tmp_path)
+
+
 def test_a_package_without_a_declared_task_name_is_refused(tmp_path: Path) -> None:
     task_dir = tmp_path / "library/tasks/nameless"
     task_dir.mkdir(parents=True)
     (task_dir / "task.toml").write_text('[task]\nversion = "1.0.0"\n', encoding="utf-8")
-    with pytest.raises(MODULE["CoverageError"]):
+    with pytest.raises(
+        MODULE["CoverageError"], match=r"declares no \[task\] name in task.toml"
+    ):
         discover_packages(tmp_path)
+
+
+def test_two_packages_with_the_same_task_name_are_refused(tmp_path: Path) -> None:
+    _package(tmp_path, "library/tasks/one", "peter/same")
+    _package(tmp_path, "library/tasks/two", "peter/same")
+    with pytest.raises(
+        MODULE["CoverageError"], match="two library packages declare the same"
+    ):
+        discover_packages(tmp_path)
+
+
+def test_a_missing_evidence_input_is_refused(tmp_path: Path) -> None:
+    # Every reader starts at _read_json; a deleted evidence file must name the
+    # path instead of raising FileNotFoundError from further down.
+    with pytest.raises(MODULE["CoverageError"], match="evidence input is missing"):
+        MODULE["_read_json"](tmp_path / "research/evidence/missing/cells.json")
 
 
 def test_verdict_comes_from_the_newest_source_and_keeps_the_old_one() -> None:
@@ -329,6 +372,57 @@ def test_a_multi_package_ledger_places_and_gates_each_cell_by_its_own_task_dir(
     assert MODULE["unread_ledgers"](tmp_path, cells) == []
 
 
+def test_a_ledger_cell_that_is_not_an_object_is_refused(tmp_path: Path) -> None:
+    # A record this builder cannot read must fail loudly rather than vanish.
+    _ledger(
+        tmp_path,
+        "research/evidence/ladder-v4-task-20261111/cells.json",
+        {"cells": ["not an object"]},
+    )
+    with pytest.raises(MODULE["CoverageError"], match="ladder cell is not an object"):
+        MODULE["_ledger_cells"](tmp_path, {})
+
+
+def test_a_ledger_cell_scope_that_ran_other_bytes_is_refused(tmp_path: Path) -> None:
+    # ``variant`` scopes patched the package; their cells do not measure the
+    # shipped bytes and need a reader of their own.
+    package = Package("library/tasks/task", "peter/task")
+    _ledger(
+        tmp_path,
+        "research/evidence/ladder-v4-task-20261111/cells.json",
+        {
+            "generated": "2026-11-11",
+            "ladder_version": "4.0.0",
+            "task_dir": package.path,
+            "cells": [{"scope": "variant", "status": "executed"}],
+            "controls": [],
+        },
+    )
+    with pytest.raises(
+        MODULE["CoverageError"], match="a variant scope ran on other bytes"
+    ):
+        MODULE["_ledger_cells"](tmp_path, {package.path: package})
+
+
+def test_a_ledger_naming_an_unknown_ladder_version_is_refused(tmp_path: Path) -> None:
+    package = Package("library/tasks/task", "peter/task")
+    _ledger(
+        tmp_path,
+        "research/evidence/ladder-v4-task-20261111/cells.json",
+        {
+            "generated": "2026-11-11",
+            "ladder_version": "9.9.9",
+            "task_dir": package.path,
+            "cells": [{"scope": "full", "status": "executed"}],
+            "controls": [],
+        },
+    )
+    with pytest.raises(
+        MODULE["CoverageError"], match="extend LADDER_VERSIONS deliberately"
+    ):
+        MODULE["_ledger_cells"](tmp_path, {package.path: package})
+
+
 def test_an_unreadable_ladder_ledger_is_refused_not_skipped(tmp_path: Path) -> None:
     # A ledger whose shape this builder cannot place contributes no row; that must
     # fail loudly, because a silently skipped ledger is the stale-matrix bug.
@@ -338,8 +432,56 @@ def test_an_unreadable_ladder_ledger_is_refused_not_skipped(tmp_path: Path) -> N
     assert MODULE["unread_ledgers"](tmp_path, cells) == [
         "research/evidence/ladder-v9-mystery/cells.json"
     ]
-    with pytest.raises(MODULE["CoverageError"], match="ladder-v9-mystery"):
+    with pytest.raises(
+        MODULE["CoverageError"],
+        match=r"contributes no coverage row: research/evidence/ladder-v9-mystery/cells.json",
+    ):
         MODULE["require_read_ledgers"](tmp_path, cells)
+
+
+def _minimal_evidence(root: Path, task: str) -> None:
+    """Every committed evidence input, with one cell for each globbed ledger.
+
+    The v2 and v3 ledgers also match ``ladder-v*/cells.json``, so they must place
+    a cell on ``task`` or ``require_read_ledgers`` refuses them before ``build``
+    reaches its own guard.
+    """
+    files: dict[str, dict[str, object]] = {
+        "research/evidence/library-crack-sweep-20261012/cells.json": {
+            "generated": "2026-10-12",
+            "rows": [],
+        },
+        "research/evidence/ladder-v2-sweep-20261013/cells.json": {
+            "generated": "2026-10-13",
+            "ladder_version": "2.0.0",
+            "library": {"rows": [{"task_id": task, "cells": {}}]},
+        },
+        "research/evidence/har230-transaction-reconciliation-20261029/native-preflight.json": {},
+        "research/evidence/har230-transaction-reconciliation-20261029/native-controls.json": {},
+        "research/evidence/ladder-v3-sheet-recalc-20261029/cells.json": {
+            "generated": "2026-10-29",
+            "cells": [{"task_id": task, "ladder_version": "3.0.0"}],
+        },
+    }
+    for relative, payload in files.items():
+        _ledger(root, relative, payload)
+
+
+def test_build_refuses_packages_without_a_coverage_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The guard is unreachable while ``assemble`` emits every pair by construction."""
+    _package(tmp_path, "library/tasks/task", "peter/task")
+    _minimal_evidence(tmp_path, "peter/task")
+    monkeypatch.setitem(
+        MODULE["build"].__globals__,
+        "coverage_gaps",
+        lambda packages, rows: [("library/tasks/task", "1.4.0")],
+    )
+    with pytest.raises(
+        MODULE["CoverageError"], match="packages without a coverage row"
+    ):
+        MODULE["build"](tmp_path)
 
 
 def _copy_tables(out_dir: Path) -> None:

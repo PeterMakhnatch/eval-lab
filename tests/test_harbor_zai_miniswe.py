@@ -7,7 +7,6 @@ Tests cover:
 4. profiles.py & credentials.py (profile resolution, secret_source validator, credential probes).
 5. runner.py (lane selection, preflight, profile_for_request).
 6. campaigns.py (billable gate for ZAI_OPENAPI_MODEL_SELECTOR).
-7. gepa optimizer (model-identity expectation for zai family).
 """
 
 from __future__ import annotations
@@ -32,7 +31,6 @@ import pytest
 from evallab.benchmark_program_contracts import SyntheticFamilyType
 from evallab.campaigns import CampaignDefinitionAttempt, TrialLimits
 from evallab.execution_contracts import (
-    DEEPSEEK_MODEL_SELECTOR,
     MAX_TRIAL_TIMEOUT_SECONDS,
     PRIVATE_PERSIST_MODE,
     ZAI_MINISWE_AGENT_IMPORT_PATH,
@@ -47,7 +45,6 @@ from evallab.execution_contracts import (
     subscription_command,
     validate_request,
 )
-from evallab.gepa_optimizer.evaluator import DEEPSEEK_TARGET_AGENT
 from evallab.profiles import (
     ZAI_OPENAPI_API_CREDENTIAL,
     AgentProfile,
@@ -791,37 +788,3 @@ def test_campaign_admits_zai_openapi_model() -> None:
         limits=limits,
     )
     assert attempt.spec.model == ZAI_OPENAPI_MODEL_SELECTOR
-
-
-# ---------------------------------------------------------------------------
-# 7. gepa optimizer tests
-def test_gepa_evaluator_expected_model_for_zai() -> None:
-    from evallab.gepa_optimizer.evaluator import (
-        DEEPSEEK_ALLOWED_MODEL,
-    )
-
-    # Helper function matching evaluator.py lines 723-736
-    def _compute_expected_model(agent: str, model: str | None) -> str:
-        return (
-            str(model).rsplit("/", 1)[-1]
-            if str(model).startswith("zai/")
-            else (
-                DEEPSEEK_ALLOWED_MODEL
-                if agent == DEEPSEEK_TARGET_AGENT
-                else str(model).rsplit("/", 1)[-1]
-            )
-        )
-
-    # DeepSeek selector maps to DEEPSEEK_ALLOWED_MODEL ('deepseek-flash')
-    assert (
-        _compute_expected_model(DEEPSEEK_TARGET_AGENT, DEEPSEEK_MODEL_SELECTOR)
-        == DEEPSEEK_ALLOWED_MODEL
-    )
-    assert _compute_expected_model(DEEPSEEK_TARGET_AGENT, None) == DEEPSEEK_ALLOWED_MODEL
-
-    # Z.ai selector maps to 'glm-5.3-flash'
-    assert (
-        _compute_expected_model(DEEPSEEK_TARGET_AGENT, ZAI_OPENAPI_MODEL_SELECTOR)
-        == "glm-5.3-flash"
-    )
-    assert _compute_expected_model("zai-opencode", "zai-coding-plan/glm-5.3") == "glm-5.3"

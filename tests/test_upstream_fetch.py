@@ -1,4 +1,4 @@
-"""Upstream-fetch leak guard: detector, trial extraction, and score-rule wiring."""
+"""Upstream-fetch leak guard: detector and trial extraction."""
 
 from __future__ import annotations
 
@@ -6,12 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-import pytest
-
-from evallab.gepa_optimizer.evaluator import LabEvaluator
-from evallab.gepa_optimizer.workflow import load_campaign
 from evallab.upstream_fetch import (
-    UPSTREAM_FETCH_ZERO,
     commands_from_trial,
     detect_upstream_fetch,
     format_fetch_notice,
@@ -190,74 +185,3 @@ def test_fetch_notice_states_rule_and_zero() -> None:
     assert "upstream fetch detected" in notice
     assert "scored 0" in notice
     assert "pip-download-remote-package" in notice
-
-
-def _write_task(repo_root: Path) -> dict[str, Any]:
-    from evallab.registry import task_directory_digest
-
-    task_dir = repo_root / "tasks" / "task_1"
-    task_dir.mkdir(parents=True, exist_ok=True)
-    (task_dir / "task.toml").write_text('name = "task-1"\nversion = "1.0"\n', encoding="utf-8")
-    (task_dir / "instruction.md").write_text("Complete the task.\n", encoding="utf-8")
-    (task_dir / "environment").mkdir(exist_ok=True)
-    (task_dir / "environment" / "Dockerfile").write_text("FROM alpine:3.19\n", encoding="utf-8")
-    return {
-        "task_id": "task_1",
-        "task_path": "tasks/task_1",
-        "task_package_digest": task_directory_digest(task_dir),
-        "split": "development",
-    }
-
-
-def _write_campaign(repo_root: Path, task: dict[str, Any], **overrides: Any) -> Path:
-    (repo_root / "seed.txt").write_text("Study the requirements before acting.\n", encoding="utf-8")
-    raw: dict[str, Any] = {
-        "name": "fetch-guard",
-        "engine": "gepa",
-        "agent": "nop",
-        "seed_candidate_path": "seed.txt",
-        "examples": [task],
-        "validation_task_ids": [],
-        "max_evals": 2,
-        "timeout_seconds": 600,
-        "output_dir": "out/campaign",
-        "objective": "Qualify the upstream-fetch score rule on nop controls.",
-    }
-    raw.update(overrides)
-    path = repo_root / "campaign.json"
-    path.write_text(json.dumps(raw), encoding="utf-8")
-    return path
-
-
-def test_load_campaign_accepts_known_score_rule(tmp_path: Path) -> None:
-    repo_root = tmp_path / "repo"
-    repo_root.mkdir()
-    config = load_campaign(
-        _write_campaign(repo_root, _write_task(repo_root), score_rules=[UPSTREAM_FETCH_ZERO]),
-        repo_root,
-    )
-    assert config["score_rules"] == [UPSTREAM_FETCH_ZERO]
-
-
-def test_load_campaign_rejects_unknown_score_rule(tmp_path: Path) -> None:
-    repo_root = tmp_path / "repo"
-    repo_root.mkdir()
-    with pytest.raises(ValueError, match="Unknown score_rules"):
-        load_campaign(
-            _write_campaign(repo_root, _write_task(repo_root), score_rules=["no_such_rule"]),
-            repo_root,
-        )
-
-
-def test_evaluator_rejects_unknown_score_rule(tmp_path: Path) -> None:
-    repo_root = tmp_path / "repo"
-    repo_root.mkdir()
-    task = _write_task(repo_root)
-    with pytest.raises(ValueError, match="Unknown score_rules"):
-        LabEvaluator(
-            repo_root=repo_root,
-            output_dir=repo_root / "out" / "lab",
-            examples=[task],
-            agent="nop",
-            score_rules=("no_such_rule",),
-        )

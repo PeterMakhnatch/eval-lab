@@ -493,9 +493,7 @@ def test_process_job_guard_reject_flags_mutation_steps(tmp_path: Path) -> None:
         "anti_hack_guard: REJECT protected_file_mutated:tests/guard_target.py\n",
         encoding="utf-8",
     )
-    step = _step(
-        4, json.dumps({"commands": [{"keystrokes": "echo hack > guard_target.py"}]})
-    )
+    step = _step(4, json.dumps({"commands": [{"keystrokes": "echo hack > guard_target.py"}]}))
     step["observation"] = {"results": []}
     step["extra"] = {
         "step_layers": {
@@ -507,9 +505,7 @@ def test_process_job_guard_reject_flags_mutation_steps(tmp_path: Path) -> None:
     }
     trajectory = json.loads((trial / "agent" / "trajectory.json").read_text(encoding="utf-8"))
     trajectory["steps"].append(step)
-    (trial / "agent" / "trajectory.json").write_text(
-        json.dumps(trajectory), encoding="utf-8"
-    )
+    (trial / "agent" / "trajectory.json").write_text(json.dumps(trajectory), encoding="utf-8")
 
     record = _process_trial(trial, job)
     guard_flags = [flag for flag in record["taint"] if flag["kind"] == "guard_reject"]
@@ -520,9 +516,7 @@ def test_process_job_guard_reject_flags_mutation_steps(tmp_path: Path) -> None:
     assert "taint_candidate:guard_reject" in record["flags"]
 
 
-def test_process_job_skips_unreadable_trajectory_parts(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_process_job_skips_unreadable_trajectory_parts(tmp_path: Path, monkeypatch) -> None:
     from evallab import step_layers
     from evallab.process_job import _process_trial
 

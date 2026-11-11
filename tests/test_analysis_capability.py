@@ -1138,7 +1138,7 @@ def test_run_campaign_analysis_refuses_unsupported_or_empty() -> None:
 
 
 def test_predictor_outcome_lineage_violation_refuses() -> None:
-    from evallab.interpretation.feature_registry import FeatureDefinition, FeatureRegistry
+    from evallab.interpretation.run_report import FeatureDefinition, FeatureRegistry
 
     registry = FeatureRegistry()
     registry.register(
@@ -1179,7 +1179,7 @@ def test_predictor_outcome_lineage_violation_refuses() -> None:
 
 
 def test_predictor_missing_lineage_declaration_refuses() -> None:
-    from evallab.interpretation.feature_registry import FeatureRegistry
+    from evallab.interpretation.run_report import FeatureRegistry
 
     registry = FeatureRegistry()
     spec = create_campaign_analysis_spec(
@@ -1203,7 +1203,7 @@ def test_predictor_missing_lineage_declaration_refuses() -> None:
 
 
 def test_correlated_predictor_refuses_under_strict_independence() -> None:
-    from evallab.interpretation.feature_registry import FeatureDefinition, FeatureRegistry
+    from evallab.interpretation.run_report import FeatureDefinition, FeatureRegistry
 
     registry = FeatureRegistry()
     registry.register(

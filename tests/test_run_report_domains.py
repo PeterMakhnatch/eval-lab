@@ -23,7 +23,7 @@ from typing import Any
 
 import pytest
 
-from evallab.interpretation import domains
+from evallab.interpretation import run_report as domains
 from evallab.interpretation.run_report import build_run_report, render_run_report_markdown
 
 

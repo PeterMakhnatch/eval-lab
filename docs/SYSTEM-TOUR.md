@@ -47,7 +47,7 @@ execution checklist or a statement of current run approval.
        ▼
 [6. TRAJECTORY INTERPRETATION & EVALUATION (Zone 4)]
        │  • IR Extraction: evallab traj ir <trial> (TrajectoryIR in evallab.interpretation)
-       │  • Evidence Pack: evallab traj pack <trial> (Bounded citation EvidencePack)
+       │  • Cited Run Reports: evallab report run <trial> (native evidence and source map)
        │  • Machine Judgment & Acceptance: evallab.interpretation (MachineJudgment -> AcceptanceDecision)
        │  • Capability Curves & Eval Cards: evallab curve build <spec> / evallab card generate <spec_id>
        ▼
@@ -65,7 +65,7 @@ The code layout is strictly modularized across authoritative domain packages and
 - `src/evallab/schemas/`: Pydantic v2 domain schemas, contract models, and join spine invariants.
 - `src/evallab/storage/`: Filesystem paths (`paths.py`), DuckDB unified attach (`attach.py`), Parquet compaction (`parquet_compaction.py`), and historical backfill (`data_backfill.py`).
 - `src/evallab/evidence/`: Canonical ATIF normalization (`atif.py`), fact extraction (`facts.py`), and event marts (`event_mart.py`).
-- `src/evallab/interpretation/`: Canonical trajectory intermediate representation (`trajectory_ir.py`), bounded model context (`evidence_pack.py`), machine evaluation (`trajectory_judgment.py`), quality screening (`trajectory_quality.py`), and platform governance gates (`trajectory_acceptance.py`).
+- `src/evallab/interpretation/`: Native cited reports (`run_report.py`), trajectory intermediate representation (`trajectory_ir.py`), machine evaluation (`trajectory_judgment.py`), quality screening (`trajectory_quality.py`), and platform governance gates (`trajectory_acceptance.py`).
 - Top-level modules (`src/evallab/*.py`):
   - Execution runners & queues: `runner.py`, `queue.py`, `preflight.py`, `quota.py`
   - Task registries & authoring: `registry.py`, `ladder.py`, `screen.py`, `task_workbench.py`

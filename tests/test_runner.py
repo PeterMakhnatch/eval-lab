@@ -1715,8 +1715,10 @@ def test_validate_request_toolbox_invariants(tmp_path: Path) -> None:
 
 def test_nop_daytona_repeat_verifier_build_command(tmp_path: Path) -> None:
     """A nop daytona spec with verifier_repeat_n=3 resolves the bounded env, TTL, and verifier flags."""
-    from evallab.execution_contracts import BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
-    from evallab.harbor_repeat_verifier import VERIFIER_IMPORT_PATH
+    from evallab.execution_contracts import (
+        BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
+        VERIFIER_IMPORT_PATH,
+    )
 
     request = RunRequest(
         task=task(tmp_path),
@@ -1765,8 +1767,10 @@ def test_oracle_daytona_without_repeat_has_bounded_env_but_no_verifier_flags(
 
 def test_nop_daytona_storage_override_build_command(tmp_path: Path) -> None:
     """A nop daytona spec with override_storage_mb=10240 yields the storage flag."""
-    from evallab.execution_contracts import BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
-    from evallab.harbor_repeat_verifier import VERIFIER_IMPORT_PATH
+    from evallab.execution_contracts import (
+        BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
+        VERIFIER_IMPORT_PATH,
+    )
 
     request = RunRequest(
         task=task(tmp_path),

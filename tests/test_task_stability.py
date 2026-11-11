@@ -12,9 +12,9 @@ from types import SimpleNamespace
 import pytest
 
 from evallab import harbor_repeat_verifier, task_stability
+from evallab.execution_contracts import VERIFIER_IMPORT_PATH
 from evallab.harbor_repeat_verifier import (
     STDOUT_TAIL_BYTES,
-    VERIFIER_IMPORT_PATH,
     RepeatVerifier,
     _coerce_repeat_n,
     _scalar_reward,

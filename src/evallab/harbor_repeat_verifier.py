@@ -44,11 +44,12 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
-from harbor.models.trial.paths import EnvironmentPaths  # ty: ignore[unresolved-import]
-from harbor.verifier.base import BaseVerifier  # ty: ignore[unresolved-import]
+from harbor.models.trial.paths import EnvironmentPaths
+from harbor.verifier.base import BaseVerifier
+
+from evallab import execution_contracts
 
 SCHEMA = "evallab.verifier_stability/v1"
-VERIFIER_IMPORT_PATH = "evallab.harbor_repeat_verifier:RepeatVerifier"
 DEFAULT_REPEAT_N = 3
 STDOUT_TAIL_BYTES = 8192
 STABILITY_FILENAME = "stability.json"
@@ -291,7 +292,7 @@ class RepeatVerifier(BaseVerifier):
     def _write_stability(self, runs: list[dict[str, Any]]) -> None:
         payload = {
             "schema": SCHEMA,
-            "verifier": VERIFIER_IMPORT_PATH,
+            "verifier": execution_contracts.VERIFIER_IMPORT_PATH,
             "harbor_version": _harbor_version(),
             "repeat_n_requested": self._repeat_n,
             "n_runs": len(runs),

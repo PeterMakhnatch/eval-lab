@@ -33,10 +33,10 @@ The declaration is checked in both directions: a document claiming to be
 invalid must actually fail, and must fail with the error it names. That is what
 separates this from the skip-list it deliberately is not — a declaration cannot
 mute a fixture, only pin the exact refusal the fixture exists to prove. Extra
-top-level keys are safe to carry: an ATIF document is a plain mapping to both
-validators (``atif._validate_fallback`` and the installed
-``harbor_atif2otel.validate``), and every promoted trajectory already carries
-``evallab_redaction`` the same way.
+top-level keys remain available to the retained ATIF-v1 validator
+(``atif._validate_atif_v1``). Every promoted trajectory carries lab custody
+metadata such as ``evallab_redaction``. The current execution SDK's schema
+does not own these retained extensions.
 
 Documents built inside a test at run time are out of scope on purpose. Several
 exist to drive degradation paths — a step with no ``message``, a trajectory that

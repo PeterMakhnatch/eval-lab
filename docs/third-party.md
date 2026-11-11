@@ -89,6 +89,15 @@ The headless scheduler gate remains separate output of the same command, selecte
 | Ollama — DROP; prohibited local inference route | `src/evallab/terminus_local.py` | no approved runtime/model pin | none verified | contract only: `uv run pytest -q tests/test_terminus_local.py` | Local model inference is prohibited. Remove the transport; do not probe or start a model. |
 | GLM / Breaker self-hosting — DROP; unqualified hosted models | `src/evallab/harbor_glm_selfhosted.py` | endpoint/model selectors only; no current deployment pin | `GLM_SELFHOSTED_API_KEY`, `BREAKER_SELFHOSTED_API_KEY` | contract only: `uv run pytest -q tests/test_selfhosted_adapter_profile.py` | No current served-model receipt. Retire profiles and adapters; never infer qualification from credential presence. |
 
+## Native runtime and retained ATIF
+
+Harbor 0.24.0 owns new task, trial-result, and verifier runtime contracts.
+`tests/test_harbor_contract.py` checks their consumed fields against retained fixtures.
+`src/evallab/evidence/atif.py` owns the stable retained ATIF-v1 contract.
+Its validator preserves lab custody and redaction metadata. SDK installation must not change evidence admission.
+`tests/test_fixture_conformance.py` checks retained documents and malformed-input refusals with the normal SDK installed.
+`src/evallab/execution_contracts.py` owns the verifier import selector. Pure planning does not import the native verifier.
+
 ## Backup recovery
 
 The installed nightly plist omits `--backup`. The old code therefore only reports age and never creates a dump.

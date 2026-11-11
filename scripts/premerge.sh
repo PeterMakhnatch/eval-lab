@@ -53,11 +53,8 @@ fi
 
 export UV_PYTHON="${PYTHON_FLOOR}"
 
-# The CI test job syncs the benchmark (fastmcp, cryptography) and lance groups so
-# their contract tests run instead of skipping via pytest.importorskip. Mirror them
-# to keep premerge a faithful reproduction of the combined quality + typecheck
-# workflows (see agents/CHECKS.md). `observability` stays opt-in everywhere.
-uv sync --locked --group benchmarks --group lance
+# Match the static CI profile; install native runtimes after type checking.
+uv sync --locked --no-group observability --group benchmarks --group lance --group inspect
 uv run --no-sync ruff check .
 uv run --no-sync python -m evallab.governance check
 uv run --no-sync evallab registry audit --json
@@ -82,7 +79,11 @@ case "${mode}" in
     echo "focused checks passed: Python ${PYTHON_FLOOR}; full suite and runtime smoke not run; not CI green"
     ;;
   full)
-    uv run --no-sync pytest
+    uv sync --project tools/mimoagent-harbor --locked --python 3.12
+    uv sync --locked --no-group observability --group benchmarks --group lance --group inspect --extra laminar
+    uv run --no-sync python -c 'import harbor.job_diff'
+    uv run --no-sync pytest --junitxml=runs/_premerge/full-suite.xml
+    uv run --no-sync python scripts/ci/check_harbor_skips.py runs/_premerge/full-suite.xml
     uv run --no-sync python -m evallab.smoke --docker-free
     echo "premerge green: Python ${PYTHON_FLOOR}; ty 0 <= ${TY_BASELINE}"
     ;;

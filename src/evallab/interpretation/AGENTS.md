@@ -16,8 +16,3 @@ Bounded cited evidence packs, machine judgments, acceptance records, interpretat
 - Keep interpretation IR distinct from core trajectory IR under the parent contract.
 - Do not add model runners or infrastructure drivers here.
 
-## Tests or checks
-The assigned verifier uses affected existing IR, evidence-pack, judgment, and acceptance tests under the repository environment.
-
-## What not to add here
-No implicit acceptance, hidden uncited context, or incidental merger of the two IRs.

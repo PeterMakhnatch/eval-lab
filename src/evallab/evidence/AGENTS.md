@@ -15,8 +15,3 @@ Deterministic ATIF parsing, facts, event-mart projections, Parquet IO, capture a
 - Identical input bytes and schema/version produce reproducible facts, digests, and query results. Intentional contract changes need explicit migration/version handling.
 - Do not execute models or add subjective judgments here; preserve immutable input bytes and provenance.
 
-## Tests or checks
-The assigned verifier uses affected existing extraction/query tests, including `tests/test_event_mart.py`, `tests/test_evidence_queries.py`, and `tests/test_evidence_store.py` as relevant.
-
-## What not to add here
-No runtime-driver orchestration or module-layout migration outside the assigned change.

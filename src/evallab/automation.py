@@ -1030,6 +1030,16 @@ def installed_job_health(
     return checks
 
 
+def _python_runtime_health(root: Path) -> tuple[bool, str]:
+    from packaging.specifiers import SpecifierSet
+
+    requirement = tomllib.loads((root / "pyproject.toml").read_text())["project"]["requires-python"]
+    version = sys.version.split()[0]
+    return version in SpecifierSet(requirement), (
+        f"installed={version} pin={requirement} (pyproject.toml); CI=3.12,3.14 exact_patch=MISSING"
+    )
+
+
 def core_runtime_checks(
     root: Path,
     *,
@@ -1079,10 +1089,7 @@ def core_runtime_checks(
             version = match[0] if match else "unparsed"
             return version == CORE_TOOL_PINS[tool], f"installed={version} pin={CORE_TOOL_PINS[tool]}"
         probe(f"{tool}-version", cli_version)
-    probe("python", lambda: (
-        sys.version_info[:2] in ((3, 12), (3, 14)),
-        f"installed={sys.version.split()[0]} supported=3.12,3.14 (CI)",
-    ))
+    probe("python", lambda: _python_runtime_health(root))
 
     def docker_engine() -> tuple[bool, str]:
         version = command(["docker", "version", "--format", "{{.Server.Version}}"]).strip()
@@ -1146,7 +1153,7 @@ def core_runtime_checks(
                 format_version = header.read(20)[18:20].hex()
             compatible = format_version in {"0101", "0202"} and sqlite3.sqlite_version_info >= (3, 49, 1)
             return compatible, (
-                f"read_only=True engine={sqlite3.sqlite_version} pin=Python-3.12/3.14,SQLite>=3.49.1 "
+                f"read_only=True engine={sqlite3.sqlite_version} pin=SQLite>=3.49.1 "
                 f"user_version={version} schema_version={schema} format_rw={format_version} path={path}"
             )
         probe(f"sqlite:{path.parent.name}/{path.name}", sqlite_store)

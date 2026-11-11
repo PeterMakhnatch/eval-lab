@@ -7,6 +7,7 @@ import plistlib
 import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -130,3 +131,19 @@ def test_doctor_detects_ignored_no_fallback_overlay_and_does_not_expose_credenti
     assert checks["github"][0] is True
     assert secret not in json.dumps(checks)
     assert not (tmp_path / "missing.sqlite").exists()
+
+
+@pytest.mark.parametrize("requirement,version,expected", [
+    (">=3.12", "3.11.12", False),
+    (">=3.12", "3.12.11", True),
+    (">=3.12", "3.13.7", True),
+    (">=3.14", "3.13.7", False),
+    (">=3.14", "3.14.0", True),
+])
+def test_python_health_uses_project_requirement_not_ci_matrix(
+    tmp_path, monkeypatch, requirement, version, expected,
+):
+    (tmp_path / "pyproject.toml").write_text(f'[project]\nrequires-python = "{requirement}"\n')
+    monkeypatch.setattr(automation, "sys", SimpleNamespace(version=version))
+    ok, _ = automation._python_runtime_health(tmp_path)
+    assert ok is expected

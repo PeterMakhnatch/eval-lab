@@ -423,6 +423,15 @@ def sync_docs(rows: Sequence[dict[str, str]], root: Path = ROOT) -> list[Path]:
     return changed
 
 
+def _mode_label(args: argparse.Namespace) -> str:
+    """The mode a refused run names in its one-line stderr report."""
+    if args.check:
+        return "--check"
+    if args.sync_docs:
+        return "--sync-docs"
+    return "build"
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     mode = parser.add_mutually_exclusive_group()
@@ -440,20 +449,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
     args = parser.parse_args(argv)
-    rows = build()
-    rebuilt = render(rows)
-    if args.check:
-        return 0 if _check(JOIN_NAME, rebuilt) else 1
-    if args.sync_docs:
-        if not _check(JOIN_NAME, rebuilt):
-            return 1
-        changed = sync_docs(_read_csv(HERE / JOIN_NAME), ROOT)
-        names = ", ".join(str(page.relative_to(ROOT)) for page in changed) or "nothing"
-        print(f"sync-docs rewrote {names}")
+    try:
+        rows = build()
+        rebuilt = render(rows)
+        if args.check:
+            return 0 if _check(JOIN_NAME, rebuilt) else 1
+        if args.sync_docs:
+            if not _check(JOIN_NAME, rebuilt):
+                return 1
+            changed = sync_docs(_read_csv(HERE / JOIN_NAME), ROOT)
+            names = ", ".join(str(page.relative_to(ROOT)) for page in changed) or "nothing"
+            print(f"sync-docs rewrote {names}")
+            return 0
+        (HERE / JOIN_NAME).write_bytes(rebuilt.encode("utf-8"))
+        print(f"wrote {JOIN_NAME}: {len(rows)} rows")
         return 0
-    (HERE / JOIN_NAME).write_bytes(rebuilt.encode("utf-8"))
-    print(f"wrote {JOIN_NAME}: {len(rows)} rows")
-    return 0
+    except JoinError as error:
+        print(f"{_mode_label(args)}: {error}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

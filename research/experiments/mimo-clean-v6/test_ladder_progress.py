@@ -1952,7 +1952,7 @@ def test_ladder_progress_sync_docs_synchronizes_each_strictness_repeatedly(
 
 @pytest.mark.parametrize("damage", ["missing", "repeated"])
 def test_ladder_progress_sync_docs_refuses_a_damaged_non_strict_evidence_anchor(
-    sandbox: Path, damage: str
+    sandbox: Path, damage: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     receipt = _sandbox_receipt(sandbox)
     receipt["strict"] = False
@@ -1965,9 +1965,11 @@ def test_ladder_progress_sync_docs_refuses_a_damaged_non_strict_evidence_anchor(
     replacement = b"removed evidence anchor" if damage == "missing" else anchor + b"\n" + anchor
     page.write_bytes(_replace_once(text, anchor, replacement))
     before = _sync_snapshot(sandbox)
-    with pytest.raises(ProgressError) as refused:
-        MODULE.main(["--sync-docs"])
-    assert "docs/mimo/README.md" in str(refused.value)
+    assert MODULE.main(["--sync-docs"]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("--sync-docs: ")
+    assert "docs/mimo/README.md" in err
+    assert "Traceback" not in err
     assert _sync_snapshot(sandbox) == before
 
 
@@ -2890,13 +2892,16 @@ def test_ladder_progress_sync_docs_refuses_a_stale_receipt_without_writes(
 
 
 def test_ladder_progress_sync_docs_refuses_a_missing_receipt_without_writes(
-    sandbox: Path,
+    sandbox: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     (sandbox / MODULE.RECEIPT_NAME).unlink()
     _stale_sync_pages(sandbox)
     before = _sync_snapshot(sandbox)
-    with pytest.raises(ProgressError, match="cannot read the evidence receipt"):
-        MODULE.main(["--sync-docs"])
+    assert MODULE.main(["--sync-docs"]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("--sync-docs: ")
+    assert "cannot read the evidence receipt" in err
+    assert "Traceback" not in err
     assert _sync_snapshot(sandbox) == before
 
 
@@ -3709,14 +3714,64 @@ def test_ladder_progress_evidence_expands_the_default_results_root_at_use_time(
     assert str(path) in capsys.readouterr().out
 
 
-def test_ladder_progress_check_refuses_a_cell_at_another_digest(sandbox: Path) -> None:
+def test_ladder_progress_check_refuses_a_cell_at_another_digest(
+    sandbox: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     path = sandbox / "ladder-p0-har244.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     task_id = data["tasks"][0]["task_id"]
     data["tasks"][0]["final_digest"] = "sha256:stale"
     path.write_text(json.dumps(data), encoding="utf-8")
-    with pytest.raises(ProgressError, match=task_id):
-        MODULE.main(["--check"])
+    assert MODULE.main(["--check"]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith(f"--check: {task_id}")
+    assert "Traceback" not in err
+
+
+@pytest.mark.parametrize(
+    ("argv", "label"),
+    [
+        ([], "build"),
+        (["--check"], "--check"),
+        (["--summary"], "--summary"),
+        (["--sync-docs"], "--sync-docs"),
+        (["--verify-evidence"], "--verify-evidence"),
+    ],
+    ids=["build", "check", "summary", "sync-docs", "verify-evidence"],
+)
+def test_ladder_progress_main_reports_a_progress_error_as_one_stderr_line(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+    label: str,
+) -> None:
+    # A manifest that repeats a task_id is the first input every mode reads: main
+    # must report it as one stderr line and exit 1 instead of raising a traceback.
+    cells = tmp_path / "cells"
+    cells.mkdir()
+    (cells / MODULE.MANIFEST_NAME).write_text(
+        "task_id,final_digest\nt1,sha256:a\nt1,sha256:b\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(MODULE, "HERE", cells)
+    monkeypatch.setattr(MODULE, "ROOT", tmp_path)
+    assert MODULE.main(argv) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.splitlines() == [f"{label}: manifest.csv repeats a task_id"]
+
+
+def test_ladder_progress_main_reports_a_progress_error_from_render_slice(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "ladder-tmp.json"
+    path.write_text(json.dumps({"schema": "other/v1", "tasks": []}), encoding="utf-8")
+    assert MODULE.main(["--render-slice", str(path)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.splitlines() == [
+        f"{path}: ladder-tmp.json: schema 'other/v1' is not {MODULE.CELLS_SCHEMA}"
+    ]
 
 
 def test_ladder_progress_check_passes_on_committed_table(sandbox: Path) -> None:

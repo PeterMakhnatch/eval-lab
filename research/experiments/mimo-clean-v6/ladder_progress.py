@@ -2475,6 +2475,79 @@ def check(rebuilt: str, target: Path) -> bool:
     return False
 
 
+def _mode_label(args: argparse.Namespace) -> str:
+    """The file or mode a refused run names in its one-line stderr report."""
+    if args.render_slice is not None:
+        return str(args.render_slice)
+    if args.pending_controls:
+        return PENDING_NAME
+    if args.check:
+        return "--check"
+    if args.summary:
+        return "--summary"
+    if args.sync_docs:
+        return "--sync-docs"
+    if args.verify_evidence:
+        return "--verify-evidence"
+    return "build"
+
+
+def _run(args: argparse.Namespace) -> int:
+    if args.render_slice is not None:
+        path = args.render_slice
+        if not path.is_absolute() and not path.is_file():
+            path = HERE / path
+        print(render_slice(path), end="")
+        return 0
+    if args.pending_controls:
+        controls = read_pending_controls(HERE / PENDING_NAME, read_manifest(HERE))
+        print(render_pending_controls(controls, read_ranking(ROOT)), end="")
+        return 0
+    if args.verify_evidence:
+        cells = read_cells(HERE, ROOT, manifest=read_manifest(HERE))
+        checks = verify_evidence(cells, args.results_root)
+        subset_checks = verify_subsets(read_subset_evidence(HERE), args.results_root)
+        print(render_evidence(checks, subset_checks), end="")
+        counts = Counter(result["status"] for result in checks)
+        subset_counts = Counter(result["status"] for result in subset_checks)
+        failed = evidence_failed(counts, subset_counts, strict=args.strict)
+        if args.write_receipt:
+            receipt = evidence_receipt(
+                checks,
+                subset_checks,
+                strict=args.strict,
+                checked=datetime.now(UTC),
+                commit=head_commit(ROOT),
+            )
+            path = write_receipt(receipt, HERE)
+            print(f"wrote {path.name}: exit_code={receipt['exit_code']}")
+        if failed:
+            print(
+                f"{counts['mismatched']} mismatched, "
+                f"{counts['reward-mismatch']} reward-mismatch, "
+                f"{counts['verifier-mismatch']} verifier-mismatch, "
+                f"{counts['attacks-mismatch']} attacks-mismatch, "
+                f"{counts['absent']} absent, "
+                f"{subset_counts['reward-mismatch']} subset reward-mismatch, "
+                f"{subset_counts['absent']} subset absent",
+                file=sys.stderr,
+            )
+        return int(failed)
+    rows = build(ROOT, cells_dir=HERE)
+    if args.summary:
+        print(render_summary(rows), end="")
+        return 0
+    if args.sync_docs:
+        sync_docs(rows, root=ROOT, cells_dir=HERE)
+        return 0
+    if args.check:
+        return 0 if check(render(rows), HERE / OUTPUT_NAME) else 1
+    (HERE / OUTPUT_NAME).write_text(render(rows), encoding="utf-8")
+    counts = ", ".join(f"{name}={count}" for name, count in sorted(basis_counts(rows).items()))
+    print(f"wrote {OUTPUT_NAME}: {len(rows)} rows ({counts})")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     mode = parser.add_mutually_exclusive_group()
@@ -2537,63 +2610,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--strict requires --verify-evidence")
     if args.write_receipt and not args.verify_evidence:
         parser.error("--write-receipt requires --verify-evidence")
-    if args.render_slice is not None:
-        path = args.render_slice
-        if not path.is_absolute() and not path.is_file():
-            path = HERE / path
-        print(render_slice(path), end="")
-        return 0
-    if args.pending_controls:
-        try:
-            controls = read_pending_controls(HERE / PENDING_NAME, read_manifest(HERE))
-        except ProgressError as error:
-            print(f"{PENDING_NAME}: {error}", file=sys.stderr)
-            return 1
-        print(render_pending_controls(controls, read_ranking(ROOT)), end="")
-        return 0
-    if args.verify_evidence:
-        cells = read_cells(HERE, ROOT, manifest=read_manifest(HERE))
-        checks = verify_evidence(cells, args.results_root)
-        subset_checks = verify_subsets(read_subset_evidence(HERE), args.results_root)
-        print(render_evidence(checks, subset_checks), end="")
-        counts = Counter(result["status"] for result in checks)
-        subset_counts = Counter(result["status"] for result in subset_checks)
-        failed = evidence_failed(counts, subset_counts, strict=args.strict)
-        if args.write_receipt:
-            receipt = evidence_receipt(
-                checks,
-                subset_checks,
-                strict=args.strict,
-                checked=datetime.now(UTC),
-                commit=head_commit(ROOT),
-            )
-            path = write_receipt(receipt, HERE)
-            print(f"wrote {path.name}: exit_code={receipt['exit_code']}")
-        if failed:
-            print(
-                f"{counts['mismatched']} mismatched, "
-                f"{counts['reward-mismatch']} reward-mismatch, "
-                f"{counts['verifier-mismatch']} verifier-mismatch, "
-                f"{counts['attacks-mismatch']} attacks-mismatch, "
-                f"{counts['absent']} absent, "
-                f"{subset_counts['reward-mismatch']} subset reward-mismatch, "
-                f"{subset_counts['absent']} subset absent",
-                file=sys.stderr,
-            )
-        return int(failed)
-    rows = build(ROOT, cells_dir=HERE)
-    if args.summary:
-        print(render_summary(rows), end="")
-        return 0
-    if args.sync_docs:
-        sync_docs(rows, root=ROOT, cells_dir=HERE)
-        return 0
-    if args.check:
-        return 0 if check(render(rows), HERE / OUTPUT_NAME) else 1
-    (HERE / OUTPUT_NAME).write_text(render(rows), encoding="utf-8")
-    counts = ", ".join(f"{name}={count}" for name, count in sorted(basis_counts(rows).items()))
-    print(f"wrote {OUTPUT_NAME}: {len(rows)} rows ({counts})")
-    return 0
+    try:
+        return _run(args)
+    except ProgressError as error:
+        print(f"{_mode_label(args)}: {error}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

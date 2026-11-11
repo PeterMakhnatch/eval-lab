@@ -1136,11 +1136,11 @@ def _runtime_type(name: str) -> type:
                 return super()._engine_cmd(*command)
 
             async def _run_docker_compose_command(
-                self, command: list[str], **kwargs: Any
+                self, command: list[str], *args: Any, **kwargs: Any
             ) -> Any:
                 if not command or command[0] not in {"stop", "down", "rm", "kill"}:
                     require_local_docker(allow_local_docker=self._upstream_allow_local_docker)
-                return await super()._run_docker_compose_command(command, **kwargs)
+                return await super()._run_docker_compose_command(command, *args, **kwargs)
 
             async def _write_resources_compose_file(self) -> Path:
                 path = await super()._write_resources_compose_file()

@@ -16,6 +16,8 @@ dependencies = [
     # 1.5 checkouts still in use cannot read; migrate deliberately, not via lock refresh.
     "duckdb>=1.5.5,<2",
     "fastapi==0.141.1",
+    # Native task execution is a core boundary, independent of trace export.
+    "harbor[modal]==0.24.0",
     "huggingface-hub>=1.29.0",
     "nats-py>=2.11,<3",
     "psycopg[binary]>=3.2,<4",
@@ -29,10 +31,6 @@ dependencies = [
 
 [project.optional-dependencies]
 laminar = [
-    # The modal extra is required: Harbor replay/eval trials run in Modal
-    # sandboxes (QA Trace re-grades, rollout batches) and Harbor 0.24 raises
-    # MissingExtraError without it.
-    "harbor[modal]==0.24.0",
     "lmnr==0.7.64",
 ]
 verifier = [

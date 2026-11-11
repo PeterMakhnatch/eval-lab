@@ -2577,7 +2577,7 @@ def _replay_parser() -> Any:
     their recorded layers only, and anything else reads as missing instead
     of being guessed. To reconstruct pre-HAR-92 trials on such a machine,
     run the report with Harbor on the path instead, e.g.
-    ``uv run --no-sync --with harbor==0.21.0 evallab report run --json <trial-dir>``.
+    ``uv run --locked evallab report run --json <trial-dir>``.
     """
     try:
         from evallab.harbor_terminus import mimo_replay_parser
@@ -4568,7 +4568,7 @@ def build_run_report(
         dict(enumerate(layers)),
         layers_missing_why=(
             "no recorded step_layers and Harbor's Terminus parser is not importable "
-            "for reconstruction (retry with `uv run --no-sync --with harbor==0.21.0 "
+            "for reconstruction (retry with `uv run --locked "
             "evallab report run --json <trial-dir>`)"
             if parse is None
             else None

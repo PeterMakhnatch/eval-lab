@@ -753,6 +753,43 @@ The same block, byte for byte, is embedded in the nightly digest under
 `## Preflight`, and the operator-facing `evallab tick` prints it before it
 builds an executor.
 
+## CORE tool health
+
+Run the existing doctor from an isolated, locked checkout:
+
+```bash
+uv run --locked evallab doctor
+```
+
+The command exits 1 when any required local or CORE boundary fails.
+It reports installed versions against the supported pins in `uv.lock`, `runner.py`, and `automation.py`.
+The inventory in [`third-party.md`](third-party.md) names each owner, contract test, failure mode, and recovery path.
+The command makes no model call, data download, container launch, or installed-service change.
+GitHub auth and protection visibility use free, read-only metadata requests.
+An offline host reports that boundary unavailable.
+
+The checks include:
+
+- Harbor 0.24.0 in the normal runtime, Docker Engine, Compose, and the shared Linux-daemon isolation preflight.
+- PostgreSQL connectivity, schema fingerprints, the missing applied-schema ledger, and tools-1 backup freshness.
+- SQLite read-only opens and format versions, DuckDB compatibility, and every retained Parquet footer.
+- OMP CLI version and config resolution of `retry.modelFallback: false`, with a true control overlay.
+- The pinned keys executable hash and `keys has HF_TOKEN`, with both credential-probe streams discarded.
+- GitHub auth, rulesets or classic branch protection, and visibility of both required CI checks.
+- uv, supported Python versions, and locked client/parser versions.
+- Goodfire and Hugging Face revisions, native file hashes, and normalized bundle hashes, without a download.
+- Goodfire action metadata through `evallab.gold.load_rows` only; this check changes no labels or registry.
+- Every installed evallab LaunchAgent's source revision, loaded state, last exit, and useful-output age.
+
+Doctor reads installed plists, not repository templates, and uses only `launchctl print`.
+Useful-output limits are 3 schedule intervals, at least 15 minutes, or 36 hours without a fixed interval.
+A recent stdout log or idle factory cycle does not refresh useful-output age.
+A running job can have no previous exit code; an unloaded job or a known nonzero exit still fails.
+Missing pins, missing useful-output receipts, and stale useful output remain visible failures.
+The daemon preflight does not replace native per-container mount and network proof.
+The OMP config check does not prove provider availability or authorize a model call.
+Large retained stores can take minutes because doctor verifies source hashes and Parquet footers.
+
 ## Headless readiness and scheduling
 
 The scheduler fails closed. This command prints a versioned JSON object whose
@@ -784,8 +821,8 @@ agent is named with its missing path — `evallab doctor` prints one
 `FAIL  launchagent    com.petermakhnatch.evallab.tick: interpreter /path/python missing`,
 and the headless report carries `launch_agents.broken` entries of
 `{label, plist_path, kind, path}` plus `checks.launch_agents_intact`. The audit
-is read-only: it reads plists and never calls `launchctl`, so a doctor run
-cannot install, load, unload or rewrite an agent. `healthy` stays
+is read-only: the headless path reads plists without calling `launchctl`.
+The normal doctor also reads loaded state with `launchctl print`; neither path changes an agent. `healthy` stays
 infrastructure-only so one stale agent cannot quarantine an in-flight cycle;
 the `ready` field and the `doctor --headless` exit code require both healthy
 infrastructure and every installed evallab LaunchAgent resolvable.
@@ -1245,6 +1282,29 @@ The JSON receipt includes the dump path, size, SHA-256, both count maps, and dur
 Live count queries run in a read-only transaction. The check never changes the live catalog.
 Concurrent catalog writes can cause a count mismatch. Repeat the check when ingestion is idle.
 
+### SQLite journals and trace database
+
+Use the same backup owner for installed SQLite stores:
+
+```bash
+uv run python -m evallab.backups sqlite --root "$PRIMARY_ROOT"
+```
+
+Use `--source /absolute/path/to/store.sqlite` to select one existing database.
+The default list includes the trace database and installed domain journals; it excludes credentials and historical release copies.
+The source opens with `mode=ro` and `query_only=ON`. The backup API includes committed WAL content.
+The command never checkpoints or truncates a live WAL and never writes into the source database.
+It verifies all table counts from one consistent source snapshot, not a later live count.
+It copies the backup into a separate temporary restore and runs `PRAGMA integrity_check`.
+Only a matching, valid restore publishes an immutable generation under `$PRIMARY_ROOT/backups/sqlite/`.
+The private manifest contains the snapshot SHA-256, both count maps, engine/version metadata, duration, and restore-cleanup receipt.
+
+Never restore over a live database. Restore the hash-matching snapshot into a new, owner-controlled path.
+Verify integrity and manifest counts there before the database owner approves a reader or writer switch.
+Keep the source, its WAL, and prior generations intact during recovery.
+A source merge does not install a backup schedule or change the nightly job's pinned runtime.
+
+
 The digest includes the prior day's trials, early-morning automation, policy
 attribution, cost, exception taxonomy, queue depth, waiting rationales, evidence
 growth, and quarantine state. PostgreSQL remains rebuildable from raw jobs; the
@@ -1551,7 +1611,13 @@ is configured.
 
 Every workflow installs `uv==0.9.24` with `python3 -m pip install --user uv==0.9.24`. Every job that runs python or uv then provisions its interpreter with SHA-pinned `actions/setup-python` and exports `UV_PYTHON_PREFERENCE=only-system`, because the `cpython-3.12.12+20251217` linux x86_64 python-build-standalone asset serves 504 and a uv-managed download reddens the jobs that need 3.12 (HAR-330, `quality` run 42567901536; HAR-339, `perf` run 42582557769 and `mcp-wheelhouse-platform` run 42582557805). setup-python resolves the runner toolcache before any download, and `only-system` keeps uv on that interpreter — a missing pin fails at the provisioning step rather than uv downloading a managed build mid-run. No workflow installs an interpreter with uv. This replaces the former `astral-sh/setup-uv` step.
 
-`scripts/premerge.sh` owns that version in its `UV_VERSION` constant; workflow literals are copies of it. Harbor comes from PyPI through `uv tool install "harbor==0.21.0"` — never `pip install harbor` — because `uv tool` gives each workflow the same isolated CLI plus resolved console script that local runs use. `tests/test_quality_gates.py::test_every_workflow_pins_uv_and_harbor_to_one_version` imports `HARBOR_CLI_PIN` from `src/evallab/runner.py` and compares every `uv==` and Harbor install in `.github/workflows/` against those two pins, rejecting a workflow that invokes uv without pinning it, so a bump must change premerge, the workflows and that one source constant (HAR-251; loca-lean.yml previously ran `python3 -m pip install harbor==0.21.0`). `evallab doctor` reads the same constant and prints an advisory `harbor-pin` row that names both versions when the local `harbor --version` differs from the CI pin, or when Harbor is not installed, without joining the required set (HAR-265).
+`scripts/premerge.sh` owns the uv version in `UV_VERSION`; workflow literals copy that pin.
+Harbor 0.24.0 is a base dependency in `pyproject.toml`, independent of the optional Laminar exporter.
+Run `uv sync --locked` to install its supported native SDK and console script.
+The remaining isolated workflow CLI install selects `harbor==0.24.0`.
+`tests/test_quality_gates.py::test_every_workflow_pins_uv_and_harbor_to_one_version` compares workflow installs with `runner.HARBOR_CLI_PIN`.
+Update the runtime pin, lock, workflow install, and recorded native field contracts together.
+The normal doctor treats a missing or drifting Harbor runtime as a failure, not an advisory.
 
 Rationale (preserves the two invariants that existed before the outage):
 

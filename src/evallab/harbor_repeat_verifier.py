@@ -19,7 +19,7 @@ Two validity guards keep the audit honest:
   each run's files and ``stability.json``. Per-run files are moved aside
   between runs, which also clears the Docker bind mount.
 
-Harbor 0.21 hook (verified against installed Harbor 0.21.0)::
+Harbor 0.24 hook::
 
     harbor run --path <task> --agent nop \\
         --verifier evallab.harbor_repeat_verifier:RepeatVerifier \\
@@ -29,11 +29,7 @@ The hook replaces the default verifier for the trial (``trial.py``
 ``_run_shared_verifier`` calls ``VerifierFactory.create_verifier_from_config``,
 which honors ``import_path`` + ``kwargs``), so this class subclasses
 ``harbor.verifier.base.BaseVerifier`` and delegates each run to Harbor's
-default ``harbor.verifier.verifier.Verifier``. Harbor is not an Eval Lab
-dependency, so all Harbor imports here are lazy with importable fallbacks:
-unit tests exercise this module without Harbor installed, while the Harbor
-runtime (which has Harbor installed) resolves the real base class for its
-``issubclass`` import-path check.
+default ``harbor.verifier.verifier.Verifier`` from the locked core runtime.
 """
 
 from __future__ import annotations
@@ -44,24 +40,20 @@ import logging
 import shutil
 import time
 from datetime import UTC, datetime
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
+from harbor.models.trial.paths import EnvironmentPaths
+from harbor.verifier.base import BaseVerifier
+
+from evallab import execution_contracts
+
 SCHEMA = "evallab.verifier_stability/v1"
-VERIFIER_IMPORT_PATH = "evallab.harbor_repeat_verifier:RepeatVerifier"
 DEFAULT_REPEAT_N = 3
 STDOUT_TAIL_BYTES = 8192
 STABILITY_FILENAME = "stability.json"
 REPEAT_DIRNAME = "repeat"
-try:  # Harbor runtime: real base so the import-path check passes.
-    from harbor.verifier.base import BaseVerifier  # ty: ignore[unresolved-import]
-except ImportError:  # Repo venv (Harbor is not a dependency): test fallback.
-
-    class BaseVerifier:  # type: ignore[no-redef]
-        """Fallback base used only when Harbor is not installed."""
-
-        def __init__(self, **kwargs: Any) -> None:
-            self._fallback_kwargs = kwargs
 
 
 def _coerce_repeat_n(raw: Any) -> int:
@@ -99,12 +91,8 @@ def _stdout_tail_digest(test_stdout_path: Path) -> str | None:
     return hashlib.sha256(data).hexdigest()
 
 
-def _harbor_version() -> str | None:
-    try:
-        from harbor import __version__ as version  # ty: ignore[unresolved-import]
-    except ImportError:
-        return None
-    return str(version)
+def _harbor_version() -> str:
+    return version("harbor")
 
 
 class _ExecRecorder:
@@ -145,17 +133,9 @@ def _test_exit_code(calls: list[dict[str, Any]]) -> int | None:
 class RepeatVerifier(BaseVerifier):
     """Run the task verifier ``repeat_n`` times; report the first reward."""
 
-    def __init__(self, *args: Any, repeat_n: Any = DEFAULT_REPEAT_N, **kwargs: Any) -> None:
-        # Harbor's factory passes (task, trial_paths, environment, ...) either
-        # positionally or by keyword; inner-verifier construction below reuses
-        # exactly what this wrapper received.
-        super().__init__(*args, **kwargs)
-        task = args[0] if args else kwargs.get("task")
-        trial_paths = args[1] if len(args) > 1 else kwargs.get("trial_paths")
-        environment = args[2] if len(args) > 2 else kwargs.get("environment")
-        self._task = task
-        self._trial_paths = trial_paths
-        self._environment = environment
+    def __init__(self, *, repeat_n: Any = DEFAULT_REPEAT_N, **kwargs: Any) -> None:
+        # Harbor 0.24 passes the required task, paths and environment by keyword.
+        super().__init__(**kwargs)
         self._passthrough = kwargs
         self._repeat_n = _coerce_repeat_n(repeat_n)
         self._inner_factory: Any | None = kwargs.pop("_inner_factory", None)
@@ -169,8 +149,8 @@ class RepeatVerifier(BaseVerifier):
         }
         if self._inner_factory is not None:
             return self._inner_factory(
-                task=self._task,
-                trial_paths=self._trial_paths,
+                task=self.task,
+                trial_paths=self.trial_paths,
                 environment=environment,
                 **passthrough,
             )
@@ -178,8 +158,8 @@ class RepeatVerifier(BaseVerifier):
         from harbor.verifier.verifier import Verifier  # ty: ignore[unresolved-import]
 
         return Verifier(
-            task=self._task,
-            trial_paths=self._trial_paths,
+            task=self.task,
+            trial_paths=self.trial_paths,
             environment=environment,
             override_env=passthrough.get("override_env"),
             logger=passthrough.get("logger"),
@@ -190,19 +170,12 @@ class RepeatVerifier(BaseVerifier):
         )
 
     def _host_verifier_dir(self) -> Path:
-        return Path(str(self._trial_paths.verifier_dir))
+        return self.trial_paths.verifier_dir
 
     def _container_reward_paths(self) -> tuple[str, str]:
-        """Reward file paths inside the container (Harbor layout, POS fallback)."""
-        try:
-            from harbor.models.trial.paths import (  # ty: ignore[unresolved-import]
-                EnvironmentPaths,
-            )
-
-            env_paths = EnvironmentPaths.for_os(self._environment.os)
-            return str(env_paths.reward_text_path), str(env_paths.reward_json_path)
-        except Exception:  # noqa: BLE001 — Harbor absent (tests) or odd backend.
-            return "/logs/verifier/reward.txt", "/logs/verifier/reward.json"
+        """Reward file paths from the pinned Harbor layout for the task OS."""
+        env_paths = EnvironmentPaths.for_os(self.environment.os)
+        return str(env_paths.reward_text_path), str(env_paths.reward_json_path)
 
     async def _clear_reward_files(self) -> None:
         """Remove stale reward files (container + host) before reruns.
@@ -213,12 +186,12 @@ class RepeatVerifier(BaseVerifier):
         """
         txt, js = self._container_reward_paths()
         try:
-            await self._environment.exec(f"rm -f {txt} {js}", user="root")
+            await self.environment.exec(f"rm -f {txt} {js}", user="root")
         except Exception as exc:  # noqa: BLE001 — best effort, host clear follows.
             self._logger.warning("repeat verifier could not clear container rewards: %s", exc)
         for attr in ("reward_text_path", "reward_json_path"):
             try:
-                Path(str(getattr(self._trial_paths, attr))).unlink(missing_ok=True)
+                Path(str(getattr(self.trial_paths, attr))).unlink(missing_ok=True)
             except (AttributeError, OSError) as exc:
                 self._logger.warning("repeat verifier could not clear host %s: %s", attr, exc)
 
@@ -274,7 +247,7 @@ class RepeatVerifier(BaseVerifier):
         for index in range(self._repeat_n):
             if index >= 1:
                 await self._clear_reward_files()
-            recorder = _ExecRecorder(self._environment)
+            recorder = _ExecRecorder(self.environment)
             start = time.monotonic()
             try:
                 result = await self._make_inner(recorder).verify()
@@ -289,7 +262,7 @@ class RepeatVerifier(BaseVerifier):
                     "duration_sec": round(duration, 3),
                     "exit_code": _test_exit_code(recorder.calls),
                     "stdout_tail_sha256": _stdout_tail_digest(
-                        Path(str(self._trial_paths.test_stdout_path))
+                        self.trial_paths.test_stdout_path
                     ),
                 })
                 if index == 0:
@@ -304,7 +277,7 @@ class RepeatVerifier(BaseVerifier):
                     "duration_sec": round(duration, 3),
                     "exit_code": _test_exit_code(recorder.calls),
                     "stdout_tail_sha256": _stdout_tail_digest(
-                        Path(str(self._trial_paths.test_stdout_path))
+                        self.trial_paths.test_stdout_path
                     ),
                 })
                 if index == 0:
@@ -319,7 +292,7 @@ class RepeatVerifier(BaseVerifier):
     def _write_stability(self, runs: list[dict[str, Any]]) -> None:
         payload = {
             "schema": SCHEMA,
-            "verifier": VERIFIER_IMPORT_PATH,
+            "verifier": execution_contracts.VERIFIER_IMPORT_PATH,
             "harbor_version": _harbor_version(),
             "repeat_n_requested": self._repeat_n,
             "n_runs": len(runs),

@@ -85,7 +85,7 @@ class _FakeTerminus2:
         self._extra_env = dict(extra_env) if extra_env else {}
         self.extra_kwargs = kwargs
         self._trajectory_steps: list[Any] = []
-        self._parser_name = "json"
+        self.options = SimpleNamespace(parser_name="json")
         self._llm = _FakeLiteLLM()
         self.llm_seam = _FakeLiteLLM()
 
@@ -531,13 +531,12 @@ def test_mimo_route_wraps_the_stock_parser_with_finish_reason_lookup(
     assert parser._inner == {"stock": "json-parser"}
     assert parser._finish_reason() == "stop"
 
-    agent._parser_name = "plain"
+    agent.options.parser_name = "xml"
     assert agent._get_parser() == {"stock": "json-parser"}
 
     other = bound.SecretSafeTerminus2(
         logs_dir=tmp_path, model_name="zai/glm-5.3-flash"
     )
-    other._parser_name = "json"
     assert other._get_parser() == {"stock": "json-parser"}
 
 

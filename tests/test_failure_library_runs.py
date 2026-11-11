@@ -665,3 +665,73 @@ def test_ablation_reused_native_episode_id_keeps_each_published_row(
     assert {run.transcript_ref.split("#", 1)[1] for run in runs} == {"line=1", "line=2"}
     assert all(run.split == "cross_test" for run in runs)
     assert workspace[2].verify_runs("reward-hacking-ablation") == []
+
+
+def test_retained_download_recovers_without_upstream_access(tmp_path: Path, monkeypatch) -> None:
+    from evallab.failure_library.runs import io
+
+    destination = tmp_path / "retained"
+    destination.mkdir()
+    native = destination / "traces.jsonl"
+    native.write_bytes(b'{"native":"fixture"}\n')
+    pin, _ = io.retained_bundle_digest(destination)
+    monkeypatch.setitem(io.RETAINED_BUNDLE_SHA256, "goodfire-reward-hack-data", pin)
+
+    def offline(*args, **kwargs):
+        raise AssertionError("recovery must not contact the removed upstream")
+
+    monkeypatch.setattr(io.urllib.request, "urlopen", offline)
+    assert io.download_source("goodfire-reward-hack-data", destination) == [native]
+    native.write_bytes(b'{"native":"modified"}\n')
+    with pytest.raises(ValueError, match="hash differs"):
+        io.download_source("goodfire-reward-hack-data", destination)
+
+
+@pytest.mark.parametrize("mutation", ["rename", "add", "remove", "symlink"])
+def test_retained_bundle_binds_file_identity_and_inventory(tmp_path: Path, mutation: str) -> None:
+    from evallab.failure_library.runs import io
+
+    (tmp_path / "trace.jsonl").write_bytes(b"native trace fixture")
+    pin, _ = io.retained_bundle_digest(tmp_path)
+    if mutation == "rename":
+        (tmp_path / "trace.jsonl").rename(tmp_path / "other.jsonl")
+    elif mutation == "add":
+        (tmp_path / "extra").write_bytes(b"unadmitted bytes")
+    elif mutation == "remove":
+        (tmp_path / "trace.jsonl").unlink()
+    else:
+        (tmp_path / "link").symlink_to(tmp_path / "trace.jsonl")
+    with pytest.raises(ValueError):
+        io.verify_retained_bundle(tmp_path, pin)
+
+
+def test_download_checks_pinned_revision_and_hash_before_acceptance(tmp_path: Path, monkeypatch) -> None:
+    import io as stream_io
+
+    from evallab.failure_library.runs import io
+
+    expected = tmp_path / "expected"
+    expected.mkdir()
+    (expected / "cohort").mkdir()
+    payload = b'{"native":"fixture"}\n'
+    (expected / "cohort/traces.jsonl").write_bytes(payload)
+    pin, _ = io.retained_bundle_digest(expected)
+    monkeypatch.setitem(io.RETAINED_BUNDLE_SHA256, "goodfire-reward-hack-data", pin)
+    revision = io.GOODFIRE_REVISION
+    metadata = {"sha": revision, "siblings": [{"rfilename": "cohort/traces.jsonl"}]}
+    native_bytes = payload
+
+    def upstream(request, **kwargs):
+        body = json.dumps(metadata).encode() if "/api/datasets/" in request.full_url else native_bytes
+        return stream_io.BytesIO(body)
+
+    monkeypatch.setattr(io.urllib.request, "urlopen", upstream)
+    downloaded = io.download_source("goodfire-reward-hack-data", tmp_path / "download")
+    assert downloaded[0].read_bytes() == payload
+    metadata["sha"] = "different-revision"
+    with pytest.raises(ValueError, match="different dataset revision"):
+        io.download_source("goodfire-reward-hack-data", tmp_path / "drift")
+    metadata["sha"] = revision
+    native_bytes = b"changed upstream bytes"
+    with pytest.raises(ValueError, match="hash differs"):
+        io.download_source("goodfire-reward-hack-data", tmp_path / "corrupt")

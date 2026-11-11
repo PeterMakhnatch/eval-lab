@@ -432,23 +432,14 @@ def cleanup_new_harbor_containers(
     return orphaned
 
 
-# Every workflow installs exactly this Harbor CLI with
-# `uv tool install "harbor==<pin>"` (HAR-251). tests/test_quality_gates.py
-# imports it, and `evallab doctor` compares the local CLI against it (HAR-265),
-# because a local Harbor on another version produces jobs CI cannot reproduce.
-# A bump changes this constant and every workflow together.
-HARBOR_CLI_PIN = "0.21.0"
+# Supported native runtime; pyproject.toml and CI install this exact release.
+HARBOR_CLI_PIN = "0.24.0"
 
 _VERSION_NUMBER = re.compile(r"\d+\.\d+(?:\.\d+)?")
 
 
 def harbor_cli_pin_check(version: str | None) -> tuple[bool, str]:
-    """Compare a local ``harbor --version`` line with the CI CLI pin.
-
-    ``version`` is ``tool_version("harbor")``: ``None`` when the CLI is absent.
-    Doctor reports the verdict as an advisory row, so drift is visible without
-    changing the exit code.
-    """
+    """Compare a local ``harbor --version`` line with the supported runtime pin."""
     if version is None:
         return False, f"harbor not found (CI pin {HARBOR_CLI_PIN})"
     match = _VERSION_NUMBER.search(version)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import importlib.metadata
 import json
 import os
 import plistlib
@@ -7,10 +9,15 @@ import re
 import shlex
 import shutil
 import signal
+import sqlite3
 import subprocess
+import sys
+import tempfile
 import threading
 import time
+import tomllib
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from functools import partial
@@ -925,6 +932,358 @@ def sync_primary_status(
         age_seconds=age_seconds,
         detail=detail,
     )
+
+
+# Supported host CLI contracts. Python distributions remain hash-pinned in uv.lock.
+CORE_TOOL_PINS = {
+    "docker-engine": "29.8.0",
+    "docker-compose": "5.5.1",
+    "omp": "18.18.8",
+    "gh": "2.96.0",
+    "git": "2.50.1",
+    "uv": "0.9.24",
+    "keys-code-sha256": "c92060fa29987daf2490e0b69f86fbfa2bb6a45e304ef423cad2072e55e7ce3c",
+}
+
+
+def installed_job_health(
+    home: Path,
+    *,
+    now: datetime | None = None,
+    run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> list[tuple[str, bool, str]]:
+    """Observe installed jobs, not repository templates; never change launchd.
+
+    Only useful domain receipts qualify. A recent stdout log is not evidence
+    of useful work. An unknown receipt is a failed check, not a fresh service.
+    """
+    state = home / ".local/state"
+    prod = state / "evallab-prod-live"
+    outputs = {
+        "nightly": state / "evallab-nightly/trials.parquet",
+        "prod-factory": prod / "factory/factory-cycles.jsonl",
+        "prod-factory-watchdog": prod / "factory/factory-watchdog.json",
+        "run-atlas-watch": prod / "run-atlas/facets-v1.jsonl",
+        "docent-watch": prod / "trace-tools/results-v1.jsonl",
+        "scout-watch": prod / "trace-tools/scout-native-actor-v2/results-v1.jsonl",
+        "live-supervisor": prod / "live-supervisor/decisions-v1.jsonl",
+        "live-supervisor-alarms": prod / "live-supervisor/alarm-cursor.json",
+        "live-supervisor-fleet-report": prod / "live-supervisor/fleet-state.json",
+        "sync-primary": default_sync_status_path(home),
+    }
+    checks = []
+    for path in sorted((home / "Library/LaunchAgents").glob("*.plist")):
+        if not path.stem.startswith(LAUNCH_AGENT_LABEL_PREFIX):
+            continue
+        label = path.stem
+        try:
+            definition = plistlib.loads(path.read_bytes())
+            if definition.get("Label") != label:
+                raise ValueError("plist label mismatch")
+            result = run(
+                ["launchctl", "print", f"gui/{os.getuid()}/{label}"],
+                capture_output=True, text=True, timeout=10, check=False,
+            )
+            loaded = result.returncode == 0
+            match = re.search(r"^\s*last exit code = (-?\d+)\s*$", result.stdout, re.MULTILINE)
+            exit_code = int(match[1]) if match else None
+            short = label.removeprefix(LAUNCH_AGENT_LABEL_PREFIX)
+            output = outputs.get(short)
+            if short == "insights":
+                candidates = list((state / "evallab-insights/passes").glob("*/out/*.json"))
+                output = max(candidates, key=lambda path: path.stat().st_mtime, default=None)
+            stamp = output.stat().st_mtime if output is not None and output.is_file() and output.stat().st_size else None
+            observed_at = now or datetime.now(UTC)
+            age = (observed_at.timestamp() - stamp) / 3600 if stamp is not None else None
+            if short == "sync-primary" and sync_primary_status(home, now=observed_at).outcome != "synced":
+                age = None
+            if short == "prod-factory" and output is not None and output.is_file():
+                useful_at: datetime | None = None
+                with output.open() as stream:
+                    for line in stream:
+                        cycle = json.loads(line)
+                        if any(cycle.get(key, 0) for key in ("emitted", "consumed_meaningful", "replayed_steps")):
+                            stamp = cycle.get("ts")
+                            if isinstance(stamp, str):
+                                useful_at = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+                age = ((now or datetime.now(UTC)) - useful_at).total_seconds() / 3600 if useful_at is not None else None
+            interval = definition.get("StartInterval")
+            limit_h = max(900, interval * 3) / 3600 if type(interval) is int else 36.0
+            cwd = str(definition.get("WorkingDirectory", ""))
+            revision = re.search(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])", cwd)
+            pin = revision[0] if revision else "MISSING"
+            missing = _launch_agent_missing_references(definition)
+            running = bool(re.search(r"^\s*state = running\s*$", result.stdout, re.MULTILINE))
+            exit_ok = exit_code == 0 or (exit_code is None and running)
+            ok = loaded and exit_ok and age is not None and 0 <= age <= limit_h and not missing
+            # Missing pin or useful-output mapping is deliberately visible and fails.
+            ok = ok and pin != "MISSING"
+            detail = (
+                f"pin={pin} loaded={loaded} running={running} last_exit={exit_code} "
+                f"useful_age_h={round(age, 2) if age is not None else 'MISSING'} "
+                f"limit_h={limit_h} "
+                f"output={output or 'MISSING'} broken_paths={len(missing)}"
+            )
+        except Exception as exc:
+            ok, detail = False, f"unavailable: {type(exc).__name__}"
+        checks.append((f"launchd:{label}", ok, detail))
+    return checks
+
+
+def _python_runtime_health(root: Path) -> tuple[bool, str]:
+    from packaging.specifiers import SpecifierSet
+
+    requirement = tomllib.loads((root / "pyproject.toml").read_text())["project"]["requires-python"]
+    version = sys.version.split()[0]
+    return version in SpecifierSet(requirement), (
+        f"installed={version} pin={requirement} (pyproject.toml); CI=3.12,3.14 exact_patch=MISSING"
+    )
+
+
+def core_runtime_checks(
+    root: Path,
+    *,
+    home: Path | None = None,
+    now: datetime | None = None,
+    run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> list[tuple[str, bool, str]]:
+    """Read-only CORE checks for the existing doctor; no inference or downloads.
+
+    subprocess output is never copied into an error. Credential probes discard
+    both streams. Only version/config fields and public GitHub rules are used.
+    """
+    from evallab.backups import backup_freshness, sqlite_store_paths
+    from evallab.failure_library.runs.io import retained_source_health
+    from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
+
+    home = home or Path.home()
+    job_now = now
+    now = now or datetime.now(UTC)
+    checks: list[tuple[str, bool, str]] = []
+
+    def probe(name: str, check: Callable[[], tuple[bool, str]]) -> None:
+        try:
+            ok, detail = check()
+        except Exception as exc:
+            ok, detail = False, f"unavailable: {type(exc).__name__}"
+        checks.append((name, ok, detail))
+
+    def command(argv: list[str], **kwargs: Any) -> str:
+        result = run(argv, capture_output=True, text=True, timeout=15, check=False, **kwargs)
+        if result.returncode:
+            raise RuntimeError("health command failed")
+        return result.stdout
+
+    lock = tomllib.loads((root / "uv.lock").read_text())
+    locked = {package["name"]: package["version"] for package in lock["package"]}
+    for package in ("harbor", "psycopg", "duckdb", "pyarrow", "huggingface-hub",
+                    "pydantic", "pyyaml", "tomlkit"):
+        def library_version(package: str = package) -> tuple[bool, str]:
+            version = importlib.metadata.version(package)
+            return version == locked[package], f"installed={version} pin={locked[package]} (uv.lock)"
+        probe(package, library_version)
+    for tool in ("omp", "gh", "git", "uv"):
+        def cli_version(tool: str = tool) -> tuple[bool, str]:
+            output = command([tool, "--version"])
+            match = re.search(r"\d+\.\d+\.\d+", output)
+            version = match[0] if match else "unparsed"
+            return version == CORE_TOOL_PINS[tool], f"installed={version} pin={CORE_TOOL_PINS[tool]}"
+        probe(f"{tool}-version", cli_version)
+    probe("python", lambda: _python_runtime_health(root))
+
+    def docker_engine() -> tuple[bool, str]:
+        version = command(["docker", "version", "--format", "{{.Server.Version}}"]).strip()
+        return version == CORE_TOOL_PINS["docker-engine"], (
+            f"reachable=True installed={version} pin={CORE_TOOL_PINS['docker-engine']}"
+        )
+    probe("docker-engine", docker_engine)
+
+    def compose() -> tuple[bool, str]:
+        version = command(["docker", "compose", "version", "--short"]).strip().removeprefix("v")
+        return version == CORE_TOOL_PINS["docker-compose"], (
+            f"reachable=True installed={version} pin={CORE_TOOL_PINS['docker-compose']}"
+        )
+    probe("docker-compose", compose)
+
+    def isolation() -> tuple[bool, str]:
+        from evallab.harbor_common import validate_docker_daemon
+        info = json.loads(command(["docker", "info", "--format", "{{json .}}"]))
+        validate_docker_daemon(info)
+        return True, "Linux daemon preflight passes; per-container nft/mount proof remains mandatory"
+    probe("docker-isolation", isolation)
+
+    def postgres() -> tuple[bool, str]:
+        url = database_url_from_environment()
+        with database.psycopg.connect(
+            url, connect_timeout=3, options="-c default_transaction_read_only=on -c statement_timeout=5000",
+        ) as connection:
+            row = connection.execute("SHOW server_version").fetchone()
+            if row is None:
+                raise ValueError("PostgreSQL returned no server version")
+            version = row[0]
+            columns = connection.execute(
+                "SELECT table_name,column_name,data_type FROM information_schema.columns "
+                "WHERE table_schema='public' ORDER BY table_name,ordinal_position"
+            ).fetchall()
+        fingerprint = hashlib.sha256(json.dumps(columns).encode()).hexdigest()
+        schema = hashlib.sha256((root / "sql/schema.sql").read_bytes()).hexdigest()
+        # The catalog has no migration ledger. Never invent an applied revision.
+        return False, (
+            f"reachable=True installed={version} pin=18.4 db={database.identity(url)} "
+            f"schema_revision=MISSING schema_sha256={schema} columns_sha256={fingerprint}"
+        )
+    probe("postgres-schema", postgres)
+
+    def postgres_backup() -> tuple[bool, str]:
+        fact = backup_freshness(root, now=now)
+        return fact["status"] == "fresh", (
+            f"{fact['status']} age_h={fact['age_hours']} limit_h={fact['max_age_hours']} "
+            f"path={fact['newest_verified']}"
+        )
+    probe("postgres-backup", postgres_backup)
+
+    for path in sqlite_store_paths(root, home):
+        def sqlite_store(path: Path = path) -> tuple[bool, str]:
+            with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=3)) as connection:
+                connection.execute("PRAGMA query_only=ON")
+                version = connection.execute("PRAGMA user_version").fetchone()[0]
+                schema = connection.execute("PRAGMA schema_version").fetchone()[0]
+                connection.execute("SELECT name FROM sqlite_master LIMIT 1").fetchone()
+            with path.open("rb") as header:
+                format_version = header.read(20)[18:20].hex()
+            compatible = format_version in {"0101", "0202"} and sqlite3.sqlite_version_info >= (3, 49, 1)
+            return compatible, (
+                f"read_only=True engine={sqlite3.sqlite_version} pin=SQLite>=3.49.1 "
+                f"user_version={version} schema_version={schema} format_rw={format_version} path={path}"
+            )
+        probe(f"sqlite:{path.parent.name}/{path.name}", sqlite_store)
+    derived = derived_root_from_environment(root)
+    stores = sorted((shared_checkout_root(root) / "derived").glob("*.duckdb"))
+    for path in stores:
+        def duckdb_store(path: Path = path) -> tuple[bool, str]:
+            import duckdb
+            with duckdb.connect(str(path), read_only=True) as connection:
+                metadata = connection.execute("PRAGMA metadata_info").fetchone()
+            with path.open("rb") as stream:
+                header = stream.read(20)
+            return header[8:12] == b"DUCK", (
+                f"read_only=True storage_version={int.from_bytes(header[12:20], 'little')} "
+                f"metadata={metadata} path={path}"
+            )
+        probe(f"duckdb:{path.name}", duckdb_store)
+    def duckdb_engine() -> tuple[bool, str]:
+        import duckdb
+        with duckdb.connect(":memory:", config={
+            "autoinstall_known_extensions": False, "autoload_known_extensions": False,
+        }) as connection:
+            row = connection.execute("SELECT version()").fetchone()
+            if row is None:
+                raise ValueError("DuckDB returned no engine version")
+            version = row[0].removeprefix("v")
+        return version == locked["duckdb"], (
+            f"reachable=True installed={version} pin={locked['duckdb']} persistent_stores={len(stores)}; "
+            "storage/attach.py uses in-memory DuckDB over Parquet; retained_write=False"
+        )
+    probe("duckdb-engine", duckdb_engine)
+    parquet_files = sorted(derived.rglob("*.parquet"))
+
+    def parquet_stores() -> tuple[bool, str]:
+        import pyarrow.parquet as pq
+        if not parquet_files:
+            return False, f"projections=MISSING root={derived}"
+        versions: set[str] = set()
+        for path in parquet_files:
+            metadata = pq.read_metadata(path)
+            versions.add(str(metadata.format_version))
+        return True, f"read_only=True files={len(parquet_files)} format_versions={','.join(sorted(versions))} root={derived}"
+    probe("parquet-stores", parquet_stores)
+
+    def omp_config() -> tuple[bool, str]:
+        with tempfile.TemporaryDirectory(prefix="evallab-omp-config-") as directory:
+            enabled, disabled = (Path(directory) / name for name in ("enabled.yml", "disabled.yml"))
+            enabled.write_text("retry:\n  modelFallback: true\n")
+            disabled.write_text("retry:\n  modelFallback: false\n")
+            observed = []
+            for paths in (str(enabled), os.pathsep.join((str(enabled), str(disabled)))):
+                output = command(
+                    ["omp", "config", "get", "retry.modelFallback", "--json"],
+                    env={**os.environ, "PI_CONFIG_FILES": paths},
+                )
+                observed.append(json.loads(output).get("value"))
+        return observed == [True, False], (
+            f"config overlay control={observed[0]} no_fallback={observed[1]} expected=True,False; no model call"
+        )
+    probe("omp-no-fallback", omp_config)
+
+    def keys_presence() -> tuple[bool, str]:
+        executable = shutil.which("keys")
+        pin = CORE_TOOL_PINS["keys-code-sha256"]
+        if executable is None:
+            return False, f"installed=MISSING pin_sha256={pin} HF_TOKEN=not-probed"
+        with Path(executable).open("rb") as stream:
+            installed = hashlib.file_digest(stream, "sha256").hexdigest()
+        version = f"installed_sha256={installed} pin_sha256={pin}"
+        if installed != pin:
+            return False, f"{version} HF_TOKEN=not-probed(code drift)"
+        result = run(
+            [executable, "has", "HF_TOKEN"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=10, check=False,
+        )
+        return result.returncode == 0, version + " interface=keys-has-NAME/v1 HF_TOKEN=" + (
+            "present" if result.returncode == 0 else "missing-or-unavailable"
+        )
+    probe("keys", keys_presence)
+
+    def github() -> tuple[bool, str]:
+        result = run(
+            ["gh", "auth", "status"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=15, check=False,
+        )
+        if result.returncode:
+            return False, "auth=unavailable; branch protection visibility=MISSING"
+        rules = json.loads(command([
+            "gh", "api", "repos/PeterMakhnatch/eval-lab/rules/branches/main",
+        ]))
+        required = {
+            check["context"]
+            for rule in rules if rule.get("type") == "required_status_checks"
+            for check in rule.get("parameters", {}).get("required_status_checks", [])
+        }
+        if not {"quality-required", "typecheck-required"} <= required:
+            protection = json.loads(command([
+                "gh", "api", "repos/PeterMakhnatch/eval-lab/branches/main/protection/required_status_checks",
+            ]))
+            required.update(protection.get("contexts", []))
+            required.update(check["context"] for check in protection.get("checks", []))
+        ok = {"quality-required", "typecheck-required"} <= required
+        return ok, (
+            f"auth=True branch_rules_visible=True required_checks={','.join(sorted(required)) or 'MISSING'}; "
+            "pending/missing exact-head CI still blocks ship"
+        )
+    probe("github", github)
+    probe("goodfire-data", lambda: retained_source_health(
+        root, home=home, collections=("goodfire-reward-hack-data",),
+    ))
+    from evallab.failure_library.runs.io import REPOSITORIES
+    probe("hugging-face-data", lambda: retained_source_health(
+        root, home=home, collections=tuple(name for name in REPOSITORIES if name != "goodfire-reward-hack-data"),
+    ))
+
+    def gold_localization() -> tuple[bool, str]:
+        from evallab.gold import load_rows
+        rows = [row for row in load_rows(root) if row.source.startswith("goodfire-")]
+        positive = [row for row in rows if row.label_state == "executed-positive"]
+        missing = sum(
+            not row.trajectory_available or not row.trajectory_ref or not row.trajectory_digest or not row.step_locators
+            for row in positive
+        )
+        return bool(rows) and missing == 0, (
+            f"loader=evallab.gold.load_rows rows={len(rows)} positive={len(positive)} "
+            f"positive_without_action={missing}; unresolved chronology is not execution proof"
+        )
+    probe("goodfire-localization", gold_localization)
+    checks.extend(installed_job_health(home, now=job_now, run=run))
+    return checks
 
 
 class HeadlessDoctor:

@@ -1176,6 +1176,7 @@ dependencies = [
     { name = "daytona" },
     { name = "duckdb" },
     { name = "fastapi" },
+    { name = "harbor", extra = ["modal"] },
     { name = "huggingface-hub" },
     { name = "nats-py" },
     { name = "psycopg", extra = ["binary"] },
@@ -1189,7 +1190,6 @@ dependencies = [
 
 [package.optional-dependencies]
 laminar = [
-    { name = "harbor", extra = ["modal"] },
     { name = "lmnr" },
 ]
 verifier = [
@@ -1235,7 +1235,7 @@ requires-dist = [
     { name = "daytona", specifier = ">=0.210.0" },
     { name = "duckdb", specifier = ">=1.5.5,<2" },
     { name = "fastapi", specifier = "==0.141.1" },
-    { name = "harbor", extras = ["modal"], marker = "extra == 'laminar'", specifier = "==0.24.0" },
+    { name = "harbor", extras = ["modal"], specifier = "==0.24.0" },
     { name = "huggingface-hub", specifier = ">=1.29.0" },
     { name = "llm-verifier", marker = "extra == 'verifier'", specifier = ">=0.2.0" },
     { name = "lmnr", marker = "extra == 'laminar'", specifier = "==0.7.64" },

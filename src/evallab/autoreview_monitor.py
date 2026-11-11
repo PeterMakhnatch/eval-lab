@@ -1098,15 +1098,16 @@ def run_omp_session(
         session_dir = base_dir / "sessions" / tag
         session_dir.mkdir(parents=True, exist_ok=True)
 
-        config_arg: list[str] = []
         if config_path and Path(config_path).is_file():
-            config_arg = ["--config", str(config_path)]
+            cfg_file = Path(config_path).resolve()
         elif os.environ.get("EVALLAB_WORKER_YML") and Path(os.environ["EVALLAB_WORKER_YML"]).is_file():
-            config_arg = ["--config", os.environ["EVALLAB_WORKER_YML"]]
+            cfg_file = Path(os.environ["EVALLAB_WORKER_YML"]).resolve()
         else:
             cfg_file = base_dir / "worker.yml"
             cfg_file.write_text("retry:\n  modelFallback: false\n  maxRetries: 4\n", encoding="utf-8")
-            config_arg = ["--config", str(cfg_file)]
+
+        inherited_configs = os.environ.get("PI_CONFIG_FILES")
+        config_files = f"{inherited_configs}{os.pathsep}{cfg_file}" if inherited_configs else str(cfg_file)
 
         command = [
             "omp",
@@ -1114,7 +1115,6 @@ def run_omp_session(
             f"@{prompt_file}",
             "--model",
             model,
-            *config_arg,
             "--no-tools",
             "--no-skills",
             "--thinking",
@@ -1132,6 +1132,7 @@ def run_omp_session(
                 text=True,
                 timeout=timeout,
                 cwd=str(base_dir),
+                env={**os.environ, "PI_CONFIG_FILES": config_files},
             )
             code, stdout, stderr = proc.returncode, proc.stdout, proc.stderr
         except subprocess.TimeoutExpired as error:

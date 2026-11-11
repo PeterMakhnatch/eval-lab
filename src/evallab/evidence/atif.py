@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import hashlib
-import importlib
 import json
 from collections import defaultdict, deque
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Protocol, TypeGuard
+from typing import Any, Literal
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pydantic import ValidationError
 
 from evallab.eventlog import read_event_log_lines
 from evallab.results import JobRecord, TrialRecord, sha256_file
@@ -266,15 +264,6 @@ class ProjectionInvariant:
         return f"{base} missing={len(self.missing_job_ids)} extra={len(self.extra_job_ids)}"
 
 
-class _HarborTrajectory(Protocol):
-    @classmethod
-    def model_validate(cls, payload: JsonObject) -> object: ...
-
-
-def _is_harbor_trajectory(value: object) -> TypeGuard[type[_HarborTrajectory]]:
-    return isinstance(value, type) and callable(getattr(value, "model_validate", None))
-
-
 def _as_object(value: object) -> JsonObject | None:
     return value if isinstance(value, dict) else None
 
@@ -287,11 +276,6 @@ def _string_or_none(value: object) -> str | None:
     return str(value) if value is not None else None
 
 
-def _error_location(error: Mapping[str, Any]) -> list[Any]:
-    location = error.get("loc")
-    return list(location) if isinstance(location, list | tuple) else []
-
-
 CatalogRowsLoader = Callable[[str], list[tuple[str, str, str | None]]]
 
 
@@ -302,33 +286,12 @@ def _load_json(path: Path) -> tuple[Any | None, str | None]:
         return None, f"{type(exc).__name__}: {exc}"
 
 
-def _validate_with_harbor(payload: JsonObject) -> tuple[str, str | None] | None:
-    """Use Harbor's installed model when it is importable in this interpreter."""
-    try:
-        module = importlib.import_module("harbor.models.trajectories")
-    except ImportError:
-        return None
-    trajectory = getattr(module, "Trajectory", None)
-    if not _is_harbor_trajectory(trajectory):
-        return None
-    try:
-        trajectory.model_validate(payload)
-    except ValidationError as exc:
-        sanitized = [
-            {
-                "type": item.get("type"),
-                "loc": _error_location(item),
-                "msg": item.get("msg"),
-            }
-            for item in exc.errors(include_input=False, include_url=False)
-        ]
-        return "harbor", json.dumps(sanitized, separators=(",", ":"), sort_keys=True)
-    except Exception as exc:  # Harbor owns non-Pydantic validator failures.
-        return "harbor", f"{type(exc).__name__}: validation failed"
-    return "harbor", None
+def _validate_atif_v1(payload: JsonObject) -> str | None:
+    """Validate the retained ATIF-v1 contract, including lab custody metadata.
 
-
-def _validate_fallback(payload: JsonObject) -> str | None:
+    Admission must not change when an execution SDK is installed or upgraded.
+    Current native SDK models do not own these retained redaction extensions.
+    """
     schema_version = payload.get("schema_version")
     if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         return f"unsupported schema_version {schema_version!r}"
@@ -397,7 +360,7 @@ def _validate_fallback(payload: JsonObject) -> str | None:
         if not isinstance(trajectory_id, str) or trajectory_id in embedded_ids:
             return "embedded subagents require unique trajectory_id values"
         embedded_ids.add(trajectory_id)
-        child_error = _validate_fallback(child)
+        child_error = _validate_atif_v1(child)
         if child_error:
             return f"subagent_trajectories[{index}]: {child_error}"
     return None
@@ -510,12 +473,8 @@ def _document_validation(
     schema_version = payload.get("schema_version")
     if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         return "unsupported", "internal-atif-v1", f"unsupported schema_version {schema_version!r}"
-    harbor_validation = _validate_with_harbor(payload)
-    if harbor_validation is None:
-        validator = "internal-atif-v1"
-        error = _validate_fallback(payload)
-    else:
-        validator, error = harbor_validation
+    validator = "internal-atif-v1"
+    error = _validate_atif_v1(payload)
     if error is None:
         error = _embedded_reference_error(payload)
     if error is None:

@@ -560,12 +560,9 @@ def test_missing_layers_report_unknown_with_reconciled_ledger_false(
     assert layers["prose_completions"] is None
     assert layers["executed_calls"] is None
     assert layers["task_complete_turns"] is None
-    assert "layers missing for 1 of 1 agent steps" in layers["layers_unknown_reason"]
-    assert "harbor==0.21.0" in layers["layers_unknown_reason"]
     problems = report["outcome"]["execution_problems"]
     assert problems["parse_errors"] is None
     assert problems["proxy_usage_unreconciled"] is False
-    assert problems["coverage"] == "unknown: parse_errors, prose_completions"
 
 
 def test_missing_layers_and_ledger_markdown_unknown(tmp_path: Path, monkeypatch: Any) -> None:

@@ -25,10 +25,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from evallab.execution_contracts import VERIFIER_IMPORT_PATH
 from evallab.harbor_repeat_verifier import (
     DEFAULT_REPEAT_N,
     STABILITY_FILENAME,
-    VERIFIER_IMPORT_PATH,
 )
 from evallab.harbor_telemetry import HARBOR_TELEMETRY_ENV, HARBOR_TELEMETRY_OFF
 

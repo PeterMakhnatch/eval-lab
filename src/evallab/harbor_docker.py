@@ -26,7 +26,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-# Harbor is optional in the base Lab install; native CI installs the pinned SDK.
 from harbor.constants import MAIN_SERVICE_NAME  # ty: ignore[unresolved-import]
 from harbor.environments.base import ExecResult  # ty: ignore[unresolved-import]
 from harbor.environments.capabilities import (  # ty: ignore[unresolved-import]
@@ -201,9 +200,7 @@ class LockedDockerEnvironment(DockerEnvironment):
                 MAIN_SERVICE_NAME, str(paths.artifacts_dir)
             ),
         }
-        # Harbor 0.21 has only the agent log mount; 0.24 adds user_agent.
-        if hasattr(paths, "user_agent_dir"):
-            allowed[str(paths.user_agent_dir)] = self.trial_paths.user_agent_dir
+        allowed[str(paths.user_agent_dir)] = self.trial_paths.user_agent_dir
         return allowed
 
     def _validate_mount_specs(self, mounts: Sequence[Mapping[str, Any]]) -> None:
@@ -268,8 +265,9 @@ class LockedDockerEnvironment(DockerEnvironment):
         return [*super()._docker_compose_paths, Path(self._lock_temp_dir.name) / "lock.json"]
 
     def _validate_daemon_mode(self) -> None:
-        if self._daemon_info.get("OSType") != "linux":
-            raise RuntimeError("egress_lock requires a confirmed Linux Docker daemon")
+        from evallab.harbor_common import validate_docker_daemon
+
+        validate_docker_daemon(self._daemon_info)
 
     async def _daemon_output(self, *command: str) -> str:
         process = await asyncio.create_subprocess_exec(
@@ -560,7 +558,7 @@ class LockedDockerEnvironment(DockerEnvironment):
             key: network.get(key) for key in ("Id", "Name", "Driver", "Scope")
         }
 
-    async def _run_docker_compose_command(self, command: list[str], **kwargs: Any) -> ExecResult:
+    async def _run_docker_compose_command(self, command: list[str], *args: Any, **kwargs: Any) -> ExecResult:
         operation = command[0]
         if operation in ("exec", "cp", "run") and not self._lock_confirmed:
             error = RuntimeError("egress_lock is unconfirmed; container execution/copy is refused")
@@ -570,7 +568,7 @@ class LockedDockerEnvironment(DockerEnvironment):
             raise RuntimeError("egress_lock refuses additional containers")
         if operation == "up":
             await self._validate_resolved_compose()
-        result = await super()._run_docker_compose_command(command, **kwargs)
+        result = await super()._run_docker_compose_command(command, *args, **kwargs)
         if operation == "up":
             await self._confirm_lock()
         return result

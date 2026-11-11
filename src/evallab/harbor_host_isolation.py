@@ -39,7 +39,6 @@ from harbor.environments.capabilities import (  # ty: ignore[unresolved-import]
     EnvironmentCapabilities,
 )
 from harbor.environments.docker.docker import (  # ty: ignore[unresolved-import]
-    DockerEnvironment,
     _sanitize_docker_compose_project_name,
 )
 from harbor.models.task.config import NetworkMode, NetworkPolicy  # ty: ignore[unresolved-import]
@@ -212,10 +211,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         # disconnect/reconnect with the nft boundary preserved; the strict
         # base-class switch refusal does not apply to this pair.
 
-    @classmethod
-    def _engine_cmd(cls, *command: str) -> list[str]:
-        native = getattr(DockerEnvironment, "_engine_cmd", None)
-        return native(*command) if native is not None else ["docker", *command]
 
     def _task_compose_service_names(self) -> list[str]:
         """Service names declared by the task's own Compose file, if any.

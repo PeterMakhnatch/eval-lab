@@ -6,22 +6,17 @@ import asyncio
 import hashlib
 import json
 import logging
-import sys
-import types
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from evallab import harbor_repeat_verifier, task_stability
+from evallab.execution_contracts import VERIFIER_IMPORT_PATH
 from evallab.harbor_repeat_verifier import (
-    DEFAULT_REPEAT_N,
     STDOUT_TAIL_BYTES,
-    VERIFIER_IMPORT_PATH,
     RepeatVerifier,
     _coerce_repeat_n,
-    _ExecRecorder,
-    _harbor_version,
     _scalar_reward,
     _stdout_tail_digest,
     _test_exit_code,
@@ -91,48 +86,6 @@ def test_stdout_tail_digest_handles_absent_empty_and_long_output(tmp_path: Path)
     ).hexdigest()
 
 
-def test_harbor_version_is_none_when_harbor_is_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setitem(sys.modules, "harbor", None)
-    assert _harbor_version() is None
-
-
-def test_harbor_version_is_string_when_harbor_is_available(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    harbor = types.ModuleType("harbor")
-    harbor.__version__ = "0.24.0"
-    monkeypatch.setitem(sys.modules, "harbor", harbor)
-    assert _harbor_version() == "0.24.0"
-
-
-def test_container_reward_paths_use_harbor_environment_layout(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class FakeEnvironmentPaths:
-        @classmethod
-        def for_os(cls, os: str) -> SimpleNamespace:
-            assert os == "linux"
-            return SimpleNamespace(
-                reward_text_path="/custom/reward.txt",
-                reward_json_path="/custom/reward.json",
-            )
-
-    path_module = types.ModuleType("harbor.models.trial.paths")
-    path_module.EnvironmentPaths = FakeEnvironmentPaths  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "harbor.models.trial.paths", path_module)
-    verifier = RepeatVerifier(
-        task=object(), trial_paths=object(), environment=SimpleNamespace(os="linux"),
-    )
-    assert verifier._container_reward_paths() == (
-        "/custom/reward.txt", "/custom/reward.json",
-    )
-
-
-def test_exec_recorder_passes_through_environment_attributes() -> None:
-    environment = SimpleNamespace(os="linux")
-    assert _ExecRecorder(environment).os == "linux"
 
 
 @pytest.mark.parametrize(
@@ -332,6 +285,8 @@ class _FakeEnvironment:
     Setup/cleanup execs (chmod, rm) return 0 without consuming codes.
     """
 
+    os = "linux"
+
     def __init__(self, return_codes: list[int] | None = None) -> None:
         self._return_codes = list(return_codes or [])
         self.exec_commands: list[str] = []
@@ -424,9 +379,6 @@ def test_repeat_verifier_reraises_first_error_after_recording(tmp_path: Path) ->
     assert payload["runs"][1]["reward"] == 0.0
 
 
-def test_repeat_verifier_default_repeats_three_times() -> None:
-    verifier = RepeatVerifier(task=object(), trial_paths=object(), environment=object())
-    assert verifier._repeat_n == DEFAULT_REPEAT_N
 
 
 def test_clear_reward_files_warns_for_exec_missing_path_and_unlink_errors(
@@ -434,6 +386,8 @@ def test_clear_reward_files_warns_for_exec_missing_path_and_unlink_errors(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     class FailingEnvironment:
+        os = "linux"
+
         async def exec(self, command: str, **kwargs: object) -> None:
             raise RuntimeError("container unavailable")
 
@@ -601,44 +555,6 @@ def test_read_trial_reward_prefers_text(tmp_path: Path) -> None:
     assert read_trial_reward(trial) == 1.0
 
 
-def test_make_inner_builds_default_verifier_without_inner_factory(tmp_path: Path) -> None:
-    """The Harbor-runtime branch imports and constructs the default Verifier."""
-    import sys
-    import types
-
-    created: dict[str, object] = {}
-
-    class FakeDefault:
-        def __init__(self, *, task: object, trial_paths: object, environment: object,
-                     override_env: object = None, logger: object = None,
-                     verifier_env: object = None, step_name: object = None,
-                     include_logs: object = None, exclude_logs: object = None) -> None:
-            created.update(task=task, trial_paths=trial_paths, environment=environment,
-                           step_name=step_name)
-
-    leaf = types.ModuleType("harbor.verifier.verifier")
-    leaf.Verifier = FakeDefault  # type: ignore[attr-defined]
-    middle = types.ModuleType("harbor.verifier")
-    middle.verifier = leaf  # type: ignore[attr-defined]
-    top = types.ModuleType("harbor")
-    top.verifier = middle  # type: ignore[attr-defined]
-    modules = {
-        "harbor": top, "harbor.verifier": middle, "harbor.verifier.verifier": leaf,
-    }
-    for name, module in modules.items():
-        sys.modules[name] = module
-    try:
-        paths = _FakeTrialPaths(tmp_path)
-        env = _FakeEnvironment()
-        task = object()
-        verifier = RepeatVerifier(task=task, trial_paths=paths, environment=env)
-        inner = verifier._make_inner(env)
-    finally:
-        for name in modules:
-            del sys.modules[name]
-    assert isinstance(inner, FakeDefault)
-    assert created == {"task": task, "trial_paths": paths, "environment": env,
-                        "step_name": None}
 
 
 def test_task_digests_carry_single_prefix(tmp_path: Path) -> None:

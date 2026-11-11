@@ -28,7 +28,6 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from evallab.harbor_repeat_verifier import VERIFIER_IMPORT_PATH
 from evallab.harbor_telemetry import HARBOR_TELEMETRY_ENV, HARBOR_TELEMETRY_OFF
 from evallab.schemas import (
     ExperimentSpec,
@@ -36,6 +35,7 @@ from evallab.schemas import (
     StandingApprovalsPolicy,
 )
 
+VERIFIER_IMPORT_PATH = "evallab.harbor_repeat_verifier:RepeatVerifier"
 CONTROL_AGENTS = frozenset({"oracle", "nop"})
 #: Fixed name of the deterministic, model-free cheat-audit agent (HAR-204).
 #: It runs outside the sandbox, makes no provider calls, and derives its

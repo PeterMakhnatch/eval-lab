@@ -40,6 +40,20 @@ REPOSITORIES = {
     "metr-malt": ("metr-evals/malt-public", MALT_REVISION),
 }
 
+# Retained custody pins, captured November 11, 2026. The digest binds every
+# relative filename and file SHA-256, including source metadata and labels.
+# Per-file receipts live outside Git; this is not a claim of label correctness.
+RETAINED_BUNDLE_SHA256 = {
+    "cheatbench": "5aa5bc755b0904ee731d61533feb062f67196cfede444fde91ad94c7f3437d3f",
+    "goodfire-reward-hack-data": "b45d88b40c5a30787b98823147e094b6335ac67803ed4c31884aad4840cda539",
+    "hacktrace": "3c4e006743b58afe0599e3908de478138714f875425b2c6f243e6a7cb3539f39",
+    "metr-malt": "a2393ffe036011af71b4387720d54df62c64c6031d87e3833ec181c7e6921d3c",
+    "olmo-reward-hacking": "c941e3b2e42f22b3c7623339cd27aa014b24ea109507e47bae8f0f1c8e1159e7",
+    "reward-hacking-ablation": "645362ca3aea04965cf33f9281f7412673ea1c257beb1103a13be6b813fa8c41",
+    "termgrade": "fe27927de3849edb858f7ee7c5dcf32920269015d1f623334d9ca8e81e3424b6",
+    "terminal-wrench": "a5110c2bd50c587c5d04e70fcf0a01d635c5c469a896b318b9c29d3bb3b90a15",
+}
+
 
 def download_bytes(url: str, *, user_agent: str, timeout: int) -> bytes:
     """Read anonymous source bytes; callers retain their pins and digest checks."""
@@ -51,6 +65,75 @@ def download_bytes(url: str, *, user_agent: str, timeout: int) -> bytes:
 def digest(path: Path) -> str:
     with path.open("rb") as handle:
         return hashlib.file_digest(handle, "sha256").hexdigest()
+
+
+def retained_bundle_digest(directory: Path) -> tuple[str, int]:
+    """Hash file identities and bytes, never parse or expose retained row bodies."""
+    if not directory.is_dir():
+        raise FileNotFoundError(directory)
+    tree = hashlib.sha256()
+    count = 0
+    for path in sorted(directory.rglob("*")):
+        if path.is_symlink():
+            raise ValueError("retained bundle contains a symlink")
+        if not path.is_file():
+            continue
+        relative = path.relative_to(directory).as_posix()
+        tree.update(json.dumps([relative, digest(path)], separators=(",", ":")).encode() + b"\n")
+        count += 1
+    if not count:
+        raise ValueError("retained bundle is empty")
+    return tree.hexdigest(), count
+
+
+def verify_retained_bundle(directory: Path, expected: str) -> int:
+    actual, count = retained_bundle_digest(directory)
+    if actual != expected:
+        raise ValueError(f"retained bundle hash differs: {directory}")
+    return count
+
+
+def retained_source_health(
+    repo_root: Path, *, home: Path, collections: tuple[str, ...] = tuple(REPOSITORIES),
+) -> tuple[bool, str]:
+    """Verify pinned native bundles and normalized bundle hashes without downloads."""
+    state = Path(os.environ.get(
+        "EVALLAB_FAILURE_LIBRARY_STATE", home / ".local/state/evallab-failure-library"
+    ))
+    problems: list[str] = []
+    files = 0
+    pins = []
+    for collection in sorted(collections):
+        _repo, revision = REPOSITORIES[collection]
+        pins.append(f"{collection}@{revision}")
+        raw = raw_root(state, collection)
+        try:
+            files += verify_retained_bundle(raw, RETAINED_BUNDLE_SHA256[collection])
+            if not any(
+                _source_files(collection, str(path.relative_to(raw)))
+                for path in raw.rglob("*") if path.is_file()
+            ):
+                problems.append(f"{collection}:native-data-MISSING(access-exclusion)")
+        except (OSError, ValueError) as exc:
+            problems.append(f"{collection}@{revision}:{type(exc).__name__}")
+        try:
+            manifest_path = repo_root / "research/failure-library/runs" / f"{collection}.manifest.json"
+            manifest = json.loads(manifest_path.read_bytes())
+            admitted_revisions = {revision}
+            if collection == "metr-malt":
+                admitted_revisions.add(f"ktolnos/rh-bench@{MALT_REDISTRIBUTION_REVISION}")
+            bundle = state / "runs" / f"{collection}.jsonl"
+            if manifest.get("source_revision") not in admitted_revisions:
+                problems.append(f"{collection}:revision-drift")
+            if not bundle.is_file() or digest(bundle) != manifest["sha256"]:
+                problems.append(f"{collection}:normalized-bundle-missing-or-corrupt")
+        except (OSError, ValueError, KeyError):
+            problems.append(f"{collection}:bundle-manifest-missing-or-invalid")
+    return not problems, (
+        f"offline=True repositories={len(collections)} raw_files={files} "
+        f"pins={','.join(pins)}; SHA256=RETAINED_BUNDLE_SHA256,committed-run-manifests "
+        f"problems={','.join(problems) or 'none'}"
+    )
 
 
 def reference(path: Path, index: int, *, jsonl: bool = False, field: str | None = None) -> str:
@@ -139,7 +222,7 @@ def stage_input(collection: str, source: Path, destination: Path) -> None:
 
 def _selected_download(collection: str, path: str) -> bool:
     if path in {"README.md", "MANIFEST.json"}:
-        return True
+        return collection not in {"cheatbench", "terminal-wrench"}
     if collection == "reward-hacking-ablation":
         return path.endswith(
             (
@@ -169,18 +252,21 @@ def _selected_download(collection: str, path: str) -> bool:
             "data/tasks/train-00000-of-00001.parquet",
         }
     if collection == "goodfire-reward-hack-data":
-        return path.endswith(
-            (
-                "/traces.jsonl",
-                "/labels/judge_rollouts.jsonl",
-                "/generic_monitor/monitor_rollouts.jsonl",
-            )
-        )
+        return path.endswith((".md", ".json", ".jsonl"))
     return False
 
 
 def download_source(collection: str, destination: Path) -> list[Path]:
     repo, revision = REPOSITORIES[collection]
+    # Retained bytes are the recovery path for a 403 or a removed repository.
+    # Never contact the host, overwrite evidence, or silently accept corrupt
+    # bytes when this immutable revision is already present.
+    if destination.is_dir() and any(destination.iterdir()):
+        verify_retained_bundle(destination, RETAINED_BUNDLE_SHA256[collection])
+        files = sorted(path for path in destination.rglob("*") if path.is_file())
+        if not any(_source_files(collection, str(path.relative_to(destination))) for path in files):
+            raise ValueError("retained access receipt has no native dataset bytes")
+        return files
     headers = {"User-Agent": "eval-lab-failure-library/1"}
     if os.environ.get("HF_TOKEN"):
         headers["Authorization"] = "Bearer " + os.environ["HF_TOKEN"]
@@ -189,6 +275,8 @@ def download_source(collection: str, destination: Path) -> list[Path]:
     )
     with urllib.request.urlopen(request, timeout=120) as response:  # noqa: S310
         metadata = json.load(response)
+    if metadata.get("sha") != revision:
+        raise ValueError("Hugging Face returned a different dataset revision")
     files = [
         item["rfilename"]
         for item in metadata["siblings"]
@@ -196,7 +284,14 @@ def download_source(collection: str, destination: Path) -> list[Path]:
     ]
 
     def fetch(filename: str) -> Path:
-        target = destination / filename
+        relative = Path(filename)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError("dataset filename escapes its retained bundle")
+        if collection == "cheatbench":
+            relative = Path(relative.name)
+        elif collection == "terminal-wrench":
+            relative = Path(relative.parts[1] + ".parquet")
+        target = destination / relative
         if target.is_file():
             return target
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -212,7 +307,9 @@ def download_source(collection: str, destination: Path) -> list[Path]:
         return target
 
     with ThreadPoolExecutor(max_workers=6) as pool:
-        return list(pool.map(fetch, files))
+        retained = list(pool.map(fetch, files))
+    verify_retained_bundle(destination, RETAINED_BUNDLE_SHA256[collection])
+    return retained
 
 
 def raw_root(state_root: Path, collection: str) -> Path:

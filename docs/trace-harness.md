@@ -1,11 +1,18 @@
 ---
-status: living
+status: historical
+source_revision: 7f2d2eed8c8dd80369d3fca2e0889f640ae964a6
 audience:
   - analyst
   - operator
 ---
 
 # Trace harness: map of every trace component
+
+> **Historical manual, not current operator instructions.**
+> Use [the native operator guide](../README.md) for current routes.
+> The [pinned source](https://github.com/PeterMakhnatch/eval-lab/blob/7f2d2eed8c8dd80369d3fca2e0889f640ae964a6/docs/trace-harness.md)
+> fixes the revision for historical commands, examples, and relative links.
+> The retained text below does not authorize retired tools, service changes, or spending.
 
 One page that says what each trace detector or reader is, how to run it, what it
 reads and writes, who uses its output, and the latest number we measured. Written

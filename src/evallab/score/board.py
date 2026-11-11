@@ -54,7 +54,7 @@ def build(cohorts: dict, predictions: dict, config: dict, coordinates: dict, pol
             "eligible": len(runs), "positives": sum(r["label"] for r in runs.values()),
             "controls": sum(r["label"] == 0 for r in runs.values()), "label_states": dict(strata),
             "model_variant_cells": {k: {"controls": v[0], "positives": v[1], "one_class": not all(v)} for k, v in cells.items()},
-            "confound": expected["confound"], "exposure": "exposed DEV; not blind"}
+            "confound": expected["confound"], "exposure": expected.get("exposure", "exposed DEV; not blind")}
         native = dict(predictions.get(cohort, {}))
         for name, field in (("characters", "n_chars"), ("steps", "n_steps")):
             native[name] = {k: {"score": r[field]} for k, r in runs.items() if r.get(field) is not None}

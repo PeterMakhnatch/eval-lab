@@ -4,11 +4,15 @@ import hashlib
 import json
 import stat
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from evallab.backups import backup_freshness, create_postgres_backup
+import pytest
+
+from evallab import backups
+from evallab.backups import backup_freshness, check_postgres_restore, create_postgres_backup
 
 
 def _generation(root: Path, day: str, payload: bytes, *, created_at: str) -> Path:
@@ -185,3 +189,100 @@ def test_publication_failure_leaves_no_visible_or_partial_generation(tmp_path: P
 
     backup_dir = tmp_path / "backups/postgres"
     assert sorted(path.name for path in backup_dir.iterdir()) == [".backup.lock"]
+
+
+@pytest.mark.parametrize("age,expected", [(None, 1), (36, 0), (36.01, 1)])
+def test_backup_health_fails_for_missing_or_expired_dump(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    age: float | None,
+    expected: int,
+) -> None:
+    from evallab.nightly_refresh import refresh_exit_code
+
+    moment = datetime(2026, 11, 10, 12, tzinfo=UTC)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return moment
+
+    monkeypatch.setattr(backups, "datetime", Clock)
+    if age is not None:
+        _generation(
+            tmp_path,
+            "2026-11-10",
+            b"backup",
+            created_at=(moment - timedelta(hours=age)).isoformat(),
+        )
+    monkeypatch.setattr(sys, "argv", ["backups", "status", "--root", str(tmp_path)])
+    assert backups.main() == expected
+    assert json.loads(capsys.readouterr().out)["health"] == ("FAIL" if expected else "PASS")
+    fact = backup_freshness(tmp_path, now=moment)
+    assert refresh_exit_code({"status": "noop", "backup": {**fact, "attempt": None}}) == expected
+
+
+@pytest.mark.parametrize("failure", [None, "mismatch", "restore"])
+def test_restore_compares_main_tables_and_drops_only_its_database(
+    tmp_path: Path,
+    failure: str | None,
+) -> None:
+    dump = _generation(tmp_path, "2026-11-10", b"PGDMP", created_at="2026-11-10T00:00:00Z")
+    counts = {table: index + 1 for index, table in enumerate(backups.MAIN_TABLES)}
+    databases: dict[str, dict[str, int]] = {"evallab": counts.copy()}
+    targets: list[str] = []
+
+    def runner(command, **kwargs):
+        script = command[9]
+        args = command[11:]
+        output = b""
+        code = 0
+        if "createdb" in script:
+            target = args[0]
+            assert target.startswith("evallab_restore_")
+            assert target not in databases
+            databases[target] = {}
+            targets.append(target)
+        elif "pg_restore" in script:
+            assert kwargs["stdin"].read() == b"PGDMP"
+            target = args[0]
+            assert target == targets[0] and target != "evallab"
+            databases[target] = counts.copy()
+            if failure == "mismatch":
+                databases[target]["trials"] -= 1
+            code = int(failure == "restore")
+        elif "dropdb" in script:
+            assert args == [targets[0]]
+            del databases[args[0]]
+        else:
+            if '"$POSTGRES_DB"' in script:
+                assert args[0].startswith("BEGIN READ ONLY;")
+                target = "evallab"
+            else:
+                target = args[0]
+            output = json.dumps(databases[target]).encode()
+        return subprocess.CompletedProcess(
+            command, code, output, b"restore failed" if code else b""
+        )
+
+    if failure:
+        with pytest.raises(RuntimeError):
+            check_postgres_restore(tmp_path, dump, runner=runner)
+    else:
+        receipt = check_postgres_restore(tmp_path, dump, runner=runner)
+        assert receipt["live"] == receipt["restored"] == counts
+        assert receipt["dropped"] is True
+        assert receipt["sha256"] == hashlib.sha256(b"PGDMP").hexdigest()
+    assert databases == {"evallab": counts}
+
+
+def test_restore_rejects_corrupt_dump_before_accessing_database(tmp_path: Path) -> None:
+    dump = _generation(tmp_path, "2026-11-10", b"PGDMP", created_at="2026-11-10T00:00:00Z")
+    dump.write_bytes(b"truncated")
+
+    def runner(*args, **kwargs):
+        pytest.fail("Corrupt backup reached the database")
+
+    with pytest.raises(ValueError):
+        check_postgres_restore(tmp_path, dump, runner=runner)

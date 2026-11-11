@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import fcntl
 import hashlib
 import json
@@ -8,6 +9,7 @@ import secrets
 import shutil
 import subprocess
 import threading
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
@@ -196,8 +198,7 @@ def create_postgres_backup(
             if completed.returncode != 0:
                 detail = completed.stderr.decode(errors="replace").strip()[:500]
                 raise RuntimeError(
-                    f"pg_dump exited {completed.returncode}"
-                    + (f": {detail}" if detail else "")
+                    f"pg_dump exited {completed.returncode}" + (f": {detail}" if detail else "")
                 )
             size = temporary.stat().st_size
             if size == 0:
@@ -222,3 +223,122 @@ def create_postgres_backup(
             if temporary_generation.exists():
                 shutil.rmtree(temporary_generation)
     return destination
+
+
+MAIN_TABLES = (
+    "experiments",
+    "jobs",
+    "trials",
+    "rewards",
+    "artifacts",
+    "run_files",
+    "trajectory_documents",
+    "deterministic_trial_facts",
+)
+
+
+def check_postgres_restore(
+    repo_root: Path,
+    dump_path: Path,
+    *,
+    runner: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
+) -> dict[str, Any]:
+    """Restore only into a new random database; compare counts; always drop it.
+
+    Live queries are read-only. Concurrent catalog writes can cause a count
+    mismatch; this check never changes the live catalog to make counts agree.
+    """
+    started = time.monotonic()
+    manifest = (
+        dump_path.with_suffix(".dump.json")
+        if dump_path.suffix == ".dump" and dump_path.name != "database.dump"
+        else dump_path.parent / "manifest.json"
+    )
+    if not _verify_backup(dump_path, manifest):
+        raise ValueError(f"Backup integrity verification failed: {dump_path}")
+    compose = shared_checkout_root(repo_root) / "compose.yaml"
+    database = f"evallab_restore_{secrets.token_hex(12)}"
+    prefix = ["docker", "compose", "-f", str(compose), "exec", "-T", "postgres", "sh", "-c"]
+
+    def execute(script: str, *args: str, source: BinaryIO | None = None) -> bytes:
+        result = runner(
+            [*prefix, script, "restore-check", *args],
+            stdin=source if source is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=POSTGRES_BACKUP_TIMEOUT_SECONDS,
+            env=subscription_environment(),
+            check=False,
+        )
+        if result.returncode:
+            raise RuntimeError(
+                f"Restore check command exited {result.returncode}: "
+                f"{result.stderr.decode(errors='replace').strip()[:500]}"
+            )
+        return result.stdout
+
+    count_sql = (
+        "SELECT json_build_object("
+        + ", ".join(f"'{table}', (SELECT count(*) FROM public.{table})" for table in MAIN_TABLES)
+        + ");"
+    )
+    psql = 'exec psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER"'
+    live = json.loads(
+        execute(
+            psql + ' -d "$POSTGRES_DB" -c "$1"',
+            "BEGIN READ ONLY; " + count_sql + " COMMIT;",
+        )
+    )
+    execute('exec createdb -U "$POSTGRES_USER" --template=template0 "$1"', database)
+    try:
+        with dump_path.open("rb") as source:
+            execute(
+                'exec pg_restore -U "$POSTGRES_USER" --exit-on-error '
+                '--no-owner --no-privileges -d "$1"',
+                database,
+                source=source,
+            )
+        restored = json.loads(execute(psql + ' -d "$1" -c "$2"', database, count_sql))
+        if live != restored:
+            raise RuntimeError(f"Restore row counts differ: live={live}, restored={restored}")
+    finally:
+        execute('exec dropdb -U "$POSTGRES_USER" "$1"', database)
+    return {
+        "path": str(dump_path),
+        "size_bytes": dump_path.stat().st_size,
+        "sha256": _sha256(dump_path),
+        "live": live,
+        "restored": restored,
+        "database": database,
+        "dropped": True,
+        "duration_seconds": round(time.monotonic() - started, 3),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Local PostgreSQL backup and isolated restore check"
+    )
+    parser.add_argument("action", choices=("status", "create", "restore"))
+    parser.add_argument("--root", type=Path, default=Path.cwd())
+    parser.add_argument("--dump", type=Path)
+    args = parser.parse_args()
+    if args.action == "restore":
+        if args.dump is None:
+            parser.error("restore requires --dump")
+        result = check_postgres_restore(args.root, args.dump)
+    else:
+        if args.action == "create":
+            create_postgres_backup(args.root, datetime.now(UTC).date())
+        result = backup_freshness(args.root, now=datetime.now(UTC))
+        result["health"] = "PASS" if result["status"] == "fresh" else "FAIL"
+        result["message"] = (
+            f"Verified backup {result['status']}; age {result['age_hours']} h; "
+            f"limit {result['max_age_hours']} h"
+        )
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return int(result.get("health") == "FAIL")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

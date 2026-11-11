@@ -622,16 +622,20 @@ def main(argv: Sequence[str] | None = None, out_dir: Path = HERE) -> int:
         help="exit 1 if committed coverage.csv or gaps.csv differs",
     )
     args = parser.parse_args(argv)
-    rows = build()
-    gaps = gap_rows(rows)
-    if args.check:
-        ok = _check(out_dir / COVERAGE_NAME, render(rows))
-        ok = _check(out_dir / GAPS_NAME, render_gaps(gaps)) and ok
-        return 0 if ok else 1
-    (out_dir / COVERAGE_NAME).write_text(render(rows), encoding="utf-8")
-    (out_dir / GAPS_NAME).write_text(render_gaps(gaps), encoding="utf-8")
-    print(f"wrote {COVERAGE_NAME}: {len(rows)} rows; {GAPS_NAME}: {len(gaps)} rows")
-    return 0
+    try:
+        rows = build()
+        gaps = gap_rows(rows)
+        if args.check:
+            ok = _check(out_dir / COVERAGE_NAME, render(rows))
+            ok = _check(out_dir / GAPS_NAME, render_gaps(gaps)) and ok
+            return 0 if ok else 1
+        (out_dir / COVERAGE_NAME).write_text(render(rows), encoding="utf-8")
+        (out_dir / GAPS_NAME).write_text(render_gaps(gaps), encoding="utf-8")
+        print(f"wrote {COVERAGE_NAME}: {len(rows)} rows; {GAPS_NAME}: {len(gaps)} rows")
+        return 0
+    except CoverageError as error:
+        print(f"{'--check' if args.check else 'build'}: {error}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

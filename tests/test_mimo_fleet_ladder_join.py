@@ -206,6 +206,34 @@ def test_check_exits_one_on_drift_and_zero_when_committed(
     assert MODULE["main"](["--check"]) == 0
 
 
+@pytest.mark.parametrize(
+    ("argv", "label"),
+    [([], "build"), (["--check"], "--check"), (["--sync-docs"], "--sync-docs")],
+    ids=["build", "check", "sync-docs"],
+)
+def test_main_reports_a_join_error_as_one_stderr_line(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+    label: str,
+) -> None:
+    # Every mode starts from build(); a refused fleet input must be one stderr
+    # line and exit 1, not a traceback. runpy hands back a namespace copy, so the
+    # writer's own globals are the ones build() resolves its inputs from.
+    detail = f"input is empty: {tmp_path}/mimo-v6-fleet-census.csv"
+
+    def refuse(_root: Path) -> list[dict[str, str]]:
+        raise MODULE["JoinError"](detail)
+
+    monkeypatch.setitem(MODULE["main"].__globals__, "fleet_rows", refuse)
+    assert MODULE["main"](argv) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.splitlines() == [f"{label}: {detail}"]
+    assert "Traceback" not in captured.err
+
+
 def test_every_fleet_task_has_exactly_one_row_and_keeps_census_facts() -> None:
     census = read_csv(DIR / "mimo-v6-fleet-census.csv")
     rows = _rows()

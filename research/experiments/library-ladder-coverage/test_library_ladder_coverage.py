@@ -347,6 +347,31 @@ def _copy_tables(out_dir: Path) -> None:
         (out_dir / name).write_bytes((EXPERIMENT / name).read_bytes())
 
 
+@pytest.mark.parametrize(
+    ("argv", "label"), [([], "build"), (["--check"], "--check")], ids=["build", "check"]
+)
+def test_main_reports_a_coverage_error_as_one_stderr_line(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+    label: str,
+) -> None:
+    # runpy hands back a namespace copy, so patch the writer's own globals: the
+    # first input build() reads is the library package tree.
+    detail = f"library tasks directory is missing: {tmp_path}/library/tasks"
+
+    def refuse(_root: Path) -> list[object]:
+        raise MODULE["CoverageError"](detail)
+
+    monkeypatch.setitem(MODULE["main"].__globals__, "discover_packages", refuse)
+    assert MODULE["main"](argv, out_dir=tmp_path) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.splitlines() == [f"{label}: {detail}"]
+    assert "Traceback" not in captured.err
+
+
 def test_check_exits_zero_on_the_committed_tree(capsys: pytest.CaptureFixture[str]) -> None:
     # --check only reads, so the committed directory itself is safe to point at.
     assert MODULE["main"](["--check"]) == 0

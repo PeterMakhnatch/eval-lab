@@ -1874,7 +1874,9 @@ def read_subset_evidence(cells_dir: Path) -> list[dict[str, Any]]:
         if not path.is_file():
             continue
         data = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict) or data.get("schema") != SUBSET_CELLS_SCHEMA:
+        if not isinstance(data, dict):
+            raise ProgressError(f"{name}: top level is not an object")
+        if data.get("schema") != SUBSET_CELLS_SCHEMA:
             raise ProgressError(f"{name}: unexpected schema {data.get('schema')!r}")
         for task in data.get("tasks", []):
             for subset in task.get("subsets", []):

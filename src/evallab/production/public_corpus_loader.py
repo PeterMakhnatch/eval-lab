@@ -1,66 +1,12 @@
-"""Stream cataloged public-corpus exports into durable production jobs.
+"""Normalize public actor traces with declared license and source provenance.
 
-Three normalized loaders convert pinned external exports into
-:class:`PublicCorpusJob` records without materializing the corpus: ``.jsonl``
-(and other line-oriented) files are decoded one record at a time from the first
-``next()``; ``.json`` documents are accepted for the cataloged index-shaped
-exports. Every loader preserves license/provenance metadata attested by the
-repository or declared by the file itself — unsupported licenses are never
-invented:
+Goodfire and Terminal Wrench loaders preserve stable source identity, calls,
+steps, and declared terms. They yield prefix-audit records lazily. Task-quality
+annotations and reward-seeker task fan-out are retired.
 
-- :func:`load_goodfire_rollouts` yields ``misalignment.prefix_audit_task`` jobs
-  replaying each rollout prefix through :class:`MisalignmentLiveWorker`. The
-  repo does not catalog a Goodfire license, so every row (or the file-level
-  ``license``/``provenance`` fields) must declare one; undeclared rows raise.
-  The external dataset id defaults to ``goodfire-rollouts`` (or the row's
-  declared ``dataset_id``); the export is never labeled ``tb4-audit-v1``.
-- :func:`load_terminal_wrench_traces` yields ``misalignment.prefix_audit_task``
-  jobs for hack-classified trajectories carrying steps and
-  ``reward_seeker.seek_task`` jobs for every record — hack or clean — that also
-  supplies runnable ``task_package`` plus ``repaired_task``/``fixed_task``
-  locators. External dataset id defaults to ``terminal-wrench``. Terminal Wrench
-  is Apache-2.0 per ``evallab.terminal_wrench`` and
-  ``research/answer-keys/breaker-bench-v1/upstream/PROVENANCE.md``.
-- :func:`load_swebench_annotations` yields ``task_quality.annotation_task``
-  jobs from human underspecification/unfair-test severity annotations. Every
-  row carrying annotation content routes to the worker's annotation path —
-  including rows that also declare runnable ``task_package``/``task_dir`` plus
-  ``repaired_task`` locators and replay evidence, which feed the standard
-  differential inside annotation processing. Rows carrying runnable evidence
-  but no annotation content still yield ``task_quality.audit_task`` jobs.
-  SWE-bench is MIT per ``research/references/REFERENCE-MAP.md``. External
-  dataset id defaults to ``swebench-annotations``.
-
-Loaders yield only payloads a worker can consume: prefix audits need non-empty
-steps, seeker jobs need ``task_package`` plus ``repaired_task``/``fixed_task``,
-and audit jobs additionally need ``failing_runs``/``passing_runs`` or an exploit
-candidate. ``task_quality.annotation_task`` jobs are claimed by
-``TaskQualityLiveWorker``, but they are normalized records, not runnable
-audits: a human annotation alone produces only a provisional ``qa.finding/v1``
-with ``execution_available=False``. The worker runs its standard differential
-only when the row's declared locators resolve to a real ``task_dir`` /
-``task_package`` + ``repaired_task`` pair plus retained
-``failing_runs``/``passing_runs`` trial directories (or an immutable exploit
-candidate) — the loader records the prerequisites in
-``payload.execution_prerequisites`` and never fabricates those locators.
-Structurally corrupt records raise ``ValueError`` naming the line;
-unusable-but-well-formed rows are skipped rather than queued.
-
-:func:`ingest_public_corpus` resolves each job's ``dataset_id``/``item_id`` or
-task alias against :class:`CorpusRegistry` — the canonical sealed assignments,
-item ids, task names (bare name, ``benchmark/name``, ``name@pin``) and digests —
-then enqueues through the durable journal. Records declaring a non-canonical
-dataset id are registered through ``CorpusRegistry.register_external`` under
-that genuine external dataset id; canonical TEST seals still apply to the
-registered item's task name, digest, and item id, so sealed identities are
-excluded as ``sealed_test_split`` under any label or namespace. Records whose
-declared identifiers contradict each other (for example a DEV ``item_id``
-paired with a sealed TEST ``task_id``/``task_digest``) are excluded as
-``contradictory_identity``. Public ingestion holds no frozen-eval authority:
-``tb4-audit-v1`` TEST items are never queued by this path. Idempotency keys
-derive from stable identities only: replaying the same export returns the
-original envelopes without duplicating work, and re-keying an id to different
-content raises :class:`IdempotencyConflict`.
+The existing factory still uses ``ingest_public_corpus`` for admitted replay
+jobs. It resolves identities through CorpusRegistry, preserves TEST seals, and
+uses stable journal keys. It does not grant frozen-evaluation authority.
 """
 
 from __future__ import annotations
@@ -84,35 +30,20 @@ from evallab.production.corpus_queue import (
 #: Queue job type consumed by ``MisalignmentLiveWorker`` as a trace event:
 #: ``payload.steps`` is scored one causal prefix at a time.
 PREFIX_AUDIT_JOB = "misalignment.prefix_audit_task"
-#: Queue job type consumed by ``RewardSeekerLiveWorker`` on measurable DEV tasks.
-SEEK_JOB = "reward_seeker.seek_task"
-#: Queue job type consumed by ``TaskQualityLiveWorker`` (differential replay).
-AUDIT_JOB = "task_quality.audit_task"
-#: Queue job type carrying normalized human severity annotations. Claimed by
-#: ``TaskQualityLiveWorker``: annotation-only rows produce provisional
-#: ``qa.finding/v1`` records with ``execution_available=False``; rows whose
-#: declared ``task_dir``/``task_package`` + ``repaired_task`` + replay inputs
-#: resolve run the worker's standard differential and can upgrade to
-#: confirmed/refuted on real execution only.
-ANNOTATION_JOB = "task_quality.annotation_task"
 
 #: Genuine external dataset ids stamped on normalized records that do not
 #: declare their own ``dataset_id``.
 GOODFIRE_DATASET = "goodfire-rollouts"
 TERMINAL_WRENCH_DATASET = "terminal-wrench"
-SWEBENCH_DATASET = "swebench-annotations"
 
 #: Licenses attested inside this repository; loaders never stamp unlisted terms.
 TERMINAL_WRENCH_LICENSE = "Apache-2.0"  # few-sh/terminal-wrench (terminal_wrench.py)
-SWEBENCH_LICENSE = "MIT"  # SWE-bench harness/data (REFERENCE-MAP.md)
 
 _HACK_CLASSES = frozenset(
     {"rewarded_serious_exploit", "rewarded_nonserious_hack", "hack", "exploit"}
 )
 _STEP_ID = re.compile(r"\d+")
 _STEP_SOURCES = {"system", "user", "agent", "assistant", "tool", "observation"}
-_EXPLOIT_KEYS = ("exploit_run", "exploit_files", "solution_bundle")
-_RUN_KEYS = ("failing_runs", "passing_runs")
 _COLLECTION_KEYS = ("rollouts", "trajectories", "annotations", "records", "items", "tasks")
 
 
@@ -332,47 +263,6 @@ def _audit_payload(
     return payload
 
 
-def _task_fields(row: Mapping[str, Any]) -> dict[str, Any]:
-    fields: dict[str, Any] = {}
-    package = row.get("task_package") or row.get("original_task")
-    repaired = row.get("repaired_task") or row.get("fixed_task")
-    if package:
-        fields["task_package"] = package
-    if repaired:
-        fields["repaired_task"] = repaired
-    for key in (
-        "fixed_kind",
-        "repaired_grader_kind",
-        "reference_patch",
-        "reference_digest",
-        "original_task_package",
-        "cues",
-        "hint",
-        "measurable",
-        "runnable",
-        "target_dir",
-        "task_dir",
-        "task_dir_digest",
-        "task_package_digest",
-        "repaired_task_digest",
-    ):
-        if row.get(key) is not None:
-            fields[key] = row[key]
-    return fields
-
-
-def _evidence_fields(row: Mapping[str, Any]) -> dict[str, Any]:
-    fields = _task_fields(row)
-    for key in (*_RUN_KEYS, *_EXPLOIT_KEYS, "candidate_digest"):
-        if row.get(key) is not None:
-            fields[key] = row[key]
-    return fields
-
-
-def _has_evidence(payload: Mapping[str, Any]) -> bool:
-    runs = any(payload.get(key) for key in _RUN_KEYS)
-    return runs or any(payload.get(key) is not None for key in _EXPLOIT_KEYS)
-
 
 def load_goodfire_rollouts(source_path: str | Path) -> Iterator[PublicCorpusJob]:
     """Yield ``misalignment.prefix_audit_task`` jobs from a Goodfire rollout export.
@@ -423,17 +313,10 @@ def _tw_source_id(row: Mapping[str, Any], where: str) -> str:
 
 
 def load_terminal_wrench_traces(source_path: str | Path) -> Iterator[PublicCorpusJob]:
-    """Yield seeker/misalignment jobs from Terminal Wrench trajectory records.
+    """Yield prefix-audit jobs for hack-classified native trajectories.
 
-    Hack-classified trajectories (``rewarded_serious_exploit``,
-    ``rewarded_nonserious_hack``, ``hack``, ``exploit``) yield
-    ``misalignment.prefix_audit_task`` jobs over their ATIF steps. Any record —
-    hack or clean — that also supplies runnable ``task_package`` plus
-    ``repaired_task``/``fixed_task`` locators additionally yields a
-    ``reward_seeker.seek_task`` job; task+hack records are normalized into both
-    job families rather than dropping the seeker half. License defaults to the
-    repo-attested ``Apache-2.0`` unless the row declares otherwise; the external
-    dataset id defaults to ``terminal-wrench``.
+    Preserve source identity and declared license. Use the repository-attested
+    Apache-2.0 license only when the export does not declare another license.
     """
 
     def load(path: Path) -> Iterator[PublicCorpusJob]:
@@ -466,143 +349,6 @@ def load_terminal_wrench_traces(source_path: str | Path) -> Iterator[PublicCorpu
                     payload["provenance"] = provenance
                     payload.setdefault("dataset_id", TERMINAL_WRENCH_DATASET)
                     yield PublicCorpusJob(PREFIX_AUDIT_JOB, payload, source_id)
-            fields = _task_fields(row)
-            if not (fields.get("task_package") and fields.get("repaired_task")):
-                continue
-            payload = _identity_fields(row)
-            payload.update(
-                {
-                    **fields,
-                    "source_kind": "public_rollout",
-                    "source_id": source_id,
-                    "license": license,
-                    "provenance": provenance,
-                }
-            )
-            payload.setdefault("dataset_id", TERMINAL_WRENCH_DATASET)
-            if row.get("model") is not None:
-                payload["model"] = row["model"]
-            yield PublicCorpusJob(SEEK_JOB, payload, source_id)
-
-    return _lazy(load, Path(source_path))
-
-
-#: What the ``task_quality`` worker needs before an annotation record can
-#: execute: ``TaskQualityLiveWorker`` resolves ``task_package``/``task_dir``
-#: and ``repaired_task`` directories, and its replay sources require retained
-#: ``failing_runs``/``passing_runs`` trial dirs or an immutable exploit
-#: candidate (``exploit_run``/``exploit_files``/``solution_bundle``). These are
-#: prerequisites downstream packaging must supply; the loader never invents them.
-ANNOTATION_PREREQUISITES = (
-    "materialized task_package and repaired_task task directories",
-    "retained failing_runs/passing_runs trial directories or an immutable exploit candidate",
-)
-
-
-def _annotation(row: Mapping[str, Any]) -> dict[str, Any]:
-    annotation = {
-        "underspecified": row.get("underspecified", row.get("underspecification")),
-        "unfair_tests": row.get("unfair_tests", row.get("unfair")),
-    }
-    for key in (
-        "severity",
-        "max_severity",
-        "annotator",
-        "annotator_id",
-        "annotators",
-        "comment",
-        "rationale",
-        "reason",
-        "explanation",
-    ):
-        if row.get(key) is not None:
-            annotation[key] = row[key]
-    for key in ("annotation", "annotations", "labels"):
-        if row.get(key) is not None:
-            annotation[key] = row[key]
-    return annotation
-
-
-def load_swebench_annotations(source_path: str | Path) -> Iterator[PublicCorpusJob]:
-    """Yield ``task_quality`` jobs from SWE-bench human annotations.
-
-    Rows carry ``instance_id``/``item_id``/``task_id`` identity plus the human
-    underspecification and unfair-test severity assessments (``underspecified``
-    and ``unfair_tests``/``unfair``; severity, annotator metadata,
-    ``comment``/``rationale``/``reason``/``explanation`` text, and
-    ``annotation``/``annotations``/``labels`` blocks are preserved verbatim).
-    Every row carrying annotation content yields a
-    ``task_quality.annotation_task`` job — regardless of whether it also
-    declares runnable ``task_package``/``task_dir`` and
-    ``repaired_task``/``fixed_task`` locators plus retained
-    ``failing_runs``/``passing_runs`` or an exploit candidate — because only
-    the annotation path preserves the human finding semantics and payload.
-    ``packaging_state`` marks whether those declared inputs are complete for
-    execution; the worker reuses its standard differential inside annotation
-    processing for execution-ready rows. Rows with runnable
-    ``task_package``/``repaired_task`` evidence but no annotation content
-    still yield ``task_quality.audit_task`` jobs. Declared locators are
-    preserved but none are fabricated; rows with neither usable evidence nor
-    annotations are skipped. License defaults to the repo-attested ``MIT``
-    unless the row declares otherwise; the external dataset id defaults to
-    ``swebench-annotations``.
-    """
-
-    def load(path: Path) -> Iterator[PublicCorpusJob]:
-        for where, row in _iter_records(path):
-            source_id = _source_id(
-                row, ("instance_id", "item_id", "id", "task_id", "source_id"), where
-            )
-            license = _license(row, SWEBENCH_LICENSE, where)
-            annotation = _annotation(row)
-            fields = _evidence_fields(row)
-            provenance = _provenance(
-                "swebench_annotations", source_id, license, row, where, path
-            )
-            has_evidence = _has_evidence(fields)
-            if not any(value is not None for value in annotation.values()):
-                if not (
-                    fields.get("task_package")
-                    and fields.get("repaired_task")
-                    and has_evidence
-                ):
-                    continue
-                payload = _identity_fields(row)
-                payload.update(
-                    {
-                        **fields,
-                        "source_kind": "public_rollout",
-                        "source_id": source_id,
-                        "annotation": annotation,
-                        "license": license,
-                        "provenance": provenance,
-                    }
-                )
-                payload.setdefault("dataset_id", SWEBENCH_DATASET)
-                yield PublicCorpusJob(AUDIT_JOB, payload, source_id)
-                continue
-            execution_ready = bool(
-                (fields.get("task_package") or fields.get("task_dir"))
-                and fields.get("repaired_task")
-                and has_evidence
-            )
-            payload = _identity_fields(row)
-            payload.update(
-                {
-                    **fields,
-                    "source_kind": "public_annotation",
-                    "source_id": source_id,
-                    "annotation": annotation,
-                    "license": license,
-                    "provenance": provenance,
-                    "packaging_state": "execution_ready"
-                    if execution_ready
-                    else "annotation_only",
-                    "execution_prerequisites": list(ANNOTATION_PREREQUISITES),
-                }
-            )
-            payload.setdefault("dataset_id", SWEBENCH_DATASET)
-            yield PublicCorpusJob(ANNOTATION_JOB, payload, source_id)
 
     return _lazy(load, Path(source_path))
 

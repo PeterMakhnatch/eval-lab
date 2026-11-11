@@ -8,16 +8,11 @@ task names and digests follow items across datasets and aliases, so a misleading
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
-from evallab.dataset_audit_checks import static_observation
-from evallab.dataset_audit_contracts import AuditTask
-from evallab.execution_backend import ExecutionBackendConfig
 from evallab.production.corpus_queue import (
     ContinuousWorkQueue,
     CorpusItem,
@@ -26,18 +21,13 @@ from evallab.production.corpus_queue import (
     SplitLockError,
 )
 from evallab.production.public_corpus_loader import (
-    ANNOTATION_JOB,
-    AUDIT_JOB,
     PREFIX_AUDIT_JOB,
-    SEEK_JOB,
     PublicCorpusJob,
+    _tw_source_id,
     ingest_public_corpus,
     load_goodfire_rollouts,
-    load_swebench_annotations,
     load_terminal_wrench_traces,
 )
-from evallab.production.tq_worker import TaskQualityLiveWorker
-from evallab.registry import task_directory_digest
 
 DATASET = "tb4-audit-v1"
 FROZEN_TOKEN = "test-only-explicit-frozen-evaluation"
@@ -159,18 +149,6 @@ def _tw_row(label: str, task: str, **extra: object) -> dict:
     return {"label": label, "task_id": task, "model": "tw-model", **extra}
 
 
-def _swebench_row(instance: str, item_id: str, **extra: object) -> dict:
-    return {
-        "instance_id": instance,
-        "dataset_id": "cheatbench-actions-v1",
-        "item_id": item_id,
-        "underspecified": "major",
-        "unfair_tests": "minor",
-        "task_package": "/pkgs/original",
-        "repaired_task": "/pkgs/repaired",
-        "failing_runs": ["/runs/fail-1"],
-        **extra,
-    }
 
 
 # --------------------------------------------------------------------- loaders
@@ -269,7 +247,7 @@ def test_loaders_are_lazy_single_pass_iterators(tmp_path: Path) -> None:
         next(partial)
 
 
-def test_terminal_wrench_loader_routes_task_and_hack_trajectories(tmp_path: Path) -> None:
+def test_terminal_wrench_loader_preserves_native_hack_trajectories(tmp_path: Path) -> None:
     path = _write_jsonl(
         tmp_path / "traces.jsonl",
         [
@@ -317,7 +295,6 @@ def test_terminal_wrench_loader_routes_task_and_hack_trajectories(tmp_path: Path
     jobs = list(load_terminal_wrench_traces(path))
     assert [(job.source_id, job.job_type) for job in jobs] == [
         ("hacktrace/independent|tw-model|hack-1", PREFIX_AUDIT_JOB),
-        ("hacktrace/independent|tw-model|clean-1", SEEK_JOB),
         ("hacks__task__model__label", PREFIX_AUDIT_JOB),
     ]
     hack = jobs[0].payload
@@ -328,10 +305,6 @@ def test_terminal_wrench_loader_routes_task_and_hack_trajectories(tmp_path: Path
     assert hack["provenance"]["dataset"] == "few-sh/terminal-wrench"
     assert hack["provenance"]["record_locator"] == "traces.jsonl:1"
     assert hack["provenance"]["source_path"] == str(path)
-    seek = jobs[1].payload
-    assert seek["task_package"] == "/pkgs/original"
-    assert seek["repaired_task"] == "/pkgs/repaired"
-    assert seek["model"] == "tw-model"
 
 
 def test_terminal_wrench_source_ids_never_collide_on_shared_labels(
@@ -363,46 +336,20 @@ def test_terminal_wrench_source_ids_never_collide_on_shared_labels(
         _tw_row("v5_4", "task-b", task_package="/pkgs/o", repaired_task="/pkgs/r"),
         _tw_row("v5_4", "task-a", model="other-model", task_package="/pkgs/o", repaired_task="/pkgs/r"),
     ]
-    path = _write_jsonl(tmp_path / "traces.jsonl", rows)
-    jobs = list(load_terminal_wrench_traces(path))
-    assert [job.source_id for job in jobs] == [
+    ids = [_tw_source_id(row, f"row-{number}") for number, row in enumerate(rows)]
+    assert ids == [
         "traj-unique-1",
         "tw-77",
         "clean__task-a__tw-model__v5_4",
         "task-b|tw-model|v5_4",
         "task-a|other-model|v5_4",
     ]
-    assert len({job.source_id for job in jobs}) == len(jobs)
 
     path = _write_jsonl(tmp_path / "unstable.jsonl", [{"label": "v5_4", "steps": [_step(1)]}])
     with pytest.raises(ValueError, match="stable row id"):
         list(load_terminal_wrench_traces(path))
 
 
-def test_terminal_wrench_task_and_hack_records_normalize_both_families(
-    tmp_path: Path,
-) -> None:
-    """A hack-classified row with runnable task fields yields both job types."""
-    path = _write_jsonl(
-        tmp_path / "traces.jsonl",
-        [
-            _tw_row(
-                "hack-runnable",
-                "hacktrace/independent",
-                classification="rewarded_serious_exploit",
-                steps=[_step(1)],
-                task_package="/pkgs/original",
-                repaired_task="/pkgs/repaired",
-            )
-        ],
-    )
-    jobs = list(load_terminal_wrench_traces(path))
-    assert [job.job_type for job in jobs] == [PREFIX_AUDIT_JOB, SEEK_JOB]
-    assert {job.source_id for job in jobs} == {
-        "hacktrace/independent|tw-model|hack-runnable"
-    }
-    assert jobs[1].payload["task_package"] == "/pkgs/original"
-    assert jobs[1].payload["provenance"]["classification"] == "rewarded_serious_exploit"
 
 
 def test_terminal_wrench_declared_license_overrides_default(tmp_path: Path) -> None:
@@ -422,105 +369,6 @@ def test_terminal_wrench_declared_license_overrides_default(tmp_path: Path) -> N
     assert job.payload["license"] == "CC-BY-4.0"
 
 
-def test_swebench_annotation_rows_all_route_annotation_jobs(tmp_path: Path) -> None:
-    """Every row carrying human annotation content yields annotation_task.
-
-    Runnable locators never flip an annotation record into a plain audit job:
-    ``task_package``/``task_dir`` + ``repaired_task`` + replay inputs only mark
-    the annotation job execution-ready for the worker's shared differential.
-    """
-    path = _write_jsonl(
-        tmp_path / "annotations.jsonl",
-        [
-            _swebench_row("sw-1", "cheat-dev"),
-            _swebench_row("sw-no-runs", "cheat-dev", failing_runs=None),
-            _swebench_row("sw-no-package", "cheat-dev", repaired_task=None),
-            _swebench_row(
-                "sw-exploit",
-                "cheat-dev",
-                failing_runs=None,
-                exploit_files={"solve.sh": "exit 0"},
-            ),
-        ],
-    )
-    jobs = list(load_swebench_annotations(path))
-    assert [(job.source_id, job.job_type) for job in jobs] == [
-        ("sw-1", ANNOTATION_JOB),
-        ("sw-no-runs", ANNOTATION_JOB),
-        ("sw-no-package", ANNOTATION_JOB),
-        ("sw-exploit", ANNOTATION_JOB),
-    ]
-    first, no_runs, no_package, exploit = jobs
-    assert first.payload["license"] == "MIT"
-    assert first.payload["dataset_id"] == "cheatbench-actions-v1"
-    assert first.payload["source_kind"] == "public_annotation"
-    assert first.payload["annotation"]["underspecified"] == "major"
-    assert first.payload["annotation"]["unfair_tests"] == "minor"
-    assert first.payload["failing_runs"] == ["/runs/fail-1"]
-    assert exploit.payload["exploit_files"] == {"solve.sh": "exit 0"}
-    # Rows whose declared locators and replay inputs are complete are marked
-    # execution-ready; annotation-only rows document what execution needs.
-    assert first.payload["packaging_state"] == "execution_ready"
-    assert exploit.payload["packaging_state"] == "execution_ready"
-    for annotation_job in (no_runs, no_package):
-        payload = annotation_job.payload
-        assert payload["source_kind"] == "public_annotation"
-        assert payload["annotation"]["underspecified"] == "major"
-        assert payload["annotation"]["unfair_tests"] == "minor"
-        assert payload["packaging_state"] == "annotation_only"
-        assert payload["execution_prerequisites"]
-        assert payload["license"] == "MIT"
-    # Declared locators are preserved; missing ones are never fabricated.
-    assert no_runs.payload["task_package"] == "/pkgs/original"
-    assert no_runs.payload["repaired_task"] == "/pkgs/repaired"
-    assert "failing_runs" not in no_runs.payload
-    assert no_package.payload["task_package"] == "/pkgs/original"
-    assert "repaired_task" not in no_package.payload
-
-
-def test_swebench_evidence_rows_without_annotations_still_audit(
-    tmp_path: Path,
-) -> None:
-    """Runnable evidence carrying no human content stays a plain audit job."""
-    row = _swebench_row("sw-audit", "cheat-dev", underspecified=None, unfair_tests=None)
-    path = _write_jsonl(tmp_path / "annotations.jsonl", [row])
-    (job,) = list(load_swebench_annotations(path))
-    assert job.job_type == AUDIT_JOB
-    assert job.payload["source_kind"] == "public_rollout"
-    assert job.payload["task_package"] == "/pkgs/original"
-    assert job.payload["failing_runs"] == ["/runs/fail-1"]
-
-
-def test_swebench_rows_without_annotations_or_evidence_are_skipped(
-    tmp_path: Path,
-) -> None:
-    row = _swebench_row(
-        "sw-empty",
-        "cheat-dev",
-        underspecified=None,
-        unfair_tests=None,
-        failing_runs=None,
-        repaired_task=None,
-        task_package=None,
-    )
-    path = _write_jsonl(tmp_path / "annotations.jsonl", [row])
-    assert list(load_swebench_annotations(path)) == []
-
-
-def test_swebench_declared_severity_annotation_block_is_preserved(tmp_path: Path) -> None:
-    row = _swebench_row(
-        "sw-1",
-        "cheat-dev",
-        annotations={"q1": "underspecified_major", "q2": "fair"},
-        severity="high",
-    )
-    path = _write_jsonl(tmp_path / "annotations.jsonl", [row])
-    (job,) = list(load_swebench_annotations(path))
-    assert job.payload["annotation"]["annotations"] == {
-        "q1": "underspecified_major",
-        "q2": "fair",
-    }
-    assert job.payload["annotation"]["severity"] == "high"
 
 
 # ---------------------------------------------------------------------- ingest
@@ -566,32 +414,6 @@ def test_ingested_jobs_carry_source_and_revision_provenance(
     assert provenance["revision"] == "export-2026-10-24"
 
 
-def test_novel_external_annotations_ingest_as_annotation_jobs(
-    queue: ContinuousWorkQueue, tmp_path: Path
-) -> None:
-    path = _write_jsonl(
-        tmp_path / "annotations.jsonl",
-        [
-            {
-                "instance_id": "django__django-17084",
-                "underspecified": "major",
-                "unfair_tests": "minor",
-            }
-        ],
-    )
-    result = ingest_public_corpus(
-        queue, load_swebench_annotations(path), run_id="ext-annotations"
-    )
-    assert result["excluded"] == []
-    (envelope,) = result["enqueued"]
-    assert envelope["event_type"] == ANNOTATION_JOB
-    payload = envelope["payload"]
-    assert payload["dataset_id"] == "swebench-annotations"
-    assert payload["item_id"] == "django__django-17084"
-    assert payload["annotation"]["underspecified"] == "major"
-    assert payload["execution_prerequisites"]
-    assert "task_package" not in payload
-
 
 @pytest.mark.parametrize(
     "task",
@@ -622,7 +444,7 @@ def test_ingest_explicit_item_and_digest_references(queue: ContinuousWorkQueue) 
             "row-1",
         ),
         PublicCorpusJob(
-            SEEK_JOB,
+            PREFIX_AUDIT_JOB,
             {
                 "dataset_id": "mimo-defect-map-v1",
                 "task": "mimo-dev",
@@ -654,14 +476,14 @@ def test_ingest_ambiguous_alias_fails_closed(tmp_path: Path) -> None:
     registry = CorpusRegistry(root, frozen_eval_token=FROZEN_TOKEN)
     with ContinuousWorkQueue(tmp_path / "production.sqlite", registry=registry) as queue:
         job = PublicCorpusJob(
-            SEEK_JOB,
+            PREFIX_AUDIT_JOB,
             {"dataset_id": "mimo-defect-map-v1", "task": "mimo-dev"},
             "row-1",
         )
         with pytest.raises(ValueError, match="ambiguous|resolves to 2"):
             ingest_public_corpus(queue, [job], run_id="ambiguous")
         resolved = PublicCorpusJob(
-            SEEK_JOB,
+            PREFIX_AUDIT_JOB,
             {
                 "dataset_id": "mimo-defect-map-v1",
                 "task": "mimo-dev",
@@ -707,7 +529,7 @@ def test_sealed_lock_follows_digest_and_canonical_task_names(
 ) -> None:
     """DEV-labelled external rows cannot unlock digest/name-sealed items."""
     job = PublicCorpusJob(
-        AUDIT_JOB,
+        PREFIX_AUDIT_JOB,
         {
             "dataset_id": dataset_id,
             "item_id": item_id,
@@ -733,7 +555,7 @@ def test_public_ingestion_never_queues_test_items_even_with_token(
     """
     assert registry.admit(DATASET, "finding-test", frozen_eval_token=FROZEN_TOKEN).split == "test"
     job = PublicCorpusJob(
-        AUDIT_JOB,
+        PREFIX_AUDIT_JOB,
         {
             "dataset_id": DATASET,
             "item_id": "finding-test",
@@ -756,7 +578,7 @@ def test_contradictory_identifiers_are_blocked(queue: ContinuousWorkQueue) -> No
     jobs = [
         # Canonical DEV item + sealed TEST task name.
         PublicCorpusJob(
-            AUDIT_JOB,
+            PREFIX_AUDIT_JOB,
             {
                 "dataset_id": DATASET,
                 "item_id": "finding-dev",
@@ -766,7 +588,7 @@ def test_contradictory_identifiers_are_blocked(queue: ContinuousWorkQueue) -> No
         ),
         # Canonical DEV item + sealed TEST digest.
         PublicCorpusJob(
-            AUDIT_JOB,
+            PREFIX_AUDIT_JOB,
             {
                 "dataset_id": DATASET,
                 "item_id": "finding-dev",
@@ -776,7 +598,7 @@ def test_contradictory_identifiers_are_blocked(queue: ContinuousWorkQueue) -> No
         ),
         # A record naming two different task identities at once.
         PublicCorpusJob(
-            AUDIT_JOB,
+            PREFIX_AUDIT_JOB,
             {
                 "dataset_id": DATASET,
                 "item_id": "finding-dev",
@@ -799,7 +621,7 @@ def test_external_ids_cannot_launder_canonical_test_identities(
     """Sealed task names, digests, and item ids stay sealed under new ids."""
     jobs = [
         PublicCorpusJob(
-            AUDIT_JOB,
+            PREFIX_AUDIT_JOB,
             {
                 "dataset_id": "goodfire-rollouts",
                 "item_id": "ext-task",
@@ -808,7 +630,7 @@ def test_external_ids_cannot_launder_canonical_test_identities(
             "e-1",
         ),
         PublicCorpusJob(
-            AUDIT_JOB,
+            PREFIX_AUDIT_JOB,
             {
                 "dataset_id": "terminal-wrench",
                 "item_id": "ext-digest",
@@ -817,7 +639,7 @@ def test_external_ids_cannot_launder_canonical_test_identities(
             "e-2",
         ),
         PublicCorpusJob(
-            AUDIT_JOB,
+            PREFIX_AUDIT_JOB,
             {
                 "dataset_id": "swebench-annotations",
                 "item_id": "finding-test",
@@ -825,7 +647,7 @@ def test_external_ids_cannot_launder_canonical_test_identities(
             "e-3",
         ),
         PublicCorpusJob(
-            SEEK_JOB,
+            PREFIX_AUDIT_JOB,
             {
                 "dataset_id": "goodfire-rollouts",
                 "item_id": "ext-split",
@@ -948,405 +770,3 @@ def test_ingested_prefix_audit_job_feeds_the_misalignment_consumer(
     assert event["payload"]["provenance"]["license"] == "CC-BY-4.0"
 
 
-# ----------------------------------------------------- annotation worker E2E
-
-
-def _fixture_task_package(path: Path, *, repaired: bool) -> Path:
-    (path / "tests").mkdir(parents=True)
-    (path / "task.toml").write_text('[task]\nname = "swe-task"\n', encoding="utf-8")
-    (path / "instruction.md").write_text(
-        "Write the computed answer 42 to output.txt.\n", encoding="utf-8"
-    )
-    check = 'output.read_text().strip() == "42"' if repaired else 'output.read_text() == "42\\n"'
-    (path / "tests/test_output.py").write_text(
-        "from pathlib import Path\noutput = Path('output.txt')\n"
-        f"assert output.is_file() and {check}\n",
-        encoding="utf-8",
-    )
-    return path
-
-
-def _fixture_trial(path: Path, script: str) -> Path:
-    (path / "verifier").mkdir(parents=True)
-    (path / "verifier/solve.sh").write_text(script, encoding="utf-8")
-    (path / "result.json").write_text(
-        json.dumps({"verifier_result": {"rewards": {"reward": 0.0}}}), encoding="utf-8"
-    )
-    return path
-
-
-class _AnnotationBackend:
-    """QA backend resolving fixture packages; static observation stays real."""
-
-    def __init__(self) -> None:
-        self.calls: list[str] = []
-
-    def resolve(self, package: Path) -> AuditTask:
-        self.calls.append("resolve")
-        return AuditTask(
-            dataset_id="swebench-annotations",
-            task_id="swe-task",
-            task_name="swe-task",
-            path=package,
-            package_digest=task_directory_digest(package),
-            source_uri=package.as_uri(),
-        )
-
-    def static(self, task: AuditTask):
-        self.calls.append("static")
-        return static_observation(task)
-
-
-class _LocalReplay:
-    """Re-execute the retained submission against the package checker locally.
-
-    This is a real (subprocess) execution of the retained ``solve.sh`` against
-    the fixture grader — deterministic, free, and never invented.
-    """
-
-    def __init__(self) -> None:
-        self.calls: list[tuple[Path, float]] = []
-        self.refusals: list[str] = []
-
-    def __call__(self, trial_dir, grader, work, *, repo_root, environment, **_):
-        work.mkdir(parents=True, exist_ok=True)
-        if self.refusals:
-            return {
-                "regraded": None,
-                "refusals": list(self.refusals),
-                "execution_error": None,
-                "outcome": "refused",
-                "job_dir": str(work / "job"),
-            }
-        script = (Path(trial_dir) / "verifier/solve.sh").read_text(encoding="utf-8")
-        (work / "solve.sh").write_text(script, encoding="utf-8")
-        subprocess.run(
-            ["/bin/bash", "solve.sh"], cwd=work, check=True, capture_output=True, timeout=10
-        )
-        checked = subprocess.run(
-            [sys.executable, str(grader.package / "tests/test_output.py")],
-            cwd=work,
-            capture_output=True,
-            timeout=10,
-        )
-        reward = float(checked.returncode == 0)
-        (work / "job").mkdir()
-        self.calls.append((grader.package, reward))
-        return {
-            "regraded": reward,
-            "refusals": [],
-            "execution_error": None,
-            "outcome": "flips",
-            "job_dir": str(work / "job"),
-        }
-
-
-def _worker(
-    queue: ContinuousWorkQueue,
-    tmp_path: Path,
-    replay: _LocalReplay,
-    backend: _AnnotationBackend | None = None,
-):
-    return TaskQualityLiveWorker(
-        queue,
-        repo_root=tmp_path,
-        backend=backend if backend is not None else _AnnotationBackend(),
-        replay_runner=replay,
-        execution_config=ExecutionBackendConfig(
-            backend="modal", allow_local_docker=False, approval="synthetic executor only",
-            max_usd=1.0, spend_ledger=tmp_path / "synthetic-spend.json",
-            modal_app_name="synthetic-only", billing_tag="synthetic-only",
-        ),
-        clock=lambda: "2026-10-24T15:00:00+00:00",
-    )
-
-
-def test_annotation_only_rows_flow_ingest_queue_worker_to_provisional(
-    queue: ContinuousWorkQueue, tmp_path: Path
-) -> None:
-    path = _write_jsonl(
-        tmp_path / "annotations.jsonl",
-        [
-            {
-                "instance_id": "django__django-17084",
-                "underspecified": "major",
-                "unfair_tests": "minor",
-                "comment": "Instruction never states the required trailing newline.",
-            }
-        ],
-    )
-    result = ingest_public_corpus(
-        queue, load_swebench_annotations(path), run_id="wave4-annotations"
-    )
-    (envelope,) = result["enqueued"]
-    assert envelope["event_type"] == ANNOTATION_JOB
-    outcome = _worker(queue, tmp_path, _LocalReplay()).run_once()
-    assert outcome is not None and outcome["complete"] is True
-    events = queue.read_events(limit=1000)
-    findings = [event for event in events if event["event_type"] == "qa.finding/v1"]
-    assert [event["status"] for event in findings] == ["provisional"]
-    payload = findings[0]["payload"]
-    assert payload["execution_available"] is False
-    assert payload["annotation"]["underspecified"] == "major"
-    assert payload["annotation"]["unfair_tests"] == "minor"
-    assert payload["finding"]["severity"] == "high"
-    assert payload["finding"]["verdict"] == "unknown"
-    assert payload["finding"]["measurement"] == "not_run"
-    assert payload["provenance"]["source_id"] == "django__django-17084"
-    assert payload["dataset_id"] == "swebench-annotations"
-    assert payload["item_id"] == "django__django-17084"
-    assert events[-1]["event_type"] == "task_quality.completed"
-    assert not any(event["event_type"] == "asset.verified" for event in events)
-    assert queue.queue_snapshot()["jobs"] == {"queued": 0, "leased": 0, "completed": 1}
-
-
-def test_runnable_annotation_task_dir_executes_and_confirms(
-    queue: ContinuousWorkQueue, tmp_path: Path
-) -> None:
-    """A loader-preserved ``task_dir`` feeds the standard differential path."""
-    original = _fixture_task_package(tmp_path / "original", repaired=False)
-    repaired = _fixture_task_package(tmp_path / "repaired", repaired=True)
-    trial = _fixture_trial(tmp_path / "fail-1", "printf '42' > output.txt\n")
-    row = {
-        "instance_id": "swe-runnable-1",
-        "task_dir": str(original),
-        "repaired_task": str(repaired),
-        "failing_runs": [str(trial)],
-        "underspecified": "major",
-        "unfair_tests": "minor",
-        "comment": "Instruction never states the required trailing newline.",
-    }
-    path = _write_jsonl(tmp_path / "annotations.jsonl", [row])
-    (job,) = list(load_swebench_annotations(path))
-    assert job.job_type == ANNOTATION_JOB
-    assert job.payload["task_dir"] == str(original)
-    ingest_public_corpus(queue, [job], run_id="wave4-runnable")
-    replay = _LocalReplay()
-    outcome = _worker(queue, tmp_path, replay).run_once()
-    assert outcome is not None and outcome["complete"] is True
-    events = queue.read_events(limit=1000)
-    findings = [event for event in events if event["event_type"] == "qa.finding/v1"]
-    assert [event["status"] for event in findings] == ["provisional", "confirmed"]
-    executed = findings[-1]["payload"]
-    assert executed["execution_available"] is True
-    assert executed["annotation"]["underspecified"] == "major"
-    assert executed["finding"]["refutation"]["status"] == "verified"
-    assert executed["finding"]["severity"] == "high"
-    assert "trailing newline" in executed["finding"]["summary"]
-    assert [reward for _, reward in replay.calls] == [0.0, 1.0]
-    assert not any(event["event_type"] == "asset.verified" for event in events)
-
-
-def test_runnable_annotation_refutes_when_differential_disagrees(
-    queue: ContinuousWorkQueue, tmp_path: Path
-) -> None:
-    original = _fixture_task_package(tmp_path / "original", repaired=False)
-    repaired = _fixture_task_package(tmp_path / "repaired", repaired=True)
-    trial = _fixture_trial(tmp_path / "pass-1", "printf '42\\n' > output.txt\n")
-    row = {
-        "instance_id": "swe-runnable-2",
-        "task_dir": str(original),
-        "repaired_task": str(repaired),
-        "failing_runs": [str(trial)],
-        "underspecified": "major",
-    }
-    path = _write_jsonl(tmp_path / "annotations.jsonl", [row])
-    ingest_public_corpus(queue, load_swebench_annotations(path), run_id="wave4-refute")
-    replay = _LocalReplay()
-    outcome = _worker(queue, tmp_path, replay).run_once()
-    assert outcome is not None and outcome["complete"] is True
-    findings = [
-        event
-        for event in queue.read_events(limit=1000)
-        if event["event_type"] == "qa.finding/v1"
-    ]
-    assert [event["status"] for event in findings] == ["provisional", "refuted"]
-    assert [reward for _, reward in replay.calls] == [1.0, 1.0]
-
-
-def test_blocked_annotation_job_is_redelivered_and_ingest_stays_idempotent(
-    queue: ContinuousWorkQueue, tmp_path: Path
-) -> None:
-    original = _fixture_task_package(tmp_path / "original", repaired=False)
-    repaired = _fixture_task_package(tmp_path / "repaired", repaired=True)
-    trial = _fixture_trial(tmp_path / "fail-1", "printf '42' > output.txt\n")
-    row = {
-        "instance_id": "swe-redeliver",
-        "task_dir": str(original),
-        "repaired_task": str(repaired),
-        "failing_runs": [str(trial)],
-        "underspecified": "major",
-    }
-    path = _write_jsonl(tmp_path / "annotations.jsonl", [row])
-    first = ingest_public_corpus(queue, load_swebench_annotations(path), run_id="wave4-redelivery")
-    replay = _LocalReplay()
-    replay.refusals = ["source_patch_unavailable"]
-    worker = _worker(queue, tmp_path, replay)
-    outcome = worker.run_once()
-    assert outcome is not None and outcome["complete"] is False
-    assert queue.queue_snapshot()["jobs"]["queued"] == 1
-    replay.refusals = []
-    outcome = worker.run_once()
-    assert outcome is not None and outcome["complete"] is True
-    findings = [
-        event
-        for event in queue.read_events(limit=1000)
-        if event["event_type"] == "qa.finding/v1"
-    ]
-    assert findings[-1]["status"] == "confirmed"
-    # The released job redelivered the same finding identities deterministically.
-    assert findings[2]["payload"]["finding_id"] == findings[0]["payload"]["finding_id"]
-    assert queue.queue_snapshot()["jobs"] == {"queued": 0, "leased": 0, "completed": 1}
-    again = ingest_public_corpus(queue, load_swebench_annotations(path), run_id="wave4-redelivery")
-    assert [event["event_id"] for event in again["enqueued"]] == [
-        event["event_id"] for event in first["enqueued"]
-    ]
-
-
-def test_sealed_identities_keep_annotation_rows_out_of_the_queue(
-    queue: ContinuousWorkQueue, tmp_path: Path
-) -> None:
-    path = _write_jsonl(
-        tmp_path / "annotations.jsonl",
-        [
-            {"instance_id": "sw-sealed-item", "item_id": "finding-test", "underspecified": "major"},
-            {
-                "instance_id": "sw-sealed-task",
-                "task_id": "terminal-bench/sealed-task",
-                "underspecified": "major",
-            },
-        ],
-    )
-    result = ingest_public_corpus(queue, load_swebench_annotations(path), run_id="sealed")
-    assert result["enqueued"] == []
-    assert {ex["reason"] for ex in result["excluded"]} == {"sealed_test_split"}
-    assert {ex["source_id"] for ex in result["excluded"]} == {"sw-sealed-item", "sw-sealed-task"}
-    assert queue.read_events() == queue.pending_outbox() == []
-
-
-def test_loader_propagates_task_dir_without_fabricating_locators(tmp_path: Path) -> None:
-    row = _swebench_row(
-        "sw-dir",
-        "cheat-dev",
-        task_package=None,
-        repaired_task=None,
-        failing_runs=None,
-        task_dir="/pkgs/materialized",
-    )
-    path = _write_jsonl(tmp_path / "annotations.jsonl", [row])
-    (job,) = list(load_swebench_annotations(path))
-    assert job.job_type == ANNOTATION_JOB
-    assert job.payload["task_dir"] == "/pkgs/materialized"
-    assert "task_package" not in job.payload
-    assert "repaired_task" not in job.payload
-    assert job.payload["annotation"]["underspecified"] == "major"
-
-
-def test_annotation_rationale_and_annotator_metadata_survive_end_to_end(
-    queue: ContinuousWorkQueue, tmp_path: Path
-) -> None:
-    """Human rationale and annotator fields reach the finding verbatim."""
-    row = {
-        "instance_id": "django__django-19999",
-        "underspecified": "major",
-        "rationale": "The grader rejects answers the instruction never excludes.",
-        "annotator": "human-7",
-        "annotator_id": "ann-7",
-    }
-    path = _write_jsonl(tmp_path / "annotations.jsonl", [row])
-    (job,) = list(load_swebench_annotations(path))
-    assert job.job_type == ANNOTATION_JOB
-    assert job.payload["annotation"]["rationale"] == (
-        "The grader rejects answers the instruction never excludes."
-    )
-    assert job.payload["annotation"]["annotator"] == "human-7"
-    assert job.payload["annotation"]["annotator_id"] == "ann-7"
-    ingest_public_corpus(queue, [job], run_id="wave4-rationale")
-    backend = _AnnotationBackend()
-    outcome = _worker(queue, tmp_path, _LocalReplay(), backend=backend).run_once()
-    assert outcome is not None and outcome["complete"] is True
-    events = queue.read_events(limit=1000)
-    findings = [event for event in events if event["event_type"] == "qa.finding/v1"]
-    assert [event["status"] for event in findings] == ["provisional"]
-    payload = findings[0]["payload"]
-    assert payload["execution_available"] is False
-    assert payload["annotation"]["rationale"] == (
-        "The grader rejects answers the instruction never excludes."
-    )
-    assert payload["finding"]["summary"] == (
-        "The grader rejects answers the instruction never excludes."
-    )
-    assert payload["finding"]["severity"] == "high"
-    # The default no-package path never resolves, scans, or reads a package.
-    assert backend.calls == []
-    assert not any(event["event_type"] == "asset.verified" for event in events)
-
-
-def test_runnable_annotation_task_package_executes_and_confirms(
-    queue: ContinuousWorkQueue, tmp_path: Path
-) -> None:
-    """A ``task_package`` (not ``task_dir``) row stays annotation-routed."""
-    original = _fixture_task_package(tmp_path / "original", repaired=False)
-    repaired = _fixture_task_package(tmp_path / "repaired", repaired=True)
-    trial = _fixture_trial(tmp_path / "fail-1", "printf '42' > output.txt\n")
-    row = {
-        "instance_id": "swe-pkg-1",
-        "task_package": str(original),
-        "repaired_task": str(repaired),
-        "failing_runs": [str(trial)],
-        "underspecified": "major",
-        "rationale": "Verifier demands an unstated trailing newline.",
-    }
-    path = _write_jsonl(tmp_path / "annotations.jsonl", [row])
-    (job,) = list(load_swebench_annotations(path))
-    assert job.job_type == ANNOTATION_JOB
-    assert job.payload["packaging_state"] == "execution_ready"
-    ingest_public_corpus(queue, [job], run_id="wave4-package")
-    replay = _LocalReplay()
-    outcome = _worker(queue, tmp_path, replay).run_once()
-    assert outcome is not None and outcome["complete"] is True
-    events = queue.read_events(limit=1000)
-    findings = [event for event in events if event["event_type"] == "qa.finding/v1"]
-    assert [event["status"] for event in findings] == ["provisional", "confirmed"]
-    executed = findings[-1]["payload"]
-    assert executed["execution_available"] is True
-    assert executed["annotation"]["rationale"] == (
-        "Verifier demands an unstated trailing newline."
-    )
-    assert executed["finding"]["severity"] == "high"
-    assert executed["finding"]["summary"] == (
-        "Verifier demands an unstated trailing newline."
-    )
-    assert executed["finding"]["refutation"]["status"] == "verified"
-    assert [reward for _, reward in replay.calls] == [0.0, 1.0]
-    assert not any(event["event_type"] == "asset.verified" for event in events)
-
-
-def test_all_negative_annotation_records_no_defect_end_to_end(
-    queue: ContinuousWorkQueue, tmp_path: Path
-) -> None:
-    """Explicit negative axes never invent a defect, severity, or root cause."""
-    row = {
-        "instance_id": "swe-negative-1",
-        "underspecified": "none",
-        "unfair_tests": "none",
-        "severity": "none",
-    }
-    path = _write_jsonl(tmp_path / "annotations.jsonl", [row])
-    (job,) = list(load_swebench_annotations(path))
-    assert job.job_type == ANNOTATION_JOB
-    assert job.payload["annotation"]["severity"] == "none"
-    ingest_public_corpus(queue, [job], run_id="wave4-negative")
-    backend = _AnnotationBackend()
-    outcome = _worker(queue, tmp_path, _LocalReplay(), backend=backend).run_once()
-    assert outcome is not None and outcome["complete"] is True
-    events = queue.read_events(limit=1000)
-    findings = [event for event in events if event["event_type"] == "qa.finding/v1"]
-    assert [event["status"] for event in findings] == ["provisional"]
-    finding = findings[0]["payload"]["finding"]
-    assert finding["severity"] == "low"
-    assert finding["root_cause"] == []
-    assert finding["summary"] == "Human annotation asserts no task defect"
-    assert "unfair failure" not in (finding["summary"] or "")
-    assert backend.calls == []
-    assert not any(event["event_type"] == "asset.verified" for event in events)

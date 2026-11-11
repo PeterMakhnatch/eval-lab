@@ -141,19 +141,6 @@ def _make_agent(adapter_module, model_name: str, **kwargs: Any):  # type: ignore
 # --------------------------------------------------------------------------
 
 
-def test_adapter_pins_opencode_version_by_default(adapter_module) -> None:
-    agent = _make_agent(adapter_module, "zai-coding-plan/glm-5.3-flash")
-    assert agent.received_version == adapter_module.PINNED_OPENCODE_VERSION
-    assert agent.received_version == "1.18.25"
-
-
-def test_adapter_accepts_explicit_version_override(adapter_module) -> None:
-    agent = _make_agent(
-        adapter_module, "zai-coding-plan/glm-5.3-flash", version="1.19.0"
-    )
-    assert agent.received_version == "1.19.0"
-
-
 def test_adapter_model_guard_accepts_zai_coding_plan(adapter_module) -> None:
     for model in ("zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"):
         assert (

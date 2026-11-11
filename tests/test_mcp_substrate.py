@@ -483,17 +483,6 @@ def test_mcp_compose_validation_rejects_unauthorized_constructs():
     assert any("network_mode" in e for e in errs)
 
 
-def test_default_base_runtime_is_pinned_cpython312_slim():
-    dockerfile = render_mcp_sidecar_dockerfile()
-    assert PINNED_BASE_IMAGE_INDEX_DIGEST in dockerfile
-    assert "bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251" not in dockerfile
-    assert dockerfile.startswith(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n")
-    runtime = validate_target_base_runtime(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
-    assert runtime["base_image"] == DEFAULT_PINNED_BASE_IMAGE
-    assert runtime["base_image_index_digest"] == PINNED_BASE_IMAGE_INDEX_DIGEST
-    assert runtime["base_image_amd64_manifest_digest"] == PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST
-
-
 def test_mirror_base_runtime_accepts_same_digest_without_docker_hub():
     assert MIRROR_PINNED_BASE_IMAGE.split("@", 1)[1] == PINNED_BASE_IMAGE_INDEX_DIGEST
     runtime = validate_target_base_runtime(

@@ -215,6 +215,16 @@ ROUTE_BASIS = re.compile(
     r"([0-9]+)\s+clean,\s+([0-9]+)\s+tamper-refusal,\s+"
     r"([0-9]+)\s+graded,\s+([0-9]+)\s+unscored,\s+([0-9]+)\s+not\s+run"
 )
+# The route page names the graded rows of each language in this order, then the
+# attack counts of the languages whose clause states one. A run with a language
+# outside this mapping raises rather than dropping a graded row from the sentence.
+GRADED_LANGUAGE_LABELS = {
+    "python": "Python",
+    "go": "Go",
+    "javascript": "JavaScript",
+    "typescript": "TypeScript",
+}
+GRADED_ATTACK_LANGUAGES = ("go", "javascript", "typescript")
 
 
 class ProgressError(RuntimeError):
@@ -893,6 +903,113 @@ def _attack_histogram(rows: Sequence[dict[str, str]]) -> str:
     )
 
 
+def _graded_cells_by_language(
+    rows: Sequence[dict[str, str]],
+) -> list[tuple[str, list[dict[str, str]]]]:
+    """The graded rows of each language the route sentence names, in clause order."""
+    groups: dict[str, list[dict[str, str]]] = {language: [] for language in GRADED_LANGUAGE_LABELS}
+    for row in rows:
+        if row["basis"] != GRADED_BASIS:
+            continue
+        language = row["language"]
+        if language not in groups:
+            raise ProgressError(
+                f"{row['task_id']}: graded row in a language the route sentence "
+                f"cannot name: {language!r}"
+            )
+        groups[language].append(row)
+    missing = [language for language, cells in groups.items() if not cells]
+    if missing:
+        raise ProgressError(
+            f"no {GRADED_BASIS} rows for {missing}, so the route membership sentence is stale"
+        )
+    return [
+        (language, sorted(cells, key=lambda row: int(row["rank"])))
+        for language, cells in groups.items()
+    ]
+
+
+def _rank_members(cells: Sequence[dict[str, str]]) -> str:
+    """The cells as ``task`` at rank items, consecutive ranks compressed to a range."""
+    runs: list[list[tuple[int, str]]] = []
+    for cell in cells:
+        rank = int(cell["rank"])
+        item = (rank, _slice_task(cell["task_id"]))
+        if runs and rank == runs[-1][-1][0] + 1:
+            runs[-1].append(item)
+        else:
+            runs.append([item])
+    blocks: list[str] = []
+    singles: list[str] = []
+    for run in runs:
+        tasks = ", ".join(f"`{task}`" for _, task in run)
+        if len(run) == 1:
+            singles.append(f"{tasks} at rank {run[0][0]}")
+            continue
+        if singles:
+            blocks.append(", ".join(singles))
+            singles.clear()
+        blocks.append(f"{tasks} at ranks {run[0][0]}–{run[-1][0]}")
+    if singles:
+        blocks.append(", ".join(singles))
+    return "; ".join(blocks)
+
+
+def _attack_clause(cells: Sequence[dict[str, str]]) -> str:
+    """The cells' attack counts: ``execute 9/14 attacks each`` or ``execute 8 or 9 of 14``."""
+    attacks = _executed_attacks(cells, GRADED_BASIS)
+    low, high = attacks[0], attacks[-1]
+    if low == high:
+        return f"execute {low}/14 attacks each"
+    if high - low == 1:
+        return f"execute {low} or {high} of 14 attacks"
+    return f"execute {low}–{high} of 14 attacks"
+
+
+_GRADED_ATTACK_TEXT = (
+    r"execute\s+(?:[0-9]+/[0-9]+\s+attacks\s+each|"
+    r"[0-9]+(?:\s+or\s+[0-9]+|\s*[–-]\s*[0-9]+)?\s+of\s+[0-9]+\s+attacks)"
+)
+
+
+def _graded_sentence_edits(
+    rows: Sequence[dict[str, str]], text: str, page: Path
+) -> list[tuple[int, int, str]]:
+    """Edits that rewrite the route page's graded-row membership sentence.
+
+    The sentence names each language's graded cells, their ranks, and the attack
+    counts of the languages whose clause states one. Receipt links stay outside
+    the generated fragments, so each edit stops at its clause boundary.
+    """
+    groups = _graded_cells_by_language(rows)
+    total = _doc_match(
+        r"The\s+([0-9]+)\s+graded\s+rows\s+comprise", text, page, "graded row total"
+    )
+    edits = [(total.start(1), total.end(1), str(sum(len(cells) for _, cells in groups)))]
+    for language, cells in groups:
+        label = GRADED_LANGUAGE_LABELS[language]
+        clause = _doc_match(
+            rf"the\s+[0-9]+\s+{label}\s+cells\s+\([^()\r\n]*\)",
+            text,
+            page,
+            f"graded {label} cells",
+        )
+        edits.append(
+            (clause.start(), clause.end(), f"the {len(cells)} {label} cells ({_rank_members(cells)})")
+        )
+    for language in GRADED_ATTACK_LANGUAGES:
+        label = GRADED_LANGUAGE_LABELS[language]
+        cells = dict(groups)[language]
+        attacks = _doc_match(
+            rf"[Tt]he\s+{label}\s+cells\s+run\s+[^;\r\n]*?\s+and\s+({_GRADED_ATTACK_TEXT})",
+            text,
+            page,
+            f"graded {label} attack count",
+        )
+        edits.append((attacks.start(1), attacks.end(1), _attack_clause(cells)))
+    return edits
+
+
 def _verification_edits(
     receipt: Mapping[str, Any], rows: Sequence[dict[str, str]], text: str, page: Path
 ) -> list[tuple[int, int, str]]:
@@ -1203,15 +1320,15 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
         text = originals[page]
         _doc_match(r"v6\s+basis\s+\(100\s+ranks\):", text, page, "v6 basis (100 ranks):")
         match = _doc_match(ROUTE_BASIS.pattern, text, page, "complete v6 basis sentence")
-        replacements[page] = _doc_patch(
-            text,
-            [
-                (match.start(index), match.end(index), str(count))
-                for index, count in enumerate(route_counts, start=1)
-            ]
-            + _evidence_sentence_edits(receipt, text, page, kind)
-            + _pending_sentence_edits(controls, text, page, kind),
-        )
+        edits = [
+            (match.start(index), match.end(index), str(count))
+            for index, count in enumerate(route_counts, start=1)
+        ]
+        edits += _evidence_sentence_edits(receipt, text, page, kind)
+        edits += _pending_sentence_edits(controls, text, page, kind)
+        if kind == "route":
+            edits += _graded_sentence_edits(rows, text, page)
+        replacements[page] = _doc_patch(text, edits)
     page = pages[2]
     text = originals[page]
     basis_table = _doc_table(text, page, BASIS_ANCHOR, ("basis", "ranks"))

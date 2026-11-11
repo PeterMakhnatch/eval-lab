@@ -19,7 +19,6 @@ dependencies = [
     # Native task execution is a core boundary, independent of trace export.
     "harbor[modal]==0.24.0",
     "huggingface-hub>=1.29.0",
-    "nats-py>=2.11,<3",
     "psycopg[binary]>=3.2,<4",
     "pyarrow>=25.0.1",
     "pydantic>=2.13.4",
@@ -78,7 +77,6 @@ lance = [
 observability = [
     "harbor-atif2otel>=0.1.0",
     "lmnr==0.7.64",
-    "arize-phoenix-client>=3.3.0",
     "opentelemetry-exporter-otlp>=1.38.0",
     "opentelemetry-proto>=1.38.0",
     "opentelemetry-sdk>=1.38.0",

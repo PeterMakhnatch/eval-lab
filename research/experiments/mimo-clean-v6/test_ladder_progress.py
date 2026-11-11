@@ -1089,6 +1089,11 @@ _SYNC_VERIFICATION = "docs/mimo/verification.md"
 _SYNC_FRAGMENTS = (
     ("README.md", b"v6 basis (100 ranks):"),
     ("docs/mimo/README.md", b"v6 basis (100 ranks):"),
+    (
+        "docs/mimo/README.md",
+        b"the 5 Go cells (`001694` at rank 6; `000048`, `000208`, `000427`, `000431` "
+        b"at ranks 89\xe2\x80\x9392)",
+    ),
     ("README.md", b"The strict evidence check matched"),
     ("README.md", b"The remaining v6 gap is the pending controls:"),
     ("docs/mimo/README.md", b"the strict evidence check matched"),
@@ -1641,6 +1646,33 @@ def test_ladder_progress_sync_docs_derives_the_graded_attack_histogram(sandbox: 
         (sandbox.parents[2] / "docs/mimo/verification.md").read_text(encoding="utf-8").split()
     )
     assert verification.count(f"the {len(graded)} graded v6 rows ran 9–12 of the 14.") == 1
+
+
+def test_ladder_progress_sync_docs_derives_the_graded_membership_sentence(sandbox: Path) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    moved = next(
+        row
+        for row in rows
+        if row["basis"] == "graded" and row["language"] == "go" and row["rank"] == "6"
+    )
+    moved.update(rank="60", language="javascript", attacks_executed="10")
+    root = sandbox.parents[2]
+    root_page = root / "README.md"
+    root_before = root_page.read_bytes()
+    route = root / "docs" / "mimo" / "README.md"
+    assert route.read_bytes().count(b"the 5 Go cells") == 1
+    MODULE.sync_docs(rows, root=root, cells_dir=sandbox)
+    text = " ".join(route.read_text(encoding="utf-8").split())
+    assert "the 4 Go cells (`000048`, `000208`, `000427`, `000431` at ranks 89–92)" in text
+    assert (
+        "the 5 JavaScript cells (`001694` at rank 60; `000112`, `000524`, `001675`, "
+        "`001849` at ranks 93–96)"
+    ) in text
+    assert "the JavaScript cells run Jest, Mocha or Node and execute 9 or 10 of 14 attacks" in text
+    assert root_page.read_bytes() == root_before
+    before_repeat = _sync_snapshot(sandbox)
+    MODULE.sync_docs(rows, root=root, cells_dir=sandbox)
+    assert _sync_snapshot(sandbox) == before_repeat
 
 
 def test_ladder_progress_sync_docs_refuses_two_refusal_signatures_atomically(sandbox: Path) -> None:

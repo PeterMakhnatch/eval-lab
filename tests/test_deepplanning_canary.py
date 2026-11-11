@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from evallab.deepplanning import load_cohort
-from evallab.task_workbench import CandidateSource, inspect_candidate
+from evallab.task_lint import CandidateSource, check_package
 
 sys.dont_write_bytecode = True
 
@@ -154,7 +154,7 @@ def _tree_digest(root: Path) -> str:
     return digest.hexdigest()
 
 
-def test_canary_materialization_is_deterministic_and_workbench_static(
+def test_canary_materialization_is_deterministic_and_passes_package_checks(
     tmp_path: Path,
 ) -> None:
     materializer_path = Path("library/external/deepplanning-v1/materialize.py")
@@ -181,11 +181,5 @@ def test_canary_materialization_is_deterministic_and_workbench_static(
         license="Apache-2.0",
         provenance_zone="01-external",
     )
-    inspection = inspect_candidate(
-        repo_root=tmp_path,
-        task_path=task_dir,
-        source=source,
-    )
-    assert inspection.static_passed, [
-        diagnostic.to_dict() for diagnostic in inspection.diagnostics
-    ]
+    diagnostics = check_package(task_dir, source=source)
+    assert not diagnostics, [diagnostic.to_dict() for diagnostic in diagnostics]

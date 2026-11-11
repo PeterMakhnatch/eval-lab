@@ -31,7 +31,7 @@ Two primary measurements are performed on execution ground truth:
 ## The Hard Architectural Boundary
 
 > **Hard Boundary**: LLM verifiers **NEVER** replace execution verifiers in the battery,
-> workbench, or registry admission gates. This is an instrument experiment
+> native package checks, or registry admission gates. This is an instrument experiment
 > (`purpose=calibration` or `purpose=elicitation`).
 
 This boundary is enforced structurally:
@@ -40,7 +40,7 @@ This boundary is enforced structurally:
   and development dependencies.
 - **Graceful Degradation**: Modules degrade cleanly with `MissingVerifierDependencyError` when
   the optional extra is not installed.
-- **Import Boundary**: No module in `evallab.task_workbench`, `evallab.registry`, or the battery
+- **Import Boundary**: No module in `evallab.task_lint`, `evallab.registry`, or the battery
   imports `llm_verifier` or `evallab.calibrate`.
 - **Token Spend Gate**: Real LLM verifiers refuse execution and raise
   `PaidModelAuthorizationError` unless explicitly authorized via `allow_paid_tokens=True`.

@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from evallab.task_workbench import _audit_runtime_identity
+from evallab.task_lint import _audit_runtime_identity
 
 # A uid no test host uses for the invoking user, so retained host ownership
 # provably differs from the container ownership recorded in the archives.

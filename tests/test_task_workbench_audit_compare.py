@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from evallab.task_workbench import compare_quality_audits, load_quality_audit_evidence, run_cli
+from evallab.task_lint import compare_quality_audits, load_quality_audit_evidence
 
 
 def _json(path: Path, value: Any) -> None:
@@ -203,7 +203,6 @@ def test_missing_manifest_does_not_fall_back_to_package(
 def test_corrupt_legacy_runtime_manifest_preserves_other_arms(
     audit_pair: tuple[Path, Path, Path],
     manifest_text: str,
-    capsys: pytest.CaptureFixture[str],
 ) -> None:
     before, after, _ = audit_pair
     for run in (before, after):
@@ -226,10 +225,6 @@ def test_corrupt_legacy_runtime_manifest_preserves_other_arms(
     assert probe["input_identity"]["after_issues"] == ["runtime_manifest_unreadable"]
     assert report["arms"]["unaffected"]["observed_reward_delta"] == -1
     assert report["arms"]["unaffected"]["input_identity"]["status"] == "same"
-    assert run_cli(["audit-evidence", str(after)]) == 0
-    text = capsys.readouterr().out
-    assert "runtime_manifest_unreadable" in text
-    assert "unaffected" in text
 
 def test_missing_and_declared_only_arms_preserve_coverage(
     audit_pair: tuple[Path, Path, Path],
@@ -268,16 +263,6 @@ def test_undeclared_verifier_change_is_unqualified(audit_pair: tuple[Path, Path,
     assert row["pairing"]["status"] == "unqualified"
 
 
-def test_cli_unqualified_is_inspection_success(
-    audit_pair: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
-) -> None:
-    args = ["audit-compare", *map(str, audit_pair[:2])]
-    assert run_cli([*args, "--format", "text"]) == 0
-    assert "probe" in capsys.readouterr().out
-    assert run_cli([*args, "--format", "json"]) == 0
-    report = json.loads(capsys.readouterr().out)
-    assert report["arms"]["probe"]["pairing"]["status"] == "unqualified"
-    assert report["arms"]["probe"]["observed_reward_delta"] == -1
 
 
 def test_wrong_recorded_arm_does_not_pair_by_directory(audit_pair: tuple[Path, Path, Path]) -> None:

@@ -280,7 +280,7 @@ def test_workbench_rejects_tampered_server_bytes_and_missing_fields(tmp_path: Pa
 
     import yaml
 
-    from evallab.task_workbench import (
+    from evallab.task_lint import (
         _validate_compose_topology,
         _validate_offline_build_proofs,
     )
@@ -478,13 +478,11 @@ def test_generated_server_is_canonical_regardless_of_tool_order():
     assert ab.index("def a_tool(") < ab.index("def b_tool(")
 
 
-def test_candidate_digest_detects_tool_payload_drift(tmp_path: Path):
-    """A changed tool execution_body changes candidate_record_digest (registration
-    mismatch detection): the immutable frozen candidate/package digest anchors the
-    tool definitions, so a drifted payload/server is detected at registration."""
+def test_registry_digest_detects_tool_payload_drift(tmp_path: Path):
+    """Registration binds tool payload bytes through the native package digest."""
     import yaml
 
-    from evallab.task_workbench import inspect_candidate
+    from evallab.registry import task_directory_digest
 
     wheelhouse = _real_wheelhouse_or_skip()
     prov = record_prepackaging_provenance(wheelhouse, TARGET)
@@ -523,21 +521,8 @@ def test_candidate_digest_detects_tool_payload_drift(tmp_path: Path):
     (tmp_path / "verifier").mkdir()
     (tmp_path / "verifier" / "verify.py").write_text("print('ok')\n", encoding="utf-8")
 
-    from evallab.task_workbench import CandidateSource
 
-    _src = CandidateSource(
-        source_uri="local/supply-chain-drift",
-        source_ref="local/supply-chain-drift@1.0.0",
-        license="Apache-2.0",
-        provenance_zone="03-synthetic",
-    )
-    insp1 = inspect_candidate(repo_root=tmp_path, task_path=tmp_path, source=_src)
-    # The candidate record (frozen package identity) must bind the proof digest
-    # which covers tool_definitions_sha256; the digest is what registration
-    # checks, regardless of unrelated static-probe completeness.
-    assert "offline_build_proofs" in insp1.candidate
-    digest1 = insp1.candidate["candidate_record_digest"]
-
+    digest1 = task_directory_digest(tmp_path)
     # Drift: change the tool execution_body and materialize to a fresh sidecar dir
     tool2 = MCPToolDefinition(
         name="compute",
@@ -546,7 +531,7 @@ def test_candidate_digest_detects_tool_payload_drift(tmp_path: Path):
         execution_body="return {'status': 'ok', 'value': a + 999}",
     )
     sidecar2 = env_dir / "mcp-server"
-    sidecar2.rename(env_dir / "mcp-server-orig")
+    sidecar2.rename(tmp_path.parent / f"{tmp_path.name}-original-sidecar")
     pkg2 = materialize_mcp_sidecar_package(
         target_dir=sidecar2,
         tools=[tool2],
@@ -555,9 +540,5 @@ def test_candidate_digest_detects_tool_payload_drift(tmp_path: Path):
         plan_only=False,
     )
     (env_dir / "docker-compose.yaml").write_text(yaml.dump(pkg2["compose_doc"]))
-    insp2 = inspect_candidate(repo_root=tmp_path, task_path=tmp_path, source=_src)
-    digest2 = insp2.candidate["candidate_record_digest"]
-    assert digest1 != digest2, (
-        "tool payload drift must change candidate_record_digest so registration "
-        "detects the changed definitions/server"
-    )
+    digest2 = task_directory_digest(tmp_path)
+    assert digest1 != digest2

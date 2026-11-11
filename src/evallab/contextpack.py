@@ -669,9 +669,9 @@ def render_mission_brief_template(mission_type: str, task_ref: str | None = None
             "solutions that the verifier correctly rejects."
         )
         lines.append(
-            "4. **Workbench Certification**: Run "
-            "`uv run python -m evallab.task_workbench review <candidate_dir>` "
-            "to verify isolation and safety."
+            "4. **Native Package Checks**: Run "
+            "`uv run python -m evallab.task_lint <candidate_dir>` "
+            "to screen package metadata and security. This is not Gold certification."
         )
         lines.append(
             "5. **Delivery**: Follow `agents/CHECKS.md` and `agents/WORKFLOW.md` through "

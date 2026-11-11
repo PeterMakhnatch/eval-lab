@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from evallab.task_workbench import compare_quality_audits, load_quality_audit_evidence, run_cli
+from evallab.task_lint import compare_quality_audits, load_quality_audit_evidence
 
 
 def _sha(data: bytes) -> str:
@@ -231,10 +231,7 @@ def test_portable_wrong_verifier_bytes_are_mismatched_not_unbound(
     assert binding["executed_verifier_path"] is None
 
 
-@pytest.mark.parametrize("command", ["audit-evidence", "experiment"])
-def test_missing_owned_verifier_manifest_keeps_default_text_inspectable(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], command: str
-) -> None:
+def test_missing_owned_verifier_manifest_is_mismatched(tmp_path: Path) -> None:
     audit = _write_owned_audit(tmp_path / "consumer")
     lane = _write_source_root(tmp_path / "src")
     metadata_path = audit / "metadata.json"
@@ -244,14 +241,6 @@ def test_missing_owned_verifier_manifest_keeps_default_text_inspectable(
     evidence = load_quality_audit_evidence(audit, source_root=lane)
     assert evidence["provenance_binding"]["recorded_verifier_sha256"] is None
     assert evidence["provenance_binding"]["status"] == "mismatched"
-    args = [command, str(audit)] if command == "audit-evidence" else [
-        command, "--audit-dir", str(audit)
-    ]
-    assert run_cli([*args, "--repo-root", str(tmp_path), "--source-root", str(lane)]) == 0
-    text = capsys.readouterr().out
-    assert "MISMATCHED" in text
-    assert "oracle" in text and "reward=1.0" in text
-    assert "nop" in text and "reward=0.0" in text
 
 
 def test_original_result_overrides_cache_and_cannot_be_replaced(tmp_path: Path) -> None:

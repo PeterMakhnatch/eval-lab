@@ -624,36 +624,6 @@ def test_python_provisioning_gate_rejects_unpinned_fixture_jobs(
         assert any(expected in problem for problem in problems), problems
 
 
-def test_workbench_certification_workflows_cadence_and_path_isolation() -> None:
-    """Preserved automatic triggers: no weekly schedule, task_workbench paths retained.
-
-    The maintenance weekly schedule and task_workbench path removal are superseded.
-    Certification still runs automatically on workbench changes; no new schedule is
-    added as implied authorization for paid/old research experiments.
-    """
-    cert_workflows = ["tau-knowledge.yml", "funcdag-workbench-certification.yml"]
-    for filename in cert_workflows:
-        workflow_path = ROOT / ".github/workflows" / filename
-        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
-        triggers = workflow.get("on") or workflow.get(True) or {}
-        assert isinstance(triggers, dict), f"{filename} triggers must be a mapping"
-
-        # No schedule trigger is declared (no new schedules as implied authorization).
-        assert triggers.get("schedule") is None, (
-            f"{filename} must not declare a schedule trigger"
-        )
-
-        # task_workbench paths are preserved for automatic coverage.
-        found_task_workbench = False
-        for trigger_config in triggers.values():
-            if isinstance(trigger_config, dict):
-                paths = trigger_config.get("paths", [])
-                for path in paths:
-                    if "task_workbench" in path:
-                        found_task_workbench = True
-        assert found_task_workbench, (
-            f"{filename} must list task_workbench paths for automatic coverage"
-        )
 
 
 WORKFLOW_DIR = ROOT / ".github/workflows"

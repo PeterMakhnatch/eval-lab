@@ -25,7 +25,7 @@ from pydantic import ValidationError
 from evallab.host_task_staging import stage_task_for_host
 from evallab.registry import TaskRegistry, compute_task_digests
 from evallab.schemas import TaskLimits, TaskRegistryRecord
-from evallab.task_workbench import (
+from evallab.task_lint import (
     CandidateSource,
     Diagnostic,
     _candidate_network_overlay,

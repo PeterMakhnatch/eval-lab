@@ -342,8 +342,7 @@ for the v5 regrade under separate-verifier@8 + purge-installed-copies@2),
 not here: pass rates, every failure classified
 (env broken / oracle wrong / real leak / real grader hole / infra flake)
 with evidence, spend actuals, and any real leak or grader hole written up
-as an open issue. `mimo-clean-v5` is the canonical set
-(`docs/mimo/clean-set.md`).
+as an open issue. `mimo-clean-v5` is the canonical set.
 
 ### v5 @8+@2 regrade of the 30 triaged tasks (all fresh Modal LIMIT cells)
 

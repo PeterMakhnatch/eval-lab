@@ -86,7 +86,7 @@ def test_missing_cache_is_not_created_and_changed_bytes_are_refused(tmp_path: Pa
     assert source(ref, tmp_path, optional=True) == path
     assert not path.exists()
     path.write_text('{"score":1}\n')
-    with pytest.raises(ValueError, match="hash differs"):
+    with pytest.raises(ValueError, match=r"hash differs: .*; refresh code pins with the uv run python command in docs/score.md#refresh-code-pins"):
         source(ref, tmp_path, optional=True)
 
 

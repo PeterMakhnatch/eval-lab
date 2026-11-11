@@ -1087,7 +1087,11 @@ def core_runtime_checks(
             output = command([tool, "--version"])
             match = re.search(r"\d+\.\d+\.\d+", output)
             version = match[0] if match else "unparsed"
-            return version == CORE_TOOL_PINS[tool], f"installed={version} pin={CORE_TOOL_PINS[tool]}"
+            pin = CORE_TOOL_PINS[tool]
+            if tool == "omp":
+                compatible = version.rsplit(".", 1)[0] == pin.rsplit(".", 1)[0]
+                return compatible, f"installed={version} supported={pin.rsplit('.', 1)[0]}.*"
+            return version == pin, f"installed={version} pin={pin}"
         probe(f"{tool}-version", cli_version)
     probe("python", lambda: _python_runtime_health(root))
 

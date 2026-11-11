@@ -1,12 +1,11 @@
 # Recovery
 
 ## Purpose
-Recovery bundles, inventory/manifests, deterministic certification, and their wrapper.
+Reserved directory. The cleanup removes the recovery bundle, certification, and wrapper implementation.
 
 ## What lives here / entry points
-- `bundle.py`: State bundle creation and snapshotting.
-- `certify.py`: State restoration certification (`StateCertificate`).
-- `wrapper.py`: Execution wrapping with automated recovery safeguards.
+- No current implementation or entry point.
+- Restore removed source from `pre-deslop-2026-11-10`; see `research/ARCHIVE.md`.
 
 ## Invariants or rules
 - Redact sensitive content before serialization and hashing.
@@ -15,7 +14,7 @@ Recovery bundles, inventory/manifests, deterministic certification, and their wr
 - Never serialize raw API keys, credential state, or secrets into a recovery bundle.
 
 ## Tests or checks
-The assigned verifier uses existing bundle, inventory, certification, and wrapper tests for the touched contract.
+Use the tests of the retained caller when changing its recovery behavior.
 
 ## What not to add here
 Not a credential dump or a substitute authority for immutable source evidence.

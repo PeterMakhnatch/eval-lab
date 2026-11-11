@@ -1,94 +1,89 @@
 ---
 status: living
-audience:
-  - builder
-  - operator
+audience: [builder, operator]
 ---
 
-# Cached DEV scoring
+# Frozen DEV scoring
 
-`evallab score` reads frozen caches. It starts no detector, model call, or task run.
-See `evallab score --help` for options and [SCOREBOARD.md](../research/evidence/ev1110-score-1/SCOREBOARD.md) for results and metric limits.
+`evallab score` runs deterministic local rules and reads stored model outputs. It performs no inference or task execution.
+It requires an explicit freeze. Missing predictions remain missing. Gold owns labels and action coordinates.
+The published scoreboard is `~/Developer/eval-lab-results/score/current/scoreboard.json`.
+Its compact view is [SCOREBOARD.md](../research/evidence/ev1110-score-1/SCOREBOARD.md).
 
-The default output is `~/Developer/eval-lab-results/score/qa-v1/`.
-`EVALLAB_RESULTS_HOME` changes the results home. Use `--out` for another new directory.
-The command refuses to overwrite existing data.
+## Reproduce the published scoreboard
+
+Run this command from current main. The output directory must not exist.
 
 ```sh
-uv run evallab score \
-  --freeze ~/Developer/eval-lab-results/score/qa-v1/freeze.json \
-  --out ~/Developer/eval-lab-results/score/qa-v1/recheck
+uv run evallab score --freeze ~/Developer/eval-lab-results/score/current/freeze.json --out ~/Developer/eval-lab-results/score/current/recheck
 ```
 
-The results directory holds `scoreboard.json`, `freeze.json`, `items.jsonl`, and the Markdown view.
-`summary.json` contains aggregate metrics and SHA-256 hashes of the full receipts.
-Only the Markdown table and compact summary belong in Git. Full receipts remain in the results home.
-The freeze pins local sources, cache identities, thresholds, and cohorts. Changed hashes stop scoring.
-Missing predictions stay missing. Gold owns labels and action coordinates.
+The published directory contains the freeze, `scoreboard.json`, `SCOREBOARD.md`, `items.jsonl`, `qa-links.jsonl`, and `summary.json`.
+The compact summary records SHA-256 hashes and paths for the full receipts.
+Only the compact Markdown view and summary belong in Git. Full receipts remain in the results home.
+`EVALLAB_RESULTS_HOME` changes the results home. Explicit paths take precedence.
+The freeze pins sources, cache identities, thresholds, and cohorts. Changed hashes stop scoring.
 
-Action protocols remain separate. Cohorts A and B retain their `action-v1` labels.
-Each `action-v2` source gets its own panel, including its attempted and unjudged counts.
-The same run can appear under both protocols. Its labels and scores never merge across panels.
-The 690-run publisher-label panel C keeps its original membership.
-New panels use only stored detector outputs and the existing frozen thresholds.
-Missing stored outputs remain `missing`. Each detector retains identical-row character and step comparisons.
-Rows marked `labelled-only, unscored` never enter scoring.
-The score freeze selects its named cohort views, even when the Gold registry grows.
-Action-v1 label identities remain fixed. New freezes can name action-v2 views.
+## Refresh code pins
 
-Gold exclusions live in `src/evallab/gold/exclusions.tsv`, beside the public registry.
-Each row names the source, procedure, reason, raw custody path, date, and source aliases.
-IssueBank refuses an excluded source with an explicit Gold label state.
-Its live hacking view also excludes incompatible legacy R1, R3, and R7 cheat rows.
-Task, grader, run-health, witness custody, and historical files remain unchanged.
-The MALT mirror stays in the legacy inventory until native identities and label versions reconcile.
-This exclusion does not change the separate 690-run DEV policy regression pool.
-Direct `gold.load_trajectory` calls with legacy rows do not enforce the source exclusion.
-Callers must use validated Gold rows, not arbitrary legacy IssueBank rows.
+After a merge changes pinned code, use the existing code-pin-only refresh procedure below.
+It creates a new freeze. It never changes data, labels, cohorts, thresholds, or historical freezes.
+Run it from the repository root. Choose a new output filename if this one already exists.
+Review the source change before accepting its new code hashes. Refreshing pins does not prove unchanged metrics.
 
-A freeze with `qa` adds task and grader contracts from pinned native receipts.
-It keeps strict/original pairs, passed-action versions, selected original graders, and strict certificates separate.
-Publisher bundles without grader digests get a separate source-scoped panel. Missing rewards never imply a pass.
-Gold gates and mutation audit reuse label evidence; their agreement is not independent accuracy.
-The external `qa-links.jsonl` joins every executed-positive Gold run to task/grader availability and cached tool outputs.
-DEFECT, integrity controls, references, and alternatives use submission denominators, never grader denominators.
-Fresh-alternative rejection is diagnostic unless independent correctness evidence exists.
-The JSON includes family-macro rates, clustered intervals, unresolved alarm bounds, coverage, and recorded costs.
+```sh
+uv run python -c '
+import json
+from pathlib import Path
+from evallab.score.inputs import digest, source
+p = Path.home() / "Developer/eval-lab-results/score"
+f = json.loads((p / "current/freeze.json").read_text())
+for r in f["code_sources"]:
+    q = Path(r["path"])
+    if not q.is_absolute() and q.suffix == ".py":
+        r["sha256"] = digest(Path.cwd() / q)
+    else:
+        source(r, Path.cwd())
+with (p / "current-refreshed-freeze.json").open("x") as out:
+    out.write(json.dumps(f, indent=2, sort_keys=True) + "\n")
+'
+```
+
+Use the new freeze with `evallab score --freeze` and a new `--out` directory.
+Never refresh a data hash to bypass a refusal. Preserve and investigate changed input bytes.
+
+## Measurement boundaries
+
+Action protocols remain separate. Cohorts A and B retain their action-v1 labels; C retains 690 publisher-labelled DEV runs.
+Each action-v2 source has its own panel, including attempted and unjudged counts. The same run can occur under both protocols.
+The freeze includes Terminal Wrench, CheatBench, C1-C5, and the all-null Goodfire action-v2 panel.
+Source panels use stored outputs and unchanged thresholds. No binary label follows from attempted or unjudged states.
+Rows marked `labelled-only, unscored` never enter scoring without a named unlock.
+
+Gold exclusions live in `src/evallab/gold/exclusions.tsv`. IssueBank and the public Gold loader enforce them.
+`gold.load_trajectory` refuses excluded sources before trajectory access, including calls with legacy rows.
+The separate 690-run DEV policy regression pool does not change.
+
+QA uses pinned task/grader receipts with exact subject and runtime identities.
+Its action-v1 Gold joins stay frozen when additional offline source panels appear.
+Strict/original pairs, passed-action versions, selected original graders, and certificates remain separate.
+Publisher bundles without grader digests have a source-scoped panel. Missing rewards never imply a pass.
+Gold gates and mutation audit reuse label evidence; agreement is not independent accuracy.
+The external `qa-links.jsonl` records action-v1 executed-positive run links and task/grader availability.
+Submission diagnostics use submission denominators, never grader denominators.
 `qa.findings` requires an explicit DEV binding, exact task digest, and matching runtime boundary.
-An absent binding stays missing. Scoring never starts QA tools or inspects protected row payloads.
+Absent bindings remain missing. Scoring never starts QA tools or inspects protected row payloads.
 
-`evallab.score.metrics` owns the retained Wilson and task-cluster bootstrap implementations.
-It also owns the label-independent findings parser.
-`IssueBank` owns its writer lock. The Seeker driver owns its receipt checks.
-Historical study callers import the native metric primitives directly.
-The retained study writers are not the recommended measurement path.
+Online scoring replays causal prefixes through native rules. Models use exact-prefix caches only, without an inference callable.
+The 3 model variants have no stored outputs on Gold prefixes. Missing coverage is not a negative prediction.
+All panels use exposed DEV evidence. No untouched test cohort exists; every Goodfire DEV run has stored detector outputs.
 
-2026-11-10: Add cached DEV scoring. Preserve old score paths and the unchanged line gate.
-2026-11-10: Add cached task/grader QA and the executed-action run join. Preserve offline metrics and the line gate.
-2026-11-10: Retire factory dashboards and QC report exports. Move native metric and receipt primitives without changing cached measurements.
-2026-11-11: Add separate action-v2 source panels without pooling protocols or changing the publisher DEV pool.
-2026-11-11: Record 70 source exclusions. Remove incompatible trace registrations and withdrawn panel producers without deleting raw evidence. Keep frozen cohort membership and action-v1 label identities fixed.
+## Retained research rules
 
-## Retired card and grid products
+Use the task as the evidence unit. Repeated attempts are not independent tasks.
+State the population, missing outcomes, source identity, setup, and uncertainty.
+Keep measured verifier outcomes separate from harness exits and capability eligibility.
+Quote frozen preregistrations without changing decision rules after results.
+The card generator and LADDER frontend are retired. Preserve their historical receipts; use native approved specs for new execution.
 
-The card generator and LADDER grid frontend are retired.
-Keep existing cards, queue specs, receipts, and preregistrations as historical evidence.
-Use cached score receipts for current frozen comparisons.
-Use explicit native experiment specs and queue approval for new execution.
-There is no card or ladder compatibility command.
-
-The retained research rules still apply:
-
-- Use the task as the evidence unit. Repeated attempts are not independent tasks.
-- Keep realized first-k results separate from unbiased pass@k estimates and independent-attempt planning transforms.
-- State the measured population, missing outcomes, source identity, setup, and uncertainty.
-- Keep measured verifier outcomes separate from harness exits and capability eligibility.
-- Quote the frozen preregistration and decision rule without changing them after results.
-- Treat an underpowered or indistinguishable result as a result, not an omitted cell.
-- Verify contamination, task/verifier identity, setup, lineage, and source receipts before publication.
-
-Historical automatically drafted cards still require human publication review.
-Their original input digests remain useful even though their producer is removed.
-Source retirement grants neither publication authority nor a new experiment.
-
-2026-11-11: Consolidate card/grid guidance here. Retire the unused context compiler and route directly to native manuals.
+2026-11-11: Publish the combined current scoreboard. Keep hash guards, separate protocols, frozen QA populations, and operational limits.

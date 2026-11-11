@@ -1,10 +1,10 @@
 # Storage
 
 ## Purpose
-Storage paths/zones, attachments and disposition, Parquet compaction, data backfill, trial census, and storage inspection.
+Storage paths/zones, attachments and disposition, Parquet compaction, task audit, and trial census.
 
 ## What lives here / entry points
-`paths.py`, `attach.py`, `fs.py`, `parquet_compaction.py`, `data_backfill.py`, `trials.py`, and `inspect_storage.py`.
+`paths.py`, `attach.py`, `fs.py`, `parquet_compaction.py`, `task_audit.py`, and `trials.py`.
 
 ## Invariants or rules
 - `paths.py` owns zone/path classification; do not duplicate zone policy.
@@ -13,7 +13,7 @@ Storage paths/zones, attachments and disposition, Parquet compaction, data backf
 - Follow the retention policy before deleting/rebuilding ignored storage.
 
 ## Tests or checks
-The assigned verifier uses existing paths, attach/attach-properties, compaction, and backfill-command tests for the touched behavior.
+The assigned verifier uses existing paths, attach/attach-properties, compaction, and trial-census tests for the touched behavior.
 
 ## What not to add here
 No alternate SQL-dialect abstraction or model-based evaluation in storage helpers.

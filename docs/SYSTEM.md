@@ -39,7 +39,7 @@ See [Line](line.md), [watch](live-watch.md), [task quality](task-quality.md), an
 | Storage paths, attach, compaction, backfill | `src/evallab/storage/` |
 | Deterministic ATIF and fact extraction | `src/evallab/evidence/` |
 | Interpretation, evidence packs, judgments, readiness | `src/evallab/interpretation/` |
-| Recovery bundles and state recovery | `src/evallab/recovery/` |
+| Former recovery package | `src/evallab/recovery/` is reserved; restore removed source from `pre-deslop-2026-11-10` |
 | Runner, queue, quota, CLI | Existing top-level `src/evallab/*.py` modules |
 | First-party tasks | `library/tasks/` |
 | Pinned external benchmarks | `library/benchmarks/` |

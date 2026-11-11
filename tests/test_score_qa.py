@@ -106,6 +106,16 @@ def test_passed_action_join_deduplicates_versions_without_inventing_graders(nati
     assert strict_keys.isdisjoint(data["panels"]["certified_graders"]["members"])
 
 
+def test_new_offline_protocol_does_not_expand_frozen_qa_subjects(native_join):
+    config, gold, root = native_join
+    expected = qa_inputs.load(config, root, gold)
+    gold["new-protocol"] = SimpleNamespace(
+        source="goodfire-action-v2", split="DEV", declared_split="dev",
+        task_id="passed", label_state="executed-positive",
+    )
+    assert qa_inputs.load(config, root, gold) == expected
+
+
 def test_gold_join_refuses_version_drift_and_protected_rows(native_join):
     config, gold, root = native_join
     gold["strict1"].metadata["source_variant_sha256"] = "different-test"

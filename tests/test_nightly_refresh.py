@@ -60,12 +60,32 @@ def _checkout(tmp: Path, name: str = "checkout") -> Path:
     return root
 
 
-def _config(tmp: Path, *checkouts: Path, facts_name: str = "facts") -> RefreshConfig:
+def _config(
+    tmp: Path,
+    *checkouts: Path,
+    facts_name: str = "facts",
+    fresh_backup: bool = True,
+) -> RefreshConfig:
     base = tmp.resolve()
     repo = base / "repo"
     (repo / "src").mkdir(parents=True)
     data = base / "data"
     data.mkdir()
+    if fresh_backup:
+        payload = b"PGDMP fixture"
+        generation = data / "backups/postgres" / f"evallab-{REPORT_DAY}"
+        generation.mkdir(parents=True)
+        (generation / "database.dump").write_bytes(payload)
+        (generation / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "created_at": NOW.isoformat(),
+                    "dump": "database.dump",
+                    "size_bytes": len(payload),
+                    "sha256": hashlib.sha256(payload).hexdigest(),
+                }
+            )
+        )
     readers = base / "readers"
     readers.mkdir()
     facts = base / facts_name
@@ -246,8 +266,8 @@ def test_second_refresh_is_noop_and_preserves_mtimes(
         "source_failures": {},
         "backup": first["backup"],
     }
-    assert first["backup"]["status"] == "missing"
-    assert first["backup"]["attempt"] is None  # No attempt unless --backup.
+    assert first["backup"]["status"] == "fresh"
+    assert first["backup"]["attempt"] is None  # A fresh backup needs no dump.
     assert seams.process == []
     assert seams.trials == []
     assert seams.verdicts == []
@@ -1103,16 +1123,31 @@ def test_configured_queue_root_missing_fails_every_run_until_fixed(
     assert nightly_refresh.refresh_exit_code(second) == 1
 
 
+@pytest.mark.parametrize("old_backup", [False, True])
 def test_backup_attempt_outcome_and_freshness_are_reported(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    old_backup: bool,
 ) -> None:
     from evallab import backups
 
     checkout = _checkout(tmp_path)
     _completed_job(checkout / "runs", "harbor-job")
-    config = replace(_config(tmp_path, checkout), backup=True)
+    config = _config(tmp_path, checkout, fresh_backup=False)
     assert config.data_root is not None
     (config.data_root / "compose.yaml").write_text("name: eval-lab\n")
+    if old_backup:
+
+        def old_dump(command, output):
+            output.write(b"PGDMP old")
+            return subprocess.CompletedProcess(command, 0, b"", b"")
+
+        backups.create_postgres_backup(
+            config.data_root,
+            datetime(2026, 9, 20).date(),
+            runner=old_dump,
+            now=lambda: datetime(2026, 9, 20, tzinfo=UTC),
+        )
     seams = Seams()
     seams.install(monkeypatch)
     days: list[str] = []
@@ -1126,14 +1161,17 @@ def test_backup_attempt_outcome_and_freshness_are_reported(
 
     assert days == [REPORT_DAY]
     assert failed["status"] == "refreshed"
-    assert failed["backup"]["status"] == "missing"
+    assert failed["backup"]["status"] == ("stale" if old_backup else "missing")
     assert failed["backup"]["attempt"] == {
         "ok": False,
         "error": "RuntimeError: pg_dump exited 1: postgres is not running",
     }
     assert nightly_refresh.refresh_exit_code(failed) == 1
     digest = _load(config.facts_root / "inputs/evallab-nightly.json")
-    assert "Postgres backup MISSING (no verified dump); backup attempt FAILED" in digest["lines"][1]
+    assert digest["backup"] == failed["backup"]
+    still_failed = _refresh(config, seams)
+    assert still_failed["status"] == "noop"
+    assert nightly_refresh.refresh_exit_code(still_failed) == 1
 
     def dump(command: list[str], output: Any) -> subprocess.CompletedProcess[bytes]:
         output.write(b"PGDMP fixture")
@@ -1155,5 +1193,11 @@ def test_backup_attempt_outcome_and_freshness_are_reported(
     assert nightly_refresh.refresh_exit_code(succeeded) == 0
     current_digest = _load(config.facts_root / "inputs/evallab-nightly.json")
     assert current_digest["backup"] == succeeded["backup"]
-    assert "Postgres backup FRESH" in current_digest["lines"][1]
-    assert "backup attempt FAILED" not in current_digest["lines"][1]
+    assert current_digest["backup"]["status"] == "fresh"
+    # Fresh backups do not touch the catalog on an unchanged night.
+    again = _refresh(config, seams)
+    assert again["backup"]["attempt"] is None
+    assert again["backup"]["status"] == "fresh"
+    forced = _refresh(replace(config, backup=True), seams)
+    assert forced["backup"]["attempt"]["ok"] is True
+    assert forced["backup"]["status"] == "fresh"

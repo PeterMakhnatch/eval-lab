@@ -3,8 +3,8 @@
 Raw queues/runs are read-only. Reports, projections, replay and task pages live
 under this service's state directory. No executor, model, cloud reader or network
 publisher is constructed here. The existing paid nightly cycle is separate. The
-database is touched only by the opt-in ``--backup`` dump; backup age is always
-reported from the verified dumps on disk.
+database receives a read-only dump when the verified backup is missing or stale,
+or when ``--backup`` requests a dated dump. Backup age is always reported.
 """
 
 from __future__ import annotations
@@ -417,12 +417,13 @@ def _vanished_source(error: FileNotFoundError, checkouts: tuple[Path, ...]) -> P
 
 
 def backup_fact(config: RefreshConfig, moment: datetime) -> dict[str, Any]:
-    """Newest verified Postgres dump age, after the opt-in backup attempt."""
+    """Refresh a missing/stale backup through the existing bounded dump step."""
     from evallab.automation import DEFAULT_NIGHTLY_STEPS, StepTimeout, run_with_timeout
 
     primary = config.data_root or shared_checkout_root(config.repo_root)
+    freshness = backup_freshness(primary, now=moment)
     attempt: dict[str, Any] | None = None
-    if config.backup:
+    if config.backup or freshness["status"] != "fresh":
         # The registered postgres_backup step owns the bound for this attempt.
         step = next(step for step in DEFAULT_NIGHTLY_STEPS if step.name == "postgres_backup")
         day = moment.astimezone(ET).date()
@@ -432,16 +433,21 @@ def backup_fact(config: RefreshConfig, moment: datetime) -> dict[str, Any]:
             attempt = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
         else:
             attempt = {"ok": True, "path": str(path)}
-    return {**backup_freshness(primary, now=moment), "attempt": attempt}
+    return {
+        **(backup_freshness(primary, now=moment) if attempt else freshness),
+        "attempt": attempt,
+    }
 
 
 def _backup_line(backup: dict[str, Any]) -> str:
+    health = "PASS" if backup["status"] == "fresh" else "FAIL"
     if backup["newest_verified"] is None:
-        text = "Postgres backup MISSING (no verified dump)"
+        text = f"Postgres backup {health}: MISSING (no verified dump)"
     else:
         text = (
-            f"Postgres backup {backup['status'].upper()}: newest verified "
-            f"{backup['created_at'][:10]}, {backup['age_hours']:g} h old"
+            f"Postgres backup {health}: {backup['status'].upper()}; newest verified "
+            f"{backup['created_at'][:10]}, {backup['age_hours']:g} h old "
+            f"(limit {backup['max_age_hours']:g} h)"
         )
     attempt = backup["attempt"]
     if attempt is not None and not attempt["ok"]:
@@ -474,14 +480,16 @@ def _health_lines(
 
 
 def refresh_exit_code(result: dict[str, Any]) -> int:
-    """0: every source refreshed (or unchanged) and any requested backup succeeded.
-
-    1: the run finished but is incomplete: a source failed (``source_failures``)
-    or the requested backup attempt failed. Remaining sources were still
-    refreshed. Whole-run errors propagate and the CLI exits 2.
-    """
-    attempt = (result.get("backup") or {}).get("attempt") or {}
-    return 1 if result.get("source_failures") or attempt.get("ok") is False else 0
+    """Fail if a source, backup attempt, or verified-backup freshness fails."""
+    backup = result.get("backup") or {}
+    attempt = backup.get("attempt") or {}
+    return int(
+        bool(
+            result.get("source_failures")
+            or attempt.get("ok") is False
+            or (backup and backup.get("status") != "fresh")
+        )
+    )
 
 
 def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[str, Any]:

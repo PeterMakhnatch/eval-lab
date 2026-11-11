@@ -838,8 +838,8 @@ uv run evallab schedule install
   Per-job projection refusals retain the original guard and exact reason in `state.json` and the digest JSON; the ten-line summary lists reason classes. Refused jobs are excluded from run/trial/legit/history/page counts and never marked processed. Only changed source inputs retry them; unchanged input is a no-op even when refusals remain.
   Source `watch/hooks.jsonl` changes refresh the run and replay; generated `watch` and `processed` outputs do not trigger another refresh.
   Each queue root is an independent source. A configured `--queue-root` that is missing, or a root whose evidence vanishes mid-run (a worktree retired while the refresh walks it), is recorded under `source_failures` as `{path, reason}` in the result and digest JSON and on the digest's queue-roots line; the run restarts without that root and the remaining sources still refresh (`status: partial`). A missing path outside every source still fails the whole run. An auto-discovered worktree retired *before* the run is simply no longer discovered.
-  Every result also carries `backup`: the newest dump under the primary's `backups/postgres/` whose manifest checksum verifies, its `created_at`, `age_hours`, `status` (`fresh` ≤36 h, `stale`, `missing`) and newer generations that failed verification. The digest's first status line shows it. `--backup` (installer: `install-nightly-refresh.sh --backup`) additionally runs the existing `create_postgres_backup` every night, noop or not, bounded by the registered `postgres_backup` step timeout, and records `attempt: {ok, path|error}`; without the flag `attempt` is `null` and the refresh never touches Docker or PostgreSQL.
-  Exit status: `0` all sources refreshed or unchanged and any requested backup succeeded (also `status: locked`, when another refresh holds the lock); `1` the run finished but is incomplete: `source_failures` is non-empty (also on a noop) or the backup attempt failed; `2` the whole refresh failed and `state.json` did not advance.
+  Every result carries `backup`: the newest checksum-verified dump under the primary's `backups/postgres/`, its creation time, age, and freshness. The limit is 36 hours. A missing or stale backup automatically runs the existing bounded `postgres_backup` step, including on unchanged evidence. `--backup` additionally requests a dated dump while the previous dump remains fresh. The result records `attempt: {ok, path|error}`. The digest shows PASS or FAIL, the backup age, and the limit.
+  Exit status: `0` means all sources and backup health pass (also `status: locked`, when another refresh holds the lock). `1` means a source fails, a backup attempt fails, or the verified backup remains missing or stale. This applies to a `noop` result too. `2` means the whole refresh fails.
   Unchanged evidence does not replay projections or advance their high-water state. If backup health or source failures changed, the digest health lines are still republished so a successful backup or retired-source recovery cannot leave yesterday's failure visible.
 
 For a dispatch-only schedule that checks the approved queue every minute:
@@ -1228,10 +1228,22 @@ shasum -a 256 "$DUMP"
 ```
 
 Compare the second command with `manifest.json` in the same generation.
-Legacy verified `.dump`/`.dump.json` pairs remain readable and are reused for
-their date. Restoration
-is intentionally an operator action into a separately named database; nightly
-never overwrites the live database.
+Legacy verified `.dump`/`.dump.json` pairs remain readable and are reused for their date.
+Check backup health and prove an isolated restore with the existing container:
+
+```bash
+uv run python -m evallab.backups status --root "$PRIMARY_ROOT"
+uv run python -m evallab.backups restore --root "$PRIMARY_ROOT" --dump "$DUMP"
+```
+
+The health command exits 1 for a missing or stale dump.
+The restore command verifies the checksum before database access.
+It creates a random `evallab_restore_*` database and restores only into that database.
+It compares counts for experiments, jobs, trials, rewards, artifacts, run_files, trajectory_documents, and deterministic_trial_facts.
+It drops the throwaway database after success or failure.
+The JSON receipt includes the dump path, size, SHA-256, both count maps, and duration.
+Live count queries run in a read-only transaction. The check never changes the live catalog.
+Concurrent catalog writes can cause a count mismatch. Repeat the check when ingestion is idle.
 
 The digest includes the prior day's trials, early-morning automation, policy
 attribution, cost, exception taxonomy, queue depth, waiting rationales, evidence

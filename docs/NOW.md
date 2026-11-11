@@ -14,6 +14,7 @@ routes below. Binding rules stay in `AGENTS.md`, `agents/CHECKS.md`, and
 `agents/WORKFLOW.md`; this orientation does not grant execution permission.
 Linear owns live assignments and approvals; Git/PR metadata identifies source.
 Scientific availability still requires a named corpus and exact revision.
+Third-party owners, pins, health checks, failures, and recovery: [third-party tools](third-party.md).
 
 ## What we are building
 

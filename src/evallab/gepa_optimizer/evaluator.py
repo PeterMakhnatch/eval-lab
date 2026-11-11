@@ -71,6 +71,7 @@ from evallab.registry import compute_task_digests, task_directory_digest
 from evallab.results import JobRecord, TrialRecord, load_job
 from evallab.runner import CONTROL_AGENTS, RunRequest, profile_for_request, resolve_harbor_model
 from evallab.schemas import CohortComparisonSpec, CohortSelector, ExperimentSpec, RunProvenance
+from evallab.task_prepare import replay_spec_for_candidate
 from evallab.toolbox import compute_skill_digest, validate_toolbox_code
 from evallab.upstream_fetch import (
     KNOWN_SCORE_RULES,
@@ -82,7 +83,6 @@ from evallab.upstream_fetch import (
 
 from .budget import AggregateBudget
 from .feedback import build_feedback, validate_oracle_reference, validate_prior_run_reference
-from .intake import replay_spec_for_candidate
 
 PERMITTED_CONTROLS = frozenset({"oracle", "nop"})
 DEEPSEEK_TARGET_AGENT = "mini-swe-agent"

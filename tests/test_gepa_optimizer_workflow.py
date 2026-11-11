@@ -19,7 +19,6 @@ from evallab.gepa_optimizer.evaluator import (
     LabEvaluator,
     ProviderCeilings,
 )
-from evallab.gepa_optimizer.intake import replay_spec_for_candidate, validate_drift
 from evallab.gepa_optimizer.proposer import (
     JournaledReflectionLM,
     ProposalUnavailable,
@@ -28,6 +27,7 @@ from evallab.gepa_optimizer.proposer import (
 from evallab.gepa_optimizer.workflow import QualificationProposer, _EvaluationHalt, load_campaign
 from evallab.registry import compute_task_digests, task_directory_digest
 from evallab.schemas import ExperimentSpec
+from evallab.task_prepare import replay_spec_for_candidate, validate_drift
 
 
 def test_completed_proposal_is_replayed_without_another_model_call(tmp_path, monkeypatch):

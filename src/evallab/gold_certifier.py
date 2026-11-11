@@ -1089,8 +1089,6 @@ def build_certify_gold_parser(subparsers: Any) -> None:
     parser.add_argument("--hook-command", help="Override supplementary test interpreter command")
     parser.add_argument("--python-version", default="3", choices=("3", "2.7"))
     parser.add_argument("--expected-tests", type=int, help="Reference test count for strict L3 hardening")
-    parser.add_argument("--allow-degraded", action="store_true",
-                        help="Explicitly allow at-least-one-test hardening instead of a calibrated count")
     parser.add_argument("--limit", type=int, default=8, help="Max mutants to enumerate")
     parser.add_argument(
         "--model",
@@ -1174,7 +1172,7 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
         witnesses=[p.read_text() for p in args.witness], injection_controls=args.injection_controls,
         contract_test=args.contract_test.read_text() if args.contract_test else None,
         hook_command=args.hook_command, python_version=args.python_version,
-        harden_options={"expected_tests": args.expected_tests, "allow_degraded": args.allow_degraded},
+        harden_options={"expected_tests": args.expected_tests, "allow_degraded": False},
     )
     output = {**result.summary(), "estimated_usd": round(meter.spent, 5),
               "executions": meter.cells, "receipt": str(args.out / "certification.json")}
@@ -1188,4 +1186,4 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
         for sha, reward in result.alternative_solution_rewards.items():
             if reward != 1.0:
                 print(f"WRONG REJECTION / UNMEASURED: alternative {sha} reward={reward}")
-    return 1 if result.status == "failed" else 0
+    return 0 if result.status == "certified" else 1

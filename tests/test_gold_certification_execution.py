@@ -629,6 +629,29 @@ def test_contained_explicit_controls_complete_all_gates(tmp_path, monkeypatch):
     }
 
 
+
+@pytest.mark.parametrize("alternatives,status,exit_code", [
+    (0, "provisional", 1), (1, "provisional", 1), (2, "certified", 0),
+])
+def test_cli_success_requires_certified_receipt(tmp_path, monkeypatch, alternatives, status, exit_code):
+    args = cli_args(tmp_path, "--approval", "offline deterministic test", "--max-usd", "1",
+                    "--injection-controls")
+    contract = tmp_path / "contract.py"
+    contract.write_text(CODE)
+    args.contract_test = contract
+    for index in range(alternatives):
+        patch = tmp_path / f"alternative-{index}.patch"
+        patch.write_text(f"correct-{index}")
+        args.alt_solution.append(patch)
+    real_certify = gold.certify_task
+    monkeypatch.setattr(gold, "modal_cell_runner", lambda **_: native_receipt_cell)
+    monkeypatch.setattr(gold, "certify_task", lambda **kw: real_certify(**kw, stage=fake_stage))
+    monkeypatch.setattr(gold, "synthesize_contract", lambda *_a, **_kw: pytest.fail("model call"))
+
+    assert gold._certify_gold_command(args, tmp_path) == exit_code
+    receipt = json.loads((args.out / "certification.json").read_text())
+    assert receipt["status"] == status
+
 @pytest.mark.parametrize("damage", [
     "missing", "unknown_provider", "unknown_network", "no_creation", "foreign_package",
     "foreign_trial", "error", "cache", "invalid_json",

@@ -1,14 +1,12 @@
 """Harbor metadata projections of the Python task ledger (HAR-172).
 
-These are historical evidence labels, not task admission or new grades. Only
-``task.toml`` metadata changes; task-variant records retain the original package
-binding. Copied and infrastructure outcomes are unknown, not solve failures.
+These pure helpers read historical evidence labels, not new task grades.
+Copied and infrastructure outcomes remain unknown, not solve failures.
 """
 
 from __future__ import annotations
 
 import csv
-import hashlib
 import io
 import json
 import re
@@ -19,25 +17,9 @@ from typing import Any
 
 import tomlkit
 
-from evallab.registry import harbor_task_digest, task_directory_digest
-from evallab.storage.paths import shared_checkout_root
-from evallab.task_health import load_pool
-from evallab.task_variants import (
-    RECORDS_DIRNAME,
-    VariantInvalid,
-    VariantRecord,
-    default_variants_root,
-    derive_task,
-    load_records,
-    materialize,
-    verify,
-)
-
 LEDGER = Path("research/experiments/python-task-ledger/ledger.csv")
 LOCKED_NOP = Path("research/experiments/har122-egress-lock/har146-locked-nop.csv")
 HISTORY = Path("research/experiments/python-task-ledger/task_history.csv")
-POOL = Path("research/experiments/har108-python-census/pool.json")
-TRANSFORM = "task-health-tags@1"
 SCHEMA = "evallab.task_health_tags/v1"
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _TASK_ID = re.compile(r"format-code-task-[0-9]{6}\Z")
@@ -83,9 +65,6 @@ def _path(root: Path, value: Path) -> Path:
     return value if value.is_absolute() else root / value
 
 
-def _source(path: Path) -> tuple[bytes, dict[str, str]]:
-    raw = path.read_bytes()
-    return raw, {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest()}
 
 
 def _csv_rows(raw: bytes, *, required: set[str], label: str) -> dict[str, dict[str, str]]:
@@ -275,224 +254,3 @@ def _probe_binding(row: Mapping[str, Any], *, input_dir: Path) -> dict[str, str 
     return {"package": None, "harbor": None}
 
 
-def _probe_rows(raw: bytes, *, input_dir: Path) -> dict[str, dict[str, Any]]:
-    """Read ``probe-exploit verdict``'s task-id-keyed JSON, not HAR-83 labels."""
-    payload = json.loads(raw)
-    if not isinstance(payload, dict):
-        raise ValueError("exploit verdicts must be a task-id-keyed JSON object")
-    rows = {}
-    for task_id, row in payload.items():
-        if not _TASK_ID.fullmatch(task_id) or not isinstance(row, dict):
-            raise ValueError(f"exploit: invalid task row {task_id!r}")
-        if row.get("verdict") not in _PROBE_VERDICTS:
-            raise ValueError(f"exploit: unsupported verdict for {task_id}")
-        rows[task_id] = {**row, "binding": _probe_binding(row, input_dir=input_dir)}
-    return rows
-
-
-def _view_link(view_root: Path, task_id: str, package: Path, variants_root: Path) -> None:
-    """Publish a flat, native-viewer task collection over immutable variants."""
-    view_root.mkdir(parents=True, exist_ok=True)
-    link = view_root / task_id
-    if link.is_symlink():
-        if link.resolve() == package.resolve():
-            return
-        if not link.resolve().is_relative_to(variants_root.resolve()):
-            raise ValueError(f"refusing to replace an unrelated task-view link: {link}")
-        link.unlink()
-    elif link.exists():
-        raise ValueError(f"refusing to replace an existing task-view path: {link}")
-    link.symlink_to(package.resolve(), target_is_directory=True)
-
-
-def generate_health_tags(
-    repo_root: Path,
-    *,
-    ledger_path: Path = LEDGER,
-    locked_nop_path: Path = LOCKED_NOP,
-    history_path: Path = HISTORY,
-    pool_path: Path = POOL,
-    exploit_path: Path | None = None,
-    source_root: Path | None = None,
-    records_dir: Path = RECORDS_DIRNAME,
-    variants_root: Path | None = None,
-    view_root: Path | None = None,
-    task_ids: Sequence[str] | None = None,
-) -> dict[str, Any]:
-    """Generate metadata variants for every ledger row (or an explicit subset).
-
-    This never downloads, runs, admits, or edits a parent package or a trial.
-    Missing packages/digest drift fail rather than silently omitting a task.
-    """
-    root = repo_root.resolve()
-    source = source_root.resolve() if source_root is not None else shared_checkout_root(root)
-    store = _path(root, variants_root) if variants_root is not None else default_variants_root(root)
-    view = _path(root, view_root) if view_root is not None else None
-    sources: dict[str, Any] = {}
-    data = {}
-    for name, path, columns in (
-        (
-            "ledger",
-            ledger_path,
-            {
-                "task_id",
-                "status",
-                "reason",
-                "run",
-                "run_digest",
-                "run_variant_status",
-                "verdict",
-                "verdict_evidence",
-            },
-        ),
-        ("locked_nop", locked_nop_path, {"task_id", "locked_nop", "note"}),
-        ("history", history_path, {"task_id", "runs", *_OUTCOMES}),
-    ):
-        raw, sources[name] = _source(_path(root, path))
-        data[name] = _csv_rows(raw, required=columns, label=name)
-    pool_file = _path(root, pool_path)
-    _, sources["pool"] = _source(pool_file)
-    pool = {entry["task_id"]: entry for entry in load_pool(pool_file)}
-    probes: dict[str, dict[str, Any]] = {}
-    if exploit_path is not None:
-        probe_file = _path(root, exploit_path)
-        raw, sources["exploit"] = _source(probe_file)
-        probes = _probe_rows(raw, input_dir=root)
-    else:
-        sources["exploit"] = {"status": "not supplied; not a clean verdict"}
-    ledger = data["ledger"]
-    selected = sorted(set(task_ids)) if task_ids is not None else sorted(ledger)
-    missing = set(selected) - ledger.keys()
-    if missing:
-        raise ValueError(f"tasks absent from ledger: {sorted(missing)}")
-    # Parent records remain in the canonical root even when output records are
-    # isolated (e.g. smoke checks). Neither record set is overwritten.
-    parents = {record.variant_digest: record for record in load_records(root)}
-    existing = load_records(root, records_dir=records_dir)
-    by_parent: dict[tuple[str, str], list[VariantRecord]] = {}
-    for record in existing:
-        if record.transform == TRANSFORM:
-            by_parent.setdefault((record.task_name, record.parent.digest), []).append(record)
-    results = []
-    for task_id in selected:
-        row = ledger[task_id]
-        digest = row["run_digest"]
-        if not _DIGEST.fullmatch(digest):
-            raise ValueError(f"{task_id}: invalid ledger run_digest")
-        if row["run"] == "original":
-            entry = pool.get(task_id)
-            if entry is None or entry["task_version_digest"] != digest:
-                raise ValueError(f"{task_id}: pool does not bind the ledger package")
-            parent = _path(source, Path(entry["task"]))
-            parent_source = {"kind": "local", "path": str(parent)}
-        else:
-            parent_record = parents.get(digest)
-            if parent_record is None or parent_record.task_name.rsplit("/", 1)[-1] != task_id:
-                raise ValueError(f"{task_id}: ledger variant record is missing or mismatched")
-            if row["run_variant_status"] != parent_record.status:
-                raise ValueError(f"{task_id}: ledger and variant status disagree")
-            parent = (
-                source
-                / "derived/task-store/variants"
-                / parent_record.task_slug
-                / parent_record.digest12
-            )
-            parent_source = {"kind": "variant", "record": parent_record.record_relpath().as_posix()}
-        if not parent.is_dir() or task_directory_digest(parent) != digest:
-            raise ValueError(f"{task_id}: parent package missing or differs from ledger: {parent}")
-        probe = probes.get(task_id)
-        bound_probe = False
-        if probe is not None:
-            binding = probe["binding"]
-            bound_probe = (
-                binding["package"] == digest
-                if binding["package"] is not None
-                else binding["harbor"] == harbor_task_digest(parent)
-            )
-        health = health_tag(
-            row,
-            data["locked_nop"].get(task_id),
-            exploit_verdict=probe["verdict"] if bound_probe and probe else None,
-        )
-        solve = solve_summary(data["history"].get(task_id))
-        verdict = verdict_tag(row)
-        tags = [health, solve["tag"], verdict]
-        # Actionable tasks surface the one-line ledger reason where
-        # ``harbor view --tasks`` shows it ([metadata] description); keep
-        # tasks preserve the parent description untouched.
-        description = row["reason"] if row["verdict"] in ("fix", "discard") else None
-        original = (parent / "task.toml").read_bytes()
-        updated = metadata_bytes(original, tags, description=description)
-        task_name = tomllib.loads(original.decode("utf-8")).get("task", {}).get("name", parent.name)
-        assessment = {
-            "task_id": task_id,
-            "parent_digest": digest,
-            "tags": tags,
-            "ledger_status": row["status"],
-            "ledger_reason": row["reason"],
-            "ledger_verdict": row["verdict"],
-            "ledger_verdict_evidence": row["verdict_evidence"],
-            "locked_nop": data["locked_nop"].get(task_id),
-            "solve": solve,
-            "exploit": {
-                "verdict": probe["verdict"] if probe else "not-probed",
-                "digest_match": bound_probe if probe else None,
-                "binding": probe["binding"] if probe else None,
-            },
-        }
-        matches = [
-            record
-            for record in by_parent.get((task_name, digest), [])
-            if len(record.files) == 1
-            and record.files[0].path == "task.toml"
-            and record.files[0].content == updated.decode("utf-8")
-        ]
-        if matches:
-            record = matches[0]
-            package = materialize(
-                record, parent, repo_root=root, records_dir=records_dir, variants_root=store
-            )
-            failures = verify(
-                record,
-                repo_root=root,
-                records_dir=records_dir,
-                variants_root=store,
-                parent_dir=parent,
-            )
-            if failures:
-                raise VariantInvalid(f"{task_id}: existing health variant invalid: {failures}")
-        else:
-            record = derive_task(
-                parent,
-                changes={"task.toml": updated},
-                transform=TRANSFORM,
-                rationale="Harbor health/solve metadata from recorded task evidence; no admission or new grades",
-                created_by="har172-task-health",
-                inputs={"sources": sources, "assessment": assessment},
-                parent_source=parent_source,
-                repo_root=root,
-                records_dir=records_dir,
-                variants_root=store,
-            )
-            package = store / record.task_slug / record.digest12
-        if view is not None:
-            _view_link(view, task_id, package, store)
-        results.append(
-            {
-                **assessment,
-                "parent_harbor_digest": record.parent.harbor_digest,
-                "variant_digest": record.variant_digest,
-                "variant_harbor_digest": record.variant_harbor_digest,
-                "record": str(
-                    _path(root, records_dir) / record.task_slug / f"{record.digest12}.json"
-                ),
-                "package": str(package),
-                "reused": bool(matches),
-            }
-        )
-    return {
-        "schema": SCHEMA,
-        "sources": sources,
-        "tasks": results,
-        "view_root": str(view) if view else None,
-    }

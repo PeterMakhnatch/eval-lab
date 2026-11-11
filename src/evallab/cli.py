@@ -1378,45 +1378,6 @@ def _ingest_command(
     return 1 if result.failures else 0
 
 
-def _inspect_ingest_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    """Archive and project one Inspect AI EvalLog into source evidence tables."""
-    from evallab.inspect_adapter import ingest_inspect_eval_log
-
-    log_path = _resolve(root, args.log)
-    derived_root = derived_root_from_environment(root, explicit=args.derived_dir)
-    store_root = _resolve(root, args.store)
-    result = ingest_inspect_eval_log(
-        log_path,
-        output_root=derived_root,
-        store_root=store_root,
-    )
-    summary = {
-        "job_id": result.projection.run.job_id,
-        "identity_source": result.projection.run.identity_source,
-        "status": result.projection.run.status,
-        "samples": result.projection.run.sample_count,
-        "attempts": len(result.projection.attempts),
-        "scores": len(result.projection.scores),
-        "events": len(result.projection.events),
-        "attachments": len(result.projection.attachments),
-        "raw_cas_uri": result.raw_cas_uri,
-        "tables": {name: str(path) for name, path in sorted(result.table_paths.items())},
-    }
-    if args.json:
-        print(json.dumps(summary, indent=2, sort_keys=True))
-    else:
-        print(f"inspect job: {summary['job_id']} (identity: {summary['identity_source']})")
-        print(f"samples: {summary['samples']}; attempts: {summary['attempts']}")
-        print(
-            f"events: {summary['events']}; scores: {summary['scores']}; "
-            f"attachments: {summary['attachments']}"
-        )
-        print(f"raw log CAS: {result.raw_cas_uri}")
-    return 0
-
-
 def _trajectories_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2948,76 +2909,6 @@ def _tasks_anatomy_command(
     return 0
 
 
-def _tasks_pull_hf_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.task_catalog import CatalogError, pull_hf_snapshot
-
-    try:
-        result = pull_hf_snapshot(
-            args.ref, repo_root=root, derived_root=getattr(args, "derived_root", None)
-        )
-    except CatalogError as exc:
-        print(f"refused: {exc}", file=sys.stderr)
-        return 2
-    print(f"{result.status}: {result.repo}@{result.revision}")
-    print(f"snapshot: {result.snapshot}")
-    print(f"tasks: {result.n_tasks}")
-    for task_id in result.manifest_mismatches:
-        print(f"manifest mismatch (finding, not fatal): {task_id}")
-    return 0
-
-
-def _tasks_catalog_build_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.task_catalog import build_catalog, render_build_report
-
-    report = build_catalog(repo_root=root, derived_root=getattr(args, "derived_root", None))
-    print(render_build_report(report), end="")
-    return 0
-
-
-def _tasks_catalog_show_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.task_catalog import CatalogError, show_task
-
-    try:
-        print(
-            show_task(
-                args.selector,
-                repo_root=root,
-                derived_root=getattr(args, "derived_root", None),
-            ),
-            end="",
-        )
-    except CatalogError as exc:
-        print(f"catalog show: {exc}", file=sys.stderr)
-        return 1
-    return 0
-
-
-def _tasks_catalog_export_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.task_catalog import CatalogError, export_train_eligible
-
-    try:
-        result = export_train_eligible(
-            _resolve(root, args.out),
-            repo_root=root,
-            derived_root=getattr(args, "derived_root", None),
-            split_path=_resolve(root, args.split) if args.split else None,
-        )
-    except CatalogError as exc:
-        print(f"catalog export: {exc}", file=sys.stderr)
-        return 1
-    print(f"wrote {result.path} ({result.n_eligible} eligible, provisional={result.provisional})")
-    print(f"sha256: {result.sha256}")
-    return 0
-
-
 def _tasks_import_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3065,40 +2956,6 @@ def _parse_key_value(assignments: Sequence[str], *, label: str) -> dict[str, str
             raise ValueError(f"{label} has an empty key: {assignment!r}")
         parsed[key] = value
     return parsed
-
-
-def _tasks_health_tags_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.task_health_tags import generate_health_tags
-    from evallab.task_variants import VariantError
-
-    try:
-        result = generate_health_tags(
-            root,
-            ledger_path=args.ledger,
-            locked_nop_path=args.locked_nop,
-            history_path=args.history,
-            pool_path=args.pool,
-            exploit_path=args.exploit_verdicts,
-            source_root=_resolve(root, args.source_root) if args.source_root else None,
-            records_dir=args.records_dir,
-            variants_root=args.variants_root,
-            view_root=args.view_root,
-            task_ids=args.task,
-        )
-        output = _resolve(root, args.output)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-    except (OSError, ValueError, VariantError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-    if args.json:
-        print(json.dumps(result, indent=2))
-    else:
-        print(f"Tagged {len(result['tasks'])} ledger tasks; manifest: {output}")
-        print(f"Harbor task view: harbor view {result['view_root']} --tasks")
-    return 0
 
 
 def _tasks_derive_command(
@@ -3511,61 +3368,6 @@ def _catalog_version_by_harbor(catalog: Path) -> dict[str, str]:
     return {harbor: version for harbor, version in mapping.items() if harbor not in ambiguous}
 
 
-def _tasks_health_collect_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
-    from evallab.task_health import (
-        TABLE_FILENAME,
-        build_health_rows,
-        catalog_qualification_rows,
-        load_pool,
-        load_pypi_index,
-        summarize_health,
-        write_task_health_parquet,
-    )
-
-    pool_path = _resolve(root, args.pool)
-    if not pool_path.is_file():
-        raise ValueError(f"pool file is missing: {pool_path}")
-    job_roots = [_resolve(root, jobs_root) for jobs_root in args.jobs_root]
-    missing = [str(jobs_root) for jobs_root in job_roots if not jobs_root.is_dir()]
-    if missing:
-        raise ValueError(f"job roots are missing: {', '.join(missing)}")
-    pypi_tasks = {}
-    if args.pypi is not None:
-        pypi_path = _resolve(root, args.pypi)
-        if not pypi_path.is_file():
-            raise ValueError(f"pypi file is missing: {pypi_path}")
-        pypi_tasks = load_pypi_index(pypi_path)
-    rows = build_health_rows(
-        load_pool(pool_path),
-        catalog_qualification_rows(root),
-        job_roots,
-        shared_checkout_root(root),
-        pypi_tasks,
-    )
-    output = (
-        _resolve(root, args.output)
-        if args.output is not None
-        else derived_root_from_environment(root) / "external/task_catalog" / TABLE_FILENAME
-    )
-    write_task_health_parquet(rows, output)
-    summary = summarize_health(rows, table_path=output)
-    if args.summary is not None:
-        summary_path = _resolve(root, args.summary)
-        summary_path.parent.mkdir(parents=True, exist_ok=True)
-        summary_path.write_text(summary)
-    try:
-        relative = output.relative_to(root.resolve())
-    except ValueError:
-        relative = output
-    print(f"wrote {len(rows)} rows to {relative}")
-    print(summary, end="")
-    return 0
-
-
 def _tasks_treatment_collect_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3625,36 +3427,6 @@ def _tasks_pool_check_command(
     else:
         print(check.render())
     return 0 if check.ok else 1
-
-
-def _tasks_catalog_export_broken_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    from evallab.task_catalog import CatalogError
-    from evallab.task_qualification import export_broken
-
-    try:
-        result = export_broken(
-            _resolve(root, args.out),
-            backend=args.backend,
-            repo_root=root,
-            derived_root=getattr(args, "derived_root", None),
-        )
-    except CatalogError as exc:
-        print(f"catalog export-broken: {exc}", file=sys.stderr)
-        return 1
-    print(f"wrote {result.path} ({result.n_broken} broken on {result.backend})")
-    print(f"sha256: {result.sha256}")
-    return 0
-
-
-
-
-
-
-
-
 
 
 def _trace_command(
@@ -4843,25 +4615,6 @@ def parser() -> argparse.ArgumentParser:
     )
     ingest.set_defaults(func=_ingest_command)
 
-    inspect_ingest = commands.add_parser(
-        "inspect-ingest",
-        help="Archive and project an Inspect AI .eval or JSON log",
-    )
-    inspect_ingest.add_argument("log", type=Path)
-    inspect_ingest.add_argument(
-        "--derived-dir",
-        type=Path,
-        help="override the shared Parquet root for this invocation",
-    )
-    inspect_ingest.add_argument(
-        "--store",
-        type=Path,
-        default=Path("derived/evidence-cas"),
-        help="CAS root for the raw Inspect log",
-    )
-    inspect_ingest.add_argument("--json", action="store_true")
-    inspect_ingest.set_defaults(func=_inspect_ingest_command)
-
     trajectories = commands.add_parser(
         "trajectories",
         help="Validate ATIF; optionally rebuild catalog and deterministic Parquet facts",
@@ -5555,69 +5308,6 @@ def parser() -> argparse.ArgumentParser:
     tasks_anatomy.add_argument("--json", action="store_true", help="Print full cards as JSON")
     tasks_anatomy.set_defaults(func=_tasks_anatomy_command)
 
-    tasks_health_tags = tasks_commands.add_parser(
-        "health-tags",
-        help="Generate Harbor health/solve metadata variants from recorded task evidence ($0)",
-    )
-    tasks_health_tags.add_argument(
-        "--ledger",
-        type=Path,
-        default=Path("research/experiments/python-task-ledger/ledger.csv"),
-    )
-    tasks_health_tags.add_argument(
-        "--locked-nop",
-        type=Path,
-        default=Path("research/experiments/har122-egress-lock/har146-locked-nop.csv"),
-    )
-    tasks_health_tags.add_argument(
-        "--history",
-        type=Path,
-        default=Path("research/experiments/python-task-ledger/task_history.csv"),
-    )
-    tasks_health_tags.add_argument(
-        "--pool",
-        type=Path,
-        default=Path("research/experiments/har108-python-census/pool.json"),
-    )
-    tasks_health_tags.add_argument(
-        "--exploit-verdicts",
-        type=Path,
-        help="Optional task-id-keyed JSON from probe-exploit verdict; absent is not clean",
-    )
-    tasks_health_tags.add_argument(
-        "--source-root",
-        type=Path,
-        help="Checkout containing retained parent packages (default: primary checkout)",
-    )
-    tasks_health_tags.add_argument(
-        "--records-dir",
-        type=Path,
-        default=Path("library/task-variants"),
-    )
-    tasks_health_tags.add_argument(
-        "--variants-root",
-        type=Path,
-        help="Materialized variants root (default: existing shared task-variant store)",
-    )
-    tasks_health_tags.add_argument(
-        "--view-root",
-        type=Path,
-        default=Path("derived/task-health/view"),
-        help="Flat task collection for native harbor view --tasks",
-    )
-    tasks_health_tags.add_argument(
-        "--output",
-        type=Path,
-        default=Path("derived/task-health/manifest.json"),
-    )
-    tasks_health_tags.add_argument(
-        "--task",
-        action="append",
-        help="Explicit ledger task subset; omit for every task",
-    )
-    tasks_health_tags.add_argument("--json", action="store_true")
-    tasks_health_tags.set_defaults(func=_tasks_health_tags_command)
-
     tasks_derive = tasks_commands.add_parser(
         "derive", help="Derive a task variant with a git-tracked lineage record"
     )
@@ -5700,67 +5390,6 @@ def parser() -> argparse.ArgumentParser:
         help="Repo-relative lineage-record root",
     )
     tasks_status.set_defaults(func=_tasks_variant_status_command)
-    tasks_pull_hf = tasks_commands.add_parser(
-        "pull-hf", help="Download one pinned Hugging Face dataset snapshot (refuses unpinned refs)"
-    )
-    tasks_pull_hf.add_argument("ref", help="<org>/<repo>@<40-hex-sha>")
-    tasks_pull_hf.add_argument(
-        "--derived-root",
-        type=Path,
-        help="override the shared Parquet root (same resolution as library)",
-    )
-    tasks_pull_hf.set_defaults(func=_tasks_pull_hf_command)
-
-    tasks_catalog = tasks_commands.add_parser(
-        "catalog", help="Build and query the pinned task catalog"
-    )
-    catalog_commands = tasks_catalog.add_subparsers(dest="catalog_command", required=True)
-    catalog_build = catalog_commands.add_parser(
-        "build", help="Scan pulled snapshots and write the catalog Parquet tables"
-    )
-    catalog_build.add_argument(
-        "--derived-root",
-        type=Path,
-        help="override the shared Parquet root (same resolution as library)",
-    )
-    catalog_build.set_defaults(func=_tasks_catalog_build_command)
-    catalog_show = catalog_commands.add_parser(
-        "show", help="Print identity, digests, findings, lineage, and outcomes for one task"
-    )
-    catalog_show.add_argument("selector", help="task_id or (harbor/task-version) digest")
-    catalog_show.add_argument(
-        "--derived-root",
-        type=Path,
-        help="override the shared Parquet root (same resolution as library)",
-    )
-    catalog_show.set_defaults(func=_tasks_catalog_show_command)
-    catalog_export = catalog_commands.add_parser(
-        "export-eligible", help="Write the git-tracked train-eligible task JSON"
-    )
-    catalog_export.add_argument("--out", type=Path, required=True, help="output JSON path")
-    catalog_export.add_argument(
-        "--split", type=Path, help="optional JSON mapping task_version_digest to train|heldout"
-    )
-    catalog_export.add_argument(
-        "--derived-root",
-        type=Path,
-        help="override the shared Parquet root (same resolution as library)",
-    )
-    catalog_export.set_defaults(func=_tasks_catalog_export_command)
-    catalog_export_broken = catalog_commands.add_parser(
-        "export-broken", help="Write the content-addressed broken-task JSON for one backend"
-    )
-    catalog_export_broken.add_argument(
-        "--backend", required=True, help="backend to export (e.g. daytona)"
-    )
-    catalog_export_broken.add_argument("--out", type=Path, required=True, help="output JSON path")
-    catalog_export_broken.add_argument(
-        "--derived-root",
-        type=Path,
-        help="override the shared Parquet root (same resolution as library)",
-    )
-    catalog_export_broken.set_defaults(func=_tasks_catalog_export_broken_command)
-
     tasks_stability_run = tasks_commands.add_parser(
         "stability-run",
         help="Run $0 nop/oracle controls with k-fold repeat verification (HAR-83)",
@@ -5877,28 +5506,6 @@ def parser() -> argparse.ArgumentParser:
     tasks_qualify_collect.add_argument("--output", type=Path, help="Parquet output path")
     tasks_qualify_collect.add_argument("--json", action="store_true")
     tasks_qualify_collect.set_defaults(func=_tasks_qualify_collect_command)
-
-    tasks_health_collect = tasks_commands.add_parser(
-        "health-collect",
-        help="Census a task pool into task_health.parquet (HAR-108)",
-    )
-    tasks_health_collect.add_argument("--pool", type=Path, required=True, help="pool.json")
-    tasks_health_collect.add_argument(
-        "--jobs-root",
-        type=Path,
-        action="append",
-        required=True,
-        dest="jobs_root",
-        help="Directory of Harbor job directories (repeatable)",
-    )
-    tasks_health_collect.add_argument("--output", type=Path, help="Parquet output path")
-    tasks_health_collect.add_argument(
-        "--pypi",
-        type=Path,
-        help="pypi.json produced by the census script (the module does not fetch it)",
-    )
-    tasks_health_collect.add_argument("--summary", type=Path, help="Markdown summary path")
-    tasks_health_collect.set_defaults(func=_tasks_health_collect_command)
 
     tasks_treatment_collect = tasks_commands.add_parser(
         "treatment-collect",

@@ -51,7 +51,6 @@ from evallab.execution_contracts import (
     MIMO_SELFHOSTED_MODEL_SELECTOR,
     MIMO_SELFHOSTED_MODEL_SELECTORS,
     OPENCODE_AUTH_RELATIVE_PATH,
-    RLM_AGENT,
     TERMINUS_AGENT,
     TERMINUS_LOCAL_ENDPOINT_ENV,
     TERMINUS_LOCAL_MODEL_SELECTOR,
@@ -799,27 +798,6 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 ),
             ),
             AgentProfile(
-                profile_id="rlm-glm-5.3-flash",
-                adapter=RLM_AGENT,
-                model="zai-coding-plan/glm-5.3-flash",
-                auth_mode="subscription-auth-file",
-                secret_source=f"file:{OPENCODE_AUTH_RELATIVE_PATH.as_posix()}",
-                required_files=(OPENCODE_AUTH_RELATIVE_PATH.as_posix(),),
-                capabilities=(
-                    "credential-transport:host-secret-file",
-                    "structured-trajectory:rlm-trajectory-json",
-                ),
-                limits=ProfileLimits(
-                    max_timeout_seconds=1800,
-                    max_attempts=1,
-                    max_concurrency=1,
-                ),
-                verified_facts=(
-                    "2026-09-16: harbor 0.21.0 stock dspy-rlm rejected by dspy 3.3.1 "
-                    "(max_iterations vs max_iters); lab-owned LabRlmAgent replaces it",
-                ),
-            ),
-            AgentProfile(
                 profile_id="mini-swe-agent-deepseek-v4-flash",
                 adapter="mini-swe-agent",
                 model="deepseek/deepseek-flash",
@@ -1278,69 +1256,6 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     "without gemini-cli, which is IneligibleTier for individuals",
                 ),
             ),
-            # Antigravity lane (AGY). Verified in this lab on 2026-08-19: `agy models`
-            # reported 14 available models and `agy -p …` returned the exact
-            # requested string, so this lane is observed working headlessly.
-            # Peter's preferred model on this lane is Gemini 3.7 Flash.
-            AgentProfile(
-                profile_id="antigravity-gemini-3.7-flash-high",
-                adapter="antigravity-cli",
-                model="gemini-3.7-flash-high",
-                auth_mode="subscription-cli-session",
-                secret_source="cli:agy models",
-                verified_facts=(
-                    "2026-08-19: `agy -p 'Reply with exactly: AGY_LANE_OK'` returned "
-                    "'AGY_LANE_OK' headlessly",
-                    "2026-08-19: `agy models` listed 14 available models "
-                    "including gemini-3.7-flash-high",
-                    "2026-08-19: `agy --model gemini-3.7-flash-high -p` executed "
-                    "successfully headlessly",
-                ),
-            ),
-            AgentProfile(
-                profile_id="antigravity-gemini-3.7-flash-medium",
-                adapter="antigravity-cli",
-                model="gemini-3.7-flash-medium",
-                auth_mode="subscription-cli-session",
-                secret_source="cli:agy models",
-                verified_facts=(
-                    "2026-08-19: `agy --model gemini-3.7-flash-medium -p` executed "
-                    "successfully headlessly",
-                ),
-            ),
-            AgentProfile(
-                profile_id="antigravity-gemini-3.7-flash-low",
-                adapter="antigravity-cli",
-                model="gemini-3.7-flash-low",
-                auth_mode="subscription-cli-session",
-                secret_source="cli:agy models",
-                verified_facts=(
-                    "2026-08-19: listed by `agy models` on the same session "
-                    "as gemini-3.7-flash-high",
-                ),
-            ),
-            AgentProfile(
-                profile_id="antigravity-gemini-3.1-pro-high",
-                adapter="antigravity-cli",
-                model="gemini-3.1-pro-high",
-                auth_mode="subscription-cli-session",
-                secret_source="cli:agy models",
-                verified_facts=(
-                    "2026-08-19: `agy --model gemini-3.1-pro-high -p` executed "
-                    "successfully headlessly",
-                ),
-            ),
-            AgentProfile(
-                profile_id="antigravity-claude-sonnet-4-6",
-                adapter="antigravity-cli",
-                model="claude-sonnet-4-6",
-                auth_mode="subscription-cli-session",
-                secret_source="cli:agy models",
-                verified_facts=(
-                    "2026-08-19: listed by `agy models`; reaches Claude Sonnet 4.6 "
-                    "via Google AI Pro Antigravity subscription",
-                ),
-            ),
         )
     }
 
@@ -1389,7 +1304,7 @@ def default_probe_for(
             return DeclaredUnavailableProbe(
                 reason=f"{profile.profile_id} declares cli-session auth with no command"
             )
-        expect = "gemini" if command[0] == "agy" else "logged in"
+        expect = "logged in"
         return CliSessionProbe(argv=tuple(command), expect=expect)
     if profile.auth_mode == "subscription-gateway":
         command = (profile.secret_source or "gateway:")[len("gateway:") :].split()
@@ -1398,7 +1313,7 @@ def default_probe_for(
                 reason=f"{profile.profile_id} declares gateway auth with no command"
             )
         return GatewayStdioProbe(argv=tuple(command))
-    if profile.adapter in (ZAI_OPENCODE_AGENT, RLM_AGENT):
+    if profile.adapter == ZAI_OPENCODE_AGENT:
         relative = (profile.secret_source or "file:")[len("file:") :]
         return OpenCodeProviderAuthProbe(
             home=home,
@@ -1415,7 +1330,6 @@ CLAUDE_OAUTH = "claude_oauth"
 CLAUDE_GATEWAY = "claude_gateway"
 CODEX_AUTH = "codex_auth"
 CURSOR_SESSION = "cursor_session"
-ANTIGRAVITY_SESSION = "antigravity_session"
 DEEPSEEK_API_CREDENTIAL = "deepseek_api_environment"
 ZAI_OPENCODE_AUTH = "zai_opencode_auth"
 ZAI_OPENAPI_API_CREDENTIAL = "zai_openapi_api_environment"
@@ -1434,14 +1348,12 @@ AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
     ("claude-code", "claude-gateway/claude-opus-5-5"): CLAUDE_GATEWAY,
     "codex": CODEX_AUTH,
     "cursor-cli": CURSOR_SESSION,
-    "antigravity-cli": ANTIGRAVITY_SESSION,
     "mini-swe-agent": DEEPSEEK_API_CREDENTIAL,
     ("mini-swe-agent", "deepseek/deepseek-flash"): DEEPSEEK_API_CREDENTIAL,
     ("mini-swe-agent", "zai/glm-5.3-flash"): ZAI_OPENAPI_API_CREDENTIAL,
     ("mini-swe-agent", GLM_SELFHOSTED_BASE_MODEL_SELECTOR): GLM_SELFHOSTED_API_CREDENTIAL,
     ("mini-swe-agent", GLM_SELFHOSTED_FT_MODEL_SELECTOR): GLM_SELFHOSTED_API_CREDENTIAL,
     ZAI_OPENCODE_AGENT: ZAI_OPENCODE_AUTH,
-    RLM_AGENT: ZAI_OPENCODE_AUTH,
     MIMO_AGENT: MIMO_SELFHOSTED_API_CREDENTIAL,
     TERMINUS_AGENT: ZAI_OPENAPI_API_CREDENTIAL,
     (TERMINUS_AGENT, TERMINUS_LOCAL_MODEL_SELECTOR): LOCAL_OLLAMA_ENDPOINT,
@@ -1452,7 +1364,6 @@ _CLAUDE_PROFILE = _PROFILES["claude-code-fable-5"]
 _CLAUDE_GATEWAY_PROFILE = _PROFILES["claude-code-gateway-haiku-5-5"]
 _CODEX_PROFILE = _PROFILES["codex-gpt-5.6-terra"]
 _CURSOR_PROFILE = _PROFILES["cursor-grok-4.6-high"]
-_ANTIGRAVITY_PROFILE = _PROFILES["antigravity-gemini-3.7-flash-high"]
 _DEEPSEEK_PROFILE = _PROFILES["mini-swe-agent-deepseek-v4-flash"]
 _ZAI_PROFILE = _PROFILES["zai-opencode-glm-5.3-flash"]
 _ZAI_MINISWE_PROFILE = _PROFILES["mini-swe-agent-glm-5.3-flash"]
@@ -1529,24 +1440,6 @@ def probe_cursor_session_result() -> ProbeResult:
         return probe(_CURSOR_PROFILE)
     except subprocess.TimeoutExpired:
         return ProbeResult(ok=False, reason="cursor session probe timed out")
-
-
-def probe_antigravity_session() -> bool:
-    return probe_antigravity_session_result().ok
-
-
-def probe_antigravity_session_result() -> ProbeResult:
-    """Ask `agy` whether it holds a session.
-
-    Antigravity keeps its credential in the OS keyring or internal token store.
-    Asking `agy models` is the honest check that an active session exists.
-    Exit status and a stdout marker only — never a token.
-    """
-    probe = CliSessionProbe(argv=("agy", "models"), expect="gemini")
-    try:
-        return probe(_ANTIGRAVITY_PROFILE)
-    except subprocess.TimeoutExpired:
-        return ProbeResult(ok=False, reason="antigravity session probe timed out")
 
 
 def probe_deepseek_api() -> bool:
@@ -1670,8 +1563,6 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(CODEX_AUTH)
     if probe_cursor_session():
         found.add(CURSOR_SESSION)
-    if probe_antigravity_session():
-        found.add(ANTIGRAVITY_SESSION)
     if probe_deepseek_api():
         found.add(DEEPSEEK_API_CREDENTIAL)
     if probe_zai_opencode_auth_result(home).ok:
@@ -1747,7 +1638,6 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str | tuple[str, str], str] = {
     "codex": "codex-gpt-5.6-terra",
     "claude-code": "claude-code-fable-5",
     "cursor-cli": "cursor-grok-4.6-high",
-    "antigravity-cli": "antigravity-gemini-3.7-flash-high",
     "mini-swe-agent": "mini-swe-agent-deepseek-v4-flash",
     ("mini-swe-agent", "deepseek/deepseek-flash"): "mini-swe-agent-deepseek-v4-flash",
     ("mini-swe-agent", "zai/glm-5.3-flash"): "mini-swe-agent-glm-5.3-flash",
@@ -1766,7 +1656,6 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str | tuple[str, str], str] = {
         f"{BREAKER_SELFHOSTED_MODEL_PREFIX}{BREAKER_SELFHOSTED_L1_MODEL}",
     ): "terminus-2-breaker-l1",
     ZAI_OPENCODE_AGENT: "zai-opencode-glm-5.3-flash",
-    RLM_AGENT: "rlm-glm-5.3-flash",
     MIMO_AGENT: "mimoagent-selfhosted-mimo-v2-6-9b",
     TERMINUS_AGENT: "terminus-2-glm-5.3-flash",
     (TERMINUS_AGENT, TERMINUS_LOCAL_MODEL_SELECTOR): "terminus-2-qwen2.5-7b-local",

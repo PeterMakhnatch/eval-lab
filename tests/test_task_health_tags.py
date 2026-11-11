@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import csv
 import json
-import shutil
 import tomllib
 from pathlib import Path
 
 import pytest
 
-from evallab.registry import harbor_task_digest, task_directory_digest
 from evallab.task_health_tags import (
-    generate_health_tags,
+    _probe_binding,
     health_tag,
     metadata_bytes,
     solve_summary,
@@ -108,153 +105,27 @@ command = "echo '[metadata] tags = []'"
     assert metadata_bytes(updated, ["health:sound", "solve:mixed"]) == updated
 
 
-def _csv(path: Path, fields: list[str], rows: list[dict]) -> None:
-    with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def _inputs(tmp_path: Path) -> tuple[Path, Path, dict]:
-    root = tmp_path / "repo"
-    parent = root / "sources/task"
-    (parent / "tests").mkdir(parents=True)
-    (parent / "task.toml").write_text(
-        '[task]\nname = "mimo-v2.6-rl/format-code-task-000001"\n'
-        '[metadata]\ncategory = "Python"\ntags = ["original"]\n',
-        encoding="utf-8",
-    )
-    (parent / "instruction.md").write_text("Implement the requested behavior.\n")
-    (parent / "tests/test.sh").write_text("#!/bin/sh\nexit 0\n")
-    digest = task_directory_digest(parent)
-    task_id = "format-code-task-000001"
-    _csv(
-        root / "ledger.csv",
-        [
-            "task_id",
-            "status",
-            "reason",
-            "run",
-            "run_digest",
-            "run_variant_status",
-            "verdict",
-            "verdict_evidence",
-        ],
-        [
-            {
-                "task_id": task_id,
-                "status": "usable",
-                "reason": "nop sound",
-                "run": "original",
-                "run_digest": digest,
-                "run_variant_status": "",
-                "verdict": "keep",
-                "verdict_evidence": "ledger:status=usable",
-            },
-        ],
-    )
-    _csv(
-        root / "locked.csv",
-        ["task_id", "locked_nop", "note"],
-        [
-            {"task_id": task_id, "locked_nop": "sound", "note": ""},
-        ],
-    )
-    _csv(
-        root / "history.csv",
-        ["task_id", "runs", "clean_pass", "copied_pass", "fail", "infra"],
-        [
-            {
-                "task_id": task_id,
-                "runs": "3",
-                "clean_pass": "1",
-                "copied_pass": "1",
-                "fail": "1",
-                "infra": "0",
-            },
-        ],
-    )
-    (root / "pool.json").write_text(
-        json.dumps(
-            {
-                "pool": [
-                    {"task_id": task_id, "task_version_digest": digest, "task": "sources/task"},
-                ]
-            }
-        )
-    )
-    options = {
-        "ledger_path": Path("ledger.csv"),
-        "locked_nop_path": Path("locked.csv"),
-        "history_path": Path("history.csv"),
-        "pool_path": Path("pool.json"),
-        "source_root": root,
-        "variants_root": Path("derived/variants"),
-        "view_root": Path("derived/view"),
-    }
-    return root, parent, options
-
-
-def test_generator_pins_parent_and_reuses_rebuildable_metadata_variant(tmp_path: Path):
-    root, parent, options = _inputs(tmp_path)
-    before = task_directory_digest(parent)
-    first = generate_health_tags(root, **options)
-    row = first["tasks"][0]
-    assert row["tags"] == ["health:sound", "solve:mixed", "verdict:keep"]
-    package = Path(row["package"])
-    record_path = Path(row["record"])
-    record_bytes = record_path.read_bytes()
-    record = json.loads(record_bytes)
-    assert record["components_changed"] == ["task_toml"]
-    assert record["parent"]["digest"] == before
-    assert record["variant_digest"] == task_directory_digest(package)
-    assert task_directory_digest(parent) == before
-    assert (root / "derived/view/format-code-task-000001").resolve() == package
-    shutil.rmtree(package)
-    second = generate_health_tags(root, **options)
-    assert second["tasks"][0]["reused"] is True
-    assert record_path.read_bytes() == record_bytes
-    assert task_directory_digest(package) == row["variant_digest"]
-    (parent / "instruction.md").write_text("Different task.\n")
-    with pytest.raises(ValueError, match="differs from ledger"):
-        generate_health_tags(root, **options)
-
-
-def test_exploit_verdict_is_bound_to_the_executed_package_not_task_name(tmp_path: Path):
-    root, parent, options = _inputs(tmp_path)
-    trial = root / "retained/job/probe__trial"
+def test_exploit_binding_uses_the_executed_package_and_never_falls_back(tmp_path: Path):
+    trial = tmp_path / "job/probe__trial"
     trial.mkdir(parents=True)
     (trial / "config.json").write_text(json.dumps({"task": {"path": "/staged/current"}}))
+    native_digest = "sha256:" + "a" * 64
     (trial.parent / "lock.json").write_text(
         json.dumps(
             {
                 "trials": [
                     {"task": {"path": "/staged/other", "digest": "sha256:" + "c" * 64}},
-                    {"task": {"path": "/staged/current", "digest": harbor_task_digest(parent)}},
+                    {"task": {"path": "/staged/current", "digest": native_digest}},
                 ]
             }
         )
     )
-    verdict = root / "exploit.json"
-    verdict.write_text(
-        json.dumps({"format-code-task-000001": {"verdict": "cracked", "trial": str(trial)}})
-    )
-    report = generate_health_tags(root, exploit_path=verdict, **options)
-    assert report["tasks"][0]["tags"] == ["health:cracked", "solve:mixed", "verdict:keep"]
-    assert report["tasks"][0]["exploit"]["digest_match"] is True
-    # An explicit conflicting package binding cannot fall back to the native
-    # lock or reuse the result merely because the task-id key is the same.
-    verdict.write_text(
-        json.dumps(
-            {
-                "format-code-task-000001": {
-                    "verdict": "cracked",
-                    "trial": str(trial),
-                    "task_package_digest": "sha256:" + "d" * 64,
-                }
-            }
-        )
-    )
-    report = generate_health_tags(root, exploit_path=verdict, **options)
-    assert report["tasks"][0]["tags"] == ["health:sound", "solve:mixed", "verdict:keep"]
-    assert report["tasks"][0]["exploit"]["digest_match"] is False
+    row = {"verdict": "cracked", "trial": str(trial)}
+    assert _probe_binding(row, input_dir=tmp_path) == {
+        "package": None,
+        "harbor": native_digest,
+    }
+    explicit_digest = "sha256:" + "d" * 64
+    assert _probe_binding(
+        {**row, "task_package_digest": explicit_digest}, input_dir=tmp_path
+    ) == {"package": explicit_digest, "harbor": None}

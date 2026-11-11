@@ -80,11 +80,6 @@ TABLES = (
     "interpretation_artifacts",
     "machine_judgments",
     "acceptance_decisions",
-    "inspect_runs",
-    "inspect_attempts",
-    "inspect_scores",
-    "inspect_events",
-    "inspect_attachments",
 )
 Z3_TABLE_LAYOUTS: tuple[ParquetLayout, ...] = (
     "hot",
@@ -101,31 +96,11 @@ Z3_JOB_LAYOUTS: tuple[ParquetLayout, ...] = (
     "directory",
     "root",
 )
-Z3_REVISION_LAYOUTS: tuple[ParquetLayout, ...] = (
-    "revision",
-    "job",
-    "hot",
-    "cold-table",
-    "cold-day",
-    "directory",
-    "root",
-)
 SEMANTIC_COMPARISON_LAYOUTS: tuple[ParquetLayout, ...] = (
     "hot",
     "cold-table",
     "cold-day",
     "directory",
-)
-
-
-INSPECT_TABLES: frozenset[str] = frozenset(
-    {
-        "inspect_runs",
-        "inspect_attempts",
-        "inspect_scores",
-        "inspect_events",
-        "inspect_attachments",
-    }
 )
 
 
@@ -135,10 +110,7 @@ def _z3_table_patterns(
     *,
     fallback: bool = False,
 ) -> tuple[str, ...]:
-    if table in INSPECT_TABLES:
-        layouts = Z3_REVISION_LAYOUTS
-        prefer_job_level = True
-    elif table == "jobs":
+    if table == "jobs":
         layouts = Z3_JOB_LAYOUTS
         prefer_job_level = True
     else:

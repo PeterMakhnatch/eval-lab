@@ -25,7 +25,6 @@ from evallab.execution_contracts import (
     GLM_SELFHOSTED_FT_MODEL_SELECTOR,
     MAX_TRIAL_TIMEOUT_SECONDS,
     MIMO_AGENT,
-    RLM_AGENT,
     SAFE_JOB_NAME,
     TERMINUS_AGENT,
     TERMINUS_LOCAL_MODEL_SELECTOR,
@@ -214,7 +213,7 @@ def _resolve_ceilings(
     # The pilot defaults are request ceilings, not task facts: silently forwarding
     # them to a harness that cannot enforce them would fake support, so an
     # explicitly passed ceiling is refused while bare defaults are dropped.
-    if agent != RLM_AGENT and cost_limit_usd is not None:
+    if cost_limit_usd is not None:
         raise ValueError(
             f"agent {agent!r} cannot enforce provider cost ceilings; omit cost_limit_usd"
         )
@@ -231,7 +230,7 @@ def _resolve_ceilings(
             f"agent {agent!r} cannot enforce provider request/cost/token ceilings; "
             "omit max_requests, max_input_tokens, and max_output_tokens"
         )
-    return None, None, None, None, cost_limit_usd if agent == RLM_AGENT else None
+    return None, None, None, None, None
 
 
 def _output_path(repo: Path, path: Path) -> Path:
@@ -318,7 +317,7 @@ def prepare_task(
                 f"got {model!r}"
             )
     if (
-        agent in (ZAI_OPENCODE_AGENT, RLM_AGENT)
+        agent == ZAI_OPENCODE_AGENT
         and model is not None
         and model not in ZAI_OPENCODE_MODEL_SELECTORS
     ):

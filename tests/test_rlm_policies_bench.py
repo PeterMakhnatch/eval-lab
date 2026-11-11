@@ -1,4 +1,4 @@
-"""Behavioural checks for the RLM policy catalog and the synthetic suite."""
+"""Behavioural checks for the retained synthetic suite."""
 
 from __future__ import annotations
 
@@ -8,34 +8,6 @@ import pytest
 
 from evallab.rlm.bench import generate_suite, normalize_answer, score
 from evallab.rlm.bench.generators import MERCHANT_CATEGORY, MONTH_NAMES
-from evallab.rlm.policies import (
-    ENVIRONMENT_BRIDGE_ADDENDUM,
-    POLICIES,
-    RlmPolicy,
-    policy_from_json,
-    resolve_policy,
-)
-
-
-def test_stock_policy_matches_harbor_defaults_and_is_content_addressed() -> None:
-    stock = resolve_policy("stock")
-    assert (stock.max_iters, stock.max_llm_calls, stock.max_output_chars) == (20, 50, 10_000)
-    assert stock.instruction_addendum == "" and stock.separate_sub_lm is False
-    assert stock.digest() == policy_from_json(stock.to_json()).digest()
-    assert stock.digest() != stock.derive("x", "one field changed", max_iters=21).digest()
-    assert len({policy.digest() for policy in POLICIES.values()}) == len(POLICIES)
-
-
-def test_unknown_policy_names_known_ids() -> None:
-    with pytest.raises(ValueError, match="stock"):
-        resolve_policy("does-not-exist")
-
-
-def test_bridge_policies_only_carry_environment_guidance() -> None:
-    assert resolve_policy("bridge").environment_addendum == ENVIRONMENT_BRIDGE_ADDENDUM
-    assert resolve_policy("orchestrator").environment_addendum == ""
-    assert resolve_policy("tools-bridge").container_python_tool is True
-    assert isinstance(RlmPolicy(policy_id="p", description="d", source="s"), RlmPolicy)
 
 
 def test_suite_is_deterministic_per_seed_and_sized() -> None:

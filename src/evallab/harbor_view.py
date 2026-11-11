@@ -1351,7 +1351,7 @@ def build_view_parser(commands: argparse._SubParsersAction) -> None:
     view.add_argument(
         "--task-health",
         type=Path,
-        help="Digest-bound manifest from evallab tasks health-tags (requires --tag)",
+        help="Retained digest-bound task-health manifest (requires --tag)",
     )
     view.add_argument(
         "--tag",

@@ -39,6 +39,23 @@ def _task_dir(tmp_path: Path) -> Path:
     return task
 
 
+@pytest.mark.parametrize("agent", ["rlm", "antigravity-cli"])
+@pytest.mark.parametrize("entry", [validate_request, build_command])
+def test_retired_agents_never_fall_back_to_upstream_harbor(
+    tmp_path: Path, agent: str, entry: Any
+) -> None:
+    request = RunRequest(
+        task=_task_dir(tmp_path),
+        agent=agent,
+        model="explicit-model",
+        name="retired-agent",
+        jobs_dir=tmp_path / "jobs",
+        allow_billable=True,
+    )
+    with pytest.raises(ValueError, match="retired"):
+        entry(request)
+
+
 def test_run_request_immutability_and_job_timeout(tmp_path: Path) -> None:
     """RunRequest is a frozen dataclass with conservative aggregate timeout calculation."""
     task = _task_dir(tmp_path)

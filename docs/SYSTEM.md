@@ -27,4 +27,16 @@ audience:
 
 [Storage paths](../src/evallab/storage/paths.py) resolves the configured Parquet store. Explicit paths and `EVALLAB_DERIVED_ROOT` can select a different destination. Resolve paths using the actual pinned producer and consumer revisions; do not relocate or repin active evidence based solely on a newer checkout's defaults.
 
+Native execution uses `runner.py` and `execution_contracts.py`. Headless model
+calls use `modeladapter.py`. The sandbox Antigravity and RLM lanes are retired;
+their old run identities remain readable. Inspect ingestion and its SQL tables
+are retired. Preserve existing Inspect logs and Parquet evidence. New run evidence
+uses the native Harbor path and the results home. The one-off DeepSeek lane and
+bundle-promotion scripts are retired; existing promotion markers and quota
+sidecars remain readable.
+The `tasks pull-hf`, `tasks catalog`, `tasks health-collect`, and `tasks health-tags`
+commands are retired. Native catalog consumers and historical health parsers remain.
+Existing task-factory runbooks describe historical production, not supported commands.
+Preserve their stored manifests, task variants, and labels.
+
 Tracked `derived/parquet/` snapshots, `research/lessons.md`, `docs/STATUS.md` and historical digests are reviewed source artifacts. Preserve local runtime changes before cleanup, and promote changed reports or snapshots through reviewed changes rather than treating generated data as disposable. Raw runs and evidence CAS keep their existing preservation rules. See [generated/cache policy](GENERATED-CACHE-POLICY.md), [operations](operations.md), [verification gates](../agents/CHECKS.md) and [delivery/worktree rules](../agents/WORKFLOW.md).

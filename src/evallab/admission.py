@@ -236,7 +236,7 @@ def command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         elif args.admit_command == "prepare":
             result = prepare(root, args)
         elif args.admit_command in {"preregister", "pr"}:
-            from evallab.admission_delivery import preregister, publish
+            from evallab.runner import preregister, publish
 
             result = (preregister if args.admit_command == "preregister" else publish)(root, args)
         else:

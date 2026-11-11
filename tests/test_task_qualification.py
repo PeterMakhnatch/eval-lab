@@ -562,24 +562,6 @@ def test_cli_qualify_collect_writes_table_and_summary(tmp_path: Path, capsys) ->
     assert back[0]["task_version_digest"] == "sha256:" + "a" * 64
 
 
-def test_cli_export_broken_prints_sha(tmp_path: Path, capsys) -> None:
-    derived = tmp_path / "derived"
-    staged = _write_staged_task(tmp_path)
-    job = _write_job(tmp_path, "jobx", [{"name": "t__a", "reward": 1.0}], staged=staged)
-    rows = collect_jobs([job])
-    for row in rows:
-        row["backend"] = "daytona"
-    _write_catalog_table(derived, rows)
-    code = cli.run_cli(
-        ["tasks", "catalog", "export-broken", "--backend", "daytona",
-         "--out", str(tmp_path / "broken.json"),
-         "--derived-root", str(derived)],
-        workspace=tmp_path,
-    )
-    assert code == 0
-    out = capsys.readouterr().out
-    assert "1 broken on daytona" in out
-    assert "sha256: " in out
 
 # ---------------------------------------------------------------- disk-cap quota
 

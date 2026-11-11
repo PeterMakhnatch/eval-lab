@@ -1,4 +1,4 @@
-"""Pinned downloads, immutable raw custody and bounded native-row iteration."""
+"""Shared source downloads, immutable raw custody and bounded native-row iteration."""
 
 from __future__ import annotations
 
@@ -39,6 +39,13 @@ REPOSITORIES = {
     "cheatbench": ("steinad/CheatBench", CHEATBENCH_REVISION),
     "metr-malt": ("metr-evals/malt-public", MALT_REVISION),
 }
+
+
+def download_bytes(url: str, *, user_agent: str, timeout: int) -> bytes:
+    """Read anonymous source bytes; callers retain their pins and digest checks."""
+    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+        return response.read()
 
 
 def digest(path: Path) -> str:

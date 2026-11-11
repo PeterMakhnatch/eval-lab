@@ -26,11 +26,12 @@ import random
 import re
 import sys
 import time
-import urllib.request
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
+
+from evallab.failure_library.runs.io import download_bytes
 
 SEED = 20261006
 TW_BASE = "https://raw.githubusercontent.com/few-sh/terminal-wrench/main"
@@ -52,9 +53,9 @@ def fetch_index(index_dir: str | os.PathLike) -> Path:
         dest = index / name
         if dest.exists() and dest.stat().st_size > 0:
             continue
-        req = urllib.request.Request(f"{TW_BASE}/index/{name}", headers={"User-Agent": USER_AGENT})
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            dest.write_bytes(resp.read())
+        dest.write_bytes(download_bytes(
+            f"{TW_BASE}/index/{name}", user_agent=USER_AGENT, timeout=120,
+        ))
     return index
 
 
@@ -409,9 +410,7 @@ def _fetch_one(job: tuple[str, str]) -> tuple[str, str]:
         return ("cached", url)
     for attempt in range(4):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(req, timeout=30) as r:
-                body = r.read()
+            body = download_bytes(url, user_agent=USER_AGENT, timeout=30)
             if not body:
                 return ("empty", url)
             os.makedirs(os.path.dirname(dst), exist_ok=True)

@@ -14,11 +14,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 from urllib.parse import quote
-from urllib.request import Request, urlopen
 
 import pyarrow.parquet as pq
 
 from evallab.evidence.atif import export_trajectories
+from evallab.failure_library.runs.io import download_bytes
 from evallab.results import JobRecord, TrialRecord
 from evallab.runner import subscription_environment
 from evallab.schemas import ProvenanceMetadata
@@ -899,12 +899,6 @@ class ExternalAtifFetchResult:
 DownloadBytes = Callable[[str], bytes]
 
 
-def _anonymous_download(url: str) -> bytes:
-    request = Request(url, headers={"User-Agent": "evallab-public-atif/0.1"})
-    with urlopen(request, timeout=60) as response:  # noqa: S310 - pinned HTTPS source
-        return response.read()
-
-
 def _validate_public_atif_source(source: PublicAtifSource) -> None:
     if not re.fullmatch(r"[a-z0-9][a-z0-9._@-]{0,119}", source.item_id):
         raise FetchError(f"invalid external ATIF item id: {source.item_id!r}")
@@ -982,7 +976,9 @@ def fetch_public_atif(
             return existing
         raise FetchError(f"refusing to replace unrecognized external projection: {dest}")
 
-    payload = (downloader or _anonymous_download)(source.url)
+    payload = downloader(source.url) if downloader else download_bytes(
+        source.url, user_agent="evallab-public-atif/0.1", timeout=60,
+    )
     actual = hashlib.sha256(payload).hexdigest()
     if actual != source.sha256:
         raise FetchError(

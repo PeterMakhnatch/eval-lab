@@ -7,13 +7,9 @@ work is planned, executed in isolated worktrees, handed off, and verified.
 
 ## What lives here / entry points
 - `agents/WORKFLOW.md`: Git worktree procedures, branch rules, and PR boundaries.
-- `agents/OWNERS.md`: Four stable ownership lanes and Peter's reserved authority.
+- `agents/OWNERS.md`: Technical responsibilities and Peter's reserved authority.
 - `agents/CHECKS.md`: Definition of Green, quality gates, and verification contract.
 - `agents/STRUCTURE.md`: Binding repository layout and frozen root map.
-- `agents/missions/ACTIVE.md`: Active mission board and current gates.
-- `agents/missions/TEMPLATE.md`: Template for declaring new mission scopes.
-- `agents/handoffs/`: Active mission status files (one per live mission).
-- `agents/archive/`: Dated records of completed missions and handoffs.
 
 ## Invariants or rules
 - Root freeze authority: `agents/STRUCTURE.md` is the single source of truth for allowed root entries (cited in `agents/STRUCTURE.md`).

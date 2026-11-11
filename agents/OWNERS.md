@@ -1,32 +1,17 @@
 # Owners
 
-Four stable lanes own every path and decision in this repository. These lanes
-describe repository responsibilities, not Peter's persistent-chat identities,
-a roster, or contact permissions. Missions are temporary and numbered
-(`agents/missions/ACTIVE.md`); lanes are permanent.
-A mission *leases* paths from a lane for its lifetime; the lane owner decides
-semantics inside the lane. Disjoint leases are why parallel workers cannot
-collide.
+These areas route technical responsibility, not persistent-chat identities or contact permissions.
+The task defines each agent's write scope.
 
 | Lane | Owns (paths) | Decides |
 |---|---|---|
-| **Integration** | `agents/` (this file, WORKFLOW, STRUCTURE, missions/, archive/, handoffs/), `.github/`, merge queue | Mission registration, cross-mission conflicts, merges, sunsets, lease grants |
+| **Integration** | `agents/`, `.github/`, merge queue | Cross-product interfaces, integration conflicts, repository delivery |
 | **Research** | `research/`, `digests/`, `docs/research/`, analysis sections of `sql/` | What counts as evidence, analysis semantics, findings, experiment agenda |
 | **Tasks** | `library/` (benchmarks, curated, adapters, registry, synthetic staging) | Task admission, verification standards, benchmark pins, certification gates |
 | **Platform** | `src/`, `tests/`, `scripts/`, `sql/` schema, `compose.yaml`, `pyproject.toml`, `uv.lock`, `Makefile`, `dashboard/` | Code architecture, CI/premerge contract, storage topology, tooling |
 
 Docs follow their subject: `docs/research/` is Research; engineering and
 operations docs are Platform; governance docs are Integration.
-
-## The integrator
-
-Exactly one session at a time acts as integrator (Integration lane). The integrator
-edits `missions/ACTIVE.md`, coordinates overlapping integration branches, resolves
-cross-mission conflicts, and sunsets spent branches/worktrees. Routine protected PR
-merges are owned by the PR author; the integrator handles cross-mission integration merges
-and conflict resolution. Workers who hit a conflict with another mission stop
-only the contested files, record the dependency in their handoff, and continue
-independent safe work — they never resolve it themselves.
 
 ## Peter's reserved authority
 
@@ -41,6 +26,4 @@ Peter alone decides, and is asked *only* about:
    rejecting DISCOVERIES entries.
 4. **Registration of evaluation tasks** — promotion into `registered/*`.
 
-Everything else is a lane decision. Choose informed local implementation
-decisions within the task; if a genuine unresolved scope/authority conflict
-remains, state the two readings and ask one focused question.
+Choose informed local decisions within the task. Escalate only unresolved scope or authority conflicts.

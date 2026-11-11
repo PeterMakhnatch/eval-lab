@@ -5,7 +5,7 @@ repository root and where new things go. The root is **frozen**: creating a
 new top-level entry requires editing this file in the same PR, with one
 sentence saying which bucket rule made a new entry necessary. If you cannot
 name the bucket something belongs to, you do not create it — you propose a
-change here first. Iterate by PR; log changes at the bottom.
+change here first.
 
 ## The map
 
@@ -17,67 +17,14 @@ eval-lab/
 ├── LICENSE                    Apache-2.0 license text
 │
 ├── agents/                    HOW WE WORK — coordination and governance
-│   ├── WORKFLOW.md            the work protocol (worktrees, merges, boundaries)
-│   ├── OWNERS.md              four stable lanes + Peter's reserved authority
-│   ├── missions/              ACTIVE.md live board + TEMPLATE.md
-│   ├── archive/               dated closed-mission and registry records, plus
-│   │                          dated handoff subdirectories. Normalize the
-│   │                          four-line header before the 1:1 `git mv`; after
-│   │                          archival, handoffs are never edited or deleted.
-│   │                          Dated INDEX.md files remain mutable indexes.
-│   ├── CHECKS.md              the verification contract
-│   ├── STRUCTURE.md           this file
-│   └── handoffs/<role>.md     live status, one file per **live** mission only;
-│                              finished ones move to archive/ (ACTIVE.md policy)
 │
 ├── docs/                      WHY IT'S BUILT THIS WAY — design and decisions
-│   ├── architecture.md        system boundaries and planes
-│   ├── analysis-loop.md       evidence → finding → proposal state machine
-│   ├── data-architecture.md   the four provenance zones
-│   ├── execution-tiers.md     what runs where, and what it costs
-│   ├── scaling.md             gates for object storage / k8s / ClickHouse
-│   ├── engineering.md         standards + measured performance baselines
-│   ├── observability.md       tracing and telemetry surfaces
-│   ├── operations.md          runbooks
-│   ├── operating-manual.md    Peter's manual for running an agent-built lab
-│   ├── agent-profiles.md      subscription-only agent identity/qualification
-│   ├── canaries.md            canary suite and drift interpretation
-│   ├── task-registry.md       task admission trust boundary
-│   ├── run-explorer.md        run & analysis explorer
-│   ├── research-questions.md  what this lab studies
-│   ├── prompts/               living mission-prompt sets + living README
-│   ├── archive/               historical documents (README.md indexes them)
-│   ├── checkpoints/           dated hands-on integrator verification records
-│   ├── research/              Research-lane docs (survey, external datasets,
-│   │                          synthetic tasks, trajectory intelligence)
-│   ├── agent-workflow.html        \
-│   ├── eval-rd-roadmap.html       |  four hand-authored overview renders
-│   ├── repository-state.html      |  sharing one stylesheet. Nothing in the
-│   ├── system-cartography.html    |  repository generates them, so they
-│   └── repository-overview.css    /  cannot be rebuilt; keep-or-archive is
-│                              the one open `Needs Peter` item in
-│                              agents/missions/ACTIVE.md. Do not move or delete
-│                              them without that decision.
+│                              Preserve the hand-authored HTML overviews and
+│                              their stylesheet until Peter decides their disposition.
 │
 ├── library/                   WHAT WE EVALUATE — task supply, version-pinned
-│   ├── curated/               verified third-party tasks with provenance cards
-│   ├── tasks/                 lab-authored tasks
-│   ├── benchmarks/            pinned frontier benchmark ingests (INGEST)
-│   ├── adapters/              benchmark → Harbor converters
-│   ├── synthetic/             Zone 03 generated task sources (docs/data-architecture.md)
-│   ├── task-variants/         Zone 03 lineage records for derived task variants (docs/task-variants.md)
-│   └── registry/              task admission and execution trust records (REGISTER)
 │
 ├── research/                  WHAT WE LEARN — produced knowledge
-│   ├── experiments/           experiment specs and matrices
-│   ├── calibration/           judge ground truth: corpora, answer keys, labels
-│   ├── answer-keys/           QA-agent answer keys (qa.answer_key/v1; FOCUS contract)
-│   ├── failure-library/       provenance-first broken-task findings and run manifests (failure-library/v1)
-│   ├── qa-scoreboard/         QA-agent scoreboard rows (one CSV, appended by `evallab qa score`)
-│   ├── explorations/          capability recon: demos + adoption notes
-│   ├── analysis/              reusable analysis queries
-│   ├── evidence/              reviewed, immutable control bundles
-│   └── registration/          task review packets and admission audits (REGISTER)
 │
 ├── policy/                    THE HUMAN'S STEERING WHEEL — standing approvals,
 │                              canary suite. Peter-owned content; deliberately
@@ -150,8 +97,7 @@ Rules that fall out of the buckets:
 - Most documentation in `docs/` is hand-authored design and policy; the
   status snapshot `docs/STATUS.md` is generated via `evallab status --update`.
   Nothing in `queue/`, `runs/`, `derived/`, or `backups/` is hand-edited.
-- Ownership boundaries (`agents/OWNERS.md` lanes and `research/inbox/board.md`
-  claims) follow these paths.
+- The task defines write scopes. Ownership follows each path's subject.
 - Folder-doc convention: declared top-level directories carry a bounded README.
   Source subpackages inherit `src/evallab/AGENTS.md`; add a local `AGENTS.md`
   only for distinct package-specific guidance. Existing local overrides remain
@@ -180,108 +126,3 @@ Exemptions from this requirement:
 Presence and line-length limits are enforced deterministically by
 `python -m evallab.governance check`.
 
-## Historical migrations and changes
-
-Detailed legacy migration ledgers are preserved in this file's Git history.
-The change log below is historical, not a current inventory or work order.
-## Change log
-
-- 2026-08-13 — created; buckets `library/` and `research/` introduced; six
-  moves executed, four pending (Claude, at Peter's direction).
-- 2026-08-14 — migration complete: all ledger moves executed; root is at its
-  target state (Claude).
-- 2026-08-14 — `library/benchmarks/` added for the INGEST role (bucket rule:
-  evaluable task supply).
-- 2026-08-14 — ignored `backups/` declared for nightly PostgreSQL recovery
-  snapshots (bucket rule: generated local operational state); existing ignored
-  `derived/` made explicit alongside it.
-- 2026-08-15 — `library/registry/` (task admission records) and `research/registration/`
-  (task review packets and admission audits) added for REGISTER role.
-- 2026-08-15 — M001: `agents/OWNERS.md`, `agents/missions/`, `agents/archive/`
-  added; ROLES.md reduced to a pointer (historical table archived).
-- 2026-08-15 — COORD-GC: map corrected against `git ls-tree origin/main`, not
-  restructured. Nothing moved in the repository; only this file changed.
-  - `dashboard/` added. It has existed at the root since DASHBOARD (PRs #11 and
-    #15) and appeared **nowhere** in this file — an already-merged root-freeze
-    violation, meaning the binding map has been silently untrue for a top-level
-    entry. Bucket: Platform lane per `agents/OWNERS.md`; it is a read-only
-    presentation surface over committed evidence, not an execution path, which
-    is why it is its own entry rather than part of `src/`.
-  - The `docs/` submap listed 6 of the 28 committed entries. All 28 are now
-    named, including `docs/checkpoints/` (dated integrator verification
-    records), `docs/research/`, and the four hand-authored `.html` renders with
-    `repository-overview.css` — whose keep-or-archive question is now the one
-    open item under `Needs Peter` in `agents/missions/ACTIVE.md`.
-  - `agents/CHECKS.md` added to the `agents/` submap (also previously absent).
-    `agents/archive/` now documents dated handoff subdirectories, and
-    `agents/handoffs/` is stated to hold live missions only, which is the
-    `ACTIVE.md` policy this mission executed.
-  - `.github/` and the root config dotfiles added: they are frozen-root entries
-    that the map did not name.
-  - Ownership labels refreshed from `agents/OWNERS.md`: `src/ tests/ sql/
-    scripts/` is Platform lane, not "BUILDER-owned" (a codename retired by
-    M001). Placement-guide rows added for `dashboard/` and `docs/checkpoints/`.
-- 2026-08-23 — `containers/` declared after PR #146 merged the
-  `containers/state-journal/` runtime. Bucket: Platform-owned service container
-  definitions and entrypoints; unlike `runs/` or `derived/`, these sources are
-  committed and reviewed.
-- 2026-08-24 — `library/synthetic/` named in the library submap (SEQGEN).
-  Bucket rule: evaluable task supply; the path was already the normative Zone
-  03 storage boundary in `docs/data-architecture.md` and the blueprint's
-  disposition target in `docs/research/synthetic-tasks.md`; the first
-  committed batch is `library/synthetic/seqgen-v0/`.
-- 2026-08-28 — `containers/continuous-operator/` added under existing
-  `containers/` bucket for disabled continuous-loop operator image templates
-  (Ops/Runner adapters). No new top-level entry.
-- 2026-08-27 — `.omp/` declared for project-native OMP capabilities. Bucket:
-  agent coordination and engineering workflow; the first entries are scoped
-  change-impact and repository-health skills that reference, rather than
-  duplicate, the binding repository contracts.
-- 2026-09-06 — retired compatibility pointers `agents/ROLES.md` and
-  `docs/parallel-work.md` removed from the tree; `.ignore` declared at root
-  to exclude archive directories from default search (bucket rule: search exclusions,
-  companion to `.gitignore`).
-- 2026-09-06 — folder document convention established (AGENTS.md under
-  src/evallab/, README.md for top-level directories, 60-line cap, five
-  standard sections) and enforced via governance check.
-- 2026-09-28 — `library/task-variants/` declared for git-tracked lineage
-  records of derived task variants (`evallab.task_variant/v1`,
-  `docs/task-variants.md`). Bucket rule: evaluable task supply; materialized
-  variant packages live outside Git in `derived/task-store/variants/`, which
-  is already covered by the ignored `derived/` bucket.
-- 2026-09-28 — `tools/` declared for isolated, locked uv projects holding
-  external toolchains the lab invokes only by subprocess (bucket rule:
-  execution-path support that must stay out of the root dependency graph);
-  first entry is `tools/tinker-sft/` for the HAR-81 Tinker chat_sl trainer
-  and offline renderer.
-- 2026-09-29 — `tools/modal-mimo-serve/` added under the `tools/` bucket
-  rule: the Modal client and the HAR-90 SGLang server app for the self-hosted
-  MiMo Terminus-2 route. It is kept out of the root graph because the lab
-  reaches the server over HTTP and never imports `modal`.
-- 2026-09-29 — `tools/modal-mimo-sft/` added under the `tools/` bucket rule:
-  the Modal TRL LoRA SFT toolchain for the HAR-81 self-hosted MiMo student.
-  Kept out of the root graph because the lab shells out to it and GPU
-  training deps live only in its Modal image, never in the root `uv.lock`.
-- 2026-10-02 — `tools/mimoagent-harbor/` added under the `tools/` bucket
-  rule for HAR-148: the pinned Xiaomi native controller and unchanged
-  `swe.yaml`, invoked only by an isolated Python 3.12 subprocess. Its
-  OpenAI 3.x graph is incompatible with Harbor/LiteLLM's OpenAI 2.x graph;
-  neither the toolchain nor its dependencies enter the root `uv.lock`.
-- 2026-10-07 — `tools/agentenv-bench/` added under the `tools/` bucket rule
-  for HAR-190: model-free task/grader controls for MiMo general tasks and a
-  port of one task's world into Scale's AgentEnv (`agentenv-framework`
-  0.9.1275). It runs only as `uv run --project tools/agentenv-bench --locked`;
-  AgentEnv's dependency graph never enters the root `uv.lock`.
-- 2026-10-12 — `LICENSE` (Apache-2.0) declared at the root, beside
-  `README.md` and `pyproject.toml`. Vendored third-party packages keep their
-  own license files.
-- 2026-10-14 — `research/answer-keys/` and `research/qa-scoreboard/`
-  declared for the QA-agent contract in research-context FOCUS.md
-  (`qa.answer_key/v1` keys scored by `evallab qa score`).
-- 2026-10-27 — `research/failure-library/` declared for the Failure Library:
-  `failure-library/v1` task findings (in Git) and manifests for run records
-  kept in local state (`evallab failures`).
-- 2026-10-29 — root `.ignore` (already declared) extended with the sealed-material
-  patterns (answer keys, TEST/held-out split files and rows derived from them) so
-  default agent searches skip them; not an access control. `evallab.governance check`
-  fails when a tracked path under `SEALED_PATH_RULES` is not matched by `.ignore`.

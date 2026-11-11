@@ -22,9 +22,16 @@ ran different bytes, and ``no-cell`` when the task has no ranked cell at all.
 A cell is a measurement of whatever bytes it ran; nothing here promotes a cell
 verdict into fleet acceptance, and the census buckets are emitted unchanged.
 
+``--sync-docs`` rewrites the two pages that quote the committed join: the
+count table and other-bytes sentence in this directory's README, and the join
+sentence in ``docs/mimo/README.md``'s Open items. It refuses a stale join CSV,
+and a page whose anchor is missing or repeated raises ``JoinError`` before any
+page is written; on a synced tree it rewrites nothing.
+
 Reproduce (repo root, locked environment):
 
     uv run python research/experiments/mimo-v6-full-fleet/ladder_join.py --check
+    uv run python research/experiments/mimo-v6-full-fleet/ladder_join.py --sync-docs
 """
 
 from __future__ import annotations
@@ -34,6 +41,8 @@ import csv
 import difflib
 import io
 import json
+import os
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -49,6 +58,27 @@ FLEET_MANIFEST = f"{FLEET_DIR}/manifest.csv"
 PROGRESS = f"{CLEAN_DIR}/ladder-progress.csv"
 CLEAN_MANIFEST = f"{CLEAN_DIR}/manifest.csv"
 JOIN_NAME = "fleet-ladder-join.csv"
+FLEET_README = f"{FLEET_DIR}/README.md"
+ROUTE_PAGE = "docs/mimo/README.md"
+
+#: The fleet README section that owns the count table and other-bytes sentence.
+COUNTS_HEADING = "## Ranked ladder cells against fleet digests"
+TABLE_HEADER = (
+    "| Bucket | Fleet tasks | Have a ranked cell | Cell ran the fleet digest |\n"
+    "|---|---:|---:|---:|\n"
+)
+TABLE = re.escape(TABLE_HEADER) + r"(?:\|[^\n]*\|\n)+"
+OTHER_BYTES = (
+    r"Of\s+the\s+([0-9][0-9,]*)\s+fleet\s+tasks\s+with\s+a\s+ranked\s+cell,\s+"
+    r"([0-9][0-9,]*)\s+ran\s+the\s+fleet\s+digest\s+and\s+([0-9][0-9,]*)\s+-\s+"
+    r"([0-9][0-9,]*)\s+=\s+([0-9][0-9,]*)\s+ran\s+other\s+bytes\."
+)
+ROUTE_SENTENCE = (
+    r"holds\s+([0-9][0-9,]*)\s+fleet\s+tasks,\s+([0-9][0-9,]*)\s+with\s+a\s+ranked\s+"
+    r"cell,\s+and\s+([0-9][0-9,]*)\s+whose\s+cell\s+ran\s+the\s+fleet\s+digest;\s+"
+    r"([0-9][0-9,]*)\s+have\s+no\s+ranked\s+cell\s+and\s+([0-9][0-9,]*)\s+cells\s+"
+    r"ran\s+other\s+bytes"
+)
 
 COLUMNS = (
     "task_id",
@@ -255,18 +285,122 @@ def _check(name: str, rebuilt: str) -> bool:
     return False
 
 
+def _read_page(path: Path) -> str:
+    if not path.is_file():
+        raise JoinError(f"documentation page is missing: {path}")
+    return path.read_bytes().decode("utf-8")
+
+
+def _anchor(pattern: str, text: str, page: Path, anchor: str) -> re.Match[str]:
+    """The single match of ``pattern``; a missing or repeated anchor is refused."""
+    matches = list(re.finditer(pattern, text, flags=re.MULTILINE))
+    if len(matches) != 1:
+        raise JoinError(f"{page}: expected one {anchor!r}, found {len(matches)}")
+    return matches[0]
+
+
+def _patch(text: str, edits: Sequence[tuple[int, int, str]]) -> str:
+    for start, end, replacement in sorted(edits, reverse=True):
+        text = text[:start] + replacement + text[end:]
+    return text
+
+
+Edit = tuple[int, int, str]
+
+
+def _group_edits(match: re.Match[str], values: Sequence[int], offset: int = 0) -> list[Edit]:
+    return [
+        (offset + match.start(index), offset + match.end(index), f"{value:,}")
+        for index, value in enumerate(values, start=1)
+    ]
+
+
+def render_table(counts: Sequence[tuple[str, int, int, int]]) -> str:
+    """The fleet README count table, one row per bucket and a final all-fleet row."""
+    lines = [
+        f"| {'All fleet tasks' if bucket == 'all' else f'`{bucket}`'} "
+        f"| {tasks} | {with_cell} | {at_digest} |\n"
+        for bucket, tasks, with_cell, at_digest in counts
+    ]
+    return TABLE_HEADER + "".join(lines)
+
+
+def _write_atomic(path: Path, data: bytes) -> None:
+    """Replace ``path`` with ``data`` through a sibling temporary file."""
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_bytes(data)
+    os.replace(temporary, path)
+
+
+def sync_docs(rows: Sequence[dict[str, str]], root: Path = ROOT) -> list[Path]:
+    """Rewrite the join counts on both pages; every anchor is checked before any write.
+
+    Returns the pages whose bytes changed. A synced tree changes nothing.
+    """
+    counts = bucket_counts(rows)
+    _, tasks, with_cell, at_digest = next(entry for entry in counts if entry[0] == "all")
+    other = with_cell - at_digest
+    fleet_page = root / FLEET_README
+    route_page = root / ROUTE_PAGE
+    originals = {page: _read_page(page) for page in (fleet_page, route_page)}
+
+    text = originals[fleet_page]
+    heading = _anchor(f"^{re.escape(COUNTS_HEADING)}$", text, fleet_page, COUNTS_HEADING)
+    following = re.search(r"(?m)^#{1,6}[ \t]", text[heading.end() :])
+    start = heading.end()
+    section = text[start : start + following.start()] if following else text[start:]
+    table = _anchor(TABLE, section, fleet_page, f"{COUNTS_HEADING} count table")
+    sentence = _anchor(OTHER_BYTES, section, fleet_page, f"{COUNTS_HEADING} other-bytes sentence")
+    fleet_text = _patch(
+        text,
+        [
+            (start + table.start(), start + table.end(), render_table(counts)),
+            *_group_edits(sentence, (with_cell, at_digest, with_cell, at_digest, other), start),
+        ],
+    )
+
+    text = originals[route_page]
+    route = _anchor(ROUTE_SENTENCE, text, route_page, "fleet/ladder join sentence")
+    route_text = _patch(
+        text, _group_edits(route, (tasks, with_cell, at_digest, tasks - with_cell, other))
+    )
+
+    changed: list[Path] = []
+    for page, replacement in ((fleet_page, fleet_text), (route_page, route_text)):
+        if replacement != originals[page]:
+            _write_atomic(page, replacement.encode("utf-8"))
+            changed.append(page)
+    return changed
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--check",
         action="store_true",
         help=f"exit 1 if the committed {JOIN_NAME} differs",
+    )
+    mode.add_argument(
+        "--sync-docs",
+        action="store_true",
+        help=(
+            f"rewrite the join counts in {FLEET_README} and {ROUTE_PAGE} from the "
+            f"committed {JOIN_NAME}; exit 1 if that file is stale"
+        ),
     )
     args = parser.parse_args(argv)
     rows = build()
     rebuilt = render(rows)
     if args.check:
         return 0 if _check(JOIN_NAME, rebuilt) else 1
+    if args.sync_docs:
+        if not _check(JOIN_NAME, rebuilt):
+            return 1
+        changed = sync_docs(_read_csv(HERE / JOIN_NAME), ROOT)
+        names = ", ".join(str(page.relative_to(ROOT)) for page in changed) or "nothing"
+        print(f"sync-docs rewrote {names}")
+        return 0
     (HERE / JOIN_NAME).write_bytes(rebuilt.encode("utf-8"))
     print(f"wrote {JOIN_NAME}: {len(rows)} rows")
     return 0

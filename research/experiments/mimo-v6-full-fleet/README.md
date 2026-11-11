@@ -226,10 +226,14 @@ rebuilt with `separate-verifier@10`. A ranked cell therefore establishes a
 verdict only for the bytes it ran. `fleet-ladder-join.csv` joins the 100 ranked
 cells in `../mimo-clean-v6/ladder-progress.csv` onto this census by task, and
 compares the cell's own `final_digest` with the fleet package digest. It is
-generated, never hand-edited:
+generated, never hand-edited. The count table below, the other-bytes sentence
+after it, and the join sentence in [the MiMo route page](../../../docs/mimo/README.md)
+are rewritten from the committed join by `--sync-docs`; a missing or repeated
+anchor on either page stops it before any page is written:
 
 ```bash
 uv run python research/experiments/mimo-v6-full-fleet/ladder_join.py --check
+uv run python research/experiments/mimo-v6-full-fleet/ladder_join.py --sync-docs
 ```
 
 Two ranked tasks, `000495` and `001694`, are not fleet members, so they have no
@@ -243,6 +247,9 @@ overwrite an earlier one.
 | `v6_unverified` | 562 | 95 | 14 |
 | `v6_verified` | 5 | 3 | 1 |
 | All fleet tasks | 567 | 98 | 15 |
+
+Of the 98 fleet tasks with a ranked cell, 15 ran the fleet digest and 98 - 15 =
+83 ran other bytes.
 
 These are counts of measurements, not fleet acceptance: a `clean` cell at the
 fleet digest is evidence about these bytes, and a cell at another digest

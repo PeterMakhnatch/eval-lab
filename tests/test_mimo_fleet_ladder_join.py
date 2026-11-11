@@ -1,14 +1,16 @@
-"""The fleet/ladder join and its README counts stay mechanical (HAR-372).
+"""The fleet/ladder join and its README counts stay mechanical (HAR-372, HAR-389).
 
 ``research/experiments/mimo-v6-full-fleet/ladder_join.py`` is the only writer of
-``fleet-ladder-join.csv``. These tests pin what the table is relied on for: the
+``fleet-ladder-join.csv`` and of the join counts quoted on the fleet README and
+the MiMo route page. These tests pin what the table is relied on for: the
 committed CSV is what the committed census, fleet manifest, ranked cells and
 clean-v6 manifest currently produce; every fleet task has exactly one row and a
 task with no ranked cell keeps its cell columns empty; a cell that ran other
 bytes is ``no`` and one that ran the fleet digest is ``yes``; the README count
-table is those counts rather than a second hand-maintained number; and the
-builder refuses inputs that disagree about a digest or a verdict, repeat a task
-in a manifest, or otherwise break the contract it reads.
+table and both count sentences are those counts rather than a second
+hand-maintained number, and ``--sync-docs`` rewrites both pages together or
+neither; and the builder refuses inputs that disagree about a digest or a
+verdict, repeat a task in a manifest, or otherwise break the contract it reads.
 """
 
 from __future__ import annotations
@@ -24,17 +26,19 @@ from pathlib import Path
 
 import pytest
 
-DIR = Path(__file__).resolve().parents[1] / "research/experiments/mimo-v6-full-fleet"
+REPO = Path(__file__).resolve().parents[1]
+DIR = REPO / "research/experiments/mimo-v6-full-fleet"
 MODULE = runpy.run_path(str(DIR / "ladder_join.py"))
 COLUMNS = MODULE["COLUMNS"]
 CELL_COLUMNS = ("ladder_rank", "ladder_verdict", "ladder_basis", "ladder_digest")
 README = DIR / "README.md"
-COUNTS_HEADING = "## Ranked ladder cells against fleet digests"
+COUNTS_HEADING = MODULE["COUNTS_HEADING"]
 TASK = "format-code-task-000001"
 LEDGER = "research/experiments/mimo-clean-v6/ladder-fixture.json"
 FLEET_DIGEST = "sha256:" + "a" * 64
 CELL_DIGEST = "sha256:" + "b" * 64
-ROUTE_PAGE = Path(__file__).resolve().parents[1] / "docs/mimo/README.md"
+ROUTE_PAGE = REPO / MODULE["ROUTE_PAGE"]
+SYNCED_PAGES = (MODULE["FLEET_README"], MODULE["ROUTE_PAGE"])
 OPEN_ITEMS = "## Open items"
 ROUTE_COUNTS = re.compile(
     r"holds (?P<tasks>\d[\d,]*) fleet tasks, "
@@ -72,14 +76,21 @@ def rewrite(path: Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
-def readme_counts() -> list[tuple[str, int, int, int]]:
-    """The README count table as (bucket, tasks, with a cell, at the fleet digest)."""
-    lines = README.read_text(encoding="utf-8").splitlines()
+def counts_section(path: Path = README) -> str:
+    lines = path.read_text(encoding="utf-8").splitlines()
     start = lines.index(COUNTS_HEADING)
-    table: list[list[str]] = []
+    section: list[str] = []
     for line in lines[start + 1 :]:
         if line.startswith("## "):
             break
+        section.append(line)
+    return "\n".join(section)
+
+
+def readme_counts(path: Path = README) -> list[tuple[str, int, int, int]]:
+    """The README count table as (bucket, tasks, with a cell, at the fleet digest)."""
+    table: list[list[str]] = []
+    for line in counts_section(path).splitlines():
         if line.startswith("|"):
             table.append([cell.strip() for cell in line.strip().strip("|").split("|")])
     header, *body = table
@@ -93,11 +104,28 @@ def readme_counts() -> list[tuple[str, int, int, int]]:
     return counts
 
 
-def open_items() -> str:
-    sections = ROUTE_PAGE.read_text(encoding="utf-8").split(OPEN_ITEMS)
-    assert len(sections) == 2, f"{ROUTE_PAGE} must contain exactly one {OPEN_ITEMS!r}"
+def other_bytes(path: Path = README) -> tuple[int, ...]:
+    """The README other-bytes sentence as (with a cell, at digest, with, at, other)."""
+    match = re.search(MODULE["OTHER_BYTES"], counts_section(path))
+    assert match is not None, "the count section must state the other-bytes count"
+    return tuple(int(value.replace(",", "")) for value in match.groups())
+
+
+def open_items(path: Path = ROUTE_PAGE) -> str:
+    sections = path.read_text(encoding="utf-8").split(OPEN_ITEMS)
+    assert len(sections) == 2, f"{path} must contain exactly one {OPEN_ITEMS!r}"
     section = re.split(r"^## ", sections[1], maxsplit=1, flags=re.MULTILINE)[0]
     return " ".join(section.split())
+
+
+def route_counts(path: Path = ROUTE_PAGE) -> tuple[int, ...]:
+    """The route sentence as (tasks, with a cell, at digest, no cell, other bytes)."""
+    match = ROUTE_COUNTS.search(open_items(path))
+    assert match is not None, "Open items must quote the fleet/ladder join counts"
+    return tuple(
+        int(match[name].replace(",", ""))
+        for name in ("tasks", "with_cell", "at_digest", "no_cell", "other")
+    )
 
 
 @pytest.fixture
@@ -235,22 +263,101 @@ def test_join_rows_carry_no_host_paths() -> None:
     assert not offenders
 
 
-def test_readme_counts_equal_the_join_csv() -> None:
-    assert readme_counts() == MODULE["bucket_counts"](_rows())
-
-
-def test_route_page_open_items_quote_the_join_csv() -> None:
-    match = ROUTE_COUNTS.search(open_items())
-    assert match is not None, "Open items must quote the fleet/ladder join counts"
-    tasks, with_cell, at_digest, no_cell, other = (
-        int(match[name].replace(",", ""))
-        for name in ("tasks", "with_cell", "at_digest", "no_cell", "other")
+def assert_pages_quote(rows: Sequence[dict[str, str]], root: Path = REPO) -> None:
+    """Both pages quote ``rows``: the table, the other-bytes and the route sentence."""
+    counts = MODULE["bucket_counts"](rows)
+    _, tasks, with_cell, at_digest = next(entry for entry in counts if entry[0] == "all")
+    other = with_cell - at_digest
+    no_cell = sum(row["digest_match"] == MODULE["MATCH_NONE"] for row in rows)
+    assert readme_counts(root / MODULE["FLEET_README"]) == counts
+    assert other_bytes(root / MODULE["FLEET_README"]) == (
+        with_cell,
+        at_digest,
+        with_cell,
+        at_digest,
+        other,
     )
+    assert route_counts(root / MODULE["ROUTE_PAGE"]) == (
+        tasks,
+        with_cell,
+        at_digest,
+        no_cell,
+        other,
+    )
+
+
+def test_readme_and_route_page_quote_the_join_csv() -> None:
+    assert_pages_quote(_rows())
+
+
+@pytest.fixture
+def docs_root(tmp_path: Path) -> Path:
+    """A root holding byte copies of the two committed pages that quote the join."""
+    for relative in SYNCED_PAGES:
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((REPO / relative).read_bytes())
+    return tmp_path
+
+
+def flipped_rows() -> list[dict[str, str]]:
+    """The committed join with one cell at other bytes relabelled as the fleet digest."""
     rows = _rows()
-    all_row = next(entry for entry in MODULE["bucket_counts"](rows) if entry[0] == "all")
-    assert (tasks, with_cell, at_digest) == all_row[1:]
-    assert no_cell == sum(row["digest_match"] == MODULE["MATCH_NONE"] for row in rows)
-    assert other == with_cell - at_digest
+    row = next(row for row in rows if row["digest_match"] == MODULE["MATCH_NO"])
+    row["digest_match"] = MODULE["MATCH_YES"]
+    return rows
+
+
+def test_flipping_one_join_row_rewrites_both_pages_together(docs_root: Path) -> None:
+    rows = flipped_rows()
+    before = {relative: (docs_root / relative).read_bytes() for relative in SYNCED_PAGES}
+    assert MODULE["sync_docs"](rows, docs_root) == [docs_root / page for page in SYNCED_PAGES]
+    for relative in SYNCED_PAGES:
+        assert (docs_root / relative).read_bytes() != before[relative]
+    assert_pages_quote(rows, docs_root)
+    tasks, with_cell, at_digest, no_cell, other = route_counts()
+    assert route_counts(docs_root / MODULE["ROUTE_PAGE"]) == (
+        tasks,
+        with_cell,
+        at_digest + 1,
+        no_cell,
+        other - 1,
+    )
+    # The flipped rows are now quoted, so syncing them again writes nothing.
+    assert MODULE["sync_docs"](rows, docs_root) == []
+    assert not list(docs_root.rglob(".*.tmp"))
+
+
+def test_sync_docs_on_the_committed_tree_is_byte_identical_twice(
+    docs_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The CLI reads the committed join through HERE and writes the pages under ROOT;
+    # pointing ROOT at byte copies proves the committed tree is already synced.
+    namespace = MODULE["main"].__globals__
+    assert namespace["ROOT"] == REPO
+    monkeypatch.setitem(namespace, "ROOT", docs_root)
+    for _ in range(2):
+        assert MODULE["main"](["--sync-docs"]) == 0
+        assert "sync-docs rewrote nothing" in capsys.readouterr().out
+        for relative in SYNCED_PAGES:
+            assert (docs_root / relative).read_bytes() == (REPO / relative).read_bytes()
+
+
+def test_sync_docs_refuses_a_stale_join_and_excludes_check(
+    docs_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    namespace = MODULE["main"].__globals__
+    stale = docs_root / "stale"
+    stale.mkdir()
+    (stale / MODULE["JOIN_NAME"]).write_text("stale\n", encoding="utf-8")
+    monkeypatch.setitem(namespace, "HERE", stale)
+    monkeypatch.setitem(namespace, "ROOT", docs_root)
+    assert MODULE["main"](["--sync-docs"]) == 1
+    for relative in SYNCED_PAGES:
+        assert (docs_root / relative).read_bytes() == (REPO / relative).read_bytes()
+    with pytest.raises(SystemExit) as raised:
+        MODULE["main"](["--check", "--sync-docs"])
+    assert raised.value.code == 2
 
 
 def test_route_page_links_both_subset_receipts() -> None:
@@ -398,19 +505,99 @@ def test_a_disagreeing_input_is_refused(
         MODULE["build"](join_root)
 
 
+def append_text(relative: str, text: str) -> Callable[[Path], None]:
+    def apply(root: Path) -> None:
+        with (root / relative).open("a", encoding="utf-8") as handle:
+            handle.write(text)
+
+    return apply
+
+
+FLEET_README = MODULE["FLEET_README"]
+ROUTE = MODULE["ROUTE_PAGE"]
+
+#: One case per way a page can lose its unique anchor, and the message naming it.
+#: Each case runs against rows that would otherwise rewrite both pages.
+DOC_REFUSALS: list[tuple[str, Callable[[Path], None], str]] = [
+    ("missing-route-page", remove(ROUTE), "documentation page is missing: "),
+    (
+        "missing-counts-heading",
+        change(FLEET_README, COUNTS_HEADING, "## Ladder cells"),
+        f"expected one {COUNTS_HEADING!r}, found 0",
+    ),
+    (
+        "repeated-counts-heading",
+        append_text(FLEET_README, f"\n{COUNTS_HEADING}\n"),
+        f"expected one {COUNTS_HEADING!r}, found 2",
+    ),
+    (
+        "missing-count-table",
+        change(FLEET_README, "| Bucket |", "| Group |"),
+        "count table', found 0",
+    ),
+    (
+        "missing-other-bytes-sentence",
+        change(FLEET_README, "ran other bytes.", "ran elsewhere."),
+        "other-bytes sentence', found 0",
+    ),
+    (
+        "missing-route-sentence",
+        change(ROUTE, "cells ran other bytes", "cells ran elsewhere"),
+        "join sentence', found 0",
+    ),
+    (
+        "repeated-route-sentence",
+        append_text(
+            ROUTE,
+            "\nIt holds 1 fleet tasks, 1 with a ranked cell, and 1 whose cell ran the "
+            "fleet digest; 0 have no ranked cell and 0 cells ran other bytes.\n",
+        ),
+        "join sentence', found 2",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [case[1:] for case in DOC_REFUSALS],
+    ids=[case[0] for case in DOC_REFUSALS],
+)
+def test_a_missing_or_repeated_anchor_writes_no_page(
+    docs_root: Path, mutate: Callable[[Path], None], message: str
+) -> None:
+    mutate(docs_root)
+    before = {
+        relative: (docs_root / relative).read_bytes()
+        for relative in SYNCED_PAGES
+        if (docs_root / relative).is_file()
+    }
+    with pytest.raises(MODULE["JoinError"], match=re.escape(message)):
+        MODULE["sync_docs"](flipped_rows(), docs_root)
+    assert {relative: (docs_root / relative).read_bytes() for relative in before} == before
+
+
 def test_every_join_error_needs_a_refusal_case() -> None:
     """A raise without a case, or a case whose raise is gone, fails here."""
     tree = ast.parse((DIR / "ladder_join.py").read_text(encoding="utf-8"))
-    sites = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Raise)
-        and isinstance(node.exc, ast.Call)
-        and isinstance(node.exc.func, ast.Name)
-        and node.exc.func.id == "JoinError"
-    ]
+    sites = {
+        function.name: sum(
+            1
+            for node in ast.walk(function)
+            if isinstance(node, ast.Raise)
+            and isinstance(node.exc, ast.Call)
+            and isinstance(node.exc.func, ast.Name)
+            and node.exc.func.id == "JoinError"
+        )
+        for function in ast.walk(tree)
+        if isinstance(function, ast.FunctionDef)
+    }
+    documentation = {"_read_page", "_anchor"}
     # 14 contract checks at f8cc7ce60, plus the manifest repeat check: one site,
     # which the fleet and the clean manifest case each exercise.
-    assert len(sites) == 15
+    assert sum(count for name, count in sites.items() if name not in documentation) == 15
     assert len(REFUSALS) == 16
     assert len({message for _, _, message in REFUSALS}) == len(REFUSALS)
+    # A missing page, and one anchor check that every missing or repeated anchor hits.
+    assert sum(sites[name] for name in documentation) == 2
+    assert len(DOC_REFUSALS) == 7
+    assert len({message for _, _, message in DOC_REFUSALS}) == len(DOC_REFUSALS)

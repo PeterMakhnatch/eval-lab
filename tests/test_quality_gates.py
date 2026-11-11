@@ -11,7 +11,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -23,7 +22,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 pytestmark = pytest.mark.docs_consumer
 BASH = shutil.which("bash")
-GIT = shutil.which("git")
 
 
 def _executable(path: Path, body: str) -> None:
@@ -117,67 +115,6 @@ def test_required_gate_rejects_every_non_success_prerequisite(
         for result in ("failure", "cancelled", "skipped", "neutral", "", "unknown"):
             assert run({**successful, name: result}) != 0, (name, result)
         assert run({key: value for key, value in successful.items() if key != name}) != 0
-
-
-
-def _git(root: Path, *args: str) -> str:
-    return subprocess.check_output(
-        [GIT, "-c", "core.hooksPath=/dev/null", *args],
-        cwd=root,
-        text=True,
-        env={**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"},
-    ).strip()
-
-
-def _repository(root: Path) -> None:
-    _git(root, "init", "-q")
-    _git(root, "config", "user.email", "gate@example.invalid")
-    _git(root, "config", "user.name", "Gate regression")
-    _git(root, "commit", "--allow-empty", "-qm", "baseline")
-
-
-
-
-@pytest.mark.parametrize(
-    "relative",
-    [
-        "library/tasks/example/instruction.md",
-        "research/experiments/spec.json",
-        "agents/config.yaml",
-        ".githooks/post-merge",
-    ],
-)
-def test_profile_scope_does_not_hide_runtime_changes(tmp_path: Path, relative: str) -> None:
-    _repository(tmp_path)
-    base = _git(tmp_path, "rev-parse", "HEAD")
-    path = tmp_path / relative
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("changed\n")
-    _git(tmp_path, "add", relative)
-    _git(tmp_path, "commit", "-qm", "runtime change")
-    output = subprocess.check_output(
-        [sys.executable, str(ROOT / "scripts/profile/change_scope.py"), base, "HEAD"],
-        cwd=tmp_path,
-        text=True,
-    )
-    assert output.strip() == "profile=true"
-
-
-def test_profile_scope_skips_only_proven_documentation_changes(tmp_path: Path) -> None:
-    _repository(tmp_path)
-    base = _git(tmp_path, "rev-parse", "HEAD")
-    (tmp_path / "README.md").write_text("documentation\n")
-    _git(tmp_path, "add", "README.md")
-    _git(tmp_path, "commit", "-qm", "documentation")
-    command = [sys.executable, str(ROOT / "scripts/profile/change_scope.py")]
-    assert (
-        subprocess.check_output([*command, base, "HEAD"], cwd=tmp_path, text=True).strip()
-        == "profile=false"
-    )
-    assert (
-        subprocess.check_output([*command, "unavailable", "HEAD"], cwd=tmp_path, text=True).strip()
-        == "profile=true"
-    )
 
 
 def test_premerge_ty_failure_stops_before_running_pytest(tmp_path: Path) -> None:

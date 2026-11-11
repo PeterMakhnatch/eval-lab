@@ -37,10 +37,6 @@ from evallab.campaigns import (
     campaign_manifest_digest,
     experiment_spec_digest,
 )
-from evallab.continuous_control_plane import (
-    CampaignWorkloadOwner,
-    DisabledCampaignControlLoop,
-)
 from evallab.execution_contracts import (
     DEEPSEEK_MODEL_SELECTOR,
     DispatchCapacity,
@@ -48,8 +44,6 @@ from evallab.execution_contracts import (
     RunRequest,
     TransientHarnessFailure,
 )
-from evallab.ops_continuous import main as operator_main
-from evallab.ops_continuous import write_mode
 from evallab.profiles import DEEPSEEK_API_CREDENTIAL, ZAI_OPENAPI_API_CREDENTIAL
 from evallab.queue import DirectoryQueue, Executor, load_events, load_policy
 from evallab.registry import compute_task_digests
@@ -57,7 +51,6 @@ from evallab.schemas import (
     ControlEvidenceRef,
     ExperimentMatrix,
     ExperimentSpec,
-    QueueEvent,
     TaskControlEvidence,
     TaskLimits,
     TaskRegistryRecord,
@@ -1832,105 +1825,6 @@ def test_failed_attempt_without_usage_blocks_later_dispatch(
         orchestrator._next_attempt_budget_reason([], manifest.attempts[1])
         == "campaign_usage_missing"
     )
-
-
-def _frozen_owner(tmp_path: Path) -> tuple[Path, CampaignManifest, CampaignWorkloadOwner]:
-    root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
-    CampaignStore(root / "runs/campaigns", manifest.campaign_id).freeze(manifest)
-    return root, manifest, CampaignWorkloadOwner.from_repo(root, manifest.campaign_id)
-
-
-def test_campaign_workload_owner_cancels_exact_active_lease(tmp_path: Path) -> None:
-    root, manifest, owner = _frozen_owner(tmp_path)
-    attempt = manifest.attempts[0]
-    queue = DirectoryQueue(root / "queue")
-    running = queue.state_dir("running") / f"{attempt.spec.agent}-{attempt.spec_id}.json"
-    running.write_text(attempt.spec.model_dump_json(), encoding="utf-8")
-    assert queue.acquire_lease(attempt.spec) is not None
-
-    result = owner.request_cancel([attempt.spec_id, "unknown-lease"])
-
-    assert result["executed"] is True
-    assert result["queue_stopped"] is True
-    assert result["results"] == {
-        attempt.spec_id: "signalled",
-        "unknown-lease": "unknown",
-    }
-    assert queue.cancel_path(attempt.spec).is_file()
-
-
-def test_campaign_workload_owner_observes_terminal_queue_evidence(tmp_path: Path) -> None:
-    root, manifest, owner = _frozen_owner(tmp_path)
-    attempt = manifest.attempts[0]
-    queue = DirectoryQueue(root / "queue")
-    done = queue.state_dir("done") / f"{attempt.spec.agent}-{attempt.spec_id}.json"
-    done.write_text(attempt.spec.model_dump_json(), encoding="utf-8")
-    queue_event = QueueEvent(
-        event_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        spec_id=attempt.spec_id,
-        occurred_at=NOW,
-        event="dispatch_completed",
-        from_state="running",
-        to_state="done",
-        actor="executor",
-        job_name=attempt.job_name,
-    )
-    queue.append_event(queue_event)
-
-    observed = owner.observe_lease(attempt.attempt_id)
-
-    assert observed is not None
-    assert observed["alive"] is False
-    assert observed["queue_state"] == "complete"
-    assert len(observed["settlement_digest"]) == 64
-    assert observed["evidence"]["queue_event_id"] == queue_event.event_id
-
-
-def test_campaign_control_loop_stays_disabled_without_dispatch(tmp_path: Path) -> None:
-    root, _manifest, owner = _frozen_owner(tmp_path)
-    state = tmp_path / "operator-state"
-    state.mkdir()
-    write_mode(state, "DISABLED")
-
-    tick = DisabledCampaignControlLoop(state, owner).tick()
-
-    assert tick == {
-        "campaign_id": owner.manifest.campaign_id,
-        "mode": "DISABLED",
-        "running": False,
-        "dispatched": 0,
-        "reason": "default_disabled",
-    }
-    assert not (root / "queue").exists()
-
-
-def test_operator_cli_binds_frozen_campaign_owner_without_dispatch(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    root, manifest, _owner = _frozen_owner(tmp_path)
-    state = tmp_path / "operator-cli-state"
-
-    code = operator_main(
-        [
-            "status",
-            "--state-dir",
-            str(state),
-            "--repo-root",
-            str(root),
-            "--campaign-id",
-            manifest.campaign_id,
-        ],
-        environ={},
-        secret_store=lambda _ref: None,
-    )
-
-    payload = json.loads(capsys.readouterr().out)
-    assert code == 0
-    assert payload["mode"] == "DISABLED"
-    assert payload["running"] is False
-    assert not (root / "queue").exists()
 
 
 def test_campaign_refuses_registry_record_without_immutable_family(

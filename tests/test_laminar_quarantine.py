@@ -5,14 +5,11 @@ All seams are injected (openers, transports, uploaders, ledgers): no network, no
 
 from __future__ import annotations
 
-import importlib
 import io
 import json
-import sqlite3
 import uuid
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -21,7 +18,6 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTrace
 from evallab import laminar
 from evallab.laminar import (
     SIGNAL_OPT_IN_FILTER,
-    SIGNAL_OPT_IN_TAG,
     SIGNALS,
     LaminarExporter,
     apply_signals,
@@ -33,16 +29,12 @@ from evallab.production import trace_harness_tools as tools
 from evallab.production.trace_harness import HarnessOptions, HarnessRun
 from evallab.readers import laminar_import, laminar_signals
 from evallab.trace_store import laminar_quarantine as quarantine
-from evallab.trace_store.core import GOODFIRE_DATASET, TracePayload, trace_uuid
-from evallab.trace_store.laminar import PROJECT_ID, LaminarTarget
+from evallab.trace_store.core import trace_uuid
 from evallab.trace_store.laminar_quarantine import QuarantinedTrace
-
-sync_module = importlib.import_module("evallab.trace_store.sync")
 
 #: A real quarantined id, used as-is (a Laminar trace id) on every path.
 QUARANTINED = min(quarantine.QUARANTINED_REMOTE_IDS)
 OK_ID = str(uuid.UUID(int=0x1234))
-DATASET = "mimo-defect-map-v1"
 
 
 @pytest.fixture
@@ -58,17 +50,6 @@ def quarantine_ids(monkeypatch: pytest.MonkeyPatch) -> Iterator[Callable[..., No
 
         yield add
     quarantine.is_quarantined.cache_clear()
-
-
-def payload(trace_id: str, dataset: str = DATASET) -> TracePayload:
-    return TracePayload(trace_id, dataset, {
-        "model": "m", "run_id": trace_id, "source": dataset,
-        "benchmark": "terminal-bench", "task_id": "terminal-bench/task",
-        "outcome": "unknown", "split": "DEV",
-    }, [
-        {"step_index": 0, "role": "assistant", "content": "hello", "reasoning": "r",
-         "tool_calls": [], "tool_call_id": None},
-    ])
 
 
 def test_list_is_the_108_unique_owner_action_ids() -> None:
@@ -92,60 +73,18 @@ def test_predicate_matches_every_identifier_form(quarantine_ids: Callable[..., N
         quarantine.reject_quarantined("own-q")
 
 
-# --- LaminarTarget.upload / check_signals ---------------------------------------------------
-
-
 class Hosted:
-    """Laminar HTTP seam: signals, the read-only SQL guard, and OTLP posts."""
+    """Read-only SQL seam for the retained Signal quarantine guard."""
 
-    def __init__(self, *, opt_in: bool = False, tagged: list[dict[str, Any]] | None = None) -> None:
-        self.opt_in = opt_in
-        self.tagged = tagged or []
+    def __init__(self, *, tagged: list[dict[str, Any]]) -> None:
+        self.tagged = tagged
         self.requests: list[str] = []
-        self.queries: list[dict[str, Any]] = []
-        self.posts: list[bytes] = []
 
     def __call__(self, request: Any, timeout: int) -> io.BytesIO:
         self.requests.append(request.full_url)
         if request.full_url.endswith("/v1/sql/query"):
-            self.queries.append(json.loads(request.data))
             return io.BytesIO(json.dumps({"data": self.tagged}).encode())
-        if request.get_method() == "GET":
-            signal = {
-                "name": "preset", "projectId": PROJECT_ID, "disabled": not self.opt_in,
-                "filters": [SIGNAL_OPT_IN_FILTER] if self.opt_in else [],
-            }
-            return io.BytesIO(json.dumps({"signals": [signal]}).encode())
-        self.posts.append(request.data)
-        return io.BytesIO(b"")
-
-
-def test_upload_refuses_a_quarantined_trace_before_any_request() -> None:
-    hosted = Hosted()
-    with pytest.raises(QuarantinedTrace):
-        LaminarTarget(api_key="k", opener=hosted).upload(payload(QUARANTINED))
-    assert hosted.requests == []
-
-
-def test_upload_still_admits_a_non_quarantined_trace() -> None:
-    hosted = Hosted()
-    result = LaminarTarget(api_key="k", opener=hosted).upload(payload("own-ok"))
-    assert hosted.posts and result["remote_id"] == trace_uuid("own-ok")
-
-
-def test_signals_opt_in_verifies_no_quarantined_copy_carries_the_tag() -> None:
-    clean = Hosted(opt_in=True)
-    LaminarTarget(api_key="k", opener=clean, signals_opt_in=True).upload(payload("gf-1", GOODFIRE_DATASET))
-    assert clean.queries[0]["parameters"] == {
-        "ids": sorted(quarantine.QUARANTINED_REMOTE_IDS), "tag": SIGNAL_OPT_IN_TAG,
-    }
-    assert clean.posts
-    tagged = Hosted(opt_in=True, tagged=[{"trace_id": QUARANTINED}])
-    with pytest.raises(QuarantinedTrace):
-        LaminarTarget(api_key="k", opener=tagged, signals_opt_in=True).upload(
-            payload("gf-1", GOODFIRE_DATASET)
-        )
-    assert tagged.posts == []
+        raise AssertionError("Quarantined copies must prevent Signal writes")
 
 
 def test_every_signal_definition_requires_the_opt_in_tag() -> None:
@@ -158,47 +97,6 @@ def test_apply_signals_refuses_when_a_quarantined_copy_is_selectable() -> None:
     with pytest.raises(QuarantinedTrace):
         apply_signals(api_key="k", opener=hosted)
     assert [url for url in hosted.requests if not url.endswith("/v1/sql/query")] == []
-
-
-# --- sync / watch ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(("target", "uploaded", "skipped"), [
-    ("laminar", ["own-ok"], 1),
-    ("docent", [QUARANTINED, "own-ok"], 0),
-])
-def test_sync_skips_quarantined_traces_for_laminar_only(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, target: str, uploaded: list[str], skipped: int,
-) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
-    database = tmp_path / "db.sqlite"
-    sqlite3.connect(database).close()
-    refs = [SimpleNamespace(trace_id=item, dataset_id=DATASET) for item in (QUARANTINED, "own-ok")]
-    monkeypatch.setattr(sync_module, "select_traces", lambda *a, **kw: refs)
-    monkeypatch.setattr(sync_module, "load_trace", lambda con, ref, **kw: payload(ref.trace_id))
-
-    class Uploader:
-        def __init__(self) -> None:
-            self.uploads: list[str] = []
-
-        def upload(self, trace: TracePayload) -> dict[str, Any]:
-            self.uploads.append(trace.trace_id)
-            return {"remote_id": "remote", "payload_bytes": 9}
-
-    uploader = Uploader()
-    report = sync_module.sync(
-        target, repo_root=tmp_path, db_path=database, root=tmp_path / "state", uploader=uploader,
-    )
-    assert uploader.uploads == uploaded
-    assert (report["quarantined"], report["selected"]) == (skipped, 2 - skipped)
-
-
-def test_watch_summary_carries_the_quarantined_count() -> None:
-    from evallab.trace_store.watch import _summary
-
-    assert _summary({"quarantined": 3})["quarantined"] == 3
-
-
 
 
 # --- live exporter and importer -------------------------------------------------------------

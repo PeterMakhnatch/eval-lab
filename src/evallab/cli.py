@@ -5968,15 +5968,6 @@ def parser() -> argparse.ArgumentParser:
 
     register_autoreview(trace_actions)
 
-    goodfire = commands.add_parser(
-        "goodfire",
-        help="Fast Goodfire DEV run cards (run id, task stmt if present, steps split narration/call/output with lengths); DEV admission gate, zero labels in cards",
-    )
-    goodfire_commands = goodfire.add_subparsers(dest="goodfire_command", required=True)
-    from evallab.production import goodfire as goodfire_mod
-
-    goodfire_mod.register_subcommands(goodfire_commands)
-
     fetch = commands.add_parser(
         "fetch",
         help="Acquire a pinned Harbor Hub dataset into library/benchmarks/",

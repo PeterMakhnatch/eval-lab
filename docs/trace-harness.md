@@ -43,7 +43,7 @@ Use `evallab score` for current cached measurements and `evallab --help` for sup
 | Playbook cards (`hackbook/playbook_cards.py`, 12 cards in `playbook_cards_v1.json`) | `evallab hackbook cards [--flag NAME] [--kind task\|trace]` | fired flag names | nothing | `qa-data history`, Task QA, dashboard | none: advice text, not a detector | none |
 | Inspect Scout scan, four text scanners (`readers/scout_clouddb.py`, `scout_watch.py`, PR #1315) | `uv run --with inspect-scout==0.5.4 python -m evallab.readers.scout_clouddb run`; `evallab qa-data scan` | blinded DEV transcripts (actor-v2 projection) | `trace-tools/results-v1.jsonl` (45,169 rows; 41,823 are Scout) | tool scorecard; `qa-data findings` | any flag, tool scorecard: Goodfire DEV 131/1,636 = 8.0% recall, 107/752 = 14.2% false alarm; CB-150 19/75 = 25.3%, 34/75 = 45.3% (`tt1-scorecard.md`). Noisy | none, deterministic |
 | METR reward-hacking scanner (`metr-scanners 0.1.11`; `readers/scout_metr.py` is the older GLM path; native arms in `research/evidence/runs/trace-tools-tt4-20261027/`, #1378; #1388 open) | `python -m evallab.readers.scout_metr` (GLM); arms via that directory's `run.py` | blinded GF-200 (actor-v2) | `results-v1.jsonl` (`scout_metr`, 1,800 rows, 3 arms) | tool scorecard | Kimi arm, GF-200: 37 of 200 scored (163 not run, quota stop), at >=5: 3/13 recall, 0/12 false alarm (TT-4). Not a full-cohort number | Kimi `k3.1-pro-highspeed` (current), Grok 4.3 arm (8 scored), GLM 5.3 flash (`scout_metr.py` constant). OpenRouter Gemini arm: zero calls |
-| Laminar and Docent: private sync and readers (`trace_store/`, `readers/laminar_*`, `readers/docent_*`; #1317 #1334 #1365 #1381) | `evallab traces sync --target laminar\|docent`; `evallab traces fetch --source ...`; `python -m evallab.readers.docent_watch` | admitted DEV traces (HackBench and CheatBench excluded by design) | hosted stores; `results-v1.jsonl` (Docent 769, Laminar 608 rows) | tool scorecard; `qa-data findings` | Docent any flag, GF-200: 3/42 scored hacks flagged, 0/27 clean; 38 of 80 hacks abstained (`tt1-scorecard.json`). Laminar: no scored DEV rows | Docent `openai/gpt-5.4-mini`; Laminar Signals run Laminar-side, model not recorded here |
+| Laminar and Docent readers (`readers/laminar_*`, `readers/docent_*`; #1317 #1334 #1365 #1381) | retained read-only source readers; remote replica writers are retired | admitted DEV traces (HackBench and CheatBench excluded by design) | `results-v1.jsonl` (Docent 769, Laminar 608 retained rows) | tool scorecard; `qa-data findings` | Docent any flag, GF-200: 3/42 scored hacks flagged, 0/27 clean; 38 of 80 hacks abstained (`tt1-scorecard.json`). Laminar: no scored DEV rows | Docent `openai/gpt-5.4-mini`; historical Laminar Signal model not recorded here |
 | Harbor analyze reader (`readers/harbor_analyze.py`) | `keys run -- python -m evallab.readers.harbor_analyze` (`reward_hacking`, `task_specification`) | Harbor trial copies | verdict files under `~/Library/Application Support/evallab/readers` | task pages, `evallab detectors` | none on DEV cohorts; only the small `detectors-v1` sets (not quoted: different corpus) | `openai/glm-5.3-flash` (Z.ai) |
 | Failure library (`failure_library/`, #1276 #1309) | `evallab failures ingest\|runs\|mine\|pack\|loop\|stats` | published findings and runs | `research/failure-library/` in git; run records in local state | Task QA loop, seeker lanes | none for trace detection; it holds records, not detectors | none (loop lanes use subscription agents) |
 | `evallab qa-data` (#1335; 13 calls incl. `scan`, `export`, `steps`) | `evallab qa-data <call> --help` | admitted DEV store only; one identical refusal for TEST, cross-key, unknown ids | nothing | read-only QA agents | not a detector. CE-21: 26 of 27 agent answers right (9 Haiku agents, 3 rounds) | none |
@@ -59,20 +59,14 @@ Trace Tools operations (offline, read-only unless stated):
   traces by safe, actor-history-unavailable, hydration-unavailable and secret-veto bucket.
   Prices only an explicit versioned scenario; a missing rate, token count, generation,
   retry or tariff stays `null`, never a full-corpus quote.
-- `python -m evallab.trace_store.owner_cleanup`: read-only check that exactly the 108
-  owner-action Laminar copies are absent. Only a complete, project-bound inventory with
-  108 `absent` returns exit 0; partial, failed, empty or wrong-project output is `unknown`.
 - **Laminar quarantine** (`trace_store/laminar_quarantine.py`): those 108 copies cannot be
   deleted. The owner's UI/API delete answered HTTP 500 (`DELETE query is not allowed for
   table default.spans because it has projections ...`, 2026-10-28; nothing deleted), so
-  `owner_cleanup` stays `cleanup_verified: false` and the ids are quarantined in code
-  instead. One predicate, `is_quarantined`, takes a Laminar trace id, a cloud-DB trace id
-  or a Harbor trial name. Uploads (`LaminarTarget.upload`) refuse; `traces sync --target
-  laminar` and the watch tick skip and report `quarantined`; `traces fetch --source laminar`,
-  the live exporter, `laminar_import`/`laminar_signals`/`laminar compare` and the `laminar`
-  and `laminar_copy` harness detectors skip and count. Signal filters have no trace-id
-  predicate, so they stay excluded by the required opt-in tag: `laminar signals` and the
-  opt-in upload guard refuse if a copy carries that tag. `owner_cleanup` still reads them.
+  the retained cleanup receipt stays `cleanup_verified: false`. The IDs remain quarantined in code.
+  The cleanup checker and remote replica writers are retired; their removal does not remove evidence.
+  One predicate, `is_quarantined`, accepts a Laminar trace ID, a cloud-DB trace ID, or a Harbor trial name.
+  The live exporter, `laminar_import`, `laminar_signals`, `laminar compare`, and harness detectors skip and count these IDs.
+  Signal filters require the opt-in tag. `laminar signals` refuses if a quarantined copy carries that tag.
 - `python -m evallab.readers.metr_campaign_plan prepare|export`: offline planner for the
   frozen 200 Goodfire runs plus the disjoint rest of admitted DEV. `export` converts only
   already-stored METR results into `trace-findings/v1`; an unread run has no finding, a

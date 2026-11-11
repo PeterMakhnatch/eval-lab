@@ -123,11 +123,7 @@ def test_gap_reason_errored_when_cells_recorded_no_verdict() -> None:
 def test_gap_reason_stale_digest_beats_errored() -> None:
     # Cells recorded a digest that no longer matches today's package bytes:
     # "stale bytes" names the fix (re-run) better than "errored".
-    rows = [
-        _coverage_row(
-            "p", "1.4.0", n_cells="2", digest_recorded="yes", digest_current="no"
-        )
-    ]
+    rows = [_coverage_row("p", "1.4.0", n_cells="2", digest_recorded="yes", digest_current="no")]
     [gap] = gap_rows(rows)
     assert gap["reason"] == "stale-digest"
 
@@ -138,7 +134,11 @@ def test_superseded_by_is_the_highest_later_verdict_on_the_current_digest() -> N
         _coverage_row("p", "2.0.0"),
         _coverage_row("p", "3.0.0", verdict="clean", n_cells="3", digest_current="no"),
         _coverage_row(
-            "p", "4.0.0", verdict="clean", n_cells="4", digest_current="yes",
+            "p",
+            "4.0.0",
+            verdict="clean",
+            n_cells="4",
+            digest_current="yes",
             digest_recorded="yes",
         ),
     ]
@@ -191,9 +191,7 @@ def test_the_guard_reports_a_package_without_a_row() -> None:
 
 def test_a_missing_library_tasks_directory_is_refused(tmp_path: Path) -> None:
     # No library/tasks at all: this root is not a checkout the builder can read.
-    with pytest.raises(
-        MODULE["CoverageError"], match="library tasks directory is missing"
-    ):
+    with pytest.raises(MODULE["CoverageError"], match="library tasks directory is missing"):
         discover_packages(tmp_path)
 
 
@@ -209,18 +207,14 @@ def test_a_package_without_a_declared_task_name_is_refused(tmp_path: Path) -> No
     task_dir = tmp_path / "library/tasks/nameless"
     task_dir.mkdir(parents=True)
     (task_dir / "task.toml").write_text('[task]\nversion = "1.0.0"\n', encoding="utf-8")
-    with pytest.raises(
-        MODULE["CoverageError"], match=r"declares no \[task\] name in task.toml"
-    ):
+    with pytest.raises(MODULE["CoverageError"], match=r"declares no \[task\] name in task.toml"):
         discover_packages(tmp_path)
 
 
 def test_two_packages_with_the_same_task_name_are_refused(tmp_path: Path) -> None:
     _package(tmp_path, "library/tasks/one", "peter/same")
     _package(tmp_path, "library/tasks/two", "peter/same")
-    with pytest.raises(
-        MODULE["CoverageError"], match="two library packages declare the same"
-    ):
+    with pytest.raises(MODULE["CoverageError"], match="two library packages declare the same"):
         discover_packages(tmp_path)
 
 
@@ -400,9 +394,7 @@ def test_a_ledger_cell_scope_that_ran_other_bytes_is_refused(tmp_path: Path) -> 
             "controls": [],
         },
     )
-    with pytest.raises(
-        MODULE["CoverageError"], match="a variant scope ran on other bytes"
-    ):
+    with pytest.raises(MODULE["CoverageError"], match="a variant scope ran on other bytes"):
         MODULE["_ledger_cells"](tmp_path, {package.path: package})
 
 
@@ -419,9 +411,7 @@ def test_a_ledger_naming_an_unknown_ladder_version_is_refused(tmp_path: Path) ->
             "controls": [],
         },
     )
-    with pytest.raises(
-        MODULE["CoverageError"], match="extend LADDER_VERSIONS deliberately"
-    ):
+    with pytest.raises(MODULE["CoverageError"], match="extend LADDER_VERSIONS deliberately"):
         MODULE["_ledger_cells"](tmp_path, {package.path: package})
 
 
@@ -480,9 +470,7 @@ def test_build_refuses_packages_without_a_coverage_row(
         "coverage_gaps",
         lambda packages, rows: [("library/tasks/task", "1.4.0")],
     )
-    with pytest.raises(
-        MODULE["CoverageError"], match="packages without a coverage row"
-    ):
+    with pytest.raises(MODULE["CoverageError"], match="packages without a coverage row"):
         MODULE["build"](tmp_path)
 
 

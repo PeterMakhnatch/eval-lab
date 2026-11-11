@@ -1,5 +1,0 @@
-extend = "../../../pyproject.toml"
-
-[lint.per-file-ignores]
-# stats.py is a byte-identical copy of the overnight stats helper (sha256 in README); it is not reformatted here.
-"stats.py" = ["B905"]

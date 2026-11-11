@@ -1311,8 +1311,10 @@ It updates the route page's basis sentence and this page's basis table,
 covered count, signature counts, and summary table. It rewrites the
 evidence-match sentence on the route page and this page, and the
 pending-control sentence on the route page and this page, from the committed
-`ladder-evidence-receipt.json` and `pending-controls.json`. It also updates the
-refusal-rate calculation, refusal counts, refused-row attack counts and task
+`ladder-evidence-receipt.json` and `pending-controls.json`. It also rewrites
+the pending-control table, the held-task clause, the non-Python count and the
+four inventory paragraph counts from that inventory and the ranking. It also
+updates the refusal-rate calculation, refusal counts, refused-row attack counts and task
 IDs, and the graded rows' executed-attack range, histogram, and the unscored
 row's attack count. It generates Python's refusal and graded counts and
 remaining-hours projection. It rewrites the `docs/mimo/verification.md` clause
@@ -1363,7 +1365,8 @@ For a re-run or a new subset cell:
    count, the verification page's clause (c) counts and check date, Python's
    refusal and graded counts, Python's remaining-hours projection, the
    evidence-match and pending-control sentences on the route page and this
-   page, and the evidence-check sentences and totals from the receipt.
+   page, the pending-control table, the held-task clause and the inventory
+   prose counts, and the evidence-check sentences and totals from the receipt.
 6. Review and edit task-specific descriptions and evidence prose affected by
    the new cell manually. Do not edit a generated anchor sentence.
 7. Run `--sync-docs`, then prove that the generated pages did not drift, and run
@@ -1526,7 +1529,7 @@ task-specific prose manually.
 controls still owed are visible per ranking phase instead of as one flat
 inventory. A phase row counts only the tasks that still owe control cells.
 Cells of a task the inventory marks `runnable` fill the `runnable cells`
-column: the two held tasks `000803` and `000838` contribute the four cells
+column: the 2 held tasks `000803` and `000838` contribute the 4 cells
 that are not runnable. Each row is generated, not hand-computed:
 
 ```bash
@@ -1546,11 +1549,13 @@ uv run python research/experiments/mimo-clean-v6/ladder_progress.py --pending-co
 oracle x3 cell** and **2.81 min for a nop x3 cell**. One pending agent cell is
 already one repeat-3 control, so its mean covers that cell's three runs and
 the projection is `cells x mean`, not three times that. The hours count every
-pending cell, including the four held ones. Twelve of the ninety tasks are not
+pending cell, including the four held ones. 12 of the 90 tasks are not
 Python; their cells are projected with the Python means, so those rows are an
 estimate rather than a measurement of those languages. The mode reads only the
 manifest, the ranking and the inventory: it launches no Docker trial and reads
-no results root. The offline test suite compares this section with the renderer.
+no results root. `--sync-docs` rewrites this table, the held clause and the
+four inventory counts above; the offline test suite compares this section with
+the renderer.
 
 Before printing, `--pending-controls` checks the inventory against
 [manifest.csv](manifest.csv) (HAR-371). An entry whose `final_digest` differs

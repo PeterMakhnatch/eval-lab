@@ -108,10 +108,11 @@ summary with ``--summary``. ``--sync-docs`` rebuilds the tested documentation
 fragments from committed cells, the manifest, the ranking and the pending-control
 inventory: the graded-attack range and histogram, the subset row count and
 dropped/remaining attack counts, the evidence-match and pending-control
-sentences on the MiMo route page and this page, and the evidence section, check
-date and totals lines from the committed receipt, without reading or writing
-the CSV or host results. A receipt that does not list every committed cell and
-subset entry raises ``ProgressError``.
+sentences on the MiMo route page and this page, the pending-control table, the
+held clause and the four inventory prose counts, and the evidence section,
+check date and totals lines from the committed receipt, without reading or
+writing the CSV or host results. A receipt that does not list every committed
+cell and subset entry raises ``ProgressError``.
 It validates the receipt, the inventory and all three pages before any write.
 ``--render-slice CELL`` prints one cell file's seven-column README pipe-table
 rows, so a slice PR pastes generated rows instead of hand-copying them.
@@ -673,6 +674,17 @@ def render_summary(rows: Sequence[dict[str, str]]) -> str:
     return buffer.getvalue()
 
 
+def _read_pending_document(path: Path) -> dict[str, Any]:
+    """The parsed ``pending-controls.json`` object."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ProgressError(f"pending controls are unreadable: {path}: {error}") from error
+    if not isinstance(data, dict):
+        raise ProgressError(f"{path}: top level is not an object")
+    return data
+
+
 def read_pending_controls(path: Path, manifest: Mapping[str, str]) -> list[dict[str, Any]]:
     """The ``remaining_original_controls`` entries of ``pending-controls.json``.
 
@@ -686,12 +698,13 @@ def read_pending_controls(path: Path, manifest: Mapping[str, str]) -> list[dict[
     ``remaining_original_task_ids``. A rebuilt package or an edited list
     therefore fails here instead of projecting hours for the wrong bytes.
     """
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise ProgressError(f"pending controls are unreadable: {path}: {error}") from error
-    if not isinstance(data, dict):
-        raise ProgressError(f"{path}: top level is not an object")
+    return _pending_controls_of(_read_pending_document(path), path, manifest)
+
+
+def _pending_controls_of(
+    data: Mapping[str, Any], path: Path, manifest: Mapping[str, str]
+) -> list[dict[str, Any]]:
+    """Validate one parsed inventory object and return its control entries."""
     entries = data.get("remaining_original_controls")
     if not isinstance(entries, list):
         raise ProgressError(f"{path}: no remaining_original_controls list")
@@ -742,6 +755,65 @@ def read_pending_controls(path: Path, manifest: Mapping[str, str]) -> list[dict[
             f"{unlisted[0]}: has a control entry but is not in remaining_original_task_ids"
         )
     return controls
+
+
+def read_pending_inventory(path: Path, manifest: Mapping[str, str]) -> dict[str, Any]:
+    """The control entries plus the prose counts ``--sync-docs`` quotes.
+
+    ``read_pending_controls`` returns only the control cells. This reader adds
+    the counts the README states in prose, all read from ``tasks[]`` so no hand
+    count can drift:
+
+    * ``tasks``: every inventory task;
+    * ``pending_tasks``: the tasks that still list a ``pending_agents`` cell;
+    * ``pending_cells``: the sum of those lists;
+    * ``runnable_cells``: the same sum over the tasks marked ``runnable``;
+    * ``remaining_tasks``: the ``remaining_original_task_ids`` length;
+    * ``non_python_tasks``: the tasks among them whose ``language`` is not
+      ``python``.
+    """
+    data = _read_pending_document(path)
+    controls = _pending_controls_of(data, path, manifest)
+    tasks = data.get("tasks")
+    if not isinstance(tasks, list):
+        raise ProgressError(f"{path}: no tasks list")
+    records: dict[str, Mapping[str, Any]] = {}
+    for task in tasks:
+        if not isinstance(task, dict):
+            raise ProgressError(f"{path}: tasks holds a non-object entry")
+        task_id = task.get("task_id")
+        if not isinstance(task_id, str) or not task_id:
+            raise ProgressError(f"{path}: a task has no task_id")
+        if task_id in records:
+            raise ProgressError(f"{path}: tasks repeats {task_id}")
+        if not isinstance(task.get("language"), str) or not task["language"]:
+            raise ProgressError(f"{task_id}: language {task.get('language')!r} is missing")
+        pending = task.get("pending_agents")
+        if not isinstance(pending, list) or any(agent not in PENDING_AGENTS for agent in pending):
+            raise ProgressError(
+                f"{task_id}: pending_agents {pending!r} are not cells of {PENDING_AGENTS}"
+            )
+        if not isinstance(task.get("runnable"), bool):
+            raise ProgressError(f"{task_id}: runnable {task.get('runnable')!r} is not a boolean")
+        records[task_id] = task
+    missing = [
+        task_id for task_id in data["remaining_original_task_ids"] if task_id not in records
+    ]
+    if missing:
+        raise ProgressError(f"{missing[0]}: remaining task is absent from tasks")
+    return {
+        "controls": controls,
+        "tasks": len(tasks),
+        "pending_tasks": sum(1 for task in tasks if task["pending_agents"]),
+        "pending_cells": sum(len(task["pending_agents"]) for task in tasks),
+        "runnable_cells": sum(len(task["pending_agents"]) for task in tasks if task["runnable"]),
+        "remaining_tasks": len(data["remaining_original_task_ids"]),
+        "non_python_tasks": sum(
+            1
+            for task_id in data["remaining_original_task_ids"]
+            if records[task_id]["language"] != "python"
+        ),
+    }
 
 
 def projected_control_hours(oracle_cells: int, nop_cells: int) -> float:
@@ -1284,6 +1356,80 @@ def _pending_sentence_edits(
     ]
 
 
+def _pending_inventory_edits(
+    inventory: Mapping[str, Any],
+    ranking: Sequence[Mapping[str, str]],
+    text: str,
+    page: Path,
+) -> list[tuple[int, int, str]]:
+    """Edits that rewrite the pending table and the section's hand counts.
+
+    The table is ``render_pending_controls`` output. The held clause counts the
+    controls the inventory marks not runnable, and the inventory paragraph's
+    four counts and the non-Python sentence come from ``tasks[]``. A missing or
+    repeated anchor raises ``ProgressError`` here, before any page is written.
+    """
+    table = _doc_table(
+        text,
+        page,
+        PENDING_HEADING,
+        (
+            "phase",
+            "tasks",
+            "oracle cells",
+            "nop cells",
+            "runnable cells",
+            "projected serial hours",
+        ),
+    )
+    newline = "\r\n" if "\r\n" in text else "\n"
+    held = [control for control in inventory["controls"] if not control["runnable"]]
+    held_ids = _prose_list([f"`{_slice_task(control['task_id'])}`" for control in held])
+    fragments = (
+        (
+            "Across the",
+            r"Across\s+the\s+([0-9]+)-task\s+inventory,\s+([0-9]+)\s+tasks\s+have\s+"
+            r"([0-9]+)\s+outstanding\s+control\s+cells\.\s+Of\s+those,\s+"
+            r"\*\*([0-9]+)\s+are\s+runnable\*\*",
+            (
+                inventory["tasks"],
+                inventory["pending_tasks"],
+                inventory["pending_cells"],
+                inventory["runnable_cells"],
+            ),
+        ),
+        (
+            "held tasks",
+            r"the\s+([0-9]+)\s+held\s+tasks\s+("
+            + _prose_list_pattern(r"`[0-9]{6}`")
+            + r")\s+contribute\s+the\s+([0-9]+)\s+cells\s+that\s+are\s+not\s+runnable",
+            (len(held), held_ids, sum(len(control["agents"]) for control in held)),
+        ),
+        (
+            "tasks are not Python",
+            r"([0-9]+)\s+of\s+the\s+([0-9]+)\s+tasks\s+are\s+not\s+Python",
+            (inventory["non_python_tasks"], inventory["remaining_tasks"]),
+        ),
+    )
+    edits: list[tuple[int, int, str]] = [
+        (
+            table.start(),
+            table.end(),
+            render_pending_controls(inventory["controls"], ranking)
+            .rstrip("\n")
+            .replace("\n", newline),
+        )
+    ]
+    for anchor, pattern, values in fragments:
+        _doc_match(r"\s+".join(map(re.escape, anchor.split())), text, page, anchor)
+        match = _doc_match(pattern, text, page, f"complete {anchor} fragment")
+        edits.extend(
+            (match.start(index), match.end(index), str(value))
+            for index, value in enumerate(values, start=1)
+        )
+    return edits
+
+
 def _evidence_sentence_edits(
     receipt: Mapping[str, Any], text: str, page: Path, kind: str
 ) -> list[tuple[int, int, str]]:
@@ -1418,11 +1564,13 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
 
     The evidence sentences and totals lines come from the committed
     ``ladder-evidence-receipt.json``, never from the host results root. The
-    pending-control sentences come from ``pending-controls.json``.
+    pending-control sentences, the pending table, the held clause and the
+    inventory prose counts come from ``pending-controls.json`` and the ranking.
     """
     receipt = read_receipt(cells_dir, root)
     manifest = read_manifest(cells_dir)
-    controls = read_pending_controls(cells_dir / PENDING_NAME, manifest)
+    inventory = read_pending_inventory(cells_dir / PENDING_NAME, manifest)
+    controls = inventory["controls"]
     subsets = read_subset_cells(cells_dir, root, manifest=manifest)
     pages = (
         root / "docs" / "mimo" / "README.md",
@@ -1580,6 +1728,7 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
             *_evidence_edits(receipt, text, page),
             *_evidence_sentence_edits(receipt, text, page, "experiment"),
             *_pending_sentence_edits(controls, text, page, "experiment"),
+            *_pending_inventory_edits(inventory, read_ranking(root), text, page),
         ],
     )
     page = pages[2]

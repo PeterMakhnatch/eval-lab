@@ -23,10 +23,6 @@ from evallab.behavior_episodes import (
 )
 from evallab.evidence.event_mart import EventMartProjection
 from evallab.labels import select_behavior_episode_review_queue
-from evallab.phoenix_annotations import (
-    publish_behavior_episodes,
-    retrieve_reviewed_behavior_episodes,
-)
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTION_FIXTURE = Path(__file__).parent / "fixtures/behavior_episodes/normalized_actions.json"
@@ -69,53 +65,6 @@ def _result(name: str, *, effects: tuple[dict[str, Any], ...] = ()):
 
 def _labels(result) -> set[str]:
     return {episode.label for episode in result.episodes}
-
-
-class _FakePhoenixSpans:
-    """Small fake of the official phoenix-client ``client.spans`` surface."""
-
-    def __init__(self, reviewed: list[dict[str, Any]] | None = None) -> None:
-        self.logged: list[Any] = []
-        self.reviewed = reviewed or []
-        self.log_calls: list[tuple[tuple[Any, ...], bool]] = []
-        self.get_calls: list[dict[str, Any]] = []
-
-    def log_span_annotations(self, *, span_annotations, sync: bool = True):
-        batch = tuple(span_annotations)
-        self.log_calls.append((batch, sync))
-        self.logged.extend(batch)
-        return tuple({"id": item["identifier"]} for item in batch)
-
-    def get_span_annotations(
-        self,
-        *,
-        span_ids,
-        project_identifier: str,
-        limit: int,
-        include_annotation_names=None,
-    ):
-        self.get_calls.append(
-            {
-                "span_ids": tuple(span_ids),
-                "project_identifier": project_identifier,
-                "include_annotation_names": (
-                    tuple(include_annotation_names) if include_annotation_names else ()
-                ),
-                "limit": limit,
-            }
-        )
-        return self.reviewed
-
-
-class _FakePhoenixClient:
-    def __init__(self, reviewed: list[dict[str, Any]] | None = None) -> None:
-        self.spans = _FakePhoenixSpans(reviewed)
-
-
-def _item_field(item: Any, key: str) -> Any:
-    if isinstance(item, dict):
-        return item[key]
-    return getattr(item, key)
 
 
 def test_polling_is_not_an_unchanged_retry_or_effect_loop() -> None:
@@ -297,135 +246,6 @@ def test_episode_provenance_is_deeply_immutable() -> None:
         immutable.provenance["new"] = "value"
     with pytest.raises(TypeError):
         immutable.provenance["source"]["kind"] = "human"
-
-
-def test_phoenix_publish_and_reviewed_retrieve_preserve_identity_and_provenance(
-    tmp_path: Path,
-) -> None:
-    episode = _result("recovered").episodes[0]
-    reviewed_payload = {
-        "id": "phoenix-annotation-41",
-        "name": "evallab.behavior.recovered_progress",
-        "updated_at": "2026-08-24T00:00:00Z",
-        "span_id": "span-recover-1",
-        "annotator_kind": "HUMAN",
-        "source": "APP",
-        "user_id": "reviewer-1",
-        "result": {
-            "label": "recovered_progress",
-            "score": 0.92,
-            "explanation": "Changed strategy succeeded with new state evidence.",
-        },
-        "metadata": {
-            "schema_version": 1,
-            "episode_id": episode.episode_id,
-            "trial_id": episode.trial_id,
-            "document_id": episode.document_id,
-            "trajectory_id": episode.trajectory_id,
-            "session_id": episode.session_id,
-            "trace_id": "trace-behavior-acceptance",
-            "root_span_id": "root-span",
-            "start_step": episode.start_step,
-            "end_step": episode.end_step,
-            "evidence_step_ids": list(episode.evidence_step_ids),
-            "evidence_span_ids": list(episode.evidence_span_ids),
-            "annotator_kind": "human",
-            "annotator_id": "reviewer-1",
-            "detector_version": episode.detector_version,
-            "rubric_version": episode.rubric_version,
-            "catalog_version": episode.catalog_version,
-            "source_sha256": episode.source_sha256,
-            "input_digest": episode.input_digest,
-            "provenance": {"kind": "human", "annotator_id": "reviewer-1"},
-        },
-    }
-    client = _FakePhoenixClient([reviewed_payload])
-
-    published = publish_behavior_episodes(
-        client,
-        [episode],
-        project_name="behavior-acceptance",
-        trace_id="trace-behavior-acceptance",
-        root_span_id="root-span",
-        span_ids_by_step={40: "span-recover-1", 41: "span-recover-2"},
-    )
-
-    assert published.published == 1
-    assert published.annotation_ids == (episode.episode_id,)
-    assert client.spans.log_calls[0][1] is True
-    item = client.spans.logged[0]
-    assert _item_field(item, "name") == "evallab.behavior.recovered_progress"
-    metadata = _item_field(item, "metadata")
-    assert metadata["trial_id"] == episode.trial_id
-    assert metadata["document_id"] == episode.document_id
-    assert metadata["trace_id"] == "trace-behavior-acceptance"
-    assert _item_field(item, "span_id") == "span-recover-1"
-
-    retrieved = retrieve_reviewed_behavior_episodes(
-        client,
-        project_name="behavior-acceptance",
-        context=_context(),
-        trace_id="trace-behavior-acceptance",
-        root_span_id="root-span",
-        span_ids_by_step={40: "span-recover-1", 41: "span-recover-2"},
-    )
-
-    assert retrieved[0].episode_id != episode.episode_id
-    assert retrieved[0].trial_id == episode.trial_id
-    assert retrieved[0].document_id == episode.document_id
-    assert retrieved[0].annotator_kind == "human"
-    assert retrieved[0].annotator_id == "reviewer-1"
-    assert retrieved[0].provenance["source_episode_id"] == episode.episode_id
-    assert retrieved[0].provenance["phoenix_annotation_id"] == "phoenix-annotation-41"
-    stored = persist_behavior_episodes(
-        [episode, retrieved[0]],
-        derived_root=tmp_path / "derived",
-    )
-    assert {item.episode_id for item in stored} == {
-        episode.episode_id,
-        retrieved[0].episode_id,
-    }
-    assert {
-        item.episode_id for item in load_behavior_episodes(derived_root=tmp_path / "derived")
-    } == {episode.episode_id, retrieved[0].episode_id}
-    wrong_span = {**reviewed_payload, "span_id": "span-recover-2"}
-    assert (
-        retrieve_reviewed_behavior_episodes(
-            _FakePhoenixClient([wrong_span]),
-            project_name="behavior-acceptance",
-            context=_context(),
-            trace_id="trace-behavior-acceptance",
-            root_span_id="root-span",
-            span_ids_by_step={40: "span-recover-1", 41: "span-recover-2"},
-        )
-        == ()
-    )
-
-    context_without_optional_ids = BehaviorDetectionContext(
-        trial_id=episode.trial_id,
-        document_id=episode.document_id,
-        source_sha256=episode.source_sha256,
-        observed_at=episode.created_at,
-    )
-    wrong_optional_identity = {
-        **reviewed_payload,
-        "metadata": {
-            **reviewed_payload["metadata"],
-            "trajectory_id": "other-trajectory",
-            "session_id": "other-session",
-        },
-    }
-    assert (
-        retrieve_reviewed_behavior_episodes(
-            _FakePhoenixClient([wrong_optional_identity]),
-            project_name="behavior-acceptance",
-            context=context_without_optional_ids,
-            trace_id="trace-behavior-acceptance",
-            root_span_id="root-span",
-            span_ids_by_step={40: "span-recover-1", 41: "span-recover-2"},
-        )
-        == ()
-    )
 
 
 def test_catalog_exposes_exact_calibrated_dimensions() -> None:

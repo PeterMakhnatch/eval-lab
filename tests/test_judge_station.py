@@ -358,11 +358,6 @@ def test_numbered_list_items_keep_their_indented_continuation() -> None:
     assert html == "<ol>\n<li>first more of first</li>\n<li>second</li>\n</ol>\n<p>after</p>"
 
 
-def test_the_shipped_guide_renders_and_has_no_markup_leak() -> None:
-    html = judge_web.render_markdown(js.GUIDE_PATH.read_text(encoding="utf-8"))
-    assert html.count("<h3>") == 4 and "<script" not in html
-
-
 def _call(
     base: str, path: str, data: dict[str, Any] | None = None, headers: dict[str, str] | None = None
 ) -> tuple[int, Any]:

@@ -23,7 +23,7 @@ Three product layers, in this order:
 | Layer | Job | Where it lives |
 |---|---|---|
 | **Platform** | Harbor wrapper: admit, run, preserve evidence | `src/evallab/runner.py`, `queue.py`, `cli.py`, `library/` |
-| **Data pipeline** | ATIF → facts → Parquet features | `src/evallab/evidence/`, `storage/`, `interpretation/feature_registry.py` |
+| **Data pipeline** | ATIF → facts → Parquet features | `src/evallab/evidence/`, `storage/`, `interpretation/features.py` |
 | **Research analysis** | Questions over those tables | `research/analysis/`, `sql/`, `src/evallab/cohort.py`, `curve.py` |
 
 **Harbor-native synthetic benchmark packages.** These are measurement tasks on

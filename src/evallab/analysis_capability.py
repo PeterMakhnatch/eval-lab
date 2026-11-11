@@ -1900,7 +1900,7 @@ def _validate_outcome_and_predictors(
             return feature_registry.get(name)
         return None
 
-    from evallab.interpretation.feature_registry import feature_analysis_eligibility
+    from evallab.interpretation.run_report import feature_analysis_eligibility
 
     outcome = get(spec.outcome_feature)
     if outcome is None:

@@ -531,9 +531,11 @@ def _bridged_trial(tmp_path: Path) -> Path:
 
 
 def test_domain_plugin_detects_builds_and_renders(tmp_path: Path) -> None:
-    from evallab.interpretation.domains import domain_section, render_domain_markdown
-    from evallab.interpretation.domains.ceo_bench import CeoBenchPlugin
-    from evallab.interpretation.run_report import render_run_report_markdown
+    from evallab.interpretation.run_report import (
+        CeoBenchPlugin,
+        domain_section,
+        render_run_report_markdown,
+    )
 
     trial = _bridged_trial(tmp_path)
     result = json.loads((trial / "result.json").read_text(encoding="utf-8"))
@@ -566,12 +568,10 @@ def test_domain_plugin_detects_builds_and_renders(tmp_path: Path) -> None:
     assert "## Domain: ceo_bench" in markdown
     assert "No bankruptcy" in markdown
     assert "never merged into agent cost" in markdown
-    assert render_domain_markdown(None) == []
 
 
 def test_domain_plugin_ignores_non_ceo_trials(tmp_path: Path) -> None:
-    from evallab.interpretation.domains import domain_section
-    from evallab.interpretation.domains.ceo_bench import CeoBenchPlugin
+    from evallab.interpretation.run_report import CeoBenchPlugin, domain_section
 
     trial = tmp_path / "plain"
     trial.mkdir()
@@ -582,8 +582,7 @@ def test_domain_plugin_ignores_non_ceo_trials(tmp_path: Path) -> None:
 
 
 def test_domain_plugin_malformed_sidecar_is_unreadable(tmp_path: Path) -> None:
-    from evallab.interpretation.domains import domain_section
-    from evallab.interpretation.domains.ceo_bench import CeoBenchPlugin
+    from evallab.interpretation.run_report import CeoBenchPlugin, domain_section
 
     trial = _bridged_trial(tmp_path)
     (trial / "ceo_bench" / "spend.json").write_text("{broken", encoding="utf-8")

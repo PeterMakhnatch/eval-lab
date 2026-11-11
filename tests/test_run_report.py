@@ -1075,7 +1075,7 @@ def test_first_failure_is_null_for_a_clean_run(tmp_path: Path) -> None:
 
 
 def test_repo_edit_paths_ignores_quoted_greater_than() -> None:
-    from evallab.interpretation.outside_fetch import repo_edit_paths
+    from evallab.interpretation.run_report import repo_edit_paths
 
     assert repo_edit_paths("bash", "awk 'NR>=125 && NR<=240' schema.py") == []
     assert repo_edit_paths("bash", 'python3 -c "print(1>0)"') == []

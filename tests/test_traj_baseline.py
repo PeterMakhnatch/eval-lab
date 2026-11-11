@@ -7,18 +7,13 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from evallab.interpretation.traj_baseline import (
-    TRACE_BASELINE_PARQUET_SCHEMA,
-    TRACE_BASELINE_PROVENANCE,
-    _compute_cbv_slope,
-    _compute_exit_code_cascade,
-    _compute_subagent_overhead,
-    compute_trace_baseline,
-)
+from evallab.interpretation.run_report import _compute_subagent_overhead, compute_trace_baseline
 from evallab.traj import (
     LoopSuspicion,
     StepOutline,
     TrajectoryOutline,
+    _compute_cbv_slope,
+    _compute_exit_code_cascade,
     extract_features,
 )
 
@@ -128,28 +123,6 @@ def sample_steps() -> list[StepOutline]:
             thought_snippet="Verifier pass",
         ),
     ]
-
-
-def test_provenance_registry_completeness() -> None:
-    """Every column in schema has documented provenance and screening classification."""
-    schema_fields = set(TRACE_BASELINE_PARQUET_SCHEMA.names)
-    provenance_keys = set(TRACE_BASELINE_PROVENANCE.keys())
-
-    assert schema_fields == provenance_keys, f"Mismatch: {schema_fields ^ provenance_keys}"
-
-    for col_name, prov in TRACE_BASELINE_PROVENANCE.items():
-        assert prov.column_name == col_name
-        assert prov.data_type in ("VARCHAR", "BIGINT", "DOUBLE", "BOOLEAN")
-        assert prov.category in ("identity", "mechanical_fact", "screening_heuristic")
-        if prov.is_screening:
-            assert prov.category == "screening_heuristic"
-            assert (
-                col_name.endswith("_screening")
-                or "screening" in col_name
-                or "score" in col_name
-                or "detected" in col_name
-                or "reasons" in col_name
-            )
 
 
 def test_cbv_slope_calculation(sample_steps: list[StepOutline]) -> None:

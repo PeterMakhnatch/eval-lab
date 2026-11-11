@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from evallab.evidence_store import restore_evidence
-from evallab.interpretation.traj_baseline import TraceBaselineRecord, compute_trace_baseline
+from evallab.interpretation.run_report import TraceBaselineRecord, compute_trace_baseline
 from evallab.interpretation.trajectory_hydration import (
     CitationHandle,
     RedactionPolicy,
@@ -1578,7 +1578,7 @@ def build_trajectory_ir(
                 }
             )
 
-        from evallab.interpretation.evidence_pack import compute_evidence_coverage_metrics
+        from evallab.interpretation.run_report import compute_evidence_coverage_metrics
 
         coverage_metrics = compute_evidence_coverage_metrics(
             events=updated_events,

@@ -6,8 +6,7 @@ detection logic of its own:
 * per-trial signals (:func:`evallab.live_watch.trial_signals`): steps,
   episodes, token sums, first repo edit, upstream attempts, identical runs;
 * repo-edit detector (:mod:`evallab.token_flow`, via live_watch);
-* command verbs (:mod:`evallab.interpretation.outside_fetch` quote-aware
-  segment/program splitters);
+* command verbs (the quote-aware segment/program splitters in this module);
 * loop onset (:func:`evallab.token_flow.analyze_token_flow`);
 * copy taint (:func:`evallab.copy_check.copy_check`) folded into the
   :func:`evallab.counts.classify_counts` verdict;
@@ -23,6 +22,7 @@ from __future__ import annotations
 import argparse
 import csv
 import re
+import shlex
 import time
 from datetime import datetime
 from pathlib import Path
@@ -173,9 +173,123 @@ def _observation_text(step: dict[str, Any]) -> str:
     )
 
 
+# Shell words that only prefix a command and never name the program.
+_WRAPPERS = frozenset({"sudo", "doas", "env", "nice", "nohup", "time", "timeout", "stdbuf"})
+_ASSIGN_RE = re.compile(r"(?m)^\s*([A-Za-z_]\w*)\s*=\s*(?:Path\(\s*)?['\"]([^'\"]+)['\"]")
+_DURATION_RE = re.compile(r"^\d+(?:\.\d+)?[smhd]?$")
+_HEREDOC_RE = re.compile(r"<<-?\s*['\"]?(\w+)['\"]?")
+
+
+def _strip_heredocs(command: str) -> str:
+    """Drop heredoc bodies; they are the model's own text, not commands.
+
+    A fix pasted inside ``python - <<'EOF' ... EOF`` cites URLs in comments.
+    Those are not fetches, so the body is removed before any scanning.
+    """
+    lines = command.split("\n")
+    kept: list[str] = []
+    terminator: str | None = None
+    for line in lines:
+        if terminator is not None:
+            if line.strip() == terminator:
+                terminator = None
+            continue
+        match = _HEREDOC_RE.search(line)
+        if match:
+            terminator = match.group(1)
+            kept.append(line[: match.start()])
+            continue
+        kept.append(line)
+    return "\n".join(kept)
+
+
+def _raw_segments(command: str) -> list[str]:
+    """Split on ``&&``/``||``/``;``/newline, but not inside quotes.
+
+    A joined step (``python3 -c "...; ..." ; curl URL``) is several commands.
+    The semicolon inside the Python string is not a command boundary.
+    """
+    text = _strip_heredocs(command)
+    parts: list[str] = []
+    buf: list[str] = []
+    quote: str | None = None
+    index = 0
+    length = len(text)
+    while index < length:
+        char = text[index]
+        if quote is not None:
+            buf.append(char)
+            if char == "\\" and quote == '"' and index + 1 < length:
+                buf.append(text[index + 1])
+                index += 2
+                continue
+            if char == quote:
+                quote = None
+            index += 1
+            continue
+        if char in {"'", '"'}:
+            quote = char
+            buf.append(char)
+            index += 1
+            continue
+        if text.startswith("&&", index) or text.startswith("||", index):
+            parts.append("".join(buf))
+            buf = []
+            index += 2
+            continue
+        if char in {";", "\n"}:
+            parts.append("".join(buf))
+            buf = []
+            index += 1
+            continue
+        buf.append(char)
+        index += 1
+    parts.append("".join(buf))
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _segments(command: str) -> list[list[str]]:
+    """Tokenize each command segment, heredoc bodies removed.
+
+    Unparseable segments fall back to whitespace tokens.
+    """
+    segments: list[list[str]] = []
+    for raw in _raw_segments(command):
+        try:
+            tokens = shlex.split(raw, posix=True)
+        except ValueError:
+            tokens = raw.split()
+        if tokens:
+            segments.append(tokens)
+    return segments
+
+
+def _program(tokens: list[str]) -> tuple[str, list[str]] | None:
+    """First real program of a segment, past env assignments, wrappers, and durations.
+
+    ``timeout 10 curl URL`` names ``curl``: the duration is an argument of the
+    wrapper, not the program that fetched.
+    """
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if (
+            _ASSIGN_RE.match(token)
+            or token in _WRAPPERS
+            or token.startswith("-")
+            or _DURATION_RE.match(token)
+        ):
+            index += 1
+            continue
+        break
+    if index >= len(tokens):
+        return None
+    head = tokens[index].rsplit("/", 1)[-1]
+    return head, tokens[index + 1 :]
+
+
 def _tool_verbs(agent_steps: list[dict[str, Any]]) -> dict[str, int]:
     """Bash command verbs (quote-aware) plus ``@tool`` tallies for the rest."""
-    from evallab.interpretation.outside_fetch import _program, _segments
     from evallab.token_flow import _step_calls
 
     counts: dict[str, int] = {}

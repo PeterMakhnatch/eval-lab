@@ -126,8 +126,12 @@ events, errors, an optional benchmark domain section (`## Domain: <name>`,
 absent as `domain: null` when no plugin detects the trial), a bounded
 timeline (`--full-timeline` lists every step), and data-quality notes.
 
+Use `evallab report run` for cited run evidence. The `evallab traj pack` model-input factory is retired.
+The native report owns domain readers, baseline facts, evidence coverage, and custom feature eligibility.
+`interpretation/features.py` owns the shared quote-aware command parser. Semantic IR and settlement compliance remain separate.
+
 `evallab.run_report/v1` is additive: a `domain` section appears when a
-`src/evallab/interpretation/domains/` plugin detects the trial, else `domain`
+`src/evallab/interpretation/run_report.py` reader detects the trial, else `domain`
 is `None`. The CEO-Bench plugin (`ceo_bench`) reads the `ceo_bench/*.json`
 sidecars written by the `ceo_bench` adapter package
 (`library/adapters/ceo_bench/ceo_bench/bridge.py`), which converts one
@@ -239,8 +243,8 @@ Definitions the report applies:
   exceeds the median of the window rates (windows without actions have no
   rate and cannot be the onset). `no_repeats` when nothing repeats, `flat`
   when no window exceeds the median, omitted entirely below 20 steps.
-- Domain sections are benchmark plug-ins (`src/evallab/interpretation/domains/`,
-  explicit `PLUGINS` registry, deterministic order) reading verifier outputs
+- Domain sections use the native readers in `src/evallab/interpretation/run_report.py`.
+  The explicit `PLUGINS` registry reads verifier outputs in a deterministic order
   from the trial directory. `synthetic_hospital` reports reward/steps/submitted
   from `verifier/reward.json` plus redundant chart-section re-reads from the
   trajectory's tool calls (native EHR tools and `sh-agent call` wrappers, keyed

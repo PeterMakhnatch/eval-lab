@@ -13,7 +13,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from run_plain import VERSION
+VERSION = "json-v4"
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]

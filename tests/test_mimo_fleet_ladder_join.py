@@ -1,16 +1,16 @@
-"""The fleet/ladder join and its README counts stay mechanical (HAR-372, HAR-389).
+"""The fleet/ladder join and page counts stay mechanical (HAR-372, HAR-389, HAR-394).
 
 ``research/experiments/mimo-v6-full-fleet/ladder_join.py`` is the only writer of
-``fleet-ladder-join.csv`` and of the join counts quoted on the fleet README and
-the MiMo route page. These tests pin what the table is relied on for: the
-committed CSV is what the committed census, fleet manifest, ranked cells and
+``fleet-ladder-join.csv`` and of the join and census counts quoted on the fleet
+README and the MiMo route page. These tests pin what the table is relied on for:
+the committed CSV is what the committed census, fleet manifest, ranked cells and
 clean-v6 manifest currently produce; every fleet task has exactly one row and a
 task with no ranked cell keeps its cell columns empty; a cell that ran other
-bytes is ``no`` and one that ran the fleet digest is ``yes``; the README count
-table and both count sentences are those counts rather than a second
-hand-maintained number, and ``--sync-docs`` rewrites both pages together or
-neither; and the builder refuses inputs that disagree about a digest or a
-verdict, repeat a task in a manifest, or otherwise break the contract it reads.
+bytes is ``no`` and one that ran the fleet digest is ``yes``; the join count
+table and sentences, final census row and both route census sentences quote
+those counts rather than hand-maintained numbers, and ``--sync-docs`` rewrites
+both pages together or neither; and the builder refuses inputs that disagree
+about a digest or verdict, repeat a task in a manifest, or break its contract.
 """
 
 from __future__ import annotations
@@ -47,6 +47,25 @@ ROUTE_COUNTS = re.compile(
     r"(?P<no_cell>\d[\d,]*) have no ranked cell and "
     r"(?P<other>\d[\d,]*) cells ran other bytes"
 )
+ROUTE_CENSUS = re.compile(MODULE["ROUTE_CENSUS"])
+ROUTE_V6_FLEET = re.compile(MODULE["ROUTE_V6_FLEET"])
+CENSUS_ROW = re.compile(MODULE["CENSUS_ROW"], re.MULTILINE)
+
+
+def route_census(path: Path = ROUTE_PAGE) -> tuple[int, ...]:
+    text = path.read_text(encoding="utf-8")
+    first = ROUTE_CENSUS.search(text)
+    second = ROUTE_V6_FLEET.search(text)
+    assert first is not None and second is not None
+    return tuple(
+        int(group.replace(",", "")) for match in (first, second) for group in match.groups()
+    )
+
+
+def readme_census_row(path: Path = README) -> tuple[int, ...]:
+    match = CENSUS_ROW.search(path.read_text(encoding="utf-8"))
+    assert match is not None, "the README must carry the final census row"
+    return tuple(int(group.replace(",", "")) for group in match.groups())
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -264,7 +283,7 @@ def test_join_rows_carry_no_host_paths() -> None:
 
 
 def assert_pages_quote(rows: Sequence[dict[str, str]], root: Path = REPO) -> None:
-    """Both pages quote ``rows``: the table, the other-bytes and the route sentence."""
+    """Both pages quote ``rows`` in all join and census count sites."""
     counts = MODULE["bucket_counts"](rows)
     _, tasks, with_cell, at_digest = next(entry for entry in counts if entry[0] == "all")
     other = with_cell - at_digest
@@ -284,10 +303,30 @@ def assert_pages_quote(rows: Sequence[dict[str, str]], root: Path = REPO) -> Non
         no_cell,
         other,
     )
+    census = MODULE["census_counts"](rows)
+    assert readme_census_row(root / MODULE["FLEET_README"]) == tuple(
+        census[bucket] for bucket in MODULE["CENSUS_BUCKETS"]
+    )
+    assert route_census(root / MODULE["ROUTE_PAGE"]) == (
+        census["v6_verified"],
+        census["v6_unverified"],
+        tasks,
+        census["v6_verified"],
+    )
 
 
 def test_readme_and_route_page_quote_the_join_csv() -> None:
     assert_pages_quote(_rows())
+
+
+def test_census_counts_reads_the_join_buckets() -> None:
+    rows = _rows()
+    expected = {
+        bucket: sum(row["bucket"] == bucket for row in rows)
+        for bucket in MODULE["CENSUS_BUCKETS"]
+    }
+    assert MODULE["census_counts"](rows) == expected
+    assert expected["v6_verified"] + expected["v6_unverified"] == 567
 
 
 @pytest.fixture
@@ -341,6 +380,15 @@ def test_sync_docs_on_the_committed_tree_is_byte_identical_twice(
         assert "sync-docs rewrote nothing" in capsys.readouterr().out
         for relative in SYNCED_PAGES:
             assert (docs_root / relative).read_bytes() == (REPO / relative).read_bytes()
+
+
+def test_an_unknown_census_bucket_writes_no_page(docs_root: Path) -> None:
+    rows = _rows()
+    rows[0]["bucket"] = "v6_elsewhere"
+    with pytest.raises(MODULE["JoinError"], match=re.escape("is not one of")):
+        MODULE["sync_docs"](rows, docs_root)
+    for relative in SYNCED_PAGES:
+        assert (docs_root / relative).read_bytes() == (REPO / relative).read_bytes()
 
 
 def test_sync_docs_refuses_a_stale_join_and_excludes_check(
@@ -535,6 +583,62 @@ def move_other_bytes_sentence(root: Path) -> None:
 FLEET_README = MODULE["FLEET_README"]
 ROUTE = MODULE["ROUTE_PAGE"]
 
+CENSUS_EDITS = [
+    (
+        ROUTE,
+        "census\n  (`mimo-v6-fleet-census.csv`) is 5 `v6_verified` and 562 `v6_unverified`",
+        "census\n  (`mimo-v6-fleet-census.csv`) is 6 `v6_verified` and 562 `v6_unverified`",
+    ),
+    (
+        ROUTE,
+        "is 5 `v6_verified` and 562 `v6_unverified`",
+        "is 5 `v6_verified` and 563 `v6_unverified`",
+    ),
+    (ROUTE, "For the\n  567-task v6 fleet", "For the\n  568-task v6 fleet"),
+    (ROUTE, "v6 fleet only 5 are `v6_verified`", "v6 fleet only 6 are `v6_verified`"),
+    (
+        FLEET_README,
+        "after exact-source controls | 5 | 562 | 0 | 0 |",
+        "after exact-source controls | 6 | 562 | 0 | 0 |",
+    ),
+    (
+        FLEET_README,
+        "controls | 5 | 562 | 0 | 0 |",
+        "controls | 5 | 563 | 0 | 0 |",
+    ),
+    (FLEET_README, "| 5 | 562 | 0 | 0 |", "| 5 | 562 | 1 | 0 |"),
+    (
+        FLEET_README,
+        "| Final reviewed release, after exact-source controls | 5 | 562 | 0 | 0 |",
+        "| Final reviewed release, after exact-source controls | 5 | 562 | 0 | 1 |",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("relative", "old", "new"),
+    CENSUS_EDITS,
+    ids=[
+        "route-census-verified",
+        "route-census-unverified",
+        "route-v6-total",
+        "route-v6-verified",
+        "fleet-row-verified",
+        "fleet-row-unverified",
+        "fleet-row-broken",
+        "fleet-row-missing",
+    ],
+)
+def test_sync_docs_restores_an_edited_census_count(
+    docs_root: Path, monkeypatch: pytest.MonkeyPatch, relative: str, old: str, new: str
+) -> None:
+    monkeypatch.setitem(MODULE["main"].__globals__, "ROOT", docs_root)
+    assert (REPO / relative).read_text(encoding="utf-8").count(old) == 1
+    rewrite(docs_root / relative, old, new)
+    assert MODULE["main"](["--sync-docs"]) == 0
+    assert (docs_root / relative).read_bytes() == (REPO / relative).read_bytes()
+
+
 #: One case per way a page can lose its unique anchor, and the message naming it.
 #: Each case runs against rows that would otherwise rewrite both pages.
 DOC_REFUSALS: list[tuple[str, Callable[[Path], None], str]] = [
@@ -593,6 +697,47 @@ DOC_REFUSALS: list[tuple[str, Callable[[Path], None], str]] = [
         ),
         "join sentence', found 2",
     ),
+    (
+        "missing-final-census-row",
+        change(FLEET_README, "Final reviewed release,", "Final release,"),
+        "final census row', found 0",
+    ),
+    (
+        "repeated-final-census-row",
+        append_text(
+            FLEET_README,
+            "\n| Final reviewed release, after exact-source controls | 5 | 562 | 0 | 0 |\n",
+        ),
+        "final census row', found 2",
+    ),
+    (
+        "missing-route-census-sentence",
+        change(
+            ROUTE,
+            "(`mimo-v6-fleet-census.csv`) is",
+            "(`mimo-v6-fleet-census.csv`) was",
+        ),
+        "fleet census sentence', found 0",
+    ),
+    (
+        "repeated-route-census-sentence",
+        append_text(
+            ROUTE,
+            "\nIts fleet census (`mimo-v6-fleet-census.csv`) is 5 `v6_verified` "
+            "and 562 `v6_unverified`.\n",
+        ),
+        "fleet census sentence', found 2",
+    ),
+    (
+        "missing-route-v6-fleet-sentence",
+        change(ROUTE, "v6 fleet only 5 are", "v6 fleet only 5 were"),
+        "v6 fleet census sentence', found 0",
+    ),
+    (
+        "repeated-route-v6-fleet-sentence",
+        append_text(ROUTE, "\nFor the 567-task v6 fleet only 5 are `v6_verified`.\n"),
+        "v6 fleet census sentence', found 2",
+    ),
 ]
 
 
@@ -631,12 +776,13 @@ def test_every_join_error_needs_a_refusal_case() -> None:
         if isinstance(function, ast.FunctionDef)
     }
     documentation = {"_read_page", "_anchor"}
-    # 14 contract checks at f8cc7ce60, plus the manifest repeat check: one site,
-    # which the fleet and the clean manifest case each exercise.
-    assert sum(count for name, count in sites.items() if name not in documentation) == 15
+    # 14 contract checks at f8cc7ce60, plus the manifest repeat check (exercised
+    # for both manifests) and the census bucket check (exercised separately by
+    # test_an_unknown_census_bucket_writes_no_page).
+    assert sum(count for name, count in sites.items() if name not in documentation) == 16
     assert len(REFUSALS) == 16
     assert len({message for _, _, message in REFUSALS}) == len(REFUSALS)
-    # A missing page, and one anchor check that every missing or repeated anchor hits.
+    # A missing page, and one check shared by all join and census anchor refusals.
     assert sum(sites[name] for name in documentation) == 2
-    assert len(DOC_REFUSALS) == 10
+    assert len(DOC_REFUSALS) == 16
     assert len({message for _, _, message in DOC_REFUSALS}) == len(DOC_REFUSALS)

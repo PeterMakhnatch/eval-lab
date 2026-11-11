@@ -1,7 +1,7 @@
 """Shared native-trajectory redaction used by every Harbor credential adapter.
 
-No Harbor imports: both adapter modules import Harbor themselves. Keeping this
-module Harbor-free lets tests import it without the optional dependency.
+This module has no Harbor import. Credential adapters and the read-only daemon
+preflight share it without loading the native execution runtime.
 """
 
 from __future__ import annotations
@@ -76,3 +76,9 @@ def sanitize_native_trajectory(
         (json.dumps(sanitized, indent=2, ensure_ascii=False) + "\n").encode("utf-8"),
         secrets=tuple(secret.encode() for secret in known),
     )
+
+
+def validate_docker_daemon(info: dict[str, Any]) -> None:
+    """The shared, read-only prerequisite for Docker's isolation boundary."""
+    if info.get("OSType") != "linux":
+        raise RuntimeError("egress_lock requires a confirmed Linux Docker daemon")

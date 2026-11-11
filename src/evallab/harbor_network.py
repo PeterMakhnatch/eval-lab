@@ -97,7 +97,7 @@ def _canonical_networks(
 ) -> tuple[str, str, str | None]:
     """Return (agent, verifier_baseline, verifier_phase) declared in task.toml.
 
-    The verifier baseline follows Harbor 0.21.0 resolution:
+    The verifier baseline follows the supported Harbor 0.24.0 resolution:
     ``[verifier.environment].network_mode`` if present, otherwise the agent's
     ``[environment].network_mode``. The phase override is ``[verifier].network_mode``
     if present, otherwise the verifier baseline.

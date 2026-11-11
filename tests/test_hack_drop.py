@@ -623,6 +623,10 @@ def test_autoreview_through_stub_omp_binary(tmp_path: Path) -> None:
     stub_script = """#!/usr/bin/env python3
 import sys, json, os, pathlib
 args = sys.argv[1:]
+import yaml
+config = pathlib.Path(args[args.index("--config") + 1])
+if yaml.safe_load(config.read_text()).get("retry", {}).get("modelFallback") is not False:
+    raise SystemExit("worker must explicitly disable model fallback")
 session_dir = None
 model = "google-antigravity/gemini-3.8-flash"
 for i, a in enumerate(args):

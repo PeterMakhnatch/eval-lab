@@ -56,7 +56,7 @@ import shlex
 import urllib.parse
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from harbor.agents.installed.base import NonZeroAgentExitCodeError  # ty: ignore[unresolved-import]
 from harbor.agents.terminus_2.terminus_2 import (  # ty: ignore[unresolved-import]
@@ -528,6 +528,7 @@ class SecretSafeTerminus2(Terminus2):
 
     def __init__(
         self,
+        logs_dir: Path,
         *args: Any,
         model_name: str | None = None,
         api_base: str | None = None,
@@ -542,7 +543,7 @@ class SecretSafeTerminus2(Terminus2):
         loop_grace_calls: int | None = None,
         **kwargs: Any,
     ) -> None:
-        if len(args) > 1:
+        if args:
             raise ValueError(
                 "SecretSafeTerminus2 accepts at most logs_dir positionally; "
                 "pass model_name as a keyword argument"
@@ -714,7 +715,7 @@ class SecretSafeTerminus2(Terminus2):
                 provider = "zai"
         clean_extra_env = _scrubbed_extra_env(extra_env, capability=capability)
         super().__init__(
-            *args,
+            logs_dir=logs_dir,
             model_name=model,
             api_base=proxy_url,
             llm_kwargs=clean_llm_kwargs,
@@ -747,8 +748,9 @@ class SecretSafeTerminus2(Terminus2):
         # (HAR-90). The parser sees normalized text; the chat, trajectory and
         # rollout details keep the raw model output.
         parser = super()._get_parser()
-        if self._mimo_selfhosted and self._parser_name == "json":
-            return MimoToolCallParser(parser, finish_reason=lambda: self._llm.last_finish_reason)
+        if self._mimo_selfhosted and self.options.parser_name == "json":
+            llm = cast(_FinishReasonLiteLLM, self._llm)
+            return MimoToolCallParser(parser, finish_reason=lambda: llm.last_finish_reason)
         return parser
 
     def _reset_per_run_state(self) -> None:

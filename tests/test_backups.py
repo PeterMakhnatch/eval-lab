@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 import stat
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -286,3 +288,57 @@ def test_restore_rejects_corrupt_dump_before_accessing_database(tmp_path: Path) 
 
     with pytest.raises(ValueError):
         check_postgres_restore(tmp_path, dump, runner=runner)
+
+
+def test_sqlite_backup_includes_wal_and_restores_all_tables(tmp_path: Path) -> None:
+    source = tmp_path / "journal.sqlite"
+    with closing(sqlite3.connect(source)) as live:
+        live.execute("PRAGMA journal_mode=WAL")
+        live.execute("PRAGMA wal_autocheckpoint=0")
+        live.execute("CREATE TABLE events (id INTEGER PRIMARY KEY, body TEXT)")
+        live.execute("INSERT INTO events VALUES (1, 'committed in WAL')")
+        live.execute("PRAGMA user_version=7")
+        live.commit()
+        wal = source.with_name(source.name + "-wal")
+        before = (source.read_bytes(), wal.read_bytes())
+        receipt = backups.create_sqlite_backup(tmp_path, source)
+        assert (source.read_bytes(), wal.read_bytes()) == before
+    assert receipt["live_snapshot"] == receipt["restored"] == {"events": 1}
+    assert receipt["user_version"] == 7
+    assert receipt["integrity"] == "ok"
+    dump = Path(receipt["path"])
+    with closing(sqlite3.connect(dump.as_uri() + "?mode=ro", uri=True)) as restored:
+        assert restored.execute("SELECT body FROM events").fetchone() == ("committed in WAL",)
+    assert hashlib.sha256(dump.read_bytes()).hexdigest() == receipt["sha256"]
+    assert stat.S_IMODE(dump.stat().st_mode) == 0o600
+    assert json.loads((dump.parent / "manifest.json").read_text()) == receipt
+
+
+def test_sqlite_backup_failure_does_not_publish_or_change_source(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "journal.sqlite"
+    with closing(sqlite3.connect(source)) as live:
+        live.execute("CREATE TABLE events (id INTEGER)")
+        live.execute("INSERT INTO events VALUES (1)")
+        live.commit()
+    before = source.read_bytes()
+    real_counts = backups._sqlite_counts
+    calls = 0
+
+    def mismatched_counts(connection):
+        nonlocal calls
+        calls += 1
+        return real_counts(connection) if calls == 1 else {"events": 0}
+
+    monkeypatch.setattr(backups, "_sqlite_counts", mismatched_counts)
+    with pytest.raises(ValueError, match="counts differ"):
+        backups.create_sqlite_backup(tmp_path, source)
+    assert source.read_bytes() == before
+    assert list((tmp_path / "backups/sqlite").glob("*/manifest.json")) == []
+    assert list((tmp_path / "backups/sqlite").glob("*.tmp")) == []
+
+
+def test_sqlite_missing_source_never_creates_a_database(tmp_path: Path) -> None:
+    source = tmp_path / "missing.sqlite"
+    with pytest.raises(FileNotFoundError):
+        backups.create_sqlite_backup(tmp_path, source)
+    assert not source.exists()

@@ -267,11 +267,9 @@ def _doctor(
     for name, ok, detail in checks:
         print(f"{'ok' if ok else 'FAIL':4}  {name:14} {detail}")
     print(doctor_disk_line(root))
-    # `harbor-pin` is advisory like `sync-primary`: local Harbor CLI drift from
-    # the CI pin is printed without joining this set, so it never changes the
-    # exit code (HAR-265).
     required = {
         "harbor",
+        "harbor-pin",
         "docker",
         "docker-daemon",
         "uv",
@@ -322,7 +320,13 @@ def _doctor_command(
         report = HeadlessDoctor(root, executor=executor).run()
         print(report.model_dump_json(indent=2))
         return 0 if report.ready else 1
-    return _doctor(root)
+    from evallab.automation import core_runtime_checks
+
+    status = _doctor(root)
+    checks = core_runtime_checks(root)
+    for name, ok, detail in checks:
+        print(f"{'ok' if ok else 'FAIL':4}  {name:14} {detail}")
+    return int(status != 0 or any(not ok for _, ok, _ in checks))
 
 
 
@@ -4139,7 +4143,7 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--version", action="version", version=__version__)
     commands = root.add_subparsers(dest="command", required=True)
 
-    doctor = commands.add_parser("doctor", help="Check local Harbor, Docker, uv, and PostgreSQL")
+    doctor = commands.add_parser("doctor", help="Check CORE tool pins, stores, credentials, and installed jobs")
     doctor.add_argument(
         "--headless",
         action="store_true",

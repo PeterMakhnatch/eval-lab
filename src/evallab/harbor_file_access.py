@@ -214,8 +214,7 @@ class FileAccessPlugin:
 
     #: Trial lifecycle hook names (``TrialEvent.value``) this plugin needs,
     #: mapped to handler attributes. Matched against the trial's own hook
-    #: registry so no Harbor import is required at module scope or at bind
-    #: time; the default unit environment omits optional Harbor.
+    #: registry so no Harbor import is required at module scope or at bind time.
     _WANTED_HOOKS = {
         "start": "_on_trial_started",
         "agent-start": "_on_agent_started",

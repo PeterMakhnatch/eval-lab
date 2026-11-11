@@ -34,10 +34,9 @@ def _run(args: argparse.Namespace, root: Path, **_: Any) -> int:
     bank = IssueBank(root, state_root=args.state_root)
     if args.bank_command == "gold-counts":
         from evallab.gold import load_rows
-        from evallab.gold.cohorts import registrations
         from evallab.gold.counts import counts
 
-        result = counts(load_rows(root, args.state_root), registrations(root))
+        result = counts(load_rows(root, args.state_root))
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     if args.bank_command == "sources":

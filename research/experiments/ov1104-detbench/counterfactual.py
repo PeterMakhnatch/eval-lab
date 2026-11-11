@@ -21,6 +21,7 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from detbench_lib import RUNS, read_jsonl  # noqa: E402
+from score import load_runs  # noqa: E402
 
 from evallab.score.metrics import wilson  # noqa: E402
 
@@ -79,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--runs", type=Path, default=RUNS)
     ap.add_argument("--out", type=Path, default=HERE / "results" / "COUNTERFACTUAL.md")
     args = ap.parse_args(argv)
-    all_runs = read_jsonl(args.runs)
+    all_runs = list(load_runs(args.runs).values())
     dev_runs = {r["run_key"]: r for r in all_runs if r["split"] == "dev"}
     ho_runs = {r["run_key"]: r for r in all_runs if r["split"] == "heldout"}
     lines = ["# Counterfactual: L0 reads every known tool shape (DEV replay-v1 + Held-out sets, L0 stage only, no AutoReview)", "", "`now` = current-main `evaluate_l0_stage` on the DetBench view. `cf` = the same rules after `l0_rules.map_tool_shapes` rewrote every known tool shape (Terminus `bash_command{keystrokes}`, `shell{command}`, cloud-export names, read-only tools) into one the parser reads. 'flagged' = L0 decision review or drop. 'caught by content' = any L0 reason other than the shape/parse notes. Wilson 95% CIs in brackets. No src change ships; the mapping lives in l0_rules.py only.", ""]

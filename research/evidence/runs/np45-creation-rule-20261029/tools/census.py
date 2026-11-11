@@ -1,7 +1,7 @@
 """NP45-TW-1 step 2: join labels to the label-free events and count rule R (kinds b or c fire; a and d do not).
 
-Reads ``<state>/events-<id>.json`` (one per set) and, for the sets NP43-TW-1 already counted (strict Goodfire DEV, CheatBench DEV,
-LinuxArena), ``../np43-grader-tamper-kinds-20261029/results/census.json``. Writes ``results/census.json`` (counts only).
+Reads ``<state>/events-<id>.json`` (one per admitted set) and the strict Goodfire DEV and CheatBench DEV
+groups in ``../np43-grader-tamper-kinds-20261029/results/census.json``. Writes counts only.
 """
 
 from __future__ import annotations
@@ -11,6 +11,8 @@ import math
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
+
+from evallab.gold.exclusions import source_exclusion
 
 HERE = Path(__file__).resolve().parent
 OUT = Path.home() / ".local/state/evallab-worker-evidence/np45-tw1-20261029"
@@ -74,12 +76,16 @@ def main() -> int:
     sets: dict[str, dict] = {}
     statuses: dict[str, dict] = {}
     for path in sorted(OUT.glob("events-*.json")):
+        if source_exclusion(path.stem.removeprefix("events-")):
+            continue
         data = json.loads(path.read_text())
         statuses[data["id"]] = {
             k: data[k] for k in ("status", "rows", "no_steps", "errors", "seconds")
         }
         groups: dict[str, dict[str, list[dict]]] = defaultdict(lambda: defaultdict(list))
         for run in data["runs"]:
+            if source_exclusion(run.get("set", data["id"])) or run.get("set") == "np33:cnt":
+                continue
             groups[run.get("set", data["id"])][group_of(run)].append(run)
         for name, by_group in groups.items():
             sets[name] = {g: cell(runs) for g, runs in sorted(by_group.items())}
@@ -101,7 +107,6 @@ def main() -> int:
 
     sets["goodfire-dev (NP43)"] = carried("goodfire_dev_enacted", "goodfire_dev_clean")
     sets["cheatbench-dev (NP43)"] = carried("cheatbench_enacted", "cheatbench_clean")
-    sets["linuxarena S / non-S (NP43)"] = carried("linuxarena_S", "linuxarena_nonS")
 
     flags = {
         "R_removes_positive_alarms": sorted(

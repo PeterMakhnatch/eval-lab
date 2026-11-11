@@ -20,6 +20,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from evallab.gold.exclusions import source_exclusion
+
 os.environ.setdefault("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
 
 HERE = Path(__file__).resolve().parent
@@ -74,6 +76,8 @@ def np21() -> Any:
 def np33() -> Any:
     root = STATE / "evallab-np33-cm1"
     for row in json.loads((root / "sample.json").read_text())["runs"]:
+        if row["set"] == "cnt":
+            continue
         steps = pickle.loads((root / "runs" / f"{row['key']}.pkl").read_bytes())["steps"]
         yield (
             steps,
@@ -86,6 +90,9 @@ def np33() -> Any:
 
 
 def adapter_rows(set_id: str) -> Any:
+    exclusion = source_exclusion(set_id)
+    if exclusion:
+        raise ValueError(f"Excluded trace source {exclusion['name']}: {exclusion['reason']}")
     entry = next(e for e in json.loads(REGISTRY.read_text())["entries"] if e["id"] == set_id)
     path = REPO / entry["adapter"]["module_path"]
     spec = importlib.util.spec_from_file_location("np45_adapter", path)
@@ -120,9 +127,12 @@ def main() -> int:
     if digest != FROZEN:
         raise SystemExit(f"classifier digest {digest} is not the frozen one")
     set_id = sys.argv[1]
+    exclusion = source_exclusion(set_id)
+    if exclusion:
+        raise ValueError(f"Excluded trace source {exclusion['name']}: {exclusion['reason']}")
     dumped = (
         OUT / f"{set_id}-rows.pkl"
-    )  # rows an adapter needing Python 3.14 (zstd zip) wrote with dump314.py
+    )  # Historical adapter dumps remain evidence, not source registrations.
     if dumped.exists():
         rows_source = lambda: iter(pickle.loads(dumped.read_bytes()))  # noqa: E731
     else:

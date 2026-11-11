@@ -107,28 +107,3 @@ def test_protocol_overlap_keeps_labels_separate_and_unscored_rows_absent(tmp_pat
     assert totals["protocol"] == {"action-v1": 1, "action-v2": 2}
 
 
-def test_empty_registered_cohort_keeps_zero_denominators_and_its_scoring_lock(tmp_path):
-    import hashlib
-    import json
-
-    from evallab.failure_library.bank import BankContext
-    from evallab.failure_library.bank.sources.goodfire_fresh import LABELS, SOURCE, build
-    from evallab.gold.cohorts import registrations
-    from evallab.gold.counts import counts
-
-    labels = tmp_path / LABELS
-    labels.parent.mkdir(parents=True)
-    labels.write_bytes(b"")
-    record = {"source": SOURCE, "study": "new-study", "protocol": "action-v2",
-              "scoring": "labelled-only, unscored",
-              "exposure": "no recorded exposure; prior history unverifiable",
-              "labels_sha256": hashlib.sha256(b"").hexdigest()}
-    (labels.parent / "cohort.json").write_text(json.dumps(record))
-    rows = list(build(BankContext(tmp_path, cloud_db=tmp_path / "no-trajectory-database")))
-    totals = counts(rows, registrations(tmp_path))
-    assert totals["rows"] == totals["binary_rows"] == 0
-    assert totals["sources"][SOURCE]["label_state"] == {}
-    assert totals["sources"][SOURCE]["registration"]["scoring"] == "labelled-only, unscored"
-    labels.write_text('{"id":"changed"}\n')
-    with pytest.raises(ValueError, match="label hash differs"):
-        list(build(BankContext(tmp_path)))

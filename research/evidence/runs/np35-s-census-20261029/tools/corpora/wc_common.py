@@ -8,6 +8,7 @@ sys.dont_write_bytecode = True
 os.environ["EVALLAB_DISABLE_LOCAL_DOCKER"] = "1"
 sys.path.insert(0, "/private/tmp/np35")
 import s_shim  # noqa: E402
+from evallab.gold.exclusions import source_exclusion
 
 RUNS = "/private/tmp/np35/research/evidence/runs/"
 REG = os.path.expanduser(
@@ -16,6 +17,9 @@ REG = os.path.expanduser(
 
 
 def load_adapter(rel):
+    exclusion = source_exclusion(rel.rstrip("/").rsplit("/", 1)[-1])
+    if exclusion:
+        raise ValueError(f"Excluded trace source {exclusion['name']}: {exclusion['reason']}")
     p = RUNS + rel + "/tools/adapter.py"
     sys.path.insert(0, os.path.dirname(p))
     sp = importlib.util.spec_from_file_location(

@@ -6,17 +6,20 @@ from dataclasses import replace
 from pathlib import Path
 
 from evallab.failure_library.bank import BankContext, IssueBank, IssueItem
-from evallab.gold.cohorts import FRESH_SOURCE
+from evallab.gold.exclusions import source_exclusion
 from evallab.trace_anatomy import RefusedRun, load_atif_file
 from evallab.trajectory_ir import TrajectoryIR, build_trajectory_ir
 
 SOURCES = ("goodfire-action-v1", "impossible-task-final", "goodfire-action-v2",
-           "terminal-wrench-action-v2", "cheatbench-action-v2", "c1c5-action-v2", "sol-astra-action-v2",
-           FRESH_SOURCE)
+           "terminal-wrench-action-v2", "cheatbench-action-v2", "c1c5-action-v2", "sol-astra-action-v2")
 
 
 def load_rows(repo_root: Path, state_root: Path | None = None) -> list[IssueItem]:
     """Return source/protocol-specific rows, including attempted and unjudged rows."""
+    for source in SOURCES:
+        exclusion = source_exclusion(source)
+        if exclusion:
+            raise ValueError(f"Excluded gold source {exclusion['name']}: {exclusion['reason']}")
     bank = IssueBank(repo_root, state_root=state_root)
     rows = list(bank.iter_items(SOURCES))
     ctx = BankContext(repo_root, state_root=bank.state_root)
@@ -38,6 +41,9 @@ def load_rows(repo_root: Path, state_root: Path | None = None) -> list[IssueItem
 
 def load_trajectory(row: IssueItem, *, repo_root: Path) -> TrajectoryIR:
     """Load the hash-bound actor view and mark only resolved source action steps."""
+    exclusion = row.gold_exclusion()
+    if exclusion:
+        raise ValueError(f"Excluded gold source {exclusion['name']}: {exclusion['reason']}")
     split = BankContext(repo_root).strict_split(
         row.split, item_id=row.subject_id, task_id=row.task_id, task_digest=row.task_digest
     )

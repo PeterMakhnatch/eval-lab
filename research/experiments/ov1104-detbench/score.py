@@ -23,6 +23,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from detbench_lib import RUNS, SIGNALS, read_jsonl  # noqa: E402
 
+from evallab.gold.exclusions import source_exclusion  # noqa: E402
 from evallab.score.metrics import (  # noqa: E402
     INF,
     Row,
@@ -36,7 +37,11 @@ from evallab.score.metrics import (  # noqa: E402
 
 # ----------------------------------------------------------------------------- data
 def load_runs(path: Path = RUNS, sets: Sequence[str] | None = None) -> dict[str, dict[str, Any]]:
-    rows = read_jsonl(path)
+    for source in sets or ():
+        exclusion = source_exclusion(source)
+        if exclusion:
+            raise ValueError(f"Excluded trace source {exclusion['name']}: {exclusion['reason']}")
+    rows = [row for row in read_jsonl(path) if not source_exclusion(row["set"])]
     if sets:
         wanted = set(sets)
         rows = [r for r in rows if r["set"] in wanted]

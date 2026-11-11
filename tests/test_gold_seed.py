@@ -258,29 +258,38 @@ def test_channel_projection_reads_sqlite_columns_not_row_values() -> None:
     ]
 
 
-def test_excluded_source_refuses_gold_and_attempted_never_becomes_control(tmp_path, monkeypatch):
+@pytest.mark.parametrize("source", ["assistant-axis", "metr-malt"])
+def test_excluded_source_refuses_rows_before_any_bank_read(tmp_path, monkeypatch, source):
     import evallab.gold as gold
+    from evallab.gold.exclusions import source_exclusion
 
     bank = IssueBank(tmp_path, state_root=tmp_path / "state")
     bank.items_root.mkdir(parents=True)
-    attempted = _item("attempted")
-    bank.items_path(attempted.source).write_text(attempted.model_dump_json() + "\n")
-    excluded = new_item(
-        source="assistant-axis", subject_id="turn-only", subject_type="run", kind="cheat",
-        polarity="negative", label_type="judge", label="unflagged", granularity="step",
-        declared_split="cross_test", split="cross_test",
-        provenance=Provenance(store="test", ref="turn-only"),
-    ).model_dump()
-    bank.items_path("assistant-axis").write_text(json.dumps(excluded) + "\n")
-    monkeypatch.setattr(gold, "SOURCES", ("assistant-axis",))
-    assert load_rows(tmp_path, tmp_path / "state") == []
-    excluded["label_state"] = "reviewed-control"
-    bank.items_path("assistant-axis").write_text(json.dumps(excluded) + "\n")
-    with pytest.raises(ValueError, match="Excluded gold source assistant-axis"):
+    bank.items_path("goodfire-action-v1").write_text("not JSON: must not be read\n")
+    bank.items_path(source).write_text("not JSON: must not be read\n")
+    monkeypatch.setattr(gold, "SOURCES", ("goodfire-action-v1", source))
+    exclusion = source_exclusion(source)
+    with pytest.raises(ValueError) as refused:
         load_rows(tmp_path, tmp_path / "state")
-    monkeypatch.setattr(gold, "SOURCES", (attempted.source,))
-    monkeypatch.setattr(BankContext, "registry", property(lambda self: _Gate()))
-    [loaded] = load_rows(tmp_path, tmp_path / "state")
-    assert loaded.label_state == "attempted" and loaded.polarity is None
-    with pytest.raises(ValidationError):
-        type(loaded).model_validate({**loaded.model_dump(), "polarity": "negative"})
+    assert str(refused.value) == f"Excluded gold source {exclusion['name']}: {exclusion['reason']}"
+
+
+@pytest.mark.parametrize("source,store", [
+    ("assistant-axis", "test"),
+    ("library-runs", "failure-library:runs/metr-malt"),
+])
+@pytest.mark.parametrize("state", [None, "reviewed-control"])
+def test_excluded_trajectory_refuses_legacy_and_gold_rows_before_access(tmp_path, source, store, state):
+    row = new_item(
+        source=source, subject_id="legacy", subject_type="run", kind="cheat",
+        polarity="negative", label_type="judge", label="native-negative", granularity="run",
+        declared_split="dev", split="TEST", provenance=Provenance(store=store, ref="legacy"),
+        trajectory_available=True, trajectory_ref=str(tmp_path / "must-not-read.json"),
+        trajectory_digest="a" * 64,
+    )
+    # A stale in-memory row can predate explicit Gold-state validation.
+    row = row.model_copy(update={"label_state": state})
+    exclusion = row.gold_exclusion()
+    with pytest.raises(ValueError) as refused:
+        load_trajectory(row, repo_root=tmp_path)
+    assert str(refused.value) == f"Excluded gold source {exclusion['name']}: {exclusion['reason']}"

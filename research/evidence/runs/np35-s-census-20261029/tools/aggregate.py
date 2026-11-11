@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+from evallab.gold.exclusions import source_exclusion
+
 WORK = Path(sys.argv[1] if len(sys.argv) > 1 else "/private/tmp/np35")
 MIN_RUNS, MIN_TASKS = 35, 20
 POOLED = (
@@ -27,6 +29,8 @@ def g(groups, *names):
 rows = []
 for f in sorted(glob.glob(str(WORK / "w-?.json"))):
     for cid, v in json.loads(Path(f).read_text())["corpora"].items():
+        if source_exclusion(cid):
+            continue
         groups = v.get("groups", {})
         est, pos = groups.get("negative_established"), groups.get("positive")
         pooled = g(groups, *POOLED)

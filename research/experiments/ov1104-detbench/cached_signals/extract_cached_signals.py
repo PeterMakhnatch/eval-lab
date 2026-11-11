@@ -31,6 +31,7 @@ REPO_ROOT = DETBENCH_DIR.parents[2]
 sys.path.insert(0, str(DETBENCH_DIR))
 
 from detbench_lib import RUNS, SIGNALS, read_jsonl, signal_row, write_jsonl  # noqa: E402, I001
+from evallab.gold.exclusions import source_exclusion  # noqa: E402
 from evallab.production.corpus_queue import CorpusRegistry  # noqa: E402
 WORKER_DIR = Path("/private/tmp/ov1104/detbench/workers/cache")
 HOME = Path.home()
@@ -66,7 +67,7 @@ def load_adapter_module(name: str, rel_path: str) -> Any:
 
 
 class JoinIndex:
-    """Resolves cached detector row identifiers to DetBench run_keys across all 25 sets."""
+    """Resolve cached detector row identifiers for the admitted DetBench sets."""
 
     def __init__(self, runs_path: Path = RUNS) -> None:
         self.runs: dict[str, dict[str, Any]] = {}
@@ -80,11 +81,12 @@ class JoinIndex:
         self.tmb_case_to_rk: dict[str, str] = {}
         self.cm18_key_to_rk: dict[str, str] = {}
         self.np21_key_to_rk: dict[str, str] = {}
-        self.np33_key_to_rk: dict[str, str] = {}
 
         for r in read_jsonl(runs_path):
             rk = r["run_key"]
             s = r["set"]
+            if source_exclusion(s):
+                continue
             self.runs[rk] = r
             self.runs_by_set[s].append(r)
             if r["split"] == "dev":
@@ -256,18 +258,6 @@ class JoinIndex:
                 if rk in valid_osf:
                     self.np21_key_to_rk[sha256_hex(f"osf:{native}")[:16]] = rk
 
-        # 3. NP33-CM-1 (cnt -> caught-not-taught)
-        cnt_root = HOME / ".local/state/evallab-cross-test/amirgroup-codes__caught_not_taught/5aa035e3377a"
-        valid_cnt = {r["run_key"] for r in self.runs_by_set.get("caught-not-taught", [])}
-        for tag in ("opus48_opus45", "gpt54_gpt41"):
-            mpath = cnt_root / "transcripts" / tag / "manifest.json"
-            if mpath.is_file():
-                man = json.loads(mpath.read_text(encoding="utf-8"))
-                for entry in man.get("episodes", []):
-                    raw_id = str(entry["id"])
-                    rk = f"caught-not-taught:cnt_{sha256_hex(raw_id.casefold())[:24]}"
-                    if rk in valid_cnt:
-                        self.np33_key_to_rk[sha256_hex(f"cnt:{raw_id}")[:16]] = rk
 
     def resolve_dev(self, cid: str | None) -> str | None:
         if not cid or not isinstance(cid, str):
@@ -306,12 +296,9 @@ class JoinIndex:
                     return self.cm18_key_to_rk.get(k16)
                 if tag == "np21":
                     return self.np21_key_to_rk.get(k16)
-                if tag == "np33":
-                    return self.np33_key_to_rk.get(k16)
         return (
             self.cm18_key_to_rk.get(cid)
             or self.np21_key_to_rk.get(cid)
-            or self.np33_key_to_rk.get(cid)
         )
 
 
@@ -423,9 +410,8 @@ def extract_cascade_and_facets(idx: JoinIndex, em: SignalEmitter) -> None:
     cm18_dir = HOME / ".local/state/evallab-cm18"
     cm18_b6_dir = HOME / ".local/state/evallab-cm18-b6"
     np21_dir = HOME / ".local/state/evallab-np21-cm1"
-    np33_dir = HOME / ".local/state/evallab-np33-cm1"
 
-    # 1. Cascade v8 from findings-v1.jsonl (DEV) + CM-18 + NP21 + NP33
+    # 1. Cascade v8 from findings-v1.jsonl (DEV) + CM-18 + NP21
     casc_dev_verdict: dict[str, dict[str, Any]] = {}
     casc_dev_score: dict[str, dict[str, Any]] = {}
     casc_dev_judge_only: dict[str, dict[str, Any]] = {}
@@ -503,7 +489,7 @@ def extract_cascade_and_facets(idx: JoinIndex, em: SignalEmitter) -> None:
         elif det == "facet_windows_random":
             fw_rand_cm13_dev[rk] = {"score": alarm_val, "evidence_steps": csteps, "model": rmod}
 
-    # Read held-out cascade-v8.jsonl (CM-18, NP21, NP33)
+    # Read admitted held-out cascade-v8.jsonl (CM-18, NP21)
     def read_ho_cascade(cpath: Path, key_map: dict[str, str], default_model: str) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, dict[str, Any]], int]:
         verd, scr, jonly, s1 = {}, {}, {}, {}
         raw_rows = read_jsonl(cpath)
@@ -537,51 +523,50 @@ def extract_cascade_and_facets(idx: JoinIndex, em: SignalEmitter) -> None:
 
     cm18_v, cm18_s, cm18_j, cm18_c, n_cm18_c = read_ho_cascade(cm18_dir / "cascade-v8.jsonl", idx.cm18_key_to_rk, "kimi-code/k3.1-pro-highspeed")
     np21_v, np21_s, np21_j, np21_c, n_np21_c = read_ho_cascade(np21_dir / "cascade-v8.jsonl", idx.np21_key_to_rk, "anthropic/claude-sonnet-5-5")
-    np33_v, np33_s, np33_j, np33_c, n_np33_c = read_ho_cascade(np33_dir / "cascade-v8.jsonl", idx.np33_key_to_rk, "anthropic/claude-sonnet-5-5")
 
-    total_casc_cached = 350 + n_cm18_c + n_np21_c + n_np33_c
+    total_casc_cached = 350 + n_cm18_c + n_np21_c
     em.emit(
         "cached_cascade_v8_verdict",
-        {**casc_dev_verdict, **cm18_v, **np21_v, **np33_v},
+        {**casc_dev_verdict, **cm18_v, **np21_v},
         family="cascade_v8",
-        variant="verdict_all_13sets",
-        source_path=f"{findings_path}+{cm18_dir/'cascade-v8.jsonl'}+{np21_dir/'cascade-v8.jsonl'}+{np33_dir/'cascade-v8.jsonl'}",
-        receipt_path="research/evidence/runs/cm18-unseen-far-20261028/RESULTS.md; research/evidence/runs/np21-cm1-unseen-far-20261028/RESULTS.md; research/evidence/runs/np33-cm1-floor-20261029/RESULTS.md",
+        variant="verdict_admitted_sets",
+        source_path=f"{findings_path}+{cm18_dir/'cascade-v8.jsonl'}+{np21_dir/'cascade-v8.jsonl'}",
+        receipt_path="research/evidence/runs/cm18-unseen-far-20261028/RESULTS.md; research/evidence/runs/np21-cm1-unseen-far-20261028/RESULTS.md",
         date="2026-10-28..2026-10-29",
         score_type="binary_verdict_0_1",
-        served_model="kimi-code/k3.1-pro-highspeed (DEV+CM18); anthropic/claude-sonnet-5-5 (NP21+NP33)",
+        served_model="kimi-code/k3.1-pro-highspeed (DEV+CM18); anthropic/claude-sonnet-5-5 (NP21)",
         total_cached_rows=total_casc_cached,
     )
     em.emit(
         "cached_cascade_v8_score",
-        {**casc_dev_score, **cm18_s, **np21_s, **np33_s},
+        {**casc_dev_score, **cm18_s, **np21_s},
         family="cascade_v8",
-        variant="severity_score_all_13sets",
-        source_path=f"{findings_path}+{cm18_dir/'cascade-v8.jsonl'}+{np21_dir/'cascade-v8.jsonl'}+{np33_dir/'cascade-v8.jsonl'}",
-        receipt_path="research/evidence/runs/cm18-unseen-far-20261028/RESULTS.md; research/evidence/runs/np21-cm1-unseen-far-20261028/RESULTS.md; research/evidence/runs/np33-cm1-floor-20261029/RESULTS.md",
+        variant="severity_score_admitted_sets",
+        source_path=f"{findings_path}+{cm18_dir/'cascade-v8.jsonl'}+{np21_dir/'cascade-v8.jsonl'}",
+        receipt_path="research/evidence/runs/cm18-unseen-far-20261028/RESULTS.md; research/evidence/runs/np21-cm1-unseen-far-20261028/RESULTS.md",
         date="2026-10-28..2026-10-29",
         score_type="continuous_severity",
-        served_model="kimi-code/k3.1-pro-highspeed (DEV+CM18); anthropic/claude-sonnet-5-5 (NP21+NP33)",
+        served_model="kimi-code/k3.1-pro-highspeed (DEV+CM18); anthropic/claude-sonnet-5-5 (NP21)",
         total_cached_rows=total_casc_cached,
     )
     em.emit(
         "cached_cascade_v8_judge_only",
-        {**casc_dev_judge_only, **cm18_j, **np21_j, **np33_j},
+        {**casc_dev_judge_only, **cm18_j, **np21_j},
         family="cascade_v8",
-        variant="stage2_judge_only_all_13sets",
-        source_path=f"{findings_path}+{cm18_dir/'cascade-v8.jsonl'}+{np21_dir/'cascade-v8.jsonl'}+{np33_dir/'cascade-v8.jsonl'}",
+        variant="stage2_judge_only_admitted_sets",
+        source_path=f"{findings_path}+{cm18_dir/'cascade-v8.jsonl'}+{np21_dir/'cascade-v8.jsonl'}",
         receipt_path="research/evidence/runs/p0-f9d7d6-7-judge-only-full-20261029/RESULTS.md",
         date="2026-10-28..2026-10-29",
         score_type="binary_verdict_0_1",
-        served_model="kimi-code/k3.1-pro-highspeed (DEV+CM18); anthropic/claude-sonnet-5-5 (NP21+NP33)",
+        served_model="kimi-code/k3.1-pro-highspeed (DEV+CM18); anthropic/claude-sonnet-5-5 (NP21)",
         total_cached_rows=total_casc_cached,
     )
     em.emit(
         "cached_cascade_v8_stage1_cards",
-        {**casc_dev_stage1_cards, **cm18_c, **np21_c, **np33_c},
+        {**casc_dev_stage1_cards, **cm18_c, **np21_c},
         family="cascade_v8",
-        variant="stage1_card_count_all_13sets",
-        source_path=f"{findings_path}+{cm18_dir/'cascade-v8.jsonl'}+{np21_dir/'cascade-v8.jsonl'}+{np33_dir/'cascade-v8.jsonl'}",
+        variant="stage1_card_count_admitted_sets",
+        source_path=f"{findings_path}+{cm18_dir/'cascade-v8.jsonl'}+{np21_dir/'cascade-v8.jsonl'}",
         receipt_path="research/evidence/runs/cm18-unseen-far-20261028/RESULTS.md",
         date="2026-10-28..2026-10-29",
         score_type="card_count_int",
@@ -601,16 +586,16 @@ def extract_cascade_and_facets(idx: JoinIndex, em: SignalEmitter) -> None:
         total_cached_rows=350 + n_cm18_c,
     )
     em.emit(
-        "cached_cascade_v8_sonnet_np21_np33",
-        {**np21_s, **np33_s},
+        "cached_cascade_v8_sonnet_np21",
+        np21_s,
         family="cascade_v8",
-        variant="sonnet_55_np21_and_np33",
-        source_path=f"{np21_dir/'cascade-v8.jsonl'}+{np33_dir/'cascade-v8.jsonl'}",
-        receipt_path="research/evidence/runs/np21-cm1-unseen-far-20261028/RESULTS.md; research/evidence/runs/np33-cm1-floor-20261029/RESULTS.md",
+        variant="sonnet_55_np21",
+        source_path=str(np21_dir / "cascade-v8.jsonl"),
+        receipt_path="research/evidence/runs/np21-cm1-unseen-far-20261028/RESULTS.md",
         date="2026-10-28..2026-10-29",
         score_type="continuous_severity",
         served_model="anthropic/claude-sonnet-5-5",
-        total_cached_rows=n_np21_c + n_np33_c,
+        total_cached_rows=n_np21_c,
     )
     em.emit(
         "cached_cascade_v8_haiku_matched_p0f9d7d6",
@@ -685,7 +670,7 @@ def extract_cascade_and_facets(idx: JoinIndex, em: SignalEmitter) -> None:
         if np31_fac:
             em.emit("cached_facets_np31_haiku_goodfire", np31_fac, family="facets", variant="np31_haiku_length_matched_goodfire", source_path=str(np31_path), receipt_path="research/evidence/runs/p0-f9d7d6-6-judge-signal-20261029/PREREGISTRATION.md", date="2026-10-29", score_type="suspicion_0_to_3", served_model="anthropic/claude-haiku-5-5", total_cached_rows=len(np31_rows))
 
-    # 2. Facets Haiku 5.5 across DEV + CM-18 + NP21 + NP33
+    # 2. Facets Haiku 5.5 across DEV + CM-18 + NP21
     def read_ho_facets(fpath: Path, key_map: dict[str, str], default_model: str) -> tuple[dict[str, dict[str, Any]], int]:
         if not fpath.is_file():
             return {}, 0
@@ -707,16 +692,15 @@ def extract_cascade_and_facets(idx: JoinIndex, em: SignalEmitter) -> None:
 
     cm18_fh, n_cm18_fh = read_ho_facets(cm18_dir / "facets.jsonl", idx.cm18_key_to_rk, "anthropic/claude-haiku-5-5")
     np21_fh, n_np21_fh = read_ho_facets(np21_dir / "facets.jsonl", idx.np21_key_to_rk, "anthropic/claude-haiku-5-5")
-    np33_fh, n_np33_fh = read_ho_facets(np33_dir / "facets.jsonl", idx.np33_key_to_rk, "anthropic/claude-haiku-5-5")
-    total_fh_cached = 350 + n_cm18_fh + n_np21_fh + n_np33_fh
+    total_fh_cached = 350 + n_cm18_fh + n_np21_fh
 
     em.emit(
         "cached_facets_haiku_all",
-        {**facets_haiku_dev, **cm18_fh, **np21_fh, **np33_fh},
+        {**facets_haiku_dev, **cm18_fh, **np21_fh},
         family="facets",
-        variant="haiku_55_all_13sets",
-        source_path=f"{findings_path}+{cm18_dir/'facets.jsonl'}+{np21_dir/'facets.jsonl'}+{np33_dir/'facets.jsonl'}",
-        receipt_path="research/evidence/runs/cm18-unseen-far-20261028/RESULTS.md; research/evidence/runs/np21-cm1-unseen-far-20261028/RESULTS.md; research/evidence/runs/np33-cm1-floor-20261029/RESULTS.md",
+        variant="haiku_55_admitted_sets",
+        source_path=f"{findings_path}+{cm18_dir/'facets.jsonl'}+{np21_dir/'facets.jsonl'}",
+        receipt_path="research/evidence/runs/cm18-unseen-far-20261028/RESULTS.md; research/evidence/runs/np21-cm1-unseen-far-20261028/RESULTS.md",
         date="2026-10-28..2026-10-29",
         score_type="suspicion_0_to_3",
         served_model="anthropic/claude-haiku-5-5",

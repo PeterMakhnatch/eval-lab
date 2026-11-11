@@ -8,9 +8,13 @@ sys.dont_write_bytecode = True
 os.environ["EVALLAB_DISABLE_LOCAL_DOCKER"] = "1"
 sys.path.insert(0, "/private/tmp/np35")
 import s_shim  # noqa: E402
+from evallab.gold.exclusions import source_exclusion
 
 
 def load_adapter(corpus_dir):
+    exclusion = source_exclusion(corpus_dir)
+    if exclusion:
+        raise ValueError(f"Excluded trace source {exclusion['name']}: {exclusion['reason']}")
     d = glob.glob(f"/private/tmp/np35/research/evidence/runs/*/corpora/{corpus_dir}/tools")[0]
     sys.path.insert(0, d)
     import adapter

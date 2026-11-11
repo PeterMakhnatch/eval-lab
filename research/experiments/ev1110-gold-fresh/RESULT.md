@@ -9,11 +9,11 @@ All 3,524 raw-trajectory CAS hashes also occur in the retained full-DEV input al
 These positive matches independently exclude the whole candidate population.
 The study does not weaken eligibility to reach 400 rows.
 
-The registry records `goodfire-dev-fresh-labels-v1` as a separate, empty source.
-Its protocol is `action-v2`; its study is `ev1110-gold-fresh`.
-Its exposure is `no recorded exposure; prior history unverifiable`.
-Its scoring state is `labelled-only, unscored`.
-The empty registration creates no synthetic trajectory or label.
+PR #2060 registers `goodfire-dev-fresh-labels-v1` as a separate, empty source.
+The data-2 removal closes that live registration and removes its empty Gold count entry.
+The cohort manifest, pre-registration, and exclusion evidence remain as the record of the null result.
+The scorer still refuses a selected `labelled-only, unscored` cohort without its named `--unlock-cohort`.
+This removal adds no trajectory, label, or score.
 
 ## Prospective registration and earlier study
 

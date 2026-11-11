@@ -1,6 +1,11 @@
 # ruff: noqa
 # NP35-LB-1 per-corpus census script (scratch style, read-only, aggregates only); see ../../README.md.
 import sys, os, json, glob
+from evallab.gold.exclusions import source_exclusion
+
+exclusion = source_exclusion(sys.argv[1])
+if exclusion:
+    raise ValueError(f"Excluded trace source {exclusion['name']}: {exclusion['reason']}")
 
 os.environ["EVALLAB_DISABLE_LOCAL_DOCKER"] = "1"
 d = glob.glob(f"/private/tmp/np35/research/evidence/runs/*/corpora/{sys.argv[1]}/tools")[0]

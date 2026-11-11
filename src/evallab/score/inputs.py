@@ -188,11 +188,9 @@ def gold_rows(root: Path, state_root: Path | None, *, selected_cohorts: set[str]
               unlocked_cohorts: set[str] | None = None) -> tuple[dict[str, dict], dict[str, Any]]:
     """Use Gold's registry and coordinate authority, never a second label registry."""
     from evallab.gold import load_rows
-    from evallab.gold.cohorts import LABELLED_ONLY, check_scoring, registrations
+    from evallab.gold.cohorts import LABELLED_ONLY, check_scoring
 
     selected, unlocked = selected_cohorts or set(), unlocked_cohorts or set()
-    registry = registrations(root)
-    check_scoring(registry, selected, unlocked)
 
     output, originals = {}, {}
     for row in load_rows(root, state_root=state_root):
@@ -228,13 +226,10 @@ def gold_rows(root: Path, state_root: Path | None, *, selected_cohorts: set[str]
 
 def load(config: dict, root: Path, state_root: Path | None, *, selected_cohorts: set[str] | None = None,
          unlocked_cohorts: set[str] | None = None) -> tuple[dict, dict, dict]:
-    from evallab.gold.cohorts import check_scoring, registrations
-
-    check_scoring(registrations(root), selected_cohorts or set(), unlocked_cohorts or set())
-    publisher, pred, policy = replay(config["replay"], root)
-    pred["J3"] = j3(config["j3"], root, set(publisher))
     gold, originals = gold_rows(root, state_root, selected_cohorts=selected_cohorts,
                                unlocked_cohorts=unlocked_cohorts)
+    publisher, pred, policy = replay(config["replay"], root)
+    pred["J3"] = j3(config["j3"], root, set(publisher))
     goodfire, impossible, action_v2 = {}, {}, {}
     for key, row in gold.items():
         if row.get("protocol") == "action-v2":
@@ -261,10 +256,6 @@ def load(config: dict, root: Path, state_root: Path | None, *, selected_cohorts:
     cohorts = {"A": goodfire, "B": impossible, "C": publisher}
     predictions = {"A": {name: {k: v for k, v in rows.items() if k in goodfire} for name, rows in pred.items()},
                    "B": impossible_pred, "C": pred}
-    for source_name in registrations(root):
-        panel = f"action-v2/{source_name}"
-        if source_name in (selected_cohorts or ()) or panel in (selected_cohorts or ()):
-            action_v2.setdefault(panel, {})
     for cohort, runs in action_v2.items():
         cohorts[cohort] = runs
         predictions[cohort] = {

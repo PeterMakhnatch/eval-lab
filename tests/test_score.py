@@ -169,23 +169,11 @@ def test_all_unjudged_panel_has_no_binary_denominators_or_scores():
     assert point["unresolved_honest"]["task_ci95"]["low"] is None
 
 
-def test_labelled_only_registration_refuses_scoring_before_input_access(tmp_path):
-    import json
-
-    from evallab.score.inputs import load
-
-    path = tmp_path / "research/evidence/ev1110-gold-fresh/cohort.json"
-    path.parent.mkdir(parents=True)
-    path.write_text(json.dumps({"source": "fresh", "scoring": "labelled-only, unscored"}))
-    with pytest.raises(ValueError, match="requires --unlock-cohort fresh"):
-        load({}, tmp_path, None, selected_cohorts={"action-v2/fresh"})
-    with pytest.raises(ValueError, match="requires --unlock-cohort fresh"):
-        load({}, tmp_path, None, selected_cohorts={"action-v2/fresh"}, unlocked_cohorts={"other"})
 
 
 def test_labelled_only_rows_need_both_selection_and_named_unlock(tmp_path, monkeypatch):
     from evallab.failure_library.bank import Provenance, new_item
-    from evallab.score.inputs import gold_rows
+    from evallab.score.inputs import gold_rows, load
 
     item = new_item(
         source="fresh", subject_id="run", subject_type="run", kind="cheat",
@@ -200,6 +188,10 @@ def test_labelled_only_rows_need_both_selection_and_named_unlock(tmp_path, monke
     assert gold_rows(tmp_path, None, unlocked_cohorts={"fresh"}) == ({}, {})
     with pytest.raises(ValueError, match="requires --unlock-cohort fresh"):
         gold_rows(tmp_path, None, selected_cohorts={"action-v2/fresh"})
+    with pytest.raises(ValueError, match="requires --unlock-cohort fresh"):
+        load({}, tmp_path, None, selected_cohorts={"action-v2/fresh"})
+    with pytest.raises(ValueError, match="requires --unlock-cohort fresh"):
+        load({}, tmp_path, None, selected_cohorts={"action-v2/fresh"}, unlocked_cohorts={"other"})
     rows, originals = gold_rows(tmp_path, None, selected_cohorts={"action-v2/fresh"},
                                unlocked_cohorts={"fresh"})
     assert rows["fresh:run"]["label"] == 1

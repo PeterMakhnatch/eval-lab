@@ -30,6 +30,7 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from detbench_lib import RUNS, read_jsonl  # noqa: E402
+from score import load_runs  # noqa: E402
 
 RAW = Path("/private/tmp/ov1104/detbench/l0")
 RANK = {"pass": 0, "review": 1, "drop": 2}
@@ -77,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
 
-    runs = {r["run_key"]: r for r in read_jsonl(args.runs)}
+    runs = load_runs(args.runs)
     now = _load(args.raw_dir / f"l0v_{args.view}_raw.jsonl")
     cf1 = _load(args.raw_dir / f"l0cf_{args.view}_raw.jsonl")
     cf2_candidates = [args.raw_dir / f"l0cf2_{args.view}_raw.jsonl"]

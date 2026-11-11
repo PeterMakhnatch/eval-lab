@@ -51,19 +51,25 @@ trigger and dependency handling fail closed, including merge-group support.
 
 | Gate | Command | Version / interpreter |
 |---|---|---|
-| Locked install | `uv sync --locked` (tests: `--no-group observability --group benchmarks --group lance --group inspect`) | uv 0.9.24; Python 3.12 and 3.14; `observability` stays opt-in, `lance` is an opt-in group for lancedb contract tests, `inspect` is an opt-in group for the Inspect log adapter and METR scout reader tests (HAR-287) |
+| Locked install | `uv sync --locked --no-group observability --group benchmarks --group lance --group inspect` (native phase adds `--extra laminar`) | uv 0.9.24; Python 3.12 and 3.14; `observability` stays opt-in |
 | Lint | `uv run ruff check .` | locked Ruff; Python 3.12 |
 | Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze, sealed paths matched by root `.ignore` |
 | Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |
 | Lessons freshness | `uv run python -m evallab.lessons` | locked; statistical lessons lineage |
 | Tests | `uv run pytest` (CI: `--shard ${{ matrix.shard }}`) | locked pytest; Python 3.12 and 3.14 across a two-shard matrix (`test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)`) |
-| Native Harbor diff/regrade | After the base suite, each test shard installs the locked `laminar` extra, requires `harbor.job_diff` to import, then runs the explicit file list in `.github/workflows/ci.yml` with the same shard selector: the diff/regrade, observability and adapter suites plus every test file that skips without the installed SDK (host and compose isolation, agent network policy, task workbench, and the rest). The step writes a JUnit report and `scripts/ci/check_harbor_skips.py` prints every distinct skip-reason count and fails on any message naming Harbor. `tests/test_quality_gates.py::test_every_harbor_gated_test_file_runs_in_the_native_harbor_step` fails when a Harbor-gated file is missing from that list (HAR-260) | Python 3.12 and 3.14; the optional-runtime skips in the base suite are not native coverage |
+| Native Harbor verification | After the base suite, each shard installs the locked `laminar` extra, checks `harbor.job_diff`, and syncs `tools/mimoagent-harbor` with Python 3.12. It prepares pinned Harbor source for RewardKit, then runs the native file inventory. Its JUnit census rejects Harbor-named skips. The inventory coverage gate remains until full native discovery is safe. | Python 3.12 and 3.14; both shards |
 | Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate (runs before tests in premerge) |
 
-The full-suite pytest step writes `full-suite.xml`; its immediately following
-report-only checker ranks `SKIP reason count=N` lines by decreasing count and
-never rejects Harbor-named skips. The native Harbor checker retains its failing
-default mode.
+The full suite writes `full-suite.xml`; its census reports skips without rejecting
+Harbor-named reasons. The native phase writes `harbor-native.xml`; its census rejects
+Harbor-named skips. CI prepares Harbor v0.24.0 source at `/tmp/harbor024/repo`,
+commit `b53b8134e1241686dca7759af188f987ecc48e8b`, for the real RewardKit fixture.
+The native inventory now includes `tests/test_integrity_reward.py` without an exemption.
+
+Full native discovery remains blocked by environment-dependent ATIF validation in
+`src/evallab/evidence/atif.py` and the native worker fixture contract. Preserve that
+behavioral coverage and stored evidence when resolving this prerequisite. Do not
+replace the native inventory until the complete native suite passes.
 
 The ty job fails on any diagnostic. Keep the local premerge baseline and the
 GitHub `typecheck` workflow at zero; never restore a positive baseline.
@@ -119,9 +125,9 @@ Verification separates rapid local checkpoints, full hosted CI gates, and explic
 full local reproduction:
 
 1. **Static checkpoint (`make check` or `scripts/premerge.sh --static`)**:
-   Runs static gates only (locked install with `benchmarks` and `lance` groups,
-   `ruff`, `governance`, `registry audit`, `lessons`, and
-   `ty@0.0.71`). No tests or runtime smoke are executed; this is **not** CI green.
+   Runs static gates only (the locked `benchmarks`, `lance`, and `inspect` groups,
+   `ruff`, `governance`, `registry audit`, `lessons`, and `ty@0.0.71`).
+   No tests or runtime smoke execute; this is **not** CI green.
 2. **Focused prepush checkpoint (`make prepush TESTS='tests/test_foo.py [pytest args]'` or `scripts/premerge.sh --focused TEST_FILE [PYTEST_ARGS...]`)**:
    Runs the same static gates and typecheck, followed by explicitly selected pytest
    tests. `--focused` requires an existing test file or `file::node` selector and
@@ -137,12 +143,12 @@ full local reproduction:
    stderr, and the command returns the child's exit status. Without `--json`,
    child output keeps its normal interactive stdout/stderr streams.
 3. **Explicit full local reproduction (`make premerge` or `scripts/premerge.sh [--full]`)**:
-   Faithfully reproduces the complete Python 3.12 CI gate locally: pins Python 3.12,
-   checks uv 0.9.24, performs the locked install (including `benchmarks` and `lance`
-   dependency groups), runs static typecheck (`ty`) *before* pytest so type errors
-   surface in seconds, runs all static gates, runs the complete pytest suite
-   (`uv run --no-sync pytest`), and runs the Docker-free runtime smoke test
+   Pins Python 3.12, checks uv 0.9.24, and installs the locked static CI profile.
+   It runs static gates and typecheck before the complete pytest suite.
+   It then runs the Docker-free runtime smoke test
    (`uv run --no-sync python -m evallab.smoke --docker-free`).
+   It does not reproduce the separate hosted native phase. That phase remains
+   necessary until the complete suite supports native dependencies.
 4. **Full hosted CI gate on GitHub Actions**:
    The GitHub matrix additionally proves Python 3.14 across two shards. Green is a
    property of the exact pull-request head on GitHub Actions; local runs reproduce

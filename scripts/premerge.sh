@@ -53,11 +53,8 @@ fi
 
 export UV_PYTHON="${PYTHON_FLOOR}"
 
-# The CI test job syncs the benchmark (fastmcp, cryptography) and lance groups so
-# their contract tests run instead of skipping via pytest.importorskip. Mirror them
-# to keep premerge a faithful reproduction of the combined quality + typecheck
-# workflows (see agents/CHECKS.md). `observability` stays opt-in everywhere.
-uv sync --locked --group benchmarks --group lance
+# Match the static CI profile before running the same static gates locally.
+uv sync --locked --no-group observability --group benchmarks --group lance --group inspect
 uv run --no-sync ruff check .
 uv run --no-sync python -m evallab.governance check
 uv run --no-sync evallab registry audit --json

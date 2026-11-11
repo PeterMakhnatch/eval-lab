@@ -161,6 +161,11 @@ jobs:
           # HAR-271: tools/mimoagent-harbor needs a 3.12 interpreter even on the
           # 3.14 matrix row; the worker tests spawn tools/mimoagent-harbor/.venv.
           uv sync --project tools/mimoagent-harbor --locked --python 3.12
+          # The real RewardKit fixture uses Harbor v0.24.0 source, not its wheel.
+          git init /tmp/harbor024/repo
+          git -C /tmp/harbor024/repo remote add origin https://github.com/laude-institute/harbor.git
+          git -C /tmp/harbor024/repo fetch --depth=1 origin b53b8134e1241686dca7759af188f987ecc48e8b
+          git -C /tmp/harbor024/repo checkout --detach FETCH_HEAD
           # Every file listed here skips (or covers only its stubs) when Harbor is
           # absent, so the main pytest step cannot exercise it. HAR-260:
           # tests/test_quality_gates.py::test_every_harbor_gated_test_file_runs_in_the_native_harbor_step
@@ -184,7 +189,7 @@ jobs:
             tests/test_mimoagent_clean_options.py tests/test_harbor024_agent_kwargs.py \
             tests/test_auditor_sft_data.py tests/test_antigravity_bridge.py \
             tests/test_task_workbench.py tests/test_tb4_fingerprints.py \
-            tests/test_harbor_daytona.py
+            tests/test_harbor_daytona.py tests/test_integrity_reward.py
           uv run --no-sync python scripts/ci/check_harbor_skips.py harbor-native.xml
 
   quality-required:

@@ -10,7 +10,9 @@ every `research/evidence/ladder-v*/cells.json` either reaches the matrix
 through the glob or fails the build. For `gaps.csv` they pin the derived
 contract: one row per `verdict=none` cell, each of the three `reason` values,
 and the `superseded_by` rule. `main --check` compares committed bytes, so a
-stale row or a CRLF rewrite of either table exits 1.
+stale row or a CRLF rewrite of either table exits 1. Each `CoverageError` guard
+on the builder's inputs has its own case, so a missing root, a nameless package,
+a broken ledger, or an unknown version fails by a named message.
 """
 
 from __future__ import annotations

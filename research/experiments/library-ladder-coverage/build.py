@@ -593,16 +593,16 @@ def render_gaps(rows: Sequence[dict[str, str]]) -> str:
     return _render(rows, GAP_COLUMNS)
 
 
-def _check(name: str, rebuilt: str) -> bool:
-    """Compare ``rebuilt`` against the committed file; True when it matches."""
-    target = HERE / name
-    committed = target.read_text(encoding="utf-8") if target.is_file() else ""
-    if committed == rebuilt:
+def _check(target: Path, rebuilt: str) -> bool:
+    """Compare ``rebuilt`` against the committed file's bytes; True when equal."""
+    name = target.name
+    committed = target.read_bytes() if target.is_file() else b""
+    if committed == rebuilt.encode("utf-8"):
         print(f"{name}: reproduces from committed evidence")
         return True
     print(f"{name}: stale; rerun without --check to regenerate", file=sys.stderr)
     diff = difflib.unified_diff(
-        committed.splitlines(),
+        committed.decode("utf-8", "replace").splitlines(),
         rebuilt.splitlines(),
         fromfile=f"{name} (committed)",
         tofile=f"{name} (rebuilt)",
@@ -613,7 +613,8 @@ def _check(name: str, rebuilt: str) -> bool:
     return False
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None, out_dir: Path = HERE) -> int:
+    """Build both tables; ``out_dir`` holds the committed CSVs (tests pass a copy)."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--check",
@@ -624,11 +625,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     rows = build()
     gaps = gap_rows(rows)
     if args.check:
-        ok = _check(COVERAGE_NAME, render(rows))
-        ok = _check(GAPS_NAME, render_gaps(gaps)) and ok
+        ok = _check(out_dir / COVERAGE_NAME, render(rows))
+        ok = _check(out_dir / GAPS_NAME, render_gaps(gaps)) and ok
         return 0 if ok else 1
-    (HERE / COVERAGE_NAME).write_text(render(rows), encoding="utf-8")
-    (HERE / GAPS_NAME).write_text(render_gaps(gaps), encoding="utf-8")
+    (out_dir / COVERAGE_NAME).write_text(render(rows), encoding="utf-8")
+    (out_dir / GAPS_NAME).write_text(render_gaps(gaps), encoding="utf-8")
     print(f"wrote {COVERAGE_NAME}: {len(rows)} rows; {GAPS_NAME}: {len(gaps)} rows")
     return 0
 

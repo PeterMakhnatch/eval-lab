@@ -2159,14 +2159,14 @@ def read_receipt(cells_dir: Path, root: Path = ROOT) -> dict[str, Any]:
 
 
 def check(rebuilt: str, target: Path) -> bool:
-    """Compare ``rebuilt`` against the committed file; True when it matches."""
-    committed = target.read_text(encoding="utf-8") if target.is_file() else ""
-    if committed == rebuilt:
+    """Compare ``rebuilt`` against the committed file's bytes; True when equal."""
+    committed = target.read_bytes() if target.is_file() else b""
+    if committed == rebuilt.encode("utf-8"):
         print(f"{OUTPUT_NAME}: reproduces from committed cells")
         return True
     print(f"{OUTPUT_NAME}: stale; rerun without --check to regenerate", file=sys.stderr)
     diff = difflib.unified_diff(
-        committed.splitlines(),
+        committed.decode("utf-8", "replace").splitlines(),
         rebuilt.splitlines(),
         fromfile=f"{OUTPUT_NAME} (committed)",
         tofile=f"{OUTPUT_NAME} (rebuilt)",

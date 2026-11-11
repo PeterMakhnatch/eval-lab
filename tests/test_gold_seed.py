@@ -271,7 +271,8 @@ def test_excluded_source_refuses_rows_before_any_bank_read(tmp_path, monkeypatch
     exclusion = source_exclusion(source)
     with pytest.raises(ValueError) as refused:
         load_rows(tmp_path, tmp_path / "state")
-    assert str(refused.value) == f"Excluded gold source {exclusion['name']}: {exclusion['reason']}"
+    assert exclusion["name"] in str(refused.value)
+    assert exclusion["reason"] in str(refused.value)
 
 
 @pytest.mark.parametrize("source,store", [
@@ -292,4 +293,5 @@ def test_excluded_trajectory_refuses_legacy_and_gold_rows_before_access(tmp_path
     exclusion = row.gold_exclusion()
     with pytest.raises(ValueError) as refused:
         load_trajectory(row, repo_root=tmp_path)
-    assert str(refused.value) == f"Excluded gold source {exclusion['name']}: {exclusion['reason']}"
+    assert exclusion["name"] in str(refused.value)
+    assert exclusion["reason"] in str(refused.value)

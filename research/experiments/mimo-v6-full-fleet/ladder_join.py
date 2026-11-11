@@ -349,7 +349,11 @@ def sync_docs(rows: Sequence[dict[str, str]], root: Path = ROOT) -> list[Path]:
     following = re.search(r"(?m)^#{1,6}[ \t]", text[heading.end() :])
     start = heading.end()
     section = text[start : start + following.start()] if following else text[start:]
-    table = _anchor(TABLE, section, fleet_page, f"{COUNTS_HEADING} count table")
+    # TABLE alone would read a second header right below the first as rows of one
+    # table, so the header itself must be unique on the page.
+    table_anchor = f"{COUNTS_HEADING} count table"
+    _anchor(re.escape(TABLE_HEADER), text, fleet_page, table_anchor)
+    table = _anchor(TABLE, section, fleet_page, table_anchor)
     sentence = _anchor(OTHER_BYTES, section, fleet_page, f"{COUNTS_HEADING} other-bytes sentence")
     fleet_text = _patch(
         text,

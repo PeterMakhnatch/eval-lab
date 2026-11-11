@@ -1,21 +1,18 @@
-"""Real SQLite durability with fake PostgreSQL/NATS external I/O only."""
+"""Queue connection fallback preserves durable store ownership."""
 
 from __future__ import annotations
 
-import asyncio
 import json
 import sqlite3
 import traceback
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import psycopg
 import pytest
-from nats.js.api import PubAck
 
+from evallab.production.cli import open_production_queue
 from evallab.production.corpus_queue import CorpusRegistry, ProductionQueueConnectionError
-from evallab.production.relay import ProductionOutboxRelay, open_production_queue
 
 SECRET = "do-not-expose-connection-password"
 POSTGRES = f"postgresql://operator:{SECRET}@unavailable.invalid/production"
@@ -57,77 +54,6 @@ def _append(queue, event_id: str = "public-event") -> dict[str, Any]:
     )
 
 
-class _Crash(BaseException):
-    """Simulate process loss after broker persistence, before the database mark."""
-
-
-class _Publisher:
-    def __init__(self) -> None:
-        self.accepted: dict[str, bytes] = {}
-        self.attempts: list[str] = []
-        self.fail_on: set[int] = set()
-        self.crash_once = False
-        self.acknowledge = True
-        self.missing_stream = False
-        self.storage = "file"
-        self.created: dict[str, Any] | None = None
-
-    async def stream_info(self, name):
-        if self.missing_stream:
-            from nats.js.errors import NotFoundError
-
-            raise NotFoundError()
-        return SimpleNamespace(config=SimpleNamespace(storage=self.storage))
-
-    async def add_stream(self, **options):
-        self.created = options
-        self.missing_stream = False
-        return SimpleNamespace(config=SimpleNamespace(storage=options["storage"]))
-
-    async def publish(self, subject, payload, *, headers, timeout, stream):
-        event_id = headers["Nats-Msg-Id"]
-        self.attempts.append(event_id)
-        if len(self.attempts) in self.fail_on:
-            raise OSError(SECRET)
-        duplicate = event_id in self.accepted
-        if duplicate:
-            assert self.accepted[event_id] == payload
-        else:
-            self.accepted[event_id] = payload
-        if self.crash_once:
-            self.crash_once = False
-            raise _Crash()
-        if not self.acknowledge:
-            return None
-        return PubAck(
-            stream=stream, seq=list(self.accepted).index(event_id) + 1,
-            duplicate=True if duplicate else None,
-        )
-
-
-class _NatsConnection:
-    def __init__(self, publisher: _Publisher, *, fail: bool = False, hang: bool = False):
-        self.publisher = publisher
-        self.fail = fail
-        self.hang = hang
-        self.is_connected = False
-        self.closed = False
-
-    async def connect(self, **options):
-        if self.fail:
-            raise OSError(SECRET)
-        if self.hang:
-            await asyncio.Event().wait()
-        self.is_connected = True
-
-    def jetstream(self, **options):
-        return self.publisher
-
-    async def close(self):
-        self.closed = True
-        self.is_connected = False
-
-
 class _PostgresIO:
     """Fake the PostgreSQL transport; persist queue SQL in an actual SQLite file."""
 
@@ -154,207 +80,6 @@ class _PostgresIO:
     def close(self):
         self.closed = True
         self.connection.close()
-
-
-def test_no_broker_retains_exact_pending_count_across_reopen(tmp_path, registry):
-    database = tmp_path / "new/production/queue.sqlite"
-    with open_production_queue(database, registry=registry) as connection:
-        events = [_append(connection.queue, f"event-{index}") for index in range(3)]
-        relay = ProductionOutboxRelay(connection.queue, batch_size=1)
-
-        async def run():
-            stats = await relay.run_once()
-            await relay.close()
-            return stats
-
-        stats = asyncio.run(run())
-        assert stats["delivered"] == 0
-        assert stats["pending"] == 3
-        assert stats["backend"] == "sqlite"
-        assert stats["broker_available"] is False
-        assert "not configured" in stats["fallback_reason"]
-        # Relay close does not close the durable queue.
-        assert connection.queue.pending_outbox() == events
-    connection.close()
-    with open_production_queue(f"sqlite:///{database}", registry=registry) as reopened:
-        assert reopened.queue.pending_outbox() == events
-
-
-def test_publish_before_mark_crash_retries_same_broker_identity(tmp_path, registry):
-    database = tmp_path / "queue.sqlite"
-    publisher = _Publisher()
-    publisher.crash_once = True
-    with open_production_queue(database, registry=registry) as connection:
-        event = _append(connection.queue)
-        relay = ProductionOutboxRelay(connection.queue, publisher=publisher)
-
-        async def crash():
-            try:
-                await relay.run_once()
-            finally:
-                await relay.close()
-
-        with pytest.raises(_Crash):
-            asyncio.run(crash())
-        assert connection.queue.pending_outbox() == [event]
-        assert json.loads(publisher.accepted[event["event_id"]]) == event
-    with open_production_queue(database, registry=registry) as reopened:
-        relay = ProductionOutboxRelay(reopened.queue, publisher=publisher)
-
-        async def resume():
-            try:
-                return await relay.run_once()
-            finally:
-                await relay.close()
-
-        stats = asyncio.run(resume())
-        assert stats["delivered"] == 1 and stats["pending"] == 0
-        assert publisher.attempts == [event["event_id"], event["event_id"]]
-        assert len(publisher.accepted) == 1
-    with open_production_queue(database, registry=registry) as reopened:
-        assert reopened.queue.pending_outbox() == []
-        assert reopened.queue.read_events() == [event]
-
-
-def test_mid_batch_failure_keeps_only_unacknowledged_rows_pending(tmp_path, registry):
-    publisher = _Publisher()
-    publisher.fail_on = {2}
-    with open_production_queue(tmp_path / "queue.sqlite", registry=registry) as connection:
-        events = [_append(connection.queue, f"event-{index}") for index in range(3)]
-        relay = ProductionOutboxRelay(connection.queue, publisher=publisher)
-
-        async def run():
-            first = await relay.run_once()
-            assert first["delivered"] == 1 and first["pending"] == 2
-            assert first["broker_available"] is False
-            assert SECRET not in json.dumps(first)
-            assert connection.queue.pending_outbox() == events[1:]
-            second = await relay.run_once()
-            await relay.close()
-            return second
-
-        stats = asyncio.run(run())
-        assert stats["delivered"] == 2 and stats["pending"] == 0
-        assert publisher.attempts == ["event-0", "event-1", "event-1", "event-2"]
-
-
-def test_core_publish_without_jetstream_ack_never_marks_delivered(tmp_path, registry):
-    publisher = _Publisher()
-    publisher.acknowledge = False
-    with open_production_queue(tmp_path / "queue.sqlite", registry=registry) as connection:
-        event = _append(connection.queue)
-        relay = ProductionOutboxRelay(connection.queue, publisher=publisher)
-
-        async def run():
-            stats = await relay.run_once()
-            await relay.close()
-            return stats
-
-        stats = asyncio.run(run())
-        assert stats["delivered"] == 0 and stats["pending"] == 1
-        assert stats["broker_available"] is False
-        assert "did not acknowledge" in stats["fallback_reason"]
-        assert connection.queue.pending_outbox() == [event]
-
-
-def test_publish_timeout_leaves_event_available_for_retry(tmp_path, registry):
-    class HangingPublisher(_Publisher):
-        async def publish(self, subject, payload, *, headers, timeout, stream):
-            await asyncio.Event().wait()
-
-    database = tmp_path / "queue.sqlite"
-    with open_production_queue(database, registry=registry) as connection:
-        event = _append(connection.queue)
-        relay = ProductionOutboxRelay(
-            connection.queue, publisher=HangingPublisher(), publish_timeout=0.01
-        )
-
-        async def run():
-            try:
-                return await relay.run_once()
-            finally:
-                await relay.close()
-
-        stats = asyncio.run(run())
-        assert stats["delivered"] == 0 and stats["pending"] == 1
-        assert stats["broker_available"] is False
-    with open_production_queue(database, registry=registry) as reopened:
-        assert reopened.queue.pending_outbox() == [event]
-
-
-def test_unreachable_nats_is_sanitized_and_next_cycle_reconnects(tmp_path, registry, monkeypatch):
-    publisher = _Publisher()
-    failed = _NatsConnection(publisher, fail=True)
-    healthy = _NatsConnection(publisher)
-    clients = iter((failed, healthy))
-    monkeypatch.setattr("nats.aio.client.Client", lambda: next(clients))
-    with open_production_queue(tmp_path / "queue.sqlite", registry=registry) as connection:
-        _append(connection.queue)
-        relay = ProductionOutboxRelay(connection.queue, nats_url=f"nats://operator:{SECRET}@127.0.0.1:4222")
-
-        async def run():
-            first = await relay.run_once()
-            assert first["delivered"] == 0 and first["pending"] == 1
-            assert first["broker_available"] is False
-            assert SECRET not in json.dumps(first)
-            assert failed.closed
-            second = await relay.run_once()
-            await relay.close()
-            return second
-
-        stats = asyncio.run(run())
-        assert stats["delivered"] == 1 and stats["pending"] == 0
-        assert stats["broker_available"] is True
-        assert healthy.closed
-
-
-def test_fresh_jetstream_creates_file_storage_and_closes_client(tmp_path, registry, monkeypatch):
-    publisher = _Publisher()
-    publisher.missing_stream = True
-    client = _NatsConnection(publisher)
-    monkeypatch.setattr("nats.aio.client.Client", lambda: client)
-    with open_production_queue(tmp_path / "queue.sqlite", registry=registry) as connection:
-        _append(connection.queue)
-        relay = ProductionOutboxRelay(connection.queue, nats_url="nats://127.0.0.1:4222")
-
-        async def run():
-            try:
-                return await relay.run_once()
-            finally:
-                await relay.close()
-                await relay.close()
-
-        assert asyncio.run(run())["pending"] == 0
-        assert publisher.created["storage"] == "file"
-        assert client.closed
-
-
-@pytest.mark.parametrize("memory_stream", [False, True])
-def test_unavailable_or_nondurable_broker_retains_local_rows(
-    tmp_path, registry, monkeypatch, memory_stream
-):
-    publisher = _Publisher()
-    if memory_stream:
-        publisher.storage = "memory"
-    client = _NatsConnection(publisher, hang=not memory_stream)
-    monkeypatch.setattr("nats.aio.client.Client", lambda: client)
-    with open_production_queue(tmp_path / "queue.sqlite", registry=registry) as connection:
-        event = _append(connection.queue)
-        relay = ProductionOutboxRelay(
-            connection.queue, nats_url="nats://127.0.0.1:4222", connect_timeout=0.01
-        )
-
-        async def run():
-            try:
-                return await relay.run_once()
-            finally:
-                await relay.close()
-
-        stats = asyncio.run(run())
-        assert stats["delivered"] == 0 and stats["pending"] == 1
-        assert stats["broker_available"] is False
-        assert connection.queue.pending_outbox() == [event]
-        assert client.closed
 
 
 def test_failed_initial_postgres_connect_uses_persistent_explicit_fallback(
@@ -419,64 +144,22 @@ def test_corrupt_sqlite_is_not_replaced_with_a_fallback(tmp_path, registry):
     assert database.read_bytes() == b"not a SQLite database"
 
 
-def test_successful_postgres_remains_source_after_ack_and_later_disconnect(
+def test_successful_postgres_remains_source_after_later_disconnect(
     tmp_path, registry, monkeypatch
 ):
     transport = _PostgresIO(tmp_path / "postgres-transport.sqlite")
     monkeypatch.setattr(psycopg, "connect", lambda *args, **kwargs: transport)
     fallback = tmp_path / "must-not-create/queue.sqlite"
-    publisher = _Publisher()
     with open_production_queue(POSTGRES, registry=registry, sqlite_fallback=fallback) as connection:
         assert connection.backend == "postgresql" and connection.fallback_reason is None
         event = _append(connection.queue)
-        relay = ProductionOutboxRelay(connection.queue, publisher=publisher)
-
-        async def run():
-            first = await relay.run_once()
-            assert first["backend"] == "postgresql" and first["delivered"] == 1
-            transport.fail = True
-            try:
-                with pytest.raises(psycopg.OperationalError):
-                    await relay.run_once()
-            finally:
-                transport.fail = False
-                await relay.close()
-
-        asyncio.run(run())
-        assert connection.queue.pending_outbox() == []
+        transport.fail = True
+        try:
+            with pytest.raises(psycopg.OperationalError):
+                connection.queue.pending_outbox()
+        finally:
+            transport.fail = False
+        assert connection.queue.pending_outbox() == [event]
         assert connection.queue.read_events() == [event]
         assert not fallback.parent.exists()
     assert transport.closed
-
-
-def test_cancellation_waits_for_inflight_ack_before_queue_cleanup(tmp_path, registry):
-    async def run(queue):
-        started = asyncio.Event()
-        release = asyncio.Event()
-
-        class BlockingPublisher(_Publisher):
-            async def publish(self, subject, payload, *, headers, timeout, stream):
-                started.set()
-                await release.wait()
-                return await super().publish(
-                    subject, payload, headers=headers, timeout=timeout, stream=stream,
-                )
-
-        publisher = BlockingPublisher()
-        relay = ProductionOutboxRelay(queue, publisher=publisher)
-        cycle = asyncio.create_task(relay.run_once())
-        await started.wait()
-        cycle.cancel()
-        cleanup = asyncio.create_task(relay.close())
-        release.set()
-        with pytest.raises(asyncio.CancelledError):
-            await cycle
-        await cleanup
-        return publisher
-
-    with open_production_queue(tmp_path / "queue.sqlite", registry=registry) as connection:
-        event = _append(connection.queue)
-        publisher = asyncio.run(run(connection.queue))
-        assert connection.queue.pending_outbox() == []
-        assert connection.queue.read_events() == [event]
-        assert json.loads(publisher.accepted[event["event_id"]]) == event

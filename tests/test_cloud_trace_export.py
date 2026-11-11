@@ -722,8 +722,7 @@ def isolated_cli(
     monkeypatch.setattr(cli, "load_local_env", lambda _path: None)
     monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     monkeypatch.setattr(corpus_queue, "CorpusRegistry", lambda _root: registry)
-    for name in ("_open_queue", "_runtime", "_relay"):
-        monkeypatch.setattr(production_cli, name, forbidden)
+    monkeypatch.setattr(production_cli, "_open_queue", forbidden)
     return cli
 
 

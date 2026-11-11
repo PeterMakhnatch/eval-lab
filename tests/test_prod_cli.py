@@ -1,19 +1,14 @@
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import os
-import signal
 import sqlite3
-import threading
 from contextlib import closing
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
 
 import evallab.production.cli as production_cli
 from evallab import cli
@@ -79,43 +74,6 @@ def _state(root: Path) -> dict[str, Any]:
         return queue.queue_snapshot()
 
 
-def _forbidden(*_args: Any, **_kwargs: Any) -> None:
-    pytest.fail("A read-only command reached dispatch or a broker")
-
-
-def _runtime_seam(monkeypatch: pytest.MonkeyPatch, runtime_type: type) -> None:
-    from evallab.production import runtime
-
-    monkeypatch.setattr(runtime, "ProductionRuntime", runtime_type)
-
-
-def _relay_seam(monkeypatch: pytest.MonkeyPatch, relay_type: type) -> None:
-    from evallab.production import relay
-
-    monkeypatch.setattr(relay, "ProductionOutboxRelay", relay_type)
-
-
-def _server_seam(monkeypatch: pytest.MonkeyPatch, server_type: type) -> None:
-    import uvicorn
-
-    monkeypatch.setattr(uvicorn, "Server", server_type)
-
-
-def test_prod_help_does_not_open_runtime_resources(
-    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setattr(production_cli, "_open_queue", _forbidden)
-    monkeypatch.setattr(production_cli, "_runtime", _forbidden)
-    monkeypatch.setattr(production_cli, "_relay", _forbidden)
-    with pytest.raises(SystemExit) as stopped:
-        cli.run_cli(["prod", "--help"], workspace=corpus_root)
-    assert stopped.value.code == 0
-    help_text = capsys.readouterr().out
-    assert all(command in help_text for command in ("ingest", "status", "run-once", "serve"))
-    assert "TEST/heldout" in help_text
-    assert not _path(corpus_root).exists()
-
-
 def test_ingest_persists_admission_idempotently_and_reports_sealed_exclusions(
     corpus_root: Path, capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -144,8 +102,6 @@ def test_status_reads_persistent_jobs_without_claiming_or_publishing(
 ) -> None:
     _seed(corpus_root, "misalignment")
     before = _state(corpus_root)
-    monkeypatch.setattr(production_cli, "_runtime", _forbidden)
-    monkeypatch.setattr(production_cli, "_relay", _forbidden)
     assert cli.run_cli(["prod", "status"], workspace=corpus_root) == 0
     receipt = json.loads(capsys.readouterr().out)
     assert receipt["backend"] == "sqlite"
@@ -171,291 +127,25 @@ def test_explicit_root_and_relative_database_work_on_either_side_of_subcommand(
     assert not (workspace / "queues/explicit.sqlite").exists()
 
 
-
-
-@pytest.mark.parametrize("driver", ["gptoss", "ollama", "mlx", "local", "arbitrary/model"])
-def test_non_subscription_drivers_are_rejected_before_opening_queue(
-    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, driver: str,
-) -> None:
-    monkeypatch.setattr(production_cli, "_open_queue", _forbidden)
-    with pytest.raises(SystemExit) as stopped:
-        cli.run_cli(["prod", "run-once", "--seeker-driver", driver], workspace=corpus_root)
-    assert stopped.value.code == 2
-
-
-@pytest.mark.parametrize("amount", ["0", "-1", "nan", "inf", "-inf"])
-def test_invalid_cloud_spend_cap_is_rejected_before_opening_queue(
-    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, amount: str,
-) -> None:
-    monkeypatch.setattr(production_cli, "_open_queue", _forbidden)
-    with pytest.raises(SystemExit) as stopped:
-        cli.run_cli(["prod", "run-once", f"--max-usd={amount}"], workspace=corpus_root)
-    assert stopped.value.code == 2
-
-
-def test_worker_failure_is_nonzero_but_relay_still_runs_and_resources_close(
-    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    closed: list[str] = []
-
-    class FailedRuntime:
-        def run_once(self) -> dict[str, Any]:
-            return {"ok": False, "failures": {"misalignment": {"error": "bad trace"}}}
-
-        def close(self) -> None:
-            closed.append("runtime")
-
-    class Relay:
-        async def run_once(self) -> dict[str, Any]:
-            closed.append("relayed")
-            return {"delivered": 0}
-
-        async def close(self) -> None:
-            closed.append("relay")
-
-    monkeypatch.setattr(production_cli, "_runtime", lambda *_: FailedRuntime())
-    monkeypatch.setattr(production_cli, "_relay", lambda *_: Relay())
-    assert cli.run_cli(["prod", "run-once"], workspace=corpus_root) == 1
-    assert json.loads(capsys.readouterr().out)["runtime"]["ok"] is False
-    assert closed == ["relayed", "relay", "runtime"]
-
-
-def test_dashboard_default_serves_real_asgi_without_dispatch_or_broker_connection(
-    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    _seed(corpus_root, "misalignment")
-    before = _state(corpus_root)
-    observed: dict[str, Any] = {}
-
-    class DashboardServer:
-        def __init__(self, config: Any):
-            self.config = config
-            self.started, self.should_exit = False, False
-            observed["host"] = config.host
-
-        async def serve(self) -> None:
-            self.started = True
-            with TestClient(self.config.app) as client:
-                assert client.get("/").status_code == 200
-                observed["state"] = client.get("/api/state").json()
-                response = client.post("/api/intervene", json={
-                    "action": "pause", "run_id": "cli-regression", "reason": "not authorized",
-                })
-                observed["intervention_status"] = response.status_code
-
-    _server_seam(monkeypatch, DashboardServer)
-    monkeypatch.setattr(production_cli, "_runtime", _forbidden)
-    monkeypatch.setattr(production_cli, "_relay", _forbidden)
-    monkeypatch.setenv("EVALLAB_SEEKER_LIVE_MODEL", "1")
-    assert cli.run_cli(
-        ["prod", "serve", "--nats-url", "nats://must-not-connect.invalid:4222"],
-        workspace=corpus_root,
-    ) == 0
-    receipts = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
-    assert receipts[0]["workers"] is False
-    assert receipts[-1]["event"] == "stopped"
-    assert observed["host"] == "127.0.0.1"
-    assert observed["state"]["queue"]["depth"] == 1
-    assert observed["intervention_status"] == 503
-    assert _state(corpus_root) == before
-
-
-def test_background_worker_crash_stops_http_and_closes_resources_without_secrets(
-    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    closed: list[str] = []
-    observed = SimpleNamespace(server=None)
-    secret = "operator-secret-never-print"
-    password = "database-secret-never-print"
-
-    class CrashRuntime:
-        def run_once(self) -> dict[str, Any]:
-            raise RuntimeError(f"worker crashed {secret} postgresql://user:{password}@host/db")
-
-        def close(self) -> None:
-            closed.append("runtime")
-
-    class Relay:
-        async def run_once(self) -> dict[str, Any]:
-            return {"delivered": 0}
-
-        async def close(self) -> None:
-            closed.append("relay")
-
-    class RunningServer:
-        def __init__(self, config: Any):
-            self.started, self.should_exit = False, False
-            observed.server = self
-
-        async def serve(self) -> None:
-            self.started = True
-            try:
-                while not self.should_exit:
-                    await asyncio.sleep(0.001)
-            finally:
-                closed.append("http")
-
-    _server_seam(monkeypatch, RunningServer)
-    monkeypatch.setattr(production_cli, "_runtime", lambda *_: CrashRuntime())
-    monkeypatch.setattr(production_cli, "_relay", lambda *_: Relay())
-    monkeypatch.setenv("EVALLAB_OPERATOR_TOKEN", secret)
-    assert cli.run_cli(["prod", "serve", "--workers"], workspace=corpus_root) == 2
-    captured = capsys.readouterr()
-    error = json.loads(captured.err)
-    assert error["error"]["type"] == "RuntimeError"
-    assert "worker crashed" in error["error"]["message"]
-    assert secret not in captured.out + captured.err
-    assert password not in captured.out + captured.err
-    assert observed.server.should_exit is True
-    assert closed == ["http", "relay", "runtime"]
-
-
-def test_http_startup_failure_never_dispatches_and_closes_worker_resources(
-    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    closed: list[str] = []
-
-    class NeverRuntime:
-        run_once = staticmethod(_forbidden)
-
-        def close(self) -> None:
-            closed.append("runtime")
-
-    class NeverRelay:
-        run_once = staticmethod(_forbidden)
-
-        async def close(self) -> None:
-            closed.append("relay")
-
-    class BindFailureServer:
-        def __init__(self, config: Any):
-            self.started, self.should_exit = False, False
-
-        async def serve(self) -> None:
-            raise SystemExit(1)
-
-    _server_seam(monkeypatch, BindFailureServer)
-    monkeypatch.setattr(production_cli, "_runtime", lambda *_: NeverRuntime())
-    monkeypatch.setattr(production_cli, "_relay", lambda *_: NeverRelay())
-    assert cli.run_cli(["prod", "serve", "--workers"], workspace=corpus_root) == 2
-    assert "failed to start" in json.loads(capsys.readouterr().err)["error"]["message"]
-    assert closed == ["relay", "runtime"]
-
-
 def test_connection_error_receipt_redacts_encoded_credentials_and_environment_token(
     corpus_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
     token = "sensitive-operator-token"
     database = "postgresql://user:password%2Fwith%20spaces@localhost/lab"
-    broker = "nats://broker-token@localhost:4222"
     monkeypatch.setenv("EVALLAB_OPERATOR_TOKEN", token)
 
     def broken_open(*_: Any) -> Any:
-        raise OSError(f"{database} password/with spaces {broker} broker-token {token}")
+        raise OSError(f"{database} password/with spaces {token}")
 
     monkeypatch.setattr(production_cli, "_open_queue", broken_open)
     assert cli.run_cli([
-        "prod", "run-once", "--database", database, "--nats-url", broker,
+        "prod", "ingest", "--database", database,
     ], workspace=corpus_root) == 2
     captured = capsys.readouterr()
     receipt = json.loads(captured.err)
     assert receipt["error"]["type"] == "OSError"
-    for secret in (token, database, broker, "password/with spaces", "broker-token"):
+    for secret in (token, database, "password/with spaces"):
         assert secret not in captured.out + captured.err
-
-
-def test_graceful_signal_restores_handlers_without_replaying_before_cleanup(
-    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    observed: dict[str, Any] = {}
-    originals = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
-
-    class SignalServer:
-        def __init__(self, config: Any):
-            self.started, self.should_exit = False, False
-
-        def capture_signals(self) -> Any:
-            pytest.fail("The CLI must own the graceful signal lifecycle")
-
-        def handle_exit(self, sig: int, frame: Any) -> None:
-            observed["signal"] = sig
-            self.should_exit = True
-
-        async def serve(self) -> None:
-            with self.capture_signals():
-                self.started = True
-                handler: Any = signal.getsignal(signal.SIGTERM)
-                assert callable(handler)
-                handler(signal.SIGTERM, None)
-                assert self.should_exit
-
-    _server_seam(monkeypatch, SignalServer)
-    monkeypatch.setattr(signal, "raise_signal", _forbidden)
-    assert cli.run_cli(["prod", "serve"], workspace=corpus_root) == 0
-    assert observed["signal"] == signal.SIGTERM
-    assert all(signal.getsignal(sig) == handler for sig, handler in originals.items())
-    assert json.loads(capsys.readouterr().out.splitlines()[-1])["event"] == "stopped"
-
-
-def test_shutdown_waits_for_inflight_consumer_before_closing_resources(
-    corpus_root: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    started, release = threading.Event(), threading.Event()
-    calls: list[str] = []
-
-    class FinishingRuntime:
-        def run_once(self) -> dict[str, Any]:
-            started.set()
-            assert release.wait(timeout=2)
-            calls.append("completed")
-            return {"ok": True}
-
-        def close(self) -> None:
-            assert "completed" in calls
-            calls.append("runtime-closed")
-
-    class Relay:
-        async def run_once(self) -> dict[str, Any]:
-            calls.append("relay")
-            return {"delivered": 0}
-
-        async def close(self) -> None:
-            calls.append("relay-closed")
-
-    class StoppingServer:
-        def __init__(self, config: Any):
-            self.started, self.should_exit = False, False
-
-        async def serve(self) -> None:
-            self.started = True
-            while not started.is_set():
-                await asyncio.sleep(0.001)
-            self.should_exit = True
-            release.set()
-            calls.append("http-stopped")
-
-    _server_seam(monkeypatch, StoppingServer)
-    monkeypatch.setattr(production_cli, "_runtime", lambda *_: FinishingRuntime())
-    monkeypatch.setattr(production_cli, "_relay", lambda *_: Relay())
-    assert cli.run_cli(["prod", "serve", "--workers"], workspace=corpus_root) == 0
-    assert calls == ["http-stopped", "completed", "relay", "relay-closed", "runtime-closed"]
-
-
-def test_real_async_seeker_cycle_returns_success_and_closes_from_cli(
-    corpus_root: Path, capsys: pytest.CaptureFixture[str],
-) -> None:
-    entries = corpus_root / "research/hackbook/entries.jsonl"
-    entries.parent.mkdir(parents=True)
-    entries.write_text("", encoding="utf-8")
-    _path(corpus_root).parent.mkdir(parents=True, exist_ok=True)
-    before = _state(corpus_root)
-    assert cli.run_cli(
-        ["prod", "run-once", "--systems", "reward_seeker"], workspace=corpus_root,
-    ) == 0
-    receipt = json.loads(capsys.readouterr().out)
-    assert receipt["runtime"]["ok"] is True
-    assert receipt["runtime"]["workers"]["reward_seeker"]["status"] == "idle"
-    assert _state(corpus_root) == before
 
 
 def _actor_source(root: Path) -> tuple[Path, Path, str, bytes]:

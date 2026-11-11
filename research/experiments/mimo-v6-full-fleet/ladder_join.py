@@ -23,8 +23,9 @@ A cell is a measurement of whatever bytes it ran; nothing here promotes a cell
 verdict into fleet acceptance, and the census buckets are emitted unchanged.
 
 ``--sync-docs`` rewrites the two pages that quote the committed join: the
-count table and other-bytes sentence in this directory's README, and the join
-sentence in ``docs/mimo/README.md``'s Open items. It refuses a stale join CSV,
+count table, other-bytes sentence and final census row in this directory's
+README, and the join sentence and both census sentences (including the
+567-task sentence) in ``docs/mimo/README.md``. It refuses a stale join CSV,
 and a page whose anchor is missing or repeated raises ``JoinError`` before any
 page is written; on a synced tree it rewrites nothing.
 
@@ -78,6 +79,23 @@ ROUTE_SENTENCE = (
     r"cell,\s+and\s+([0-9][0-9,]*)\s+whose\s+cell\s+ran\s+the\s+fleet\s+digest;\s+"
     r"([0-9][0-9,]*)\s+have\s+no\s+ranked\s+cell\s+and\s+([0-9][0-9,]*)\s+cells\s+"
     r"ran\s+other\s+bytes"
+)
+
+#: The census buckets the release pages quote; any other bucket is a contract break.
+CENSUS_BUCKETS = ("v6_verified", "v6_unverified", "broken_ref_or_env", "missing_ref")
+
+ROUTE_CENSUS = (
+    r"Its\s+fleet\s+census\s+\(`mimo-v6-fleet-census\.csv`\)\s+is\s+"
+    r"([0-9][0-9,]*)\s+`v6_verified`\s+and\s+([0-9][0-9,]*)\s+`v6_unverified`"
+)
+ROUTE_V6_FLEET = (
+    r"For\s+the\s+([0-9][0-9,]*)-task\s+v6\s+fleet\s+only\s+"
+    r"([0-9][0-9,]*)\s+are\s+`v6_verified`"
+)
+CENSUS_ROW = (
+    r"^\|\s*Final reviewed release, after exact-source controls\s*\|\s*"
+    r"([0-9][0-9,]*)\s*\|\s*([0-9][0-9,]*)\s*\|\s*([0-9][0-9,]*)\s*\|\s*"
+    r"([0-9][0-9,]*)\s*\|$"
 )
 
 COLUMNS = (
@@ -251,6 +269,17 @@ def bucket_counts(rows: Sequence[dict[str, str]]) -> list[tuple[str, int, int, i
     return counts
 
 
+def census_counts(rows: Sequence[dict[str, str]]) -> dict[str, int]:
+    """Fleet tasks per census bucket; any other bucket is refused."""
+    counts = dict.fromkeys(CENSUS_BUCKETS, 0)
+    for row in rows:
+        bucket = row["bucket"]
+        if bucket not in counts:
+            raise JoinError(f"join bucket {bucket!r} is not one of {CENSUS_BUCKETS}")
+        counts[bucket] += 1
+    return counts
+
+
 def build(root: Path = ROOT) -> list[dict[str, str]]:
     return assemble(fleet_rows(root), ladder_cells(root))
 
@@ -333,13 +362,14 @@ def _write_atomic(path: Path, data: bytes) -> None:
 
 
 def sync_docs(rows: Sequence[dict[str, str]], root: Path = ROOT) -> list[Path]:
-    """Rewrite the join counts on both pages; every anchor is checked before any write.
+    """Rewrite the join and census counts; check every anchor before any write.
 
     Returns the pages whose bytes changed. A synced tree changes nothing.
     """
     counts = bucket_counts(rows)
     _, tasks, with_cell, at_digest = next(entry for entry in counts if entry[0] == "all")
     other = with_cell - at_digest
+    census = census_counts(rows)
     fleet_page = root / FLEET_README
     route_page = root / ROUTE_PAGE
     originals = {page: _read_page(page) for page in (fleet_page, route_page)}
@@ -358,18 +388,31 @@ def sync_docs(rows: Sequence[dict[str, str]], root: Path = ROOT) -> list[Path]:
     table = _anchor(TABLE, section, fleet_page, table_anchor)
     _anchor(OTHER_BYTES, text, fleet_page, "other-bytes sentence")
     sentence = _anchor(OTHER_BYTES, section, fleet_page, f"{COUNTS_HEADING} other-bytes sentence")
+    census_row = _anchor(CENSUS_ROW, text, fleet_page, "final census row")
     fleet_text = _patch(
         text,
         [
             (start + table.start(), start + table.end(), render_table(counts)),
             *_group_edits(sentence, (with_cell, at_digest, with_cell, at_digest, other), start),
+            *_group_edits(
+                census_row, tuple(census[bucket] for bucket in CENSUS_BUCKETS)
+            ),
         ],
     )
 
     text = originals[route_page]
     route = _anchor(ROUTE_SENTENCE, text, route_page, "fleet/ladder join sentence")
+    census_sentence = _anchor(ROUTE_CENSUS, text, route_page, "fleet census sentence")
+    v6_fleet = _anchor(ROUTE_V6_FLEET, text, route_page, "v6 fleet census sentence")
     route_text = _patch(
-        text, _group_edits(route, (tasks, with_cell, at_digest, tasks - with_cell, other))
+        text,
+        [
+            *_group_edits(route, (tasks, with_cell, at_digest, tasks - with_cell, other)),
+            *_group_edits(
+                census_sentence, (census["v6_verified"], census["v6_unverified"])
+            ),
+            *_group_edits(v6_fleet, (tasks, census["v6_verified"])),
+        ],
     )
 
     changed: list[Path] = []
@@ -392,7 +435,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--sync-docs",
         action="store_true",
         help=(
-            f"rewrite the join counts in {FLEET_README} and {ROUTE_PAGE} from the "
+            f"rewrite the join and census counts in {FLEET_README} and {ROUTE_PAGE} from the "
             f"committed {JOIN_NAME}; exit 1 if that file is stale"
         ),
     )

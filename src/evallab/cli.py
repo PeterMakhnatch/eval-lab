@@ -2709,62 +2709,6 @@ def _semantic_facts_project_command(
     return 0
 
 
-def _semantics_bindings(values: Sequence[str]):
-    from evallab.interpretation.trajectory_semantics import (
-        TaskProfileBinding,
-        get_profile,
-    )
-
-    bindings = []
-    for value in values:
-        task_id, separator, profile_id = value.partition("=")
-        if not separator or not task_id.strip() or not profile_id.strip():
-            raise ValueError("--bind must use TASK_ID=PROFILE_ID")
-        profile = get_profile(profile_id.strip())
-        bindings.append(TaskProfileBinding.from_profile(task_id.strip(), profile))
-    return bindings
-
-
-def _semantics_project_command(
-    args: argparse.Namespace,
-    root: Path,
-    *,
-    harbor: HarborBackend | None = None,
-) -> int:
-    del harbor
-    from evallab.interpretation.trajectory_semantics import project_job_semantics
-
-    jobs = load_jobs([_resolve(root, path) for path in args.paths])
-    if not jobs:
-        print("No completed Harbor jobs found.", file=sys.stderr)
-        return 1
-    derived = derived_root_from_environment(
-        root,
-        explicit=args.output_dir,
-    )
-    result = project_job_semantics(
-        jobs,
-        bindings=_semantics_bindings(args.bind),
-        output_root=derived,
-        query_threshold=args.coverage_threshold,
-        strict=not args.permissive,
-    )
-    payload = {
-        "files": [str(path) for path in result.files],
-        "coverage": [row.model_dump(mode="json") for row in result.coverage],
-    }
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        print(f"projected {len(result.files)} semantic file(s) to {derived}")
-        for row in result.coverage:
-            print(
-                f"{row.trial_id}: {row.coverage_fraction:.3f} "
-                f"at threshold {row.query_threshold:.3f} — {row.status}"
-            )
-    return 0
-
-
 def _evidence_archive_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -5614,35 +5558,6 @@ def parser() -> argparse.ArgumentParser:
     semantic_facts_project.add_argument("--output-dir", type=Path, required=True)
     semantic_facts_project.add_argument("--json", action="store_true")
     semantic_facts_project.set_defaults(func=_semantic_facts_project_command)
-
-    semantics = commands.add_parser(
-        "semantics",
-        help="Project and query profile-derived semantic action facts",
-    )
-    semantics_commands = semantics.add_subparsers(
-        dest="semantics_command",
-        required=True,
-    )
-    semantics_project = semantics_commands.add_parser(
-        "project",
-        help="Project normalized ATIF with explicit task-to-profile bindings",
-    )
-    semantics_project.add_argument("paths", nargs="+", type=Path)
-    semantics_project.add_argument(
-        "--bind",
-        action="append",
-        required=True,
-        metavar="TASK_ID=PROFILE_ID",
-    )
-    semantics_project.add_argument("--output-dir", type=Path)
-    semantics_project.add_argument(
-        "--coverage-threshold",
-        type=float,
-        required=True,
-    )
-    semantics_project.add_argument("--permissive", action="store_true")
-    semantics_project.add_argument("--json", action="store_true")
-    semantics_project.set_defaults(func=_semantics_project_command)
 
     evidence_parser = commands.add_parser(
         "evidence", help="Archive and restore content-addressed raw evidence"

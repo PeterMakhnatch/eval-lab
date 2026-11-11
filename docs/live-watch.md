@@ -679,16 +679,6 @@ before or after the leaf command.
 # Seed all four registered public corpora; repeating this preserves event/job IDs.
 uv run evallab prod ingest
 uv run evallab prod status
-
-# Consume one cycle, with no model driver enabled.
-uv run evallab prod run-once --systems misalignment
-
-# Read-only dashboard, loopback:8765; neither workers nor relay are started.
-uv run evallab prod serve
-
-# Explicitly opt into continuous public-trajectory replay and outbox delivery.
-uv run evallab prod serve --workers --systems misalignment \
-  --nats-url nats://127.0.0.1:4222
 ```
 
 `ingest --dataset <registry-id>` can be repeated to select corpora. The defaults
@@ -708,22 +698,6 @@ candidate is recorded as unavailable—not replaced with a latest-version alias,
 synthetic submission, or invented Task Quality/Seeker job. Re-ingesting changed
 source/preflight under the same native identity fails explicitly rather than
 overwriting the append-only journal.
-
-`run-once` runs the selected Task Quality, Reward Seeker, and/or Misalignment
-consumers and then one relay cycle. `serve --workers` supervises the same cycle
-alongside HTTP; shutdown waits for in-flight consumers before closing resources.
-Seeker defaults to supplied candidates only. `--seeker-driver sonnet` or `codex`
-explicitly selects an existing OMP subscription driver; local model backends are
-not accepted.
-
-CLI grading always uses the existing `ExecutionBackendConfig(backend="modal",
-allow_local_docker=False)` boundary. It never starts laptop Docker, including
-when the operator's environment omits `EVALLAB_DISABLE_LOCAL_DOCKER`. Execution
-requires all of `--approval`, `--max-usd`, `--spend-ledger`, `--modal-app-name`,
-and `--billing-tag`; no cloud spend is authorized implicitly. Public replay and
-static work need none of those fields. The local cycle is an
-explicit selected-consumer/replay command, not a second Modal service or a
-replacement for `ProductionSupervisor`'s prioritized continuous export pipeline.
 
 For PostgreSQL, `--sqlite-fallback <path>` selects the local fallback (default:
 `derived/production/prod-queue.sqlite` under the source root). Fallback occurs

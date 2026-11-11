@@ -1228,7 +1228,7 @@ def test_compaction_retains_partitions_with_uncompacted_files(tmp_path: Path) ->
     }
 
 
-@pytest.mark.parametrize("writer", ["atif", "facts", "event-mart", "semantic-action"])
+@pytest.mark.parametrize("writer", ["atif", "facts", "event-mart"])
 def test_projection_writer_waits_until_compaction_has_finished_pruning(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, writer: str
 ) -> None:
@@ -1236,14 +1236,12 @@ def test_projection_writer_waits_until_compaction_has_finished_pruning(
     from evallab.evidence.atif import _write_parquet
     from evallab.evidence.event_mart import _write_table
     from evallab.evidence.facts import _write_fact_table
-    from evallab.interpretation.trajectory_semantics import project_semantic_actions_parquet
 
     hot, cold = _cold_and_hot_day(tmp_path)
     table_name, publish = {
         "atif": ("steps", _write_parquet),
         "facts": ("reward_facts", _write_fact_table),
         "event-mart": ("agent_actions", _write_table),
-        "semantic-action": ("semantic_action_facts", None),
     }[writer]
     source = hot / "trial_id=late-trial" / f"{table_name}.parquet"
     attempted_lock = threading.Event()
@@ -1261,10 +1259,7 @@ def test_projection_writer_waits_until_compaction_has_finished_pruning(
         real_flock(fd, operation)
 
     def publish_late() -> None:
-        if publish is None:
-            project_semantic_actions_parquet([], source)
-        else:
-            publish(source, table_name, [_make_table_row(table_name, "hot-job", "late-trial")])
+        publish(source, table_name, [_make_table_row(table_name, "hot-job", "late-trial")])
         published.set()
 
     with ThreadPoolExecutor(max_workers=1, thread_name_prefix="projection-writer") as executor:
@@ -1285,10 +1280,7 @@ def test_projection_writer_waits_until_compaction_has_finished_pruning(
 
     assert result.ok
     assert result.pruned_jobs == ("hot-job",)
-    if writer == "semantic-action":
-        assert pq.ParquetFile(source).metadata.num_rows == 0
-    else:
-        assert pq.ParquetFile(source).read()["trial_id"].to_pylist() == ["late-trial"]
+    assert pq.ParquetFile(source).read()["trial_id"].to_pylist() == ["late-trial"]
     assert set(pq.ParquetFile(cold / "reward_facts.parquet").read()["trial_id"].to_pylist()) == {
         "cold-trial",
         "hot-trial",

@@ -27,6 +27,7 @@ from evallab.analysis_capability import (
     ReviewQueueEntryV1,
     RunRecommendationV1,
     Verdict,
+    _canonical_digest,
     analyze_cascade_distance,
     analyze_conditional_recovery,
     compute_review_queue_digest,
@@ -37,7 +38,6 @@ from evallab.analysis_capability import (
     run_campaign_analysis,
 )
 from evallab.evidence.capture_authority import CaptureAuthority
-from evallab.interpretation.trajectory_judgment import canonical_json_digest
 
 DIGEST_A = "sha256:" + "a" * 64
 DIGEST_B = "sha256:" + "b" * 64
@@ -1102,7 +1102,7 @@ def test_next_run_feedback_is_unauthorized() -> None:
         "execution_authorized": False,
         "authorizing_actor_required": True,
     }
-    canonical_fb_digest = canonical_json_digest(feedback_body)
+    canonical_fb_digest = _canonical_digest(feedback_body)
     feedback = NextRunFeedbackV1.model_validate(
         {
             **feedback_body,

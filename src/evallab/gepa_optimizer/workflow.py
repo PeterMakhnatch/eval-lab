@@ -20,6 +20,7 @@ from evallab.execution_contracts import (
     ZAI_OPENCODE_MODEL_SELECTORS,
 )
 from evallab.registry import task_directory_digest
+from evallab.task_prepare import load_retained_spec, validate_drift
 from evallab.upstream_fetch import KNOWN_SCORE_RULES, UPSTREAM_FETCH_ZERO
 
 from .budget import AggregateBudget, BudgetExhausted
@@ -32,7 +33,6 @@ from .evaluator import (
     LabEvaluator,
     ProviderCeilings,
 )
-from .intake import load_retained_spec, validate_drift
 from .proposer import (
     JournaledReflectionLM,
     ProposalUnavailable,

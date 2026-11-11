@@ -163,6 +163,41 @@ Decision-sensitive changes require the registered, base-owned Line gate. Preserv
 its limits and frozen inputs. A documentation change does not authorize a gate
 exception.
 
+## Retained MiMo study snapshot
+
+The study documentation generator still maintains the following snapshot.
+Removing its root-page output requires a separate caller migration outside this
+unit. These results do not establish the certification contract above.
+
+Not done yet: most clean-set rows are still `unverified`. In the 567-task v6
+full fleet only 5 are `v6_verified` and 562 `v6_unverified` (reference/nop
+controls only; see [docs/mimo/README.md](docs/mimo/README.md)); the v5 census
+had sampled the fleet, leaving 1,729 rebuilt tasks without a v5 ladder run
+(history). The ranked v6 ladder is 100/100 covered: v6 basis (100 ranks): 100
+covered, 99 clean, 80 tamper-refusal, 19 graded, 1 unscored, 0 not run
+([ladder-progress.csv](research/experiments/mimo-clean-v6/ladder-progress.csv)).
+The strict evidence check matched 99 of 100 cells and 13 of 13 recorded subset
+trials ([ladder-evidence-receipt.json](research/experiments/mimo-clean-v6/ladder-evidence-receipt.json)).
+The remaining v6 gap is the pending controls: 178 pending cells for
+90 tasks, 174 runnable, 10.36 projected serial hours
+([pending-controls.json](research/experiments/mimo-clean-v6/pending-controls.json);
+phase table in the
+[pending-controls section](research/experiments/mimo-clean-v6/README.md#pending-v6-control-cells-by-ranking-phase)).
+Most v6 Python ladder clean verdicts rest on verifier refusal, not a graded run,
+and the `tamper_source_*` attacks on the 80 refusal rows are ungraded.
+The graded rows include the 5 Go cells (`001694` at rank 6; `000048`,
+`000208`, `000427`, `000431` at ranks 89–92), the 4 JavaScript cells
+(`000112`, `000524`, `001675`, `001849` at ranks 93–96) and the 4 TypeScript
+cells at ranks 97–100 (`000046`, `000055`, `000460`, `001514`).
+The [JavaScript receipt](research/experiments/mimo-clean-v6/ladder-p2-js-ranks93-96.json)
+records 9/14 attacks per task, graded reward 0, and no tamper refusal.
+The [TypeScript receipt](research/experiments/mimo-clean-v6/ladder-p2-ts-ranks97-100.json)
+records 8 or 9 of 14 attacks per task, graded reward 0, and no tamper refusal.
+Graded subset cells exist for 7 refused rows
+([original subset cells](research/experiments/mimo-clean-v6/ladder-graded-subset.json);
+[P0 subset cells](research/experiments/mimo-clean-v6/ladder-graded-subset-p0.json)).
+The other MiMo domains have not been cleaned.
+
 ## Historical manuals
 
 The older cross-product manuals remain for historical evidence, not current
@@ -170,8 +205,10 @@ operator instructions. Each page links its source at
 `7f2d2eed8c8dd80369d3fca2e0889f640ae964a6`. Read commands and relative references
 against that revision. Do not use them to restore retired tools or approvals.
 
+The [run explorer manual](docs/run-explorer.md) remains current until its live
+context-pack dependency migrates. Its retirement is not part of this change.
+
 - [Harbor viewer](docs/harbor-view.md)
-- [Run explorer](docs/run-explorer.md)
 - [Live watch](docs/live-watch.md)
 - [Task quality](docs/task-quality.md)
 - [Trace harness](docs/trace-harness.md)

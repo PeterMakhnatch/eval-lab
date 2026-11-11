@@ -78,7 +78,10 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    # Discover every test once per shard with the native dependencies installed.
+    # HAR-260 added the Harbor-gated suites the main step could only skip, so the
+    # native step now runs 33 files instead of 20. On run 41421757708 the job took
+    # 6.3-7.3 min against the old 10 min cap; the wider cap keeps a hang bounded
+    # without cutting a slower Python or runner off mid-suite.
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -126,19 +129,8 @@ jobs:
         with:
           path: ~/.cache/uv
           key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python-version }}-test-${{ hashFiles('uv.lock', 'tools/mimoagent-harbor/uv.lock', '.github/workflows/ci.yml') }}
-      - name: Prepare native tools before discovery
-        run: |
-          # The worker suites use this project's pinned Python 3.12 interpreter.
-          uv sync --project tools/mimoagent-harbor --locked --python 3.12
-          # The real RewardKit fixture needs the matching Harbor source tree.
-          git init /tmp/harbor024/repo
-          git -C /tmp/harbor024/repo remote add origin https://github.com/laude-institute/harbor.git
-          git -C /tmp/harbor024/repo fetch --depth=1 origin b53b8134e1241686dca7759af188f987ecc48e8b
-          git -C /tmp/harbor024/repo checkout --detach FETCH_HEAD
-      - name: Sync native test dependencies
-        run: |
-          uv sync --locked --no-group observability --group benchmarks --group lance --group inspect --extra laminar
-          uv run --no-sync python -c 'import harbor.job_diff'
+      - name: Sync with benchmark, lance and inspect test dependencies (fastmcp, cryptography, lancedb, inspect-ai)
+        run: uv sync --locked --no-group observability --group benchmarks --group lance --group inspect
       - name: Initialise live catalog schema
         # Beyond the fixtures' throwaway databases, some live tests (attach, verdicts,
         # dashboard queries) read the default catalog database, which is empty on a
@@ -159,9 +151,46 @@ jobs:
           EVALLAB_RUN_POSTGRES_TESTS: "1"
         run: uv run --no-sync pytest --shard ${{ matrix.shard }} --junitxml=full-suite.xml
       - name: Full-suite skip reason census
-        run: uv run --no-sync python scripts/ci/check_harbor_skips.py full-suite.xml
+        run: uv run --no-sync python scripts/ci/check_harbor_skips.py --report-only full-suite.xml
       - if: matrix.python-version == '3.12' && matrix.shard == '1/2'
         run: uv run --no-sync python -m evallab.smoke --docker-free
+      - name: Native Harbor diff, regrade and observability contracts
+        run: |
+          uv sync --locked --no-group observability --group benchmarks --group lance --extra laminar
+          uv run --no-sync python -c 'import harbor.job_diff'
+          # HAR-271: tools/mimoagent-harbor needs a 3.12 interpreter even on the
+          # 3.14 matrix row; the worker tests spawn tools/mimoagent-harbor/.venv.
+          uv sync --project tools/mimoagent-harbor --locked --python 3.12
+          # The real RewardKit fixture uses Harbor v0.24.0 source, not its wheel.
+          git init /tmp/harbor024/repo
+          git -C /tmp/harbor024/repo remote add origin https://github.com/laude-institute/harbor.git
+          git -C /tmp/harbor024/repo fetch --depth=1 origin b53b8134e1241686dca7759af188f987ecc48e8b
+          git -C /tmp/harbor024/repo checkout --detach FETCH_HEAD
+          # Every file listed here skips (or covers only its stubs) when Harbor is
+          # absent, so the main pytest step cannot exercise it. HAR-260:
+          # tests/test_quality_gates.py::test_every_harbor_gated_test_file_runs_in_the_native_harbor_step
+          # fails when a Harbor-gated test file is missing from this list. `-rA`
+          # puts every test's PASSED/SKIPPED status in the log: dots plus one
+          # aggregate count cannot show that a gated file really ran.
+          uv run --no-sync pytest --shard ${{ matrix.shard }} -n 0 -rA \
+            --junitxml=harbor-native.xml \
+            tests/test_job_diff.py tests/test_regrade.py \
+            tests/test_harbor_laminar.py tests/test_mimoagent_worker.py \
+            tests/test_mimoagent_stops.py tests/test_mimoagent_trajectory.py \
+            tests/test_execution_contracts.py \
+            tests/test_harbor_docker.py tests/test_harbor_modal.py tests/test_egress_lock.py \
+            tests/test_ref_subset_modal.py tests/test_qa_task_modal.py tests/test_upstream_grader.py \
+            tests/test_heldout_v7_native.py tests/test_phase2_native_generation.py \
+            tests/test_candidate_runner.py tests/test_candidate_port.py \
+            tests/test_harbor_host_isolation.py tests/test_host_isolation_compose.py \
+            tests/test_agent_network_policy.py \
+            tests/test_cloud_trace_export.py tests/test_harbor_analyze_reader.py \
+            tests/test_heldout_v7_rounds.py tests/test_campaign_execution.py \
+            tests/test_mimoagent_clean_options.py tests/test_harbor024_agent_kwargs.py \
+            tests/test_auditor_sft_data.py tests/test_antigravity_bridge.py \
+            tests/test_task_workbench.py tests/test_tb4_fingerprints.py \
+            tests/test_harbor_daytona.py tests/test_integrity_reward.py
+          uv run --no-sync python scripts/ci/check_harbor_skips.py harbor-native.xml
 
   quality-required:
     name: quality-required

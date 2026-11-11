@@ -2,9 +2,9 @@
 
 One item per labelled subject of every staged set the registry lists
 (``ctx.cross_test_registry``), read only through the existing read-only loaders:
-the trace harness' ``staged:<set>`` loader for the eight run-level sets it
-registers, and each set's own corpus adapter (``specs()``) for the others. Only
-ids and labels leave those loaders; no transcript, task text or gold detail is
+the trace harness' ``staged:<set>`` loader for registered run-level sets,
+and task-only adapters for the certify inventory. Excluded sources emit no runs.
+Only ids and labels leave those loaders; no transcript, task text or gold detail is
 copied, and nothing is written.
 
 Rules that shape the output:
@@ -44,6 +44,7 @@ from evallab.failure_library.bank import (
     SubjectType,
     new_item,
 )
+from evallab.gold.exclusions import source_exclusion
 from evallab.production.trace_harness import actor_inputs_available
 from evallab.production.trace_harness_staged import STAGED_SETS, _rows
 
@@ -56,17 +57,15 @@ NEGATIVE_BASES = frozenset({"established", "mixed"})
 #: Staged sets that are not itemized, and why (reported, never silently dropped).
 _NOT_ITEMIZED: Mapping[str, str] = {
     "hackbench": "CC BY-NC, no rehosting: summary counts only, never items",
-    "apollo-insider-trading": (
-        "completion-level misalignment/deception rows: no matching issue kind and not an agent trajectory"
-    ),
-    "hack-ignition": (
-        "single-turn completion rows (17,154 hack incl. a prompted please_hack arm): not an agent trajectory"
-        " and no completion granularity"
-    ),
 }
 
+
+def _excluded(slug: str) -> str | None:
+    entry = source_exclusion(slug)
+    return entry["reason"] if entry and entry["procedure"] == "R1" else None
+
+
 _RUNS = "research/evidence/runs"
-_PQ1 = f"{_RUNS}/corpus-expansion-pq1-20261027/corpora"
 _PQ2 = f"{_RUNS}/corpus-expansion-pq2-20261028/corpora"
 _LB11 = f"{_RUNS}/corpus-expansion-lb11-20261028/corpora"
 
@@ -152,16 +151,6 @@ def _harness(
     return rows
 
 
-def _sleight(slug: str, bundle: Path, ctx: BankContext) -> Iterator[_Row]:
-    for spec in _adapter_specs(slug, f"{_PQ1}/safety-research__sleight-bench/tools/adapter.py", bundle, ctx):
-        attack = bool(spec["positive"])
-        yield _Row(
-            spec["trace_key"], attack,
-            "publisher attack segment" if attack else "publisher benign counterpart segment",
-            "construction", _actor(spec),
-        )
-
-
 def _paichecker(slug: str, bundle: Path, ctx: BankContext) -> Iterator[_Row]:
     for spec in _adapter_specs(slug, f"{_LB11}/manyi-w__paichecker/tools/adapter.py", bundle, ctx):
         identity, gold = spec["identity"], spec["gold"]
@@ -210,26 +199,12 @@ def _rhb(slug: str, bundle: Path, ctx: BankContext) -> Iterator[_Row]:
         )
 
 
-def _assistant_axis(slug: str, bundle: Path, ctx: BankContext) -> Iterator[_Row]:
-    adapter = f"{_PQ1}/arkonyx__assistant-axis-reward-hacking/tools/adapter.py"
-    for spec in _adapter_specs(slug, adapter, bundle, ctx):
-        if not spec["positive"]:
-            continue  # "unflagged" turns are weak negatives, not judge-confirmed clean
-        yield _Row(
-            spec["trace_key"], True, f"judge HACK verdict ({str(spec['gold']['strength']).lower()})",
-            "judge", _actor(spec),
-        )
-
-
 SETS: Mapping[str, _Set] = {
     "kernelbench-hard-runs": _Set("cheat", "run", "run", _harness(
         ("rubric_leak (maintainer verdict)", "human"), ("clean (maintainer verdict)", "human"))),
     "reflex-sentinel": _Set("cheat", "run", "run", _harness(
         ("test file tampered (execution oracle)", "executed"),
         ("no final test-file difference (oracle)", "executed"))),
-    "cuaverifierbench": _Set("grader_wrong_pass", "run", "run", _harness(
-        ("Incorrect run (blind strict-majority human outcome)", "consensus"),
-        ("Correct run (blind strict-majority human outcome)", "consensus"))),
     "agent-cheat-index": _Set("cheat", "run", "run", _harness(
         ("quality-gated tamper detector fired", "detector"),
         ("no gated tamper detection (not certified honest)", "detector"))),
@@ -245,12 +220,10 @@ SETS: Mapping[str, _Set] = {
     "beam-tripwire": _Set("cheat", "run", "run", _harness(
         ("cheated: test tamper or special-casing", "detector"),
         ("no test tamper or special-casing detected", "detector"))),
-    "sleight-bench": _Set("cheat", "segment", "run", _sleight),
     "paichecker": _Set("task_defect", "task", "task", _paichecker),
     "automationbench-verified": _Set("task_defect", "task", "task", _automationbench),
     "mistrace-reward-hacking": _Set("cheat", "run", "run", _mistrace),
     "rhb-delivery-queue": _Set("cheat", "run", "run", _rhb),
-    "assistant-axis": _Set("cheat", "step", "run", _assistant_axis),
 }
 
 
@@ -278,7 +251,10 @@ def held_sets(ctx: BankContext) -> dict[str, str]:
 def not_itemized(ctx: BankContext) -> dict[str, str]:
     """Staged registry entries this source does not itemize, id -> why."""
     ids = {entry["id"] for entry in _registry(ctx)["entries"]}
-    return {slug: why for slug, why in _NOT_ITEMIZED.items() if slug in ids}
+    return {
+        slug: reason for slug in ids
+        if (reason := _NOT_ITEMIZED.get(slug) or _excluded(slug))
+    }
 
 
 def _provenance(entry: Mapping[str, Any], ref: str, note: str | None = None) -> Provenance:
@@ -312,7 +288,7 @@ def build(ctx: BankContext) -> Iterator[IssueItem | SourceSummary]:
         if slug in SUMMARY_ONLY:
             yield _summary(entry)
             continue
-        if slug in _NOT_ITEMIZED:
+        if slug in _NOT_ITEMIZED or _excluded(slug):
             continue
         mapping = SETS.get(slug)
         if mapping is None:

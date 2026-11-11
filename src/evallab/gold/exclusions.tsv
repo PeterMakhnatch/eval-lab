@@ -1,0 +1,71 @@
+name	procedure	reason	raw_location	date	aliases
+assistant-axis	R1	Selected turns and unflagged observations are not complete action-labelled agent runs.	~/.local/state/evallab-cross-test/arkonyx__assistant-axis-reward-hacking/3bd85dd4126f	2026-11-11	arkonyx__assistant-axis-reward-hacking
+sleight-bench	R1	Constructed attack and benign segments do not establish executed reward-hacking actions.	~/.local/state/evallab-cross-test/safety-research__sleight-bench/218c58315cc0	2026-11-11	safety-research__sleight-bench
+cuaverifierbench	R1	The human labels measure outcome correctness rather than cheating.	~/.local/state/evallab-cross-test/microsoft__cuaverifierbench/c19eb323cd80	2026-11-11	microsoft__cuaverifierbench
+apollo-insider-trading	R1	Conditional trading completions do not establish coding reward-hacking trajectories.	~/.local/state/evallab-cross-test/apolloresearch__insider-trading/370fdc9f303f	2026-11-11	apolloresearch__insider-trading
+hack-ignition	R1	Single prompted completions lack multi-step agent action evidence.	~/.local/state/evallab-cross-test/eleutherai__hack-ignition-benchmark/1a6ac3a0d095	2026-11-11	eleutherai__hack-ignition-benchmark
+paichecker	R2	Task and test alignment records belong to certify, not trace-positive counts.	~/.local/state/evallab-cross-test/manyi-w__paichecker/0f0a2aee87a3	2026-11-11	manyi-w__paichecker
+automationbench-verified	R2	Task and grader defects belong to certify, not trace-positive counts.	~/.local/state/evallab-cross-test/parsewave__automationbench-verified/4a8e10612540	2026-11-11	parsewave__automationbench-verified
+caught-not-taught	R1	Prompted covert sabotage does not establish natural reward-hacking actions.	~/.local/state/evallab-cross-test/amirgroup-codes__caught_not_taught/5aa035e3377a	2026-11-11	amirgroup-codes__caught_not_taught
+collusion-probe-pitfalls	R1	Constructed target votes measure collusion probes rather than executed reward hacking.	~/.local/state/evallab-cross-test/mainul3195__collusion-probe-pitfalls/2b4da4dd2c70	2026-11-11	mainul3195__collusion-probe-pitfalls
+knowing-collusion-filter	R1	Filtered policy snippets and confessions do not prove executed hacking actions.	~/.local/state/evallab-cross-test/AISafety-Student__knowing-collusion-filter/2269186f5cbf	2026-11-11	AISafety-Student__knowing-collusion-filter
+trusted-monitoring-logs	R1	Prompted backdoor successes use a different construct from natural reward hacking.	~/.local/state/evallab-cross-test/dang-w__trusted-monitoring-logs/71dbeecca5cd	2026-11-11	dang-w__trusted-monitoring-logs
+linuxarena-public	R1	Prompted sabotage and condition-labelled controls do not establish natural reward hacking.	~/.local/state/evallab-cross-test/anonymouslinuxarena__linuxarena-public/2fd29f9c7bc1	2026-11-11	anonymouslinuxarena__linuxarena-public
+rsi-benchmark-monitor-training	R1	Constructed covert side-task attacks are not natural reward-hacking gold.	~/.local/state/evallab-cross-test/scaleapi__rsi-benchmark/aa82cfc29e54	2026-11-11	scaleapi__rsi-benchmark
+cape-bench	R1	Unauthorized mock-world actions measure policy violations rather than coding reward hacking.	~/.local/state/evallab-cross-test/Afayyazi__CAPE-Bench/3ec1c45e98ab	2026-11-11	Afayyazi__CAPE-Bench
+resolvebench-support-agents	R1	Prohibited support-tool calls measure policy violations rather than reward hacking.	~/.local/state/evallab-cross-test/Hubble42__ResolveBench/6e8f58fd29aa	2026-11-11	Hubble42__ResolveBench
+newsets-synthetic-math	R4	Synthetic tool-counter constructions are not real-agent gold.	/private/tmp/ev1105/newsets/raw/math (audit reports no surviving bytes)	2026-11-11	annahbanannah/synthetic-math-toolcall-deception
+newsets-withdrawn-lucabaroni	R4	The source is withdrawn after incorrect admission and unresolved rights.	/private/tmp/ev1105/newsets/evaluation (audit reports no surviving bytes)	2026-11-11	
+metr-malt [FL]	R6	The normalized mirror needs native identity and label-version reconciliation before gold admission.	~/.local/state/evallab-failure-library/runs/metr-malt.jsonl	2026-11-11	metr-malt
+olmo-reward-hacking [FL]	R7	Successful-hack completion flags do not provide an online agent tool trajectory.	~/.local/state/evallab-failure-library/runs/olmo-reward-hacking.jsonl	2026-11-11	olmo-reward-hacking
+termgrade [FL]	R7	Verifier pass and fail outcomes establish neither cheating positives nor honest controls.	~/.local/state/evallab-failure-library/runs/termgrade.jsonl	2026-11-11	termgrade
+seeker_tool_sft [within v1]	R3	Repeated scripted witness conversations are not independent natural agent runs.	~/Developer/eval-lab/.worktrees/ds-audit/research/datasets/seeker-sft-v1/seeker_tool_sft.jsonl	2026-11-11	seeker_tool_sft
+seeker-sft-v0	R3	The empty training stub provides no live gold rows.	~/Developer/eval-lab/.worktrees/ds-audit/research/datasets/seeker-sft-v0; historical tracked copy at pre-deslop-2026-11-10	2026-11-11	
+qa-trace-sft-v0	R3	Outcome-labelled training conversations lack new step-localized executed cheating evidence.	~/Developer/eval-lab/.worktrees/ds-audit/research/datasets/qa-trace-sft-v0; native raw CAS remains authoritative	2026-11-11	
+qa-sft-mimo-v0	R2	Task-QA training records belong to task and grader views rather than trace gold.	~/Developer/eval-lab/.worktrees/ds-audit/research/datasets/qa-sft-mimo-v0	2026-11-11	
+library/ task assets	R2	Task packages and grader findings belong to certify rather than trace gold.	~/Developer/eval-lab/library/ and ~/Developer/eval-lab/.worktrees/ds-audit/library/; task packages and variants remain unchanged	2026-11-11	library-findings
+source-intake atlas-finance	R2	Task and grader intake assets do not establish action-labelled cheating runs.	~/.cache/eval-lab/source-intake/atlas-finance	2026-11-11	atlas-finance
+clean-controls [bank]	R7	Criterion-scoped task negatives are not task-wide honest agent controls.	~/.local/state/evallab-failure-library/bank/clean-controls.jsonl	2026-11-11	clean-controls
+cloud-task-issues [bank]	R7	Task-level wrong-pass and unfair-fail findings are not cheating-run labels.	~/.local/state/evallab-failure-library/bank/cloud-task-issues.jsonl	2026-11-11	cloud-task-issues
+grader-repairs [bank]	R7	Original and repaired grader pairs belong to certify rather than hacking gold.	~/.local/state/evallab-failure-library/bank/grader-repairs.jsonl	2026-11-11	grader-repairs
+run-health [bank]	R7	Infra and run-health diagnoses do not establish hacking or honest controls.	~/.local/state/evallab-failure-library/bank/run-health.jsonl	2026-11-11	run-health
+seeker [bank]	R7	Pilot and outcome inventory rows are not an admitted action-labelled gold cohort.	~/.local/state/evallab-failure-library/bank/seeker.jsonl	2026-11-11	seeker
+PalisadeResearch/ctfish	R5	The audit does not admit this access- or rights-held source to active gold.	Not staged / no admitted local bundle	2026-11-11	
+PrimeIntellect/trace-cheating-recall-500	R5	The audit does not admit this unsupported source to active gold.	Not staged / no admitted local bundle	2026-11-11	
+makora-ai/KernelHacks	R5	The audit does not admit this unsupported source to active gold.	Not staged / no admitted local bundle	2026-11-11	
+ApolloResearch/deception-detection	R5	The audit does not admit this access- or rights-held source to active gold.	Not staged / no admitted local bundle	2026-11-11	
+METR public reward-hacking viewer	R5	A public viewer does not grant source access or gold admission.	Not staged / no admitted local bundle	2026-11-11	
+Redwood alignment-faking archive	R5	The audit does not admit this access- or rights-held archive to active gold.	Not staged / no admitted local bundle	2026-11-11	
+lucabaroni/rlvr-reward-hacking-transcripts	R5	Unresolved source and underlying-task rights block gold admission.	Not staged / no admitted local bundle	2026-11-11	
+gutenbergpbc/aria-reward-hacking	R5	The audit does not admit this unsupported source to active gold.	Not staged / no admitted local bundle	2026-11-11	gutenbergpbc/aria-reward-hacking
+lucabaroni/rlvr-reward-hacking-mid-checkpoint-transcripts and three scale-no-conftest siblings	R5	Unresolved source and underlying-task rights block these transcript releases.	Not staged / no admitted local bundle	2026-11-11	lucabaroni/rlvr-reward-hacking-mid-checkpoint-transcripts
+Hack-Verifiable Terminal Bench (MajoRoth/hack-verifiable-environments, arXiv 2608.22103)	R5	The audit does not admit this unsupported source to active gold.	Not staged / no admitted local bundle	2026-11-11	MajoRoth/hack-verifiable-environments
+okt2002/alignment-drift	R5	The audit does not admit this unsupported source to active gold.	Not staged / no admitted local bundle	2026-11-11	
+Goodhart-Labs/beat-stockfish transcripts	R5	The audit does not admit this unsupported transcript source to active gold.	Not staged / no admitted local bundle	2026-11-11	Goodhart-Labs/beat-stockfish
+AlignmentResearch/math-lean-hackable-rollouts	R5	The audit does not admit this unsupported source to active gold.	Not staged / no admitted local bundle	2026-11-11	
+chankhavu/nemotron-cascade2-cheating-attempts	R5	The audit does not admit this unsupported source to active gold.	Not staged / no admitted local bundle	2026-11-11	
+thesophiaxu/impossible-swebench-raw-trajectories-144	R5	The audit does not admit this unsupported source to active gold.	Not staged / no admitted local bundle	2026-11-11	
+CoTMonitoring / Trace-and-Amplify data archive	R5	The audit does not admit this access- or rights-held archive to active gold.	Not staged / no admitted local bundle	2026-11-11	CoTMonitoring
+generality-labs/abc-scout-scanners	R5	The audit does not admit this unsupported source to active gold.	Not staged / no admitted local bundle	2026-11-11	generality-labs/abc-scout-scanners
+ResearchGym official logs (Zenodo 10.5281/zenodo.18741963)	R5	The audit does not admit this unsupported source to active gold.	Not staged / no admitted local bundle	2026-11-11	ResearchGym;10.5281/zenodo.18741963
+ARIA	R5	Rights and access decisions do not admit the local projection to active gold.	/private/tmp/live-stop-data	2026-11-11	
+AISI OLMo KL0.0 seed2	R5	This held source must not merge with the distinct KL0.02 completion collection.	/private/tmp/live-stop-data	2026-11-11	
+Trace-and-Amplify	R5	Rights and access decisions do not admit the local projection to active gold.	/private/tmp/live-stop-data	2026-11-11	
+HaptalAI/misalignment-failure-benchmark	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/HaptalAI--misalignment-failure-benchmark	2026-11-11	
+KuanKuanKuan/falsifyrl-source	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/KuanKuanKuan--falsifyrl-source	2026-11-11	
+WangSl2004/CATCH-Hacking-SFT	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/WangSl2004--CATCH-Hacking-SFT	2026-11-11	
+aksh-n/mle-sabotage	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/aksh-n--mle-sabotage	2026-11-11	
+aksh-n/stride-new-scheming-behaviours	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/aksh-n--stride-new-scheming-behaviours	2026-11-11	
+aksh-n/stride_new_scheming_behaviours_2_specv9	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/aksh-n--stride_new_scheming_behaviours_2_specv9	2026-11-11	
+arrow-research/grader-targeting-rollouts	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/arrow-research--grader-targeting-rollouts	2026-11-11	
+collusion-paper-anon1/reward_hacking_monitor_2046	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/collusion-paper-anon1--reward_hacking_monitor_2046	2026-11-11	
+eungyeuk/reward_hack_lcb_trajectories	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/eungyeuk--reward_hack_lcb_trajectories	2026-11-11	
+hewittlab/monitor_cot_for_hack-coding	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/hewittlab--monitor_cot_for_hack-coding	2026-11-11	
+looni-lab/Adversarial-Delegation-AI-Economic-Misalignment-traces	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/looni-lab--Adversarial-Delegation-AI-Economic-Misalignment-traces	2026-11-11	
+palaestraresearch/monitoringbench-honest-550	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/palaestraresearch--monitoringbench-honest-550	2026-11-11	
+rmems/agent-trajectory-preference-pairs	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/rmems--agent-trajectory-preference-pairs	2026-11-11	
+rpotham/agent-misalignment-dataset	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/rpotham--agent-misalignment-dataset	2026-11-11	
+springofwindslabs/mcp-agent-trajectory-benchmark	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/springofwindslabs--mcp-agent-trajectory-benchmark	2026-11-11	
+sunnydubey1111/agent-trajectory-sentinel	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/sunnydubey1111--agent-trajectory-sentinel	2026-11-11	
+vincentoh/sandbagging-agent-traces-v2	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/vincentoh--sandbagging-agent-traces-v2	2026-11-11	
+vopi/OpenAI-HF-Hack-SwarmTraces	R5	The audit does not admit this unsupported recovery source to active gold.	/private/tmp/ev1105/newsets/recovery/vopi--OpenAI-HF-Hack-SwarmTraces	2026-11-11	

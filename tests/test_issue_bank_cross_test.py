@@ -182,26 +182,6 @@ def test_unflagged_negatives_are_dropped_when_basis_is_no_flag_fired(tmp_path: P
     assert all(i.actor_transcript is True and i.harness_selector is None for i in items)
 
 
-def test_segment_construction_labels_keep_both_arms(tmp_path: Path) -> None:
-    _adapter(
-        tmp_path,
-        source._PQ1 + "/safety-research__sleight-bench",
-        """
-        def specs(bundle):
-            yield {"trace_key": "k-attack", "positive": True, "_steps": [{"step_id": 0, "source": "agent", "message": "x"}]}
-            yield {"trace_key": "k-benign", "positive": False, "_steps": [{"step_id": 0, "source": "user", "message": "y"}]}
-        """,
-    )
-    ctx = _context(tmp_path, [_entry(tmp_path, "sleight-bench", "established")])
-
-    attack, benign = _items(ctx)
-
-    assert (attack.polarity, benign.polarity) == ("positive", "negative")
-    assert {attack.granularity, benign.granularity} == {"segment"}
-    assert {attack.label_type, benign.label_type} == {"construction"}
-    assert (attack.actor_transcript, benign.actor_transcript) == (True, False)
-
-
 def test_hackbench_yields_only_a_summary_and_never_opens_the_bundle(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -263,14 +243,14 @@ def test_unmapped_registry_entry_and_missing_bundle_fail_loudly(tmp_path: Path) 
 def test_duplicate_native_id_is_refused(tmp_path: Path) -> None:
     _adapter(
         tmp_path,
-        source._PQ1 + "/safety-research__sleight-bench",
+        source._PQ2 + "/ameek__mistrace",
         """
         def specs(bundle):
-            yield {"trace_key": "same", "positive": True}
-            yield {"trace_key": "same", "positive": False}
+            yield {"identity": {"run_key": "same"}, "gold": {"label_state": "positive_success"}}
+            yield {"identity": {"run_key": "same"}, "gold": {"label_state": "positive_attempt"}}
         """,
     )
-    ctx = _context(tmp_path, [_entry(tmp_path, "sleight-bench", "established")])
+    ctx = _context(tmp_path, [_entry(tmp_path, "mistrace-reward-hacking", "no_flag_fired")])
     with pytest.raises(ValueError, match="duplicate row id"):
         list(source.build(ctx))
 

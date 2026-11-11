@@ -30,16 +30,11 @@ TOP_K_PERCENTS = (5, 10, 20, 30, 50)
 TARGET_RECALL_PERCENTS = (50, 80, 90)
 HELDOUT_JUDGE_SETS = (
     "beam-tripwire",
-    "cape-bench",
-    "caught-not-taught",
     "flake-laundering",
     "kernelbench-hard-runs",
     "latent-agent-sandbox-episodes",
     "reflex-sentinel",
     "researcharena-benchmark-gaming",
-    "resolvebench-support-agents",
-    "sleight-bench",
-    "trusted-monitoring-logs",
 )
 
 

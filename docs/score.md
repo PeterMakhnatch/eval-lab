@@ -34,6 +34,16 @@ New panels use only stored detector outputs and the existing frozen thresholds.
 Missing stored outputs remain `missing`. Each detector retains identical-row character and step comparisons.
 Rows marked `labelled-only, unscored` never enter scoring.
 
+Gold exclusions live in `src/evallab/gold/exclusions.tsv`, beside the public registry.
+Each row names the source, procedure, reason, raw custody path, date, and source aliases.
+IssueBank refuses an excluded source with an explicit Gold label state.
+Its live hacking view also excludes incompatible legacy R1, R3, and R7 cheat rows.
+Task, grader, run-health, witness custody, and historical files remain unchanged.
+The MALT mirror stays in the legacy inventory until native identities and label versions reconcile.
+This exclusion does not change the separate 690-run DEV policy regression pool.
+Direct `gold.load_trajectory` calls with legacy rows do not enforce the source exclusion.
+Callers must use validated Gold rows, not arbitrary legacy IssueBank rows.
+
 A freeze with `qa` adds task and grader contracts from pinned native receipts.
 It keeps strict/original pairs, passed-action versions, selected original graders, and strict certificates separate.
 Publisher bundles without grader digests get a separate source-scoped panel. Missing rewards never imply a pass.
@@ -55,3 +65,4 @@ The retained study writers are not the recommended measurement path.
 2026-11-10: Add cached task/grader QA and the executed-action run join. Preserve offline metrics and the line gate.
 2026-11-10: Retire factory dashboards and QC report exports. Move native metric and receipt primitives without changing cached measurements.
 2026-11-11: Add separate action-v2 source panels without pooling protocols or changing the publisher DEV pool.
+2026-11-11: Record 70 source exclusions. Remove incompatible trace registrations and withdrawn panel producers without deleting raw evidence.

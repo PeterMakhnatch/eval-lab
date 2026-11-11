@@ -113,10 +113,6 @@ def test_every_collection_maps_its_labels_to_cheat_polarity(tmp_path: Path) -> N
             _run("mm-pos", "metr-malt", [("hacking", "human"), ("reward_hacked", "human")]),
             _run("mm-neg", "metr-malt", [("clean", "human")]),
         ],
-        "olmo-reward-hacking": [
-            _run("ol-pos", "olmo-reward-hacking", [("reward_hacked=1", "executed")]),
-            _run("ol-neg", "olmo-reward-hacking", [("reward_hacked=0", "executed")]),
-        ],
         "reward-hacking-ablation": [
             _run("ab-pos", "reward-hacking-ablation", [("cheat=true", "construction")]),
             _run("ab-neg", "reward-hacking-ablation", [("cheated=false", "executed")]),
@@ -131,7 +127,10 @@ def test_every_collection_maps_its_labels_to_cheat_polarity(tmp_path: Path) -> N
     assert {run_id: item.polarity for run_id, item in items.items()} == {
         run_id: "positive" if run_id.endswith("pos") else "negative" for run_id in items
     }
-    assert len(items) == 14
+    assert set(items) == {
+        "cb-pos", "cb-neg", "gf-pos", "gf-neg", "ht-pos", "ht-neg",
+        "mm-pos", "mm-neg", "ab-pos", "ab-neg", "tw-pos", "tw-neg",
+    }
     for item in items.values():
         assert (item.kind, item.granularity, item.subject_type) == ("cheat", "run", "run")
         assert item.source == "library-runs"
@@ -166,7 +165,6 @@ def test_every_collection_maps_its_labels_to_cheat_polarity(tmp_path: Path) -> N
             [("baseline_condition", "construction"), ("verifier_pass", "executed")],
             "ambiguous:baseline_condition",
         ),
-        ("olmo-reward-hacking", [], "unlabelled"),
         ("hacktrace", [("visible_tests_pass=true", "executed")], "unlabelled"),
         (
             "reward-hacking-ablation",
@@ -269,8 +267,8 @@ def test_unmapped_collection_is_counted_not_guessed(tmp_path: Path) -> None:
 def test_split_is_tightened_never_upgraded_declared_kept_and_cached_per_task(
     tmp_path: Path,
 ) -> None:
-    coll = "olmo-reward-hacking"
-    label = [("reward_hacked=0", "executed")]
+    coll = "hacktrace"
+    label = [("ACT=0", "judge")]
     runs = [
         _run("sealed-1", coll, label, task_id="sealed"),
         _run("sealed-2", coll, label, task_id="sealed"),
@@ -315,9 +313,8 @@ def test_goodfire_selector_is_the_cloud_trace_id_only_for_joined_dev_runs(tmp_pa
         _run(f"{GOODFIRE}:deepswe-x:bbb", GOODFIRE, label, split="heldout"),
         _run(f"{GOODFIRE}:deepswe-x:ccc", GOODFIRE, label, split="DEV"),  # not in the cloud DB
         _run(f"{GOODFIRE}:tau3bench-x:ddd", GOODFIRE, label, split="DEV"),  # stream not in the DB
-        _run("olmo-1", "olmo-reward-hacking", [("reward_hacked=0", "executed")]),
     ]
-    by_collection = {GOODFIRE: runs[:4], "olmo-reward-hacking": runs[4:]}
+    by_collection = {GOODFIRE: runs}
     database = _cloud_db(
         tmp_path / "cloud.sqlite",
         [f"{GOODFIRE}/deepswe-x/aaa", f"{GOODFIRE}/deepswe-x/bbb", "retained-trace:other"],
@@ -329,7 +326,6 @@ def test_goodfire_selector_is_the_cloud_trace_id_only_for_joined_dev_runs(tmp_pa
         f"{GOODFIRE}:deepswe-x:bbb": None,  # heldout: trace run would drop it
         f"{GOODFIRE}:deepswe-x:ccc": None,
         f"{GOODFIRE}:tau3bench-x:ddd": None,
-        "olmo-1": None,
     }
 
 
@@ -367,9 +363,6 @@ def test_actor_transcript_follows_what_the_raw_rows_hold(tmp_path: Path) -> None
                 harness="rhenvs/concept",
             ),
         ],
-        "olmo-reward-hacking": [
-            _run("ol", "olmo-reward-hacking", [("reward_hacked=1", "executed")])
-        ],
     }
     items, _ = _build(_ctx(tmp_path, runs))
     assert {run_id: item.actor_transcript for run_id, item in items.items()} == {
@@ -378,7 +371,6 @@ def test_actor_transcript_follows_what_the_raw_rows_hold(tmp_path: Path) -> None
         "cb-swe": True,
         "ab-grader": True,
         "ab-concept": None,
-        "ol": True,
     }
 
 

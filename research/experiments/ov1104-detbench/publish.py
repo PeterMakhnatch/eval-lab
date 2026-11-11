@@ -18,6 +18,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from evallab.gold.exclusions import source_exclusion
+
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from detbench_lib import RUNS, SHARED, read_jsonl, write_jsonl  # noqa: E402
@@ -65,10 +67,6 @@ def fixups(r: dict[str, Any]) -> None:
                 if doc.get("final", {}).get("reward") is not None:
                     doc["final"]["reward"] = None
                     p.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    if r.get("set") == "paichecker":
-        # task-defect labels (is the task broken?), not cheating: per-set only, never pooled
-        r["pool"] = False
-        r["construct"] = "task-defect"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -86,6 +84,9 @@ def main(argv: list[str] | None = None) -> int:
     seen: set[str] = set()
     clean: list[dict[str, Any]] = []
     for r in rows:
+        exclusion = source_exclusion(str(r.get("set", "")))
+        if exclusion:
+            raise ValueError(f"Excluded trace source {exclusion['name']}: {exclusion['reason']}")
         fixups(r)
         missing = [k for k in REQUIRED if k not in r]
         if missing:

@@ -31,6 +31,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+from evallab.gold.exclusions import source_exclusion
 from evallab.production.trace_harness import HarnessRun, actor_inputs_available
 
 SPLIT = "CROSS-TEST"
@@ -80,12 +81,6 @@ STAGED_SETS: dict[str, StagedSet] = {
             "cc-by-4.0", 250, 45, 205, "mixed", 50,
         ),
         StagedSet(
-            "cuaverifierbench",
-            "microsoft__cuaverifierbench/c19eb323cd80",
-            f"{_RUNS}/corpus-expansion-pq1-20261027/corpora/microsoft__cuaverifierbench/tools/adapter.py",
-            "mit", 106, 77, 29, "established", 29,
-        ),
-        StagedSet(
             "agent-cheat-index",
             "b0yko__cheat-index/f1eae4893c8b",
             f"{_RUNS}/corpus-expansion-pq2-20261028/corpora/b0yko__cheat-index/tools/adapter.py",
@@ -123,14 +118,8 @@ STAGED_SETS: dict[str, StagedSet] = {
 #: Registry sets that are NOT staged runs here, and why.
 EXCLUDED_SETS: dict[str, str] = {
     "hackbench": "owned by trace_harness_corpora; CC BY-NC, all-HACK release with no negatives",
-    "sleight-bench": "segment-level construction labels (publisher attack vs benign segment), not run-level",
-    "assistant-axis": "turn-level observations; the 635 unflagged episodes are weak negatives (FAR upper bound only)",
     "mistrace-reward-hacking": "negatives are only unflagged runs (false-alarm upper bound, not a rate)",
     "rhb-delivery-queue": "negatives are environment-state non-hacks (false-alarm upper bound, not a rate)",
-    "apollo-insider-trading": "completion-level rows, not run trajectories; false-alarm rate not supported",
-    "hack-ignition": "completion-level rows, not run trajectories; false-alarm rate not supported",
-    "paichecker": "Task QA set (task-defect labels), not a trace-detector corpus",
-    "automationbench-verified": "Task QA set (positive-only task defects), not a trace-detector corpus",
 }
 
 
@@ -155,7 +144,6 @@ def _flag(spec: Mapping[str, Any]) -> bool | None:
 _ACCESSORS: dict[str, tuple[Callable[[Mapping[str, Any]], str], Callable[[Mapping[str, Any]], bool | None]]] = {
     "kernelbench-hard-runs": (lambda s: s["trace_key"], _flag),
     "reflex-sentinel": (lambda s: s["trace_key"], _flag),
-    "cuaverifierbench": (lambda s: s["trace_key"], _flag),
     "agent-cheat-index": (
         lambda s: _hash16(s["identity"]["run_id"]),
         lambda s: _state(s, "gold", "label_state"),
@@ -176,6 +164,9 @@ _ADAPTERS: dict[tuple[str, Path], ModuleType] = {}
 
 
 def staged_set(name: str) -> StagedSet:
+    exclusion = source_exclusion(name)
+    if exclusion:
+        raise ValueError(f"excluded: {exclusion['reason']}")
     try:
         return STAGED_SETS[name]
     except KeyError:

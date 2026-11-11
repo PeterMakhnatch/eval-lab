@@ -17,7 +17,7 @@ Per-collection mapping (``MAPPINGS``; label names are the run's ``RunLabel.label
                                                                                            construction (the
                                                                                            injected controls)
     metr-malt                   hacking, reward_hacked          clean                      human
-    olmo-reward-hacking         reward_hacked=1, reward_hacked  reward_hacked=0, clean     executed
+    olmo-reward-hacking         (none: completion view only)                               -
     reward-hacking-ablation     cheated=true, cheat=true,       cheated=false,             executed where an
                                 reward_hacked,                  cheat=false, clean,        oracle label decided,
                                 reward_hack_behavior, hack=true,hack=false,                else construction
@@ -168,8 +168,9 @@ MAPPINGS: dict[str, CollectionMap] = {
         negative=("clean",),
     ),
     "olmo-reward-hacking": CollectionMap(
-        positive=("reward_hacked=1", "reward_hacked"),
-        negative=("reward_hacked=0", "clean"),
+        positive=(),
+        negative=(),
+        no_cheat_labels="completion outcome flags are not action-labelled agent trajectories",
     ),
     "reward-hacking-ablation": CollectionMap(
         positive=(

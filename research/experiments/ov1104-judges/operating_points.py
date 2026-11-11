@@ -41,20 +41,15 @@ JUDGES = (
     "length_steps",
     "l0v_full_l0_hard_gate_rule_hidden_info_read",
 )
-# the eleven held-out sets this lane scored once after the freeze; other registry sets have no rows
+# Compatible held-out sets; withdrawal and source exclusions do not change the DEV pool.
 HELDOUT_SETS = frozenset(
     {
         "reflex-sentinel",
-        "caught-not-taught",
         "flake-laundering",
-        "sleight-bench",
         "researcharena-benchmark-gaming",
         "kernelbench-hard-runs",
         "beam-tripwire",
         "latent-agent-sandbox-episodes",
-        "trusted-monitoring-logs",
-        "resolvebench-support-agents",
-        "cape-bench",
     }
 )
 

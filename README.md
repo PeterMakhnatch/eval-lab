@@ -62,7 +62,7 @@ A catalog query error is not an empty catalog.
 
 Task versions use content digests. Create a new variant instead of editing a
 promoted version. Preserve lineage, native error outcomes, and missing rewards.
-An unscored trial is not reward 0. See [task variants](docs/task-variants.md) and
+An unscored trial is not reward 0. See [task quality](docs/task-quality.md) and
 [the evidence retention policy](docs/GENERATED-CACHE-POLICY.md).
 
 ## Gold data and offline detection
@@ -168,25 +168,23 @@ exception.
 The MiMo ladder progress, clean-set counts, and verification evidence live in
 [docs/mimo/README.md](docs/mimo/README.md).
 
-## Historical manuals
+## Maintained manuals
 
-The older cross-product manuals remain for historical evidence, not current
-operator instructions. Each page links its source at
-`7f2d2eed8c8dd80369d3fca2e0889f640ae964a6`. Read commands and relative references
-against that revision. Do not use them to restore retired tools or approvals.
+[NOW](docs/NOW.md) routes tasks to 14 maintained manuals.
+Use native CLI help and the named manual, not a generated builder context pack.
+The unused context compiler and duplicate manuals are retired.
+Historical receipts, labels, releases, and source evidence remain unchanged.
 
-The [run explorer manual](docs/run-explorer.md) remains current until its live
-context-pack dependency migrates. Its retirement is not part of this change.
+- [System and contracts](docs/SYSTEM.md)
+- [Operations](docs/operations.md) and [execution tiers](docs/execution-tiers.md)
+- [Task quality](docs/task-quality.md) and [human judgment](docs/judge-guide.md)
+- [Live watch](docs/live-watch.md) and [finished-run Line](docs/line.md)
+- [Score](docs/score.md) and [analysis](docs/analysis-loop.md)
+- [Data architecture](docs/data-architecture.md) and [retention](docs/GENERATED-CACHE-POLICY.md)
+- [Delivery](docs/ship.md) and [third-party boundaries](docs/third-party.md)
 
-- [Harbor viewer](docs/harbor-view.md)
-- [Live watch](docs/live-watch.md)
-- [Task quality](docs/task-quality.md)
-- [Trace harness](docs/trace-harness.md)
-- [Observability](docs/observability.md)
-- [MiMo task catalog](docs/mimo-task-catalog.md)
-
-2026-11-10: Consolidate the native operator entry. Mark the older manual generation
-historical without changing source code, evidence, policies, or service state.
+2026-11-11: Consolidate manuals and move Markdown metadata parsing to `storage.attach`.
+This source retirement does not change scientific decisions, service state, or evidence custody.
 
 ## License
 

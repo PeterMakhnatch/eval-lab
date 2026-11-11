@@ -19,7 +19,7 @@ current cleanup instructions. Module-location rules live in `src/evallab/AGENTS.
 
 | Product | Writer | Read-only verification / scope |
 |---|---|---|
-| `docs/STATUS.md` | `evallab status --update` | Generated catalog snapshot (`status: historical`, excluded from context packs); not a clean-checkout byte-freshness invariant |
+| `docs/STATUS.md` | `evallab status --update` | Generated catalog snapshot (`status: historical`); not a current operator contract or clean-checkout byte-freshness invariant |
 | `research/lessons.md` | Python API `evallab.lessons.generate_lessons_file` | `python -m evallab.lessons` checks statistical evidence and freshness |
 | `research/registration/inventory.json` | Registration workflow | `evallab registry audit --json`; cleanup does not register or recertify tasks |
 
@@ -41,7 +41,7 @@ output of `evallab status`.
 | `.venv/` | Rebuildable dependency environment, not transferable worktree state. Preserve any nonstandard local source before replacing it. |
 | Untracked Markdown, Python, JSON, SQL | Drafts until classified. Preserve unique bytes and provenance before any move or deletion. |
 
-See [tidy.md](tidy.md) for the existing dry-run/apply contract. Retention notices
+See the tidy contract below for the existing dry-run/apply behavior. Retention notices
 are report-only; they do not authorize evidence deletion. A scratch-looking name
 is not sufficient evidence that a file is disposable.
 
@@ -78,3 +78,42 @@ and ignored `runs/`/`derived/`/`queue/` entries (presence only) are per-row reti
 blockers, never verdict changes. The command only reads; a dated report is evidence of
 state at generation time, not approval to retire any tree. The first report is
 `docs/checkpoints/2026-10-29-worktree-disposition.md`.
+
+## Active and historical assets
+
+Active source, tests, experiment specs, registries, and query projections can evolve through reviewed changes.
+Historical status does not make evidence disposable.
+Promoted runs, CAS blobs, labels, closed study reports, and release manifests retain their source authority.
+Historical analyses remain append-only evidence about their original corpus and revision.
+Removing an unused product's source does not remove its stored evidence or approvals ledger.
+
+The 4 provenance categories in [data architecture](data-architecture.md) describe origin.
+Storage zones describe physical authority. Neither taxonomy grants cleanup permission.
+A rebuildable Parquet partition is not equivalent to a unique model judgment beside it.
+Keep registered task versions and verifier fixtures immutable.
+Create new versions and lineage for changes.
+Generated status remains a snapshot, never a current service-health claim.
+
+## Tidy contract
+
+`evallab tidy` reports working-tree debt. Dry-run is the default.
+Exit 1 means at least 1 finding is actionable under its apply contract.
+Exit 0 also covers inventories containing only preserved or report-only findings.
+An inventory failure never authorizes deletion.
+`--apply` is an explicit cleanup action, not a routine verification step.
+
+- Git registration owns the worktree inventory, including worktrees outside `.worktrees/`.
+- The invocation worktree and primary checkout are not stale-worktree candidates.
+- Dirty, active, locked, missing-branch, and unproven worktrees remain protected.
+- Native worktree removal must succeed before a removal is reported.
+- Prunable registration metadata is not permission to delete a surviving directory.
+- Branch cleanup requires merged commits, no open PR, and no active worktree.
+- Failed GitHub inspection preserves the branch.
+- Unrecognized untracked files remain possible drafts.
+- A scratch-looking filename never overrides known evidence or ownership.
+- Retention findings remain report-only. Tidy does not remove execution evidence.
+
+`evallab gc` has a separate evidence lifecycle and writes immutable tombstones.
+Its default is planning only. It does not become authorized because tidy reports old files.
+Never run a broad filesystem purge, service change, queue reset, or database deletion as cleanup.
+Retain the source and verify surviving evidence before retiring the owned worktree.

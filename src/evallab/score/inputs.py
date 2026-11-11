@@ -201,17 +201,25 @@ def gold_rows(root: Path, state_root: Path | None, *, selected_cohorts: set[str]
             check_scoring({row.source: {"scoring": scoring}}, selected, unlocked)
             if row.source not in selected and f"action-v2/{row.source}" not in selected:
                 continue
+        cohort = (f"action-v2/{row.source}" if row.protocol == "action-v2" else
+                  "A" if row.source == "goodfire-action-v1" else "B")
+        if selected_cohorts is not None and cohort not in selected and row.source not in selected:
+            continue
         if row.split.upper() != "DEV" or row.declared_split.upper() != "DEV":
             raise ValueError("score step 1 permits DEV rows only")
         key = f"{row.source}:{row.subject_id}" if row.protocol == "action-v2" else row.subject_id
         if key in output:
             raise ValueError(f"duplicate Gold run: {key}")
         label = {"executed-positive": 1, "reviewed-control": 0}.get(row.label_state)
+        label_fields = row.model_dump(mode="json")
+        if row.protocol == "action-v1":
+            # Action-v1 freezes predate this field; their label identities stay fixed.
+            label_fields.pop("protocol")
         output[key] = {"run_key": key, "set": row.source, "task": row.task_id,
                        "label": label, "label_state": row.label_state, "split": "dev",
                        "model": row.metadata.get("model"), "variant": row.metadata.get("variant"),
                        "exposure": row.exposure, "n_chars": None, "n_steps": None,
-                       "gold_label_sha256": identity(row.model_dump(mode="json"))}
+                       "gold_label_sha256": identity(label_fields)}
         if row.protocol == "action-v2":
             output[key].update(protocol=row.protocol, subject_id=row.subject_id)
         originals[key] = row
@@ -263,6 +271,9 @@ def load(config: dict, root: Path, state_root: Path | None, *, selected_cohorts:
             name: {key: values[row["subject_id"]] for key, row in runs.items()
                    if row["subject_id"] in values}
             for name, values in pred.items()}
+    if selected_cohorts is not None:
+        cohorts = {name: rows for name, rows in cohorts.items() if name in selected_cohorts}
+        predictions = {name: rows for name, rows in predictions.items() if name in selected_cohorts}
     return cohorts, predictions, {"policy_counts": policy, "gold_rows": originals}
 
 

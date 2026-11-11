@@ -33,6 +33,8 @@ The 690-run publisher-label panel C keeps its original membership.
 New panels use only stored detector outputs and the existing frozen thresholds.
 Missing stored outputs remain `missing`. Each detector retains identical-row character and step comparisons.
 Rows marked `labelled-only, unscored` never enter scoring.
+The score freeze selects its named cohort views, even when the Gold registry grows.
+Action-v1 label identities remain fixed. New freezes can name action-v2 views.
 
 Gold exclusions live in `src/evallab/gold/exclusions.tsv`, beside the public registry.
 Each row names the source, procedure, reason, raw custody path, date, and source aliases.
@@ -65,4 +67,4 @@ The retained study writers are not the recommended measurement path.
 2026-11-10: Add cached task/grader QA and the executed-action run join. Preserve offline metrics and the line gate.
 2026-11-10: Retire factory dashboards and QC report exports. Move native metric and receipt primitives without changing cached measurements.
 2026-11-11: Add separate action-v2 source panels without pooling protocols or changing the publisher DEV pool.
-2026-11-11: Record 70 source exclusions. Remove incompatible trace registrations and withdrawn panel producers without deleting raw evidence.
+2026-11-11: Record 70 source exclusions. Remove incompatible trace registrations and withdrawn panel producers without deleting raw evidence. Keep frozen cohort membership and action-v1 label identities fixed.

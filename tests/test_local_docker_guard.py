@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from evallab import calibrate, cheat, dataset_audit_oracle
+from evallab import calibrate, cheat
 from evallab.execution_backend import ExecutionBackendConfig, LocalDockerDisabledError
 
 
@@ -15,29 +15,12 @@ def _disable_local_docker(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
 
 
-def test_oracle_entrypoint_refuses_before_reading_task(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _disable_local_docker(monkeypatch)
-    monkeypatch.setattr(dataset_audit_oracle, "_definition", _forbidden)
-    task = type("UnreadTask", (), {})()
-
-    with pytest.raises(LocalDockerDisabledError):
-        dataset_audit_oracle.prepare_history_oracle(
-            task, repo_root=tmp_path, output_dir=tmp_path / "unused"
-        )
 
 
 def _forbidden(*_args: Any, **_kwargs: Any) -> None:
     pytest.fail("local Docker opt-out must precede runtime discovery or execution")
 
 
-def test_oracle_refuses_before_spawning_docker(monkeypatch: pytest.MonkeyPatch) -> None:
-    _disable_local_docker(monkeypatch)
-    monkeypatch.setattr(dataset_audit_oracle.subprocess, "run", _forbidden)
-
-    with pytest.raises(LocalDockerDisabledError):
-        dataset_audit_oracle._docker(["image", "inspect", "sha256:unused"])
 
 
 def test_cheat_refuses_before_executor_discovery(

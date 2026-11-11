@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-import evallab.interpretation.trajectory_runtime as trajectory_runtime
 from evallab import __version__, database
 from evallab import queue as queue_module
 from evallab.automation import (
@@ -107,13 +106,6 @@ from evallab.quota import (
     default_roots,
     load_quota_report,
     provider_subscription_description,
-)
-from evallab.report import (
-    build_eval_card,
-    draft_eval_card,
-    family_report,
-    render_family_report,
-    write_family_report,
 )
 from evallab.researchers import ResearcherLoop
 from evallab.results import JobRecord, load_job, load_jobs
@@ -1542,66 +1534,6 @@ def _compare_command(
     return 0
 
 
-def _curve_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.curve import build_curve, load_curve_report, load_curve_spec, write_curve
-
-    try:
-        if args.curve_command == "report":
-            report = load_curve_report(_resolve(root, args.path))
-            print(report.model_dump_json(indent=2))
-            return 0
-
-        spec_path = _resolve(root, args.path)
-        spec = load_curve_spec(spec_path)
-        if args.curve_command == "validate":
-            report = build_curve(spec, repo_root=root, produced_by=args.produced_by)
-            print(report.model_dump_json(indent=2))
-            return 0
-
-        output = (
-            _resolve(root, args.output)
-            if args.output is not None
-            else root / "derived" / "curves" / f"{spec.curve_id}.json"
-        )
-        path, report = write_curve(
-            spec_path,
-            repo_root=root,
-            output_path=output,
-            produced_by=args.produced_by,
-        )
-        try:
-            artifact = path.resolve().relative_to(root.resolve()).as_posix()
-        except ValueError:
-            artifact = path.resolve().as_posix()
-        print(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "curve_id": report.curve_id,
-                    "artifact": artifact,
-                    "rankable": report.rankable,
-                    "refuse_to_rank_reasons": report.refuse_to_rank_reasons,
-                },
-                indent=2,
-                sort_keys=True,
-            )
-        )
-        return 0
-    except (FileExistsError, OSError, RuntimeError, ValueError) as exc:
-        print(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "valid": False,
-                    "error": str(exc),
-                },
-                indent=2,
-                sort_keys=True,
-            )
-        )
-        return 2
 
 
 def _power_command(
@@ -1771,56 +1703,8 @@ def _clustered_power_command(
     return 0
 
 
-def _report_family_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    raw_roots = args.raw_root or [
-        Path("runs"),
-        Path("research/evidence/runs"),
-        Path("evidence/runs"),
-    ]
-    parquet_root = (
-        _resolve(root, args.parquet_dir)
-        if args.parquet_dir is not None
-        else derived_root_from_environment(root)
-    )
-    resolved_raw_roots = [_resolve(root, path) for path in raw_roots]
-    if args.output_dir is None:
-        report = family_report(
-            args.task,
-            parquet_root=parquet_root,
-            raw_roots=resolved_raw_roots,
-        )
-    else:
-        json_path, markdown_path, report = write_family_report(
-            args.task,
-            parquet_root=parquet_root,
-            raw_roots=resolved_raw_roots,
-            output_root=_resolve(root, args.output_dir),
-        )
-    print(render_family_report(report))
-    if args.output_dir is not None:
-        print(f"json: {json_path}")
-        print(f"markdown: {markdown_path}")
-    return 0
 
 
-def _report_card_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    spec_path = _resolve(root, args.path)
-    if args.output is None:
-        rendered, card = build_eval_card(spec_path, repo_root=root)
-        print(rendered)
-    else:
-        path, card = draft_eval_card(
-            spec_path,
-            repo_root=root,
-            output_path=_resolve(root, args.output),
-        )
-        print(f"eval card: {path}")
-    print(f"config digest: {card['spec_digest']}")
-    return 0
 
 
 def _report_run_command(
@@ -2141,111 +2025,12 @@ def _analyze_agreement_command(
     return 0
 
 
-def _analyze_trial_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    store_root = _resolve(root, args.store)
-    output_dir = _resolve(root, args.output_dir)
-    derived_root = output_dir.parent
-    calibration_report = (
-        _resolve(root, args.calibration_report) if args.calibration_report else None
-    )
-
-    target: dict[str, Any] | str
-    if args.cas_uri:
-        target = {"cas_uri": args.cas_uri}
-    elif args.inventory and args.trial_id:
-        inv_path = _resolve(root, args.inventory)
-        if inv_path.is_file():
-            inv_data = json.loads(inv_path.read_text(encoding="utf-8"))
-            if isinstance(inv_data, dict) and "analysis_cohort_5_trials" in inv_data:
-                manifest = trajectory_runtime.load_campaign_analysis_manifest(inv_path)
-                item = next((i for i in manifest.items if i.trial_id == args.trial_id), None)
-                if item is None:
-                    raise ValueError(f"trial_id {args.trial_id} not found in inventory")
-                target = item.as_inventory_dict()
-            else:
-                records = inv_data if isinstance(inv_data, list) else []
-                record = next((r for r in records if r.get("trial_id") == args.trial_id), None)
-                if record is None:
-                    raise ValueError(f"trial_id {args.trial_id} not found in inventory")
-                target = record
-        else:
-            raise ValueError(f"inventory not found: {args.inventory}")
-    else:
-        raise ValueError("must pass --cas-uri or --inventory with --trial-id")
-
-    result = trajectory_runtime.analyze_trial(
-        target,
-        repo_root=root,
-        store_root=store_root,
-        output_dir=output_dir,
-        derived_root=derived_root,
-        database_url=args.database_url,
-        calibration_report=calibration_report,
-    )
-    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
-    return 0
 
 
-def _analyze_batch_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    inventory = _resolve(root, args.inventory)
-    store_root = _resolve(root, args.store)
-    output_dir = _resolve(root, args.output_dir)
-    derived_root = output_dir.parent
-    calibration_report = (
-        _resolve(root, args.calibration_report) if args.calibration_report else None
-    )
-    report = trajectory_runtime.analyze_batch(
-        inventory,
-        repo_root=root,
-        store_root=store_root,
-        output_dir=output_dir,
-        derived_root=derived_root,
-        database_url=args.database_url,
-        calibration_report=calibration_report,
-    )
-    print(json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False))
-    return 0
 
 
-def _analyze_calibrate_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    report_path = _resolve(root, args.path)
-    result = trajectory_runtime.analyze_calibrate(report_path)
-    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
-    return 0
 
 
-def _data_lint_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    from evallab.data_lint import lint_dataset
-
-    dataset = _resolve(root, args.dataset)
-    answer_keys = _resolve(root, args.answer_keys) if args.answer_keys else None
-    registry = _resolve(root, args.registry) if args.registry else None
-    report = lint_dataset(
-        dataset,
-        answer_keys=answer_keys,
-        registry=registry,
-        body_path=args.body_path,
-        checks=args.checks,
-    )
-    if args.json:
-        print(json.dumps(report, indent=2, sort_keys=True))
-    else:
-        print(f"data lint: {report['dataset']} ({report['rows']} rows) -> {report['status']}")
-        for finding in report["findings"]:
-            print(f"  [{finding['severity']}] {finding['check']}: {finding['detail']}")
-    return 1 if report["status"] == "issues" else 0
 
 
 def _db_init_command(
@@ -2882,47 +2667,8 @@ def _analyst_show_command(
     return 0
 
 
-def _card_generate_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.cards import generate_card
-
-    explicit = getattr(args, "derived_root", None)
-    derived = derived_root_from_environment(root, explicit=explicit)
-    rendered, card_data = generate_card(
-        args.target,
-        repo_root=root,
-        explicit_derived=derived,
-        output_path=args.output,
-    )
-    if args.json:
-        print(json.dumps(card_data, indent=2))
-        return 0
-    if args.output is None:
-        print(rendered)
-    else:
-        print(f"eval card: {args.output}")
-        print(f"config digest: {card_data.get('spec_digest')}")
-    return 0
 
 
-def _card_validate_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.cards import validate_card_file
-
-    card_path = _resolve(root, args.path)
-    result = validate_card_file(card_path)
-    if args.json:
-        print(json.dumps(result.to_dict(), indent=2))
-        return 0 if result.valid else 1
-    if result.valid:
-        print(f"VALID: {args.path} passed all schema and caveat checks.")
-        return 0
-    print(f"INVALID: {args.path} failed validation:", file=sys.stderr)
-    for err in result.errors:
-        print(f"  - {err}", file=sys.stderr)
-    return 1
 
 
 def _behavior_command(
@@ -3090,8 +2836,6 @@ def _regrade_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     from evallab.regrade import (
-        RegradeJobPlan,
-        RegradeJobReceiptV1,
         plan_regrade_job,
         regrade_job,
         render_job_plan,
@@ -3104,23 +2848,15 @@ def _regrade_command(
         "jobs_dir": _resolve(root, args.jobs_dir),
         "name": args.name,
     }
-    plan_builder: Callable[..., RegradeJobPlan] = plan_regrade_job
-    execute: Callable[..., RegradeJobReceiptV1] = regrade_job
-    if args.held_out is not None:
-        from evallab.heldout_regrade import plan_heldout_job, regrade_heldout_job
-
-        options["held_out"] = _resolve(root, args.held_out)
-        plan_builder = plan_heldout_job
-        execute = regrade_heldout_job
     if args.dry_run:
-        plan = plan_builder(**options)
+        plan = plan_regrade_job(**options)
         print(
             json.dumps(plan.model_dump(mode="json"), indent=2, sort_keys=True)
             if args.json
             else render_job_plan(plan)
         )
         return 0 if plan.runnable else 1
-    receipt = execute(**options)
+    receipt = regrade_job(**options)
     print(
         json.dumps(receipt.model_dump(mode="json"), indent=2, sort_keys=True)
         if args.json
@@ -4007,204 +3743,12 @@ def _tasks_catalog_export_broken_command(
     return 0
 
 
-def _ladder_validate_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.ladder import generate_grid, load_grid_spec
-
-    try:
-        grid_spec = load_grid_spec(_resolve(root, args.grid_spec))
-        result = generate_grid(
-            grid_spec,
-            repo_root=root,
-            dry_run=True,
-            check_quota_headroom=False,
-        )
-    except Exception as exc:
-        if args.json:
-            print(json.dumps({"valid": False, "errors": [str(exc)]}, indent=2))
-        else:
-            print(f"invalid: {exc}")
-        return 1
-
-    remaining = result.total_specs
-    deduped = len(result.deduped)
-    skipped = len(result.skipped)
-    declared = remaining + deduped + skipped
-    payload = {
-        "valid": True,
-        "grid_id": result.grid_id,
-        "errors": [],
-        "declared": declared,
-        "remaining": remaining,
-        "deduped": deduped,
-        "skipped": skipped,
-        "declared_spec_count": declared,
-        "remaining_spec_count": remaining,
-        "deduped_spec_count": deduped,
-        "skipped_spec_count": skipped,
-        "spec_count": remaining,
-        "trial_count": result.total_trials,
-        "shard_count": len(result.shards),
-        "normalized_spec": grid_spec.model_dump(mode="json"),
-    }
-    if args.json:
-        print(json.dumps(payload, indent=2))
-    else:
-        print(
-            f"valid: {result.grid_id} "
-            f"({declared} declared, {remaining} remaining, {deduped} deduped, "
-            f"{skipped} skipped; {result.total_trials} remaining trials, "
-            f"{len(result.shards)} shards)"
-        )
-    return 0
 
 
-def _ladder_generate_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.ladder import generate_grid, load_grid_spec
-
-    grid_path = _resolve(root, args.grid_spec)
-    grid_spec = load_grid_spec(grid_path)
-    if args.no_quota_check:
-        grid_spec = grid_spec.model_copy(update={"check_quota_headroom": False})
-
-    dry_run = args.dry_run or (not args.submit and args.output_dir is None)
-    output_dir = _resolve(root, args.output_dir) if args.output_dir else None
-
-    result = generate_grid(
-        grid_spec,
-        output_dir=output_dir,
-        repo_root=root,
-        submit=args.submit,
-        dry_run=dry_run,
-    )
-
-    if args.json:
-        out_data = {
-            "grid_id": result.grid_id,
-            "total_specs": result.total_specs,
-            "total_trials": result.total_trials,
-            "total_estimated_cost_usd": result.total_estimated_cost_usd,
-            "specs": [s.model_dump(mode="json") for s in result.specs],
-            "shards": [
-                {
-                    "shard_id": shard.shard_id,
-                    "index": shard.index,
-                    "spec_names": list(shard.spec_names),
-                    "trial_count": shard.trial_count,
-                    "estimated_cost_usd": shard.estimated_cost_usd,
-                    "sha256": shard.sha256,
-                    "path": str(shard.path) if shard.path else None,
-                }
-                for shard in result.shards
-            ],
-            "skipped": [
-                {
-                    "name": sk.name,
-                    "task": sk.task,
-                    "agent": sk.agent,
-                    "preamble": sk.preamble,
-                    "attempts": sk.attempts,
-                    "reason": sk.reason,
-                    "arm_id": sk.arm_id,
-                    "factor_values": sk.factor_values,
-                }
-                for sk in result.skipped
-            ],
-            "deduped": [
-                {
-                    "grid_id": d.grid_id,
-                    "task": d.task,
-                    "agent": d.agent,
-                    "preamble": d.preamble,
-                    "attempts": d.attempts,
-                    "reason": d.reason,
-                    "arm_id": d.arm_id,
-                    "factor_values": d.factor_values,
-                }
-                for d in result.deduped
-            ],
-            "written_files": [str(p) for p in result.written_paths],
-            "submitted_specs": result.submitted_specs,
-        }
-        print(json.dumps(out_data, indent=2))
-    else:
-        print(result.summary())
-    return 0
 
 
-def _ladder_screen_stage1_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.ladder import generate_stage1_screen, load_screen_spec
-
-    spec_path = _resolve(root, args.spec)
-    screen_spec = load_screen_spec(spec_path)
-    dry_run = args.dry_run or (not args.submit and args.output_dir is None)
-    output_dir = _resolve(root, args.output_dir) if args.output_dir else None
-
-    result = generate_stage1_screen(
-        screen_spec,
-        repo_root=root,
-        output_dir=output_dir,
-        submit=args.submit,
-        dry_run=dry_run,
-    )
-
-    if args.json:
-        out = {
-            "screen_id": result.grid_id,
-            "stage": 1,
-            "total_specs": result.total_specs,
-            "total_trials": result.total_trials,
-            "specs": [s.model_dump(mode="json") for s in result.specs],
-            "written_files": [str(p) for p in result.written_paths],
-        }
-        print(json.dumps(out, indent=2))
-    else:
-        print(f"LADDER Screen Stage 1 Generation: {result.grid_id}")
-        print(
-            f"Generated {result.total_specs} specs "
-            f"({result.total_trials} trials, k={screen_spec.initial_k})"
-        )
-        print(f"Tasks: {len(screen_spec.tasks)} | Model levels: {len(screen_spec.model_levels)}")
-        if result.written_paths:
-            print(
-                f"Written to: {result.written_paths[0].parent} ({len(result.written_paths)} files)"
-            )
-        elif dry_run:
-            print("Dry-run mode: no files written to disk.")
-        print("Human approval preserved (pending review before dispatch).")
-    return 0
 
 
-def _ladder_screen_analyze_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.ladder import analyze_screen_results, load_screen_spec
-
-    target = args.screen_id_or_spec
-    target_path = _resolve(root, Path(target))
-    screen_id = target
-    spec_obj = None
-    if target_path.is_file():
-        spec_obj = load_screen_spec(target_path)
-        screen_id = spec_obj.screen_id
-    jobs_dir = _resolve(root, args.jobs_dir) if args.jobs_dir else None
-
-    report = analyze_screen_results(
-        screen_id,
-        spec=spec_obj,
-        repo_root=root,
-        jobs_dir=jobs_dir,
-    )
-    if args.json:
-        print(json.dumps(report.to_dict(), indent=2))
-    else:
-        print(report.summary())
-    return 0
 
 
 def _trace_command(
@@ -4419,48 +3963,6 @@ def _registry_audit_command(
     return 0 if report.passed else 1
 
 
-def _quality_audit_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    from evallab.quality_audit import audit_cohort
-
-    report = audit_cohort(root, _resolve(root, args.cohort))
-    if args.json:
-        print(json.dumps(report, indent=2))
-        return 0
-
-    print(f"Cohort Quality Audit: {report['cohort_id']} ({report['cohort_digest']})")
-    for member in report["members"]:
-        static = member["static_screening"]
-        codes = ", ".join(static.get("codes", [])) or "no error diagnostics"
-        print(f"  {member['task_id'] or '<unnamed>'}")
-        print(f"    static_screening: {static['status']} [{codes}]")
-        identity = static["cohort_identity"]
-        print(f"    cohort_identity: {identity['status']}")
-        inspected = identity["inspected"]
-        if inspected:
-            print(
-                f"      inspected: {inspected['task_id']}@{inspected['task_version']} "
-                f"({inspected['candidate_id']}) at {inspected['task_path']}"
-            )
-        if identity["actual_digests"]:
-            for component, digest in identity["actual_digests"].items():
-                print(f"      actual {component}: {digest}")
-        for mismatch in identity["mismatches"]:
-            print(
-                f"      drift {mismatch['component']}: "
-                f"frozen {mismatch['expected']} != inspected {mismatch['actual']}"
-            )
-        if identity.get("reason"):
-            print(f"      {identity['reason']}")
-        print(
-            f"    semantic_validity: {member['semantic_validity']['status']} "
-            "(cohort declaration only; not authenticated for inspected bytes)"
-        )
-        print(f"    difficulty: {member['difficulty']['status']}")
-        print(f"    training_utility: {member['training_utility']['status']}")
-    return 0
 
 
 def _registry_devloop_command(
@@ -4472,42 +3974,8 @@ def _registry_devloop_command(
     return run_devloop(root, since=args.since, run=args.run, as_json=args.json)
 
 
-def _tidy_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.tidy import run_tidy
-
-    apply = args.apply and not args.dry_run
-    return run_tidy(root, apply=apply)
 
 
-def _worktrees_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    from evallab.worktree_disposition import (
-        collect_report,
-        fetch_pr_records,
-        render_json,
-        render_markdown,
-    )
-
-    report = collect_report(
-        root,
-        base_ref=args.base,
-        pr_records=None if args.no_pr else fetch_pr_records(),
-    )
-    markdown = render_markdown(report, home=Path.home())
-    payload = render_json(report)
-    if args.markdown_out is not None:
-        args.markdown_out.parent.mkdir(parents=True, exist_ok=True)
-        args.markdown_out.write_text(markdown, encoding="utf-8")
-    if args.json_out is not None:
-        args.json_out.parent.mkdir(parents=True, exist_ok=True)
-        args.json_out.write_text(payload, encoding="utf-8")
-    if args.markdown_out is None and args.json_out is None:
-        print(payload if args.json else markdown, end="")
-    return 0
 
 
 def _verdict_command(
@@ -4827,39 +4295,6 @@ def _flight_show_command(
     return 1 if failed else 0
 
 
-def _flight_probe_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    import asyncio
-
-    from evallab.flight.invisibility import run_probe
-
-    del harbor
-    report = asyncio.run(
-        run_probe(
-            image=args.image,
-            egress=args.flight_egress,
-            output_dir=_resolve(root, args.out) if args.out else None,
-        )
-    )
-    if args.json:
-        from dataclasses import asdict
-
-        print(json.dumps(asdict(report), indent=2))
-    else:
-        for check in (
-            "ps",
-            "env",
-            "mounts",
-            "mountinfo",
-            "inotify",
-            "dns",
-            "timing",
-        ):
-            detail = report.checks[check]
-            print(f"{check}: {'pass' if detail['pass'] else 'FAIL'} {json.dumps(detail)}")
-        print(f"probe: {'pass' if report.passed else 'FAIL'} ({report.events} kernel events)")
-    return 0 if report.passed else 1
 
 
 def _traj_queue_command(
@@ -5665,50 +5100,7 @@ def parser() -> argparse.ArgumentParser:
     compare.add_argument("--database-url")
     compare.set_defaults(func=_compare_command)
 
-    quality = commands.add_parser(
-        "quality",
-        help="Read-only quality audits that keep static, semantic, difficulty, and training-utility findings separate",
-    )
-    quality_commands = quality.add_subparsers(dest="quality_command", required=True)
-    quality_audit = quality_commands.add_parser(
-        "audit",
-        help="Audit a pinned task cohort; never certifies semantics or training utility",
-    )
-    quality_audit.add_argument(
-        "--cohort",
-        type=Path,
-        required=True,
-        help="Path to the pinned cohort JSON file",
-    )
-    quality_audit.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit the full audit record as JSON",
-    )
-    quality_audit.set_defaults(func=_quality_audit_command)
 
-    curve = commands.add_parser(
-        "curve", help="Validate, build, or read an empirical paired capability curve"
-    )
-    curve_commands = curve.add_subparsers(dest="curve_command", required=True)
-    curve_validate = curve_commands.add_parser(
-        "validate", help="Validate a curve spec and its paired cohort inputs as JSON"
-    )
-    curve_validate.add_argument("path", type=Path)
-    curve_validate.add_argument("--produced-by", default="evallab")
-    curve_validate.set_defaults(func=_curve_command)
-    curve_build = curve_commands.add_parser(
-        "build", help="Build a provenance-backed empirical curve artifact"
-    )
-    curve_build.add_argument("path", type=Path)
-    curve_build.add_argument("--output", type=Path)
-    curve_build.add_argument("--produced-by", default="evallab")
-    curve_build.set_defaults(func=_curve_command)
-    curve_report = curve_commands.add_parser(
-        "report", help="Validate and emit a frozen curve artifact as JSON"
-    )
-    curve_report.add_argument("path", type=Path)
-    curve_report.set_defaults(func=_curve_command)
 
     power = commands.add_parser("power", help="Plan task-paired pass@k comparison power")
     power_mode = power.add_mutually_exclusive_group(required=True)
@@ -5742,43 +5134,8 @@ def parser() -> argparse.ArgumentParser:
     )
     power.set_defaults(func=_power_command)
 
-    report = commands.add_parser("report", help="Render trajectory families and eval cards")
+    report = commands.add_parser("report", help="Render Harbor run reports")
     report_commands = report.add_subparsers(dest="report_command", required=True)
-    from evallab.program_report import register_parser as register_program_report_parser
-
-    register_program_report_parser(report_commands)
-    report_family = report_commands.add_parser(
-        "family", help="Explain one task family from Parquet and canonical ATIF"
-    )
-    report_family.add_argument("task")
-    report_family.add_argument(
-        "--parquet-dir",
-        type=Path,
-        help="override the shared Parquet root for this invocation",
-    )
-    report_family.add_argument(
-        "--raw-root",
-        type=Path,
-        action="append",
-        help="Raw Harbor root; repeat as needed (defaults to runs and reviewed evidence)",
-    )
-    report_family.add_argument(
-        "--output-dir",
-        type=Path,
-        help="write JSON and Markdown reports (default: render without writing)",
-    )
-    report_family.set_defaults(func=_report_family_command)
-
-    report_card = report_commands.add_parser(
-        "card", help="Draft a provenance-bearing eval card from a completed spec"
-    )
-    report_card.add_argument("path", type=Path)
-    report_card.add_argument(
-        "--output",
-        type=Path,
-        help="write the eval card (default: render without writing)",
-    )
-    report_card.set_defaults(func=_report_card_command)
 
     report_run = report_commands.add_parser(
         "run",
@@ -5952,69 +5309,7 @@ def parser() -> argparse.ArgumentParser:
     )
     analyze_agreement.set_defaults(func=_analyze_agreement_command)
 
-    analyze_trial = analyze_commands.add_parser(
-        "trial", help="Analyze one cohort-style input from CAS (pack-only, no model)"
-    )
-    analyze_trial.add_argument("--cas-uri")
-    analyze_trial.add_argument("--store", type=Path, default=Path("derived/evidence-cas"))
-    analyze_trial.add_argument("--inventory", type=Path)
-    analyze_trial.add_argument("--trial-id")
-    analyze_trial.add_argument("--output-dir", type=Path, default=Path("derived/interpretation"))
-    analyze_trial.add_argument("--database-url")
-    analyze_trial.add_argument("--calibration-report", type=Path)
-    analyze_trial.set_defaults(func=_analyze_trial_command)
 
-    analyze_batch = analyze_commands.add_parser(
-        "batch", help="Consume the merged five-TB3 machine-analysis inventory"
-    )
-    analyze_batch.add_argument("inventory", type=Path)
-    analyze_batch.add_argument("--store", type=Path, default=Path("derived/evidence-cas"))
-    analyze_batch.add_argument("--output-dir", type=Path, default=Path("derived/interpretation"))
-    analyze_batch.add_argument("--database-url")
-    analyze_batch.add_argument("--calibration-report", type=Path)
-    analyze_batch.set_defaults(func=_analyze_batch_command)
-
-    analyze_calibrate = analyze_commands.add_parser(
-        "calibrate", help="Parse a committed CalibrationReport and report hold-only status"
-    )
-    analyze_calibrate.add_argument("path", type=Path)
-    analyze_calibrate.set_defaults(func=_analyze_calibrate_command)
-
-    data = commands.add_parser(
-        "data",
-        help="Deterministic training-data audits",
-    )
-    data_commands = data.add_subparsers(dest="data_command", required=True)
-    data_lint = data_commands.add_parser(
-        "lint",
-        help="Deterministic training-data lints: dedup, split leakage, coverage",
-    )
-    data_lint.add_argument(
-        "dataset", type=Path, help="Dataset JSONL (messages, files or submission rows)"
-    )
-    data_lint.add_argument(
-        "--answer-keys",
-        type=Path,
-        help="Answer-key tasks.jsonl with a `split` column, for the split-leak check",
-    )
-    data_lint.add_argument(
-        "--registry",
-        type=Path,
-        help="A registry JSON with `pairs` (family, task), for the family split-leak check",
-    )
-    data_lint.add_argument(
-        "--body-path",
-        default="submission/solve.sh",
-        help="Suffix identifying the candidate body inside a row",
-    )
-    data_lint.add_argument(
-        "--checks",
-        nargs="+",
-        default=["dedup", "split_leak", "coverage"],
-        choices=["dedup", "split_leak", "coverage"],
-    )
-    data_lint.add_argument("--json", action="store_true", help="Emit the full report as JSON")
-    data_lint.set_defaults(func=_data_lint_command)
 
     db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
     db_commands = db.add_subparsers(dest="db_command", required=True)
@@ -6290,42 +5585,6 @@ def parser() -> argparse.ArgumentParser:
     analyst_show.add_argument("--json", action="store_true", help="emit raw structured JSON")
     analyst_show.set_defaults(func=_analyst_show_command)
 
-    card = commands.add_parser(
-        "card", help="Generate and validate purpose-bound eval cards from completed evidence"
-    )
-    card_commands = card.add_subparsers(dest="card_command", required=True)
-    card_generate = card_commands.add_parser(
-        "generate", help="Generate an eval card from a spec_id or job_id"
-    )
-    card_generate.add_argument("target", help="Spec ID, spec path, job ID, or job path")
-    card_generate.add_argument(
-        "-o",
-        "--output",
-        type=Path,
-        help="write the eval card (default: render without writing)",
-    )
-    card_generate.add_argument(
-        "--json",
-        action="store_true",
-        help="print structured card JSON summary",
-    )
-    card_generate.add_argument(
-        "--derived-root",
-        type=Path,
-        help="override the shared Parquet root",
-    )
-    card_generate.set_defaults(func=_card_generate_command)
-
-    card_validate = card_commands.add_parser(
-        "validate", help="Validate an eval card against schema and mandatory caveats"
-    )
-    card_validate.add_argument("path", type=Path, help="Path to eval card markdown file")
-    card_validate.add_argument(
-        "--json",
-        action="store_true",
-        help="print structured validation result JSON",
-    )
-    card_validate.set_defaults(func=_card_validate_command)
 
     behavior = commands.add_parser(
         "behavior", help="Analyze agent execution behavior, effort, and efficiency"
@@ -6909,100 +6168,6 @@ def parser() -> argparse.ArgumentParser:
     tasks_pool_check.add_argument("--json", action="store_true")
     tasks_pool_check.set_defaults(func=_tasks_pool_check_command)
 
-    ladder = commands.add_parser(
-        "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"
-    )
-    ladder_commands = ladder.add_subparsers(dest="ladder_command", required=True)
-    ladder_validate = ladder_commands.add_parser(
-        "validate", help="Validate and cardinality-check a plan without writing or submitting"
-    )
-    ladder_validate.add_argument("grid_spec", type=Path)
-    ladder_validate.add_argument("--json", action="store_true")
-    ladder_validate.set_defaults(func=_ladder_validate_command)
-
-    ladder_generate = ladder_commands.add_parser(
-        "generate", help="Expand a grid specification into ExperimentSpec files"
-    )
-    ladder_generate.add_argument("grid_spec", type=Path, help="Path to grid YAML/JSON file")
-    ladder_generate.add_argument(
-        "-o",
-        "--output",
-        dest="output_dir",
-        type=Path,
-        default=None,
-        help="Directory to write generated ExperimentSpec JSON files",
-    )
-    ladder_generate.add_argument(
-        "--submit",
-        action="store_true",
-        help="Submit generated ExperimentSpecs directly to the queue",
-    )
-    ladder_generate.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="Print expansion and decisions without writing to disk (default)",
-    )
-    ladder_generate.add_argument(
-        "--no-quota-check",
-        action="store_true",
-        help="Disable automatic headroom/quota checking against existing runs",
-    )
-    ladder_generate.add_argument(
-        "--json",
-        action="store_true",
-        help="Print generation summary and details in JSON format",
-    )
-    ladder_generate.set_defaults(func=_ladder_generate_command)
-
-    ladder_screen = ladder_commands.add_parser(
-        "screen", help="Staged difficulty screening and follow-up generation"
-    )
-    screen_commands = ladder_screen.add_subparsers(dest="screen_command", required=True)
-
-    s1_parser = screen_commands.add_parser(
-        "stage1", help="Emit Stage 1 screening specs (k=1) across tasks and model levels"
-    )
-    s1_parser.add_argument("spec", type=Path, help="Path to ScreenSpec YAML/JSON file")
-    s1_parser.add_argument(
-        "-o",
-        "--output",
-        dest="output_dir",
-        type=Path,
-        default=None,
-        help="Directory to write generated ExperimentSpec JSON files",
-    )
-    s1_parser.add_argument(
-        "--submit",
-        action="store_true",
-        help="Submit generated ExperimentSpecs directly to the queue",
-    )
-    s1_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="Print expansion without writing to disk (default)",
-    )
-    s1_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Print generation summary in JSON format",
-    )
-    s1_parser.set_defaults(func=_ladder_screen_stage1_command)
-
-    sa_parser = screen_commands.add_parser(
-        "analyze", help="Analyze completed Stage 1 results and classify task separation"
-    )
-    sa_parser.add_argument("screen_id_or_spec", help="Screen ID or path to ScreenSpec file")
-    sa_parser.add_argument(
-        "--jobs-dir", type=Path, default=None, help="Jobs directory to search for results"
-    )
-    sa_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Print analysis report in JSON format",
-    )
-    sa_parser.set_defaults(func=_ladder_screen_analyze_command)
 
     trace_parser = commands.add_parser(
         "trace",
@@ -7299,43 +6464,6 @@ def parser() -> argparse.ArgumentParser:
         help="Emit results as JSON",
     )
     registry_devloop.set_defaults(func=_registry_devloop_command)
-    tidy = commands.add_parser(
-        "tidy",
-        help="Sweep working tree strays, stale worktrees, and retention violations",
-    )
-    tidy.add_argument(
-        "--apply",
-        action="store_true",
-        help="Execute safe deletions (default is dry-run report)",
-    )
-    tidy.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="Report findings without making changes (default behavior)",
-    )
-    tidy.set_defaults(func=_tidy_command)
-
-    worktrees = commands.add_parser(
-        "worktrees",
-        help="Report delivered / unique-unmerged / blocked for every registered worktree",
-    )
-    worktrees.add_argument(
-        "--base",
-        default="origin/main",
-        help="Integration ref the worktrees are compared against (default: origin/main)",
-    )
-    worktrees.add_argument(
-        "--no-pr",
-        action="store_true",
-        help="Skip GitHub PR state; delivery rests on Git ancestry and patch-ids only",
-    )
-    worktrees.add_argument("--json", action="store_true", help="Print JSON instead of Markdown")
-    worktrees.add_argument("--json-out", type=Path, help="Write the JSON report to this path")
-    worktrees.add_argument(
-        "--markdown-out", type=Path, help="Write the Markdown report to this path"
-    )
-    worktrees.set_defaults(func=_worktrees_command)
 
     verdict = commands.add_parser(
         "verdict",
@@ -7469,12 +6597,7 @@ def parser() -> argparse.ArgumentParser:
     )
     regrade_parser.add_argument("job", type=Path, help="Stored Harbor job directory")
     regrade_parser.add_argument(
-        "--task", type=Path, help="Current task or collection; separate verifier unless --held-out"
-    )
-    regrade_parser.add_argument(
-        "--held-out",
-        type=Path,
-        help="Additional-test bundle; regrade recorded passes offline on cached local CPU images",
+        "--task", type=Path, help="Current task or collection with a separate verifier"
     )
     regrade_parser.add_argument(
         "--jobs-dir",
@@ -7636,20 +6759,6 @@ def parser() -> argparse.ArgumentParser:
         "--capture-dir", type=Path, help="Existing host model-tap capture to join"
     )
     flight_show.set_defaults(func=_flight_show_command)
-    flight_probe = flight_commands.add_parser(
-        "probe", help="Run the invisibility probe (plain vs monitored container)"
-    )
-    flight_probe.add_argument(
-        "--image",
-        default=None,
-        help="Probe target image (default: recorder image with network tools)",
-    )
-    flight_probe.add_argument("--json", action="store_true", help="Emit the report as JSON")
-    flight_probe.add_argument("--flight-egress", choices=("locked", "open"), default="locked")
-    flight_probe.add_argument(
-        "--out", type=Path, help="Retain full dumps, events and probe report here"
-    )
-    flight_probe.set_defaults(func=_flight_probe_command)
 
     results = commands.add_parser("results", help="Publish finished jobs to the results home")
     results_commands = results.add_subparsers(dest="results_command", required=True)
@@ -7790,9 +6899,6 @@ def parser() -> argparse.ArgumentParser:
     from evallab.task_dossier import build_task_dossier_parser
 
     build_task_dossier_parser(commands)
-    from evallab.dataset_audit import build_dataset_audit_parser
-
-    build_dataset_audit_parser(commands)
     from evallab.reward_hack import build_reward_hack_parser
 
     build_reward_hack_parser(commands)
@@ -7826,15 +6932,6 @@ def parser() -> argparse.ArgumentParser:
     from evallab.detectors import build_detectors_parser
 
     build_detectors_parser(commands)
-    from evallab.price_bench import build_price_parser
-
-    build_price_parser(commands)
-    from evallab.hack_queue import build_hack_queue_parser
-
-    build_hack_queue_parser(commands)
-    from evallab.grid import build_grid_parser
-
-    build_grid_parser(commands)
     from evallab.cheat import build_cheat_parser
 
     build_cheat_parser(commands)
@@ -7856,18 +6953,12 @@ def parser() -> argparse.ArgumentParser:
     from evallab.insights.cli import build_insights_parser
 
     build_insights_parser(commands)
-    from evallab.laneverify import build_verify_lane_parser
-
-    build_verify_lane_parser(commands)
     from evallab.fleet.cli import build_fleet_parser
 
     build_fleet_parser(commands)
     from evallab.docker_lock import build_docker_lock_parser
 
     build_docker_lock_parser(commands)
-    from evallab.rollout import build_rollout_parser
-
-    build_rollout_parser(commands)
     from evallab.production.cli import register_parser as register_production_parser
 
     register_production_parser(commands)
@@ -7889,9 +6980,6 @@ def parser() -> argparse.ArgumentParser:
 
     register_judge_parser(commands)
 
-    from evallab.trace_store.cli import register_traces
-
-    register_traces(commands)
     from evallab.ship import register_parser as register_ship_parser
 
     register_ship_parser(commands)

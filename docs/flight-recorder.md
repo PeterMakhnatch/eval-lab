@@ -29,19 +29,12 @@ uv run --extra laminar evallab flight record \
   --name my-flight-recording --flight-egress locked --json
 
 uv run --extra laminar evallab flight show runs/my-flight-recording --json
-
-uv run --extra laminar evallab flight probe \
-  --flight-egress locked --out runs/my-locked-probe --json
-
-uv run --extra laminar evallab flight probe \
-  --flight-egress open --out runs/my-open-probe --json
 ```
 
 `record` retains the existing direct-run control-agent policy: `oracle` or `nop`,
 local Docker, no model billing. It records timelines after the trial finishes.
 `show` rebuilds the timeline and prints **all** event details, including captured
-model bodies; `--json` emits the summary and events. Probe output directories must
-be empty so old evidence is not silently overwritten or joined to a new probe.
+model bodies; `--json` emits the summary and events.
 
 A trial's `flight/` directory contains:
 

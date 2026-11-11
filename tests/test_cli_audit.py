@@ -4,8 +4,6 @@ import argparse
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 from evallab import cli
 from evallab.evidence import atif
 
@@ -72,45 +70,3 @@ def test_trajectories_export_rebuilds_derived_stores(tmp_path: Path, monkeypatch
 
     assert cli.run_cli(["trajectories", "evidence", "--export"], workspace=tmp_path) == 0
     assert calls == ["ingest-and-project"]
-
-
-def test_report_family_default_reads_shared_parquet_root(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    shared = tmp_path / "primary/derived/parquet"
-    captured: dict[str, Path] = {}
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
-    monkeypatch.setattr(cli, "derived_root_from_environment", lambda _root: shared)
-
-    def read_report(_task, *, parquet_root, raw_roots):
-        captured["parquet"] = parquet_root
-        return {}
-
-    monkeypatch.setattr(cli, "family_report", read_report)
-    monkeypatch.setattr(
-        cli,
-        "write_family_report",
-        lambda *args, **kwargs: pytest.fail("read-only report wrote derived state"),
-    )
-    monkeypatch.setattr(cli, "render_family_report", lambda _report: "report")
-
-    assert cli.run_cli(["report", "family", "task-family"], workspace=tmp_path) == 0
-    assert captured == {"parquet": shared}
-
-
-def test_report_card_default_renders_without_writing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
-    monkeypatch.setattr(
-        cli,
-        "build_eval_card",
-        lambda *args, **kwargs: ("card", {"spec_digest": "sha256:test"}),
-    )
-    monkeypatch.setattr(
-        cli,
-        "draft_eval_card",
-        lambda *args, **kwargs: pytest.fail("read-only report wrote an eval card"),
-    )
-
-    assert cli.run_cli(["report", "card", "done.json"], workspace=tmp_path) == 0

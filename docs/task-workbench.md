@@ -16,30 +16,6 @@ Certification means only **ready for human review**. Admission still requires a
 separate, human-created record under `library/registry/`, following
 [`task-registry.md`](task-registry.md).
 
-## Frozen-cohort quality audit
-
-`evallab quality audit --cohort <cohort.json>` is a read-only audit; add `--json`
-for structured output. It never runs controls, admits tasks, or certifies semantics.
-The freeze's `cohort_digest` identifies the JSON bytes, not the live task packages.
-Each member's `static_screening` describes the inspected live task path, while
-`static_screening.cohort_identity` separately reports `match`, `drift`, or `unknown`
-against the freeze's complete `TaskDigests` package/component pins. A static pass
-does not imply that the frozen package was inspected.
-
-The report retains the actual workbench candidate identity and its native digests
-under `inspected`, alongside registry-compatible `actual_digests`, frozen
-`expected_digests`, and per-component `mismatches`. Registry and workbench tree
-digests use different algorithms and are not interchangeable. Missing or malformed
-pins, unavailable inspection, unsupported symlink identity, and package changes
-between inspection and registry hashing cannot produce a match. This is a local
-read, not an atomic snapshot of a concurrently modified task directory.
-
-`semantic_validity` classifies only historical cohort control declarations:
-`oracle_nop_only` means the JSON declares oracle reward 1 and nop reward 0.
-Those declarations are not authenticated against the inspected identity, even
-when the pins match; `certified` remains false. Difficulty and training utility
-remain unknown, and declared allowed uses are not upgraded into audited approval.
-
 ## Lightweight task lint
 
 `evallab tasks lint <task-or-collection> [--json]` is a separate, read-only

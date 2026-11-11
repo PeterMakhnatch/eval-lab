@@ -432,3 +432,156 @@ def test_local_projection_retains_native_identity_and_reward_dimensions(tmp_path
         }
         assert stop_category(feature["stop_reason"]) == category
     assert not (parquet_root / "job_id=viewer-aggregate").exists()
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        (
+            {"started_at": "2026-01-01T00:00:00Z", "finished_at": "2026-01-01T01:30:00Z"},
+            (1.5, None),
+        ),
+        (
+            {"started_at": "not-a-timestamp", "finished_at": "2026-01-01T01:00:00Z"},
+            (None, "result.json timestamps do not parse as ISO-8601"),
+        ),
+        (
+            {"started_at": "2026-01-01T00:00:00Z", "finished_at": "not-a-timestamp"},
+            (None, "result.json timestamps do not parse as ISO-8601"),
+        ),
+        (
+            {"started_at": "2026-01-01T02:00:00Z", "finished_at": "2026-01-01T01:00:00Z"},
+            (None, "result.json finished_at precedes started_at"),
+        ),
+        ({}, (None, "result.json carries no started_at/finished_at pair")),
+        (
+            {"started_at": 1, "finished_at": "2026-01-01T01:00:00Z"},
+            (None, "result.json carries no started_at/finished_at pair"),
+        ),
+    ],
+)
+def test_trial_wall_hours_documents_each_reason(
+    result: dict, expected: tuple[float | None, str | None]
+) -> None:
+    from evallab.process_job import _trial_wall_hours
+
+    assert _trial_wall_hours(result) == expected
+
+
+def test_process_job_records_wall_hours_reason_on_the_trial(tmp_path: Path) -> None:
+    from evallab.process_job import _process_trial
+
+    job = _job(tmp_path)
+    trial = job / "trial-pass"
+    result = json.loads((trial / "result.json").read_text(encoding="utf-8"))
+    result["started_at"] = "2026-01-01T02:00:00Z"
+    result["finished_at"] = "2026-01-01T01:00:00Z"
+    (trial / "result.json").write_text(json.dumps(result), encoding="utf-8")
+
+    record = _process_trial(trial, job)
+    assert record["trial_wall_hours"] is None
+    assert record["trial_wall_reason"] == "result.json finished_at precedes started_at"
+
+
+def test_process_job_guard_reject_flags_mutation_steps(tmp_path: Path) -> None:
+    from evallab.process_job import _process_trial
+
+    job = _job(tmp_path)
+    trial = job / "trial-pass"
+    (trial / "verifier").mkdir()
+    (trial / "verifier" / "test-stdout.txt").write_text(
+        "anti_hack_guard: REJECT protected_file_mutated:tests/guard_target.py\n",
+        encoding="utf-8",
+    )
+    step = _step(4, json.dumps({"commands": [{"keystrokes": "echo hack > guard_target.py"}]}))
+    step["observation"] = {"results": []}
+    step["extra"] = {
+        "step_layers": {
+            "schema": "evallab.step_layers/v1",
+            "provenance": "recorded",
+            "executed": {"keystrokes_sent": ["echo hack > guard_target.py"]},
+            "accepted": {"kind": "calls", "calls": [], "task_complete": False},
+        }
+    }
+    trajectory = json.loads((trial / "agent" / "trajectory.json").read_text(encoding="utf-8"))
+    trajectory["steps"].append(step)
+    (trial / "agent" / "trajectory.json").write_text(json.dumps(trajectory), encoding="utf-8")
+
+    record = _process_trial(trial, job)
+    guard_flags = [flag for flag in record["taint"] if flag["kind"] == "guard_reject"]
+    assert len(guard_flags) == 1
+    assert guard_flags[0]["rule"] == "probe03.GUARD_REJECT_RE"
+    assert "anti_hack_guard: REJECT" in guard_flags[0]["evidence"]
+    assert guard_flags[0]["guard_mutation_steps"] == ["head#4"]
+    assert "taint_candidate:guard_reject" in record["flags"]
+
+
+def test_process_job_skips_unreadable_trajectory_parts(tmp_path: Path, monkeypatch) -> None:
+    from evallab import step_layers
+    from evallab.process_job import _process_trial
+
+    trial = _write_trial(tmp_path, "trial-parts", n_loop=2, reward=1.0, ceiling=False)
+    agent = trial / "agent"
+    # Parsable JSON that is not a trajectory document: discovery keeps the part
+    # with readable=False and the documented reason.
+    (agent / "trajectory.cont-1.json").write_text(json.dumps([1, 2, 3]), encoding="utf-8")
+    # A part discovery accepted whose bytes vanish before process-job reads it.
+    ghost = agent / "trajectory.cont-2.json"
+    ghost.write_text(json.dumps({"steps": []}), encoding="utf-8")
+
+    real_discover = step_layers.discover_trajectory_parts
+
+    def discover_then_remove(agent_dir: Path):
+        parts = real_discover(agent_dir)
+        ghost.unlink()
+        return parts
+
+    monkeypatch.setattr(step_layers, "discover_trajectory_parts", discover_then_remove)
+    record = _process_trial(trial, tmp_path)
+
+    # Only the readable head contributes steps; neither bad part aborts the trial.
+    assert record["stitched_steps"] == 2
+    parts = {part["path"]: part for part in record["coverage"]["parts"]}
+    assert parts["trajectory.cont-1.json"]["readable"] is False
+    assert parts["trajectory.cont-2.json"]["readable"] is True
+    assert (
+        "trajectory.cont-1.json unreadable: top-level JSON is not an object"
+        in record["coverage"]["gaps"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("key", "target"),
+    [
+        ("analysis", "evallab.probe03.analyze_trial_core"),
+        ("outline", "evallab.traj.outline_trajectory"),
+        ("diagnosis", "evallab.trial_diagnosis.diagnose_trial"),
+        ("token_flow", "evallab.token_flow.analyze_token_flow"),
+    ],
+)
+def test_process_job_records_each_detector_failure_and_still_writes_reports(
+    tmp_path: Path, monkeypatch, key: str, target: str
+) -> None:
+    job = _job(tmp_path)
+    out = tmp_path / "out"
+    message = f"{key} detector exploded"
+
+    def explode(*args, **kwargs):
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(target, explode)
+    report = process_job(job, output_dir=out, ingest=False, publish=False)
+
+    for name in ("trial-loop", "trial-pass"):
+        saved = json.loads((out / f"trial-{name}.json").read_text(encoding="utf-8"))
+        errors = saved["errors"]
+        assert errors[key] == f"RuntimeError: {message}"
+        assert {other: value for other, value in errors.items() if other != key} == {
+            other: None for other in errors if other != key
+        }
+        assert (out / f"trial-{name}.md").is_file()
+    assert report["summary"]["n_trials"] == 2
+    saved_job = json.loads((out / "job.json").read_text(encoding="utf-8"))
+    assert saved_job["schema"] == "process_job/v1"
+    assert len(saved_job["trials"]) == 2
+    assert (out / "job.md").is_file()

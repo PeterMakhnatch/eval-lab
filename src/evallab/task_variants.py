@@ -5,7 +5,7 @@ verifier — becomes a *variant*: a full derived package plus a git-tracked
 lineage record linking it to its parent. The original task stays untouched and
 remains the control; the variant is the treatment.
 
-Storage split (see docs/task-variants.md and docs/data-architecture.md):
+Storage split (see docs/task-quality.md and docs/data-architecture.md):
 
 - ``library/task-variants/<task_slug>/<digest12>.json`` — the lineage record,
   git-tracked and reviewable. Small, because it stores only the *changed*

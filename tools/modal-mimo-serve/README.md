@@ -418,7 +418,7 @@ synthetic protocol/Cloud readback do **not** authorize deployment, changing
 those settings or starting compute. Genuine CPU/RAM and native cold/queue/GPU
 adoption requires separate current admission. All HAR-168 a3/a4 specs remain
 held; native observations do not alter grades, accounting or invoice actuals.
-See [observability](../../docs/observability.md#native-provider-metrics-in-laminar-har-181).
+See [observability](../../docs/live-watch.md#native-provider-metrics-in-laminar-har-181).
 
 ## Context sizing (HAR-188 source alignment)
 

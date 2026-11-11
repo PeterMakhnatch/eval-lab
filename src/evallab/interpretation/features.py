@@ -14,7 +14,7 @@ detection logic of its own:
   binding ceiling from :func:`evallab.probe03.ceiling_which`.
 
 Everything else in this module is mechanical projection (regexes over
-observation text are documented in ``docs/features.md`` trust notes).
+observation text are documented in ``docs/analysis-loop.md`` trust notes).
 """
 
 from __future__ import annotations

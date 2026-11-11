@@ -10,7 +10,7 @@ Verdict vocabulary (binding contract wording):
 Collection methods: ``repeat_verifier`` (``RepeatVerifier`` re-ran the task
 verifier ``k`` times in place), ``nop_repeat`` (plain control trial, one
 recorded run), ``diff_replay`` (offline rerun from ``verifier/agent.diff``;
-see ``docs/task-stability.md`` for the recipe).
+see ``docs/task-quality.md`` for the recipe).
 """
 
 from __future__ import annotations

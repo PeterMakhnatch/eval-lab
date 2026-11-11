@@ -6,7 +6,7 @@ runs. Three questions, each answered from evidence already on disk:
 1. **Per-provider remaining quota.** Built from :mod:`evallab.quota`, one
    reading per paid agent, because `codex` and `claude-code` are two separate
    subscriptions and one account's headroom says nothing about the other's.
-   Both documented traps in `docs/quota-accounting.md` are honoured here:
+   Both documented traps in `docs/operations.md` are honoured here:
    ``availability`` is checked before ``remaining_percent`` is read, and an
    unavailable reading prints UNKNOWN with the warning attached rather than a
    blank that reads as room to spare.

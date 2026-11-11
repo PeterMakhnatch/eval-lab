@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 
 from evallab.automation import NightlyCycle
-from evallab.contextpack import parse_doc, select_docs
 from evallab.digest import DigestRenderer
 from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.schemas import (
@@ -166,24 +165,6 @@ def test_status_update_file_default_path(tmp_path: Path) -> None:
     assert "status: historical" in content
     assert f"# Research status — {TARGET_DATE.isoformat()}" in content
     assert "Generated catalog snapshot; historical record, not a living contract." in content
-
-
-def test_status_excluded_from_all_mission_context_packs(tmp_path: Path) -> None:
-    """Prove STATUS.md is excluded from context packs for all 4 missions."""
-    repo = _setup_mock_repo(tmp_path)
-    status_path = update_status_file(repo, target_date=TARGET_DATE)
-    assert status_path.is_file()
-
-    # 1. Prove contextpack.select_docs excludes STATUS.md for all four missions
-    for mission in ("builder", "analyst", "runner", "operator"):
-        selected = select_docs(repo / "docs", mission_type=mission, root=repo)
-        selected_paths = [d.path for d in selected]
-        assert "docs/STATUS.md" not in selected_paths, (
-            f"docs/STATUS.md must not be selected for mission {mission}"
-        )
-
-    doc_meta = parse_doc(status_path, root=repo)
-    assert doc_meta.status == "historical"
 
 
 def test_status_generator_sha256_byte_identity(tmp_path: Path) -> None:

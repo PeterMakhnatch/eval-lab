@@ -103,11 +103,11 @@ the committed table with ``--check`` (exit 1 on drift); print the language
 summary with ``--summary``. ``--sync-docs`` rebuilds the tested documentation
 fragments from committed cells, the manifest, the ranking and the pending-control
 inventory: the graded-attack range and histogram, the subset row count, the
-evidence-match and pending-control sentences on the three route pages, and the
-evidence section, check date and totals lines from the committed receipt,
-without reading or writing the CSV or host results. A receipt that does not list
-every committed cell and subset entry raises ``ProgressError``. It validates the
-receipt, the inventory and all four pages before any write.
+evidence-match and pending-control sentences on the MiMo route page and this
+page, and the evidence section, check date and totals lines from the committed
+receipt, without reading or writing the CSV or host results. A receipt that
+does not list every committed cell and subset entry raises ``ProgressError``.
+It validates the receipt, the inventory and all three pages before any write.
 ``--render-slice CELL`` prints one cell file's seven-column README pipe-table
 rows, so a slice PR pastes generated rows instead of hand-copying them.
 ``check_slice_tables`` compares the README's per-slice ladder tables with the
@@ -1073,14 +1073,6 @@ def _verification_edits(
 
 
 _PENDING_SENTENCE = {
-    "root": (
-        "The remaining v6 gap is the pending controls:",
-        r"The\s+remaining\s+v6\s+gap\s+is\s+the\s+pending\s+controls:\s+[0-9]+\s+"
-        r"(?:pending\s+)?(?:control\s+)?cells\s+for\s+[0-9]+\s+tasks,"
-        r"(?:\s+[0-9]+\s+runnable,)?\s+[0-9]+\.[0-9]+\s+projected\s+serial\s+hours",
-        "The remaining v6 gap is the pending controls: {pending} pending cells for\n"
-        "{tasks} tasks, {runnable} runnable, {hours:.2f} projected serial hours",
-    ),
     "route": (
         "The remaining v6 gap is the pending controls:",
         r"The\s+remaining\s+v6\s+gap\s+is\s+the\s+pending\s+controls:\s+[0-9]+\s+"
@@ -1102,12 +1094,6 @@ _PENDING_SENTENCE = {
 # Each entry is (error label, anchor pattern, fragment pattern). The anchor
 # accepts either generated strictness form, so a receipt flip resynchronizes.
 _EVIDENCE_SENTENCE = {
-    "root": (
-        "The (non-)strict evidence check matched",
-        r"The\s+(?:strict|non-strict)\s+evidence\s+check\s+matched",
-        r"The\s+(strict|non-strict)\s+evidence\s+check\s+matched\s+([0-9]+)\s+of\s+([0-9]+)\s+"
-        r"cells\s+and\s+([0-9]+)\s+of\s+([0-9]+)\s+recorded\s+subset\s+trials",
-    ),
     "route": (
         "the (non-)strict evidence check matched",
         r"the\s+(?:strict|non-strict)\s+evidence\s+check\s+matched",
@@ -1168,7 +1154,6 @@ def _evidence_sentence_edits(
         else f"{subset_matched} of {subset_total}"
     )
     values = {
-        "root": (strictness, matched, len(receipt["cells"]), subset_matched, subset_total),
         "route": (strictness, matched, subset_matched),
         "experiment": (
             receipt["checked_date_et"],
@@ -1293,7 +1278,6 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
     receipt = read_receipt(cells_dir, root)
     controls = read_pending_controls(cells_dir / PENDING_NAME, read_manifest(cells_dir))
     pages = (
-        root / "README.md",
         root / "docs" / "mimo" / "README.md",
         cells_dir / "README.md",
         root / "docs" / "mimo" / "verification.md",
@@ -1315,21 +1299,21 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
         counts.get("none", 0),
     )
     replacements: dict[Path, str] = {}
-    for position, page in enumerate(pages[:2]):
-        kind = "root" if position == 0 else "route"
-        text = originals[page]
-        _doc_match(r"v6\s+basis\s+\(100\s+ranks\):", text, page, "v6 basis (100 ranks):")
-        match = _doc_match(ROUTE_BASIS.pattern, text, page, "complete v6 basis sentence")
-        edits = [
+    page = pages[0]
+    text = originals[page]
+    _doc_match(r"v6\s+basis\s+\(100\s+ranks\):", text, page, "v6 basis (100 ranks):")
+    match = _doc_match(ROUTE_BASIS.pattern, text, page, "complete v6 basis sentence")
+    replacements[page] = _doc_patch(
+        text,
+        [
             (match.start(index), match.end(index), str(count))
             for index, count in enumerate(route_counts, start=1)
         ]
-        edits += _evidence_sentence_edits(receipt, text, page, kind)
-        edits += _pending_sentence_edits(controls, text, page, kind)
-        if kind == "route":
-            edits += _graded_sentence_edits(rows, text, page)
-        replacements[page] = _doc_patch(text, edits)
-    page = pages[2]
+        + _evidence_sentence_edits(receipt, text, page, "route")
+        + _pending_sentence_edits(controls, text, page, "route")
+        + _graded_sentence_edits(rows, text, page),
+    )
+    page = pages[1]
     text = originals[page]
     basis_table = _doc_table(text, page, BASIS_ANCHOR, ("basis", "ranks"))
     _doc_match(
@@ -1451,7 +1435,7 @@ def sync_docs(rows: Sequence[dict[str, str]], *, root: Path, cells_dir: Path) ->
             *_pending_sentence_edits(controls, text, page, "experiment"),
         ],
     )
-    page = pages[3]
+    page = pages[2]
     text = originals[page]
     replacements[page] = _doc_patch(text, _verification_edits(receipt, rows, text, page))
     for page, replacement in replacements.items():

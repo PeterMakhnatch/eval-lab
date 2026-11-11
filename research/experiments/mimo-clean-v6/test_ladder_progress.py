@@ -59,26 +59,26 @@ def test_ladder_progress_readme_refusal_signature_counts_match_the_table() -> No
     assert documented == dict(counted)
 
 
-# Both route pages quote the v6 basis counts in one fixed sentence shape, so the
+# The route page quotes the v6 basis counts in one fixed sentence shape, so the
 # parse stays a single regex:
 #
 #   v6 basis (100 ranks): <covered> covered, <clean> clean,
 #   <tamper-refusal> tamper-refusal, <graded> graded, <unscored> unscored,
 #   <not run> not run
 #
-# Each page carries that sentence exactly once, wrapped anywhere. Two numbers do
+# The page carries that sentence exactly once, wrapped anywhere. Two numbers do
 # not come straight from ``basis_counts``: covered is every rank minus ``none``,
-# and clean is every ``clean`` verdict. Edit both pages together, never one alone.
+# and clean is every ``clean`` verdict.
 BASIS_SENTENCE = re.compile(
     r"v6 basis \(100 ranks\): (\d+) covered, (\d+) clean, (\d+) tamper-refusal, "
     r"(\d+) graded, (\d+) unscored, (\d+) not run"
 )
-BASIS_PAGES = (REPO_ROOT / "docs" / "mimo" / "README.md", REPO_ROOT / "README.md")
+BASIS_PAGES = (REPO_ROOT / "docs" / "mimo" / "README.md",)
 BASIS_FIELDS = ("covered", "clean", "tamper-refusal", "graded", "unscored", "not run")
 
 
 def _quoted_basis() -> dict[str, int]:
-    """The six numbers both pages quote, from the committed ladder table."""
+    """The six numbers the route page quotes, from the committed ladder table."""
     rows = _committed()
     counts = MODULE.basis_counts(rows)
     not_run = counts.get("none", 0)
@@ -102,7 +102,7 @@ def test_ladder_progress_quoted_basis_counts_match_the_committed_table() -> None
         assert quoted == expected, page.relative_to(REPO_ROOT)
 
 
-def test_ladder_progress_both_pages_name_the_graded_go_cells() -> None:
+def test_ladder_progress_route_page_names_the_graded_go_cells() -> None:
     go_cells = [
         row["task_id"].rsplit("-", 1)[-1]
         for row in _committed()
@@ -1183,7 +1183,6 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     ranking.parent.mkdir(parents=True)
     shutil.copy(REPO_ROOT / RANKING, ranking)
     for relative in (
-        "README.md",
         "docs/mimo/README.md",
         "docs/mimo/verification.md",
         "research/experiments/mimo-clean-v6/README.md",
@@ -1203,15 +1202,12 @@ _SYNC_ROUTE = re.compile(
 _SYNC_EXPERIMENT = "research/experiments/mimo-clean-v6/README.md"
 _SYNC_VERIFICATION = "docs/mimo/verification.md"
 _SYNC_FRAGMENTS = (
-    ("README.md", b"v6 basis (100 ranks):"),
     ("docs/mimo/README.md", b"v6 basis (100 ranks):"),
     (
         "docs/mimo/README.md",
         b"the 5 Go cells (`001694` at rank 6; `000048`, `000208`, `000427`, `000431` "
         b"at ranks 89\xe2\x80\x9392)",
     ),
-    ("README.md", b"The strict evidence check matched"),
-    ("README.md", b"The remaining v6 gap is the pending controls:"),
     ("docs/mimo/README.md", b"the strict evidence check matched"),
     ("docs/mimo/README.md", b"The remaining v6 gap is the pending controls:"),
     (_SYNC_EXPERIMENT, b"strict check matched"),
@@ -1262,8 +1258,6 @@ _SYNC_NARRATIVES = (
     ),
 )
 _SYNC_SENTENCES = (
-    ("README.md", rb"The strict evidence check matched [^\n]+"),
-    ("README.md", rb"The remaining v6 gap is the pending controls:[^\n]+\n[^\n]+"),
     ("docs/mimo/README.md", rb"the strict evidence check matched [^\n]+"),
     (
         "docs/mimo/README.md",
@@ -1277,7 +1271,6 @@ _SYNC_SENTENCES = (
 def _sync_pages(experiment: Path) -> tuple[Path, ...]:
     root = experiment.parents[2]
     return (
-        root / "README.md",
         root / "docs/mimo/README.md",
         experiment / "README.md",
         root / "docs/mimo/verification.md",
@@ -1344,12 +1337,11 @@ def _stale_number(text: bytes, pattern: bytes) -> bytes:
 
 
 def _stale_sync_pages(experiment: Path) -> None:
-    root_page, route_page, readme, verification = _sync_pages(experiment)
-    for page in (root_page, route_page):
-        text = _stale_route(page.read_bytes())
-        text = _stale_number(text, rb"matched\s+[0-9]+(?:\s+of\s+[0-9]+)?\s+cells")
-        text = _stale_number(text, rb"pending cells for\s+[0-9]+ tasks")
-        page.write_bytes(text)
+    route_page, readme, verification = _sync_pages(experiment)
+    text = _stale_route(route_page.read_bytes())
+    text = _stale_number(text, rb"matched\s+[0-9]+(?:\s+of\s+[0-9]+)?\s+cells")
+    text = _stale_number(text, rb"pending cells for\s+[0-9]+ tasks")
+    route_page.write_bytes(text)
     text = readme.read_bytes()
     covered = _sync_covered_anchor(text)
     count = re.search(rb"(\d+) covered;", covered)
@@ -1436,7 +1428,7 @@ def test_ladder_progress_sync_docs_derives_the_pending_sentence_from_the_invento
     pending, runnable, tasks, hours = MODULE._pending_counts(controls)
     assert runnable == 174 - len(held["agents"])
     assert MODULE.main(["--sync-docs"]) == 0
-    for relative in ("README.md", "docs/mimo/README.md", _SYNC_EXPERIMENT):
+    for relative in ("docs/mimo/README.md", _SYNC_EXPERIMENT):
         text = " ".join((sandbox.parents[2] / relative).read_text(encoding="utf-8").split())
         assert f"{pending} pending cells for" in text
         assert f"{tasks} tasks, {runnable} runnable" in text
@@ -1459,12 +1451,8 @@ def test_ladder_progress_sync_docs_derives_the_evidence_sentence_from_the_receip
         relative: " ".join(
             (sandbox.parents[2] / relative).read_text(encoding="utf-8").split()
         )
-        for relative in ("README.md", "docs/mimo/README.md", _SYNC_EXPERIMENT)
+        for relative in ("docs/mimo/README.md", _SYNC_EXPERIMENT)
     }
-    assert (
-        f"The strict evidence check matched {matched} of 100 cells and 13 of 13 "
-        "recorded subset trials" in pages["README.md"]
-    )
     assert (
         f"the strict evidence check matched {matched} cells and 13 subset trials"
         in pages["docs/mimo/README.md"]
@@ -1479,15 +1467,13 @@ def test_ladder_progress_sync_docs_synchronizes_each_strictness_repeatedly(
     sandbox: Path,
 ) -> None:
     receipt = _sandbox_receipt(sandbox)
-    relative_pages = ("README.md", "docs/mimo/README.md", _SYNC_EXPERIMENT)
+    relative_pages = ("docs/mimo/README.md", _SYNC_EXPERIMENT)
     phrases = {
         False: (
-            "The non-strict evidence check matched",
             "the non-strict evidence check matched",
             "non-strict check matched",
         ),
         True: (
-            "The strict evidence check matched",
             "the strict evidence check matched",
             "strict check matched",
         ),
@@ -1515,7 +1501,7 @@ def test_ladder_progress_sync_docs_refuses_a_damaged_non_strict_evidence_anchor(
     _write_sandbox_receipt(sandbox, receipt)
     assert MODULE.main(["--sync-docs"]) == 0
     page = _sync_pages(sandbox)[0]
-    anchor = b"The non-strict evidence check matched"
+    anchor = b"the non-strict evidence check matched"
     text = page.read_bytes()
     assert text.count(anchor) == 1
     replacement = b"removed evidence anchor" if damage == "missing" else anchor + b"\n" + anchor
@@ -1523,7 +1509,7 @@ def test_ladder_progress_sync_docs_refuses_a_damaged_non_strict_evidence_anchor(
     before = _sync_snapshot(sandbox)
     with pytest.raises(ProgressError) as refused:
         MODULE.main(["--sync-docs"])
-    assert "README.md" in str(refused.value)
+    assert "docs/mimo/README.md" in str(refused.value)
     assert _sync_snapshot(sandbox) == before
 
 
@@ -1580,7 +1566,10 @@ def test_ladder_progress_sync_docs_restores_each_narrative_fragment(
     assert {page: page.read_bytes() for page in before} == {
         page: content for page, (content, _) in before.items()
     }
-    for page in (*_sync_pages(sandbox)[:2], sandbox / "ladder-progress.csv"):
+    for page in (
+        *_sync_pages(sandbox)[::2],
+        sandbox / "ladder-progress.csv",
+    ):
         assert (page.read_bytes(), page.stat().st_mtime_ns) == before[page]
     after = _sync_snapshot(sandbox)
     MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
@@ -1773,8 +1762,6 @@ def test_ladder_progress_sync_docs_derives_the_graded_membership_sentence(sandbo
     )
     moved.update(rank="60", language="javascript", attacks_executed="10")
     root = sandbox.parents[2]
-    root_page = root / "README.md"
-    root_before = root_page.read_bytes()
     route = root / "docs" / "mimo" / "README.md"
     assert route.read_bytes().count(b"the 5 Go cells") == 1
     MODULE.sync_docs(rows, root=root, cells_dir=sandbox)
@@ -1785,7 +1772,6 @@ def test_ladder_progress_sync_docs_derives_the_graded_membership_sentence(sandbo
         "`001849` at ranks 93–96)"
     ) in text
     assert "the JavaScript cells run Jest, Mocha or Node and execute 9 or 10 of 14 attacks" in text
-    assert root_page.read_bytes() == root_before
     before_repeat = _sync_snapshot(sandbox)
     MODULE.sync_docs(rows, root=root, cells_dir=sandbox)
     assert _sync_snapshot(sandbox) == before_repeat
@@ -1890,8 +1876,8 @@ def test_ladder_progress_sync_docs_refuses_invalid_table_boundaries_atomically(
     sandbox: Path, table: str, part: str, damage: str
 ) -> None:
     rows = build(sandbox.parents[2], cells_dir=sandbox)
-    for page in _sync_pages(sandbox)[:2]:
-        page.write_bytes(_stale_route(page.read_bytes()))
+    route_page = _sync_pages(sandbox)[0]
+    route_page.write_bytes(_stale_route(route_page.read_bytes()))
     readme = sandbox / "README.md"
     text = readme.read_bytes()
     headings = {

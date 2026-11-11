@@ -41,12 +41,9 @@ Rules that never change:
   `requires_approval: true`. The investigator has no shell, filesystem,
   network, grading, or deployment tools and cannot execute proposals.
   Anything beyond reading evidence needs separate human approval.
-- **Live stop is the watch's job, never the investigator's.** The
-  [live-stop path](live-watch.md#live-stop-end-one-cheating-trial-keep-the-evidence)
-  (auto in `EVALLAB_WATCH_STOP=on` mode, or an operator's explicit
-  `evallab watch stop`) is separate from investigation: preparation and
-  investigation stay read-only, proposals stay inert, and a stop never
-  follows from a hypothesis report without that separate watch/operator path.
+- **Investigation never stops a run.** The watcher and the investigator remain read-only.
+  The retired live-stop path has no actuator or operator command.
+  A hypothesis report never authorizes a stop.
 
 ## Commands
 

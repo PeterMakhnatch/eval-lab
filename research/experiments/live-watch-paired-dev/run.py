@@ -16,12 +16,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from evallab.harbor_watch_hooks import read_hook_journal
-from evallab.live_watch import WatchThresholds, evaluate_alerts, trial_signals
+from evallab.live_watch import (
+    INTEGRITY_BOARD_RULES,
+    WatchThresholds,
+    evaluate_alerts,
+    trial_signals,
+)
 from evallab.qa.answer_key import item_id_of, load_answer_key
 from evallab.qa.models import Finding, Reviewer
 from evallab.results_home import results_root
 from evallab.storage.paths import shared_checkout_root
-from evallab.watch_stop import INTEGRITY_BOARD_RULES
 
 ROOT = Path(__file__).resolve().parents[3]
 KEY = ROOT / "research/answer-keys/trace-paired-v1"
@@ -117,7 +121,7 @@ def run(out: Path) -> dict:
         "key_sha256": {name: digest(KEY / name) for name in ("items.jsonl", "pairs.jsonl")},
         "watch_source_sha256": {
             name: digest(ROOT / "src/evallab" / name)
-            for name in ("live_watch.py", "watch_stop.py", "tripwires.py", "edit_signals.py")
+            for name in ("live_watch.py", "tripwires.py", "edit_signals.py")
         },
         "integrity_rules": list(INTEGRITY_BOARD_RULES),
         "thresholds": asdict(thresholds),

@@ -1787,10 +1787,59 @@ def test_task_protected_read_silent_without_manifest(tmp_path: Path) -> None:
     assert "task_protected_read" not in _submission_rules(tmp_path, steps)
 
 
-def test_task_protected_read_is_detection_only() -> None:
-    from evallab.watch_stop import stop_eligible_alert
 
-    assert stop_eligible_alert({"rule": "task_protected_read"}) == (
-        False,
-        "rule_not_eligible:task_protected_read",
-    )
+def test_integrity_replay_keeps_prefix_order_and_source_step_citations() -> None:
+    from evallab.live_watch import integrity_alerts, wire_signals
+    from evallab.tripwires import scan_prefix
+
+    steps = [
+        _step(10, "ls\n"),
+        _step(20, "cat verifier/reward.py\n"),
+        _step(30, "sed -i 's/x/y/' tests/test_foo.py\n"),
+        _step(40, "pwd\n"),
+    ]
+    observed = []
+    for n in range(len(steps) + 1):
+        prefix = steps[:n]
+        alerts = integrity_alerts(
+            {"job": "job", "trial": "trial", "task": "task", **wire_signals(scan_prefix(prefix, steps=prefix))}
+        )
+        observed.append({alert["rule"]: alert["step_ref"] for alert in alerts})
+    assert observed == [
+        {},
+        {},
+        {"hidden_info_read": "head#20"},
+        {"hidden_info_read": "head#20", "grader_tamper": "head#30"},
+        {"hidden_info_read": "head#20", "grader_tamper": "head#30"},
+    ]
+
+
+def test_file_stall_and_observed_step_silence_keep_distinct_clocks(tmp_path: Path) -> None:
+    from evallab.production import run_health
+
+    now = 1_800_000_000.0
+    step = {**_step(1, "ls\n"), "timestamp": now - 2700}
+    trial = _write_trial(tmp_path, "job", "task__abc", [step])
+    trajectory = trial / "agent/trajectory.json"
+    run = run_health.HealthRun("task__abc", "harbor", [step], {})
+    os.utime(trajectory, (now, now))
+    assert "stalled" not in _rules(_signals(trial, now=now))
+    assert "silence" in {hit["trigger"] for hit in run_health.triggers(run, now=now)}
+    step["timestamp"] = now
+    trajectory.write_text(json.dumps({"steps": [step]}))
+    os.utime(trajectory, (now - 600, now - 600))
+    assert "stalled" in _rules(_signals(trial, now=now))
+    assert "silence" not in {hit["trigger"] for hit in run_health.triggers(run, now=now)}
+
+
+def test_merged_result_preserves_historical_watch_stop_outcomes() -> None:
+    from evallab.harbor_view import build_merged_result
+
+    trials = [
+        ("task__a1", {"exception_info": {"exception_type": "WatchStopCancelledError"}}),
+        ("task__a2", {"exception_info": {"exception_type": "CancelledError"}}),
+        ("task__a3", {}),
+    ]
+    merged = build_merged_result("job", trials)  # type: ignore[arg-type]
+    assert merged["stats"]["n_cancelled_trials"] == 2
+    assert merged["stats"]["n_stopped_by_watch"] == 1

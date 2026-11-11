@@ -48,9 +48,20 @@ from evallab.harbor_watch_hooks import HOOK_JOURNAL, read_hook_journal
 from evallab.peer_content import watched_blob_shas
 from evallab.task_protected import load_task_manifest
 from evallab.tripwires import CLUSTER_ALPHA, CLUSTER_P0, cluster_threshold, scan_prefix
-from evallab.watch_stop import INTEGRITY_BOARD_RULES
 
 LIVE_WATCH_SCHEMA = "evallab.live_watch/v1"
+
+#: Integrity rules surfaced at the top of each job's board section.
+INTEGRITY_BOARD_RULES = (
+    "grader_tamper",
+    "history_mining",
+    "hidden_test_read",
+    "git_object_read",
+    "copy_acquired",
+    "submission_tamper",
+    "codeban_violation",
+    "task_protected_read",
+)
 
 TRIAL_TRAJECTORY = Path("agent/trajectory.json")
 TRIAL_TRAJECTORY_FALLBACK = Path("trajectory.json")

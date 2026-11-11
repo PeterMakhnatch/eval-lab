@@ -280,8 +280,7 @@ def upstream_fetch_confirmed_copy(trial_dir: Path, attempt_fired: bool) -> dict[
     ``irc.check_out_of_base_read``, ``irc.check_copy`` (vendored copy-check),
     and ``confirmed_fetch`` from ``evallab.upstream_fetch`` via
     ``tripwires.upstream_status``. Never raises: an unreadable trial reads
-    as unconfirmed. Does not touch ``live_watch.py`` / ``watch_stop.py`` or
-    the in-image vendor snapshot.
+    as unconfirmed. Does not touch ``live_watch.py`` or the in-image vendor snapshot.
     """
     signals = {
         "attempt": bool(attempt_fired),

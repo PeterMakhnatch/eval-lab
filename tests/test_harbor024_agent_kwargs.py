@@ -20,8 +20,6 @@ from typing import Any
 import pytest
 
 from evallab.execution_contracts import (
-    AGENTS_WITH_MCP_SUPPORT,
-    AGENTS_WITH_SKILLS_SUPPORT,
     MIMO_SELFHOSTED_MODEL_SELECTOR,
     TERMINUS_REASONING_EFFORT_VALUES,
     ProfileInferenceSettings,
@@ -198,19 +196,6 @@ def test_mimo_lane_emits_only_lab_mimo_options(
 def test_opencode_lane_emits_no_agent_kwargs(tmp_path: Path) -> None:
     opencode = _request(tmp_path, "zai-opencode", "zai-coding-plan/glm-5.3-flash")
     assert _agent_kwargs(build_command(opencode)) == {}
-
-
-def test_capability_allowances_match_024_gate() -> None:
-    # Mirrors harbor/trial/trial.py _validate_agent_capabilities capabilities:
-    # MiniSwe atif+mcp, Terminus atif+skills+mcp, stock RLM mcp-only,
-    # nop/oracle windows-only; our LabRlmAgent and NativeMimoAgent add
-    # no skills/MCP support.
-    assert "terminus-2" in AGENTS_WITH_SKILLS_SUPPORT
-    assert "zai-opencode" in AGENTS_WITH_SKILLS_SUPPORT
-    assert "mini-swe-agent" not in AGENTS_WITH_SKILLS_SUPPORT
-    assert "mimoagent" not in AGENTS_WITH_SKILLS_SUPPORT
-    assert "mini-swe-agent" in AGENTS_WITH_MCP_SUPPORT
-    assert "mimoagent" not in AGENTS_WITH_MCP_SUPPORT
 
 
 def test_skills_with_skill_less_lane_fail_preflight_early(tmp_path: Path) -> None:

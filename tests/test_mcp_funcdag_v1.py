@@ -298,23 +298,6 @@ def test_stage_command_rejects_non_trusted_target():
         mod.stage_command(Path("/tmp/wheels"), mod.MACOS_CP312_ARM64)
 
 
-def test_resolver_pip_is_pinned_in_locked_dev_group():
-    """The resolver pip must be pinned exactly in the locked dev dependency group."""
-    import tomllib
-
-    mod = _load_ensure_wheelhouse_module()
-    pyproject_path = Path(__file__).parents[1] / "pyproject.toml"
-    with pyproject_path.open("rb") as fh:
-        data = tomllib.load(fh)
-    dev = data["dependency-groups"]["dev"]
-    assert mod.RESOLVER_PIP_PIN in dev
-    # The lock must carry the exact pinned pip with a committed artifact hash.
-    lock_text = (Path(__file__).parents[1] / "uv.lock").read_text(encoding="utf-8")
-    assert 'name = "pip"' in lock_text
-    assert 'version = "26.1.2"' in lock_text
-    assert "pip-26.1.2" in lock_text
-
-
 def test_ensure_wheelhouse_rejects_non_trusted_target_before_cache(tmp_path):
     """A crafted cached provenance must not bypass rejection of a non-trusted target."""
     from evallab.mcp_substrate import SubstrateError

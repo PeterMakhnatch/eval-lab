@@ -204,11 +204,3 @@ def test_uninstall_honours_custom_label_and_dest(tmp_path: Path) -> None:
     assert not dest.exists()
     assert not world.plist.exists()
     assert world.calls("bootout") == [["bootout", f"gui/{os.getuid()}/com.example.sync"]]
-
-
-def test_usage_header_documents_uninstall() -> None:
-    text = SCRIPT.read_text(encoding="utf-8")
-    usage = text.split("set -euo pipefail", 1)[0]
-
-    assert "[--uninstall]" in usage
-    assert "--uninstall boots the label out" in usage

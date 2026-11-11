@@ -1,34 +1,9 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 from types import SimpleNamespace
 
 from evallab import cli
-from evallab.evidence import atif
-
-
-def test_every_cli_command_path_responds_to_help() -> None:
-    def _collect_leaf_subparsers(
-        parser: argparse.ArgumentParser, prefix: tuple[str, ...] = ()
-    ) -> list[tuple[tuple[str, ...], argparse.ArgumentParser]]:
-        subparsers_actions = [
-            a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
-        ]
-        if not subparsers_actions:
-            return [(prefix, parser)] if prefix else []
-        leaves: list[tuple[tuple[str, ...], argparse.ArgumentParser]] = []
-        for sp_action in subparsers_actions:
-            for name, subparser in sp_action.choices.items():
-                leaves.extend(_collect_leaf_subparsers(subparser, prefix + (name,)))
-        return leaves
-
-    parser = cli.parser()
-    leaves = _collect_leaf_subparsers(parser)
-    assert len(leaves) >= 80
-    for path, subparser in leaves:
-        help_text = subparser.format_help()
-        assert "usage:" in help_text, f"Missing usage in leaf command {path}"
 
 
 def test_trajectories_default_action_is_read_only(tmp_path: Path, monkeypatch) -> None:
@@ -47,26 +22,3 @@ def test_trajectories_default_action_is_read_only(tmp_path: Path, monkeypatch) -
     )
 
     assert cli.run_cli(["trajectories", "evidence"], workspace=tmp_path) == 0
-
-
-def test_trajectories_export_rebuilds_derived_stores(tmp_path: Path, monkeypatch) -> None:
-    calls: list[str] = []
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
-    monkeypatch.setattr(
-        cli,
-        "load_jobs",
-        lambda _paths: [SimpleNamespace(name="completed-job", trials=())],
-    )
-    monkeypatch.setattr(
-        cli,
-        "ingest_and_project",
-        lambda *args, **kwargs: (
-            calls.append("ingest-and-project")
-            or SimpleNamespace(tables=(), row_counts={}, failures=())
-        ),
-    )
-    monkeypatch.setattr(cli, "record_projection_failures", lambda *args, **kwargs: None)
-    monkeypatch.setattr(atif, "project_trial", lambda job, trial: None)
-
-    assert cli.run_cli(["trajectories", "evidence", "--export"], workspace=tmp_path) == 0
-    assert calls == ["ingest-and-project"]

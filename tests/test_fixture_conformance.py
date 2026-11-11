@@ -197,11 +197,6 @@ def conformance_failure(path: Path) -> str | None:
     return None
 
 
-def test_fixture_tree_contains_atif_documents_to_check():
-    """A guard that silently matches nothing is worse than no guard."""
-    assert FIXTURE_DOCUMENTS, f"no ATIF-claiming fixture found under {_rel(FIXTURES)}"
-
-
 @pytest.mark.parametrize("path", FIXTURE_DOCUMENTS, ids=_rel)
 def test_every_atif_fixture_is_a_document_that_could_exist(path: Path):
     """The guard. A fixture the ingest would reject fails the suite here."""

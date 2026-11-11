@@ -33,28 +33,8 @@ or neutral check conclusions; the gate's unconditional execution and explicit
 success comparisons are therefore essential. Review changes to these workflows
 as changes to the merge boundary, not just plumbing.
 
-Because a cancelled prerequisite fails the gate by contract, `ci.yml` and
-`typecheck.yml` set `cancel-in-progress: false`: a run that publishes a required
-check is never killed in flight. Cancellation is not evidence about the commit —
-GitHub delivered two events for an unchanged head (55da087, #1566), the second
-cancelled the first, and its gate published `typecheck-required` as failed on a
-commit whose typecheck was green (HAR-232). The per-PR concurrency group is kept,
-so GitHub still replaces a pending, superseded run and the matrix does not fan
-out per push, while the newest head always gets its own verdict. Auxiliary
-workflows publish no required check and keep cancelling superseded PR runs.
-
-A run can also end red without a failed job. On main push run 42670636443
-(24cbe13, HAR-355) every `lint` and `test` job succeeded, but GitHub never
-created the `quality-required` job and concluded the run `failure`, during a
-GitHub "Incident with Actions and Checks API" (opened 2026-11-09 18:12 UTC).
-Reruns during the incident dropped jobs: the gate saw `test=abandoned` and
-failed closed, as it must. List the run's jobs with
-`gh api repos/<owner>/<repo>/actions/runs/<id>/jobs?filter=all` and check
-githubstatus.com. If the gate job is absent or a prerequisite is `abandoned`
-while every job that ran succeeded, the red verdict is a GitHub scheduling
-fault, not evidence about the commit. After the incident clears, rerun the
-whole run (`gh run rerun <id>`) or rely on the next main commit's run, and
-require that gate to succeed. A missing or failed gate is never green.
+`ci.yml` and `typecheck.yml` set `cancel-in-progress: false`.
+A cancelled prerequisite fails the gate. Auxiliary workflows may cancel superseded PR runs.
 
 All required checks originate from GitHub Actions CI runs. There is no mandatory
 independent review gate or review attestation status (`independent-review`).
@@ -241,12 +221,6 @@ merge commit body.
 
 ## GitHub enforcement versus process
 
-These documents and workflow files do not enable repository settings. The
-2026-09-14 delivery inspection found a public repository, unprotected `main`,
-and repository auto-merge disabled; that is a dated observation, not a permanent
-plan limitation. The integration owner must inspect the live settings and record
-changes rather than infer enforcement from this document.
-
 Recommended protection for `main` and any branch accepting integrated work:
 require a PR, require `quality-required` and `typecheck-required` from GitHub
 Actions, require the branch to be up to date, require conversation resolution,
@@ -283,17 +257,3 @@ Official semantics:
 - [Branch protections and expected check source](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
 - [Merge queue configuration](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)
 
-## 2026-08-14 incident lessons
-
-- `pyproject.toml` advertised Python 3.11 while the lock supported only 3.12+;
-  lint and the 3.11 test job could never install.
-- A canary test used the executor's real credential probe. It passed on an
-  authenticated workstation and deferred all dispatch on a clean CI runner.
-- At the time, private-repository branch protection was unavailable on the
-  repository's plan. Several locally integrated PRs therefore reached main with
-  red GitHub checks. This historical limitation is not evidence of today's
-  protection settings.
-
-Deterministic seams, a local CI-parity command, explicit check inspection, and an
-auditable merge record remain process obligations. They supplement enforced
-GitHub rules; they do not provide equivalent enforcement when rules are absent.

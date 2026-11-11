@@ -18,7 +18,7 @@ Use the worktree's own isolated environment and absolute owned runtime/job roots
 
 ## Intake and parallel work
 
-Pull authorized lane work with `lin next`; a direct Peter request authorizes scoped free work without a second claim or go. Backlog proposals remain proposals. Historical board claim files are lineage and the governance pickup counter, not contact rights or permission to resume a mission.
+A direct Peter request authorizes scoped free work without a second claim or go. Linear holds current work. Backlog proposals and historical boards do not authorize work or peer contact.
 
 Set disjoint write scopes and shared interfaces before native task fan-out. One writer per file/worktree, one integration owner per barrier. Pass relevant repository requirements explicitly; task spawning does not inherit AGENTS.md files. Delegates skip checks unless explicitly assigned verification.
 
@@ -69,7 +69,7 @@ guarded merge, main ancestry proof, optional smoke, and conservative retirement.
 Run it from a stable checkout outside the topic worktree.
 See [the ship runbook](../docs/ship.md) for receipts, recovery, and cleanup holds.
 
-The HAR-46 release path is closed (Linear: Done); its standing delivery contract survives in CHECKS. Merged source code and deployed runtime environments remain distinct: adopting merged code into the active runtime preserves all user and owner state, and merging to `main` is not permission to deploy or disrupt shared-runtime environments. Do not trigger live model execution, billable inferences, or batch queue drains merely to smoke-test adoption.
+Merged source code and deployed runtime environments remain distinct. Runtime adoption preserves all user and owner state. A merge does not authorize deployment, shared-service disruption, model calls, or paid queue drains.
 
 Dispatcher wake/presence follows current configuration (`dispatch.wake` is presently false); do not run `dispatch --once`, enable wakes, or rewire routing merely to answer status.
 

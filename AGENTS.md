@@ -16,7 +16,7 @@ Private, durable Python lab for Harbor tasks, verifier controls, execution evide
 
 Keep the primary checkout on `main` and preserve another writer's work. A sync timer fast-forwards it to `origin/main` only when clean; it never resets, stashes, or switches branches. Use an owned topic branch and isolated native Git worktree for substantive changes; launch its chat with `omp --cwd <worktree>`. Do not use `/tmp` as a persistent repository chat root.
 
-`agents/STRUCTURE.md` owns placement; register a new top-level entry there in the same change. Existing roots: `src/`, `tests/`, `library/`, `research/`, `docs/`, `agents/`, `policy/`, `scripts/`, `sql/`; `runs/`, `derived/`, `queue/`, and `backups/` have retention contracts. Finished jobs are published to `~/Developer/eval-lab-results/<date>/<card>-<job/>` by `evallab process-job`, outside every worktree.
+`agents/STRUCTURE.md` owns placement. Finished jobs are published to `~/Developer/eval-lab-results/<date>/<card>-<job/>` by `evallab process-job`, outside every worktree.
 
 The author delivers through PR, exact-head CI, protected merge, and bounded merged-revision verification under `agents/CHECKS.md`. No independent reviewer or integration steward is a routine prerequisite. `agents/WORKFLOW.md` applies to ownership/integration; Linear is current work intake, not the historical board.
 

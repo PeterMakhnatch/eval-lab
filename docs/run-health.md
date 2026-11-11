@@ -42,9 +42,6 @@ uv run evallab run-health features --trial-dir <harbor-trial-dir>
 uv run evallab run-health detect --db <store-copy.sqlite> --out /tmp/findings.jsonl
 uv run evallab prod import-trace-findings --cloud-database <store-copy.sqlite> --jsonl /tmp/findings.jsonl
 
-# Precision and recall against run-level labels ({"run_id": ..., "label": bool} per line).
-uv run evallab run-health score --findings /tmp/findings.jsonl --labels labels.jsonl
-
 # Beside the other detectors on the labelled G6 rows.
 uv run evallab detectors score --detector run_health_loop --detector laminar_stuck_loop --check stuck_loop
 
@@ -54,6 +51,9 @@ uv run evallab run-health triggers --trial-dir <harbor-trial-dir> --now 2026-10-
 # Per-source p50/p90/p99 of every numeric feature ("far above the usual for this job type").
 uv run evallab run-health baseline --features /tmp/f.jsonl
 ```
+
+Score these findings with `evallab trace score`; Run Health has no separate score command.
+The shared scorer keeps unknown, abstain and missing findings separate from evaluated runs.
 
 `--db` opens the store read-only and keeps only admitted DEV runs. Point it at a
 `.backup` copy, not the live file. `--trial-dir` reads a Harbor trial: the stitched

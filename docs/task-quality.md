@@ -99,12 +99,12 @@ its rendered block (full and `compact_cards`) passes `blind`; the shared block f
 `blind` by design. Check against the examples as retrieved, never the blinded copies.
 
 ```python
-from evallab.production import (
+from evallab.production.cloud_trace_db import (
+    CloudTraceDatabase,
     CloudTraceRetriever,
-    CorpusRegistry,
     format_retrieval_prompt_block,
 )
-from evallab.production.cloud_trace_db import CloudTraceDatabase
+from evallab.production.corpus_queue import CorpusRegistry
 
 with CloudTraceDatabase() as evidence:
     retriever = CloudTraceRetriever(evidence, registry=CorpusRegistry())
@@ -350,7 +350,7 @@ screening can expose a different trace.
 Partial-match widening likewise counts only matching traces at allowed trust
 tiers for Atlas requests, never unrelated traces or issue-only evidence.
 
-`evallab.production.CloudTraceRetriever` supplies a bounded, read-only DEV
+`evallab.production.cloud_trace_db.CloudTraceRetriever` supplies a bounded, read-only DEV
 projection for consumers that need prior verified evidence. A local SQLite
 path is opened with `mode=ro`; SQL selects DEV tasks and their linked
 issues/traces/steps **before** copying or hydrating content. It does not back up
@@ -360,7 +360,7 @@ caller-owned database instead requires an explicitly attested, DEV-scoped
 source path and digest; no environment database is selected implicitly.
 
 ```python
-from evallab.production import CloudTraceRetriever
+from evallab.production.cloud_trace_db import CloudTraceRetriever
 
 with CloudTraceRetriever("/path/to/evidence.sqlite") as retriever:
     result = retriever.retrieve(task_id="current-dev-task", query="missing validation")
@@ -715,7 +715,7 @@ direction and either the same locus (same path, line windows within 25 lines) or
 35%-overlapping mechanism.
 
 ```python
-from evallab.production import CorpusRegistry, ContinuousWorkQueue
+from evallab.production.corpus_queue import CorpusRegistry, ContinuousWorkQueue
 from evallab.production.cloud_trace_db import CloudTraceDatabase
 from evallab.production.swarm_coordinator import (
     Aggregation, CloudTraceExampleRetriever, OmpCliTransport, SwarmCoordinator,

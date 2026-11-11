@@ -16,9 +16,10 @@ from typing import Any
 
 import pytest
 
-from evallab.production import CloudTraceRetriever, RetrievedExample
 from evallab.production.cloud_trace_db import (
     CloudTraceDatabase,
+    CloudTraceRetriever,
+    RetrievedExample,
     RetrievedStep,
     RetrievedTraceExample,
     format_retrieval_prompt_block,

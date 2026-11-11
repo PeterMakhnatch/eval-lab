@@ -11,8 +11,12 @@ from typing import Any
 
 import pytest
 
-from evallab.production import CloudTraceRetriever, RetrievedExample
-from evallab.production.cloud_trace_db import CloudTraceDatabase, format_retrieval_prompt_block
+from evallab.production.cloud_trace_db import (
+    CloudTraceDatabase,
+    CloudTraceRetriever,
+    RetrievedExample,
+    format_retrieval_prompt_block,
+)
 from evallab.production.cloud_trace_retriever import _project, _step_excerpt
 from evallab.production.corpus_queue import CorpusRegistry
 

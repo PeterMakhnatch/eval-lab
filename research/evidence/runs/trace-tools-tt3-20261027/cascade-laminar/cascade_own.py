@@ -207,7 +207,7 @@ class Judge:
 def replay(run_id: str, steps: list[dict[str, Any]], judge: Any = None) -> dict[str, Any]:
     opaque = "tt3-" + hashlib.sha256(run_id.encode()).hexdigest()[:24]
     events: list[dict[str, Any]] = []
-    with MisalignmentLiveWorker(emit=events.append, judge=judge, stage2_playbook_cards=0) as worker:
+    with MisalignmentLiveWorker(emit=events.append, judge=judge) as worker:
         for i, step in enumerate(steps):
             worker.ingest_event({
                 "event_id": f"{opaque}:{i}", "run_id": opaque, "event_type": "trace.step",

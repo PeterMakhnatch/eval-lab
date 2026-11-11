@@ -826,8 +826,6 @@ class MisalignmentLiveWorker:
 
     Alert cards carry the trace feature flags fired up to the flagged step and up to
     ``alert_playbook_cards`` matched Trace-Watcher playbook cards (``0`` turns it off).
-    ``stage2_playbook_cards`` (default off) also puts that many of them in the judge
-    prompt, beside an unchanged window.
     """
 
     def __init__(
@@ -844,13 +842,12 @@ class MisalignmentLiveWorker:
         structural_context: Mapping[str, Any] | None = None,
         prefix_fraction: float = 1.0,
         alert_playbook_cards: int = window_cascade.MAX_PLAYBOOK_CARDS,
-        stage2_playbook_cards: int = 0,
         judge_pass_through: bool = False,
         cascade_version: str = window_cascade.CASCADE_VERSION,
         finished_run_capacity: int = DEFAULT_FINISHED_RUN_CAPACITY,
         gate_only: bool = False,
     ) -> None:
-        if alert_playbook_cards < 0 or stage2_playbook_cards < 0:
+        if alert_playbook_cards < 0:
             raise ValueError("playbook card counts must be nonnegative")
         if finished_run_capacity < 0:
             raise ValueError("finished_run_capacity must be nonnegative")
@@ -868,7 +865,6 @@ class MisalignmentLiveWorker:
         self._registry = registry
         self._judge = judge
         self._alert_playbook_cards = alert_playbook_cards
-        self._stage2_playbook_cards = stage2_playbook_cards
         self._judge_pass_through = judge_pass_through
         self._cascade_version = cascade_version
         self._clock = clock
@@ -1580,15 +1576,7 @@ class MisalignmentLiveWorker:
             steps = steps.materialize()
         for card in cards:
             window = window_cascade.build_window(steps, card["evidence"][0]["step"])
-            lead = card.get("playbook")
-            playbook = (
-                lead["cards"][: self._stage2_playbook_cards]
-                if self._stage2_playbook_cards and isinstance(lead, Mapping)
-                else []
-            )
-            messages = window_cascade.build_messages(
-                card, window, prefix, playbook_cards=playbook
-            )
+            messages = window_cascade.build_messages(card, window, prefix)
             try:
                 assert self._judge is not None
                 pred, cost = self._judge(messages)
@@ -1618,7 +1606,7 @@ class MisalignmentLiveWorker:
                     "window_truncated": window.truncated,
                     "verdict": outcome.reason,
                     "judged_prefix": prefix,
-                    "playbook_cards": [item["card_id"] for item in playbook],
+                    "playbook_cards": [],
                 },
             }
             if outcome.confirmed:

@@ -26,22 +26,19 @@ import pytest
 from evallab.dataset_audit_checks import static_observation
 from evallab.dataset_audit_contracts import AuditObservation, AuditTask
 from evallab.execution_backend import ExecutionBackendConfig
-from evallab.production import (
-    ContinuousWorkQueue,
-    CorpusRegistry,
+from evallab.production.asset_exporter import VerifiedAssetExporter
+from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry, SplitLockError
+from evallab.production.monitor_worker import MisalignmentLiveWorker
+from evallab.production.outbox_relay import (
     LocalJetStreamAdapter,
-    MisalignmentLiveWorker,
     OutboxRelay,
     PoisonQuarantine,
-    ProductionSupervisor,
     PubAck,
-    RewardSeekerLiveWorker,
-    TaskQualityLiveWorker,
     TransientBrokerError,
-    VerifiedAssetExporter,
 )
-from evallab.production.corpus_queue import SplitLockError
-from evallab.production.seeker_worker import SeekerAttemptCandidate
+from evallab.production.seeker_worker import RewardSeekerLiveWorker, SeekerAttemptCandidate
+from evallab.production.supervisor import ProductionSupervisor
+from evallab.production.tq_worker import TaskQualityLiveWorker
 from evallab.registry import task_directory_digest
 
 DATASET = "tb4-audit-v1"

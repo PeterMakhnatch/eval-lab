@@ -1439,6 +1439,13 @@ _SYNC_ROUTE = re.compile(
 )
 _SYNC_EXPERIMENT = "research/experiments/mimo-clean-v6/README.md"
 _SYNC_VERIFICATION = "docs/mimo/verification.md"
+_SYNC_REFUSAL_ROWS = (
+    rb"`tamper_source_\*`\s+attacks\s+on\s+the\s+([0-9]+)\s+refusal\s+rows"
+)
+_SYNC_SUBSET_HEADERS = (
+    b"| task | subset 1 | subset 2 | basis now | reward | attacks still unmeasured |",
+    b"| rank | task | subset 2 | basis now | reward | attacks still unmeasured |",
+)
 _SYNC_FRAGMENTS = (
     ("docs/mimo/README.md", b"v6 basis (100 ranks):"),
     (
@@ -1543,6 +1550,17 @@ def _sync_covered_anchor(text: bytes) -> bytes:
     return matches[0]
 
 
+def _sync_subset_row(text: bytes, header: bytes) -> bytes:
+    assert text.count(header) == 1, header
+    row = _sync_section(text, header).splitlines()[2]
+    assert row.startswith(b"| "), row
+    return row
+
+
+def _stale_subset_row(row: bytes) -> bytes:
+    return _replace_once(row, b"| the 4 `tamper_source_*` |", b"| the 3 `tamper_source_*` |")
+
+
 def _increment_count(text: bytes, found: re.Match[bytes], group: int = 1) -> bytes:
     start, end = found.span(group)
     changed = str(int(found[group]) + 1).encode()
@@ -1579,6 +1597,7 @@ def _stale_sync_pages(experiment: Path) -> None:
     text = _stale_route(route_page.read_bytes())
     text = _stale_number(text, rb"matched\s+[0-9]+(?:\s+of\s+[0-9]+)?\s+cells")
     text = _stale_number(text, rb"pending cells for\s+[0-9]+ tasks")
+    text = _stale_number(text, _SYNC_REFUSAL_ROWS)
     route_page.write_bytes(text)
     text = readme.read_bytes()
     covered = _sync_covered_anchor(text)
@@ -1600,6 +1619,10 @@ def _stale_sync_pages(experiment: Path) -> None:
     text = _stale_number(text, rb"ran [0-9]+, so graded")
     text = _stale_number(text, rb"strict check matched\s+[0-9]+\s+cells")
     text = _stale_number(text, rb"pending cells for\s+[0-9]+ tasks")
+    text = _stale_number(text, _SYNC_REFUSAL_ROWS)
+    for header in _SYNC_SUBSET_HEADERS:
+        row = _sync_subset_row(text, header)
+        text = _replace_once(text, row, _stale_subset_row(row))
     readme.write_bytes(text)
     stale_verification = verification.read_bytes()
     for pattern in (
@@ -1632,6 +1655,165 @@ def test_ladder_progress_sync_docs_restores_exact_bytes_and_is_idempotent(sandbo
     before_repeat = _sync_snapshot(sandbox)
     assert MODULE.main(["--sync-docs"]) == 0
     assert _sync_snapshot(sandbox) == before_repeat
+
+
+def test_ladder_progress_sync_docs_restores_the_route_refusal_row_count(sandbox: Path) -> None:
+    page = _sync_pages(sandbox)[0]
+    original = page.read_bytes()
+    found = re.search(_SYNC_REFUSAL_ROWS, original)
+    assert found is not None
+    expected = sum(row["basis"] == MODULE.REFUSAL_BASIS for row in _committed())
+    assert int(found[1]) == expected
+    page.write_bytes(_increment_count(original, found))
+    assert page.read_bytes() != original
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert page.read_bytes() == original
+    restored = re.search(_SYNC_REFUSAL_ROWS, page.read_bytes())
+    assert restored is not None and int(restored[1]) == expected
+
+
+def test_ladder_progress_sync_docs_restores_the_experiment_refusal_row_count(
+    sandbox: Path,
+) -> None:
+    page = sandbox / "README.md"
+    original = page.read_bytes()
+    found = re.search(_SYNC_REFUSAL_ROWS, original)
+    assert found is not None
+    expected = sum(row["basis"] == MODULE.REFUSAL_BASIS for row in _committed())
+    assert int(found[1]) == expected
+    page.write_bytes(_increment_count(original, found))
+    assert page.read_bytes() != original
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert page.read_bytes() == original
+    restored = re.search(_SYNC_REFUSAL_ROWS, page.read_bytes())
+    assert restored is not None and int(restored[1]) == expected
+
+
+def test_ladder_progress_sync_docs_restores_the_har284_293_unmeasured_cell(
+    sandbox: Path,
+) -> None:
+    readme = sandbox / "README.md"
+    original = readme.read_bytes()
+    row = _sync_subset_row(original, _SYNC_SUBSET_HEADERS[0])
+    narrative = row.rsplit(b"|", 2)[0]
+    readme.write_bytes(_replace_once(original, row, _stale_subset_row(row)))
+    assert readme.read_bytes() != original
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert readme.read_bytes() == original
+    assert _sync_subset_row(readme.read_bytes(), _SYNC_SUBSET_HEADERS[0]).rsplit(b"|", 2)[0] == narrative
+
+
+def test_ladder_progress_sync_docs_restores_the_har299_unmeasured_cell(sandbox: Path) -> None:
+    readme = sandbox / "README.md"
+    original = readme.read_bytes()
+    row = _sync_subset_row(original, _SYNC_SUBSET_HEADERS[1])
+    narrative = row.rsplit(b"|", 2)[0]
+    readme.write_bytes(_replace_once(original, row, _stale_subset_row(row)))
+    assert readme.read_bytes() != original
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert readme.read_bytes() == original
+    assert _sync_subset_row(readme.read_bytes(), _SYNC_SUBSET_HEADERS[1]).rsplit(b"|", 2)[0] == narrative
+
+
+@pytest.mark.parametrize(
+    ("relative", "anchor"),
+    [
+        ("docs/mimo/README.md", _SYNC_REFUSAL_ROWS),
+        (_SYNC_EXPERIMENT, _SYNC_REFUSAL_ROWS),
+        *[(_SYNC_EXPERIMENT, re.escape(header)) for header in _SYNC_SUBSET_HEADERS],
+    ],
+    ids=["route-refusal", "experiment-refusal", "har284-293-table", "har299-table"],
+)
+@pytest.mark.parametrize("damage", ["missing", "repeated"])
+def test_ladder_progress_sync_docs_refuses_a_damaged_refusal_or_subset_anchor_atomically(
+    sandbox: Path, relative: str, anchor: bytes, damage: str
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    _stale_sync_pages(sandbox)
+    page = sandbox.parents[2] / relative
+    text = page.read_bytes()
+    found = re.search(anchor, text)
+    assert found is not None, anchor
+    fragment = found.group()
+    replacement = (
+        b"removed refusal or subset anchor" if damage == "missing" else fragment + b"\n" + fragment
+    )
+    page.write_bytes(_replace_once(text, fragment, replacement))
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert relative in str(refused.value)
+    assert _sync_snapshot(sandbox) == before
+
+
+@pytest.mark.parametrize("relative", ["docs/mimo/README.md", _SYNC_EXPERIMENT])
+@pytest.mark.parametrize("newline", [b"\n", b"\r\n"], ids=["lf", "crlf"])
+def test_ladder_progress_sync_docs_preserves_refusal_row_whitespace(
+    sandbox: Path, relative: str, newline: bytes
+) -> None:
+    page = sandbox.parents[2] / relative
+    original = page.read_bytes().replace(b"\n", newline)
+    found = re.search(_SYNC_REFUSAL_ROWS, original)
+    assert found is not None
+    wrapped = re.sub(rb"\s+", b"\t " + newline + b"  ", found.group())
+    expected = _replace_once(original, found.group(), wrapped)
+    count = re.search(_SYNC_REFUSAL_ROWS, expected)
+    assert count is not None
+    page.write_bytes(_increment_count(expected, count))
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert page.read_bytes() == expected
+
+
+def test_ladder_progress_sync_docs_derives_both_refusal_row_counts(sandbox: Path) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    refused = next(row for row in rows if row["basis"] == MODULE.REFUSAL_BASIS)
+    refused["basis"] = MODULE.GRADED_BASIS
+    expected = sum(row["basis"] == MODULE.REFUSAL_BASIS for row in rows)
+    MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    for page in _sync_pages(sandbox)[:2]:
+        found = re.search(_SYNC_REFUSAL_ROWS, page.read_bytes())
+        assert found is not None
+        assert int(found[1]) == expected
+
+
+@pytest.mark.parametrize("header", _SYNC_SUBSET_HEADERS, ids=["har284-293", "har299"])
+def test_ladder_progress_sync_docs_preserves_subset_cell_whitespace(
+    sandbox: Path, header: bytes
+) -> None:
+    readme = sandbox / "README.md"
+    original = readme.read_bytes()
+    row = _sync_subset_row(original, header)
+    formatted = _replace_once(
+        row, b"| the 4 `tamper_source_*` |", b"|\t  the 4 `tamper_source_*` \t |"
+    )
+    expected = _replace_once(original, row, formatted)
+    stale = _replace_once(
+        formatted, b"the 4 `tamper_source_*`", b"the 3 `tamper_source_*`"
+    )
+    readme.write_bytes(_replace_once(expected, formatted, stale))
+    assert MODULE.main(["--sync-docs"]) == 0
+    assert readme.read_bytes() == expected
+
+
+@pytest.mark.parametrize("header", _SYNC_SUBSET_HEADERS, ids=["har284-293", "har299"])
+def test_ladder_progress_sync_docs_refuses_an_unknown_subset_task_atomically(
+    sandbox: Path, header: bytes
+) -> None:
+    rows = build(sandbox.parents[2], cells_dir=sandbox)
+    _stale_sync_pages(sandbox)
+    readme = sandbox / "README.md"
+    text = readme.read_bytes()
+    row = _sync_subset_row(text, header)
+    task = re.search(rb"`[0-9]{6}`", row)
+    assert task is not None
+    changed = _replace_once(row, task.group(), b"`999999`")
+    readme.write_bytes(_replace_once(text, row, changed))
+    before = _sync_snapshot(sandbox)
+    with pytest.raises(ProgressError) as refused:
+        MODULE.sync_docs(rows, root=sandbox.parents[2], cells_dir=sandbox)
+    assert _SYNC_EXPERIMENT in str(refused.value)
+    assert "999999" in str(refused.value)
+    assert _sync_snapshot(sandbox) == before
 
 
 @pytest.mark.parametrize(("relative", "pattern"), _SYNC_SENTENCES)

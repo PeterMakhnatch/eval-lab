@@ -8,7 +8,7 @@ The task defines each agent's write scope.
 | **Integration** | `agents/`, `.github/`, merge queue | Cross-product interfaces, integration conflicts, repository delivery |
 | **Research** | `research/`, `digests/`, `docs/research/`, analysis sections of `sql/` | What counts as evidence, analysis semantics, findings, experiment agenda |
 | **Tasks** | `library/` (benchmarks, curated, adapters, registry, synthetic staging) | Task admission, verification standards, benchmark pins, certification gates |
-| **Platform** | `src/`, `tests/`, `scripts/`, `sql/` schema, `compose.yaml`, `pyproject.toml`, `uv.lock`, `Makefile`, `dashboard/` | Code architecture, CI/premerge contract, storage topology, tooling |
+| **Platform** | `src/`, `tests/`, `scripts/`, `sql/` schema, `compose.yaml`, `pyproject.toml`, `uv.lock`, `Makefile` | Code architecture, CI/premerge contract, storage topology, tooling |
 
 Docs follow their subject: `docs/research/` is Research; engineering and
 operations docs are Platform; governance docs are Integration.

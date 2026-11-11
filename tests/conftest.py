@@ -6,6 +6,7 @@ import contextlib
 import inspect
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -115,7 +116,14 @@ def _isolate_host_cli_processes(
     _isolate_temp_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Only per-test fake executables may launch under host CLI names."""
+    """Only per-test fake executables may launch under host CLI names.
+
+    Covers ``subprocess.Popen`` (and so ``subprocess.run``, ``os.popen`` and
+    asyncio), shell command strings, ``os.system``, ``os.posix_spawn`` and
+    ``os.posix_spawnp``. Shell strings are checked by command word only, so
+    arguments such as ``git commit -m 'claude'`` stay allowed. ``os.exec*``
+    is not wrapped: it replaces the pytest process itself.
+    """
     denied = {
         "codex",
         "claude",
@@ -126,33 +134,25 @@ def _isolate_host_cli_processes(
         "security",
         "gemini",
     }
+    # Tokens after which the shell expects a new command word.
+    shell_prefixes = {"!", "{", "if", "then", "else", "elif", "do", "while", "until", "exec"}
     roots = (tmp_path.resolve(), _isolate_temp_root.resolve())
     original_init = subprocess.Popen.__init__
     original_which = shutil.which
+    original_system = os.system
+    original_posix_spawn = os.posix_spawn
+    original_posix_spawnp = os.posix_spawnp
     signature = inspect.signature(original_init)
 
-    def guarded_init(process: Any, *args: Any, **kwargs: Any) -> None:
-        parameters = signature.bind(process, *args, **kwargs).arguments
-        executable = parameters.get("executable")
-        if executable is None:
-            if parameters.get("shell", False):
-                executable = "/bin/sh"
-            else:
-                command = parameters["args"]
-                if isinstance(command, (str, bytes, os.PathLike)):
-                    executable = command
-                elif command:
-                    executable = command[0]
-                else:
-                    return original_init(process, *args, **kwargs)
+    def check_executable(executable: Any, cwd: Any, env: Any, *, search: bool = True) -> None:
         executable = os.fsdecode(executable)
-        cwd = Path(os.fsdecode(parameters.get("cwd") or os.getcwd())).resolve()
-        if os.path.dirname(executable):
+        cwd = Path(os.fsdecode(cwd or os.getcwd())).resolve()
+        if os.path.dirname(executable) or not search:
             resolved = (cwd / executable).resolve()
         else:
             # Relative PATH entries use the child's cwd, not the pytest cwd.
             search_path = os.pathsep.join(
-                str(cwd / entry) for entry in os.get_exec_path(parameters.get("env"))
+                str(cwd / entry) for entry in os.get_exec_path(env)
             )
             found = original_which(executable, path=search_path)
             resolved = Path(found).resolve() if found is not None else None
@@ -167,10 +167,73 @@ def _isolate_host_cli_processes(
                 f"{resolved or executable} is outside this test's temporary roots",
                 pytrace=False,
             )
+
+    def check_shell_command(command: Any, cwd: Any, env: Any) -> None:
+        punctuation = ";&|()<>`\n"
+        lexer = shlex.shlex(os.fsdecode(command), posix=True, punctuation_chars=punctuation)
+        lexer.whitespace = " \t\r"
+        lexer.whitespace_split = True
+        try:
+            tokens = list(lexer)
+        except ValueError:
+            # Unbalanced quotes: the shell rejects the line, so check plain words.
+            tokens = os.fsdecode(command).split()
+        expect_command = True
+        for token in tokens:
+            operator = not token.strip(punctuation)
+            if operator and token[0] not in "<>" and set(token) & set(";&|(`\n"):
+                # Command separators and substitutions: |, ||, &&, ;, &, (, `, newline.
+                expect_command = True
+            elif not expect_command or operator:
+                continue
+            elif token in shell_prefixes or (
+                "=" in token and token.partition("=")[0].isidentifier()
+            ):
+                continue  # Reserved words and VAR=value assignments precede the command.
+            else:
+                check_executable(token, cwd, env)
+                expect_command = False
+
+    def guarded_init(process: Any, *args: Any, **kwargs: Any) -> None:
+        parameters = signature.bind(process, *args, **kwargs).arguments
+        cwd = parameters.get("cwd")
+        env = parameters.get("env")
+        executable = parameters.get("executable")
+        command = parameters["args"]
+        if parameters.get("shell", False):
+            if executable is not None:
+                check_executable(executable, cwd, env)
+            if isinstance(command, (str, bytes, os.PathLike)):
+                check_shell_command(command, cwd, env)
+            elif command:
+                check_shell_command(command[0], cwd, env)
+        elif executable is not None:
+            check_executable(executable, cwd, env)
+        elif isinstance(command, (str, bytes, os.PathLike)):
+            check_executable(command, cwd, env)
+        elif command:
+            check_executable(command[0], cwd, env)
         return original_init(process, *args, **kwargs)
+
+    def guarded_system(command: Any) -> int:
+        check_shell_command(command, None, None)
+        return original_system(command)
+
+    def guarded_posix_spawn(path: Any, *args: Any, **kwargs: Any) -> int:
+        # posix_spawn never searches PATH; a bare name is relative to the cwd.
+        check_executable(path, None, None, search=False)
+        return original_posix_spawn(path, *args, **kwargs)
+
+    def guarded_posix_spawnp(file: Any, *args: Any, **kwargs: Any) -> int:
+        # posix_spawnp searches the parent's PATH, not the child env argument.
+        check_executable(file, None, None)
+        return original_posix_spawnp(file, *args, **kwargs)
 
     # Preserve the Popen class for runtime annotations and subclassing.
     monkeypatch.setattr(subprocess.Popen, "__init__", guarded_init)
+    monkeypatch.setattr(os, "system", guarded_system)
+    monkeypatch.setattr(os, "posix_spawn", guarded_posix_spawn)
+    monkeypatch.setattr(os, "posix_spawnp", guarded_posix_spawnp)
 
 
 @pytest.fixture(autouse=True, scope="session")

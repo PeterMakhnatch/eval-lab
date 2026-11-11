@@ -594,3 +594,146 @@ def test_model_cli_guard_resolves_positional_executable_cwd_and_env(
     assert "codex" in message
     assert request.node.nodeid in message
     assert not marker.exists()
+
+
+_SHELL_SEARCH_PATH = os.pathsep.join(("/usr/bin", "/bin"))
+_BLOCKED_SHELL_COMMANDS = (
+    "codex {marker}",
+    "{executable} {marker}",
+    "true && codex {marker}",
+    "false || codex {marker}",
+    "true; codex {marker}",
+    "echo x | codex {marker}",
+    "echo x\ncodex {marker}",
+    "MODEL=1 codex {marker}",
+    "echo $(codex {marker})",
+    "if true; then codex {marker}; fi",
+)
+
+
+def _shell_options(root: Path) -> dict[str, Any]:
+    return {"env": {"PATH": os.pathsep.join((str(root), _SHELL_SEARCH_PATH))}}
+
+
+def _assert_blocked(caught: pytest.ExceptionInfo[Any], request: pytest.FixtureRequest) -> None:
+    message = str(caught.value)
+    assert message.startswith("Blocked host CLI 'codex'")
+    assert request.node.nodeid in message
+
+
+@pytest.mark.parametrize("as_list", [False, True])
+@pytest.mark.parametrize("template", _BLOCKED_SHELL_COMMANDS)
+def test_model_cli_guard_rejects_shell_command_words(
+    template: str,
+    as_list: bool,
+    tmp_path: Path,
+    outside_model_cli_root: Path,
+    request: pytest.FixtureRequest,
+) -> None:
+    executable = _write_fake_model_cli(outside_model_cli_root, "codex")
+    marker = tmp_path / "must-not-launch"
+    command = template.format(executable=executable, marker=marker)
+
+    with pytest.raises(pytest.fail.Exception) as caught:
+        subprocess.run(
+            [command] if as_list else command,
+            shell=True,
+            **_shell_options(outside_model_cli_root),
+            check=True,
+            capture_output=True,
+            timeout=5,
+        )
+
+    _assert_blocked(caught, request)
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize(
+    ("command", "stdout"),
+    [
+        ("/bin/echo codex", "codex\n"),
+        ("/bin/echo 'claude; codex'", "claude; codex\n"),
+        ("/bin/echo -m claude | /bin/cat", "-m claude\n"),
+    ],
+)
+def test_model_cli_guard_allows_host_cli_names_as_shell_arguments(
+    command: str, stdout: str, outside_model_cli_root: Path
+) -> None:
+    for binary in ("codex", "claude"):
+        _write_fake_model_cli(outside_model_cli_root, binary)
+
+    result = subprocess.run(
+        command,
+        shell=True,
+        **_shell_options(outside_model_cli_root),
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+
+    assert result.stdout == stdout
+
+
+def test_model_cli_guard_rejects_os_system(
+    tmp_path: Path,
+    outside_model_cli_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> None:
+    _write_fake_model_cli(outside_model_cli_root, "codex")
+    marker = tmp_path / "must-not-launch"
+    monkeypatch.setenv("PATH", os.pathsep.join((str(outside_model_cli_root), _SHELL_SEARCH_PATH)))
+
+    with pytest.raises(pytest.fail.Exception) as caught:
+        os.system(f"true && codex {marker}")
+
+    _assert_blocked(caught, request)
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize("search", [False, True])
+def test_model_cli_guard_rejects_posix_spawn(
+    search: bool,
+    tmp_path: Path,
+    outside_model_cli_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> None:
+    executable = _write_fake_model_cli(outside_model_cli_root, "codex")
+    marker = tmp_path / "must-not-launch"
+    if search:
+        monkeypatch.setenv("PATH", str(outside_model_cli_root))
+        spawn, file = os.posix_spawnp, "codex"
+    else:
+        spawn, file = os.posix_spawn, str(executable)
+
+    with pytest.raises(pytest.fail.Exception) as caught:
+        spawn(file, [file, str(marker)], dict(os.environ))
+
+    _assert_blocked(caught, request)
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize("launcher", ["popen", "shell", "system", "posix_spawn", "posix_spawnp"])
+def test_model_cli_guard_allows_fake_cli_in_tmp_path_through_each_launcher(
+    launcher: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = _write_fake_model_cli(tmp_path, "codex")
+    marker = tmp_path / "launched"
+    monkeypatch.setenv("PATH", os.pathsep.join((str(tmp_path), _SHELL_SEARCH_PATH)))
+
+    if launcher == "popen":
+        with subprocess.Popen([str(executable), str(marker)]) as process:
+            assert process.wait(timeout=5) == 0
+    elif launcher == "shell":
+        subprocess.run(f"true && codex {marker}", shell=True, check=True, timeout=5)
+    elif launcher == "system":
+        assert os.system(f"codex {marker} >/dev/null") == 0
+    else:
+        file = "codex" if launcher == "posix_spawnp" else str(executable)
+        spawn = os.posix_spawnp if launcher == "posix_spawnp" else os.posix_spawn
+        pid = spawn(file, [file, str(marker)], dict(os.environ))
+        assert os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]) == 0
+
+    assert marker.read_text() == "launched\n"

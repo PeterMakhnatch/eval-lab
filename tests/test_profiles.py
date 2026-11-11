@@ -396,7 +396,7 @@ def test_cursor_default_profile_pins_grok_4_6_high() -> None:
     Pinned here because several profiles share the cursor-cli adapter, so nothing
     but an assertion stops iteration order from choosing a different default.
     """
-    from evallab.credentials import DEFAULT_AGENT_MODELS, DEFAULT_PROFILE_FOR_ADAPTER
+    from evallab.profiles import DEFAULT_AGENT_MODELS, DEFAULT_PROFILE_FOR_ADAPTER
 
     assert DEFAULT_PROFILE_FOR_ADAPTER["cursor-cli"] == "cursor-grok-4.6-high"
     assert DEFAULT_AGENT_MODELS["cursor-cli"] == "cursor-grok-4.6-high"
@@ -477,7 +477,7 @@ def test_antigravity_default_profile_pins_gemini_3_7_flash_high() -> None:
     Pinned explicitly in DEFAULT_PROFILE_FOR_ADAPTER because several profiles share
     the antigravity-cli adapter.
     """
-    from evallab.credentials import DEFAULT_AGENT_MODELS, DEFAULT_PROFILE_FOR_ADAPTER
+    from evallab.profiles import DEFAULT_AGENT_MODELS, DEFAULT_PROFILE_FOR_ADAPTER
 
     assert DEFAULT_PROFILE_FOR_ADAPTER["antigravity-cli"] == "antigravity-gemini-3.7-flash-high"
     assert DEFAULT_AGENT_MODELS["antigravity-cli"] == "gemini-3.7-flash-high"
@@ -543,7 +543,7 @@ def test_default_probe_for_antigravity_is_a_cli_session_probe(tmp_path: Path) ->
 def test_zai_opencode_probe_requires_private_matching_provider_credentials(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from evallab import credentials
+    from evallab import profiles
 
     for name in (
         "probe_claude_keychain",
@@ -552,10 +552,10 @@ def test_zai_opencode_probe_requires_private_matching_provider_credentials(
         "probe_antigravity_session",
         "probe_deepseek_api",
     ):
-        monkeypatch.setattr(credentials, name, lambda *args: False)
-    assert credentials.missing_credential_for(
-        "zai-opencode", credentials.available_credentials(tmp_path)
-    ) == credentials.ZAI_OPENCODE_AUTH
+        monkeypatch.setattr(profiles, name, lambda *args: False)
+    assert profiles.missing_credential_for(
+        "zai-opencode", profiles.available_credentials(tmp_path)
+    ) == profiles.ZAI_OPENCODE_AUTH
     profile = builtin_profiles()["zai-opencode-glm-5.3-flash"]
     probe = default_probe_for(
         profile,
@@ -577,6 +577,6 @@ def test_zai_opencode_probe_requires_private_matching_provider_credentials(
     result = probe(profile)
     assert result.ok
     assert "fixture-provider-key" not in repr(result)
-    assert credentials.missing_credential_for(
-        "zai-opencode", credentials.available_credentials(tmp_path)
+    assert profiles.missing_credential_for(
+        "zai-opencode", profiles.available_credentials(tmp_path)
     ) is None

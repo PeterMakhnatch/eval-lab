@@ -1386,7 +1386,7 @@ def test_antigravity_model_translation_for_harbor(tmp_path: Path) -> None:
 
 def test_resolve_harbor_model_distinguishes_local_and_harbor_namespaces() -> None:
     """The local CLI namespace and the Harbor namespace must remain distinct."""
-    from evallab.credentials import DEFAULT_AGENT_MODELS
+    from evallab.profiles import DEFAULT_AGENT_MODELS
 
     local_model = DEFAULT_AGENT_MODELS["antigravity-cli"]
     assert local_model == "gemini-3.7-flash-high"

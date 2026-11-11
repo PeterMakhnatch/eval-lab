@@ -32,7 +32,6 @@ from evallab.benchmark_program_contracts import (
     CampaignCalibrationLedger,
     CampaignMeasurementLedger,
 )
-from evallab.credentials import available_credentials, missing_credential_for
 from evallab.evidence_store import (
     archive_evidence,
     evidence_tree_digest,
@@ -53,6 +52,7 @@ from evallab.execution_contracts import (
     is_openrouter_model,
     is_tinker_terminus_model,
 )
+from evallab.profiles import available_credentials, missing_credential_for
 from evallab.queue import (
     MAX_TRANSIENT_RETRIES,
     Executor,

@@ -16,7 +16,6 @@ from typing import Any
 import pytest
 
 from evallab import runner
-from evallab.credentials import BREAKER_SELFHOSTED_API_CREDENTIAL, missing_credential_for
 from evallab.dispatch_guards import resolve_selfhosted_endpoint
 from evallab.execution_contracts import (
     BREAKER_SELFHOSTED_BASE_MODEL,
@@ -32,6 +31,7 @@ from evallab.execution_contracts import (
     validate_request,
 )
 from evallab.ledger import build_cost_block
+from evallab.profiles import BREAKER_SELFHOSTED_API_CREDENTIAL, missing_credential_for
 
 SECRET = "unit-breaker-provider-credential"
 CAPABILITY = "unit-breaker-trial-capability"

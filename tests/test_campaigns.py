@@ -41,7 +41,6 @@ from evallab.continuous_control_plane import (
     CampaignWorkloadOwner,
     DisabledCampaignControlLoop,
 )
-from evallab.credentials import DEEPSEEK_API_CREDENTIAL, ZAI_OPENAPI_API_CREDENTIAL
 from evallab.execution_contracts import (
     DEEPSEEK_MODEL_SELECTOR,
     DispatchCapacity,
@@ -51,6 +50,7 @@ from evallab.execution_contracts import (
 )
 from evallab.ops_continuous import main as operator_main
 from evallab.ops_continuous import write_mode
+from evallab.profiles import DEEPSEEK_API_CREDENTIAL, ZAI_OPENAPI_API_CREDENTIAL
 from evallab.queue import DirectoryQueue, Executor, load_events, load_policy
 from evallab.registry import compute_task_digests
 from evallab.schemas import (

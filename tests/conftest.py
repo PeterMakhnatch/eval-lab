@@ -43,7 +43,7 @@ def _isolate_host_credential_probes(monkeypatch: pytest.MonkeyPatch) -> None:
     caller started the real ``cursor-agent`` and ``agy`` CLIs (HAR-373). Their
     probe classes keep their own tests through injected runners.
     """
-    from evallab import credentials
+    from evallab import profiles
 
     for name in (
         "probe_claude_keychain",
@@ -51,7 +51,7 @@ def _isolate_host_credential_probes(monkeypatch: pytest.MonkeyPatch) -> None:
         "probe_cursor_session",
         "probe_antigravity_session",
     ):
-        monkeypatch.setattr(credentials, name, lambda: False)
+        monkeypatch.setattr(profiles, name, lambda: False)
 
 
 @pytest.fixture(autouse=True)

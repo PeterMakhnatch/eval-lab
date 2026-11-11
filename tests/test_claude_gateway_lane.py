@@ -16,7 +16,6 @@ import pytest
 from pydantic import ValidationError
 
 from evallab import runner
-from evallab.credentials import CLAUDE_GATEWAY, CLAUDE_OAUTH, missing_credential_for
 from evallab.execution_contracts import (
     RunRequest,
     collected_secret_values,
@@ -26,10 +25,13 @@ from evallab.execution_contracts import (
     subscription_command,
 )
 from evallab.profiles import (
+    CLAUDE_GATEWAY,
+    CLAUDE_OAUTH,
     AgentProfile,
     GatewayStdioProbe,
     builtin_profiles,
     default_probe_for,
+    missing_credential_for,
     preflight,
 )
 

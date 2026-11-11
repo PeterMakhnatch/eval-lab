@@ -17,6 +17,7 @@ from evallab.automation import (
     StepOutcome,
     StepTimeout,
     _process_table,
+    _step_researcher_pass,
     run_with_timeout,
 )
 from evallab.digest import DigestRenderer
@@ -362,6 +363,160 @@ def test_step_outcomes_and_durations_and_skip_reasons(tmp_path: Path) -> None:
     assert "canary_enqueue: skipped [no_canary_enqueuer_configured]" in report
     assert "parquet_compaction: ran" in report
     assert "lessons: ran" in report
+
+
+def test_researcher_step_returns_without_configuration(tmp_path: Path) -> None:
+    cycle, queue, _ = _setup_cycle(tmp_path)
+    context = NightlyContext(
+        target_date=date(2026, 8, 17),
+        doctor=cycle.doctor,
+        executor=cycle.executor,
+        renderer=cycle.renderer,
+        committer=cycle.committer,
+    )
+
+    _step_researcher_pass(context)
+
+    assert context.researcher_invocations == 0
+    assert not load_events(queue.events_path)
+
+
+def test_researcher_pass_defers_when_stop_file_is_present(tmp_path: Path) -> None:
+    calls: list[date] = []
+
+    def researcher_pass(day: date) -> int:
+        calls.append(day)
+        return 1
+
+    researcher_step = next(step for step in DEFAULT_NIGHTLY_STEPS if step.name == "researcher_pass")
+    cycle, queue, _ = _setup_cycle(
+        tmp_path,
+        researcher_pass=researcher_pass,
+        steps=(researcher_step,),
+    )
+    queue.stop_path.parent.mkdir(parents=True, exist_ok=True)
+    queue.stop()
+
+    cycle.run(report_date=date(2026, 8, 17))
+
+    events = [event for event in load_events(queue.events_path) if event.actor == "nightly"]
+    assert [(event.event, event.reason_code) for event in events] == [
+        ("researcher_pass_deferred", "stop_file_present")
+    ]
+    assert calls == []
+
+
+def test_researcher_pass_defers_with_executor_last_tick_reason(tmp_path: Path) -> None:
+    calls: list[date] = []
+
+    def researcher_pass(day: date) -> int:
+        calls.append(day)
+        return 1
+
+    def set_reason(context: NightlyContext) -> None:
+        context.executor.last_tick_reason = "executor_busy"
+
+    researcher_step = next(step for step in DEFAULT_NIGHTLY_STEPS if step.name == "researcher_pass")
+    cycle, queue, _ = _setup_cycle(
+        tmp_path,
+        researcher_pass=researcher_pass,
+        steps=(
+            NightlyStep(name="set_reason", fn=set_reason, on_fail="continue"),
+            researcher_step,
+        ),
+    )
+
+    cycle.run(report_date=date(2026, 8, 17))
+
+    events = [event for event in load_events(queue.events_path) if event.actor == "nightly"]
+    assert [(event.event, event.reason_code) for event in events] == [
+        ("researcher_pass_deferred", "executor_busy")
+    ]
+    assert calls == []
+
+
+def test_researcher_pass_defers_when_codex_credential_is_missing(tmp_path: Path) -> None:
+    calls: list[date] = []
+
+    def researcher_pass(day: date) -> int:
+        calls.append(day)
+        return 1
+
+    base = StaticDoctor().report
+    checks = base.checks.model_copy(update={"codex_auth_present": False})
+    report = base.model_copy(update={"checks": checks})
+    doctor_step = next(step for step in DEFAULT_NIGHTLY_STEPS if step.name == "doctor")
+    researcher_step = next(step for step in DEFAULT_NIGHTLY_STEPS if step.name == "researcher_pass")
+    cycle, queue, _ = _setup_cycle(
+        tmp_path,
+        doctor=StaticDoctor(report=report),
+        researcher_pass=researcher_pass,
+        steps=(doctor_step, researcher_step),
+    )
+
+    cycle.run(report_date=date(2026, 8, 17))
+
+    events = [event for event in load_events(queue.events_path) if event.actor == "nightly"]
+    assert [(event.event, event.reason_code) for event in events] == [
+        ("researcher_pass_deferred", "missing_credential:codex")
+    ]
+    assert calls == []
+
+
+def test_researcher_pass_failure_records_event_and_allows_later_step(tmp_path: Path) -> None:
+    calls: list[str] = []
+
+    def researcher_pass(day: date) -> int:
+        raise RuntimeError("researcher crashed")
+
+    def later(context: NightlyContext) -> None:
+        calls.append("later")
+
+    researcher_step = next(step for step in DEFAULT_NIGHTLY_STEPS if step.name == "researcher_pass")
+    cycle, queue, _ = _setup_cycle(
+        tmp_path,
+        researcher_pass=researcher_pass,
+        steps=(
+            researcher_step,
+            NightlyStep(name="later", fn=later, on_fail="continue"),
+        ),
+    )
+
+    result = cycle.run(report_date=date(2026, 8, 17))
+
+    events = [event for event in load_events(queue.events_path) if event.actor == "nightly"]
+    assert [(event.event, event.reason_code) for event in events] == [
+        ("researcher_pass_failed", "researcher_failed:RuntimeError")
+    ]
+    outcome = result.step_by_name("researcher_pass")
+    assert outcome is not None
+    assert outcome.status == "failed"
+    assert "RuntimeError: researcher crashed" in (outcome.error or "")
+    assert calls == ["later"]
+    assert result.step_by_name("later").status == "ran"
+
+
+def test_lessons_failure_records_event_and_propagates(tmp_path: Path) -> None:
+    def lessons_generator(day: date) -> Path:
+        raise ValueError("lessons exploded")
+
+    lessons_step = next(step for step in DEFAULT_NIGHTLY_STEPS if step.name == "lessons")
+    cycle, queue, _ = _setup_cycle(
+        tmp_path,
+        lessons_generator=lessons_generator,
+        steps=(lessons_step,),
+    )
+
+    result = cycle.run(report_date=date(2026, 8, 17))
+
+    events = [event for event in load_events(queue.events_path) if event.actor == "nightly"]
+    assert [(event.event, event.reason_code) for event in events] == [
+        ("lessons_generation_failed", "lessons_generation_failed:ValueError")
+    ]
+    outcome = result.step_by_name("lessons")
+    assert outcome is not None
+    assert outcome.status == "failed"
+    assert "ValueError: lessons exploded" in (outcome.error or "")
 
 
 def test_two_consecutive_cycles_over_unchanged_fixture_are_idempotent(tmp_path: Path) -> None:

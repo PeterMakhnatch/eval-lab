@@ -4,10 +4,13 @@ import hashlib
 import json
 import os
 import plistlib
+import sqlite3
 import subprocess
+import sys
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -133,6 +136,154 @@ def test_doctor_detects_ignored_no_fallback_overlay_and_does_not_expose_credenti
     assert not (tmp_path / "missing.sqlite").exists()
 
 
+@pytest.fixture
+def core_checks(tmp_path, monkeypatch):
+    (tmp_path / "uv.lock").write_text("package = []\n")
+    monkeypatch.setenv("EVALLAB_CLOUD_TRACE_DB", str(tmp_path / "trace.sqlite"))
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(tmp_path / "derived-root"))
+    monkeypatch.setenv("EVALLAB_FAILURE_LIBRARY_STATE", str(tmp_path / "state"))
+    monkeypatch.setattr(automation.shutil, "which", lambda name: None)
+    monkeypatch.setattr(backups, "backup_freshness", lambda *a, **kw: {
+        "status": "missing", "age_hours": None, "max_age_hours": 36, "newest_verified": None,
+    })
+    monkeypatch.setattr(io, "retained_source_health", lambda *a, **kw: (False, "fixture bundles unavailable"))
+    monkeypatch.setattr(gold, "load_rows", lambda *a, **kw: [])
+
+    def unavailable(*args, **kwargs):
+        raise ConnectionError("fixture database unavailable")
+
+    monkeypatch.setattr(database.psycopg, "connect", unavailable)
+
+    def fake_run(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    def checks():
+        return {name: (ok, detail) for name, ok, detail in automation.core_runtime_checks(
+            tmp_path, home=tmp_path, now=NOW, run=fake_run,
+        )}
+
+    return checks
+
+
+def test_doctor_rejects_sqlite_bad_header(tmp_path, core_checks):
+    path = tmp_path / "trace.sqlite"
+    connection = sqlite3.connect(str(path))
+    try:
+        connection.execute("CREATE TABLE t(x)")
+        connection.commit()
+    finally:
+        connection.close()
+    header = bytearray(path.read_bytes())
+    header[18:20] = b"\x00\x00"
+    path.write_bytes(header)
+
+    checks = core_checks()
+
+    ok, detail = next(value for name, value in checks.items() if name.startswith("sqlite:"))
+    assert ok is False
+    assert "format_rw=0000" in detail
+
+
+def test_doctor_rejects_duckdb_missing_magic(tmp_path, monkeypatch, core_checks):
+    path = tmp_path / "derived" / "store.duckdb"
+    path.parent.mkdir()
+    path.write_bytes(b"CORRUPT" * 4)
+    fake_duckdb = ModuleType("duckdb")
+
+    def connect(path, **kwargs):
+        return nullcontext(SimpleNamespace(
+            execute=lambda sql, *args: SimpleNamespace(fetchone=lambda: ("fixture",)),
+        ))
+
+    monkeypatch.setattr(fake_duckdb, "connect", connect, raising=False)
+    monkeypatch.setitem(sys.modules, "duckdb", fake_duckdb)
+
+    checks = core_checks()
+
+    ok, detail = checks["duckdb:store.duckdb"]
+    assert ok is False
+    assert "storage_version=" in detail
+
+
+def test_doctor_reports_empty_derived_root(tmp_path, core_checks):
+    derived = tmp_path / "derived-root"
+    derived.mkdir()
+
+    checks = core_checks()
+
+    assert checks["parquet-stores"] == (False, f"projections=MISSING root={derived}")
+
+
+def test_doctor_reads_nonempty_parquet_store(tmp_path, core_checks):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    derived = tmp_path / "derived-root"
+    derived.mkdir()
+    pq.write_table(pa.table({"x": [1]}), derived / "fixture.parquet")
+
+    checks = core_checks()
+
+    ok, detail = checks["parquet-stores"]
+    assert ok is True
+    assert "files=1" in detail
+
+
+def test_doctor_reports_postgres_connection_failure_without_credentials(monkeypatch, core_checks):
+    secret = "credential-value-must-not-appear"
+
+    def unavailable(*args, **kwargs):
+        raise ConnectionError(secret)
+
+    monkeypatch.setattr(database.psycopg, "connect", unavailable)
+
+    checks = core_checks()
+
+    assert checks["postgres-schema"] == (False, "unavailable: ConnectionError")
+    assert secret not in json.dumps(checks)
+
+
+def test_doctor_marks_postgres_unavailable_without_server_version(
+    tmp_path, monkeypatch, core_checks,
+):
+    (tmp_path / "sql").mkdir()
+    (tmp_path / "sql/schema.sql").write_text("CREATE TABLE t(c text);\n")
+
+    def connect(*args, **kwargs):
+        return nullcontext(SimpleNamespace(
+            execute=lambda sql: SimpleNamespace(fetchone=lambda: None, fetchall=lambda: []),
+        ))
+
+    monkeypatch.setattr(database.psycopg, "connect", connect)
+
+    checks = core_checks()
+
+    assert checks["postgres-schema"] == (False, "unavailable: ValueError")
+
+
+def test_doctor_reachable_postgres_requires_schema_revision(tmp_path, monkeypatch, core_checks):
+    schema = tmp_path / "sql" / "schema.sql"
+    schema.parent.mkdir()
+    schema.write_text("CREATE TABLE t(c text);\n")
+
+    def execute(sql):
+        if "SHOW server_version" in sql:
+            return SimpleNamespace(fetchone=lambda: ("18.4",))
+        assert "information_schema.columns" in sql
+        return SimpleNamespace(fetchall=lambda: [["t", "c", "text"]])
+
+    monkeypatch.setattr(database.psycopg, "connect", lambda *args, **kwargs: nullcontext(
+        SimpleNamespace(execute=execute),
+    ))
+
+    checks = core_checks()
+
+    ok, detail = checks["postgres-schema"]
+    assert ok is False
+    assert "reachable=True installed=18.4" in detail
+    assert "schema_revision=MISSING" in detail
+
+
 @pytest.mark.parametrize("requirement,version,expected", [
     (">=3.12", "3.11.12", False),
     (">=3.12", "3.12.11", True),
@@ -147,3 +298,111 @@ def test_python_health_uses_project_requirement_not_ci_matrix(
     monkeypatch.setattr(automation, "sys", SimpleNamespace(version=version))
     ok, _ = automation._python_runtime_health(tmp_path)
     assert ok is expected
+
+
+def test_doctor_probes_cover_keychain_postgres_and_disk(tmp_path, monkeypatch):
+    doctor = automation.HeadlessDoctor(tmp_path, home=tmp_path, executor=SimpleNamespace())
+    monkeypatch.setattr(automation.profiles_module, "probe_claude_keychain", lambda: True)
+    assert doctor._probe_keychain() is True
+
+    monkeypatch.setattr(database, "ping", lambda url: None)
+    assert doctor._probe_postgres() is True
+
+    def unavailable(url):
+        raise RuntimeError("fixture database unavailable")
+
+    monkeypatch.setattr(database, "ping", unavailable)
+    assert doctor._probe_postgres() is False
+
+    monkeypatch.setattr(automation.shutil, "disk_usage", lambda path: SimpleNamespace(
+        total=1000 * 1024**3, free=1000 * 1024**3,
+    ))
+    assert doctor._probe_disk() is True
+
+
+def test_launchctl_wrapper_raises_on_checked_failure(monkeypatch):
+    monkeypatch.setattr(automation, "subscription_environment", lambda: {})
+    completed = automation._launchctl(["/usr/bin/true"], check=True)
+    assert isinstance(completed, subprocess.CompletedProcess)
+    assert completed.returncode == 0
+
+    with pytest.raises(RuntimeError, match="launchctl exited 1"):
+        automation._launchctl(["/usr/bin/false"], check=True)
+
+    assert automation._launchctl(["/usr/bin/false"], check=False).returncode == 1
+
+
+def test_installed_job_health_marks_broken_plists_unavailable(tmp_path):
+    agents = tmp_path / "Library/LaunchAgents"
+    agents.mkdir(parents=True)
+    foreign = agents / "foreign.plist"
+    foreign.write_bytes(b"not a plist")
+    broken = agents / f"{automation.LAUNCH_AGENT_LABEL_PREFIX}broken.plist"
+    broken.write_bytes(b"not a plist")
+    mismatch = agents / f"{automation.LAUNCH_AGENT_LABEL_PREFIX}mismatch.plist"
+    mismatch.write_bytes(plistlib.dumps({"Label": "wrong-label"}))
+
+    checks = automation.installed_job_health(tmp_path, now=NOW, run=_loaded)
+
+    assert {name for name, _, _ in checks} == {
+        f"launchd:{broken.stem}", f"launchd:{mismatch.stem}",
+    }
+    assert all(ok is False and detail.startswith("unavailable:") for _, ok, detail in checks)
+    assert all(foreign.stem not in name for name, _, _ in checks)
+    assert next(detail for name, _, detail in checks if name.endswith(mismatch.stem)) == "unavailable: ValueError"
+
+
+def test_installed_job_health_uses_newest_insights_pass(tmp_path):
+    _installed_job(tmp_path, "insights", interval=300)
+    passes = tmp_path / ".local/state/evallab-insights/passes"
+    one = passes / "a/out/one.json"
+    two = passes / "b/out/two.json"
+    for path, age in [(one, timedelta(minutes=10)), (two, timedelta(minutes=1))]:
+        path.parent.mkdir(parents=True)
+        path.write_text("{}")
+        stamp = (NOW - age).timestamp()
+        os.utime(path, (stamp, stamp))
+
+    [(name, ok, detail)] = automation.installed_job_health(tmp_path, now=NOW, run=_loaded)
+
+    assert name.endswith("insights")
+    assert ok is True
+    assert f"output={two}" in detail
+    assert str(one) not in detail
+
+
+def test_installed_job_health_clears_age_for_unsynced_primary(tmp_path):
+    _installed_job(tmp_path, "sync-primary")
+
+    [(name, ok, detail)] = automation.installed_job_health(tmp_path, now=NOW, run=_loaded)
+
+    assert name.endswith("sync-primary")
+    assert ok is False
+    assert "useful_age_h=MISSING" in detail
+
+
+def test_sync_primary_status_rejects_unreadable_rows(tmp_path):
+    for filename, content, reason in [
+        ("malformed.json", "{", "JSONDecodeError"),
+        ("array.json", "[]", "not-an-object"),
+        ("bad-timestamp.json", json.dumps({"timestamp": "not-a-date"}), "bad-timestamp"),
+    ]:
+        path = tmp_path / filename
+        path.write_text(content)
+
+        status = automation.sync_primary_status(tmp_path, status_path=path, now=NOW)
+
+        assert status.ok is False
+        assert status.outcome == "unreadable"
+        assert status.reason == reason
+
+    path = tmp_path / "naive-timestamp.json"
+    path.write_text(json.dumps({
+        "timestamp": "2026-11-11T14:00:00", "outcome": "synced", "reason": "clean", "behind": 0,
+    }))
+
+    status = automation.sync_primary_status(tmp_path, status_path=path, now=NOW)
+
+    assert status.ok is True
+    assert status.outcome == "synced"
+    assert status.age_seconds == 0

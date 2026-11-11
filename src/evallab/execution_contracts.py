@@ -215,7 +215,6 @@ def is_claude_gateway_model(model: str | None) -> bool:
     return isinstance(model, str) and model.startswith(CLAUDE_GATEWAY_MODEL_PREFIX)
 
 
-RLM_AGENT = "rlm"
 MIMO_AGENT = "mimoagent"
 MIMO_AGENT_IMPORT_PATH = "evallab.harbor_mimoagent:NativeMimoAgent"
 CHEAT_AGENT_IMPORT_PATH = "evallab.harbor_cheat:CheatAgent"
@@ -1245,11 +1244,6 @@ _BEARER_HEADER = re.compile(
 )
 
 LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
-    ("antigravity-cli", "gemini-3.7-flash-high"): "google/gemini-3.7-flash-high",
-    ("antigravity-cli", "gemini-3.7-flash-medium"): "google/gemini-3.7-flash-medium",
-    ("antigravity-cli", "gemini-3.7-flash-low"): "google/gemini-3.7-flash-low",
-    ("antigravity-cli", "gemini-3.1-pro-high"): "google/gemini-3.1-pro-high",
-    ("antigravity-cli", "claude-sonnet-4-6"): "google/claude-sonnet-4-6",
     ("claude-code", CLAUDE_GATEWAY_HAIKU_MODEL): CLAUDE_GATEWAY_HARBOR_MODEL,
     ("claude-code", "claude-gateway/claude-sonnet-5-5"): "anthropic/claude-sonnet-5-5",
     ("claude-code", "claude-gateway/claude-opus-5-5"): "anthropic/claude-opus-5-5",
@@ -1257,10 +1251,8 @@ LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
 
 HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
     "codex": "evallab.harbor_codex:PinnedCodex",
-    "antigravity-cli": "evallab.harbor_antigravity:AntigravityCliCapture",
     "mini-swe-agent": "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
     "zai-opencode": "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent",
-    RLM_AGENT: "evallab.harbor_rlm:LabRlmAgent",
     TERMINUS_AGENT: TERMINUS_AGENT_IMPORT_PATH,
     MIMO_AGENT: MIMO_AGENT_IMPORT_PATH,
     CHEAT_AGENT: CHEAT_AGENT_IMPORT_PATH,
@@ -1997,6 +1989,8 @@ def uses_provider_proxy(agent: str, model: str | None) -> bool:
 
 def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> None:
     """Validate that a RunRequest adheres to directory, name, timeout, and billable invariants."""
+    if request.agent in {"rlm", "antigravity-cli"}:
+        raise ValueError(f"Agent {request.agent!r} is retired; select a native run profile")
     if not request.task.is_dir():
         raise ValueError(f"Task directory does not exist: {request.task}")
     if not (request.task / "task.toml").is_file():
@@ -2022,10 +2016,6 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
         request.max_total_tokens,
         request.cost_limit_usd,
     )
-    # The rlm lane forwards cost_limit_usd as a harness agent-kwarg rather than
-    # enforcing it through the secret proxy, so it is not a proxy ceiling here.
-    if request.agent == RLM_AGENT:
-        proxy_limits = proxy_limits[:4]
     metered = uses_provider_proxy(request.agent, request.model)
     if any(value is not None for value in proxy_limits):
         if not metered:
@@ -2095,8 +2085,8 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
             )
         if request.attempts != 1 or request.concurrency != 1:
             raise ValueError("terminus-2 specs bind exactly one trial")
-    if request.harness_policy is not None and request.agent != RLM_AGENT:
-        raise ValueError("harness_policy is supported only by the rlm lane")
+    if request.harness_policy is not None:
+        raise ValueError("harness_policy belongs to the retired rlm lane")
     if request.verifier_repeat_n is not None and not 2 <= request.verifier_repeat_n <= 10:
         raise ValueError("verifier_repeat_n must be between 2 and 10")
     if (
@@ -2104,13 +2094,6 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
         and not 1024 <= request.override_storage_mb <= 1048576
     ):
         raise ValueError("override_storage_mb must be between 1024 and 1048576")
-    if request.agent == RLM_AGENT:
-        if request.attempts != 1 or request.concurrency != 1:
-            raise ValueError(f"{request.agent} capabilities bind exactly one trial")
-        if request.model not in ZAI_OPENCODE_MODEL_SELECTORS:
-            raise ValueError(
-                f"rlm requires one of the exact models {sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
-            )
     # NEEDS PARENT APPROVAL (HAR-204 cheat lane): the model-free cheat audit
     # agent is admitted without --allow-billable. It makes no provider calls
     # ($0 by construction: no model, no proxy, local Docker only); every
@@ -2138,7 +2121,7 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
                 f"Task requires {gpus} GPU(s) but Harbor Docker does not support GPU allocation; "
                 "select a compatible remote task/harness/backend combination"
             )
-    elif request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, RLM_AGENT}:
+    elif request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
         zai_mini = request.agent == "mini-swe-agent" and request.model == ZAI_OPENAPI_MODEL_SELECTOR
         if request.environment == "daytona" and zai_mini:
             if _task_has_provided_compose(request.task):
@@ -2219,12 +2202,11 @@ def _validate_agent_capabilities(request: RunRequest) -> None:
     known_lanes = {
         *AGENTS_WITH_SKILLS_SUPPORT,
         *AGENTS_WITH_MCP_SUPPORT,
-        RLM_AGENT,
         MIMO_AGENT,
         *CONTROL_AGENTS,
     }
     if request.agent not in known_lanes:
-        # Passthrough agents (codex, antigravity, ...): Harbor's own preflight
+        # Passthrough agents (codex, ...): Harbor's own preflight
         # validates their 0.24 capabilities; the lab pins no allowlist for them.
         return
     skill_roots: list[str] = []
@@ -2270,6 +2252,8 @@ def _validate_setup_fingerprint(request: RunRequest, repo_root: Path | None) -> 
 
 def resolve_harbor_agent(agent: str, model: str | None = None) -> str:
     """Use the lab-owned adapter where Harbor supports custom import paths."""
+    if agent in {"rlm", "antigravity-cli"}:
+        raise ValueError(f"Agent {agent!r} is retired; select a native run profile")
     if agent == "mini-swe-agent" and model is not None:
         if model.startswith("zai/"):
             return ZAI_MINISWE_AGENT_IMPORT_PATH
@@ -2649,25 +2633,6 @@ def build_command(
                     f"{key}={json.dumps(value, separators=(',', ':'), allow_nan=False)}",
                 ]
             )
-    if request.agent == RLM_AGENT:
-        if harbor_model not in ZAI_OPENCODE_MODEL_SELECTORS:
-            raise ValueError(
-                f"rlm requires one of the exact models {sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
-            )
-        command.extend(
-            [
-                "--n-concurrent-agents",
-                "1",
-                "--n-tasks",
-                "1",
-                "--max-retries",
-                "0",
-                "--agent-kwarg",
-                f"policy={request.harness_policy or 'stock'}",
-                "--agent-kwarg",
-                f"cost_limit_usd={request.cost_limit_usd or 1.0}",
-            ]
-        )
     if request.agent == CHEAT_AGENT:
         # NEEDS PARENT APPROVAL (HAR-204 cheat lane): forward the CLI-selected
         # attack subset to the model-free agent. Empty means the full ladder.

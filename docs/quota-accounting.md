@@ -481,14 +481,9 @@ The three promoted `canary-*-codex-20260815` bundles now carry 67 snapshots,
 but they top out at **`used_percent` 70.0** — the 15 August readings. The 92%
 that prompted this work was recorded on 16 August, in
 `canary-{event-summary,terminal-bench-html-js-filter,transaction-reconciliation}-codex-20260816`,
-which are **not promoted**. R4 makes the signal survive promotion; it cannot
-promote a bundle. Preserving the 92% reading requires promoting those three
-jobs, which is a Research-lane admission decision, not a mechanism change:
-
-```bash
-uv run python scripts/promote_codex_bundle.py --source-runs runs \
-    --job canary-event-summary-codex-20260816
-```
+which are **not promoted**. The historical R4 format preserves the signal in
+existing bundles. The promotion script is retired. Keep the original jobs and
+their sidecars unchanged; use the native results home for new run evidence.
 
 With the reader wired (below), the consequence is now concrete and should not
 surprise anyone: **a fresh clone reads `used_percent` 70.0, not 92.0.** All

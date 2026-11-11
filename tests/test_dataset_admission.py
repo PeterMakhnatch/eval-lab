@@ -115,7 +115,7 @@ def test_raw_intake_never_enters_git(tmp_path):
 def test_preregister_commits_only_registration_and_pushes(registered):
     from argparse import Namespace
 
-    from evallab.admission_delivery import preregister
+    from evallab.runner import preregister
 
     root, original, _ = registered
     registration = original.with_name("second-freeze.json")
@@ -132,7 +132,7 @@ def test_preregister_commits_only_registration_and_pushes(registered):
 def test_preregister_preserves_committed_freeze(registered):
     from argparse import Namespace
 
-    from evallab.admission_delivery import preregister
+    from evallab.runner import preregister
 
     root, registration, _ = registered
     freeze = admission.load(registration)
@@ -145,7 +145,7 @@ def test_preregister_preserves_committed_freeze(registered):
 def test_pr_refuses_arbitrary_output_publication(registered, tmp_path):
     from argparse import Namespace
 
-    from evallab.admission_delivery import publish
+    from evallab.runner import publish
 
     root, registration, commit = registered
     output = tmp_path / "output"

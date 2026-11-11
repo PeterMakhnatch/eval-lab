@@ -22,6 +22,7 @@ import pytest
 from evallab.execution_contracts import (
     AGENTS_WITH_MCP_SUPPORT,
     AGENTS_WITH_SKILLS_SUPPORT,
+    MIMO_SELFHOSTED_MODEL_SELECTOR,
     TERMINUS_REASONING_EFFORT_VALUES,
     ProfileInferenceSettings,
     RunRequest,
@@ -97,13 +98,6 @@ TERMINUS_LAB_KNOB_FIELDS = frozenset(
 MIMO_OPTION_FIELDS = frozenset(
     {"antihack", "explicit_rules", "task_chain", "task_chain_digest"}
 )
-
-# Lab LabRlmOptions fields (evallab/harbor_rlm.py). The stock DspyRlmOptions
-# knows none of these; the lane targets our adapter, not stock dspy-rlm.
-RLM_OPTION_FIELDS = frozenset(
-    {"policy", "cost_limit_usd", "tool_timeout_sec", "working_dir", "verbose"}
-)
-
 
 def _task(tmp_path: Path) -> Path:
     task_dir = tmp_path / "task"
@@ -186,19 +180,6 @@ def test_terminus_effort_outside_024_literal_is_refused(tmp_path: Path) -> None:
         assert terminus_agent_kwargs(request)["reasoning_effort"] == effort
 
 
-def test_rlm_lane_emits_only_lab_rlm_options(tmp_path: Path) -> None:
-    request = _request(
-        tmp_path,
-        "rlm",
-        "zai-coding-plan/glm-5.3-flash",
-        harness_policy="stock",
-        cost_limit_usd=1.0,
-    )
-    emitted = _agent_kwargs(build_command(request))
-    assert set(emitted) == {"policy", "cost_limit_usd"}
-    assert set(emitted) <= RLM_OPTION_FIELDS
-
-
 def test_mimo_lane_emits_only_lab_mimo_options(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -227,10 +208,8 @@ def test_capability_allowances_match_024_gate() -> None:
     assert "terminus-2" in AGENTS_WITH_SKILLS_SUPPORT
     assert "zai-opencode" in AGENTS_WITH_SKILLS_SUPPORT
     assert "mini-swe-agent" not in AGENTS_WITH_SKILLS_SUPPORT
-    assert "rlm" not in AGENTS_WITH_SKILLS_SUPPORT
     assert "mimoagent" not in AGENTS_WITH_SKILLS_SUPPORT
     assert "mini-swe-agent" in AGENTS_WITH_MCP_SUPPORT
-    assert "rlm" not in AGENTS_WITH_MCP_SUPPORT
     assert "mimoagent" not in AGENTS_WITH_MCP_SUPPORT
 
 
@@ -266,12 +245,17 @@ def test_task_mcp_with_mcp_less_lane_fails_preflight_early(tmp_path: Path) -> No
     )
     request = RunRequest(
         task=task_dir,
-        agent="rlm",
-        name="kwarg-audit-rlm-mcp",
+        agent="mimoagent",
+        name="kwarg-audit-mimo-mcp",
         jobs_dir=tmp_path / "runs",
         environment="docker",
-        model="zai-coding-plan/glm-5.3-flash",
+        model=MIMO_SELFHOSTED_MODEL_SELECTOR,
         allow_billable=True,
+        max_requests=10,
+        max_input_tokens=100000,
+        max_output_tokens=8192,
+        max_total_tokens=108192,
+        cost_limit_usd=2.5,
     )
     with pytest.raises(ValueError, match="does not support MCP servers under Harbor 0.24"):
         validate_request(request)

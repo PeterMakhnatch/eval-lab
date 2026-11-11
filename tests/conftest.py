@@ -49,7 +49,6 @@ def _isolate_host_credential_probes(monkeypatch: pytest.MonkeyPatch) -> None:
         "probe_claude_keychain",
         "probe_claude_gateway",
         "probe_cursor_session",
-        "probe_antigravity_session",
     ):
         monkeypatch.setattr(profiles, name, lambda: False)
 

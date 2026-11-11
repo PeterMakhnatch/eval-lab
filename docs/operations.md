@@ -467,7 +467,7 @@ Which classes need authorisation:
 | `local-controls` | `oracle`, `nop` | yes — no authorisation, no ceremony |
 | everything else | `codex`, `claude-code`, any future paid adapter | no — one recorded authorisation per spec |
 
-For the credential contract and runner configuration for DeepSeek models, see [`docs/deepseek-v4-flash-lane.md`](deepseek-v4-flash-lane.md).
+For the DeepSeek credential contract and native runner configuration, see [`docs/execution-tiers.md`](execution-tiers.md).
 
 How it is enforced, in order:
 

@@ -8,17 +8,14 @@ belongs in `src/evallab/`, not a second operator workflow.
 - `scripts/premerge.sh`: Pre-merge validation gate executing local quality checks.
 - `scripts/ci/check_harbor_skips.py`: JUnit skip census for native CI. The native file inventory remains until full discovery is safe.
 - `scripts/line-replay.py`: Standard frozen `replay-v1` assembly-line regression gate (see `docs/line.md`).
-- `scripts/promote_codex_bundle.py`: Sanitization and promotion utility for reviewed run evidence.
 
 ## Invariants or rules
 - Platform-owned tooling: `scripts/` belongs to the Platform lane and provides operator and CI automation (cited in `agents/STRUCTURE.md` and `agents/OWNERS.md`).
 - Credential safety: Subscription helpers must never alias OAuth tokens to raw API keys or leak credentials (cited in `tests/test_repository_contract.py` and `AGENTS.md`).
-- Promotion sanitization: Evidence promotion scripts must redact secret keys and prompts before committing bundles (cited in `tests/test_promotion_opencode_r2.py` and `AGENTS.md`).
 
 ## Tests or checks
 - `uv run pytest tests/test_quality_gates.py`
 - `uv run pytest tests/test_profile_harness.py`
-- `uv run pytest tests/test_promotion_opencode_r2.py`
 - `bash scripts/premerge.sh`
 
 The [CI contract](../agents/CHECKS.md) owns current checks and the native discovery

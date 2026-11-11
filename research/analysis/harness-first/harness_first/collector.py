@@ -23,7 +23,10 @@ from evallab.results import (
 from evallab.schemas import CohortSelector
 
 _AGENT_NAMES_BY_IMPORT_PATH = {
-    import_path: name for name, import_path in HARBOR_AGENT_IMPORT_PATHS.items()
+    **{import_path: name for name, import_path in HARBOR_AGENT_IMPORT_PATHS.items()},
+    # Retired producer identities remain valid in immutable historical runs.
+    "evallab.harbor_antigravity:AntigravityCliCapture": "antigravity-cli",
+    "evallab.harbor_rlm:LabRlmAgent": "rlm",
 }
 
 INFRASTRUCTURE_EXCEPTION_KEYWORDS = (

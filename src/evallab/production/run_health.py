@@ -899,39 +899,6 @@ def store_runs(database: Path, *, registry: Any, dataset_ids: Sequence[str] | No
         connection.close()
 
 
-# --------------------------------------------------------------------------- scoring
-
-
-def score_findings(findings: Iterable[Mapping[str, Any]], labels: Mapping[str, bool],
-                   *, detector: str) -> dict[str, Any]:
-    """Precision/recall of one detector's alarms against run-level labels.
-
-    ``unknown`` and ``abstain`` verdicts are counted apart and are neither hits
-    nor clean negatives; labelled runs with no finding are ``not_run``.
-    """
-    by_run = {f["run_id"]: f for f in findings if f.get("detector") == detector}
-    cells = Counter()
-    for run_id, label in labels.items():
-        finding = by_run.get(run_id)
-        if finding is None:
-            cells["not_run"] += 1
-            continue
-        verdict = finding.get("verdict")
-        if verdict in ("unknown", "abstain"):
-            cells[verdict] += 1
-            continue
-        alarm = verdict == "alarm"
-        cells[("tp" if alarm else "fn") if label else ("fp" if alarm else "tn")] += 1
-    tp, fp, fn, tn = cells["tp"], cells["fp"], cells["fn"], cells["tn"]
-    return {
-        "detector": detector, "tp": tp, "fp": fp, "fn": fn, "tn": tn,
-        "unknown": cells["unknown"], "abstain": cells["abstain"], "not_run": cells["not_run"],
-        "recall": round(tp / (tp + fn), 4) if tp + fn else None,
-        "precision": round(tp / (tp + fp), 4) if tp + fp else None,
-        "false_alarm_rate": round(fp / (fp + tn), 4) if fp + tn else None,
-    }
-
-
 # --------------------------------------------------------------------------- CLI
 
 
@@ -964,17 +931,6 @@ def _command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     if args.run_health_command == "baseline":
         with args.features.open(encoding="utf-8") as handle:
             print(json.dumps(baseline((json.loads(line) for line in handle if line.strip()), by=args.by), indent=1))
-        return 0
-    if args.run_health_command == "score":
-        findings = [json.loads(line) for line in args.findings.read_text().splitlines() if line.strip()]
-        labels: dict[str, bool] = {}
-        for line in args.labels.read_text().splitlines():
-            if line.strip():
-                row = json.loads(line)
-                labels[str(row["run_id"])] = bool(row["label"])
-        detectors = args.detector or sorted({f["detector"] for f in findings})
-        for name in detectors:
-            print(json.dumps(score_findings(findings, labels, detector=name)))
         return 0
     want = args.run_health_command
     now = None
@@ -1025,9 +981,4 @@ def register_parser(commands: Any) -> None:
     sub = actions.add_parser("baseline", help="per-source p50/p90/p99 of every numeric feature (JSON)")
     sub.add_argument("--features", type=Path, required=True, help="`evallab run-health features` JSONL")
     sub.add_argument("--by", default="source", help="group field (default source)")
-    sub.set_defaults(func=_command)
-    sub = actions.add_parser("score", help="precision/recall of findings against run-level labels")
-    sub.add_argument("--findings", type=Path, required=True, help="trace-findings/v1 JSONL")
-    sub.add_argument("--labels", type=Path, required=True, help='JSONL rows {"run_id": ..., "label": bool}')
-    sub.add_argument("--detector", action="append", help="default: every detector in the findings")
     sub.set_defaults(func=_command)

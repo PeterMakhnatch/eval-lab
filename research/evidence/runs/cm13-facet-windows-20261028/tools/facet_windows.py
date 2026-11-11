@@ -232,7 +232,7 @@ def replay_current(run_id: str, steps: list[dict[str, Any]]) -> dict[str, Any]:
 
     events: list[dict[str, Any]] = []
     tag = f"cm13-{opaque(run_id)}"
-    with MisalignmentLiveWorker(emit=events.append, judge=judge, stage2_playbook_cards=0) as worker:
+    with MisalignmentLiveWorker(emit=events.append, judge=judge) as worker:
         for index, step in enumerate(steps):
             worker.ingest_event(
                 {

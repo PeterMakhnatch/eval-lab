@@ -17,8 +17,12 @@ from typing import Any
 
 import pytest
 
-from evallab.production import CloudTraceRetriever, RetrievedExample, admitted_cloud_task_ids
-from evallab.production.cloud_trace_db import CloudTraceDatabase
+from evallab.production.cloud_trace_db import (
+    CloudTraceDatabase,
+    CloudTraceRetriever,
+    RetrievedExample,
+    admitted_cloud_task_ids,
+)
 from evallab.production.corpus_queue import CorpusRegistry
 
 SECONDARY = "tb2-to-tb21-v1"

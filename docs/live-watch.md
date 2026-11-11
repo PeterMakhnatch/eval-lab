@@ -190,11 +190,8 @@ matches the fired flags to the Trace-Watcher cards `TW01`..`TW06`
 (`hackbook.playbook_cards.match_playbook_cards`). The lead is `{schema, flags:
 {name: {count, first_step}}, cards}` with at most `alert_playbook_cards` cards (default 2,
 `0` turns it off), the card for the alerting feature first. It is a lead, never a verdict,
-and is absent when no flag fired. With `stage2_playbook_cards=N` (default `0`) the first
-`N` cards also go into the judge prompt beside the window as `playbook_cards`; the window
-itself, including the flagged step's full message and reasoning, is unchanged, and a quote
-from a card can never confirm a label. The completed card's `cascade.playbook_cards` lists
-the card ids the judge saw.
+and is absent when no flag fired. Playbook leads stay on alert cards, not in the judge prompt.
+The window and the judge prompt remain unchanged from the default configuration.
 
 Scoring an *early* prefix of a finished trace is a different measurement, so it is
 declared, not inferred. `MisalignmentLiveWorker(prefix_fraction=0.25|0.5|0.75)`
@@ -2035,7 +2032,7 @@ permission to deploy.
 
 ### Production supervisor
 
-`evallab.production.ProductionSupervisor` is the thin orchestration layer that
+`evallab.production.supervisor.ProductionSupervisor` is the thin orchestration layer that
 drives all of the above in one deterministic step. Construct it with the shared
 `ContinuousWorkQueue`, the three live workers, an `OutboxRelay`, and optionally
 a `VerifiedAssetExporter` plus `export_root`. `run_step()` processes at most one

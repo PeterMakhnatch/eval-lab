@@ -288,26 +288,6 @@ def test_every_record_matches_the_findings_contract(run: rh.HealthRun) -> None:
         assert all(isinstance(s, int) and s in ids for s in evidence)
 
 
-def test_score_findings_arithmetic_and_non_scored_verdicts() -> None:
-    def finding(run_id: str, verdict: str, detector: str = "run_health.loop") -> dict[str, Any]:
-        return {"run_id": run_id, "detector": detector, "verdict": verdict}
-
-    labels = {"tp1": True, "tp2": True, "fn": True, "unk": True, "missing": True,
-              "fp1": False, "fp2": False, "tn": False, "abs": False, "other": False}
-    findings = [
-        finding("tp1", "alarm"), finding("tp2", "alarm"), finding("fn", "clear"),
-        finding("unk", "unknown"), finding("fp1", "alarm"), finding("fp2", "alarm"),
-        finding("tn", "clear"), finding("abs", "abstain"),
-        finding("other", "alarm", detector="run_health.infra"),  # another detector: not this one's finding
-    ]
-    score = rh.score_findings(findings, labels, detector="run_health.loop")
-    assert (score["tp"], score["fp"], score["fn"], score["tn"]) == (2, 2, 1, 1)
-    assert (score["unknown"], score["abstain"], score["not_run"]) == (1, 1, 2)
-    assert score["recall"] == pytest.approx(2 / 3, abs=1e-4)
-    assert score["precision"] == 0.5
-    assert score["false_alarm_rate"] == pytest.approx(2 / 3, abs=1e-4)
-
-
 def test_trial_run_reads_trajectory_and_result_json(tmp_path: Path) -> None:
     trial = tmp_path / "trial-1"
     (trial / "agent").mkdir(parents=True)

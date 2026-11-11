@@ -24,15 +24,11 @@ from fastapi.testclient import TestClient
 from evallab.dataset_audit_checks import static_observation
 from evallab.dataset_audit_contracts import AuditObservation, AuditTask
 from evallab.execution_backend import ExecutionBackendConfig
-from evallab.production import (
-    ContinuousWorkQueue,
-    CorpusRegistry,
-    MisalignmentLiveWorker,
-    RewardSeekerLiveWorker,
-    TaskQualityLiveWorker,
-    create_app,
-)
-from evallab.production.seeker_worker import SeekerAttemptCandidate
+from evallab.production.control_plane import create_app
+from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
+from evallab.production.monitor_worker import MisalignmentLiveWorker
+from evallab.production.seeker_worker import RewardSeekerLiveWorker, SeekerAttemptCandidate
+from evallab.production.tq_worker import TaskQualityLiveWorker
 from evallab.registry import task_directory_digest
 
 NOW = datetime(2026, 10, 24, 17, 0, tzinfo=UTC)

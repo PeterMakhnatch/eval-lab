@@ -2616,8 +2616,6 @@ def test_a_card_without_fired_flags_has_no_playbook_and_the_option_can_be_turned
     with MisalignmentLiveWorker(emit=off.append, alert_playbook_cards=0) as worker:
         worker.ingest_event(_event(_step(1, "git log --oneline")))
     assert all("playbook" not in e["payload"] for e in _of_type(off, "monitor.suspicion"))
-    with pytest.raises(ValueError, match="nonnegative"):
-        MisalignmentLiveWorker(stage2_playbook_cards=-1)
 
 
 def test_cumulative_snapshots_and_streamed_steps_give_the_same_playbook() -> None:
@@ -2636,73 +2634,6 @@ def test_cumulative_snapshots_and_streamed_steps_give_the_same_playbook() -> Non
     (live,) = _suspicions(streamed, "prefilter:git_history")
     (replayed,) = _suspicions(snapshot, "prefilter:git_history")
     assert live["playbook"] == replayed["playbook"]
-
-
-def _flagged_run(
-    *, stage2_cards: int, reasoning: str
-) -> tuple[list[dict[str, Any]], list[list[dict[str, str]]]]:
-    seen: list[list[dict[str, str]]] = []
-
-    def judge(messages: list[dict[str, str]]) -> tuple[dict[str, Any], float]:
-        seen.append(messages)
-        return _neither(messages)
-
-    emitted: list[dict[str, Any]] = []
-    with MisalignmentLiveWorker(
-        emit=emitted.append, judge=judge, stage2_playbook_cards=stage2_cards
-    ) as worker:
-        worker.ingest_event(_event(_step(1, "git log --oneline", reasoning_content=reasoning)))
-        for number in range(2, 8):
-            worker.ingest_event(_event(_step(number, f"echo step-{number}")))
-    return emitted, seen
-
-
-def test_stage_two_playbook_is_optional_and_never_touches_the_window() -> None:
-    reasoning = "r" * 2300
-    plain_events, plain = _flagged_run(stage2_cards=0, reasoning=reasoning)
-    boosted_events, boosted = _flagged_run(stage2_cards=1, reasoning=reasoning)
-    plain_body = json.loads(plain[0][-1]["content"])
-    boosted_body = json.loads(boosted[0][-1]["content"])
-    assert "playbook_cards" not in plain_body
-    assert [c["card_id"] for c in boosted_body["playbook_cards"]] == ["TW02"]
-    # The anchor reasoning is shown in full and the window is byte-identical either way.
-    assert boosted_body["actions"] == plain_body["actions"]
-    assert len(boosted_body["actions"][0]["reasoning"]) == len(reasoning)
-    assert "playbook_cards" in boosted[0][0]["content"]
-    assert "playbook_cards" not in plain[0][0]["content"]
-    done = [
-        e["payload"]
-        for e in _of_type(boosted_events, "monitor.suspicion")
-        if e["payload"].get("semantic_triage") == "completed"
-    ]
-    assert done and done[0]["cascade"]["playbook_cards"] == ["TW02"]
-    assert all(
-        e["payload"]["cascade"]["playbook_cards"] == []
-        for e in _of_type(plain_events, "monitor.suspicion")
-        if e["payload"].get("semantic_triage") == "completed"
-    )
-
-
-def test_restart_keeps_the_playbook_for_pending_stage_two_work() -> None:
-    journal = _Journal([_event(steps=[_step(1, "git log --oneline"), _step(2)])])
-    first = MisalignmentLiveWorker(emit=journal.append_event, judge=_neither)
-    try:
-        first.consume(journal)
-        crash_snapshot = copy.deepcopy(journal.events)
-    finally:
-        first.close()
-    recovered = _Journal(crash_snapshot)
-    judged: list[dict[str, Any]] = []
-
-    def resumed(messages: list[dict[str, str]]) -> tuple[dict[str, Any], float]:
-        judged.append(json.loads(messages[-1]["content"]))
-        return _neither(messages)
-
-    with MisalignmentLiveWorker(
-        emit=recovered.append_event, judge=resumed, stage2_playbook_cards=1
-    ) as restored:
-        restored.recover(recovered)
-    assert judged and all([c["card_id"] for c in d["playbook_cards"]] == ["TW02"] for d in judged)
 
 
 # -- T1-LIVE-FIX: finished runs leave memory -------------------------------------------

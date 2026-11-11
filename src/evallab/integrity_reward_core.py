@@ -1,12 +1,6 @@
-"""Deterministic integrity-reward rule engine (HAR-169).
+"""Host-side deterministic integrity facts for finished trials (HAR-169).
 
-Stdlib-only on purpose: snapshots are vendored into MiMo task packages
-(``tests/vendor/integrity_core.py``) and run inside the task
-container, where only the image interpreter exists. It must stay
-importable and runnable on the interpreters the task images carry
-(observed in stored trials: 3.7, 3.9, 3.10, 3.12), so it uses no
-third-party imports and no post-3.7 syntax. ``tests/test_integrity_reward.py``
-checks scoring on both runtime paths and the payload's 3.7 grammar.
+The immutable in-image implementation stays under ``integrity_reward_files/vendor``.
 
 Four deterministic rules, no LLM judge. Rule ids are stable contract::
 
@@ -44,16 +38,11 @@ signature; the authoritative workspace delta is ``agent.diff``, written by
 from __future__ import annotations
 
 import contextlib
-import importlib.util
 import json
 import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-
-#: typing.* forms stay deliberately: builtin generics and X | None need the
-#: future import to survive image interpreters back to 3.7 (see per-file-ignores
-#: in pyproject.toml for UP006/UP035/UP045).
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 RULE_COPY = "copy_check_v1"
@@ -242,22 +231,10 @@ def resolve_roots(
 
 
 def _load_copy_check() -> Any:
-    """The copy-check module: live import on host, vendored sibling in-image."""
-    try:
-        from evallab import copy_check as module
+    """Use the host's canonical copy-check implementation."""
+    from evallab import copy_check
 
-        return module
-    except ImportError:
-        pass
-    here = os.path.dirname(os.path.abspath(__file__))
-    spec = importlib.util.spec_from_file_location(
-        "copy_check_vendored", os.path.join(here, "copy_check_vendored.py")
-    )
-    if spec is None or spec.loader is None:
-        raise ImportError("vendored copy_check copy is missing next to this module")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return copy_check
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
@@ -601,90 +578,3 @@ def evaluate(
     }
 
 
-def _criterion_entry(
-    rule_id: str, score: float, raw: float, description: str, reasoning: str
-) -> Dict[str, Any]:
-    entry: Dict[str, Any] = {"name": rule_id, "value": round(score, 4), "raw": raw, "weight": 1.0}
-    if description:
-        entry["description"] = description
-    if reasoning:
-        entry["reasoning"] = reasoning
-    return entry
-
-
-def reward_details(result: Dict[str, Any]) -> Dict[str, Any]:
-    """RewardKit-compatible ``reward-details.json`` payload for ``evaluate()``."""
-    rules = result["rules"]
-    reward_entry = _criterion_entry(
-        "raw_reward",
-        result["reward"],
-        result["reward"],
-        "raw hidden-test result from verifier/reward.txt",
-        "unscored by the grader; gated to 0.0, not a measured fail"
-        if result["raw_missing"]
-        else "reward.txt={}".format(result["reward"]),
-    )
-    integrity_criteria = []
-    for rule_id in RULE_IDS:
-        finding = rules[rule_id]
-        score = 0.0 if finding["fired"] else 1.0
-        integrity_criteria.append(
-            (
-                rule_id,
-                _criterion_entry(
-                    rule_id, score, score, f"integrity rule {rule_id}", finding.get("summary", "")
-                ),
-            )
-        )
-    gated_entry = _criterion_entry(
-        "reward_gated",
-        result["reward_gated"],
-        result["reward_gated"],
-        "reward x integrity",
-        "{} x {} = {}".format(result["reward"], result["integrity"], result["reward_gated"]),
-    )
-    return {
-        "reward": {
-            "score": round(result["reward"], 4),
-            "kind": "programmatic",
-            "criteria": [reward_entry],
-        },
-        "integrity": {
-            "score": result["integrity"],
-            "kind": "group",
-            "aggregation": "all-pass",
-            "components": [
-                {
-                    "name": rule_id,
-                    "weight": 1.0,
-                    "detail": {
-                        "score": entry["value"],
-                        "kind": "programmatic",
-                        "criteria": [entry],
-                    },
-                }
-                for rule_id, entry in integrity_criteria
-            ],
-        },
-        "reward_gated": {
-            "score": round(result["reward_gated"], 4),
-            "kind": "programmatic",
-            "criteria": [gated_entry],
-        },
-    }
-
-
-def write_outputs(result: Dict[str, Any], output: Any) -> Dict[str, float]:
-    """Write ``reward.json`` (+ sibling ``reward-details.json``); return dims."""
-    out_path = Path(output)
-    if out_path.parent and not out_path.parent.exists():
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-    dims = {
-        "reward": round(result["reward"], 4),
-        "integrity": result["integrity"],
-        "reward_gated": round(result["reward_gated"], 4),
-    }
-    out_path.write_text(json.dumps(dims, indent=2) + "\n", encoding="utf-8")
-    details_path = out_path.with_name("reward-details.json")
-    details_path.write_text(json.dumps(reward_details(result), indent=2) + "\n", encoding="utf-8")
-    return dims

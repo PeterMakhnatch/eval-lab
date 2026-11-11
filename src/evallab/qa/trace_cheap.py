@@ -19,11 +19,7 @@ Pipeline (one trial in, ``qa.finding/v1`` out):
    - *discovery mode* otherwise: the whole hackbook short list.
 3. **Cheap judge** (OpenRouter, structured JSON-schema output + one repair
    retry, cite-the-step-or-abstain enforced in this module).
-4. **Optional escalation** (two-stage cascade): when an ``escalate_judge`` is
-   given, only traces whose stage-1 answer is flagged or ambiguous
-   (:func:`escalation_reason`) are re-judged on the same prompt; its answer is
-   final. ``escalation_reason`` is reported even without a second stage.
-5. One ``qa.finding/v1`` finding stating the mode, with step citations.
+4. One ``qa.finding/v1`` finding stating the mode, with step citations.
 
 Measured on ``qa-trace-sft-v0`` (see that dataset's README) and in
 ``research/experiments/oq3-discovery-cascade``. A ``confirmation``,
@@ -482,8 +478,6 @@ def run_trace_cheap(
     offline: bool = False,
     propose: bool = False,
     retriever: CloudTraceRetriever | None = None,
-    escalate_judge: JudgeFn | None = None,
-    escalate_model: str | None = None,
 ) -> dict[str, Any]:
     """Full pipeline for one trial; returns ``{finding, mode, ...}`` (no writes).
 
@@ -492,8 +486,7 @@ def run_trace_cheap(
     short-list discovery. ``propose=True`` instead turns every lead (matcher,
     tripwire hackbook hits, ``retriever`` analogues) into a proposed candidate
     list; it is opt-in because OQ-3 measured no net gain (see
-    ``research/experiments/oq3-discovery-cascade``). An escalation stage runs
-    when ``escalate_judge`` (or ``escalate_model``) is given.
+    ``research/experiments/oq3-discovery-cascade``).
     """
     steps, traj = load_steps(Path(target))
     actions = actions_only(steps)
@@ -518,8 +511,6 @@ def run_trace_cheap(
 
     calls: list[dict[str, Any]] = []
     abstained, cost, pred, reason = False, 0.0, None, None
-    stage2: dict[str, Any] | None = None
-    final_model = model
     if not offline:
         judge = judge or openrouter_judge(model, receipts=calls)
         inp: dict[str, Any] = {
@@ -537,14 +528,6 @@ def run_trace_cheap(
         ]
         pred, cost, abstained = _judged(judge, messages, actions)
         reason = escalation_reason(pred, abstained, prefilter)
-        if escalate_judge is None and escalate_model:
-            escalate_judge = openrouter_judge(escalate_model, receipts=calls)
-        if reason and escalate_judge is not None:
-            stage1 = {"label": pred["label"] if pred else None, "cost_usd": round(cost, 6)}
-            pred, cost2, abstained = _judged(escalate_judge, messages, actions)
-            cost += cost2
-            final_model = escalate_model or "escalation-judge"
-            stage2 = {"reason": reason, "stage1": stage1, "model": final_model}
 
     label = pred["label"] if pred else "neither"
     mechanism = pred.get("mechanism") if pred else None
@@ -561,7 +544,6 @@ def run_trace_cheap(
     summary = (
         f"trace-cheap[{mode}]: {label}"
         + (f" mechanism={mechanism}" if mechanism else "")
-        + (f" (escalated: {stage2['reason']})" if stage2 else "")
         + (" (cite-or-abstain: forced neither)" if abstained else "")
         + (" (offline: judge not run)" if offline else "")
         + f"; tripwires fired={prefilter['fired'] or 'none'}; "
@@ -576,7 +558,7 @@ def run_trace_cheap(
         fault=fault,  # type: ignore[arg-type]
         summary=summary,
         evidence_refs=[f"step:{n}" for n in cited],
-        reviewer={"agent": "qa-trace-cheap", "model": final_model, "cost_usd": round(cost, 6)},
+        reviewer={"agent": "qa-trace-cheap", "model": model, "cost_usd": round(cost, 6)},
         root_cause=[str(mechanism)] if mechanism else [],
     )
     return {
@@ -590,7 +572,6 @@ def run_trace_cheap(
         "judge_label": label,
         "abstained_forced": abstained,
         "escalation_reason": reason,
-        "escalation": stage2,
         "judge_calls": calls,
         "cost_usd": round(cost, 6),
         "trajectory": str(traj),
@@ -598,15 +579,7 @@ def run_trace_cheap(
 
 
 def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
-    retriever = None
-    if args.retrieval_db and not args.propose:
-        print("error: evallab qa trace-cheap: --retrieval-db requires --propose", file=sys.stderr)
-        return 2
     try:
-        if args.retrieval_db:
-            from evallab.production.cloud_trace_db import CloudTraceDatabase, CloudTraceRetriever
-
-            retriever = CloudTraceRetriever(CloudTraceDatabase(args.retrieval_db, read_only=True))
         result = run_trace_cheap(
             args.target,
             model=args.model,
@@ -614,9 +587,6 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
             task_id=args.task_id,
             root=root,
             offline=args.offline,
-            propose=args.propose,
-            retriever=retriever,
-            escalate_model=args.escalate_model,
         )
     except (OSError, ValueError) as exc:
         print(f"error: evallab qa trace-cheap: {exc}", file=sys.stderr)
@@ -629,7 +599,6 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
         "judge_label": result["judge_label"],
         "abstained_forced": result["abstained_forced"],
         "escalation_reason": result["escalation_reason"],
-        "escalation": result["escalation"],
         "judge_calls": result["judge_calls"],
         "cost_usd": result["cost_usd"],
         "finding": result["finding"].model_dump(by_alias=True),
@@ -647,8 +616,7 @@ def add_trace_cheap_commands(sub: Any) -> None:
     """Register ``trace-cheap`` under ``evallab qa``."""
     p = sub.add_parser(
         "trace-cheap",
-        help="Cheap-model trace QA: tripwires -> hackbook candidate (or --propose leads) "
-        "-> cheap judge [-> escalation] (qa.finding/v1)",
+        help="Cheap-model trace QA: tripwires -> hackbook candidate -> cheap judge (qa.finding/v1)",
     )
     p.add_argument("target", type=Path, help="Trial dir, or its agent/trajectory.json")
     p.add_argument("--model", default=DEFAULT_MODEL, help="OpenRouter model id")
@@ -656,23 +624,6 @@ def add_trace_cheap_commands(sub: Any) -> None:
         "--task-dir", type=Path, default=None, help="Task package (hackbook task gating)"
     )
     p.add_argument("--task-id", default=None, help="Subject task id (default: trial dir name)")
-    p.add_argument(
-        "--propose",
-        action="store_true",
-        help="Judge a proposed list of leads (hackbook matches, tripwire hackbook hits, "
-        "--retrieval-db analogues) instead of confirming the top match; measured in OQ-3",
-    )
-    p.add_argument(
-        "--retrieval-db",
-        default=None,
-        help="With --propose: Cloud Trace DB (SQLite path or URL) for DEV analogues; "
-        "the target task is excluded. Use a snapshot: opening initializes the schema.",
-    )
-    p.add_argument(
-        "--escalate-model",
-        default=None,
-        help="OpenRouter model that re-judges flagged or ambiguous stage-1 answers",
-    )
     p.add_argument("--out", type=Path, default=None, help="Write the finding JSON here")
     p.add_argument(
         "--offline", action="store_true", help="No judge call: prefilter + candidates only"

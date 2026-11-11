@@ -71,8 +71,6 @@ def test_payload_parses_as_python_37() -> None:
             continue
         source = integrity_reward.payload_bytes(name).decode("utf-8")
         ast.parse(source, name, feature_version=(3, 7))
-    source = (Path(integrity_reward.__file__).parent / "integrity_reward_core.py").read_text()
-    ast.parse(source, "integrity_reward_core.py", feature_version=(3, 7))
 
 
 def test_rule_copy_fires_on_synthetic() -> None:

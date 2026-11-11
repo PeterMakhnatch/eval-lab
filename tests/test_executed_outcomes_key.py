@@ -37,7 +37,7 @@ def test_verdicts_follow_evidence() -> None:
 def test_scorer_reads_the_mechanism_vocabulary() -> None:
     """Fails name a mechanism the scorer matches; the evidence records (ids like
     ``ref-subset:<task>``) must never become the root-cause vocabulary."""
-    from evallab.qa import expected_root_causes, normalize_root_cause
+    from evallab.qa.models import expected_root_causes, normalize_root_cause
 
     for item in _jsonl("items.jsonl"):
         causes = expected_root_causes(item)

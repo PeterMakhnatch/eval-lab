@@ -52,7 +52,7 @@ Directory under `research/answer-keys/<key_id>/`:
 
 ### Root-cause vocabulary
 
-`evallab.qa.expected_root_causes(item)` turns each key's labels into a set
+`evallab.qa.models.expected_root_causes(item)` turns each key's labels into a set
 of ids; ids compare after normalization (lowercase, every run of
 non-alphanumerics becomes `_`, so `Proxy-check too weak` equals
 `proxy_check_too_weak`). The first non-empty source wins:

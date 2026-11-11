@@ -522,6 +522,16 @@ def repeat_count_table(root: Path) -> None:
     page.write_text(text[: table.end()] + table.group() + text[table.end() :], encoding="utf-8")
 
 
+def move_other_bytes_sentence(root: Path) -> None:
+    """Move the other-bytes sentence out of the counts section, to the end of the page."""
+    page = root / MODULE["FLEET_README"]
+    text = page.read_text(encoding="utf-8")
+    sentence = re.search(MODULE["OTHER_BYTES"], text)
+    assert sentence is not None
+    remainder = text[: sentence.start()] + text[sentence.end() :]
+    page.write_text(f"{remainder}\n{sentence.group()}\n", encoding="utf-8")
+
+
 FLEET_README = MODULE["FLEET_README"]
 ROUTE = MODULE["ROUTE_PAGE"]
 
@@ -552,17 +562,22 @@ DOC_REFUSALS: list[tuple[str, Callable[[Path], None], str]] = [
     (
         "missing-other-bytes-sentence",
         change(FLEET_README, "ran other bytes.", "ran elsewhere."),
-        "other-bytes sentence', found 0",
+        "one 'other-bytes sentence', found 0",
     ),
     (
+        # Outside the counts section, where a section-only match would leave it stale.
         "repeated-other-bytes-sentence",
-        change(
+        append_text(
             FLEET_README,
-            "\n83 ran other bytes.\n",
-            "\n83 ran other bytes. Of the 1 fleet tasks with a ranked cell, 1 ran the "
-            "fleet digest and 1 - 1 = 0 ran other bytes.\n",
+            "\nOf the 98 fleet tasks with a ranked cell, 15 ran the fleet digest and "
+            "98 - 15 = 83 ran other bytes.\n",
         ),
         "other-bytes sentence', found 2",
+    ),
+    (
+        "other-bytes-sentence-outside-counts-section",
+        move_other_bytes_sentence,
+        f"{COUNTS_HEADING} other-bytes sentence', found 0",
     ),
     (
         "missing-route-sentence",
@@ -623,5 +638,5 @@ def test_every_join_error_needs_a_refusal_case() -> None:
     assert len({message for _, _, message in REFUSALS}) == len(REFUSALS)
     # A missing page, and one anchor check that every missing or repeated anchor hits.
     assert sum(sites[name] for name in documentation) == 2
-    assert len(DOC_REFUSALS) == 9
+    assert len(DOC_REFUSALS) == 10
     assert len({message for _, _, message in DOC_REFUSALS}) == len(DOC_REFUSALS)

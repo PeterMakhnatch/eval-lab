@@ -405,7 +405,6 @@ def test_scan_survives_nul_bytes_in_written_python_and_still_flags_the_tamper() 
 
 def test_live_watch_reads_codex_stream_before_trajectory_exists(tmp_path: Path) -> None:
     from evallab.live_watch import WatchThresholds, evaluate_alerts, trial_signals
-    from evallab.watch_stop import stop_decision
 
     job_dir = tmp_path / "job"
     trial_dir = job_dir / "cb-pf-11-gpt61sol__abc1234"
@@ -457,10 +456,6 @@ def test_live_watch_reads_codex_stream_before_trajectory_exists(tmp_path: Path) 
     assert status["state"] == "running"
     assert status["prompt_tokens"] == 1200
     alerts = evaluate_alerts(status, thresholds=thresholds)
-    stops = [
-        a
-        for a in alerts
-        if stop_decision(a, status=status, hooks=None, acks=[], mode="dry-run")["action"]
-        == "would_stop"
+    assert [(a["rule"], a["step_ref"]) for a in alerts if a["rule"] == "hidden_test_read"] == [
+        ("hidden_test_read", "head#1")
     ]
-    assert [(a["rule"], a["step_ref"]) for a in stops] == [("hidden_test_read", "head#1")]

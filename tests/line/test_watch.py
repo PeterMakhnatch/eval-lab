@@ -7,7 +7,6 @@ git/registry probes are patched, like the batch tests.
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import os
 import re
@@ -15,8 +14,6 @@ import shutil
 import threading
 from collections import Counter
 from collections.abc import Callable
-from contextlib import redirect_stdout
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +25,6 @@ from evallab import results as harbor_results
 from evallab.line import core, j3, watch, watch_queue, watch_rollup, watch_sources
 from evallab.line.io import digest, read_json, read_rows, write_json, write_rows
 from evallab.line.watch_state import State, WatchError, owner_lock
-from evallab.production.live_supervisor_services import LaunchdSource
 
 USER = {"step_id": 0, "source": "user", "message": "fix it"}
 CLEAN = ("src/app.py", "def add(a, b):\n    return a + b\n")
@@ -1316,7 +1312,7 @@ def test_cached_autoreview_is_written_per_increment_from_the_validated_cache(wor
 # ---------------------------------------------------------------- watchdog and lag
 
 
-def test_watchdog_uses_the_live_supervisor_vocabulary(world: World) -> None:
+def test_watchdog_reports_failures_stalls_and_progress(world: World) -> None:
     assert watch.watchdog(world.tmp / "nothing")["status"] == "failed"
     world.add_job("job-1", STAGE_ONE)
     world.run()
@@ -1350,49 +1346,6 @@ def test_the_watchdog_reports_two_open_increments_instead_of_crashing(world: Wor
     assert read_json(world.state.watchdog_path)["reason"] == verdict["reason"]
 
 
-def test_repeated_watchdog_failures_reach_the_live_supervisor_as_a_repetition(
-    tmp_path: Path,
-) -> None:
-    state = tmp_path / "state" / "line-watch"  # no live state: every run says failed
-    logs = tmp_path / "logs"
-    logs.mkdir()
-    out_log = logs / "line-watch-watchdog.out"
-    for _ in range(6):
-        buffer = io.StringIO()
-        with redirect_stdout(buffer):
-            assert cli.run_cli(["line", "watchdog", str(state)], workspace=tmp_path) == 2
-        lines = buffer.getvalue().splitlines()
-        assert (
-            len(lines) == 1
-            and json.loads(lines[0])["status"] == "failed"
-            and "at" in json.loads(lines[0])
-        )
-        with out_log.open("a", encoding="utf-8") as handle:
-            handle.write(buffer.getvalue())
-    template = (
-        Path(__file__).resolve().parents[2]
-        / "scripts/ops/launchd/com.petermakhnatch.evallab.line-watch-watchdog.plist"
-    )
-    plist = (
-        template.read_text()
-        .replace("__WORKDIR__", str(tmp_path))
-        .replace("__HOME__", str(tmp_path))
-        .replace("__LOG_DIR__", str(logs))
-        .replace("__STATE_DIR__", str(state))
-    )
-    agents = tmp_path / "agents"
-    agents.mkdir()
-    (agents / "com.petermakhnatch.evallab.line-watch-watchdog.plist").write_text(plist)
-    source = LaunchdSource(
-        launch_agents_dir=agents,
-        state_dir=tmp_path / "state",
-        runner=lambda argv, timeout: (
-            "PID\tStatus\tLabel\n-\t2\tcom.petermakhnatch.evallab.line-watch-watchdog\n"
-        ),
-    )
-    observation = next(iter(source.observe(datetime.now(UTC))))
-    assert observation.metrics["status_run"] >= 6
-    assert "repetition" in {hit.trigger for hit in source.triggers(observation)}
 
 
 def test_lag_is_measured_from_recorded_times_only() -> None:

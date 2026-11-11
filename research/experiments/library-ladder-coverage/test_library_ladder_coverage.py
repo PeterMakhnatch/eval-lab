@@ -9,7 +9,8 @@ newest source, digest freshness comes from evallab's own package digest, and
 every `research/evidence/ladder-v*/cells.json` either reaches the matrix
 through the glob or fails the build. For `gaps.csv` they pin the derived
 contract: one row per `verdict=none` cell, each of the three `reason` values,
-and the `superseded_by` rule.
+and the `superseded_by` rule. `main --check` compares committed bytes, so a
+stale row or a CRLF rewrite of either table exits 1.
 """
 
 from __future__ import annotations
@@ -339,3 +340,48 @@ def test_an_unreadable_ladder_ledger_is_refused_not_skipped(tmp_path: Path) -> N
     ]
     with pytest.raises(MODULE["CoverageError"], match="ladder-v9-mystery"):
         MODULE["require_read_ledgers"](tmp_path, cells)
+
+
+def _copy_tables(out_dir: Path) -> None:
+    for name in ("coverage.csv", "gaps.csv"):
+        (out_dir / name).write_bytes((EXPERIMENT / name).read_bytes())
+
+
+def test_check_exits_zero_on_the_committed_tree(capsys: pytest.CaptureFixture[str]) -> None:
+    # --check only reads, so the committed directory itself is safe to point at.
+    assert MODULE["main"](["--check"]) == 0
+    out = capsys.readouterr().out
+    assert "coverage.csv: reproduces" in out
+    assert "gaps.csv: reproduces" in out
+
+
+def test_check_exits_zero_on_an_exact_copy(tmp_path: Path) -> None:
+    _copy_tables(tmp_path)
+    assert MODULE["main"](["--check"], out_dir=tmp_path) == 0
+
+
+@pytest.mark.parametrize("name", ["coverage.csv", "gaps.csv"])
+def test_check_exits_one_on_a_stale_table(
+    tmp_path: Path, name: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _copy_tables(tmp_path)
+    lines = (tmp_path / name).read_bytes().splitlines(keepends=True)
+    assert len(lines) > 1, f"{name} needs a data row to drop"
+    (tmp_path / name).write_bytes(b"".join(lines[:-1]))
+    assert MODULE["main"](["--check"], out_dir=tmp_path) == 1
+    err = capsys.readouterr().err
+    assert f"{name}: stale" in err
+    assert lines[-1].decode("utf-8").rstrip("\n") in err  # the diff names the dropped row
+
+
+@pytest.mark.parametrize("name", ["coverage.csv", "gaps.csv"])
+@pytest.mark.parametrize(
+    "count",
+    [pytest.param(-1, id="crlf"), pytest.param(1, id="one-stray-cr")],
+)
+def test_check_exits_one_on_carriage_return_drift(tmp_path: Path, name: str, count: int) -> None:
+    # Text-mode reads fold CRLF to LF; the check must see the bytes on disk.
+    _copy_tables(tmp_path)
+    target = tmp_path / name
+    target.write_bytes(target.read_bytes().replace(b"\n", b"\r\n", count))
+    assert MODULE["main"](["--check"], out_dir=tmp_path) == 1

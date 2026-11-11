@@ -3477,6 +3477,20 @@ def test_ladder_progress_check_fails_when_a_committed_verdict_is_edited(
     assert MODULE.main(["--check"]) == 0
 
 
+@pytest.mark.parametrize(
+    "count",
+    [pytest.param(-1, id="crlf"), pytest.param(1, id="one-stray-cr")],
+)
+def test_ladder_progress_check_fails_on_carriage_return_drift(sandbox: Path, count: int) -> None:
+    # Text-mode reads fold CRLF to LF; --check must compare the bytes on disk.
+    table = sandbox / "ladder-progress.csv"
+    data = table.read_bytes()
+    table.write_bytes(data.replace(b"\n", b"\r\n", count))
+    assert MODULE.main(["--check"]) == 1
+    table.write_bytes(data)  # the exact committed bytes pass again
+    assert MODULE.main(["--check"]) == 0
+
+
 def test_ladder_progress_summary_prints_the_table_without_writing_the_csv(
     sandbox: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

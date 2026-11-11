@@ -45,10 +45,6 @@ from urllib.parse import urlsplit
 import pytest
 
 from evallab import runner as runner_module
-from evallab.credentials import (
-    MIMO_SELFHOSTED_API_CREDENTIAL,
-    missing_credential_for,
-)
 from evallab.execution_contracts import (
     MIMO_SELFHOSTED_CONTEXT_TOKENS,
     MIMO_SELFHOSTED_MODEL_SELECTOR,
@@ -60,6 +56,10 @@ from evallab.execution_contracts import (
     mimo_selfhosted_trial_cost_usd,
     parse_mimo_selfhosted_model,
     validate_request,
+)
+from evallab.profiles import (
+    MIMO_SELFHOSTED_API_CREDENTIAL,
+    missing_credential_for,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1427,7 +1427,7 @@ def test_mimo_route_requires_mimo_credential() -> None:
 
 
 def test_mimo_probe_requires_key_and_upstream() -> None:
-    from evallab.credentials import probe_mimo_selfhosted_api_result
+    from evallab.profiles import probe_mimo_selfhosted_api_result
 
     assert probe_mimo_selfhosted_api_result({}).ok is False
     assert probe_mimo_selfhosted_api_result({"MIMO_SELFHOSTED_API_KEY": "k"}).ok is False

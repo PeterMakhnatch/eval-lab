@@ -39,10 +39,6 @@ from typing import Any
 import pytest
 
 from evallab import runner as runner_module
-from evallab.credentials import (
-    TINKER_API_CREDENTIAL,
-    missing_credential_for,
-)
 from evallab.execution_contracts import (
     TERMINUS_PROXY_URL_ENV,
     TINKER_PROXY_CAPABILITY_ENV,
@@ -51,6 +47,10 @@ from evallab.execution_contracts import (
     is_tinker_terminus_model,
     parse_tinker_model,
     validate_request,
+)
+from evallab.profiles import (
+    TINKER_API_CREDENTIAL,
+    missing_credential_for,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

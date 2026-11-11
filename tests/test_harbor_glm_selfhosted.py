@@ -25,13 +25,6 @@ from typing import Any
 
 import pytest
 
-from evallab.credentials import (
-    DEFAULT_PROFILE_FOR_ADAPTER,
-    GLM_SELFHOSTED_API_CREDENTIAL,
-    available_credentials,
-    missing_credential_for,
-    probe_glm_selfhosted_api,
-)
 from evallab.execution_contracts import (
     DEEPSEEK_MODEL_SELECTOR,
     GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
@@ -52,9 +45,14 @@ from evallab.execution_contracts import (
     subscription_environment,
 )
 from evallab.profiles import (
+    DEFAULT_PROFILE_FOR_ADAPTER,
+    GLM_SELFHOSTED_API_CREDENTIAL,
     AgentProfile,
     ProfileLimits,
+    available_credentials,
     builtin_profiles,
+    missing_credential_for,
+    probe_glm_selfhosted_api,
 )
 
 SECRET_SENTINEL = "test-glm-selfhosted-secret-key-67890"

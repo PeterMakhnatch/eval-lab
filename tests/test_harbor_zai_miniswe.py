@@ -31,12 +31,6 @@ import pytest
 
 from evallab.benchmark_program_contracts import SyntheticFamilyType
 from evallab.campaigns import CampaignDefinitionAttempt, TrialLimits
-from evallab.credentials import (
-    ZAI_OPENAPI_API_CREDENTIAL,
-    available_credentials,
-    missing_credential_for,
-    probe_zai_openapi_api,
-)
 from evallab.execution_contracts import (
     DEEPSEEK_MODEL_SELECTOR,
     MAX_TRIAL_TIMEOUT_SECONDS,
@@ -55,8 +49,12 @@ from evallab.execution_contracts import (
 )
 from evallab.gepa_optimizer.evaluator import DEEPSEEK_TARGET_AGENT
 from evallab.profiles import (
+    ZAI_OPENAPI_API_CREDENTIAL,
     AgentProfile,
+    available_credentials,
     builtin_profiles,
+    missing_credential_for,
+    probe_zai_openapi_api,
 )
 from evallab.runner import preflight_request, profile_for_request
 from evallab.schemas import ExperimentSpec

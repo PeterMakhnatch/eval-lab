@@ -11,7 +11,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
 
-from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
+from evallab.profiles import CLAUDE_OAUTH, CODEX_AUTH
 from evallab.queue import (
     QUEUE_STATES,
     DirectoryQueue,

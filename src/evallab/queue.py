@@ -29,11 +29,6 @@ from evallab.campaign_execution import (
     docker_task_resources,
     qualification_matches_request,
 )
-from evallab.credentials import (
-    DEFAULT_AGENT_MODELS,
-    available_credentials,
-    missing_credential_for,
-)
 from evallab.dispatch_guards import (
     DAYTONA_FALLBACK_ALLOWANCE,
     DAYTONA_REASON_CLAMPED,
@@ -83,6 +78,11 @@ from evallab.interpretation.trajectory_compliance import (
     evaluate_trial_compliance,
 )
 from evallab.job_diff import DiffPreview, preview_diff, render_diff
+from evallab.profiles import (
+    DEFAULT_AGENT_MODELS,
+    available_credentials,
+    missing_credential_for,
+)
 
 if TYPE_CHECKING:
     from evallab.modal_ops import ModalTeardownHook

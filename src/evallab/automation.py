@@ -17,8 +17,8 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Literal
 
-from evallab import credentials as credentials_module
 from evallab import database
+from evallab import profiles as profiles_module
 from evallab.canary import load_canary_suite
 from evallab.digest import DigestRenderer, commit_digest
 from evallab.evidence.atif import IngestProjectionResult
@@ -45,7 +45,7 @@ from evallab.storage.paths import DERIVED_ROOT_ENV, derived_root_from_environmen
 
 MIN_FREE_DISK_BYTES = 5 * 1024**3
 MIN_FREE_DISK_FRACTION = 0.05
-KEYCHAIN_SERVICE = credentials_module.KEYCHAIN_SERVICE
+KEYCHAIN_SERVICE = profiles_module.KEYCHAIN_SERVICE
 
 BooleanProbe = Callable[[], bool]
 LaunchctlRunner = Callable[[list[str], bool], subprocess.CompletedProcess[str]]
@@ -980,7 +980,7 @@ class HeadlessDoctor:
         )
 
     def _probe_keychain(self) -> bool:
-        return credentials_module.probe_claude_keychain()
+        return profiles_module.probe_claude_keychain()
 
     def _probe_docker(self) -> bool:
         checks = {name: ok for name, ok, _ in self.executor.local_runtime_checks()}

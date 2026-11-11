@@ -14,7 +14,7 @@ import pytest
 
 import evallab.queue as queue_module
 from evallab import eventlog
-from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
+from evallab.profiles import CLAUDE_OAUTH, CODEX_AUTH
 from evallab.queue import (
     DirectoryQueue,
     DispatchCapacity,

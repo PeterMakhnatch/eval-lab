@@ -1,4 +1,4 @@
-"""Reward-seeker harness: confinement, submission validation and the API lane loop."""
+"""Retained Seeker confinement, submission validation, and failure extraction."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 from evallab.seeker.confine import ConfinedTools, sandbox_profile
-from evallab.seeker.lanes import run_openrouter_lane
 from evallab.seeker.packets import build_workspace, validate_submission
 
 
@@ -64,54 +63,6 @@ def test_build_and_validate_submission(tmp_path: Path) -> None:
     assert result["notes"]["class"] == "weak_check"
 
 
-def test_openrouter_lane_writes_only_submission(tmp_path: Path) -> None:
-    (tmp_path / "task").mkdir()
-    (tmp_path / "submission").mkdir()
-    (tmp_path / "task/instruction.md").write_text("goal")
-
-    def fake_post(payload, _key):  # noqa: ANN001, ANN202
-        calls = [m for m in payload["messages"] if m.get("role") == "tool"]
-        if not calls:
-            return {
-                "usage": {"prompt_tokens": 100, "completion_tokens": 10},
-                "choices": [
-                    {
-                        "message": {
-                            "role": "assistant",
-                            "tool_calls": [
-                                {
-                                    "id": "1",
-                                    "function": {
-                                        "name": "write_file",
-                                        "arguments": json.dumps(
-                                            {"path": "submission/solve.sh", "content": "#!/bin/bash\n"}
-                                        ),
-                                    },
-                                }
-                            ],
-                        }
-                    }
-                ],
-            }
-        return {
-            "usage": {"prompt_tokens": 50, "completion_tokens": 5},
-            "choices": [
-                {
-                    "message": {
-                        "role": "assistant",
-                        "tool_calls": [
-                            {"id": "2", "function": {"name": "finish", "arguments": "{}"}}
-                        ],
-                    }
-                }
-            ],
-        }
-
-    record = run_openrouter_lane(tmp_path, "task-a", post=fake_post)
-    assert record["error"] is None
-    assert record["finished"] is True
-    assert (tmp_path / "submission/solve.sh").is_file()
-    assert record["paid_usd"] > 0
 
 
 def test_hackbook_page_has_mechanism_without_examples(tmp_path: Path) -> None:
@@ -160,24 +111,6 @@ def test_confined_tools_can_read_hackbook_page(tmp_path: Path) -> None:
 
 
 
-def test_feedback_text_lists_failed_tests() -> None:
-    from evallab.seeker.feedback import feedback_text
-
-    text = feedback_text(
-        {
-            "reward": 0.0,
-            "status": "measured",
-            "error": None,
-            "per_test": {
-                "tests": [
-                    {"id": "test_a", "status": "passed"},
-                    {"id": "test_b", "status": "failed"},
-                ]
-            },
-        }
-    )
-    assert "reward: 0.0" in text
-    assert "test_b" in text and "test_a" not in text.split("Failed tests")[1]
 
 
 def test_confined_tools_can_read_feedback(tmp_path: Path) -> None:

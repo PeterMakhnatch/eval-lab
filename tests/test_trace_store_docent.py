@@ -97,9 +97,3 @@ def test_collection_resolution_never_uses_a_similar_name() -> None:
         {"id": COLLECTION_ID, "name": docent.collection_name(DATASET), "dataset": DATASET},
     ]
     assert client.created == [docent.collection_name(DATASET)]
-
-
-def test_sdk_pin_checked_on_actual_client_loading(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(docent, "version", lambda name: "0.1.87")
-    with pytest.raises(RuntimeError, match="docent==0.1.88"):
-        docent.new_client()

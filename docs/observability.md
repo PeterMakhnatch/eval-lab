@@ -78,7 +78,7 @@ Gold preserves opaque IDs, source positions, raw hashes, and split/exposure fenc
 Missing or unadmitted trajectories fail closed. Null and attempt labels never become binary controls.
 `gold.projection` keeps narration, calls, and output separate, with explicit channel clipping counts.
 The native source parsers, CAS verification, actor confinement, and Laminar quarantine remain.
-The retained Docent reader still requires the pinned client and an owner-only collection.
+The retained Docent reader still requires an owner-only collection.
 
 This source change does not unload services or remove stored data.
 Preserve databases, receipts, runtime snapshots, logs, and all remote evidence.

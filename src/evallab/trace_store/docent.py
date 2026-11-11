@@ -1,41 +1,18 @@
-"""Pinned Docent client and collection privacy guards for retained readers.
+"""Collection privacy guards for the retained Docent reader.
 
 Gold owns local labelled trajectories. Remote replica ingestion is retired.
 """
 
 from __future__ import annotations
 
-import sys
 from collections.abc import Mapping
-from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 from evallab.trace_store.core import ALLOWED_DATASETS
 
-SDK_VERSION = "0.1.88"
-
 
 class DocentPrivacyError(RuntimeError):
     """Collection ownership or its complete owner-only ACL cannot be proven."""
-
-
-def _require_sdk() -> None:
-    try:
-        installed = version("docent")
-    except PackageNotFoundError:
-        raise RuntimeError("Docent trace storage requires optional docent==0.1.88") from None
-    if installed != SDK_VERSION:
-        raise RuntimeError("Docent trace storage requires optional docent==0.1.88")
-
-
-def new_client() -> Any:
-    """Construct only the storage/query client; never schedule readings or a UI."""
-    _require_sdk()
-    from docent import Docent  # ty: ignore[unresolved-import]
-
-    client = Docent(log_stream=sys.stderr)
-    client.auto_flush = False
-    return client
 
 
 def collection_name(dataset: str) -> str:

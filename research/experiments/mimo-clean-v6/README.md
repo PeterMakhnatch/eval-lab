@@ -1311,8 +1311,10 @@ It updates the route page's basis sentence and this page's basis table,
 covered count, signature counts, and summary table. It rewrites the
 evidence-match sentence on the route page and this page, and the
 pending-control sentence on the route page and this page, from the committed
-`ladder-evidence-receipt.json` and `pending-controls.json`. It also updates the
-refusal-rate calculation, refusal counts, refused-row attack counts and task
+`ladder-evidence-receipt.json` and `pending-controls.json`. It also rewrites
+the pending-control table, the held-task clause, the non-Python count and the
+four inventory paragraph counts from that inventory and the ranking. It also
+updates the refusal-rate calculation, refusal counts, refused-row attack counts and task
 IDs, and the graded rows' executed-attack range, histogram, and the unscored
 row's attack count. It generates Python's refusal and graded counts and
 remaining-hours projection. It rewrites the `docs/mimo/verification.md` clause
@@ -1363,7 +1365,8 @@ For a re-run or a new subset cell:
    count, the verification page's clause (c) counts and check date, Python's
    refusal and graded counts, Python's remaining-hours projection, the
    evidence-match and pending-control sentences on the route page and this
-   page, and the evidence-check sentences and totals from the receipt.
+   page, the pending-control table, the held-task clause and the inventory
+   prose counts, and the evidence-check sentences and totals from the receipt.
 6. Review and edit task-specific descriptions and evidence prose affected by
    the new cell manually. Do not edit a generated anchor sentence.
 7. Run `--sync-docs`, then prove that the generated pages did not drift, and run

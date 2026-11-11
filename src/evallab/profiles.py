@@ -753,22 +753,6 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 for model in ("sonnet-5-5", "opus-5-5")
             ),
             AgentProfile(
-                profile_id="gemini-cli-declared",
-                adapter="gemini-cli",
-                model="gemini/declared-unproven",
-                auth_mode="subscription-auth-file",
-                secret_source="file:.gemini/oauth_creds.json",
-                verified_facts=(),  # declared only; no observed run in this lab
-            ),
-            AgentProfile(
-                profile_id="grok-cli-declared",
-                adapter="grok-cli",
-                model="grok/declared-unproven",
-                auth_mode="subscription-auth-file",
-                secret_source="file:.grok/auth.json",
-                verified_facts=(),  # declared only; no observed run in this lab
-            ),
-            AgentProfile(
                 profile_id="zai-opencode-glm-5.3-flash",
                 adapter=ZAI_OPENCODE_AGENT,
                 adapter_version="1.0.0+opencode-1.18.25",
@@ -1365,6 +1349,7 @@ def builtin_profiles() -> dict[str, AgentProfile]:
 #: claude-code is NOT here: its keychain probe is real (observed integration);
 #: what is unproven is its model string, which the qualification ladder
 #: expresses as "credential-ready but never smoke-passed".
+#: Retired built-in profiles remain refused if a caller supplies one explicitly.
 DECLARED_UNAVAILABLE: frozenset[str] = frozenset({"gemini-cli-declared", "grok-cli-declared"})
 
 

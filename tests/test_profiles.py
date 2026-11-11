@@ -13,7 +13,6 @@ from pathlib import Path
 import pytest
 
 from evallab.profiles import (
-    DECLARED_UNAVAILABLE,
     AgentProfile,
     AuthFileProbe,
     CliSessionProbe,
@@ -277,20 +276,25 @@ def test_preflight_auth_failure_stops_with_reason_and_no_reward_field():
     assert not any("reward" in f for f in PreflightDecision.__dataclass_fields__)
 
 
-def test_gemini_and_grok_remain_declared_unavailable(tmp_path: Path):
-    registry = builtin_profiles()
-    assert frozenset({"gemini-cli-declared", "grok-cli-declared"}) == DECLARED_UNAVAILABLE
-    for profile_id in sorted(DECLARED_UNAVAILABLE):
-        probe = default_probe_for(
-            registry[profile_id],
-            home=tmp_path,
-            security_runner=lambda a: 0,
-            keychain_account="acct",
-            clock=lambda: FROZEN_NOW,
-        )
-        decision = preflight(registry[profile_id], probe)
-        assert not decision.proceed
-        assert "not independently proven" in (decision.reason or "")
+@pytest.mark.parametrize("adapter", ["gemini-cli", "grok-cli"])
+def test_explicit_unproven_profiles_remain_refused(tmp_path: Path, adapter: str):
+    profile = AgentProfile(
+        profile_id=f"{adapter}-declared",
+        adapter=adapter,
+        model=f"{adapter}/declared-unproven",
+        auth_mode="subscription-auth-file",
+        secret_source="file:.unproven/auth.json",
+    )
+    probe = default_probe_for(
+        profile,
+        home=tmp_path,
+        security_runner=lambda a: 0,
+        keychain_account="acct",
+        clock=lambda: FROZEN_NOW,
+    )
+    decision = preflight(profile, probe)
+    assert not decision.proceed
+    assert "not independently proven" in (decision.reason or "")
 
 
 def test_claude_uses_real_keychain_probe_not_declared_block(tmp_path: Path):

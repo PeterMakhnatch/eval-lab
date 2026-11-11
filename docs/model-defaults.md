@@ -209,9 +209,8 @@ tripled it (verified: collapsed fallback reproduces 65,398 / 42,747 /
 Alternative (unproven): the Keychain lane — `scripts/with-claude-auth` reads
 `harbor-practice-claude-oauth` into `CLAUDE_CODE_OAUTH_TOKEN` (plus
 `CLAUDE_FORCE_OAUTH=1`); models `anthropic/claude-haiku-5-5` and
-`anthropic/claude-fable-5`. Blocked until Peter mints the token:
-`scripts/claude-token-setup.sh` (browser OAuth, hidden input, never
-printed).
+`anthropic/claude-fable-5`. This lane requires a separately configured Keychain
+credential. The gateway remains the supported route.
 
 ## Defaults by job
 

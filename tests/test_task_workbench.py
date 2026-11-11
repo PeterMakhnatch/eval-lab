@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -471,15 +472,32 @@ def test_verifier_network_resolution_matches_native_harbor(
         document = document.replace("[verifier]", "[verifier]" + verifier)
     config = tomllib.loads(document)
     assert _effective_verifier_network(config)[:2] == expected
-    native = pytest.importorskip("harbor.models.task.config")
-    from harbor.models.task.verifier_mode import resolve_effective_verifier_env_config
-    from harbor.trial.network_policy import resolve_verifier_phase_policy
-
-    task_config = native.TaskConfig.model_validate(config)
-    resolved = resolve_effective_verifier_env_config(task_config, None)
-    baseline = resolved.resolve_baseline()
-    phase = resolve_verifier_phase_policy(task_config, None, baseline=baseline)
-    assert (baseline.network_mode.value, phase.network_mode.value) == expected
+    executable = shutil.which("harbor")
+    interpreter = Path(executable).resolve().parent / "python" if executable else None
+    if interpreter is None or not interpreter.is_file():
+        pytest.skip("Harbor's native interpreter is not installed")
+    # Other suites install Harbor stubs in sys.modules. Use its real interpreter.
+    completed = subprocess.run(
+        [
+            str(interpreter),
+            "-c",
+            "import json, sys, tomllib\n"
+            "from harbor.models.task.config import TaskConfig\n"
+            "from harbor.models.task.verifier_mode import resolve_effective_verifier_env_config\n"
+            "from harbor.trial.network_policy import resolve_verifier_phase_policy\n"
+            "config = TaskConfig.model_validate(tomllib.loads(sys.stdin.read()))\n"
+            "environment = resolve_effective_verifier_env_config(config, None)\n"
+            "baseline = environment.resolve_baseline()\n"
+            "phase = resolve_verifier_phase_policy(config, None, baseline=baseline)\n"
+            "print(json.dumps([baseline.network_mode.value, phase.network_mode.value]))\n",
+        ],
+        input=document,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    assert json.loads(completed.stdout) == list(expected)
 
 
 def test_internal_mcp_bridge_is_accepted_without_certification(task: Path) -> None:

@@ -7,7 +7,7 @@ audience:
 
 # Third-party tools and support
 
-Hand-maintained inventory. Owners and pins are checked against `origin/main` at `992dc5e9a` on November 10, 2026.
+Hand-maintained inventory. Owners and pins are checked against `origin/main` at `05baa34ce` on November 10, 2026.
 CORE means required infrastructure, not complete support. OPTIONAL means replaceable or explicitly selected. DROP means scheduled removal, not removed data.
 Each CORE boundary needs a pin, 1 owner, a contract test, a health check, a failure description, and a recovery path.
 **Unpinned** and **missing** identify open support gaps. An observed version is not a pin.

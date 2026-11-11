@@ -23,6 +23,11 @@ def resolved(rows: dict[str, Any], root: Path) -> dict[str, dict]:
         refs = [ref for ref in ir.source_event_map if ref.event_kind != "artifact"]
         by_source = {ref.source_event_id: ref.normalized_step_id for ref in refs
                      if ref.normalized_step_id in actions and ref.resolution != "unmatched-result"}
+        if row.protocol == "action-v2":
+            by_source.update({str(ref.normalized_step_id): ref.normalized_step_id for ref in refs
+                              if ref.transform_version == "action-v2-atif/v1"
+                              and ref.source_event_id == f"step:{ref.normalized_step_id}"
+                              and ref.normalized_step_id in actions})
         branches = {ref.normalized_step_id: ref.branch_id for ref in refs if ref.event_kind == "call"}
         output[key] = {"actions": actions, "gold": gold, "by_source": by_source, "branches": branches,
                        "by_prepared": {str(step): step for step in actions}}

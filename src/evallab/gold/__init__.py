@@ -9,16 +9,21 @@ from evallab.failure_library.bank import BankContext, IssueBank, IssueItem
 from evallab.trace_anatomy import RefusedRun, load_atif_file
 from evallab.trajectory_ir import TrajectoryIR, build_trajectory_ir
 
-SOURCES = ("goodfire-action-v1", "impossible-task-final")
+SOURCES = ("goodfire-action-v1", "impossible-task-final", "goodfire-action-v2",
+           "terminal-wrench-action-v2", "cheatbench-action-v2", "c1c5-action-v2", "sol-astra-action-v2")
 
 
 def load_rows(repo_root: Path, state_root: Path | None = None) -> list[IssueItem]:
-    """Return one row per seed run, including attempted and unjudged rows."""
+    """Return source/protocol-specific rows, including attempted and unjudged rows."""
     bank = IssueBank(repo_root, state_root=state_root)
     rows = list(bank.iter_items(SOURCES))
     ctx = BankContext(repo_root, state_root=bank.state_root)
     seen: set[tuple[str, str]] = set()
     for row in rows:
+        if row.protocol is None and row.source in {"goodfire-action-v1", "impossible-task-final"}:
+            row.protocol = "action-v1"
+        if row.protocol is None:
+            raise ValueError(f"Gold row has no action protocol: {row.source}/{row.subject_id}")
         key = (row.source, row.subject_id)
         if key in seen:
             raise ValueError(f"Duplicate gold run: {key}")

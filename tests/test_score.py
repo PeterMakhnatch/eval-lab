@@ -157,3 +157,13 @@ def test_absent_native_cache_files_produce_missing_predictions(tmp_path: Path):
     assert policy["cached_decision_coverage"] == {"eligible": 2, "scored": 0, "missing": 2}
     assert not (tmp_path / "absent-trace.jsonl").exists()
     assert not (tmp_path / "absent-decisions.jsonl").exists()
+
+
+def test_all_unjudged_panel_has_no_binary_denominators_or_scores():
+    result = measure({"unknown": run("unknown", None)}, {}, {"0.05": 5}, draws=10, seed=1)
+    assert result["coverage"] == {"eligible": 0, "scored": 0, "missing": 0}
+    assert result["auroc"]["value"] is None
+    point = result["operating_points"]["0.05"]
+    assert point["recall"]["n"] == point["observed_honest_alarm"]["n"] == 0
+    assert point["budget_claim"] == "unavailable"
+    assert point["unresolved_honest"]["task_ci95"]["low"] is None

@@ -187,6 +187,7 @@ class IssueItem(ContractModel):
     harness_selector: str | None = None  # how `evallab trace run --runs` reaches it
     provenance: Provenance
     label_state: Literal["executed-positive", "reviewed-control", "attempted", "unjudged"] | None = None
+    protocol: Literal["action-v1", "action-v2"] | None = None
     mechanism: str | None = None
     step_locators: tuple[SourceEventRef, ...] = ()
     task_ref: str | None = None

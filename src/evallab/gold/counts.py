@@ -17,6 +17,10 @@ def counts(rows: list[IssueItem]) -> dict[str, Any]:
             "rows": len(selected),
             "label_state": dict(sorted(Counter(row.label_state for row in selected).items())),
             "mechanism": dict(sorted(Counter(row.mechanism for row in selected).items())),
+            "protocol": dict(sorted(Counter(row.protocol for row in selected).items())),
+            "by_protocol_label_state_mechanism": dict(sorted(Counter(
+                f"{row.protocol}|{row.label_state}|{row.mechanism}" for row in selected
+            ).items())),
             "by_label_state_mechanism": dict(sorted(Counter(
                 f"{row.label_state}|{row.mechanism}" for row in selected
             ).items())),
@@ -32,4 +36,7 @@ def counts(rows: list[IssueItem]) -> dict[str, Any]:
         }
     return {"rows": len(rows), "binary_rows": sum(
         row.label_state in {"executed-positive", "reviewed-control"} for row in rows
-    ), "sources": groups}
+    ), "sources": groups, "protocol": dict(sorted(Counter(row.protocol for row in rows).items())),
+        "by_protocol_label_state_mechanism": dict(sorted(Counter(
+            f"{row.protocol}|{row.label_state}|{row.mechanism}" for row in rows
+        ).items()))}

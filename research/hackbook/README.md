@@ -61,17 +61,20 @@ evallab hackbook cards
 ```python
 from pathlib import Path
 from evallab.hackbook import load_hackbook
-from evallab.hackbook.matcher import match_task, match_trace
+from evallab.hackbook.matcher import match_task
+from evallab.tripwires import scan_trace
 
 entries = load_hackbook()
 task_hits = match_task(Path("path/to/task"), entries)
-trace_hits = match_trace(Path("path/to/trajectory.json"), entries)
+trace_evidence = scan_trace(agent_steps, steps=all_steps)  # ATIF step dictionaries
 ```
 
 The standalone `match`, `calibrate`, and `qc` commands are retired.
-Internal task and trace consumers still use the unchanged matcher module.
-Recorded QC reports and the pure scoring functions remain available.
-The historical measurements below describe the retired command interface.
+Internal task consumers use private task metadata retrieval.
+All trace consumers use `evallab.tripwires`; weighted trace scores and outcome gates are retired.
+The existing tripwire rules retain step evidence, catalog entry IDs, and diagnostic eligibility.
+Recorded QC reports and pure scoring functions remain diagnostic; they cannot change runtime eligibility.
+The historical measurements below describe the retired matcher, not the current trace contract.
 
 ### Source-only runtime diagnostics
 

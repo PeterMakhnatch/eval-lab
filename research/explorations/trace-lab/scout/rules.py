@@ -1,7 +1,7 @@
 """Deterministic trace rules for Harbor runs (Trace Lab, HAR-109).
 
-This module is the single rule implementation shared by Inspect Scout
-scanners (``scanners.py``) and, via the handoff note, Engineering's
+This module retains the historical rule reader used by the HAR-119/HAR-128
+replay tools and, via the handoff note, Engineering's
 ``process-job``. It does NOT look up precomputed labels: every function
 below calls probe-03's ``capabilities.py`` rule functions on Eval Lab step
 records, so Scout and ``process-job`` compute the same values from the

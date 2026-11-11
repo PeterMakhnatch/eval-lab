@@ -23,8 +23,8 @@ MiMo kit).
   (`upload_har81_blind.py`), reading fetch/scoring (`fetch_results.py`,
   `score_reading.py`, …), plus the scored HAR-81 blind reading
   (`har81_reading_results.json`). Full story: `docent/README.md`.
-- `scout/` — Inspect Scout layer: 7 deterministic scanners
-  (`scanners.py`), build scripts, `scout.yaml`, view screenshots.
+- `scout/` — historical Inspect Scout imports, scans, and screenshots.
+  The optional scanner wrapper is retired; stored scan evidence remains.
   Full story: `scout/README.md`.
 - `viewers/` — `harbor view` fixture jobs (`harbor-norm-jobs/`, small
   normalized copies), the comparison notes (`NOTES.md`), and one citable

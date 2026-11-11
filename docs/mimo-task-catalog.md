@@ -51,9 +51,6 @@ uv run evallab tasks catalog build [--derived-root PATH]
 uv run evallab tasks catalog show <task_id|digest> [--derived-root PATH]
 uv run evallab tasks catalog export-eligible --out train_eligible.json [--split split.json]
 
-# After a hack-probe run: detector over every probe job -> task_exploits.parquet
-uv run evallab tasks exploit-collect --cohort research/experiments/mimo-hack-probe/cohort.json runs/mimo-hack-*
-
 # After any nop/control run: per-trial backend health -> task_qualification.parquet
 uv run evallab tasks qualify-collect runs/<job>... [--backend-rate-card daytona]
 uv run evallab tasks catalog export-broken --backend daytona --out broken-daytona.json
@@ -158,10 +155,9 @@ a task look learnable, and a uniformly-failing nop row is simply not
 learnable (control, not training signal).
 
 `task_stability` comes from `evallab tasks stability-collect`
-(docs/task-stability.md) and `task_exploits` from `evallab tasks
-exploit-collect`. `exploit-collect` attributes each trial by the package
-digest the queue staged, and keeps cohort tasks with no model trial as
-`not_probed` (a nop control does not count as a probe). `train_eligible` =
+(docs/task-stability.md). The catalog still reads existing `task_exploits`
+evidence. The duplicate `exploit-collect` command and its writer are retired.
+No stored exploit evidence is removed. `train_eligible` =
 `learnable` ∧ stability evidence that is `stable` (no evidence is
 ineligible) ∧ no `confirmed` exploit and no `suspected` one still awaiting
 review ∧ not broken on that backend (see below) ∧ no `error`-severity
@@ -182,7 +178,7 @@ split is `unassigned`.
 
 `evallab tasks qualify-collect <job_dir>...` writes one
 `task_qualification.parquet` row per trial: task digests (attributed by the
-package digest the queue staged, as `exploit-collect` does; when the executor
+package digest the queue staged; when the executor
 died before writing `lab-metadata.json`, by the trial `lock.json` task digest,
 but only if it equals exactly one catalog `task_versions.harbor_digest`), backend and
 environment import path, job/trial/agent names, started/finished times,

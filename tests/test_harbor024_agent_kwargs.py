@@ -249,6 +249,7 @@ def test_task_mcp_with_mcp_less_lane_fails_preflight_early(tmp_path: Path) -> No
         name="kwarg-audit-mimo-mcp",
         jobs_dir=tmp_path / "runs",
         environment="docker",
+        egress_lock=True,
         model=MIMO_SELFHOSTED_MODEL_SELECTOR,
         allow_billable=True,
         max_requests=10,

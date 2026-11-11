@@ -1,9 +1,0 @@
---- a/gpustat/core.py
-+++ b/gpustat/core.py
-@@ -320,5 +320,5 @@
-                 fan_speed = N.nvmlDeviceGetFanSpeed(handle)
-             except N.NVMLError:
--                fan_speed = None  # Not supported
-+                raise
- 
-             try:

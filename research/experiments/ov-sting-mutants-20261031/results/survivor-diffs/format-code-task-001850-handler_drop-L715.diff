@@ -1,9 +1,0 @@
---- a/marimo/_runtime/runtime.py
-+++ b/marimo/_runtime/runtime.py
-@@ -714,5 +714,5 @@
-                     duckdb.execute(f"DROP TABLE IF EXISTS memory.main.{name}")
-                 except Exception as e:
--                    LOGGER.warning("Failed to drop table %s: %s", name, str(e))
-+                    raise
-             elif variable.kind == "view" and DependencyManager.duckdb.has():
-                 import duckdb

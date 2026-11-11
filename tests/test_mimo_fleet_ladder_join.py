@@ -513,6 +513,15 @@ def append_text(relative: str, text: str) -> Callable[[Path], None]:
     return apply
 
 
+def repeat_count_table(root: Path) -> None:
+    """Copy the count table directly below itself, with no blank line between them."""
+    page = root / MODULE["FLEET_README"]
+    text = page.read_text(encoding="utf-8")
+    table = re.search(MODULE["TABLE"], text)
+    assert table is not None
+    page.write_text(text[: table.end()] + table.group() + text[table.end() :], encoding="utf-8")
+
+
 FLEET_README = MODULE["FLEET_README"]
 ROUTE = MODULE["ROUTE_PAGE"]
 
@@ -536,9 +545,24 @@ DOC_REFUSALS: list[tuple[str, Callable[[Path], None], str]] = [
         "count table', found 0",
     ),
     (
+        "repeated-count-table",
+        repeat_count_table,
+        "count table', found 2",
+    ),
+    (
         "missing-other-bytes-sentence",
         change(FLEET_README, "ran other bytes.", "ran elsewhere."),
         "other-bytes sentence', found 0",
+    ),
+    (
+        "repeated-other-bytes-sentence",
+        change(
+            FLEET_README,
+            "\n83 ran other bytes.\n",
+            "\n83 ran other bytes. Of the 1 fleet tasks with a ranked cell, 1 ran the "
+            "fleet digest and 1 - 1 = 0 ran other bytes.\n",
+        ),
+        "other-bytes sentence', found 2",
     ),
     (
         "missing-route-sentence",
@@ -599,5 +623,5 @@ def test_every_join_error_needs_a_refusal_case() -> None:
     assert len({message for _, _, message in REFUSALS}) == len(REFUSALS)
     # A missing page, and one anchor check that every missing or repeated anchor hits.
     assert sum(sites[name] for name in documentation) == 2
-    assert len(DOC_REFUSALS) == 7
+    assert len(DOC_REFUSALS) == 9
     assert len({message for _, _, message in DOC_REFUSALS}) == len(DOC_REFUSALS)

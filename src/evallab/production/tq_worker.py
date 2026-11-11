@@ -72,8 +72,7 @@ from evallab.qa.models import (
 )
 from evallab.registry import task_directory_digest
 
-#: Queue job type carrying normalized human task-quality annotations. Kept in
-#: sync with ``evallab.production.public_corpus_loader.ANNOTATION_JOB``.
+#: Queue job type carrying normalized human task-quality annotations.
 ANNOTATION_JOB = "task_quality.annotation_task"
 JOB_TYPES = ("task_quality.audit_task", "task_quality.repair_task", ANNOTATION_JOB)
 Direction = Literal["unfair_fail", "wrong_pass"]

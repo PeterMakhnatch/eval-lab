@@ -2094,12 +2094,13 @@ byte-identical bundle, and an acknowledged window is never
 re-scanned, so idle cycles cannot repeat an export. `supervisor.status()`
 returns the same liveness projection without dispatching work.
 
-`TaskQualityLiveWorker` also claims `task_quality.annotation_task` jobs — the
-normalized human severity/rationale records that loaders such as
-`load_swebench_annotations` enqueue under `payload.annotation`. Every row
-carrying annotation content routes there regardless of its package locators;
-only evidence rows with no annotation content still enqueue `audit_task`.
-Each job streams
+The public corpus loader no longer creates reward-seeker tasks or SWE-bench
+annotation jobs. It keeps native Goodfire and Terminal Wrench trace
+normalization, declared licenses, and source provenance. The factory still
+uses its registry-admitted replay ingestion path.
+
+`TaskQualityLiveWorker` still claims existing `task_quality.annotation_task`
+jobs. Each job streams
 a provisional `qa.finding/v1` preserving the human assessment and provenance;
 `execution_available` marks whether measured execution evidence backs the
 emitted finding (`False` on every provisional event). A declared `task_dir` or

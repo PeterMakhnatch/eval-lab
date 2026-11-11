@@ -1,22 +1,7 @@
-"""mimo-clean-v4: canonical clean chain for the MiMo code pool (all languages).
+"""Canonical @10 clean-chain builder and historical MiMo manifest readers.
 
-Builds one clean package per code task:
-
-- Python tasks (the python-task-ledger ``keep``/``fix`` rows; ``discard`` rows
-  are skipped with reason): ledger run package (repairs) ->
-  ``strip-future-history@1`` -> ``purge-installed-copies@1`` (CONFIRMED_PURGE
-  targets and run packages that already carry the marker; fail-closed tasks
-  skip with reason, everything else skips per the HAR-194 scope stance) ->
-  ``purge-build-caches@4`` -> ``mtime-normalize@2`` ->
-  ``separate-verifier@6`` -> ``agent-network-none@1``, with a reference
-  solution when one exists and a probe marker derived from the hidden
-  test patch. Every manifest row records the complete transform chain.
-- Non-Python tasks (every snapshot task whose ``task.toml`` category is not
-  Python, minus ledger members which the ledger row owns): snapshot task dir
-  -> ``strip-future-history@1`` -> ``purge-build-caches@4`` ->
-  ``mtime-normalize@2`` -> ``separate-verifier@6`` -> ``agent-network-none@1``.
-  ``purge-installed-copies`` is a Python pip mechanism and never applies;
-  it is noted, not derived.
+The builder accepts only ``mimo-clean-v6``. Historical chain metadata and
+manifest paths remain available for receipt readers, not package production.
 
 Deterministic and idempotent: reuse is bound to the parent digest and transform
 inputs. Missing records are rederived in isolated scratch storage; matching
@@ -51,7 +36,6 @@ from typing import Any
 from evallab import mtime_normalize as _mtime_normalize_mod
 from evallab.agent_network_policy import TRANSFORM_ID as AGENT_NETWORK_NONE_ID
 from evallab.agent_network_policy import derive_agent_network_none
-from evallab.hardening import CONFIRMED_PURGE
 from evallab.mtime_normalize import MARKER as MTIME_MARKER
 from evallab.mtime_normalize import TRANSFORM_ID as MTIME_ID
 from evallab.mtime_normalize import derive_mtime_normalize
@@ -60,17 +44,14 @@ from evallab.purge_build_caches import MARKER_V5 as CACHE_V5_MARKER
 from evallab.purge_build_caches import TRANSFORM_ID_V4 as CACHE_ACTIVE_ID
 from evallab.purge_build_caches import TRANSFORM_ID_V5 as CACHE_V5_ID
 from evallab.purge_build_caches import derive_purge_build_caches_v4, derive_purge_build_caches_v5
-from evallab.purge_installed_copies import MARKER as PURGE_MARKER
 from evallab.purge_installed_copies import MARKER_V2 as PURGE_V2_MARKER
 from evallab.purge_installed_copies import (
     SETUP_PYTHON_PATH,
     build_setup_sh_v2,
-    derive_purge_installed_copies,
     derive_purge_installed_copies_v2,
 )
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import TRANSFORM_ID_V2 as PURGE_V2_ID
-from evallab.purge_installed_copies import V1_BLOCK_START as PURGE_V1_BLOCK_START
 from evallab.registry import harbor_task_digest
 from evallab.separate_verifier import TRANSFORM_ID_V6 as SEPARATE_V6_ID
 from evallab.separate_verifier import TRANSFORM_ID_V7 as SEPARATE_V7_ID
@@ -79,10 +60,6 @@ from evallab.separate_verifier import TRANSFORM_ID_V9 as SEPARATE_V9_ID
 from evallab.separate_verifier import TRANSFORM_ID_V10 as SEPARATE_V10_ID
 from evallab.separate_verifier import (
     build_changes_v10,
-    derive_separate_verifier_v6,
-    derive_separate_verifier_v7,
-    derive_separate_verifier_v8,
-    derive_separate_verifier_v9,
     derive_separate_verifier_v10,
 )
 from evallab.strip_future_history import STRIP_MARKER, derive_strip_future_history
@@ -677,17 +654,17 @@ class ChainBuilder:
         primary: Path,
         *,
         variants_root: Path | None = None,
-        purge_skip: Collection[str] | None = None,
-        created_by: str = CREATED_BY,
+        created_by: str = CLEAN_SET_VERSION_V6,
         snapshot_root: Path | None = None,
-        clean_version: str = CLEAN_SET_VERSION,
+        clean_version: str = CLEAN_SET_VERSION_V6,
     ) -> None:
+        if clean_version != CLEAN_SET_VERSION_V6:
+            raise VariantInvalid(f"retired clean-set producer: {clean_version!r}; use mimo-clean-v6")
         self.repo_root = repo_root
         self.primary = primary
         self.variants_root = variants_root
         self.created_by = created_by
         self.snapshot_root = snapshot_root or primary / SNAPSHOT_REL / "tasks"
-        self._purge_skip = set(purge_skip) if purge_skip is not None else set(purge_inapplicable())
         self._records: dict[str, dict[tuple[str, str], dict[str, VariantRecord]]] = {}
         self._rederivation_proofs: dict[str, dict[str, str]] = {}
         self.clean_version = clean_version
@@ -1003,21 +980,6 @@ class ChainBuilder:
             ),
         }
 
-    def _advance(
-        self,
-        task_id: str,
-        current_digest: str,
-        row: Mapping[str, str] | None,
-        start_digest: str,
-    ) -> tuple[Path, str, dict[str, Any]]:
-        """The materialized package, digest, and source after one chain step."""
-        source = self._source(task_id, current_digest, start_digest, row)
-        current = (
-            self._variants_dir()
-            / f"mimo-v2.6-rl__{task_id}"
-            / current_digest.removeprefix("sha256:")[:12]
-        )
-        return current, current_digest, source
 
     @staticmethod
     def _carries_v6(package: Path, transform: str) -> bool:
@@ -1410,8 +1372,6 @@ class ChainBuilder:
             )
             return result
 
-        notes: list[str] = []
-        start_kind = "run package" if row is not None else "snapshot package"
         if row is not None:
             try:
                 package = self.primary / run_package_rel(row)
@@ -1439,253 +1399,9 @@ class ChainBuilder:
             result.run_digest = current_digest
         start_digest = current_digest
         source = self._source(task_id, current_digest, start_digest, row)
-        if self.clean_version == CLEAN_SET_VERSION_V6:
-            return self._build_v6_chain(
-                result, current, current_digest, source, chain, row, oracle
-            )
-
-        # strip-future-history@1 (fatal: the foundation of the chain).
-        if setup_carries(current, STRIP_MARKER):
-            notes.append(f"strip-future-history@1 already in {start_kind}")
-        else:
-            try:
-                record, _ = self.find_or_derive(
-                    task_id,
-                    STRIP_ID,
-                    current,
-                    current_digest,
-                    derive_strip_future_history,
-                    parent_source=source,
-                )
-            except VariantInvalid as exc:
-                result.reason = f"strip-future-history@1 failed: {exc}"
-                return result
-            current_digest = record.variant_digest
-            current, current_digest, source = self._advance(
-                task_id, current_digest, row, start_digest
-            )
-        result.chain.append(STRIP_ID)
-
-        # purge-installed-copies@2: every Python task (@2 no-ops safely, so
-        # no scope checks and no fail-closed skips). A run package already
-        # carrying @2 keeps it; a carried @1 block is excised by the derive
-        # itself (recorded as `superseded_v1`).
-        if PURGE_V2_ID in chain and row is not None:
-            if setup_carries(current, PURGE_V2_MARKER):
-                notes.append("purge-installed-copies@2 already in run package")
-                result.chain.append(PURGE_V2_ID)
-            else:
-                setup_text = current / "environment" / "setup" / "setup.sh"
-                if setup_text.is_file() and PURGE_V1_BLOCK_START in setup_text.read_text(
-                    errors="replace"
-                ):
-                    notes.append("run package carries @1; @2 supersedes it")
-                try:
-                    record, _ = self.find_or_derive(
-                        task_id,
-                        PURGE_V2_ID,
-                        current,
-                        current_digest,
-                        derive_purge_installed_copies_v2,
-                        parent_source=source,
-                        expected_inputs={
-                            "setup_python_path": SETUP_PYTHON_PATH,
-                            "repairs_digest": row["run_digest"],
-                        },
-                        repairs_digest=row["run_digest"],
-                    )
-                except VariantInvalid as exc:
-                    notes.append(f"purge-installed-copies@2 skipped: {exc}")
-                else:
-                    current_digest = record.variant_digest
-                    current, current_digest, source = self._advance(
-                        task_id, current_digest, row, start_digest
-                    )
-                    result.chain.append(PURGE_V2_ID)
-        elif PURGE_V2_ID in chain:
-            notes.append(f"purge-installed-copies@2 n/a to {result.language}: Python pip mechanism")
-        # purge-installed-copies@1: v4 chains only (CONFIRMED_PURGE +
-        # already-carried); elsewhere it is a Python pip mechanism, noted.
-        elif PURGE_ID in chain and row is not None:
-            if setup_carries(current, PURGE_MARKER):
-                notes.append("purge-installed-copies@1 already in run package")
-                result.chain.append(PURGE_ID)
-            elif task_id in self._purge_skip:
-                detail = PURGE_FAIL_CLOSED_REASONS.get(task_id, "fail-closed")
-                notes.append(f"purge-installed-copies@1 skipped fail-closed: {detail}")
-            elif task_id in CONFIRMED_PURGE:
-                try:
-                    record, _ = self.find_or_derive(
-                        task_id,
-                        PURGE_ID,
-                        current,
-                        current_digest,
-                        derive_purge_installed_copies,
-                        parent_source=source,
-                        repairs_digest=row["run_digest"],
-                    )
-                except VariantInvalid as exc:
-                    notes.append(f"purge-installed-copies@1 skipped: {exc}")
-                else:
-                    current_digest = record.variant_digest
-                    current, current_digest, source = self._advance(
-                        task_id, current_digest, row, start_digest
-                    )
-                    result.chain.append(PURGE_ID)
-            else:
-                notes.append(
-                    "purge-installed-copies@1 skipped: scope is CONFIRMED_PURGE "
-                    "plus already-carried run packages (HAR-194 stance)"
-                )
-        else:
-            notes.append(f"purge-installed-copies@1 n/a to {result.language}: Python pip mechanism")
-
-        # Active purge-build-caches and mtime-normalize generations
-        # (mechanical, continue the chain past a single-step failure). The
-        # cache generation follows the row: v5 NODE_FOLD_TASKS derive @5,
-        # everything else keeps the active (@4) triple. The recorded
-        # result.chain carries the actually-derived id per row.
-        cache_triple = (
-            (CACHE_V5_ID, CACHE_V5_MARKER, derive_purge_build_caches_v5)
-            if CACHE_V5_ID in chain or task_id in NODE_FOLD_TASKS
-            else (
-                CACHE_ACTIVE_ID,
-                CACHE_ACTIVE_MARKER,
-                derive_purge_build_caches_v4,
-            )
+        return self._build_v6_chain(
+            result, current, current_digest, source, chain, row, oracle
         )
-        for transform, marker, derive in (
-            cache_triple,
-            (MTIME_ACTIVE_ID, MTIME_ACTIVE_MARKER, _derive_mtime_active),
-        ):
-            if setup_carries(current, marker):
-                notes.append(f"{transform} already in {start_kind}")
-                result.chain.append(transform)
-                continue
-            try:
-                record, _ = self.find_or_derive(
-                    task_id,
-                    transform,
-                    current,
-                    current_digest,
-                    derive,
-                    parent_source=source,
-                )
-            except VariantInvalid as exc:
-                notes.append(f"{transform} skipped: {exc}")
-                continue
-            current_digest = record.variant_digest
-            current, current_digest, source = self._advance(
-                task_id, current_digest, row, start_digest
-            )
-            result.chain.append(transform)
-
-        # separate-verifier@6 bundles setup, the hidden-test marker, and the
-        # oracle-pass solution. The agent network declaration is appended last.
-        patch_file = current / "tests" / "test.patch"
-        marker = derive_marker(
-            patch_file.read_text(errors="replace") if patch_file.is_file() else "",
-            task_id,
-        )
-        solution_sh: bytes | None = None
-        if oracle is not None:
-            if (current / "solution" / "solve.sh").is_file():
-                notes.append(
-                    "solution/solve.sh already present; reference fix recorded in manifest only"
-                )
-            else:
-                try:
-                    solution_sh = build_solution_sh(
-                        task_id=task_id,
-                        label=oracle.label,
-                        fix_commit=oracle.fix_commit,
-                        patch_bytes=oracle.patch_bytes,
-                    )
-                except VariantInvalid as exc:
-                    notes.append(f"reference solution omitted: {exc}")
-        solution_tag = (
-            "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
-        )
-        # The verifier generation follows the row: v5 SEPARATE_V10_TASKS
-        # derive @10, SEPARATE_V9_TASKS derive @9, everything else keeps
-        # the chain's generation. The recorded result.chain carries the
-        # actually-derived id per row.
-        separate_id = (
-            SEPARATE_V10_ID
-            if SEPARATE_V10_ID in chain
-            or (task_id in SEPARATE_V10_TASKS and self.clean_version == CLEAN_SET_VERSION_V5)
-            else (
-                SEPARATE_V9_ID
-                if SEPARATE_V9_ID in chain
-                or (task_id in SEPARATE_V9_TASKS and self.clean_version == CLEAN_SET_VERSION_V5)
-                else chain[-2]
-            )
-        )
-        separate_derive = (
-            derive_separate_verifier_v10
-            if separate_id == SEPARATE_V10_ID
-            else (
-                derive_separate_verifier_v9
-                if separate_id == SEPARATE_V9_ID
-                else (
-                    derive_separate_verifier_v8
-                    if separate_id == SEPARATE_V8_ID
-                    else (
-                        derive_separate_verifier_v7
-                        if separate_id == SEPARATE_V7_ID
-                        else derive_separate_verifier_v6
-                    )
-                )
-            )
-        )
-        try:
-            expected_inputs: Mapping[str, Any] = {"marker": marker, "solution": solution_tag}
-            if separate_id == SEPARATE_V10_ID:
-                _changes, expected_inputs = build_changes_v10(
-                    current, marker=marker, solution_sh=solution_sh
-                )
-            record, _ = self.find_or_derive(
-                task_id,
-                separate_id,
-                current,
-                current_digest,
-                separate_derive,
-                parent_source=source,
-                expected_inputs=expected_inputs,
-                marker=marker,
-                solution_sh=solution_sh,
-            )
-        except VariantInvalid as exc:
-            result.reason = f"{separate_id} failed: {exc}"
-            return result
-        current_digest = record.variant_digest
-        result.chain.append(separate_id)
-        current, current_digest, source = self._advance(task_id, current_digest, row, start_digest)
-        try:
-            record, _ = self.find_or_derive(
-                task_id,
-                AGENT_NETWORK_NONE_ID,
-                current,
-                current_digest,
-                derive_agent_network_none,
-                parent_source=source,
-            )
-        except VariantInvalid as exc:
-            result.reason = f"{AGENT_NETWORK_NONE_ID} failed: {exc}"
-            return result
-        current_digest = record.variant_digest
-        result.chain.append(AGENT_NETWORK_NONE_ID)
-
-        result.status = STATUS_BUILT
-        result.final_digest = current_digest
-        slug = f"mimo-v2.6-rl__{task_id}"
-        result.package_path = (
-            VARIANTS_REL / slug / current_digest.removeprefix("sha256:")[:12]
-        ).as_posix()
-        if task_id in EXCLUDED_FROM_TRAINING:
-            notes.append(f"excluded-from-training: {EXCLUDED_FROM_TRAINING[task_id]}")
-        result.reason = "; ".join(notes) if notes else "clean chain complete"
-        return result
 
 
 def write_manifest(rows: Collection[Mapping[str, str]], path: Path) -> Path:
@@ -1783,419 +1499,6 @@ def snapshot_pool(snapshot_tasks: Path, ledger_ids: Collection[str]) -> dict[str
     return pool
 
 
-def build_mimo_clean_parser(commands) -> None:
-    """Register the ``evallab mimo-clean`` subcommand (one self-contained block)."""
-    mimo = commands.add_parser(
-        "mimo-clean",
-        help="Build and locally verify the mimo-clean-v4 task set ($0, model-free)",
-        description=__doc__.split("\n\n")[0] if __doc__ else "mimo-clean-v4",
-    )
-    sub = mimo.add_subparsers(dest="mimo_clean_cmd", required=True)
-    build = sub.add_parser("build", help="Derive the canonical clean chain for code tasks")
-    build.add_argument(
-        "--tasks",
-        default=None,
-        help="comma-separated task ids (default: ledger pool + snapshot pool)",
-    )
-    build.add_argument("--ledger", type=Path, default=LEDGER_REL, help="Python task ledger CSV")
-    build.add_argument("--sweep", type=Path, default=SWEEP_REL, help="oracle sweep CSV")
-    build.add_argument(
-        "--reference-index",
-        type=Path,
-        default=REFERENCE_INDEX_REL,
-        help="mimo-reference-fixes index CSV (preferred over --sweep when present)",
-    )
-    build.add_argument(
-        "--snapshot",
-        type=Path,
-        default=SNAPSHOT_REL / "tasks",
-        help="snapshot tasks dir (resolved against the primary checkout)",
-    )
-    build.add_argument(
-        "--results-home",
-        type=Path,
-        default=None,
-        help="HAR-191 oracle-sweep results dir holding per-task solution patches",
-    )
-    build.add_argument(
-        "--manifest",
-        type=Path,
-        default=None,
-        help="manifest CSV to write (v6 also emits manifest.with_suffix('.lineage.json'))",
-    )
-    build.add_argument(
-        "--clean-version",
-        choices=[CLEAN_SET_VERSION, CLEAN_SET_VERSION_V5, CLEAN_SET_VERSION_V6],
-        default=CLEAN_SET_VERSION,
-        help="chain generation: mimo-clean-v4 (separate-verifier@6), "
-        "mimo-clean-v5 (@8) or mimo-clean-v6 (@10); "
-        "selects the default --manifest path when --manifest is absent",
-    )
-    build.add_argument(
-        "--reset-verify",
-        action="store_true",
-        help="reset every built row's verify to unverified instead of "
-        "preserving grades for unchanged task/package digests",
-    )
-    build.add_argument("--workers", type=int, default=8, help="parallel chain builders")
-    build.set_defaults(func=_mimo_clean_command)
-    verify = sub.add_parser(
-        "verify-local",
-        help="Run oracle/nop/cheat-ladder on local Docker for clean packages",
-    )
-    verify.add_argument("--tasks", required=True, help="comma-separated task ids")
-    verify.add_argument("--manifest", type=Path, default=MANIFEST_REL, help="manifest CSV to read")
-    verify.add_argument("--jobs-dir", type=Path, default=Path("runs/mimo-clean-v4"))
-    verify.add_argument(
-        "--checks",
-        default="oracle,nop,cheat",
-        help="comma-separated subset of cells to run (default: oracle,nop,cheat)",
-    )
-    verify.add_argument("--timeout-seconds", type=int, default=1800)
-    verify.set_defaults(func=_mimo_clean_command)
-
-
-def _default_results_home() -> Path:
-    return Path.home() / "Developer" / "eval-lab-results" / "2026-10-07" / "HAR-191-oracle-sweep"
-
-
-def _build_command(args, root: Path) -> int:
-    import concurrent.futures
-
-    from evallab.storage.paths import shared_checkout_root
-
-    ledger_path = _resolve(root, args.ledger)
-    sweep_path = _resolve(root, args.sweep)
-    index_path = _resolve(root, args.reference_index)
-    clean_version = getattr(args, "clean_version", None) or CLEAN_SET_VERSION
-    default_manifest = DEFAULT_MANIFEST_BY_VERSION[clean_version]
-    manifest_path = _resolve(root, args.manifest or default_manifest)
-    results_home = args.results_home or _default_results_home()
-    primary = shared_checkout_root(root)
-    snapshot_tasks = args.snapshot if args.snapshot.is_absolute() else primary / args.snapshot
-    rows = read_csv_rows(ledger_path)
-    by_ledger_id = {row["task_id"]: row for row in rows}
-    wanted = (
-        {part.strip() for part in args.tasks.split(",") if part.strip()} if args.tasks else None
-    )
-    selected = select_usable(rows)
-    if wanted is not None:
-        selected = [row for row in selected if row["task_id"] in wanted]
-    if index_path.is_file():
-        index = load_reference_index(index_path)
-        print(f"reference fixes: index {index_path} ({len(index)} rows)")
-
-        def oracle_for(task_id: str) -> OracleInfo | None:
-            return oracle_info_from_index(task_id, index, repo_root=root)
-    else:
-        sweep = load_oracle_sweep(sweep_path)
-        print(f"reference fixes: sweep {sweep_path} (index absent)")
-
-        def oracle_for(task_id: str) -> OracleInfo | None:
-            return oracle_info_for(task_id, sweep, results_home=results_home)
-
-    builder = ChainBuilder(
-        repo_root=root,
-        primary=primary,
-        snapshot_root=snapshot_tasks,
-        clean_version=clean_version,
-        created_by=clean_version,
-    )
-    by_id = {row["task_id"]: row for row in selected}
-    pool = snapshot_pool(snapshot_tasks, set(by_ledger_id))
-    if wanted is not None:
-        pool = {task_id: category for task_id, category in pool.items() if task_id in wanted}
-
-    def one_python(task_id: str) -> ChainResult:
-        return builder.build_task(
-            task_id,
-            by_id[task_id],
-            oracle=oracle_for(task_id),
-        )
-
-    def one_snapshot(task_id: str) -> ChainResult:
-        return builder.build_task(task_id, None, oracle=oracle_for(task_id))
-
-    results: list[ChainResult] = []
-    workers = max(1, args.workers)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool_exec:
-        futures = {pool_exec.submit(one_python, row["task_id"]): row["task_id"] for row in selected}
-        futures.update({pool_exec.submit(one_snapshot, task_id): task_id for task_id in pool})
-        for future in concurrent.futures.as_completed(futures):
-            results.append(future.result())
-    have = {result.task_id for result in results}
-    if wanted is not None:
-        # Skips for explicitly requested tasks outside both pools' selection.
-        for task_id in sorted(wanted):
-            if task_id in have:
-                continue
-            if task_id in by_ledger_id:
-                row = by_ledger_id[task_id]
-                results.append(
-                    ChainResult(
-                        task_id=task_id,
-                        status=STATUS_SKIPPED,
-                        language="python",
-                        run_digest=row.get("run_digest", ""),
-                        reason=(f"ledger verdict={row.get('verdict')} status={row.get('status')}"),
-                    )
-                )
-            else:
-                results.append(
-                    ChainResult(
-                        task_id=task_id,
-                        status=STATUS_SKIPPED,
-                        reason="not a keep/fix ledger row or snapshot task",
-                    )
-                )
-    else:
-        # Discard rows are skips with reason, so the manifest covers the ledger.
-        for row in rows:
-            if row["task_id"] not in have:
-                results.append(
-                    ChainResult(
-                        task_id=row["task_id"],
-                        status=STATUS_SKIPPED,
-                        language="python",
-                        run_digest=row.get("run_digest", ""),
-                        reason=(
-                            f"ledger verdict={row.get('verdict')} "
-                            f"status={row.get('status')}: {row.get('reason', '')}"
-                        ),
-                    )
-                )
-        # Python-category snapshot tasks without a ledger row cannot start
-        # the Python chain; uncategorized ones have no chain at all.
-        for task_id in sorted(pool):
-            if task_id in have:
-                continue
-            category = pool[task_id]
-            if category == "python":
-                results.append(
-                    ChainResult(
-                        task_id=task_id,
-                        status=STATUS_SKIPPED,
-                        language="python",
-                        reason="python snapshot task without a ledger row",
-                    )
-                )
-            else:
-                results.append(
-                    ChainResult(
-                        task_id=task_id,
-                        status=STATUS_SKIPPED,
-                        reason="snapshot task.toml category unreadable",
-                    )
-                )
-    manifest_rows = [result.manifest_row() for result in results]
-    if manifest_path.is_file() and not getattr(args, "reset_verify", False):
-        # A census grade belongs to exact package bytes, not just a task id.
-        # Changed packages need fresh evidence even when their code is safer.
-        preserved = {
-            (row["task_id"], row["final_digest"]): row["verify"]
-            for row in load_manifest(manifest_path)
-            if row.get("status") == STATUS_BUILT
-            and row.get("final_digest")
-            and row.get("verify")
-            and row["verify"] != VERIFY_UNVERIFIED
-        }
-        for row in manifest_rows:
-            key = (row["task_id"], row["final_digest"])
-            if row["status"] == STATUS_BUILT and key in preserved:
-                row["verify"] = preserved[key]
-    write_manifest(manifest_rows, manifest_path)
-    if clean_version == CLEAN_SET_VERSION_V6:
-        write_lineage_index(results, manifest_path)
-    built = sum(1 for result in results if result.status == STATUS_BUILT)
-    print(f"built {built}/{len(results)} -> {manifest_path}")
-    for result in sorted(results, key=lambda item: item.task_id):
-        if result.status != STATUS_BUILT:
-            print(f"skip {result.task_id}: {result.reason}")
-    return 0
-
-
-def _next_free_name(task_jobs: Path, base: str, *, task_id: str) -> tuple[str, bool]:
-    """Next free job name: ``base`` unless taken, else ``base-attemptN``.
-
-    Returns ``(name, fresh)`` where ``fresh`` is True when ``base`` itself
-    is free (the caller reuses it only after checking its trials completed).
-    """
-    attempt = 1
-    name = base
-    while (task_jobs / name).exists():
-        attempt += 1
-        name = f"{base}-attempt{attempt}"
-    if attempt > 1:
-        print(f"note {task_id}: {base} incomplete; launching {name}")
-    return name, attempt == 1
-
-
-def _verify_local_command(args, root: Path) -> int:
-    import os
-
-    from evallab.cheat import _CHEAT_ENV_LOCK, build_verdicts
-    from evallab.execution_contracts import CHEAT_AGENT, CHEAT_ATTACKS_ENV_VAR, RunRequest
-    from evallab.harbor_view import installed_harbor_version
-    from evallab.queue import Executor
-
-    version = installed_harbor_version()
-    if version is None or version < (0, 24):
-        print(
-            "error: evallab mimo-clean verify-local needs Harbor >= 0.24 on PATH; "
-            "install the locked laminar extra: uv sync --frozen --extra laminar",
-        )
-        return 2
-    from evallab.storage.paths import shared_checkout_root
-
-    manifest_path = _resolve(root, args.manifest)
-    jobs_dir = _resolve(root, args.jobs_dir)
-    primary = shared_checkout_root(root)
-    manifest = {row["task_id"]: row for row in load_manifest(manifest_path)}
-    wanted = [part.strip() for part in args.tasks.split(",") if part.strip()]
-    if not wanted:
-        print("error: --tasks needs at least one task id")
-        return 2
-    rows: list[dict[str, Any]] = []
-    failed = False
-    for task_id in wanted:
-        row = manifest.get(task_id)
-        if row is None:
-            print(f"skip {task_id}: not in manifest {manifest_path}")
-            failed = True
-            continue
-        if row["status"] != STATUS_BUILT or not row["package_path"]:
-            print(f"skip {task_id}: manifest status={row['status']}: {row['reason']}")
-            failed = True
-            continue
-        package = primary / Path(row["package_path"])
-        short = task_id.removeprefix("format-code-task-")
-        task_jobs = jobs_dir / task_id
-
-        def cell(
-            agent: str,
-            suffix: str,
-            attacks: str | None = None,
-            *,
-            short: str = short,
-            task_id: str = task_id,
-            task_jobs: Path = task_jobs,
-        ) -> tuple[Path, bool]:
-            """Run one acceptance cell, reusing a completed job dir if present.
-
-            Returns ``(job_dir, reused)``. A job dir counts as completed when
-            it holds trials whose rewards are all recorded; anything else
-            launches under the next free ``-attemptN`` name so no evidence is
-            ever clobbered.
-            """
-            base = f"{CLEAN_SET_VERSION}-{short}-{suffix}"
-            candidate = task_jobs / base
-            rewards = summarize_trials(candidate)
-            if rewards and all(reward is not None for reward in rewards):
-                print(f"reused {candidate}")
-                return candidate, True
-            name, _ = _next_free_name(task_jobs, base, task_id=task_id)
-            return launch(agent, name, attacks), False
-
-        def launch(
-            agent: str,
-            name: str,
-            attacks: str | None = None,
-            *,
-            package: Path = package,
-            task_jobs: Path = task_jobs,
-        ) -> Path:
-            request = RunRequest(
-                task=package,
-                agent=agent,
-                name=name,
-                jobs_dir=task_jobs,
-                environment="docker",
-                model=None,
-                concurrency=1,
-                attempts=1,
-                timeout_seconds=args.timeout_seconds,
-                allow_billable=False,
-            )
-            if attacks is None:
-                return Executor.from_repo(root).execute_direct(request)
-            with _CHEAT_ENV_LOCK:
-                previous = os.environ.get(CHEAT_ATTACKS_ENV_VAR)
-                os.environ[CHEAT_ATTACKS_ENV_VAR] = attacks
-                try:
-                    return Executor.from_repo(root).execute_direct(request)
-                finally:
-                    if previous is None:
-                        os.environ.pop(CHEAT_ATTACKS_ENV_VAR, None)
-                    else:
-                        os.environ[CHEAT_ATTACKS_ENV_VAR] = previous
-
-        checks = {part.strip() for part in str(getattr(args, "checks", "oracle,nop,cheat") or "").split(",") if part.strip()}
-        has_fix = row["reference_fix"] not in ("", "none")
-        oracle_rewards: list[float | None] = []
-        if has_fix and "oracle" in checks:
-            oracle_dir, _ = cell("oracle", "oracle")
-            oracle_rewards = summarize_trials(oracle_dir)
-        elif not has_fix:
-            print(f"note {task_id}: no reference fix; oracle cell n/a")
-        else:
-            print(f"note {task_id}: oracle cell skipped (--checks)")
-        nop_rewards: list[float | None] = []
-        if "nop" in checks:
-            nop_dir, _ = cell("nop", "nop")
-            nop_rewards = summarize_trials(nop_dir)
-        else:
-            print(f"note {task_id}: nop cell skipped (--checks)")
-        trials: list[dict[str, object]] = []
-        cracked = 0
-        if "cheat" in checks:
-            cheat_dir, _ = cell(CHEAT_AGENT, "cheat", attacks="")
-            verdicts = build_verdicts(cheat_dir)
-            trials = verdicts.get("trials", [])
-            cracked = sum(1 for trial in trials if trial.get("verdict") == "cracked")
-        ok = acceptance_pass(
-            oracle_rewards=oracle_rewards,
-            has_reference_fix=has_fix,
-            nop_rewards=nop_rewards,
-            cracked=cracked,
-        )
-        failed = failed or not ok
-        if has_fix and "oracle" not in checks:
-            oracle_cell = "skip"
-        elif has_fix:
-            oracle_cell = ",".join(
-                "1" if reward == 1 else "0" if reward == 0 else "?" for reward in oracle_rewards
-            )
-        else:
-            oracle_cell = "n/a"
-        if "nop" not in checks:
-            nop_cell = "skip"
-        else:
-            nop_cell = ",".join(
-                "1" if reward == 1 else "0" if reward == 0 else "?" for reward in nop_rewards
-            )
-        print(
-            f"| {task_id} | {oracle_cell} | {nop_cell} | "
-            f"{cracked}/{len(trials)} cracked | {'PASS' if ok else 'FAIL'} |"
-        )
-        rows.append(
-            {
-                "task_id": task_id,
-                "oracle": oracle_cell,
-                "nop": nop_cell,
-                "cheat": f"{cracked}/{len(trials)}",
-                "pass": ok,
-            }
-        )
-    print(f"acceptance {sum(1 for row in rows if row['pass'])}/{len(rows)} pass")
-    return 1 if failed else 0
-
-
-def _mimo_clean_command(args, root: Path, **_: Any) -> int:
-    if args.mimo_clean_cmd == "build":
-        return _build_command(args, root)
-    if args.mimo_clean_cmd == "verify-local":
-        return _verify_local_command(args, root)
-    raise ValueError(f"unknown mimo-clean subcommand: {args.mimo_clean_cmd}")
 
 
 __all__ = [
@@ -2248,7 +1551,6 @@ __all__ = [
     "ChainResult",
     "OracleInfo",
     "acceptance_pass",
-    "build_mimo_clean_parser",
     "build_solution_sh",
     "chain_for_language",
     "chains_for_version",

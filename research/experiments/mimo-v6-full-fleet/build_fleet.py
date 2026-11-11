@@ -8,20 +8,26 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
 
 import repair_environments
 from prepare_references import INDEX, RELEASE, prepare
 
-from evallab.cli import run_cli
 from evallab.mimo_clean import (
     CLEAN_SET_VERSION_V6,
     LEDGER_REL,
     VARIANTS_REL,
     ChainBuilder,
+    load_manifest,
+    load_reference_index,
+    oracle_info_from_index,
+    read_csv_rows,
     run_package_rel,
     variant_source,
+    write_lineage_index,
+    write_manifest,
 )
 from evallab.storage.paths import shared_checkout_root
 
@@ -84,15 +90,37 @@ def main() -> int:
         members = {row["task_id"] for row in csv.DictReader(handle)}
     ledger_summary = prepare_ledger(repo_root, shared_checkout_root(repo_root), members)
     manifest = repo_root / RELEASE / "manifest.csv"
-    result = run_cli([
-        "mimo-clean", "build", "--clean-version", CLEAN_SET_VERSION_V6,
-        "--ledger", str(repo_root / RELEASE / "release-ledger.csv"),
-        "--reference-index", str(repo_root / RELEASE / "references.csv"),
-        "--manifest", str(manifest), "--tasks", ",".join(sorted(members)),
-        "--workers", str(args.workers),
-    ], workspace=repo_root)
-    if result:
-        return result
+    primary = shared_checkout_root(repo_root)
+    builder = ChainBuilder(
+        repo_root, primary, variants_root=primary / VARIANTS_REL,
+        clean_version=CLEAN_SET_VERSION_V6, created_by="mimo-v6-full-fleet",
+    )
+    ledger = {
+        row["task_id"]: row
+        for row in read_csv_rows(repo_root / RELEASE / "release-ledger.csv")
+    }
+    references = load_reference_index(repo_root / RELEASE / "references.csv")
+
+    def build(task_id: str):
+        return builder.build_task(
+            task_id, ledger.get(task_id),
+            oracle=oracle_info_from_index(task_id, references, repo_root=repo_root),
+        )
+
+    with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
+        results = list(pool.map(build, sorted(members)))
+    rows = [result.manifest_row() for result in results]
+    previous = {
+        (row["task_id"], row["final_digest"]): row["verify"]
+        for row in load_manifest(manifest)
+        if row["status"] == "built" and row["final_digest"] and row["verify"]
+    } if manifest.is_file() else {}
+    for row in rows:
+        key = (row["task_id"], row["final_digest"])
+        if row["status"] == "built" and key in previous:
+            row["verify"] = previous[key]
+    write_manifest(rows, manifest)
+    write_lineage_index(results, manifest)
     with manifest.open(newline="", encoding="utf-8") as handle:
         built = list(csv.DictReader(handle))
     if len(built) != 567 or {row["task_id"] for row in built} != members:

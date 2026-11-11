@@ -1,4 +1,4 @@
-"""Behavioural tests for the mimo-clean-v4 clean-set builder.
+"""Behavioural tests for the @10 clean-set builder and historical readers.
 
 Covers the pure helpers (marker, solution, selection, language, reference
 index, manifest, acceptance) plus the real derive chain on synthetic run
@@ -14,7 +14,6 @@ import hashlib
 import json
 import os
 import shutil
-import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -42,7 +41,6 @@ from evallab.mimo_clean import (
     SEPARATE_V6_ID,
     SEPARATE_V8_ID,
     SEPARATE_V10_ID,
-    SEPARATE_V10_TASKS,
     STATUS_BUILT,
     STATUS_SKIPPED,
     STRIP_ID,
@@ -67,20 +65,6 @@ from evallab.mimo_clean import (
 )
 from evallab.strip_future_history import pack_setup
 from evallab.task_variants import VariantInvalid, task_directory_digest
-
-
-def test_active_cache_generation_is_v4() -> None:
-    from evallab import purge_build_caches
-
-    assert mimo_clean.CACHE_ACTIVE_ID == purge_build_caches.TRANSFORM_ID_V4
-
-
-def test_active_mtime_generation_tracks_module() -> None:
-    from evallab import mtime_normalize
-
-    expected = getattr(mtime_normalize, "TRANSFORM_ID_V2", mtime_normalize.TRANSFORM_ID)
-    assert expected == mimo_clean.MTIME_ACTIVE_ID
-
 
 TASK_ID = "format-code-task-000000"
 
@@ -380,7 +364,6 @@ def test_summarize_trials_reads_result_rewards(tmp_path: Path) -> None:
 
 
 def _builder(tmp_path: Path, **kwargs: Any) -> ChainBuilder:
-    kwargs.setdefault("purge_skip", set())
     kwargs.setdefault("snapshot_root", tmp_path / "snap")
     return ChainBuilder(
         repo_root=tmp_path,
@@ -388,6 +371,12 @@ def _builder(tmp_path: Path, **kwargs: Any) -> ChainBuilder:
         variants_root=tmp_path / "store",
         **kwargs,
     )
+
+
+@pytest.mark.parametrize("version", ["mimo-clean-v4", "mimo-clean-v5"])
+def test_builder_refuses_retired_generations(tmp_path: Path, version: str) -> None:
+    with pytest.raises(VariantInvalid, match="retired clean-set producer"):
+        _builder(tmp_path, clean_version=version)
 
 
 def _write_snapshot_package(root: Path, task_id: str, category: str) -> Path:
@@ -418,59 +407,6 @@ def _final(tmp_path: Path, result) -> Path:
     return tmp_path / "store" / slug / result.final_digest.removeprefix("sha256:")[:12]
 
 
-def test_build_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
-    package = _write_run_package(tmp_path, TASK_ID)
-    builder = _builder(tmp_path)
-    result = builder.build_task(TASK_ID, _row(package, TASK_ID), oracle=oracle)
-    assert result.status == STATUS_BUILT
-    # Purge is out of scope for unconfirmed projects (HAR-194 stance).
-    assert result.chain == [
-        STRIP_ID,
-        CACHE_ACTIVE_ID,
-        MTIME_ACTIVE_ID,
-        SEPARATE_V6_ID,
-        AGENT_NETWORK_NONE_ID,
-    ]
-    assert "purge-installed-copies@1 skipped" in result.reason
-    final = _final(tmp_path, result)
-    assert (final / "solution" / "solve.sh").is_file()
-    assert (final / "tests" / "test.sh").is_file()
-    config = tomllib.loads((final / "task.toml").read_text())
-    assert config["agent"]["network_mode"] == "no-network"
-    assert config["environment"]["network_mode"] == "public"
-    assert "network_mode" not in config["verifier"]
-    assert config["verifier"]["environment_mode"] == "separate"
-    assert result.reference_fix == oracle.patch_path
-    assert result.oracle_label == oracle.label
-    row = result.manifest_row()
-    assert row["language"] == "python" and row["domain"] == "code"
-    assert row["verify"] == VERIFY_UNVERIFIED
-
-
-def test_build_snapshot_chain_end_to_end(tmp_path: Path) -> None:
-    task_id = "format-code-task-000045"
-    _write_snapshot_package(tmp_path, task_id, "JavaScript")
-    result = _builder(tmp_path).build_task(task_id, None, oracle=None)
-    assert result.status == STATUS_BUILT
-    assert result.chain == [
-        STRIP_ID,
-        CACHE_ACTIVE_ID,
-        MTIME_ACTIVE_ID,
-        SEPARATE_V6_ID,
-        AGENT_NETWORK_NONE_ID,
-    ]
-    assert result.language == "javascript"
-    assert "purge-installed-copies@1 n/a to javascript" in result.reason
-    assert result.reference_fix == "none"
-    final = _final(tmp_path, result)
-    assert (final / "tests" / "test.sh").is_file()
-    assert not (final / "solution" / "solve.sh").exists()
-    config = tomllib.loads((final / "task.toml").read_text())
-    assert config["agent"]["network_mode"] == "no-network"
-    assert config["environment"]["network_mode"] == "public"
-    row = result.manifest_row()
-    assert row["language"] == "javascript" and row["domain"] == "code"
-    assert row["verify"] == VERIFY_UNVERIFIED
 
 
 def test_build_chain_is_idempotent(tmp_path: Path, oracle: OracleInfo) -> None:
@@ -507,29 +443,6 @@ def test_build_without_oracle_has_no_solution(tmp_path: Path) -> None:
     assert not (_final(tmp_path, result) / "solution" / "solve.sh").exists()
 
 
-def test_build_confirmed_purge_task_carries_purge(tmp_path: Path, oracle: OracleInfo) -> None:
-    task_id = "format-code-task-001269"
-    package = _write_run_package(tmp_path, task_id)
-    result = _builder(tmp_path).build_task(task_id, _row(package, task_id), oracle=oracle)
-    assert result.status == STATUS_BUILT
-    assert result.chain == [
-        STRIP_ID,
-        PURGE_ID,
-        CACHE_ACTIVE_ID,
-        MTIME_ACTIVE_ID,
-        SEPARATE_V6_ID,
-        AGENT_NETWORK_NONE_ID,
-    ]
-
-
-def test_build_fail_closed_task_skips_purge_with_reason(tmp_path: Path, oracle: OracleInfo) -> None:
-    task_id = "format-code-task-002552"
-    package = _write_run_package(tmp_path, task_id)
-    builder = _builder(tmp_path, purge_skip={task_id})
-    result = builder.build_task(task_id, _row(package, task_id), oracle=oracle)
-    assert result.status == STATUS_BUILT
-    assert PURGE_ID not in result.chain
-    assert "fail-closed" in result.reason
 
 
 def test_build_unresolvable_snapshot_task_skipped(tmp_path: Path) -> None:
@@ -624,66 +537,6 @@ def test_rebuild_past_orphan_packages(tmp_path: Path, oracle: OracleInfo) -> Non
     assert leftovers == []
 
 
-def test_next_free_name_skips_taken_dirs(tmp_path: Path) -> None:
-    from evallab.mimo_clean import _next_free_name
-
-    jobs = tmp_path / "jobs"
-    jobs.mkdir()
-    assert _next_free_name(jobs, "base", task_id="t") == ("base", True)
-    (jobs / "base").mkdir()
-    assert _next_free_name(jobs, "base", task_id="t") == ("base-attempt2", False)
-    (jobs / "base-attempt2").mkdir()
-    assert _next_free_name(jobs, "base", task_id="t") == ("base-attempt3", False)
-
-
-def test_parser_registers_build_and_verify() -> None:
-    from evallab.cli import parser
-
-    parsed = parser().parse_args(["mimo-clean", "build", "--tasks", "a,b"])
-    assert parsed.mimo_clean_cmd == "build"
-    assert parsed.tasks == "a,b"
-    assert parsed.workers == 8
-    parsed = parser().parse_args(["mimo-clean", "verify-local", "--tasks", "a"])
-    assert parsed.mimo_clean_cmd == "verify-local"
-    assert parsed.timeout_seconds == 1800
-
-
-def test_run_cli_build_writes_manifest(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    from evallab.cli import run_cli
-
-    package = _write_run_package(tmp_path, TASK_ID)
-    ledger = tmp_path / "ledger.csv"
-    with ledger.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(_row(package, TASK_ID)))
-        writer.writeheader()
-        writer.writerow(_row(package, TASK_ID))
-    (tmp_path / "sweep.csv").write_text("task_id,label,fix_commit\n", encoding="utf-8")
-    assert (
-        run_cli(
-            [
-                "mimo-clean",
-                "build",
-                "--tasks",
-                TASK_ID,
-                "--ledger",
-                "ledger.csv",
-                "--sweep",
-                "sweep.csv",
-                "--manifest",
-                "out/manifest.csv",
-                "--workers",
-                "1",
-            ],
-            workspace=tmp_path,
-        )
-        == 0
-    )
-    out = capsys.readouterr().out
-    assert "built 1/1" in out
-    loaded = load_manifest(tmp_path / "out" / "manifest.csv")
-    assert len(loaded) == 1
-    assert loaded[0]["status"] == STATUS_BUILT
-    assert loaded[0]["chain"].endswith(f"{SEPARATE_V6_ID}>{AGENT_NETWORK_NONE_ID}")
 
 
 def test_chains_for_version_matrix() -> None:
@@ -707,87 +560,17 @@ def test_chains_for_version_matrix() -> None:
         chains_for_version("mimo-clean-v9")
 
 
-def test_build_v5_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
-    package = _write_run_package(tmp_path, TASK_ID)
-    builder = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V5)
-    result = builder.build_task(TASK_ID, _row(package, TASK_ID), oracle=oracle)
-    assert result.status == STATUS_BUILT
-    assert result.chain == [
-        STRIP_ID,
-        PURGE_V2_ID,
-        CACHE_ACTIVE_ID,
-        MTIME_ACTIVE_ID,
-        SEPARATE_V8_ID,
-        AGENT_NETWORK_NONE_ID,
-    ]
-    final = _final(tmp_path, result)
-    assert b"_go_bare" in (final / "tests" / "test.sh").read_bytes()
-    row = result.manifest_row()
-    assert row["chain"].endswith(f"{SEPARATE_V8_ID}>{AGENT_NETWORK_NONE_ID}")
-
-
-def test_build_v5_snapshot_chain_end_to_end(tmp_path: Path) -> None:
-    task_id = "format-code-task-000045"
-    _write_snapshot_package(tmp_path, task_id, "JavaScript")
-    result = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V5).build_task(
-        task_id, None, oracle=None
-    )
-    assert result.chain == [
-        STRIP_ID,
-        CACHE_ACTIVE_ID,
-        MTIME_ACTIVE_ID,
-        SEPARATE_V8_ID,
-        AGENT_NETWORK_NONE_ID,
-    ]
 
 
 def test_excluded_from_training_noted(tmp_path: Path) -> None:
     task_id = "format-code-task-001478"
     assert task_id in EXCLUDED_FROM_TRAINING
     _write_snapshot_package(tmp_path, task_id, "Go")
-    result = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V5).build_task(
-        task_id, None, oracle=None
-    )
+    result = _builder(tmp_path).build_task(task_id, None, oracle=None)
     assert result.status == STATUS_BUILT
     assert "excluded-from-training" in result.reason
-    assert MANIFEST_V5_REL.parts[-2:] == ("mimo-clean-v5", "manifest.csv")
 
 
-def test_build_v5_fold_task_uses_cache_v5(tmp_path: Path) -> None:
-    task_id = "format-code-task-000919"
-    assert task_id in NODE_FOLD_TASKS
-    _write_snapshot_package(tmp_path, task_id, "JavaScript")
-    result = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V5).build_task(
-        task_id, None, oracle=None
-    )
-    assert result.status == STATUS_BUILT
-    assert result.chain == [
-        STRIP_ID,
-        CACHE_V5_ID,
-        MTIME_ACTIVE_ID,
-        SEPARATE_V8_ID,
-        AGENT_NETWORK_NONE_ID,
-    ]
-
-
-def test_build_v5_repeat_fold_tasks_use_separate_v10(tmp_path: Path) -> None:
-    assert {
-        "format-code-task-000245",
-        "format-code-task-000048",
-    } == SEPARATE_V10_TASKS
-    for task_id, category in (
-        ("format-code-task-000245", "TypeScript"),
-        ("format-code-task-000048", "Go"),
-    ):
-        _write_snapshot_package(tmp_path, task_id, category)
-        result = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V5).build_task(
-            task_id, None, oracle=None
-        )
-        assert result.status == STATUS_BUILT
-        assert result.chain[-2:] == [SEPARATE_V10_ID, AGENT_NETWORK_NONE_ID]
-        assert b"$M/pristine-tree" in (
-            _final(tmp_path, result) / "tests" / "test.sh"
-        ).read_bytes()
 
 
 def test_chains_for_version_v6() -> None:
@@ -811,70 +594,6 @@ def test_chains_for_version_v6() -> None:
     assert DEFAULT_MANIFEST_BY_VERSION[CLEAN_SET_VERSION_V5] == MANIFEST_V5_REL
 
 
-def test_run_cli_build_v6_writes_manifest(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    from evallab.cli import run_cli
-
-    package = _write_run_package(tmp_path, TASK_ID)
-    ledger = tmp_path / "ledger.csv"
-    with ledger.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(_row(package, TASK_ID)))
-        writer.writeheader()
-        writer.writerow(_row(package, TASK_ID))
-    (tmp_path / "sweep.csv").write_text("task_id,label,fix_commit\n", encoding="utf-8")
-    assert (
-        run_cli(
-            [
-                "mimo-clean",
-                "build",
-                "--clean-version",
-                "mimo-clean-v6",
-                "--tasks",
-                TASK_ID,
-                "--ledger",
-                "ledger.csv",
-                "--sweep",
-                "sweep.csv",
-                "--manifest",
-                "out/manifest-v6.csv",
-                "--workers",
-                "1",
-            ],
-            workspace=tmp_path,
-        )
-        == 0
-    )
-    assert "built 1/1" in capsys.readouterr().out
-    loaded = load_manifest(tmp_path / "out" / "manifest-v6.csv")
-    assert loaded[0]["status"] == STATUS_BUILT
-    assert loaded[0]["chain"].endswith(f"{SEPARATE_V10_ID}>{AGENT_NETWORK_NONE_ID}")
-    sidecar = tmp_path / "out" / "manifest-v6.lineage.json"
-    before = sidecar.read_bytes()
-    index = json.loads(before)
-    assert index["schema"] == "evallab.mimo_clean_lineage/v1"
-    assert index["manifest_sha256"] == (
-        "sha256:" + hashlib.sha256((tmp_path / "out" / "manifest-v6.csv").read_bytes()).hexdigest()
-    )
-    assert [entry["task_id"] for entry in index["tasks"]] == [TASK_ID]
-    entry = index["tasks"][0]
-    assert entry["root"]["digest"] == task_directory_digest(package)
-    assert entry["final_digest"] == loaded[0]["final_digest"]
-    assert len(entry["canonical_records"]) == len(entry["records"]) == 6
-    for proof in entry["records"]:
-        assert "files" not in proof
-        assert proof["record_sha256"] == (
-            "sha256:" + hashlib.sha256((tmp_path / proof["record"]).read_bytes()).hexdigest()
-        )
-    assert run_cli(
-        [
-            "mimo-clean", "build", "--clean-version", "mimo-clean-v6",
-            "--tasks", TASK_ID, "--ledger", "ledger.csv", "--sweep", "sweep.csv",
-            "--manifest", "out/manifest-v6.csv", "--workers", "1",
-        ],
-        workspace=tmp_path,
-    ) == 0
-    assert sidecar.read_bytes() == before
 
 
 def test_build_v6_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
@@ -896,12 +615,17 @@ def test_build_v6_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
     assert row["chain"].endswith(f"{SEPARATE_V10_ID}>{AGENT_NETWORK_NONE_ID}")
     from evallab.registry import harbor_task_digest
     from evallab.task_variants import materialize, resolve_record
+    manifest = tmp_path / "release" / "manifest.csv"
+    write_manifest([row], manifest)
+    index = json.loads(mimo_clean.write_lineage_index([result], manifest).read_bytes())
+    assert index["manifest_sha256"] == "sha256:" + hashlib.sha256(manifest.read_bytes()).hexdigest()
+    lineage = index["tasks"][0]
 
-    assert result.lineage["canonical_records"] == [
-        proof["record"] for proof in result.lineage["records"]
+    assert lineage["canonical_records"] == [
+        proof["record"] for proof in lineage["records"]
     ]
     current = package
-    for transform, proof in zip(result.chain, result.lineage["records"], strict=True):
+    for transform, proof in zip(result.chain, lineage["records"], strict=True):
         record = resolve_record(proof["record"], repo_root=tmp_path)
         assert record.transform == transform
         assert record.parent.digest == task_directory_digest(current)
@@ -1267,55 +991,6 @@ def test_pre848_snapshot_package_is_stale(tmp_path: Path) -> None:
     assert builder._materialized(TASK_ID, agent_stale) is None  # type: ignore[arg-type]
 
 
-@pytest.mark.parametrize(
-    ("prior_version", "prior_verify", "reset", "expected"),
-    [
-        ("mimo-clean-v6", "pass", False, "pass"),
-        ("mimo-clean-v6", "pass", True, VERIFY_UNVERIFIED),
-        ("mimo-clean-v5", "pass", False, VERIFY_UNVERIFIED),
-        ("mimo-clean-v5", "env-broken", False, VERIFY_UNVERIFIED),
-    ],
-)
-def test_cli_rebuild_keeps_verification_only_for_the_same_package(
-    tmp_path: Path, prior_version: str, prior_verify: str, reset: bool, expected: str
-) -> None:
-    from evallab.cli import run_cli
-
-    package = _write_run_package(tmp_path, TASK_ID)
-    with (tmp_path / "ledger.csv").open("w", newline="", encoding="utf-8") as handle:
-        row = _row(package, TASK_ID)
-        writer = csv.DictWriter(handle, fieldnames=list(row))
-        writer.writeheader()
-        writer.writerow(row)
-    (tmp_path / "sweep.csv").write_text("task_id,label,fix_commit\n", encoding="utf-8")
-    args = [
-        "mimo-clean",
-        "build",
-        "--tasks",
-        TASK_ID,
-        "--ledger",
-        "ledger.csv",
-        "--sweep",
-        "sweep.csv",
-        "--manifest",
-        "out/manifest.csv",
-        "--workers",
-        "1",
-        "--clean-version",
-    ]
-    assert run_cli([*args, prior_version], workspace=tmp_path) == 0
-    manifest = tmp_path / "out" / "manifest.csv"
-    prior = load_manifest(manifest)
-    prior[0]["verify"] = prior_verify
-    write_manifest(prior, manifest)
-
-    reset_args = ["--reset-verify"] if reset else []
-    assert run_cli([*args, "mimo-clean-v6", *reset_args], workspace=tmp_path) == 0
-    rebuilt = load_manifest(manifest)[0]
-    assert rebuilt["verify"] == expected
-    assert (rebuilt["final_digest"] == prior[0]["final_digest"]) == (
-        prior_version == "mimo-clean-v6"
-    )
 
 
 @pytest.mark.parametrize("current_controls", [False, True])

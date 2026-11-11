@@ -2713,8 +2713,6 @@ def _harden_command(
             expected_tests=args.expected_tests,
             expected_skipped=args.expected_skipped,
             calibrate=args.calibrate,
-            allow_degraded=args.allow_degraded,
-            single_container=args.single_container,
             helpers=tuple(args.helper),
             verifier_dockerfile=args.verifier_dockerfile,
         )
@@ -6377,16 +6375,6 @@ def parser() -> argparse.ArgumentParser:
         help="Record report counts without gating (reference runs only)",
     )
     harden_parser.add_argument(
-        "--allow-degraded",
-        action="store_true",
-        help="Without a reference count, gate on one passing test",
-    )
-    harden_parser.add_argument(
-        "--single-container",
-        action="store_true",
-        help="Skip L4 verifier separation (L4 leak scrub still runs)",
-    )
-    harden_parser.add_argument(
         "--helper",
         action="append",
         default=[],
@@ -6681,12 +6669,6 @@ def parser() -> argparse.ArgumentParser:
     from evallab.cheat import build_cheat_parser
 
     build_cheat_parser(commands)
-    from evallab.mimo_clean import build_mimo_clean_parser
-
-    build_mimo_clean_parser(commands)
-    from evallab.mimo_census import build_mimo_census_parser
-
-    build_mimo_census_parser(commands)
     from evallab.qa.cli import build_qa_parser
 
     build_qa_parser(commands)

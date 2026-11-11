@@ -75,10 +75,17 @@ lookup; one grouped rebuild per scope+script), `TRANSFORM_ID_V5`,
 `BUILD_OUTPUT_DIRS_V5`, `shell_block_v5` (@4 bytes + new node section),
 `build_setup_sh_v5`, `build_changes_v5`, `derive_purge_build_caches_v5`.
 @1–@4 untouched and byte-identical (verified: zero removed lines).
-`src/evallab/hardening.py`: registry entry. `tests/…`: 12 fixture tests
+`src/evallab/purge_build_caches.py` owns the transform. `tests/…`: 12 fixture tests
 (nested delete, nested rebuild, no-script fail-closed, tracked-untouched,
 no-package.json no-op, orphan scope, self-link + cjs entry, nested runtime
 asset ref, bare-dir require).
+
+The current builder is `mimo-clean-v6`, with `separate-verifier@10`.
+The `mimo-clean` and `mimo-census` CLI producers are retired.
+Use the native fleet build script for source packages.
+`evallab harden` no longer accepts `--allow-degraded` or `--single-container`.
+The retained certification code still uses the historical Python API.
+Historical manifests, package records, and evidence remain unchanged.
 
 Semantics: ignored-and-untracked candidates only (tracked → strip,
 non-ignored → git clean); grader-unused → delete; grader-used → rebuild

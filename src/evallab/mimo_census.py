@@ -42,7 +42,7 @@ from typing import Any
 
 from evallab.cheat import build_verdicts, collect_cheat_attempts
 from evallab.cheat_ladder import ATTACKS, CHEAT_AGENT_VERSION
-from evallab.mimo_clean import STATUS_BUILT, acceptance_pass, load_manifest, summarize_trials
+from evallab.mimo_clean import acceptance_pass, load_manifest, summarize_trials
 
 #: Census version id (job-name namespace + manifest_version values).
 CENSUS_VERSION = "mimo-clean-census-v1"
@@ -1999,11 +1999,6 @@ class CensusContext:
     primary: Path
 
 
-def _add_common(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--manifest", type=Path, default=None)
-    parser.add_argument("--manifest-version", default=None)
-    parser.add_argument("--receipt-dir", type=Path, default=None)
-    parser.add_argument("--jobs-dir", type=Path, default=None)
 
 
 def resolve_context(args: argparse.Namespace, root: Path) -> CensusContext:
@@ -2032,97 +2027,6 @@ def resolve_context(args: argparse.Namespace, root: Path) -> CensusContext:
     )
 
 
-def build_mimo_census_parser(commands: Any) -> None:
-    """Register the top-level ``evallab mimo-census`` command."""
-    parser = commands.add_parser(
-        "mimo-census",
-        help="Fleet-wide clean-set census: nop/oracle/ladder/fix-content + results.csv",
-        description=__doc__.split("\n\n")[0] if __doc__ else "mimo-clean-census-v1",
-    )
-    sub = parser.add_subparsers(dest="mimo_census_cmd", required=True)
-    _register_census_commands(sub)
-
-
-def _register_census_commands(sub: Any) -> None:
-    """Register the census verbs (``run``/``report``/``record-spend``/``cost``)."""
-    run = sub.add_parser("run", help="Run census cells for manifest tasks")
-    _add_run_args(run)
-    run.set_defaults(func=_run_command)
-    report = sub.add_parser("report", help="Assemble results.csv + summary from census rows")
-    _add_common(report)
-    report.add_argument("--cost-default-usd", type=float, default=0.0)
-    report.add_argument(
-        "--overrides",
-        type=Path,
-        default=None,
-        help=(
-            "triaged verify overrides CSV (default: <receipt-dir>/verify-overrides.csv "
-            "when present; merged over untriaged aggregates at manifest write)"
-        ),
-    )
-    report.set_defaults(func=_report_command)
-    record = sub.add_parser(
-        "record-spend", help="Record one batch's provider actuals in spend.jsonl"
-    )
-    _add_common(record)
-    record.add_argument("--batch-id", required=True)
-    record.add_argument("--tasks", required=True, help="comma-separated task ids in the batch")
-    record.add_argument("--backend", choices=BACKENDS, required=True)
-    record.add_argument("--actual-usd", type=float, required=True)
-    record.add_argument("--evidence", default="", help="provider receipt path or query")
-    record.set_defaults(func=_record_spend_command)
-    cost = sub.add_parser("cost", help="Record Daytona rate-card estimates, not provider invoices")
-    _add_common(cost)
-    cost.add_argument("--batch-id", required=True)
-    cost.add_argument("--tasks", required=True, help="comma-separated task ids in the batch")
-    cost.set_defaults(func=_cost_command)
-
-
-def _add_run_args(parser: argparse.ArgumentParser) -> None:
-    _add_common(parser)
-    parser.add_argument(
-        "--ledger",
-        type=Path,
-        default=Path("research/experiments/python-task-ledger/ledger.csv"),
-        help="ledger CSV resolving pre-cleanup run packages for fix-content census",
-    )
-    parser.add_argument(
-        "--tasks", default=None, help="comma-separated task ids (default: all built)"
-    )
-    parser.add_argument("--backend", choices=BACKENDS, default="docker")
-    parser.add_argument("--timeout-seconds", type=int, default=1800)
-    parser.add_argument("--worst-case-usd-per-task", type=float, default=0.25)
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=None,
-        help=(
-            "process workers for the batch (default 1, serial; "
-            f"max {MAX_DOCKER_WORKERS} on docker, max {MAX_REMOTE_WORKERS} remote)"
-        ),
-    )
-    parser.add_argument(
-        "--checks",
-        default=None,
-        help=(
-            "comma subset of nop,oracle,ladder,fix (default all; "
-            "unselected checks launch nothing and report blank)"
-        ),
-    )
-    parser.add_argument(
-        "--skip-fix-census",
-        action="store_true",
-        help="skip check (d), grading cells only (alias for --checks without fix)",
-    )
-    parser.add_argument(
-        "--modal-resource-policy",
-        choices=list(MODAL_RESOURCE_POLICIES),
-        default=MODAL_POLICY_AUTO,
-        help=(
-            "Modal resource policy for grading cells (default auto; "
-            "limit opts into cpu/memory enforcement on the census app)"
-        ),
-    )
 
 
 def run_task_record(spec: Mapping[str, Any]) -> dict[str, Any]:
@@ -2215,117 +2119,6 @@ def run_task_record(spec: Mapping[str, Any]) -> dict[str, Any]:
     return record
 
 
-def _run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
-    ctx = resolve_context(args, root)
-    manifest = {row["task_id"]: row for row in load_manifest(ctx.manifest_path)}
-    wanted = parse_task_list(args.tasks)
-    selected = [
-        (task_id, row)
-        for task_id, row in sorted(manifest.items())
-        if row["status"] == STATUS_BUILT
-        and row.get("package_path")
-        and (not wanted or task_id in wanted)
-    ]
-    if wanted:
-        for task_id in wanted:
-            if task_id not in manifest:
-                print(f"skip {task_id}: not in manifest {ctx.manifest_path}")
-    try:
-        selected_checks = parse_check_list(args.checks)
-    except ValueError as exc:
-        print(f"error: {exc}")
-        return 2
-    if args.skip_fix_census:
-        if args.checks is not None and "fix" in selected_checks:
-            print("error: --skip-fix-census conflicts with --checks including fix")
-            return 2
-        selected_checks = tuple(name for name in selected_checks if name != "fix")
-    try:
-        workers = resolve_worker_count(backend=args.backend, requested=args.workers)
-        modal_resource_policy = normalize_modal_resource_policy(args.modal_resource_policy)
-        if modal_resource_policy is not None and args.backend != "modal":
-            raise ValueError("--modal-resource-policy limit requires --backend modal")
-    except ValueError as exc:
-        print(f"error: {exc}")
-        return 2
-    ledger: dict[str, dict[str, str]] = {}
-    if "fix" in selected_checks:
-        ledger_path = _resolve(root, args.ledger)
-        if ledger_path.is_file():
-            ledger = {row["task_id"]: row for row in load_manifest(ledger_path)}
-        else:
-            print(f"note: ledger {ledger_path} absent; fix-content census skipped")
-    # The whole batch is fenced before any worker starts; workers never
-    # re-check the cap (actuals land via record-spend/cost after the run).
-    if args.backend != "docker":
-        projected = len(selected) * args.worst_case_usd_per_task
-        spent = slice_spent_usd(ctx.receipt_dir)
-        if not fence_allows(spent_usd=spent, projected_usd=projected):
-            print(
-                f"refuse: slice spent ${spent:.2f} + projected ${projected:.2f} "
-                f"> cap ${SLICE_CAP_USD:.2f}; narrow --tasks and retry"
-            )
-            return 2
-        print(
-            f"spend fence ok: spent ${spent:.2f} + projected ${projected:.2f} "
-            f"<= ${SLICE_CAP_USD:.2f}"
-        )
-    print(
-        f"census plan: {len(selected)} tasks x checks={','.join(selected_checks)} "
-        f"backend={args.backend} workers={workers} "
-        f"modal_resource_policy={policy_row_value(modal_resource_policy)}"
-    )
-    specs: list[dict[str, Any]] = [
-        {
-            "task_id": task_id,
-            "manifest_row": dict(row),
-            "manifest_version": ctx.manifest_version,
-            "primary": str(ctx.primary),
-            "jobs_root": str(ctx.jobs_dir),
-            "backend": args.backend,
-            "timeout_seconds": args.timeout_seconds,
-            "root": str(root),
-            "checks": list(selected_checks),
-            "ledger_row": dict(ledger[task_id]) if task_id in ledger else None,
-            "modal_resource_policy": modal_resource_policy,
-        }
-        for task_id, row in selected
-    ]
-    rows_path = ctx.jobs_dir / ROWS_FILENAME
-    ctx.jobs_dir.mkdir(parents=True, exist_ok=True)
-
-    def _emit(record: Mapping[str, Any]) -> None:
-        # Only the parent appends: one record per selected task, serially,
-        # so concurrent workers never share a writer.
-        with rows_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(dict(record)) + "\n")
-        print(
-            f"| {record['task_id']} | oracle={record['oracle']} nop={record['nop']} "
-            f"ladder={record['ladder_verdict']}:{record['ladder_cracking_attacks'] or '-'} "
-            f"census={record['census_locations'] or 'n/a'} |"
-        )
-
-    if workers == 1:
-        # Native serial path: in-process, one task at a time.
-        for spec in specs:
-            try:
-                _emit(run_task_record(spec))
-            except Exception as exc:  # noqa: BLE001 - one task never kills the batch
-                print(f"error {spec['task_id']}: {type(exc).__name__}: {exc}")
-    else:
-        # Remote fan-out: process workers (never threads — the cheat ladder
-        # hands its attack subset through process os.environ under a lock).
-        from concurrent.futures import ProcessPoolExecutor
-
-        with ProcessPoolExecutor(max_workers=workers) as pool:
-            futures = [pool.submit(run_task_record, spec) for spec in specs]
-            for spec, future in zip(specs, futures, strict=True):
-                try:
-                    _emit(future.result())
-                except Exception as exc:  # noqa: BLE001 - one task never kills the batch
-                    print(f"error {spec['task_id']}: {type(exc).__name__}: {exc}")
-    print(f"census rows appended -> {rows_path}")
-    return 0
 
 
 def report_row_key(record: Mapping[str, Any]) -> tuple[str, str, str, str, str]:
@@ -2502,62 +2295,6 @@ def _report_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     return 0 if summary["failed"] == 0 else 1
 
 
-def _record_spend_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
-    ctx = resolve_context(args, root)
-    tasks = parse_task_list(args.tasks)
-    if not tasks:
-        print("error: --tasks needs at least one task id")
-        return 2
-    path = append_spend_record(
-        ctx.receipt_dir,
-        {
-            "batch_id": args.batch_id,
-            "backend": args.backend,
-            "tasks": ",".join(tasks),
-            "n_tasks": len(tasks),
-            "actual_usd": args.actual_usd,
-            "evidence": args.evidence,
-        },
-    )
-    total = slice_spent_usd(ctx.receipt_dir)
-    print(f"recorded batch {args.batch_id}: ${args.actual_usd:.4f} -> {path}")
-    print(f"slice total so far: ${total:.4f} / ${SLICE_CAP_USD:.2f}")
-    return 0
-
-
-def _cost_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
-    ctx = resolve_context(args, root)
-    tasks = parse_task_list(args.tasks)
-    if not tasks:
-        print("error: --tasks needs at least one task id")
-        return 2
-    manifest = {row["task_id"]: row for row in load_manifest(ctx.manifest_path)}
-    result = daytona_batch_cost_usd(
-        jobs_root=ctx.jobs_dir, task_ids=tasks, primary=ctx.primary, manifest=manifest
-    )
-    path = append_spend_record(
-        ctx.receipt_dir,
-        {
-            "batch_id": args.batch_id,
-            "backend": "daytona",
-            "tasks": ",".join(tasks),
-            "n_tasks": len(tasks),
-            "actual_usd": round(result["batch_usd"], 4),
-            "trials": result["trials"],
-            "unscored": result["unscored"],
-            "measurement_kind": "rate-card-lower-bound",
-            "provider_actual_usd": None,
-            "evidence": result["basis"],
-        },
-    )
-    for task_id in sorted(result["per_task_usd"]):
-        print(f"daytona estimate {task_id}: ${result['per_task_usd'][task_id]:.4f}")
-    for unscored in result["unscored"]:
-        print(f"unscored (excluded): {unscored}")
-    total = slice_spent_usd(ctx.receipt_dir)
-    print(f"recorded lower-bound estimate {args.batch_id}: ${result['batch_usd']:.4f} -> {path}")
-    print(f"slice total so far: ${total:.4f} / ${SLICE_CAP_USD:.2f}")
-    return 0
 
 
 __all__ = [
@@ -2590,7 +2327,6 @@ __all__ = [
     "amortized_cost",
     "append_spend_record",
     "blank_row",
-    "build_mimo_census_parser",
     "census_fix_content",
     "census_row_pass",
     "census_task",

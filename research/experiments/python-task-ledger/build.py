@@ -66,7 +66,21 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-from evallab.hardening import NETWORK_LABEL, PURGE_ID, network_discard_reason
+from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
+
+NETWORK_LABEL = "oracle:fail-network"
+
+
+def network_discard_reason(evidence: str) -> str:
+    """One-line discard reason. The evidence path is the deciding input."""
+    if not evidence or evidence.startswith("http"):
+        raise ValueError(f"network discard needs a local evidence path, got {evidence!r}")
+    return (
+        f"verifier passes only with egress open ({evidence}:{NETWORK_LABEL}); "
+        "allow-list rejected because a networked verifier can exfiltrate hidden inputs; "
+        "recorded mock rejected because no response bodies were captured"
+    )
+
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]

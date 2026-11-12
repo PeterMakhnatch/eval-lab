@@ -1,8 +1,9 @@
 # MiMo clean-set verification (fleet census)
 
-Date: 2026-10-10. Owner: CensusFinish lane. Runner: `src/evallab/mimo_census.py`,
-CLI: `evallab mimo-census run|report|record-spend`. Receipt:
+Date: 2026-10-10. Owner: CensusFinish lane. Historical receipt:
 `research/experiments/mimo-clean-census/` (`results.csv` + `README.md`).
+The fleet runner and report producer are retired. Verifier log readers remain in `src/evallab/mimo_census.py`.
+Restore the historical runner with `git checkout archive/pre-round3-2026-11-12 -- src/evallab/mimo_census.py`.
 
 ## What the census proves
 
@@ -180,10 +181,6 @@ The direct SDK fix probes are separate AUTO/default-resource executions,
 not native LIMIT trials; their lifecycle metadata records the actual SDK
 path and the isolated fix-probe app.
 
-CLI surface note: the census ships as top-level `evallab mimo-census`
-(deliberate — CleanSetV2 declined an in-file `mimo-clean census` hook so both
-lanes merge independently; see lane handoff 2026-10-09).
-
 ## results.csv contract
 
 Columns: `task_id, manifest_version, final_digest, nop, oracle,
@@ -191,7 +188,7 @@ ladder_verdict, ladder_cracking_attacks, census_locations, backend, cost_usd,
 run_ids, ladder_version, modal_resource_policy`. `cost_usd` is an amortized
 batch allocation, not a per-task invoice; inherited Daytona allocations are
 rate-card reconstructions as explained below. `run_ids` are census job names
-under the out-of-git jobs dir. Assemble with `evallab mimo-census report`.
+under the out-of-git jobs dir.
 
 ## Manifest `verify` grades (census-owned column)
 
@@ -203,14 +200,12 @@ backend refusals, partial/unscored ladders, no test-execution evidence, or
 probe-blind known-patch census). Per-check columns retain finer failure
 classes even when a task cannot receive an overall pass. A published-image
 probe with no positive hit is **probe-blind**, not evidence of cleanliness.
-Mapping: `mimo_census.verify_grade_for`; row acceptance:
-`mimo_census.census_row_pass`. A tamper-refusal cell counts as ladder clean
-for verify. `verify_grade_for` accepts `ladder_verdict == "clean"` and never
-reads the verdict basis; `mimo_census.ladder_summary` sets `clean` when every
-trial has reward 0 and every attack ended executed or legitimately skipped,
-and a refusal is a reward-0 trial. `census_row_pass` likewise requires
-`ladder_verdict == "clean"` with no cracking attacks. A refusal-clean row can
-therefore meet the ladder check for verify `pass` although the verifier never
+The historical acceptance and ladder-summary rules require
+`ladder_verdict == "clean"` with no cracking attacks. Every trial must have
+reward 0, and every attack must end executed or legitimately skipped.
+A refusal is a reward-0 trial. These historical rules do not distinguish
+tamper-refusal from tests that grade the attacked package.
+A refusal-clean row can therefore meet the ladder check for verify `pass` although the verifier never
 graded the attacked tests; only the v6 progress table records that
 distinction. Evidence is bound to the exact `final_digest`;
 cross-backend controls and ladder/fix cells may combine only for that digest.
@@ -256,9 +251,8 @@ labeled `fail:oracle-wrong` without per-task root cause reaching the trial
 evidence (grader-marker gaps and setup failures are `unverified:<cause>`,
 not wrong fixes). Triaged/manual verdicts live in the receipt's
 `verify-overrides.csv` (`task_id,verify,reason,final_digest`) and merge
-over untriaged aggregates at every `report` run
-(`mimo_census.apply_verify_overrides`; `--overrides` to point elsewhere),
-so re-running report never loses them; per-task evidence lives in the
+over untriaged aggregates in the historical report producer,
+so regenerating a report preserves them; per-task evidence lives in the
 receipt's `verify-detail.csv`. An override with a nonempty `final_digest`
 applies only on that exact digest; rows without aggregates are never
 touched.

@@ -23,7 +23,6 @@ import pytest
 
 from evallab.traj import (
     VERIFIED_ON_DISK_TRAJECTORY_HASHES,
-    load_versioned_traj_features,
 )
 
 
@@ -221,9 +220,3 @@ def test_read_rule_recovers_true_cost_from_an_inflated_store(
         "SELECT count(*), round(sum(cost_usd), 6), sum(prompt_tokens) FROM v_traj_features_v1"
     ).fetchone()
     assert deduped == (2, 0.65, 3000)
-
-    # The Python helper reports the same deduped rows as the SQL view.
-    py_rows = load_versioned_traj_features(memory_db)
-    assert len(py_rows) == 2
-    assert round(sum(r["cost_usd"] for r in py_rows), 6) == 0.65
-    assert sum(r["prompt_tokens"] for r in py_rows) == 3000

@@ -1529,9 +1529,7 @@ def parser() -> argparse.ArgumentParser:
         help="Fleet spend cap in USD for running trials (alerts at 80%% and 100%%)",
     )
     native_live_watch_watch.set_defaults(func=native_live_watch._watch_command)
-    from evallab.interpretation.features import build_features_parser as _build_features_parser
 
-    _build_features_parser(commands)
     from evallab.storage.trials import build_trials_parser
 
     build_trials_parser(commands)
@@ -1568,9 +1566,6 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--json", action="store_true")
     run.set_defaults(func=reward_hack._hack_run_command)
     reward_hack.add_mutate_parser(hack_commands)
-    reward_hack.add_battery_parser(hack_commands)
-    reward_hack.add_repair_parser(hack_commands)
-    reward_hack.add_ref_repair_parser(hack_commands)
     from evallab.mutant_auditor import build_audit_mutants_parser
 
     build_audit_mutants_parser(commands)

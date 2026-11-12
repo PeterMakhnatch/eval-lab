@@ -38,11 +38,9 @@ from evallab.storage.parquet_compaction import (
     deduplicate_and_sort,
     discover_compacted_row_counts,
     discover_uncompacted_jobs,
-    main,
     parse_iso_date,
     plan_compaction,
     resolve_job_date,
-    write_compact_table,
 )
 
 
@@ -547,32 +545,6 @@ def test_deduplicate_and_sort_jobs() -> None:
     assert deduped.schema.equals(schema)
 
 
-def test_write_compact_table_validation(tmp_path: Path) -> None:
-    schema = TABLE_SCHEMAS["jobs"]
-    rows = [{"job_id": "j1", "job_name": "n1", "trial_count": 1}]
-    table = pa.Table.from_pylist(rows, schema=schema)
-    target = tmp_path / "jobs.parquet"
-    written_count = write_compact_table(table, target, "jobs")
-    assert written_count == 1
-    assert target.is_file()
-
-    read_back = pq.read_table(target)
-    assert read_back.schema.equals(schema)
-    assert read_back.num_rows == 1
-
-
-def test_write_compact_table_schema_error(tmp_path: Path) -> None:
-    # Intentionally invalid schema for "jobs" (missing columns)
-    bad_schema = pa.schema([pa.field("wrong_col", pa.string())])
-    bad_table = pa.Table.from_pylist([{"wrong_col": "val"}], schema=bad_schema)
-    target = tmp_path / "jobs.parquet"
-
-    with pytest.raises(CompactionValidationError, match="Schema integrity mismatch"):
-        write_compact_table(bad_table, target, "jobs")
-
-    assert not target.exists()
-
-
 @pytest.mark.parametrize(
     ("table_name", "removed", "expected"),
     [
@@ -869,54 +841,6 @@ def test_duckdb_hive_partitioning_query(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 # CLI Tests
 # --------------------------------------------------------------------------- #
-
-
-def test_cli_compact_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    derived_root = tmp_path / "derived" / "parquet"
-    create_uncompacted_job(
-        derived_root,
-        job_id="job-cli-1",
-        trial_ids=["t1"],
-        timestamp="2026-08-12T10:00:00Z",
-    )
-
-    exit_code = main(
-        [
-            "compact",
-            "--derived-dir",
-            str(derived_root),
-            "--json",
-        ]
-    )
-    assert exit_code == 0
-    captured = capsys.readouterr()
-    payload = json.loads(captured.out)
-    assert payload["ok"] is True
-    assert len(payload["compacted_days"]) == 1
-    assert payload["compacted_days"][0]["dt"] == "2026-08-12"
-
-
-def test_cli_compact_human_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    derived_root = tmp_path / "derived" / "parquet"
-    create_uncompacted_job(
-        derived_root,
-        job_id="job-cli-2",
-        trial_ids=["t1"],
-        timestamp="2026-08-12T10:00:00Z",
-    )
-
-    exit_code = main(
-        [
-            "compact",
-            "--derived-dir",
-            str(derived_root),
-        ]
-    )
-    assert exit_code == 0
-    captured = capsys.readouterr()
-    assert "parquet compaction" in captured.out
-    assert "dt=2026-08-12" in captured.out
-    assert "total compacted rows" in captured.out
 
 
 def test_deduplicate_and_sort_semantic_facts() -> None:

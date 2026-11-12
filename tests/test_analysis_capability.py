@@ -1138,11 +1138,10 @@ def test_run_campaign_analysis_refuses_unsupported_or_empty() -> None:
 
 
 def test_predictor_outcome_lineage_violation_refuses() -> None:
-    from evallab.interpretation.run_report import FeatureDefinition, FeatureRegistry
+    from evallab.interpretation.run_report import FeatureDefinition
 
-    registry = FeatureRegistry()
-    registry.register(
-        FeatureDefinition(
+    registry = {}
+    feature = FeatureDefinition(
             column_name="defines_outcome",
             category="mechanical_fact",
             data_type="BOOLEAN",
@@ -1157,7 +1156,7 @@ def test_predictor_outcome_lineage_violation_refuses() -> None:
             verdict_coupling="defines",
             coupling_basis="exact verifier basis",
         )
-    )
+    registry[feature.column_name] = feature
     spec = create_campaign_analysis_spec(
         spec_id="lineage-violation-test",
         method=AnalysisMethod.FISHER_2X2,
@@ -1179,9 +1178,8 @@ def test_predictor_outcome_lineage_violation_refuses() -> None:
 
 
 def test_predictor_missing_lineage_declaration_refuses() -> None:
-    from evallab.interpretation.run_report import FeatureRegistry
 
-    registry = FeatureRegistry()
+    registry = {}
     spec = create_campaign_analysis_spec(
         spec_id="missing-lineage-test",
         method=AnalysisMethod.FISHER_2X2,
@@ -1203,11 +1201,10 @@ def test_predictor_missing_lineage_declaration_refuses() -> None:
 
 
 def test_correlated_predictor_refuses_under_strict_independence() -> None:
-    from evallab.interpretation.run_report import FeatureDefinition, FeatureRegistry
+    from evallab.interpretation.run_report import FeatureDefinition
 
-    registry = FeatureRegistry()
-    registry.register(
-        FeatureDefinition(
+    registry = {}
+    feature = FeatureDefinition(
             column_name="target_outcome",
             category="mechanical_fact",
             data_type="BOOLEAN",
@@ -1222,9 +1219,8 @@ def test_correlated_predictor_refuses_under_strict_independence() -> None:
             verdict_coupling="defines",
             coupling_basis="exact verifier rule",
         )
-    )
-    registry.register(
-        FeatureDefinition(
+    registry[feature.column_name] = feature
+    feature = FeatureDefinition(
             column_name="correlated_feature",
             category="mechanical_fact",
             data_type="BOOLEAN",
@@ -1239,7 +1235,7 @@ def test_correlated_predictor_refuses_under_strict_independence() -> None:
             verdict_coupling="correlates",
             coupling_basis="observed empirical correlation",
         )
-    )
+    registry[feature.column_name] = feature
 
     spec = create_campaign_analysis_spec(
         spec_id="correlated-predictor-test",

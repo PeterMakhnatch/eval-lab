@@ -40,6 +40,3 @@ def durable_replace(source: Path, destination: Path) -> None:
     fsync_directory(destination.parent)
 
 
-_fsync_directory = fsync_directory
-_durable_mkdir = durable_mkdir
-_durable_replace = durable_replace

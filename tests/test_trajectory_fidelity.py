@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from evallab.evidence_store import load_blob
 from evallab.traj import outline_trajectory
 from evallab.trajectory_ir import (
     build_trajectory_ir,
@@ -174,7 +173,7 @@ def test_build_trajectory_ir_cas_reasoning_and_tokens(tmp_path: Path) -> None:
     assert step.reasoning_content_ref.startswith("cas://sha256/")
 
     # Read back from CAS store directly
-    restored_reasoning = load_blob(store_root, step.reasoning_content_ref).decode("utf-8")
+    restored_reasoning = (store_root / "blobs" / "sha256" / (step.reasoning_content_ref).rsplit("/", 1)[-1][:2] / ((step.reasoning_content_ref).rsplit("/", 1)[-1] + ".bin")).read_bytes().decode("utf-8")
     assert restored_reasoning == "Deep analytical thinking string with private thoughts."
 
     # Verify reasoning tokens and sampling params

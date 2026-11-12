@@ -2,19 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 import stat
 import subprocess
-import sys
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from evallab import backups
-from evallab.backups import backup_freshness, check_postgres_restore, create_postgres_backup
+from evallab.backups import backup_freshness, create_postgres_backup
 
 
 def _generation(root: Path, day: str, payload: bytes, *, created_at: str) -> Path:
@@ -218,127 +215,7 @@ def test_backup_health_fails_for_missing_or_expired_dump(
             b"backup",
             created_at=(moment - timedelta(hours=age)).isoformat(),
         )
-    monkeypatch.setattr(sys, "argv", ["backups", "status", "--root", str(tmp_path)])
-    assert backups.main() == expected
-    assert json.loads(capsys.readouterr().out)["health"] == ("FAIL" if expected else "PASS")
     fact = backup_freshness(tmp_path, now=moment)
     assert refresh_exit_code({"status": "noop", "backup": {**fact, "attempt": None}}) == expected
 
 
-@pytest.mark.parametrize("failure", [None, "mismatch", "restore"])
-def test_restore_compares_main_tables_and_drops_only_its_database(
-    tmp_path: Path,
-    failure: str | None,
-) -> None:
-    dump = _generation(tmp_path, "2026-11-10", b"PGDMP", created_at="2026-11-10T00:00:00Z")
-    counts = {table: index + 1 for index, table in enumerate(backups.MAIN_TABLES)}
-    databases: dict[str, dict[str, int]] = {"evallab": counts.copy()}
-    targets: list[str] = []
-
-    def runner(command, **kwargs):
-        script = command[9]
-        args = command[11:]
-        output = b""
-        code = 0
-        if "createdb" in script:
-            target = args[0]
-            assert target.startswith("evallab_restore_")
-            assert target not in databases
-            databases[target] = {}
-            targets.append(target)
-        elif "pg_restore" in script:
-            assert kwargs["stdin"].read() == b"PGDMP"
-            target = args[0]
-            assert target == targets[0] and target != "evallab"
-            databases[target] = counts.copy()
-            if failure == "mismatch":
-                databases[target]["trials"] -= 1
-            code = int(failure == "restore")
-        elif "dropdb" in script:
-            assert args == [targets[0]]
-            del databases[args[0]]
-        else:
-            if '"$POSTGRES_DB"' in script:
-                assert args[0].startswith("BEGIN READ ONLY;")
-                target = "evallab"
-            else:
-                target = args[0]
-            output = json.dumps(databases[target]).encode()
-        return subprocess.CompletedProcess(
-            command, code, output, b"restore failed" if code else b""
-        )
-
-    if failure:
-        with pytest.raises(RuntimeError):
-            check_postgres_restore(tmp_path, dump, runner=runner)
-    else:
-        receipt = check_postgres_restore(tmp_path, dump, runner=runner)
-        assert receipt["live"] == receipt["restored"] == counts
-        assert receipt["dropped"] is True
-        assert receipt["sha256"] == hashlib.sha256(b"PGDMP").hexdigest()
-    assert databases == {"evallab": counts}
-
-
-def test_restore_rejects_corrupt_dump_before_accessing_database(tmp_path: Path) -> None:
-    dump = _generation(tmp_path, "2026-11-10", b"PGDMP", created_at="2026-11-10T00:00:00Z")
-    dump.write_bytes(b"truncated")
-
-    def runner(*args, **kwargs):
-        pytest.fail("Corrupt backup reached the database")
-
-    with pytest.raises(ValueError):
-        check_postgres_restore(tmp_path, dump, runner=runner)
-
-
-def test_sqlite_backup_includes_wal_and_restores_all_tables(tmp_path: Path) -> None:
-    source = tmp_path / "journal.sqlite"
-    with closing(sqlite3.connect(source)) as live:
-        live.execute("PRAGMA journal_mode=WAL")
-        live.execute("PRAGMA wal_autocheckpoint=0")
-        live.execute("CREATE TABLE events (id INTEGER PRIMARY KEY, body TEXT)")
-        live.execute("INSERT INTO events VALUES (1, 'committed in WAL')")
-        live.execute("PRAGMA user_version=7")
-        live.commit()
-        wal = source.with_name(source.name + "-wal")
-        before = (source.read_bytes(), wal.read_bytes())
-        receipt = backups.create_sqlite_backup(tmp_path, source)
-        assert (source.read_bytes(), wal.read_bytes()) == before
-    assert receipt["live_snapshot"] == receipt["restored"] == {"events": 1}
-    assert receipt["user_version"] == 7
-    assert receipt["integrity"] == "ok"
-    dump = Path(receipt["path"])
-    with closing(sqlite3.connect(dump.as_uri() + "?mode=ro", uri=True)) as restored:
-        assert restored.execute("SELECT body FROM events").fetchone() == ("committed in WAL",)
-    assert hashlib.sha256(dump.read_bytes()).hexdigest() == receipt["sha256"]
-    assert stat.S_IMODE(dump.stat().st_mode) == 0o600
-    assert json.loads((dump.parent / "manifest.json").read_text()) == receipt
-
-
-def test_sqlite_backup_failure_does_not_publish_or_change_source(tmp_path: Path, monkeypatch) -> None:
-    source = tmp_path / "journal.sqlite"
-    with closing(sqlite3.connect(source)) as live:
-        live.execute("CREATE TABLE events (id INTEGER)")
-        live.execute("INSERT INTO events VALUES (1)")
-        live.commit()
-    before = source.read_bytes()
-    real_counts = backups._sqlite_counts
-    calls = 0
-
-    def mismatched_counts(connection):
-        nonlocal calls
-        calls += 1
-        return real_counts(connection) if calls == 1 else {"events": 0}
-
-    monkeypatch.setattr(backups, "_sqlite_counts", mismatched_counts)
-    with pytest.raises(ValueError, match="counts differ"):
-        backups.create_sqlite_backup(tmp_path, source)
-    assert source.read_bytes() == before
-    assert list((tmp_path / "backups/sqlite").glob("*/manifest.json")) == []
-    assert list((tmp_path / "backups/sqlite").glob("*.tmp")) == []
-
-
-def test_sqlite_missing_source_never_creates_a_database(tmp_path: Path) -> None:
-    source = tmp_path / "missing.sqlite"
-    with pytest.raises(FileNotFoundError):
-        backups.create_sqlite_backup(tmp_path, source)
-    assert not source.exists()

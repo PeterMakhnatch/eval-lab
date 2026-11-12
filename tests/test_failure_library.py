@@ -10,7 +10,6 @@ import pytest
 from pydantic import ValidationError
 
 from evallab.cli import run_cli
-from evallab.evidence_store import load_blob
 from evallab.failure_library.records import (
     Evidence,
     Finding,
@@ -218,7 +217,7 @@ def test_collection_update_retains_observations_and_manifests(tmp_path: Path) ->
     ]
     for observation in retained:
         uri = "cas://sha256/" + hashlib.sha256(observation).hexdigest()
-        assert load_blob(store.history_root, uri) == observation
+        assert (store.history_root / "blobs" / "sha256" / (uri).rsplit("/", 1)[-1][:2] / ((uri).rsplit("/", 1)[-1] + ".bin")).read_bytes() == observation
     assert json.loads(original_manifest)["source_revision"] == REVISION
     assert list(store.iter_runs("tb-fixes")) == [newer_run]
     assert store.verify_runs("tb-fixes") == []

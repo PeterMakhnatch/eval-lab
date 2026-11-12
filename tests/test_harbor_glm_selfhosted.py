@@ -174,13 +174,6 @@ def test_adapter_accepts_glm_selfhosted_and_ft(
     assert resolved_ft.api_key == GLM_SELFHOSTED_PROXY_TOKEN
 
 
-def test_adapter_alias_openai_compat(wrapper_module: ModuleType) -> None:
-    assert (
-        wrapper_module.SecretSafeOpenAICompatMiniSweAgent
-        is wrapper_module.SecretSafeGlmSelfhostedMiniSweAgent
-    )
-
-
 def test_adapter_rejects_unallowed_providers(
     wrapper_module: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 
 import pytest
 
 from evallab.evidence_store import (
     archive_evidence,
-    load_archive,
-    load_blob,
     read_record,
     restore_evidence,
     store_blob,
@@ -98,34 +95,6 @@ def test_archive_rejects_symlinked_record_kind_without_external_write(
         archive_evidence(source, store, record_id="escape")
 
     assert not (outside / "escape.json").exists()
-
-
-def test_cas_reads_reject_final_blob_symlinks(tmp_path: Path) -> None:
-    store = tmp_path / "store"
-    outside_blob = tmp_path / "outside.bin"
-    payload = b"attacker-controlled-payload"
-    outside_blob.write_bytes(payload)
-    digest = hashlib.sha256(payload).hexdigest()
-    blob_dir = store / "blobs" / "sha256" / digest[:2]
-    blob_dir.mkdir(parents=True)
-    (blob_dir / f"{digest}.bin").symlink_to(outside_blob)
-
-    with pytest.raises(ValueError, match="unsafe"):
-        load_blob(store, f"cas://sha256/{digest}")
-
-
-def test_cas_archive_read_rejects_nested_symlink(tmp_path: Path) -> None:
-    store = tmp_path / "store"
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    digest = "a" * 64
-    prefix = store / "blobs" / "sha256" / digest[:2]
-    prefix.parent.mkdir(parents=True)
-    prefix.symlink_to(outside, target_is_directory=True)
-    (outside / f"{digest}.tar.gz").write_bytes(b"not-a-trusted-archive")
-
-    with pytest.raises(ValueError, match="symlink|non-directory"):
-        load_archive(store, f"cas://sha256/{digest}")
 
 
 def test_cas_record_read_rejects_final_symlink(tmp_path: Path) -> None:

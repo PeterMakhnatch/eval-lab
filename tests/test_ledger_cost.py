@@ -761,28 +761,3 @@ def test_finalize_writes_authoritative_cost_block(tmp_path: Path) -> None:
     assert metadata["cost"]["reason"] is None
 
 
-def test_report_prefers_ledger_over_harbor_estimate() -> None:
-    from evallab.interpretation.run_report import _tokens_and_cost
-
-    result = {
-        "agent_result": {
-            "n_input_tokens": 999999,
-            "n_output_tokens": 999,
-            "cost_usd": 0.5,
-        }
-    }
-    lab_metadata = {
-        "cost": {
-            "cost_usd": 0.0004,
-            "attempted_cost_usd": 0.002,
-            "source": "proxy_ledger_x_pinned_price",
-            "pricing": dict(FLASH_PRICING),
-            "reason": None,
-        }
-    }
-    _, cost, _ = _tokens_and_cost(result, {}, [], lab_metadata)
-    assert cost["total_usd"] == pytest.approx(0.0004)
-    assert cost["source"] == "proxy_ledger"
-    assert cost["ledger"]["attempted_cost_usd"] == pytest.approx(0.002)
-    _, fallback, _ = _tokens_and_cost(result, {}, [], None)
-    assert (fallback["total_usd"], fallback["source"]) == (0.5, "result_json")

@@ -147,9 +147,6 @@ def compute_subpath_digest(
     return "sha256:" + hashlib.sha256(b"").hexdigest()
 
 
-compute_directory_digest = compute_subpath_digest
-
-
 def compute_task_digests(task_dir: Path) -> TaskDigests:
     """Compute cryptographic digests for a task package and its sub-components."""
     task_dir = task_dir.resolve()

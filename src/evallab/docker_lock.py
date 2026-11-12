@@ -170,36 +170,6 @@ def _locked_queue(
             fcntl.flock(mutex_file.fileno(), fcntl.LOCK_UN)
 
 
-def read_queue(
-    name: str = DEFAULT_NAME, state_dir: Path | None = None
-) -> list[dict[str, Any]]:
-    """Return the raw queue entries under the mutex (no pruning)."""
-    with _locked_queue(name, state_dir) as (_, entries):
-        return [dict(entry) for entry in entries]
-
-
-def prune_queue(
-    name: str = DEFAULT_NAME,
-    state_dir: Path | None = None,
-    *,
-    ttl: float = DEFAULT_TTL_SECONDS,
-    clock: ClockFn = time.time,
-    is_alive: PidAliveFn = pid_alive,
-    hostname: str | None = None,
-) -> list[dict[str, Any]]:
-    """Prune stale entries under the mutex and return what remains."""
-    host = hostname if hostname is not None else socket.gethostname()
-    now = clock()
-    with _locked_queue(name, state_dir) as (_, entries):
-        kept = [
-            entry
-            for entry in entries
-            if not _is_stale(entry, now=now, ttl=ttl, is_alive=is_alive, hostname=host)
-        ]
-        entries[:] = kept
-        return [dict(entry) for entry in kept]
-
-
 class DockerLock:
     """One FIFO queue entry: enqueue, wait for a slot, heartbeat, release."""
 
@@ -450,39 +420,6 @@ def docker_slot(
         lock.release()
 
 
-def get_status(
-    name: str = DEFAULT_NAME,
-    state_dir: Path | None = None,
-    *,
-    ttl: float = DEFAULT_TTL_SECONDS,
-    clock: ClockFn = time.time,
-    is_alive: PidAliveFn = pid_alive,
-    hostname: str | None = None,
-) -> dict[str, Any]:
-    """Prune stale entries and return holders/waiters with ages."""
-    entries = prune_queue(
-        name, state_dir, ttl=ttl, clock=clock, is_alive=is_alive, hostname=hostname
-    )
-    now = clock()
-    holders: list[dict[str, Any]] = []
-    waiters: list[dict[str, Any]] = []
-    for entry in entries:
-        enriched = dict(entry)
-        enqueued_at = entry.get("enqueued_at")
-        started_at = entry.get("started_at")
-        enriched["age_seconds"] = (
-            now - float(enqueued_at) if isinstance(enqueued_at, (int, float)) else None
-        )
-        enriched["run_seconds"] = (
-            now - float(started_at) if isinstance(started_at, (int, float)) else None
-        )
-        if started_at is not None:
-            holders.append(enriched)
-        else:
-            waiters.append(enriched)
-    return {"name": name, "holders": holders, "waiters": waiters, "entries": entries}
-
-
 def run_with_lock(
     label: str,
     command: Sequence[str],
@@ -599,36 +536,6 @@ def _docker_lock_run_command(args: argparse.Namespace, root: Path, **_: Any) -> 
     )
 
 
-def _docker_lock_status_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
-    del root
-    status = get_status(name=args.name)
-    if args.json:
-        print(json.dumps(status, indent=2))
-        return 0
-    holders: list[dict[str, Any]] = status["holders"]
-    waiters: list[dict[str, Any]] = status["waiters"]
-    if not holders and not waiters:
-        print(f"docker-lock '{args.name}': no holders or waiters")
-        return 0
-    for entry in holders:
-        print(
-            f"holder  {entry.get('label')} pid={entry.get('pid')} "
-            f"cwd={entry.get('cwd')} age={entry.get('age_seconds'):.0f}s "
-            f"running={entry.get('run_seconds'):.0f}s"
-            if isinstance(entry.get("run_seconds"), (int, float))
-            and isinstance(entry.get("age_seconds"), (int, float))
-            else f"holder  {entry.get('label')} pid={entry.get('pid')} cwd={entry.get('cwd')}"
-        )
-    for position, entry in enumerate(waiters, 1):
-        age = entry.get("age_seconds")
-        age_text = f"{age:.0f}s" if isinstance(age, (int, float)) else "?"
-        print(
-            f"waiter{position}  {entry.get('label')} pid={entry.get('pid')} "
-            f"cwd={entry.get('cwd')} waiting={age_text}"
-        )
-    return 0
-
-
 def build_docker_lock_parser(commands: argparse._SubParsersAction) -> None:  # noqa: SLF001
     """Register the ``evallab docker-lock`` subcommand (one self-contained block)."""
     parser = commands.add_parser(
@@ -659,7 +566,7 @@ def build_docker_lock_parser(commands: argparse._SubParsersAction) -> None:  # n
         metavar="SECONDS",
         help="Give up waiting after SECONDS (exit 124)",
     )
-    run.add_argument("label", help="Queue label shown in `docker-lock status`")
+    run.add_argument("label", help="Queue label")
     run.add_argument(
         "command",
         nargs=argparse.REMAINDER,
@@ -667,9 +574,3 @@ def build_docker_lock_parser(commands: argparse._SubParsersAction) -> None:  # n
     )
     run.set_defaults(func=_docker_lock_run_command)
 
-    status = sub.add_parser(
-        "status", help="Show slot holders and waiters (stale entries pruned)"
-    )
-    status.add_argument("--name", default=DEFAULT_NAME, help="Lock name (default: docker)")
-    status.add_argument("--json", action="store_true", help="Emit JSON")
-    status.set_defaults(func=_docker_lock_status_command)

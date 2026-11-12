@@ -35,13 +35,10 @@ from pydantic import Field
 from evallab import ref_subset
 from evallab.control_expect import declared_expectation
 from evallab.execution_contracts import new_ulid
-from evallab.ref_repair import add_ref_repair_parser
 from evallab.registry import compute_task_digests, harbor_task_digest
 from evallab.runner import run_matrix
 from evallab.schemas import ContractModel, ExperimentMatrix, MatrixRun
-from evallab.verifier_battery import add_battery_parser
 from evallab.verifier_mutation import add_mutate_parser
-from evallab.verifier_repair import add_repair_parser
 
 #: Hits recorded per pattern rule; the ledger stays bounded and reviews the first
 #: occurrences, not every matching byte of a large verifier.
@@ -896,8 +893,6 @@ def build_reward_hack_parser(subparsers: Any) -> None:
     run.add_argument("--json", action="store_true")
     run.set_defaults(func=_hack_run_command)
     add_mutate_parser(hack_commands)
-    add_battery_parser(hack_commands)
-    add_repair_parser(hack_commands)
     parser = hack_commands.add_parser(
         "ref-subset",
         help="Weak-test probe: the smallest part of a reference fix that still passes the hidden "
@@ -930,4 +925,3 @@ def build_reward_hack_parser(subparsers: Any) -> None:
     )
     ref_subset._add_environment_options(run)
     run.set_defaults(func=ref_subset._run_command)
-    add_ref_repair_parser(hack_commands)

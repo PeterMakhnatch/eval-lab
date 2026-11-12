@@ -29,7 +29,6 @@ from evallab.mcp_substrate import (
     record_prepackaging_provenance,
     trusted_wheel_manifest_digest,
     trusted_wheel_manifest_source,
-    verify_proof_independently,
     verify_provenance_wheelhouse,
 )
 
@@ -272,48 +271,6 @@ def test_plan_only_proof_binds_tool_defs_and_manifest(tmp_path: Path):
     assert len(proof["tool_definitions_sha256"]) == 64
     assert proof["trusted_manifest_digest"] == trusted_wheel_manifest_digest()
     assert proof["trusted_manifest_source"] == trusted_wheel_manifest_source()
-
-
-def _materialize_prod(tmp_path: Path):
-    """Materialize a valid production sidecar and return (root, proof, tool)."""
-
-    wheelhouse = _real_wheelhouse_or_skip()
-    prov = record_prepackaging_provenance(wheelhouse, TARGET)
-    sidecar = tmp_path / "mcp-server"
-    tool = _simple_tool()
-    materialize_mcp_sidecar_package(
-        target_dir=sidecar,
-        tools=[tool],
-        wheelhouse_source=wheelhouse,
-        resolver_provenance=prov,
-        plan_only=False,
-    )
-    proof_path = sidecar / "offline-build-proof.json"
-    proof = json.loads(proof_path.read_text())
-    return sidecar, proof, tool
-
-
-def test_independent_verify_rejects_forged_tool_payload(tmp_path: Path):
-    """A proof whose tool_definitions payload was swapped (but digest recomputed) must fail."""
-    sidecar, proof, tool = _materialize_prod(tmp_path)
-    forged = dict(proof)
-    forged_payload = dict(proof["tool_definitions"])
-    forged_tool = {
-        "name": tool.name,
-        "description": "FORGED description",
-        "parameters": [{"name": "a", "type_name": "int", "description": "a"}],
-        "output_type": "object",
-        "is_distractor": False,
-        "metadata": {},
-        "execution_body": None,
-    }
-    forged_payload["tools"] = [forged_tool]
-    forged["tool_definitions"] = forged_payload
-    forged["tool_definitions_sha256"] = compute_tool_definitions_sha256(
-        [MCPToolDefinition(name="add", description="FORGED description", parameters=(MCPToolParameter(name="a", type_name="int", description="a"),))]
-    )
-    errors = verify_proof_independently(sidecar, forged)
-    assert any("server.py does not byte-match the canonical regenerated server" in e for e in errors)
 
 
 def test_generated_server_is_canonical_regardless_of_tool_order():

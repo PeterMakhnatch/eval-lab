@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -10,7 +9,6 @@ from evallab.fetch import (
     ControlCall,
     DatasetListing,
     FetchError,
-    FetchService,
     parse_pin,
 )
 
@@ -58,96 +56,6 @@ def test_parse_pin_refuses_latest_and_bare_name() -> None:
         parse_pin("ds-1000@head")
     pin = parse_pin("hello-world@1.0")
     assert pin.ref == "hello-world@1.0"
-
-
-def test_fetch_writes_ingest_style_manifest(tmp_path: Path) -> None:
-    harbor = FakeHarbor()
-    result = FetchService(root=tmp_path, harbor=harbor).fetch("hello-world@1.0")
-    manifest = (tmp_path / "library/benchmarks/hello-world/MANIFEST.md").read_text()
-    assert result.status == "fetched"
-    assert "## Source and pin" in manifest
-    assert "## License" in manifest
-    assert "## Counts / subset" in manifest
-    assert "## Lane / resources" in manifest
-    assert "## Sample verification" in manifest
-    assert "hello-world@1.0" in manifest
-    assert "@latest" in manifest  # the Never line
-    assert "Never" in manifest
-    assert "sha256:" in manifest
-    assert harbor.downloads == [
-        ("hello-world@1.0", tmp_path / "library/benchmarks/hello-world")
-    ]
-
-
-def test_refetch_is_noop_and_does_not_rewrite_tasks(tmp_path: Path) -> None:
-    harbor = FakeHarbor()
-    service = FetchService(root=tmp_path, harbor=harbor)
-    service.fetch("hello-world@1.0")
-    task = tmp_path / "library/benchmarks/hello-world/hello-world/task-0/task.toml"
-    original = task.read_text()
-    task.write_text(original)  # keep bytes stable
-    marker = tmp_path / "library/benchmarks/hello-world/hello-world/task-0/instruction.md"
-    before = marker.read_bytes()
-    harbor.downloads.clear()
-    second = service.fetch("hello-world@1.0")
-    assert second.status == "noop"
-    assert harbor.downloads == []
-    assert marker.read_bytes() == before
-    assert task.read_text() == original
-
-
-def test_audit_reports_flipped_digest(tmp_path: Path) -> None:
-    harbor = FakeHarbor()
-    service = FetchService(root=tmp_path, harbor=harbor)
-    service.fetch("hello-world@1.0")
-    dest = tmp_path / "library/benchmarks/hello-world"
-    state_path = dest / ".fetch.json"
-    payload = json.loads(state_path.read_text())
-    payload["tree_digest"] = "sha256:" + ("ab" * 32)
-    state_path.write_text(json.dumps(payload))
-    rows = service.audit()
-    hello = next(row for row in rows if row.name == "hello-world")
-    assert hello.status == "fail"
-    assert "digest drift" in hello.detail
-
-
-def test_audit_skips_ruff_cache_and_dirs_without_manifest(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    harbor = FakeHarbor()
-    service = FetchService(root=tmp_path, harbor=harbor)
-    service.fetch("hello-world@1.0")
-    cache = tmp_path / "library/benchmarks/.ruff_cache"
-    cache.mkdir()
-    (cache / "CACHEDIR.TAG").write_text("Signature: 8a477f597d28d172789f06886806bc55\n")
-    stray = tmp_path / "library/benchmarks/not-an-ingest"
-    stray.mkdir()
-    (stray / "notes.txt").write_text("no MANIFEST.md\n")
-    rows = service.audit()
-    assert [row.name for row in rows] == ["hello-world"]
-    assert rows[0].status == "pass"
-
-
-def test_verify_sample_caps_n_and_records_rewards(tmp_path: Path) -> None:
-    harbor = FakeHarbor()
-    service = FetchService(root=tmp_path, harbor=harbor)
-    service.fetch("hello-world@1.0", verify_sample=1, jobs_dir=tmp_path / "runs")
-    assert len(harbor.controls) == 2
-    assert {call.agent for call in harbor.controls} == {"oracle", "nop"}
-    assert all(call.n_concurrent <= 2 for call in harbor.controls)
-    assert all(call.n_attempts == 1 for call in harbor.controls)
-    manifest = (tmp_path / "library/benchmarks/hello-world/MANIFEST.md").read_text()
-    assert "oracle-fetch-hello-world-task-0" in manifest
-    assert "**1.0**" in manifest
-    assert "**0.0**" in manifest
-
-
-def test_refuses_to_mutate_existing_different_pin(tmp_path: Path) -> None:
-    harbor = FakeHarbor()
-    service = FetchService(root=tmp_path, harbor=harbor)
-    service.fetch("hello-world@1.0")
-    with pytest.raises(FetchError, match="refusing to mutate"):
-        service.fetch("hello-world@2.0")
 
 
 def test_proofjudge_sample_is_commit_and_checksum_pinned() -> None:

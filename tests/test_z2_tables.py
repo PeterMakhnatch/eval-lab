@@ -13,14 +13,12 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterator
-from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
-import duckdb
 import pytest
 
-from evallab.database import initialize, quota_today, views_path
+from evallab.database import initialize
 from evallab.runner import database_url_from_environment
 
 _DSN_FOR_TEST = database_url_from_environment()
@@ -83,89 +81,6 @@ def isolated_database_url() -> Iterator[str]:
 # ---------------------------------------------------------------------------
 # DuckDB Standalone View Tests (Runs in CI without Postgres)
 # ---------------------------------------------------------------------------
-
-
-def test_views_sql_resolves_in_clean_duckdb() -> None:
-    """sql/views.sql must resolve in a clean DuckDB session with zero pre-created tables."""
-    sql = views_path().read_text(encoding="utf-8")
-    with duckdb.connect(":memory:") as con:
-        con.execute(sql)
-        for view_name in ["v_spine", "v_quota_today"]:
-            rows = con.execute(f"SELECT * FROM {view_name}").fetchall()
-            assert rows == []
-
-
-def test_v_quota_today_utc_bucketing_duckdb() -> None:
-    """v_quota_today must bucket trials strictly by UTC calendar day.
-
-    Plants rows on either side of UTC midnight, including a timestamp that would
-    land in the wrong calendar day if evaluated under local timezone offsets.
-    """
-    sql = views_path().read_text(encoding="utf-8")
-    with duckdb.connect(":memory:") as con:
-        con.execute(sql)
-
-        now_utc = datetime.now(UTC)
-        today_utc_date = now_utc.date()
-        today_iso = today_utc_date.isoformat()
-
-        yesterday_utc_date = today_utc_date - timedelta(days=1)
-        tomorrow_utc_date = today_utc_date + timedelta(days=1)
-        # Timestamps relative to UTC midnight:
-        ts_yesterday = f"{yesterday_utc_date.isoformat()}T23:59:50Z"
-        ts_today_early = f"{today_iso}T00:00:10Z"
-        ts_today_mid = f"{today_iso}T12:00:00Z"
-        ts_today_late = f"{today_iso}T23:59:50Z"
-        ts_tomorrow = f"{tomorrow_utc_date.isoformat()}T00:00:10Z"
-
-        con.execute(
-            """
-            INSERT INTO trials (id, job_id, trial_name, task_name, agent_name)
-            VALUES
-                ('t_yest', 'j1', 't1', 'task1', 'codex'),
-                ('t_early', 'j1', 't2', 'task1', 'codex'),
-                ('t_mid', 'j1', 't3', 'task1', 'codex'),
-                ('t_late', 'j1', 't4', 'task1', 'codex'),
-                ('t_tom', 'j1', 't5', 'task1', 'codex'),
-                ('t_claude_today', 'j1', 't6', 'task1', 'claude-code'),
-                ('t_claude_yest', 'j1', 't7', 'task1', 'claude-code');
-            INSERT INTO trial_usage (
-                trial_id, started_at, input_tokens, cache_tokens, output_tokens
-            )
-            VALUES
-                ('t_yest', ?, 100, 20, 50),
-                ('t_early', ?, 200, 40, 100),
-                ('t_mid', ?, 300, 60, 150),
-                ('t_late', ?, 400, 80, 200),
-                ('t_tom', ?, 500, 100, 250),
-                ('t_claude_today', ?, 1000, 100, 500),
-                ('t_claude_yest', ?, 800, 100, 400);
-            """,
-            [
-                ts_yesterday,
-                ts_today_early,
-                ts_today_mid,
-                ts_today_late,
-                ts_tomorrow,
-                ts_today_mid,
-                ts_yesterday,
-            ],
-        )
-
-        rows = con.execute(
-            """
-            SELECT provider, runs, tokens
-            FROM v_quota_today
-            ORDER BY provider;
-            """
-        ).fetchall()
-
-        # Expected today:
-        # claude-code: 1 run, 1000 + 500 = 1500 tokens
-        # codex: 3 runs (early + mid + late), tokens = (200+100) + (300+150) + (400+200) = 1350
-        assert len(rows) == 2
-        assert rows[0] == ("claude-code", 1, 1500)
-        assert rows[1] == ("codex", 3, 1350)
 
 
 # ---------------------------------------------------------------------------
@@ -365,71 +280,3 @@ def test_frozen_suite_rejects_membership_mutations(isolated_database_url: str) -
         assert "Cannot delete frozen suite" in str(exc_del_suite.value)
 
 
-@pytest.mark.skipif(
-    not _catalog_reachable(),
-    reason="requires live PostgreSQL (unreachable or psycopg missing)",
-)
-def test_v_quota_today_postgres_utc_bucketing(isolated_database_url: str) -> None:
-    """v_quota_today in PostgreSQL aggregates only trials started on current UTC day."""
-    import psycopg
-
-    db_url = isolated_database_url
-    job_id = uuid4()
-    trial_prefix = f"quota-pg-{uuid4().hex[:6]}"
-
-    now_utc = datetime.now(UTC)
-    today_utc_date = now_utc.date()
-    yesterday_utc_date = today_utc_date - timedelta(days=1)
-    tomorrow_utc_date = today_utc_date + timedelta(days=1)
-
-    ts_yesterday = f"{yesterday_utc_date.isoformat()}T23:59:50Z"
-    ts_today = f"{today_utc_date.isoformat()}T14:00:00Z"
-    ts_tomorrow = f"{tomorrow_utc_date.isoformat()}T00:00:10Z"
-
-    with psycopg.connect(db_url) as conn:
-        # Create a parent job for foreign key constraints
-        conn.execute(
-            """
-            INSERT INTO jobs (id, job_name, evidence_path)
-            VALUES (%s, 'quota-test-job', 'runs/quota-test-job')
-            ON CONFLICT (id) DO NOTHING
-            """,
-            (job_id,),
-        )
-
-        # Plant trials across days
-        conn.execute(
-            """
-            INSERT INTO trials (
-                id, job_id, trial_name, evidence_path, agent_name, started_at,
-                input_tokens, output_tokens
-            ) VALUES
-                (%s, %s, %s, 'ev1', 'codex', %s, 100, 50),
-                (%s, %s, %s, 'ev2', 'codex', %s, 200, 100),
-                (%s, %s, %s, 'ev3', 'codex', %s, 300, 150)
-            """,
-            (
-                uuid4(),
-                job_id,
-                f"{trial_prefix}-yest",
-                ts_yesterday,
-                uuid4(),
-                job_id,
-                f"{trial_prefix}-today",
-                ts_today,
-                uuid4(),
-                job_id,
-                f"{trial_prefix}-tom",
-                ts_tomorrow,
-            ),
-        )
-        conn.commit()
-
-        today_rows = quota_today(db_url)
-        codex_rows = [r for r in today_rows if r[0] == "codex"]
-        assert len(codex_rows) == 1
-        # Must include ts_today (200+100=300 tokens, 1 run)
-        provider, runs, tokens = codex_rows[0]
-        assert provider == "codex"
-        assert runs == 1
-        assert tokens == 300

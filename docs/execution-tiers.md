@@ -1768,7 +1768,6 @@ Direct Docker starts do not participate.
 
 ```sh
 uv run --no-sync evallab docker-lock run --timeout 60 inspection -- make test
-uv run --no-sync evallab docker-lock status --json
 ```
 
 `run LABEL -- CMD ...` inherits stdio and returns the child's exit code.

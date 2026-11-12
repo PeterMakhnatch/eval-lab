@@ -196,84 +196,8 @@ PRICE_TABLE: tuple[ModelPrice, ...] = (
     ),
 )
 
-_BY_KEY = {entry.key: entry for entry in PRICE_TABLE}
 
 #: Provider prefixes stripped before the exact match. Explicit list only:
 #: anything else keeps its prefix and will not match (no fuzzy guesses).
-_PROVIDER_PREFIXES = (
-    "google/",
-    "gemini/",
-    "openai/",
-    "zai-coding-plan/",
-    "zai/",
-    "deepseek/",
-    "anthropic/",
-    "openrouter/",
-    "openrouter-metered/",
-    "tinker/",
-)
 
 
-def normalize_model_id(raw: str | None) -> str | None:
-    """Normalize a trial model id to a table key candidate.
-
-    Lowercase, strip whitespace, strip one known provider prefix
-    (``zai-coding-plan/glm-5.3-flash`` -> ``glm-5.3-flash``). Tier or version
-    suffixes (``gemini-3.7-flash-high``) are NOT stripped: they may denote a
-    different underlying model, so they stay unmatched.
-    """
-    if raw is None:
-        return None
-    candidate = raw.strip().lower()
-    if not candidate:
-        return None
-    for prefix in _PROVIDER_PREFIXES:
-        if candidate.startswith(prefix):
-            candidate = candidate[len(prefix):]
-            break
-    return candidate or None
-
-
-def lookup_price(raw: str | None) -> ModelPrice | None:
-    """Return the pinned price for a trial model id, or None when unknown.
-
-    The full normalized id matches first, then the prefix-stripped form.
-    Full-id keys exist only where the stripped form would collide across
-    routes: ``openrouter-metered/qwen/...`` (OpenRouter list prices) versus
-    ``tinker/Qwen/...`` (Tinker list prices), which both strip to ``qwen/``.
-    """
-    if raw is None:
-        return None
-    full = raw.strip().lower()
-    if full and full in _BY_KEY:
-        return _BY_KEY[full]
-    key = normalize_model_id(raw)
-    return _BY_KEY.get(key) if key else None
-
-
-def estimate_cost_usd(
-    input_tokens: int | None,
-    cached_input_tokens: int | None,
-    output_tokens: int | None,
-    price: ModelPrice,
-) -> float | None:
-    """Price token counts at pinned rates. None when counts are missing.
-
-    Requires total input and output counts; cached input defaults to 0 when
-    unreported. Cached tokens are priced at the cached-input rate, the rest
-    of the input at the full input rate. Inconsistent counts (negatives, or
-    cached exceeding input) yield None rather than a fabricated figure.
-    """
-    if input_tokens is None or output_tokens is None:
-        return None
-    if input_tokens < 0 or output_tokens < 0:
-        return None
-    cached = 0 if cached_input_tokens is None else cached_input_tokens
-    if cached < 0 or cached > input_tokens:
-        return None
-    uncached = input_tokens - cached
-    return (
-        uncached * price.input_usd_per_mtok
-        + cached * price.cached_input_usd_per_mtok
-        + output_tokens * price.output_usd_per_mtok
-    ) / 1_000_000

@@ -28,18 +28,12 @@ from __future__ import annotations
 
 import base64
 import io
-import json
 import re
 import tarfile
-from pathlib import Path
-from typing import Any
 
-from evallab.separate_verifier import addopts_cleared, resolve_command_text
-from evallab.task_variants import VariantInvalid, VariantRecord, derive_task
+from evallab.task_variants import VariantInvalid
 
-TRANSFORM_ID = "grader-hardening@1"
 TEST_SH_REL = "tests/test.sh"
-EXPECTED_REL = "tests/expected_report.json"
 
 AUTOLOAD_PATTERN = (
     "conftest.py|*/conftest.py|sitecustomize.py|*/sitecustomize.py|usercustomize.py|*/usercustomize.py|"
@@ -119,8 +113,6 @@ fi
 [ "$GATE" = GATE_OK ] || RC=1
 """
 
-_DEGRADED_EXPECTED = '{"tests": 1, "skipped": 0}'
-
 
 def _replace_once(text: str, old: str, new: str, what: str) -> str:
     if text.count(old) != 1:
@@ -154,26 +146,6 @@ def build_env_command(patch_text: str) -> str:
         return ""
 
 
-def report_gate_blocker(parent: Path) -> str | None:
-    """Why L3 cannot apply to this package, or ``None`` when it can.
-
-    L3 asks pytest for a report through ``PYTEST_ADDOPTS``; that needs a pytest runner whose wrapper does not clear it.
-    """
-    tests = parent / "tests"
-    command = (tests / "test_command.sh").read_text(encoding="utf-8", errors="replace")
-    patch = (tests / "test.patch").read_text(encoding="utf-8", errors="replace")
-    text = resolve_command_text(command, None, patch) + build_env_command(patch)
-    if "pytest" not in text:
-        return "hidden test command does not mention pytest"
-    if addopts_cleared(text):
-        return (
-            "the test command clears PYTEST_ADDOPTS, so a report cannot be requested from outside"
-        )
-    return None
-
-
-
-
 def build_test_sh(
     parent_text: str, *, with_report_gate: bool, l1_pattern: str = AUTOLOAD_PATTERN
 ) -> str:
@@ -197,118 +169,3 @@ def build_test_sh(
     return text
 
 
-def build_calibration_test_sh(parent_text: str) -> str:
-    """Report-only variant: the upstream grader plus the JUnit request, with no reward change.
-
-    Used once per package on its reference solution to read the reference test and skip counts that
-    ``tests/expected_report.json`` stores. It must never be shipped as a grader.
-    """
-    return _replace_once(parent_text, _RUN_LINE, _L3_BEFORE + _RUN_LINE, "test command line")
-
-
-def expected_report(tests: int, skipped: int) -> bytes:
-    if tests < 1 or skipped < 0 or skipped >= tests:
-        raise VariantInvalid(f"implausible reference report: tests={tests} skipped={skipped}")
-    return (json.dumps({"tests": tests, "skipped": skipped}, sort_keys=True) + "\n").encode()
-
-
-def build_changes(
-    parent_dir: Path | str,
-    *,
-    expected_tests: int | None,
-    expected_skipped: int = 0,
-    allow_degraded: bool = False,
-    allow_no_report_gate: bool = False,
-) -> tuple[dict[str, bytes | None], dict[str, Any]]:
-    """The ``derive_task`` changes mapping plus lineage inputs."""
-    parent = Path(parent_dir)
-    try:
-        parent_text = (parent / TEST_SH_REL).read_text(encoding="utf-8")
-    except OSError as exc:
-        raise VariantInvalid(f"parent has no readable {TEST_SH_REL}: {exc}") from exc
-    blocker = report_gate_blocker(parent)
-    pytest_runner = blocker is None
-    if blocker is not None and not allow_no_report_gate:
-        raise VariantInvalid(
-            f"no report gate possible: {blocker}; pass allow_no_report_gate=True for an L1-only variant"
-        )
-    changes: dict[str, bytes | None] = {
-        TEST_SH_REL: build_test_sh(parent_text, with_report_gate=pytest_runner).encode("utf-8")
-    }
-    if pytest_runner:
-        if expected_tests is None:
-            if not allow_degraded:
-                raise VariantInvalid(
-                    "the reference report count is required (run the package's oracle once); "
-                    "pass allow_degraded=True to accept 'at least one passing test'"
-                )
-            changes[EXPECTED_REL] = (_DEGRADED_EXPECTED + "\n").encode()
-        else:
-            changes[EXPECTED_REL] = expected_report(expected_tests, expected_skipped)
-    inputs: dict[str, Any] = {
-        "layers": ["L1"] + (["L3"] if pytest_runner else []),
-        "autoload_pattern": AUTOLOAD_PATTERN,
-        "expected_tests": expected_tests,
-        "expected_skipped": expected_skipped if expected_tests is not None else None,
-        "degraded_count_gate": pytest_runner and expected_tests is None,
-        "known_open": "code in the grader's own interpreter (site-dir .pth) needs a separate verifier",
-        "default_chain": False,
-    }
-    return changes, inputs
-
-
-def derive_grader_hardening(
-    parent_dir: Path | str,
-    *,
-    expected_tests: int | None,
-    expected_skipped: int = 0,
-    allow_degraded: bool = False,
-    allow_no_report_gate: bool = False,
-    rationale: str = (
-        "Reset auto-load/config files by pattern and gate the reward on a JUnit report so a wrong "
-        "submission cannot pass by planting conftest/sitecustomize/pytest.ini files or forging the exit status."
-    ),
-    created_by: str = "grader-hardening",
-    repo_root: Path | str | None = None,
-    parent_source: dict[str, Any] | None = None,
-    variants_root: Path | str | None = None,
-) -> VariantRecord:
-    """Derive the ``grader-hardening@1`` variant of a single-container MiMo package."""
-    parent = Path(parent_dir)
-    changes, inputs = build_changes(
-        parent,
-        expected_tests=expected_tests,
-        expected_skipped=expected_skipped,
-        allow_degraded=allow_degraded,
-        allow_no_report_gate=allow_no_report_gate,
-    )
-    kwargs: dict[str, Any] = {}
-    if repo_root is not None:
-        kwargs["repo_root"] = repo_root
-    if parent_source is not None:
-        kwargs["parent_source"] = parent_source
-    if variants_root is not None:
-        kwargs["variants_root"] = variants_root
-    return derive_task(
-        parent,
-        changes=changes,
-        transform=TRANSFORM_ID,
-        rationale=rationale,
-        created_by=created_by,
-        inputs=inputs,
-        **kwargs,
-    )
-
-
-def junit_counts(xml_text: str) -> tuple[int, int, int, int]:
-    """``(tests, failures, errors, skipped)`` of a JUnit report, the same count the gate uses."""
-    import xml.etree.ElementTree as ET
-
-    root = ET.fromstring(xml_text)
-    tests = failures = errors = skipped = 0
-    for case in root.iter("testcase"):
-        tests += 1
-        failures += case.find("failure") is not None
-        errors += case.find("error") is not None
-        skipped += case.find("skipped") is not None
-    return tests, failures, errors, skipped

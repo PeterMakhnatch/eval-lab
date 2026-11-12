@@ -11,10 +11,8 @@ Provides:
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
-import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
@@ -527,70 +525,3 @@ def resume_repeated_matrix(
     return matrix
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        prog="python -m evallab.repetition",
-        description="Repeated-attempt matrix preparation and resumption",
-    )
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    # prepare subcommand
-    prep = subparsers.add_parser("prepare", help="Prepare repeated attempt matrix from TB4 plan")
-    prep.add_argument("plan", type=Path, help="Path to compiled TB4 job plan JSON")
-    prep.add_argument("--attempts", type=int, default=2, help="Attempts per task (default 2)")
-    prep.add_argument("--out", type=Path, help="Output matrix JSON path")
-    prep.add_argument("--outcomes", type=Path, help="Retained outcomes JSON/dir sidecar to merge")
-    prep.add_argument("--authorize", action="store_true", help="Explicitly authorize execution")
-    prep.add_argument("--operator", type=str, help="Operator name (required if --authorize)")
-    prep.add_argument("--json", action="store_true", help="Output matrix as JSON to stdout")
-
-    # resume subcommand
-    res = subparsers.add_parser("resume", help="Resume matrix with retained attempt outcomes")
-    res.add_argument("target", type=Path, help="Path to matrix JSON or TB4 plan JSON")
-    res.add_argument("--outcomes", type=Path, required=True, help="Retained outcomes JSON/dir sidecar")
-    res.add_argument("--attempts", type=int, default=2, help="Attempts per task if target is plan")
-    res.add_argument("--out", type=Path, help="Output updated matrix JSON path")
-    res.add_argument("--authorize", action="store_true", help="Explicitly authorize execution")
-    res.add_argument("--operator", type=str, help="Operator name (required if --authorize)")
-    res.add_argument("--json", action="store_true", help="Output matrix as JSON to stdout")
-
-    args = parser.parse_args(argv)
-
-    if args.command == "prepare":
-        matrix = plan_repeated_matrix(
-            args.plan,
-            attempts_per_task=args.attempts,
-            outcomes=args.outcomes,
-            authorize=args.authorize,
-            operator=args.operator,
-            out=args.out,
-        )
-    elif args.command == "resume":
-        matrix = resume_repeated_matrix(
-            args.target,
-            outcomes=args.outcomes,
-            attempts_per_task=args.attempts,
-            authorize=args.authorize,
-            operator=args.operator,
-            out=args.out,
-        )
-    else:
-        parser.print_help()
-        return 1
-
-    if args.json:
-        print(matrix.model_dump_json(indent=2))
-    else:
-        print(f"matrix: {matrix.matrix_version} ({matrix.task_count} tasks x {matrix.attempts_per_task} attempts = {matrix.total_attempts} total)")
-        print(f"predicted ceiling: ${matrix.total_predicted_cost_usd:.2f} (consumed: ${matrix.consumed_cost_usd:.2f}, remaining: ${matrix.remaining_predicted_cost_usd:.2f})")
-        print(f"approval state: {matrix.approval_state} (authorized: {matrix.authorized}, executions: {matrix.authorized_executions})")
-        print(f"gate: {matrix.gate_statement}")
-        print(f"outcomes: {matrix.outcomes_summary}")
-        if args.out:
-            print(f"written: {args.out}")
-
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

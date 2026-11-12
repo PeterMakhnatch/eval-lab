@@ -65,10 +65,6 @@ def schema_path() -> Path:
     return Path(__file__).resolve().parents[2] / "sql" / "schema.sql"
 
 
-def views_path() -> Path:
-    return Path(__file__).resolve().parents[2] / "sql" / "views.sql"
-
-
 def initialize(database_url: str) -> None:
     schema = cast(LiteralString, schema_path().read_text())
     _run_catalog_transaction(database_url, lambda connection: connection.execute(schema))
@@ -413,22 +409,6 @@ def ingest(database_url: str, jobs: Iterable[JobRecord], *, root: Path) -> int:
     return _run_catalog_transaction(database_url, _write)
 
 
-def list_trials(database_url: str, *, limit: int = 25) -> list[tuple[Any, ...]]:
-    with psycopg.connect(database_url) as connection:
-        return list(
-            connection.execute(
-                """
-                SELECT job_name, trial_name, task_name, agent_name, model_name,
-                       primary_reward, exception_type, duration_seconds
-                FROM trial_observations
-                ORDER BY ingested_at DESC, job_name, trial_name
-                LIMIT %s
-                """,
-                (limit,),
-            ).fetchall()
-        )
-
-
 def ping(database_url: str) -> str:
     with psycopg.connect(database_url, connect_timeout=2) as connection:
         row = connection.execute("SELECT version()").fetchone()
@@ -568,15 +548,3 @@ def canary_drift_observations(database_url: str, day: date) -> list[CanaryDriftO
     ]
 
 
-def quota_today(database_url: str) -> list[tuple[str, int, int]]:
-    """Return today's UTC consumption (provider, runs, tokens) from v_quota_today."""
-    with psycopg.connect(database_url, connect_timeout=2) as connection:
-        return list(
-            connection.execute(
-                """
-                SELECT provider, runs, tokens
-                FROM v_quota_today
-                ORDER BY provider
-                """
-            ).fetchall()
-        )

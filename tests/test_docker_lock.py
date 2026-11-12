@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import json
 import os
 import socket
 import threading
@@ -24,17 +23,14 @@ from evallab.docker_lock import (
     DockerLock,
     DockerLockTimeout,
     _docker_lock_run_command,
-    _docker_lock_status_command,
     _read_queue_file,
     _write_queue_file,
     build_docker_lock_parser,
     default_slots,
     default_state_dir,
     docker_slot,
-    get_status,
     pid_alive,
     queue_path,
-    read_queue,
     run_with_lock,
 )
 
@@ -60,11 +56,11 @@ def _lock(label: str, state_dir: Path, **kwargs: object) -> DockerLock:
 def _wait_for_queue_len(state_dir: Path, expected: int, timeout: float = 5.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if len(read_queue(state_dir=state_dir)) >= expected:
+        if len(_read_queue_file(queue_path(state_dir=state_dir))) >= expected:
             return
         time.sleep(0.005)
     raise AssertionError(
-        f"queue never reached {expected} entries: {read_queue(state_dir=state_dir)!r}"
+        f"queue never reached {expected} entries: {_read_queue_file(queue_path(state_dir=state_dir))!r}"
     )
 
 
@@ -93,7 +89,7 @@ def test_default_slots_admit_four_and_queue_the_fifth(
     finally:
         for lock in locks:
             lock.release()
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 def test_env_slots_override_the_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -133,7 +129,7 @@ def test_second_acquirer_waits_until_release(tmp_path: Path) -> None:
     assert not thread.is_alive()
     assert errors == []
     assert acquired.is_set(), "waiter never got the slot after release"
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 def test_try_step_denies_second_until_release(tmp_path: Path) -> None:
@@ -147,7 +143,7 @@ def test_try_step_denies_second_until_release(tmp_path: Path) -> None:
     finally:
         holder.release()
         waiter.release()
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 # (b) FIFO: three waiters are granted the slot in enqueue order.
@@ -183,7 +179,7 @@ def test_fifo_order_with_three_waiters(tmp_path: Path) -> None:
         thread.join(timeout=5.0)
     assert errors == []
     assert order == ["w1", "w2", "w3"]
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 # (c) slots=2 admits two concurrently; the third still waits.
@@ -203,7 +199,7 @@ def test_slots_two_admits_two_concurrently(tmp_path: Path) -> None:
         first.release()
         second.release()
         third.release()
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 # (d) Dead-pid and heartbeat-expired entries are pruned.
@@ -236,31 +232,17 @@ def test_stale_entries_are_pruned(tmp_path: Path) -> None:
     ]
     (tmp_path / "docker.queue.json").write_text("[]\n", encoding="utf-8")
     _write_queue_file(queue_path(state_dir=tmp_path), stale_entries)
-    assert len(read_queue(state_dir=tmp_path)) == 2
+    assert len(_read_queue_file(queue_path(state_dir=tmp_path))) == 2
 
     lock = _lock("next", tmp_path, ttl=120.0)
     try:
         acquired, _position, _total, _holders = lock.try_acquire_step()
         assert acquired is True
-        remaining = read_queue(state_dir=tmp_path)
+        remaining = _read_queue_file(queue_path(state_dir=tmp_path))
         assert [entry["ticket"] for entry in remaining] == [lock.ticket]
     finally:
         lock.release()
-    assert read_queue(state_dir=tmp_path) == []
-
-
-def test_status_prunes_stale_and_splits_holders_waiters(tmp_path: Path) -> None:
-    holder = _lock("holder", tmp_path)
-    waiter = _lock("waiter", tmp_path)
-    try:
-        assert holder.try_acquire_step()[0] is True
-        assert waiter.try_acquire_step()[0] is False
-        status = get_status(state_dir=tmp_path)
-        assert [e["label"] for e in status["holders"]] == ["holder"]
-        assert [e["label"] for e in status["waiters"]] == ["waiter"]
-    finally:
-        holder.release()
-        waiter.release()
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 # (e) Release is idempotent and happens even when the body raises.
@@ -271,7 +253,7 @@ def test_release_idempotent_and_on_exception(tmp_path: Path) -> None:
     lock.acquire()
     lock.release()
     lock.release()  # second release must not raise
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
     with (
         pytest.raises(RuntimeError, match="boom"),
@@ -283,7 +265,7 @@ def test_release_idempotent_and_on_exception(tmp_path: Path) -> None:
         ),
     ):
         raise RuntimeError("boom")
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 # (f) `run` returns the child's exit code and leaves the queue empty.
@@ -298,7 +280,7 @@ def test_run_returns_child_exit_code(tmp_path: Path) -> None:
         heartbeat_interval=5.0,
     )
     assert code == 3
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 def test_run_success_code_zero(tmp_path: Path) -> None:
@@ -310,7 +292,7 @@ def test_run_success_code_zero(tmp_path: Path) -> None:
         heartbeat_interval=5.0,
     )
     assert code == 0
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 # (g) `--timeout` while waiting exits 124 and removes the waiter entry.
@@ -330,11 +312,11 @@ def test_run_timeout_returns_124_and_removes_waiter(tmp_path: Path) -> None:
             heartbeat_interval=5.0,
         )
         assert code == 124
-        remaining = read_queue(state_dir=tmp_path)
+        remaining = _read_queue_file(queue_path(state_dir=tmp_path))
         assert [entry["label"] for entry in remaining] == ["holder"]
     finally:
         holder.release()
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 def test_acquire_timeout_raises_and_removes_waiter(tmp_path: Path) -> None:
@@ -344,7 +326,7 @@ def test_acquire_timeout_raises_and_removes_waiter(tmp_path: Path) -> None:
     try:
         with pytest.raises(DockerLockTimeout):
             waiter.acquire(timeout=0.2)
-        assert [e["label"] for e in read_queue(state_dir=tmp_path)] == ["holder"]
+        assert [e["label"] for e in _read_queue_file(queue_path(state_dir=tmp_path))] == ["holder"]
     finally:
         holder.release()
         waiter.release()
@@ -380,7 +362,7 @@ def test_try_step_rejoins_when_peer_pruned_own_entry(tmp_path: Path) -> None:
         assert acquired is False
         assert (position, total) == (2, 2)
         assert [entry["ticket"] for entry in holders] == [peer["ticket"]]
-        assert [entry["ticket"] for entry in read_queue(state_dir=tmp_path)] == [
+        assert [entry["ticket"] for entry in _read_queue_file(queue_path(state_dir=tmp_path))] == [
             peer["ticket"],
             lock.ticket,
         ]
@@ -419,7 +401,7 @@ def test_heartbeat_updates_entry_then_stops_when_ticket_disappears(
     assert thread is not None
     try:
         assert beat.wait(timeout=5.0), "heartbeat never touched the queue"
-        assert read_queue(state_dir=tmp_path)[0]["heartbeat_at"] == now
+        assert _read_queue_file(queue_path(state_dir=tmp_path))[0]["heartbeat_at"] == now
         with real_locked_queue(docker_lock.DEFAULT_NAME, tmp_path) as (_, entries):
             entries.clear()
         thread.join(timeout=5.0)
@@ -476,92 +458,6 @@ def _status_args(*, name: str = "docker", as_json: bool = False) -> argparse.Nam
     return argparse.Namespace(name=name, json=as_json)
 
 
-def test_status_command_prints_empty_text(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setenv(ENV_DIR, str(tmp_path))
-    code = _docker_lock_status_command(_status_args(name="other"), tmp_path)
-    assert code == 0
-    assert capsys.readouterr().out.strip() == "docker-lock 'other': no holders or waiters"
-
-
-def test_status_command_prints_holders_and_waiters(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    now = 1_000.0
-    host = socket.gethostname()
-    entries = [
-        {
-            "ticket": "holder-full",
-            "pid": 101,
-            "host": host,
-            "label": "full-holder",
-            "cwd": str(tmp_path / "full"),
-            "enqueued_at": now - 50.0,
-            "started_at": now - 20.0,
-            "heartbeat_at": now,
-        },
-        {
-            "ticket": "holder-bare",
-            "pid": 102,
-            "host": host,
-            "label": "bare-holder",
-            "cwd": str(tmp_path / "bare"),
-            "enqueued_at": None,
-            "started_at": "unknown",
-            "heartbeat_at": now,
-        },
-        {
-            "ticket": "waiter-aged",
-            "pid": 103,
-            "host": host,
-            "label": "aged-waiter",
-            "cwd": str(tmp_path / "aged"),
-            "enqueued_at": now - 7.0,
-            "started_at": None,
-            "heartbeat_at": now,
-        },
-        {
-            "ticket": "waiter-bare",
-            "pid": 104,
-            "host": host,
-            "label": "bare-waiter",
-            "cwd": str(tmp_path / "bare-waiter"),
-            "enqueued_at": None,
-            "started_at": None,
-            "heartbeat_at": now,
-        },
-    ]
-    monkeypatch.setenv(ENV_DIR, str(tmp_path))
-    _write_queue_file(queue_path(state_dir=tmp_path), entries)
-    real_get_status = docker_lock.get_status
-
-    def fixed_status(*, name: str) -> dict:
-        return real_get_status(name, clock=lambda: now, is_alive=lambda _pid: True)
-
-    monkeypatch.setattr(docker_lock, "get_status", fixed_status)
-    code = _docker_lock_status_command(_status_args(), tmp_path)
-    assert code == 0
-    assert capsys.readouterr().out.splitlines() == [
-        f"holder  full-holder pid=101 cwd={tmp_path / 'full'} age=50s running=20s",
-        f"holder  bare-holder pid=102 cwd={tmp_path / 'bare'}",
-        f"waiter1  aged-waiter pid=103 cwd={tmp_path / 'aged'} waiting=7s",
-        f"waiter2  bare-waiter pid=104 cwd={tmp_path / 'bare-waiter'} waiting=?",
-    ]
-
-
-def test_status_command_emits_json(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setenv(ENV_DIR, str(tmp_path))
-    code = _docker_lock_status_command(_status_args(as_json=True), tmp_path)
-    assert code == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["name"] == "docker"
-    assert payload["holders"] == []
-    assert payload["waiters"] == []
-
-
 # (l) The `evallab docker-lock` parser and `run` dispatch.
 
 
@@ -580,12 +476,6 @@ def test_parser_parses_run_and_status() -> None:
     assert run_args.command in (["sh", "-c", "true"], ["--", "sh", "-c", "true"])
     assert run_args.func is _docker_lock_run_command
 
-    status_args = parser.parse_args(["docker-lock", "status", "--json"])
-    assert status_args.docker_lock_command == "status"
-    assert status_args.json is True
-    assert status_args.name == "docker"
-    assert status_args.func is _docker_lock_status_command
-
 
 def test_parser_requires_a_docker_lock_subcommand() -> None:
     with pytest.raises(SystemExit) as excinfo:
@@ -601,7 +491,7 @@ def test_parsed_run_dispatches_child_exit_code(
         ["docker-lock", "run", "--slots", "1", "LABEL", "--", "sh", "-c", "exit 5"]
     )
     assert args.func(args, tmp_path) == 5
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 def _run_args(command: list[str] | None) -> argparse.Namespace:
@@ -654,7 +544,7 @@ def test_run_child_killed_by_sigterm_returns_143(tmp_path: Path) -> None:
         heartbeat_interval=5.0,
     )
     assert code == 128 + 15
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 # (m) State dir resolution, name validation and pid liveness.
@@ -712,7 +602,7 @@ def test_bad_queue_files_read_as_empty(tmp_path: Path, content: str | None) -> N
     if content is not None:
         path.write_text(content, encoding="utf-8")
     assert _read_queue_file(path) == []
-    assert read_queue(state_dir=tmp_path) == []
+    assert _read_queue_file(queue_path(state_dir=tmp_path)) == []
 
 
 def test_unreadable_queue_file_reads_as_empty(tmp_path: Path) -> None:

@@ -36,7 +36,6 @@ from evallab.interpretation.trajectory_quality import (
     evaluate_trial_quality,
     load_quality_report_for_trial,
     persist_quality_ledger,
-    register_quality_tables_in_duckdb,
 )
 from evallab.profiles import AgentProfile
 from evallab.schemas import StandingApprovalsPolicy
@@ -449,20 +448,16 @@ def test_duckdb_attach_and_queries(tmp_path: Path) -> None:
     persist_quality_ledger([rep], [fnd], derived_root)
 
     conn = duckdb.connect()
-    has_rep, has_fnd = register_quality_tables_in_duckdb(conn, derived_root)
-    assert has_rep is True
-    assert has_fnd is True
-
     # Query reports
     rows = conn.execute(
-        "SELECT trial_id, status, is_analysis_ready FROM trajectory_quality_reports"
+        f"SELECT trial_id, status, is_analysis_ready FROM read_parquet('{derived_root}/trajectory_quality_reports.parquet')"
     ).fetchall()
     assert len(rows) == 1
     assert rows[0] == ("trial-duck", "pass", True)
 
     # Query findings
     f_rows = conn.execute(
-        "SELECT finding_id, code, severity FROM trajectory_quality_findings"
+        f"SELECT finding_id, code, severity FROM read_parquet('{derived_root}/trajectory_quality_findings.parquet')"
     ).fetchall()
     assert len(f_rows) == 1
     assert f_rows[0] == ("fnd-duck-1", "ATIF_SCHEMA_INVALID", "warn")

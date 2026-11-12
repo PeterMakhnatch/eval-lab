@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -611,33 +611,6 @@ def render_preflight(report: PreflightReport) -> str:
             "same as headroom being confirmed — read the per-provider block above."
         )
     return "\n".join(lines)
-
-
-def preflight_at_tick_start(
-    repo_root: Path,
-    *,
-    refusal: RefusalReader | None = None,
-    now: datetime | None = None,
-    refuse_at_used_percent: float | None = None,
-    useful_effect: float | None = None,
-    emit: Callable[[str], None] = print,
-) -> PreflightReport:
-    """Build, print, and return the preflight. The tick-start entry point.
-
-    The one line another mission adds at the top of `Executor._tick_locked` is
-    a call to this function. It is the only place in this module that reads the
-    clock, and it costs nothing: no paid call, no provider request, no network,
-    no subprocess.
-    """
-    report = build_preflight_report(
-        repo_root,
-        now=now if now is not None else datetime.now(UTC),
-        refusal=refusal,
-        refuse_at_used_percent=refuse_at_used_percent,
-        useful_effect=useful_effect,
-    )
-    emit(render_preflight(report))
-    return report
 
 
 def digest_section(report: PreflightReport) -> list[str]:

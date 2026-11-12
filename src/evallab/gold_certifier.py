@@ -24,7 +24,6 @@ from evallab.full_hardening import HardeningManifest, harden
 from evallab.modal_cells import CellRunner, SandboxMeter, modal_cell_runner
 from evallab.mutant_auditor import (
     Mutant,
-    fresh_mutants,
     mutant_script,
     mutants_for_patch,
     parse_probe,
@@ -497,50 +496,6 @@ class LeakError(RuntimeError):
     """A held-out (eval) mutant reached the synthesizer's input, or the mutant sets overlap."""
 
 
-@dataclass(frozen=True)
-class FreshPools:
-    """Mutants never used before: extra held-out eval mutants and the ordered probe pool."""
-
-    eval_extra: tuple[Mutant, ...]
-    probe_pool: tuple[Mutant, ...]
-
-
-def _seeded_key(seed: str, label: str, mutant: Mutant) -> str:
-    return hashlib.sha256(f"{seed}|{label}|{mutant.sha256}".encode()).hexdigest()
-
-
-def build_fresh_pools(
-    patch: str,
-    sources: dict[str, str],
-    *,
-    train: list[Mutant],
-    evals: list[Mutant],
-    seed: str = DEFAULT_ROUND_SEED,
-    eval_extra_limit: int = DEFAULT_EVAL_EXTRA,
-    extra_operators: bool = True,
-) -> FreshPools:
-    """Fresh mutants of the reference patch, disjoint from ``train`` and ``evals`` by hash.
-
-    The pool is ordered by a seeded hash. Its first ``min(eval_extra_limit, len // 2)`` mutants become
-    extra held-out eval mutants; every other mutant on a line that no eval mutant (old or extra) touches
-    is a probe candidate, so a probe survivor shown to the synthesizer never points at an eval line.
-    """
-    used = {m.sha256 for m in (*train, *evals)}
-    pool: dict[str, Mutant] = {}
-    for path, lines in sorted(python_targets(patch).items()):
-        if path not in sources:
-            continue
-        for mutant in fresh_mutants(
-            path, sources[path], lines, exclude_sha256=used, extra_operators=extra_operators
-        ):
-            pool.setdefault(mutant.sha256, mutant)
-    ordered = sorted(pool.values(), key=lambda m: _seeded_key(seed, "pool", m))
-    extra = ordered[: min(eval_extra_limit, len(ordered) // 2)]
-    eval_lines = {(m.path, m.line) for m in (*evals, *extra)}
-    probes = [m for m in ordered[len(extra) :] if (m.path, m.line) not in eval_lines]
-    return FreshPools(tuple(extra), tuple(probes))
-
-
 def assert_disjoint(train: list[Mutant], probes: list[Mutant], evals: list[Mutant]) -> None:
     """Raise :class:`LeakError` unless train, probe and eval are pairwise disjoint by hash and probes avoid eval lines."""
     sets = {
@@ -565,147 +520,11 @@ def assert_prompt_blind(prompt: str, eval_diffs: list[str]) -> None:
             raise LeakError("an eval mutant diff is present in the synthesis prompt")
 
 
-@dataclass
-class RoundRecord:
-    round: int
-    test_sha256: str | None
-    train_shas: list[str]
-    probe_shas: list[str]
-    grades: dict[str, Any]
-    guard: str  # passed | repaired | reverted | unmeasured | synthesis_failed
-    survivors: list[str]
-    killed: list[str]
-    unmeasured: list[str]
-
-
-@dataclass
-class RoundsOutcome:
-    records: list[RoundRecord]
-    accepted_tests: dict[int, str]
-    stop_reason: str
-
-    def final_round(self, arm_rounds: int) -> int | None:
-        """Last accepted round no later than ``arm_rounds``: the test that a run of that many rounds ships."""
-        accepted = [r for r in self.accepted_tests if r <= arm_rounds]
-        return max(accepted) if accepted else None
-
-
 #: ``build_prompt(round_index, train, survivors, previous_test, feedback) -> prompt``; ``train`` excludes
 #: ``survivors`` (they are shown once, in their own section).
-PromptBuilder = Callable[[int, list[Mutant], list[Mutant], str | None, str | None], str]
 #: ``generate(round_index, prompt) -> code | None``; the only place a model is called, after the blindness check.
-Generator = Callable[[int, str], str | None]
 #: ``grade(round_index, code, probes) -> {"reference": r, "probe:<sha>": r, ...}`` (None = unmeasured); an optional
 #: ``"reference_output"`` string (grader output tail) is shown to the self-repair attempt and never stored.
-Grader = Callable[[int, str, list[Mutant]], dict[str, Any]]
-
-
-def run_rounds(
-    *,
-    rounds: int,
-    train: list[Mutant],
-    probe_pool: list[Mutant],
-    evals: list[Mutant],
-    eval_diffs: list[str],
-    build_prompt: PromptBuilder,
-    generate: Generator,
-    grade: Grader,
-    probes_per_round: int = DEFAULT_PROBES_PER_ROUND,
-) -> RoundsOutcome:
-    """Feedback loop: round r synthesizes from every train mutant known so far, grades the reference and a
-    fresh probe slice, and the probes the new test still accepts become training mutants of round r+1.
-
-    ``evals`` and ``eval_diffs`` are used only for disjointness and blindness checks: every prompt is checked
-    before ``generate`` is called, so a held-out mutant never reaches the model and an overlap raises
-    :class:`LeakError`. The reference must pass after every accepted round. A reference that was measured and
-    failed (reward other than 1.0) gets one self-repair attempt with the grader output, then the round is
-    reverted (``guard_reverted``). A reference that could not be measured (reward ``None``: spend cap, Modal
-    error) is not a failure: no second model call, the round is not accepted, the loop stops with
-    ``reference_unmeasured`` and the earlier accepted tests stay, so the caller can regrade and resume. Stops
-    early when every probe dies, when no probe could be measured, and after ``rounds``; round 1 always runs.
-    """
-    if rounds < 1:
-        raise ValueError("rounds must be >= 1")
-    if probes_per_round < 1:
-        raise ValueError("probes_per_round must be >= 1")
-    assert_disjoint(train, probe_pool, evals)
-    known = list(train)
-    survivors: list[Mutant] = []
-    cursor = 0
-    previous: str | None = None
-    outcome = RoundsOutcome(records=[], accepted_tests={}, stop_reason="")
-
-    def attempt(index: int, feedback: str | None) -> str | None:
-        latest = {m.sha256 for m in survivors}
-        prompt = build_prompt(
-            index, [m for m in known if m.sha256 not in latest], list(survivors), previous, feedback
-        )
-        assert_prompt_blind(prompt, eval_diffs)
-        return generate(index, prompt)
-
-    for index in range(1, rounds + 1):
-        probes = list(probe_pool[cursor : cursor + probes_per_round])
-        cursor += len(probes)
-        guard = "passed"
-        grades: dict[str, Any] = {}
-        code = attempt(index, None)
-        if code is None:
-            guard = "synthesis_failed"
-        else:
-            grades = grade(index, code, probes)
-            reference = grades.get("reference")
-            if reference is None:
-                guard = "unmeasured"
-            elif reference != 1.0:
-                feedback = f"the reference solution scored {reference}, it must score 1.0"
-                output = grades.get("reference_output")
-                if isinstance(output, str) and output.strip():
-                    feedback += "\n\nGrader output on the reference solution (tail):\n" + output.strip()
-                code = attempt(index, feedback)
-                guard = "repaired"
-                grades = grade(index, code, probes) if code is not None else {}
-                reference = grades.get("reference")
-                if code is None or (reference is not None and reference != 1.0):
-                    guard = "reverted"
-                elif reference is None:
-                    guard = "unmeasured"
-        grades = {k: v for k, v in grades.items() if k != "reference_output"}
-        probe_shas = [m.sha256 for m in probes]
-        measured = {sha: grades.get(f"probe:{sha}") for sha in probe_shas}
-        record = RoundRecord(
-            round=index,
-            test_sha256=hashlib.sha256(code.encode()).hexdigest() if code else None,
-            train_shas=[m.sha256 for m in known],
-            probe_shas=probe_shas,
-            grades=grades,
-            guard=guard,
-            survivors=[sha for sha, r in measured.items() if r == 1.0],
-            killed=[sha for sha, r in measured.items() if r == 0.0],
-            unmeasured=[sha for sha, r in measured.items() if r not in (0.0, 1.0)],
-        )
-        outcome.records.append(record)
-        if guard in ("reverted", "unmeasured", "synthesis_failed") or code is None:
-            outcome.stop_reason = {
-                "reverted": "guard_reverted",
-                "unmeasured": "reference_unmeasured",
-            }.get(guard, guard)
-            return outcome
-        outcome.accepted_tests[index] = code
-        previous = code
-        if index == rounds:
-            outcome.stop_reason = "rounds_complete"
-            return outcome
-        if not probes:
-            outcome.stop_reason = "probe_pool_exhausted"
-            return outcome
-        if not record.survivors:
-            outcome.stop_reason = "all_probes_killed" if not record.unmeasured else "probes_unmeasured"
-            return outcome
-        by_sha = {m.sha256: m for m in probes}
-        survivors = [by_sha[sha] for sha in record.survivors]
-        known.extend(survivors)
-    outcome.stop_reason = "rounds_complete"
-    return outcome
 
 
 @dataclass(frozen=True)

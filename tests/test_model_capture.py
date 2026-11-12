@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import threading
-import time
 import urllib.error
 import urllib.request
 from datetime import UTC
@@ -21,27 +20,14 @@ from typing import Any
 import pyarrow.parquet as pq
 import pytest
 
-from evallab import model_capture
 from evallab.model_capture import (
-    CaptureRecorder,
     TrialEvidence,
     attribute_calls,
     classify_kind,
-    extract_from_payload,
-    extract_from_sse,
-    extract_ollama_ndjson,
-    find_trial_capture,
     first_user_text,
-    join_upstream_path,
     judge_trial,
     link_capture,
-    parse_sse_payloads,
-    redact_key_text,
     request_message_pairs,
-    selected_headers,
-    serve_capture,
-    split_route_token,
-    write_provenance,
 )
 
 SECRET = "upstream-key-sentinel-abcdef123456"
@@ -157,274 +143,7 @@ def upstream() -> Any:
     thread.join()
 
 
-def _proxy(tmp_path: Path, upstream: Any, **kwargs: Any) -> Any:
-    server, recorder, _manifest = serve_capture(
-        upstream=f"http://127.0.0.1:{upstream.server_address[1]}",
-        out_dir=tmp_path / "cap",
-        bind="127.0.0.1",
-        port=0,
-        **kwargs,
-    )
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    return server, recorder, thread
-
-
-def _post(
-    port: int, path: str, payload: dict[str, Any], headers: dict[str, str] | None = None
-) -> bytes:
-    request = urllib.request.Request(
-        f"http://127.0.0.1:{port}{path}",
-        data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json", **(headers or {})},
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=15) as response:
-        return response.read()
-
-
-def _records(tmp_path: Path) -> list[dict[str, Any]]:
-    return [
-        json.loads(line)
-        for line in (tmp_path / "cap" / "calls.jsonl").read_text().splitlines()
-        if line.strip()
-    ]
-
-
-def test_proxy_forwards_and_records_full_bodies(tmp_path: Path, upstream: Any) -> None:
-    server, recorder, thread = _proxy(tmp_path, upstream)
-    try:
-        body = _post(
-            server.server_address[1],
-            "/v1/chat/completions",
-            {"model": "stub", "messages": [{"role": "user", "content": "hi"}]},
-            {"Authorization": "Bearer client-secret-token", "X-Session-ID": "sess-1"},
-        )
-        payload = json.loads(body)
-        assert payload["choices"][0]["message"]["content"] == "done"
-    finally:
-        server.shutdown()
-        thread.join()
-        recorder.close()
-    (record,) = _records(tmp_path)
-    assert record["method"] == "POST"
-    assert record["path"] == "/v1/chat/completions"
-    assert record["route_token"] is None
-    assert record["response_status"] == 200
-    assert record["request_body"]["messages"][0]["content"] == "hi"
-    assert record["response_body"]["choices"][0]["message"]["content"] == "done"
-    assert record["assistant_texts"] == ["done"]
-    assert record["tool_calls"] == [{"id": "t1", "name": "bash", "arguments": '{"cmd":"ls"}'}]
-    assert record["usage"] == {"prompt_tokens": 11, "completion_tokens": 7}
-    assert record["model"] == "stub"
-    assert record["session_id"] == "sess-1"
-    assert record["error"] is None
-    assert isinstance(record["upstream_latency_s"], float)
-    # Auth is never recorded, even though it was forwarded in transparent mode.
-    assert "authorization" not in record["request_headers"]
-    assert "client-secret-token" not in json.dumps(record)
-
-
-def test_proxy_reassembles_streaming_tool_calls(tmp_path: Path, upstream: Any) -> None:
-    server, recorder, thread = _proxy(tmp_path, upstream)
-    try:
-        request = urllib.request.Request(
-            f"http://127.0.0.1:{server.server_address[1]}/v1/chat/completions",
-            data=json.dumps({"model": "stub", "stream": True, "messages": []}).encode(),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(request, timeout=15) as response:
-            raw = response.read()
-        assert b"data: [DONE]" in raw
-    finally:
-        server.shutdown()
-        thread.join()
-        recorder.close()
-    (record,) = _records(tmp_path)
-    assert record["response_sse"] is True
-    assert "data: [DONE]" in record["response_body"]["sse_raw"]
-    assert record["assistant_texts"] == ["hello"]
-    assert record["tool_calls"] == [{"id": "t1", "name": "bash", "arguments": '{"cmd":"ls"}'}]
-    assert record["usage"] == {"prompt_tokens": 11, "completion_tokens": 7}
-
-
-def test_proxy_injects_upstream_key_and_never_records_it(tmp_path: Path, upstream: Any) -> None:
-    server, recorder, thread = _proxy(tmp_path, upstream, upstream_key=SECRET)
-    try:
-        _post(
-            server.server_address[1],
-            "/t/trial-9/v1/chat/completions",
-            {"model": "stub", "messages": [{"role": "user", "content": "hi"}]},
-            {"Authorization": "Bearer client-placeholder"},
-        )
-    finally:
-        server.shutdown()
-        thread.join()
-        recorder.close()
-    assert _StubUpstream.received[-1]["auth"] == f"Bearer {SECRET}"
-    assert _StubUpstream.received[-1]["path"] == "/v1/chat/completions"
-    (record,) = _records(tmp_path)
-    assert record["route_token"] == "trial-9"
-    assert SECRET not in json.dumps(record)
-
-
-def test_proxy_records_upstream_outage(tmp_path: Path) -> None:
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _StubUpstream)
-    port = server.server_address[1]
-    server.server_close()
-    proxy, recorder, manifest = serve_capture(
-        upstream=f"http://127.0.0.1:{port}", out_dir=tmp_path / "cap", bind="127.0.0.1", port=0
-    )
-    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
-    thread.start()
-    try:
-        with pytest.raises(urllib.error.URLError):
-            _post(proxy.server_address[1], "/v1/chat/completions", {"model": "stub"})
-    finally:
-        proxy.shutdown()
-        thread.join()
-        recorder.close()
-    assert manifest["upstream"] == f"http://127.0.0.1:{port}"
-    (record,) = _records(tmp_path)
-    assert record["response_status"] is None
-    assert record["error"]["kind"] == "upstream_unreachable"
-
-
-def test_sse_reassembly_unit() -> None:
-    raw = (
-        b": comment\n"
-        b'data: {"choices":[{"index":0,"delta":{"content":"a"}}]}\n\n'
-        b'data: {"choices":[{"index":0,"delta":{"content":"b"}}]}\n\n'
-        b"data: [DONE]\n\n"
-    )
-    assert [p["choices"][0]["delta"] for p in parse_sse_payloads(raw)] == [
-        {"content": "a"},
-        {"content": "b"},
-    ]
-    assert extract_from_sse("chat", raw).assistant_texts == ["ab"]
-
-
-@pytest.mark.parametrize(
-    ("kind", "usage"),
-    [
-        (
-            "chat",
-            {
-                "prompt_tokens": 30,
-                "completion_tokens": 7,
-                "prompt_tokens_details": {"cached_tokens": 20},
-            },
-        ),
-        (
-            "responses",
-            {
-                "input_tokens": 30,
-                "output_tokens": 7,
-                "input_tokens_details": {"cached_tokens": 20},
-            },
-        ),
-    ],
-)
-def test_openai_usage_does_not_add_cached_subset(kind: str, usage: dict[str, Any]) -> None:
-    turns = extract_from_payload(kind, {"usage": usage})
-    assert turns.usage == {"prompt_tokens": 30, "completion_tokens": 7}
-
-
-def test_anthropic_explicit_zero_usage_is_known() -> None:
-    turns = extract_from_payload(
-        "anthropic_messages",
-        {
-            "usage": {
-                "input_tokens": 0,
-                "cache_read_input_tokens": 0,
-                "cache_creation_input_tokens": 0,
-                "output_tokens": 0,
-            }
-        },
-    )
-    assert turns.usage == {"prompt_tokens": 0, "completion_tokens": 0}
-
-
-@pytest.mark.parametrize(
-    "changes",
-    [
-        {"cache_read_input_tokens": None},
-        {"cache_read_input_tokens": True},
-        {"cache_creation_input_tokens": -1},
-        {"cache_creation_input_tokens": 2.5},
-        {"input_tokens": None},
-        {"output_tokens": "20"},
-    ],
-)
-def test_anthropic_unknown_or_invalid_usage_is_not_zero(changes: dict[str, Any]) -> None:
-    usage = {
-        "input_tokens": 1000,
-        "cache_read_input_tokens": 600,
-        "cache_creation_input_tokens": 200,
-        "output_tokens": 20,
-        **changes,
-    }
-    assert extract_from_payload("anthropic_messages", {"usage": usage}).usage is None
-
-
-def test_anthropic_absent_cache_counters_leave_usage_unknown() -> None:
-    payload = {"usage": {"input_tokens": 1000, "output_tokens": 20}}
-    assert extract_from_payload("anthropic_messages", payload).usage is None
-
-
-@pytest.mark.parametrize(
-    ("updates", "expected"),
-    [
-        ([], None),
-        ([{"output_tokens": 0}], {"prompt_tokens": 1800, "completion_tokens": 0}),
-        (
-            [{"output_tokens": 3}, {"output_tokens": 7}],
-            {"prompt_tokens": 1800, "completion_tokens": 7},
-        ),
-        ([{"output_tokens": 7, "cache_read_input_tokens": None}], None),
-    ],
-    ids=["interrupted", "explicit-zero", "cumulative-not-additive", "unknown-cache-update"],
-)
-def test_anthropic_sse_usage_requires_observed_output(
-    updates: list[dict[str, Any]], expected: dict[str, int] | None
-) -> None:
-    events = [
-        {
-            "type": "message_start",
-            "message": {
-                "usage": {
-                    "input_tokens": 1000,
-                    "cache_read_input_tokens": 600,
-                    "cache_creation_input_tokens": 200,
-                    "output_tokens": 2,
-                }
-            },
-        },
-        *({"type": "message_delta", "usage": update} for update in updates),
-    ]
-    raw = b"".join(b"data: " + json.dumps(event).encode() + b"\n\n" for event in events)
-    assert extract_from_sse("anthropic_messages", raw).usage == expected
-
-
 def test_header_selection_and_key_redaction() -> None:
-    headers = selected_headers(
-        {
-            "Authorization": "Bearer x",
-            "X-Api-Key": "y",
-            "X-Session-ID": "s",
-            "Content-Type": "application/json",
-        }
-    )
-    assert headers == {"content-type": "application/json", "x-session-id": "s"}
-    assert redact_key_text(f"leaked {SECRET} here", SECRET) == "leaked <redacted> here"
-    assert redact_key_text("short", "abc") == "short"
-    assert split_route_token("/t/trial_a-1/v1/chat/completions") == (
-        "trial_a-1",
-        "/v1/chat/completions",
-    )
-    assert split_route_token("/v1/chat/completions") == (None, "/v1/chat/completions")
-    assert split_route_token("/t/bad token!/v1/chat/completions")[0] is None
     assert classify_kind("/v1/chat/completions") == "chat"
     assert classify_kind("/chat/completions") == "chat"
     assert classify_kind("/v1/responses") == "responses"
@@ -432,16 +151,6 @@ def test_header_selection_and_key_redaction() -> None:
     assert classify_kind("/v1/models") == "unknown"
     assert classify_kind("/api/paas/v4/chat/completions") == "chat"
     assert classify_kind("/api/chat") == "ollama_chat"
-
-
-def test_join_upstream_path_avoids_doubling() -> None:
-    assert join_upstream_path("/v1", "/v1/chat/completions") == "/v1/chat/completions"
-    assert join_upstream_path("/v1", "/chat/completions") == "/v1/chat/completions"
-    assert join_upstream_path("", "/v1/chat/completions") == "/v1/chat/completions"
-    assert join_upstream_path("/v1", "/v1") == "/v1"
-    assert (
-        join_upstream_path("/api/paas/v4", "/chat/completions") == "/api/paas/v4/chat/completions"
-    )
 
 
 def test_request_pairs_and_first_user() -> None:
@@ -698,7 +407,7 @@ def _write_calls(capture: Path, calls: list[dict[str, Any]]) -> None:
             handle.write(json.dumps({"seq": index, **call}) + "\n")
 
 
-def test_link_end_to_end_and_report_lookup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_link_end_to_end_and_parquet_tokens(tmp_path: Path) -> None:
     capture = tmp_path / "cap"
     _write_calls(
         capture,
@@ -715,21 +424,7 @@ def test_link_end_to_end_and_report_lookup(tmp_path: Path, monkeypatch: pytest.M
                 "response_sse": False,
                 "assistant_texts": ["all done"],
                 "tool_calls": [],
-                "usage": extract_from_payload(
-                    "anthropic_messages",
-                    {
-                        "usage": {
-                            "input_tokens": 2,
-                            "cache_read_input_tokens": 5,
-                            "cache_creation_input_tokens": 3,
-                            "cache_creation": {
-                                "ephemeral_5m_input_tokens": 1,
-                                "ephemeral_1h_input_tokens": 2,
-                            },
-                            "output_tokens": 2,
-                        }
-                    },
-                ).usage,
+                "usage": {"prompt_tokens": 10, "completion_tokens": 2},
                 "model": "stub",
                 "upstream_latency_s": 0.01,
                 "error": None,
@@ -767,16 +462,9 @@ def test_link_end_to_end_and_report_lookup(tmp_path: Path, monkeypatch: pytest.M
     assert call_table.to_pylist() == [{"prompt_tokens": 10, "completion_tokens": 2}]
     assert (derived / "job_id=job-job1" / "trial_capture.parquet").is_file()
     assert (derived / "job_id=job-job1" / "capture_link.json").is_file()
-    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived / "parquet"))
-    assert find_trial_capture(job / "trial-a") is None
-    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
-    found = find_trial_capture(job / "trial-a")
-    assert found is not None and found["verdict"] == "complete"
-    assert find_trial_capture(job / "trial-b")["verdict"] == "capture_missing"
-    assert find_trial_capture(job / "missing") is None
 
 
-def test_lookup_anchors_at_containing_checkout(
+def test_link_output_anchors_at_checkout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("EVALLAB_DERIVED_ROOT", raising=False)
@@ -789,8 +477,6 @@ def test_lookup_anchors_at_containing_checkout(
     link_capture(capture, job, repo_root=checkout)
     leaf = "job_id=job-job9"
     assert (checkout / "derived" / "parquet" / leaf / "trial_capture.parquet").is_file()
-    found = find_trial_capture(job / "trial-a")
-    assert found is not None and found["verdict"] == "capture_missing"
 
 
 def test_link_conversation_match_without_token(tmp_path: Path) -> None:
@@ -840,97 +526,13 @@ def test_link_conversation_match_without_token(tmp_path: Path) -> None:
     assert judgment["verdict"] == "complete"
 
 
-def test_provenance_validates_against_schema(tmp_path: Path) -> None:
-    recorder = CaptureRecorder(tmp_path / "cap")
-    recorder.append({"hello": "world"})
-    recorder.close()
-    provenance = write_provenance(tmp_path / "cap", upstream="http://127.0.0.1:9")
-
-    assert provenance["zone"] == "02-local-evidence"
-    assert provenance["material_digest"].startswith("sha256:")
-
-
-def test_clean_shutdown_closes_with_matching_digest(tmp_path: Path, upstream: Any) -> None:
-    server, recorder, thread = _proxy(tmp_path, upstream)
-    _post(server.server_address[1], "/v1/chat/completions", {"model": "stub", "messages": []})
-    # shutdown() must run off the serving thread (as the SIGTERM handler does).
-    closer = threading.Thread(target=server.shutdown, daemon=True)
-    closer.start()
-    thread.join(timeout=15)
-    closer.join(timeout=15)
-    recorder.close()
-    provenance = write_provenance(tmp_path / "cap", upstream="http://127.0.0.1:9")
-    assert not thread.is_alive()
-    assert provenance["call_count"] == 1
-    assert (
-        provenance["material_digest"]
-        == f"sha256:{model_capture.sha256_file(tmp_path / 'cap' / 'calls.jsonl')}"
-    )
-
-
-def test_run_report_capture_section(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from evallab.interpretation.run_report import (
-        build_run_report,
-        render_run_report_markdown,
-    )
-
-    job = _job_dir(tmp_path, "job3", [{"trial_name": "trial-a", "trajectory": None}])
-    trial = job / "trial-a"
-    report = build_run_report(trial)
-    assert report["capture"] is None
-    assert "## Independent capture" not in render_run_report_markdown(report)
-    capture = tmp_path / "cap"
-    _write_calls(capture, [])
-    derived = tmp_path / "derived"
-    link_capture(capture, job, derived_root=derived)
-    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
-    report = build_run_report(trial)
-    assert report["capture"] is not None
-    assert report["capture"]["verdict"] == "capture_missing"
-    assert report["schema"] == "evallab.run_report/v1"
-    rendered = render_run_report_markdown(report)
-    assert "## Independent capture" in rendered
-    assert "capture missing" in rendered
-
-
 def test_ollama_native_request_and_response() -> None:
     body = {"model": "qwen2.5:7b", "messages": [{"role": "user", "content": "do the thing"}]}
     assert request_message_pairs("ollama_chat", body) == [("user", "do the thing")]
     assert first_user_text("ollama_chat", body) == "do the thing"
-    payload = {
-        "model": "qwen2.5:7b",
-        "message": {
-            "role": "assistant",
-            "content": "all done",
-            "tool_calls": [{"function": {"name": "bash", "arguments": {"cmd": "ls"}}}],
-        },
-        "prompt_eval_count": 9,
-        "eval_count": 3,
-    }
-    turns = extract_from_payload("ollama_chat", payload)
-    assert turns.assistant_texts == ["all done"]
-    assert turns.tool_calls == [{"id": None, "name": "bash", "arguments": '{"cmd": "ls"}'}]
-    assert turns.usage == {"prompt_tokens": 9, "completion_tokens": 3}
-    assert turns.model == "qwen2.5:7b"
 
 
-def test_ollama_ndjson_stream_reassembly() -> None:
-    raw = b"\n".join(
-        [
-            json.dumps(
-                {"model": "qwen2.5:7b", "message": {"role": "assistant", "content": "hel"}}
-            ).encode(),
-            json.dumps({"message": {"role": "assistant", "content": "lo"}}).encode(),
-            json.dumps({"done": True, "prompt_eval_count": 9, "eval_count": 3}).encode(),
-        ]
-    )
-    turns = extract_ollama_ndjson(raw)
-    assert turns.assistant_texts == ["hello"]
-    assert turns.usage == {"prompt_tokens": 9, "completion_tokens": 3}
-    assert turns.model == "qwen2.5:7b"
-
-
-def test_zai_secret_proxy_chain_records_chat_and_scrubs_key(
+def test_zai_secret_proxy_chain_forwards_chat_with_provider_auth(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import importlib.util
@@ -939,14 +541,6 @@ def test_zai_secret_proxy_chain_records_chat_and_scrubs_key(
     _StubUpstream.received = []
     stub = ThreadingHTTPServer(("127.0.0.1", 0), _StubUpstream)
     threading.Thread(target=stub.serve_forever, daemon=True).start()
-    capture, recorder, _manifest = serve_capture(
-        upstream=f"http://127.0.0.1:{stub.server_address[1]}",
-        out_dir=tmp_path / "cap",
-        bind="127.0.0.1",
-        port=0,
-    )
-    capture_thread = threading.Thread(target=capture.serve_forever, daemon=True)
-    capture_thread.start()
     provider_key = "zai-provider-key-sentinel-987654321"
     secret_file = tmp_path / "zai-key"
     secret_file.write_text(provider_key + "\n")
@@ -954,7 +548,7 @@ def test_zai_secret_proxy_chain_records_chat_and_scrubs_key(
     capability = "chain-capability-token"
     monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_SECRET_PATH", str(secret_file))
     monkeypatch.setenv(
-        "EVALLAB_ZAI_OPENAPI_UPSTREAM", f"http://127.0.0.1:{capture.server_address[1]}"
+        "EVALLAB_ZAI_OPENAPI_UPSTREAM", f"http://127.0.0.1:{stub.server_address[1]}"
     )
     monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_PROXY_CAPABILITY", capability)
     monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_ATTEMPT_ID", "trial-01")
@@ -987,20 +581,9 @@ def test_zai_secret_proxy_chain_records_chat_and_scrubs_key(
             assert json.loads(response.read())["choices"][0]["message"]["content"] == "done"
     finally:
         proxy.shutdown()
-        capture.shutdown()
         stub.shutdown()
-        recorder.close()
     assert _StubUpstream.received
     assert _StubUpstream.received[0]["auth"] == f"Bearer {provider_key}"
-    records = [
-        json.loads(line) for line in (tmp_path / "cap" / "calls.jsonl").read_text().splitlines()
-    ]
-    assert len(records) == 1
-    record = records[0]
-    assert record["request_body"]["model"] == "glm-5.3-flash"
-    assert record["assistant_texts"] == ["done"]
-    assert "authorization" not in {k.lower() for k in record["request_headers"]}
-    assert provider_key not in json.dumps(record)
 
 
 # ---------------------------------------------------------------------------
@@ -1088,163 +671,12 @@ class _RecordingStub(BaseHTTPRequestHandler):
         self.close_connection = True
 
 
-class _StubServer(ThreadingHTTPServer):
-    """Fake upstream with a real server's listen backlog (Modal's edge is not 5)."""
-
-    daemon_threads = True
-    request_queue_size = 256
-
-
 def _raw_post(port: int, path: str, raw: bytes, headers: dict[str, str]) -> bytes:
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}{path}", data=raw, headers=headers, method="POST"
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         return response.read()
-
-
-def test_capture_passthrough_byte_identical_under_parallel_tokens(
-    tmp_path: Path,
-) -> None:
-    """$0 pass-through proof: 20 same-task parallel trials through one capture.
-
-    Every trial posts the *same* body (the G2 worst case: identical prompts
-    defeat conversation-chaining attribution), each under its own
-    ``/t/<token>/`` prefix. Asserts the fake upstream receives byte-identical
-    bodies with and without the hop, clients get byte-identical responses,
-    the upstream path is stripped, and ``calls.jsonl`` keeps both bodies
-    with the right token while never recording auth headers.
-    """
-    import concurrent.futures
-
-    _RecordingStub.received = []
-    stub = _StubServer(("127.0.0.1", 0), _RecordingStub)
-    threading.Thread(target=stub.serve_forever, daemon=True).start()
-    server, recorder, _manifest = serve_capture(
-        upstream=f"http://127.0.0.1:{stub.server_address[1]}",
-        out_dir=tmp_path / "cap",
-        bind="127.0.0.1",
-        port=0,
-    )
-    capture_thread = threading.Thread(target=server.serve_forever, daemon=True)
-    capture_thread.start()
-    try:
-        payload = {
-            "model": "stub",
-            "messages": [{"role": "user", "content": "do the thing"}],
-            "temperature": 0.6,
-            "top_p": 0.95,
-            "top_k": 20,
-            "chat_template_kwargs": {"enable_thinking": True},
-        }
-        raw = json.dumps(payload).encode()
-        headers = {"Content-Type": "application/json", "Authorization": "Bearer job-key"}
-        control_response = _raw_post(stub.server_address[1], "/v1/chat/completions", raw, headers)
-        assert len(_RecordingStub.received) == 1
-        control_seen = _RecordingStub.received[0]["raw"]
-
-        capture_port = server.server_address[1]
-        tokens = [f"01ATTEMPT{i:02d}" for i in range(20)]
-
-        def _one(token: str) -> bytes:
-            return _raw_post(capture_port, f"/t/{token}/v1/chat/completions", raw, headers)
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as pool:
-            responses = list(pool.map(_one, tokens))
-        assert responses and all(response == control_response for response in responses)
-        # One streaming call: SSE bytes must also pass through untouched.
-        stream_payload = {**payload, "stream": True}
-        stream_raw = json.dumps(stream_payload).encode()
-        control_stream = _raw_post(
-            stub.server_address[1], "/v1/chat/completions", stream_raw, headers
-        )
-        via_stream = _raw_post(
-            capture_port, "/t/01ATTEMPT00/v1/chat/completions", stream_raw, headers
-        )
-        assert via_stream == control_stream
-        assert b"text/event-stream" not in via_stream
-        assert b'"hel"' in via_stream and b"data: [DONE]" in via_stream
-    finally:
-        server.shutdown()
-        stub.shutdown()
-        recorder.close()
-    # Upstream saw 1 control + 20 parallel + 2 streaming bodies, all identical.
-    assert len(_RecordingStub.received) == 23
-    assert all(
-        entry["raw"] == control_seen or entry["raw"] == stream_raw
-        for entry in _RecordingStub.received[1:]
-    )
-    assert all(entry["raw"] in (control_seen, stream_raw) for entry in _RecordingStub.received)
-    # Stripped paths upstream; the provider key still reaches the upstream.
-    # The capture drops the inbound Host, so the client sets it from the
-    # upstream URL (Modal's edge routes on Host; 127.0.0.1:<capture-port>
-    # must never leak through).
-    stub_host = f"127.0.0.1:{stub.server_address[1]}"
-    assert _RecordingStub.received[0]["path"] == "/v1/chat/completions"
-    for entry in _RecordingStub.received[1:]:
-        assert entry["path"] == "/v1/chat/completions"
-        assert entry["auth"] == "Bearer job-key"
-        assert entry["host"] == stub_host
-    records = [
-        json.loads(line)
-        for line in (tmp_path / "cap" / "calls.jsonl").read_text().splitlines()
-        if line.strip()
-    ]
-    assert len(records) == 21
-    by_token: dict[str, list[dict[str, Any]]] = {}
-    for record in records:
-        assert "authorization" not in {key.lower() for key in record["request_headers"]}
-        assert "job-key" not in json.dumps(record)
-        by_token.setdefault(record["route_token"], []).append(record)
-    assert sorted(by_token) == sorted(tokens)
-    assert all(len(calls) == 1 for token, calls in by_token.items() if token != "01ATTEMPT00")
-    assert len(by_token["01ATTEMPT00"]) == 2
-    plain = next(r for r in records if not r["response_sse"])
-    assert json.loads(control_seen.decode()) == plain["request_body"]
-    assert json.loads(control_response.decode()) == plain["response_body"]
-    assert plain["assistant_texts"] == ["done"]
-    streamed = next(r for r in records if r["response_sse"])
-    assert streamed["assistant_texts"] == ["hello"]
-
-
-def test_capture_survives_a_connect_burst_beyond_the_default_backlog(tmp_path: Path) -> None:
-    """A round's trials all reach the one capture server at once; none may be reset.
-
-    socketserver's default listen backlog (5) reset connections under the
-    20-way G2 burst on CI. 64 simultaneous POSTs must all get the upstream reply.
-    """
-    import concurrent.futures
-
-    _RecordingStub.received = []
-    stub = _StubServer(("127.0.0.1", 0), _RecordingStub)
-    threading.Thread(target=stub.serve_forever, daemon=True).start()
-    server, recorder, _manifest = serve_capture(
-        upstream=f"http://127.0.0.1:{stub.server_address[1]}",
-        out_dir=tmp_path / "cap",
-        bind="127.0.0.1",
-        port=0,
-    )
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    raw = json.dumps({"model": "stub", "messages": [{"role": "user", "content": "x"}]}).encode()
-    headers = {"Content-Type": "application/json"}
-    start = threading.Barrier(64)
-
-    def _one(index: int) -> bytes:
-        start.wait()
-        return _raw_post(
-            server.server_address[1], f"/t/01BURST{index:02d}/v1/chat/completions", raw, headers
-        )
-
-    try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=64) as pool:
-            responses = list(pool.map(_one, range(64)))
-    finally:
-        server.shutdown()
-        stub.shutdown()
-        recorder.close()
-    assert len(responses) == 64
-    assert all(b'"done"' in response for response in responses)
-    assert len(_RecordingStub.received) == 64
 
 
 def test_mimo_secret_proxy_stamps_token_and_stays_byte_identical(
@@ -1454,104 +886,6 @@ def test_runner_sets_capture_token_only_for_loopback_upstream(
     assert "EVALLAB_CAPTURE_ROUTE_TOKEN" not in env
 
 
-def _load_secret_proxy(monkeypatch: pytest.MonkeyPatch, name: str) -> Any:
-    """Import the standalone secret-proxy container script under ``name``."""
-    import importlib.util
-    import sys
-
-    source = Path(__file__).resolve().parents[1] / "containers" / "zai_openapi_secret_proxy.py"
-    spec = importlib.util.spec_from_file_location(name, source)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    monkeypatch.setitem(sys.modules, spec.name, module)
-    spec.loader.exec_module(module)
-    return module
-
-
-def _mimo_proxy_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, upstream_url: str) -> str:
-    """Point a mimo_selfhosted secret proxy at ``upstream_url``; return the capability."""
-    secret_file = tmp_path / "mimo-key"
-    secret_file.write_text("mimo-provider-key-sentinel-135792468\n")
-    secret_file.chmod(0o600)
-    capability = "mimo-chain-capability"
-    monkeypatch.setenv("EVALLAB_PROXY_PROVIDER", "mimo_selfhosted")
-    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_SECRET_PATH", str(secret_file))
-    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_UPSTREAM", upstream_url)
-    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_PROXY_CAPABILITY", capability)
-    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_ATTEMPT_ID", "attempt-7")
-    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_USAGE_FILE", str(tmp_path / "usage.json"))
-    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_MAX_REQUESTS", "10")
-    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_MAX_INPUT_TOKENS", "20000")
-    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_MAX_OUTPUT_TOKENS", "20000")
-    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_MAX_TOTAL_TOKENS", "40000")
-    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_MAX_COST_MICROS", "1000000")
-    return capability
-
-
-def test_full_chain_proxy_capture_upstream_strips_token_and_host(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """End to end: real secret proxy -> capture -> fake upstream.
-
-    The fake sees the canonical path, the upstream authority as Host (never
-    the capture's loopback Host), and the shaped body; the client gets the
-    same payload as a direct call; the record carries the route token.
-    """
-    _RecordingStub.received = []
-    stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
-    threading.Thread(target=stub.serve_forever, daemon=True).start()
-    capture, recorder, _manifest = serve_capture(
-        upstream=f"http://127.0.0.1:{stub.server_address[1]}",
-        out_dir=tmp_path / "cap",
-        bind="127.0.0.1",
-        port=0,
-    )
-    threading.Thread(target=capture.serve_forever, daemon=True).start()
-    module = _load_secret_proxy(monkeypatch, "full_chain_proxy")
-    capability = _mimo_proxy_env(
-        monkeypatch, tmp_path, f"http://127.0.0.1:{capture.server_address[1]}"
-    )
-    monkeypatch.setenv("EVALLAB_CAPTURE_ROUTE_TOKEN", "01CHAINJOB")
-    proxy = module.serve(host="127.0.0.1", port=0)
-    threading.Thread(target=proxy.serve_forever, daemon=True).start()
-    try:
-        body = json.dumps(
-            {
-                "model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-                "messages": [{"role": "user", "content": "hi"}],
-            }
-        ).encode()
-        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {capability}"}
-        via_chain = _raw_post(proxy.server_address[1], "/v1/chat/completions", body, headers)
-        direct = _raw_post(stub.server_address[1], "/v1/chat/completions", body, headers)
-        # Same payload: the secret proxy re-serializes upstream JSON with
-        # canonical separators, so whitespace differs by design; the capture
-        # hop itself is byte-exact (proven by the passthrough test).
-        assert json.loads(via_chain) == json.loads(direct)
-        assert json.loads(via_chain)["choices"][0]["message"]["content"] == "done"
-    finally:
-        proxy.shutdown()
-        capture.shutdown()
-        stub.shutdown()
-        recorder.close()
-    assert len(_RecordingStub.received) == 2
-    (seen,) = [entry for entry in _RecordingStub.received if b'"temperature"' in entry["raw"]]
-    assert seen["path"] == "/v1/chat/completions"
-    assert seen["host"] == f"127.0.0.1:{stub.server_address[1]}"
-    shaped = json.loads(seen["raw"].decode())
-    assert shaped["model"] == "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
-    assert shaped["temperature"] == 0.6
-    assert shaped["chat_template_kwargs"] == {"enable_thinking": True}
-    records = [
-        json.loads(line)
-        for line in (tmp_path / "cap" / "calls.jsonl").read_text().splitlines()
-        if line.strip()
-    ]
-    assert len(records) == 1
-    assert records[0]["route_token"] == "01CHAINJOB"
-    assert records[0]["request_body"]["model"] == "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
-
-
 def test_link_leaves_foreign_token_calls_unassigned(tmp_path: Path) -> None:
     """Two same-task jobs sharing one capture: no cross-job chaining.
 
@@ -1612,269 +946,3 @@ def test_link_leaves_foreign_token_calls_unassigned(tmp_path: Path) -> None:
     assert judgment_a["verdict"] == "complete"
 
 
-def test_capture_smoke_against_fake_upstream(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The operator smoke runs the real chain and reports shas, never secrets."""
-    from evallab.model_capture import _forwarded_host, run_capture_smoke
-
-    _RecordingStub.received = []
-    _RecordingStub.echo_model = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
-    stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
-    threading.Thread(target=stub.serve_forever, daemon=True).start()
-    try:
-        monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-001")
-        summary = run_capture_smoke(
-            upstream=f"http://127.0.0.1:{stub.server_address[1]}",
-            out_dir=tmp_path / "smoke",
-        )
-    finally:
-        stub.shutdown()
-        _RecordingStub.echo_model = None
-    assert summary["status"] == 200
-    assert summary["model"] == "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
-    assert summary["calls"] == 1
-    assert summary["forwarded_host"] == f"127.0.0.1:{stub.server_address[1]}"
-    assert _forwarded_host("https://example.us-east.modal.direct") == "example.us-east.modal.direct"
-    assert (
-        _forwarded_host("https://example.us-east.modal.direct:443")
-        == "example.us-east.modal.direct"
-    )
-    assert _forwarded_host("http://127.0.0.1:8471") == "127.0.0.1:8471"
-    (seen,) = _RecordingStub.received
-    assert seen["host"] == summary["forwarded_host"]
-    assert seen["path"] == "/v1/chat/completions"
-    assert seen["auth"] == "Bearer smoke-fake-key-001"
-    assert summary["route_token"].startswith("smoke-")
-    assert len(summary["request_sha256"]) == 64
-    assert len(summary["response_sha256"]) == 64
-    assert "smoke-fake-key-001" not in json.dumps(summary)
-    record = json.loads((tmp_path / "smoke" / "calls.jsonl").read_text().splitlines()[0])
-    assert record["route_token"] == summary["route_token"]
-    assert "smoke-fake-key-001" not in json.dumps(record)
-    assert (tmp_path / "smoke" / "smoke.json").is_file()
-
-
-def test_capture_smoke_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Missing key and dead upstream both fail nonzero with no leak."""
-    import pytest as _pytest
-
-    from evallab.model_capture import SmokeError, run_capture_smoke
-
-    monkeypatch.delenv("MIMO_SELFHOSTED_API_KEY", raising=False)
-    with _pytest.raises(SmokeError, match="not set"):
-        run_capture_smoke(upstream="http://127.0.0.1:9", out_dir=tmp_path / "s1")
-    monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-001")
-    with _pytest.raises(SmokeError):
-        run_capture_smoke(upstream="http://127.0.0.1:9", out_dir=tmp_path / "s2")
-
-
-@pytest.mark.parametrize("adapter", ["har129", "rds2-b", "rds2-c", "rds2-d"])
-def test_capture_smoke_adapter_selector_passes_on_adapter_echo(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, adapter: str
-) -> None:
-    """Every admitted arm retains its native identity through the capture chain."""
-    from evallab.model_capture import run_capture_smoke
-
-    _RecordingStub.received = []
-    native = f"XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:{adapter}"
-    _RecordingStub.echo_model = native
-    stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
-    threading.Thread(target=stub.serve_forever, daemon=True).start()
-    try:
-        monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-002")
-        summary = run_capture_smoke(
-            upstream=f"http://127.0.0.1:{stub.server_address[1]}",
-            out_dir=tmp_path / "smoke-adapter",
-            model=f"selfhosted/{native}",
-        )
-    finally:
-        stub.shutdown()
-        _RecordingStub.echo_model = None
-    assert summary["status"] == 200
-    assert summary["model"] == native
-    assert "smoke-fake-key-002" not in json.dumps(summary)
-
-
-@pytest.mark.parametrize("adapter", ["har129", "rds2-b", "rds2-c", "rds2-d"])
-def test_capture_smoke_adapter_selector_fails_when_echo_is_base(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, adapter: str
-) -> None:
-    """An adapter request echoing the base id fails the runner identity rule."""
-    import pytest as _pytest
-
-    from evallab.model_capture import SmokeError, run_capture_smoke
-
-    _RecordingStub.received = []
-    _RecordingStub.echo_model = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
-    stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
-    threading.Thread(target=stub.serve_forever, daemon=True).start()
-    try:
-        monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-003")
-        with _pytest.raises(SmokeError, match="does not match requested"):
-            run_capture_smoke(
-                upstream=f"http://127.0.0.1:{stub.server_address[1]}",
-                out_dir=tmp_path / "smoke-mismatch",
-                model=f"selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:{adapter}",
-            )
-    finally:
-        stub.shutdown()
-        _RecordingStub.echo_model = None
-
-
-def test_capture_smoke_validates_evidence_after_a_late_journal_append(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """HAR-221: a capture handler appends its record after the body reaches the client.
-
-    The smoke's HTTP call returns a complete body before ``CaptureRecorder.append``
-    has run, so reading ``calls.jsonl`` on the caller's schedule can see zero
-    records. The smoke must drain the capture handler first: a slow append has to
-    be judged on its content (identity mismatch), never as a missing call.
-    """
-    from evallab.model_capture import SmokeError, run_capture_smoke
-
-    real_append = CaptureRecorder.append
-
-    def slow_append(self: CaptureRecorder, record: dict[str, Any]) -> int:
-        time.sleep(0.25)
-        return real_append(self, record)
-
-    monkeypatch.setattr(CaptureRecorder, "append", slow_append)
-    _RecordingStub.received = []
-    _RecordingStub.echo_model = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
-    stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
-    threading.Thread(target=stub.serve_forever, daemon=True).start()
-    try:
-        monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-005")
-        with pytest.raises(SmokeError, match="does not match requested"):
-            run_capture_smoke(
-                upstream=f"http://127.0.0.1:{stub.server_address[1]}",
-                out_dir=tmp_path / "smoke-late-append",
-                model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds2-b",
-            )
-    finally:
-        stub.shutdown()
-        _RecordingStub.echo_model = None
-
-
-def test_capture_smoke_unknown_adapter_suffix_refused(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A selector outside the #604 admission never reaches the chain."""
-    import pytest as _pytest
-
-    from evallab.model_capture import SmokeError, run_capture_smoke
-
-    monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-004")
-    with _pytest.raises(SmokeError, match="refused"):
-        run_capture_smoke(
-            upstream="http://127.0.0.1:9",
-            out_dir=tmp_path / "smoke-bad-suffix",
-            model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:nope",
-        )
-
-
-def test_concurrent_servers_bind_distinct_ports_with_isolated_records(
-    tmp_path: Path, upstream: Any
-) -> None:
-    """HAR-145: concurrent segments must not share one fixed port's file.
-
-    Two servers bound with the default (OS-assigned) port get distinct
-    endpoints, publish the bound port/endpoint in their manifests, and each
-    ``calls.jsonl`` holds only its own call.
-    """
-    from evallab.model_capture import capture_endpoint
-
-    base = f"http://127.0.0.1:{upstream.server_address[1]}"
-    server_a, recorder_a, manifest_a = serve_capture(
-        upstream=base, out_dir=tmp_path / "cap-a", bind="127.0.0.1"
-    )
-    server_b, recorder_b, manifest_b = serve_capture(
-        upstream=base, out_dir=tmp_path / "cap-b", bind="127.0.0.1"
-    )
-    thread_a = threading.Thread(target=server_a.serve_forever, daemon=True)
-    thread_b = threading.Thread(target=server_b.serve_forever, daemon=True)
-    thread_a.start()
-    thread_b.start()
-    try:
-        _post(
-            server_a.server_address[1],
-            "/t/job-a/v1/chat/completions",
-            {"model": "stub", "messages": [{"role": "user", "content": "hi a"}]},
-        )
-        _post(
-            server_b.server_address[1],
-            "/t/job-b/v1/chat/completions",
-            {"model": "stub", "messages": [{"role": "user", "content": "hi b"}]},
-        )
-    finally:
-        server_a.shutdown()
-        server_b.shutdown()
-        thread_a.join()
-        thread_b.join()
-        recorder_a.close()
-        recorder_b.close()
-    port_a = server_a.server_address[1]
-    port_b = server_b.server_address[1]
-    assert port_a != port_b
-    assert manifest_a["port"] == port_a
-    assert manifest_b["port"] == port_b
-    assert manifest_a["endpoint"] == capture_endpoint("127.0.0.1", port_a)
-    assert manifest_b["endpoint"] == capture_endpoint("127.0.0.1", port_b)
-    assert manifest_a["endpoint"] != manifest_b["endpoint"]
-    stored_a = json.loads((tmp_path / "cap-a" / "capture.json").read_text(encoding="utf-8"))
-    stored_b = json.loads((tmp_path / "cap-b" / "capture.json").read_text(encoding="utf-8"))
-    assert stored_a["port"] == port_a and stored_b["port"] == port_b
-    records_a = [
-        json.loads(line)
-        for line in (tmp_path / "cap-a" / "calls.jsonl").read_text().splitlines()
-        if line.strip()
-    ]
-    records_b = [
-        json.loads(line)
-        for line in (tmp_path / "cap-b" / "calls.jsonl").read_text().splitlines()
-        if line.strip()
-    ]
-    assert len(records_a) == 1 and len(records_b) == 1
-    assert records_a[0]["route_token"] == "job-a"
-    assert records_b[0]["route_token"] == "job-b"
-    assert records_a[0]["request_body"]["messages"][0]["content"] == "hi a"
-    assert records_b[0]["request_body"]["messages"][0]["content"] == "hi b"
-
-
-def test_explicit_occupied_port_fails_without_manifest(tmp_path: Path, upstream: Any) -> None:
-    """An explicit taken port raises before dispatch with no misleading files."""
-    blocker = ThreadingHTTPServer(("127.0.0.1", 0), _StubUpstream)
-    blocker_thread = threading.Thread(target=blocker.serve_forever, daemon=True)
-    blocker_thread.start()
-    taken = blocker.server_address[1]
-    try:
-        out_dir = tmp_path / "cap-clash"
-        with pytest.raises(OSError):
-            serve_capture(
-                upstream=f"http://127.0.0.1:{upstream.server_address[1]}",
-                out_dir=out_dir,
-                bind="127.0.0.1",
-                port=taken,
-            )
-        assert not (out_dir / "capture.json").exists()
-        assert not (out_dir / "calls.jsonl").exists()
-        free_dir = tmp_path / "cap-free"
-        server, recorder, manifest = serve_capture(
-            upstream=f"http://127.0.0.1:{upstream.server_address[1]}",
-            out_dir=free_dir,
-            bind="127.0.0.1",
-        )
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        try:
-            assert manifest["port"] == server.server_address[1]
-            assert manifest["port"] != taken
-        finally:
-            server.shutdown()
-            thread.join()
-            recorder.close()
-    finally:
-        blocker.shutdown()
-        blocker_thread.join()

@@ -27,7 +27,6 @@ from evallab.storage.paths import (
 )
 
 VALID_STATUSES = ("living", "historical")
-VALID_AUDIENCES = ("builder", "analyst", "runner", "operator")
 FRONT_MATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
@@ -612,7 +611,6 @@ def attach(
         raise
 
 
-
 def build_sql_preamble(
     dsn: str, derived: Path, root: Path, *, catalog_pair: dict[str, Path] | None = None
 ) -> str:
@@ -725,16 +723,3 @@ def build_sql_preamble(
     return "\n".join(lines)
 
 
-def print_zones(zones: tuple[ZoneStatus, ...]) -> None:
-    for z in zones:
-        if z.attached:
-            print(f"{z.name}: attached ({z.detail or ''})")
-        else:
-            print(f"{z.name}: unavailable — {z.reason} (examined: {z.detail or ''})")
-
-
-def attach_and_query(sql: str, **kwargs: Any) -> list[tuple[Any, ...]]:
-    result = attach(**kwargs)
-    rows = result.connection.execute(sql).fetchall()
-    result.connection.close()
-    return rows

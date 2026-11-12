@@ -21,10 +21,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-import pytest
-
-from evallab.interpretation import run_report as domains
-from evallab.interpretation.run_report import build_run_report, render_run_report_markdown
+from evallab.interpretation.run_report import (
+    AtlasFinancePlugin,
+    SyntheticHospitalPlugin,
+)
 
 
 def _result(task_name: str = "trial-task", trial_name: str = "trial", **overrides: Any) -> dict[str, Any]:
@@ -101,33 +101,26 @@ def _crit(
     }
 
 
-def test_plain_trial_has_no_domain(tmp_path: Path) -> None:
-    trial = _trial(tmp_path, "trial", _result(), files={"verifier/reward.json": {"reward": 1.0}})
-    report = build_run_report(trial)
-    assert report["domain"] is None
-    assert "## Domain" not in render_run_report_markdown(report)
-
-
 def test_hospital_detected_by_task_markers(tmp_path: Path) -> None:
     result = _result(task_name="sh-patient-diagnosis")
     result["task_id"] = {"path": "datasets/sh-patient-diagnosis-42"}
     trial = _trial(tmp_path, "sh-patient-diagnosis-42", result, files={"verifier/reward.json": _hospital_reward()})
-    report = build_run_report(trial)
-    domain = report["domain"]
+    assert SyntheticHospitalPlugin().detect(trial, json.loads((trial / "result.json").read_text()))
+    report = SyntheticHospitalPlugin().build(trial, json.loads((trial / "result.json").read_text()))
+    domain = report
     assert domain is not None and domain["plugin"] == "synthetic_hospital"
     assert domain["version"] == "1"
     assert domain["status"] == "ok"
     assert (domain["reward"], domain["verifier_steps"], domain["submitted"]) == (0.75, 12, 1.0)
     assert domain["sources"] == ["verifier/reward.json"]
-    markdown = render_run_report_markdown(report)
-    assert "## Domain: synthetic_hospital" in markdown
 
 
 def test_hospital_detected_by_verifier_shape_alone(tmp_path: Path) -> None:
     trial = _trial(
         tmp_path, "renamed-trial", _result(), files={"verifier/reward.json": _hospital_reward(reward=0.0, submitted=0.0)}
     )
-    domain = build_run_report(trial)["domain"]
+    assert SyntheticHospitalPlugin().detect(trial, json.loads((trial / "result.json").read_text()))
+    domain = SyntheticHospitalPlugin().build(trial, json.loads((trial / "result.json").read_text()))
     assert domain is not None and domain["plugin"] == "synthetic_hospital"
     assert domain["reward"] == 0.0
     assert domain["submitted"] == 0.0
@@ -165,7 +158,7 @@ def test_hospital_chart_queries_count_redundant_section_reads(tmp_path: Path) ->
     trial = _trial(
         tmp_path, "sh-x-1", _result(task_name="sh-evidence-retrieval"), files={"verifier/reward.json": _hospital_reward()}, steps=steps
     )
-    queries = build_run_report(trial)["domain"]["chart_section_queries"]
+    queries = SyntheticHospitalPlugin().build(trial, json.loads((trial / "result.json").read_text()))["chart_section_queries"]
     assert queries["chart_reads"] == 5
     assert queries["distinct_sections"] == 3
     assert queries["redundant_queries"] == 2
@@ -175,16 +168,16 @@ def test_hospital_chart_queries_count_redundant_section_reads(tmp_path: Path) ->
 def test_hospital_missing_or_malformed_reward_is_unreadable(tmp_path: Path) -> None:
     detected = _result(task_name="sh-patient-diagnosis")
     missing = _trial(tmp_path, "sh-a-1", detected)
-    assert build_run_report(missing)["domain"] == {
+    assert SyntheticHospitalPlugin().build(missing, json.loads((missing / "result.json").read_text())) == {
         "plugin": "synthetic_hospital",
         "version": "1",
         "status": "unreadable",
         "reason": "verifier/reward.json missing",
     }
     wrong_shape = _trial(tmp_path, "sh-a-2", detected, files={"verifier/reward.json": {"reward": 1.0}})
-    assert build_run_report(wrong_shape)["domain"]["status"] == "unreadable"
+    assert SyntheticHospitalPlugin().build(wrong_shape, json.loads((wrong_shape / "result.json").read_text()))["status"] == "unreadable"
     not_object = _trial(tmp_path, "sh-a-3", detected, files={"verifier/reward.json": [1, 2]})
-    assert build_run_report(not_object)["domain"]["status"] == "unreadable"
+    assert SyntheticHospitalPlugin().build(not_object, json.loads((not_object / "result.json").read_text()))["status"] == "unreadable"
 
 
 def test_atlas_detected_and_gates_attributed(tmp_path: Path) -> None:
@@ -205,8 +198,9 @@ def test_atlas_detected_and_gates_attributed(tmp_path: Path) -> None:
         _result(task_name="atlas-finance/alderwick-env3__task_01"),
         files={"verifier/grader/info.json": _atlas_info(criteria, sections)},
     )
-    report = build_run_report(trial)
-    domain = report["domain"]
+    assert AtlasFinancePlugin().detect(trial, json.loads((trial / "result.json").read_text()))
+    report = AtlasFinancePlugin().build(trial, json.loads((trial / "result.json").read_text()))
+    domain = report
     assert domain is not None and domain["plugin"] == "atlas_finance"
     assert domain["sources"] == ["verifier/grader/info.json"]
     assert domain["passes"] is False
@@ -219,7 +213,6 @@ def test_atlas_detected_and_gates_attributed(tmp_path: Path) -> None:
     assert domain["downstream_loss"]["weight"] == 5.0
     assert domain["downstream_loss"]["criteria"] == ["downstream DCF uses model output"]
     assert any("penalty triggered" in reason for reason in domain["reasons"])
-    assert "## Domain: atlas_finance" in render_run_report_markdown(report)
 
 
 def test_atlas_criterion_gate_indices_do_not_fail_section(tmp_path: Path) -> None:
@@ -242,7 +235,7 @@ def test_atlas_criterion_gate_indices_do_not_fail_section(tmp_path: Path) -> Non
         _result(),
         files={"verifier/grader/info.json": _atlas_info(criteria, sections)},
     )
-    domain = build_run_report(trial)["domain"]
+    domain = AtlasFinancePlugin().build(trial, json.loads((trial / "result.json").read_text()))
     assert domain is not None and domain["plugin"] == "atlas_finance"
     assert domain["passes"] is True
     assert domain["sections"][0]["gate_failed"] is False
@@ -257,56 +250,21 @@ def test_atlas_skipped_and_minor_misses_pass(tmp_path: Path) -> None:
     trial = _trial(
         tmp_path, "task__a2", _result(), files={"verifier/grader/info.json": _atlas_info(criteria, [])}
     )
-    domain = build_run_report(trial)["domain"]
+    domain = AtlasFinancePlugin().build(trial, json.loads((trial / "result.json").read_text()))
     assert domain is not None and domain["passes"] is True
 
 
 def test_atlas_missing_or_malformed_info_is_unreadable(tmp_path: Path) -> None:
     detected = _result(task_name="atlas-finance/task-01")
     missing = _trial(tmp_path, "atlas-a-1", detected)
-    assert build_run_report(missing)["domain"] == {
+    assert AtlasFinancePlugin().build(missing, json.loads((missing / "result.json").read_text())) == {
         "plugin": "atlas_finance",
         "version": "1",
         "status": "unreadable",
         "reason": "verifier/grader/info.json missing",
     }
     broken = _trial(tmp_path, "atlas-a-2", detected, files={"verifier/grader/info.json": {"reward": 1.0}})
-    assert build_run_report(broken)["domain"]["status"] == "unreadable"
-
-
-def test_plugin_exceptions_never_escape_domain_section(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    class Exploding:
-        name = "exploding"
-        version = "1"
-
-        def detect(self, trial_dir: Path, result: dict[str, Any]) -> bool:
-            return True
-
-        def build(self, trial_dir: Path, result: dict[str, Any]) -> dict[str, Any]:
-            raise RuntimeError("boom")
-
-        def render_markdown(self, section: dict[str, Any]) -> list[str]:
-            raise AssertionError("unreachable")
-
-    class FlakyDetect:
-        name = "flaky"
-        version = "1"
-
-        def detect(self, trial_dir: Path, result: dict[str, Any]) -> bool:
-            raise RuntimeError("no signal")
-
-        def build(self, trial_dir: Path, result: dict[str, Any]) -> dict[str, Any]:
-            raise AssertionError("unreachable")
-
-        def render_markdown(self, section: dict[str, Any]) -> list[str]:
-            raise AssertionError("unreachable")
-
-    monkeypatch.setattr(domains, "PLUGINS", (Exploding(),))
-    section = domains.domain_section(tmp_path, {})
-    assert section is not None and section["status"] == "unreadable" and "boom" in section["reason"]
-
-    monkeypatch.setattr(domains, "PLUGINS", (FlakyDetect(),))
-    assert domains.domain_section(tmp_path, {}) is None
+    assert AtlasFinancePlugin().build(broken, json.loads((broken / "result.json").read_text()))["status"] == "unreadable"
 
 
 def test_hospital_missing_trajectory_counts_are_none_not_zero(tmp_path: Path) -> None:
@@ -318,14 +276,14 @@ def test_hospital_missing_trajectory_counts_are_none_not_zero(tmp_path: Path) ->
         files={"verifier/reward.json": _hospital_reward()},
     )
     (trial / "agent" / "trajectory.json").unlink()
-    report = build_run_report(trial)
-    queries = report["domain"]["chart_section_queries"]
+    report = SyntheticHospitalPlugin().build(trial, json.loads((trial / "result.json").read_text()))
+    queries = report["chart_section_queries"]
     assert queries["chart_reads"] is None
     assert queries["distinct_sections"] is None
     assert queries["redundant_queries"] is None
     assert queries["most_repeated"] == []
     assert queries["trajectory_note"]
-    markdown = render_run_report_markdown(report)
+    markdown = "\n".join(SyntheticHospitalPlugin().render_markdown(report))
     assert "Chart reads: unavailable" in markdown
     assert "0 redundant re-reads" not in markdown
 
@@ -337,7 +295,7 @@ def test_atlas_absent_reward_fields_stay_none(tmp_path: Path) -> None:
     del info["raw_score"]
     del info["maximum_score"]
     trial = _trial(tmp_path, "task__a3", _result(), files={"verifier/grader/info.json": info})
-    domain = build_run_report(trial)["domain"]
+    domain = AtlasFinancePlugin().build(trial, json.loads((trial / "result.json").read_text()))
     assert domain is not None and domain["passes"] is True
     assert domain["reward"] is None
     assert domain["raw_score"] is None

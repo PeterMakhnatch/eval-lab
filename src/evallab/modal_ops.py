@@ -379,33 +379,3 @@ def stop_selfhosted_app_if_drained(
     return record
 
 
-def describe_teardown(record: Mapping[str, Any]) -> str:
-    """One-line tick progress summary for a teardown record."""
-    if not record.get("stopped", False):
-        return f"modal teardown skipped: {record.get('reason')}"
-    base = (
-        f"modal teardown: stopped {record.get('app')} "
-        f"(state={record.get('app_state')}, "
-        f"containers={record.get('container_count')})"
-    )
-    return base + _describe_daytona_sandboxes(record.get("daytona_sandboxes"))
-
-
-def _describe_daytona_sandboxes(sandboxes: object) -> str:
-    """Daytona census suffix for a teardown summary; empty when unknown."""
-    if not isinstance(sandboxes, Mapping):
-        return ""
-    # Older receipts wrote {"count": N}; read them as the account total.
-    total = sandboxes.get("total", sandboxes.get("count"))
-    if total is None:
-        reason = sandboxes.get("reason")
-        return f"; daytona sandboxes: n/a ({reason})" if reason else ""
-    managed = sandboxes.get("harbor_managed")
-    if managed is None:
-        return f"; daytona sandboxes: {total} total"
-    matched = sandboxes.get("matched")
-    if matched is not None:
-        return (
-            f"; daytona sandboxes: {matched} job-matched / {managed} harbor-managed / {total} total"
-        )
-    return f"; daytona sandboxes: {managed} harbor-managed / {total} total"

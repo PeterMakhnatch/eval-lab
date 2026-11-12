@@ -57,9 +57,6 @@ DEFAULT_PINNED_BASE_IMAGE = (
 # Google's public pull-through mirror of Docker Hub library images. Same bytes
 # (identical index digest), fetchable without Docker Hub authentication. CI
 # pulls this reference; the local/product default stays on docker.io.
-MIRROR_PINNED_BASE_IMAGE = (
-    "mirror.gcr.io/library/python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
-)
 PINNED_BASE_IMAGE_INDEX_DIGEST = (
     "sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
 )
@@ -277,60 +274,6 @@ def server_generation_params(
     }
 
 
-def tool_definitions_from_payload(payload: Mapping[str, Any]) -> list[MCPToolDefinition]:
-    """Reconstruct typed MCPToolDefinition objects from a canonical tool payload.
-
-    Used by the Workbench validator to regenerate the canonical server.py from a
-    proof's declared tool definitions instead of trusting a precomputed digest.
-    """
-    raw_tools = payload.get("tools")
-    if not isinstance(raw_tools, list):
-        raise SubstrateError("tool definitions payload must declare a tools list")
-    reconstructed: list[MCPToolDefinition] = []
-    for raw in raw_tools:
-        if not isinstance(raw, Mapping):
-            raise SubstrateError("each tool definition must be a mapping")
-        name = raw.get("name")
-        description = raw.get("description")
-        parameters_raw = raw.get("parameters")
-        if not isinstance(name, str) or not isinstance(description, str):
-            raise SubstrateError("tool definition must declare string name and description")
-        if not isinstance(parameters_raw, list):
-            raise SubstrateError(f"tool {name!r} parameters must be a list")
-        params: list[MCPToolParameter] = []
-        for p_raw in parameters_raw:
-            if not isinstance(p_raw, Mapping):
-                raise SubstrateError(f"tool {name!r} parameter must be a mapping")
-            p_name = p_raw.get("name")
-            p_type = p_raw.get("type_name")
-            p_desc = p_raw.get("description")
-            if (
-                not isinstance(p_name, str)
-                or not isinstance(p_type, str)
-                or not isinstance(p_desc, str)
-            ):
-                raise SubstrateError(f"tool {name!r} parameter is malformed")
-            params.append(
-                MCPToolParameter(
-                    name=p_name,
-                    type_name=p_type,
-                    description=p_desc,
-                    required=bool(p_raw.get("required", True)),
-                )
-            )
-        reconstructed.append(
-            MCPToolDefinition(
-                name=name,
-                description=description,
-                parameters=tuple(params),
-                output_type=raw.get("output_type", "object"),
-                metadata=dict(raw.get("metadata", {})),
-                execution_body=raw.get("execution_body") or None,
-            )
-        )
-    return reconstructed
-
-
 def validate_target_base_runtime(
     python_tag: str,
     platform_tag: str,
@@ -380,8 +323,6 @@ def validate_target_base_runtime(
         "target_python": python_tag,
         "target_platform": platform_tag,
     }
-
-
 
 
 @dataclass(frozen=True)
@@ -627,7 +568,6 @@ class MCPToolDefinition:
     output_type: str = "object"
     metadata: Mapping[str, Any] = field(default_factory=dict)
     execution_body: str | None = None
-
 
 
 def generate_fastmcp_server_script(
@@ -1087,40 +1027,6 @@ def materialize_mcp_sidecar_package(
         "collect_fragment": collect_fragment,
         "proof_sha256": compute_sha256(proof_data),
     }
-
-
-def compute_mcp_substrate_digest(
-    topology: dict[str, Any],
-    tool_defs: Sequence[MCPToolDefinition] | None = None,
-    *,
-    target: WheelhouseTarget | None = None,
-    base_image: str = DEFAULT_PINNED_BASE_IMAGE,
-    runtime_assets: Sequence[RuntimeAsset] = (),
-    op_registry_module: str | None = None,
-) -> str:
-    """Compute deterministic SHA-256 digest of the MCP substrate manifest, requirements, and full tool definitions."""
-    selected_target = target or WheelhouseTarget(
-        python_tag=DEFAULT_TARGET_PYTHON_TAG, platform_tag=DEFAULT_TARGET_PLATFORM_TAG
-    )
-    payload: dict[str, Any] = {
-        "substrate_version": MCP_SUBSTRATE_VERSION,
-        "topology": topology,
-        "requirements_hash": compute_sha256(canonical_json(FASTMCP_VERSION_CONSTRAINTS)),
-        "base_runtime": validate_target_base_runtime(
-            selected_target.python_tag, selected_target.platform_tag, base_image
-        ),
-    }
-    prepared_assets = validate_runtime_assets(runtime_assets)
-    if prepared_assets:
-        payload["runtime_assets"] = _runtime_asset_proof_records(prepared_assets)
-    payload["event_schema_version"] = MCP_TOOL_EVENT_SCHEMA_VERSION
-    payload["trusted_manifest_digest"] = trusted_wheel_manifest_digest()
-    payload["trusted_manifest_source"] = trusted_wheel_manifest_source()
-    if tool_defs is not None:
-        payload["tool_definitions_sha256"] = compute_tool_definitions_sha256(
-            tool_defs, op_registry_module
-        )
-    return compute_sha256(payload)
 
 
 def render_mcp_compose_document(
@@ -1633,192 +1539,3 @@ def record_prepackaging_provenance(
     )
 
 
-def verify_proof_independently(
-    sidecar_root: Path,
-    proof: Mapping[str, Any],
-) -> list[str]:
-    """Independent fail-closed verification of a complete offline package.
-
-    The Workbench validator calls this instead of trusting proof-declared
-    hashes. It regenerates the canonical server.py, Dockerfile, and
-    requirements lock from the checked-in trusted manifest plus the proof's
-    declared tool definitions / server params / runtime assets / base image,
-    then byte-compares against the on-disk artifacts. It also verifies every
-    on-disk wheel and every proof wheel record EXACTLY against the trusted
-    manifest (filenames/name/version/size/sha256). Any mismatch, missing file,
-    symlink, manifest-load/schema failure, or self-consistent-but-forged
-    payload yields a refusal.
-
-    Returns a list of human-readable diagnostics (empty == valid).
-    """
-    errors: list[str] = []
-
-    # 1. Independent trusted-manifest load (fail closed on any import/read/schema error).
-    try:
-        manifest = load_trusted_wheel_manifest()
-        manifest_digest = trusted_wheel_manifest_digest()
-        manifest_source = trusted_wheel_manifest_source()
-        manifest_wheels = {w["filename"]: w for w in manifest["wheels"]}
-    except SubstrateError as exc:
-        return [f"trusted wheel manifest unavailable: {exc}"]
-
-    if proof.get("trusted_manifest_digest") != manifest_digest:
-        return ["proof trusted_manifest_digest does not match checked-in trusted manifest"]
-    if proof.get("trusted_manifest_source") != manifest_source:
-        return ["proof trusted_manifest_source does not match checked-in trusted manifest"]
-    if proof.get("event_schema_version") != MCP_TOOL_EVENT_SCHEMA_VERSION:
-        return ["proof event_schema_version must be mcp-tool-event-v1"]
-
-    # 2. Reconstruct typed tool definitions from the proof payload and verify digest.
-    tool_payload = proof.get("tool_definitions")
-    server_params = proof.get("server_params")
-    if not isinstance(tool_payload, Mapping) or not isinstance(server_params, Mapping):
-        return ["proof must carry canonical tool_definitions payload and server_params"]
-    try:
-        tools = tool_definitions_from_payload(tool_payload)
-    except SubstrateError as exc:
-        return [f"proof tool_definitions payload invalid: {exc}"]
-    op_registry_module = server_params.get("op_registry_module") or None
-    expected_tool_defs_sha = compute_tool_definitions_sha256(tools, op_registry_module)
-    if proof.get("tool_definitions_sha256") != expected_tool_defs_sha:
-        return ["proof tool_definitions_sha256 does not match reconstructed canonical digest"]
-
-    # 3. Regenerate canonical server.py and byte-compare.
-    try:
-        fault_json = server_params.get("fault_record")
-        fault_record = None
-        if fault_json:
-            from evallab.benchmark_program_contracts import FaultInjectionRecord
-
-            fault_record = FaultInjectionRecord.model_validate_json(fault_json)
-        regenerated_server = generate_fastmcp_server_script(
-            tools=tools,
-            server_name=str(server_params.get("server_name", "eval-lab-fastmcp-sidecar")),
-            port=int(server_params.get("port", DEFAULT_MCP_PORT)),
-            op_registry_module=op_registry_module,
-            fault_record=fault_record,
-        ).encode("utf-8")
-    except Exception as exc:  # noqa: BLE001 - fail closed on any regen error
-        return [f"cannot regenerate canonical server.py: {exc}"]
-
-    server_path = sidecar_root / "server.py"
-    if not server_path.is_file() or server_path.is_symlink():
-        errors.append("server.py missing or symlink")
-    else:
-        actual_server = server_path.read_bytes()
-        if actual_server != regenerated_server:
-            errors.append(
-                "server.py does not byte-match the canonical regenerated server "
-                "(tool definitions / event schema / fault / params drifted or forged)"
-            )
-        if hashlib.sha256(actual_server).hexdigest() != proof.get("server_sha256"):
-            errors.append("server.py digest does not match proof server_sha256")
-        if len(actual_server) != proof.get("server_size_bytes"):
-            errors.append("server.py size does not match proof server_size_bytes")
-
-    # 4. Regenerate canonical Dockerfile and byte-compare (prevents post-COPY overwrite).
-    base_image = proof.get("base_image", DEFAULT_PINNED_BASE_IMAGE)
-    runtime_assets: list[RuntimeAsset] = []
-    raw_assets = proof.get("runtime_assets")
-    if isinstance(raw_assets, list):
-        for a in raw_assets:
-            if isinstance(a, Mapping) and isinstance(a.get("path"), str):
-                # Only the destination is needed to regenerate the canonical
-                # Dockerfile COPY lines; supply inert content for the dataclass.
-                runtime_assets.append(RuntimeAsset(destination=a["path"], content=b""))
-    try:
-        regenerated_dockerfile = render_mcp_sidecar_dockerfile(
-            base_image=base_image, runtime_assets=runtime_assets
-        ).encode("utf-8")
-    except SubstrateError as exc:
-        return [f"cannot regenerate canonical Dockerfile: {exc}"]
-
-    df_path = sidecar_root / "Dockerfile"
-    if not df_path.is_file() or df_path.is_symlink():
-        errors.append("Dockerfile missing or symlink")
-    else:
-        actual_df = df_path.read_bytes()
-        if actual_df != regenerated_dockerfile:
-            errors.append(
-                "Dockerfile does not byte-match the canonical regenerated Dockerfile "
-                "(arbitrary FROM/RUN/CMD or asset list drift)"
-            )
-        if hashlib.sha256(actual_df).hexdigest() != proof.get("dockerfile_sha256"):
-            errors.append("Dockerfile digest does not match proof dockerfile_sha256")
-
-    # 5. Derive exact requirements lock from the trusted manifest and compare bytes.
-    lock_lines = [
-        "# target-python=cp312 target-platform=manylinux_2_17_x86_64",
-        f"# trusted-manifest-sha256={manifest_digest}",
-        "# offline-only: no network/index access during build",
-    ]
-    lock_lines.extend(
-        f"{w['name']}=={w['version']} --hash=sha256:{w['sha256']}"
-        for w in sorted(manifest_wheels.values(), key=lambda i: i["name"])
-    )
-    canonical_lock = ("\n".join(lock_lines) + "\n").encode("utf-8")
-    req_path = sidecar_root / "requirements.txt"
-    if not req_path.is_file() or req_path.is_symlink():
-        errors.append("requirements.txt missing or symlink")
-    else:
-        actual_lock = req_path.read_bytes()
-        if actual_lock != canonical_lock:
-            errors.append(
-                "requirements.txt does not byte-match the canonical trusted-manifest lock"
-            )
-        if hashlib.sha256(actual_lock).hexdigest() != proof.get("requirements_sha256"):
-            errors.append("requirements.txt digest does not match proof requirements_sha256")
-
-    # 6. Verify every on-disk wheel and every proof wheel record EXACTLY against the manifest.
-    wheelhouse_dir = sidecar_root / "wheelhouse"
-    if not wheelhouse_dir.is_dir() or wheelhouse_dir.is_symlink():
-        errors.append("wheelhouse directory missing or symlink")
-    else:
-        actual_files = {p.name for p in wheelhouse_dir.iterdir() if p.name.endswith(".whl")}
-        if actual_files != set(manifest_wheels):
-            errors.append(
-                f"wheelhouse files differ from trusted manifest: "
-                f"missing={sorted(set(manifest_wheels) - actual_files)}, "
-                f"extra={sorted(actual_files - set(manifest_wheels))}"
-            )
-        for w_name, w_rec in sorted(manifest_wheels.items()):
-            w_path = wheelhouse_dir / w_name
-            if not w_path.is_file() or w_path.is_symlink():
-                errors.append(f"wheel {w_name!r} missing or symlink")
-                continue
-            w_bytes = w_path.read_bytes()
-            if len(w_bytes) != w_rec["size_bytes"]:
-                errors.append(
-                    f"wheel {w_name!r} size {len(w_bytes)} does not match manifest {w_rec['size_bytes']}"
-                )
-            if hashlib.sha256(w_bytes).hexdigest() != w_rec["sha256"]:
-                errors.append(f"wheel {w_name!r} sha256 does not match trusted manifest")
-        proof_wheels = proof.get("wheels")
-        if not isinstance(proof_wheels, list):
-            errors.append("proof must declare a wheels list")
-        else:
-            proof_records = {
-                pw.get("filename"): {
-                    "name": pw.get("name", "").lower().replace("_", "-"),
-                    "version": pw.get("version", ""),
-                    "size_bytes": pw.get("size_bytes"),
-                    "sha256": pw.get("sha256"),
-                }
-                for pw in proof_wheels
-                if isinstance(pw, Mapping)
-            }
-            expected_records = {
-                fn: {
-                    "name": rec["name"].lower().replace("_", "-"),
-                    "version": rec["version"],
-                    "size_bytes": rec["size_bytes"],
-                    "sha256": rec["sha256"],
-                }
-                for fn, rec in manifest_wheels.items()
-            }
-            if proof_records != expected_records:
-                errors.append(
-                    "proof wheel records do not exactly match trusted manifest (filename/name/version/size/sha256)"
-                )
-
-    return errors

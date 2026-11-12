@@ -23,14 +23,10 @@ Harbor tool transport; ``evallab.cheat`` re-exports ``ATTACKS`` and
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import base64
 import json
-import os
 import re
-import subprocess
-import sys
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -99,7 +95,6 @@ LADDERS: dict[str, tuple[str, ...]] = {
 
 #: The default remains v1 so existing admissions and census reuse do not move.
 DEFAULT_LADDER_VERSION = CHEAT_AGENT_VERSION
-CHEAT_LADDER_VERSION_ENV_VAR = "EVALLAB_CHEAT_LADDER_VERSION"
 
 
 def parse_ladder_version(raw: str | None) -> str:
@@ -2416,88 +2411,3 @@ def selected_attacks(raw: str | None, *, version: str | None = None) -> tuple[st
 # ---------------------------------------------------------------------------
 
 
-def subprocess_run_fn(cwd: str) -> RunFn:
-    """Build a subprocess-based RunFn rooted at ``cwd`` (container-local)."""
-
-    async def run(script: str, timeout_sec: int) -> ExecOutcome:
-        def _invoke() -> subprocess.CompletedProcess[str]:
-            env = dict(os.environ)
-            env["CHEAT_CWD"] = cwd
-            return subprocess.run(
-                ["bash", "-c", script],
-                capture_output=True,
-                text=True,
-                timeout=timeout_sec,
-                cwd=cwd,
-                env=env,
-            )
-
-        try:
-            # ``asyncio.to_thread`` is 3.9+; ``run_in_executor`` works on 3.8.
-            completed = await asyncio.get_running_loop().run_in_executor(None, _invoke)
-        except subprocess.TimeoutExpired as exc:
-            stdout = exc.stdout if isinstance(exc.stdout, str) else ""
-            stderr = exc.stderr if isinstance(exc.stderr, str) else ""
-            return ExecOutcome(
-                return_code=124,
-                stdout=stdout,
-                stderr=(stderr + f"\n[TIMEOUT after {timeout_sec}s]").strip(),
-            )
-        return ExecOutcome(
-            return_code=completed.returncode,
-            stdout=completed.stdout or "",
-            stderr=completed.stderr or "",
-        )
-
-    return run
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    """Run the ladder locally; print exactly one ``CHEAT_LADDER_RESULT`` line."""
-    parser = argparse.ArgumentParser(
-        description="Run the model-free cheat-audit ladder in a container workdir."
-    )
-    parser.add_argument("--cwd", default=".", help="Task workdir the attacks run in")
-    parser.add_argument(
-        "--attacks",
-        default=None,
-        help="comma-separated subset for the selected ladder; default: full ladder",
-    )
-    parser.add_argument(
-        "--ladder-version",
-        default=os.environ.get(CHEAT_LADDER_VERSION_ENV_VAR),
-        help=(
-            f"ladder generation ({', '.join(sorted(LADDERS))}); "
-            f"default: {DEFAULT_LADDER_VERSION} or ${CHEAT_LADDER_VERSION_ENV_VAR}"
-        ),
-    )
-    parser.add_argument(
-        "--evidence-dir",
-        default=None,
-        help="Directory for per-attack logs (default: <cwd>/cheat)",
-    )
-    args = parser.parse_args(argv)
-    try:
-        version = parse_ladder_version(args.ladder_version)
-        selected = parse_attack_selection(args.attacks, version=version)
-    except ValueError as exc:
-        print(f"cheat_ladder: {exc}", file=sys.stderr)
-        return 2
-    cwd = str(Path(args.cwd).resolve())
-    evidence_dir = Path(args.evidence_dir) if args.evidence_dir else Path(cwd) / "cheat"
-    evidence_dir.mkdir(parents=True, exist_ok=True)
-    records = asyncio.run(
-        run_ladder(
-            cwd,
-            subprocess_run_fn(cwd),
-            evidence_dir,
-            selected,
-            ladder_version=version,
-        )
-    )
-    print("CHEAT_LADDER_RESULT=" + json.dumps(records, sort_keys=True))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

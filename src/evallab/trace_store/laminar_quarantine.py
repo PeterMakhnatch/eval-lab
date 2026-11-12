@@ -169,12 +169,6 @@ def is_quarantined(identifier: str) -> bool:
     return not candidates.isdisjoint(QUARANTINED_REMOTE_IDS)
 
 
-def reject_quarantined(identifier: str) -> None:
-    """Refuse an upload: raise :class:`QuarantinedTrace` for a quarantined trace."""
-    if is_quarantined(identifier):
-        raise QuarantinedTrace(identifier)
-
-
 def skip_quarantined[T](
     items: Iterable[T], key: Callable[[T], str | None],
 ) -> tuple[list[T], list[T]]:

@@ -8,13 +8,11 @@ from pathlib import Path
 from evallab.schemas import QueueEvent
 from evallab.storm import (
     StormAlarm,
-    build_storm_report,
     detect_storm_alarms,
     digest_storm_section,
     get_recommended_action_and_level,
     load_events_from_source,
     render_storm_banner,
-    status_items_from_alarms,
 )
 
 BASE_TIME = datetime(2026, 8, 16, 12, 0, 0, tzinfo=UTC)
@@ -43,11 +41,6 @@ def _make_event(
 def test_empty_events_produce_no_alarms() -> None:
     alarms = detect_storm_alarms([])
     assert alarms == []
-    report = build_storm_report([])
-    assert not report.has_alarms
-    assert report.alarms == []
-    assert report.critical_alarms == []
-    assert report.warning_alarms == []
 
 
 def test_events_without_reason_codes_produce_no_alarms() -> None:
@@ -252,32 +245,6 @@ def test_render_storm_banner_and_digest_section() -> None:
     assert "## Storm alarms" in digest_text
     assert "CRITICAL" in digest_text
     assert "`subscription_quota_exhausted`" in digest_text
-
-
-def test_status_items_from_alarms_integration() -> None:
-    items = status_items_from_alarms([])
-    assert len(items) == 1
-    assert items[0].availability == "observed"
-    assert items[0].label == "storm-alarms"
-    assert "quiet" in (items[0].detail or "")
-
-    alarm = StormAlarm(
-        reason_code="headless_doctor_failed:docker_reachable",
-        alarm_level="critical",
-        count=6,
-        threshold=5,
-        window_seconds=3600,
-        window_start=BASE_TIME,
-        window_end=BASE_TIME + timedelta(minutes=20),
-        first_occurred_at=BASE_TIME,
-        last_occurred_at=BASE_TIME + timedelta(minutes=20),
-        recommended_action="Inspect Docker daemon.",
-    )
-    items = status_items_from_alarms([alarm])
-    assert len(items) == 1
-    assert items[0].availability == "review-needed"
-    assert items[0].label == "storm:headless_doctor_failed:docker_reachable"
-    assert "6 events in 1h" in (items[0].detail or "")
 
 
 def test_load_events_from_source_types(tmp_path: Path) -> None:

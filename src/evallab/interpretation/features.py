@@ -19,7 +19,6 @@ observation text are documented in ``docs/analysis-loop.md`` trust notes).
 
 from __future__ import annotations
 
-import argparse
 import csv
 import re
 import shlex
@@ -27,8 +26,6 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-
-FEATURES_SCHEMA = "evallab.features/v1"
 
 #: Ordered output columns. Step-anchored values carry their own ``*_step`` id.
 COLUMNS: tuple[str, ...] = (
@@ -412,8 +409,6 @@ def _stop_and_limit(
     return reason, limit
 
 
-
-
 def _diff_stats(
     trial_dir: Path, agent_steps: list[dict[str, Any]]
 ) -> tuple[int | None, list[str], str]:
@@ -558,24 +553,6 @@ def trial_features(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
     }
 
 
-def collect_features(paths: list[Path]) -> list[dict[str, Any]]:
-    """Feature rows for every trial under each job dir or runs root."""
-    from evallab.live_watch import discover_trials
-
-    resolved = [p if p.is_absolute() else Path.cwd() / p for p in paths]
-    rows = []
-    for job_dir, trial_dir in discover_trials([p.resolve() for p in resolved]):
-        try:
-            rows.append(trial_features(job_dir, trial_dir))
-        except Exception:  # noqa: BLE001 -- one bad trial never kills the table
-            rows.append(
-                {column: None for column in COLUMNS}
-                | {"trial": trial_dir.name, "job": job_dir.name}
-            )
-    rows.sort(key=lambda row: (str(row.get("job")), str(row.get("trial"))))
-    return rows
-
-
 def write_features(rows: list[dict[str, Any]], out: Path) -> tuple[Path, Path]:
     """Write ``<out>.parquet`` plus a ``<out>.csv`` sibling; return both."""
     import pyarrow as pa
@@ -647,23 +624,3 @@ def write_features(rows: list[dict[str, Any]], out: Path) -> tuple[Path, Path]:
     return parquet_path, csv_path
 
 
-def _features_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
-    del harbor
-    from evallab.cli import _resolve
-
-    rows = collect_features([_resolve(root, Path(p)) for p in args.paths])
-    parquet_path, csv_path = write_features(rows, _resolve(root, Path(args.out)))
-    print(f"trials: {len(rows)}")
-    print(f"parquet: {parquet_path}")
-    print(f"csv: {csv_path}")
-    return 0
-
-
-def build_features_parser(commands: argparse._SubParsersAction) -> None:
-    """Register the ``evallab features`` subcommand (one self-contained block)."""
-    parser = commands.add_parser(
-        "features", help="One-row-per-trial deterministic feature table (parquet + csv)"
-    )
-    parser.add_argument("paths", nargs="+", help="Job dir(s) or runs root(s)")
-    parser.add_argument("--out", required=True, help="Output path stem (.parquet + .csv siblings)")
-    parser.set_defaults(func=_features_command)

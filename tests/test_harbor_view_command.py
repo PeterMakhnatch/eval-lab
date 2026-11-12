@@ -11,7 +11,6 @@ import argparse
 import importlib.metadata
 import importlib.util
 import json
-import runpy
 import subprocess
 import sys
 import tempfile
@@ -26,7 +25,6 @@ from evallab.harbor_view import (
     _view_command,
     harbor_runtime_problem,
     installed_harbor_version,
-    main,
     pinned_harbor_bin_dir,
     require_harbor_runtime,
 )
@@ -610,40 +608,4 @@ def test_installed_harbor_version_none_without_version_match(
     assert installed_harbor_version() is None
 
 
-# ---------------------------------------------------------------------------
-# main() wiring
-# ---------------------------------------------------------------------------
 
-
-def test_main_builds_viewer_root(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    job = _two_trial_job(tmp_path)
-
-    assert main(["view", str(job), "--no-launch"]) == 0
-    assert "viewer root: " in capsys.readouterr().out
-
-
-def test_main_requires_a_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
-    with pytest.raises(SystemExit) as excinfo:
-        main([])
-
-    assert excinfo.value.code == 2
-    assert "required" in capsys.readouterr().err
-
-
-def test_module_entry_point_exits_zero_with_no_launch(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    job = _two_trial_job(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["evallab", "view", str(job), "--no-launch"])
-
-    with pytest.raises(SystemExit) as excinfo:
-        runpy.run_path(str(Path(harbor_view.__file__)), run_name="__main__")
-
-    assert excinfo.value.code == 0
-    out = capsys.readouterr().out
-    root_line = next(line for line in out.splitlines() if line.startswith("viewer root: "))
-    # Same invariant: the entry point's viewer root stays in the test's
-    # tempfile root, not the shared system temp directory.
-    assert Path(root_line.removeprefix("viewer root: ")).is_relative_to(
-        Path(tempfile.gettempdir())
-    )

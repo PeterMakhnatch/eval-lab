@@ -18,7 +18,6 @@ from pydantic import BaseModel, Field
 
 from evallab.eventlog import read_event_log_lines
 from evallab.schemas import QueueEvent
-from evallab.status import Availability, StatusItem
 
 AlarmLevel = Literal["info", "warning", "critical"]
 
@@ -238,34 +237,6 @@ class StormAlarm(BaseModel):
         )
 
 
-class StormReport(BaseModel):
-    """Aggregated report of all active storm alarms across scanned events."""
-
-    checked_at: datetime
-    threshold: int
-    window_seconds: int
-    total_events_evaluated: int
-    alarms: list[StormAlarm] = Field(default_factory=list)
-
-    @property
-    def has_alarms(self) -> bool:
-        return bool(self.alarms)
-
-    @property
-    def critical_alarms(self) -> list[StormAlarm]:
-        return [alarm for alarm in self.alarms if alarm.is_critical]
-
-    @property
-    def warning_alarms(self) -> list[StormAlarm]:
-        return [alarm for alarm in self.alarms if alarm.is_warning]
-
-    def format_banner(self) -> str:
-        return render_storm_banner(self.alarms)
-
-    def format_digest_section(self) -> list[str]:
-        return digest_storm_section(self.alarms)
-
-
 def _to_utc(dt: datetime) -> datetime:
     """Normalize datetime to UTC for consistent comparisons."""
     if dt.tzinfo is None:
@@ -410,33 +381,6 @@ def detect_storm_alarms(
     return alarms
 
 
-def build_storm_report(
-    events: Sequence[QueueEvent] | Path | None = None,
-    *,
-    threshold: int = DEFAULT_STORM_THRESHOLD,
-    window: timedelta = DEFAULT_STORM_WINDOW,
-    since: datetime | None = None,
-    repo_root: Path | None = None,
-    checked_at: datetime | None = None,
-) -> StormReport:
-    """Build a complete StormReport from events."""
-    event_list = load_events_from_source(events, repo_root=repo_root)
-    alarms = detect_storm_alarms(
-        event_list,
-        threshold=threshold,
-        window=window,
-        since=since,
-        repo_root=repo_root,
-    )
-    return StormReport(
-        checked_at=checked_at or datetime.now(UTC),
-        threshold=threshold,
-        window_seconds=int(window.total_seconds()),
-        total_events_evaluated=len(event_list),
-        alarms=alarms,
-    )
-
-
 def render_storm_banner(alarms: Sequence[StormAlarm]) -> str:
     """Render a visible Markdown alert banner for active storm alarms."""
     if not alarms:
@@ -488,30 +432,3 @@ def digest_storm_section(alarms: Sequence[StormAlarm]) -> list[str]:
     return lines
 
 
-def status_items_from_alarms(alarms: Sequence[StormAlarm]) -> list[StatusItem]:
-    """Convert StormAlarms to StatusItem instances for evallab status snapshots."""
-    if not alarms:
-        return [
-            StatusItem(
-                availability="observed",
-                label="storm-alarms",
-                detail="quiet (no event storms detected)",
-                kind="alarm",
-            )
-        ]
-
-    items: list[StatusItem] = []
-    for alarm in alarms:
-        avail: Availability = "review-needed" if alarm.is_critical else "draft"
-        items.append(
-            StatusItem(
-                availability=avail,
-                label=f"storm:{alarm.reason_code}",
-                detail=(
-                    f"{alarm.count} events in 1h (level={alarm.alarm_level}) — "
-                    f"{alarm.recommended_action}"
-                ),
-                kind="storm-alarm",
-            )
-        )
-    return items

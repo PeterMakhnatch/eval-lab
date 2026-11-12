@@ -1,19 +1,15 @@
 from __future__ import annotations
 
-import argparse
 import fcntl
 import hashlib
 import json
 import os
 import secrets
 import shutil
-import sqlite3
 import subprocess
-import tempfile
 import threading
-import time
 from collections.abc import Callable, Iterator
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, BinaryIO, TextIO
@@ -227,96 +223,6 @@ def create_postgres_backup(
     return destination
 
 
-MAIN_TABLES = (
-    "experiments",
-    "jobs",
-    "trials",
-    "rewards",
-    "artifacts",
-    "run_files",
-    "trajectory_documents",
-    "deterministic_trial_facts",
-)
-
-
-def check_postgres_restore(
-    repo_root: Path,
-    dump_path: Path,
-    *,
-    runner: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
-) -> dict[str, Any]:
-    """Restore only into a new random database; compare counts; always drop it.
-
-    Live queries are read-only. Concurrent catalog writes can cause a count
-    mismatch; this check never changes the live catalog to make counts agree.
-    """
-    started = time.monotonic()
-    manifest = (
-        dump_path.with_suffix(".dump.json")
-        if dump_path.suffix == ".dump" and dump_path.name != "database.dump"
-        else dump_path.parent / "manifest.json"
-    )
-    if not _verify_backup(dump_path, manifest):
-        raise ValueError(f"Backup integrity verification failed: {dump_path}")
-    compose = shared_checkout_root(repo_root) / "compose.yaml"
-    database = f"evallab_restore_{secrets.token_hex(12)}"
-    prefix = ["docker", "compose", "-f", str(compose), "exec", "-T", "postgres", "sh", "-c"]
-
-    def execute(script: str, *args: str, source: BinaryIO | None = None) -> bytes:
-        result = runner(
-            [*prefix, script, "restore-check", *args],
-            stdin=source if source is not None else subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=POSTGRES_BACKUP_TIMEOUT_SECONDS,
-            env=subscription_environment(),
-            check=False,
-        )
-        if result.returncode:
-            raise RuntimeError(
-                f"Restore check command exited {result.returncode}: "
-                f"{result.stderr.decode(errors='replace').strip()[:500]}"
-            )
-        return result.stdout
-
-    count_sql = (
-        "SELECT json_build_object("
-        + ", ".join(f"'{table}', (SELECT count(*) FROM public.{table})" for table in MAIN_TABLES)
-        + ");"
-    )
-    psql = 'exec psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER"'
-    live = json.loads(
-        execute(
-            psql + ' -d "$POSTGRES_DB" -c "$1"',
-            "BEGIN READ ONLY; " + count_sql + " COMMIT;",
-        )
-    )
-    execute('exec createdb -U "$POSTGRES_USER" --template=template0 "$1"', database)
-    try:
-        with dump_path.open("rb") as source:
-            execute(
-                'exec pg_restore -U "$POSTGRES_USER" --exit-on-error '
-                '--no-owner --no-privileges -d "$1"',
-                database,
-                source=source,
-            )
-        restored = json.loads(execute(psql + ' -d "$1" -c "$2"', database, count_sql))
-        if live != restored:
-            raise RuntimeError(f"Restore row counts differ: live={live}, restored={restored}")
-    finally:
-        execute('exec dropdb -U "$POSTGRES_USER" "$1"', database)
-    return {
-        "path": str(dump_path),
-        "size_bytes": dump_path.stat().st_size,
-        "sha256": _sha256(dump_path),
-        "live": live,
-        "restored": restored,
-        "database": database,
-        "dropped": True,
-        "duration_seconds": round(time.monotonic() - started, 3),
-    }
-
-
 def sqlite_store_paths(repo_root: Path, home: Path) -> tuple[Path, ...]:
     """Installed domain journals, including retained journals of retired services.
 
@@ -339,128 +245,3 @@ def sqlite_store_paths(repo_root: Path, home: Path) -> tuple[Path, ...]:
     return tuple(dict.fromkeys((trace, *(path for path in candidates if path.is_file()))))
 
 
-def _sqlite_counts(connection: sqlite3.Connection) -> dict[str, int]:
-    names = connection.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' "
-        "ORDER BY name"
-    ).fetchall()
-    return {
-        name: connection.execute('SELECT count(*) FROM "' + name.replace('"', '""') + '"').fetchone()[0]
-        for (name,) in names
-    }
-
-
-def create_sqlite_backup(
-    repo_root: Path,
-    source: Path,
-    *,
-    now: Callable[[], datetime] = lambda: datetime.now(UTC),
-) -> dict[str, Any]:
-    """Snapshot committed WAL pages without checkpointing or writing the source.
-
-    Counts and backup share one source read transaction. A concurrent writer
-    therefore cannot invalidate the restore comparison. Publish only after a
-    separate temporary restore passes integrity and every table count matches.
-    """
-    started = time.monotonic()
-    source = source.resolve(strict=True)
-    backup_dir = shared_checkout_root(repo_root) / "backups/sqlite"
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    stamp = now().astimezone(UTC)
-    name = f"{source.stem}-{stamp.strftime('%Y%m%dT%H%M%SZ')}-{secrets.token_hex(6)}"
-    generation = backup_dir / name
-    temporary = backup_dir / f".{name}.tmp"
-
-    def progress(_status: int, _remaining: int, _total: int) -> None:
-        if time.monotonic() - started > POSTGRES_BACKUP_TIMEOUT_SECONDS:
-            raise TimeoutError("SQLite snapshot exceeded the backup deadline")
-
-    with _backup_lock(backup_dir):
-        temporary.mkdir(mode=0o700)
-        dump = temporary / "database.sqlite"
-        try:
-            with _open_private_binary(dump):
-                pass
-            with (
-                closing(sqlite3.connect(source.as_uri() + "?mode=ro", uri=True, timeout=5)) as live,
-                closing(sqlite3.connect(dump)) as snapshot,
-            ):
-                live.execute("PRAGMA query_only=ON")
-                live.execute("BEGIN")
-                counts = _sqlite_counts(live)
-                user_version = live.execute("PRAGMA user_version").fetchone()[0]
-                live.backup(snapshot, pages=4096, progress=progress)
-                live.rollback()
-            with tempfile.TemporaryDirectory(prefix="evallab-sqlite-restore-") as restore_dir:
-                restore = Path(restore_dir) / "restored.sqlite"
-                shutil.copyfile(dump, restore)
-                restore.chmod(0o600)
-                with closing(sqlite3.connect(restore.as_uri() + "?mode=ro", uri=True)) as restored:
-                    integrity = restored.execute("PRAGMA integrity_check").fetchall()
-                    if integrity != [("ok",)]:
-                        raise ValueError("SQLite restore integrity check failed")
-                    restored_counts = _sqlite_counts(restored)
-                if counts != restored_counts:
-                    raise ValueError("SQLite restored table counts differ from the source snapshot")
-            receipt = {
-                "schema_version": 1,
-                "format": "sqlite-backup-api",
-                "source": str(source),
-                "created_at": stamp.isoformat(),
-                "path": str(generation / dump.name),
-                "size_bytes": dump.stat().st_size,
-                "sha256": _sha256(dump),
-                "sqlite_version": sqlite3.sqlite_version,
-                "user_version": user_version,
-                "live_snapshot": counts,
-                "restored": restored_counts,
-                "integrity": "ok",
-                "temporary_restore_removed": True,
-                "duration_seconds": round(time.monotonic() - started, 3),
-            }
-            with dump.open("rb") as handle:
-                os.fsync(handle.fileno())
-            with _open_private_text(temporary / "manifest.json") as handle:
-                handle.write(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-            _fsync_directory(temporary)
-            temporary.replace(generation)
-            _fsync_directory(backup_dir)
-            return receipt
-        finally:
-            if temporary.exists():
-                shutil.rmtree(temporary)
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Local database backup and isolated restore check"
-    )
-    parser.add_argument("action", choices=("status", "create", "restore", "sqlite"))
-    parser.add_argument("--root", type=Path, default=Path.cwd())
-    parser.add_argument("--dump", type=Path)
-    parser.add_argument("--source", type=Path, help="SQLite source; otherwise all installed journals")
-    args = parser.parse_args()
-    if args.action == "sqlite":
-        sources = (args.source,) if args.source else sqlite_store_paths(args.root, Path.home())
-        result = {"backups": [create_sqlite_backup(args.root, source) for source in sources]}
-    elif args.action == "restore":
-        if args.dump is None:
-            parser.error("restore requires --dump")
-        result = check_postgres_restore(args.root, args.dump)
-    else:
-        if args.action == "create":
-            create_postgres_backup(args.root, datetime.now(UTC).date())
-        result = backup_freshness(args.root, now=datetime.now(UTC))
-        result["health"] = "PASS" if result["status"] == "fresh" else "FAIL"
-        result["message"] = (
-            f"Verified backup {result['status']}; age {result['age_hours']} h; "
-            f"limit {result['max_age_hours']} h"
-        )
-    print(json.dumps(result, indent=2, sort_keys=True))
-    return int(result.get("health") == "FAIL")
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

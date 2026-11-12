@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from evallab.evidence_store import load_blob
 from evallab.trajectory_ir import (
     build_trajectory_ir,
     trajectory_ir_from_file,
@@ -96,7 +95,7 @@ def test_trajectory_ir_build_and_roundtrip(tmp_path: Path) -> None:
     assert step0.observation_results[0].content == "file1.txt\nfile2.txt"
 
     # Verify CAS retrieval
-    stored_reasoning = load_blob(tmp_path, step0.reasoning_content_ref)
+    stored_reasoning = (tmp_path / "blobs" / "sha256" / (step0.reasoning_content_ref).rsplit("/", 1)[-1][:2] / ((step0.reasoning_content_ref).rsplit("/", 1)[-1] + ".bin")).read_bytes()
     assert stored_reasoning.decode("utf-8") == "Chain-of-thought analysis for directory inspection."
 
     # Verify serialization
@@ -162,7 +161,7 @@ def test_trajectory_ir_from_file_and_outline(tmp_path: Path) -> None:
     assert obs0.content_bytes == 14
     assert obs0.content_digest is not None
     assert obs0.content_ref is not None
-    stored_obs = load_blob(tmp_path, obs0.content_ref)
+    stored_obs = (tmp_path / "blobs" / "sha256" / (obs0.content_ref).rsplit("/", 1)[-1][:2] / ((obs0.content_ref).rsplit("/", 1)[-1] + ".bin")).read_bytes()
     assert stored_obs.decode("utf-8") == "Wrote 15 bytes"
     outline = trajectory_ir_to_outline(
         ir,

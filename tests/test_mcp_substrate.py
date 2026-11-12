@@ -20,7 +20,6 @@ from evallab.mcp_substrate import (
     DEFAULT_TARGET_PLATFORM_TAG,
     DEFAULT_TARGET_PYTHON_TAG,
     FASTMCP_VERSION_CONSTRAINTS,
-    MIRROR_PINNED_BASE_IMAGE,
     PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST,
     PINNED_BASE_IMAGE_INDEX_DIGEST,
     MCPToolDefinition,
@@ -28,7 +27,6 @@ from evallab.mcp_substrate import (
     RuntimeAsset,
     SubstrateError,
     WheelhouseTarget,
-    compute_mcp_substrate_digest,
     generate_fastmcp_server_script,
     materialize_mcp_sidecar_package,
     record_prepackaging_provenance,
@@ -373,49 +371,6 @@ def test_real_fastmcp_fault_injection_and_client_recovery_e2e(tmp_path: Path):
     assert events[0]["result"]["value"] == "CORRUPTED_E2E"
 
 
-def test_mcp_substrate_digest_sensitivity_to_metadata_and_body():
-    doc = render_mcp_compose_document()
-    tool1 = MCPToolDefinition(
-        name="tool_a",
-        description="Tool A",
-        parameters=(MCPToolParameter(name="x", type_name="int", description="x"),),
-        metadata={"op_kind": "op_v1"},
-        execution_body="return {'x': x}",
-    )
-    tool2 = MCPToolDefinition(
-        name="tool_a",
-        description="Tool A",
-        parameters=(MCPToolParameter(name="x", type_name="int", description="x"),),
-        metadata={"op_kind": "op_v2"},
-        execution_body="return {'x': x}",
-    )
-    tool3 = MCPToolDefinition(
-        name="tool_a",
-        description="Tool A",
-        parameters=(MCPToolParameter(name="x", type_name="int", description="x"),),
-        metadata={"op_kind": "op_v1"},
-        execution_body="return {'x': x + 1}",
-    )
-
-    d1 = compute_mcp_substrate_digest(doc, [tool1])
-    d2 = compute_mcp_substrate_digest(doc, [tool2])
-    d3 = compute_mcp_substrate_digest(doc, [tool3])
-
-    assert d1 != d2, "Digest must differ when metadata/op_kind differs"
-    assert d1 != d3, "Digest must differ when execution_body differs"
-
-    with pytest.raises(SubstrateError, match="platform tag"):
-        compute_mcp_substrate_digest(
-            doc, [tool1], target=WheelhouseTarget("cp312", "macosx_11_0_arm64")
-        )
-    with pytest.raises(SubstrateError, match="python tag"):
-        compute_mcp_substrate_digest(
-            doc, [tool1], target=WheelhouseTarget("cp313", DEFAULT_TARGET_PLATFORM_TAG)
-        )
-    with pytest.raises(SubstrateError, match="python:3.12.11-slim@sha256"):
-        compute_mcp_substrate_digest(doc, [tool1], base_image="python:3.13-slim")
-
-
 def test_mcp_compose_validation_rejects_unauthorized_constructs():
     bad_doc1 = render_mcp_compose_document()
     bad_doc1["services"]["mcp-service"]["ports"] = ["8080:8080"]
@@ -443,14 +398,14 @@ def test_mcp_compose_validation_rejects_unauthorized_constructs():
 
 
 def test_mirror_base_runtime_accepts_same_digest_without_docker_hub():
-    assert MIRROR_PINNED_BASE_IMAGE.split("@", 1)[1] == PINNED_BASE_IMAGE_INDEX_DIGEST
+    mirror = f"mirror.gcr.io/library/python:3.12.11-slim@{PINNED_BASE_IMAGE_INDEX_DIGEST}"
     runtime = validate_target_base_runtime(
-        DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG, MIRROR_PINNED_BASE_IMAGE
+        DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG, mirror
     )
-    assert runtime["base_image"] == MIRROR_PINNED_BASE_IMAGE
+    assert runtime["base_image"] == mirror
     assert runtime["base_image_index_digest"] == PINNED_BASE_IMAGE_INDEX_DIGEST
-    dockerfile = render_mcp_sidecar_dockerfile(base_image=MIRROR_PINNED_BASE_IMAGE)
-    assert dockerfile.startswith(f"FROM {MIRROR_PINNED_BASE_IMAGE}\n")
+    dockerfile = render_mcp_sidecar_dockerfile(base_image=mirror)
+    assert dockerfile.startswith(f"FROM {mirror}\n")
     assert PINNED_BASE_IMAGE_INDEX_DIGEST in dockerfile
 
 
@@ -512,23 +467,6 @@ def test_plan_only_proof_binds_target_and_base_manifest(tmp_path: Path):
             target=WheelhouseTarget("cp312", "macosx_11_0_arm64"),
         )
     assert not mismatch_dir.exists()
-
-
-def test_digest_binds_base_runtime_identity():
-    doc = render_mcp_compose_document()
-    tool = MCPToolDefinition(
-        name="tool_a",
-        description="Tool A",
-        parameters=(MCPToolParameter(name="x", type_name="int", description="x"),),
-    )
-    d1 = compute_mcp_substrate_digest(doc, [tool])
-    d2 = compute_mcp_substrate_digest(
-        doc,
-        [tool],
-        target=WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG),
-        base_image=DEFAULT_PINNED_BASE_IMAGE,
-    )
-    assert d1 == d2
 
 
 def _runtime_asset_tool() -> MCPToolDefinition:
@@ -595,22 +533,6 @@ def test_runtime_asset_byte_and_path_changes_shift_proof_and_digest(tmp_path: Pa
     second = tmp_path / "second.bin"
     second.write_bytes(b"beta!")
     tool = _runtime_asset_tool()
-    topology = render_mcp_compose_document()
-    digest_a = compute_mcp_substrate_digest(
-        topology, [tool], runtime_assets=(RuntimeAsset("evidence/a.bin", first),)
-    )
-    digest_byte = compute_mcp_substrate_digest(
-        topology, [tool], runtime_assets=(RuntimeAsset("evidence/a.bin", second),)
-    )
-    digest_path = compute_mcp_substrate_digest(
-        topology, [tool], runtime_assets=(RuntimeAsset("evidence/b.bin", first),)
-    )
-    digest_none = compute_mcp_substrate_digest(topology, [tool])
-    assert digest_a != digest_byte
-    assert digest_a != digest_path
-    assert digest_none != digest_a
-    assert digest_none == compute_mcp_substrate_digest(topology, [tool], runtime_assets=())
-
     pkg_a = tmp_path / "pkg_a"
     pkg_byte = tmp_path / "pkg_byte"
     pkg_path = tmp_path / "pkg_path"

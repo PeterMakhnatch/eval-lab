@@ -844,19 +844,3 @@ def harden(
     return manifest
 
 
-__all__ = [
-    "TRANSFORM_ID",
-    "Finding",
-    "HardeningManifest",
-    "HardeningRefused",
-    "Layer",
-    "VerifierGate",
-    "detect_runner",
-    "detect_shape",
-    "dockerfile_copies",
-    "grader_paths",
-    "harden",
-    "plan_hardening",
-    "scan_leaks",
-    "scrub_dockerfile",
-]

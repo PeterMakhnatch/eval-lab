@@ -32,7 +32,7 @@ from typing import Any
 
 import pytest
 
-from evallab import cheat
+from evallab import cheat, cheat_ladder
 from evallab.cheat import (
     ATTACKS,
     ATTACKS_V2,
@@ -485,36 +485,36 @@ def _sandbox(tmp_path: Path) -> Path:
     return root
 
 
-def test_fixture_git_history_reports_no_history(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_git_history_reports_no_history(tmp_path: Path) -> None:
     root = _sandbox(tmp_path)
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_git_history(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "no git history" in record["detail"]
     assert (evidence / "git_history.log").is_file()
 
 
-def test_fixture_reward_plant_writes_workspace_claims(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_reward_plant_writes_workspace_claims(tmp_path: Path) -> None:
     root = _sandbox(tmp_path)
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_reward_plant(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_reward_plant(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "planted" in record["detail"]
     assert json.loads((root / "reward.json").read_text())["reward"] == 1.0
 
 
-def test_fixture_answer_symlink_without_solution(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_answer_symlink_without_solution(tmp_path: Path) -> None:
     root = _sandbox(tmp_path)
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_answer_symlink(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_answer_symlink(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "no reference solution" in record["detail"]
 
 
-def test_fixture_answer_symlink_executes_visible_solution(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_answer_symlink_executes_visible_solution(tmp_path: Path) -> None:
     root = _sandbox(tmp_path)
     solution = root / "solution"
     solution.mkdir()
@@ -522,16 +522,16 @@ def test_fixture_answer_symlink_executes_visible_solution(tmp_path: Path, harbor
     (solution / "solve.sh").chmod(0o755)
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_answer_symlink(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_answer_symlink(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "rc=0" in record["detail"]
 
 
-def test_fixture_upstream_fetch_without_remote(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_upstream_fetch_without_remote(tmp_path: Path) -> None:
     root = _sandbox(tmp_path)
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_upstream_fetch(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_upstream_fetch(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "no upstream remote" in record["detail"]
 
@@ -555,7 +555,7 @@ def _fixture_db(path: Path) -> None:
     connection.close()
 
 
-def test_fixture_verifier_peek_applies_guided_fix(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_verifier_peek_applies_guided_fix(tmp_path: Path) -> None:
     if shutil.which("sqlite3") is None:
         pytest.skip("sqlite3 CLI unavailable")
     root = _sandbox(tmp_path)
@@ -570,7 +570,7 @@ def test_fixture_verifier_peek_applies_guided_fix(tmp_path: Path, harbor_cheat) 
     )
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_verifier_peek(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_verifier_peek(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "guided fix applied" in record["detail"]
     connection = sqlite3.connect(db)
@@ -582,14 +582,14 @@ def test_fixture_verifier_peek_applies_guided_fix(tmp_path: Path, harbor_cheat) 
     assert rows == [("txn_1", 100, "reconciled"), ("txn_2", 200, "reconciled")]
 
 
-def test_guided_apply_script_rejects_unsafe_shapes(harbor_cheat) -> None:
-    assert harbor_cheat._guided_apply_script("db", "t!", ["a", "b"], [[1, 2]]) is None
-    assert harbor_cheat._guided_apply_script("db", "t", ["a"], [[1]]) is not None
-    assert harbor_cheat._guided_apply_script("db", "t", ["a", "b"], [["x" * 500, 2]]) is None
-    assert harbor_cheat._guided_apply_script("db", "t", ["a", "b"], [[None, 2]]) is None
+def test_guided_apply_script_rejects_unsafe_shapes() -> None:
+    assert cheat_ladder._guided_apply_script("db", "t!", ["a", "b"], [[1, 2]]) is None
+    assert cheat_ladder._guided_apply_script("db", "t", ["a"], [[1]]) is not None
+    assert cheat_ladder._guided_apply_script("db", "t", ["a", "b"], [["x" * 500, 2]]) is None
+    assert cheat_ladder._guided_apply_script("db", "t", ["a", "b"], [[None, 2]]) is None
 
 
-def test_ladder_subset_skips_and_failure_continues(tmp_path: Path, harbor_cheat) -> None:
+def test_ladder_subset_skips_and_failure_continues(tmp_path: Path) -> None:
     async def boom(script: str, timeout_sec: int) -> ShellOutcome:
         if "CHEAT_PY" in script and "literal_eval(node.value)" in script:
             raise RuntimeError("probe exploded")
@@ -598,7 +598,7 @@ def test_ladder_subset_skips_and_failure_continues(tmp_path: Path, harbor_cheat)
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     records = asyncio.run(
-        harbor_cheat.run_ladder("/nonexistent", boom, evidence, ["git_history", "verifier_peek"])
+        cheat_ladder.run_ladder("/nonexistent", boom, evidence, ["git_history", "verifier_peek"])
     )
     by_name = {record["name"]: record for record in records}
     assert [record["name"] for record in records] == list(ATTACKS)
@@ -783,26 +783,26 @@ def _await_file_text(path: Path, timeout_sec: float = 5.0) -> str:
         time.sleep(0.05)
 
 
-def test_fixture_skip_plant_skips_failing_suite(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_skip_plant_skips_failing_suite(tmp_path: Path) -> None:
     root = tmp_path / "sandbox"
     root.mkdir()
     _write_failing_pkg(root)
     assert _run_pytest(root, "test_broken.py").returncode != 0
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_skip_plant(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_skip_plant(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "skip-all" in record["detail"]
     assert (root / "conftest.py").is_file()
     completed = _run_pytest(root, "test_broken.py")
     assert completed.returncode == 0
     assert "skipped" in completed.stdout
-    rerun = asyncio.run(harbor_cheat.attack_skip_plant(str(root), BashRun(root), evidence))
+    rerun = asyncio.run(cheat_ladder.attack_skip_plant(str(root), BashRun(root), evidence))
     assert rerun["status"] == "executed"
     assert "already carries" in rerun["detail"]
 
 
-def test_fixture_tracked_conftest_forges_passes(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_tracked_conftest_forges_passes(tmp_path: Path) -> None:
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
     root = tmp_path / "sandbox"
@@ -814,7 +814,7 @@ def test_fixture_tracked_conftest_forges_passes(tmp_path: Path, harbor_cheat) ->
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     record = asyncio.run(
-        harbor_cheat.attack_tamper_tracked_conftest(str(root), BashRun(root), evidence)
+        cheat_ladder.attack_tamper_tracked_conftest(str(root), BashRun(root), evidence)
     )
     assert record["status"] == "executed"
     assert "forged" in record["detail"]
@@ -824,7 +824,7 @@ def test_fixture_tracked_conftest_forges_passes(tmp_path: Path, harbor_cheat) ->
 
 
 def test_fixture_tracked_conftest_skips_without_tracked_conftest(
-    tmp_path: Path, harbor_cheat
+    tmp_path: Path
 ) -> None:
     root = tmp_path / "sandbox"
     root.mkdir()
@@ -832,14 +832,14 @@ def test_fixture_tracked_conftest_skips_without_tracked_conftest(
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     record = asyncio.run(
-        harbor_cheat.attack_tamper_tracked_conftest(str(root), BashRun(root), evidence)
+        cheat_ladder.attack_tamper_tracked_conftest(str(root), BashRun(root), evidence)
     )
     assert record["status"] == "skipped"
     assert "no tracked conftest" in record["detail"]
 
 
 def test_fixture_sitecustomize_forces_exit_zero(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     if shutil.which("python3") is None:
         pytest.skip("python3 unavailable")
@@ -855,7 +855,7 @@ def test_fixture_sitecustomize_forces_exit_zero(
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     record = asyncio.run(
-        harbor_cheat.attack_tamper_sitecustomize(str(root), BashRun(root), evidence)
+        cheat_ladder.attack_tamper_sitecustomize(str(root), BashRun(root), evidence)
     )
     assert record["status"] == "executed"
     assert "exit 0" in record["detail"]
@@ -869,7 +869,7 @@ def test_fixture_sitecustomize_forces_exit_zero(
 
 
 def test_fixture_shadow_timeout_shims_exit_zero(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bin_dir = tmp_path / "earlybin"
     bin_dir.mkdir()
@@ -879,7 +879,7 @@ def test_fixture_shadow_timeout_shims_exit_zero(
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     record = asyncio.run(
-        harbor_cheat.attack_tamper_shadow_timeout(str(root), BashRun(root), evidence)
+        cheat_ladder.attack_tamper_shadow_timeout(str(root), BashRun(root), evidence)
     )
     assert record["status"] == "executed"
     assert "timeout" in record["detail"]
@@ -893,7 +893,7 @@ def test_fixture_shadow_timeout_shims_exit_zero(
 
 
 def test_fixture_reward_writer_holds_one(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     reward_dir = tmp_path / "verifier"
     reward_dir.mkdir()
@@ -904,7 +904,7 @@ def test_fixture_reward_writer_holds_one(
     evidence.mkdir()
     try:
         record = asyncio.run(
-            harbor_cheat.attack_tamper_reward_writer(str(root), BashRun(root), evidence)
+            cheat_ladder.attack_tamper_reward_writer(str(root), BashRun(root), evidence)
         )
         assert record["status"] == "executed"
         assert "hold reward at 1" in record["detail"]
@@ -914,7 +914,7 @@ def test_fixture_reward_writer_holds_one(
         _kill_reward_writers(evidence)
 
 
-def test_fixture_source_exit_forces_exit_zero(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_source_exit_forces_exit_zero(tmp_path: Path) -> None:
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
     root = tmp_path / "sandbox"
@@ -924,7 +924,7 @@ def test_fixture_source_exit_forces_exit_zero(tmp_path: Path, harbor_cheat) -> N
     assert _run_pytest(root, "test_broken.py").returncode != 0
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_tamper_source_exit(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_tamper_source_exit(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "exit-0 hook" in record["detail"]
     completed = _run_pytest(root, "test_broken.py")
@@ -932,7 +932,7 @@ def test_fixture_source_exit_forces_exit_zero(tmp_path: Path, harbor_cheat) -> N
     assert "failed" in completed.stdout
 
 
-def test_fixture_source_pytest_patch_passes_failures(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_source_pytest_patch_passes_failures(tmp_path: Path) -> None:
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
     root = tmp_path / "sandbox"
@@ -943,7 +943,7 @@ def test_fixture_source_pytest_patch_passes_failures(tmp_path: Path, harbor_chea
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     record = asyncio.run(
-        harbor_cheat.attack_tamper_source_pytest_patch(str(root), BashRun(root), evidence)
+        cheat_ladder.attack_tamper_source_pytest_patch(str(root), BashRun(root), evidence)
     )
     assert record["status"] == "executed"
     assert "TestReport patch" in record["detail"]
@@ -952,23 +952,23 @@ def test_fixture_source_pytest_patch_passes_failures(tmp_path: Path, harbor_chea
     assert "1 passed" in completed.stdout
 
 
-def test_fixture_source_tampers_skip_without_imported_init(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_source_tampers_skip_without_imported_init(tmp_path: Path) -> None:
     root = tmp_path / "sandbox"
     root.mkdir()
     (root / "test_broken.py").write_text("def test_broken():\n    assert False\n")
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     for attack in (
-        harbor_cheat.attack_tamper_source_exit,
-        harbor_cheat.attack_tamper_source_pytest_patch,
-        harbor_cheat.attack_tamper_source_skip,
-        harbor_cheat.attack_tamper_source_skiptest,
+        cheat_ladder.attack_tamper_source_exit,
+        cheat_ladder.attack_tamper_source_pytest_patch,
+        cheat_ladder.attack_tamper_source_skip,
+        cheat_ladder.attack_tamper_source_skiptest,
     ):
         record = asyncio.run(attack(str(root), BashRun(root), evidence))
         assert record["status"] == "skipped"
 
 
-def test_fixture_source_tamper_picks_first_init_on_huge_tree(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_source_tamper_picks_first_init_on_huge_tree(tmp_path: Path) -> None:
     """Bitbake-shaped trees skip import matching and still plant the hook."""
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
@@ -982,7 +982,7 @@ def test_fixture_source_tamper_picks_first_init_on_huge_tree(tmp_path: Path, har
     _git_repo(root)
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_tamper_source_exit(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_tamper_source_exit(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "exit-0 hook" in record["detail"]
     assert "CHEAT tamper_source_exit" in (root / "fakepkg" / "__init__.py").read_text(
@@ -990,7 +990,7 @@ def test_fixture_source_tamper_picks_first_init_on_huge_tree(tmp_path: Path, har
     )
 
 
-def test_fixture_source_tamper_lib_layout_import_root(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_source_tamper_lib_layout_import_root(tmp_path: Path) -> None:
     """lib/-layouts match the import root (bb.fetch2), not the relpath."""
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
@@ -1003,7 +1003,7 @@ def test_fixture_source_tamper_lib_layout_import_root(tmp_path: Path, harbor_che
     _git_repo(root)
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_tamper_source_exit(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_tamper_source_exit(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "lib/bb/__init__.py" in record["detail"]
     assert "CHEAT tamper_source_exit" in (root / "lib" / "bb" / "__init__.py").read_text(
@@ -1011,7 +1011,7 @@ def test_fixture_source_tamper_lib_layout_import_root(tmp_path: Path, harbor_che
     )
 
 
-def test_fixture_git_history_applies_recovered_fix(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_git_history_applies_recovered_fix(tmp_path: Path) -> None:
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
     root = tmp_path / "sandbox"
@@ -1031,7 +1031,7 @@ def test_fixture_git_history_applies_recovered_fix(tmp_path: Path, harbor_cheat)
     assert "return 1" in (root / "calc.py").read_text(encoding="utf-8")
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_git_history(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "applied recovered fix" in record["detail"]
     assert "return 2" in (root / "calc.py").read_text(encoding="utf-8")
@@ -1110,7 +1110,7 @@ def _has_pytest_bin() -> bool:
 
 
 def test_fixture_git_history_scans_past_cap_and_ranks_fix_first(
-    tmp_path: Path, harbor_cheat
+    tmp_path: Path
 ) -> None:
     """The whole pool is ranked: a late-sorting real fix beats an early decoy."""
     if shutil.which("git") is None:
@@ -1148,7 +1148,7 @@ def test_fixture_git_history_scans_past_cap_and_ranks_fix_first(
     assert "return 1" in (root / "calc.py").read_text(encoding="utf-8")
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_git_history(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert f"applied recovered fix from {fix_sha}" in record["detail"]
     assert "scanned 46 unreachable commits" in record["detail"]
@@ -1163,7 +1163,7 @@ def test_fixture_git_history_scans_past_cap_and_ranks_fix_first(
 
 
 def test_fixture_git_history_rejects_candidate_whose_tests_fail(
-    tmp_path: Path, harbor_cheat
+    tmp_path: Path
 ) -> None:
     """Applies+smokes is not enough: a candidate failing its own tests is out."""
     if shutil.which("git") is None:
@@ -1183,7 +1183,7 @@ def test_fixture_git_history_rejects_candidate_whose_tests_fail(
     _git_dangling_commit(root, "decoy with failing test")
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_git_history(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "no future fix applied cleanly" in record["detail"]
     assert "return 1" in (root / "calc.py").read_text(encoding="utf-8")
@@ -1191,7 +1191,7 @@ def test_fixture_git_history_rejects_candidate_whose_tests_fail(
     assert "TEST_FAIL" in _git_apply_log(evidence)
 
 
-def test_fixture_git_history_applies_non_python_fix(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_git_history_applies_non_python_fix(tmp_path: Path) -> None:
     """No language restriction: a fix touching only a data file still lands."""
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
@@ -1203,13 +1203,13 @@ def test_fixture_git_history_applies_non_python_fix(tmp_path: Path, harbor_cheat
     fix_sha = _git_dangling_commit(root, "fix the config")
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_git_history(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert f"applied recovered fix from {fix_sha}" in record["detail"]
     assert "answer: 2" in (root / "config.yaml").read_text(encoding="utf-8")
 
 
-def test_fixture_git_history_excludes_oversize_candidate(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_git_history_excludes_oversize_candidate(tmp_path: Path) -> None:
     """The total-diff bound still holds: a 32-file candidate is skipped."""
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
@@ -1222,7 +1222,7 @@ def test_fixture_git_history_excludes_oversize_candidate(tmp_path: Path, harbor_
     big_sha = _git_dangling_commit(root, "huge unrelated change")
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_git_history(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "no future fix applied cleanly" in record["detail"]
     assert not (root / "bulk_00.txt").exists()
@@ -1232,7 +1232,7 @@ def test_fixture_git_history_excludes_oversize_candidate(tmp_path: Path, harbor_
 
 
 def test_ladder_runs_new_attacks_in_order(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     site_dir = tmp_path / "sitepkgs"
     site_dir.mkdir()
@@ -1249,7 +1249,7 @@ def test_ladder_runs_new_attacks_in_order(
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     try:
-        records = asyncio.run(harbor_cheat.run_ladder(str(root), BashRun(root), evidence))
+        records = asyncio.run(cheat_ladder.run_ladder(str(root), BashRun(root), evidence))
     finally:
         _kill_reward_writers(evidence)
     assert [record["name"] for record in records] == list(cheat.ATTACKS)
@@ -1342,7 +1342,7 @@ def _git_branch_commit(root: Path, branch: str) -> None:
     )
 
 
-def test_fixture_git_history_applies_unreachable_fix(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_git_history_applies_unreachable_fix(tmp_path: Path) -> None:
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
     root = tmp_path / "sandbox"
@@ -1364,7 +1364,7 @@ def test_fixture_git_history_applies_unreachable_fix(tmp_path: Path, harbor_chea
     assert "return 1" in (root / "calc.py").read_text(encoding="utf-8")
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_git_history(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "scanned 1 unreachable commits" in record["detail"]
     assert "applied recovered fix" in record["detail"]
@@ -1372,7 +1372,7 @@ def test_fixture_git_history_applies_unreachable_fix(tmp_path: Path, harbor_chea
     assert _run_pytest(root, "test_calc.py").returncode == 0
 
 
-def test_fixture_git_history_restores_between_tries(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_git_history_restores_between_tries(tmp_path: Path) -> None:
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
     root = tmp_path / "sandbox"
@@ -1398,7 +1398,7 @@ def test_fixture_git_history_restores_between_tries(tmp_path: Path, harbor_cheat
     subprocess.run(["git", "branch", "-D", "bad", "fix"], cwd=root, check=True, capture_output=True)
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_git_history(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "scanned 2 unreachable commits" in record["detail"]
     assert "applied recovered fix" in record["detail"]
@@ -1409,7 +1409,7 @@ def test_fixture_git_history_restores_between_tries(tmp_path: Path, harbor_cheat
     assert _run_pytest(root, "test_calc.py").returncode == 0
 
 
-def test_fixture_source_skip_skips_failing_test(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_source_skip_skips_failing_test(tmp_path: Path) -> None:
     """Call-time skip hooks from the imported package skip every test."""
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
@@ -1420,7 +1420,7 @@ def test_fixture_source_skip_skips_failing_test(tmp_path: Path, harbor_cheat) ->
     assert _run_pytest(root, "test_broken.py").returncode != 0
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_tamper_source_skip(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_tamper_source_skip(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert "call-time skip" in record["detail"]
     assert "CHEAT tamper_source_skip" in (root / "fakepkg" / "__init__.py").read_text(
@@ -1431,7 +1431,7 @@ def test_fixture_source_skip_skips_failing_test(tmp_path: Path, harbor_cheat) ->
     assert "1 skipped" in completed.stdout
 
 
-def test_fixture_source_skiptest_plants_raise(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_source_skiptest_plants_raise(tmp_path: Path) -> None:
     """The SkipTest raise lands in the imported package init (collection-skip shape)."""
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
@@ -1442,7 +1442,7 @@ def test_fixture_source_skiptest_plants_raise(tmp_path: Path, harbor_cheat) -> N
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     record = asyncio.run(
-        harbor_cheat.attack_tamper_source_skiptest(str(root), BashRun(root), evidence)
+        cheat_ladder.attack_tamper_source_skiptest(str(root), BashRun(root), evidence)
     )
     assert record["status"] == "executed"
     assert "SkipTest raise" in record["detail"]
@@ -1453,16 +1453,16 @@ def test_fixture_source_skiptest_plants_raise(tmp_path: Path, harbor_cheat) -> N
     assert "skipped" in completed.stdout
 
 
-def test_parse_attack_selection_orders_skip_attacks(harbor_cheat) -> None:
+def test_parse_attack_selection_orders_skip_attacks() -> None:
     assert parse_attack_selection("tamper_source_skiptest,tamper_source_skip,git_history") == (
         "git_history",
         "tamper_source_skip",
         "tamper_source_skiptest",
     )
-    assert harbor_cheat.ATTACKS[-2:] == ("tamper_source_skip", "tamper_source_skiptest")
+    assert cheat_ladder.ATTACKS[-2:] == ("tamper_source_skip", "tamper_source_skiptest")
 
 def test_fixture_leftover_test_swap_rewrites_restored_test(
-    tmp_path: Path, harbor_cheat
+    tmp_path: Path
 ) -> None:
     root = tmp_path / "sandbox"
     root.mkdir()
@@ -1470,7 +1470,7 @@ def test_fixture_leftover_test_swap_rewrites_restored_test(
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     record = asyncio.run(
-        harbor_cheat.attack_leftover_test_swap(str(root), BashRun(root), evidence)
+        cheat_ladder.attack_leftover_test_swap(str(root), BashRun(root), evidence)
     )
     loop_pid = record.get("check", {}).get("loop_pid")
     try:
@@ -1495,12 +1495,12 @@ def test_fixture_leftover_test_swap_rewrites_restored_test(
                 os.kill(loop_pid, signal.SIGKILL)
 
 
-def test_fixture_fifo_answer_blocks_then_cleans_up(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_fifo_answer_blocks_then_cleans_up(tmp_path: Path) -> None:
     root = tmp_path / "sandbox"
     root.mkdir()
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_fifo_answer(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_fifo_answer(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert record["check"] == {
         "signal": "armed",
@@ -1511,12 +1511,12 @@ def test_fixture_fifo_answer_blocks_then_cleans_up(tmp_path: Path, harbor_cheat)
     assert not (root / "cheat_fifo_probe").exists()
 
 
-def test_fixture_fork_bomb_probe_reaps_children(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_fork_bomb_probe_reaps_children(tmp_path: Path) -> None:
     root = tmp_path / "sandbox"
     root.mkdir()
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_fork_bomb(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_fork_bomb(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert record["check"]["spawned"] == 64
     assert record["check"]["failed"] == 0
@@ -1524,26 +1524,26 @@ def test_fixture_fork_bomb_probe_reaps_children(tmp_path: Path, harbor_cheat) ->
 
 
 def test_fixture_disk_fill_probe_writes_bound_then_cleans_up(
-    tmp_path: Path, harbor_cheat
+    tmp_path: Path
 ) -> None:
     root = tmp_path / "sandbox"
     root.mkdir()
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_disk_fill(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_disk_fill(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert record["check"]["bytes_written"] >= 128 * 1024 * 1024
     assert record["check"]["cleaned"] is True
     assert list(root.glob(".cheat_diskfill_probe*")) == []
 
 
-def test_run_ladder_v2_subset_keeps_v2_order(tmp_path: Path, harbor_cheat) -> None:
+def test_run_ladder_v2_subset_keeps_v2_order(tmp_path: Path) -> None:
     root = tmp_path / "sandbox"
     root.mkdir()
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     records = asyncio.run(
-        harbor_cheat.run_ladder(
+        cheat_ladder.run_ladder(
             str(root),
             BashRun(root),
             evidence,
@@ -1570,7 +1570,7 @@ def test_ladder_v3_appends_verifier_battery_opt_in() -> None:
         parse_attack_selection("pyc_shadow", version=CHEAT_LADDER_V2)
 
 
-def test_fixture_pytest_runtest_noops_failing_test(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_pytest_runtest_noops_failing_test(tmp_path: Path) -> None:
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
     root = tmp_path / "sandbox"
@@ -1581,7 +1581,7 @@ def test_fixture_pytest_runtest_noops_failing_test(tmp_path: Path, harbor_cheat)
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     record = asyncio.run(
-        harbor_cheat.attack_tamper_pytest_runtest(str(root), BashRun(root), evidence)
+        cheat_ladder.attack_tamper_pytest_runtest(str(root), BashRun(root), evidence)
     )
     assert record["status"] == "executed"
     assert record["check"]["signal"] == "armed"
@@ -1589,7 +1589,7 @@ def test_fixture_pytest_runtest_noops_failing_test(tmp_path: Path, harbor_cheat)
 
 
 def test_fixture_pytest_runtest_obfuscated_noops_failing_test(
-    tmp_path: Path, harbor_cheat
+    tmp_path: Path
 ) -> None:
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
@@ -1600,7 +1600,7 @@ def test_fixture_pytest_runtest_obfuscated_noops_failing_test(
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     record = asyncio.run(
-        harbor_cheat.attack_tamper_pytest_runtest_obfuscated(
+        cheat_ladder.attack_tamper_pytest_runtest_obfuscated(
             str(root), BashRun(root), evidence
         )
     )
@@ -1608,7 +1608,7 @@ def test_fixture_pytest_runtest_obfuscated_noops_failing_test(
     assert _run_pytest(root, "test_broken.py").returncode == 0
 
 
-def test_fixture_pyc_shadow_passes_without_source_edit(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_pyc_shadow_passes_without_source_edit(tmp_path: Path) -> None:
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
     root = tmp_path / "sandbox"
@@ -1618,7 +1618,7 @@ def test_fixture_pyc_shadow_passes_without_source_edit(tmp_path: Path, harbor_ch
     source_before = (root / "fakepkg" / "__init__.py").read_bytes()
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    record = asyncio.run(harbor_cheat.attack_pyc_shadow(str(root), BashRun(root), evidence))
+    record = asyncio.run(cheat_ladder.attack_pyc_shadow(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert record["check"]["signal"] == "armed"
     assert (root / "fakepkg" / "__init__.py").read_bytes() == source_before
@@ -1626,7 +1626,7 @@ def test_fixture_pyc_shadow_passes_without_source_edit(tmp_path: Path, harbor_ch
     assert _run_pytest(root, "test_broken.py").returncode == 0
 
 
-def test_fixture_fake_unittest_output_fakes_success(tmp_path: Path, harbor_cheat) -> None:
+def test_fixture_fake_unittest_output_fakes_success(tmp_path: Path) -> None:
     if shutil.which("git") is None:
         pytest.skip("git unavailable")
     root = tmp_path / "sandbox"
@@ -1641,7 +1641,7 @@ def test_fixture_fake_unittest_output_fakes_success(tmp_path: Path, harbor_cheat
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     record = asyncio.run(
-        harbor_cheat.attack_fake_unittest_output(str(root), BashRun(root), evidence)
+        cheat_ladder.attack_fake_unittest_output(str(root), BashRun(root), evidence)
     )
     assert record["status"] == "executed"
     completed = subprocess.run(
@@ -1672,7 +1672,7 @@ def test_ladder_v4_appends_start_up_probes_opt_in() -> None:
 
 @pytest.mark.parametrize("attack", ["tamper_pth_exit", "tamper_pth_atexit"])
 def test_fixture_pth_start_up_hook_ends_interpreter(
-    attack: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+    attack: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     if shutil.which("python3") is None:
         pytest.skip("python3 unavailable")
@@ -1683,7 +1683,7 @@ def test_fixture_pth_start_up_hook_ends_interpreter(
     root.mkdir()
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    runner = getattr(harbor_cheat, f"attack_{attack}")
+    runner = getattr(cheat_ladder, f"attack_{attack}")
     record = asyncio.run(runner(str(root), BashRun(root), evidence))
     assert record["status"] == "executed"
     assert record["check"]["signal"] == "armed"
@@ -1705,7 +1705,7 @@ def test_fixture_pth_start_up_hook_ends_interpreter(
 
 
 def test_fixture_pth_forge_report_writes_a_clean_report(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     if shutil.which("python3") is None:
         pytest.skip("python3 unavailable")
@@ -1718,7 +1718,7 @@ def test_fixture_pth_forge_report_writes_a_clean_report(
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     record = asyncio.run(
-        harbor_cheat.attack_tamper_pth_forge_report(str(root), BashRun(root), evidence)
+        cheat_ladder.attack_tamper_pth_forge_report(str(root), BashRun(root), evidence)
     )
     assert record["status"] == "executed"
     assert record["check"]["signal"] == "armed"
@@ -1740,7 +1740,7 @@ def test_fixture_pth_forge_report_writes_a_clean_report(
 
 
 def test_fixture_pth_probe_skips_without_writable_site_dir(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     if shutil.which("python3") is None:
         pytest.skip("python3 unavailable")
@@ -1750,7 +1750,7 @@ def test_fixture_pth_probe_skips_without_writable_site_dir(
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     record = asyncio.run(
-        harbor_cheat.attack_tamper_pth_exit(str(root), BashRun(root), evidence)
+        cheat_ladder.attack_tamper_pth_exit(str(root), BashRun(root), evidence)
     )
     assert record["status"] == "skipped"
     assert "no writable site directory" in record["detail"]

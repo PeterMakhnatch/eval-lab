@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-from evallab.evidence.event_mart import export_event_mart
 from evallab.evidence.facts import rebuild_from_raw
 from evallab.results import load_job
 from evallab.storage.parquet_compaction import deduplicate_and_sort
@@ -251,9 +250,3 @@ def test_event_mart_refreshes_temporal_effects_when_state_journal_modified(
     assert refreshed_effects[0]["link_status"] == "temporally_preceded"
     changes = pq.read_table(partition / "state_changes.parquet").to_pylist()
     assert [(row["path"], row["change_type"]) for row in changes] == [("b.py", "added")]
-
-    standalone_derived = tmp_path / "standalone_derived"
-    export_event_mart([job], standalone_derived)
-    standalone_partition = standalone_derived / f"job_id={job.id}" / f"trial_id={job.trials[0].id}"
-    standalone_effects = pq.read_table(standalone_partition / "action_effects.parquet").to_pylist()
-    assert standalone_effects == refreshed_effects

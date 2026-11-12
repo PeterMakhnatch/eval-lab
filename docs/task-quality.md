@@ -791,7 +791,6 @@ separate `--stages exploit` probe is requested.
   Limits: Python targets only; a verifier that runs the code in an interpreter
   the prologue did not find, or replaces `sys.settrace` (pytest-cov on <3.12),
   falls back to unguided.
-- `evallab hack battery <package> [--target PATH ...] [--execute]` — the
   hollow-program battery (Bohrin battery 2, `src/evallab/verifier_battery.py`):
   after the reference solution, every function it changed in each target Python
   file is replaced by five fakes that do no work (each must score 0) and three
@@ -800,34 +799,9 @@ separate `--stages exploit` probe is requested.
   `fake_rewarded` / `control_rejected` / `no_probes` / `task_broken` /
   `unscored`; receipts in `runs/.envcheck/battery-<slug>-<nonce>/`. `tasks admit`
   runs it as the `battery` step.
-- `evallab hack repair <mutation-report.json> --model gpt-6.1-sol
-  [--execute] [--output-dir <runs/dir>] [--json]` — propose missing semantic
-  assertions through the installed ChatGPT-subscription Codex CLI. Preview
-  writes bounded context and the prompt without a model call. Execution checks
-  live account-wide weekly usage before proposing and refuses unavailable
-  quota, non-subscription auth or consumption above 60%; it never substitutes
-  a model or automatically retries a spent/ambiguous attempt. For an explicit
-  refinement, use `--feedback <prior-repair-result.json>` and a new output
-  directory: the next proposal receives the retained verifier failures as
-  evidence, rather than rerunning the model blindly.
-  Optional model metadata may be null: recorded identity comes from the
-  caller-selected subscription route, not the proposal's self-description.
-  A null command is allowed for an explicit not-repairable response or an
-  opted-in edit-only proposal; new test files always need a command.
-  Malformed or unsafe proposals are `blocked`, not proof that the task is
-  unrepairable. A CLI reconnect notice can be followed by one valid completed
-  text-only turn; its original transcript and usage remain authoritative.
-  Failed, incomplete, rerouted, or multiple turns still fail closed.
-
-  By default the proposal appends new test-file diffs to `tests/test.patch`
-  and wraps `tests/test_command.sh`, preserving the original suite's exit
-  status. MiMo v5's pristine and candidate phases both receive the additional
-  tests. Variants use the existing `tasks derive` implementation and lineage
-  store; original task packages, production source and solutions remain
-  unchanged.
 
   **2026-10-17 contract update — explicit overconstraint repair.**
-  `--allow-test-edits` (also on `hack ref-repair`) enables optional `edits`
+  `--allow-test-edits` enables optional `edits`
   in the same `evallab.verifier_repair.proposal/v1` schema. Without this
   caller opt-in, existing-test edits are blocked at both validation and
   derivation. Ordinary append-only proposals are unchanged.
@@ -1045,7 +1019,6 @@ separate `--stages exploit` probe is requested.
     Trace T0 check. A passing trial whose `verifier/agent.diff` leaves every
     untested reference block alone is a suspected partial fix
     (`false_positive`, unverified).
-- `evallab hack ref-repair <ref-subset report dir> [--execute]
   [--feedback <prior repair-result.json>]` repairs a weak verifier with
   instruction-scoped test additions. Intake verifies the task/package and
   reference digests and replays the probe's **cumulative** greedy removals,

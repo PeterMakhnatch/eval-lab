@@ -31,13 +31,6 @@ from evallab.execution_contracts import (
 )
 from evallab.harbor_common import sanitize_native_trajectory
 
-__all__ = [
-    "GLM_SELFHOSTED_ALLOWED_PROVIDERS",
-    "GLM_SELFHOSTED_BASE_URL_ENV",
-    "SecretSafeGlmSelfhostedMiniSweAgent",
-    "SecretSafeOpenAICompatMiniSweAgent",
-]
-
 
 def _validate_model_provider(model: str | None) -> str | None:
     if model is None:
@@ -167,4 +160,3 @@ class SecretSafeGlmSelfhostedMiniSweAgent(MiniSweAgent):
         sanitize_native_trajectory(logs / "trajectory.json", secrets)
 
 
-SecretSafeOpenAICompatMiniSweAgent = SecretSafeGlmSelfhostedMiniSweAgent

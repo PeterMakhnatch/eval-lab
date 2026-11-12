@@ -18,31 +18,19 @@ receive a caller-supplied ``grade_fn`` closure instead.
 
 from __future__ import annotations
 
-import hashlib
-import json
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
 SubmissionKind = Literal["patch", "file", "json"]
 SubmissionBase = Literal["oracle", "environment"]
 GradeStatus = Literal["ok", "mismatch", "infra"]
-HypothesisStatus = Literal[
-    "candidate", "promoted", "attached", "merged", "rejected", "inconclusive"
-]
 ControlVerdict = Literal["ok", "task_broken"]
 
 #: Red-loop budgets: at most 30 agent steps, 25 graded submissions, 6 blue probes.
-RED_BUDGETS: dict[str, int] = {"max_steps": 30, "max_grades": 25, "max_probes": 6}
 
 #: Shared model defaults for every vcheck agent.
-MODEL_DEFAULTS: dict[str, Any] = {
-    "family": "glm-5.3",
-    "temperature": 0.1,
-    "max_tokens": 4096,
-    "reasoning_effort": "low",
-}
 
 
 # --------------------------------------------------------------------------- #
@@ -140,85 +128,6 @@ def grade_submission(
 # --------------------------------------------------------------------------- #
 
 
-@dataclass(frozen=True)
-class RequirementItem:
-    """One frozen behavioral requirement of a task's verifier."""
-
-    req_id: str
-    text: str
-    covered_by: list[str] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class RequirementMap:
-    """A task's frozen requirement set; ``sha256`` pins its exact content."""
-
-    task: str
-    sha256: str
-    items: list[RequirementItem]
-
-    @classmethod
-    def freeze(cls, task: str, items: Sequence[RequirementItem]) -> RequirementMap:
-        """Pin ``items``: any text/id/coverage change yields a new ``sha256``."""
-        payload = json.dumps(
-            [
-                {"req_id": item.req_id, "text": item.text, "covered_by": list(item.covered_by)}
-                for item in items
-            ],
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        digest = "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
-        return cls(task=task, sha256=digest, items=list(items))
-
-
-@dataclass(frozen=True)
-class CampaignManifest:
-    """Immutable campaign pin: benchmark, tasks, frozen maps, models, budgets, prompts."""
-
-    campaign_id: str
-    benchmark: str
-    pin: str
-    tasks: list[str]
-    requirement_maps: list[RequirementMap]
-    models: dict[str, Any]
-    budgets: dict[str, Any]
-    prompt_shas: dict[str, str]
-
-
-def manifest_digest(manifest: CampaignManifest) -> str:
-    """Hash-pin a manifest; any requirement-map change yields a new digest."""
-    payload = json.dumps(
-        {
-            "campaign_id": manifest.campaign_id,
-            "benchmark": manifest.benchmark,
-            "pin": manifest.pin,
-            "tasks": list(manifest.tasks),
-            "requirement_maps": [
-                {
-                    "task": mapping.task,
-                    "sha256": mapping.sha256,
-                    "items": [
-                        {
-                            "req_id": item.req_id,
-                            "text": item.text,
-                            "covered_by": list(item.covered_by),
-                        }
-                        for item in mapping.items
-                    ],
-                }
-                for mapping in manifest.requirement_maps
-            ],
-            "models": manifest.models,
-            "budgets": manifest.budgets,
-            "prompt_shas": manifest.prompt_shas,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
 # --------------------------------------------------------------------------- #
 # Hypothesis lifecycle
 # --------------------------------------------------------------------------- #
@@ -227,59 +136,6 @@ def manifest_digest(manifest: CampaignManifest) -> str:
 _ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
     "candidate": frozenset({"promoted", "attached", "merged", "rejected", "inconclusive"})
 }
-
-
-@dataclass
-class Hypothesis:
-    """One suspected grader defect, from candidate to a terminal disposition."""
-
-    id: str
-    task: str
-    requirement_ids: list[str]
-    statement: str
-    status: HypothesisStatus = "candidate"
-    evidence: list[Any] = field(default_factory=list)
-    history: list[dict[str, str]] = field(default_factory=list)
-
-
-def raise_hypothesis(
-    *,
-    id: str,
-    task: str,
-    statement: str,
-    requirement_ids: Sequence[str] = (),
-    evidence: Sequence[Any] = (),
-    note: str = "",
-) -> Hypothesis:
-    """Raise a new candidate hypothesis with its genesis history entry."""
-    return Hypothesis(
-        id=id,
-        task=task,
-        requirement_ids=list(requirement_ids),
-        statement=statement,
-        status="candidate",
-        evidence=list(evidence),
-        history=[{"from": "genesis", "to": "candidate", "note": note}],
-    )
-
-
-def transition_hypothesis(
-    hypothesis: Hypothesis, to: HypothesisStatus, note: str = ""
-) -> Hypothesis:
-    """Move a candidate to promoted|attached|merged|rejected|inconclusive.
-
-    Terminal dispositions have no outgoing transitions. Every move appends a
-    ``{from, to, note}`` history entry.
-    """
-    allowed = _ALLOWED_TRANSITIONS.get(hypothesis.status, frozenset())
-    if to not in allowed:
-        raise ValueError(
-            f"hypothesis {hypothesis.id}: cannot transition "
-            f"{hypothesis.status} -> {to} (allowed: {sorted(allowed) or 'none'})"
-        )
-    hypothesis.history.append({"from": hypothesis.status, "to": to, "note": note})
-    hypothesis.status = to
-    return hypothesis
 
 
 # --------------------------------------------------------------------------- #
@@ -350,93 +206,5 @@ def run_controls(
 
 #: Per-task red audit: ``(task_id, broadcast_hints) -> hypotheses``. The
 #: factory closes over whatever the agent needs (client, budget, grade_fn).
-RedFactory = Callable[[str, Sequence[str]], list["Hypothesis"]]
 
 
-@dataclass
-class WaveResult:
-    """One orchestrated wave: collected hypotheses, next-wave hints, skips."""
-
-    campaign_id: str
-    hypotheses: list[Hypothesis]
-    broadcast: list[str]
-    skipped_task_broken: list[str]
-
-
-def _defect_key(evidence: Sequence[Any]) -> tuple[str, str] | None:
-    """(family, class) of the first evidence item that carries both, else None."""
-    for item in evidence:
-        if not isinstance(item, Mapping):
-            continue
-        defect = item.get("defect")
-        node = defect if isinstance(defect, Mapping) else item
-        family, cls = node.get("family"), node.get("class")
-        if isinstance(family, str) and family and isinstance(cls, str) and cls:
-            return (family, cls)
-    return None
-
-
-def synthesize_broadcast(hypotheses: Sequence[Hypothesis]) -> list[str]:
-    """Hint strings for the next wave from confirmed (promoted) patterns.
-
-    Hypotheses promoted by the blind adjudicator group by defect
-    ``(family, class)`` from their evidence; every class with 2+ confirmations
-    emits one hint: ``in this universe, verifiers of family F fail to check C
-    -- test whether this task's verifier also fails``.
-    """
-    grouped: dict[tuple[str, str], int] = {}
-    for hypothesis in hypotheses:
-        if hypothesis.status != "promoted":
-            continue
-        key = _defect_key(hypothesis.evidence)
-        if key is not None:
-            grouped[key] = grouped.get(key, 0) + 1
-    return [
-        f"in this universe, verifiers of family {family} fail to check {cls} "
-        "-- test whether this task's verifier also fails"
-        for (family, cls) in sorted(grouped)
-        if grouped[(family, cls)] >= 2
-    ]
-
-
-def run_wave(
-    manifest: CampaignManifest,
-    tasks: Sequence[str],
-    red_factory: RedFactory,
-    broadcast: Sequence[str] = (),
-    grade_fn: GradeFn | None = None,
-    packages: Mapping[str, str | Path] | None = None,
-) -> WaveResult:
-    """Run one wave: controls per task, then that task's red agent, then broadcast.
-
-    Tasks run SEQUENTIALLY (no threads). ``run_matrix`` itself already fans out
-    internally (see ``_Audit.execute`` in verifier_mutation.py, which maps
-    matrices over a ThreadPoolExecutor), so per-task red-agent loops add no
-    parallelism here: red agents carry mutable prompt/grade state that is not
-    designed for concurrent use, and the local posture stays at most 2
-    concurrent trials. Threads would require proving that shared red-agent
-    state -- not just ``run_matrix`` -- is thread-safe; it is not.
-
-    When ``grade_fn`` is given, harness controls gate every task: ``task_broken``
-    tasks land in ``skipped_task_broken`` and see no red agent. Without a
-    ``grade_fn`` (offline composition), every task is audited.
-    """
-    hints = list(broadcast)
-    collected: list[Hypothesis] = []
-    skipped: list[str] = []
-    for task_id in tasks:
-        if grade_fn is not None:
-            if packages is None or task_id not in packages:
-                raise ValueError(f"task {task_id}: no package mapping to run harness controls")
-            controls = run_controls(packages[task_id], grade_fn, task=task_id)
-            if controls.verdict == "task_broken":
-                skipped.append(task_id)
-                continue
-        collected.extend(red_factory(task_id, hints))
-    confirmed = [hypothesis for hypothesis in collected if hypothesis.status == "promoted"]
-    return WaveResult(
-        campaign_id=manifest.campaign_id,
-        hypotheses=collected,
-        broadcast=synthesize_broadcast(confirmed),
-        skipped_task_broken=skipped,
-    )

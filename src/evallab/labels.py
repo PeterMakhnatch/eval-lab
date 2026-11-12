@@ -12,16 +12,14 @@ import json
 import tempfile
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from evallab.evidence.facts import AnalyzerCallable
 from evallab.schemas import (
     AnalysisEvidenceCitation,
     AnalysisProvenance,
@@ -68,11 +66,6 @@ BEHAVIOR_LABELS_PARQUET_SCHEMA = pa.schema([
     pa.field("output_tokens", pa.int64()),
     pa.field("cost_usd", pa.float64()),
 ])
-
-
-def _digest_json(value: Any) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
 
 
 def _label_id(
@@ -289,126 +282,6 @@ def propose_heuristic_label(outline: TrajectoryOutline) -> BehaviorLabel:
     )
 
 
-def _model_label_schema() -> dict[str, Any]:
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["label", "rationale", "confidence", "evidence"],
-        "properties": {
-            "label": {"type": "string", "minLength": 1},
-            "rationale": {"type": "string", "minLength": 1},
-            "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
-            "evidence": {
-                "type": "array",
-                "minItems": 1,
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": ["step_id", "supports"],
-                    "properties": {
-                        "step_id": {"type": "integer", "minimum": 1},
-                        "supports": {"type": "string", "minLength": 1},
-                    },
-                },
-            },
-        },
-    }
-
-
-def _model_confidence(value: object) -> Literal["low", "medium", "high"]:
-    if value == "low":
-        return "low"
-    if value == "medium":
-        return "medium"
-    if value == "high":
-        return "high"
-    raise TrajectoryError("model label confidence must be low, medium, or high")
-
-
-def label_trajectory_with_model(
-    outline: TrajectoryOutline,
-    *,
-    adapter: AnalyzerCallable,
-    model: str,
-    agent: str,
-    agent_version: str,
-    rubric_digest: str,
-    author: str | None = None,
-) -> BehaviorLabel:
-    """Call a guarded analyzer and validate one semantic trajectory label."""
-    if outline.status != "featured":
-        raise TrajectoryError("cannot model-label an unavailable trajectory")
-    schema = _model_label_schema()
-    prompt_payload = {
-        "instruction": (
-            "Label the dominant agent behavior. Cite only recorded step IDs; "
-            "do not infer unobserved filesystem effects."
-        ),
-        "trajectory": outline.to_dict(),
-    }
-    prompt = json.dumps(prompt_payload, sort_keys=True, separators=(",", ":"))
-    result = adapter(prompt, schema)
-    response = json.loads(result.raw_output)
-    if not isinstance(response, dict):
-        raise TrajectoryError("model label response must be an object")
-    required = {"label", "rationale", "confidence", "evidence"}
-    if set(response) != required:
-        raise TrajectoryError("model label response fields do not match output schema")
-    valid_steps = {step.step_id for step in outline.steps}
-    evidence: list[AnalysisEvidenceCitation] = []
-    raw_evidence = response["evidence"]
-    if not isinstance(raw_evidence, list) or not raw_evidence:
-        raise TrajectoryError("model label requires at least one evidence citation")
-    for item in raw_evidence:
-        if not isinstance(item, dict) or set(item) != {"step_id", "supports"}:
-            raise TrajectoryError("invalid model-label evidence citation")
-        step_id = item["step_id"]
-        if not isinstance(step_id, int) or step_id not in valid_steps:
-            raise TrajectoryError(f"model label cites unknown step {step_id!r}")
-        evidence.append(AnalysisEvidenceCitation(
-            path="agent/trajectory.json", step_id=step_id, supports=str(item["supports"])
-        ))
-    normalized = str(response["label"]).strip().lower()
-    if not normalized:
-        raise TrajectoryError("model label must not be empty")
-    provenance = AnalysisProvenance(
-        agent=agent,
-        agent_version=agent_version,
-        model=model,
-        prompt_digest=_digest_json(prompt_payload),
-        rubric_digest=rubric_digest,
-        output_schema_digest=_digest_json(schema),
-        created_at=datetime.now(UTC),
-        input_tokens=result.input_tokens,
-        output_tokens=result.output_tokens,
-        cost_usd=result.cost_usd,
-    )
-    label_author = author or f"{agent}:{model}"
-    return BehaviorLabel(
-        label_id=_label_id(
-            target_type="trajectory", target_id=outline.trial_id,
-            taxonomy=TRAJECTORY_BEHAVIOR_TAXONOMY,
-            provenance="model", author=label_author,
-        ),
-        target_type="trajectory",
-        target_id=outline.trial_id,
-        job_id=outline.job_id,
-        trial_id=outline.trial_id,
-        trial_name=outline.trial_name,
-        task_name=outline.task_name,
-        taxonomy=TRAJECTORY_BEHAVIOR_TAXONOMY,
-        label=normalized,
-        rationale=str(response["rationale"]),
-        provenance="model",
-        author=label_author,
-        created_at=provenance.created_at,
-        confidence=_model_confidence(response["confidence"]),
-        evidence=evidence,
-        source_sha256=_normalize_digest(outline.source_sha256),
-        model_provenance=provenance,
-    )
-
-
 def label_from_analysis_sidecar(sidecar: TrialAnalysisSidecar) -> BehaviorLabel:
     output = sidecar.output
     provenance = sidecar.analysis_provenance
@@ -440,168 +313,3 @@ def label_from_analysis_sidecar(sidecar: TrialAnalysisSidecar) -> BehaviorLabel:
     )
 
 
-@dataclass(frozen=True)
-class BehaviorEpisodeReviewItem:
-    """A deterministic review item retaining the source episode envelope."""
-
-    behavior: str
-    trial_id: str
-    document_id: str
-    start_step: int
-    end_step: int
-    trajectory_id: str | None
-    session_id: str | None
-    candidate_status: str | None
-    human_status: str | None
-    candidate_evidence_step_ids: tuple[int, ...]
-    candidate_evidence_span_ids: tuple[str, ...]
-    human_evidence_step_ids: tuple[int, ...]
-    human_evidence_span_ids: tuple[str, ...]
-    candidate_provenance: dict[str, Any] | None
-    human_provenance: dict[str, Any] | None
-    reason: str
-
-
-def select_behavior_episode_review_queue(
-    episodes: Sequence[Any], *, limit: int = 50
-) -> list[BehaviorEpisodeReviewItem]:
-    """Prioritize disagreements, then unreviewed candidate episodes."""
-
-    if limit <= 0:
-        return []
-    from evallab.behavior_calibration import calibrate_behavior_episodes
-
-    def value(episode: Any, name: str, default: Any = None) -> Any:
-        if isinstance(episode, dict):
-            return episode.get(name, default)
-        return getattr(episode, name, default)
-
-    def tuple_text(value_: Any) -> tuple[str, ...]:
-        if value_ is None:
-            return ()
-        if isinstance(value_, str):
-            return (value_,)
-        return tuple(str(item) for item in value_)
-
-    def tuple_int(value_: Any) -> tuple[int, ...]:
-        if value_ is None:
-            return ()
-        if isinstance(value_, (str, bytes)):
-            return (int(value_),)
-        return tuple(int(item) for item in value_)
-
-    def route(label: str) -> str:
-        return "recovered_progress" if label == "unresolved_error" else label
-
-    def identity(episode: Any) -> tuple[Any, ...]:
-        return (
-            str(value(episode, "trial_id", "")), str(value(episode, "document_id", "")),
-            value(episode, "trajectory_id"), value(episode, "session_id"),
-            int(value(episode, "start_step", 0)), int(value(episode, "end_step", 0)),
-        )
-
-    def provenance(episode: Any) -> dict[str, Any] | None:
-        if episode is None:
-            return None
-        return {
-            "annotator_kind": value(episode, "annotator_kind"),
-            "annotator_id": value(episode, "annotator_id"),
-            "source_sha256": value(episode, "source_sha256"),
-            "input_digest": value(episode, "input_digest"),
-            "catalog_version": value(episode, "catalog_version"),
-            "detector_version": value(episode, "detector_version"),
-            "rubric_version": value(episode, "rubric_version"),
-        }
-
-    candidates = [
-        episode for episode in episodes
-        if value(episode, "annotator_kind") != "human"
-        and value(episode, "status", "candidate") != "rejected"
-    ]
-    human = [
-        episode for episode in episodes
-        if value(episode, "annotator_kind") == "human"
-        and value(episode, "status") in {"reviewed", "confirmed", "rejected"}
-    ]
-    report = calibrate_behavior_episodes(candidates, human)
-    by_key: dict[tuple[Any, ...], list[Any]] = {}
-    for episode in candidates:
-        by_key.setdefault(identity(episode), []).append(episode)
-    human_labels = {
-        (identity(episode), route(str(value(episode, "label", "")))) for episode in human
-    }
-
-    def item(
-        behavior: str,
-        candidate: Any,
-        human_episode: Any,
-        reason: str,
-    ) -> BehaviorEpisodeReviewItem:
-        source = candidate if candidate is not None else human_episode
-        return BehaviorEpisodeReviewItem(
-            behavior=behavior,
-            trial_id=str(value(source, "trial_id", "")),
-            document_id=str(value(source, "document_id", "")),
-            start_step=int(value(source, "start_step", 0)),
-            end_step=int(value(source, "end_step", 0)),
-            trajectory_id=value(source, "trajectory_id"),
-            session_id=value(source, "session_id"),
-            candidate_status=value(candidate, "status") if candidate is not None else None,
-            human_status=value(human_episode, "status") if human_episode is not None else None,
-            candidate_evidence_step_ids=tuple_int(value(candidate, "evidence_step_ids", ())),
-            candidate_evidence_span_ids=tuple_text(value(candidate, "evidence_span_ids", ())),
-            human_evidence_step_ids=tuple_int(value(human_episode, "evidence_step_ids", ())),
-            human_evidence_span_ids=tuple_text(value(human_episode, "evidence_span_ids", ())),
-            candidate_provenance=provenance(candidate),
-            human_provenance=provenance(human_episode),
-            reason=reason,
-        )
-
-    disagreements: list[BehaviorEpisodeReviewItem] = []
-    for disagreement in report.disagreements:
-        key = (
-            disagreement["trial_id"], disagreement["document_id"], disagreement["trajectory_id"],
-            disagreement["session_id"], disagreement["start_step"], disagreement["end_step"],
-        )
-        candidates_for_key = [
-            episode for episode in by_key.get(key, ())
-            if (
-                value(episode, "label") == disagreement["candidate_label"]
-                or (
-                    disagreement["candidate_label"] is None
-                    and route(str(value(episode, "label", ""))) == disagreement["behavior"]
-                )
-            )
-        ]
-        human_for_key = [
-            episode for episode in human
-            if identity(episode) == key and value(episode, "label") == disagreement["human_label"]
-        ]
-        candidate = sorted(
-            candidates_for_key, key=lambda ep: str(value(ep, "episode_id", ""))
-        )[0] if candidates_for_key else None
-        human_episode = sorted(
-            human_for_key, key=lambda ep: str(value(ep, "episode_id", ""))
-        )[0] if human_for_key else None
-        disagreements.append(
-            item(disagreement["behavior"], candidate, human_episode, disagreement["reason"])
-        )
-    disagreements.sort(key=lambda value_: (
-        value_.behavior, value_.trial_id, value_.document_id, value_.start_step,
-        value_.end_step, value_.reason,
-    ))
-
-    unreviewed: list[BehaviorEpisodeReviewItem] = []
-    for key, values in by_key.items():
-        for episode in values:
-            if value(episode, "status", "candidate") != "candidate":
-                continue
-            label = route(str(value(episode, "label", "")))
-            if (key, label) in human_labels:
-                continue
-            unreviewed.append(item(label, episode, None, "unreviewed_candidate"))
-    unreviewed.sort(key=lambda value_: (
-        value_.behavior, value_.trial_id, value_.document_id, value_.start_step,
-        value_.end_step, value_.candidate_evidence_step_ids, value_.candidate_evidence_span_ids,
-    ))
-    return (disagreements + unreviewed)[:limit]

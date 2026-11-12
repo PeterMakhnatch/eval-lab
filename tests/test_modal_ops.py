@@ -22,7 +22,6 @@ from evallab.modal_ops import (
     TEARDOWN_FILENAME,
     DaytonaSandboxCounts,
     daytona_sandbox_counts,
-    describe_teardown,
     is_selfhosted_model,
     remaining_selfhosted_specs,
     stop_selfhosted_app_if_drained,
@@ -708,86 +707,6 @@ def test_daytona_helper_reports_listing_failure(
     assert counts.harbor_managed is None
     assert counts.matched is None
     assert counts.reason == "RuntimeError: Invalid credentials"
-
-
-def test_describe_teardown_reports_daytona_census() -> None:
-    record = {
-        "app": MODAL_APP_NAME,
-        "stopped": True,
-        "app_state": "stopped",
-        "container_count": 0,
-        "daytona_sandboxes": {
-            "total": 9,
-            "harbor_managed": 7,
-            "matched": None,
-            "reason": None,
-        },
-    }
-    assert describe_teardown(record) == (
-        f"modal teardown: stopped {MODAL_APP_NAME} "
-        "(state=stopped, containers=0); "
-        "daytona sandboxes: 7 harbor-managed / 9 total"
-    )
-
-
-def test_describe_teardown_reads_legacy_count_receipts() -> None:
-    record = {
-        "app": MODAL_APP_NAME,
-        "stopped": True,
-        "app_state": "stopped",
-        "container_count": 0,
-        "daytona_sandboxes": {"count": 7, "reason": None},
-    }
-    assert describe_teardown(record).endswith("daytona sandboxes: 7 total")
-
-
-def test_describe_teardown_marks_daytona_unknown() -> None:
-    record = {
-        "app": MODAL_APP_NAME,
-        "stopped": True,
-        "app_state": "stopped",
-        "container_count": 0,
-        "daytona_sandboxes": {
-            "total": None,
-            "harbor_managed": None,
-            "matched": None,
-            "reason": "daytona-credentials-missing",
-        },
-    }
-    assert describe_teardown(record).endswith(
-        "daytona sandboxes: n/a (daytona-credentials-missing)"
-    )
-
-
-def test_describe_teardown_reports_skip_reason() -> None:
-    record = {"app": MODAL_APP_NAME, "stopped": False, "reason": "queue-not-drained"}
-    assert describe_teardown(record) == "modal teardown skipped: queue-not-drained"
-
-
-@pytest.mark.parametrize(
-    ("sandboxes", "suffix"),
-    [
-        pytest.param(None, "", id="absent"),
-        pytest.param(["not", "a", "mapping"], "", id="non-mapping"),
-        pytest.param({"total": None, "reason": None}, "", id="unknown-without-reason"),
-        pytest.param(
-            {"total": 9, "harbor_managed": 7, "matched": 2, "reason": None},
-            "; daytona sandboxes: 2 job-matched / 7 harbor-managed / 9 total",
-            id="job-matched",
-        ),
-    ],
-)
-def test_describe_teardown_daytona_suffix(sandboxes: object, suffix: str) -> None:
-    record = {
-        "app": MODAL_APP_NAME,
-        "stopped": True,
-        "app_state": "stopped",
-        "container_count": 0,
-        "daytona_sandboxes": sandboxes,
-    }
-    assert describe_teardown(record) == (
-        f"modal teardown: stopped {MODAL_APP_NAME} (state=stopped, containers=0){suffix}"
-    )
 
 
 def make_executor(root: Path, **overrides) -> Executor:

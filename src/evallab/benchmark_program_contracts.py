@@ -168,15 +168,6 @@ class CellFactorsA(ProgramContractModel):
     seed: int = Field(ge=0, description="Deterministic task generation seed")
 
 
-class CellFactorsB(ProgramContractModel):
-    """Vertical B: MCP-FuncDAG v2 factors."""
-
-    critical_path_depth: int = Field(ge=1, description="Critical path DAG depth")
-    parallel_width: int = Field(ge=1, description="Parallel node width per depth layer")
-    distractor_count: int = Field(ge=0, description="Count of unreferenced distractor tools")
-    seed: int = Field(ge=0, description="Deterministic DAG seed")
-
-
 class CellFactorsC(ProgramContractModel):
     """Vertical C: Single-Fault Recovery Twin factors."""
 

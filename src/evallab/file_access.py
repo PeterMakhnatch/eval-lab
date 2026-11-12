@@ -38,8 +38,6 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 FILE_ACCESS_SCHEMA = "evallab.file_access/v1"
-FILE_ACCESS_SNAPSHOT_SCHEMA = "evallab.file_access_snapshot/v1"
-FILE_ACCESS_PROBE_SCHEMA = "evallab.file_access_probe/v1"
 
 #: Per-trial observation log, relative to the trial directory.
 FILE_ACCESS_LOG = Path("agent/file-access.jsonl")
@@ -92,31 +90,23 @@ POLL_SECONDS = 2.0
 #: Bounded transport/storage caps (documented on coverage records when hit).
 MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024
 MAX_SAVED_EVENTS = 20_000
-MAX_HASH_BYTES = 8 * 1024 * 1024
-MAX_SNAPSHOT_FILES = 20_000
 REASON_MAX_CHARS = 500
 STDERR_TAIL_CHARS = 2_000
 
 #: Sandbox discovery candidates (plus the exec working directory and any
 #: evaluator-configured extras). The smoke workdir ``/testbed`` is included.
-DISCOVERY_CANDIDATES = ("/testbed", "/app", "/repo", "/workspace")
 
 #: Hidden git-history locations that never appear as a normal ``.git`` entry.
-MIMO_GIT_HIDDEN = "/var/lib/mimo/git-hidden"
 
 #: Default grader root inside the sandbox.
 DEFAULT_TESTS_DIR = "/tests"
 
 #: inotifywait framing: ``--format '%e%0%w%f%0' --no-newline`` emits NUL-joined
 #: ``(events, path)`` pairs with no line terminator.
-FRAME_FORMAT = "%e%0%w%f%0"
 
 #: How the sandbox helper is invoked for a live window.
-CAPTURE_BASE_EVENTS = ("open", "access")
-CAPTURE_LOSS_EVENTS = ("q_overflow", "ignored", "unmount")
 
 #: ``inotifywait`` stderr marker proving the initial watch set is registered.
-READINESS_MARKER = "Watches established."
 
 #: Timing bounds (seconds) for the controller side of a live window.
 READY_TIMEOUT_SEC = 20.0

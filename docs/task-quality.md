@@ -1289,7 +1289,10 @@ uv run evallab tasks lint path/to/task --json
 
 This command checks verifier separation, declared artifacts, solution presence,
 control expectation headers, and hidden inputs in Docker `COPY`/`ADD` operands.
-It reports unsupported syntax instead of silently accepting unreadable instructions.
+Operands are resolved against the task's `environment/` build context: a source
+that names `tests` or `solution` but leaves that context, follows a symlink out of
+it, or matches nothing inside it is an error. It reports unsupported syntax instead
+of silently accepting unreadable instructions.
 
 ## Native metadata and security checks
 

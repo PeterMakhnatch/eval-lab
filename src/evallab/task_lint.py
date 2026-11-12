@@ -167,6 +167,26 @@ def _docker_sources(arguments: str) -> list[str]:
     return operands[:-1]
 
 
+def _hidden_docker_source(source: str, context: Path) -> bool:
+    """Screen one COPY/ADD source operand against the Docker build context.
+
+    Harbor builds environment/Dockerfile with environment/ as the build context,
+    so a source naming tests or solution enters the agent image only from that
+    context. An operand that resolves to an existing context path is the task's
+    own agent-visible material; one that escapes the context, follows a symlink
+    out of it, or matches nothing still reaches for hidden verifier inputs.
+    """
+    if not {"tests", "solution"}.intersection(PurePosixPath(source.casefold()).parts):
+        return False
+    root = context.resolve()
+    try:
+        resolved = (root / source.lstrip("/")).resolve()
+        resolved.relative_to(root)
+    except (OSError, ValueError):
+        return True
+    return not resolved.exists()
+
+
 def _lint_dockerfile(dockerfile: Path) -> list[Finding]:
     findings: list[Finding] = []
 
@@ -213,11 +233,7 @@ def _lint_dockerfile(dockerfile: Path) -> list[Finding]:
         except ValueError as exc:
             syntax_error(start, str(exc))
             continue
-        hidden = [
-            source
-            for source in sources
-            if {"tests", "solution"}.intersection(PurePosixPath(source.casefold()).parts)
-        ]
+        hidden = [source for source in sources if _hidden_docker_source(source, dockerfile.parent)]
         if hidden:
             findings.append(
                 Finding(
@@ -225,7 +241,8 @@ def _lint_dockerfile(dockerfile: Path) -> list[Finding]:
                     "error",
                     str(dockerfile),
                     f"line {start}: COPY/ADD source operands {hidden!r} name tests or "
-                    "solution; hidden verifier inputs must not enter the agent image",
+                    "solution and do not resolve inside the environment build context; "
+                    "hidden verifier inputs must not enter the agent image",
                 )
             )
     if pending:

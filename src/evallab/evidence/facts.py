@@ -8,7 +8,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, get_args
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 import psycopg
@@ -25,7 +25,7 @@ from evallab.evidence.atif import (
     export_trajectories,
     project_trial,
 )
-from evallab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
+from evallab.results import JobRecord, TrialRecord, duration_seconds, sha256_file
 from evallab.runner import subscription_environment
 from evallab.schemas import (
     ANALYSIS_REVIEWS_DIRNAME,
@@ -33,7 +33,6 @@ from evallab.schemas import (
     AnalysisProvenance,
     AnalysisReview,
     AnalysisSourceDigests,
-    FailureCategory,
     TrialAnalysisOutput,
     TrialAnalysisSidecar,
 )
@@ -1032,22 +1031,6 @@ def export_job_fact_tables(
     return exported
 
 
-def export_facts(
-    jobs: list[JobRecord],
-    output_root: Path,
-    projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] | None = None,
-) -> ExportResult:
-    output_root = output_root.resolve()
-    exported: list[ExportedTable] = []
-    for job in sorted(jobs, key=lambda item: item.id):
-        job_projections = (
-            projections_by_job.setdefault(job.id, {}) if projections_by_job is not None else None
-        )
-        facts = extract_job_facts(job, projections=job_projections)
-        exported.extend(export_job_fact_tables(job, output_root, facts))
-    return ExportResult(root=output_root, tables=tuple(exported))
-
-
 def rebuild_job_from_raw(
     job: JobRecord,
     output_root: Path,
@@ -1300,43 +1283,6 @@ class AnalyzerCallResult:
 AnalyzerCallable = Callable[[str, dict[str, Any]], AnalyzerCallResult]
 
 
-@dataclass(frozen=True)
-class AnalysisPlan:
-    experiment_id: str | None
-    job_id: str
-    source_trial_id: str
-    source_trial_path: str
-    agent: str
-    agent_version: str
-    model: str
-    estimated_model_calls: int
-    maximum_model_calls: int
-    queue_policy_rule: str
-    destination_root: str
-    prompt_digest: str
-    rubric_digest: str
-    output_schema_digest: str
-
-
-def load_analysis_source(path: Path) -> tuple[JobRecord, TrialRecord]:
-    result_path = path / "result.json"
-    if not result_path.is_file():
-        raise ValueError(f"analysis source has no result.json: {path}")
-    result = json.loads(result_path.read_text())
-    if not isinstance(result, dict):
-        raise ValueError(f"analysis source result is not an object: {path}")
-    if "trial_name" in result and "task_name" in result:
-        job = load_job(path.parent)
-        trial = next((item for item in job.trials if item.path.resolve() == path.resolve()), None)
-        if trial is None:
-            raise ValueError(f"trial is not a member of parent job: {path}")
-        return job, trial
-    job = load_job(path)
-    if len(job.trials) != 1:
-        raise ValueError("analysis plan requires a trial path or a single-trial job")
-    return job, job.trials[0]
-
-
 def _analysis_file_digest(path: Path) -> str:
     return f"sha256:{sha256_file(path)}"
 
@@ -1347,48 +1293,6 @@ def _trial_tree_digests(trial_dir: Path) -> dict[str, str]:
         for path in sorted(trial_dir.rglob("*"))
         if path.is_file()
     }
-
-
-def analysis_plan(
-    job: JobRecord,
-    trial: TrialRecord,
-    *,
-    repo_root: Path,
-    destination_root: Path,
-    prompt_path: Path,
-    rubric_path: Path,
-    agent: str,
-    agent_version: str,
-    model: str,
-) -> AnalysisPlan:
-    schema = TrialAnalysisOutput.model_json_schema()
-    rubric = json.loads(rubric_path.read_text())
-    prompt = _render_analysis_prompt(
-        trial,
-        prompt_template=prompt_path.read_text(),
-        rubric=rubric,
-        schema=schema,
-    )
-    try:
-        source_path = trial.path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        source_path = trial.path.resolve().as_posix()
-    return AnalysisPlan(
-        experiment_id=experiment_id(job),
-        job_id=job.id,
-        source_trial_id=trial.id,
-        source_trial_path=source_path,
-        agent=agent,
-        agent_version=agent_version,
-        model=model,
-        estimated_model_calls=1,
-        maximum_model_calls=2,
-        queue_policy_rule="researcher-followups",
-        destination_root=_relative_or_absolute(destination_root, repo_root),
-        prompt_digest=_digest_bytes(prompt.encode()),
-        rubric_digest=digest_json(rubric),
-        output_schema_digest=digest_json(schema),
-    )
 
 
 def _render_analysis_prompt(
@@ -1852,121 +1756,3 @@ def ingest_analysis_sidecar(
     return sidecar
 
 
-def failure_taxonomy_agreement(
-    sidecar_roots: list[Path],
-    *,
-    labels_root: Path,
-    reference_root: Path | None = None,
-) -> dict[str, Any]:
-    def report_path(path: Path) -> str:
-        if reference_root is None:
-            return path.as_posix()
-        return _relative_or_absolute(path, reference_root)
-
-    label_paths = sorted(labels_root.glob("*.json"))
-    labels: dict[str, tuple[str, Path]] = {}
-    allowed_categories = set(get_args(FailureCategory))
-    for path in label_paths:
-        payload = json.loads(path.read_text())
-        if not isinstance(payload, dict):
-            raise ValueError(f"trajectory label is not an object: {path}")
-        trial_name = payload.get("trial_name")
-        category = payload.get("primary_category")
-        if not isinstance(trial_name, str) or not isinstance(category, str):
-            raise ValueError(f"trajectory label lacks trial_name/category: {path}")
-        if category not in allowed_categories:
-            raise ValueError(f"trajectory label has unknown category {category!r}: {path}")
-        if trial_name in labels:
-            raise ValueError(f"duplicate trajectory label for {trial_name}")
-        labels[trial_name] = (category, path)
-
-    discovered: dict[Path, None] = {}
-    for root in sidecar_roots:
-        resolved = root.resolve()
-        if resolved.is_file() and resolved.name == ANALYSIS_SIDECAR_FILENAME:
-            discovered[resolved] = None
-        elif resolved.is_dir():
-            for path in resolved.rglob(ANALYSIS_SIDECAR_FILENAME):
-                discovered[path.resolve()] = None
-
-    rows: list[dict[str, Any]] = []
-    valid_predicted_trials: set[str] = set()
-    unmatched_predictions: list[str] = []
-    invalid_analyses = 0
-    for path in sorted(discovered):
-        sidecar = TrialAnalysisSidecar.model_validate_json(path.read_text())
-        trial_name = Path(sidecar.source_trial_path).name
-        if sidecar.validation_status == "valid":
-            valid_predicted_trials.add(trial_name)
-        else:
-            invalid_analyses += 1
-        label = labels.get(trial_name)
-        if label is None:
-            unmatched_predictions.append(str(sidecar.analysis_id))
-            continue
-        expected, label_path = label
-        rows.append(
-            {
-                "analysis_id": str(sidecar.analysis_id),
-                "trial_name": trial_name,
-                "analysis_validation_status": sidecar.validation_status,
-                "predicted_category": sidecar.output.primary_category,
-                "expected_category": expected,
-                "exact_match": sidecar.output.primary_category == expected,
-                "sidecar_path": report_path(path),
-                "sidecar_sha256": _analysis_file_digest(path),
-                "label_path": report_path(label_path),
-                "label_sha256": _analysis_file_digest(label_path),
-            }
-        )
-    valid_rows = [row for row in rows if row["analysis_validation_status"] == "valid"]
-    matches = sum(bool(row["exact_match"]) for row in valid_rows)
-    return {
-        "schema_version": 1,
-        "labels_digest": digest_json(
-            [
-                {
-                    "path": report_path(path),
-                    "sha256": _analysis_file_digest(path),
-                }
-                for path in label_paths
-            ]
-        ),
-        "sidecars_digest": digest_json(
-            [
-                {"path": report_path(path), "sha256": _analysis_file_digest(path)}
-                for path in sorted(discovered)
-            ]
-        ),
-        "n_labels": len(labels),
-        "n_sidecars": len(discovered),
-        "n_matched_valid": len(valid_rows),
-        "n_invalid_analyses": invalid_analyses,
-        "exact_matches": matches,
-        "exact_agreement": matches / len(valid_rows) if valid_rows else None,
-        "label_coverage": (
-            len(set(labels) & valid_predicted_trials) / len(labels) if labels else None
-        ),
-        "unmatched_analysis_ids": sorted(unmatched_predictions),
-        "labels_without_valid_analysis": sorted(set(labels) - valid_predicted_trials),
-        "comparisons": sorted(rows, key=lambda row: (row["trial_name"], row["analysis_id"])),
-    }
-
-
-def write_failure_taxonomy_agreement(
-    sidecar_roots: list[Path],
-    *,
-    labels_root: Path,
-    output_path: Path,
-    reference_root: Path | None = None,
-) -> tuple[Path, dict[str, Any]]:
-    report = failure_taxonomy_agreement(
-        sidecar_roots,
-        labels_root=labels_root,
-        reference_root=reference_root,
-    )
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = output_path.with_suffix(output_path.suffix + ".tmp")
-    temporary.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
-    temporary.replace(output_path)
-    return output_path, report

@@ -2305,35 +2305,3 @@ class VerifiedAssetExporter:
         except BaseException:
             temporary.unlink(missing_ok=True)
             raise
-
-
-def export_training_bundle(
-    queue: ExporterQueue,
-    candidates: Iterable[Mapping[str, Any]],
-    out_dir: str | Path,
-    *,
-    repo_root: str | Path | None = None,
-) -> dict[str, Any]:
-    """Module-level Model Lab Training Gate over a production queue."""
-    return VerifiedAssetExporter(queue, repo_root=repo_root).export_training_bundle(
-        candidates, out_dir
-    )
-
-
-__all__ = [
-    "ASSET_KINDS",
-    "ASSET_MANIFEST_SCHEMA",
-    "ASSET_ROW_SCHEMA",
-    "AssetExportError",
-    "ExporterQueue",
-    "LABEL_ADJUDICATION_RECORD_SCHEMA",
-    "LABEL_ADJUDICATION_SCHEMA",
-    "LABEL_VERIFICATION_SCHEMA",
-    "MeasuredReceipt",
-    "TRACE_LABEL_SCHEMA",
-    "TRAINING_MANIFEST_SCHEMA",
-    "TRAINING_ROW_SCHEMA",
-    "VerifiedAssetExporter",
-    "export_training_bundle",
-    "verify_label_proof",
-]

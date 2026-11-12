@@ -13,11 +13,7 @@ from evallab.production.corpus_queue import (
     CorpusRegistry,
     IdempotencyConflict,
 )
-from evallab.production.ingest import (
-    ingest_corpus,
-    resolve_public_trace,
-    resolve_task_package,
-)
+from evallab.production.ingest import ingest_corpus
 
 TB4 = "tb4-audit-v1"
 MIMO = "mimo-defect-map-v1"
@@ -203,14 +199,21 @@ def test_missing_corrupt_and_unsafe_actor_refs_never_become_jobs(corpus) -> None
         reasons = {item["preflight"]["public_trajectory"]["reason"] for item in report["datasets"][HACK]["items"]}
         assert any("unavailable locally" in reason for reason in reasons)
         assert any("differs" in reason for reason in reasons)
-    assert resolve_public_trace(registry.get(CHEAT, "cheat-sealed"), repo_root=root) is None
-    item = registry.get(CHEAT, "cheat-dev")
-    item.metadata["actions_only_ref"]["path"] = "../results/cheat-dev"
-    assert resolve_public_trace(item, repo_root=root) is None
-    item = registry.get(CHEAT, "cheat-dev")
+    source = root / "research/answer-keys" / CHEAT / "items.jsonl"
+    rows = [json.loads(line) for line in source.read_text().splitlines()]
+    rows[0]["actions_only_ref"]["path"] = "../results/cheat-dev"
+    _jsonl(source, rows)
+    with ContinuousWorkQueue(":memory:", registry=CorpusRegistry(root)) as queue:
+        report = ingest_corpus(queue, dataset_ids=[CHEAT])
+        assert report["totals"]["queued"] == queue.queue_snapshot()["depth"] == 0
+        assert "source root" in report["datasets"][CHEAT]["items"][0]["preflight"]["public_trajectory"]["reason"]
+    rows[0]["actions_only_ref"]["path"] = "cheat-dev"
+    _jsonl(source, rows)
     (results / "cheat-dev/agent/trajectory.json").write_text("changed bytes")
-    # The unchanged full-view descriptor is not a corruption escape hatch.
-    assert resolve_public_trace(item, repo_root=root) is None
+    with ContinuousWorkQueue(":memory:", registry=CorpusRegistry(root)) as queue:
+        report = ingest_corpus(queue, dataset_ids=[CHEAT])
+        assert report["totals"]["queued"] == queue.queue_snapshot()["depth"] == 0
+        assert "differs" in report["datasets"][CHEAT]["items"][0]["preflight"]["public_trajectory"]["reason"]
 
 
 def _package(path: Path, *, compose: bool = False) -> Path:
@@ -327,25 +330,36 @@ def test_hash_matched_but_nonreplayable_actor_bytes_are_admitted_without_jobs(co
         assert len(queue.read_events()) == 1
 
 
-def test_runtime_package_resolution_requires_exact_registry_custody(corpus) -> None:
+def test_runtime_package_resolution_requires_exact_registry_custody(
+    corpus, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from evallab.registry import task_directory_digest
 
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
     root, _ = corpus
     original = _package(root / "public-package")
     other = _package(root / "different-package")
     (other / "instruction.md").write_text("Different exact task version.\n")
     digest = task_directory_digest(original)
     source = root / "research/answer-keys" / TB4 / "tasks.jsonl"
-    _jsonl(source, [_item(
-        "unused", "terminal-bench/task-a", package={"path": "public-package"},
-        subject={"task_id": "terminal-bench/task-a", "task_digest": digest},
-    )])
-    registry = CorpusRegistry(root)
-    item = registry.admit(TB4, "terminal-bench/task-a")
-    assert resolve_task_package(item, repo_root=root) == {
-        "task_package": "public-package", "task_package_digest": digest,
-    }
-    item.metadata["package"]["path"] = "different-package"
-    assert resolve_task_package(item, repo_root=root) is None
-    (original / "instruction.md").write_text("Mutated after admission.\n")
-    assert resolve_task_package(registry.admit(TB4, "terminal-bench/task-a"), repo_root=root) is None
+    for locator, mutate, verified in (
+        ("public-package", False, True),
+        ("different-package", False, False),
+        ("public-package", True, False),
+    ):
+        if mutate:
+            (original / "instruction.md").write_text("Mutated after admission.\n")
+        _jsonl(source, [_item(
+            "unused", "terminal-bench/task-a", package={"path": locator},
+            subject={"task_id": "terminal-bench/task-a", "task_digest": digest},
+        )])
+        with ContinuousWorkQueue(":memory:", registry=CorpusRegistry(root)) as queue:
+            report = ingest_corpus(queue, dataset_ids=[TB4])
+            item = next(
+                item for item in report["datasets"][TB4]["items"]
+                if item["item_id"] == "terminal-bench/task-a"
+            )
+            asset = item["preflight"]["task_package"]
+            assert asset["identity_verified"] is verified
+            assert asset["expected_digest"] == digest
+            assert report["totals"]["queued"] == queue.queue_snapshot()["depth"] == 0

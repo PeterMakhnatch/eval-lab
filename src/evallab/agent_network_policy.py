@@ -95,9 +95,6 @@ _AGENT_INLINE_RE = re.compile(r"""^\s*["']?agent["']?\s*=""")
 _AGENT_DOTTED_RE = re.compile(r"""^\s*["']?agent["']?\s*\.""")
 
 
-def _section_key_present(config: dict[str, Any], section: str, key: str) -> bool:
-    table = config.get(section)
-    return isinstance(table, dict) and key in table
 
 
 def build_task_toml(parent_text: str) -> str:
@@ -255,13 +252,3 @@ def derive_agent_network_none(
         inputs=inputs,
         **kwargs,
     )
-
-
-__all__ = [
-    "AGENT_NETWORK_MODE",
-    "TASK_TOML_REL",
-    "TRANSFORM_ID",
-    "build_changes",
-    "build_task_toml",
-    "derive_agent_network_none",
-]

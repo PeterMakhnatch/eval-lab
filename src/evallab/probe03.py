@@ -1161,15 +1161,6 @@ def _runs_and_trailing(
     return runs, trailing
 
 
-def _rejected_calls(
-    agent_seq: list[tuple[str, dict]], info: dict
-) -> tuple[str, Any, dict] | None:
-    """Earliest rejected turn the normalizer recovers calls for."""
-    for doc, step in agent_seq:
-        cell = info.get((doc, step.get("step_id")), {})
-        if cell.get("harness_accepted") == "false" and cell.get("n_calls", 0) > 0:
-            return (doc, step.get("step_id"), cell)
-    return None
 
 
 def _recovered(agent_seq: list[tuple[str, dict]], info: dict, after_doc: str, after_sid: Any) -> bool:

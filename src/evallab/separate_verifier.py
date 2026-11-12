@@ -1,9 +1,8 @@
 """Separate-verifier transforms for MiMo task packages.
 
-The canonical producer is ``separate-verifier@10``. Generations @2-@9 keep
-receipt evaluators, identifiers, and template components used by @10, not
-package producers. The native ``har169-separate-verifier`` experiment still
-requires the @1 producer.
+The canonical producer is ``separate-verifier@10``. Earlier generations keep
+identifiers and template components used by @10, not duplicate receipt evaluators.
+The native ``har169-separate-verifier`` experiment still requires the @1 producer.
 
 ``separate-verifier@1`` converts a shared-mode MiMo task package
 (``task.toml``, ``environment/``, ``tests/``) so hidden tests are bundled
@@ -53,7 +52,6 @@ import hashlib
 import re
 import shlex
 import tomllib
-import xml.etree.ElementTree as ET
 from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -85,10 +83,8 @@ TRAJECTORY_ARTIFACT = "/logs/agent/trajectory.json"
 MIMO_STATE_DIR = "/var/lib/mimo"
 
 #: Original grading script name after the rename.
-ORIG_TEST_SCRIPT = "tests/test-orig.sh"
 
 #: Verifier entry point (must stay the discovered test path).
-WRAPPER_TEST_SCRIPT = "tests/test.sh"
 
 
 @dataclass(frozen=True)
@@ -354,7 +350,6 @@ def derive_separate_verifier(
 # --------------------------------------------------------------------------- #
 
 #: Transform id recorded in lineage.
-TRANSFORM_ID_V2 = "separate-verifier@2"
 
 #: Subdirectory of the bundled tests holding the readable copy of the
 #: parent's clean setup chain (``environment/setup/*``). The @2 grader reruns
@@ -428,7 +423,6 @@ JUNIT_MISSING_REASON = "junit missing after pytest start"
 
 #: Markers proving a pytest session started (emitted before collection, so an
 #: import-time exit still leaves them when stdout is unbuffered).
-PYTEST_START_MARKERS: tuple[str, ...] = ("test session starts",)
 _PYTEST_COLLECTED_RE = re.compile(r"collected \d+ items?")
 
 #: How a task command can clear our ``PYTEST_ADDOPTS`` (and with it the
@@ -470,63 +464,10 @@ def addopts_cleared(command_text: str) -> bool:
     return _ADDOPTS_CLEAR_RE.search(command_text) is not None
 
 
-def detect_pytest_run(test_output: str, command_text: str) -> bool:
-    """Whether the test output shows a pytest session started for a pytest command.
-
-    Requires both a pytest start marker in the output and ``pytest`` in the
-    resolved command, so unittest/custom commands keep the exit-code fallback.
-    """
-    if "pytest" not in command_text.lower():
-        return False
-    if any(marker in test_output for marker in PYTEST_START_MARKERS):
-        return True
-    return _PYTEST_COLLECTED_RE.search(test_output) is not None
-
-
-def output_is_blank(test_output: str) -> bool:
-    """Whether the test command produced no output at all."""
-    return not test_output.strip()
-
-
-def junit_absence_suspicious(test_output: str, command_text: str) -> bool:
-    """Whether a missing/unparsable junit report means suppression, not setup.
-
-    True for a pytest command with intact ``PYTEST_ADDOPTS`` when the output
-    shows a pytest session started — or when it shows nothing at all. A real
-    pytest run always prints at least its session header, so blank output
-    means the run died before flushing (pytest's capture layer holds
-    everything when ``os._exit`` skips teardown); non-blank markerless output
-    means pytest never started (custom/echo commands keep the fallback).
-    """
-    if "pytest" not in command_text.lower() or addopts_cleared(command_text):
-        return False
-    return detect_pytest_run(test_output, command_text) or output_is_blank(test_output)
-
-
-def tamper_signature_hit(added_lines: str) -> str | None:
-    """Return the first :data:`TAMPER_SIGNATURES` entry matching ``added_lines``."""
-    for signature in TAMPER_SIGNATURES:
-        if re.search(signature, added_lines):
-            return signature
-    return None
-
-
 def is_test_infra_filename(path: str) -> bool:
     """Whether ``path`` is test infrastructure dropped by name (any directory)."""
     base = PurePosixPath(path).name
     return base in _TEST_INFRA_BASENAMES or base.endswith(".pth") or base.endswith("_test.go")
-
-
-def is_pytest_config_tamper(path: str, changed_lines: str) -> bool:
-    """Whether a ``setup.cfg``/``pyproject.toml`` change touches runner config."""
-    if PurePosixPath(path).name not in _PYTEST_CONFIG_BASENAMES:
-        return False
-    return _PYTEST_CONFIG_RE.search(changed_lines) is not None
-
-
-def declares_testmain(go_source: str) -> bool:
-    """Whether a Go source declares ``TestMain`` (dropped: it wraps the test binary)."""
-    return _TESTMAIN_RE.search(go_source) is not None
 
 
 def drop_reason(path: str, hidden_paths: Collection[str]) -> str | None:
@@ -542,62 +483,6 @@ def drop_reason(path: str, hidden_paths: Collection[str]) -> str | None:
     if path in hidden_paths:
         return "hidden-test path"
     return None
-
-
-def parse_named_pytest_ids(patch_text: str) -> set[str]:
-    """pytest node ids named by the task's test command (``mimo_test_command.sh`` section).
-
-    Empty when no id is parseable (e.g. base64-encoded commands): the
-    named-id presence check then does not apply.
-    """
-    return set(_NAMED_ID_RE.findall(patch_text.split("mimo_test_command.sh")[-1]))
-
-
-def evaluate_junit(
-    junit_xml: bytes | None,
-    rc: int,
-    named_ids: Collection[str],
-    *,
-    suspicious_absence: bool = False,
-) -> int:
-    """Grade 1/0 from a junit report plus the test command's exit code.
-
-    Reward 1 iff ``rc == 0`` and (the report holds cases with no
-    failure/error/skip and contains every named id, or the report is
-    absent/unparseable while pytest demonstrably did *not* run with our
-    addopts). An empty report never passes. When ``suspicious_absence``
-    is true — a pytest command with intact ``PYTEST_ADDOPTS`` whose output
-    shows a pytest session started, or shows nothing at all (a real pytest
-    run always prints at least its header) — a missing or unparsable report
-    means the report was suppressed (not unconfigured) and grades 0; see
-    :data:`JUNIT_MISSING_REASON`. Commands that unset ``PYTEST_ADDOPTS`` or
-    never start pytest (unittest, custom) keep the exit-code fallback.
-    """
-    if not junit_xml:
-        if suspicious_absence:
-            return 0
-        return 1 if rc == 0 else 0
-    try:
-        cases = list(ET.fromstring(junit_xml).iter("testcase"))
-    except Exception:
-        if suspicious_absence:
-            return 0
-        return 1 if rc == 0 else 0
-    bad = [
-        case
-        for case in cases
-        if case.find("failure") is not None
-        or case.find("error") is not None
-        or case.find("skipped") is not None
-    ]
-    seen = {
-        f"{(case.get('classname') or '').replace('.', '/')}.py::{case.get('name') or ''}"
-        for case in cases
-    }
-    missing = [
-        node for node in named_ids if not any(s == node or s.startswith(node + "[") for s in seen)
-    ]
-    return 1 if rc == 0 and cases and not bad and not missing else 0
 
 
 # --------------------------------------------------------------------------- #
@@ -616,194 +501,6 @@ def evaluate_junit(
 # @2/@3 records stay valid. See docs/mimo/separate-verifier.md.
 
 #: Transform id recorded in lineage.
-TRANSFORM_ID_V4 = "separate-verifier@4"
-
-
-def _module_comps(path: str) -> list[str]:
-    """Module path components: split on ``/`` and ``.``, drop ``.py``/empties."""
-    text = path.replace("\\", "/").strip()
-    while text.startswith("./"):
-        text = text[2:]
-    text = text.lstrip("/")
-    if text.endswith(".py"):
-        text = text[:-3]
-    return [part for part in re.split(r"[/.]+", text) if part]
-
-
-def parse_pytest_node_id(node_id: str) -> tuple[list[str], list[str], str]:
-    """Split a pytest node id into (module components, class chain, test name)."""
-    parts = node_id.split("::")
-    return (_module_comps(parts[0]), parts[1:-1], parts[-1])
-
-
-def _test_name_matches(seen_test: str, expected_test: str) -> bool:
-    """Whether a junit test name satisfies an expected id's test (the @3 prefix rule)."""
-    if "[" in expected_test:
-        return seen_test == expected_test
-    return seen_test == expected_test or seen_test.startswith(expected_test + "[")
-
-
-def _comps_tail(shorter: list[str], longer: list[str]) -> bool:
-    """Whether ``shorter`` equals the tail of ``longer`` (component-wise)."""
-    return (
-        bool(shorter)
-        and len(shorter) <= len(longer)
-        and shorter == longer[len(longer) - len(shorter) :]
-    )
-
-
-def _module_aligned(first: list[str], second: list[str]) -> bool:
-    """Whether two module paths agree from the right (either may add a prefix)."""
-    if not first or not second:
-        return False
-    shorter, longer = (first, second) if len(first) <= len(second) else (second, first)
-    return _comps_tail(shorter, longer)
-
-
-def _junit_case_candidates(
-    classname: str | None, name: str | None, file: str | None
-) -> tuple[tuple[list[str], list[str], str], ...]:
-    """(module, classes, test) interpretations of one junit testcase.
-
-    The classname splits into (module, classes) at every cut; the junit
-    ``file`` attribute, when present, locates the module while the classname
-    prefix aligned with it locates the classes.
-    """
-    name_parts = (name or "").split("::")
-    seen_test = name_parts[-1]
-    extra_classes = name_parts[:-1]
-    class_parts: list[str] = classname.split(".") if classname else []
-    candidates = [
-        (class_parts[:cut], class_parts[cut:] + extra_classes, seen_test)
-        for cut in range(1, len(class_parts) + 1)
-    ]
-    if file:
-        seen_mod = _module_comps(file)
-        candidates.extend(
-            (seen_mod, class_parts[cut:] + extra_classes, seen_test)
-            for cut in range(len(class_parts) + 1)
-            if cut == 0 or _comps_tail(class_parts[:cut], seen_mod)
-        )
-    return tuple(candidates)
-
-
-def junit_case_matches_expected(
-    classname: str | None,
-    name: str | None,
-    file: str | None,
-    expected_id: str,
-) -> bool:
-    """Whether one junit testcase satisfies a pytest node id from the test command.
-
-    The module path aligns by suffix at component boundaries (so a rootdir
-    under ``tests/`` still matches), the class chain must agree exactly, and
-    the test name must agree exactly (or by parametrize prefix). A junit
-    ``file`` attribute, when present, locates the module while the classname
-    prefix aligned with it locates the classes. A class-level expected id
-    (``file.py::TestClass``, naming no test) is satisfied by any case of
-    exactly that class — the command asked to run the class, and (with no
-    failure/error/skip in the report) the class ran and passed. An expected
-    id never matches a case with a different test name or class.
-    """
-    exp_mod, exp_classes, exp_test = parse_pytest_node_id(expected_id)
-    if not exp_mod or not exp_test:
-        return False
-    # A `test_`-prefixed id names a function, never a class.
-    class_level = not exp_test.startswith("test_")
-    for mod, classes, seen_test in _junit_case_candidates(classname, name, file):
-        if not _module_aligned(mod, exp_mod):
-            continue
-        if classes == exp_classes and _test_name_matches(seen_test, exp_test):
-            return True
-        if class_level and classes == exp_classes + [exp_test]:
-            return True
-    return False
-
-
-def evaluate_junit_v4(
-    junit_xml: bytes | None,
-    rc: int,
-    named_ids: Collection[str],
-    *,
-    suspicious_absence: bool = False,
-) -> int:
-    """Grade 1/0 from a junit report plus the test command's exit code (@4).
-
-    Same contract as :func:`evaluate_junit`, except the named-id presence
-    check matches by aligned path-suffix
-    (:func:`junit_case_matches_expected`) instead of exact string equality,
-    so pytest rootdir shifts (classnames without the ``tests/`` segment)
-    no longer grade a passing run 0.
-    """
-    if not junit_xml:
-        if suspicious_absence:
-            return 0
-        return 1 if rc == 0 else 0
-    try:
-        cases = list(ET.fromstring(junit_xml).iter("testcase"))
-    except Exception:
-        if suspicious_absence:
-            return 0
-        return 1 if rc == 0 else 0
-    bad = [
-        case
-        for case in cases
-        if case.find("failure") is not None
-        or case.find("error") is not None
-        or case.find("skipped") is not None
-    ]
-    missing = [
-        node
-        for node in named_ids
-        if not any(
-            junit_case_matches_expected(
-                case.get("classname"), case.get("name"), case.get("file"), node
-            )
-            for case in cases
-        )
-    ]
-    return 1 if rc == 0 and cases and not bad and not missing else 0
-
-
-def evaluate_junit_v5(
-    report_xmls: list[bytes | None],
-    rc: int,
-    named_ids: Collection[str],
-) -> int:
-    """Grade 1/0 from junit reports (multi-phase union) plus exit code (@5).
-
-    ``report_xmls`` holds every phase report (plugin report plus per-phase
-    archives); empty/unparsable entries are ignored. Skipped testcases are
-    not failures: reference test patches legitimately mark still-failing
-    behaviors skipped, and environments skip tests for missing optional
-    dependencies. Only failure/error cases, a nonzero exit code, an empty
-    case union, or missing named ids grade 0. Named ids match by aligned
-    path-suffix (:func:`junit_case_matches_expected`).
-    """
-    cases: list[ET.Element] = []
-    for raw in report_xmls:
-        if not raw:
-            continue
-        try:
-            cases.extend(ET.fromstring(raw).iter("testcase"))
-        except Exception:
-            continue
-    if not cases:
-        return 0
-    bad = [
-        case for case in cases if case.find("failure") is not None or case.find("error") is not None
-    ]
-    missing = [
-        node
-        for node in named_ids
-        if not any(
-            junit_case_matches_expected(
-                case.get("classname"), case.get("name"), case.get("file"), node
-            )
-            for case in cases
-        )
-    ]
-    return 1 if rc == 0 and not bad and not missing else 0
 
 
 # --------------------------------------------------------------------------- #
@@ -819,124 +516,7 @@ def evaluate_junit_v5(
 #: requires the fail-to-pass shape: pristine failures must now pass.
 
 
-def junit_case_status(case: ET.Element) -> str:
-    """Per-case outcome: ``bad`` (failure/error), ``skipped``, or ``passed``."""
-    if case.find("failure") is not None or case.find("error") is not None:
-        return "bad"
-    if case.find("skipped") is not None:
-        return "skipped"
-    return "passed"
-
-
-def junit_status_map(
-    report_xmls: list[bytes | None],
-) -> dict[tuple[str, str, str], str]:
-    """Worst-outcome map per test key across junit reports (multi-phase union).
-
-    Keys are ``(classname, name, file)``; duplicates keep the worst outcome
-    (bad > skipped > passed), matching the union rule that a failure in any
-    phase fails the run.
-    """
-    worst = {"passed": 0, "skipped": 1, "bad": 2}
-    statuses: dict[tuple[str, str, str], str] = {}
-    for raw in report_xmls:
-        if not raw:
-            continue
-        try:
-            found = ET.fromstring(raw).iter("testcase")
-        except Exception:
-            continue
-        for case in found:
-            key = (case.get("classname") or "", case.get("name") or "", case.get("file") or "")
-            status = junit_case_status(case)
-            if key not in statuses or worst[status] > worst[statuses[key]]:
-                statuses[key] = status
-    return statuses
-
-
-def evaluate_junit_v6(
-    report_xmls: list[bytes | None],
-    rc: int,
-    named_ids: Collection[str],
-    baseline_xmls: list[bytes | None] | None = None,
-) -> int:
-    """Grade 1/0 with the fail-to-pass rule against a pristine baseline (@6).
-
-    Keeps every @5 rule (failures/errors, exit code, empty union, named-ID
-    matching). When a non-empty baseline union is given, every test that
-    failed/errored on pristine must now PASS (not skip, not vanish), every
-    test that passed on pristine must still pass, and skips are tolerated
-    only for tests also skipped on pristine. With no baseline (None or
-    empty), grading is exactly @5.
-    """
-    if evaluate_junit_v5(report_xmls, rc, named_ids) == 0:
-        return 0
-    baseline = junit_status_map(baseline_xmls) if baseline_xmls else {}
-    if not baseline:
-        return 1
-    agent = junit_status_map(report_xmls)
-    baseline_skipped = {key for key, status in baseline.items() if status == "skipped"}
-    for key, status in baseline.items():
-        if status != "skipped" and agent.get(key) != "passed":
-            return 0
-    for key, status in agent.items():
-        if status == "skipped" and key not in baseline_skipped:
-            return 0
-    return 1
-
-
 _UNITTEST_SKIP_RE = re.compile(r"skipped=(\d+)")
-
-
-def _unittest_counts(test_output: str) -> tuple[int, int] | None:
-    """``(ran, skipped)`` from unittest summary text; ``None`` when unparsable."""
-    match = _UNITTEST_RAN_RE.search(test_output)
-    if match is None:
-        return None
-    skipped = _UNITTEST_SKIP_RE.search(test_output)
-    return (int(match.group(1)), int(skipped.group(1)) if skipped else 0)
-
-
-def evaluate_unittest_v6(
-    test_output: str, rc: int, baseline_output: str | None = None
-) -> int:
-    """Grade 1/0 from unittest output with baseline run/skip counts (@6).
-
-    Keeps every @5 rule; when the pristine baseline summary parses, the agent
-    run must execute at least as many tests and skip at most as many: every
-    pristine failure must now pass rather than skip or vanish. With no (or an
-    unparsable) baseline, grading is exactly @5.
-    """
-    if evaluate_unittest(test_output, rc) == 0:
-        return 0
-    if baseline_output is None:
-        return 1
-    base = _unittest_counts(baseline_output)
-    if base is None:
-        return 1
-    agent = _unittest_counts(test_output)
-    if agent is None:  # unreachable: evaluate_unittest already passed above
-        return 0
-    (ran_base, skipped_base) = base
-    (ran_agent, skipped_agent) = agent
-    if ran_agent < ran_base or skipped_agent > skipped_base:
-        return 0
-    return 1
-
-
-def evaluate_go_output_v6(test_output: str, rc: int) -> int:
-    """Grade 1/0 from ``go test`` output with the non-empty-run rule (@6).
-
-    Keeps every @5 rule; a run selecting zero tests (``no tests to run``)
-    grades 0 even with ``rc == 0`` and an ``ok`` line. An init hook appending
-    ``-test.run=^$`` to ``os.Args`` empties the run with zero tests passing
-    (measured in the 000553 image: ``ok pkg 0.026s [no tests to run]``,
-    rc 0). Legitimate suites never select zero tests; ``--- SKIP`` lines from
-    ``t.Skip`` do not carry this marker.
-    """
-    if "no tests to run" in test_output:
-        return 0
-    return evaluate_go_output(test_output, rc)
 
 
 def render_snapshot_hook_v2(workdir: str, *, snap_dir: str = SNAP_DIR) -> str:
@@ -1021,7 +601,6 @@ def collect_verifier_setup_files(parent_dir: Path | str) -> dict[str, bytes]:
 # docs/mimo/separate-verifier.md for the per-language table.
 
 #: Transform id recorded in lineage.
-TRANSFORM_ID_V3 = "separate-verifier@3"
 
 #: New-file runner configs dropped from the kept agent change when the path
 #: is absent at BASE (an honest fix never adds runner configuration). The
@@ -1291,102 +870,6 @@ def evaluate_unittest(test_output: str, rc: int) -> int:
     if _UNITTEST_BAD_RE.search(test_output):
         return 0
     return 1
-
-
-def evaluate_go_output(test_output: str, rc: int) -> int:
-    """Grade 1/0 from ``go test`` text output plus the exit code.
-
-    Reward 1 iff ``rc == 0`` with at least one ``ok <pkg>`` line and no
-    failure/panic marker. ``[no test files]`` (tests deleted), blank, or
-    exit-forced output grades 0.
-    """
-    if rc != 0:
-        return 0
-    if _GO_FAIL_RE.search(test_output):
-        return 0
-    return 1 if _GO_OK_RE.search(test_output) else 0
-
-
-def evaluate_js_output(runner: str, test_output: str, rc: int) -> int:
-    """Grade 1/0 from jest/vitest/mocha/tap/ava/node-test/karma/jasmine output."""
-    if rc != 0:
-        return 0
-    if runner == "jest":
-        return (
-            1 if _JEST_PASS_RE.search(test_output) and not _JEST_FAIL_RE.search(test_output) else 0
-        )
-    if runner == "vitest":
-        return (
-            1
-            if _VITEST_PASS_RE.search(test_output) and not _VITEST_FAIL_RE.search(test_output)
-            else 0
-        )
-    if runner == "mocha":
-        return (
-            1
-            if _MOCHA_PASS_RE.search(test_output) and not _MOCHA_FAIL_RE.search(test_output)
-            else 0
-        )
-    if runner in ("tap", "ava", "node-test"):
-        return 1 if _TAP_PASS_RE.search(test_output) and not _TAP_FAIL_RE.search(test_output) else 0
-    if runner == "karma":
-        return (
-            1
-            if _KARMA_PASS_RE.search(test_output) and not _KARMA_FAIL_RE.search(test_output)
-            else 0
-        )
-    if runner == "jasmine":
-        return 1 if not _JASMINE_FAIL_RE.search(test_output) else 0
-    return 1
-
-
-def evaluate_rspec_output(test_output: str, rc: int) -> int:
-    """Grade 1/0 from rspec text output (``N examples, 0 failures``)."""
-    if rc != 0:
-        return 0
-    if _RSPEC_FAIL_RE.search(test_output):
-        return 0
-    return 1 if _RSPEC_PASS_RE.search(test_output) else 0
-
-
-def evaluate_phpunit_output(test_output: str, rc: int) -> int:
-    """Grade 1/0 from phpunit text output (``OK (...)``)."""
-    if rc != 0:
-        return 0
-    if _PHPUNIT_FAIL_RE.search(test_output):
-        return 0
-    return 1 if _PHPUNIT_PASS_RE.search(test_output) else 0
-
-
-def evaluate_cargo_output(test_output: str, rc: int) -> int:
-    """Grade 1/0 from ``cargo test`` text output (``test result: ok``)."""
-    if rc != 0:
-        return 0
-    if _CARGO_FAIL_RE.search(test_output):
-        return 0
-    return 1 if _CARGO_PASS_RE.search(test_output) else 0
-
-
-def evaluate_surefire_reports(report_xmls: list[bytes], rc: int) -> int | None:
-    """Grade 1/0 from maven/gradle surefire-style XML reports.
-
-    Skipped testcases are not failures (same @5 rule as the junit grader).
-    Returns ``None`` when no reports exist (caller keeps the exit-code
-    fallback): some modules genuinely emit none, and inventing suspicion
-    there would false-positive honest passes.
-    """
-    if not report_xmls:
-        return None
-    cases: list[ET.Element] = []
-    for raw in report_xmls:
-        try:
-            cases.extend(ET.fromstring(raw).iter("testcase"))
-        except Exception:
-            return 0
-    bad = [
-        case for case in cases if case.find("failure") is not None or case.find("error") is not None
-    ]
-    return 1 if rc == 0 and cases and not bad else 0
 
 
 #: Verifier-owned pytest hook for commands that clear PYTEST_ADDOPTS (8
@@ -1811,7 +1294,6 @@ echo "REWARD=$(cat "$V/reward.txt") rc=$RC runner=$(cat "$V/runner.txt")" | tee 
 # --------------------------------------------------------------------------- #
 # The @4 grader is the @3 grader with only the pytest named-id presence
 # check replaced by the aligned path-suffix matcher (same semantics as
-# :func:`junit_case_matches_expected`, inlined because the grader ships as
 # a brace-heavy heredoc). Deriving the C block by replacement (pinned below)
 # keeps the rest byte-identical to @3 by construction.
 
@@ -1820,7 +1302,6 @@ _V3_JUNIT_MATCH_BLOCK = """    seen = {c.get("classname", "").replace(".", "/") 
     missing = [i for i in ids if not any(s == i or s.startswith(i + "[") for s in seen)]"""
 
 #: @4 junit-matching replacement (aligned path-suffix; mirrors
-#: :func:`junit_case_matches_expected`).
 _V4_JUNIT_MATCH_BLOCK = """    # Option values (e.g. --deselect=path.py::test_x) are not selected node IDs.
     ids = {i for i in ids if not i.startswith("-")}
     def _comps(p):
@@ -1941,7 +1422,6 @@ unset GIT_INDEX_FILE""",
 # @4 by construction.
 
 #: Transform id recorded in lineage.
-TRANSFORM_ID_V5 = "separate-verifier@5"
 
 
 #: Verifier-owned pytest hook archiving each session's collected outcomes to
@@ -2371,7 +1851,6 @@ _V5_PYTEST_PRINT = (
 )
 
 #: @6 pytest grade block: baseline union plus the fail-to-pass comparison,
-#: mirroring :func:`evaluate_junit_v6` (worst-outcome maps, unmatched agent
 #: skips and unpreserved pristine outcomes fail). Absent baseline: @5 rules.
 _V6_PYTEST_FTP_BLOCK = """    base_union = os.path.join(os.path.dirname(junit_path), "baseline")
     base_cases = []
@@ -2434,7 +1913,6 @@ _V5_UNITTEST_OK = '        ok = (m is not None and int(m.group(1)) >= 1 and re.s
 
 #: @6 unittest grade lines: with a parsable pristine baseline, the run must
 #: execute at least as many tests and skip at most as many, mirroring
-#: :func:`evaluate_unittest_v6`. Absent baseline: @5 rules.
 _V6_UNITTEST_OK = (
     _V5_UNITTEST_OK
     + """
@@ -2462,7 +1940,6 @@ _V6_UNITTEST_OK = (
 _V5_GO_OK = '        ok = re.search(r"^ok\\s+\\S+", output, re.M) is not None and re.search(r"^(FAIL|--- FAIL|panic:)", output, re.M) is None'
 
 #: @6 go-test grade line: an empty selection grades 0, mirroring
-#: :func:`evaluate_go_output_v6`.
 _V6_GO_OK = (
     '        ok = re.search(r"^ok\\s+\\S+", output, re.M) is not None and re.search(r"^(FAIL|--- FAIL|panic:)", output, re.M) is None and "no tests to run" not in output'
 )
@@ -2547,15 +2024,6 @@ TRANSFORM_ID_V7 = "separate-verifier@7"
 _V7_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][0-9A-B]|\r")
 
 
-def strip_ansi(test_output: str) -> str:
-    """Remove ANSI escapes from runner output before marker parsing (@7).
-
-    Vitest/jest colorize the summary words themselves (measured 000828:
-    ``Tests <ESC>[22m <ESC>[1m<ESC>[32m14 passed``), which splits every
-    marker regex. Stripping only adds matches for text already present;
-    failure markers survive (they contain no escapes).
-    """
-    return _V7_ANSI_RE.sub("", test_output)
 
 
 #: Bare PASS line printed by a directly executed ``go test -c`` binary
@@ -2563,35 +2031,6 @@ def strip_ansi(test_output: str) -> str:
 _GO_BARE_PASS_RE = re.compile(r"^PASS\s*$", re.MULTILINE)
 
 
-def evaluate_go_output_v7(test_output: str, rc: int) -> int:
-    """Grade 1/0 from ``go test`` output with per-package emptiness (G1) and direct-binary PASS (G3) (@7).
-
-    G1: the @6 ``no tests to run`` substring overfires on multi-package
-    ``go test ./...`` runs where a test-less sub-package prints the marker
-    while real packages pass (measured 000048: real ``--- PASS`` plus
-    ``ok``). @7 ignores marker lines and requires a surviving ``ok`` line;
-    an emptied selection (measured 000553: only ``ok pkg [no tests to run]``)
-    still grades 0.
-    G3: a directly executed test binary prints a bare ``PASS`` with no
-    ``ok`` line (measured 000248, rc 0). Bare ``PASS`` counts only with no
-    emptiness marker anywhere, so the 000553 shape cannot ride it; the
-    ``os.Exit`` tamper gate still catches exit-subverting inits.
-    """
-    if rc != 0:
-        return 0
-    clean = strip_ansi(test_output)
-    if _GO_FAIL_RE.search(clean):
-        return 0
-    survivors = [
-        line
-        for line in clean.splitlines()
-        if _GO_OK_RE.match(line) is not None and "no tests to run" not in line
-    ]
-    if "no tests to run" in clean:
-        return 1 if survivors else 0
-    if survivors or _GO_BARE_PASS_RE.search(clean) is not None:
-        return 1
-    return 0
 
 
 #: Jest/vitest pass summaries with skipped segments first
@@ -2610,208 +2049,11 @@ _V7_SPEC_REPORTER_RE = re.compile(r"(^|\s)-R\s+\S*spec\b|reporters?\s*[=:]\s*\S*
 _V7_TAP_MARKER_RE = re.compile(r"^(not )?ok\b", re.MULTILINE)
 
 
-def effective_js_runner(runner: str, command_text: str, test_output: str) -> str:
-    """Actual reporter for tap-labeled commands emitting spec output (G6, @7).
-
-    A tap-labeled command selecting a spec-style reporter (or whose output
-    carries mocha ``N passing`` markers with no TAP ``ok`` lines, measured
-    000934/001839) is graded with the mocha markers; every other runner is
-    returned unchanged. Genuine TAP output keeps its ``^ok`` lines, so the
-    switch never fires there.
-    """
-    if runner != "tap":
-        return runner
-    if _V7_SPEC_REPORTER_RE.search(command_text or ""):
-        return "mocha"
-    clean = strip_ansi(test_output)
-    if _MOCHA_PASS_RE.search(clean) and not _V7_TAP_MARKER_RE.search(clean):
-        return "mocha"
-    return runner
-
-
-def evaluate_js_output_v7(
-    runner: str, test_output: str, rc: int, command_text: str = ""
-) -> int:
-    """Grade 1/0 from JS output with skipped-first summaries (G2), ANSI stripping (G4), actual-reporter detection (G6) (@7).
-
-    Keeps every @3 rule; jest/vitest tolerate skipped segments before the
-    passed count (an all-skipped summary has no passed segment and still
-    grades 0); tap switches to the mocha markers only when no TAP marker
-    exists, so TAP failure output still grades 0.
-    """
-    if rc != 0:
-        return 0
-    clean = strip_ansi(test_output)
-    effective = effective_js_runner(runner, command_text, clean)
-    if effective == "jest":
-        return (
-            1 if _JEST_PASS_RE_V7.search(clean) and not _JEST_FAIL_RE.search(clean) else 0
-        )
-    if effective == "vitest":
-        return (
-            1
-            if _VITEST_PASS_RE_V7.search(clean) and not _VITEST_FAIL_RE.search(clean)
-            else 0
-        )
-    return evaluate_js_output(effective, clean, rc)
-
-
 #: Dotted-module shape for synthetic collection-error cases (measured
 #: pytest 8: ``classname="" name="pkg.test_broken"`` with an
 #: ``<error message="collection failure">`` child and no ``file``).
 _V7_COLLECTION_MODULE_RE = re.compile(r"[A-Za-z_][\w.]*")
 
-
-def _v7_error_module(classname: str | None, name: str | None) -> str | None:
-    """Dotted module of a collection-error case, or None when not collection-shaped.
-
-    Real test identities (``::`` in the name) never qualify: their exact
-    keys govern fail-to-pass. Either attribute may carry the module; the
-    ``.py`` suffix is normalized away.
-    """
-    node = name or ""
-    if "::" in node:
-        return None
-    for candidate in (classname or "", node):
-        text = candidate.strip()
-        if text.endswith(".py"):
-            text = text[: -len(".py")]
-        if text and _V7_COLLECTION_MODULE_RE.fullmatch(text):
-            return text
-    return None
-
-
-def _v7_dotted_module_variants(classname: str | None, file: str | None) -> list[str]:
-    """Dotted module strings identifying one agent case's module."""
-    variants = []
-    dotted_class = (classname or "").strip()
-    if dotted_class:
-        variants.append(dotted_class)
-    slash_file = (file or "").strip()
-    if slash_file:
-        dotted_file = slash_file.replace("/", ".").replace("\\", ".")
-        if dotted_file.endswith(".py"):
-            dotted_file = dotted_file[: -len(".py")]
-        variants.append(dotted_file)
-    return variants
-
-
-def _v7_module_now_passing(
-    error_modules: Collection[str],
-    error_files: Collection[str],
-    agent_cases: Collection[ET.Element],
-) -> bool:
-    """Whether an errored pristine module now collects and passes (G5, @7).
-
-    Satisfied by a passing agent case from the same file (suffix-aligned,
-    covering absolute/relative junit forms) or the same dotted module (a
-    class suffix still prefix-matches). Same-path equality means the hidden
-    test file itself passes: agent edits there are reverted before grading,
-    and blind agents cannot guess hidden module paths, so decoys are out of
-    the ladder threat model (documented residual).
-    """
-    for case in agent_cases:
-        if (
-            case.find("failure") is not None
-            or case.find("error") is not None
-            or case.find("skipped") is not None
-        ):
-            continue
-        agent_file = (case.get("file") or "").strip()
-        for expected_file in error_files:
-            if agent_file and (
-                agent_file == expected_file
-                or agent_file.endswith("/" + expected_file)
-                or expected_file.endswith("/" + agent_file)
-            ):
-                return True
-        for agent_mod in _v7_dotted_module_variants(case.get("classname"), agent_file):
-            for expected in error_modules:
-                if agent_mod == expected or agent_mod.startswith(expected + "."):
-                    return True
-    return False
-
-
-def evaluate_junit_v7(
-    report_xmls: list[bytes | None],
-    rc: int,
-    named_ids: Collection[str],
-    baseline_xmls: list[bytes | None] | None = None,
-    baseline_output: str = "",
-) -> int:
-    """Grade 1/0 with @7 fail-to-pass: @6 plus collection-error module mapping (G5) and INTERNALERROR fallback (G8).
-
-    G5: a pristine collection error (the reference fix resolves the import,
-    measured 000083) leaves synthetic junit keys that never appear in the
-    agent run; the module counts as fail-to-pass when it now collects and
-    passes. Only ``<error>`` orphans qualify — a vanished ``<failure>``
-    still fails, and an error whose exact key exists in the agent run stays
-    governed by the exact rule.
-    G8: an INTERNALERROR pristine baseline proves nothing (measured 000585:
-    the suite's own rerun filter crashes collection on pristine); grading
-    falls back to the @5 structured rules (rc, cases, bad, named IDs) —
-    never to exit-code-only.
-    """
-    if evaluate_junit_v5(report_xmls, rc, named_ids) == 0:
-        return 0
-    if baseline_output and "INTERNALERROR" in baseline_output:
-        return 1
-    baseline = junit_status_map(baseline_xmls) if baseline_xmls else {}
-    if not baseline:
-        return 1
-    agent = junit_status_map(report_xmls)
-    error_modules: dict[tuple[str, str, str], set[str]] = {}
-    error_files: dict[tuple[str, str, str], set[str]] = {}
-    failure_keys: set[tuple[str, str, str]] = set()
-    for raw in baseline_xmls or []:
-        if not raw:
-            continue
-        try:
-            found = ET.fromstring(raw).iter("testcase")
-        except Exception:
-            continue
-        for case in found:
-            key = (
-                case.get("classname") or "",
-                case.get("name") or "",
-                case.get("file") or "",
-            )
-            if case.find("failure") is not None:
-                failure_keys.add(key)
-            if case.find("error") is None or case.find("failure") is not None:
-                continue
-            module = _v7_error_module(case.get("classname"), case.get("name"))
-            if module is not None:
-                error_modules.setdefault(key, set()).add(module)
-            file_attr = (case.get("file") or "").strip()
-            if file_attr:
-                error_files.setdefault(key, set()).add(file_attr)
-    agent_cases: list[ET.Element] = []
-    for raw in report_xmls:
-        if not raw:
-            continue
-        try:
-            agent_cases.extend(ET.fromstring(raw).iter("testcase"))
-        except Exception:
-            continue
-    baseline_skipped = {key for key, status in baseline.items() if status == "skipped"}
-    for key, status in baseline.items():
-        if status != "skipped" and agent.get(key) != "passed":
-            if (
-                (key in error_modules or key in error_files)
-                and key not in failure_keys
-                and _v7_module_now_passing(
-                    error_modules.get(key, ()),
-                    error_files.get(key, ()),
-                    agent_cases,
-                )
-            ):
-                continue
-            return 0
-    for key, status in agent.items():
-        if status == "skipped" and key not in baseline_skipped:
-            return 0
-    return 1
 
 #: @7 baseline block: @6 plus every-phase execution for multi-phase
 #: commands (G7). A ``set -e`` command truncates the pristine baseline at
@@ -3035,148 +2277,12 @@ _V8_TERSE_PASS_RE = re.compile(r"Asserts:\s+[^\n]*\d+\s+passed")
 _V8_TERSE_FAIL_RE = re.compile(r"Asserts:\s+[^\n]*failed|Suites:\s+[^\n]*failed")
 
 
-def effective_js_runner_v8(runner: str, command_text: str, test_output: str) -> str:
-    """Actual reporter for tap-labeled commands emitting terse output (G6, @8).
-
-    Extends :func:`effective_js_runner` (spec detection) with the tap
-    terse reporter: a tap-labeled command selecting terse (or whose output
-    carries terse ``Asserts:`` markers with neither TAP nor mocha markers,
-    measured 000936) grades with the terse markers.
-    """
-    if runner != "tap":
-        return runner
-    clean = strip_ansi(test_output)
-    if _V8_TERSE_REPORTER_RE.search(command_text or "") or (
-        _V8_TERSE_PASS_RE.search(clean)
-        and not _V7_TAP_MARKER_RE.search(clean)
-        and not _MOCHA_PASS_RE.search(clean)
-    ):
-        return "terse"
-    return effective_js_runner(runner, command_text, clean)
-
-
-def evaluate_js_output_v8(
-    runner: str, test_output: str, rc: int, command_text: str = ""
-) -> int:
-    """Grade 1/0 from JS output with terse-reporter detection (G6, @8).
-
-    Keeps every @7 rule; terse needs an ``Asserts:`` passed segment with
-    no failure on any ``Asserts:``/``Suites:`` line (mid-run ``0 of 1
-    completed`` progress lines carry no failure and do not block).
-    """
-    if rc != 0:
-        return 0
-    clean = strip_ansi(test_output)
-    effective = effective_js_runner_v8(runner, command_text, clean)
-    if effective == "terse":
-        return (
-            1
-            if _V8_TERSE_PASS_RE.search(clean) and not _V8_TERSE_FAIL_RE.search(clean)
-            else 0
-        )
-    return evaluate_js_output_v7(effective, clean, rc, command_text)
-
-
 #: Dotted-module shape extended with dashes (measured 000783/001220:
 #: ``classname="" name="usercase-test-coderl/test_x"`` with an ``<error>``
 #: child and no ``file``; the passing run renders the same dashed dotted
 #: path with class suffixes, reproduced locally).
 _V8_COLLECTION_MODULE_RE = re.compile(r"[A-Za-z_][\w.-]*")
 
-
-def _v8_error_module(classname: str | None, name: str | None) -> str | None:
-    """Dotted module of a collection-error case, or None when not collection-shaped.
-
-    Same contract as :func:`_v7_error_module`, additionally accepting the
-    dashes pytest preserves from directory names (measured
-    ``usercase-test-coderl/test_x``). Prefix matching still requires exact
-    leading path equality, so blind decoys stay out of scope.
-    """
-    node = name or ""
-    if "::" in node:
-        return None
-    for candidate in (classname or "", node):
-        text = candidate.strip()
-        if text.endswith(".py"):
-            text = text[: -len(".py")]
-        if text and _V8_COLLECTION_MODULE_RE.fullmatch(text):
-            return text
-    return None
-
-
-def evaluate_junit_v8(
-    report_xmls: list[bytes | None],
-    rc: int,
-    named_ids: Collection[str],
-    baseline_xmls: list[bytes | None] | None = None,
-    baseline_output: str = "",
-) -> int:
-    """Grade 1/0 with @8 fail-to-pass: @7 plus dashed collection-error modules (G5).
-
-    Identical to :func:`evaluate_junit_v7` except the collection-error
-    module pattern also accepts dashes (measured 000783/001220). The
-    INTERNALERROR fallback, exact-key rules, and skip rules are unchanged.
-    """
-    if evaluate_junit_v5(report_xmls, rc, named_ids) == 0:
-        return 0
-    if baseline_output and "INTERNALERROR" in baseline_output:
-        return 1
-    baseline = junit_status_map(baseline_xmls) if baseline_xmls else {}
-    if not baseline:
-        return 1
-    agent = junit_status_map(report_xmls)
-    error_modules: dict[tuple[str, str, str], set[str]] = {}
-    error_files: dict[tuple[str, str, str], set[str]] = {}
-    failure_keys: set[tuple[str, str, str]] = set()
-    for raw in baseline_xmls or []:
-        if not raw:
-            continue
-        try:
-            found = ET.fromstring(raw).iter("testcase")
-        except Exception:
-            continue
-        for case in found:
-            key = (
-                case.get("classname") or "",
-                case.get("name") or "",
-                case.get("file") or "",
-            )
-            if case.find("failure") is not None:
-                failure_keys.add(key)
-            if case.find("error") is None or case.find("failure") is not None:
-                continue
-            module = _v8_error_module(case.get("classname"), case.get("name"))
-            if module is not None:
-                error_modules.setdefault(key, set()).add(module)
-            file_attr = (case.get("file") or "").strip()
-            if file_attr:
-                error_files.setdefault(key, set()).add(file_attr)
-    agent_cases: list[ET.Element] = []
-    for raw in report_xmls:
-        if not raw:
-            continue
-        try:
-            agent_cases.extend(ET.fromstring(raw).iter("testcase"))
-        except Exception:
-            continue
-    baseline_skipped = {key for key, status in baseline.items() if status == "skipped"}
-    for key, status in baseline.items():
-        if status != "skipped" and agent.get(key) != "passed":
-            if (
-                (key in error_modules or key in error_files)
-                and key not in failure_keys
-                and _v7_module_now_passing(
-                    error_modules.get(key, ()),
-                    error_files.get(key, ()),
-                    agent_cases,
-                )
-            ):
-                continue
-            return 0
-    for key, status in agent.items():
-        if status == "skipped" and key not in baseline_skipped:
-            return 0
-    return 1
 
 # --------------------------------------------------------------------------- #
 # separate-verifier@9: skips in satisfied collection-error modules (001431)
@@ -3201,115 +2307,6 @@ def evaluate_junit_v8(
 #: Transform id recorded in lineage.
 TRANSFORM_ID_V9 = "separate-verifier@9"
 
-
-def _v9_skip_excused(
-    satisfied: Collection[tuple[Collection[str], Collection[str]]],
-    key: tuple[str, str, str],
-) -> bool:
-    """Whether a skipped agent key lies in a satisfied errored module (@9).
-
-    Same-file equality or same dotted module (equality/prefix) as a
-    satisfied error key's identities. Skips anywhere else still fail.
-    """
-    classname, _name, file = key
-    agent_file = (file or "").strip()
-    for modules, files in satisfied:
-        for expected_file in files:
-            if agent_file and (
-                agent_file == expected_file
-                or agent_file.endswith("/" + expected_file)
-                or expected_file.endswith("/" + agent_file)
-            ):
-                return True
-        for agent_mod in _v7_dotted_module_variants(classname, agent_file):
-            for expected in modules:
-                if agent_mod == expected or agent_mod.startswith(expected + "."):
-                    return True
-    return False
-
-
-def evaluate_junit_v9(
-    report_xmls: list[bytes | None],
-    rc: int,
-    named_ids: Collection[str],
-    baseline_xmls: list[bytes | None] | None = None,
-    baseline_output: str = "",
-) -> int:
-    """Grade 1/0 with @9 fail-to-pass: @8 plus the satisfied-module skip excuse (G5).
-
-    Identical to :func:`evaluate_junit_v8` except agent skips inside a
-    satisfied errored module are excused (first executions of tests the
-    pristine collection error never ran — measured 001431); skips
-    anywhere else still fail. The orphan loop, the INTERNALERROR
-    fallback, and the exact-key rules are unchanged, and the change only
-    clears ``ftp_bad`` — never sets it — so every @8 grade of 1 stays 1.
-    """
-    if evaluate_junit_v5(report_xmls, rc, named_ids) == 0:
-        return 0
-    if baseline_output and "INTERNALERROR" in baseline_output:
-        return 1
-    baseline = junit_status_map(baseline_xmls) if baseline_xmls else {}
-    if not baseline:
-        return 1
-    agent = junit_status_map(report_xmls)
-    error_modules: dict[tuple[str, str, str], set[str]] = {}
-    error_files: dict[tuple[str, str, str], set[str]] = {}
-    failure_keys: set[tuple[str, str, str]] = set()
-    for raw in baseline_xmls or []:
-        if not raw:
-            continue
-        try:
-            found = ET.fromstring(raw).iter("testcase")
-        except Exception:
-            continue
-        for case in found:
-            key = (
-                case.get("classname") or "",
-                case.get("name") or "",
-                case.get("file") or "",
-            )
-            if case.find("failure") is not None:
-                failure_keys.add(key)
-            if case.find("error") is None or case.find("failure") is not None:
-                continue
-            module = _v8_error_module(case.get("classname"), case.get("name"))
-            if module is not None:
-                error_modules.setdefault(key, set()).add(module)
-            file_attr = (case.get("file") or "").strip()
-            if file_attr:
-                error_files.setdefault(key, set()).add(file_attr)
-    agent_cases: list[ET.Element] = []
-    for raw in report_xmls:
-        if not raw:
-            continue
-        try:
-            agent_cases.extend(ET.fromstring(raw).iter("testcase"))
-        except Exception:
-            continue
-    baseline_skipped = {key for key, status in baseline.items() if status == "skipped"}
-    satisfied: list[tuple[set[str], set[str]]] = []
-    for key, status in baseline.items():
-        if status != "skipped" and agent.get(key) != "passed":
-            if (
-                (key in error_modules or key in error_files)
-                and key not in failure_keys
-                and _v7_module_now_passing(
-                    error_modules.get(key, ()),
-                    error_files.get(key, ()),
-                    agent_cases,
-                )
-            ):
-                satisfied.append(
-                    (error_modules.get(key, set()), error_files.get(key, set()))
-                )
-                continue
-            return 0
-    for key, status in agent.items():
-        if status == "skipped" and key not in baseline_skipped and not _v9_skip_excused(
-            satisfied, key
-        ):
-            return 0
-    return 1
 
 #: @7 reporter switch extended with the terse reporter (G6, @8).
 _V8_TERSE_SWITCH = (
@@ -3366,8 +2363,6 @@ _V8_WRAPPER_B = _V7_WRAPPER_B
 #: Exact @8 orphan-plus-skip loops replaced with the @9 satisfied-module
 #: skip excuse (G5, @9): the orphan loop is byte-identical except it
 #: records each satisfied error key's identities; the skip loop excuses
-#: skips inside those modules. Mirrors :func:`_v9_skip_excused` and the
-#: ``satisfied`` list in :func:`evaluate_junit_v9`.
 _V9_LOOP_PIN = """        for _k, _s in _bm.items():
             if _s != "skipped" and _am.get(_k) != "passed":
                 if (_k in _v7errmod or _k in _v7errfile) and _k not in _v7hasfail and _v7modok(_k):
@@ -3478,13 +2473,6 @@ def is_binary_artifact_path(path: str) -> bool:
     return pure.suffix.lower() in BINARY_ARTIFACT_SUFFIXES
 
 
-def parse_integrity_log(text: str) -> list[str]:
-    """Changed-internal names from an integrity log (``[]`` when clean)."""
-    first = (text or "").strip().splitlines()
-    if not first or not first[0].startswith("CHANGED"):
-        return []
-    rest = first[0][len("CHANGED") :].strip()
-    return [name.strip() for name in rest.split(",") if name.strip()]
 
 
 #: Verifier-owned conftest hook (@10): captures test-runner internals at
@@ -3619,36 +2607,6 @@ V10_UNITTEST_SHIM = (
 )
 
 
-def evaluate_unittest_v10(
-    report_xmls: list[bytes | None],
-    rc: int,
-    baseline_xmls: list[bytes | None] | None = None,
-) -> int:
-    """Grade 1/0 for unittest from shim junit reports only (@10).
-
-    Stdout text is never consulted: reward 1 iff ``rc == 0``, the shim
-    report holds at least one case, and no case failed. With a baseline
-    report, the @6 fail-to-pass shape applies over junit status maps:
-    every pristine non-skipped case must pass, and agent skips must be a
-    subset of pristine skips.
-    """
-    if rc != 0:
-        return 0
-    agent = junit_status_map(report_xmls)
-    if not agent:
-        return 0
-    if any(status == "bad" for status in agent.values()):
-        return 0
-    baseline = junit_status_map(baseline_xmls) if baseline_xmls else {}
-    if baseline:
-        baseline_skipped = {key for key, status in baseline.items() if status == "skipped"}
-        for key, status in baseline.items():
-            if status != "skipped" and agent.get(key) != "passed":
-                return 0
-        for key, status in agent.items():
-            if status == "skipped" and key not in baseline_skipped:
-                return 0
-    return 1
 
 
 #: Exact @9 wrapper-A grade-dir line extended with the @10 shim/pycache dirs.
@@ -3826,7 +2784,6 @@ _V10_INTEGRITY_GATE = (
 )
 
 #: Exact @9 unittest stdout grading replaced by shim-junit grading (@10),
-#: mirroring :func:`evaluate_unittest_v10`.
 _V10_UNITTEST_PIN = '        m = re.search(r"Ran (\\d+) test", output)\n' + _V6_UNITTEST_OK
 _V10_UNITTEST_OK = """        def _v10load(_p):
             try:
@@ -4092,98 +3049,3 @@ def derive_separate_verifier_v10(
         repo_root=repo_root,
         variants_root=variants_root,
     )
-
-
-__all__ = [
-    "JUNIT_MISSING_REASON",
-    "MIMO_STATE_DIR",
-    "ORIG_TEST_SCRIPT",
-    "SNAP_DIR",
-    "TAMPER_SIGNATURES",
-    "TRANSFORM_ID",
-    "TRANSFORM_ID_V2",
-    "TRANSFORM_ID_V3",
-    "TRANSFORM_ID_V4",
-    "TRANSFORM_ID_V5",
-    "TRANSFORM_ID_V6",
-    "TRANSFORM_ID_V7",
-    "TRANSFORM_ID_V8",
-    "TRANSFORM_ID_V9",
-    "TRANSFORM_ID_V10",
-    "TRAJECTORY_ARTIFACT",
-    "V2_GRADE_DIR",
-    "V2_SETUP_SUBDIR",
-    "V3_BUILD_OUTPUT_DIR_RES",
-    "V3_CONFIG_HUNK_RULES",
-    "V3_CONFTEST_HOOK",
-    "V3_NEW_INFRA_BASENAMES",
-    "V3_RUNNER_PATTERNS",
-    "V3_SCOPED_SIGNATURES",
-    "V3_STRUCTURED_RUNNERS",
-    "V3_TAMPER_SIGNATURES",
-    "V5_ARCHIVE_HOOK",
-    "V10_INTEGRITY_HOOK",
-    "V10_UNITTEST_SHIM",
-    "BINARY_ARTIFACT_SUFFIXES",
-    "WRAPPER_TEST_SCRIPT",
-    "ParentInfo",
-    "addopts_cleared",
-    "build_changes",
-    "build_changes_v10",
-    "collect_verifier_setup_files",
-    "declares_testmain",
-    "derive_separate_verifier",
-    "derive_separate_verifier_v10",
-    "detect_pytest_run",
-    "effective_js_runner",
-    "effective_js_runner_v8",
-    "detect_runner",
-    "drop_reason",
-    "evaluate_cargo_output",
-    "evaluate_go_output",
-    "evaluate_go_output_v6",
-    "evaluate_go_output_v7",
-    "evaluate_js_output",
-    "evaluate_js_output_v7",
-    "evaluate_js_output_v8",
-    "evaluate_junit",
-    "evaluate_junit_v4",
-    "evaluate_junit_v5",
-    "evaluate_junit_v6",
-    "evaluate_junit_v7",
-    "evaluate_junit_v8",
-    "evaluate_junit_v9",
-    "evaluate_phpunit_output",
-    "evaluate_rspec_output",
-    "evaluate_surefire_reports",
-    "evaluate_unittest",
-    "evaluate_unittest_v6",
-    "evaluate_unittest_v10",
-    "is_binary_artifact_path",
-    "parse_integrity_log",
-    "is_pytest_config_tamper",
-    "strip_ansi",
-    "is_test_infra_filename",
-    "is_v3_new_infra",
-    "parse_named_pytest_ids",
-    "junit_absence_suspicious",
-    "junit_case_matches_expected",
-    "junit_case_status",
-    "junit_status_map",
-    "output_is_blank",
-    "PYTEST_START_MARKERS",
-    "parse_pytest_node_id",
-    "read_parent_info",
-    "render_probe_hook",
-    "render_snapshot_hook",
-    "render_snapshot_hook_v2",
-    "render_task_toml",
-    "render_tests_dockerfile",
-    "render_tests_dockerfile_v10",
-    "render_wrapper_test_sh",
-    "render_wrapper_test_sh_v10",
-    "resolve_command_text",
-    "tamper_signature_hit",
-    "v3_config_revert_reason",
-    "v3_tamper_hit_for_file",
-]

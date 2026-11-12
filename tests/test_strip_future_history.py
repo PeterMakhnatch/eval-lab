@@ -33,7 +33,6 @@ from evallab.strip_future_history import (
     pack_setup,
     read_parent_info,
     render_task_toml,
-    unpack_setup_blob,
 )
 from evallab.task_variants import VariantInvalid
 
@@ -187,7 +186,12 @@ def test_task_toml_reembed_only_swaps_payload(parent_dir: Path) -> None:
 
     # The new payload unpacks to the repaired script plus untouched files.
     new_blob = new_cmd.split("echo ")[1].split(" |")[0]
-    members = unpack_setup_blob(new_blob)
+    with tarfile.open(fileobj=io.BytesIO(base64.b64decode(new_blob)), mode="r:gz") as archive:
+        members = {
+            member.name: archive.extractfile(member).read()
+            for member in archive.getmembers()
+            if member.isfile()
+        }
     assert members["setup.sh"] == changes[SETUP_REL]
     assert (
         members["files/blocklist"]

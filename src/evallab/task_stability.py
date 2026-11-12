@@ -131,18 +131,6 @@ def read_trial_reward(trial_dir: Path) -> float | None:
     return None
 
 
-def read_trial_task_name(trial_dir: Path) -> str | None:
-    for name in ("result.json", "lock.json", "config.json"):
-        try:
-            payload = json.loads((trial_dir / name).read_text())
-        except (OSError, ValueError):
-            continue
-        if isinstance(payload, dict):
-            for key in ("task_name", "task"):
-                value = payload.get(key)
-                if isinstance(value, str) and value:
-                    return value
-    return None
 
 
 def iter_trial_dirs(job_dir: Path) -> list[Path]:

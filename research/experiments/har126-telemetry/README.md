@@ -1,6 +1,7 @@
 # HAR-126: Run Telemetry (Sampler & Extractor)
 
-Provides per-round live telemetry sampling and post-hoc extraction for overnight model evaluation rounds (G2, G5, etc.), supporting Infra's throughput and concurrency analysis (HAR-129).
+This file preserves the telemetry schema and the measured HAR-116 baseline from 2026-10-01.
+The sampler and extractor commands are retired. The metric descriptions below record the historical implementation.
 
 ## 1. Available Metrics & Observability
 
@@ -40,36 +41,7 @@ Provides per-round live telemetry sampling and post-hoc extraction for overnight
 
 ---
 
-## 2. Live Sampler: Start & Stop
-
-The sampler polls every 10–15 s and writes append-only JSONL.
-
-### Starting Before a Round
-
-Start in background before launching trials:
-```bash
-# Output destination in today's results home or next to runs
-ROUND_RESULTS_DIR="$HOME/Developer/eval-lab-results/$(date +%F)"
-mkdir -p "$ROUND_RESULTS_DIR"
-TELEMETRY_OUT="$ROUND_RESULTS_DIR/g2-telemetry.jsonl"
-
-# Using evallab CLI:
-uv run --no-sync evallab telemetry sample \
-  --out "$TELEMETRY_OUT" \
-  --runs-dir runs \
-  --interval 15.0 &
-SAMPLER_PID=$!
-echo "Sampler running (PID $SAMPLER_PID) -> $TELEMETRY_OUT"
-```
-
-### Stopping After a Round
-```bash
-kill -TERM "$SAMPLER_PID"
-wait "$SAMPLER_PID" 2>/dev/null
-echo "Sampler stopped. Telemetry recorded at $TELEMETRY_OUT"
-```
-
-### Sampler Output Format (`*.jsonl`)
+## Historical sampler output format
 Each line contains:
 ```json
 {
@@ -109,22 +81,7 @@ Each line contains:
 }
 ```
 
----
-
-## 3. Post-Hoc Extractor
-
-Run the extractor on any completed job directories or glob pattern:
-
-```bash
-uv run --no-sync evallab telemetry extract \
-  .worktrees/har116-live/runs/har116-a-*-loopfix-r2 \
-  .worktrees/har116-live/runs/har116-b-* \
-  --out ~/Developer/eval-lab-results/2026-10-01/har116-r2-summary.json
-```
-
----
-
-## 4. HAR-116 Round 2 Baseline Results
+## HAR-116 Round 2 baseline results
 
 Extracted from `.worktrees/har116-live/runs/har116-a-*-loopfix-r2` and `har116-b-*` (20 trials, 01:50–02:23Z):
 

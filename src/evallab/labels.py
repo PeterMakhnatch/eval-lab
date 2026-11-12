@@ -30,14 +30,10 @@ from evallab.schemas import (
 )
 from evallab.storage.paths import derived_root_from_environment
 from evallab.traj import (
-    CONTROL_AGENTS,
     TrajectoryError,
     TrajectoryOutline,
-    _resolve_candidate_roots,
-    outline_trajectory,
 )
 
-LabelProvenance = Literal["human", "heuristic", "model"]
 TRAJECTORY_BEHAVIOR_TAXONOMY = "trajectory_behavior/v1"
 TRIAL_ANALYSIS_TAXONOMY = "trial_analysis/failure_category/v1"
 
@@ -74,37 +70,6 @@ BEHAVIOR_LABELS_PARQUET_SCHEMA = pa.schema([
 ])
 
 
-@dataclass(frozen=True)
-class ReviewQueueItem:
-    trial_id: str
-    trial_name: str
-    job_id: str
-    job_name: str
-    task_name: str
-    agent_name: str
-    model_name: str
-    reward: float | None
-    duration_seconds: float | None
-    steps: int
-    tool_calls: int
-    errors: int
-    loop_score: float
-    suggested_taxonomy: str | None
-    suggestion_reason: str | None
-    outline_preview: str
-    next_command: str
-
-
-@dataclass(frozen=True)
-class PrecisionReport:
-    human_label_count: int
-    heuristic_proposal_count: int
-    matched_trials_count: int
-    exact_taxonomy_matches: int
-    precision: float
-    disagreements: tuple[dict[str, Any], ...]
-
-
 def _digest_json(value: Any) -> str:
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
     return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
@@ -124,8 +89,6 @@ def _normalize_digest(value: str | None) -> str | None:
     if len(raw) != 64 or any(char not in "0123456789abcdef" for char in raw.lower()):
         raise TrajectoryError(f"invalid sha256 digest: {value!r}")
     return f"sha256:{raw.lower()}"
-
-
 
 
 def _labels_root(repo_root: Path, derived_root: Path | None) -> Path:
@@ -252,17 +215,6 @@ def _write_labels(path: Path, labels: Sequence[BehaviorLabel]) -> None:
             temporary.unlink()
 
 
-
-def load_behavior_labels(
-    repo_root: Path | None = None,
-    derived_root: Path | None = None,
-) -> list[BehaviorLabel]:
-    root = (repo_root or Path.cwd()).resolve()
-    path = _canonical_path(root, derived_root)
-    with _labels_lock(path, exclusive=False):
-        return _load_labels_unlocked(path)
-
-
 def persist_behavior_label(
     label: BehaviorLabel,
     *,
@@ -282,57 +234,6 @@ def persist_behavior_label(
         updated.append(label)
         _write_labels(path, updated)
         return label
-
-
-def label_trajectory(
-    trial: str | Path,
-    label: str,
-    note: str | None = None,
-    provenance: LabelProvenance = "human",
-    author: str = "peter",
-    repo_root: Path | None = None,
-    derived_root: Path | None = None,
-) -> BehaviorLabel:
-    root = (repo_root or Path.cwd()).resolve()
-    outline = outline_trajectory(trial, repo_root=root)
-    if outline.status != "featured":
-        raise TrajectoryError(
-            f"cannot label unavailable trajectory {outline.trial_name}: "
-            f"{outline.unavailable_reason}"
-        )
-    normalized = label.strip().lower()
-    if not normalized:
-        raise TrajectoryError("label must not be empty")
-    identity = _label_id(
-        target_type="trajectory", target_id=outline.trial_id,
-        taxonomy=TRAJECTORY_BEHAVIOR_TAXONOMY,
-        provenance=provenance, author=author,
-    )
-    existing = next(
-        (item for item in load_behavior_labels(root, derived_root)
-         if item.label_id == identity),
-        None,
-    )
-    created_at = existing.created_at if existing else datetime.now(UTC)
-    behavior_label = BehaviorLabel(
-        label_id=identity,
-        target_type="trajectory",
-        target_id=outline.trial_id,
-        job_id=outline.job_id,
-        trial_id=outline.trial_id,
-        trial_name=outline.trial_name,
-        task_name=outline.task_name,
-        taxonomy=TRAJECTORY_BEHAVIOR_TAXONOMY,
-        label=normalized,
-        rationale=note.strip() if note else None,
-        provenance=provenance,
-        author=author,
-        created_at=created_at,
-        source_sha256=_normalize_digest(outline.source_sha256),
-    )
-    return persist_behavior_label(
-        behavior_label, repo_root=root, derived_root=derived_root
-    )
 
 
 def propose_heuristic_label(outline: TrajectoryOutline) -> BehaviorLabel:
@@ -536,157 +437,6 @@ def label_from_analysis_sidecar(sidecar: TrialAnalysisSidecar) -> BehaviorLabel:
         source_sha256=_normalize_digest(sidecar.source_digests.trajectory),
         analysis_id=sidecar.analysis_id,
         model_provenance=provenance,
-    )
-
-
-def select_review_queue(
-    limit: int = 3,
-    runs_roots: Sequence[Path] | None = None,
-    repo_root: Path | None = None,
-    derived_root: Path | None = None,
-) -> list[ReviewQueueItem]:
-    if limit <= 0:
-        return []
-    root = (repo_root or Path.cwd()).resolve()
-    candidate_roots = list(runs_roots) if runs_roots else _resolve_candidate_roots(root)
-    labels = load_behavior_labels(root, derived_root)
-    human_labeled = {
-        item.trial_id for item in labels
-        if item.provenance == "human" and item.target_type == "trajectory"
-    }
-    candidates: list[TrajectoryOutline] = []
-    discovered: set[Path] = set()
-    for candidate_root in candidate_roots:
-        if not candidate_root.exists():
-            continue
-        for job_dir in candidate_root.iterdir():
-            if not job_dir.is_dir() or job_dir.name.startswith("."):
-                continue
-            discovered.update(
-                path for path in job_dir.iterdir()
-                if path.is_dir() and not path.name.startswith(".")
-            )
-    for trial_dir in sorted(discovered, key=str):
-        try:
-            outline = outline_trajectory(
-                trial_dir, repo_root=root, explicit_runs_root=trial_dir.parent.parent
-            )
-        except Exception:
-            continue
-        if (
-            outline.status == "featured"
-            and outline.agent_name.lower() not in CONTROL_AGENTS
-            and outline.trial_id not in human_labeled
-        ):
-            candidates.append(outline)
-    ordered = sorted(
-        candidates,
-        key=lambda item: (
-            -item.loop_suspicion.score, -item.total_errors,
-            item.task_name, item.trial_id,
-        ),
-    )
-    selected: list[TrajectoryOutline] = []
-    seen_tasks: set[str] = set()
-    for candidate in ordered:
-        if candidate.task_name not in seen_tasks:
-            selected.append(candidate)
-            seen_tasks.add(candidate.task_name)
-            if len(selected) == limit:
-                break
-    for candidate in ordered:
-        if len(selected) == limit:
-            break
-        if candidate not in selected:
-            selected.append(candidate)
-    items: list[ReviewQueueItem] = []
-    for outline in selected:
-        heuristic = propose_heuristic_label(outline)
-        preview = (
-            f"{outline.total_steps} steps, {outline.total_tool_calls} tools, "
-            f"{outline.total_errors} errors, loop_score={outline.loop_suspicion.score:.2f}"
-        )
-        if outline.loop_suspicion.reasons:
-            preview += f" | Loop signals: {', '.join(outline.loop_suspicion.reasons)}"
-        items.append(ReviewQueueItem(
-            trial_id=outline.trial_id,
-            trial_name=outline.trial_name,
-            job_id=outline.job_id,
-            job_name=outline.job_name,
-            task_name=outline.task_name,
-            agent_name=outline.agent_name,
-            model_name=outline.model_name,
-            reward=outline.primary_reward,
-            duration_seconds=outline.duration_seconds,
-            steps=outline.total_steps,
-            tool_calls=outline.total_tool_calls,
-            errors=outline.total_errors,
-            loop_score=outline.loop_suspicion.score,
-            suggested_taxonomy=heuristic.label,
-            suggestion_reason=heuristic.rationale,
-            outline_preview=preview,
-            next_command=(
-                f"uv run evallab traj label {json.dumps(outline.source_path)} "
-                f"{heuristic.label} --note {json.dumps(heuristic.rationale)}"
-            ),
-        ))
-    return items
-
-
-def evaluate_heuristic_precision(
-    repo_root: Path | None = None,
-    derived_root: Path | None = None,
-) -> PrecisionReport:
-    root = (repo_root or Path.cwd()).resolve()
-    labels = load_behavior_labels(root, derived_root)
-    human = sorted(
-        (
-            item for item in labels
-            if item.provenance == "human"
-            and item.taxonomy == TRAJECTORY_BEHAVIOR_TAXONOMY
-        ),
-        key=lambda item: (item.trial_id, item.author, item.label_id),
-    )
-    heuristic = {
-        item.trial_id: item for item in labels
-        if item.provenance == "heuristic"
-        and item.taxonomy == TRAJECTORY_BEHAVIOR_TAXONOMY
-    }
-    for human_label in human:
-        trial_id = human_label.trial_id
-        if trial_id not in heuristic:
-            with suppress(Exception):
-                heuristic[trial_id] = propose_heuristic_label(
-                    outline_trajectory(human_label.trial_name or trial_id, repo_root=root)
-                )
-    matched = 0
-    exact = 0
-    disagreements: list[dict[str, Any]] = []
-    for human_label in human:
-        trial_id = human_label.trial_id
-        proposal = heuristic.get(trial_id)
-        if proposal is None:
-            continue
-        matched += 1
-        if human_label.label == proposal.label:
-            exact += 1
-        else:
-            disagreements.append({
-                "trial_id": trial_id,
-                "task_name": human_label.task_name,
-                "human_label": human_label.label,
-                "human_rationale": human_label.rationale,
-                "human_author": human_label.author,
-                "heuristic_label": proposal.label,
-                "heuristic_rationale": proposal.rationale,
-            })
-    return PrecisionReport(
-        human_label_count=len(human),
-        heuristic_proposal_count=len(heuristic),
-        matched_trials_count=matched,
-        exact_taxonomy_matches=exact,
-        precision=round(exact / matched, 4) if matched else 0.0,
-        disagreements=tuple(disagreements),
     )
 
 

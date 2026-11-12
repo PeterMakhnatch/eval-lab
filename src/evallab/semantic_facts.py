@@ -241,7 +241,6 @@ def _schema(model: type[FactRow]) -> pa.Schema:
 
 
 SEMANTIC_FACT_SCHEMAS = {name: _schema(model) for name, model in FACT_TYPES.items()}
-FACT_SCHEMAS = SEMANTIC_FACT_SCHEMAS
 
 
 class NormalizedFactBundle(ContractModel):
@@ -360,24 +359,6 @@ def project_fact_bundle(
     return paths
 
 
-def load_fact_bundle(path: str | Path) -> NormalizedFactBundle:
-    """Load a named JSON bundle; JSONL is accepted as one object per line."""
-    source = Path(path)
-    text = source.read_text(encoding="utf-8")
-    payload: Any
-    if source.suffix == ".jsonl":
-        payload = json.loads(
-            "[" + ",".join(line for line in text.splitlines() if line.strip()) + "]"
-        )
-    else:
-        payload = json.loads(text)
-    if isinstance(payload, list):
-        payload = {"capability_opportunities": payload}
-    if not isinstance(payload, Mapping):
-        raise ValueError("normalized fact bundle must be a JSON object")
-    return normalize_bundle(payload)
-
-
 def query_scorecard(
     output_dir: str | Path,
     *,
@@ -453,29 +434,4 @@ def query_scorecard(
 
 
 # Explicit aliases make the public boundary easy to discover without a registry.
-project_normalized_fact_bundle = project_fact_bundle
-query_semantic_scorecard = query_scorecard
 
-__all__ = [
-    "FactRow",
-    "Digest",
-    "ProvenanceKind",
-    "Verdict",
-    "CapabilityOpportunity",
-    "ProcessStepFact",
-    "RetrievalFact",
-    "ConstraintFact",
-    "ContextOperationFact",
-    "PairedConditionFact",
-    "SessionDependencyFact",
-    "EvidenceCoverage",
-    "NormalizedFactBundle",
-    "SEMANTIC_FACT_SCHEMAS",
-    "FACT_SCHEMAS",
-    "normalize_bundle",
-    "load_fact_bundle",
-    "project_fact_bundle",
-    "project_normalized_fact_bundle",
-    "query_scorecard",
-    "query_semantic_scorecard",
-]

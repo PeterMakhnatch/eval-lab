@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
 
 import pytest
 
-from evallab import cli
 from evallab.evidence_store import (
     archive_evidence,
     load_archive,
@@ -59,23 +57,6 @@ def test_changed_evidence_creates_a_new_blob(tmp_path: Path) -> None:
 
     assert second.uri != first.uri
     assert len(list((store / "blobs").rglob("*.tar.gz"))) == 2
-
-
-def test_evidence_archive_cli_returns_durable_uri(tmp_path: Path, capsys) -> None:
-    source = _evidence(tmp_path)
-    store = tmp_path / "store"
-
-    rc = cli.run_cli([
-        "evidence", "archive", str(source),
-        "--store", str(store),
-        "--record-id", "cli-job",
-        "--json",
-    ])
-
-    assert rc == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["uri"].startswith("cas://sha256/")
-    assert Path(payload["manifest_path"]).is_file()
 
 
 @pytest.mark.parametrize(

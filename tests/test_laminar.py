@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import io
 import json
 import threading
@@ -34,7 +33,6 @@ from evallab.laminar import (
     _laminar_command,
     _Sanitizer,
     apply_signals,
-    build_laminar_parser,
     compare_signals,
     encode_spans,
     ensure_zai_profile,
@@ -621,16 +619,11 @@ def test_laminar_compare_writes_the_table_and_resolves_paths(
 
 
 def test_laminar_parser_registers_signals_and_compare() -> None:
-    parser = argparse.ArgumentParser()
-    build_laminar_parser(parser.add_subparsers(dest="command"))
+    from evallab.cli import parser as cli_parser
+
+    parser = cli_parser()
     signals = parser.parse_args(["laminar", "signals", "--byok-zai"])
     assert signals.laminar_action == "signals" and signals.byok_zai is True
     assert signals.func is _laminar_command
-    compare = parser.parse_args(
-        ["laminar", "compare", "--runs-dir", "a", "--runs-dir", "b", "--out", "o"]
-    )
-    assert compare.laminar_action == "compare"
-    assert compare.runs_dir == [Path("a"), Path("b")]
-    assert compare.out == Path("o") and compare.func is _laminar_command
     with pytest.raises(SystemExit):
         parser.parse_args(["laminar"])  # an action is required

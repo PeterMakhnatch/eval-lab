@@ -40,7 +40,6 @@ import pytest
 
 from evallab.evidence.atif import project_trial
 from evallab.evidence.facts import extract_job_facts, extract_trial_fact
-from evallab.explorer import _trajectory_view
 from evallab.interpretation.trajectory_ir import build_trajectory_ir
 from evallab.results import load_job
 from evallab.traj import outline_trajectory
@@ -285,8 +284,8 @@ def test_continuation_stitch_preserves_earlier_actions() -> None:
     assert cited[1].endswith("agent/trajectory.cont-1.json")
 
 
-def test_continuation_fact_and_explorer_agree_with_outline() -> None:
-    """Facts and explorer resolve the same chain, not stale roots."""
+def test_continuation_fact_agrees_with_outline() -> None:
+    """Facts resolve the same chain, not stale roots."""
     job = load_job(FIXTURE_JOB)
     continued = next(t for t in job.trials if t.path.name == "trial-continued")
 
@@ -297,9 +296,6 @@ def test_continuation_fact_and_explorer_agree_with_outline() -> None:
     assert fact.output_tokens == 490
     assert fact.cache_tokens == 600
 
-    view = _trajectory_view(_trial("trial-continued"))
-    assert [s.step_id for s in view.steps] == [1, 2, 3, 4, 5, 6]
-    assert len(view.tool_calls) == 4
 
 
 
@@ -339,14 +335,6 @@ def test_continuation_events_cite_native_documents() -> None:
 
 def test_same_tool_call_id_keeps_distinct_observations() -> None:
     """A call id reused across segments links to its own document's result."""
-    view = _trajectory_view(_trial("trial-continued"))
-    rows = [call for call in view.tool_calls if call.tool_call_id == "call_1_1"]
-    assert len(rows) == 2
-    assert {row.observation.value["readable_chars"] for row in rows} == {
-        len("2 failed, 5 passed"),
-        len("7 passed"),
-    }
-
     job = load_job(FIXTURE_JOB)
     continued = next(t for t in job.trials if t.path.name == "trial-continued")
     projection = project_trial(job, continued)

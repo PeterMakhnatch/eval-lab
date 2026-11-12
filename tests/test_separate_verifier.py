@@ -37,52 +37,18 @@ from evallab.separate_verifier import (
     addopts_cleared,
     build_changes,
     build_changes_v10,
-    declares_testmain,
     derive_separate_verifier,
     derive_separate_verifier_v10,
-    detect_pytest_run,
     detect_runner,
     drop_reason,
-    effective_js_runner,
-    effective_js_runner_v8,
-    evaluate_cargo_output,
-    evaluate_go_output,
-    evaluate_go_output_v6,
-    evaluate_go_output_v7,
-    evaluate_js_output,
-    evaluate_js_output_v7,
-    evaluate_js_output_v8,
-    evaluate_junit,
-    evaluate_junit_v4,
-    evaluate_junit_v5,
-    evaluate_junit_v6,
-    evaluate_junit_v7,
-    evaluate_junit_v8,
-    evaluate_junit_v9,
-    evaluate_phpunit_output,
-    evaluate_rspec_output,
-    evaluate_surefire_reports,
     evaluate_unittest,
-    evaluate_unittest_v6,
-    evaluate_unittest_v10,
     is_binary_artifact_path,
-    is_pytest_config_tamper,
     is_test_infra_filename,
     is_v3_new_infra,
-    junit_absence_suspicious,
-    junit_case_matches_expected,
-    junit_case_status,
-    junit_status_map,
-    output_is_blank,
-    parse_integrity_log,
-    parse_named_pytest_ids,
-    parse_pytest_node_id,
     read_parent_info,
     render_snapshot_hook_v2,
     render_wrapper_test_sh_v10,
     resolve_command_text,
-    strip_ansi,
-    tamper_signature_hit,
     v3_config_revert_reason,
     v3_tamper_hit_for_file,
 )
@@ -289,25 +255,6 @@ def parent_dir_v2(parent_dir: Path) -> Path:
     return parent_dir
 
 
-def test_tamper_gate_flags_runner_reaches_but_passes_plain_fixes() -> None:
-    # In-source exit-code forcing and pytest internals: not fixes.
-    assert tamper_signature_hit("+import atexit, os\n+atexit.register(lambda: os._exit(0))")
-    assert tamper_signature_hit("+from _pytest.reports import TestReport")
-    assert tamper_signature_hit("+def pytest_configure(config):\n+    os._exit(0)")
-    assert tamper_signature_hit("+junitxml.write(os.devnull)")
-    assert tamper_signature_hit("+def pytest_runtest_setup(item):\n+    pass")
-    assert tamper_signature_hit("+from _pytest.runner import runtestprotocol")
-    # A plain bug fix carries none of the signatures ...
-    assert (
-        tamper_signature_hit("+    if value is None:\n+        return []\n+    return list(value)")
-        is None
-    )
-    # ... nor do near-miss words without the runner boundary.
-    assert tamper_signature_hit("+latexit = True\n+exit_code = rc") is None
-
-
-
-
 def test_drop_filter_keeps_source_fixes_drops_infra_and_hidden_paths() -> None:
     hidden = {"miio/tests/test_miot_models.py", "mimo_test_command.sh"}
     assert drop_reason("miio/miot_models.py", hidden) is None
@@ -322,72 +269,6 @@ def test_drop_filter_keeps_source_fixes_drops_infra_and_hidden_paths() -> None:
     assert drop_reason("miio/tests/test_miot_models.py", hidden) == "hidden-test path"
     assert drop_reason("mimo_test_command.sh", hidden) == "hidden-test path"
     assert is_test_infra_filename("src/main.go") is False
-
-
-def test_pytest_config_and_testmain_drops_need_content() -> None:
-    assert is_pytest_config_tamper("setup.cfg", "+[tool:pytest]\n+addopts = -p no:randomly")
-    assert is_pytest_config_tamper("pyproject.toml", "+requires = [pytest]")
-    assert not is_pytest_config_tamper("setup.cfg", "+timeout = 5\n+retries = 0")
-    assert not is_pytest_config_tamper("setup.py", "+import pytest")
-    assert declares_testmain("package foo\nfunc TestMain(m *testing.M) { os.Exit(0) }")
-    assert not declares_testmain("package foo\nfunc TestHelper(t *testing.T) {}")
-
-
-def test_named_ids_parse_only_from_the_command_section() -> None:
-    patch = (
-        "diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n"
-        "+++ b/mimo_test_command.sh\n"
-        "+python -m pytest -v pkg/test_a.py::test_one pkg/test_b.py::TestC::test_two[k]\n"
-    )
-    assert parse_named_pytest_ids(patch) == {
-        "pkg/test_a.py::test_one",
-        "pkg/test_b.py::TestC::test_two[k]",
-    }
-    # Base64-encoded commands carry no parseable id: the presence check is skipped.
-    assert parse_named_pytest_ids("+echo aGVsbG8= | base64 -d | sh\n") == set()
-
-
-PASS_JUNIT = (
-    b'<?xml version="1.0" encoding="utf-8"?>'
-    b'<testsuite tests="2">'
-    b'<testcase classname="pkg.test_a" name="test_one"/>'
-    b'<testcase classname="pkg.test_b.TestC" name="test_two" />'
-    b"</testsuite>"
-)
-NAMED = {"pkg/test_a.py::test_one"}
-
-
-def test_junit_grading_rewards_clean_structured_passes() -> None:
-    assert evaluate_junit(PASS_JUNIT, 0, NAMED) == 1
-    assert evaluate_junit(PASS_JUNIT, 0, set()) == 1
-
-
-def test_junit_grading_rejects_failures_skips_and_missing_ids() -> None:
-    failed = PASS_JUNIT.replace(
-        b'name="test_one"/>', b'name="test_one"><failure message="x"/></testcase>'
-    )
-    assert evaluate_junit(failed, 0, NAMED) == 0
-    errored = PASS_JUNIT.replace(
-        b'name="test_one"/>', b'name="test_one"><error message="x"/></testcase>'
-    )
-    assert evaluate_junit(errored, 0, NAMED) == 0
-    skipped = PASS_JUNIT.replace(b'name="test_one"/>', b'name="test_one"><skipped/></testcase>')
-    assert evaluate_junit(skipped, 0, NAMED) == 0
-    assert evaluate_junit(PASS_JUNIT, 1, NAMED) == 0
-    assert evaluate_junit(PASS_JUNIT, 0, {"pkg/test_a.py::test_missing"}) == 0
-    assert evaluate_junit(b'<testsuite tests="0"></testsuite>', 0, set()) == 0
-
-
-def test_junit_grading_falls_back_to_exit_code_without_a_report() -> None:
-    assert evaluate_junit(None, 0, NAMED) == 1
-    assert evaluate_junit(None, 1, NAMED) == 0
-    assert evaluate_junit(b"not xml <", 0, NAMED) == 1
-    assert evaluate_junit(b"not xml <", 2, NAMED) == 0
-
-
-def test_junit_grading_accepts_parametrized_id_prefixes() -> None:
-    parametrized = PASS_JUNIT.replace(b'name="test_one"', b'name="test_one[k]"')
-    assert evaluate_junit(parametrized, 0, NAMED) == 1
 
 
 def test_v10_snapshot_carries_workspace_only(parent_dir_v2: Path) -> None:
@@ -546,7 +427,6 @@ def test_v10_derive_records_transform_id(parent_dir_v2: Path, tmp_path: Path) ->
 # --------------------------------------------------------------------------- #
 
 PYTEST_CMD = "bash /testbed/mimo_test_command.sh"
-PYTEST_OUT = "=== test session starts ===\ncollected 4 items\n"
 
 
 def test_addopts_cleared_detects_unset_and_override() -> None:
@@ -559,12 +439,6 @@ def test_addopts_cleared_detects_unset_and_override() -> None:
     assert not addopts_cleared(PYTEST_CMD)
 
 
-def test_detect_pytest_run_needs_markers_and_a_pytest_command() -> None:
-    assert detect_pytest_run(PYTEST_OUT, "python -m pytest tests/ -v")
-    assert detect_pytest_run("collected 13 items\n", "python -m pytest -k x")
-    assert not detect_pytest_run(PYTEST_OUT, "python -m unittest discover")
-    assert not detect_pytest_run("ok\n", "python -m pytest tests/")
-    assert not detect_pytest_run("", "python -m pytest tests/")
 
 
 def test_resolve_command_text_decodes_base64_forms() -> None:
@@ -581,47 +455,6 @@ def test_resolve_command_text_decodes_base64_forms() -> None:
     plain = resolve_command_text(PYTEST_CMD, "python -m pytest tests/ -v", "")
     assert "pytest" in plain
     assert not addopts_cleared(plain)
-
-
-def test_missing_junit_after_pytest_start_grades_zero() -> None:
-    assert evaluate_junit(None, 0, set(), suspicious_absence=True) == 0
-    assert evaluate_junit(b"not xml <", 0, set(), suspicious_absence=True) == 0
-    assert evaluate_junit(None, 0, set(), suspicious_absence=False) == 1
-    assert evaluate_junit(None, 1, set(), suspicious_absence=True) == 0
-
-
-def test_obfuscated_exit_forcing_needs_the_junit_rule() -> None:
-    # No literal signature survives string-splitting, so the gate passes ...
-    added = "+getattr(__import__('o'+'s'), '_e'+'xit')(0)\n"
-    assert tamper_signature_hit(added) is None
-    # ... but the missing report after a pytest start still grades 0.
-    assert evaluate_junit(None, 0, set(), suspicious_absence=True) == 0
-
-
-
-
-def test_junit_absence_rule_covers_markers_and_blank_output() -> None:
-    cmd = "python -m pytest tests/ -v"
-    assert output_is_blank("")
-    assert output_is_blank("  \n ")
-    assert not output_is_blank(PYTEST_OUT)
-    # Markers: pytest ran, report suppressed.
-    assert junit_absence_suspicious(PYTEST_OUT, cmd)
-    # Blank: pytest should have printed at least its header.
-    assert junit_absence_suspicious("", cmd)
-    assert junit_absence_suspicious("  \n", cmd)
-    # Non-blank markerless output: pytest never started (custom commands).
-    assert not junit_absence_suspicious("hello\n", cmd)
-    # Unset addopts or non-pytest commands keep the fallback.
-    assert not junit_absence_suspicious(PYTEST_OUT, "unset PYTEST_ADDOPTS\n" + cmd)
-    assert not junit_absence_suspicious("", "python -m unittest discover")
-    assert not junit_absence_suspicious(PYTEST_OUT, "python -m unittest discover")
-
-
-def test_blank_kill_grades_zero_through_the_full_rule() -> None:
-    cmd = "python -m pytest tests/ -v"
-    assert junit_absence_suspicious("", cmd)
-    assert evaluate_junit(None, 0, set(), suspicious_absence=True) == 0
 
 
 # --------------------------------------------------------------------------- #
@@ -732,34 +565,6 @@ def test_detect_runner_covers_measured_mix() -> None:
     assert detect_runner("bash usercase-test-coderl/usecase.sh") == "custom"
 
 
-def test_evaluate_go_output() -> None:
-    passing = "=== RUN TestX\n--- PASS: TestX (0.00s)\nPASS\nok  \texample.com/mod/pkg\t0.1s\n"
-    assert evaluate_go_output(passing, 0) == 1
-    assert evaluate_go_output(passing, 1) == 0
-    failing = "--- FAIL: TestX (0.00s)\nFAIL\nexit status 1\nFAIL\texample.com/mod/pkg\n"
-    assert evaluate_go_output(failing, 1) == 0
-    assert evaluate_go_output("?   \texample.com/mod/pkg\t[no test files]\n", 0) == 0
-    assert evaluate_go_output("", 0) == 0
-    assert evaluate_go_output("panic: runtime error\n", 0) == 0
-
-
-def test_evaluate_js_output() -> None:
-    jest_pass = "Tests:       4 passed, 4 total\nTest Suites: 1 passed, 1 total\n"
-    assert evaluate_js_output("jest", jest_pass, 0) == 1
-    assert evaluate_js_output("jest", "Tests: 1 failed, 3 passed, 4 total\n", 0) == 0
-    assert evaluate_js_output("jest", "", 0) == 0
-    mocha_pass = "  9 passing (20ms)\n"
-    assert evaluate_js_output("mocha", mocha_pass, 0) == 1
-    assert evaluate_js_output("mocha", "  9 passing (20ms)\n  2 failing\n", 1) == 0
-    assert evaluate_js_output("mocha", "  9 passing (20ms)\n  0 failing\n", 0) == 1
-    vitest_pass = " Test Files  2 passed (2)\n      Tests  8 passed (8)\n"
-    assert evaluate_js_output("vitest", vitest_pass, 0) == 1
-    assert evaluate_js_output("vitest", " Tests  1 failed | 7 passed (8)\n", 1) == 0
-    tap_pass = "ok 1 - first\nok 2 - second\n# pass 2\n"
-    assert evaluate_js_output("tap", tap_pass, 0) == 1
-    assert evaluate_js_output("tap", "not ok 1 - first\n", 1) == 0
-
-
 def test_evaluate_unittest() -> None:
     passing = "Ran 3 tests in 0.01s\n\nOK\n"
     assert evaluate_unittest(passing, 0) == 1
@@ -767,38 +572,6 @@ def test_evaluate_unittest() -> None:
     assert evaluate_unittest("Ran 3 tests in 0.01s\n\nFAILED (failures=1)\n", 1) == 0
     assert evaluate_unittest("Ran 0 tests in 0.00s\n\nOK\n", 0) == 0
     assert evaluate_unittest("", 0) == 0
-
-
-def test_evaluate_rspec_phpunit_cargo() -> None:
-    assert evaluate_rspec_output("3 examples, 0 failures\n", 0) == 1
-    assert evaluate_rspec_output("3 examples, 1 failure\n", 1) == 0
-    assert evaluate_rspec_output("", 0) == 0
-    assert evaluate_phpunit_output("OK (7 tests, 14 assertions)\n", 0) == 1
-    assert evaluate_phpunit_output("FAILURES!\nTests: 7, Assertions: 10, Failures: 1.\n", 1) == 0
-    assert evaluate_cargo_output("test result: ok. 5 passed; 0 failed\n", 0) == 1
-    assert evaluate_cargo_output("test result: FAILED. 4 passed; 1 failed\n", 101) == 0
-    assert evaluate_cargo_output("", 0) == 0
-
-
-def test_evaluate_surefire_reports() -> None:
-    passing = (
-        b'<testsuite tests="2"><testcase classname="X" name="a"/>'
-        b'<testcase classname="X" name="b"/></testsuite>'
-    )
-    assert evaluate_surefire_reports([passing], 0) == 1
-    assert evaluate_surefire_reports([passing], 1) == 0
-    failing = (
-        b'<testsuite tests="1"><testcase classname="X" name="a">'
-        b'<failure message="x"/></testcase></testsuite>'
-    )
-    assert evaluate_surefire_reports([failing], 0) == 0
-    skipped = (
-        b'<testsuite tests="2"><testcase classname="X" name="a"/>'
-        b'<testcase classname="X" name="b"><skipped/></testcase></testsuite>'
-    )
-    assert evaluate_surefire_reports([skipped], 0) == 1
-    assert evaluate_surefire_reports([], 0) is None
-    assert evaluate_surefire_reports([b"not xml <"], 0) == 0
 
 
 def _v3_grader_block() -> str:
@@ -854,7 +627,7 @@ def _run_embedded_grader(
     return capsys.readouterr().out.strip()
 
 
-def test_embedded_grader_matches_pure_evaluators(
+def test_embedded_grader_grades_runner_outcomes(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     go_pass = "=== RUN TestX\n--- PASS: TestX (0.00s)\nPASS\nok  \texample.com/m\t0.1s\n"
@@ -1016,168 +789,6 @@ def _shifted_junit(*, with_file: bool = False) -> bytes:
 
 def _shifted_named() -> set[str]:
     return {f"tests/unit/test_iam_user_format.py::{test}" for test in _V4_SHIFTED_TESTS}
-
-
-def test_parse_pytest_node_id_splits_module_classes_and_test() -> None:
-    assert parse_pytest_node_id("pkg/test_a.py::test_one") == (
-        ["pkg", "test_a"],
-        [],
-        "test_one",
-    )
-    assert parse_pytest_node_id("pkg/test_b.py::TestC::test_two[k]") == (
-        ["pkg", "test_b"],
-        ["TestC"],
-        "test_two[k]",
-    )
-    assert parse_pytest_node_id("./tests/unit/test_x.py::test_y") == (
-        ["tests", "unit", "test_x"],
-        [],
-        "test_y",
-    )
-
-
-def test_v4_matcher_accepts_rootdir_shifted_ids() -> None:
-    for test in _V4_SHIFTED_TESTS:
-        assert junit_case_matches_expected(
-            "unit.test_iam_user_format",
-            test,
-            None,
-            f"tests/unit/test_iam_user_format.py::{test}",
-        )
-    # Unshifted reports keep matching too.
-    assert junit_case_matches_expected(
-        "tests.unit.test_iam_user_format",
-        _V4_SHIFTED_TESTS[0],
-        None,
-        f"tests/unit/test_iam_user_format.py::{_V4_SHIFTED_TESTS[0]}",
-    )
-
-
-def test_v4_matcher_handles_file_attribute_nested_classes_and_params() -> None:
-    # junit file attribute locates the module; the classname prefix locates classes.
-    assert junit_case_matches_expected(
-        "test_b.TestC",
-        "test_two",
-        "tests/unit/test_b.py",
-        "tests/unit/test_b.py::TestC::test_two",
-    )
-    # Absolute file paths (rootdir-prefixed) align by suffix.
-    assert junit_case_matches_expected(
-        "unit.test_b.TestC",
-        "test_two",
-        "/testbed/tests/unit/test_b.py",
-        "tests/unit/test_b.py::TestC::test_two",
-    )
-    # Nested class via classname, with a rootdir shift on top.
-    assert junit_case_matches_expected(
-        "test_b.TestC",
-        "test_two[k]",
-        None,
-        "pkg/test_b.py::TestC::test_two[k]",
-    )
-    # Expected id without params covers parametrized cases (the @3 prefix rule).
-    assert junit_case_matches_expected(
-        "pkg.test_b.TestC", "test_two[k2]", None, "pkg/test_b.py::TestC::test_two"
-    )
-    # Expected id with params needs the exact params.
-    assert not junit_case_matches_expected(
-        "pkg.test_b.TestC", "test_two[k2]", None, "pkg/test_b.py::TestC::test_two[k1]"
-    )
-
-
-def test_v4_matcher_never_matches_a_different_test_name() -> None:
-    expected = "tests/unit/test_iam_user_format.py::test_mysql_iam_bare_username_is_unchanged"
-    assert not junit_case_matches_expected(
-        "unit.test_iam_user_format", "test_postgres_iam_bare_username_is_unchanged", None, expected
-    )
-    # Prefix and superstring names are different tests.
-    assert not junit_case_matches_expected(
-        "unit.test_iam_user_format",
-        "test_mysql_iam_bare_username_is_unchanged_extra",
-        None,
-        expected,
-    )
-    assert not junit_case_matches_expected(
-        "unit.test_iam_user_format", "test_mysql_iam_bare_username", None, expected
-    )
-    # Same test name in another module or another class is a different test.
-    assert not junit_case_matches_expected(
-        "other.test_iam_user_format",
-        "test_mysql_iam_bare_username_is_unchanged",
-        None,
-        expected,
-    )
-    assert not junit_case_matches_expected(
-        "unit.test_iam_user_format.TestC",
-        "test_mysql_iam_bare_username_is_unchanged",
-        None,
-        expected,
-    )
-    assert not junit_case_matches_expected(
-        "unit.test_iam_user_format",
-        "test_mysql_iam_bare_username_is_unchanged",
-        None,
-        "tests/unit/test_iam_user_format.py::TestC::test_mysql_iam_bare_username_is_unchanged",
-    )
-
-
-def test_v4_matcher_handles_class_level_expected_ids() -> None:
-    # 000242's shape: the command pins the class, whose member tests pass.
-    assert junit_case_matches_expected(
-        "cartopy.tests.test_polygon.TestDatelineRepeatedVertex",
-        "test_no_polygon_fills_entire_domain",
-        None,
-        "lib/cartopy/tests/test_polygon.py::TestDatelineRepeatedVertex",
-    )
-    # A member of another class never satisfies a class-level id.
-    assert not junit_case_matches_expected(
-        "cartopy.tests.test_polygon.TestOther",
-        "test_something",
-        None,
-        "lib/cartopy/tests/test_polygon.py::TestDatelineRepeatedVertex",
-    )
-    # A bare function with exactly the expected name is the named test
-    # (function-level exact match; the id is ambiguous, the match is sound).
-    assert junit_case_matches_expected(
-        "cartopy.tests.test_polygon",
-        "TestDatelineRepeatedVertex",
-        None,
-        "lib/cartopy/tests/test_polygon.py::TestDatelineRepeatedVertex",
-    )
-    # A `test_`-prefixed id names a function, never a class.
-    assert not junit_case_matches_expected(
-        "pkg.test_b.test_two",
-        "test_three",
-        None,
-        "pkg/test_b.py::test_two",
-    )
-
-
-def test_v4_grading_fixes_the_daytona_oracle_while_v3_stays_exact() -> None:
-    shifted = _shifted_junit()
-    # The Daytona oracle shape: rc 0, all 8 passing, @3 grades 0 (missing=all).
-    assert evaluate_junit(shifted, 0, _shifted_named()) == 0
-    assert evaluate_junit_v4(shifted, 0, _shifted_named()) == 1
-    # Same with the junit file attribute present.
-    assert evaluate_junit_v4(_shifted_junit(with_file=True), 0, _shifted_named()) == 1
-
-
-def test_v4_grading_keeps_every_v3_rejection() -> None:
-    shifted = _shifted_junit()
-    assert evaluate_junit_v4(shifted, 1, _shifted_named()) == 0
-    assert evaluate_junit_v4(shifted, 0, {"tests/unit/test_iam_user_format.py::test_missing"}) == 0
-    failed = shifted.replace(
-        b'name="%s"/>' % _V4_SHIFTED_TESTS[0].encode(),
-        b'name="%s"><failure message="x"/></testcase>' % _V4_SHIFTED_TESTS[0].encode(),
-    )
-    assert evaluate_junit_v4(failed, 0, _shifted_named()) == 0
-    assert evaluate_junit_v4(b'<testsuite tests="0"></testsuite>', 0, set()) == 0
-    # Absence semantics unchanged: exit-code fallback, suspicion grades 0.
-    assert evaluate_junit_v4(None, 0, _shifted_named()) == 1
-    assert evaluate_junit_v4(None, 1, _shifted_named()) == 0
-    assert evaluate_junit_v4(None, 0, set(), suspicious_absence=True) == 0
-    assert evaluate_junit_v4(b"not xml <", 0, _shifted_named()) == 1
-    assert evaluate_junit_v4(b"not xml <", 2, _shifted_named()) == 0
 
 
 def _v4_grader_block() -> str:
@@ -1451,7 +1062,6 @@ _V5_SKIP_JUNIT = (
     b'<testcase classname="pkg.test_a" name="test_three"><skipped message="env"/></testcase>'
     b"</testsuite>"
 )
-_V5_SKIP_NAMED = {"pkg/test_a.py::test_one"}
 
 _V5_BASE_JUNIT = (
     b'<?xml version="1.0" encoding="utf-8"?>'
@@ -1466,41 +1076,6 @@ _V5_NEW_JUNIT = (
     b'<testcase classname="ops.test_ops" name="test_new_only"/>'
     b"</testsuite>"
 )
-_V5_MULTI_NAMED = {"ops/test_ops.py::test_base_one", "ops/test_ops.py::test_new_only"}
-
-
-def test_v5_grading_accepts_skips_while_v4_rejects() -> None:
-    # The 000163/000203 oracle shape: passing tests plus skips, exit code 0.
-    assert evaluate_junit_v4(_V5_SKIP_JUNIT, 0, _V5_SKIP_NAMED) == 0
-    assert evaluate_junit_v5([_V5_SKIP_JUNIT], 0, _V5_SKIP_NAMED) == 1
-    assert evaluate_junit_v5([_V5_SKIP_JUNIT], 0, set()) == 1
-
-
-def test_v5_grading_keeps_every_v4_rejection() -> None:
-    failed = _V5_SKIP_JUNIT.replace(b"<skipped", b"<failure")
-    assert evaluate_junit_v5([failed], 0, _V5_SKIP_NAMED) == 0
-    errored = _V5_SKIP_JUNIT.replace(b"<skipped", b"<error")
-    assert evaluate_junit_v5([errored], 0, _V5_SKIP_NAMED) == 0
-    assert evaluate_junit_v5([_V5_SKIP_JUNIT], 1, _V5_SKIP_NAMED) == 0
-    assert evaluate_junit_v5([_V5_SKIP_JUNIT], 0, {"pkg/test_a.py::test_missing"}) == 0
-    assert evaluate_junit_v5([b'<testsuite tests="0"></testsuite>'], 0, set()) == 0
-    assert evaluate_junit_v5([], 0, _V5_SKIP_NAMED) == 0
-    assert evaluate_junit_v5([None, b"not xml <"], 0, _V5_SKIP_NAMED) == 0
-
-
-def test_v5_grading_unions_multi_phase_reports() -> None:
-    # The 000200 oracle shape: base classes pass in phase one, new tests pass
-    # in phase two; neither report alone covers every named ID.
-    assert evaluate_junit_v4(_V5_NEW_JUNIT, 0, _V5_MULTI_NAMED) == 0
-    assert evaluate_junit_v5([_V5_BASE_JUNIT, _V5_NEW_JUNIT], 0, _V5_MULTI_NAMED) == 1
-    assert evaluate_junit_v5([_V5_NEW_JUNIT, _V5_BASE_JUNIT], 0, _V5_MULTI_NAMED) == 1
-    # A failure in any phase still grades 0, as does a missing ID.
-    failed_base = _V5_BASE_JUNIT.replace(
-        b'name="test_base_one"/>', b'name="test_base_one"><failure/></testcase>'
-    )
-    assert evaluate_junit_v5([failed_base, _V5_NEW_JUNIT], 0, _V5_MULTI_NAMED) == 0
-    assert evaluate_junit_v5([_V5_BASE_JUNIT], 0, _V5_MULTI_NAMED) == 0
-    assert evaluate_junit_v5([_V5_BASE_JUNIT, None], 0, _V5_MULTI_NAMED) == 0
 
 
 def _v5_hook_namespace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
@@ -1556,8 +1131,8 @@ def test_v5_archive_hook_collects_per_phase_reports(
     assert not (archive / "junit-hook-2.xml").exists()
 
 
-def test_v5_archive_hook_results_grade_through_v5_mirror(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_v5_archive_hook_results_grade_through_shipped_grader(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     archive = tmp_path / "phases"
     namespace = _v5_hook_namespace(archive, monkeypatch)
@@ -1576,8 +1151,13 @@ def test_v5_archive_hook_results_grade_through_v5_mirror(
     phase = (archive / "junit-hook-0.xml").read_bytes()
     # The 000200 shape grades 1 only on the union of the hook archive (base
     # phase) with the plugin report (new phase).
-    assert evaluate_junit_v5([_V5_NEW_JUNIT], 0, _V5_MULTI_NAMED) == 0
-    assert evaluate_junit_v5([_V5_NEW_JUNIT, phase], 0, _V5_MULTI_NAMED) == 1
+    assert _run_embedded_v5_grader(
+        tmp_path, capsys, monkeypatch,
+        runner_cmd="python -m pytest tests/ -v",
+        output="=== test session starts ===\ncollected 2 items\n",
+        rc=0, junit=_V5_NEW_JUNIT, phase_xmls=[phase],
+        patch_extra="+    python -m pytest ops/test_ops.py::test_base_one ops/test_ops.py::test_new_only\n",
+    ) == "1"
 
 
 def _v5_grader_block() -> str:
@@ -1639,13 +1219,12 @@ def _run_embedded_v5_grader(
     return capsys.readouterr().out.strip()
 
 
-def test_embedded_v5_grader_matches_v5_mirror(
+def test_embedded_v5_grader_grades_phase_reports(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     pytest_out = "=== test session starts ===\ncollected 3 items\n"
     cmd = "python -m pytest tests/ -v"
-    # Skip-tolerant pass grades 1 in both the mirror and the shipped grader.
-    assert evaluate_junit_v5([_V5_SKIP_JUNIT], 0, _V5_SKIP_NAMED) == 1
+    # The shipped grader accepts the skip-tolerant pass.
     assert (
         _run_embedded_v5_grader(
             tmp_path,
@@ -1660,7 +1239,6 @@ def test_embedded_v5_grader_matches_v5_mirror(
     )
     # Failures still grade 0 in both.
     failed = _V5_SKIP_JUNIT.replace(b"<skipped", b"<failure")
-    assert evaluate_junit_v5([failed], 0, _V5_SKIP_NAMED) == 0
     assert (
         _run_embedded_v5_grader(
             tmp_path, capsys, monkeypatch, runner_cmd=cmd, output=pytest_out, rc=0, junit=failed
@@ -1782,96 +1360,6 @@ _V6_NAMED = {
 }
 
 
-def test_v6_status_map_keeps_the_worst_outcome() -> None:
-    import xml.etree.ElementTree as ET
-
-    assert junit_case_status(ET.fromstring(
-        b'<testcase classname="X" name="a"><failure/></testcase>'
-    )) == "bad"
-    assert junit_case_status(ET.fromstring(
-        b'<testcase classname="X" name="a"><skipped/></testcase>'
-    )) == "skipped"
-    assert junit_case_status(ET.fromstring(
-        b'<testcase classname="X" name="a"/>'
-    )) == "passed"
-    key = ("pkg.test_a", "test_fail_one", "")
-    assert junit_status_map([_V6_BASE_JUNIT]) == {
-        ("pkg.test_a", "test_fail_one", ""): "bad",
-        ("pkg.test_a", "test_fail_two", ""): "bad",
-        ("pkg.test_a", "test_pass_one", ""): "passed",
-        ("pkg.test_a", "test_skip_one", ""): "skipped",
-    }
-    assert junit_status_map([_V6_BASE_JUNIT])[key] == "bad"
-    assert junit_status_map([]) == {}
-    assert junit_status_map([None, b"not xml <"]) == {}
-
-
-def test_v6_grading_requires_fail_to_pass() -> None:
-    # Oracle: pristine failures now pass, passes still pass, pristine skips
-    # still skipped.
-    assert evaluate_junit_v6([_V6_ORACLE_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 1
-    # Skip attack: pristine failures skipped instead of passing.
-    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 0
-    # Nop: pristine failures still failing.
-    assert evaluate_junit_v6([_V6_BASE_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 0
-    # Pass-to-pass broken: a pristine pass now fails.
-    broken = _V6_ORACLE_JUNIT.replace(
-        b'name="test_pass_one"/>', b'name="test_pass_one"><failure message="x"/></testcase>'
-    )
-    assert evaluate_junit_v6([broken], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 0
-    # New skip: a pristine pass skipped instead.
-    reskipped = _V6_ORACLE_JUNIT.replace(
-        b'name="test_pass_one"/>', b'name="test_pass_one"><skipped message="x"/></testcase>'
-    )
-    assert evaluate_junit_v6([reskipped], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 0
-    # Pristine skip now passing is fine.
-    unskipped = _V6_ORACLE_JUNIT.replace(
-        b'name="test_skip_one"><skipped message="x"/></testcase>',
-        b'name="test_skip_one"/>',
-    )
-    assert evaluate_junit_v6([unskipped], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 1
-
-
-def test_v6_grading_without_baseline_is_v5() -> None:
-    # No baseline artifacts: the skip attack grades like @5 (documents the
-    # fallback; the shipped grader always records a baseline for pytest).
-    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 0, _V6_NAMED, None) == 1
-    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 0, _V6_NAMED, []) == 1
-    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 0, _V6_NAMED, [None]) == 1
-    assert evaluate_junit_v6([_V6_ORACLE_JUNIT], 0, _V6_NAMED, None) == 1
-    assert evaluate_junit_v6([_V6_BASE_JUNIT], 0, _V6_NAMED, None) == 0
-    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 1, _V6_NAMED, None) == 0
-
-
-def test_v6_unittest_counts() -> None:
-    base_fail = "Ran 8 tests in 0.01s\n\nFAILED (failures=3)\n"
-    oracle = "Ran 8 tests in 0.01s\n\nOK\n"
-    attack = "Ran 8 tests in 0.01s\n\nOK (skipped=8)\n"
-    assert evaluate_unittest_v6(oracle, 0, base_fail) == 1
-    assert evaluate_unittest_v6(attack, 0, base_fail) == 0
-    assert evaluate_unittest_v6(base_fail, 1, base_fail) == 0
-    # Skips tolerated only up to the pristine count; runs must not shrink.
-    base_skip = "Ran 8 tests in 0.01s\n\nOK (skipped=2)\n"
-    assert evaluate_unittest_v6("Ran 8 tests in 0.01s\n\nOK (skipped=2)\n", 0, base_skip) == 1
-    assert evaluate_unittest_v6("Ran 8 tests in 0.01s\n\nOK (skipped=3)\n", 0, base_skip) == 0
-    assert evaluate_unittest_v6("Ran 7 tests in 0.01s\n\nOK (skipped=2)\n", 0, base_skip) == 0
-    # No (or unparsable) baseline: exactly @5.
-    assert evaluate_unittest_v6(attack, 0, None) == 1
-    assert evaluate_unittest_v6(attack, 0, "traceback noise") == 1
-    assert evaluate_unittest_v6(oracle, 0, None) == 1
-    assert evaluate_unittest_v6(attack, 1, base_fail) == 0
-
-
-def test_v6_go_empty_run_grades_zero() -> None:
-    empty = "ok  \texample.com/mod/pkg\t0.026s [no tests to run]\n"
-    assert evaluate_go_output_v6(empty, 0) == 0
-    assert evaluate_go_output(empty, 0) == 1  # @5 still grades the shape 1
-    passing = "--- PASS: TestX (0.00s)\nPASS\nok  \texample.com/mod/pkg\t0.1s\n"
-    assert evaluate_go_output_v6(passing, 0) == 1
-    assert evaluate_go_output_v6(passing, 1) == 0
-    assert evaluate_go_output_v6("FAIL\n", 1) == 0
-
-
 def _v6_grader_block() -> str:
     """Extract the current grading script for the fail-to-pass cases."""
     import re as _re
@@ -1982,10 +1470,6 @@ def test_embedded_v6_pytest_fail_to_pass(
     assert _v6_pytest_case(tmp_path, capsys, monkeypatch, _V6_BASE_JUNIT, _V6_BASE_JUNIT) == "0"
     # Without baseline artifacts the embedded grader keeps @5 rules.
     assert _v6_pytest_case(tmp_path, capsys, monkeypatch, _V6_SKIP_JUNIT, None) == "1"
-    # Mirror and embedded agree on every shape above.
-    assert evaluate_junit_v6([_V6_ORACLE_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 1
-    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 0
-    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 0, _V6_NAMED, None) == 1
 
 
 def test_embedded_v6_grades_from_archives_without_plugin_report(
@@ -2026,9 +1510,6 @@ def test_embedded_v6_grades_from_archives_without_plugin_report(
         )
         == "0"
     )
-    # Mirror agrees (missing plugin report is simply absent from the union).
-    assert evaluate_junit_v6([None, _V6_ORACLE_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 1
-    assert evaluate_junit_v6([None, _V6_SKIP_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 0
 
 
 
@@ -2051,12 +1532,6 @@ def test_embedded_v6_go_empty_run(
         )
         == "1"
     )
-    assert evaluate_go_output_v6(empty, 0) == 0
-    assert evaluate_go_output_v6(passing, 0) == 1
-
-
-
-
 
 
 # --------------------------------------------------------------------------- #
@@ -2094,31 +1569,6 @@ _V7_G3_ORACLE = (
 )
 
 
-def test_v7_go_per_package_emptiness() -> None:
-    assert evaluate_go_output_v7(_V7_G1_ORACLE, 0) == 1
-    assert evaluate_go_output_v7(_V7_G1_EMPTY, 0) == 0
-    assert evaluate_go_output_v7(_V7_G1_ORACLE, 1) == 0
-    assert evaluate_go_output_v7("", 0) == 0
-    assert evaluate_go_output_v7("?  \tpkg\t[no test files]\n", 0) == 0
-    nop = "--- FAIL: TestX (0.00s)\nFAIL\nFAIL\tpkg\t0.1s\n"
-    assert evaluate_go_output_v7(nop, 1) == 0
-
-
-def test_v7_go_direct_binary_pass() -> None:
-    assert evaluate_go_output_v7(_V7_G3_ORACLE, 0) == 1
-    assert evaluate_go_output_v7(_V7_G3_ORACLE, 1) == 0
-    # Bare PASS cannot rescue an emptied run.
-    assert (
-        evaluate_go_output_v7(
-            "testing: warning: no tests to run\nPASS\nok  \tpkg\t0.01s [no tests to run]\n",
-            0,
-        )
-        == 0
-    )
-    # @6 grades the binary shape 0 (the gap @7 closes).
-    assert evaluate_go_output_v6(_V7_G3_ORACLE, 0) == 0
-
-
 # 000133 oracle shape: jest `Tests:` summaries with skipped segments first.
 _V7_G2_ORACLE = (
     " PASS  common/__tests__/network.test.js\n"
@@ -2136,19 +1586,6 @@ _V7_G2_ORACLE = (
 )
 
 
-def test_v7_jest_skipped_first_shape() -> None:
-    assert evaluate_js_output_v7("jest", _V7_G2_ORACLE, 0) == 1
-    assert evaluate_js_output_v7("jest", _V7_G2_ORACLE, 1) == 0
-    assert (
-        evaluate_js_output_v7(
-            "jest", "Tests:       8 skipped, 8 total\nTest Suites: 1 passed, 1 total\n", 0
-        )
-        == 0
-    )
-    assert evaluate_js_output_v7("jest", "Tests: 1 failed, 3 passed, 4 total\n", 0) == 0
-    assert evaluate_js_output_v7("jest", "Tests:       4 passed, 4 total\n", 0) == 1
-    # @3-@6 grade the skipped-first shape 0 (the gap @7 closes).
-    assert evaluate_js_output("jest", _V7_G2_ORACLE, 0) == 0
 
 
 # 000828 oracle bytes: vitest colorizes the summary words themselves.
@@ -2158,16 +1595,6 @@ _V7_G4_ORACLE = (
 )
 
 
-def test_v7_strip_ansi_before_markers() -> None:
-    assert (
-        strip_ansi(_V7_G4_ORACLE)
-        == " Test Files  1 passed (1)\n      Tests  14 passed (14)\n"
-    )
-    assert evaluate_js_output_v7("vitest", _V7_G4_ORACLE, 0) == 1
-    assert evaluate_js_output_v7("vitest", " Tests  8 skipped (8)\n", 0) == 0
-    assert evaluate_js_output_v7("jest", "\x1b[1mTests:\x1b[22m 4 passed, 4 total\n", 0) == 1
-    # @3-@6 grade the colorized shape 0 (the gap @7 closes).
-    assert evaluate_js_output("vitest", _V7_G4_ORACLE, 0) == 0
 
 
 # Real pytest-8 junit shapes (locally reproduced): pristine collection
@@ -2187,42 +1614,9 @@ _V7_G5_AGENT_JUNIT = (
     b'<testcase classname="pkg.test_mod" name="test_top" time="0" />'
     b"</testsuite>"
 )
-_V7_G5_GONE_JUNIT = (
-    b'<testsuite name="pytest" errors="0" failures="1">'
-    b'<testcase classname="pkg.gone" name="test_vanished">'
-    b'<failure message="x"/></testcase></testsuite>'
-)
 # Old-pytest file-attr shape: the module is ambiguous, the file is exact.
-_V7_G5_BASE_FILE_JUNIT = (
-    b'<testsuite name="pytest" errors="1">'
-    b'<testcase classname="pytest" name="pkg/test_old.py" file="pkg/test_old.py">'
-    b"<error message=\"collection failure\">ImportError</error></testcase></testsuite>"
-)
-_V7_G5_AGENT_FILE_JUNIT = (
-    b'<testsuite name="pytest">'
-    b'<testcase classname="pkg.test_old.TestA" name="test_one" file="pkg/test_old.py" />'
-    b"</testsuite>"
-)
-_V7_G5_AGENT_OTHER_FILE_JUNIT = (
-    b'<testsuite name="pytest">'
-    b'<testcase classname="pkg.other.TestA" name="test_one" file="pkg/other.py" />'
-    b"</testsuite>"
-)
 
 
-def test_v7_collection_error_module_is_fail_to_pass() -> None:
-    # @6 grades the shape 0 (the gap @7 closes).
-    assert evaluate_junit_v6([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_BASE_JUNIT]) == 0
-    assert evaluate_junit_v7([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_BASE_JUNIT]) == 1
-    assert evaluate_junit_v7([_V7_G5_AGENT_JUNIT], 1, (), [_V7_G5_BASE_JUNIT]) == 0
-    # A vanished failure still fails.
-    assert evaluate_junit_v7([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_GONE_JUNIT]) == 0
-    # File-attr shape: same file passing satisfies; a different file does not.
-    assert evaluate_junit_v7([_V7_G5_AGENT_FILE_JUNIT], 0, (), [_V7_G5_BASE_FILE_JUNIT]) == 1
-    assert (
-        evaluate_junit_v7([_V7_G5_AGENT_OTHER_FILE_JUNIT], 0, (), [_V7_G5_BASE_FILE_JUNIT])
-        == 0
-    )
 
 
 # 000934/001839: tap-labeled commands emitting mocha spec-reporter output.
@@ -2245,23 +1639,8 @@ _V7_G6_CLASSIC_OUT = (
     "\n"
     "  ok\n"
 )
-_V7_G6_TAP_OUT = "ok 1 - first\nok 2 - second\n"
 
 
-def test_v7_tap_spec_reporter_grades_mocha_markers() -> None:
-    assert effective_js_runner("tap", _V7_G6_SPEC_CMD, _V7_G6_SPEC_OUT) == "mocha"
-    assert effective_js_runner("tap", _V7_G6_CLASSIC_CMD, _V7_G6_CLASSIC_OUT) == "mocha"
-    assert effective_js_runner("tap", "node_modules/.bin/tap test/x.test.js", _V7_G6_TAP_OUT) == "tap"
-    assert effective_js_runner("mocha", "whatever", _V7_G6_SPEC_OUT) == "mocha"
-    assert evaluate_js_output_v7("tap", _V7_G6_SPEC_OUT, 0, _V7_G6_SPEC_CMD) == 1
-    assert evaluate_js_output_v7("tap", _V7_G6_CLASSIC_OUT, 0, _V7_G6_CLASSIC_CMD) == 1
-    assert evaluate_js_output_v7("tap", _V7_G6_TAP_OUT, 0) == 1
-    assert evaluate_js_output_v7("tap", "not ok 1 - first\n", 0) == 0
-    assert evaluate_js_output_v7("tap", "not ok 1 - first\n", 1) == 0
-    # Genuine TAP keeps its markers under @7.
-    assert evaluate_js_output("tap", _V7_G6_TAP_OUT, 0) == 1
-    # @3-@6 grade the spec shape 0 (the gap @7 closes).
-    assert evaluate_js_output("tap", _V7_G6_SPEC_OUT, 0) == 0
 
 
 # 000511 resolved shape (multi-phase `set -e`) vs 000083 (single pytest).
@@ -2397,59 +1776,6 @@ _V7_G8_AGENT_JUNIT = (
     b'<testcase classname="pkg.other" name="test_broken" />'
     b"</testsuite>"
 )
-
-
-def test_v7_internalerror_baseline_falls_back_to_structured_rules() -> None:
-    assert evaluate_junit_v7([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], "") == 0
-    assert (
-        evaluate_junit_v7([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], _V7_G8_BASELINE_OUT)
-        == 1
-    )
-    # Never exit-code-only: empty cases and nonzero exit still grade 0.
-    assert evaluate_junit_v7([None], 0, (), [_V7_G8_BASE_JUNIT], _V7_G8_BASELINE_OUT) == 0
-    assert (
-        evaluate_junit_v7([_V7_G8_AGENT_JUNIT], 1, (), [_V7_G8_BASE_JUNIT], _V7_G8_BASELINE_OUT)
-        == 0
-    )
-
-
-def test_v7_pre_existing_failures_stay_zero() -> None:
-    base = (
-        b'<testsuite><testcase classname="t" name="a">'
-        b'<failure message="x"/></testcase></testsuite>'
-    )
-    assert evaluate_junit_v7([base], 1, (), [base], "") == 0
-
-
-def test_v7_anticheat_shapes_stay_zero() -> None:
-    # 000553 emptied go selection.
-    assert evaluate_go_output_v7(_V7_G1_EMPTY, 0) == 0
-    # All-skipped summaries have no passed segment.
-    assert (
-        evaluate_js_output_v7(
-            "jest", "Tests:       8 skipped, 8 total\nTest Suites: 1 passed, 1 total\n", 0
-        )
-        == 0
-    )
-    assert (
-        evaluate_js_output_v7("vitest", " Test Files  1 passed (1)\n      Tests  8 skipped (8)\n", 0)
-        == 0
-    )
-    # Skip attack against a passing pristine baseline.
-    base = (
-        b'<testsuite><testcase classname="p" name="a"/>'
-        b'<testcase classname="p" name="b"/></testsuite>'
-    )
-    attack = (
-        b'<testsuite><testcase classname="p" name="a"><skipped/></testcase>'
-        b'<testcase classname="p" name="b"><skipped/></testcase></testsuite>'
-    )
-    assert evaluate_junit_v7([attack], 0, (), [base], "") == 0
-    # Empty report and nop go text.
-    assert evaluate_junit_v7([None], 0, (), None, "") == 0
-    assert evaluate_go_output_v7("--- FAIL: TestX (0.00s)\nFAIL\n", 1) == 0
-    # TAP failure output never switches reporters.
-    assert evaluate_js_output_v7("tap", "ok 1\nnot ok 2\n", 0) == 0
 
 
 def _v7_grader_block() -> str:
@@ -2668,17 +1994,6 @@ def test_embedded_v7_pytest_g5_g8(
         )
         == "0"
     )
-    # Mirror and embedded agree on every shape above.
-    assert evaluate_junit_v7([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_BASE_JUNIT], reliable) == 1
-    assert evaluate_junit_v7([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], reliable) == 0
-    assert (
-        evaluate_junit_v7([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], _V7_G8_BASELINE_OUT)
-        == 1
-    )
-
-
-
-
 
 
 # --------------------------------------------------------------------------- #
@@ -2705,24 +2020,6 @@ _V8_TERSE_CMD = (
 )
 
 
-def test_v8_terse_reporter_grades_asserts() -> None:
-    assert effective_js_runner_v8("tap", _V8_TERSE_CMD, _V8_TERSE_ORACLE) == "terse"
-    assert effective_js_runner_v8("tap", "npx tap test/x.test.js", _V8_TERSE_ORACLE) == "terse"
-    assert (
-        effective_js_runner_v8("tap", "node_modules/.bin/tap test/x.test.js", "ok 1 - x\n")
-        == "tap"
-    )
-    assert effective_js_runner_v8("mocha", "whatever", _V8_TERSE_ORACLE) == "mocha"
-    assert evaluate_js_output_v8("tap", _V8_TERSE_ORACLE, 0, _V8_TERSE_CMD) == 1
-    assert evaluate_js_output_v8("tap", _V8_TERSE_ORACLE, 1, _V8_TERSE_CMD) == 0
-    assert evaluate_js_output_v8("tap", _V8_TERSE_NOP, 0, _V8_TERSE_CMD) == 0
-    assert evaluate_js_output_v8("tap", "  0 passing (5ms)\n", 0, _V8_TERSE_CMD) == 0
-    # Genuine TAP and mocha shapes are unchanged under @8.
-    assert evaluate_js_output_v8("tap", "ok 1 - first\nok 2 - second\n", 0) == 1
-    assert evaluate_js_output_v8("tap", "not ok 1 - first\n", 0) == 0
-    assert evaluate_js_output_v8("mocha", "  9 passing (20ms)\n", 0) == 1
-    # @7 grades the terse shape 0 (the gap @8 closes).
-    assert evaluate_js_output_v7("tap", _V8_TERSE_ORACLE, 0, _V8_TERSE_CMD) == 0
 
 
 # Locally reproduced dashed-dir junits (pytest 8.4.2): pristine collection
@@ -2744,18 +2041,6 @@ _V8_DASH_AGENT_JUNIT = (
 )
 
 
-def test_v8_dashed_collection_error_module_is_fail_to_pass() -> None:
-    # @7 grades the dashed shape 0 (the gap @8 closes).
-    assert evaluate_junit_v7([_V8_DASH_AGENT_JUNIT], 0, (), [_V8_DASH_BASE_JUNIT]) == 0
-    assert evaluate_junit_v8([_V8_DASH_AGENT_JUNIT], 0, (), [_V8_DASH_BASE_JUNIT]) == 1
-    assert evaluate_junit_v8([_V8_DASH_AGENT_JUNIT], 1, (), [_V8_DASH_BASE_JUNIT]) == 0
-    # Undashed shapes agree between @7 and @8.
-    assert evaluate_junit_v8([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_BASE_JUNIT]) == 1
-    assert evaluate_junit_v8([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], "") == 0
-    assert (
-        evaluate_junit_v8([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], _V7_G8_BASELINE_OUT)
-        == 1
-    )
 
 
 def _v8_grader_block() -> str:
@@ -2855,10 +2140,6 @@ def test_embedded_v8_terse_and_dashed(
         )
         == "1"
     )
-    # Mirror and embedded agree on every shape above.
-    assert evaluate_js_output_v8("tap", _V8_TERSE_ORACLE, 0, _V8_TERSE_CMD) == 1
-    assert evaluate_js_output_v8("tap", _V8_TERSE_NOP, 0, _V8_TERSE_CMD) == 0
-    assert evaluate_junit_v8([_V8_DASH_AGENT_JUNIT], 0, (), [_V8_DASH_BASE_JUNIT]) == 1
 
 
 def test_embedded_v8_keeps_v7_shapes(
@@ -2895,9 +2176,6 @@ def test_embedded_v8_keeps_v7_shapes(
     )
 
 
-
-
-
 # --------------------------------------------------------------------------- #
 # separate-verifier@9: skips in satisfied collection-error modules (001431)
 # --------------------------------------------------------------------------- #
@@ -2926,21 +2204,6 @@ _V9_BASE_JUNIT = (
     b"<error message=\"collection failure\">AttributeError</error>"
     b"</testcase></testsuite>"
 )
-_V9_AGENT_PASS_JUNIT = (
-    b'<?xml version="1.0" encoding="utf-8"?>'
-    b'<testsuite name="pytest" errors="0" tests="2">'
-    b'<testcase classname="test.logformats_test.TestGzipASCFileFormat" name="test_file_like" />'
-    b'<testcase classname="test.logformats_test.TestAscFileFormat" name="test_can_message" />'
-    b"</testsuite>"
-)
-_V9_AGENT_SKIP_IN_JUNIT = (
-    b'<?xml version="1.0" encoding="utf-8"?>'
-    b'<testsuite name="pytest" errors="0" tests="3">'
-    b'<testcase classname="test.logformats_test.TestGzipASCFileFormat" name="test_file_like" />'
-    b'<testcase classname="test.logformats_test.TestGzipASCFileFormat" name="test_append_mode"><skipped message="conditional" /></testcase>'
-    b'<testcase classname="test.logformats_test.TestSqliteDatabaseFormat" name="test_read_all"><skipped message="conditional" /></testcase>'
-    b"</testsuite>"
-)
 _V9_AGENT_SKIP_OUT_JUNIT = (
     b'<?xml version="1.0" encoding="utf-8"?>'
     b'<testsuite name="pytest" errors="0" tests="2">'
@@ -2949,70 +2212,6 @@ _V9_AGENT_SKIP_OUT_JUNIT = (
     b"</testsuite>"
 )
 _V9_1431_BASELINE_OUT = "baseline_sec=1 runner=pytest rc=2\n"
-
-
-def test_v9_001431_real_pair_grades_one() -> None:
-    base = _v9_fixture("001431-baseline.xml")
-    agent = _v9_fixture("001431-agent.xml")
-    # The gap @9 closes: @8 fails the working fix on its conditional skips.
-    assert evaluate_junit_v8([agent], 0, (), [base], _V9_1431_BASELINE_OUT) == 0
-    assert evaluate_junit_v9([agent], 0, (), [base], _V9_1431_BASELINE_OUT) == 1
-    # Inline shapes agree with the captured pair.
-    assert evaluate_junit_v9([_V9_AGENT_PASS_JUNIT], 0, (), [_V9_BASE_JUNIT]) == 1
-    assert evaluate_junit_v9([_V9_AGENT_SKIP_IN_JUNIT], 0, (), [_V9_BASE_JUNIT]) == 1
-    assert evaluate_junit_v8([_V9_AGENT_SKIP_IN_JUNIT], 0, (), [_V9_BASE_JUNIT]) == 0
-    # Nonzero exit still fails.
-    assert evaluate_junit_v9([agent], 1, (), [base], _V9_1431_BASELINE_OUT) == 0
-    # The error persisting (nop shape) still fails.
-    assert evaluate_junit_v9([base], 2, (), [base], _V9_1431_BASELINE_OUT) == 0
-
-
-def test_v9_keeps_v8_grades() -> None:
-    # Every previously-passing G-shape still passes; every previously-failing
-    # shape still fails (the widen-only argument, pinned on fixtures).
-    assert evaluate_junit_v9([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_BASE_JUNIT]) == 1
-    assert evaluate_junit_v9([_V7_G5_AGENT_FILE_JUNIT], 0, (), [_V7_G5_BASE_FILE_JUNIT]) == 1
-    assert (
-        evaluate_junit_v9([_V7_G5_AGENT_OTHER_FILE_JUNIT], 0, (), [_V7_G5_BASE_FILE_JUNIT])
-        == 0
-    )
-    assert evaluate_junit_v9([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_GONE_JUNIT]) == 0
-    assert evaluate_junit_v9([_V8_DASH_AGENT_JUNIT], 0, (), [_V8_DASH_BASE_JUNIT]) == 1
-    assert evaluate_junit_v9([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], "") == 0
-    assert (
-        evaluate_junit_v9([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], _V7_G8_BASELINE_OUT)
-        == 1
-    )
-
-
-def test_v9_anticheat_shapes_stay_zero() -> None:
-    # Skip attack against a passing pristine baseline (no error orphans, so
-    # no satisfied module can excuse it).
-    base = (
-        b'<testsuite><testcase classname="p" name="a"/>'
-        b'<testcase classname="p" name="b"/></testsuite>'
-    )
-    attack = (
-        b'<testsuite><testcase classname="p" name="a"><skipped/></testcase>'
-        b'<testcase classname="p" name="b"><skipped/></testcase></testsuite>'
-    )
-    assert evaluate_junit_v9([attack], 0, (), [base], "") == 0
-    # Empty report stays 0.
-    assert evaluate_junit_v9([None], 0, (), None, "") == 0
-    # A new skip OUTSIDE the satisfied module still fails.
-    assert evaluate_junit_v9([_V9_AGENT_SKIP_OUT_JUNIT], 0, (), [_V9_BASE_JUNIT], "") == 0
-    # An error key that also carries a failure is not an orphan.
-    fail_key = (
-        b'<testsuite errors="1"><testcase classname="test.logformats_test" name="TestGzipASCFileFormat">'
-        b"<error message=\"collection failure\">x</error>"
-        b"<failure message=\"y\"/></testcase></testsuite>"
-    )
-    assert evaluate_junit_v9([_V9_AGENT_PASS_JUNIT], 0, (), [fail_key]) == 0
-    # A decoy class that merely shares a name fragment never matches.
-    fragment = (
-        b'<testsuite><testcase classname="test.other.TestGzipASCFileFormatExtra" name="test_x"/></testsuite>'
-    )
-    assert evaluate_junit_v9([fragment], 0, (), [_V9_BASE_JUNIT]) == 0
 
 
 def _v9_grader_block() -> str:
@@ -3102,8 +2301,6 @@ def test_embedded_v9_real_pair(
         )
         == "1"
     )
-    # The retained receipt decoder and current grader agree.
-    assert evaluate_junit_v9([agent], 0, (), [base], _V9_1431_BASELINE_OUT) == 1
 
 
 def test_embedded_v9_anticheat_shapes_grade_zero(
@@ -3148,19 +2345,12 @@ def test_embedded_v9_anticheat_shapes_grade_zero(
     )
 
 
-
-
-
 # -- separate-verifier@10 --------------------------------------------------
 
 _V10_PASS_JUNIT = b'<testsuite tests="1"><testcase classname="m.C" name="test_a"/></testsuite>'
 _V10_FAIL_JUNIT = (
     b'<testsuite tests="1"><testcase classname="m.C" name="test_a">'
     b"<failure>boom</failure></testcase></testsuite>"
-)
-_V10_SKIP_JUNIT = (
-    b'<testsuite tests="1"><testcase classname="m.C" name="test_a">'
-    b"<skipped/></testcase></testsuite>"
 )
 
 
@@ -3172,16 +2362,6 @@ def test_v10_binary_artifact_paths() -> None:
     assert not is_binary_artifact_path("docs/manual.pdf")
 
 
-def test_v10_evaluate_unittest_from_junit_only() -> None:
-    assert evaluate_unittest_v10([_V10_PASS_JUNIT], 0) == 1
-    assert evaluate_unittest_v10([_V10_FAIL_JUNIT], 0) == 0
-    assert evaluate_unittest_v10([_V10_PASS_JUNIT], 1) == 0
-    assert evaluate_unittest_v10([None], 0) == 0
-    assert evaluate_unittest_v10([b"<testsuite tests=\"0\"/>"], 0) == 0
-    assert evaluate_unittest_v10([_V10_PASS_JUNIT], 0, [_V10_FAIL_JUNIT]) == 1
-    assert evaluate_unittest_v10([_V10_SKIP_JUNIT], 0, [_V10_FAIL_JUNIT]) == 0
-    assert evaluate_unittest_v10([_V10_SKIP_JUNIT], 0, [_V10_SKIP_JUNIT]) == 1
-    assert evaluate_unittest_v10([_V10_PASS_JUNIT], 0, [_V10_PASS_JUNIT]) == 1
 
 
 def test_v10_integrity_hook_detects_runtest_swap(tmp_path: Path) -> None:
@@ -3203,9 +2383,9 @@ def test_v10_integrity_hook_detects_runtest_swap(tmp_path: Path) -> None:
             os.environ.pop("MIMO_VERIFIER_INTEGRITY_DIR", None)
         else:
             os.environ["MIMO_VERIFIER_INTEGRITY_DIR"] = previous
-    changed = parse_integrity_log((tmp_path / "integrity.txt").read_text())
-    assert "pytest.Function.runtest" in changed
-    assert parse_integrity_log("OK\n") == []
+    changed = (tmp_path / "integrity.txt").read_text()
+    assert changed.startswith("CHANGED ")
+    assert "pytest.Function.runtest" in changed.removeprefix("CHANGED ").strip().split(",")
 
 
 def test_v10_unittest_shim_records_cases(tmp_path: Path) -> None:
@@ -3238,9 +2418,13 @@ def test_v10_unittest_shim_records_cases(tmp_path: Path) -> None:
     )
     assert completed.returncode == 1
     raw = junit_path.read_bytes()
-    statuses = junit_status_map([raw])
-    assert sorted(statuses.values()) == ["bad", "passed"]
-    assert evaluate_unittest_v10([raw], completed.returncode) == 0
+    import xml.etree.ElementTree as ET
+
+    cases = {case.attrib["name"]: case for case in ET.fromstring(raw).iter("testcase")}
+    assert set(cases) == {"test_ok", "test_bad"}
+    assert cases["test_ok"].find("failure") is None
+    assert cases["test_ok"].find("error") is None
+    assert cases["test_bad"].find("failure") is not None
     assert (tmp_path / "integrity-unittest.txt").read_text().strip() == "OK"
 
 
@@ -3278,7 +2462,9 @@ def test_v10_unittest_shim_fake_exit_yields_no_cases(tmp_path: Path) -> None:
     assert completed.returncode == 0
     assert "Ran 1 test" in completed.stdout
     raw = junit_path.read_bytes() if junit_path.exists() else None
-    assert evaluate_unittest_v10([raw], completed.returncode) == 0
+    import xml.etree.ElementTree as ET
+
+    assert raw is None or not list(ET.fromstring(raw).iter("testcase"))
 
 
 def _run_embedded_v10_grader(

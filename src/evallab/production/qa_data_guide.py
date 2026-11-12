@@ -172,8 +172,7 @@ OUTSIDE qa-data (plain files; no admission needed; run from the checkout root un
   Safe store snapshot: sqlite3 'file:<store>?mode=ro' ".backup /private/tmp/me/copy.sqlite" (never copy a live WAL file)
 
 NEVER: `CloudTraceDatabase(path)` on the live store without read_only=True (it runs a write transaction);
-`evallab prod status` is read-only but is for queue databases only: do not aim it at the cloud store;
-`atlas facet` without --dry-run, `atlas clusters build`, `atlas watch`, `prod run-once|serve|ingest`, `evallab trace`
+`atlas facet` without --dry-run, `atlas clusters build`, `atlas watch`, `prod run-once|serve`, `evallab trace`
 without --dry-run (model calls or writes); put labels, rewards, trace ids, dataset names or split names in a blind
 reader's input; read TEST or cross-test labels.
 """

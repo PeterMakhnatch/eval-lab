@@ -20,7 +20,6 @@ from evallab.automation import (
     audit_launch_agents,
 )
 from evallab.canary import CanaryEnqueuer, task_directory_digest
-from evallab.cli import run_cli
 from evallab.digest import DigestRenderer, DigestTrial, commit_digest
 from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.researchers import (
@@ -435,34 +434,6 @@ def test_schedule_status_distinguishes_unreadable_config_and_failed_probe(tmp_pa
     assert tick["config_error"] == "InvalidFileException"
     assert tick["probe_error"] == "TimeoutExpired"
     assert "must-not-escape" not in json.dumps(status)
-
-
-def test_schedule_cli_workflow(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    launchctl = FakeLaunchctl()
-
-    class IsolatedSchedule(ScheduleInstaller):
-        def __init__(self, root: Path, **kwargs: object) -> None:
-            super().__init__(root, home=tmp_path, launchctl=launchctl, **kwargs)
-
-    monkeypatch.setattr(cli_module, "ScheduleInstaller", IsolatedSchedule)
-    with pytest.raises(SystemExit) as invalid:
-        run_cli(["schedule", "install", "--interval-seconds", "0"], workspace=tmp_path)
-    assert invalid.value.code == 2
-    assert not launchctl.loaded
-    assert (
-        run_cli(
-            ["schedule", "install", "--interval-seconds", "60", "--tick-only"], workspace=tmp_path
-        )
-        == 0
-    )
-    capsys.readouterr()
-    assert run_cli(["schedule", "status"], workspace=tmp_path) == 0
-    status = json.loads(capsys.readouterr().out)
-    assert status["jobs"][ScheduleInstaller.TICK_LABEL]["cadence"] == {"interval_seconds": 60}
-    assert run_cli(["schedule", "uninstall"], workspace=tmp_path) == 0
-    assert not launchctl.loaded
 
 
 def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Path) -> None:

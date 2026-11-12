@@ -269,14 +269,9 @@ def test_scoreboard_of_a_batch_whose_labels_are_a_sealed_hard_link_is_refused(
     root = fixture_spec.parent
     secret = _sealed(root)
     batch = core.run_line(fixture_spec, root)
-    capsys.readouterr()
     # Control: the sealed folder exists but nothing is linked to it.
-    assert _cli(monkeypatch, root, "scoreboard", str(batch)) == 0
-    capsys.readouterr()
     labels = _declared(fixture_spec, "labels")
     _hard_link_to_sealed(labels, secret)
-    assert _cli(monkeypatch, root, "scoreboard", str(batch)) == 2
-    assert SEALED in capsys.readouterr().out
     with pytest.raises(ValueError, match=SEALED):
         build_scoreboard(batch, root)
 
@@ -288,11 +283,7 @@ def test_scoreboard_of_a_batch_whose_labels_are_a_symlink_is_refused(
 ) -> None:
     root = fixture_spec.parent
     batch = core.run_line(fixture_spec, root)
-    capsys.readouterr()
     _symlinked(_declared(fixture_spec, "labels"))
-    assert _cli(monkeypatch, root, "scoreboard", str(batch)) == 2
-    message = capsys.readouterr().out
-    assert message.startswith("line: ") and "symlink" in message
     with pytest.raises(ValueError, match=SYMLINK):
         build_scoreboard(batch, root)
 

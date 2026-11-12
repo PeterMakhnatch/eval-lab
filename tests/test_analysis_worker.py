@@ -788,7 +788,6 @@ def test_call_returned_without_sidecar_is_ambiguous_and_never_replayed(monkeypat
 
 def test_ambiguous_invocation_requires_explicit_operator_retry(monkeypatch, tmp_path):
     from evallab import analysis_worker as aw
-    from evallab import cli
 
     adapter = CountingAdapter()
     worker, root = make_worker(tmp_path, adapter=adapter)
@@ -805,12 +804,7 @@ def test_ambiguous_invocation_requires_explicit_operator_retry(monkeypatch, tmp_
         worker.run_one(rid)
     assert worker.run_one(rid).reason == ("ambiguous_invocation_requires_operator_resolution")
 
-    monkeypatch.setattr(aw, "default_worker", lambda root: worker)
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
-    assert cli.run_cli(
-        ["analyze", "worker-resolve-ambiguous", rid, "--action", "retry",
-         "--actor", "operator-test"], workspace=root
-    ) == 0
+    worker.resolve_ambiguous(rid, action="retry", actor="operator-test")
     assert adapter.calls == 1  # resolution records intent, not an automatic provider retry
     transition = worker.store.transitions(rid)[-1]
     assert transition.state == "pending"
@@ -822,7 +816,6 @@ def test_ambiguous_invocation_requires_explicit_operator_retry(monkeypatch, tmp_
 
 def test_operator_can_quarantine_ambiguity_without_retry(monkeypatch, tmp_path):
     from evallab import analysis_worker as aw
-    from evallab import cli
 
     adapter = CountingAdapter()
     worker, root = make_worker(tmp_path, adapter=adapter)
@@ -836,12 +829,7 @@ def test_operator_can_quarantine_ambiguity_without_retry(monkeypatch, tmp_path):
     monkeypatch.setattr(aw, "run_trial_analysis", returned_then_crashed)
     with pytest.raises(RuntimeError, match="lost response"):
         worker.run_one(rid)
-    monkeypatch.setattr(aw, "default_worker", lambda root: worker)
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
-    assert cli.run_cli(
-        ["analyze", "worker-resolve-ambiguous", rid, "--action", "quarantine",
-         "--actor", "operator-test"], workspace=root
-    ) == 0
+    worker.resolve_ambiguous(rid, action="quarantine", actor="operator-test")
     transition = worker.store.transitions(rid)[-1]
     assert transition.state == "quarantined"
     assert transition.reason == "ambiguous_invocation_quarantined:operator-test"
@@ -1245,3 +1233,5 @@ def test_lease_replacement_during_execution_is_durably_recorded(monkeypatch, tmp
     assert worker.store.unresolved_invocation(rid) is not None
     assert replacements[0] is not None
     worker.store.release_lease(rid, replacements[0])
+
+

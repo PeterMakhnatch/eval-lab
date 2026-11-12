@@ -597,9 +597,7 @@ model; a cloud verifier still requires the existing paid authorization.
 For a stored job and a current separate-verifier task:
 
 ```bash
-uv run --extra laminar evallab regrade runs/prior-job --task path/to/separate-verifier-task \
   --name verifier-replay --dry-run
-uv run --extra laminar evallab regrade runs/prior-job --task path/to/separate-verifier-task \
   --name verifier-replay --json
 ```
 
@@ -624,7 +622,6 @@ verifier operation, not task validity or model improvement.
 
 ### Additional upstream tests (`--held-out`, HAR-197)
 
-`evallab regrade JOB --held-out BUNDLE.json --task ORIGINAL_TASK --dry-run`
 checks a separate, digest-bound upstream-test suite against the recorded source.
 The preview reads files only: it does not probe Docker, build an image, create
 an output job, or execute task code. `runnable` means input eligibility, not
@@ -737,7 +734,6 @@ An undispatched, ungraded, unavailable, unreadable, or otherwise blocked smoke
 sets `queue/STOP` **before** any further launch or smoke-block event recording.
 All remaining specs, including free controls, stay queued across later ticks
 and fresh executors. Running trials are not killed or changed. Resolve the
-cause before an operator uses `evallab resume`; no automatic resume or trial
 retry is implied. Controls-only and intentionally selected single-model
 dispatches do not become smoke batches. `--no-smoke-gate` is an explicit,
 recorded opt-out, not the default or a substitute for paid authorisation.
@@ -1370,13 +1366,8 @@ projections by the queue. Inspect them without calling another model:
 
 ```bash
 uv run evallab summarize runs/terminus-example
-uv run evallab trajectories runs/terminus-example
-uv run evallab traj outline runs/terminus-example/<trial-directory>
 # Metrics/navigation without step bodies:
-uv run evallab traj outline runs/terminus-example/<trial-directory> --summary --json
 # A known inclusive logical range, or the first error-marked action directly:
-uv run evallab traj outline runs/terminus-example/<trial-directory> --steps 20:25 --json
-uv run evallab traj outline runs/terminus-example/<trial-directory> --first-error --json
 # Rebuild derived records from retained native evidence when needed:
 uv run evallab ingest runs/terminus-example
 ```
@@ -1406,21 +1397,17 @@ Two Terminus-specific knobs:
   the harness accepted from `extra.step_layers`
   (`step_layers.effective_tool_calls`), in stock Terminus-2 shape
   (`bash_command`, `mark_task_complete`).
-- `evallab tasks replay <retained-spec> --name <n> --model <selector>` swaps
   only the model (e.g. base to checkpoint), keeping the retained task,
   harness, and ceilings; the printed cost estimate must be re-checked before
   submitting. Prior approval is never inherited.
 
 Independent model-call capture (same placement as the z.ai lane) chains the
-metered proxy into `evallab capture serve`, so Tinker trials get the same
 completeness verdicts; see [the capture recipe](#independent-model-call-capture):
 
 ```bash
-uv run evallab capture serve --upstream https://tinker.thinkingmachines.dev \
   --out derived/captures/<name>
 ENDPOINT=$(python -c "import json; print(json.load(open('derived/captures/<name>/capture.json'))['endpoint'])")
 EVALLAB_TINKER_UPSTREAM="$ENDPOINT" EVALLAB_MODEL_CAPTURE=1 EVALLAB_MODEL_CAPTURE_DIR=derived/captures/<name> uv run evallab tick ...
-uv run evallab capture link derived/captures/<name> runs/<job>
 ```
 
 The trial's `agent/` directory retains `trajectory.json`, `recording.cast`,
@@ -1479,7 +1466,6 @@ candidate harness against a retained baseline spec:
 
 ```bash
 # Change only the candidate harness; reuse the executed task/model/limits.
-uv run evallab tasks replay runs/local-baseline/experiment-spec.json \
   --name local-candidate --harness-tree /absolute/path/to/candidate-harness
 uv run evallab submit derived/prepared/local-candidate.json
 uv run evallab approve <candidate-spec-id> --actor peter
@@ -1496,7 +1482,6 @@ non-control spec still requires recorded approval. Replay never inherits an
 old approval or changes the retained task; task drift refuses.
 
 Set `declared_variable` to `harness_tree_sha256` in a normal comparison spec,
-then run `evallab compare <comparison-spec.json>`. Comparison verifies retained
 tree bytes against native kwargs, rules, and skill locks before treating them
 as one treatment. Non-tree model/tool settings remain consequential. Full
 base execution settings must match within each paired task, even when
@@ -1633,7 +1618,6 @@ monitor sample, source/time, quotas, safety margin, pending allocations, and
 live inventory. Only a confirmed sandbox GET 404 records disappearance.
 Current or at-most-30-second-old near-limit pressure is capacity correlation,
 not a confirmed provider deletion cause; stale/unavailable reads remain
-unknown. `evallab report run` and processed trial pages show these distinctions.
 Old trials without records never acquire fabricated zero usage.
 
 The billing wallet/tier API returned 401 for this key; dated dashboard wallet
@@ -1773,7 +1757,6 @@ It excludes the current day and reports the trailing mean and sample standard de
 A version change or reward beyond 1 trailing standard deviation is a harness-drift suspect.
 It maps to `harness_failure`, not capability news.
 Check Docker, credentials, package/verifier identity, and the small sample before model comparisons.
-Import an immutable Harbor Hub revision with `evallab canary import-terminal-bench --help`.
 Free controls do not authorize a billable canary.
 
 ## Docker FIFO lock
@@ -1817,7 +1800,6 @@ timeouts/cancels can skip conversion (Harbor 0.21 `trial.py`; the opencode
 converter silently returns empty on failure). The lab's existing container
 proxies (`containers/*_secret_proxy.py`) record usage only, never bodies.
 
-`evallab capture` keeps an independent record of what the model saw and said,
 in a host process outside the agent's reach, so a missing, incomplete, or
 tampered trajectory is detectable after the run.
 
@@ -1827,18 +1809,14 @@ tampered trajectory is detectable after the run.
 # Record: forward to the real backend, append one JSON record per call.
 # Default binds an OS-assigned free port per server; read the bound endpoint
 # from <dir>/capture.json after the bind (never probe the port first).
-uv run evallab capture serve --upstream <base_url> --out <dir> \
   [--port PORT] [--bind 127.0.0.1] [--upstream-key-env NAME]
 ENDPOINT=$(python -c "import json; print(json.load(open('<dir>/capture.json'))['endpoint'])")
 
 # Attribute + judge: match calls to trials, write Parquet, print verdicts.
-uv run evallab capture link <capture_dir> <job_dir> [--derived-root DIR]
 
 # Surface: `report run` gains an "Independent capture" section when linked.
-uv run evallab report run <trial_dir>
 ```
 
-`evallab capture smoke --upstream <base_url> [--out <dir>] [--model <selector>]`
 sends one real provider call through the secret proxy and capture server, so
 the usual execution and spend authorization applies. The smoke drains its
 request handler before validating `calls.jsonl`: receiving a complete HTTP body
@@ -1940,13 +1918,11 @@ Chain the metered proxy (injects the real key) into capture (records), with
 capture as the secret proxy's upstream:
 
 ```bash
-uv run evallab capture serve --upstream https://api.z.ai \
   --out derived/captures/<name>
 ENDPOINT=$(python -c "import json; print(json.load(open('derived/captures/<name>/capture.json'))['endpoint'])")
 # The runner forwards this variable to the per-trial secret proxy (runner.py
 # `EVALLAB_ZAI_OPENAPI_UPSTREAM`), so set it on the dispatching command:
 EVALLAB_ZAI_OPENAPI_UPSTREAM="$ENDPOINT" EVALLAB_MODEL_CAPTURE=1 EVALLAB_MODEL_CAPTURE_DIR=derived/captures/<name> uv run evallab tick ...
-uv run evallab capture link derived/captures/<name> runs/<job>
 ```
 
 The secret proxy appends `/api/paas/v4/chat/completions` itself; capture
@@ -2031,7 +2007,6 @@ Both are paired catalog tables, with catalog root `derived/parquet/external/task
 
 | Table | One row per | Written by |
 |---|---|---|
-| `trial_treatment.parquet` | trial | `evallab tasks treatment-collect <job_dir>...` |
 | `trial_capture.parquet` | trial | the same command |
 
 `treatment-collect` merges into the existing pair, replacing rows for trials it has seen before without duplicating them. The trial identity is `(job_name, trial_name)`. `evallab attach` exposes both tables as top-level and `z3` views.
@@ -2082,7 +2057,6 @@ generation even when another collector publishes a newer one.
 Recovery does **not** rerun the agent, provider, or verifier:
 
 ```sh
-uv run evallab tasks treatment-collect /path/to/job-a /path/to/job-b
 ```
 
 - **Before the first snapshot:** a complete, consistent legacy pair of
@@ -2108,7 +2082,6 @@ remains unknown after successful collection.
 ## Pool check
 
 ```
-uv run evallab tasks pool-check <job name or dir>... [--same-task] [--accept-unknown] [--json]
 ```
 
 The command exits 0 and prints `POOLABLE` only when every setup field agrees. Otherwise it exits 1, prints `REFUSED`, and lists each differing field with the trials behind each value.
@@ -2302,7 +2275,6 @@ new health records.
 uv run evallab detectors verify                      # checksums of labels and cache
 uv run evallab detectors score                       # every cached detector, own label, $0
 uv run evallab detectors score --check reward_hacking --families
-uv run evallab detectors list --corpus detectors-v1
 uv run evallab detectors run --detector rules --tw-root DIR   # judge uncached rows, cache them
 uv run evallab detectors run --detector rules --source cb --cb-root DIR
 uv run evallab detectors run --detector rules --source aria --source olmo --source ht --rl-root DIR

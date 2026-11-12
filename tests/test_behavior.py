@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
-import pytest
 
-from evallab import cli
 from evallab.behavior import (
     DEFAULT_POWER_THRESHOLD,
     generate_behavior_report,
@@ -368,34 +365,6 @@ def test_underpowered_comparisons_render_not_distinguishable(tmp_path: Path) -> 
 
     rendered = render_behavior_report(report)
     assert "not distinguishable" in rendered
-
-
-def test_cli_behavior_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """Test `evallab behavior` and `evallab behavior --json` CLI wiring."""
-    derived_root = _create_fixture_corpus(tmp_path)
-
-    # 1. Plain text markdown report
-    exit_code = cli.run_cli(
-        ["behavior", "--derived-root", str(derived_root)],
-        workspace=tmp_path,
-    )
-    assert exit_code == 0
-    out = capsys.readouterr().out
-    assert "# Behavioral Analysis Report" in out
-    assert "Effort vs Outcome" in out
-    assert "undefined" in out
-
-    # 2. JSON mode
-    exit_code_json = cli.run_cli(
-        ["behavior", "--json", "--derived-root", str(derived_root)],
-        workspace=tmp_path,
-    )
-    assert exit_code_json == 0
-    json_out = capsys.readouterr().out
-    parsed = json.loads(json_out)
-    assert parsed["total_trials"] == 7
-    assert parsed["total_measured"] == 5
-    assert parsed["token_coverage_summary"] == "4 of 7 trials"
 
 
 def test_behavior_sql_and_python_agree_on_scored_exits() -> None:

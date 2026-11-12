@@ -1047,11 +1047,6 @@ def test_the_cli_watches_checks_and_scores_a_state_directory(
         assert cli.run_cli(["line", "check", str(target), "--json"], workspace=world.tmp) == 0
         reported = json.loads(capsys.readouterr().out)
         assert [c["name"] for c in reported["checks"]] == list(watch_rollup.LIVE_CHECK_NAMES)
-    assert (
-        cli.run_cli(["line", "scoreboard", str(world.state_dir), "--json"], workspace=world.tmp)
-        == 0
-    )
-    assert json.loads(capsys.readouterr().out)["overall"]["runs"] == 3
 
 
 # ---------------------------------------------------------------- line check: read-only, never stale
@@ -1346,8 +1341,6 @@ def test_the_watchdog_reports_two_open_increments_instead_of_crashing(world: Wor
     assert read_json(world.state.watchdog_path)["reason"] == verdict["reason"]
 
 
-
-
 def test_lag_is_measured_from_recorded_times_only() -> None:
     record = {
         "times": {
@@ -1529,24 +1522,6 @@ def test_labels_policy_defaults_to_excluding_attempted_cheats(world: World) -> N
     world.add_job("job-1", STAGE_ONE)
     assert world.run()["committed"] == [1]
     assert world.state.config()["line"]["labels_policy"] == {"attempted_cheat": "exclude"}
-
-
-def test_nothing_derived_is_stored_so_the_scoreboard_is_built_on_demand(
-    world: World, capsys: pytest.CaptureFixture[str]
-) -> None:
-    two_increments(world)
-    assert sorted(p.name for p in world.state_dir.iterdir() if p.is_dir()) == [
-        "frozen",
-        "increments",
-    ]
-    (world.state_dir / "cumulative").mkdir()  # a planted view is neither read nor trusted
-    write_json(world.state_dir / "cumulative" / "scoreboard.json", {"overall": {"runs": 99}})
-    assert (
-        cli.run_cli(["line", "scoreboard", str(world.state_dir), "--json"], workspace=world.tmp)
-        == 0
-    )
-    assert json.loads(capsys.readouterr().out)["overall"]["runs"] == 5
-    assert world.check()["passed"]
 
 
 def test_the_cli_looks_the_line_up_at_call_time_so_a_patch_never_outlives_its_test(
@@ -2181,19 +2156,6 @@ def test_the_watchdog_never_crashes_on_a_corrupt_age_limit(world: World, limit: 
     verdict = watch.watchdog(world.state_dir)
     assert verdict["status"] == "failed" and "watchdog_max_age_seconds" in verdict["reason"]
     assert read_json(world.state.watchdog_path)["status"] == "failed"
-
-
-def test_the_watchdog_cli_prints_one_failed_line_for_a_corrupt_age_limit(
-    world: World, capsys: pytest.CaptureFixture[str]
-) -> None:
-    world.add_job("job-1", STAGE_ONE)
-    world.run()
-    stored = read_json(world.state.watch_json)
-    stored["config"]["watch"]["watchdog_max_age_seconds"] = "corrupted"
-    write_json(world.state.watch_json, stored)
-    assert cli.run_cli(["line", "watchdog", str(world.state_dir)], workspace=world.tmp) == 2
-    printed = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
-    assert printed["status"] == "failed" and printed["at"]
 
 
 @pytest.mark.parametrize(

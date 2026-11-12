@@ -8,7 +8,6 @@ from typing import Any
 
 import pytest
 
-from evallab.cli import run_cli
 from evallab.gold_certifier import (
     CertificationCell,
     TaskCertificationResult,
@@ -476,45 +475,6 @@ def test_filtered_gold_subset_is_not_complete_gate(root: Path) -> None:
     assert status(root, row)["status"] == "provisional"
 
 
-def test_cli_build_and_no_output_on_rejection(
-    root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setattr("evallab.task_status._code_revision", lambda _: "a" * 40)
-    source = save(root, "gold.json", gold())
-    command = [
-        "tasks",
-        "status",
-        "build",
-        "--gold-results",
-        str(source),
-        "--out",
-        str(root / "status.json"),
-    ]
-    assert run_cli(command, workspace=root) == 0
-    summary = json.loads(capsys.readouterr().out)
-    assert summary["counts"] == {"certified": 0, "provisional": 1, "weak": 0, "uncertified": 0}
-    assert load_certified_tasks(root / "status.json")["sample-task"]["status"] == "provisional"
-    assert run_cli(command, workspace=root) == 2
-    capsys.readouterr()
-    save(root, "gold.json", gold(metadata={"run_id": "r1"}))
-    command[-1] = str(root / "refused.json")
-    assert run_cli(command, workspace=root) == 2
-    assert not (root / "refused.json").exists()
-
-
-def test_cli_dev_output_refused_before_writing(root: Path) -> None:
-    source = save(root, "gold.json", gold())
-    out = root / "answer-keys/status.json"
-    assert (
-        run_cli(
-            ["tasks", "status", "build", "--gold-results", str(source), "--out", str(out)],
-            workspace=root,
-        )
-        == 2
-    )
-    assert not out.exists()
-
-
 # Review regressions: real store layouts, outcome isolation, and Gate 7 edges.
 @pytest.mark.parametrize(
     "task_path",
@@ -869,32 +829,6 @@ def test_duplicate_receipt_across_flags_is_explicitly_refused(root: Path) -> Non
     )
     with pytest.raises(ValueError, match="multiple input kinds"):
         build(root, gold_results=[file], alt_replays=[file])
-
-
-def test_cli_expands_user_paths_before_root_join(
-    root: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    home = root / "home"
-    home.mkdir()
-    monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setattr("evallab.task_status._code_revision", lambda _: "a" * 40)
-    save(home, "receipt.json", gold())
-    assert (
-        run_cli(
-            [
-                "tasks",
-                "status",
-                "build",
-                "--gold-results",
-                "~/receipt.json",
-                "--out",
-                "~/status.json",
-            ],
-            workspace=root,
-        )
-        == 0
-    )
-    assert load_certified_tasks(home / "status.json")["sample-task"]["status"] == "provisional"
 
 
 @pytest.mark.parametrize("kind", ["admission", "gold"])

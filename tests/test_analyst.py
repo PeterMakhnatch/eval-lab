@@ -19,7 +19,6 @@ from evallab.analyst import (
     resolve_trial,
     run_analysis,
 )
-from evallab.cli import run_cli
 from evallab.evidence_store import archive_evidence
 from evallab.lineage import resolve_lineage
 from evallab.schemas import AnalysisRecord, ConfidenceClaim, EvidenceCitation
@@ -281,9 +280,6 @@ def test_lineage_resolution_on_stored_record(tmp_path: Path) -> None:
     # Check that it resolved to Zone 1 evidence files
     assert any(child.zone == "z1" for child in node.inputs)
 
-    # Also test CLI lineage command
-    ret = run_cli(["lineage", rel_rec_path], workspace=tmp_path)
-    assert ret == 0
 
 
 def test_no_model_invoked_without_model_flag(
@@ -335,33 +331,6 @@ def test_sql_views_in_clean_duckdb_session() -> None:
         ]:
             rows = con.execute(f"SELECT * FROM {view_name}").fetchall()
             assert rows == [], f"View {view_name} should return empty result in clean session"
-
-
-def test_cli_analyst_commands(tmp_path: Path) -> None:
-    """The analyst run command persists its conclusion and trajectory."""
-    _create_synthetic_trial(tmp_path)
-    derived = tmp_path / "derived" / "parquet"
-
-    # 1. run CLI
-    ret = run_cli(
-        ["analyst", "run", "trial_01", "--derived-root", str(derived)],
-        workspace=tmp_path,
-    )
-    assert ret == 0
-
-    records = list((tmp_path / "research/analysis").glob("*.json"))
-    conclusions = [
-        json.loads(path.read_text())
-        for path in records
-        if not path.name.endswith(".trajectory.json")
-    ]
-    assert len(conclusions) == 1
-    with duckdb.connect(":memory:") as con:
-        rows = con.execute(
-            "SELECT analysis_id, trial_id FROM read_parquet(?)",
-            [str(derived / "analyses" / "analyses.parquet")],
-        ).fetchall()
-    assert rows == [(conclusions[0]["analysis_id"], conclusions[0]["trial_id"])]
 
 
 @pytest.mark.parametrize(

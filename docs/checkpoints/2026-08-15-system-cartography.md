@@ -26,7 +26,6 @@ under `library/tasks/` (four runnable packages). Submit a free
 `oracle`/`nop` spec through `evallab submit`; policy admits
 `local-controls` (`policy/standing-approvals.yaml`). `evallab tick`
 dispatches. Evidence lands as a Harbor job directory. `ingest` /
-`ingest_and_project` index catalog + Parquet. `evallab status` and the
 dashboard/explorer render a typed read-only snapshot. Stage-5 analysis
 on main is **plan / stub / sidecar / review** — a saved-response stub,
 not a live judge. Next experiments live in
@@ -73,9 +72,7 @@ End-to-end loop that exists on this checkout:
 | Execute | Harbor via executor | `evallab tick` / `run` (oracle/nop only for direct run) | proven live (`docs/checkpoints/2026-08-14.md` integrator flight; `tests/test_smoke.py`) |
 | Persist evidence | Immutable job dir | `runs/<job>/` (gitignored) or promoted `research/evidence/runs/` | proven live (two promoted jobs) |
 | Index | Catalog + Parquet | `evallab ingest` / `trajectories` → `atif.ingest_and_project` | fixture-proven (`tests/test_pipeline.py`); live compose depends on local Postgres |
-| See what ran | Status / explorer / digest | `evallab status`; `dashboard/`; `digests/` | fixture-proven (`tests/test_status.py`, `tests/test_explorer.py`); dashboard UI is visual |
 | Analyze | Stage-5 stub path | `evallab analyze stub\|ingest-sidecar\|review` | fixture-proven (`research/analysis/stub-oracle-analysis.json`; `tests/test_smoke.py`) |
-| Compare | Declared cohorts | `evallab compare` | fixture-proven (`tests/test_truth.py`, `research/analysis/control-oracle-vs-nop.json`) |
 | Next experiment | Program ledger | `research/experiments/PROGRAM.json` + `STATUS.md` | designed + reviewed notes; several next cells **blocked** |
 
 **Observation.** `uv run evallab --help` on this tree lists **29**
@@ -88,7 +85,6 @@ checkpoint is historical.
 
 **What Peter cannot do today without further work or his own
 authority.** Dispatch `registered/*` researcher-followups (zero
-registry files; `uv run evallab registry list` prints “No task
 records”). Self-register a task. Run a live stage-5 LLM analysis from
 main (M006 worker is **pending in PR**). Use M007 workbench (also
 pending). Treat runtime `runs/canary-*-20260815/` as a Git-retained
@@ -111,13 +107,11 @@ PR**, **blocked**, **designed**.
 | Promoted control evidence | proven live | `research/evidence/runs/` | two job trees; `CONTROL_RESULTS.md` |
 | Catalog + Parquet unify | fixture-proven only | `atif.ingest_and_project` | `tests/test_pipeline.py` |
 | Docker-free smoke compose | fixture-proven only | `src/evallab/smoke.py` | `tests/test_smoke.py`; `docs/operator-demo.md` |
-| `evallab status` snapshot | fixture-proven only | `src/evallab/status.py` | `tests/test_status.py` |
 | Run/analysis explorer | fixture-proven only | `src/evallab/explorer.py`, `dashboard/explorer.py` | `tests/test_explorer.py`; `docs/run-explorer.md` |
 | Dashboard overview | fixture-proven only | `dashboard/app.py`, `projection.py` | `dashboard/tests/`; `docs/operator-demo.md` |
 | Cohort compare + power | fixture-proven only | `src/evallab/cohort.py` | `tests/test_truth.py`; `research/analysis/control-oracle-vs-nop.json` |
 | Stage-5 stub analysis | fixture-proven only | `src/evallab/facts.py` analyze helpers; CLI `analyze` | stub JSON; smoke test |
 | Registry admission logic | fixture-proven only | `src/evallab/registry.py` | `tests/test_registry.py` |
-| Registry **contents** | blocked | `library/registry/` is `.gitkeep` only | `evallab registry list` → 0 records |
 | Researcher loop | fixture-proven only | `src/evallab/researchers.py` | tests under researchers/unattended; live LLM **blocked** by empty registry + `calibrated_judges_only` |
 | Fetch Hub datasets | fixture-proven only | `src/evallab/fetch.py` | `tests/test_fetch.py` (no live Hub in this session) |
 | GC plan/apply | fixture-proven only | `src/evallab/gc.py` | `tests/test_gc.py` |
@@ -298,11 +292,9 @@ path.
 **One-hour operator session (today, no Compose from a worktree).**
 
 1. `uv run evallab --help` and `uv run evallab doctor --help`
-2. `uv run evallab registry list` and `registry audit` (see 0 records)
 3. `uv run python -m evallab.smoke --help` then
    `uv run python -m evallab.smoke --docker-free` if you want the
    fixture compose (writes under a smoke dir; no paid model)
-4. `uv run evallab status --help`
 5. Read `research/experiments/STATUS.md` and PROGRAM EXP-S01
 6. Read this page + open `docs/system-cartography.html`
 7. `gh pr view 47` and `gh pr view 49` — review, do not merge as author
@@ -379,7 +371,6 @@ at review.
 - **Deps:** none (uses existing promoted event-summary evidence;
   txn/html-js may cite documented control paths or stop if evidence is
   not promoted).
-- **Acceptance:** `evallab registry list --state candidate` shows 3;
   `audit` has 0 errors; no `state=registered`.
 - **Failure:** Missing promoted oracle=1/nop=0 → do not invent jobs.
 - **Stop:** Before setting `approved_by` (Peter).
@@ -439,7 +430,6 @@ at review.
 ### M-C6 — Post-M006 saved-response flight (blocked until #47 merges)
 - **Outcome:** On **main**, one docker-free worker cycle on the smoke
   fixture produces exactly the documented pending/completed records
-  and they appear in `evallab status` Analysis.
 - **Lease:** handoff + `docs/operator-demo.md` additive paragraph
   only; no worker rewrite.
 - **Deps:** M006 merged green.
@@ -471,14 +461,8 @@ at review.
 ```bash
 uv run evallab --help
 uv run evallab doctor --help
-uv run evallab status --help
-uv run evallab registry list
 uv run evallab registry audit
-uv run evallab analyze --help
-uv run evallab compare --help
-uv run evallab report --help
 uv run evallab trace --help
-uv run evallab trajectories --help
 uv run python -m evallab.smoke --help
 uv run python -m evallab.smoke --docker-free   # fixture compose; no paid model
 ```

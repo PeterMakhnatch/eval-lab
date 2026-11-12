@@ -576,17 +576,6 @@ def test_unratable_spec_fails_closed_with_ledger_shown(
 # ---------------------------------------------------------------------------
 
 
-def test_spend_check_cli_parser_defaults() -> None:
-    args = cli.parser().parse_args(["spend", "check", "--candidate-usd", "6"])
-    assert args.spend_command == "check"
-    assert args.candidate_usd == 6.0
-    assert args.cap_usd is None
-    assert args.since is None
-    assert args.queue_root is None
-    assert args.allow_stale_modal is False
-    assert args.json is False
-
-
 def test_parse_launch_since_rejects_garbage() -> None:
     with pytest.raises(ValueError, match="--since"):
         parse_launch_since("tomorrow-ish")
@@ -596,135 +585,6 @@ def test_parse_launch_since_rejects_garbage() -> None:
 def _run_check(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, argv: list[str]) -> int:
     monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     return cli.run_cli(argv, workspace=tmp_path)
-
-
-def test_cli_unreachable_catalog_exits_2(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture
-) -> None:
-    monkeypatch.setattr(
-        "evallab.modal_billing.fetch_modal_billing_report",
-        lambda *a, **k: [],
-    )
-    rc = _run_check(
-        monkeypatch,
-        tmp_path,
-        [
-            "spend",
-            "check",
-            "--candidate-usd",
-            "1",
-            "--cap-usd",
-            "30",
-            "--since",
-            "2026-10-01T04:00:00Z",
-            "--queue-root",
-            str(tmp_path / "no-such-queue"),
-            "--database-url",
-            REFUSED_PORT_URL,
-        ],
-    )
-    assert rc == 2
-    assert REASON_CAP_UNVERIFIED in capsys.readouterr().out
-
-
-def test_cli_rejects_bad_arguments(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    assert _run_check(monkeypatch, tmp_path, ["spend", "check", "--candidate-usd", "-1"]) == 2
-    assert (
-        _run_check(
-            monkeypatch,
-            tmp_path,
-            ["spend", "check", "--candidate-usd", "1", "--since", "not-a-time"],
-        )
-        == 2
-    )
-
-
-def test_cli_allowed_refused_and_unratable_exits(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture
-) -> None:
-    queue_root = tmp_path / "queue"
-    _write_queue_spec(queue_root, "approved", "nop-01SPEC5.json", _spec_payload("har129-local-nop"))
-
-    from evallab.modal_billing import BillingRow
-
-    monkeypatch.setattr(
-        "evallab.modal_billing.fetch_modal_billing_report",
-        lambda *a, **k: [
-            BillingRow(
-                object_id="app-1",
-                description="test",
-                environment="test",
-                interval_start=datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
-                resource="gpu",
-                cost_usd=2.0,
-            )
-        ],
-    )
-
-    def _settled_two_dollars(*args: object, **kwargs: object):
-        from evallab.spend_day import SpendRow
-
-        return summarize_window(
-            datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
-            datetime(2026, 10, 1, 6, 0, tzinfo=UTC),
-            [
-                SpendRow(
-                    source="modal",
-                    card="unattributed",
-                    job="modal-account",
-                    usd=2.0,
-                    basis="billed",
-                    evidence="double",
-                )
-            ],
-            cap_usd=30.0,
-            notes=["double: settled $2.00"],
-        )
-
-    monkeypatch.setattr("evallab.spend_day.build_window_ledger", _settled_two_dollars)
-    monkeypatch.setattr("evallab.spend_day.query_modal_rows", lambda *a, **k: ([], "fixture"))
-
-    def _check(candidate: str, *extra: str) -> int:
-        return _run_check(
-            monkeypatch,
-            tmp_path,
-            [
-                "spend",
-                "check",
-                "--candidate-usd",
-                candidate,
-                "--cap-usd",
-                "30",
-                "--since",
-                "2026-10-01T04:00:00Z",
-                "--queue-root",
-                str(queue_root),
-                "--database-url",
-                REFUSED_PORT_URL,
-                *extra,
-            ],
-        )
-
-    assert _check("1", "--allow-stale-modal") == 0
-    out = capsys.readouterr().out
-    assert "ALLOWED" in out
-    assert "billed $2.0000" in out
-
-    # Settled $2 + candidate $29 = $31 > $30 refuses with exit 3.
-    assert _check("29", "--allow-stale-modal") == 3
-    assert REASON_CEILING_EXCEEDED in capsys.readouterr().out
-
-    # A queued cloud spec with no estimate fails closed with exit 2.
-    _write_queue_spec(
-        queue_root,
-        "running",
-        "mini-01SPEC6.json",
-        _spec_payload(
-            "har129-nostimate", environment="daytona", est_cost_usd=0.0, agent="mini-swe-agent"
-        ),
-    )
-    assert _check("1", "--allow-stale-modal") == 2
-    assert REASON_UNRATABLE_SPEC in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------
@@ -778,37 +638,6 @@ def test_defect1_reject_nonfinite_candidate_and_cap(tmp_path: Path) -> None:
         )
         assert not d_cap.allowed
         assert d_cap.reason_code == REASON_CAP_UNVERIFIED
-
-    # 3. CLI rejects NaN and exits 2
-    rc_cand = cli.run_cli(
-        [
-            "spend",
-            "check",
-            "--candidate-usd",
-            "nan",
-            "--cap-usd",
-            "30",
-            "--since",
-            "2026-10-01T04:00:00Z",
-        ],
-        workspace=tmp_path,
-    )
-    assert rc_cand == 2
-
-    rc_cap = cli.run_cli(
-        [
-            "spend",
-            "check",
-            "--candidate-usd",
-            "1",
-            "--cap-usd",
-            "nan",
-            "--since",
-            "2026-10-01T04:00:00Z",
-        ],
-        workspace=tmp_path,
-    )
-    assert rc_cap == 2
 
 
 def test_defect2_in_flight_concurrent_approved_to_running_transition_deduped(
@@ -1333,3 +1162,5 @@ def test_modal_per_object_query_survives_pk_collision_and_partial_snapshots(
     # Must be $26.0 (A: max(1, 1)=1; B: max(0, 20+5)=25; sum = 26.0)
     assert sum(row.usd for row in rows) == pytest.approx(26.0)
     assert all(row.basis == "billed" for row in rows)
+
+

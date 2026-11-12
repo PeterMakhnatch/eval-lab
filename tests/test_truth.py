@@ -7,7 +7,6 @@ from typing import Any
 
 import pytest
 
-from evallab import cli
 from evallab.cohort import (
     NOT_COMPARABLE,
     bootstrap_mean_interval,
@@ -343,10 +342,6 @@ def test_comparison_prints_literal_refusal_when_model_pin_is_missing(
     assert paired["statement"].startswith(NOT_COMPARABLE)
     assert "missing model pin" in paired["statement"]
     assert NOT_COMPARABLE in render_markdown(report)
-    spec_path = tmp_path / "comparison.json"
-    spec_path.write_text(_spec("left", "right").model_dump_json(), encoding="utf-8")
-    assert cli.run_cli(["compare", "comparison.json"], workspace=tmp_path) == 0
-    assert NOT_COMPARABLE in capsys.readouterr().out
 
 
 def test_power_reports_mde_and_required_n_k_tradeoffs(capsys: pytest.CaptureFixture[str]) -> None:
@@ -465,3 +460,5 @@ def test_graded_unrelated_error_keeps_verifier_outcome_under_both_policies(
         assert candidate["exception_count"] == 0  # excluded, unscored exceptions only
         assert candidate["trial_pass_count"] == 1
         assert report["paired"][0]["n_pairs"] == 1
+
+

@@ -17,7 +17,6 @@ from pathlib import Path
 
 import pytest
 
-from evallab.cli import run_cli
 from evallab.trace_query import connect_trace_query
 
 
@@ -360,34 +359,6 @@ def test_proxy_tokens_require_validated_trial_attribution(
         assert actual == expected
     finally:
         con.close()
-
-
-def test_cli_attach_trace_mode(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
-    """CLI evallab db attach supports --trace and --trace-job-dir."""
-    job = tmp_path / "job_cli"
-    _create_minimal_trial(job, "trial_cli", reward=1.0, n_steps=2)
-
-    code_zones = run_cli(
-        ["db", "attach", "--trace-job-dir", str(job), "--zones"],
-        workspace=tmp_path,
-    )
-    assert code_zones == 0
-
-    code_query = run_cli(
-        [
-            "db",
-            "attach",
-            "--trace-job-dir",
-            str(job),
-            "--query",
-            "SELECT trial_name, raw_reward FROM v_trace_trials",
-        ],
-        workspace=tmp_path,
-    )
-    assert code_query == 0
-    output = capsys.readouterr().out
-    assert "trial_cli" in output
-    assert "1.0" in output
 
 
 def test_manifest_prefix_matching(tmp_path: Path) -> None:

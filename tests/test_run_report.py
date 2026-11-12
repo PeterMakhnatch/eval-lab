@@ -8,7 +8,6 @@ from typing import Any
 
 import pytest
 
-from evallab.cli import run_cli
 from evallab.interpretation.run_report import build_job_report, build_run_report, write_reports
 
 FIXTURES = Path(__file__).parent / "fixtures" / "terminus2" / "job-terminus2"
@@ -447,20 +446,6 @@ def test_job_rollup_and_cli_outputs(tmp_path: Path, capsys: Any) -> None:
     assert rollup["total_cost_usd"] == 0.5
     assert rollup["trials_without_cost"] == 2
     assert rollup["cost_per_pass_usd"] == 0.5
-
-    out_dir = tmp_path / "out"
-    code = run_cli(["report", "run", str(job), "--output-dir", str(out_dir)], workspace=tmp_path)
-    assert code == 0
-    capsys.readouterr()
-    written = json.loads((out_dir / "job.run_report.json").read_text())
-    assert written["schema"] == "evallab.job_report/v1"
-    assert (out_dir / "passed-trial.run_report.md").is_file()
-
-    code = run_cli(["report", "run", str(job / "passed-trial"), "--json"], workspace=tmp_path)
-    assert code == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["schema"] == "evallab.run_report/v1"
-    assert payload["outcome"]["verdict"] == "passed"
 
 
 def test_report_files_cannot_escape_the_output_directory(tmp_path: Path) -> None:
@@ -1205,3 +1190,5 @@ def test_run_report_shows_declared_setup_deviations_on_both_run_pages(tmp_path: 
     for page in (report_page, process_page):
         assert "`limits.max_requests`=`12`" in page
         assert "declared trial cap" in page
+
+

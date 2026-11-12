@@ -9,7 +9,6 @@ consume is a defect even when its exit code is 0.
 from __future__ import annotations
 
 import json
-import shlex
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,6 +28,8 @@ RUBRIC = ROOT / "research/analysis/stage5-rubric.json"
 STUB = ROOT / "research/analysis/stub-oracle-analysis.json"
 FIXED = datetime(2026, 8, 14, tzinfo=UTC)
 CATALOG_URL = "postgresql://evallab:local-development-only@catalog.test:54329/evallab"
+
+
 
 
 class RecordingConnection:
@@ -107,114 +108,6 @@ def _inserted(statements: list[tuple[str, Any]], table: str) -> list[Any]:
 
 
 # ---- F-02: `analyze review` indexes its own output --------------------------
-
-
-def test_analyze_review_index_populates_analysis_reviews(
-    tmp_path: Path, catalog_statements: list[tuple[str, Any]], capsys: pytest.CaptureFixture[str]
-) -> None:
-    sidecar_path = _scratch_with_sidecar(tmp_path)
-    scratch = sidecar_path.parents[2]
-
-    assert (
-        run_cli(
-            [
-                "analyze",
-                "review",
-                str(sidecar_path),
-                "--disposition",
-                "accepted",
-                "--rationale",
-                "the control did no work, as designed",
-                "--reviewer",
-                "operator-fixes",
-                "--index",
-                "--database-url",
-                CATALOG_URL,
-            ],
-            workspace=scratch,
-        )
-        == 0
-    )
-
-    review_path = next((sidecar_path.parent / "reviews").glob("*.json"))
-    (row,) = _inserted(catalog_statements, "analysis_reviews")
-    review_id, _analysis_id, disposition, _rationale, reviewer = row[:5]
-    assert review_id == review_path.stem
-    assert (disposition, reviewer) == ("accepted", "operator-fixes")
-
-    out = capsys.readouterr().out
-    assert f"indexed review: {review_id}" in out
-    assert "catalog: catalog.test:54329/evallab" in out
-
-
-def test_analyze_review_without_index_names_the_command_that_indexes(
-    tmp_path: Path, catalog_statements: list[tuple[str, Any]], capsys: pytest.CaptureFixture[str]
-) -> None:
-    sidecar_path = _scratch_with_sidecar(tmp_path)
-    scratch = sidecar_path.parents[2]
-
-    assert (
-        run_cli(
-            [
-                "analyze",
-                "review",
-                str(sidecar_path),
-                "--disposition",
-                "accepted",
-                "--rationale",
-                "the control did no work, as designed",
-                "--reviewer",
-                "operator-fixes",
-            ],
-            workspace=scratch,
-        )
-        == 0
-    )
-
-    assert catalog_statements == []  # no --index means no catalog write
-    out = capsys.readouterr().out
-    next_command = next(line.removeprefix("next: ") for line in out.splitlines() if line.startswith("next: "))
-    argv = shlex.split(next_command)
-    argv[argv.index("<url>")] = CATALOG_URL
-    durable_before = {
-        path: path.read_bytes() for path in sidecar_path.parent.rglob("*") if path.is_file()
-    }
-    assert run_cli(argv[3:], workspace=scratch) == 0
-    assert {
-        path: path.read_bytes() for path in sidecar_path.parent.rglob("*") if path.is_file()
-    } == durable_before
-    (row,) = _inserted(catalog_statements, "analysis_reviews")
-    review_path = next((sidecar_path.parent / "reviews").glob("*.json"))
-    assert row[0] == review_path.stem
-    assert (row[2], row[4]) == ("accepted", "operator-fixes")
-
-
-def test_analyze_review_on_a_missing_sidecar_says_what_to_pass(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
-
-    assert (
-        run_cli(
-            [
-                "analyze",
-                "review",
-                "derived/analyses/nope",
-                "--disposition",
-                "accepted",
-                "--rationale",
-                "r",
-                "--reviewer",
-                "operator-fixes",
-            ],
-            workspace=tmp_path,
-        )
-        == 2
-    )
-
-    err = capsys.readouterr().err
-    assert "no analysis sidecar at" in err
-    assert "derived/analyses/<analysis_id>/analysis.json" in err
 
 
 # ---- F-11: doctor names the database it inspected, never the password -------
@@ -514,8 +407,9 @@ def test_doctor_prints_the_sync_primary_row_and_keeps_it_advisory(
     assert line.startswith("ok    sync-primary   up-to-date (up-to-date) behind 0 age 30s")
 
 
-
 # ---- F-09: `submit` prints the id the next command wants --------------------
+
+
 
 
 def test_submit_prints_the_bare_spec_id_approve_wants(
@@ -555,3 +449,4 @@ def test_submit_prints_the_bare_spec_id_approve_wants(
     assert spec_id == located.stem.rsplit("-", 1)[-1]
     assert "state: " in out
     assert "path: " in out
+

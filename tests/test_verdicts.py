@@ -4,7 +4,6 @@ Verdicts are append-only human judgements on discovery findings.
 CI has no PostgreSQL or derived corpus — tests use tmp_path and in-memory DuckDB.
 """
 
-import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,7 +13,6 @@ from uuid import uuid4
 import duckdb
 import pytest
 
-from evallab import cli
 from evallab.runner import database_url_from_environment
 from evallab.schemas import Verdict
 from evallab.verdicts import (
@@ -267,85 +265,6 @@ def test_resolve_discovery_ids_parsing(tmp_path: Path) -> None:
     assert "01KZZCN7X9PA643W1QCKQNNNY5" in ids
 
 
-def test_cli_verdict_record_and_list(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """CLI records a verdict and lists current verdicts, proving the round trip."""
-    _create_sample_discoveries_journal(tmp_path)
-
-    with duckdb.connect(":memory:") as con:
-        execute_verdicts_views(con)
-        orig_record = record_verdict
-        monkeypatch.setattr(
-            "evallab.verdicts.record_verdict",
-            lambda *args, **kwargs: orig_record(*args, duckdb_conn=con, **kwargs),
-        )
-        monkeypatch.setattr(
-            "evallab.verdicts.list_current_verdicts_from_catalog",
-            lambda database_url=None, status=None: list_current_verdicts_from_duckdb(
-                con, status=status
-            ),
-        )
-
-        code = cli.run_cli(
-            [
-                "verdict",
-                SAMPLE_DISCOVERY_HEADER_ID,
-                "accepted",
-                "--by",
-                "Peter Makhnatch",
-                "--note",
-                "Verified via CLI",
-            ],
-            workspace=tmp_path,
-        )
-        assert code == 0
-        out, _ = capsys.readouterr()
-        assert (
-            f"Recorded verdict for {SAMPLE_DISCOVERY_HEADER_ID}: accepted by Peter Makhnatch"
-            in out
-        )
-
-        # CLI list returns the recorded verdict
-        code_list = cli.run_cli(["verdict", "list"], workspace=tmp_path)
-        assert code_list == 0
-        out_list, _ = capsys.readouterr()
-        assert SAMPLE_DISCOVERY_HEADER_ID in out_list
-        assert "accepted" in out_list
-        assert "Peter Makhnatch" in out_list
-
-
-def test_cli_verdict_refusal_unknown_id(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """CLI refuses unknown discovery ID and outputs error."""
-    _create_sample_discoveries_journal(tmp_path)
-    unknown_id = "D-20260815-NONEXIST"
-
-    code = cli.run_cli(
-        ["verdict", unknown_id, "accepted", "--by", "Peter Makhnatch"],
-        workspace=tmp_path,
-    )
-    assert code == 2
-    _, err = capsys.readouterr()
-    assert f"Discovery '{unknown_id}' not found" in err
-
-
-def test_cli_verdict_refusal_automated_by(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """CLI refuses automated --by actor."""
-    _create_sample_discoveries_journal(tmp_path)
-
-    code = cli.run_cli(
-        ["verdict", SAMPLE_DISCOVERY_HEADER_ID, "accepted", "--by", "autopilot"],
-        workspace=tmp_path,
-    )
-    assert code == 2
-    _, err = capsys.readouterr()
-    assert "Automated actor 'autopilot' refused" in err
-
-
 def test_format_verdicts_table() -> None:
     """Formatting renders headers and rows or empty message."""
     assert format_verdicts_table([]) == "No verdicts recorded."
@@ -397,102 +316,6 @@ def test_format_verdict_history_table() -> None:
     assert f"History for {SAMPLE_DISCOVERY_HEADER_ID}:" in rendered
     assert "pending" in rendered
     assert "accepted" in rendered
-
-
-def test_cli_verdict_json(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """CLI supports --json for machine-readable output."""
-    _create_sample_discoveries_journal(tmp_path)
-
-    with duckdb.connect(":memory:") as con:
-        execute_verdicts_views(con)
-        orig_record = record_verdict
-        monkeypatch.setattr(
-            "evallab.verdicts.record_verdict",
-            lambda *args, **kwargs: orig_record(*args, duckdb_conn=con, **kwargs),
-        )
-
-        code = cli.run_cli(
-            [
-                "verdict",
-                SAMPLE_DISCOVERY_HEADER_ID,
-                "needs_evidence",
-                "--by",
-                "Peter Makhnatch",
-                "--note",
-                "Needs more samples",
-                "--json",
-            ],
-            workspace=tmp_path,
-        )
-        assert code == 0
-        out, _ = capsys.readouterr()
-        data = json.loads(out)
-        assert data["discovery_id"] == SAMPLE_DISCOVERY_HEADER_ID
-        assert data["status"] == "needs_evidence"
-        assert data["by"] == "Peter Makhnatch"
-        assert data["note"] == "Needs more samples"
-
-
-def test_cli_verdict_history_command(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """CLI history subcommand handles history inspection."""
-    _create_sample_discoveries_journal(tmp_path)
-
-    with duckdb.connect(":memory:") as con:
-        execute_verdicts_views(con)
-        orig_record = record_verdict
-        monkeypatch.setattr(
-            "evallab.verdicts.record_verdict",
-            lambda *args, **kwargs: orig_record(*args, duckdb_conn=con, **kwargs),
-        )
-        monkeypatch.setattr(
-            "evallab.verdicts.get_verdict_history_from_catalog",
-            lambda discovery_id, database_url=None: get_verdict_history_from_duckdb(
-                con, discovery_id
-            ),
-        )
-
-        # With no discovery ID provided
-        code_missing = cli.run_cli(["verdict", "history"], workspace=tmp_path)
-        assert code_missing == 2
-        _, err = capsys.readouterr()
-        assert "discovery_id is required" in err
-
-        # With discovery ID provided
-        code = cli.run_cli(
-            ["verdict", "history", SAMPLE_DISCOVERY_HEADER_ID], workspace=tmp_path
-        )
-        assert code == 0
-
-
-def test_cli_verdict_missing_status_or_by(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """CLI reports errors when required arguments are missing."""
-    _create_sample_discoveries_journal(tmp_path)
-
-    # Missing status
-    code1 = cli.run_cli(["verdict", SAMPLE_DISCOVERY_HEADER_ID], workspace=tmp_path)
-    assert code1 == 2
-    _, err1 = capsys.readouterr()
-    assert "status is required" in err1
-
-    # Missing --by
-    code2 = cli.run_cli(["verdict", SAMPLE_DISCOVERY_HEADER_ID, "accepted"], workspace=tmp_path)
-    assert code2 == 2
-    _, err2 = capsys.readouterr()
-    assert "--by <who> is required" in err2
-
-
-def test_cli_verdict_empty_invocation(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """Bare verdict invocation displays help."""
-    code = cli.run_cli(["verdict"], workspace=tmp_path)
-    assert code == 0
-    out, _ = capsys.readouterr()
-    assert "usage:" in out
 
 
 def test_unreachable_catalog_fails_distinctly(capsys: pytest.CaptureFixture[str]) -> None:

@@ -646,7 +646,6 @@ their banked digests (incl. 001431 on `@9`).
 
 Harbor's `RepeatVerifier` (`--verifier
 evallab.harbor_repeat_verifier:RepeatVerifier --verifier-kwarg
-repeat_n=3`, used by `evallab tasks admit`) reruns `tests/test.sh`
 three times in the **same** verifier container. The agent runs in a
 different container: its diff reaches the verifier only as
 `/var/tmp/mimo-separate/workspace.tgz`, which each `test.sh`

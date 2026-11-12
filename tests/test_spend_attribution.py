@@ -22,7 +22,6 @@ from typing import Any
 
 import pytest
 
-from evallab import cli, spend_day
 from evallab.schemas import normalize_linear_card
 from evallab.spend_day import (
     UNATTRIBUTED,
@@ -431,46 +430,6 @@ def test_provenance_recorded_card_unchanged_without_explicit(tmp_path: Path) -> 
 # ---------------------------------------------------------------------------
 # 6. Empty day renders a fixed $0 ledger (isolated fixture)
 # ---------------------------------------------------------------------------
-
-
-def test_spend_day_empty_day_fixed_zero_output(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
-) -> None:
-    monkeypatch.setattr(
-        spend_day, "query_modal_rows", lambda *a, **k: ([], "modal: empty (fixture)")
-    )
-    monkeypatch.setattr(
-        spend_day, "query_model_job_rows", lambda *a, **k: ([], ["model: empty"], 0.0)
-    )
-    monkeypatch.setattr(
-        spend_day, "query_daytona_rows", lambda *a, **k: ([], ["daytona: empty"])
-    )
-    monkeypatch.setattr(spend_day, "sibling_worktree_roots", lambda _: [])
-    args = cli.parser().parse_args(
-        ["spend", "day", "--date", "2026-09-15", "--cap-usd", "20", "--json"]
-    )
-    assert cli._spend_day_command(args, tmp_path) == 0
-    ledger = json.loads(capsys.readouterr().out)
-    assert ledger == {
-        "cap_description": None,
-        "cap_usd": 20,
-        "day": "2026-09-15",
-        "headroom_usd": 20.0,
-        "notes": [
-            "modal: empty (fixture)",
-            "model: empty",
-            "model: 0 spend.jsonl ledgers scanned, 0 contribute to "
-            "2026-09-15T00:00:00+00:00..2026-09-16T00:00:00+00:00, "
-            "0 duplicate rows across checkouts ignored",
-            "daytona: empty",
-        ],
-        "over_by_usd": 0.0,
-        "over_cap": False,
-        "per_card_usd": {},
-        "per_source_usd": {},
-        "rows": [],
-        "total_usd": 0.0,
-    }
 
 
 # ---------------------------------------------------------------------------

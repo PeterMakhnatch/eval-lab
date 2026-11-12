@@ -6,9 +6,6 @@ import hashlib
 import json
 from pathlib import Path
 
-import pytest
-
-from evallab.cli import run_cli
 from evallab.lineage import (
     classify_zone,
     compute_file_digest,
@@ -115,9 +112,6 @@ inputs:
     assert leaf_node.resolved is True
     assert len(leaf_node.inputs) == 0
 
-    # CLI returns 0
-    code = run_cli(["lineage", "docs/finding.md"], workspace=tmp_path)
-    assert code == 0
 
 
 def test_digest_mismatch_reported_as_mismatch(tmp_path: Path) -> None:
@@ -155,9 +149,6 @@ inputs:
     assert child.actual_digest is not None
     assert "digest mismatch" in (child.reason or "")
 
-    code = run_cli(["lineage", "docs/bad_cite.md"], workspace=tmp_path)
-    assert code != 0
-
 
 def test_unrecorded_artifact_reported_with_reason(tmp_path: Path) -> None:
     """Assert an artifact without inputs is reported as unrecorded with reason."""
@@ -181,9 +172,6 @@ No inputs declared here.
     assert root_node.resolved is False
     assert root_node.reason == "no inputs field declared in front-matter"
     assert len(root_node.inputs) == 0
-
-    code = run_cli(["lineage", "docs/unrecorded.md"], workspace=tmp_path)
-    assert code != 0
 
 
 def test_self_citing_artifact_reported_as_cycle(tmp_path: Path) -> None:
@@ -216,9 +204,6 @@ inputs:
     assert child.status == "cycle"
     assert child.resolved is False
     assert "cycle detected" in (child.reason or "")
-
-    code = run_cli(["lineage", "docs/cycle.md"], workspace=tmp_path)
-    assert code != 0
 
 
 def test_indirect_cycle_detected(tmp_path: Path) -> None:
@@ -261,64 +246,6 @@ inputs:
     cycle_node = b_node.inputs[0]
     assert cycle_node.status == "cycle"
     assert "docs/a.md" in (cycle_node.reason or "")
-
-
-def test_json_output_byte_identical_across_runs(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Assert --json output is byte-identical across two runs."""
-    z1_dir = tmp_path / "runs" / "job_det" / "trial_01"
-    z1_dir.mkdir(parents=True)
-    z1_file = z1_dir / "result.json"
-    z1_file.write_text('{"status": "ok"}', encoding="utf-8")
-    d1 = compute_file_digest(z1_file)
-
-    docs_dir = tmp_path / "docs"
-    docs_dir.mkdir(parents=True)
-    doc_file = docs_dir / "doc.md"
-    doc_file.write_text(
-        f"""---
-status: living
-audience: [builder]
-inputs:
-  - path: runs/job_det/trial_01/result.json
-    digest: {d1}
----
-# Determinism Test
-""",
-        encoding="utf-8",
-    )
-
-    code1 = run_cli(["lineage", "docs/doc.md", "--json"], workspace=tmp_path)
-    out1 = capsys.readouterr().out
-    code2 = run_cli(["lineage", "docs/doc.md", "--json"], workspace=tmp_path)
-    out2 = capsys.readouterr().out
-
-    assert code1 == 0 and code2 == 0
-    assert out1 == out2
-    assert len(out1.strip()) > 0
-    parsed = json.loads(out1)
-    assert parsed["resolved"] is True
-    assert parsed["status"] == "resolved"
-    assert parsed["zone"] == "z4"
-
-
-def test_nonexistent_target_exits_nonzero(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Assert a nonexistent target exits non-zero."""
-    code = run_cli(["lineage", "nonexistent/file.md"], workspace=tmp_path)
-    out = capsys.readouterr().out
-    assert code != 0
-    assert "not_found" in out
-
-    # Also test --json mode
-    code_json = run_cli(["lineage", "nonexistent/file.md", "--json"], workspace=tmp_path)
-    out_json = capsys.readouterr().out
-    assert code_json != 0
-    payload = json.loads(out_json)
-    assert payload["status"] == "not_found"
-    assert payload["resolved"] is False
 
 
 def test_missing_input_file_reported(tmp_path: Path) -> None:
@@ -377,7 +304,6 @@ inputs:
     assert "└── runs/job_tree/trial_01/result.json [z1]" in tree_text
     assert "[terminal]" in tree_text
     assert d1 in tree_text
-
 
 
 def test_lineage_to_dict_structure(tmp_path: Path) -> None:

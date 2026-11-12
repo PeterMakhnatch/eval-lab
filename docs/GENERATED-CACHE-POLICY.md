@@ -19,12 +19,10 @@ current cleanup instructions. Module-location rules live in `src/evallab/AGENTS.
 
 | Product | Writer | Read-only verification / scope |
 |---|---|---|
-| `docs/STATUS.md` | `evallab status --update` | Generated catalog snapshot (`status: historical`); not a current operator contract or clean-checkout byte-freshness invariant |
 | `research/lessons.md` | Python API `evallab.lessons.generate_lessons_file` | `python -m evallab.lessons` checks statistical evidence and freshness |
 | `research/registration/inventory.json` | Registration workflow | `evallab registry audit --json`; cleanup does not register or recertify tasks |
 
 `research/experiments/STATUS.md` is an August 15 historical report, not another
-output of `evallab status`.
 
 
 ## Authority and retention
@@ -113,7 +111,6 @@ An inventory failure never authorizes deletion.
 - A scratch-looking filename never overrides known evidence or ownership.
 - Retention findings remain report-only. Tidy does not remove execution evidence.
 
-`evallab gc` has a separate evidence lifecycle and writes immutable tombstones.
 Its default is planning only. It does not become authorized because tidy reports old files.
 Never run a broad filesystem purge, service change, queue reset, or database deletion as cleanup.
 Retain the source and verify surviving evidence before retiring the owned worktree.

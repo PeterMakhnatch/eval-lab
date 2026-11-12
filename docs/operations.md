@@ -19,7 +19,6 @@ beyond localhost, and start PostgreSQL:
 ```bash
 docker compose up -d postgres
 uv run evallab db init
-uv run evallab db list
 ```
 
 `docker compose down` stops PostgreSQL and preserves the named volume. Deleting
@@ -64,17 +63,12 @@ Out-of-policy work waits for an explicit decision:
 
 ```bash
 uv run evallab approve <spec-id> --actor peter
-uv run evallab reject <spec-id> --actor peter --reason "not this week"
 ```
 
 An approval does not override the hard per-job or daily cost ceiling. Pause new
-dispatch after the current trial with `uv run evallab stop`; re-enable it
-with `uv run evallab resume`. A `proxy_error_spike` or `infra_spike` watch
 alert from the current batch stops launches the same way (running trials are
 untouched); the tick names the rule. Only alerts from running jobs or jobs
 launched since the last resume fence, so a resolved historical spike never
-blocks the next batch after `evallab resume`. A stale spike can also be
-acknowledged durably with `evallab watch ack <job> --alert <kind>
 --actor <you> --reason "<why>"`: acked alerts still render on the job page
 marked `acknowledged by <actor>` but never fence again. A restart reconciles
 `queue/running/` against completed immutable Harbor jobs before starting new
@@ -120,7 +114,6 @@ How it is enforced, in order:
    `policy/standing-approvals.yaml` therefore cannot re-open unattended spend.
 3. The authorisation itself is the `human_approved` record in append-only
    `queue/events.jsonl`, written by `evallab approve` and withdrawn by
-   `evallab reject`. The spec file's own `policy_rule` field is **not** trusted:
    the automation that submits paid work is what writes that file.
 
 It fails closed. If `queue/events.jsonl` cannot be read, the whole tick stops
@@ -143,7 +136,6 @@ uv run evallab tick
 name is the whole point of the record. To withdraw before dispatch:
 
 ```bash
-uv run evallab reject <spec-id> --actor peter --reason "not tonight"
 ```
 
 Authorisation does not lift a ceiling, the quiet-failure breaker, the registry
@@ -159,8 +151,6 @@ lock requirement, the backstop floor for trial ceilings, the queue cwd, and
 the submitter:
 
 ```bash
-uv run evallab campaign validate /path/to/campaign.json --spec run-a.json [--spec run-b.json]
-uv run evallab campaign approve /path/to/campaign.json --actor research-harbor
 ```
 
 Approval is append-only and attributable, and the content is digest-pinned
@@ -508,7 +498,6 @@ never changes doctor's exit code or the headless `ready` field.
 Install the two user-session LaunchAgents:
 
 ```bash
-uv run evallab schedule install
 ```
 
 - `com.petermakhnatch.evallab.tick` runs every 30 minutes.
@@ -524,8 +513,6 @@ uv run evallab schedule install
 For a dispatch-only schedule that checks the approved queue every minute:
 
 ```bash
-uv run evallab schedule install --interval-seconds 60 --tick-only
-uv run evallab schedule status
 ```
 
 `--interval-seconds` must be a positive integer; the default remains 1800.
@@ -542,7 +529,6 @@ version-pinned canary suite:
 
 ```bash
 uv run evallab tick --canary-suite policy/canary-suite.yaml
-uv run evallab schedule install --interval-seconds 60 --tick-only \
   --canary-suite policy/canary-suite.yaml
 ```
 
@@ -578,7 +564,6 @@ unreadable/invalid configuration or failed probe exits 2. Environment values and
 raw launchctl output are not returned.
 
 ```bash
-uv run evallab schedule uninstall
 ```
 
 Uninstall unloads only the two known Eval Lab scheduler labels and removes their
@@ -875,7 +860,6 @@ Render a digest on demand (the file date is the morning/report date; its primary
 reporting period is the preceding catalog day):
 
 ```bash
-uv run evallab digest --date 2026-08-14
 ```
 
 The nightly command additionally commits only `digests/YYYY-MM-DD.md`; unrelated
@@ -985,10 +969,6 @@ Acquire a Harbor Hub dataset into `library/benchmarks/<name>/` at an immutable
 pin. `@latest`, `@head`, and other unpinned refs are refused.
 
 ```bash
-uv run evallab fetch --list
-uv run evallab fetch hello-world@1.0
-uv run evallab fetch hello-world@1.0 --verify-sample 1
-uv run evallab fetch --audit
 ```
 
 `--verify-sample N` runs free `oracle` then `nop` on N tasks with Harbor
@@ -998,7 +978,6 @@ INGEST pins (`aime`, `gpqa-diamond`, `humanevalfix`, `terminal-bench-sample`)
 are never rewritten. `--audit` walks every `library/benchmarks/*/MANIFEST.md`
 and prints pass or the exact drift reason.
 
-## Disk retention (`evallab gc`)
 
 Unpromoted Harbor jobs under `runs/` are eligible only after they are
 completed, ingested, and projected. The policy is:
@@ -1009,7 +988,6 @@ completed, ingested, and projected. The policy is:
   digests, reward summary, why removed)
 - `--apply` also appends `gc_compressed` / `gc_pruned` lines to
   `queue/events.jsonl` and retargets the catalog to the tombstone: it writes
-  `derived/gc-catalog.json` (reloaded on the next `evallab gc`) and best-effort
   `UPDATE`s `jobs.evidence_path` / `trials.evidence_path` when Postgres is up
   so no row points at a deleted directory
 
@@ -1020,8 +998,6 @@ tombstones themselves.
 Default is a dry-run plan:
 
 ```bash
-uv run evallab gc
-uv run evallab gc --apply    # human-triggered only
 ```
 
 Nightly calls the same planner in plan-only mode and appends a
@@ -1032,9 +1008,6 @@ trend line with candidate counts. Apply is never invoked by nightly.
 
 ```bash
 uv run evallab ingest runs research/evidence/runs
-uv run evallab trajectories runs research/evidence/runs
-uv run evallab trajectories runs research/evidence/runs --export
-uv run evallab db list --limit 50
 ```
 
 The first `trajectories` command reports validation and counts without writing.
@@ -1105,7 +1078,6 @@ The notice appears once per invoking tree and resolved root, so an interactive
 command says it and the nightly loop does not repeat it. It is emitted only for
 a resolution nobody named: a `--derived-dir` argument and an absolute
 `EVALLAB_DERIVED_ROOT` are deliberate choices and stay quiet. Before this,
-`evallab status` inside a worktree reported the primary checkout's
 `derived/parquet` with nothing to distinguish it from the worktree's own.
 
 Analysis sidecars follow the same "the catalog is derived" rule. `analyze review`
@@ -1136,7 +1108,6 @@ the cause is visibly attributed to the harness. `uv run evallab doctor` enforces
 the operational invariant: every catalog job has complete trial partitions, or
 its exact job ID has such a recorded exception. To prove rebuildability, point
 `EVALLAB_DERIVED_ROOT` at an empty isolated directory and run
-`evallab trajectories --export` over all raw roots; do not clear the live shared root.
 Identical table row counts are expected.
 
 ## Evidence promotion checklist
@@ -1338,9 +1309,6 @@ The record proves what admission observed, not what the lab consumed.
 ### Spend reconciliation
 
 ```sh
-uv run evallab spend reconcile --since 2026-10-30T21:00:00Z --threshold-usd 1.00
-uv run evallab spend reconcile --threshold-usd 2.00 --json
-uv run evallab spend scan-omp --since 2026-10-30T21:00:00Z
 ```
 
 Reconciliation compares provider balances over a half-open `[since, until)` window.
@@ -1355,8 +1323,6 @@ Deduplication checks route, time, and token/cost identity against existing rows.
 ### Spend windows and source attribution
 
 ```sh
-uv run evallab spend check --since <window-start> --cap-usd <cap> --candidate-usd <estimate>
-uv run evallab spend day --date YYYY-MM-DD
 ```
 
 For `spend check`, exit 3 refuses an over-cap launch. Exit 2 means unverifiable spend and also refuses launch.

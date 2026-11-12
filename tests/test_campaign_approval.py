@@ -1610,7 +1610,6 @@ def test_adaptive_digestless_sweep_cannot_retarget_current_package(tmp_path: Pat
     assert refusal.reason_code == cap.REASON_ORACLE_UNCONFIRMED
 
 
-
 def test_adaptive_wave_uses_har189_zero_estimate_reservations(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

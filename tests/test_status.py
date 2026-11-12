@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-import json
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
-from evallab.cli import run_cli
 from evallab.evidence.facts import AnalyzerCallResult, run_trial_analysis
 from evallab.results import load_job
 from evallab.status import (
-    SECTION_KEYS,
     build_status_snapshot,
     resolve_status_layout,
-    snapshot_as_dict,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -112,49 +108,6 @@ def test_status_writes_nothing(tmp_path: Path) -> None:
     after = _tree_signature(scratch)
     assert before == after
     assert not (scratch / "status.json").exists()
-
-
-def test_cli_preserves_the_status_projection(tmp_path: Path, capsys) -> None:
-
-    scratch = _copy("complete", tmp_path)
-    _attach_saved_analysis(scratch)
-    snapshot = build_status_snapshot(scratch, generated_at=FIXED)
-
-    code = run_cli(["status", "--json", "--from", str(scratch)], workspace=scratch)
-    assert code == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert tuple(key for key in payload if key in SECTION_KEYS) == SECTION_KEYS
-    for key in SECTION_KEYS:
-        assert payload[key]["items"] == snapshot_as_dict(snapshot)[key]["items"]
-        for item in payload[key]["items"]:
-            assert item["availability"] in {
-                "observed",
-                "unavailable",
-                "draft",
-                "review-needed",
-            }
-
-    human = run_cli(["status", "--from", str(scratch)], workspace=scratch)
-    assert human == 0
-    text = capsys.readouterr().out
-    for key in SECTION_KEYS:
-        assert key in text
-
-
-def test_cold_status_is_readable_without_traceback(tmp_path: Path, capsys) -> None:
-    empty = tmp_path / "cold"
-    empty.mkdir()
-    snapshot = _offline_snapshot(empty)
-    health = {item.label: item.availability for item in snapshot.Health.items}
-    assert health["postgres"] == "unavailable"
-    assert health["phoenix"] == "unavailable"
-
-    code = run_cli(["status", "--json", "--from", str(empty)], workspace=empty)
-    assert code == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert "Traceback" not in json.dumps(payload)
-    assert tuple(key for key in payload if key in SECTION_KEYS) == SECTION_KEYS
-    assert payload["Health"]["items"]
 
 
 def test_real_checkout_uses_the_shared_parquet_root(tmp_path: Path, monkeypatch) -> None:

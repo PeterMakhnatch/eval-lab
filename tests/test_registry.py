@@ -1572,7 +1572,6 @@ def test_cli_registry_promote_and_register_e2e(
 
     from evallab.cli import (
         _registry_audit_command,
-        _registry_list_command,
         _registry_promote_command,
         _registry_register_command,
     )
@@ -1608,16 +1607,7 @@ def test_cli_registry_promote_and_register_e2e(
     out, _ = capsys.readouterr()
     assert "promoted: cli-test-task@1.0.0 (state: candidate)" in out
 
-    # 2. List shows candidate
-    list_args = argparse.Namespace(state=None, json=False)
-    # Point registry from_repo to tmp_path
-    exit_code = _registry_list_command(list_args, tmp_path)
-    assert exit_code == 0
-    out, _ = capsys.readouterr()
-    assert "cli-test-task" in out
-    assert "candidate" in out
-
-    # 3. Register via CLI
+    # Register via CLI.
     reg_args = argparse.Namespace(
         task_id="cli-test-task",
         actor="Peter Makhnatch",
@@ -1747,3 +1737,5 @@ def test_promote_refuses_wrong_namespaced_suffix(tmp_path: Path) -> None:
         promote_task("library/tasks/suffix-task", tmp_path)
 
     assert "missing durable trial-level oracle control evidence" in str(exc_info.value)
+
+

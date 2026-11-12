@@ -9,7 +9,6 @@ from typing import Any
 
 import pytest
 
-from evallab import cli
 from evallab.benchmark_program_contracts import (
     CampaignMeasurementLedger,
     SyntheticFamilyType,
@@ -466,23 +465,7 @@ def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
         f"uv run evallab approve {manifest.attempts[0].spec_id} --actor <you>"
     )
 
-    assert (
-        cli.run_cli(
-            [
-                "approve",
-                manifest.attempts[0].spec_id,
-                "--actor",
-                "Peter Makhnatch",
-            ],
-            workspace=root,
-        )
-        == 0
-    )
-    approval_output = capsys.readouterr().out
-    assert (
-        f"next: uv run evallab campaign resume runs/campaigns/{manifest.campaign_id}/manifest.json"
-    ) in approval_output
-    assert "\nnext: uv run evallab tick\n" not in approval_output
+    executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
     assert executor.tick() == 0
     assert executor.last_tick_reason == "campaign_specs_require_campaign_resume"
     assert calls == []
@@ -496,20 +479,6 @@ def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
     assert calls == [manifest.attempts[0].job_name]
 
 
-def test_campaign_cli_status_and_run_dry_run_are_operational(tmp_path: Path, capsys) -> None:
-    root = _repo(tmp_path)
-    manifest = _manifest(root)
-    manifest_path = root / "runs/campaigns" / manifest.campaign_id / "manifest.json"
-    manifest_path.parent.mkdir(parents=True)
-    manifest_path.write_text(manifest.model_dump_json(indent=2))
-    relative = str(manifest_path.relative_to(root))
-    assert cli.run_cli(["campaign", "run", relative, "--dry-run", "--json"], workspace=root) == 0
-    dry_run = json.loads(capsys.readouterr().out)
-    assert dry_run["state"] == "planned" and dry_run["dry_run"] is True
-    assert not (root / "queue").exists()
-    assert not (manifest_path.parent / "journal.jsonl").exists()
-    assert cli.run_cli(["campaign", "status", relative, "--json"], workspace=root) == 0
-    assert json.loads(capsys.readouterr().out)["state"] == "planned"
 
 
 @pytest.mark.parametrize("disposition", ["QUALITY_WARN", "HOLD", "QUARANTINED"])

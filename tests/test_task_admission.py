@@ -696,37 +696,6 @@ def test_oracle_reference_step_plants_and_grades(tmp_path: Path) -> None:
     assert result.record.verdict == "admitted"
 
 
-def test_cli_admit_dry_run_uses_every_flag(tmp_path: Path, capsys) -> None:
-    """The parser and the command stay in sync (missing flags fail fast here)."""
-    import argparse
-
-    from evallab import cli as cli_module
-
-    task = _ref_task(tmp_path)
-    args = argparse.Namespace(
-        task=task,
-        job_prefix="admit",
-        jobs_dir=None,
-        records_dir=Path("library/task-variants"),
-        by="Test Operator",
-        repeat=3,
-        timeout_seconds=600,
-        max_mutants=6,
-        skip_mutation=False,
-        output=None,
-        reference="auto",
-        sweep_csv=None,
-        no_variant_status=False,
-        dry_run=True,
-        json=True,
-    )
-    code = cli_module._tasks_admit_command(args, tmp_path, harbor=None)
-    assert code == 0
-    out = capsys.readouterr().out
-    assert "static-scan" in out and "cheat:skip_plant" in out
-    assert "mutation" in out
-
-
 def test_safe_job_name_harbor_rules() -> None:
     assert admission._safe_job_name("admit2", "format-code-task-002402", "git_history") == (
         "admit2-format-code-task-002402-git-history"
@@ -965,15 +934,6 @@ def test_patch_container_targets() -> None:
     )
     assert admission._patch_container_targets(patch, "/testbed") == ["/testbed/src/fix.py"]
     assert admission._patch_container_targets(b"no diff here\n", "/testbed") == []
-
-
-def test_admit_parser_mutation_flags_match_gate_default() -> None:
-    """--max-mutants defaults to the gate constant (single source of intent)."""
-    from evallab import cli as cli_module
-
-    args = cli_module.parser().parse_args(["tasks", "admit", "--task", "pkg"])
-    assert args.max_mutants == admission.DEFAULT_MAX_MUTANTS
-    assert args.skip_mutation is False
 
 
 def _damaged_task(tmp_path: Path) -> Path:

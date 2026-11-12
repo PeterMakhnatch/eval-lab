@@ -543,11 +543,6 @@ def _checkpoint_plan(changed: Sequence[str], root: Path) -> DevloopPlan:
     return DevloopPlan(list(changed), modules, command, reasons, "focused" if modules else "none")
 
 
-def affected_test_modules(changed: Sequence[str], root: Path) -> list[str]:
-    """Pure function mapping changed file paths to affected test modules."""
-    return plan_devloop(changed, root).modules
-
-
 def plan_devloop(
     changed: Sequence[str], root: Path, *, checkpoint: bool = False
 ) -> DevloopPlan:

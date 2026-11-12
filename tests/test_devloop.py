@@ -13,7 +13,6 @@ import pytest
 
 from evallab.devloop import (
     _referenced_modules,
-    affected_test_modules,
     get_changed_files,
     is_doc_path,
     is_full_suite_trigger,
@@ -28,41 +27,6 @@ from evallab.devloop import (
 @pytest.fixture
 def repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
-
-
-def test_affected_test_modules_src_change_maps_to_its_tests(repo_root: Path) -> None:
-    """A changed src module maps to every test module that imports it."""
-    changed = ["src/evallab/governance.py"]
-    affected = affected_test_modules(changed, repo_root)
-    assert "tests/test_governance.py" in affected
-
-
-def test_affected_test_modules_test_change_maps_to_itself(repo_root: Path) -> None:
-    """A changed test module maps to itself."""
-    changed = ["tests/test_governance.py"]
-    affected = affected_test_modules(changed, repo_root)
-    assert affected == ["tests/test_governance.py"]
-
-
-def test_affected_test_modules_docs_change_maps_to_empty(repo_root: Path) -> None:
-    """A documentation-only change returns an empty list (indicating docs lane)."""
-    changed = ["docs/NOW.md", "agents/CHECKS.md", "README.md"]
-    affected = affected_test_modules(changed, repo_root)
-    assert affected == []
-
-
-def test_affected_test_modules_unknown_config_change_maps_to_all(repo_root: Path) -> None:
-    """An unknown configuration change triggers the full test suite."""
-    changed = ["unknown_config.json"]
-    affected = affected_test_modules(changed, repo_root)
-    assert affected == ["__all__"]
-
-
-def test_affected_test_modules_makefile_maps_to_all(repo_root: Path) -> None:
-    """Makefile or workflow changes trigger the full test suite."""
-    assert affected_test_modules(["Makefile"], repo_root) == ["__all__"]
-    assert affected_test_modules([".github/workflows/ci.yml"], repo_root) == ["__all__"]
-    assert affected_test_modules(["pyproject.toml"], repo_root) == ["__all__"]
 
 
 def test_src_path_to_module() -> None:
@@ -248,8 +212,6 @@ def test_all_declared_test_roots_are_selected_and_explained(tmp_path) -> None:
     assert plan.reasons == {
         consumer: ["Imports evallab.cohort (src/evallab/cohort.py)"] for consumer in expected
     }
-    for consumer in expected:
-        assert affected_test_modules([consumer], tmp_path) == [consumer]
 
 
 @pytest.mark.parametrize(
@@ -520,7 +482,6 @@ def test_overlapping_consumers_preserve_direct_selection_and_reasons(tmp_path) -
         "dashboard/tests/beta_test.py tests/nested/test_alpha.py tests/support.py "
         "tests/test_shared.py tests/test_text.py tests/test_transitive.py"
     )
-    assert affected_test_modules(changed, tmp_path) == plan.modules
 
 
 def test_consumer_inventory_is_fresh_for_each_plan(tmp_path) -> None:

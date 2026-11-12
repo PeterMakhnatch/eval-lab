@@ -2607,13 +2607,6 @@ Results and caveats: `research/experiments/qa-trace/README.md`.
 
 ## Read-only task dossier (HAR-186)
 
-```bash
-uv run evallab task format-code-task-000792
-uv run evallab task format-code-task-000792 --json
-uv run evallab task format-code-task-000788 --json
-# Optional static evidence; a missing CSV is unknown, not a clean audit:
-uv run evallab task format-code-task-000792 --static-audit /tmp/static-task-audit.csv --json
-```
 
 This joins existing task evidence without another store: the HAR-172/177
 health/solve/verdict classifiers and lineage records, ledger, HAR-161 exploit
@@ -2622,21 +2615,12 @@ matching trial in the HAR-178 `trials` view. It does not limit membership to the
 viewer's trusted-job cohort. Controls and exploit attempts remain in the trial
 list; `solve:*` retains the separate model-history denominator and source epoch.
 
-`--json` includes source paths/hashes, qualification status, native trial IDs,
-raw/gated rewards, legitimacy, stop reason, per-source copy verdicts, recorded
-Laminar links, and the task-page address (`/jobs/task-000792` for this example).
 Reader aliases are joined through the published copy's native job/trial identity,
 not similar directory names. Missing or ambiguous publication does not remove
 available native copy-check/RewardKit evidence. Conflicting reader identities
 stay explicit; absent judgments are null, never a clean verdict. Harbor
 `reward_hacking` is a different check from Laminar `copied`, not a consensus vote.
 
-The lookup is stdout-only and $0. It does not call Laminar, run an analyzer,
-execute a task, build a viewer page, or write Parquet/reports. Missing selected
-projections can be computed **in memory** by the existing producers. Task/table
-selection happens before expensive projection reads. `--runs-dir` (repeatable),
-`--derived-root`, and `--reader-store` allow explicit read-only source selection.
-A page address is returned without claiming that the page/server is available.
 
 For task `000792`, the current recorded leak is affirmative despite the old
 census-era `none_found` channel. Its `strip-future-history@1` artifact has a repair
@@ -2646,11 +2630,9 @@ All source judgments remain separate, including the analyzer's non-hacking
 judgment on a1. Missing-evidence tasks return null facets and an empty selected
 trial list. A never-run model-history label may coexist with recorded nop trials.
 
-OMP agents can load `.omp/skills/task-dossier/SKILL.md` and use the same one-line
-`--json` command, or call
+OMP agents can load `.omp/skills/task-dossier/SKILL.md` and call
 `from evallab.task_dossier import task_dossier; task_dossier(task_id)` in the
-checkout's Python environment. This follows the existing skill-wrapped CLI
-pattern; no MCP daemon or global OMP configuration is installed.
+checkout's Python environment. No MCP daemon or global OMP configuration is installed.
 
 ## Filter historical jobs by task health
 

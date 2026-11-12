@@ -51,6 +51,7 @@ POLICY = StandingApprovalsPolicy(
     escalate_to_human=["new_task_registration", "cloud_or_remote_environment"],
 )
 
+
 @pytest.fixture(autouse=True)
 def isolate_derived_root(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep staging writes inside each test's own repository, not the host ledger."""

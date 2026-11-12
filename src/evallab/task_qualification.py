@@ -13,13 +13,11 @@ tasks catalog export-broken`` publishes the per-backend broken list.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import tomllib
 from collections import Counter
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -34,9 +32,7 @@ TABLE_FILENAME = "task_qualification.parquet"
 TABLE = Path(TABLE_FILENAME).stem
 
 #: Content-addressed broken-list export schema.
-BROKEN_EXPORT_SCHEMA = "evallab.task_broken/v1"
 
-STATUSES = ("ok", "broken", "inconclusive")
 
 REASONS = (
     "setup_failed",
@@ -891,16 +887,6 @@ def summarize_qualification(rows: Sequence[dict[str, Any]]) -> str:
     return "\n".join(lines) + "\n"
 
 
-@dataclass(frozen=True)
-class BrokenExportResult:
-    """Outcome of one broken-task export."""
-
-    path: Path
-    sha256: str
-    backend: str
-    n_broken: int
-
-
 def _latest_key(row: dict[str, Any]) -> tuple[int, str, str, str]:
     finished = row.get("finished_at")
     has_finished = isinstance(finished, str) and bool(finished)
@@ -912,143 +898,3 @@ def _latest_key(row: dict[str, Any]) -> tuple[int, str, str, str]:
     )
 
 
-def export_broken(
-    out: Path,
-    *,
-    backend: str,
-    repo_root: Path,
-    derived_root: Path | None = None,
-) -> BrokenExportResult:
-    """Write the content-addressed broken-task JSON for one backend.
-
-    A task version counts as broken on a backend when its *latest*
-    qualification trial on that backend has status ``broken``
-    (``inconclusive`` backend-quota trials never mark a task broken: the
-    task is unrun at this tier, not guilty). Versions carrying an
-    ``error``-severity row in the catalog ``task_findings`` table are
-    listed as well, whatever the backend: a curated hard defect outranks
-    any single trial outcome. The digest covers ``schema`` + ``backend`` +
-    ``items`` only, so re-exporting the same broken set gives the same
-    digest.
-    """
-    from evallab.storage.paths import derived_root_from_environment
-    from evallab.task_catalog import CatalogError, catalog_dir
-
-    derived = derived_root or derived_root_from_environment(repo_root)
-    table_path = catalog_dir(derived) / TABLE_FILENAME
-    has_table = table_path.is_file()
-    error_findings = _error_findings(catalog_dir(derived))
-    if not has_table and not error_findings:
-        raise CatalogError(
-            f"no qualification table or error-severity finding under {catalog_dir(derived)}; "
-            "run tasks qualify-collect first"
-        )
-    rows = read_task_qualification_parquet(table_path) if has_table else []
-    scoped = [row for row in rows if (row.get("backend") or "unknown") == backend]
-    by_version: dict[str, list[dict[str, Any]]] = {}
-    for row in scoped:
-        key = str(row.get("task_version_digest") or row.get("task_id") or row["trial_name"])
-        by_version.setdefault(key, []).append(row)
-    items: list[dict[str, Any]] = []
-    item_by_digest: dict[str, dict[str, Any]] = {}
-    for key in sorted(by_version):
-        group = by_version[key]
-        latest = max(group, key=_latest_key)
-        if latest.get("status") != "broken":
-            continue
-        trials = sorted(
-            {
-                f"{row.get('job_name')}/{row.get('trial_name')}"
-                for row in group
-                if row.get("job_name") and row.get("trial_name")
-            }
-        )
-        item = {
-            "task_id": latest.get("task_id"),
-            "task_version_digest": latest.get("task_version_digest"),
-            "harbor_digest": latest.get("harbor_digest"),
-            "domain": latest.get("domain"),
-            "reasons": list(latest.get("reasons") or []),
-            "trials": trials,
-            "source": "qualification",
-        }
-        items.append(item)
-        digest = latest.get("task_version_digest")
-        if isinstance(digest, str) and digest:
-            item_by_digest[digest] = item
-    for finding in error_findings:
-        digest = str(finding["task_version_digest"])
-        reason = f"finding:{finding['rule']}"
-        item = item_by_digest.get(digest)
-        if item is None:
-            item = {
-                "task_id": finding["task_id"],
-                "task_version_digest": digest,
-                "harbor_digest": None,
-                "domain": finding["domain"],
-                "reasons": [],
-                "trials": [],
-                "source": "finding",
-            }
-            items.append(item)
-            item_by_digest[digest] = item
-        reasons = item["reasons"]
-        assert isinstance(reasons, list)
-        if reason not in reasons:
-            reasons.append(reason)
-            reasons.sort()
-        item["source"] = "finding"
-    items.sort(key=lambda item: str(item.get("task_version_digest") or item.get("task_id")))
-    identity = {"schema": BROKEN_EXPORT_SCHEMA, "backend": backend, "items": items}
-    canonical = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
-    sha = f"sha256:{hashlib.sha256(canonical).hexdigest()}"
-    meta = {
-        "created_at": datetime.now(UTC).isoformat(),
-        "table": TABLE_FILENAME,
-        "table_digest": (
-            f"sha256:{hashlib.sha256(table_path.read_bytes()).hexdigest()}" if has_table else None
-        ),
-        "n_broken": len(items),
-        "n_considered": len(scoped),
-    }
-    payload = {**identity, "meta": meta}
-    out = Path(out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(
-        json.dumps({**payload, "sha256": sha}, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    return BrokenExportResult(path=out, sha256=sha, backend=backend, n_broken=len(items))
-
-
-def _error_findings(catalog: Path) -> list[dict[str, Any]]:
-    """Error-severity catalog findings, sorted by ``(digest, rule)``.
-
-    A missing findings table means no curated defects (never a crash): the
-    export then lists qualification-broken versions only.
-    """
-    from evallab.task_catalog import TASK_FINDINGS_SCHEMA
-
-    path = catalog / "task_findings.parquet"
-    if not path.is_file():
-        return []
-    try:
-        import pyarrow.parquet as pq
-
-        table = pq.read_table(path, schema=TASK_FINDINGS_SCHEMA)
-    except Exception:
-        return []
-    findings = [
-        {
-            "task_version_digest": str(row["task_version_digest"]),
-            "task_id": row["task_id"],
-            "domain": row["domain"],
-            "rule": str(row["rule"]),
-        }
-        for row in table.to_pylist()
-        if row.get("severity") == "error"
-        and isinstance(row.get("task_version_digest"), str)
-        and isinstance(row.get("rule"), str)
-    ]
-    findings.sort(key=lambda row: (str(row["task_version_digest"]), str(row["rule"])))
-    return findings

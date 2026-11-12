@@ -10,12 +10,9 @@ import csv
 import io
 import json
 import re
-import tomllib
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
-
-import tomlkit
 
 LEDGER = Path("research/experiments/python-task-ledger/ledger.csv")
 LOCKED_NOP = Path("research/experiments/har122-egress-lock/har146-locked-nop.csv")
@@ -63,8 +60,6 @@ def verdict_tag(ledger: Mapping[str, str]) -> str:
 
 def _path(root: Path, value: Path) -> Path:
     return value if value.is_absolute() else root / value
-
-
 
 
 def _csv_rows(raw: bytes, *, required: set[str], label: str) -> dict[str, dict[str, str]]:
@@ -167,45 +162,6 @@ def health_tag(
     if label in {"broken_environment", "grader_suspect"}:
         return f"health:{label.replace('_', '-')}"
     return "health:unchecked"
-
-
-def metadata_bytes(
-    original: bytes, tags: Sequence[str], *, description: str | None = None
-) -> bytes:
-    """Replace only our tag namespaces while preserving other TOML fields.
-
-    ``description`` sets ``[metadata] description`` (the one-line ledger
-    reason ``harbor view --tasks`` shows for an actionable task); ``None``
-    preserves whatever the parent package carries.
-    """
-    before = tomllib.loads(original.decode("utf-8"))
-    document = tomlkit.parse(original.decode("utf-8"))
-    if "metadata" not in document:
-        document["metadata"] = tomlkit.table()
-    metadata = document["metadata"]
-    if not isinstance(metadata, Mapping):
-        raise ValueError("task.toml metadata must be a table")
-    existing = metadata.get("tags", [])
-    if not isinstance(existing, list) or any(not isinstance(tag, str) for tag in existing):
-        raise ValueError("task.toml metadata.tags must be a string array")
-    for stale in ("health:", "solve:", "verdict:"):
-        existing = [tag for tag in existing if not tag.startswith(stale)]
-    combined = list(dict.fromkeys([*existing, *tags]))
-    document["metadata"]["tags"] = combined
-    if description is not None:
-        if not description or not description.strip():
-            raise ValueError("description must be a non-empty one-line reason")
-        document["metadata"]["description"] = " ".join(description.split())
-    output = tomlkit.dumps(document).encode("utf-8")
-    after = tomllib.loads(output.decode("utf-8"))
-    expected_metadata = {**before.get("metadata", {}), "tags": combined}
-    if description is not None:
-        expected_metadata["description"] = " ".join(description.split())
-    expected = dict(before)
-    expected["metadata"] = expected_metadata
-    if after != expected:
-        raise ValueError("health tags changed non-tag task configuration")
-    return output
 
 
 def _probe_binding(row: Mapping[str, Any], *, input_dir: Path) -> dict[str, str | None]:

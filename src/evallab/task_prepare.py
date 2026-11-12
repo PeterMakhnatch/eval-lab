@@ -20,15 +20,11 @@ from typing import Any
 
 from evallab.execution_contracts import (
     CONTROL_AGENTS,
-    DEEPSEEK_MODEL_SELECTOR,
-    GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
-    GLM_SELFHOSTED_FT_MODEL_SELECTOR,
     MAX_TRIAL_TIMEOUT_SECONDS,
     MIMO_AGENT,
     SAFE_JOB_NAME,
     TERMINUS_AGENT,
     TERMINUS_LOCAL_MODEL_SELECTOR,
-    ZAI_OPENAPI_MODEL_SELECTOR,
     ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS,
     ZAI_OPENCODE_AGENT,
     ZAI_OPENCODE_MODEL_SELECTORS,
@@ -56,15 +52,6 @@ PREPARED_HARNESSES_REL = "runs/.prepared-harnesses"
 #: Prepared specs live here by default, named ``<job-name>.json``.
 PREPARED_SPECS_REL = "derived/prepared"
 
-MINI_SWE_AGENT = "mini-swe-agent"
-MINI_SWE_MODELS = frozenset(
-    {
-        DEEPSEEK_MODEL_SELECTOR,
-        ZAI_OPENAPI_MODEL_SELECTOR,
-        GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
-        GLM_SELFHOSTED_FT_MODEL_SELECTOR,
-    }
-)
 
 #: Request/default numeric caps reused from the retained pilot.
 PILOT_MAX_REQUESTS = 200

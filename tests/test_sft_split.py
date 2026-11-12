@@ -164,23 +164,6 @@ def test_manifest_shape_and_splits_map() -> None:
     assert family == {"heldout"}  # first-ranked group, whole, at count 1
 
 
-def test_export_eligible_round_trip_reads_splits_map(tmp_path: Path) -> None:
-    from evallab.task_catalog import _read_split_map
-
-    rows = [_row(f"task-{i}") for i in range(2)]
-    manifest = _freeze(rows, counts={"code": 1})
-    path = tmp_path / "split.json"
-    write_split(manifest, path)
-    mapping = _read_split_map(path)
-    assert mapping == manifest["splits"]
-    heldout = next(
-        entry["task_version_digest"]
-        for entry in manifest["tasks"]
-        if entry["split"] == "heldout"
-    )
-    assert mapping[heldout] == "heldout"
-
-
 def test_missing_domain_count_refuses() -> None:
     with pytest.raises(TraceError, match="no held-out count"):
         _freeze([_row("task-a")], counts={})

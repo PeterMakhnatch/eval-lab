@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Any
 
 from evallab import results_home, task_pages
-from evallab.dataset_audit_contracts import AuditTask
 from evallab.dataset_audit_plugins import normalize_task_id, task_aliases, task_page_name
 from evallab.storage.trials import connect_trials
 from evallab.task_health_filter import trial_task_identity
@@ -358,13 +357,6 @@ def _enrich_row(
     return enriched
 
 
-def _aliases_for_task(task: AuditTask) -> list[str]:
-    """Exact supplied aliases; legacy leaf ids use their plugin conventions."""
-    if task.aliases:
-        return list(task.aliases)
-    return task_aliases(task.task_id)
-
-
 def _collect(
     groups: dict[str, dict[str, Any]],
     *,
@@ -434,39 +426,6 @@ def _collect(
             },
         }
     return collected
-
-
-def task_trials_for_tasks(
-    tasks: Sequence[AuditTask],
-    *,
-    repo_root: Path,
-    roots: Sequence[Path] | None = None,
-    derived_root: Path | None = None,
-    reader_store: Path | None = None,
-) -> dict[str, dict[str, Any]]:
-    """Every census trial for the whole dataset, enriched read-only.
-
-    Tasks share the selected census row only when their alias sets both name
-    it; matching is by exact supplied alias, never by unscoped basename.
-    Versions with the same task id keep independent copy judgments. Returns
-    one ``{'trials': [...], 'coverage': {...}}`` facet per canonical task id.
-    """
-    groups: dict[str, dict[str, Any]] = {}
-    for task in tasks:
-        key = normalize_task_id(task.task_id)
-        aliases = _aliases_for_task(task)
-        if key in groups and groups[key]["aliases"] != aliases:
-            raise ValueError(f"conflicting aliases for audit task {task.task_id!r}")
-        groups[key] = {
-            "task_id": key,
-            "aliases": aliases,
-            "alias_set": set(aliases),
-            "page_url": page_url_for(task.task_id),
-        }
-    return _collect(
-        groups, repo_root=Path(repo_root), roots=roots,
-        derived_root=derived_root, reader_store=reader_store,
-    )
 
 
 def task_trials(

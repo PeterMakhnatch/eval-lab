@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
-import tomllib
 from pathlib import Path
 
 import pytest
 
 from evallab.task_health_tags import (
     KNOWN_TAGS,
-    metadata_bytes,
     verdict_tag,
 )
 
@@ -207,39 +205,5 @@ def test_verdict_tags_are_known_and_validated():
         verdict_tag({"verdict": "maybe"})
     with pytest.raises(ValueError, match="unsupported verdict"):
         verdict_tag({})
-
-
-def test_metadata_bytes_manages_verdict_namespace_and_description():
-    original = (
-        b'[task]\nname = "mimo-v2.6-rl/format-code-task-000001"\n'
-        b'[metadata]\ncategory = "Python"\n'
-        b'tags = ["upstream", "verdict:keep", "health:sound", "solve:mixed"]\n'
-    )
-    updated = metadata_bytes(
-        original,
-        ["health:discarded", "solve:never-run", "verdict:discard"],
-        description="image leaks the fix: /testbed/build/lib",
-    )
-    parsed = tomllib.loads(updated.decode())
-    assert parsed["metadata"]["tags"] == [
-        "upstream",
-        "health:discarded",
-        "solve:never-run",
-        "verdict:discard",
-    ]
-    assert parsed["metadata"]["description"] == "image leaks the fix: /testbed/build/lib"
-    assert parsed["metadata"]["category"] == "Python"
-    # Re-running with the same tags is idempotent; None preserves description.
-    assert (
-        metadata_bytes(
-            updated,
-            ["health:discarded", "solve:never-run", "verdict:discard"],
-            description="image leaks the fix: /testbed/build/lib",
-        )
-        == updated
-    )
-    assert metadata_bytes(original, ["health:sound", "solve:mixed", "verdict:keep"]) != updated
-    with pytest.raises(ValueError, match="non-empty"):
-        metadata_bytes(original, ["health:sound"], description="  ")
 
 

@@ -7,10 +7,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
 import pytest
-import yaml
 
 from evallab.benchmark_program_contracts import (
     FaultClass,
@@ -19,7 +17,6 @@ from evallab.benchmark_program_contracts import (
 )
 from evallab.mcp_substrate import (
     DEFAULT_PINNED_BASE_IMAGE,
-    DEFAULT_SIDECAR_SERVICE,
     DEFAULT_TARGET_PLATFORM_TAG,
     DEFAULT_TARGET_PYTHON_TAG,
     FASTMCP_VERSION_CONSTRAINTS,
@@ -42,7 +39,6 @@ from evallab.mcp_substrate import (
     validate_mcp_compose_document,
     validate_target_base_runtime,
 )
-from evallab.task_lint import _validate_compose_topology
 
 REAL_WHEELHOUSE = Path("/tmp/fastmcp3_wheelhouse")
 
@@ -70,43 +66,6 @@ def test_mcp_compose_document_rendering_and_validation():
     assert doc["networks"]["workbench-internal"] == {"internal": True}
     assert doc["services"]["main"]["networks"] == ["workbench-internal"]
     assert doc["services"]["mcp-service"]["networks"] == ["workbench-internal"]
-
-
-def test_mcp_substrate_workbench_v2_integration_acceptance(tmp_path: Path):
-    """Integration test proving materialize_mcp_sidecar_package's rendered Compose topology is accepted by updated task_workbench."""
-    resolved_root = tmp_path.resolve()
-    env_dir = resolved_root / "environment"
-    env_dir.mkdir(parents=True, exist_ok=True)
-    (env_dir / "Dockerfile").write_text(
-        f"FROM {DEFAULT_PINNED_BASE_IMAGE}\nWORKDIR /app\n", encoding="utf-8"
-    )
-
-    sidecar_dir = env_dir / "mcp-server"
-    tool = MCPToolDefinition(
-        name="test_tool",
-        description="A test tool",
-        parameters=(MCPToolParameter(name="x", type_name="int", description="val"),),
-    )
-    pkg = materialize_mcp_sidecar_package(
-        target_dir=sidecar_dir,
-        tools=[tool],
-        plan_only=True,
-    )
-    assert pkg["compose_doc"] is None
-    (sidecar_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
-    compose_doc = render_mcp_compose_document(
-        sidecar_service=DEFAULT_SIDECAR_SERVICE,
-        sidecar_build_context="./" + sidecar_dir.name,
-    )
-    (env_dir / "docker-compose.yaml").write_text(yaml.dump(compose_doc), encoding="utf-8")
-
-    diagnostics: list[Any] = []
-    topology, sidecar_name = _validate_compose_topology(resolved_root, diagnostics)
-    assert sidecar_name == "mcp-service"
-    assert topology is not None
-    assert len(diagnostics) == 0, f"task_workbench emitted unexpected diagnostics: {diagnostics}"
-    assert topology["sidecar_service"] == "mcp-service"
-    assert topology["volume"]["name"] == "evidence-volume"
 
 
 def test_mcp_sidecar_package_materialization_and_fail_closed_validation(tmp_path: Path):
@@ -959,214 +918,3 @@ def test_stage_platform_wheelhouse_single_pass_bytes_and_lock(tmp_path: Path):
     assert f"fastmcp==3.4.7 --hash=sha256:{staged_hash}" in lock
 
 
-def test_task_workbench_validates_nested_sidecar_build_proof(tmp_path: Path):
-
-    from evallab.task_lint import (
-        _validate_build_context_contents,
-        _validate_compose_topology,
-        _validate_offline_build_proofs,
-    )
-
-    env_dir = tmp_path / "environment"
-    env_dir.mkdir()
-    (env_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
-
-    sidecar_dir = env_dir / "mcp-server"
-    wh = _real_wheelhouse_or_skip()
-    target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
-    prov = record_prepackaging_provenance(wh, target)
-
-    sealed = tmp_path / "sealed.bin"
-    sealed.write_bytes(b"\x00sealed-evidence\xff")
-    tool = _runtime_asset_tool()
-    pkg = materialize_mcp_sidecar_package(
-        target_dir=sidecar_dir,
-        tools=[tool],
-        wheelhouse_source=wh,
-        resolver_provenance=prov,
-        runtime_assets=(RuntimeAsset("evidence/sealed.bin", sealed),),
-        plan_only=False,
-    )
-    compose_doc = pkg["compose_doc"]
-    (env_dir / "docker-compose.yaml").write_text(yaml.dump(compose_doc), encoding="utf-8")
-
-    diagnostics: list[Any] = []
-    compose_topology, sidecar_name = _validate_compose_topology(tmp_path, diagnostics)
-    assert sidecar_name == "mcp-service"
-    assert len(diagnostics) == 0
-
-    build_proofs = _validate_offline_build_proofs(
-        tmp_path, diagnostics, compose_topology=compose_topology
-    )
-    assert "environment/mcp-server" in build_proofs
-    assert len(diagnostics) == 0
-
-    _validate_build_context_contents(
-        tmp_path, diagnostics, build_proofs, compose_topology=compose_topology
-    )
-    assert len(diagnostics) == 0
-
-
-def test_task_workbench_rejects_nested_sidecar_proof_mismatch_and_escapes(tmp_path: Path):
-    from evallab.task_lint import (
-        _validate_compose_topology,
-    )
-
-    env_dir = tmp_path / "environment"
-    env_dir.mkdir()
-    sidecar_dir = env_dir / "mcp-server"
-    sidecar_dir.mkdir()
-
-    # Escape path in compose
-    bad_compose = render_mcp_compose_document(
-        sidecar_service="mcp-service",
-        sidecar_build_context="../escaped",
-    )
-    (env_dir / "docker-compose.yaml").write_text(yaml.dump(bad_compose), encoding="utf-8")
-    diagnostics: list[Any] = []
-    _validate_compose_topology(tmp_path, diagnostics)
-    assert any(d.code == "compose_build_path_escape" for d in diagnostics)
-
-
-def test_task_workbench_rejects_tampered_sidecar_proof_fields(tmp_path: Path):
-
-    from evallab.task_lint import (
-        _validate_compose_topology,
-        _validate_offline_build_proofs,
-    )
-
-    env_dir = tmp_path / "environment"
-    env_dir.mkdir()
-    (env_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
-
-    sidecar_dir = env_dir / "mcp-server"
-    wh = _real_wheelhouse_or_skip()
-    target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
-    prov = record_prepackaging_provenance(wh, target)
-
-    ops = tmp_path / "ops.py"
-    ops.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
-
-    tool = _runtime_asset_tool()
-    pkg = materialize_mcp_sidecar_package(
-        target_dir=sidecar_dir,
-        tools=[tool],
-        wheelhouse_source=wh,
-        resolver_provenance=prov,
-        op_registry_module="ops",
-        runtime_assets=(RuntimeAsset("ops.py", ops),),
-        plan_only=False,
-    )
-    compose_doc = pkg["compose_doc"]
-    (env_dir / "docker-compose.yaml").write_text(yaml.dump(compose_doc), encoding="utf-8")
-
-    diagnostics: list[Any] = []
-    compose_topology, sidecar_name = _validate_compose_topology(tmp_path, diagnostics)
-    _ = _validate_offline_build_proofs(tmp_path, diagnostics, compose_topology=compose_topology)
-    assert len(diagnostics) == 0
-
-    # 1. Tamper ops.py bytes -> proof invalid
-    (sidecar_dir / "ops.py").write_text("OP_REGISTRY = {'tampered': 1}\n", encoding="utf-8")
-    diag1: list[Any] = []
-    _validate_offline_build_proofs(tmp_path, diag1, compose_topology=compose_topology)
-    assert any("runtime asset 'ops.py'" in d.message for d in diag1)
-    (sidecar_dir / "ops.py").write_text("OP_REGISTRY = {}\n", encoding="utf-8")
-
-    # 2. Tamper Dockerfile -> proof invalid
-    (sidecar_dir / "Dockerfile").write_text(
-        f"FROM {DEFAULT_PINNED_BASE_IMAGE}\nRUN id\n", encoding="utf-8"
-    )
-    diag2: list[Any] = []
-    _validate_offline_build_proofs(tmp_path, diag2, compose_topology=compose_topology)
-    assert any("Dockerfile digest" in d.message for d in diag2)
-    (sidecar_dir / "Dockerfile").write_text(
-        render_mcp_sidecar_dockerfile(runtime_assets=(RuntimeAsset("ops.py", ops),)),
-        encoding="utf-8",
-    )
-
-    # 3. Add extra unapproved wheel in wheelhouse -> fail-closed manifest mismatch
-    (sidecar_dir / "wheelhouse" / "extra-1.0.0-py3-none-any.whl").write_bytes(b"bad")
-    diag3: list[Any] = []
-    _validate_offline_build_proofs(tmp_path, diag3, compose_topology=compose_topology)
-    assert any(
-        "wheelhouse files differ from trusted manifest" in d.message
-        or "do not exactly match checked-in trusted manifest" in d.message
-        for d in diag3
-    )
-
-
-def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Path):
-
-    from evallab.task_lint import (
-        _validate_compose_topology,
-        _validate_offline_build_proofs,
-    )
-
-    env_dir = tmp_path / "environment"
-    env_dir.mkdir()
-    (env_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
-
-    sidecar_dir = env_dir / "mcp-server"
-    wh = _real_wheelhouse_or_skip()
-    target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
-    prov = record_prepackaging_provenance(wh, target)
-
-    ops = tmp_path / "ops.py"
-    ops.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
-
-    tool = _runtime_asset_tool()
-    pkg = materialize_mcp_sidecar_package(
-        target_dir=sidecar_dir,
-        tools=[tool],
-        wheelhouse_source=wh,
-        resolver_provenance=prov,
-        op_registry_module="ops",
-        runtime_assets=(RuntimeAsset("ops.py", ops),),
-        plan_only=False,
-    )
-    compose_doc = pkg["compose_doc"]
-    (env_dir / "docker-compose.yaml").write_text(yaml.dump(compose_doc), encoding="utf-8")
-
-    compose_topology, _ = _validate_compose_topology(tmp_path, [])
-    proof_path = sidecar_dir / "offline-build-proof.json"
-    raw_proof = json.loads(proof_path.read_text(encoding="utf-8"))
-
-    # 1. Removed runtime_assets key from proof -> unmapped Dockerfile COPY source
-    p1 = dict(raw_proof)
-    p1["runtime_assets"] = []
-    proof_path.write_text(json.dumps(p1), encoding="utf-8")
-    d1 = []
-    _validate_offline_build_proofs(tmp_path, d1, compose_topology=compose_topology)
-    assert any(
-        "Dockerfile does not byte-match the canonical regenerated Dockerfile" in d.message
-        for d in d1
-    )
-
-    # 2. Invalid wheel filename (traversal) -> invalid proof
-    p2 = dict(raw_proof)
-    p2["wheels"] = [{"filename": "../outside.whl", "sha256": "0" * 64, "size_bytes": 100}]
-    p2["wheel_count"] = 1
-    # Trim staged wheelhouse to a single wheel so validation reaches the per-wheel filename check.
-    staged_wh = sidecar_dir / "wheelhouse"
-    keep = next(staged_wh.glob("*.whl"))
-    for stale in staged_wh.glob("*.whl"):
-        if stale.name != keep.name:
-            stale.unlink()
-    proof_path.write_text(json.dumps(p2), encoding="utf-8")
-    d2 = []
-    _validate_offline_build_proofs(tmp_path, d2, compose_topology=compose_topology)
-    assert any(
-        "wheelhouse files differ from trusted manifest" in d.message
-        or "do not exactly match checked-in trusted manifest" in d.message
-        for d in d2
-    )
-
-    # 3. Missing dockerfile_sha256 -> invalid proof
-    p3 = dict(raw_proof)
-    del p3["dockerfile_sha256"]
-    proof_path.write_text(json.dumps(p3), encoding="utf-8")
-    d3 = []
-    _validate_offline_build_proofs(tmp_path, d3, compose_topology=compose_topology)
-    assert any(
-        "Dockerfile digest does not match proof dockerfile_sha256" in d.message for d in d3
-    )

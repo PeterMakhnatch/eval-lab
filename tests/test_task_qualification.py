@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
@@ -13,13 +12,11 @@ from evallab import cli
 from evallab.evidence.facts import extract_trial_fact, trial_environment_type
 from evallab.results import load_job
 from evallab.task_qualification import (
-    BROKEN_EXPORT_SCHEMA,
     TABLE_FILENAME,
     classify_trial,
     collect_jobs,
     detect_grader_collection_failure,
     estimate_cost_usd,
-    export_broken,
     is_backend_quota_failure,
     read_task_qualification_parquet,
     status_for,
@@ -440,104 +437,10 @@ def _write_catalog_table(derived: Path, rows: list[dict]) -> Path:
     return out
 
 
-def test_export_broken_digest_stable_and_content_addressed(tmp_path: Path) -> None:
-    derived = tmp_path / "derived"
-    staged = _write_staged_task(tmp_path)
-    job = _write_job(tmp_path, "jobe", [
-        {"name": "t__bad", "reward": 1.0},
-        {"name": "t__ok", "reward": 0.0},
-    ], staged=staged)
-    rows = collect_jobs([job])
-    for row in rows:
-        row["backend"] = "daytona"
-        if row["trial_name"] == "t__bad":
-            row["finished_at"] = "2026-09-28T00:02:00Z"
-    _write_catalog_table(derived, rows)
-
-    first = export_broken(
-        tmp_path / "broken.json", backend="daytona",
-        repo_root=tmp_path, derived_root=derived,
-    )
-    assert first.n_broken == 1
-    payload = json.loads(first.path.read_text())
-    assert payload["schema"] == BROKEN_EXPORT_SCHEMA
-    assert payload["backend"] == "daytona"
-    assert len(payload["items"]) == 1
-    item = payload["items"][0]
-    assert item["reasons"] == ["nop_passes"]
-    assert item["task_id"] == "qual-task"
-    assert len(item["trials"]) == 2
-    canonical = json.dumps(
-        {key: payload[key] for key in ("schema", "backend", "items")},
-        sort_keys=True, separators=(",", ":"),
-    ).encode()
-    assert payload["sha256"] == f"sha256:{hashlib.sha256(canonical).hexdigest()}"
-
-    again = export_broken(
-        tmp_path / "broken-again.json", backend="daytona",
-        repo_root=tmp_path, derived_root=derived,
-    )
-    assert again.sha256 == first.sha256
-
-    other = export_broken(
-        tmp_path / "broken-docker.json", backend="docker",
-        repo_root=tmp_path, derived_root=derived,
-    )
-    assert other.n_broken == 0
-    assert other.sha256 != first.sha256
 
 
-def test_export_broken_uses_latest_trial_and_skips_inconclusive(tmp_path: Path) -> None:
-    derived = tmp_path / "derived"
-    staged = _write_staged_task(tmp_path)
-    old = _write_job(
-        tmp_path, "jobold", [
-            {"name": "t__bad", "reward": 1.0},
-        ],
-        staged=staged,
-        version_digest="sha256:" + "c" * 64,
-    )
-    rows = collect_jobs([old])
-    for row in rows:
-        row["backend"] = "daytona"
-    # A newer ok trial for the same version heals it.
-    rows.append({
-        **rows[0],
-        "job_name": "jobnew",
-        "trial_name": "t__healed",
-        "finished_at": "2026-10-01T00:00:00Z",
-        "status": "ok",
-        "reasons": [],
-        "reward": 0.0,
-    })
-    # An inconclusive-only version is unrun at this tier, not broken.
-    quota_row = {
-        **rows[0],
-        "task_version_digest": "sha256:" + "d" * 64,
-        "job_name": "jobquota",
-        "trial_name": "t__quota",
-        "finished_at": "2026-10-01T00:00:00Z",
-        "status": "inconclusive",
-        "reasons": ["backend_quota"],
-    }
-    rows.append(quota_row)
-    _write_catalog_table(derived, rows)
-
-    result = export_broken(
-        tmp_path / "broken.json", backend="daytona",
-        repo_root=tmp_path, derived_root=derived,
-    )
-    assert result.n_broken == 0
 
 
-def test_export_broken_refuses_without_table(tmp_path: Path) -> None:
-    from evallab.task_catalog import CatalogError
-
-    with pytest.raises(CatalogError):
-        export_broken(
-            tmp_path / "broken.json", backend="daytona",
-            repo_root=tmp_path, derived_root=tmp_path / "derived",
-        )
 
 
 # ---------------------------------------------------------------- CLI wiring
@@ -883,120 +786,11 @@ def _write_findings_table(derived: Path, rows: list[dict]) -> None:
     )
 
 
-def test_export_broken_lists_error_findings_on_any_backend(tmp_path: Path) -> None:
-    derived = tmp_path / "derived"
-    staged = _write_staged_task(tmp_path)
-    job = _write_job(tmp_path, "jobf", [{"name": "t__ok", "reward": 0.0}], staged=staged)
-    rows = collect_jobs([job])
-    for row in rows:
-        row["backend"] = "docker"
-    _write_catalog_table(derived, rows)
-    _write_findings_table(derived, [{
-        "task_version_digest": "sha256:" + "a" * 64,
-        "task_id": "qual-task", "domain": "terminal",
-        "rule": "grader-broken", "severity": "error",
-        "message": "collection imports stevedore",
-    }])
-    for backend in ("docker", "daytona"):
-        result = export_broken(
-            tmp_path / f"broken-{backend}.json", backend=backend,
-            repo_root=tmp_path, derived_root=derived,
-        )
-        assert result.n_broken == 1
-        payload = json.loads(result.path.read_text())
-        (item,) = payload["items"]
-        assert item["reasons"] == ["finding:grader-broken"]
-        assert item["source"] == "finding"
-        assert item["trials"] == []
-    again = export_broken(
-        tmp_path / "broken-docker-again.json", backend="docker",
-        repo_root=tmp_path, derived_root=derived,
-    )
-    first = export_broken(
-        tmp_path / "broken-docker-first.json", backend="docker",
-        repo_root=tmp_path, derived_root=derived,
-    )
-    assert again.sha256 == first.sha256
 
 
-def test_export_broken_lists_findings_before_any_qualification_run(tmp_path: Path) -> None:
-    """A curated defect is exportable before the backend has been qualified."""
-    derived = tmp_path / "derived"
-    _write_findings_table(derived, [{
-        "task_version_digest": "sha256:" + "a" * 64,
-        "task_id": "qual-task", "domain": "terminal",
-        "rule": "grader-broken", "severity": "error",
-        "message": "collection imports stevedore",
-    }])
-    result = export_broken(
-        tmp_path / "broken.json", backend="daytona",
-        repo_root=tmp_path, derived_root=derived,
-    )
-    payload = json.loads(result.path.read_text())
-    (item,) = payload["items"]
-    assert item["task_id"] == "qual-task"
-    assert item["reasons"] == ["finding:grader-broken"]
-    assert payload["meta"]["table_digest"] is None
-    assert payload["meta"]["n_considered"] == 0
 
 
-def test_export_broken_refuses_with_only_warning_findings(tmp_path: Path) -> None:
-    from evallab.task_catalog import CatalogError
-
-    derived = tmp_path / "derived"
-    _write_findings_table(derived, [{
-        "task_version_digest": "sha256:" + "b" * 64,
-        "task_id": "warn-task", "domain": "terminal",
-        "rule": "mimo-no-oracle", "severity": "warning",
-        "message": "no oracle",
-    }])
-    with pytest.raises(CatalogError):
-        export_broken(
-            tmp_path / "broken.json", backend="daytona",
-            repo_root=tmp_path, derived_root=derived,
-        )
 
 
-def test_export_broken_merges_finding_into_qualification_item(tmp_path: Path) -> None:
-    derived = tmp_path / "derived"
-    staged = _write_staged_task(tmp_path)
-    job = _write_job(tmp_path, "jobm", [{"name": "t__bad", "reward": 1.0}], staged=staged)
-    rows = collect_jobs([job])
-    for row in rows:
-        row["backend"] = "daytona"
-    _write_catalog_table(derived, rows)
-    _write_findings_table(derived, [{
-        "task_version_digest": "sha256:" + "a" * 64,
-        "task_id": "qual-task", "domain": "terminal",
-        "rule": "grader-broken", "severity": "error",
-        "message": "collection imports stevedore",
-    }])
-    result = export_broken(
-        tmp_path / "broken.json", backend="daytona",
-        repo_root=tmp_path, derived_root=derived,
-    )
-    assert result.n_broken == 1
-    (item,) = json.loads(result.path.read_text())["items"]
-    assert item["reasons"] == ["finding:grader-broken", "nop_passes"]
-    assert item["source"] == "finding"
 
 
-def test_export_broken_ignores_warning_findings(tmp_path: Path) -> None:
-    derived = tmp_path / "derived"
-    staged = _write_staged_task(tmp_path)
-    job = _write_job(tmp_path, "jobw", [{"name": "t__ok", "reward": 0.0}], staged=staged)
-    rows = collect_jobs([job])
-    for row in rows:
-        row["backend"] = "docker"
-    _write_catalog_table(derived, rows)
-    _write_findings_table(derived, [{
-        "task_version_digest": "sha256:" + "a" * 64,
-        "task_id": "qual-task", "domain": "terminal",
-        "rule": "mimo-no-oracle", "severity": "warning",
-        "message": "no oracle recorded",
-    }])
-    result = export_broken(
-        tmp_path / "broken.json", backend="docker",
-        repo_root=tmp_path, derived_root=derived,
-    )
-    assert result.n_broken == 0

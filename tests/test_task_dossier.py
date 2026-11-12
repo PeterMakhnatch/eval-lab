@@ -1,19 +1,41 @@
-"""The task CLI keeps absent evidence unknown and remains read-only."""
+"""Task dossiers keep absent evidence unknown and remain read-only."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
-from evallab.cli import run_cli
 from evallab.task_dossier import task_dossier
+
+
+def _write_projection(records, path: Path, *, dataset) -> None:
+    from evallab.storage.task_audit import AUDIT_SCHEMA, SCHEMA, _record_columns
+
+    descriptor = dataset.model_dump(mode="json", exclude={"tasks"})
+    rows = [
+        {
+            **_record_columns(record),
+            "dataset_source_uri": dataset.source_uri,
+            "dataset_revision": dataset.revision,
+            "dataset_json": json.dumps(descriptor),
+        }
+        for record in records
+    ]
+    schema = AUDIT_SCHEMA.with_metadata({
+        b"evallab.audit.schema": SCHEMA.encode(),
+        b"evallab.audit.datasets": json.dumps([descriptor]).encode(),
+    })
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.Table.from_pylist(rows, schema=schema), path)
 
 
 @pytest.mark.parametrize("task_id", ["format-code-task-999999", "never-recorded-task"])
 def test_missing_task_json_keeps_sources_absent(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys, task_id: str,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, task_id: str,
 ) -> None:
     runs = tmp_path / "runs"
     runs.mkdir()
@@ -24,15 +46,10 @@ def test_missing_task_json_keeps_sources_absent(
     monkeypatch.setenv("EVALLAB_RUNS_ROOT", str(runs))
     monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
 
-    code = run_cli(
-        ["task", task_id, "--json", "--runs-dir", str(runs),
-         "--derived-root", str(derived), "--reader-store", str(readers),
-         "--static-audit", str(tmp_path / "absent-static.csv")],
-        workspace=tmp_path,
+    dossier = task_dossier(
+        task_id, repo_root=tmp_path, roots=[runs], derived_root=derived,
+        reader_store=readers, static_audit=tmp_path / "absent-static.csv",
     )
-
-    assert code == 0
-    dossier = json.loads(capsys.readouterr().out)
     assert dossier["trials"] == []
     for field in (
         "health", "verdict", "tags", "leak", "repair", "static_flags",
@@ -55,7 +72,6 @@ def test_dossier_rejects_paths_and_patterns(tmp_path: Path, selector: str) -> No
 
 def test_ambiguous_audit_versions_select_no_verdict(tmp_path: Path) -> None:
     from evallab.dataset_audit_contracts import AuditDataset, AuditRecord, AuditTask
-    from evallab.storage.task_audit import write_audit
 
     def _task(package: str) -> AuditTask:
         return AuditTask(
@@ -67,15 +83,10 @@ def test_ambiguous_audit_versions_select_no_verdict(tmp_path: Path) -> None:
 
     audit = tmp_path / "audit.parquet"
     old, new = _task("sha256:" + "a" * 64), _task("sha256:" + "b" * 64)
-    write_audit(
-        [AuditRecord(task=old, verdict="keep")], audit,
-        dataset=AuditDataset(
+    _write_projection(
+        [AuditRecord(task=old, verdict="keep"), AuditRecord(task=new, verdict="fix")],
+        audit, dataset=AuditDataset(
             dataset_id="hello", source_uri="file://hello", revision="1.0", tasks=(old,)),
-    )
-    write_audit(
-        [AuditRecord(task=new, verdict="fix")], audit,
-        dataset=AuditDataset(
-            dataset_id="hello", source_uri="file://hello", revision="1.0", tasks=(new,)),
     )
     dossier = task_dossier(
         "harbor/hello-world", repo_root=tmp_path, roots=[],
@@ -111,14 +122,13 @@ def test_dossier_never_compares_different_digest_algorithms(audit_digest, trial_
 
 def test_dossier_reads_default_audit_projection_without_writes(tmp_path: Path):
     from evallab.dataset_audit_contracts import AuditDataset, AuditRecord, AuditTask
-    from evallab.storage.task_audit import write_audit
 
     derived = tmp_path / "derived"
     task = AuditTask(
         dataset_id="example", task_id="example/task", task_name="example/task",
         source_uri="test://example/task", package_digest="sha256:" + "a" * 64,
     )
-    write_audit(
+    _write_projection(
         [AuditRecord(task=task, verdict="fix",
                      facets={"verdict": {"verdict": "fix", "tag": "verdict:fix"}})],
         derived / "audit.parquet",

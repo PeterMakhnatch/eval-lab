@@ -130,27 +130,31 @@ for historical coverage.
 
 ### Local checkpoints versus full CI
 
-Verification separates rapid local checkpoints, full hosted CI gates, and explicit
-full local reproduction:
+Run **`make prepush` before every push**. This is a local checkpoint, **not CI green**.
 
-1. **Static checkpoint (`make check` or `scripts/premerge.sh --static`)**:
-   Runs static gates only (the locked `benchmarks`, `lance`, and `inspect` groups,
-   `ruff`, `governance`, `registry audit`, `lessons`, and `ty@0.0.71`).
-   No tests or runtime smoke execute; this is **not** CI green.
-2. **Focused prepush checkpoint (`make prepush TESTS='tests/test_foo.py [pytest args]'` or `scripts/premerge.sh --focused TEST_FILE [PYTEST_ARGS...]`)**:
-   Runs the same static gates and typecheck, followed by explicitly selected pytest
-   tests. `--focused` requires an existing test file or `file::node` selector and
-   refuses immediately (exit code 2) before dependency installation if the selector
-   is missing or invalid. The full test suite and runtime smoke do not run; this is
-   **not** CI green. During inner development loops, `make loop` or
-   `uv run evallab registry devloop [--run]` may also be used to compute and execute
-   targeted tests for changed working-tree modules. Selection uses direct and
-   transitive imports through evallab modules, plus textual references, within
-   every declared pytest `testpaths` root. Each invocation inventories consumers
-   once for both selection and reasons. `--json` includes `lane` and per-consumer `reasons`;
-   with `--run --json`, stdout remains one JSON document, child output streams to
-   stderr, and the command returns the child's exit status. Without `--json`,
-   child output keeps its normal interactive stdout/stderr streams.
+1. **Static checkpoint (`make check`)**:
+   Runs the locked static gates: `ruff`, `governance`, `registry audit`, `lessons`,
+   and `ty@0.0.71`. It runs no tests or runtime smoke.
+2. **Prepush checkpoint (`make prepush`)**:
+   Reuses `scripts/premerge.sh --focused`. It runs the cheap static gates and
+   typecheck. It leaves the expensive lessons lineage check to full static/CI.
+   It selects
+   tests against the merge base with `origin/main`, including committed branch
+   changes, local edits, untracked files, and both sides of renames.
+   It selects direct module consumers and tests that reference changed paths,
+   filenames, or parent directories. This includes deleted and non-Python files.
+   Asset references in runtime loaders also select their direct test consumers.
+   It does not expand every Markdown edit to all documentation consumer tests.
+   A bare collect-only run checks the full test tree for import and collection errors.
+   Workflow/native-list, governance, route links, fixture conformance, harness
+   fixture analysis, and front-matter parser contracts run without branch changes.
+   Pytest uses at most 2 workers. Typical changes should finish within
+   2 minutes; broad changes can take longer. No automatic full-suite fallback runs.
+   This does not prove transitive or dynamic dependencies, runtime smoke, or CI.
+   For an explicit selection, use `scripts/premerge.sh --focused TEST_FILE [PYTEST_ARGS...]`.
+   During development, `make loop` retains the conservative devloop planner.
+   Inspect the prepush selection with
+   `uv run evallab registry devloop --since origin/main --checkpoint --json`.
 3. **Explicit full local reproduction (`make premerge` or `scripts/premerge.sh [--full]`)**:
    Pins Python 3.12, checks uv 0.9.24, and installs the locked static CI profile.
    It runs static gates and typecheck before the complete pytest suite.

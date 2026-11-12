@@ -3,7 +3,7 @@
 help:
 	@echo "sync       Install locked Python dependencies"
 	@echo "check      Run static gates only (no tests; not CI green)"
-	@echo "prepush    Run static gates and selected tests: make prepush TESTS='tests/test_foo.py'"
+	@echo "prepush    Before every push: static gates, branch consumers, and repository contracts (not CI green)"
 	@echo "premerge   Explicit full Python 3.12 CI reproduction"
 	@echo "smoke      Run the full local doctor/Harbor/Postgres/Parquet/digest smoke"
 	@echo "smoke-ci   Run the Docker-free smoke subset with real queue and Parquet"
@@ -24,7 +24,7 @@ check:
 	scripts/premerge.sh --static
 
 prepush:
-	scripts/premerge.sh --focused $(TESTS)
+	scripts/premerge.sh --focused
 
 premerge:
 	scripts/premerge.sh

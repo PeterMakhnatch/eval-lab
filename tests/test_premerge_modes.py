@@ -32,7 +32,8 @@ def checkpoint(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         "    sys.exit(23)\n"
         "elif 'pytest' in args:\n"
         "    offset = args.index('pytest') + 1\n"
-        "    os.execv(sys.executable, [sys.executable, '-m', 'pytest', *args[offset:]])\n"
+        "    os.execv(sys.executable, [sys.executable, '-m', 'pytest', "
+        "'-p', 'xdist.plugin', *args[offset:]])\n"
         "elif 'evallab.smoke' in args:\n"
         "    if not Path('test-ran').exists():\n"
         "        sys.exit(24)\n"
@@ -91,11 +92,11 @@ def test_static_checkpoint_does_not_execute_tests(
     assert not (root / "smoke-ran").exists()
 
 
-def test_missing_focused_selection_refuses_before_installation(
+def test_invalid_focused_selection_refuses_before_installation(
     checkpoint: tuple[Path, dict[str, str]],
 ) -> None:
     root, _ = checkpoint
-    result = _run(checkpoint, "--focused")
+    result = _run(checkpoint, "--focused", "absent.py")
     assert result.returncode == 2
     assert not (root / "installed").exists()
     assert not (root / "test-ran").exists()

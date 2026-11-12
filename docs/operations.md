@@ -51,6 +51,8 @@ Example control spec:
 Submit and drain:
 
 ```bash
+uv run evallab submit /path/to/spec.json
+uv run evallab tick
 ```
 
 `submit` prints the `spec_id` on its own labelled line. That bare ULID is the
@@ -60,6 +62,7 @@ the `state:` and `path:` lines beside it are context, not identifiers.
 Out-of-policy work waits for an explicit decision:
 
 ```bash
+uv run evallab approve <spec-id> --actor peter
 ```
 
 An approval does not override the hard per-job or daily cost ceiling. Pause new
@@ -110,6 +113,7 @@ How it is enforced, in order:
    standing rule cannot cover paid work even if one names a paid agent. Editing
    `policy/standing-approvals.yaml` therefore cannot re-open unattended spend.
 3. The authorisation itself is the `human_approved` record in append-only
+   `queue/events.jsonl`, written by `evallab approve` and withdrawn by
    the automation that submits paid work is what writes that file.
 
 It fails closed. If `queue/events.jsonl` cannot be read, the whole tick stops
@@ -121,8 +125,11 @@ An authorisation naming another spec is `paid_run_authorization_mismatch`.
 ### Authorising a paid run
 
 ```bash
+uv run evallab submit queue/specs/my-codex-run.json
 #   -> state: waiting, reason paid_run_unauthorized, with both commands printed
+uv run evallab approve <spec-id> --actor peter
 #   -> prints the agent, attempt count, estimated cost, and the quota state
+uv run evallab tick
 ```
 
 `--actor` is required on `approve`; it is never defaulted, because the recorded
@@ -298,6 +305,7 @@ a reading whose `resets_at` has already passed describes a window that no
 longer exists and refuses nothing; and
 
 ```bash
+uv run evallab approve <spec-id> --actor peter --despite-quota
 ```
 
 records the override on the `human_approved` event as
@@ -322,6 +330,7 @@ work, from evidence already on disk. It costs nothing and blocks on nothing: no
 paid call, no provider request, no `gh`, no database, no subprocess, no socket.
 `tests/test_preflight.py` proves that by making `subprocess` and `socket` raise
 and rendering anyway. It exits `1` when a provider's own reading refuses
+billable work, so `evallab preflight && evallab tick` stops before it spends.
 
 It prints three things.
 
@@ -373,6 +382,7 @@ and a comparison whose smallest detectable difference exceeds it becomes a
 warning.
 
 The same block, byte for byte, is embedded in the nightly digest under
+`## Preflight`, and the operator-facing `evallab tick` prints it before it
 builds an executor.
 
 ## CORE tool health
@@ -518,6 +528,7 @@ After explicit deployment approval, opt into replenishment from an existing,
 version-pinned canary suite:
 
 ```bash
+uv run evallab tick --canary-suite policy/canary-suite.yaml
   --canary-suite policy/canary-suite.yaml
 ```
 

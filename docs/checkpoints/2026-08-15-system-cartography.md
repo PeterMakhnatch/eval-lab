@@ -23,6 +23,8 @@ analysis sidecars, and human approval. That is the design in
 
 **What Peter can do today (safe, no paid calls).** Select a lab task
 under `library/tasks/` (four runnable packages). Submit a free
+`oracle`/`nop` spec through `evallab submit`; policy admits
+`local-controls` (`policy/standing-approvals.yaml`). `evallab tick`
 dispatches. Evidence lands as a Harbor job directory. `ingest` /
 dashboard/explorer render a typed read-only snapshot. Stage-5 analysis
 on main is **plan / stub / sidecar / review** — a saved-response stub,
@@ -66,6 +68,8 @@ End-to-end loop that exists on this checkout:
 |---|---|---|---|
 | Select a task | Four local Harbor packages | `library/tasks/{event-summary,transaction-reconciliation,terminal-bench-html-js-filter,query-optimize}` | proven live (task.toml present) |
 | State a hypothesis | Checked-in spec | `research/experiments/specs/**/*.json` as `ExperimentSpec` (`src/evallab/schemas.py`) | fixture-proven + committed specs |
+| Admit work | Policy gate | `evallab submit` → `PolicyGate` (`src/evallab/queue.py`); `local-controls` admits oracle/nop | proven live (`tests/test_queue.py`; `docs/operations.md`) |
+| Execute | Harbor via executor | `evallab tick` / `run` (oracle/nop only for direct run) | proven live (`docs/checkpoints/2026-08-14.md` integrator flight; `tests/test_smoke.py`) |
 | Persist evidence | Immutable job dir | `runs/<job>/` (gitignored) or promoted `research/evidence/runs/` | proven live (two promoted jobs) |
 | Index | Catalog + Parquet | `evallab ingest` / `trajectories` → `atif.ingest_and_project` | fixture-proven (`tests/test_pipeline.py`); live compose depends on local Postgres |
 | Analyze | Stage-5 stub path | `evallab analyze stub\|ingest-sidecar\|review` | fixture-proven (`research/analysis/stub-oracle-analysis.json`; `tests/test_smoke.py`) |
@@ -136,6 +140,7 @@ task package (library/tasks/<name>/)
 ExperimentSpec  (research/experiments/specs/ or queue/*.json)
   spec_id (ULID), name, hypothesis, task, agent, attempts, policy_rule
         |
+        v  evallab submit / tick
 Harbor job directory  (runs/<job-name>/)
   jobs.id UUID, lab-metadata.experiment.spec_id
         |
@@ -463,6 +468,7 @@ uv run python -m evallab.smoke --docker-free   # fixture compose; no paid model
 ```
 
 Do **not** from a role worktree: `docker compose up`, `harbor run` of a
+paid agent, `evallab tick` against the shared queue, or `evallab
 research` hoping for a live judge.
 
 ---

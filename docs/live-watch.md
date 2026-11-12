@@ -276,6 +276,7 @@ that no file was accessed. Infra owns enabling it for an approved campaign:
 
 ```bash
 EVALLAB_FILE_ACCESS=1 EVALLAB_STATE_JOURNAL=off \
+  uv run --extra laminar evallab tick --spec-id <approved-spec-id>
 ```
 
 The new sensor runs ordinary `inotifywait -m -r` **inside the existing agent

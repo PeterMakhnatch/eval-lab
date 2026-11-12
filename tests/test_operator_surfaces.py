@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 from evallab import cli, database
+from evallab.cli import run_cli
 from evallab.evidence.facts import AnalyzerCallResult, run_trial_analysis
 from evallab.results import load_job
 
@@ -27,6 +28,8 @@ RUBRIC = ROOT / "research/analysis/stage5-rubric.json"
 STUB = ROOT / "research/analysis/stub-oracle-analysis.json"
 FIXED = datetime(2026, 8, 14, tzinfo=UTC)
 CATALOG_URL = "postgresql://evallab:local-development-only@catalog.test:54329/evallab"
+
+
 
 
 class RecordingConnection:
@@ -406,4 +409,44 @@ def test_doctor_prints_the_sync_primary_row_and_keeps_it_advisory(
 
 # ---- F-09: `submit` prints the id the next command wants --------------------
 
+
+
+
+def test_submit_prints_the_bare_spec_id_approve_wants(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from evallab.queue import DirectoryQueue
+    from evallab.queue import database as queue_database
+
+    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
+    # `Executor.submit` refuses to admit anything it cannot cost-check, so it
+    # probes the catalog for today's spend and the recent harness-failure run.
+    # Neither is what this test is about, and a runner without Postgres would
+    # otherwise see `cannot enforce cost policy because the catalog is
+    # unavailable` and exit 2. Pin both to a clean, admitting state.
+    monkeypatch.setattr(queue_database, "daily_cost_usd", lambda url, day: 0.0)
+    monkeypatch.setattr(queue_database, "consecutive_harness_failures", lambda url: 0)
+    shutil.copytree(ROOT / "policy", tmp_path / "policy")
+    shutil.copytree(ROOT / "library/tasks/event-summary", tmp_path / "library/tasks/event-summary")
+    spec = tmp_path / "spec.json"
+    spec.write_text(
+        '{"name": "operator-fixes-control", "hypothesis": "the control runs",'
+        ' "purpose": "practice",'
+        ' "task": "library/tasks/event-summary", "agent": "oracle",'
+        ' "submitted_by": "operator-fixes", "est_cost_usd": 0}'
+    )
+
+    assert run_cli(["submit", str(spec)], workspace=tmp_path) == 0
+
+    out = capsys.readouterr().out
+    spec_id = next(
+        line.split("spec_id: ")[1] for line in out.splitlines() if line.startswith("spec_id: ")
+    )
+    # The printed id is exactly what `approve`, `reject`, and the catalog's
+    # `experiment_id` column consume — no prefix, no extension, no directory.
+    located = DirectoryQueue(tmp_path / "queue").locate(spec_id)
+    assert located.is_file()
+    assert spec_id == located.stem.rsplit("-", 1)[-1]
+    assert "state: " in out
+    assert "path: " in out
 

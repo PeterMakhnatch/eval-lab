@@ -702,6 +702,9 @@ a spec is refused by the policy gate with `paid_run_unauthorized` and parked in
 `queue/waiting/` until a human records an authorisation for that exact spec:
 
 ```bash
+uv run evallab submit <spec.json>              # -> waiting, prints why
+uv run evallab approve <spec-id> --actor peter # the recorded authorisation
+uv run evallab tick --spec-id <spec-id>        # only this approved spec
 ```
 
 `policy/standing-approvals.yaml` cannot grant this. `auto_run` is not consulted
@@ -1276,10 +1279,14 @@ Prepare any local Harbor task package; no task-ID allowlist or new registry
 admission is needed:
 
 ```bash
+uv run evallab tasks prepare /absolute/path/to/harbor-task \
   --name terminus-example \
   --agent terminus-2 --model zai/glm-5.3-flash \
   --environment docker --cost-limit-usd 0.40
+uv run evallab submit derived/prepared/terminus-example.json
 # Review the spec and authorize its printed ID:
+uv run evallab approve <spec-id> --actor peter
+uv run evallab tick --spec-id <spec-id>
 ```
 
 Preparation freezes the package and verifier digests. Task-declared CPU, memory,
@@ -1400,6 +1407,7 @@ completeness verdicts; see [the capture recipe](#independent-model-call-capture)
 ```bash
   --out derived/captures/<name>
 ENDPOINT=$(python -c "import json; print(json.load(open('derived/captures/<name>/capture.json'))['endpoint'])")
+EVALLAB_TINKER_UPSTREAM="$ENDPOINT" EVALLAB_MODEL_CAPTURE=1 EVALLAB_MODEL_CAPTURE_DIR=derived/captures/<name> uv run evallab tick ...
 ```
 
 The trial's `agent/` directory retains `trajectory.json`, `recording.cast`,
@@ -1459,6 +1467,9 @@ candidate harness against a retained baseline spec:
 ```bash
 # Change only the candidate harness; reuse the executed task/model/limits.
   --name local-candidate --harness-tree /absolute/path/to/candidate-harness
+uv run evallab submit derived/prepared/local-candidate.json
+uv run evallab approve <candidate-spec-id> --actor peter
+uv run evallab tick --spec-id <candidate-spec-id>
 ```
 
 Local qualification reads Ollama's installed-model inventory, rejects cloud
@@ -1621,6 +1632,7 @@ sandboxes `001241`, `001626`, and `001765`, superseding the earlier unknown/audi
 Prepare an ordinary spec without a Python launcher, credentials, or cloud calls:
 
 ```bash
+uv run evallab tasks prepare \
   ~/Developer/lab-extras/data/agent-evals/terminal-bench-4/tasks/fin-saccr-rwa \
   --name tb4-finance-daytona \
   --agent mini-swe-agent --model zai/glm-5.3-flash \
@@ -1653,7 +1665,10 @@ given fictitious enforced token/cost limits.
 After reviewing the generated spec and obtaining the exact run's approval:
 
 ```bash
+uv run evallab submit derived/prepared/tb4-finance-daytona.json
 # Copy the spec_id printed by submit into the next two commands:
+uv run evallab approve <spec-id> --actor peter
+uv run evallab tick --spec-id <spec-id>
 uv run evallab summarize runs/tb4-finance-daytona
 ```
 
@@ -1907,6 +1922,7 @@ capture as the secret proxy's upstream:
 ENDPOINT=$(python -c "import json; print(json.load(open('derived/captures/<name>/capture.json'))['endpoint'])")
 # The runner forwards this variable to the per-trial secret proxy (runner.py
 # `EVALLAB_ZAI_OPENAPI_UPSTREAM`), so set it on the dispatching command:
+EVALLAB_ZAI_OPENAPI_UPSTREAM="$ENDPOINT" EVALLAB_MODEL_CAPTURE=1 EVALLAB_MODEL_CAPTURE_DIR=derived/captures/<name> uv run evallab tick ...
 ```
 
 The secret proxy appends `/api/paas/v4/chat/completions` itself; capture

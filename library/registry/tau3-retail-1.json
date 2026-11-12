@@ -9,7 +9,7 @@
     "instruction": "sha256:2d518299c50289183de5a2542a1d9c0a55b02035fdaca53bfa98f6420631e29a",
     "environment": "sha256:ec67e64792eaa706b9cd56884cfcf2c5c0982e87c7ee4746cfb01a4c4463a154",
     "verifier": "sha256:25324aaf2e0f434c3f5dfd55a3621d2a419ae2847f923d180e4f0d171abc1d0f",
-    "package": "sha256:c5a8d94c690ca514b4f2d67b9ac1b69681b1644a9899b46e724cf9c984dc9a56"
+    "package": "sha256:a92456f93ccc1e0806e74695891dffaaf9929a566f6f44145bbf550251b783d2"
   },
   "source_uri": "sierra-research/tau2-bench",
   "source_ref": "tau3-bench-v1.0.0",

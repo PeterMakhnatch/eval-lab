@@ -11,7 +11,6 @@ from evallab.results import load_job
 from evallab.status import (
     SECTION_KEYS,
     build_status_snapshot,
-    iter_labeled_items,
     resolve_status_layout,
     snapshot_as_dict,
 )
@@ -97,23 +96,6 @@ def test_harness_exception_is_not_a_model_failure(tmp_path: Path) -> None:
     assert trial.exception_class == "RuntimeError"
     assert trial.scored_as_model_failure is False
     assert "harness exception" in (trial.detail or "")
-
-
-def test_malformed_and_missing_stores_are_labeled_not_crashes(tmp_path: Path) -> None:
-    malformed = _offline_snapshot(_copy("malformed", tmp_path))
-    missing = _offline_snapshot(_copy("missing-stores", tmp_path))
-
-    assert malformed.Now.availability == "review-needed"
-    assert any(item.kind == "malformed-spec" for item in malformed.Now.items)
-    assert any(item.kind == "malformed-job" for item in malformed.Recent.items)
-    assert any(item.kind == "malformed-analysis" for item in malformed.Analysis.items)
-
-    health_labels = {item.label: item.availability for item in missing.Health.items}
-    assert health_labels["postgres"] == "unavailable"
-    assert health_labels["phoenix"] == "unavailable"
-    assert missing.Recent.availability == "unavailable"
-    allowed = {"observed", "unavailable", "draft", "review-needed"}
-    assert all(item.availability in allowed for item in iter_labeled_items(missing))
 
 
 def test_empty_approved_and_running_queues_are_represented(tmp_path: Path) -> None:

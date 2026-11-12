@@ -527,9 +527,3 @@ def render_status_text(snapshot: StatusSnapshot) -> str:
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
-
-def iter_labeled_items(snapshot: StatusSnapshot) -> list[StatusItem]:
-    items: list[StatusItem] = []
-    for section in snapshot.section_map().values():
-        items.extend(section.items)
-    return items

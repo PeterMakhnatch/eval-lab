@@ -22,7 +22,7 @@ Harbor registry pins below come from `harbor dataset list --legacy` plus `harbor
 - **Lane:** Hub `aime@1.0` (60 tasks, harbor-datasets commit `414014c23ce4d32128073d12b057252c918cccf4`). Adapter `harbor/adapters/aime` exists.
 - **License diligence:** contest items are MAA-copyrighted; Harbor packaging is for eval. Do not republish problem text outside this lab. Oracle writes the integer only.
 - **Resources:** tiny Ubuntu/Python images; no GPU.
-- **Status:** materialized — `library/benchmarks/aime/`
+- **Status:** archived in `archive/pre-round3-2026-11-12` (was `library/benchmarks/aime/`)
 
 ### 2. GPQA-Diamond
 
@@ -33,7 +33,7 @@ Harbor registry pins below come from `harbor dataset list --legacy` plus `harbor
 - **License:** CC-BY-4.0 (dataset card).
 - **Resources:** CPU; scientific Python stack in adapter images.
 - **Caveat:** shuffled choices (adapter seed); not a substitute for lab practicals. Web tools change the original “Google-proof” claim.
-- **Status:** materialized — `library/benchmarks/gpqa-diamond/`
+- **Status:** archived in `archive/pre-round3-2026-11-12` (was `library/benchmarks/gpqa-diamond/`)
 
 ### 3. HumanEvalFix (HumanEvalPack)
 
@@ -42,7 +42,7 @@ Harbor registry pins below come from `harbor dataset list --legacy` plus `harbor
 - **Why keep:** 164 tasks, oracle exists, CPU, Harbor adapter + Hub pin.
 - **Lane:** Hub `humanevalfix@1.0` (164 tasks, harbor-datasets commit `ab02ff13250fae8d91b93a6e4c11ce0bdcb78215`).
 - **License:** HumanEval / HumanEvalPack terms (research use; not a free-for-all republish).
-- **Status:** materialized — `library/benchmarks/humanevalfix/`
+- **Status:** 12 selected survey tasks in `library/benchmarks/humanevalfix/`; 152 unselected archived in `archive/pre-round3-2026-11-12`
 
 ### 4. Terminal-Bench 2.0 sample
 
@@ -50,7 +50,7 @@ Harbor registry pins below come from `harbor dataset list --legacy` plus `harbor
 - **Who cites it:** Terminal-Bench is the lab’s home benchmark family; TB2 is the citable 2025 public set; TB3/Frontier is the 2026 successor (already in CURATOR’s task library).
 - **Why ingest here:** Hub-pinned **sample** (`terminal-bench-sample@2.0`, 10 tasks, commit `7e917f35c281188532772312d4ad91ca9274febc` on `laude-institute/terminal-bench-2-0-sample`) is a legal, small, Harbor-native slice. Full `terminal-bench@2.0` is 89 tasks at commit `69671fbaac6d67a7ef0dfec016cc38a64ef7a77c`.
 - **License:** Apache-2.0 (TB repos).
-- **Status:** materialized — `library/benchmarks/terminal-bench-sample/` (4 CPU tasks oracle 1.0 / nop 0.0)
+- **Status:** archived in `archive/pre-round3-2026-11-12` (was `library/benchmarks/terminal-bench-sample/`)
 
 ---
 

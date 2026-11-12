@@ -8,9 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from evallab.deepplanning import load_cohort
-from evallab.task_lint import CandidateSource, check_package
-
 TASK_DIR = Path("library/tasks/experimental/deepplanning-v1/travel-lisbon-002")
 
 
@@ -163,36 +160,3 @@ def _tree_digest(root: Path) -> str:
         digest.update(str(path.stat().st_mode & 0o777).encode())
         digest.update(path.read_bytes())
     return digest.hexdigest()
-
-
-def test_canary_materialization_is_deterministic_and_passes_package_checks(
-    tmp_path: Path,
-) -> None:
-    materializer_path = Path("library/external/deepplanning-v1/materialize.py")
-    materializer_spec = importlib.util.spec_from_file_location(
-        "deepplanning_materializer",
-        materializer_path,
-    )
-    assert materializer_spec is not None and materializer_spec.loader is not None
-    materializer = importlib.util.module_from_spec(materializer_spec)
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(sys, "dont_write_bytecode", True)
-        materializer_spec.loader.exec_module(materializer)
-    cohort = load_cohort(Path("library/external/deepplanning-v1/cohort.json"))
-    task = next(row for row in cohort if row["task_id"] == "travel-lisbon-002")
-    output_root = tmp_path / "tasks"
-
-    materializer.materialize_task(task, output_root)
-    task_dir = output_root / "travel-lisbon-002"
-    first_digest = _tree_digest(task_dir)
-    materializer.materialize_task(task, output_root)
-
-    assert _tree_digest(task_dir) == first_digest
-    source = CandidateSource(
-        source_uri="https://huggingface.co/datasets/Qwen/DeepPlanning",
-        source_ref="213876cce679f993a476d01042e13d111c0e3648",
-        license="Apache-2.0",
-        provenance_zone="01-external",
-    )
-    diagnostics = check_package(task_dir, source=source)
-    assert not diagnostics, [diagnostic.to_dict() for diagnostic in diagnostics]

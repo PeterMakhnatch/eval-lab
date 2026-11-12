@@ -17,7 +17,10 @@ Fork PRs and bases other than `main` stop without a merge.
 Run from a stable checkout and runtime outside the worktree you want to remove.
 A running process in that worktree blocks cleanup, including the ship process itself.
 The ship entry point avoids the analysis stack and works from an installed wheel.
-Rebase the topic onto current `main` before delivery. Ship requires the current base commit in the PR's ancestry.
+Ship requires the base commit recorded on the PR (`baseRefOid`) in the head's ancestry.
+GitHub records that commit when the PR opens; it does not follow later `main` commits.
+Branch from fresh `origin/main`, or rebase onto it once, before you open the PR.
+Do not rebase again because `main` moved.
 
 ```bash
 uv run evallab ship 123 --smoke 'uv run --locked evallab --version'

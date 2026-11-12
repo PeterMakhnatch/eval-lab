@@ -208,10 +208,12 @@ Before any role (author DRI or integrator) merges a PR:
 3. Ensure there are no unresolved CI failures or known concrete bugs on the branch.
    Authors own fixing concrete issues on their changes; removing the review gate does
    not permit knowingly merging broken code.
-4. Inspect the corresponding workflow runs for the current head/base pair and
-   successful `lint`, both Python `test` jobs, and `ty`. PR workflows normally
+4. Inspect the corresponding workflow runs for the current head and base branch and
+   successful `lint`, every `test` matrix row, and `ty`. PR workflows normally
    check out GitHub's test merge commit; record both PR head and tested merge SHA
-   where available. A base change requires fresh combined evidence.
+   where available. Retargeting the PR to another base branch requires fresh combined
+   evidence, and GitHub reruns both gates for it. New commits on the same base branch
+   do not; see [Keep CI cycles low](#keep-ci-cycles-low).
 5. Do not substitute local green, an old run, a manual dispatch, mergeability, or
    unavailable branch protection for these checks.
 6. Apply the guarded merge rules in `agents/WORKFLOW.md`, executing
@@ -229,15 +231,41 @@ fully green. Run `scripts/premerge.sh` on the merge result before pushing, and p
 both `Premerge: scripts/premerge.sh (pass)` and the green PR number/head SHA in the
 merge commit body.
 
+### Keep CI cycles low
+
+On 2026-11-11, 210 PR runs served 82 PRs. 24% of the runs repeated an unchanged
+head after a PR title or body edit. 23% followed a rebase that no rule required.
+Every run uses the shared pool of 20 hosted jobs.
+
+- Write the complete PR title and body in `gh pr create`. Do not edit them later.
+  Each edit reruns both gates on the same head. Add later evidence with `gh pr comment`.
+- Do not rebase or update the branch because `main` moved. Branch protection does
+  not require an up-to-date branch, and PR CI tests GitHub's merge of the head into
+  the base. Rebase only when GitHub reports a conflict, or when the change needs a
+  commit that landed after the branch point. The push run on `main` proves the merged
+  revision; fix forward from that run.
+- Push one head per fix. Read the result of the running CI before the next push,
+  unless you already know that the head is wrong.
+- When the PR is final, enable auto-merge at once:
+  `gh pr merge <n> --auto --squash --delete-branch --match-head-commit <HEAD_SHA>`.
+  GitHub merges when `quality-required` and `typecheck-required` pass. Use it only
+  when steps 1 and 3 hold, the PR is not a draft or held, the diff selects no
+  `agents/ship-gates.toml` path gate, and `gh pr checks` reports no check outside the
+  `quality` and `typecheck` workflows. Otherwise merge by hand or with `evallab ship`
+  after all reported checks pass. A later push keeps auto-merge armed for the new head;
+  run `gh pr merge <n> --disable-auto` first if that head must not merge.
+
 ## GitHub enforcement versus process
 
 Recommended protection for `main` and any branch accepting integrated work:
 require a PR, require `quality-required` and `typecheck-required` from GitHub
-Actions, require the branch to be up to date, require conversation resolution,
+Actions, require conversation resolution,
 block force pushes/deletion, and apply the rules to administrators with no bypass.
 Zero reviewer approvals are required. Use an active ruleset or explicit
 non-overlapping branch protections; merely running checks on arbitrary stack
 bases does not protect those bases.
+Do not require the branch to be up to date while the merge queue is disabled: that
+setting forces one full CI cycle on every open PR for each merge to `main`.
 
 Draft pull requests and explicit operator holds (e.g. labels) remain honored pauses
 preventing accidental merge.

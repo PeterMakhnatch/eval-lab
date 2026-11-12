@@ -3620,13 +3620,8 @@ This boundary is enforced structurally:
 - **Dependency Isolation**: `llm-verifier` is isolated in its own optional extras group
   (`[project.optional-dependencies] verifier = ["llm-verifier>=0.2.0"]`), excluded from default
   and development dependencies.
-- **Graceful Degradation**: Modules degrade cleanly with `MissingVerifierDependencyError` when
-  the optional extra is not installed.
 - **Import Boundary**: No module in `evallab.task_lint`, `evallab.registry`, or the battery
   imports `llm_verifier` or `evallab.calibrate`.
-- **Token Spend Gate**: Real LLM verifiers refuse execution and raise
-  `PaidModelAuthorizationError` unless explicitly authorized via `allow_paid_tokens=True`.
-  Development, testing, and CI exclusively utilize deterministic `StubVerifier` controls.
 
 ---
 
@@ -3697,9 +3692,6 @@ class CalibrationRecord(ContractModel):
     per_criterion_agreement: dict[str, CriterionAgreement]
     date: datetime
 ```
-
-Records are stored as JSON under `research/calibration/records/verifier/{calib_id}.json` and
-queried via `evallab.calibrate.load_calibration_records(repo_root)`.
 
 The old card generator is retired.
 Preserve calibration records and use native reports or cached score receipts for current comparisons.

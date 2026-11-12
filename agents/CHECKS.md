@@ -151,8 +151,12 @@ Run **`make prepush` before every push**. This is a local checkpoint, **not CI g
    Pytest uses at most 2 workers. Typical changes should finish within
    2 minutes; broad changes can take longer. No automatic full-suite fallback runs.
    This does not prove transitive or dynamic dependencies, runtime smoke, or CI.
-   For an explicit selection, use `scripts/premerge.sh --focused TEST_FILE [PYTEST_ARGS...]`.
+   For an explicit selection, use `make prepush TESTS='tests/test_foo.py [pytest args]'`
+   or `scripts/premerge.sh --focused TEST_FILE [PYTEST_ARGS...]`.
    During development, `make loop` retains the conservative devloop planner.
+   Devloop `--json` includes `lane` and per-consumer `reasons`.
+   With `--run --json`, stdout remains one JSON document, child output goes to
+   stderr, and the command returns the child's exit status.
    Inspect the prepush selection with
    `uv run evallab registry devloop --since origin/main --checkpoint --json`.
 3. **Explicit full local reproduction (`make premerge` or `scripts/premerge.sh [--full]`)**:

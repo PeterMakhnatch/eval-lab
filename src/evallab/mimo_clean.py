@@ -1353,43 +1353,6 @@ def load_manifest(path: Path) -> list[dict[str, str]]:
     return read_csv_rows(path)
 
 
-def summarize_trials(job_dir: Path) -> list[float | None]:
-    """Mean verifier reward per trial under a run job dir (sorted)."""
-    from evallab.cheat import trial_reward
-
-    rewards: list[float | None] = []
-    if not job_dir.is_dir():
-        return rewards
-    for trial in sorted(
-        candidate
-        for candidate in job_dir.iterdir()
-        if candidate.is_dir() and (candidate / "result.json").is_file()
-    ):
-        try:
-            payload = json.loads((trial / "result.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            rewards.append(None)
-            continue
-        rewards.append(trial_reward(payload))
-    return rewards
-
-
-def acceptance_pass(
-    *,
-    oracle_rewards: Collection[float | None],
-    has_reference_fix: bool,
-    nop_rewards: Collection[float | None],
-    cracked: int,
-) -> bool:
-    """Per-task acceptance: oracle 1, nop 0, cheat clean.
-
-    Tasks without a reference fix skip the oracle cell (vacuous pass).
-    """
-    oracle_ok = any(reward == 1 for reward in oracle_rewards) if has_reference_fix else True
-    nop_ok = bool(nop_rewards) and all(reward == 0 for reward in nop_rewards)
-    return oracle_ok and nop_ok and cracked == 0
-
-
 # --------------------------------------------------------------------------- #
 # CLI: ``evallab mimo-clean build|verify-local``
 # --------------------------------------------------------------------------- #

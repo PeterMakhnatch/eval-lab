@@ -46,7 +46,6 @@ from evallab.mimo_clean import (
     ChainBuilder,
     ChainResult,
     OracleInfo,
-    acceptance_pass,
     build_solution_sh,
     chains_for_version,
     derive_marker,
@@ -55,7 +54,6 @@ from evallab.mimo_clean import (
     oracle_info_from_index,
     resolve_language,
     snapshot_category,
-    summarize_trials,
     write_manifest,
 )
 from evallab.strip_future_history import pack_setup
@@ -289,39 +287,6 @@ def test_manifest_write_load_roundtrip(tmp_path: Path) -> None:
     ]
     assert set(loaded[0]) == set(mimo_clean.MANIFEST_COLUMNS)
     assert loaded[1]["chain"] == STRIP_ID
-
-
-def test_acceptance_pass_matrix() -> None:
-    assert acceptance_pass(oracle_rewards=[1], has_reference_fix=True, nop_rewards=[0], cracked=0)
-    assert not acceptance_pass(
-        oracle_rewards=[0], has_reference_fix=True, nop_rewards=[0], cracked=0
-    )
-    assert not acceptance_pass(
-        oracle_rewards=[1], has_reference_fix=True, nop_rewards=[1], cracked=0
-    )
-    assert not acceptance_pass(
-        oracle_rewards=[1], has_reference_fix=True, nop_rewards=[0], cracked=1
-    )
-    # No reference fix: the oracle cell is vacuously satisfied.
-    assert acceptance_pass(oracle_rewards=[], has_reference_fix=False, nop_rewards=[0], cracked=0)
-    # Missing nop evidence never passes.
-    assert not acceptance_pass(
-        oracle_rewards=[], has_reference_fix=False, nop_rewards=[], cracked=0
-    )
-
-
-def test_summarize_trials_reads_result_rewards(tmp_path: Path) -> None:
-    import json as jsonlib
-
-    job = tmp_path / "job"
-    first = job / "trial-a"
-    first.mkdir(parents=True)
-    (first / "result.json").write_text(
-        jsonlib.dumps({"verifier_result": {"rewards": {"reward": 1.0}}}),
-        encoding="utf-8",
-    )
-    assert summarize_trials(job) == [1.0]
-    assert summarize_trials(tmp_path / "missing") == []
 
 
 def _builder(tmp_path: Path, **kwargs: Any) -> ChainBuilder:

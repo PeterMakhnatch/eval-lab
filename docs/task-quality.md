@@ -1625,7 +1625,7 @@ When comparing results, filter or stratify by `origin` and `family`. A `harbor-n
 
 The native catalog and readers remain supported; the `mimo-clean` and `mimo-census` producers are retired.
 The following source contracts preserve backend, measurement, and split boundaries.
-Recorded census labels describe their original source epoch, not a newly measured fleet.
+The qualification collector and task-health census are retired. The following sections describe stored evidence.
 
 ## Storage
 
@@ -1636,9 +1636,7 @@ Parquet derived root:
 
 - `<shared>/derived/task-store/hf/<org>__<repo>@<rev12>/` — pinned
   snapshots, read-only (`555`/`444`), one `provenance.json` per snapshot
-  (`ProvenanceMetadata`, zone `01-external`). Resolved by
-  `default_task_store_root`, mirroring
-  `task_variants.default_variants_root` (`derived/task-store/variants`).
+  (`ProvenanceMetadata`, zone `01-external`).
 - `<parquet-derived>/external/task_catalog/` — `task_sources`,
   `task_versions`, `task_findings`, `task_lineage` Parquet tables. (The
   resolved derived root already ends in `/parquet`; the catalog path is
@@ -1937,7 +1935,7 @@ project package, and never a build artifact). A `cannot import name` symbol
 (quotes optional: 001981 prints `cannot import name STAGE_JOBS`), a
 `module has no attribute` name, a `mock.patch` failure (`<module '…' from
 '…'> does not have the attribute '…'`, 002307) or a test helper's `KeyError`
-lookup (ivy's `_import_fn`, 001601) passes `missing_name_is_task_work`: the
+lookup (ivy's `_import_fn`, 001601) passes the historical census rule: the
 instruction names it as a word, or it is missing from a project module whose
 file is not installed under site-/dist-packages (000700's `delta_E_HyAB` from
 `/testbed/colour/difference`). A name the instruction never states still

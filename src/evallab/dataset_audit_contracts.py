@@ -88,19 +88,3 @@ class AuditRecord(ContractModel):
     # Existing HAR-186 facet payloads. No trial data or self-referential audit
     # payload is embedded here; consumers attach independently bound trials.
     facets: dict[str, JsonValue] = Field(default_factory=dict)
-
-
-class AuditAction(ContractModel):
-    """A proposed run, never an approval or a provider spending guarantee."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    stage: AuditStage
-    task_id: str
-    agent: str | None = None
-    environment: str | None = None
-    model: str | None = None
-    paid: bool = False
-    estimated_cost_usd: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    disposition: Literal["reuse", "inspect", "run", "requires_opt_in", "unavailable"]
-    reason: str | None = None

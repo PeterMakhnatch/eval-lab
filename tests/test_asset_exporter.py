@@ -15,11 +15,7 @@ from typing import Any
 
 import pytest
 
-from evallab.production.asset_exporter import (
-    AssetExportError,
-    VerifiedAssetExporter,
-    export_training_bundle,
-)
+from evallab.production.asset_exporter import AssetExportError, VerifiedAssetExporter
 from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
 from evallab.production.monitor_worker import MisalignmentLiveWorker
 from evallab.production.seeker_worker import compute_candidate_digest
@@ -555,8 +551,6 @@ def _trace_training_candidate(asset: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _manifest(out: Path) -> dict[str, Any]:
-    return json.loads((out / "asset_manifest.json").read_text())
 
 
 def _rows(out: Path) -> list[dict[str, Any]]:
@@ -2506,21 +2500,6 @@ class TestTrainingGate:
         with pytest.raises(AssetExportError):
             exporter.export_training_bundle([self._candidate()], file_out)
 
-    def test_module_level_helper(
-        self,
-        queue: ContinuousWorkQueue,
-        tmp_path: Path,
-        training_asset: Callable[[str, str], dict[str, Any]],
-    ) -> None:
-        backing = training_asset(DATASET, "finding-dev")
-        manifest = export_training_bundle(
-            queue,
-            [self._candidate(asset_event_id=backing["event_id"])],
-            tmp_path / "bundle",
-            repo_root=tmp_path,
-        )
-        assert manifest["exported"] == 1
-        assert manifest["schema"] == "evallab.training_bundle/v1"
 
     @pytest.mark.parametrize(
         "row_extra, marker",

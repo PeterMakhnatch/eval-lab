@@ -66,7 +66,6 @@ FIXED_MTIME = "2000-01-01 00:00:00 UTC"
 #: ``touch -t`` stamp for the same instant. ``-d`` date parsing differs
 #: between GNU and BSD touch, while ``-t [[CC]YY]MMDDhhmm[.SS]`` works on
 #: both; the container still runs GNU, where both forms agree.
-TOUCH_STAMP = "200001010000.00"
 
 #: Normalize every work-tree path, then fail closed when anything stays newer.
 #: ``touch -h`` also normalizes symlink mtimes themselves instead of their
@@ -290,24 +289,3 @@ def derive_mtime_normalize_v2(
         inputs=inputs,
         **kwargs,
     )
-
-
-__all__ = [
-    "ANCHOR",
-    "FIXED_MTIME",
-    "MARKER",
-    "MARKER_V2",
-    "MAX_PASSES_V2",
-    "MTIME_BLOCK",
-    "MTIME_BLOCK_V2",
-    "SETUP_REL",
-    "TOUCH_STAMP",
-    "TRANSFORM_ID",
-    "TRANSFORM_ID_V2",
-    "build_changes",
-    "build_changes_v2",
-    "build_setup_sh",
-    "build_setup_sh_v2",
-    "derive_mtime_normalize",
-    "derive_mtime_normalize_v2",
-]

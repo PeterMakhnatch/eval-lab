@@ -172,9 +172,6 @@ def report_gate_blocker(parent: Path) -> str | None:
     return None
 
 
-def runner_uses_pytest(parent: Path) -> bool:
-    """True when L3 applies: a pytest runner (wrapper and shipped build-env command resolved) that keeps ``PYTEST_ADDOPTS``."""
-    return report_gate_blocker(parent) is None
 
 
 def build_test_sh(
@@ -315,18 +312,3 @@ def junit_counts(xml_text: str) -> tuple[int, int, int, int]:
         errors += case.find("error") is not None
         skipped += case.find("skipped") is not None
     return tests, failures, errors, skipped
-
-
-__all__ = [
-    "AUTOLOAD_PATTERN",
-    "EXPECTED_REL",
-    "TEST_SH_REL",
-    "TRANSFORM_ID",
-    "build_changes",
-    "build_test_sh",
-    "derive_grader_hardening",
-    "expected_report",
-    "junit_counts",
-    "report_gate_blocker",
-    "runner_uses_pytest",
-]

@@ -271,30 +271,6 @@ def test_junit_counts_matches_the_gate_definition():
     assert junit_counts(xml) == (4, 1, 1, 1)
 
 
-def test_pytest_hidden_in_the_shipped_build_env_tarball_is_detected(tmp_path):
-    import base64
-    import io
-    import tarfile
-
-    from evallab.grader_hardening import runner_uses_pytest
-
-    buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
-        body = b"cd /testbed && python -m pytest -q tests\n"
-        info = tarfile.TarInfo("build/test_command.sh")
-        info.size = len(body)
-        archive.addfile(info, io.BytesIO(body))
-    blob = base64.b64encode(buffer.getvalue()).decode()
-    package = tmp_path / "pkg"
-    (package / "tests").mkdir(parents=True)
-    (package / "tests/test_command.sh").write_text("bash /testbed/mimo_test_command.sh")
-    patch = f"diff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\n+++ b/mimo_build_env.tar.gz.b64\n+{blob}\n"
-    (package / "tests/test.patch").write_text(patch)
-    assert runner_uses_pytest(package)
-    (package / "tests/test.patch").write_text(
-        patch.replace(blob, base64.b64encode(b"not a tarball").decode())
-    )
-    assert not runner_uses_pytest(package)
 
 
 def test_a_wrapper_that_clears_pytest_addopts_gets_no_report_gate(tmp_path):

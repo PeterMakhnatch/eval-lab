@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import base64
 import csv
+import io
 import json
 import os
 import re
 import runpy
 import shutil
 import subprocess
+import tarfile
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -15,7 +18,7 @@ import pytest
 
 from evallab.mimo_clean import LEDGER_REL, SNAPSHOT_REL, VARIANTS_REL
 from evallab.registry import harbor_task_digest, task_directory_digest
-from evallab.strip_future_history import pack_setup, unpack_setup_blob
+from evallab.strip_future_history import pack_setup
 from evallab.task_variants import VariantInvalid, derive_task, lineage_chain, materialize
 
 DRIVER = (
@@ -129,7 +132,13 @@ def test_real_setup_and_healthcheck_materialize_without_changing_contract(
     )
     match = re.search(blob_pattern, new_command)
     assert match is not None
-    assert unpack_setup_blob(match[1]) == {
+    with tarfile.open(fileobj=io.BytesIO(base64.b64decode(match[1])), mode="r:gz") as archive:
+        payload = {
+            member.name: archive.extractfile(member).read()
+            for member in archive.getmembers()
+            if member.isfile()
+        }
+    assert payload == {
         "setup.sh": after[SETUP_REL],
         "files/blocklist": before["environment/setup/files/blocklist"],
     }

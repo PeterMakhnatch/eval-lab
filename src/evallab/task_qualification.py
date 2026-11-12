@@ -26,7 +26,7 @@ from typing import Any
 
 from evallab.evidence.facts import exception_phase_for, trial_environment_type
 from evallab.hidden_patch import project_modules as hidden_project_modules
-from evallab.results import duration_seconds, load_job
+from evallab.results import duration_seconds
 from evallab.task_stability import iter_trial_dirs, parse_stability_file
 
 #: Catalog table written by :func:`write_task_qualification_parquet`.
@@ -1052,15 +1052,3 @@ def _error_findings(catalog: Path) -> list[dict[str, Any]]:
     ]
     findings.sort(key=lambda row: (str(row["task_version_digest"]), str(row["rule"])))
     return findings
-
-
-def load_job_staging(job_dir: Path) -> dict[str, Any]:
-    """Trial-name keyed digests for one job (re-ingest helper; smoke only)."""
-    job = load_job(job_dir)
-    staging = _job_staging(job_dir)
-    return {
-        "job_name": job.name,
-        "task_version_digest": staging.get("source_package_digest"),
-        "harbor_digest": staging.get("source_harbor_digest"),
-        "n_trials": len(job.trials),
-    }

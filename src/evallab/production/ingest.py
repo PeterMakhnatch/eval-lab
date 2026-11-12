@@ -74,32 +74,6 @@ def _package_locators(item: CorpusItem, root: Path) -> list[Path]:
     return candidates
 
 
-def resolve_task_package(item: CorpusItem, *, repo_root: Path) -> dict[str, Any] | None:
-    """Resolve only an existing, digest-matched registry-owned DEV package.
-
-    A payload path, gym pair, or latest-version alias is not authority. The
-    returned path is repository-relative or a canonical external absolute path;
-    its digest is the registry's full ``task_directory_digest``, not a Harbor
-    subset digest. Callers must still detect mutation before/during execution.
-    """
-    if item.split != "dev" or item.task_digest is None:
-        return None
-    from evallab.registry import task_directory_digest
-
-    root = Path(repo_root).resolve()
-    for path in _package_locators(item, root):
-        if not path.is_dir() or not (path / "task.toml").is_file():
-            continue
-        try:
-            observed = task_directory_digest(path)
-        except (OSError, ValueError):
-            continue
-        if observed == item.task_digest:
-            return {
-                "task_package": _portable(path, root),
-                "task_package_digest": observed,
-            }
-    return None
 
 
 def _trace_preflight(item: CorpusItem, root: Path) -> dict[str, Any]:
@@ -174,16 +148,6 @@ def _trace_preflight(item: CorpusItem, root: Path) -> dict[str, Any]:
     }
 
 
-def resolve_public_trace(item: CorpusItem, *, repo_root: Path) -> dict[str, Any] | None:
-    """Resolve only registry-owned actor references, never a queued path override.
-
-    Published paths are canonical absolute external paths; ``repo`` references
-    remain repository-relative. Missing, sealed, unsafe, unreadable, or changed
-    bytes return ``None``. A corrupt actions-only view does not fall back to full
-    prose. Consumers must recheck the digest on the bytes they actually process.
-    """
-    result = _trace_preflight(item, Path(repo_root).resolve())
-    return result.get("descriptor")
 
 
 def _index_revision(root: Path, path: Path) -> str | None:

@@ -382,24 +382,6 @@ def validate_target_base_runtime(
     }
 
 
-def parse_requirements_hashes(requirements_text: str) -> dict[str, set[str]]:
-    """Parse a hash-locked requirements.txt into a mapping of normalized package_name -> set of sha256 hex strings."""
-    req_hashes: dict[str, set[str]] = {}
-    for line in requirements_text.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        parts = line.split()
-        pkg_part = parts[0]
-        pkg_name = pkg_part.split("==")[0].lower().replace("_", "-")
-        hashes = set()
-        for p in parts[1:]:
-            if p.startswith("--hash=sha256:"):
-                hashes.add(p.removeprefix("--hash=sha256:"))
-        if not hashes:
-            raise SubstrateError(f"Requirement {pkg_name!r} has no --hash=sha256: declarations")
-        req_hashes[pkg_name] = hashes
-    return req_hashes
 
 
 @dataclass(frozen=True)
@@ -646,42 +628,6 @@ class MCPToolDefinition:
     metadata: Mapping[str, Any] = field(default_factory=dict)
     execution_body: str | None = None
 
-    def to_mcp_tool_schema(self) -> dict[str, Any]:
-        """Convert to standard MCP tools/list tool schema (JSON Schema inputSchema)."""
-        properties: dict[str, Any] = {}
-        required: list[str] = []
-        for param in self.parameters:
-            type_mapping = {
-                "int": "integer",
-                "integer": "integer",
-                "float": "number",
-                "number": "number",
-                "str": "string",
-                "string": "string",
-                "bool": "boolean",
-                "boolean": "boolean",
-                "dict": "object",
-                "object": "object",
-                "list": "array",
-                "array": "array",
-            }
-            json_type = type_mapping.get(param.type_name.lower(), "string")
-            properties[param.name] = {
-                "type": json_type,
-                "description": param.description,
-            }
-            if param.required:
-                required.append(param.name)
-
-        return {
-            "name": self.name,
-            "description": self.description,
-            "inputSchema": {
-                "type": "object",
-                "properties": properties,
-                "required": required,
-            },
-        }
 
 
 def generate_fastmcp_server_script(

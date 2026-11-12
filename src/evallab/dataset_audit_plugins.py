@@ -53,8 +53,6 @@ def _plugins() -> tuple[DatasetAuditPlugin, ...]:
     return (audit_mimo,)
 
 
-def dataset_plugin(selector: str) -> DatasetAuditPlugin | None:
-    return next((plugin for plugin in _plugins() if plugin.recognizes_dataset(selector)), None)
 
 
 def _validate_task_id(value: str) -> str:

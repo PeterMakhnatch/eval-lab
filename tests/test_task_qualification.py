@@ -11,7 +11,6 @@ from evallab.evidence.facts import extract_trial_fact, trial_environment_type
 from evallab.results import load_job
 from evallab.task_qualification import estimate_cost_usd, task_dir_for_trial
 
-
 TASK_TOML = """\
 schema_version = "1.4"
 

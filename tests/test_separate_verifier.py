@@ -1076,7 +1076,6 @@ _V5_NEW_JUNIT = (
     b'<testcase classname="ops.test_ops" name="test_new_only"/>'
     b"</testsuite>"
 )
-_V5_MULTI_NAMED = {"ops/test_ops.py::test_base_one", "ops/test_ops.py::test_new_only"}
 
 
 def _v5_hook_namespace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
@@ -1155,9 +1154,9 @@ def test_v5_archive_hook_results_grade_through_shipped_grader(
     assert _run_embedded_v5_grader(
         tmp_path, capsys, monkeypatch,
         runner_cmd="python -m pytest tests/ -v",
-        output="=== test session starts ===\ncollected 3 items\n",
+        output="=== test session starts ===\ncollected 2 items\n",
         rc=0, junit=_V5_NEW_JUNIT, phase_xmls=[phase],
-        patch_extra="".join(f"+{node}\n" for node in sorted(_V5_MULTI_NAMED)),
+        patch_extra="+    python -m pytest ops/test_ops.py::test_base_one ops/test_ops.py::test_new_only\n",
     ) == "1"
 
 

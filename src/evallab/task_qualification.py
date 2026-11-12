@@ -177,27 +177,6 @@ def missing_module_is_task_work(
     return len(parts) > 1 and parts[0] in projects
 
 
-def missing_name_is_task_work(
-    name: str,
-    module: str | None,
-    path: str | None,
-    instruction: str | None,
-    projects: Collection[str],
-) -> bool:
-    """A ``cannot import name`` / ``has no attribute`` name a nop is expected to lack.
-
-    Expected when the instruction names it as a whole word, or when it is
-    missing from a project module (``projects``) whose file is not installed
-    under site-/dist-packages: 000700's ``cannot import name 'delta_E_HyAB'
-    from 'colour.difference' (/testbed/…)``.
-    """
-    if instruction and _mentioned_as_word(instruction, name):
-        return True
-    if module is None or module.split(".")[0] not in projects:
-        return False
-    return not (path and _INSTALLED_PATH.search(path))
-
-
 def detect_grader_collection_failure(
     stdout_texts: Sequence[str],
     *,

@@ -7,10 +7,8 @@ from pathlib import Path
 import pyarrow as pa
 
 from evallab.mimo_exploit import TABLE_FILENAME as EXPLOITS_PARQUET_FILENAME
-from evallab.storage.paths import shared_checkout_root
 from evallab.task_stability import TABLE_FILENAME as STABILITY_PARQUET_FILENAME
 
-TASK_STORE_DIRNAME = "task-store"
 CATALOG_RELPATH = Path("external/task_catalog")
 STABILITY_TABLE_FILENAME = STABILITY_PARQUET_FILENAME
 STABILITY_TABLE = Path(STABILITY_TABLE_FILENAME).stem
@@ -21,25 +19,6 @@ EXPLOITS_TABLE = Path(EXPLOITS_TABLE_FILENAME).stem
 def catalog_dir(derived_root: Path) -> Path:
     """Rebuildable catalog root: ``<derived root>/parquet/external/task_catalog``."""
     return derived_root / CATALOG_RELPATH
-
-
-def default_task_store_root(repo_root: Path) -> Path:
-    """HF snapshot store: shared across worktrees, outside Git.
-
-    Resolves under the *primary* checkout's ``derived/task-store`` (not the
-    Parquet derived root), mirroring ``task_variants.default_variants_root``,
-    so every worktree pulls into the one store the catalog build scans.
-    """
-    return shared_checkout_root(repo_root) / "derived" / TASK_STORE_DIRNAME
-
-
-def task_store_root(repo_root: Path, *, derived_root: Path | None = None) -> Path:
-    """Resolve the shared task-store root without touching the worktree."""
-    if derived_root is not None:
-        return derived_root / TASK_STORE_DIRNAME
-    return default_task_store_root(repo_root)
-
-
 
 
 TASK_SOURCES_SCHEMA = pa.schema(

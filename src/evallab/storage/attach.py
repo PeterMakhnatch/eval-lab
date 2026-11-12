@@ -723,16 +723,3 @@ def build_sql_preamble(
     return "\n".join(lines)
 
 
-def print_zones(zones: tuple[ZoneStatus, ...]) -> None:
-    for z in zones:
-        if z.attached:
-            print(f"{z.name}: attached ({z.detail or ''})")
-        else:
-            print(f"{z.name}: unavailable — {z.reason} (examined: {z.detail or ''})")
-
-
-def attach_and_query(sql: str, **kwargs: Any) -> list[tuple[Any, ...]]:
-    result = attach(**kwargs)
-    rows = result.connection.execute(sql).fetchall()
-    result.connection.close()
-    return rows

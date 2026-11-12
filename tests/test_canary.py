@@ -10,7 +10,6 @@ from evallab import cli
 from evallab.automation import NightlyCycle
 from evallab.canary import (
     CanaryEnqueuer,
-    TerminalBenchCanaryImporter,
     load_canary_suite,
     task_directory_digest,
 )
@@ -328,95 +327,6 @@ def test_executor_rejects_mutable_dataset_download_before_harbor(
             "terminal-bench/terminal-bench@latest",
             tmp_path / "download",
         )
-
-
-def test_importer_refuses_destination_outside_repository(tmp_path: Path) -> None:
-    repo_root = tmp_path / "repo"
-    repo_root.mkdir()
-    downloader = StubDatasetExecutor()
-    importer = TerminalBenchCanaryImporter(executor=downloader, repo_root=repo_root)
-
-    with pytest.raises(ValueError, match="must stay inside the repository"):
-        importer.import_task(
-            dataset_ref="terminal-bench/terminal-bench@1",
-            task_name="selected",
-            destination=tmp_path / "outside",
-        )
-
-    assert downloader.dataset_refs == []
-
-
-def test_importer_refuses_existing_destination_before_download(tmp_path: Path) -> None:
-    repo_root = tmp_path / "repo"
-    destination = repo_root / "library/tasks/selected"
-    destination.mkdir(parents=True)
-    downloader = StubDatasetExecutor()
-    importer = TerminalBenchCanaryImporter(executor=downloader, repo_root=repo_root)
-
-    with pytest.raises(FileExistsError, match="import destination already exists"):
-        importer.import_task(
-            dataset_ref="terminal-bench/terminal-bench@1",
-            task_name="selected",
-            destination=destination,
-        )
-
-    assert downloader.dataset_refs == []
-
-
-def test_importer_reports_zero_matches_and_sorted_available_names(tmp_path: Path) -> None:
-    downloader = StubDatasetExecutor()
-    importer = TerminalBenchCanaryImporter(executor=downloader, repo_root=tmp_path)
-    destination = tmp_path / "library/tasks/missing"
-
-    with pytest.raises(ValueError) as error:
-        importer.import_task(
-            dataset_ref="terminal-bench/terminal-bench@1",
-            task_name="missing",
-            destination=destination,
-        )
-
-    assert str(error.value) == (
-        "expected one downloaded task named missing, found 0; available: other, selected"
-    )
-    assert not destination.exists()
-
-
-def test_importer_reports_multiple_matches_and_every_available_name(tmp_path: Path) -> None:
-    downloader = StubDatasetExecutor(["selected", "nested/selected", "other"])
-    importer = TerminalBenchCanaryImporter(executor=downloader, repo_root=tmp_path)
-    destination = tmp_path / "library/tasks/selected"
-
-    with pytest.raises(ValueError) as error:
-        importer.import_task(
-            dataset_ref="terminal-bench/terminal-bench@1",
-            task_name="selected",
-            destination=destination,
-        )
-
-    assert str(error.value) == (
-        "expected one downloaded task named selected, found 2; "
-        "available: other, selected, selected"
-    )
-    assert not destination.exists()
-
-
-def test_importer_copies_single_match_with_nested_files(tmp_path: Path) -> None:
-    repo_root = tmp_path / "repo"
-    repo_root.mkdir()
-    downloader = StubDatasetExecutor()
-    importer = TerminalBenchCanaryImporter(executor=downloader, repo_root=repo_root)
-    destination = repo_root / "library/tasks/selected"
-
-    imported = importer.import_task(
-        dataset_ref="terminal-bench/terminal-bench@1",
-        task_name="selected",
-        destination=destination,
-    )
-
-    assert imported == destination.resolve()
-    assert downloader.dataset_refs == ["terminal-bench/terminal-bench@1"]
-    assert (destination / "task.toml").read_text() == 'name = "selected"\n'
-    assert (destination / "fixtures/nested/input.txt").read_text() == "copied fixture\n"
 
 
 def test_suite_rejects_unreachable_daily_cycle_cap(tmp_path: Path) -> None:

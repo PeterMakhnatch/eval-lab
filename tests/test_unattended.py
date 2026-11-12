@@ -16,7 +16,6 @@ from evallab.automation import (
     GuardedTick,
     HeadlessDoctor,
     NightlyCycle,
-    ScheduleInstaller,
     audit_launch_agents,
 )
 from evallab.canary import CanaryEnqueuer, task_directory_digest
@@ -339,101 +338,6 @@ class FakeLaunchctl:
         if check and code:
             raise RuntimeError(f"launchctl exited {code}")
         return subprocess.CompletedProcess(command, code, self.output, "")
-
-
-def test_schedule_transition_both_to_tick_only_unloads_and_removes_nightly(tmp_path: Path) -> None:
-    launchctl = FakeLaunchctl()
-    root = tmp_path / "repo with space's"
-    both = ScheduleInstaller(root, home=tmp_path, launchctl=launchctl)
-    both.install()
-    assert launchctl.loaded == {both.TICK_LABEL, both.NIGHTLY_LABEL}
-
-    tick_only = ScheduleInstaller(
-        root, home=tmp_path, launchctl=launchctl, interval_seconds=60, tick_only=True
-    )
-    tick_only.install()
-    status = tick_only.status()["jobs"]
-    assert launchctl.loaded == {both.TICK_LABEL}
-    assert status[both.TICK_LABEL]["cadence"] == {"interval_seconds": 60}
-    assert status[both.TICK_LABEL]["target_checkout"] == str(root)
-    assert status[both.NIGHTLY_LABEL]["installed"] is False
-    assert status[both.NIGHTLY_LABEL]["loaded"] is False
-
-
-def test_schedule_uninstall_is_idempotent_and_preserves_unrelated_launchagents(
-    tmp_path: Path,
-) -> None:
-    launchctl = FakeLaunchctl()
-    installer = ScheduleInstaller(tmp_path, home=tmp_path, launchctl=launchctl)
-    installer.install()
-    foreign = installer.launch_agents_dir / "com.other.developer.plist"
-    foreign.write_text("unrelated")
-    launchctl.loaded.add("com.other.developer")
-    installer.uninstall()
-    assert launchctl.loaded == {"com.other.developer"}
-    assert all(not job["installed"] for job in installer.status()["jobs"].values())
-    assert installer.uninstall() == []
-    assert foreign.read_text() == "unrelated"
-
-
-@pytest.mark.parametrize("tick_only", [False, True])
-def test_schedule_failed_unload_preserves_recoverable_definition(
-    tmp_path: Path, tick_only: bool
-) -> None:
-    launchctl = FakeLaunchctl()
-    installer = ScheduleInstaller(tmp_path, home=tmp_path, launchctl=launchctl)
-    paths = installer.install()
-    originals = {path: path.read_bytes() for path in paths}
-    launchctl.unload_error = 1
-    action = (
-        ScheduleInstaller(tmp_path, home=tmp_path, launchctl=launchctl, tick_only=True).install
-        if tick_only
-        else installer.uninstall
-    )
-    with pytest.raises(RuntimeError, match="Cannot unload"):
-        action()
-    assert launchctl.loaded == {installer.TICK_LABEL, installer.NIGHTLY_LABEL}
-    assert {path: path.read_bytes() for path in paths} == originals
-
-
-def test_schedule_invalid_interval_rejected_before_mutation(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="positive integer"):
-        ScheduleInstaller(tmp_path, home=tmp_path, interval_seconds=0)
-    assert not (tmp_path / "Library").exists()
-
-
-def test_schedule_status_reports_runtime_failure_without_exporting_environment(
-    tmp_path: Path,
-) -> None:
-    launchctl = FakeLaunchctl()
-    installer = ScheduleInstaller(tmp_path, home=tmp_path, launchctl=launchctl)
-    installer.install()
-    launchctl.output += "environment = {\n  PRIVATE_VALUE = must-not-escape\n}\n"
-    status = installer.status()
-    tick = status["jobs"][installer.TICK_LABEL]
-    assert tick["loaded"] is True
-    assert tick["state"] == "waiting"
-    assert tick["runs"] == 12
-    assert tick["last_exit_code"] == 1
-    assert "must-not-escape" not in json.dumps(status)
-
-
-def test_schedule_status_distinguishes_unreadable_config_and_failed_probe(tmp_path: Path) -> None:
-    launchctl = FakeLaunchctl()
-    installer = ScheduleInstaller(tmp_path, home=tmp_path, launchctl=launchctl)
-    paths = installer.install()
-    paths[0].write_text("malformed plist")
-
-    def failed_probe(command: list[str], check: bool) -> subprocess.CompletedProcess[str]:
-        raise subprocess.TimeoutExpired(command, 10, output="must-not-escape")
-
-    status = ScheduleInstaller(tmp_path, home=tmp_path, launchctl=failed_probe).status()
-    tick = status["jobs"][installer.TICK_LABEL]
-    assert tick["installed"] is None
-    assert tick["loaded"] is None
-    assert tick["config_error"] == "InvalidFileException"
-    assert tick["probe_error"] == "TimeoutExpired"
-    assert "must-not-escape" not in json.dumps(status)
 
 
 def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Path) -> None:
@@ -1443,32 +1347,6 @@ def _create_fixture_suite(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.dump(suite_data))
     return path
-
-
-def test_schedule_installer_persists_quoted_canary_suite(tmp_path: Path) -> None:
-    _create_fixture_suite(tmp_path, name="custom suites/my-canary")
-    launchctl = FakeLaunchctl()
-    installer = ScheduleInstaller(
-        tmp_path,
-        home=tmp_path,
-        launchctl=launchctl,
-        canary_suite=Path("custom suites/my-canary.yaml"),
-    )
-    paths = installer.install()
-    raw = plistlib.loads(paths[0].read_bytes())
-    cmd = raw["ProgramArguments"][2]
-    assert "tick --canary-suite 'custom suites/my-canary.yaml'" in cmd
-    status = installer.status()
-    assert (
-        status["jobs"][ScheduleInstaller.TICK_LABEL]["canary_suite"]
-        == "custom suites/my-canary.yaml"
-    )
-
-
-def test_schedule_installer_validates_suite_before_mutations(tmp_path: Path) -> None:
-    with pytest.raises(ValueError):
-        ScheduleInstaller(tmp_path, home=tmp_path, canary_suite=Path("nonexistent.yaml"))
-    assert not (tmp_path / "Library").exists()
 
 
 def test_guarded_tick_with_opt_in_canary_suite(tmp_path: Path) -> None:

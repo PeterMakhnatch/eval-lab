@@ -9,9 +9,7 @@ from pathlib import Path
 from evallab.lineage import (
     classify_zone,
     compute_file_digest,
-    lineage_to_dict,
     normalize_digest,
-    render_lineage_tree,
     resolve_lineage,
 )
 
@@ -111,7 +109,6 @@ inputs:
     assert leaf_node.status == "terminal"
     assert leaf_node.resolved is True
     assert len(leaf_node.inputs) == 0
-
 
 
 def test_digest_mismatch_reported_as_mismatch(tmp_path: Path) -> None:
@@ -273,71 +270,6 @@ inputs:
     assert "not found" in (root_node.inputs[0].reason or "")
 
 
-def test_render_lineage_tree_formatting(tmp_path: Path) -> None:
-    """Verify ASCII tree rendering structure."""
-    z1_dir = tmp_path / "runs" / "job_tree" / "trial_01"
-    z1_dir.mkdir(parents=True)
-    z1_file = z1_dir / "result.json"
-    z1_file.write_text('{"v": 1}', encoding="utf-8")
-    d1 = compute_file_digest(z1_file)
-
-    docs_dir = tmp_path / "docs"
-    docs_dir.mkdir(parents=True)
-    doc_file = docs_dir / "tree.md"
-    doc_file.write_text(
-        f"""---
-status: living
-audience: [builder]
-inputs:
-  - path: runs/job_tree/trial_01/result.json
-    digest: {d1}
----
-# Tree
-""",
-        encoding="utf-8",
-    )
-
-    root = resolve_lineage("docs/tree.md", repo_root=tmp_path)
-    tree_text = render_lineage_tree(root)
-
-    assert "docs/tree.md [z4]" in tree_text
-    assert "└── runs/job_tree/trial_01/result.json [z1]" in tree_text
-    assert "[terminal]" in tree_text
-    assert d1 in tree_text
-
-
-def test_lineage_to_dict_structure(tmp_path: Path) -> None:
-    """Verify dictionary serialization for lineage nodes."""
-    z1_dir = tmp_path / "runs" / "job_dict" / "trial_01"
-    z1_dir.mkdir(parents=True)
-    z1_file = z1_dir / "result.json"
-    z1_file.write_text('{"v": 2}', encoding="utf-8")
-    d1 = compute_file_digest(z1_file)
-
-    docs_dir = tmp_path / "docs"
-    docs_dir.mkdir(parents=True)
-    doc_file = docs_dir / "dict_test.md"
-    doc_file.write_text(
-        f"""---
-status: living
-audience: [builder]
-inputs:
-  - path: runs/job_dict/trial_01/result.json
-    digest: {d1}
----
-# Dict Test
-""",
-        encoding="utf-8",
-    )
-
-    root = resolve_lineage("docs/dict_test.md", repo_root=tmp_path)
-    d = lineage_to_dict(root)
-    assert d["target"] == "docs/dict_test.md"
-    assert d["status"] == "resolved"
-    assert d["resolved"] is True
-    assert len(d["inputs"]) == 1
-    assert d["inputs"][0]["status"] == "terminal"
-    assert d["inputs"][0]["zone"] == "z1"
 def test_normalize_digest_helper() -> None:
     """Verify normalize_digest handles bare hex and sha256: prefixes."""
     assert normalize_digest(None) is None

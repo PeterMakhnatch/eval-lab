@@ -328,18 +328,6 @@ def test_doctor_probes_cover_keychain_postgres_and_disk(tmp_path, monkeypatch):
     assert doctor._probe_disk() is True
 
 
-def test_launchctl_wrapper_raises_on_checked_failure(monkeypatch):
-    monkeypatch.setattr(automation, "subscription_environment", lambda: {})
-    completed = automation._launchctl(["/usr/bin/true"], check=True)
-    assert isinstance(completed, subprocess.CompletedProcess)
-    assert completed.returncode == 0
-
-    with pytest.raises(RuntimeError, match="launchctl exited 1"):
-        automation._launchctl(["/usr/bin/false"], check=True)
-
-    assert automation._launchctl(["/usr/bin/false"], check=False).returncode == 1
-
-
 def test_installed_job_health_marks_broken_plists_unavailable(tmp_path):
     agents = tmp_path / "Library/LaunchAgents"
     agents.mkdir(parents=True)

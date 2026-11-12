@@ -1566,9 +1566,6 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--json", action="store_true")
     run.set_defaults(func=reward_hack._hack_run_command)
     reward_hack.add_mutate_parser(hack_commands)
-    reward_hack.add_battery_parser(hack_commands)
-    reward_hack.add_repair_parser(hack_commands)
-    reward_hack.add_ref_repair_parser(hack_commands)
     from evallab.mutant_auditor import build_audit_mutants_parser
 
     build_audit_mutants_parser(commands)

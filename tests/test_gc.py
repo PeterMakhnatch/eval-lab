@@ -8,17 +8,13 @@ from evallab.gc import (
     COMPRESS_AFTER,
     PRUNE_AFTER,
     CatalogEntry,
-    apply_gc,
-    archive_path,
     doctor_disk_line,
     filesystem_catalog,
     format_plan,
     nightly_gc_plan,
     plan_gc,
-    run_gc,
-    tombstone_path,
+    tombstone_dir,
 )
-from evallab.queue import DirectoryQueue
 
 
 class MemoryCatalog:
@@ -114,14 +110,12 @@ def test_plan_is_dry_run_and_compresses_at_14_days(tmp_path: Path) -> None:
         spec_id="spec-ripe",
     )
     catalog = catalog_for(young, ripe)
-    plan, applied = run_gc(
-        tmp_path,
-        apply=False,
+    plan = plan_gc(
+        repo_root=tmp_path,
         clock=lambda: now,
         catalog=catalog,
         runs_dir=runs,
     )
-    assert applied is None
     assert (ripe / "result.json").is_file()
     assert [item.action for item in plan.actions] == ["compress"]
     assert plan.actions[0].job_name == "ripe-job"
@@ -129,7 +123,7 @@ def test_plan_is_dry_run_and_compresses_at_14_days(tmp_path: Path) -> None:
     assert any(skip.job_name == "young-job" for skip in plan.skipped)
 
 
-def test_apply_compresses_then_prunes_with_tombstones_and_catalog(
+def test_plan_selects_compress_then_prune_by_age(
     tmp_path: Path,
 ) -> None:
     t0 = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
@@ -144,52 +138,15 @@ def test_apply_compresses_then_prunes_with_tombstones_and_catalog(
         reward=1.0,
     )
     catalog = catalog_for(job)
-    events: list[object] = []
 
     at_compress = t0 + COMPRESS_AFTER + timedelta(minutes=1)
     plan = plan_gc(repo_root=tmp_path, runs_dir=runs, clock=lambda: at_compress, catalog=catalog)
     assert [item.action for item in plan.actions] == ["compress"]
-    apply_gc(
-        plan,
-        repo_root=tmp_path,
-        runs_dir=runs,
-        catalog=catalog,
-        clock=lambda: at_compress,
-        append_event=events.append,
-    )
-    assert not job.exists()
-    stone = tombstone_path(runs, "00000000-0000-0000-0000-000000000010")
-    archive = archive_path(runs, "00000000-0000-0000-0000-000000000010")
-    assert stone.is_file()
-    assert archive.is_file()
-    payload = json.loads(stone.read_text())
-    assert payload["job_id"] == "00000000-0000-0000-0000-000000000010"
-    assert payload["spec_id"] == "spec-aging"
-    assert "result.json" in payload["digests"]
-    assert payload["reward_summary"]["reward"] == 1.0
-    assert payload["why"] == "compress_14d"
-    assert catalog.get("00000000-0000-0000-0000-000000000010") is not None
-    assert events[-1].event == "gc_compressed"
 
     at_prune = t0 + PRUNE_AFTER + timedelta(minutes=1)
     prune_plan = plan_gc(repo_root=tmp_path, runs_dir=runs, clock=lambda: at_prune, catalog=catalog)
     assert [item.action for item in prune_plan.actions] == ["prune"]
-    apply_gc(
-        prune_plan,
-        repo_root=tmp_path,
-        runs_dir=runs,
-        catalog=catalog,
-        clock=lambda: at_prune,
-        append_event=events.append,
-    )
-    assert not archive.exists()
-    assert stone.is_file()
-    pruned = json.loads(stone.read_text())
-    assert pruned["why"] == "prune_60d"
-    entry = catalog.get("00000000-0000-0000-0000-000000000010")
-    assert entry is not None
-    assert (tmp_path / entry.evidence_path).is_file()
-    assert events[-1].event == "gc_pruned"
+    assert (job / "result.json").is_file()
 
 
 def test_exclusions_evidence_digest_unprojected_tombstone(tmp_path: Path) -> None:
@@ -247,42 +204,12 @@ def test_exclusions_evidence_digest_unprojected_tombstone(tmp_path: Path) -> Non
     assert "promoted-job" not in names
     assert not any(skip.job_name == "promoted-job" for skip in plan.skipped)
 
-    apply_gc(plan, repo_root=tmp_path, runs_dir=runs, catalog=catalog, clock=lambda: now)
-    stone = tombstone_path(runs, "00000000-0000-0000-0000-000000000024")
+    stone = tombstone_dir(runs) / "00000000-0000-0000-0000-000000000024.json"
+    write_json(stone, {"job_id": "00000000-0000-0000-0000-000000000024"})
     assert stone.is_file()
     second = plan_gc(repo_root=tmp_path, runs_dir=runs, clock=lambda: now, catalog=catalog)
     assert all(item.path != stone for item in second.actions)
     assert (tmp_path / "research/evidence/runs/promoted-job/result.json").is_file()
-
-
-def test_apply_appends_queue_events(tmp_path: Path) -> None:
-    now = datetime(2026, 6, 1, tzinfo=UTC)
-    runs = tmp_path / "runs"
-    job = make_job(
-        runs,
-        name="event-job",
-        job_id="00000000-0000-0000-0000-000000000030",
-        finished_at=(now - COMPRESS_AFTER - timedelta(days=1)).isoformat(),
-        spec_id="spec-event",
-    )
-    catalog = catalog_for(job)
-    queue = DirectoryQueue(tmp_path / "queue")
-    plan = plan_gc(repo_root=tmp_path, runs_dir=runs, clock=lambda: now, catalog=catalog)
-    apply_gc(
-        plan,
-        repo_root=tmp_path,
-        runs_dir=runs,
-        catalog=catalog,
-        clock=lambda: now,
-        append_event=queue.append_event,
-    )
-    lines = (tmp_path / "queue/events.jsonl").read_text().splitlines()
-    assert lines
-    payload = json.loads(lines[-1])
-    assert payload["event"] == "gc_compressed"
-    assert payload["job_name"] == "event-job"
-    assert payload["reason_code"] == "compress_14d"
-    assert payload["spec_id"] == "spec-event"
 
 
 def test_doctor_and_nightly_plan_do_not_apply(tmp_path: Path) -> None:
@@ -314,11 +241,11 @@ def test_doctor_and_nightly_plan_do_not_apply(tmp_path: Path) -> None:
     assert (job / "result.json").is_file()
 
 
-def test_apply_persists_catalog_so_fresh_load_resolves_existing_path(tmp_path: Path) -> None:
+def test_filesystem_catalog_resolves_ingest_ledger_path(tmp_path: Path) -> None:
     now = datetime(2026, 6, 1, tzinfo=UTC)
     runs = tmp_path / "runs"
     job_id = "00000000-0000-0000-0000-000000000050"
-    job = make_job(
+    make_job(
         runs,
         name="ledger-job",
         job_id=job_id,
@@ -338,43 +265,11 @@ def test_apply_persists_catalog_so_fresh_load_resolves_existing_path(tmp_path: P
         )
         + "\n"
     )
-    plan, applied = run_gc(
-        tmp_path,
-        apply=True,
-        clock=lambda: now,
-        runs_dir=runs,
-    )
-    assert applied is not None
-    assert not job.exists()
-
     fresh = filesystem_catalog(tmp_path)
     entry = fresh.get(job_id)
     assert entry is not None
-    resolved = tmp_path / entry.evidence_path
-    assert resolved.is_file()
-    assert resolved.name == f"{job_id}.json"
-    persisted = json.loads((tmp_path / "derived" / "gc-catalog.json").read_text())
-    assert persisted["jobs"][job_id]["evidence_path"] == entry.evidence_path
+    assert entry.evidence_path == "runs/ledger-job"
+    assert entry.ingested and entry.projected
+    assert (tmp_path / entry.evidence_path / "result.json").is_file()
 
 
-def test_retarget_postgres_updates_job_and_trial_paths(monkeypatch) -> None:
-    executed: list[tuple[str, tuple[str, str]]] = []
-
-    class FakeConnection:
-        def __enter__(self) -> FakeConnection:
-            return self
-
-        def __exit__(self, *args: object) -> bool:
-            return False
-
-        def execute(self, sql: str, params: tuple[str, str]) -> None:
-            executed.append((sql, params))
-
-    monkeypatch.setattr("psycopg.connect", lambda url: FakeConnection())
-    from evallab.gc import retarget_postgres
-
-    retarget_postgres("postgresql://example", "job-1", "runs/.tombstones/job-1.json")
-    statements = " ".join(sql for sql, _ in executed)
-    assert "UPDATE jobs SET evidence_path" in statements
-    assert "UPDATE trials SET evidence_path" in statements
-    assert all(params[0] == "runs/.tombstones/job-1.json" for _, params in executed)

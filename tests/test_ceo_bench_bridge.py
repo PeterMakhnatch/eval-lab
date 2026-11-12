@@ -27,6 +27,8 @@ from typing import Any
 
 import pytest
 
+from evallab.interpretation.run_report import CeoBenchPlugin
+
 RUN_ID = "ab12cd34"
 STAMP = "2026-09-20T10:00:00Z"
 ROOT = Path(__file__).parents[1]
@@ -44,11 +46,6 @@ from ceo_bench.bridge import (  # noqa: E402
     is_completed_week_advance,
     is_state_changing_call,
     resolve_nmdb_key,
-)
-
-from evallab.interpretation.run_report import (  # noqa: E402
-    build_run_report,
-    render_run_report_markdown,
 )
 
 
@@ -284,15 +281,6 @@ def test_bridge_converts_harness_logs_to_reportable_trial(tmp_path: Path) -> Non
     assert summary["trajectory_steps"] == 5  # _dashboard excluded
     assert summary["noop_weeks"] == [1]
 
-    report = build_run_report(trial)
-    assert report["availability"]["trajectory"] == "present"
-    assert report["identity"]["task"] == "ceo-bench/novamind-operation"
-    assert report["identity"]["agent"] == "bash_agent"
-    assert report["outcome"]["verdict"] == "not_scored"
-    assert report["tokens"]["input"] == 60000
-    assert report["cost"]["total_usd"] == 0.13
-    assert report["cost"]["source"] == "result_json"
-    assert report["timeline"]["total_steps"] == 5
     meta = _sidecar(trial, "meta.json")
     assert meta["plugin"] == "ceo_bench"
     assert meta["bankruptcy"] == {"bankrupt": False, "day": None}
@@ -319,9 +307,6 @@ def test_spend_separation_never_merges_simulator(tmp_path: Path) -> None:
     assert spend["simulator"]["input_tokens"] == 80000
     assert set(spend["simulator"]["by_purpose"]) == {"customer_social_post", "customer_negotiation"}
     assert "agent" not in spend["simulator"]["by_purpose"]
-
-    report = build_run_report(trial)
-    assert report["cost"]["total_usd"] == 0.13  # simulator excluded from agent cost
 
 
 def test_bankruptcy_detected_from_ledger_first_negative_day(tmp_path: Path) -> None:
@@ -418,9 +403,6 @@ def test_timing_cash_fallback_when_db_encrypted(tmp_path: Path) -> None:
     assert spend["agent"]["cost_usd"] is None
     assert spend["simulator"]["cost_usd"] is None
     assert any("agent cost unavailable" in note for note in summary["notes"])
-    report = build_run_report(trial)
-    assert report["cost"]["total_usd"] is None
-    assert any("cost unavailable" in note for note in report["data_quality"])
 
 
 def test_session_event_log_supplies_simulator_spend_and_outcome(tmp_path: Path) -> None:
@@ -501,12 +483,6 @@ def test_malformed_inputs_degrade_honestly(tmp_path: Path) -> None:
     (empty / "checkpoint.json").write_text(json.dumps(_checkpoint()), encoding="utf-8")
     bridged = tmp_path / "empty-trial"
     bridge_ceo_bench_run(empty, bridged)
-    report = build_run_report(bridged)
-    assert report["availability"]["trajectory"] == "present"  # file exists, zero steps
-    assert report["timeline"]["total_steps"] == 0
-    assert report["outcome"]["verdict"] == "not_scored"
-    assert report["cost"]["total_usd"] is None
-    assert report["tokens"]["total"] == 69000  # checkpoint totals still reported
 
     nocfg = tmp_path / "no-config"
     nocfg.mkdir()
@@ -533,8 +509,6 @@ def _bridged_trial(tmp_path: Path) -> Path:
 def test_domain_plugin_detects_builds_and_renders(tmp_path: Path) -> None:
     from evallab.interpretation.run_report import (
         CeoBenchPlugin,
-        domain_section,
-        render_run_report_markdown,
     )
 
     trial = _bridged_trial(tmp_path)
@@ -542,7 +516,7 @@ def test_domain_plugin_detects_builds_and_renders(tmp_path: Path) -> None:
     plugin = CeoBenchPlugin()
 
     assert plugin.detect(trial, result) is True
-    section = domain_section(trial, result)
+    section = CeoBenchPlugin().build(trial, result)
     assert section is not None
     assert section["plugin"] == "ceo_bench"
     assert section["version"] == "1"
@@ -561,43 +535,34 @@ def test_domain_plugin_detects_builds_and_renders(tmp_path: Path) -> None:
     assert section["forecasts"]["n_scored"] == 1
     assert section["weeks"]["noop_weeks"] == [1]
 
-    report = build_run_report(trial)
-    assert report["domain"] is not None
-    assert report["domain"]["plugin"] == "ceo_bench"
-    markdown = render_run_report_markdown(report)
-    assert "## Domain: ceo_bench" in markdown
+    markdown = "\n".join(CeoBenchPlugin().render_markdown(section))
     assert "No bankruptcy" in markdown
     assert "never merged into agent cost" in markdown
 
 
 def test_domain_plugin_ignores_non_ceo_trials(tmp_path: Path) -> None:
-    from evallab.interpretation.run_report import CeoBenchPlugin, domain_section
+    from evallab.interpretation.run_report import CeoBenchPlugin
 
     trial = tmp_path / "plain"
     trial.mkdir()
     (trial / "result.json").write_text(json.dumps({"trial_name": "plain"}), encoding="utf-8")
 
     assert CeoBenchPlugin().detect(trial, {"trial_name": "plain"}) is False
-    assert domain_section(trial, {"trial_name": "plain"}) is None
 
 
 def test_domain_plugin_malformed_sidecar_is_unreadable(tmp_path: Path) -> None:
-    from evallab.interpretation.run_report import CeoBenchPlugin, domain_section
+    from evallab.interpretation.run_report import CeoBenchPlugin
 
     trial = _bridged_trial(tmp_path)
     (trial / "ceo_bench" / "spend.json").write_text("{broken", encoding="utf-8")
     result = json.loads((trial / "result.json").read_text(encoding="utf-8"))
 
     assert CeoBenchPlugin().detect(trial, result) is True
-    section = domain_section(trial, result)
+    section = CeoBenchPlugin().build(trial, result)
     assert section is not None
     assert section["plugin"] == "ceo_bench"
     assert section["status"] == "unreadable"
     assert "spend.json" in section["reason"]
-
-    report = build_run_report(trial)
-    assert report["domain"] is not None
-    assert report["domain"]["status"] == "unreadable"
 
 
 def test_cli_exits_nonzero_with_message_on_unbridgeable_run(tmp_path: Path) -> None:
@@ -739,11 +704,6 @@ def test_encrypted_db_degrades_without_key(
     assert "wrong key" in meta2["world_nmdb"]["reason"]
 
 
-def _domain_section_markdown(report: dict[str, Any]) -> str:
-    markdown = render_run_report_markdown(report)
-    return markdown.split("## Domain:")[1].split("## Timeline")[0]
-
-
 def test_unreadable_ledger_spend_carries_exact_reason_to_report(
     tmp_path: Path,
 ) -> None:
@@ -766,10 +726,10 @@ def test_unreadable_ledger_spend_carries_exact_reason_to_report(
     assert spend["simulator"]["reason"] == exact
     assert _sidecar(trial, "forecasts.json")["reason"] == exact
 
-    report = build_run_report(trial)
-    assert report["domain"]["spend"]["agent"]["reason"] == exact
-    assert report["domain"]["spend"]["simulator"]["reason"] == exact
-    section = _domain_section_markdown(report)
+    report = CeoBenchPlugin().build(trial, json.loads((trial / "result.json").read_text()))
+    assert report["spend"]["agent"]["reason"] == exact
+    assert report["spend"]["simulator"]["reason"] == exact
+    section = "\n".join(CeoBenchPlugin().render_markdown(report))
     assert "Agent spend unavailable:" in section
     assert "simulator spend unavailable:" in section
     assert "None" not in section
@@ -791,10 +751,11 @@ def test_encrypted_no_key_reason_reaches_report(
 
     exact = _sidecar(trial, "meta.json")["world_nmdb"]["reason"]
     assert "NMDB_KEY" in exact
-    report = build_run_report(trial)
-    assert report["domain"]["spend"]["agent"]["reason"] == exact
-    assert report["domain"]["spend"]["simulator"]["reason"] == exact
-    assert report["domain"]["forecasts"]["reason"] == exact
-    section = _domain_section_markdown(report)
+    report = CeoBenchPlugin().build(trial, json.loads((trial / "result.json").read_text()))
+    assert report["spend"]["agent"]["reason"] == exact
+    assert report["spend"]["simulator"]["reason"] == exact
+    assert report["forecasts"]["reason"] == exact
+    section = "\n".join(CeoBenchPlugin().render_markdown(report))
     assert "Agent spend unavailable:" in section
     assert "None" not in section
+

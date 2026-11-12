@@ -8,17 +8,13 @@ mode is a dry-run plan; ``--apply`` mutates. Time and catalog I/O are injected.
 from __future__ import annotations
 
 import json
-import shutil
-import tarfile
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal, Protocol
 
-from evallab.queue import DirectoryQueue, new_ulid
 from evallab.results import JobRecord, load_job, sha256_file
-from evallab.schemas import QueueEvent
 from evallab.storage.paths import derived_root_from_environment
 
 COMPRESS_AFTER = timedelta(days=14)
@@ -29,7 +25,6 @@ EVIDENCE_DIR = Path("research") / "evidence"
 DISCOVERIES = Path("digests") / "DISCOVERIES.md"
 
 Clock = Callable[[], datetime]
-EventAppender = Callable[[QueueEvent], None]
 ActionKind = Literal["compress", "prune"]
 
 
@@ -88,13 +83,6 @@ class GcPlan:
         return "no completed+ingested+unpromoted candidates"
 
 
-@dataclass
-class GcApplyResult:
-    plan: GcPlan
-    tombstones: list[Path]
-    events: list[QueueEvent]
-
-
 def utcnow() -> datetime:
     return datetime.now(UTC)
 
@@ -105,10 +93,6 @@ def tombstone_dir(runs_dir: Path) -> Path:
 
 def archive_dir(runs_dir: Path) -> Path:
     return runs_dir / ARCHIVE_DIRNAME
-
-
-def tombstone_path(runs_dir: Path, job_id: str) -> Path:
-    return tombstone_dir(runs_dir) / f"{job_id}.json"
 
 
 def archive_path(runs_dir: Path, job_id: str) -> Path:
@@ -249,30 +233,6 @@ def iter_run_jobs(runs_dir: Path) -> list[Path]:
 
 GC_CATALOG_RELATIVE = Path("derived") / "gc-catalog.json"
 INGEST_LEDGER_RELATIVE = Path("derived") / "ingest-ledger.jsonl"
-
-
-def retarget_postgres(database_url: str, job_id: str, evidence_path: str) -> None:
-    """Point jobs/trials.evidence_path at the tombstone. Best-effort."""
-    import psycopg
-
-    with psycopg.connect(database_url) as connection:
-        connection.execute(
-            "UPDATE jobs SET evidence_path = %s, updated_at = now() WHERE id = %s",
-            (evidence_path, job_id),
-        )
-        connection.execute(
-            "UPDATE trials SET evidence_path = %s, updated_at = now() WHERE job_id = %s",
-            (evidence_path, job_id),
-        )
-
-
-def _optional_postgres_retarget(job_id: str, evidence_path: str) -> None:
-    try:
-        from evallab.runner import database_url_from_environment
-
-        retarget_postgres(database_url_from_environment(), job_id, evidence_path)
-    except Exception:
-        return
 
 
 class FilesystemCatalog:
@@ -540,93 +500,6 @@ def plan_gc(
     return plan
 
 
-def write_tombstone(
-    runs_dir: Path,
-    action: GcAction,
-    *,
-    clock: Clock,
-) -> Path:
-    path = tombstone_path(runs_dir, action.job_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "job_id": action.job_id,
-        "spec_id": action.spec_id,
-        "job_name": action.job_name,
-        "digests": action.digests,
-        "reward_summary": action.rewards,
-        "why": action.why,
-        "action": action.action,
-        "removed_at": clock().isoformat(),
-        "source_path": action.path.as_posix(),
-        "age_days": action.age_days,
-        "finished_age_anchor": (clock() - timedelta(days=action.age_days)).isoformat(),
-    }
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    return path
-
-
-def _compress_job(action: GcAction, runs_dir: Path) -> Path:
-    dest = archive_path(runs_dir, action.job_id)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(dest, "w:gz") as archive:
-        archive.add(action.path, arcname=action.job_name)
-    shutil.rmtree(action.path)
-    return dest
-
-
-def _prune_job(action: GcAction, runs_dir: Path) -> None:
-    if action.path.exists():
-        if action.path.is_dir():
-            shutil.rmtree(action.path)
-        else:
-            action.path.unlink()
-    archive = archive_path(runs_dir, action.job_id)
-    if archive.is_file():
-        archive.unlink()
-
-
-def apply_gc(
-    plan: GcPlan,
-    *,
-    repo_root: Path,
-    runs_dir: Path | None = None,
-    catalog: CatalogStore | None = None,
-    clock: Clock = utcnow,
-    append_event: EventAppender | None = None,
-) -> GcApplyResult:
-    root = repo_root.resolve()
-    runs = (runs_dir or root / "runs").resolve()
-    store = (
-        catalog
-        if catalog is not None
-        else filesystem_catalog(root, sql_retarget=_optional_postgres_retarget)
-    )
-    events: list[QueueEvent] = []
-    tombstones: list[Path] = []
-    writer = append_event or DirectoryQueue(root / "queue").append_event
-    for action in plan.actions:
-        if action.action == "compress":
-            _compress_job(action, runs)
-        else:
-            _prune_job(action, runs)
-        stone = write_tombstone(runs, action, clock=clock)
-        tombstones.append(stone)
-        relative = stone.relative_to(root).as_posix() if is_under(stone, root) else stone.as_posix()
-        store.set_path(action.job_id, relative)
-        event = QueueEvent(
-            event_id=new_ulid(),
-            spec_id=action.spec_id or f"job-{action.job_id}",
-            occurred_at=clock(),
-            event="gc_compressed" if action.action == "compress" else "gc_pruned",
-            actor="gc",
-            reason_code=action.why,
-            job_name=action.job_name,
-        )
-        writer(event)
-        events.append(event)
-    return GcApplyResult(plan=plan, tombstones=tombstones, events=events)
-
-
 def format_plan(plan: GcPlan) -> str:
     lines = [
         f"gc plan: {len(plan.actions)} action(s), "
@@ -699,28 +572,6 @@ def doctor_disk_line(
     return (
         f"disk  runs={used}B  compress-candidates={compress_n}  "
         f"prune-candidates={prune_n}  would-reclaim={plan.reclaim_bytes}B"
-    )
-
-
-def run_gc(
-    repo_root: Path,
-    *,
-    apply: bool = False,
-    clock: Clock = utcnow,
-    catalog: CatalogStore | None = None,
-    runs_dir: Path | None = None,
-    append_event: EventAppender | None = None,
-) -> tuple[GcPlan, GcApplyResult | None]:
-    plan = plan_gc(repo_root=repo_root, runs_dir=runs_dir, clock=clock, catalog=catalog)
-    if not apply:
-        return plan, None
-    return plan, apply_gc(
-        plan,
-        repo_root=repo_root,
-        runs_dir=runs_dir,
-        catalog=catalog,
-        clock=clock,
-        append_event=append_event,
     )
 
 

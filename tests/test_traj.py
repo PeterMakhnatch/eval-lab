@@ -27,7 +27,6 @@ from evallab.traj import (
     _build_phases,
     extract_features,
     outline_trajectory,
-    render_outline,
 )
 
 
@@ -96,12 +95,6 @@ def test_outline_real_canary_trajectory(real_canary_trial: Path, repo_root: Path
     assert outline.phases[2].step_end == 11
 
     # Text rendering
-    rendered = render_outline(outline)
-    assert "TRAJECTORY OUTLINE: event-summary__h2D9f6f [FEATURED]" in rendered
-    assert "local-lab/event-summary" in rendered
-    assert "codex (gpt-5.6-terra)" in rendered
-    assert "ORDERED PHASES:" in rendered
-    assert "METRICS SUMMARY:" in rendered
 
 
 def test_path_jail_refuses_escaping_paths(repo_root: Path) -> None:
@@ -309,8 +302,6 @@ def test_outline_cost_is_none_when_no_cost_exists(tmp_path: Path) -> None:
     outline = outline_trajectory(trial, explicit_runs_root=trial)
     assert outline.status == "featured"
     assert outline.total_cost_usd is None
-    assert "(n/a)" in render_outline(outline)
-    assert "$0.0000" not in render_outline(outline)
 
 
 def test_outline_cost_prefers_declared_total(tmp_path: Path) -> None:

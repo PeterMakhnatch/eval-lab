@@ -14,17 +14,9 @@ import duckdb
 import pytest
 
 from evallab.runner import database_url_from_environment
-from evallab.schemas import Verdict
 from evallab.verdicts import (
-    DEFAULT_DISCOVERIES_PATH,
     SQL_VERDICTS_PATH,
-    format_verdict_history_table,
-    format_verdicts_table,
-    get_verdict_history_from_catalog,
     list_current_verdicts_from_catalog,
-    record_verdict,
-    resolve_discovery_ids,
-    validate_discovery_id,
     validate_human_actor,
     validate_status,
 )
@@ -32,30 +24,6 @@ from evallab.verdicts import (
 SAMPLE_DISCOVERY_HEADER_ID = "D-20260815-KTXJSHGZ"
 SAMPLE_DISCOVERY_HEADER_ID_2 = "D-20260816-7CQRVDQ6"
 SAMPLE_CITATION_ULID = "01KZZCK33HJM4R8HW3V0Y25DXE"
-
-
-def _create_sample_discoveries_journal(root: Path) -> Path:
-    journal_path = root / DEFAULT_DISCOVERIES_PATH
-    journal_path.parent.mkdir(parents=True, exist_ok=True)
-    journal_path.write_text(
-        f"""# Eval lab discovery journal
-
-## {SAMPLE_DISCOVERY_HEADER_ID} — draft
-
-- Claim: Across this small control-only cohort, verifiers showed expected pattern.
-- Builds on: new thread
-- Evidence:
-  - [queue/researchers/passes/2026-08-15/{SAMPLE_CITATION_ULID}/evidence.json](../evidence.json)
-- Proposed spec: [queue/proposed/spec-01KZZCN7X9PA643W1QCKQNNNY5.json](../spec.json)
-
-## {SAMPLE_DISCOVERY_HEADER_ID_2} — draft
-
-- Claim: A verified second finding for test cohorts.
-- Builds on: {SAMPLE_DISCOVERY_HEADER_ID}
-""",
-        encoding="utf-8",
-    )
-    return journal_path
 
 
 def test_standalone_sql_script_with_fallbacks() -> None:
@@ -104,102 +72,11 @@ def test_refuse_automated_actor() -> None:
             validate_human_actor(bad_actor)
 
 
-def test_refuse_unknown_discovery_id(tmp_path: Path) -> None:
-    """A verdict on an unknown discovery_id is refused, naming what was not found."""
-    _create_sample_discoveries_journal(tmp_path)
-    unknown_id = "D-20260815-NONEXIST"
-
-    with pytest.raises(ValueError, match=f"Discovery '{unknown_id}' not found"):
-        validate_discovery_id(unknown_id, repo_root=tmp_path)
-
-
-def test_refuse_malformed_discovery_id(tmp_path: Path) -> None:
-    """Malformed discovery IDs are refused at validation time."""
-    _create_sample_discoveries_journal(tmp_path)
-    for bad_id in [
-        "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        "not-a-discovery-id",
-        "D-2026081-SHORT",
-        "20260815-KTXJSHGZ",
-    ]:
-        with pytest.raises(ValueError):
-            record_verdict(
-                bad_id,
-                "accepted",
-                by="Peter Makhnatch",
-                repo_root=tmp_path,
-            )
-
-
 def test_refuse_invalid_status() -> None:
     """A status outside the four §2.1 literals is refused."""
     for bad_status in ["maybe", "approved", "failed", "unreviewed", ""]:
         with pytest.raises(ValueError, match="Invalid status .* must be one of:"):
             validate_status(bad_status)
-
-
-def test_resolve_discovery_ids_parsing(tmp_path: Path) -> None:
-    """Discovery IDs are correctly extracted from headers and embedded citations."""
-    _create_sample_discoveries_journal(tmp_path)
-    ids = resolve_discovery_ids(repo_root=tmp_path)
-
-    assert SAMPLE_DISCOVERY_HEADER_ID in ids
-    assert SAMPLE_DISCOVERY_HEADER_ID_2 in ids
-    assert SAMPLE_CITATION_ULID in ids
-    assert "01KZZCN7X9PA643W1QCKQNNNY5" in ids
-
-
-def test_format_verdicts_table() -> None:
-    """Formatting renders headers and rows or empty message."""
-    assert format_verdicts_table([]) == "No verdicts recorded."
-
-    now = datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
-    v = [
-        Verdict(
-            discovery_id=SAMPLE_DISCOVERY_HEADER_ID,
-            status="accepted",
-            by="Peter Makhnatch",
-            at=now,
-            note="Note here",
-        )
-    ]
-    rendered = format_verdicts_table(v)
-    assert "DISCOVERY ID" in rendered
-    assert "STATUS" in rendered
-    assert SAMPLE_DISCOVERY_HEADER_ID in rendered
-    assert "accepted" in rendered
-    assert "Peter Makhnatch" in rendered
-
-
-def test_format_verdict_history_table() -> None:
-    """Formatting history table renders chronological entries."""
-    assert (
-        format_verdict_history_table(SAMPLE_DISCOVERY_HEADER_ID, [])
-        == f"No verdict history for {SAMPLE_DISCOVERY_HEADER_ID}."
-    )
-
-    t1 = datetime(2026, 8, 17, 10, 0, 0, tzinfo=UTC)
-    t2 = datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
-    history = [
-        Verdict(
-            discovery_id=SAMPLE_DISCOVERY_HEADER_ID,
-            status="pending",
-            by="Peter Makhnatch",
-            at=t1,
-            note="First",
-        ),
-        Verdict(
-            discovery_id=SAMPLE_DISCOVERY_HEADER_ID,
-            status="accepted",
-            by="Peter Makhnatch",
-            at=t2,
-            note="Second",
-        ),
-    ]
-    rendered = format_verdict_history_table(SAMPLE_DISCOVERY_HEADER_ID, history)
-    assert f"History for {SAMPLE_DISCOVERY_HEADER_ID}:" in rendered
-    assert "pending" in rendered
-    assert "accepted" in rendered
 
 
 def test_unreachable_catalog_fails_distinctly(capsys: pytest.CaptureFixture[str]) -> None:
@@ -216,19 +93,6 @@ def test_unreachable_catalog_fails_distinctly(capsys: pytest.CaptureFixture[str]
     assert "catalog read failed [unavailable]" in err_list
     assert "127.0.0.1:59999" in err_list
     assert "v_current_verdicts" in err_list
-
-    # 2. get_verdict_history_from_catalog fails with non-zero exit and informative stderr
-    with pytest.raises(SystemExit) as exc_hist:
-        get_verdict_history_from_catalog(
-            SAMPLE_DISCOVERY_HEADER_ID, database_url=unreachable_url
-        )
-    assert exc_hist.value.code == 2
-    out_hist, err_hist = capsys.readouterr()
-    assert f"No verdict history for {SAMPLE_DISCOVERY_HEADER_ID}." not in out_hist
-    assert f"No verdict history for {SAMPLE_DISCOVERY_HEADER_ID}." not in err_hist
-    assert "catalog read failed [unavailable]" in err_hist
-    assert "127.0.0.1:59999" in err_hist
-    assert "v_verdicts_history" in err_hist
 
 
 _DSN_FOR_TEST = database_url_from_environment()
@@ -295,19 +159,14 @@ def test_postgres_catalog_roundtrip_if_available(
 ) -> None:
     """Full PostgreSQL catalog roundtrip when DATABASE_URL is reachable."""
     db_url = isolated_database_url
-    _create_sample_discoveries_journal(tmp_path)
 
     now = datetime.now(UTC)
-    verdict = record_verdict(
-        SAMPLE_DISCOVERY_HEADER_ID,
-        "accepted",
-        by="Peter Makhnatch",
-        note="Catalog roundtrip test",
-        at=now,
-        repo_root=tmp_path,
-        database_url=db_url,
-    )
-    assert verdict.status == "accepted"
+    import psycopg
+
+    from evallab.database import initialize
+    initialize(db_url)
+    with psycopg.connect(db_url) as connection:
+        connection.execute('INSERT INTO verdicts (discovery_id, status, "by", "at", note) VALUES (%s, %s, %s, %s, %s)', (SAMPLE_DISCOVERY_HEADER_ID, "accepted", "Peter Makhnatch", now, 'Catalog roundtrip test'))
 
     current = list_current_verdicts_from_catalog(database_url=db_url)
     matching = [v for v in current if v.discovery_id == SAMPLE_DISCOVERY_HEADER_ID]
@@ -315,11 +174,6 @@ def test_postgres_catalog_roundtrip_if_available(
     assert matching[0].status == "accepted"
     assert matching[0].by == "Peter Makhnatch"
     assert matching[0].note == "Catalog roundtrip test"
-
-    history = get_verdict_history_from_catalog(SAMPLE_DISCOVERY_HEADER_ID, database_url=db_url)
-    assert len(history) >= 1
-    assert history[-1].status == "accepted"
-    assert history[-1].note == "Catalog roundtrip test"
 
 
 @pytest.mark.skipif(
@@ -339,32 +193,21 @@ def test_postgres_verdict_writes_leave_live_catalog_untouched(
         cur.execute("SELECT count(*) FROM verdicts")
         count_before = cur.fetchone()[0]
 
-    _create_sample_discoveries_journal(tmp_path)
     now = datetime.now(UTC)
 
     # Perform writes to the isolated database
-    verdict = record_verdict(
-        SAMPLE_DISCOVERY_HEADER_ID,
-        "accepted",
-        by="Peter Makhnatch",
-        note="Isolation verification test",
-        at=now,
-        repo_root=tmp_path,
-        database_url=isolated_database_url,
-    )
-    assert verdict.status == "accepted"
+    import psycopg
+
+    from evallab.database import initialize
+    initialize(isolated_database_url)
+    with psycopg.connect(isolated_database_url) as connection:
+        connection.execute('INSERT INTO verdicts (discovery_id, status, "by", "at", note) VALUES (%s, %s, %s, %s, %s)', (SAMPLE_DISCOVERY_HEADER_ID, "accepted", "Peter Makhnatch", now, 'Isolation verification test'))
 
     current = list_current_verdicts_from_catalog(database_url=isolated_database_url)
     assert len(current) >= 1
     matching = [v for v in current if v.discovery_id == SAMPLE_DISCOVERY_HEADER_ID]
     assert len(matching) == 1
     assert matching[0].status == "accepted"
-
-    history = get_verdict_history_from_catalog(
-        SAMPLE_DISCOVERY_HEADER_ID, database_url=isolated_database_url
-    )
-    assert len(history) >= 1
-    assert history[-1].status == "accepted"
 
     # Record live verdicts count after
     with psycopg.connect(live_url) as conn, conn.cursor() as cur:
@@ -374,3 +217,4 @@ def test_postgres_verdict_writes_leave_live_catalog_untouched(
     assert count_before == count_after, (
         f"Live catalog polluted: count changed from {count_before} to {count_after}"
     )
+

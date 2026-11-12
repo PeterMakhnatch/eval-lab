@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
@@ -26,7 +25,6 @@ from evallab.evidence.atif import (
     project_trial,
 )
 from evallab.results import JobRecord, TrialRecord, duration_seconds, sha256_file
-from evallab.runner import subscription_environment
 from evallab.schemas import (
     ANALYSIS_REVIEWS_DIRNAME,
     ANALYSIS_SIDECAR_FILENAME,
@@ -1556,73 +1554,6 @@ def validate_queue_authorization(
     if payload.get("max_model_calls") != 2:
         raise ValueError("queue authorization must cap max_model_calls at 2")
     return payload
-
-
-class CodexExecAnalyzer:
-    """Queue-gated headless Codex adapter; tests should inject a stub instead."""
-
-    def __init__(
-        self,
-        *,
-        repo_root: Path,
-        trial: TrialRecord,
-        model: str,
-        authorization_path: Path,
-        scratch_dir: Path,
-    ) -> None:
-        validate_queue_authorization(
-            authorization_path,
-            repo_root=repo_root,
-            source_trial_id=trial.id,
-        )
-        self.repo_root = repo_root
-        self.trial = trial
-        self.model = model
-        self.authorization_path = authorization_path
-        self.scratch_dir = scratch_dir.resolve()
-        self.scratch_dir.mkdir(parents=True, exist_ok=True)
-        self._calls = 0
-
-    def __call__(self, prompt: str, schema: dict[str, Any]) -> AnalyzerCallResult:
-        validate_queue_authorization(
-            self.authorization_path,
-            repo_root=self.repo_root,
-            source_trial_id=self.trial.id,
-        )
-        if self._calls >= 2:
-            raise RuntimeError("queue authorization caps analysis at two model calls")
-        self._calls += 1
-        call_id = uuid4()
-        schema_path = self.scratch_dir / f"{call_id}.schema.json"
-        output_path = self.scratch_dir / f"{call_id}.output.json"
-        schema_path.write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n")
-        completed = subprocess.run(
-            [
-                "codex",
-                "exec",
-                "--ephemeral",
-                "--sandbox",
-                "read-only",
-                "--model",
-                self.model,
-                "--output-schema",
-                str(schema_path),
-                "--output-last-message",
-                str(output_path),
-                "--cd",
-                str(self.trial.path),
-                prompt,
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            env=subscription_environment(),
-        )
-        if completed.returncode != 0:
-            raise RuntimeError(
-                f"codex exec failed with {completed.returncode}: {completed.stderr.strip()[:500]}"
-            )
-        return AnalyzerCallResult(raw_output=output_path.read_text())
 
 
 def ingest_analysis_sidecar(

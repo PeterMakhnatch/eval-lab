@@ -213,15 +213,6 @@ def test_triggers_on_a_finished_run_are_the_detect_alarms() -> None:
     assert not {name for _, name in fired} & {"silence", "live_wall_seconds"}
 
 
-def test_baseline_quantiles_per_source_skip_missing_ids_and_clocks() -> None:
-    rows = [{"source": "a", "agent_steps": n, "prompt_tokens_per_agent_step": 10.0 * n, "wall_seconds": None,
-             "last_step": n, "last_step_at": T0} for n in range(1, 101)] + [{"source": "b", "agent_steps": 7}]
-    out = rh.baseline(rows)
-    assert list(out["a"]) == ["agent_steps", "prompt_tokens_per_agent_step"]
-    steps = out["a"]["agent_steps"]
-    assert steps["n"] == 100 and 49 <= steps["p50"] <= 51 and 89 <= steps["p90"] <= 91 and 98 <= steps["p99"] <= 100
-    assert out["b"]["agent_steps"]["p99"] == 7.0
-
 
 def test_infra_exception_type_alarms() -> None:
     run = _run([_step(1, "ls")], exception_type="DaytonaNotFoundError")

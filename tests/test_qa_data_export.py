@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 
 from evallab.cheatbench_fidelity import ANNOTATION_MARKER
-from evallab.cli import parser as cli_parser
 from evallab.production import qa_data_export
 from evallab.production.cloud_trace_db import CloudTraceDatabase, CloudTraceRetriever
 from evallab.production.corpus_queue import CorpusRegistry
@@ -352,17 +351,6 @@ def test_steps_bad_manifests_are_errors_without_dumping_content(tmp_path: Path, 
     with pytest.raises(QaDataError, match="sealed manifest"):
         steps(path, "run-blind", original=None, blinded=None)
 
-
-def test_steps_cli_needs_no_store(manifest: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    args = cli_parser().parse_args([
-        "qa-data", "steps", str(manifest), "run-blind", "--blinded", "2",
-        "--cloud-database", str(tmp_path / "missing-parent" / "missing.sqlite"),
-    ])
-    assert args.func(args, tmp_path) == 0
-    reply = json.loads(capsys.readouterr().out)
-    assert reply["data"] == {"blind_id": "run-blind", "steps": 3, "blinded": 2, "original": 9}
-    assert not (tmp_path / "missing-parent").exists()
-    assert "reward" not in json.dumps(reply) and "private-trace" not in json.dumps(reply)
 
 
 def test_an_existing_root_directory_is_a_qa_error_not_an_uncaught_path_error(ctx: QaContext) -> None:

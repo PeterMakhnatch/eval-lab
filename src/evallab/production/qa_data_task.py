@@ -536,6 +536,3 @@ def task(
     ctx.budget.omitted = initial_omitted + data["omitted"]
     data["truncated"] = data["omitted"] > 0
     return data
-
-
-__all__ = ["task"]

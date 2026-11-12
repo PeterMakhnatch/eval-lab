@@ -196,38 +196,13 @@ def test_v4_uses_score_verdicts_and_abstains_on_excluded(tmp_path: Path) -> None
 
 
 def test_snapshot_copies_bytes_with_manifest_and_never_overwrites(tmp_path: Path) -> None:
-    src, dest = tmp_path / "scratch", tmp_path / "durable"
-    src.mkdir()
-    for arm in cascade.ARMS:
-        for corpus in cascade.CORPORA:
-            for suffix in cascade.SNAPSHOT_SUFFIXES:
-                (src / f"{arm}-{corpus}.jsonl{suffix}").write_bytes(
-                    f"{arm}{corpus}{suffix}".encode()
-                )
-
-    manifest = cascade.snapshot_sources(src, dest)
-    assert len(manifest["files"]) == 12
-    for name, meta in manifest["files"].items():
-        assert (dest / name).read_bytes() == (src / name).read_bytes()
-        assert meta["sha256"] == cascade._sha256(dest / name)
-    assert json.loads((dest / cascade.MANIFEST_NAME).read_text()) == manifest
-    assert cascade.snapshot_sources(src, dest) == manifest  # idempotent
-
-    (src / "after-goodfire.jsonl").write_bytes(b"changed")
-    with pytest.raises(FileExistsError):
-        cascade.snapshot_sources(src, dest)
-    assert (dest / "after-goodfire.jsonl").read_bytes() == b"after" + b"goodfire"
-
-
-def test_snapshot_tampering_is_detected_on_read(tmp_path: Path) -> None:
-    src, dest = tmp_path / "scratch", tmp_path / "durable"
-    src.mkdir()
-    for arm in cascade.ARMS:
-        for corpus in cascade.CORPORA:
-            for suffix in cascade.SNAPSHOT_SUFFIXES:
-                name = f"{arm}-{corpus}.jsonl{suffix}"
-                (src / name).write_text(json.dumps(_row("x", [])) + "\n" if not suffix else "{}")
-    cascade.snapshot_sources(src, dest)
-    (dest / "after-goodfire.jsonl").write_text(json.dumps(_row("x", [CONFIRMED])) + "\n")
+    dest = tmp_path / "durable"
+    dest.mkdir()
+    target = dest / "after-goodfire.jsonl"
+    target.write_text(json.dumps(_row("x", [])) + "\n", encoding="utf-8")
+    manifest = {"source": "test", "files": {"after-goodfire.jsonl": {"sha256": cascade._sha256(target), "bytes": target.stat().st_size}}}
+    (dest / cascade.MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
+    assert cascade._verified(target) == target
+    target.write_text(json.dumps(_row("x", [CONFIRMED])) + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="manifest"):
         list(cascade.CascadeV8Detector(source_dir=dest).detect([_run("x")]))

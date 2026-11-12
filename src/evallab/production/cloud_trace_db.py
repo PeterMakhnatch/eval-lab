@@ -2007,9 +2007,6 @@ class RetrievedExample:
         return payload
 
 
-RetrievedTraceExample = RetrievedExample
-
-
 def format_retrieval_prompt_block(
     examples: Sequence[RetrievedExample], max_chars: int = 2400, *, format_mode: str = "full",
 ) -> str:
@@ -2856,65 +2853,4 @@ def import_run_facets(
         "schema": "evallab.run_facets_import/v1", "path": str(path),
         "sha256": hashlib.sha256(data).hexdigest(), "invalid_json_lines": invalid,
         **database.upsert_run_facets(records, registry=registry),
-    }
-
-
-# Scoring-time label tallies the producer may attach to a build; never stored.
-_CLUSTER_LABEL_FIELDS = ("label_rates", "rule_recall", "rule_fpr")
-
-
-def import_run_clusters(
-    database: CloudTraceDatabase, path: str | Path, *, registry: CorpusRegistry | None = None,
-    drop_unfaceted: bool = False,
-) -> dict[str, Any]:
-    """Import the final contiguous build of the interim ``run-clusters/v1`` JSONL.
-
-    Like the producer's reader, the build is the last run of records sharing a
-    ``build_id``; it must be complete (each of the three levels covers its
-    ``facet_count`` runs) or nothing is stored. Scoring-time label fields are
-    never stored. Runs without stored admitted facets are refused, or dropped
-    and counted with ``drop_unfaceted``. The whole hierarchy is replaced atomically.
-    """
-    data = Path(path).read_bytes()
-    build: list[dict[str, Any]] = []
-    build_id = None
-    invalid = 0
-    for line in data.split(b"\n"):
-        if not line.strip():
-            continue
-        try:
-            row = json.loads(line)
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            invalid += 1
-            continue
-        if not isinstance(row, dict) or row.get("cluster_version") != RUN_CLUSTERS_VERSION:
-            raise ValueError("cluster stream contains an unknown record")
-        if row.get("build_id") != build_id:
-            build, build_id = [], row.get("build_id")
-        build.append(row)
-    if not build:
-        raise ValueError("cluster stream holds no build")
-    facet_count = build[0].get("facet_count")
-    covered: dict[Any, set[Any]] = {}
-    for row in build:
-        if row.get("facet_count") != facet_count or not isinstance(row.get("run_ids"), list):
-            raise ValueError("cluster build metadata disagrees")
-        covered.setdefault(row.get("level"), set()).update(row["run_ids"])
-    if (
-        set(covered) != {1, 2, 3} or not covered[1] == covered[2] == covered[3]
-        or len(covered[1]) != facet_count
-    ):
-        raise ValueError("incomplete cluster build: each of three levels must cover facet_count runs")
-    labelled = sum(any(row.get(field) is not None for field in _CLUSTER_LABEL_FIELDS) for row in build)
-    clusters = [
-        {key: value for key, value in row.items() if key not in _CLUSTER_LABEL_FIELDS} for row in build
-    ]
-    return {
-        "schema": "evallab.run_clusters_import/v1", "path": str(path),
-        "sha256": hashlib.sha256(data).hexdigest(), "invalid_json_lines": invalid,
-        "build_id": build_id, "facet_count": facet_count, "build_clusters": len(build),
-        "clusters_with_label_fields_withheld": labelled,
-        **database.replace_run_clusters(
-            clusters, registry=registry, drop_unfaceted=drop_unfaceted,
-        ),
     }

@@ -1165,7 +1165,6 @@ uv run evallab detectors score --detector run_health_loop --detector laminar_stu
 uv run evallab run-health triggers --trial-dir <harbor-trial-dir> --now 2026-10-28T21:00:00Z
 
 # Per-source p50/p90/p99 of every numeric feature ("far above the usual for this job type").
-uv run evallab run-health baseline --features /tmp/f.jsonl
 ```
 
 Score these findings with `evallab trace score`; Run Health has no separate score command.

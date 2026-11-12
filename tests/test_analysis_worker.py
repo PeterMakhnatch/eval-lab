@@ -1209,3 +1209,27 @@ def test_lease_replacement_during_execution_is_durably_recorded(monkeypatch, tmp
     assert worker.store.unresolved_invocation(rid) is not None
     assert replacements[0] is not None
     worker.store.release_lease(rid, replacements[0])
+
+
+def test_operator_can_quarantine_ambiguity_without_retry(monkeypatch, tmp_path):
+    from evallab import analysis_worker as aw
+
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+
+    def returned_then_crashed(job, trial, *, analyzer, **_kwargs):
+        analyzer("provider received request", {})
+        raise RuntimeError("lost response")
+
+    monkeypatch.setattr(aw, "run_trial_analysis", returned_then_crashed)
+    with pytest.raises(RuntimeError, match="lost response"):
+        worker.run_one(rid)
+    worker.resolve_ambiguous(rid, action="quarantine", actor="operator-test")
+    transition = worker.store.transitions(rid)[-1]
+    assert transition.state == "quarantined"
+    assert transition.reason == "ambiguous_invocation_quarantined:operator-test"
+    assert adapter.calls == 1
+    assert worker.run_one(rid).state == "quarantined"
+    assert adapter.calls == 1

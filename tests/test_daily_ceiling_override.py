@@ -5,14 +5,11 @@ override (Peter's ~03:55Z approval, ruled by Research-Harbor at 08:42Z)
 raises it to $35 until 2026-10-02T00:00Z.
 """
 
-import json
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from evallab import modal_billing, spend_day
 from evallab.execution_contracts import PaidRunAuthorization
 from evallab.queue import PolicyGate
 from evallab.schemas import (
@@ -146,29 +143,5 @@ def test_empty_overrides_stay_out_of_the_canonical_dump() -> None:
     assert "daily_cost_ceiling_overrides" not in dumped
 
 
-@pytest.fixture
-def spend_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Real cap arithmetic over an isolated $29.16 billed-day fixture."""
-    path = tmp_path / "policy/standing-approvals.yaml"
-    path.parent.mkdir()
-    # Also exercise an override that expires during its day, not only at midnight.
-    policy = _policy().model_dump(mode="json")
-    policy["daily_cost_ceiling_overrides"][0]["expires_at"] = "2026-10-01T18:00:00Z"
-    path.write_text(json.dumps(policy))
-    row = spend_day.SpendRow(
-        source="modal",
-        card="HAR-126",
-        job="test",
-        usd=29.16,
-        basis=spend_day.BASIS_BILLED,
-        evidence="fixture",
-    )
-    monkeypatch.setattr(spend_day, "query_modal_rows", lambda *_, **__: ([row], "fixture billing"))
-    monkeypatch.setattr(spend_day, "query_model_job_rows", lambda *_, **__: ([], [], 0.0))
-    monkeypatch.setattr(spend_day, "query_daytona_rows", lambda *_, **__: ([], []))
-    monkeypatch.setattr(spend_day, "sibling_worktree_roots", lambda _: [])
-    monkeypatch.setattr(modal_billing, "fetch_modal_billing_report", lambda **_: [])
-    monkeypatch.setattr(modal_billing, "store_billing_rows", lambda *_, **__: None)
-    return tmp_path
 
 

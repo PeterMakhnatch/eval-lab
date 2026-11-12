@@ -137,3 +137,20 @@ def test_proofjudge_sample_is_commit_and_checksum_pinned() -> None:
     assert len(PROOFJUDGE_ATIF_SAMPLE.revision) == 40
     assert len(PROOFJUDGE_ATIF_SAMPLE.sha256) == 64
     assert "resolve/main" not in PROOFJUDGE_ATIF_SAMPLE.url
+
+
+def test_audit_skips_ruff_cache_and_dirs_without_manifest(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    harbor = FakeHarbor()
+    service = FetchService(root=tmp_path, harbor=harbor)
+    service.fetch("hello-world@1.0")
+    cache = tmp_path / "library/benchmarks/.ruff_cache"
+    cache.mkdir()
+    (cache / "CACHEDIR.TAG").write_text("Signature: 8a477f597d28d172789f06886806bc55\n")
+    stray = tmp_path / "library/benchmarks/not-an-ingest"
+    stray.mkdir()
+    (stray / "notes.txt").write_text("no MANIFEST.md\n")
+    rows = service.audit()
+    assert [row.name for row in rows] == ["hello-world"]
+    assert rows[0].status == "pass"

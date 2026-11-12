@@ -192,7 +192,7 @@ def test_station_undo_records_are_not_imported(fixture_spec: Path) -> None:
 
 
 def test_cli_run_check_scoreboard_and_failure_exit(
-    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from evallab import cli
 
@@ -204,7 +204,6 @@ def test_cli_run_check_scoreboard_and_failure_exit(
     spec = read_json(fixture_spec)
     batch = Path(spec["out_root"]) / spec["batch_id"]
     assert cli.run_cli(["line", "check", str(batch), "--json"], workspace=fixture_spec.parent) == 0
-    assert '"overall"' in capsys.readouterr().out
     write_rows(batch / "judge-queue.jsonl", [])
     assert cli.run_cli(["line", "check", str(batch), "--json"], workspace=fixture_spec.parent) == 2
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
@@ -479,13 +478,6 @@ def _db_init_command(
     database.initialize(url)
     print("database schema is current")
     return 0
-
-
-_URI_PASSWORD_QUERY = re.compile(r"(?i)([?&](?:password|sslpassword)=)([^&#]*)")
-_KEYWORD_PASSWORD = re.compile(
-    r"(?i)(\b(?:password|sslpassword)\s*=\s*)"
-    r"(?:'(?:\\.|''|[^'\\])*'|\"(?:\\.|\"\"|[^\"\\])*\"|(?:\\.|[^\s])+)"
-)
 
 
 def _harden_command(
@@ -1281,9 +1273,43 @@ def parser() -> argparse.ArgumentParser:
     from evallab.task_dossier import build_task_dossier_parser
 
     build_task_dossier_parser(commands)
-    from evallab.reward_hack import build_reward_hack_parser
+    from evallab import reward_hack
 
-    build_reward_hack_parser(commands)
+    hack = commands.add_parser(
+        "hack",
+        help="Reward-hacking audit: static V1-V8 ledger, exploit replay, verifier mutation "
+        "testing (local, free)",
+    )
+    hack_commands = hack.add_subparsers(dest="hack_command", required=True)
+    scan = hack_commands.add_parser(
+        "scan", help="Deterministic V1-V8 flaw ledger for one task package; offline, no execution"
+    )
+    scan.add_argument("package", type=Path)
+    scan.add_argument("--json", action="store_true")
+    scan.add_argument("--output", type=Path, help="Write the scan JSON to this path")
+    scan.set_defaults(func=reward_hack._hack_scan_command)
+    run = hack_commands.add_parser(
+        "run",
+        help="Plan (default) or replay exploit scripts through the task's own verifier",
+    )
+    run.add_argument("package", type=Path)
+    run.add_argument(
+        "--script",
+        type=Path,
+        action="append",
+        default=[],
+        help="Exploit script to replay; repeatable (default: <package>/controls/*.sh)",
+    )
+    run.add_argument("--execute", action="store_true", help="Run the local control matrix")
+    run.add_argument("--timeout-seconds", type=int, default=1_800)
+    run.add_argument("--output-dir", type=Path)
+    run.add_argument("--json", action="store_true")
+    run.set_defaults(func=reward_hack._hack_run_command)
+    reward_hack.add_mutate_parser(hack_commands)
+    reward_hack.add_battery_parser(hack_commands)
+    reward_hack.add_hunt_parser(hack_commands)
+    reward_hack.add_repair_parser(hack_commands)
+    reward_hack.add_ref_repair_parser(hack_commands)
     from evallab.mutant_auditor import build_audit_mutants_parser
 
     build_audit_mutants_parser(commands)
@@ -1357,7 +1383,7 @@ def parser() -> argparse.ArgumentParser:
     native_detectors_parser = commands.add_parser(
         "detectors",
         help="Score cheat detectors on a labelled trace corpus (cached, $0 to re-score)",
-        description=native_detectors.__doc__.split("\n\n")[0],
+        description="``evallab detectors``: score cheat detectors on a labelled, versioned trace corpus.",
     )
     native_detectors_sub = native_detectors_parser.add_subparsers(dest="detectors_cmd", required=True)
     native_detectors_p = native_detectors_sub.add_parser("verify", help="Check the corpus and cache checksums")

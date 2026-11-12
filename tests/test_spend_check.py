@@ -1114,3 +1114,51 @@ def test_modal_per_object_query_survives_pk_collision_and_partial_snapshots(
     # Must be $26.0 (A: max(1, 1)=1; B: max(0, 20+5)=25; sum = 26.0)
     assert sum(row.usd for row in rows) == pytest.approx(26.0)
     assert all(row.basis == "billed" for row in rows)
+
+
+def test_defect1_reject_nonfinite_candidate_and_cap(tmp_path: Path) -> None:
+    """Defect 1: Non-finite candidate and cap amounts must be rejected (fail closed)."""
+    # 1. decide_launch raises ValueError for NaN / inf
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="candidate_usd"):
+            decide_launch(
+                window_start=DAY_START,
+                window_end=DAY_START + timedelta(hours=1),
+                settled_usd=1.0,
+                candidate_usd=bad,
+                cap_usd=20.0,
+            )
+        with pytest.raises(ValueError, match="cap_usd"):
+            decide_launch(
+                window_start=DAY_START,
+                window_end=DAY_START + timedelta(hours=1),
+                settled_usd=1.0,
+                candidate_usd=1.0,
+                cap_usd=bad,
+            )
+
+    # 2. check_launch returns unverified decision for NaN / inf
+    for bad in (float("nan"), float("inf")):
+        d_cand = check_launch(
+            repo_root=tmp_path,
+            queue_root=tmp_path / "queue",
+            database_url=REFUSED_PORT_URL,
+            window_start=DAY_START,
+            window_end=DAY_START + timedelta(hours=1),
+            candidate_usd=bad,
+            cap_usd=20.0,
+        )
+        assert not d_cand.allowed
+        assert d_cand.reason_code == REASON_CAP_UNVERIFIED
+
+        d_cap = check_launch(
+            repo_root=tmp_path,
+            queue_root=tmp_path / "queue",
+            database_url=REFUSED_PORT_URL,
+            window_start=DAY_START,
+            window_end=DAY_START + timedelta(hours=1),
+            candidate_usd=1.0,
+            cap_usd=bad,
+        )
+        assert not d_cap.allowed
+        assert d_cap.reason_code == REASON_CAP_UNVERIFIED

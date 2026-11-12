@@ -1169,3 +1169,24 @@ def test_run_report_shows_declared_setup_deviations_on_both_run_pages(tmp_path: 
     for page in (report_page, process_page):
         assert "`limits.max_requests`=`12`" in page
         assert "declared trial cap" in page
+
+
+def test_job_rollup_and_cli_outputs(tmp_path: Path, capsys: Any) -> None:
+    job = tmp_path / "job"
+    _trial(job, [_bash(1, 5, "ls", "x")], name="passed-trial")
+    failed = _result(verifier_result={"rewards": {"reward": 0.0}}, agent_result={})
+    _trial(job, [_bash(1, 5, "ls", "x")], name="failed-trial", result=failed)
+    multi = _result(verifier_result={"rewards": {"tests": 1.0, "style": 0.0}}, agent_result={})
+    _trial(job, [_bash(1, 5, "ls", "x")], name="multi-metric-trial", result=multi)
+    (job / "result.json").write_text(json.dumps({"n_total_trials": 3}))
+
+    rollup, reports = build_job_report(job)
+    assert len(reports) == 3
+    # Metrics remain visible, but do not invent a primary reward from them.
+    assert (rollup["passed"], rollup["scored"]) == (1, 2)
+    assert rollup["verdicts"] == {"passed": 1, "failed": 1, "not_scored": 1}
+    multi_report = next(report for report in reports if report["identity"]["trial_name"] == "multi-metric-trial")
+    assert multi_report["outcome"]["rewards"] == {"tests": 1.0, "style": 0.0}
+    assert rollup["total_cost_usd"] == 0.5
+    assert rollup["trials_without_cost"] == 2
+    assert rollup["cost_per_pass_usd"] == 0.5

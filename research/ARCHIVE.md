@@ -331,8 +331,6 @@ Only uncited experiments without retained recipes lose their data.
 | `research/evidence/runs/trace-tools-tt7-continuation-20261028` | Unused trace tools tt7 continuation 20261028 tooling; evidence data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/evidence/runs/trace-tools-tt7-continuation-20261028` |
 | `research/evidence/runs/trust-tiers-20261026/tools` | Unused trust tiers 20261026 tooling; evidence data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/evidence/runs/trust-tiers-20261026/tools` |
 | `research/experiments` | Unused experiment program validator; experiment data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments` |
-| `research/experiments/auditor-sft-v1` | Unused auditor sft v1 research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/auditor-sft-v1` |
-| `research/experiments/breaker-bench-dev-v1` | Unused breaker bench dev v1 research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/breaker-bench-dev-v1` |
 | `research/experiments/breaker-rediscovery-v1` | Unused breaker rediscovery v1 research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/breaker-rediscovery-v1` |
 | `research/experiments/cheap-model-frontier-20261021` | Uncited cheap model frontier 20261021 experiment; code and data archived. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/cheap-model-frontier-20261021` |
 | `research/experiments/cheatbench-port` | Unused cheatbench port research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/cheatbench-port` |
@@ -403,12 +401,9 @@ Only uncited experiments without retained recipes lose their data.
 | `research/experiments/qa-trace/defect-review/probes` | Unused qa trace research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/qa-trace/defect-review/probes` |
 | `research/experiments/qa-trace/regrade` | Unused qa trace research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/qa-trace/regrade` |
 | `research/experiments/reef` | Unused reef research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/reef` |
-| `research/experiments/repaired-data-sft-v1` | Unused repaired data sft v1 research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/repaired-data-sft-v1` |
-| `research/experiments/repaired-data-sft-v2` | Unused repaired data sft v2 research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/repaired-data-sft-v2` |
 | `research/experiments/seeker-gym-v0` | Unused seeker gym v0 research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/seeker-gym-v0` |
 | `research/experiments/seeker-sft-pilot-20261021` | Unused seeker sft pilot 20261021 research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/seeker-sft-pilot-20261021` |
 | `research/experiments/tb2-to-tb21-v1` | Unused tb2 to tb21 v1 research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/tb2-to-tb21-v1` |
-| `research/experiments/tb4-provenance-20261020` | Unused tb4 provenance 20261020 research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/tb4-provenance-20261020` |
 | `research/experiments/tb4-qa-agent-v1-20261020` | Uncited tb4 qa agent v1 20261020 experiment; code and data archived. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/tb4-qa-agent-v1-20261020` |
 | `research/experiments/terminal-task-ledger` | Unused terminal task ledger research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/terminal-task-ledger` |
 | `research/experiments/test-repair-performance-20261017` | Unused test repair performance 20261017 research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/experiments/test-repair-performance-20261017` |

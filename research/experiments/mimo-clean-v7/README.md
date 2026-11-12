@@ -83,7 +83,7 @@ rebuild, register, install dependencies, relax assertions or launch work.
 
 ### Reproduce the metadata
 
-[`build_manifest.py`](build_manifest.py) is a standard-library, allowlisted
+[`build_manifest.py` (archived; restore)](../../ARCHIVE.md#round-5-stored-evidence-research-recipes) is a standard-library, allowlisted
 projection from the immutable Git revisions recorded in the script and manifest.
 With an authorized evidence checkout in `$RESEARCH_CONTEXT_ROOT`, run:
 

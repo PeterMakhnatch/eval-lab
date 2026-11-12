@@ -48,9 +48,6 @@ class LossManifest:
         """Get the declared loss entry for a given field path."""
         return self.declared_fields.get(field_path)
 
-    def is_declared(self, field_path: str) -> bool:
-        """Check whether a field path has a declared preservation rule."""
-        return field_path in self.declared_fields
 
 
 @dataclass(frozen=True)

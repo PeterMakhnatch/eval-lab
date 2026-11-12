@@ -228,9 +228,6 @@ def root_cause_hit(named: Iterable[str], expected: frozenset[str]) -> bool:
     return bool(_normalized(named) & expected)
 
 
-def load_finding(path: Path | str) -> Finding:
-    """Load and validate one ``qa.finding/v1`` JSON document."""
-    return Finding.model_validate(json.loads(Path(path).read_text(encoding="utf-8")))
 
 
 def load_findings_dir(directory: Path | str) -> list[Finding]:

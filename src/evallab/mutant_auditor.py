@@ -657,8 +657,6 @@ def mutant_applied(agent_log: str, mutant: Mutant) -> bool:
 # --------------------------------------------------------------------------- execution
 
 
-def _read_text(path: Path) -> str:
-    return path.read_text(errors="replace") if path.exists() else ""
 
 
 def _workdir(package: Path) -> str:

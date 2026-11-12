@@ -916,17 +916,6 @@ def _campaign_scopes(
     return scopes
 
 
-def _campaign_scoped_transforms(
-    repo_root: Path, reference_profile: str | None, package_digest: str | None
-) -> frozenset[str]:
-    """Extra transforms admitted for one campaign package, never globally."""
-    if not package_digest:
-        return frozenset()
-    admitted: set[str] = set()
-    for transforms, digests in _campaign_scopes(repo_root, reference_profile).values():
-        if package_digest in digests:
-            admitted.update(transforms)
-    return frozenset(admitted)
 
 
 def lineage_ledger_binding(
@@ -1447,9 +1436,3 @@ def maybe_write_fingerprints(job_dir: Path, fingerprint: dict[str, Any]) -> str 
             )
         return f"{type(exc).__name__}: {exc}"
     return None
-
-
-def task_digest_for(task_dir: Path) -> str:
-    """Package digest of a task directory (single task-identity helper)."""
-    _, digest = task_bytes_and_digest(task_dir)
-    return digest

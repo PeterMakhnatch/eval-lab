@@ -26,7 +26,6 @@ an unchecked copy of future history elsewhere in the environment.
 from __future__ import annotations
 
 import base64
-import gzip
 import hashlib
 import io
 import re
@@ -252,17 +251,6 @@ def render_task_toml(parent_text: str, *, new_blob: str) -> str:
     return parent_text[: match.start(1)] + new_blob + parent_text[match.end(1) :]
 
 
-def unpack_setup_blob(blob: str) -> dict[str, bytes]:
-    """Unpack a healthcheck payload blob into ``{arcname: bytes}`` (tests)."""
-    buffer = io.BytesIO(gzip.decompress(base64.b64decode(blob)))
-    with tarfile.open(fileobj=buffer, mode="r") as tar:
-        out: dict[str, bytes] = {}
-        for member in tar.getmembers():
-            extracted = tar.extractfile(member)
-            if extracted is None:
-                raise VariantInvalid(f"setup payload entry {member.name!r} has no file content")
-            out[member.name] = extracted.read()
-        return out
 
 
 def build_changes(
@@ -327,19 +315,3 @@ def derive_strip_future_history(
         inputs=inputs,
         **kwargs,
     )
-
-
-__all__ = [
-    "SETUP_REL",
-    "STRIP_VERIFY",
-    "STRIP_MARKER",
-    "TRANSFORM_ID",
-    "ParentInfo",
-    "build_changes",
-    "build_setup_sh",
-    "derive_strip_future_history",
-    "pack_setup",
-    "read_parent_info",
-    "render_task_toml",
-    "unpack_setup_blob",
-]

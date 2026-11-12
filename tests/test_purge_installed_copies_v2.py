@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import io
 import json
 import os
 import py_compile
 import shutil
 import subprocess
 import sys
+import tarfile
 import tomllib
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -37,7 +40,7 @@ from evallab.purge_installed_copies import (
     shell_block,
     shell_block_v2,
 )
-from evallab.strip_future_history import pack_setup, unpack_setup_blob
+from evallab.strip_future_history import pack_setup
 from evallab.task_variants import VariantInvalid
 
 TOP = "v2acme_pkg"
@@ -1037,7 +1040,13 @@ def test_v2_healthcheck_payload_pins_helpers_but_preserves_project_interpreter(
     setup = (package / SETUP_REL).read_bytes()
     config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
     command = config["environment"]["healthcheck"]["command"]
-    payload = unpack_setup_blob(command.split("echo ", 1)[1].split(" |", 1)[0])
+    blob = command.split("echo ", 1)[1].split(" |", 1)[0]
+    with tarfile.open(fileobj=io.BytesIO(base64.b64decode(blob)), mode="r:gz") as archive:
+        payload = {
+            member.name: archive.extractfile(member).read()
+            for member in archive.getmembers()
+            if member.isfile()
+        }
     assert payload["setup.sh"] == setup
     assert {change.path for change in record.files} == {SETUP_REL, "task.toml"}
     assert (package / "tests" / "test.sh").read_bytes() == project_test

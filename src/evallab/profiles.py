@@ -54,12 +54,10 @@ from evallab.execution_contracts import (
     TERMINUS_AGENT,
     TERMINUS_LOCAL_ENDPOINT_ENV,
     TERMINUS_LOCAL_MODEL_SELECTOR,
-    TINKER_MODEL_PREFIX,
     ZAI_AUTH_PROVIDER,
     ZAI_OPENCODE_AGENT,
     ProfileInferenceSettings,
     is_breaker_selfhosted_model,
-    parse_tinker_model,
     read_owner_secret_file,
     subscription_environment,
 )
@@ -415,7 +413,6 @@ class EnvironmentPresenceProbe:
             reason="credential environment missing: " + " or ".join(self.names),
         )
 
-
 @dataclass(frozen=True)
 class LocalOllamaProbe:
     """Qualify an explicitly configured, already-installed local model."""
@@ -434,7 +431,6 @@ class LocalOllamaProbe:
         except ValueError as exc:
             return ProbeResult(ok=False, reason=str(exc))
         return ProbeResult(ok=True)
-
 
 def _parse_expiry(value: object) -> datetime | None:
     if isinstance(value, (int, float)) and value > 0:
@@ -609,22 +605,6 @@ def preflight(profile: AgentProfile, probe: ProbeFn | None) -> PreflightDecision
     )
 
 
-def scrub_environment(environment: Mapping[str, str], allowlist: frozenset[str]) -> dict[str, str]:
-    """Allowlist filter that additionally refuses key-shaped names outright.
-
-    Even a key-shaped variable added to the allowlist by mistake is dropped:
-    belt and suspenders for the subscriptions-only rule.
-    """
-    clean: dict[str, str] = {}
-    for key, value in environment.items():
-        if key not in allowlist:
-            continue
-        upper = key.upper()
-        if any(marker in upper for marker in _FORBIDDEN_KEY_MARKERS):
-            continue
-        clean[key] = value
-    return clean
-
 
 _MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9./_-]*(?::[A-Za-z0-9][A-Za-z0-9._-]*)?$")
 
@@ -633,14 +613,10 @@ def pinned_model(model: str | None) -> str | None:
     """The profile pin a run's model selector inherits.
 
     Fine-tuned weights selected on top of a pinned base inherit the base's
-    profile: a Tinker checkpoint selector collapses onto its ``tinker/<base>``
-    pin, and an admitted self-hosted LoRA adapter selector
+    profile: an admitted self-hosted LoRA adapter selector
     (``selfhosted/<native>:<adapter>``, ``MIMO_SELFHOSTED_ADAPTERS``) collapses
     onto the self-hosted base selector. Anything else is its own pin.
     """
-    if isinstance(model, str) and model.startswith(TINKER_MODEL_PREFIX):
-        spec = parse_tinker_model(model)
-        return f"{TINKER_MODEL_PREFIX}{spec.base_model}"
     if model in MIMO_SELFHOSTED_MODEL_SELECTORS:
         return MIMO_SELFHOSTED_MODEL_SELECTOR
     return model
@@ -863,72 +839,6 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 verified_facts=(
                     "2026-09: Z.ai standard-API GLM-5.3 ($1.40 in / $4.40 out per "
                     "1M tokens) Terminus lane added",
-                ),
-            ),
-            AgentProfile(
-                profile_id="terminus-2-tinker-qwen3-6-35b-a3b",
-                adapter=TERMINUS_AGENT,
-                model="tinker/Qwen/Qwen3.6-35B-A3B",
-                auth_mode="api-key-environment",
-                secret_source="env:TINKER_API_KEY",
-                capabilities=(
-                    "credential-transport:host-loopback-proxy",
-                    "structured-trajectory:atif",
-                ),
-                limits=ProfileLimits(
-                    max_timeout_seconds=28_800,
-                    max_attempts=1,
-                    max_concurrency=1,
-                ),
-                verified_facts=(
-                    "2026-10-12: Thinking Machines Tinker OpenAI-compatible "
-                    "route ($0.45 prefill / $0.09 cached prefill / $1.335 "
-                    "sample per 1M tokens, 64K context; settlement prices "
-                    "every input token uncached)",
-                ),
-            ),
-            AgentProfile(
-                profile_id="terminus-2-tinker-qwen3-8-27b",
-                adapter=TERMINUS_AGENT,
-                model="tinker/Qwen/Qwen3.8-27B",
-                auth_mode="api-key-environment",
-                secret_source="env:TINKER_API_KEY",
-                capabilities=(
-                    "credential-transport:host-loopback-proxy",
-                    "structured-trajectory:atif",
-                ),
-                limits=ProfileLimits(
-                    max_timeout_seconds=28_800,
-                    max_attempts=1,
-                    max_concurrency=1,
-                ),
-                verified_facts=(
-                    "2026-10-12: Thinking Machines Tinker OpenAI-compatible "
-                    "route ($0.6975 prefill / $0.1395 cached prefill / $5.595 "
-                    "sample per 1M tokens, 64K context; settlement prices "
-                    "every input token uncached)",
-                ),
-            ),
-            AgentProfile(
-                profile_id="terminus-2-tinker-qwen3-5-9b",
-                adapter=TERMINUS_AGENT,
-                model="tinker/Qwen/Qwen3.5-9B",
-                auth_mode="api-key-environment",
-                secret_source="env:TINKER_API_KEY",
-                capabilities=(
-                    "credential-transport:host-loopback-proxy",
-                    "structured-trajectory:atif",
-                ),
-                limits=ProfileLimits(
-                    max_timeout_seconds=28_800,
-                    max_attempts=1,
-                    max_concurrency=1,
-                ),
-                verified_facts=(
-                    "2026-10-12: Thinking Machines Tinker OpenAI-compatible "
-                    "route ($0.30 prefill / $0.06 cached prefill / $0.807 "
-                    "sample per 1M tokens, 64K context; settlement prices "
-                    "every input token uncached)",
                 ),
             ),
             *(
@@ -1333,7 +1243,6 @@ CURSOR_SESSION = "cursor_session"
 DEEPSEEK_API_CREDENTIAL = "deepseek_api_environment"
 ZAI_OPENCODE_AUTH = "zai_opencode_auth"
 ZAI_OPENAPI_API_CREDENTIAL = "zai_openapi_api_environment"
-TINKER_API_CREDENTIAL = "tinker_api_environment"
 MIMO_SELFHOSTED_API_CREDENTIAL = "mimo_selfhosted_api_environment"
 BREAKER_SELFHOSTED_API_CREDENTIAL = "breaker_selfhosted_api_environment"
 OPENROUTER_API_CREDENTIAL = "openrouter_api_environment"
@@ -1368,7 +1277,6 @@ _DEEPSEEK_PROFILE = _PROFILES["mini-swe-agent-deepseek-v4-flash"]
 _ZAI_PROFILE = _PROFILES["zai-opencode-glm-5.3-flash"]
 _ZAI_MINISWE_PROFILE = _PROFILES["mini-swe-agent-glm-5.3-flash"]
 _GLM_SELFHOSTED_BASE_PROFILE = _PROFILES["glm-selfhosted-base"]
-_TINKER_TERMINUS_PROFILE = _PROFILES["terminus-2-tinker-qwen3-6-35b-a3b"]
 _OPENROUTER_TERMINUS_PROFILE = _PROFILES["terminus-2-openrouter-mimo-v2-6-flash"]
 
 
@@ -1484,19 +1392,6 @@ def probe_glm_selfhosted_api_result(
     return probe(_GLM_SELFHOSTED_BASE_PROFILE)
 
 
-def probe_tinker_api() -> bool:
-    return probe_tinker_api_result().ok
-
-
-def probe_tinker_api_result(
-    environment: Mapping[str, str] | None = None,
-) -> ProbeResult:
-    probe = EnvironmentPresenceProbe(
-        environment=os.environ if environment is None else environment,
-        names=("TINKER_API_KEY",),
-    )
-    return probe(_TINKER_TERMINUS_PROFILE)
-
 
 def probe_mimo_selfhosted_api() -> bool:
     return probe_mimo_selfhosted_api_result().ok
@@ -1569,8 +1464,6 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(ZAI_OPENCODE_AUTH)
     if probe_zai_openapi_api():
         found.add(ZAI_OPENAPI_API_CREDENTIAL)
-    if probe_tinker_api():
-        found.add(TINKER_API_CREDENTIAL)
     if probe_mimo_selfhosted_api():
         found.add(MIMO_SELFHOSTED_API_CREDENTIAL)
     if probe_breaker_selfhosted_api_result().ok:
@@ -1596,8 +1489,6 @@ def missing_credential_for(
             return None if required in available else required
         if agent == "mini-swe-agent" and model.startswith("zai/"):
             return None if ZAI_OPENAPI_API_CREDENTIAL in available else ZAI_OPENAPI_API_CREDENTIAL
-        if agent == TERMINUS_AGENT and model.startswith("tinker/"):
-            return None if TINKER_API_CREDENTIAL in available else TINKER_API_CREDENTIAL
         if agent == TERMINUS_AGENT and is_breaker_selfhosted_model(model):
             return (
                 None
@@ -1644,9 +1535,6 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str | tuple[str, str], str] = {
     ("mini-swe-agent", GLM_SELFHOSTED_BASE_MODEL_SELECTOR): "glm-selfhosted-base",
     ("mini-swe-agent", GLM_SELFHOSTED_FT_MODEL_SELECTOR): "glm-selfhosted-ft",
     (TERMINUS_AGENT, "zai/glm-5.3"): "terminus-2-glm-5.3",
-    (TERMINUS_AGENT, "tinker/Qwen/Qwen3.6-35B-A3B"): "terminus-2-tinker-qwen3-6-35b-a3b",
-    (TERMINUS_AGENT, "tinker/Qwen/Qwen3.8-27B"): "terminus-2-tinker-qwen3-8-27b",
-    (TERMINUS_AGENT, "tinker/Qwen/Qwen3.5-9B"): "terminus-2-tinker-qwen3-5-9b",
     (
         TERMINUS_AGENT,
         f"{BREAKER_SELFHOSTED_MODEL_PREFIX}{BREAKER_SELFHOSTED_BASE_MODEL}",

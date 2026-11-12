@@ -38,7 +38,6 @@ KEY_ENV = "LMNR_PROJECT_API_KEY"
 TRACE_FILENAME = "laminar-trace.json"
 SIDECHANNEL_SCHEMA_VERSION = 1
 
-MIMO_AGENT_IMPORT_PATH = "evallab.harbor_mimoagent:NativeMimoAgent"
 
 _METADATA_KEYS = (
     "card",
@@ -155,51 +154,6 @@ def native_worker_context(context_id: str | None) -> dict[str, Any]:
             "trial_name": trial_name,
         }
     except Exception:
-        return {}
-
-
-def daytona_telemetry_labels(trial_dir: Path) -> dict[str, str]:
-    """Bind native sandbox observations to the actual open trial root.
-
-    Harbor's environment session ID is ``trial_name__env``, not the trial UUID.
-    Match the real trial directory, never an active agent-phase span or a name
-    shared by another job. Only plain non-secret startup labels leave the host.
-    """
-    try:
-        if not getattr(trace_runtime(), "enabled", False):
-            return {}
-        target = Path(trial_dir).absolute()
-        with _TRACES_LOCK:
-            matches = [
-                trace
-                for trace in _TRACES.values()
-                if not trace.closed
-                and trace.trials_dir
-                and (Path(trace.trials_dir) / trace.trial_name).absolute() == target
-            ]
-            if len(matches) != 1:
-                return {}
-            trace = matches[0]
-            context = json.loads(trace.root_context or "")
-            trace_id = uuid.UUID(context["trace_id"]).hex
-            parent_id = uuid.UUID(context["span_id"]).int
-            if trace_id == "0" * 32 or not 0 < parent_id < 1 << 64:
-                return {}
-            labels = {
-                "evallab.trace_id": trace_id,
-                "evallab.parent_span_id": f"{parent_id:016x}",
-                "evallab.session_id": trace.session_id,
-                "trial_id": trace.trial_id,
-            }
-            if model_session := trace.metadata.get("model_session"):
-                labels["model_session"] = str(model_session)
-        # Daytona's documented startup format is comma-delimited key=value.
-        # Unsupported identities must stay unbound, not silently change scope.
-        if any(not value or "," in value or "=" in value for value in labels.values()):
-            return {}
-        return labels
-    except Exception:
-        # Native observability cannot break environment creation or grading.
         return {}
 
 
@@ -968,84 +922,6 @@ async def _observed_verifier(
     return result
 
 
-def _wrap_egress_lock() -> None:
-    try:
-        from evallab.harbor_daytona import BoundedDaytonaEnvironment
-    except Exception:
-        return
-    if getattr(
-        BoundedDaytonaEnvironment._lock_egress,
-        "__evallab_laminar_wrapped__",
-        False,
-    ):
-        return
-    original = BoundedDaytonaEnvironment._lock_egress
-
-    @functools.wraps(original)
-    async def wrapped(self: Any) -> None:
-        context_id = getattr(self, "context_id", None)
-        trace = _lookup_trial(context_id) if context_id is not None else None
-        runtime = trace_runtime()
-        if trace is None or trace.closed or not getattr(runtime, "enabled", False):
-            await original(self)
-            return
-        span = _start_child(
-            runtime,
-            "harbor.egress_lock",
-            parent_context=_active_parent(trace),
-            session_id=trace.session_id,
-            metadata={
-                "trial_id": trace.trial_id,
-                "mechanism": "daytona update_network_settings(network_block_all=True)",
-            },
-        )
-        try:
-            await original(self)
-        except asyncio.CancelledError:
-            # Remote state is ambiguous when cancelled; never fabricate it.
-            _end_span(span, error_type="CancelledError")
-            raise
-        except Exception as exc:
-            with contextlib.suppress(Exception):
-                sandbox = getattr(self, "_sandbox", None)
-                _set_span_metadata(
-                    span,
-                    {
-                        "verified": False,
-                        "network_block_all": getattr(sandbox, "network_block_all", None),
-                    },
-                )
-            _end_span(span, error_type=type(exc).__name__)
-            raise
-        # ``original`` returns only after the provider acknowledged the lock
-        # AND the in-sandbox self-test showed it blocks (HAR-205). Read the
-        # cached acknowledgement only; no extra provider call.
-        with contextlib.suppress(Exception):
-            sandbox = getattr(self, "_sandbox", None)
-            observed = {
-                "verified": True,
-                "network_block_all": getattr(sandbox, "network_block_all", None),
-                "sandbox_id": getattr(sandbox, "id", None),
-            }
-            _set_span_metadata(span, observed)
-            with _TRACES_LOCK:
-                live = _TRACES.get(trace.trial_id)
-                if live is not None and not live.closed:
-                    lock_metadata = {
-                        "egress_lock_observed": "verified",
-                        "network_block_all": observed["network_block_all"],
-                    }
-                    # Native spans inherit this snapshot later. Keep it in sync
-                    # so delayed exports cannot restore a stale "pending" state.
-                    live.metadata.update(lock_metadata)
-                    with contextlib.suppress(Exception):
-                        live.root.set_metadata(lock_metadata)
-        _end_span(span)
-
-    cast(Any, wrapped).__evallab_laminar_wrapped__ = True
-    cast(Any, BoundedDaytonaEnvironment)._lock_egress = wrapped
-
-
 def _wrap_trial_run() -> None:
     try:
         from harbor.trial.trial import Trial  # ty: ignore[unresolved-import]
@@ -1129,8 +1005,6 @@ def _ensure_wrappers_installed() -> None:
         _wrap_trial_method(Trial, "_stop_agent_environment", span_name="harbor.stop", kind="stop")
     with contextlib.suppress(Exception):
         _wrap_trial_run()
-    with contextlib.suppress(Exception):
-        _wrap_egress_lock()
     _WRAPPERS_INSTALLED = True
 
 

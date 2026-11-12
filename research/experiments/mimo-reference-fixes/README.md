@@ -112,7 +112,7 @@ plus publication of a reference-fix index for the clean chain's
 
 ## `index.csv` (contract: task_id,label,fix_commit,patch_path,patch_sha256,source)
 
-- Built by [`build_index.py`](build_index.py) (deterministic; fails closed on
+- Built by [`build_index.py` (archived; restore)](../../ARCHIVE.md#round-5-stored-evidence-research-recipes) (deterministic; fails closed on
   missing/empty patch bytes or reclassified seed tasks).
 - Seed: **192 HAR-191 rows** (`source=har191`) — the `oracle:pass+nop:fail`
   rows of the committed `python-task-ledger/oracle_sweep.csv` projection

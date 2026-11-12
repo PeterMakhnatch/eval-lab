@@ -11,7 +11,7 @@ Date: 2026-10-29. Owner: omp-audit. Spend: **$0** — this slice reads tracked
 receipts only. No task was built, run, graded or pulled; no package byte changed.
 
 Deliverables: this report, [`unverified-ranking.csv`](unverified-ranking.csv)
-(all 2,666 built rows, ranked), and [`rank.py`](rank.py), which regenerates the
+(all 2,666 built rows, ranked), and [`rank.py` (archived; restore)](../../ARCHIVE.md#round-5-stored-evidence-research-recipes), which regenerates the
 CSV deterministically (`--check` fails on drift).
 
 ## The card's target moved, twice

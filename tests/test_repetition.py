@@ -37,7 +37,9 @@ from evallab.repetition import (
     plan_repeated_matrix,
     resume_repeated_matrix,
 )
-from evallab.repetition import main as repetition_main
+from evallab.repetition import (
+    main as repetition_main,
+)
 
 
 def _make_tb4_plan(

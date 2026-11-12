@@ -49,3 +49,4 @@ subsets retained as run evidence, adapters, and admission registry records.
 | Reef publication gate adapter (`reef_gate`) | 0 | `git checkout archive/pre-round3-2026-11-12 -- library/adapters/reef_gate` |
 | AgentAbstain materializer & adapter (`agentabstain`) | 0 | `git checkout archive/pre-round3-2026-11-12 -- library/adapters/agentabstain` |
 | Stub adapters & benchmark helpers (`exgentic`, `recovery-bench`, `bfcl-parity`, `_verify_slice.sh`) | 0 | `git checkout archive/pre-round3-2026-11-12 -- library/adapters/exgentic library/adapters/recovery-bench library/benchmarks/bfcl-parity library/benchmarks/_verify_slice.sh` |
+| Isolated tool projects (`agentenv-bench`, `tinker-sft`) | 0 | `git checkout archive/pre-round3-2026-11-12 -- tools/agentenv-bench tools/tinker-sft` |

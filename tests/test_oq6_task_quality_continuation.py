@@ -465,6 +465,33 @@ def test_supplied_snapshot_has_exact_boolean_and_closed_parent_time_schema(lab, 
     assert not lab.output.exists()
 
 
+def test_absent_empty_and_aliased_role_directories_preserve_capture_boundary(lab):
+    snapshot = lab.snapshot(stage="cross")
+    cell = lab.directory("X0000", stage="cross")
+    empty = lab.tmp / "empty-role"
+    empty.mkdir()
+    for name in ("audit", "scorer"):
+        directory = cell / name
+        directory.mkdir(parents=True)
+        assert lab.snapshot(stage="cross") == snapshot
+        directory.rmdir()
+        for target in (empty, lab.tmp / "missing-role"):
+            directory.symlink_to(target, target_is_directory=True)
+            with pytest.raises(ValueError) as error:
+                lab.snapshot(stage="cross")
+            assert str(error.value) == "prior role directory must not alias another slot: " + str(directory)
+            directory.unlink()
+    # Even an absent role below a symlinked ancestor must fail canonicalization.
+    cell.rmdir()
+    cell.parent.rmdir()
+    cell.parent.symlink_to(empty, target_is_directory=True)
+    with pytest.raises(ValueError) as error:
+        lab.snapshot(stage="cross")
+    assert str(error.value) == "prior role directory must not alias another slot: " + str(cell / "audit")
+    cell.parent.unlink()
+    assert lab.snapshot(stage="cross") == snapshot
+
+
 def test_parent_role_alias_cannot_duplicate_consumed_slot(lab):
     lab.audit("D0000")
     duplicate = lab.directory("D0001") / "audit"

@@ -236,7 +236,8 @@ def _role(directory, profile):
             (_present(directory) and not directory.is_dir())):
         raise ValueError("prior role directory must not alias another slot: " + str(directory))
     files = []
-    if directory.exists():
+    directory_exists = directory.exists()
+    if directory_exists:
         for path in sorted(directory.rglob("*")):
             if path.is_symlink() or (not path.is_dir() and not path.is_file()):
                 raise ValueError("prior native evidence has an unsafe file: " + str(path))
@@ -245,7 +246,9 @@ def _role(directory, profile):
     receipt_path = directory / "receipt.json"
     receipt_pin = next((row for row in files if row["path"] == str(receipt_path)), None)
     owned = [row for row in files if row is not receipt_pin]
-    consumed = _present(receipt_path) or any(_present(directory / name) for name in profile["owned"])
+    # A canonically checked absent role cannot contain consumption evidence.
+    consumed = directory_exists and (
+        _present(receipt_path) or any(_present(directory / name) for name in profile["owned"]))
     receipt = _metadata(receipt_path) if receipt_pin else None
     status = receipt.get("status") if receipt else None
     record = {"directory": str(directory), "consumed": consumed,

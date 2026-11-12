@@ -70,14 +70,6 @@ _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _ROLES = ("instruction", "grader", "reference", "environment", "starter")
 _CATALOG = "research/hackbook/entries.jsonl"
 
-__all__ = [
-    "STRUCTURAL_CHECKS",
-    "STRUCTURAL_ENTRY_IDS",
-    "StructuralPrefixState",
-    "package_context",
-    "scan_structural_prefix",
-]
-
 
 def _is_int(value: Any) -> TypeGuard[int]:
     return isinstance(value, int) and not isinstance(value, bool)
@@ -639,53 +631,6 @@ def _extract_call(
 # ---------------------------------------------------------------------------------------------
 # Context (task package, differentials, reviews)
 # ---------------------------------------------------------------------------------------------
-
-
-#: The package roots a context may carry (no ``cheat/`` or README material).
-_PACKAGE_ROOT_RE = re.compile(r"^(?:instruction\.md$|task\.toml$|tests/|solution/|environment/)")
-
-
-def package_context(
-    files: Mapping[str, str],
-    *,
-    source: str,
-    available_before_step: int,
-    complete_roles: Sequence[str] = (),
-    agent_visible_roles: Sequence[str] = (),
-    version: str | None = None,
-) -> dict[str, Any]:
-    """Build ``structural_context`` artifacts from a task package listing (pure).
-
-    ``files`` maps package-relative paths to text and may hold only ``instruction.md``,
-    ``task.toml`` and files under ``tests/``, ``solution/`` and ``environment/``. Roles come from
-    the path. ``available_before_step`` is the genuine pre-run marker and must not exceed the last
-    step id of the prefix it is scored on. A role named in ``complete_roles`` asserts that
-    ``files`` holds every file of that role, which absence predicates ("no test reads this
-    field") require. ``solution/`` is oracle material: it is never marked agent-visible.
-    """
-    artifacts: list[dict[str, Any]] = []
-    for path, text in sorted(files.items()):
-        if _PACKAGE_ROOT_RE.match(path) is None:
-            raise ValueError(f"path outside the task-package whitelist: {path}")
-        role = _role_of_path(path)
-        provenance: dict[str, Any] = {
-            "source": source,
-            "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-        }
-        if version:
-            provenance["version"] = version
-        if role in agent_visible_roles and role != "reference":
-            provenance["agent_visible"] = True
-        artifacts.append(
-            {
-                "role": role,
-                "path": path,
-                "text": text,
-                "available_before_step": available_before_step,
-                "provenance": provenance,
-            }
-        )
-    return {"artifacts": artifacts, "complete_roles": list(complete_roles)}
 
 
 def _provenance(item: Mapping[str, Any]) -> tuple[str, str] | None:

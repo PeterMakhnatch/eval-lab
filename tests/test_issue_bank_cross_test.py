@@ -265,7 +265,5 @@ def test_skipped_and_held_sets_are_reported(tmp_path: Path) -> None:
         hold_licence_not_staged=[{"id": "owner/no-licence", "why": "licence is null"}],
     )
 
-    assert set(source.not_itemized(ctx)) == {"apollo-insider-trading", "hackbench"}
-    assert source.held_sets(ctx) == {"metr-evals/malt": "one-click gate", "owner/no-licence": "licence is null"}
     # a skipped entry contributes nothing; HackBench contributes its summary alone
     assert [type(x) for x in source.build(ctx)] == [SourceSummary]

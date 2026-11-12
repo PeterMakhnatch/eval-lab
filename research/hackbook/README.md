@@ -41,18 +41,6 @@ To prevent data leakage into held-out evaluation, **zero** of the 41 `tb4-audit-
 ## CLI and Python Usage
 
 ```bash
-# List entries (filter by class ID/key, side, source, or evidence status)
-evallab hackbook list
-evallab hackbook list --class TS04 --evidence executed --json
-evallab hackbook list --evidence observed
-
-# Show full details for one entry by ID or slug
-evallab hackbook show HB-TS01-001
-evallab hackbook show hardcoded-fixture-outputs --json
-
-# Relevance search across the catalog
-evallab hackbook search "conftest sitecustomize" --limit 5
-
 # Inspect catalog coverage and defensive playbook cards
 evallab hackbook coverage
 evallab hackbook cards
@@ -60,7 +48,7 @@ evallab hackbook cards
 
 ```python
 from pathlib import Path
-from evallab.hackbook import load_hackbook
+from evallab.hackbook.models import load_hackbook
 from evallab.hackbook.matcher import match_task
 from evallab.tripwires import scan_trace
 

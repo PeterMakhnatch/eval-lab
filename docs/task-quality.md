@@ -2478,7 +2478,7 @@ non-alphanumerics becomes `_`, so `Proxy-check too weak` equals
 | `expected_root_causes` (list) | new keys (canonical) | as listed |
 | `expected_mechanisms` (list) | `breaker-bench-v1` | benchflow mechanism (`conftest_hook`, `path_trojan`, `pth_injection`) or Terminal Wrench exploit class (`hollow-implementation`, ...) |
 | `root_cause` (records) | `envcheck-tb4-39`, `delphik-open-defect-tb2` | each record's `id` and its `source_class` (EnvCheck: `proxy-check-too-weak`, `answer-material-readable-by-candidate`, ...; Delphik classes are free text, so exact matching rarely fires) |
-| `expected_root_cause` dict | `trajectory-judge-400` | `failure_type` (`premature_stop`, `wrong_tool`, ...; step localisation is scored by `evallab qa trace score`) |
+| `expected_root_cause` dict | `trajectory-judge-400` | `failure_type` (`premature_stop`, `wrong_tool`, ...) |
 | `expected_root_cause` string | `trace-paired-v1` | `cheat_ladder: a,b` → the attack names; `upstream_fetch`, `answer_leak`, `false_claim` as is; free text after a colon (`weak_hidden_tests: ...`) → the prefix |
 
 Never tune on the split you report; every score row names its split.
@@ -2694,146 +2694,6 @@ actually incorrect. A self-labeled counterexample and reward 1 do not establish
 that fact; their S3 replay stays `unverified` pending independent review.
 Unconfirmed/refuted candidates never count as verified defects, and unmeasured
 checks never count as passes.
-
-## Adaptive task reviewer: `qa env`
-
-`evallab qa env audit` is an **agent loop**, not another fixed S0–S3
-sequence. One task gets one continuing model conversation. The reviewer chooses
-source reads, ordinary functional candidates, diagnostic checks, findings and its
-final stop. The host alone dispatches JSON capabilities; native model tools are
-not an alternative route into the task or host. Historical `qa task` stages remain
-available independently.
-
-Choose an explicit model lane and every task budget:
-
-```bash
-evallab qa env audit \
-  --task /absolute/dev-task --out /absolute/owned-qa-run \
-  --lane omp --model anthropic/claude-sonnet-5-5 \
-  --hackbook /absolute/generic-taxonomy.yaml \
-  --max-seconds 900 --max-tokens 500000 --max-tool-calls 60 --max-usd 0
-```
-
-| Lane | Conversation and admission | Accounting |
-|---|---|---|
-| `codex` | Existing pinned Codex CLI/ChatGPT subscription; subsequent turns use the same native thread. Weekly usage is checked before every turn. `--codex-weekly-ceiling` selects the owner's currently approved fraction; the conservative default is 0.35. | `--max-usd 0`; tokens and subscription quota are distinct from metered spend. The served model is not reported by Codex JSONL; the explicit request and transport evidence are retained. |
-| `omp` | Explicit `anthropic/claude-sonnet-5-5` or `anthropic/claude-opus-5-5`; one saved OMP session, resumed on later turns. Subscription metadata and served provider/model are checked each turn. A run-local overlay disables discovery sources, memory, extensions, advisor, retry and compaction. Reported native tool schemas must be empty, including ambient MCP. | `--max-usd 0`; OMP's list-price estimate is retained as `api_equivalent_usd`, not presented as a charge. Native base-prompt digests are retained; absent effective prompt plaintext remains unobserved. |
-| `openai` | One driver-held conversation sent to a hosted HTTPS OpenAI-compatible endpoint, with an explicit model, `--endpoint`, `--api-key-env` **name**, and positive input/output prices (`--input-usd-per-million`, `--output-usd-per-million`). No provider/model fallback. | Requires positive `--max-usd`. A conservative full-request reservation precedes every request and is never refunded. Reported-token cost estimates and reserved upper bounds are distinct; unknown billed usage stays null. |
-
-Use the locked Python environment. Native grading additionally needs the
-qualified Harbor runtime and the Execution lane's candidate/PM-port runner.
-There is no local-inference fallback. API keys are provided through the normal
-key store/environment, never embedded in requests, policy files or command text.
-
-For sealed evaluation, pass `--view /absolute/exported-agent-view`. The
-released `tb4.audit.agent-view/v1` provider binds the public record's canonical
-identity and digest to the private upstream package and every selected file.
-The strict task-input record supplies identity, not arbitrary file paths.
-Only that task's inventoried files reach the reviewer: not `inputs.jsonl`, split
-assignments, source reviews, raw taxonomy examples or the answer key. Source,
-manifest or catalog drift stops later calls. Develop on the registered DEV
-split; freeze the merged implementation, prompts, models and owner policy
-before a once-per-version TEST campaign.
-
-Task wall clock covers model admission and tool work. No new action runs after
-the deadline; bounded process/container cleanup may finish later. A final is
-allowed after the tool-call allowance, never after the elapsed deadline. The
-token budget is a **completed-turn stop threshold**: a turn may cross it, but
-its action is discarded and actual usage is retained. Unknown token or charged
-usage stops before its returned action is executed; it is never replaced by zero.
-
-### JSON capabilities
-
-Every capability is also available as
-`evallab qa env <tool> --request request.json` (or `--request -` for stdin):
-
-```json
-{"task":"/absolute/dev-task","out":"/absolute/owned-qa-run","args":{},"max_seconds":600}
-```
-
-Optional top-level `view`, `hackbook` and `execution_config` paths are
-**owner-controlled**, not model tool arguments. Writable output must be disjoint
-from task source and the exported view. Setup/argument errors return `ok: false`,
-an explicit reason and null reward. A successful invocation is not a passing or
-semantically correct grader result.
-
-| Capability | Input/result | Evidence boundary |
-|---|---|---|
-| `task-info` | `{}` inventories instruction, configuration, environment, tests and reference; `path` reads up to 2,000 lines; `start_line`/`end_line` continue; `pattern` searches literal source text. | Citable package-relative lines. Root README/cheat material and out-of-package files are excluded. Reviewer access is not solver access. |
-| `run-upstream-grader` | An owned candidate `solution_dir`, or structured `submission`; reward, per-test results, errors and raw evidence paths. | Original upstream task/verifier bytes are unchanged. Raw reward alone does not establish semantic correctness. |
-| `run-port-grader` | The same candidate formats, scored by the owner-pinned PM port. | The original source identity, fixed port tree and prepared grader digest remain distinct. No port mapping or unavailable runner means refused/unknown, never an upstream substitution. |
-| `run-reference`, `run-blank` | Fresh original reference or empty candidate; optional `grader: "port"` selects the fixed grader. | A failed/unmeasured control is not proof of infeasibility or a clean task. Port empty-input identity is retained rather than relabeled as a native blank. |
-| `probe` | Added Python assertions plus a candidate; fresh reference/candidate diagnostic environments. | The diagnostic replaces the derived verifier entrypoint. These are **not unchanged upstream or PM-port scores**. `distinguishes` is null unless both runs are usable and the reference passes. |
-| `diff` | `left`/`right` package files or `candidate/<relative-file>`. | Bounded source comparison, never an executed witness. |
-| `hackbook` | Optional canonical `defect_class`, text `query` and result `limit`. | Generic class definitions, evidence standards and method names only. The taxonomy fallback omits case examples, labels, links and executable payload fields. A lookup is not a task finding. |
-| `record-finding` | Direct CLI: canonical `defect_class` plus `qa.finding/v1`. Adaptive model: `defect_class`, concrete `summary`, `severity`, `fault`, `evidence_refs`. | The controller fills canonical subject/category/reviewer and unverified status. Multiple findings per task/class are allowed; every citation/witness is validated. |
-
-Submissions reuse `qa.task.submission_to_script`: `kind` is `command`, `file`,
-`json` or `patch`; `content` is the ordinary program/output; file/JSON also names
-its in-container `path`. Compilation writes only the owned candidate directory.
-Candidate code and added assertions run **only through the first-party sandbox**,
-never host shell/Python. Runtime calls accept a bounded `timeout_seconds` and
-optional `plan`; plans allocate nothing and cannot mint a witness. Platform
-selection cannot conflict with the owner policy.
-
-### Owner execution policy
-
-Without `--execution-config`, execution is free local Docker, not a paid fallback.
-For metered execution the owner supplies strict JSON:
-
-```json
-{
-  "schema": "evallab.qa.execution-policy/v1",
-  "backend": "modal",
-  "max_usd": 3,
-  "approval": "The owner's recorded approval for this campaign",
-  "spend_ledger": "/absolute/campaign/native-spend.json",
-  "modal_app_name": "qa-campaign-native",
-  "billing_tag": "qa-campaign",
-  "platform": "linux/amd64"
-}
-```
-
-The reusable cap above is illustrative, not approval to spend. Every native
-call reuses the same campaign ledger, backend and approval. A separate bounded
-campaign lock admits at most one native two-role grade at a time; waiting consumes
-the task's remaining time. The real runner retains exact-resource admission,
-image caching and reservation/reconciliation; reservations are not invoices.
-No downsizing, runtime bypass or automatic paid reroute is introduced.
-
-Fixed-port use additionally supplies `port.source_pin` matching the runner's
-`PM_FIXED_PIN` and `port.tasks` mapping each authorized task id to its port
-directory `path` and exact `tree_digest`. The policy bytes, paths and trees are
-pinned/rechecked; the model sees neither approval text nor other task ids.
-Original and port results retain their actual source identities. Unavailable,
-refused, failed or partially observed native execution remains null/unknown.
-
-### Playbooks, findings and receipts
-
-`evallab.qa.env_playbooks` packages common rules and a short playbook per canonical
-task-side class. Unstated/ambiguous/withheld rules map to
-`unstated_requirement`; grader surface and isolation review span
-`answer_reachable`/`grader_tamperable`; broken environments span
-`env_mismatch_or_flaky`/`infeasible_as_written`. Run-side classes need traces.
-
-This is defensive source review plus ordinary functional counterexamples.
-Permission, oracle-exposure, network and trust concerns remain source/configuration
-findings, not privilege escalation, exfiltration, network attacks or tampering
-programs. Source-only leads explicitly retain runtime uncertainty.
-
-A finding needs its bound subject/digest, canonical class, and resolvable
-`path:line[-end]` or `witness:<32-hex-id>`. Only measured, task-bound native
-receipts mint witnesses; source-only claims use `measurement: "not_run"`.
-The reviewer cannot certify itself: `refutation.status` remains `unverified`.
-Matching an answer-key label or observing a reward is not independent semantic
-confirmation. Unknown native outcomes are never converted to clean labels.
-
-Output retains `task.json`, immutable `findings/`, native evidence,
-`observations/`, `agent/session.json`, `agent/journal.jsonl`, and per-turn provider
-prompts/events. The v2 session records lane, actual model when reported, native
-conversation id, token/spend uncertainty, quota readings, errors and stop reason.
-Model cost and native execution spend are separate. CLI exit zero means a valid
-**model-authored final**, not “task clean”; budget/quota/model failure exits nonzero.
 
 ## Stages
 
@@ -4060,9 +3920,6 @@ tasks break — mechanism, signatures, a detection recipe, a probe template,
 a fix pattern, and examples labelled `executed` / `observed` / `claimed`.
 
 ```bash
-.venv/bin/evallab hackbook list
-.venv/bin/evallab hackbook show HB-TS01-007
-.venv/bin/evallab hackbook search "golden file"
 .venv/bin/evallab hackbook coverage [--json]
 ```
 
@@ -4135,11 +3992,6 @@ its grader, runs controls and candidate probes against the real graders,
 and writes findings that are only counted once independently confirmed.
 
 ```bash
-.venv/bin/evallab qa env audit --task <task-id> --view <sealed-view> --out <dir> --lane codex|omp|openai --model <model> --max-seconds <s> --max-tokens <n> --max-tool-calls <n> --max-usd <usd>
-.venv/bin/evallab qa env task-info --request <request.json>
-.venv/bin/evallab qa env run-upstream-grader --request <request.json>
-.venv/bin/evallab qa env run-port-grader --request <request.json>
-.venv/bin/evallab qa env run-reference | run-blank | probe | diff | hackbook | record-finding --request <request.json>
 .venv/bin/evallab qa task --task <task-id> [--key tb4-audit-v1] [--split dev] [--plan]
 .venv/bin/evallab qa task-score --key tb4-audit-v1 --findings <findings-dir>   # flagged vs verified; unmeasured never counts as pass
 ```
@@ -4257,7 +4109,6 @@ about specific candidate mechanisms; the full T0–T4 review is the expensive ti
 
 ```bash
 .venv/bin/evallab qa trace-cheap <trial-dir|trajectory.json> [--model <openrouter-model>] [--offline] [--out finding.json]
-.venv/bin/evallab qa trace run|review|batch|score ...
 .venv/bin/evallab detectors list|score|run ...      # scored on labelled trace corpora
 # tripwire rule measurement is experiment tooling:
 ls research/experiments/tripwires-v3-hackbook-20261021 research/experiments/tripwires-v4-precision-20261021

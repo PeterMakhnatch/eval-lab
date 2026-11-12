@@ -26,7 +26,6 @@ PORT_REPO = "https://github.com/preferencemodel/terminal-bench-4-karotte-port"
 ENVCHECK_REVISION = "12d4d094ef61c4898c16d18ebcc17beafce86035"
 ENVCHECK_SHA256 = "893001c93945bd063ed2565145d846eb0e026a030f719ce4295ecebdde9039c9"
 ENVCHECK_REPO = "https://github.com/tokenless-ai/envcheck-findings"
-EPOCH_URL = "https://epoch.ai/benchmarks/terminal-bench-4/review"
 
 
 def _tb4_task(item: dict[str, Any]) -> TaskRef:

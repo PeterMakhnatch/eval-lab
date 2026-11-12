@@ -440,37 +440,6 @@ def test_summary_counts_tokens_commands_errors_and_scripted_attempts() -> None:
     assert "attack patch: failed; denied" in scripted and "oracle.txt" in scripted
 
 
-def test_trajectory_judge_v2_marks_unavailable_context_missing(local_store: Path) -> None:
-    row = {
-        "trajectory_id": "instance-failure-label",
-        "instance_id": "instance",
-        "goal": "Do the task",
-        "steps": [],
-    }
-    bundle = workspace.tj_workspace(row, local_store / "tj")
-    availability = bundle.manifest["availability"]
-    assert availability["prompt"] == availability["trajectory"] == "present"
-    assert availability["trace_evidence"] == "missing"
-    assert all(
-        availability[key] == "missing"
-        for key in (
-            "verifier_output",
-            "tests",
-            "diff",
-            "task_codebase",
-            "agent_logs",
-            "task_priors",
-        )
-    )
-    assert row["trajectory_id"] not in json.dumps(bundle.manifest)
-    assert row["trajectory_id"] not in bundle.text("metadata.json")
-    assert Bundle.load(bundle.root).verify() == []
-    index = json.loads(bundle.text("verifier_tests.json"))
-    assert index["status"] == "missing"
-    assert index["files"] == []
-    assert index["binding"]["matched"] is None
-
-
 def test_trace_only_workspace_keeps_failed_writes_and_reverts_as_observations(
     local_store: Path,
 ) -> None:

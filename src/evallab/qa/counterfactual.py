@@ -67,7 +67,6 @@ ENVIRONMENTS = ("docker", "daytona", "modal")
 #: resource/lifecycle estimate, cross-checked against metered app CPU/memory.
 #: $0.01 is >50% above that mean, not a bound on observed tails or provider bills.
 #: Slow/larger workloads and other providers need their own explicit estimate.
-CLOUD_USD_PER_EXECUTION = 0.01
 
 
 def check_backend(environment: str, spend_gate: CloudSpendGate | None) -> None:
@@ -782,13 +781,6 @@ def cached_controls(grader: Grader, work: Path, *, repo_root: Path) -> dict[str,
     ):
         return cached
     return None
-
-
-def control_executions(grader: Grader, work: Path, *, repo_root: Path) -> int:
-    """Executions :func:`grader_controls` would start: nop plus reference, unless cached."""
-    if cached_controls(grader, work, repo_root=repo_root) is not None:
-        return 0
-    return 1 + (reference_patch(grader.task_name, repo_root) is not None)
 
 
 def _controls_identity(grader: Grader, patch: str | None) -> dict[str, Any]:

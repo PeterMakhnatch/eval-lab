@@ -23,15 +23,13 @@ from evallab.qa.trace import (
     _routed_questions,
     review_bundle,
     scenario_route,
-    score_paired,
     skip_rule,
-    source_step,
     t4_verdict,
     verify_route,
 )
 from evallab.qa.trace_agents import SCENARIO_SCHEMA
 from evallab.qa.trace_verify import ADDRESS_SCHEMA, VERIFY_SCHEMA
-from evallab.qa.trace_workspace import build_workspace, tj_workspace
+from evallab.qa.trace_workspace import build_workspace
 
 INSPECT = [
     "shell: ls -R task_codebase",
@@ -150,36 +148,23 @@ def _review(bundle: Bundle, models: FakeModels, out: Path, **kwargs: Any) -> dic
 
 
 def _tool_bundle(tmp_path: Path, *, failed: bool = False) -> Bundle:
-    return tj_workspace(
-        {
-            "trajectory_id": "support-workflow",
-            "instance_id": "support-request",
-            "goal": "Look up the order, check its policy, issue an eligible refund, and reply.",
-            "final_answer": "I could not complete the refund."
-            if failed
-            else "The refund is complete.",
-            "steps": [
-                {
-                    "index": 0,
-                    "call": {"tool": "lookup_order", "args": {"id": 42}},
-                    "observation": {"ok": True, "amount": 70},
-                },
-                {
-                    "index": 1,
-                    "call": {"tool": "get_policy", "args": {"id": 42}},
-                    "observation": {"ok": True, "refundable": True},
-                },
-                {
-                    "index": 2,
-                    "call": {"tool": "cancel_order", "args": {"id": 42}},
-                    "observation": {"ok": False, "error": "order locked"}
-                    if failed
-                    else {"ok": True, "cancelled": True},
-                },
-            ],
-        },
-        tmp_path / "bundle",
-    )
+    trial = tmp_path / "support-trial"
+    (trial / "agent").mkdir(parents=True)
+    steps = [{"step_id": 1, "source": "user", "message":
+              "Look up the order, check its policy, issue an eligible refund, and reply."}]
+    for sid, tool, observation in [
+        (2, "lookup_order", {"ok": True, "amount": 70}),
+        (3, "get_policy", {"ok": True, "refundable": True}),
+        (4, "cancel_order", {"ok": False, "error": "order locked"}
+         if failed else {"ok": True, "cancelled": True}),
+    ]:
+        steps.append({"step_id": sid, "source": "agent", "message": "",
+                      "tool_calls": [{"function_name": tool, "arguments": {"id": 42}}],
+                      "observation": {"results": [{"content": json.dumps(observation)}]}})
+    steps.append({"step_id": 5, "source": "agent", "message":
+                  "I could not complete the refund." if failed else "The refund is complete."})
+    (trial / "agent/trajectory.json").write_text(json.dumps({"steps": steps}))
+    return build_workspace(trial, tmp_path / "bundle", task_name="support-request")
 
 
 def _tool_reviews(
@@ -453,8 +438,6 @@ def test_a_proposed_action_without_its_result_cannot_establish_success(
         ("failure_cause", "fail")
     ]
     assert verdict["false_positive"] is False
-
-
 
 
 @pytest.mark.parametrize(
@@ -737,26 +720,6 @@ def _key(tmp_path: Path) -> AnswerKey:
     return AnswerKey(key_id="k", items=items, directory=tmp_path, pairs=pairs)
 
 
-def test_paired_discrimination_credits_only_flags_the_parent_did_not_get(tmp_path: Path) -> None:
-    key = _key(tmp_path)
-    items = list(key.items)
-    always = score_paired(
-        key, items, {f"k:{i.subject.trial_id}": True for i in items}, bootstrap=50
-    )
-    assert always["flag_rate"]["silent"]["rate"] == 1.0
-    assert always["paired"]["all_faults"]["delta"] == 0.0
-
-    perfect = {"k:a-clean": False, "k:a-f": True, "k:b-clean": False, "k:b-f": True, "k:c-f": True}
-    sc = score_paired(key, items, perfect, steps={"k:a-f": 3, "k:b-f": 0, "k:c-f": 2}, bootstrap=50)
-    assert sc["paired"]["all_faults"] == {"n": 2, "delta": 1.0, "ci95": [1.0, 1.0]}
-    assert sc["paired"]["loud"]["n"] == 1
-    assert sc["step_exact"] == {"hit": 2, "n": 3, "rate": 0.667}
-
-    partial = score_paired(key, items, {**perfect, "k:b-f": None}, bootstrap=50)
-    assert partial["abstained"] == 1
-    assert partial["paired"]["all_faults"]["n"] == 1
-
-
 def test_findings_name_the_key_item_and_score_through_the_shared_scorer(tmp_path: Path) -> None:
     # The reviewer sees the bundle's own subject; the findings must carry the
     # key item's subject or the shared scorer cannot match them.
@@ -778,31 +741,3 @@ def test_findings_name_the_key_item_and_score_through_the_shared_scorer(tmp_path
     overall = next(r for r in rows if r.category == "all")
     assert (overall.n_measured, overall.recall) == (1, 1.0)
     assert "outside the key" not in overall.notes
-
-
-def test_trajectory_judge_steps_keep_their_upstream_index(tmp_path: Path) -> None:
-    row = {
-        "trajectory_id": "inst-1-wrong_tool",
-        "instance_id": "inst-1",
-        "goal": "Refund order 42",
-        "final_answer": "Done",
-        "steps": [
-            {
-                "index": 0,
-                "thought": "look up",
-                "call": {"tool": "get_order", "args": {"id": 42}},
-                "observation": {"status": "shipped"},
-            },
-            {
-                "index": 1,
-                "thought": "refund",
-                "call": {"tool": "cancel_order", "args": {"id": 42}},
-                "observation": {"ok": True},
-            },
-        ],
-    }
-    bundle = tj_workspace(row, tmp_path / "b")
-    assert not any("wrong_tool" in p.read_text() for p in bundle.root.rglob("*") if p.is_file())
-    # Blinded steps: 0 goal, 1-2 upstream steps 0-1, 3 the final answer (at upstream 1).
-    assert [source_step(bundle.root, i) for i in range(5)] == [None, 0, 1, 1, None]
-    assert all("extra" not in step for step in bundle.steps())

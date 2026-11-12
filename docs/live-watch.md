@@ -1723,7 +1723,7 @@ Trace Tools operations (offline, read-only unless stated):
   the retained cleanup receipt stays `cleanup_verified: false`. The IDs remain quarantined in code.
   The cleanup checker and remote replica writers are retired; their removal does not remove evidence.
   One predicate, `is_quarantined`, accepts a Laminar trace ID, a cloud-DB trace ID, or a Harbor trial name.
-  The live exporter, `laminar_import`, `laminar_signals`, `laminar compare`, and harness detectors skip and count these IDs.
+  `laminar_signals`, `laminar compare`, and harness detectors skip and count these IDs.
   Signal filters require the opt-in tag. `laminar signals` refuses if a quarantined copy carries that tag.
 - `python -m evallab.readers.metr_campaign_plan prepare|export`: offline planner for the
   frozen 200 Goodfire runs plus the disjoint rest of admitted DEV. `export` converts only

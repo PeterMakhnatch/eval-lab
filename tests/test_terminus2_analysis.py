@@ -32,7 +32,6 @@ provider billing. Nothing here infers one ledger from another.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
@@ -40,7 +39,6 @@ import pytest
 
 from evallab.evidence.atif import project_trial
 from evallab.evidence.facts import extract_job_facts, extract_trial_fact
-from evallab.interpretation.trajectory_ir import build_trajectory_ir
 from evallab.results import load_job
 from evallab.traj import outline_trajectory
 
@@ -297,42 +295,6 @@ def test_continuation_fact_agrees_with_outline() -> None:
     assert fact.cache_tokens == 600
 
 
-
-
-def test_continuation_events_cite_native_documents() -> None:
-    """Pre-split events cite the earlier document, not the terminal file."""
-    ir = build_trajectory_ir(_trial("trial-continued"), repo_root=FIXTURE_ROOT)
-
-    programs = {event.status_owning_program for event in ir.events}
-    assert "bash_command" in programs
-    assert "mark_task_complete" in programs
-    by_step: dict[int, str] = {}
-    native_step: dict[int, int] = {}
-    for event in ir.events:
-        by_step.setdefault(event.step_index, event.source_citation.source_path)
-        native_step.setdefault(event.step_index, event.source_citation.step_id)
-    assert by_step[2].endswith("agent/trajectory.json")
-    assert by_step[3].endswith("agent/trajectory.json")
-    assert by_step[4].endswith("agent/trajectory.cont-1.json")
-    assert by_step[5].endswith("agent/trajectory.cont-1.json")
-    assert native_step[2] == 2
-    assert native_step[4] == 3
-    for event in ir.events:
-        if event.event_type != "tool_call":
-            continue
-        citation = event.source_citation
-        source_bytes = (_trial("trial-continued") / citation.source_path).read_bytes()
-        assert citation.source_sha256 == hashlib.sha256(source_bytes).hexdigest()
-        source_step = next(
-            step
-            for step in json.loads(source_bytes)["steps"]
-            if step["step_id"] == citation.step_id
-        )
-        assert citation.tool_call_id in {
-            call["tool_call_id"] for call in source_step.get("tool_calls", [])
-        }
-
-
 def test_same_tool_call_id_keeps_distinct_observations() -> None:
     """A call id reused across segments links to its own document's result."""
     job = load_job(FIXTURE_JOB)
@@ -419,7 +381,6 @@ def test_cyclic_continuation_terminates_unavailable(tmp_path: Path) -> None:
     outline = outline_trajectory(trial_dir, repo_root=tmp_path)
     assert outline.status == "accounted_unavailable"
     assert "cycle" in (outline.unavailable_reason or "")
-
 
 
 def test_failure_dump_is_parseable_but_never_a_pass() -> None:

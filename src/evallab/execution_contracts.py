@@ -10,7 +10,6 @@ Key invariants:
 from __future__ import annotations
 
 import json
-import math
 import os
 import re
 import secrets
@@ -587,19 +586,10 @@ CAPTURE_DIR_ENV = "EVALLAB_MODEL_CAPTURE_DIR"
 #: ``capture link`` can attribute calls per job. Never set for
 #: direct-to-vendor rounds.
 CAPTURE_ENABLED_ENV = "EVALLAB_MODEL_CAPTURE"
-#: Self-hosted tokens have no per-token price. The server container is billed
-#: by Modal per second and accounted by the time-based estimate
-#: (:func:`mimo_selfhosted_trial_cost_usd`), not the token ledger.
+#: Self-hosted tokens have no per-token price.
 MIMO_SELFHOSTED_MODEL_PRICES_MICROS: Mapping[str, tuple[int, int]] = MappingProxyType(
     {native: (0, 0) for native in sorted(MIMO_SELFHOSTED_NATIVE_MODELS)}
 )
-#: Modal rate (USD per hour) for the whole server container, from
-#: modal.com/pricing on 2026-09-28:
-#:   A100-80GB $0.000694/s = $2.4984/h
-#:   4 CPU cores × $0.0000131/s = $0.18864/h
-#:   16 GiB × $0.00000222/s = $0.127872/h
-#: Modal bills CPU and memory on top of the GPU.
-MIMO_SELFHOSTED_SERVER_USD_PER_HOUR = 2.814912
 
 
 def parse_mimo_selfhosted_model(model: str | None) -> str:
@@ -921,29 +911,6 @@ def _validate_modal_create_attempts(request: RunRequest) -> None:
         raise ValueError("modal_sandbox_create_max_attempts requires the Modal backend")
     if type(attempts) is not int or attempts != 1:
         raise ValueError("modal_sandbox_create_max_attempts must be 1 or None")
-
-
-def mimo_selfhosted_trial_cost_usd(
-    trial_hours: float, concurrency: int, sandbox_usd: float
-) -> float:
-    """Estimate one trial's cost: server $/h x trial_hours / concurrency + sandbox_usd.
-
-    This excludes the one-off cost of each warm period: a cold start plus
-    the 300 s idle tail before scale-to-zero. With zero per-token rates the
-    proxy's cost ceiling cannot trip; its request and token ceilings still
-    bound the run.
-    """
-    if isinstance(concurrency, bool) or not isinstance(concurrency, int) or concurrency < 1:
-        raise ValueError(f"concurrency must be a positive integer, got {concurrency!r}")
-    for label, value in (("trial_hours", trial_hours), ("sandbox_usd", sandbox_usd)):
-        if (
-            isinstance(value, bool)
-            or not isinstance(value, (int, float))
-            or not math.isfinite(value)
-            or value < 0
-        ):
-            raise ValueError(f"{label} must be a finite non-negative number, got {value!r}")
-    return MIMO_SELFHOSTED_SERVER_USD_PER_HOUR * trial_hours / concurrency + sandbox_usd
 
 
 #: OpenRouter metered route for Terminus-2 (HAR-104): a fixed table of models
@@ -1535,7 +1502,6 @@ def materialize_zai_openapi_secret_file(
         raise RuntimeError("Z.ai OpenAPI provider credential is missing")
     persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
     return destination
-
 
 
 def materialize_mimo_selfhosted_secret_file(

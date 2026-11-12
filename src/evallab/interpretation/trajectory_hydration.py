@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any
 
 _DEFAULT_SECRET_PATTERNS = (
@@ -29,134 +29,6 @@ _DEFAULT_SECRET_PATTERNS = (
 # ``DEDUP_TOKEN=``, ``MY_DEDUP_TOKEN:`` and any other match in the same text
 # still count.
 _SANITIZER_DEDUP_TOKEN_RE = re.compile(r"(?:(?<![A-Za-z0-9_])|(?<=\\[nrt]))DEDUP_TOKEN\s*:")
-
-
-def secret_pattern_hits(text: str) -> int:
-    """Number of secret patterns with at least one match in ``text``, sanitizer dedup lines aside."""
-    exempt = {match.start() + len("DEDUP_") for match in _SANITIZER_DEDUP_TOKEN_RE.finditer(text)}
-    return sum(
-        1
-        for pattern in _DEFAULT_SECRET_PATTERNS
-        if any(match.start() not in exempt for match in pattern.finditer(text))
-    )
-
-
-@dataclass(frozen=True)
-class CitationHandle:
-    """Canonical citation handle pointing to an exact element in raw/CAS trajectory evidence."""
-
-    citation_id: str = ""
-    trial_id: str | None = None
-    source_document_id: str = "main"
-    source_path: str = "agent/trajectory.json"
-    source_sha256: str = ""
-    raw_cas_uri: str | None = None
-    cas_uri: str | None = None
-    ir_event_id: str | None = None
-    step_id: int | str | None = None
-    step_index: int | str | None = None
-    tool_call_id: str | None = None
-    call_index: int | None = None
-    source_call_id: str | None = None
-    observation_index: int | None = None
-    target_type: str = (
-        "step"  # "step" | "tool_call" | "observation" | "stderr" | "stdout" | "arguments" | "file"
-    )
-    content_sha256: str | None = None
-    redaction_profile_digest: str | None = None
-    availability: str = "available"
-
-    def __post_init__(self) -> None:
-        if self.step_id is None and self.step_index is not None:
-            object.__setattr__(self, "step_id", self.step_index)
-        elif self.step_index is None and self.step_id is not None:
-            object.__setattr__(self, "step_index", self.step_id)
-        if self.raw_cas_uri is None and self.cas_uri is not None:
-            object.__setattr__(self, "raw_cas_uri", self.cas_uri)
-        elif self.cas_uri is None and self.raw_cas_uri is not None:
-            object.__setattr__(self, "cas_uri", self.raw_cas_uri)
-
-    def format_citation(self) -> str:
-        parts = [f"{self.source_path}"]
-        coords: list[str] = []
-        if self.step_id is not None:
-            coords.append(f"step={self.step_id}")
-        if self.tool_call_id is not None:
-            coords.append(f"call={self.tool_call_id}")
-        elif self.source_call_id is not None:
-            coords.append(f"call={self.source_call_id}")
-        if self.observation_index is not None:
-            coords.append(f"obs={self.observation_index}")
-        if coords:
-            parts.append(f"#{':'.join(coords)}")
-        if self.content_sha256:
-            parts.append(f" ({self.content_sha256[:16]}...)")
-        elif self.source_sha256:
-            parts.append(f" (file {self.source_sha256[:16]}...)")
-        return "".join(parts)
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-
-
-def create_citation_handle(
-    *,
-    trial_id: str | None = None,
-    source_path: str,
-    source_sha256: str = "",
-    raw_cas_uri: str | None = None,
-    cas_uri: str | None = None,
-    ir_event_id: str | None = None,
-    step_id: int | str | None = None,
-    step_index: int | str | None = None,
-    tool_call_id: str | None = None,
-    call_index: int | None = None,
-    source_call_id: str | None = None,
-    observation_index: int | None = None,
-    target_type: str = "step",
-    content_sha256: str | None = None,
-    redaction_profile_digest: str | None = None,
-) -> CitationHandle:
-    """Deterministic factory for canonical CitationHandle with content hashing."""
-    actual_cas = raw_cas_uri or cas_uri
-    effective_step = step_id if step_id is not None else step_index
-    loc_parts = [
-        str(trial_id or ""),
-        str(source_path),
-        str(source_sha256),
-        str(actual_cas or ""),
-        str(effective_step if effective_step is not None else ""),
-        str(tool_call_id or ""),
-        str(call_index if call_index is not None else ""),
-        str(source_call_id or ""),
-        str(observation_index if observation_index is not None else ""),
-        str(target_type),
-    ]
-    loc_str = ":".join(loc_parts)
-    cit_id = f"cit_{hashlib.sha256(loc_str.encode('utf-8')).hexdigest()[:16]}"
-
-    return CitationHandle(
-        citation_id=cit_id,
-        trial_id=trial_id,
-        source_document_id="main",
-        source_path=source_path,
-        source_sha256=source_sha256,
-        raw_cas_uri=actual_cas,
-        cas_uri=actual_cas,
-        ir_event_id=ir_event_id,
-        step_id=effective_step,
-        step_index=effective_step,
-        tool_call_id=tool_call_id,
-        call_index=call_index,
-        source_call_id=source_call_id,
-        observation_index=observation_index,
-        target_type=target_type,
-        content_sha256=content_sha256,
-        redaction_profile_digest=redaction_profile_digest,
-        availability="available",
-    )
 
 
 @dataclass(frozen=True)

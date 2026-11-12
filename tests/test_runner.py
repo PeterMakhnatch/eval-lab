@@ -1137,7 +1137,6 @@ def test_daytona_run_does_not_depend_on_local_docker(
     monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
     monkeypatch.setattr(runner_module, "run_harbor_process", failed)
     monkeypatch.setattr(runner_module, "tool_version", lambda _command: "0.0")
-    monkeypatch.setattr(runner_module, "git_state", lambda _root: {"commit": None, "dirty": None})
 
     with pytest.raises(ExecutionFailure) as failure:
         run_experiment(request, repo_root=tmp_path)
@@ -1391,11 +1390,6 @@ def test_staging_cleaned_up_after_success(
     monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
     monkeypatch.setattr(runner_module, "run_harbor_process", completed)
     monkeypatch.setattr(runner_module, "tool_version", lambda _command: "0.0")
-    monkeypatch.setattr(
-        runner_module,
-        "git_state",
-        lambda _root: {"commit": None, "dirty": None},
-    )
 
     job_dir = run_experiment(request, repo_root=tmp_path)
 
@@ -1450,7 +1444,6 @@ def test_read_only_task_store_stages_and_cleans_up(
     monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
     monkeypatch.setattr(runner_module, "run_harbor_process", completed)
     monkeypatch.setattr(runner_module, "tool_version", lambda _command: "0.0")
-    monkeypatch.setattr(runner_module, "git_state", lambda _root: {"commit": None, "dirty": None})
 
     run_experiment(request, repo_root=tmp_path)
 
@@ -1495,11 +1488,6 @@ def test_staging_cleaned_up_after_harbor_failure(
         lambda _request, _before, job_dir: cleaned.append(job_dir) or None,
     )
     monkeypatch.setattr(runner_module, "tool_version", lambda _command: "0.0")
-    monkeypatch.setattr(
-        runner_module,
-        "git_state",
-        lambda _root: {"commit": None, "dirty": None},
-    )
 
     with pytest.raises(ExecutionFailure, match="Harbor exited with 1"):
         run_experiment(request, repo_root=tmp_path)
@@ -1760,9 +1748,6 @@ def test_oracle_daytona_without_repeat_has_bounded_env_but_no_verifier_flags(
     assert command[command.index("--environment-kwarg") + 1] == "ttl_minutes=40"
     assert "--verifier" not in command
     assert "--verifier-kwarg" not in command
-
-
-
 
 
 def test_nop_daytona_storage_override_build_command(tmp_path: Path) -> None:

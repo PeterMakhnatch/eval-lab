@@ -26,7 +26,6 @@ import hashlib
 import importlib
 import importlib.util
 import json
-import math
 import os
 import socket
 import subprocess
@@ -53,7 +52,6 @@ from evallab.execution_contracts import (
     TERMINUS_PROXY_URL_ENV,
     ProxyTrialLimits,
     RunRequest,
-    mimo_selfhosted_trial_cost_usd,
     parse_mimo_selfhosted_model,
     validate_request,
 )
@@ -1446,30 +1444,6 @@ def test_mimo_probe_requires_key_and_upstream() -> None:
         ).ok
         is True
     )
-
-
-def test_mimo_trial_cost_arithmetic() -> None:
-    # Server $/h (GPU + CPU + memory) x hours / concurrency + sandbox.
-    assert mimo_selfhosted_trial_cost_usd(2.0, 1, 0.5) == pytest.approx(6.129824)
-    assert mimo_selfhosted_trial_cost_usd(1.0, 2, 0.0) == pytest.approx(1.407456)
-    assert mimo_selfhosted_trial_cost_usd(0.0, 1, 0.0) == 0.0
-
-
-@pytest.mark.parametrize(
-    "hours,concurrency,sandbox",
-    [
-        (1.0, 0, 0.0),
-        (1.0, -1, 0.0),
-        (-1.0, 1, 0.0),
-        (1.0, 1, -0.5),
-        (math.nan, 1, 0.0),
-        (1.0, 1, math.inf),
-        (1.0, True, 0.0),
-    ],
-)
-def test_mimo_trial_cost_rejects_bad_inputs(hours: float, concurrency: Any, sandbox: float) -> None:
-    with pytest.raises(ValueError):
-        mimo_selfhosted_trial_cost_usd(hours, concurrency, sandbox)
 
 
 @pytest.mark.parametrize(

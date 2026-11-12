@@ -13,13 +13,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
 
-from evallab import laminar
 from evallab.laminar import (
     SIGNAL_OPT_IN_FILTER,
     SIGNALS,
-    LaminarExporter,
     apply_signals,
     compare_signals,
     laminar_trace_uuid,
@@ -27,7 +24,7 @@ from evallab.laminar import (
 from evallab.production import trace_harness_own as own
 from evallab.production import trace_harness_tools as tools
 from evallab.production.trace_harness import HarnessOptions, HarnessRun
-from evallab.readers import laminar_import, laminar_signals
+from evallab.readers import laminar_signals
 from evallab.trace_store import laminar_quarantine as quarantine
 from evallab.trace_store.core import trace_uuid
 from evallab.trace_store.laminar_quarantine import QuarantinedTrace
@@ -114,48 +111,6 @@ def write_trial(runs: Path, name: str) -> Path:
     return trial
 
 
-class Transport:
-    def __init__(self) -> None:
-        self.trace_ids: set[str] = set()
-
-    def __call__(self, url: str, body: bytes, headers: dict[str, str]) -> int:
-        request = ExportTraceServiceRequest()
-        request.ParseFromString(body)
-        self.trace_ids |= {
-            span.trace_id.hex()
-            for resource in request.resource_spans for scope in resource.scope_spans for span in scope.spans
-        }
-        return 200
-
-
-def test_exporter_skips_and_counts_quarantined_spans_but_exports_the_rest(
-    tmp_path: Path, quarantine_ids: Callable[..., None],
-) -> None:
-    quarantine_ids(laminar_trace_uuid("trial-q"))
-    transport = Transport()
-    exporter = LaminarExporter(
-        api_key="k", out_dir=tmp_path / "out", endpoint="http://x", transport=transport, secrets=[],
-    )
-    for name in ("trial-q", "trial-ok"):
-        exporter.sync_trial(tmp_path, write_trial(tmp_path / name, name), finished=True)
-    outcome = exporter.flush()
-    assert transport.trace_ids == {laminar.trial_trace_id("trial-ok")}
-    assert outcome["spans"] > 0 and outcome["quarantined"] > 0
-
-
-def test_import_trial_posts_nothing_for_a_quarantined_trial(
-    tmp_path: Path, quarantine_ids: Callable[..., None],
-) -> None:
-    quarantine_ids(laminar_trace_uuid("trial-q"))
-    transport = Transport()
-    outcome = laminar_import.import_trial(
-        write_trial(tmp_path / "runs", "trial-q"), api_key="k", endpoint="http://x",
-        state_dir=tmp_path / "state", transport=transport,
-    )
-    assert (outcome["spans"], transport.trace_ids) == (0, set())
-    assert outcome["quarantined"] > 0
-
-
 class Signals:
     """Read-only Laminar SQL seam: records the trace ids each query asks about."""
 
@@ -200,23 +155,6 @@ def test_signal_comparison_skips_quarantined_trials(
         runs_dirs=[runs], out_dir=tmp_path / "out", api_key="k", opener=Signals(), skipped=skipped,
     )
     assert [row["trial"] for row in rows] == ["task-ok__bbb"] and skipped == ["task-q__aaa"]
-
-
-def test_import_signal_state_never_asks_about_quarantined_traces() -> None:
-    hosted, skipped = Signals(), []
-    state = laminar_import.read_signal_state(
-        [QUARANTINED, OK_ID], {"copied_upstream_fix": "s1"}, api_key="k", opener=hosted, skipped=skipped,
-    )
-    assert state == {} and skipped == [QUARANTINED] and hosted.asked == [[OK_ID], [OK_ID]]
-
-
-def test_awaiting_only_quarantined_traces_returns_without_a_request_or_wait() -> None:
-    hosted, skipped = Signals(), []
-    state = laminar_import.await_signal_runs(
-        [QUARANTINED], {"copied_upstream_fix": "s1"}, api_key="k", opener=hosted,
-        interval_s=0, sleep=lambda _: pytest.fail("must not wait"), skipped=skipped,
-    )
-    assert state == {} and skipped == [QUARANTINED] and hosted.asked == []
 
 
 # --- harness adapters over stored ledgers ----------------------------------------------------

@@ -1,48 +1,37 @@
-"""Behavioral tests for evallab.laminar: live trial export, alert spans, Signals as code."""
+"""Behavioral tests for evallab.laminar: trace identity and Signals as code."""
 
 from __future__ import annotations
 
 import io
 import json
-import threading
-from collections.abc import Iterator
-from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from urllib.error import HTTPError
 
 import pytest
-from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
 
 from evallab import laminar as laminar_module
 from evallab.laminar import (
     LAMINAR_ENDPOINT,
     LAMINAR_ENDPOINT_ENV,
     LAMINAR_KEY_ENV,
-    MAX_VALUE_CHARS,
     SIGNALS,
-    WITHHELD,
     ZAI_BASE_URL,
     ZAI_KEY_ENV,
     ZAI_PROFILE_NAME,
     ZAI_SIGNAL_MODEL,
-    LaminarExporter,
     _json_call,
     _laminar_command,
-    _Sanitizer,
     apply_signals,
     compare_signals,
-    encode_spans,
     ensure_zai_profile,
-    exporter_from_env,
     format_comparison,
     our_verdicts,
-    step_spans,
 )
 
 TRIAL = "task-1__abc"
+
 COPY = (
     "pip download pkg==2.0 --no-deps -d /tmp/p && cd /tmp/p && unzip -o pkg-2.0-py3-none-any.whl\n"
 )
@@ -80,23 +69,6 @@ STEPS = [
 ]
 
 
-class Recorder:
-    def __init__(self) -> None:
-        self.posts: list[list[Any]] = []
-        self.fail = False
-
-    def __call__(self, url: str, body: bytes, headers: dict[str, str]) -> int:
-        assert headers["authorization"] == "Bearer k-123456789"
-        if self.fail:
-            raise OSError("unreachable")
-        request = ExportTraceServiceRequest()
-        request.ParseFromString(body)
-        self.posts.append(
-            [s for r in request.resource_spans for ss in r.scope_spans for s in ss.spans]
-        )
-        return 200
-
-
 def _write(runs: Path, steps: list[dict], result: dict | None = None) -> Path:
     trial = runs / "job" / TRIAL
     (trial / "agent").mkdir(parents=True, exist_ok=True)
@@ -104,40 +76,6 @@ def _write(runs: Path, steps: list[dict], result: dict | None = None) -> Path:
     if result is not None:
         (trial / "result.json").write_text(json.dumps(result))
     return trial
-
-
-@pytest.mark.parametrize("switch", [None, "", "off", "0", "false", "yes", "on accidentally"])
-def test_key_alone_does_not_enable_live_export(tmp_path: Path, switch: str | None) -> None:
-    environ = {"LMNR_PROJECT_API_KEY": "fixture-key"}
-    if switch is not None:
-        environ["EVALLAB_LAMINAR"] = switch
-    assert exporter_from_env(tmp_path, environ=environ) is None
-
-
-@pytest.mark.parametrize("switch", ["1", "true", "TRUE", "on", " On "])
-def test_explicit_environment_opt_in_enables_live_export(tmp_path: Path, switch: str) -> None:
-    exporter = exporter_from_env(
-        tmp_path,
-        environ={"LMNR_PROJECT_API_KEY": "fixture-key", "EVALLAB_LAMINAR": switch},
-        secrets=[],
-    )
-    assert isinstance(exporter, LaminarExporter)
-    assert exporter._url == "https://api.lmnr.ai/v1/traces"
-
-
-@pytest.mark.parametrize("switch", [None, "off"])
-def test_explicit_cli_opt_in_does_not_require_environment_switch(
-    tmp_path: Path, switch: str | None
-) -> None:
-    environ = {"LMNR_PROJECT_API_KEY": "fixture-key"}
-    if switch is not None:
-        environ["EVALLAB_LAMINAR"] = switch
-    assert isinstance(exporter_from_env(tmp_path, environ=environ, enabled=True), LaminarExporter)
-
-
-def test_explicit_opt_in_still_requires_a_key(tmp_path: Path) -> None:
-    assert exporter_from_env(tmp_path, environ={"EVALLAB_LAMINAR": "on"}) is None
-    assert exporter_from_env(tmp_path, environ={}, enabled=True) is None
 
 
 def test_apply_signals_creates_missing_and_patches_existing() -> None:
@@ -237,185 +175,6 @@ def test_byok_route_is_sent_with_every_signal() -> None:
 def no_laminar_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (LAMINAR_KEY_ENV, LAMINAR_ENDPOINT_ENV, ZAI_KEY_ENV):
         monkeypatch.delenv(name, raising=False)
-
-
-@contextmanager
-def _localhost(status: int, received: list[bytes], headers: list[dict[str, str]]) -> Iterator[str]:
-    """A one-route HTTP server on 127.0.0.1, so the default transport is exercised for real."""
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_POST(self) -> None:  # noqa: N802 - http.server naming
-            received.append(self.rfile.read(int(self.headers.get("Content-Length") or 0)))
-            headers.append({key.lower(): value for key, value in self.headers.items()})
-            self.send_response(status)
-            self.end_headers()
-
-        def log_message(self, *_args: Any) -> None:
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_port}"
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
-
-
-def test_invalid_step_timestamp_reuses_the_previous_step_time() -> None:
-    steps = [
-        {
-            "step_id": "1",
-            "timestamp": "2026-10-05T10:00:00+00:00",
-            "source": "user",
-            "message": "fix it",
-        },
-        {"step_id": "2", "timestamp": "not-a-timestamp", "source": "user", "message": "later"},
-    ]
-    spans = step_spans(TRIAL, steps, final=True, clean=str, fallback_ns=1_000)
-    first, second = spans
-    assert second["start_ns"] == first["start_ns"] == 1_791_194_400 * 10**9
-
-
-def test_sanitizer_withholds_pattern_secrets_and_clips_long_values() -> None:
-    clean = _Sanitizer([])
-    assert clean("ghp_" + "A" * 24) == WITHHELD
-    assert clean.withheld == 1
-    clipped = clean("z" * (MAX_VALUE_CHARS + 10))
-    assert clipped.endswith("<<evallab: clipped 10 chars>>")
-    assert len(clipped) < MAX_VALUE_CHARS + 100
-    assert clean({"flag": True}) == '{"flag": true}'
-
-
-def test_tool_output_ignores_foreign_and_non_dict_observation_results() -> None:
-    step = _step(2, "ls\n", "ignored")
-    step["tool_calls"] = [
-        {
-            "tool_call_id": "c2",
-            "function_name": "bash_command",
-            "arguments": {"keystrokes": "ls\n"},
-        },
-        {
-            "tool_call_id": "c3",
-            "function_name": "bash_command",
-            "arguments": {"keystrokes": "cat\n"},
-        },
-    ]
-    step["observation"] = {
-        "results": [
-            None,
-            {"source_call_id": "c-other", "content": "FOREIGN"},
-            {"content": "CALLED"},
-        ]
-    }
-    spans = step_spans(TRIAL, [step], final=True, clean=str, fallback_ns=1_000)
-    tools = [span for span in spans if span["attributes"].get("lmnr.span.type") == "TOOL"]
-    assert [span["attributes"]["lmnr.span.output"] for span in tools] == ["CALLED", "CALLED"]
-
-
-def test_non_dict_observation_text_is_empty() -> None:
-    step = _step(2, "ls\n", "")
-    step["observation"] = "raw text"
-    spans = step_spans(TRIAL, [step], final=True, clean=str, fallback_ns=1_000)
-    tool = next(span for span in spans if span["attributes"].get("lmnr.span.type") == "TOOL")
-    assert tool["attributes"]["lmnr.span.output"] == ""
-
-
-def test_attribute_values_keep_bool_int_float_and_string_arrays() -> None:
-    encoded = encode_spans(
-        [
-            {
-                "trace_id": "ab" * 16,
-                "span_id": "cd" * 8,
-                "parent_id": None,
-                "name": "values",
-                "start_ns": 1,
-                "end_ns": 2,
-                "attributes": {"flag": True, "count": 3, "ratio": 0.5, "tags": ["a", "b"]},
-                "events": [],
-                "error": None,
-            }
-        ]
-    )
-    request = ExportTraceServiceRequest.FromString(encoded)
-    span = next(
-        span
-        for resource in request.resource_spans
-        for scope in resource.scope_spans
-        for span in scope.spans
-    )
-    values = {attribute.key: attribute.value for attribute in span.attributes}
-    assert values["flag"].WhichOneof("value") == "bool_value" and values["flag"].bool_value is True
-    assert values["count"].int_value == 3
-    assert values["ratio"].double_value == 0.5
-    assert [item.string_value for item in values["tags"].array_value.values] == ["a", "b"]
-
-
-def test_default_transport_posts_otlp_to_the_configured_endpoint(tmp_path: Path) -> None:
-    runs, received, headers = tmp_path / "runs", [], []
-    trial = _write(runs, STEPS, {"finished_at": "2026-10-05T10:01:00+00:00"})
-    with _localhost(200, received, headers) as url:
-        exporter = LaminarExporter(
-            api_key="k-123456789", out_dir=tmp_path / "out", endpoint=url, secrets=[]
-        )
-        exporter.sync_trial(runs / "job", trial, finished=True)
-        outcome = exporter.flush()
-    assert outcome["ok"] is True
-    assert headers[0]["authorization"] == "Bearer k-123456789"
-    assert headers[0]["content-type"] == "application/x-protobuf"
-    request = ExportTraceServiceRequest.FromString(b"".join(received))
-    names = {
-        span.name
-        for resource in request.resource_spans
-        for scope in resource.scope_spans
-        for span in scope.spans
-    }
-    assert {"turn 2", "turn 3", "turn 4", "harbor.trial"} <= names
-
-
-def test_default_transport_reports_an_http_error_without_raising(tmp_path: Path) -> None:
-    runs, received, headers = tmp_path / "runs", [], []
-    trial = _write(runs, STEPS, {"finished_at": "2026-10-05T10:01:00+00:00"})
-    with _localhost(503, received, headers) as url:
-        exporter = LaminarExporter(
-            api_key="k-123456789", out_dir=tmp_path / "out", endpoint=url, secrets=[]
-        )
-        exporter.sync_trial(runs / "job", trial, finished=True)
-        outcome = exporter.flush()
-    assert outcome["ok"] is False and outcome["error"] == "HTTP 503"
-    assert received, "the transport must send the encoded spans before reporting the failure"
-
-
-def test_fleet_and_unscoped_alerts_never_become_spans(tmp_path: Path) -> None:
-    rec = Recorder()
-    exporter = LaminarExporter(
-        api_key="k-123456789",
-        out_dir=tmp_path / "out",
-        endpoint="http://x",
-        transport=rec,
-        secrets=[],
-    )
-    exporter.sync_alerts(
-        [
-            {"rule": "fleet_spike", "scope": "fleet", "trial": TRIAL},
-            {"rule": "no_trial", "scope": "trial"},
-        ]
-    )
-    outcome = exporter.flush()
-    assert outcome["spans"] == 0 and not rec.posts
-
-
-def test_state_write_failure_never_raises(tmp_path: Path) -> None:
-    blocked = tmp_path / "blocked"
-    blocked.write_text("not a directory")
-    rec = Recorder()
-    exporter = LaminarExporter(
-        api_key="k-123456789", out_dir=blocked, endpoint="http://x", transport=rec, secrets=[]
-    )
-    exporter.sync_alerts([{"rule": "fetch_attempt", "trial": TRIAL}])
-    assert exporter.flush()["ok"] is True and rec.posts
 
 
 def test_json_call_maps_http_errors_to_a_runtime_error() -> None:
@@ -616,14 +375,3 @@ def test_laminar_compare_writes_the_table_and_resolves_paths(
         assert "skipped 1 quarantined trial(s)" in captured.err
     else:
         assert "quarantined" not in captured.err
-
-
-def test_laminar_parser_registers_signals_and_compare() -> None:
-    from evallab.cli import parser as cli_parser
-
-    parser = cli_parser()
-    signals = parser.parse_args(["laminar", "signals", "--byok-zai"])
-    assert signals.laminar_action == "signals" and signals.byok_zai is True
-    assert signals.func is _laminar_command
-    with pytest.raises(SystemExit):
-        parser.parse_args(["laminar"])  # an action is required

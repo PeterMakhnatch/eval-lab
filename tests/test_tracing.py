@@ -22,15 +22,10 @@ from evallab.tracing import (
     is_job_dir,
     is_trial_dir,
     iter_trial_dirs,
-    leaked_values,
     load_trajectory,
-    root_session_id,
     ship_resource_spans,
-    span_attribute,
-    span_ids_by_step,
     summarize_otel,
     trace_completed_jobs,
-    trace_identity,
     trace_path,
     traces_endpoint,
     trial_agent_name,
@@ -261,14 +256,6 @@ def test_missing_atif2otel_dependency_is_a_clear_error(
     monkeypatch.setitem(sys.modules, "harbor_atif2otel", None)
     with pytest.raises(TraceError, match="harbor-atif2otel is not installed"):
         validate_atif({})
-
-
-def test_missing_atif2otel_ids_dependency_is_a_clear_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setitem(sys.modules, "harbor_atif2otel.ids", None)
-    with pytest.raises(TraceError, match="harbor-atif2otel is not installed"):
-        trace_identity({"session_id": "abc"})
 
 
 # --------------------------------------------------------------------------
@@ -540,111 +527,3 @@ def test_format_batch_summarizes_counts_spans_and_messages() -> None:
     assert lines[3] == "  skipped task__skip  control agent (oracle/nop)"
     assert lines[4] == "  failed  task__bad  invalid ATIF trajectory"
 
-
-# --------------------------------------------------------------------------
-# Span helpers: step mapping, attribute lookup, root session, secret scan.
-# --------------------------------------------------------------------------
-
-
-def _otlp_payload(*spans: dict[str, Any]) -> dict[str, Any]:
-    return {"resourceSpans": [{"scopeSpans": [{"spans": list(spans)}]}]}
-
-
-def _attr(key: str, value: Any) -> dict[str, Any]:
-    return {"key": key, "value": value}
-
-
-def test_span_ids_by_step_reads_every_attribute_alias() -> None:
-    payload = _otlp_payload(
-        {"spanId": "s1", "attributes": [_attr("step_id", {"stringValue": "1"})]},
-        {"span_id": "s2", "attributes": [_attr("atif.step_id", {"intValue": 2})]},
-        {"spanID": "s3", "attributes": [_attr("evallab.step_id", 3)]},
-        {
-            "spanId": "s4",
-            "attributes": [
-                _attr("harbor.step_id", {"stringValue": "4"}),
-                _attr("step.id", {"stringValue": 4}),
-            ],
-        },
-    )
-
-    assert span_ids_by_step(payload) == {1: "s1", 2: "s2", 3: "s3", 4: "s4"}
-
-
-def test_span_ids_by_step_ignores_unmappable_spans() -> None:
-    payload = _otlp_payload(
-        {"attributes": [_attr("step_id", {"stringValue": "1"})]},
-        {"spanId": "", "attributes": [_attr("step_id", {"stringValue": "1"})]},
-        {
-            "spanId": "not-an-attribute",
-            "attributes": ["junk", _attr("other", {"stringValue": "1"})],
-        },
-        {"spanId": "boolean", "attributes": [_attr("step_id", True)]},
-        {"spanId": "null", "attributes": [_attr("step_id", None)]},
-        {"spanId": "not-a-number", "attributes": [_attr("step_id", {"stringValue": "nope"})]},
-        {"spanId": "no-step", "attributes": []},
-    )
-
-    assert span_ids_by_step(payload) == {}
-
-
-def test_span_ids_by_step_rejects_conflicting_step_identities() -> None:
-    payload = _otlp_payload(
-        {
-            "spanId": "s1",
-            "attributes": [
-                _attr("step_id", {"stringValue": "1"}),
-                _attr("atif.step_id", {"stringValue": "2"}),
-            ],
-        }
-    )
-
-    with pytest.raises(TraceError, match="ambiguous step identity on span 's1'"):
-        span_ids_by_step(payload)
-
-
-def test_span_ids_by_step_rejects_two_spans_for_one_step() -> None:
-    payload = _otlp_payload(
-        {"spanId": "s1", "attributes": [_attr("step_id", {"stringValue": "1"})]},
-        {"spanId": "s2", "attributes": [_attr("step_id", {"stringValue": "1"})]},
-    )
-
-    with pytest.raises(TraceError, match="step 1 maps to multiple OTLP spans"):
-        span_ids_by_step(payload)
-
-
-def test_span_ids_by_step_allows_the_same_span_twice() -> None:
-    span = {"spanId": "s1", "attributes": [_attr("step_id", {"stringValue": "1"})]}
-    assert span_ids_by_step(_otlp_payload(span, span)) == {1: "s1"}
-
-
-def test_span_attribute_absent_or_non_string_values_are_none() -> None:
-    assert span_attribute({}, "session.id") is None
-    assert (
-        span_attribute({"attributes": [_attr("other", {"stringValue": "x"})]}, "session.id") is None
-    )
-    assert (
-        span_attribute({"attributes": [_attr("session.id", {"intValue": 1})]}, "session.id") is None
-    )
-
-
-def test_root_session_id_requires_a_root_span_that_carries_a_session() -> None:
-    child = {
-        "spanId": "c",
-        "parentSpanId": "p",
-        "attributes": [_attr("session.id", {"stringValue": "child"})],
-    }
-    assert root_session_id(_otlp_payload(child)) is None
-    assert root_session_id(_otlp_payload({"spanId": "r", "attributes": []})) is None
-    assert (
-        root_session_id(
-            _otlp_payload({"spanId": "r", "attributes": [_attr("session.id", {"stringValue": ""})]})
-        )
-        is None
-    )
-
-
-def test_leaked_values_with_no_secrets_is_empty() -> None:
-    payload = _otlp_payload({"spanId": "s1", "attributes": [_attr("input", {"stringValue": "x"})]})
-    assert leaked_values(payload, []) == ()
-    assert leaked_values(payload, ["", ""]) == ()

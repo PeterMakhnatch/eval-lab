@@ -26,14 +26,19 @@ latest build without re-embedding.
 from __future__ import annotations
 
 import argparse
+import dataclasses
+import hashlib
 import json
 import math
 import os
 import random
 import re
 import time
+import urllib.error
+import urllib.request
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -57,12 +62,6 @@ _STOP_WORDS = frozenset((
 Cluster = dict[str, Any]
 SparseVector = list[tuple[int, float]]
 Namer = Callable[[list[str]], str]
-
-import hashlib
-import urllib.error
-import urllib.request
-from dataclasses import dataclass, field
-
 
 @dataclass(frozen=True)
 class HashingEmbedder:
@@ -107,7 +106,7 @@ class OpenAICompatibleEmbedder:
     dim: int
     normalization: str = "l2"
     timeout_seconds: float = 60.0
-    api_key: str | None = field(default=None, repr=False, compare=False)
+    api_key: str | None = dataclasses.field(default=None, repr=False, compare=False)
     identity: str = "openai-compatible"
 
     @property

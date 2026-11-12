@@ -446,10 +446,7 @@ def build_status_snapshot(
         postgres_ok = probe_postgres(postgres_url)
     else:
         postgres_ok = False
-    if phoenix_probe is not None:
-        phoenix_ok = phoenix_probe()
-    else:
-        phoenix_ok = False
+    phoenix_ok = phoenix_probe() if phoenix_probe is not None else False
     queue_present = layout.queue_root.is_dir()
     entries = _queue_entries(layout.queue_root)
     jobs, malformed_jobs = _load_jobs(layout.job_roots)

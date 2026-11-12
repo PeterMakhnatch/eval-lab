@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 from evallab.trial_diagnosis import (
     diagnose_trial,
     sanitize_excerpt,

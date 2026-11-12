@@ -1,11 +1,8 @@
 # `peter/sheet-recalc-cutoff`
 
-The harder sibling of [`../sheet-recalc`](../sheet-recalc/): same engine, same
-API, plus **early cutoff**. A cell is only re-evaluated when its value could
-actually change: it was edited, it just left a cycle, or one of the cells it
-reads changed value. Unchanged results stop propagation, which is what makes an
-incremental engine fast on real sheets and what most first implementations get
-wrong.
+This task extends [`sheet-recalc`](../sheet-recalc/) with an exact early-cutoff contract.
+The agent repairs incremental recalculation so unchanged cell values stop propagation.
+Cells must still evaluate after edits, cycle exits, or changes to values they read.
 
 See [instruction.md](instruction.md) for the agent-visible contract.
 
@@ -34,9 +31,17 @@ task needs none). The agent sees `/app/sheet`, `/app/tests` and
 [instruction.md](instruction.md). Run the visible tests with
 `cd /app && python -m pytest -q tests`.
 
+The agent image builds from `environment/Dockerfile`.
+`task.toml` does not set `storage_mb`; it sets no package-specific storage limit.
+
 ## Verifier
 
-Same structure as `../sheet-recalc`, with 24 tests:
+The verifier image builds from `tests/Dockerfile`, using `ubuntu:24.04`.
+Harbor transfers only the declared `/app/sheet` artifact.
+The verifier uses only its `engine.py`, not the submitted formula parser or tests.
+The verifier timeout is 900 seconds.
+
+The verifier uses the same structure as `../sheet-recalc`, with 24 tests:
 
 - `environment_mode = "separate"`; the submission never enters the pytest
   process. It runs as `nobody` in a scratch package with the grader's pristine
@@ -52,6 +57,12 @@ Same structure as `../sheet-recalc`, with 24 tests:
   remaining input stays `#CYCLE`, `set_many` change detection across a batch,
   the 10,000-cell chain, wide fan-out, and six seeds × 300 randomized operations
   biased toward formulas whose value survives an input change.
+
+`tests/test.sh` runs isolated pytest and writes `/logs/verifier/reward.txt`.
+It requests `/logs/verifier/ctrf.json` when pytest runs.
+Missing or symlinked `engine.py` files receive reward `0` before pytest starts.
+All checks must pass for reward `1`; otherwise reward is `0`.
+Expected rewards are `1` for Oracle and `0` for nop.
 
 ## Controls
 
@@ -96,3 +107,34 @@ the [research archive](../../../research/ARCHIVE.md) row
   slow but exactly-once implementation passes on the 10,000-cell chain.
 - Only the scripted exploit channels above are measured. The verifier has not
   been mutation-tested.
+
+## Layout
+
+```text
+README.md                    Package documentation and retained control evidence
+instruction.md               Agent-visible recalculation and early-cutoff contract
+task.toml                    Task name, limits, and /app/sheet artifact boundary
+environment/                 Agent image and visible starter files
+  Dockerfile                 Python image with pytest
+  sheet/                     Spreadsheet package with the engine to repair
+  tests/test_engine.py        Visible smoke tests including cutoff behavior
+solution/                    Oracle reference implementation
+  solve.sh                   Installs the reference engine
+  engine.py                  Incremental recalculation with early cutoff
+tests/                       Separate trusted verifier build context
+  Dockerfile                 Ubuntu image with Python and isolated test files
+  test.sh                    Runs pytest and writes reward and CTRF files
+  test_sheet.py              Independent oracle and early-cutoff checks
+  runner.py                  Unprivileged submitted-engine driver
+  sheet_formula.py           Trusted formula parser and evaluator
+controls/                    Valid alternative, partial answers, and gaming probes
+```
+
+## Run
+
+```bash
+uv run evallab run --task library/tasks/sheet-recalc-cutoff --agent oracle --name sheet-recalc-cutoff-oracle
+uv run evallab run --task library/tasks/sheet-recalc-cutoff --agent nop --name sheet-recalc-cutoff-nop
+```
+
+Expected rewards are `1` for Oracle and `0` for nop.

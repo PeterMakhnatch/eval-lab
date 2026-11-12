@@ -30,7 +30,7 @@ not an independent upstream/license attestation. This repository copy retains
 the source limitation. No third-party license grant, registry admission or
 external dataset publication follows from a code repair.
 
-## Environment and fixture
+## Environment
 
 Ubuntu 24.04 provides Git and standard tools, with one CPU, 1024 MB RAM, and a
 600-second agent timeout. The local checkout is `/workspace/release`; its offline
@@ -48,9 +48,13 @@ enforced offline sandbox; image builds fetch packages. Tests, reference solution
 and controls are outside the environment build context. The build script is
 removed from the final agent image after constructing the fixture.
 
+`environment/Dockerfile` builds from `ubuntu:24.04`.
+`task.toml` does not set `storage_mb`; it sets no package-specific storage limit.
+
 ## Verifier
 
-`environment_mode = "separate"` builds a fresh verifier image from `tests/`.
+`environment_mode = "separate"` builds a fresh Ubuntu 24.04 verifier image from
+`tests/Dockerfile`. The verifier timeout is 120 seconds.
 Harbor transfers `/workspace/release` (including `.git`) and `/srv/origin.git`.
 Before any repository-aware Git command, the verifier constructs its own temporary
 repository view. Only regular worktree files, Git objects, refs, HEAD, packed refs,
@@ -84,9 +88,12 @@ and rebasing the recovered changes are accepted when those invariants hold.
 A clean-looking tree alone, an ours-strategy merge, pushing upstream, or tagging
 the new integration commit instead of the lost tip is insufficient.
 
-Every pytest check must pass for reward 1; otherwise reward is 0. Outputs include
-`/logs/verifier/reward.txt` and `ctrf.json`. These checks and controls are bounded
-evidence, not a proof against all hostile repositories or reward gaming.
+Every pytest check must pass for reward `1`; otherwise reward is `0`.
+`tests/test.sh` writes `/logs/verifier/reward.txt` and requests the pytest report
+at `/logs/verifier/ctrf.json`. Artifact preflight failures write only the reward.
+Expected rewards are `1` for Oracle and `0` for nop.
+These checks and controls are bounded evidence, not a proof against all hostile
+repositories or reward gaming.
 
 ## Control matrix
 
@@ -147,10 +154,13 @@ On 2026-09-11, local Docker with Harbor **0.21.0** produced:
 | `release-branch-rescue-lib-matrix-oracle-20260911` | 1.0 |
 | `release-branch-rescue-lib-matrix-nop-20260911` | 0.0 |
 
+The recorded matrix command is
+`uv run evallab matrix research/experiments/release-branch-rescue-local-controls.json`.
+The direct oracle and nop commands were:
+
 ```bash
 uv run evallab run --task library/tasks/release-branch-rescue --agent oracle --name release-branch-rescue-lib-oracle-20260911 --jobs-dir runs
 uv run evallab run --task library/tasks/release-branch-rescue --agent nop --name release-branch-rescue-lib-nop-20260911 --jobs-dir runs
-uv run evallab matrix research/experiments/release-branch-rescue-local-controls.json
 ```
 
 The matrix invocation passed both expectations without extra CLI flags.
@@ -182,3 +192,30 @@ HAR-51 addresses Git configuration callbacks only. Native Git object/index
 parsers and resource-exhaustion attacks are not comprehensively qualified.
 The separate **nginx submitted-module execution boundary remains unresolved**;
 this change does not qualify or merge the whole held PR415.
+
+## Layout
+
+```text
+README.md                    Package documentation and retained control evidence
+instruction.md               Agent-visible Git recovery contract
+task.toml                    Task name, limits, and repository artifacts
+environment/                 Agent image and fixture build context
+  Dockerfile                 Ubuntu image with Git and standard tools
+  build_fixture.sh           Builds the reset checkout and divergent upstream
+solution/                    Oracle reference solution
+  solve.sh                   Recovers L2, merges upstream, and restores tracking
+tests/                       Separate trusted verifier build context
+  Dockerfile                 Ubuntu image with Git, Python, and pytest
+  test.sh                    Isolates pytest and writes reward and CTRF files
+  test_rescue.py             Repository provenance, tree, and tracking checks
+controls/                    Valid alternatives, partial answers, and gaming probes
+```
+
+## Run
+
+```bash
+uv run evallab run --task library/tasks/release-branch-rescue --agent oracle --name release-branch-rescue-oracle
+uv run evallab run --task library/tasks/release-branch-rescue --agent nop --name release-branch-rescue-nop
+```
+
+Expected rewards are `1` for Oracle and `0` for nop.

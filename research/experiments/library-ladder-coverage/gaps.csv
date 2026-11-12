@@ -4,11 +4,11 @@ library/tasks/experimental/deepplanning-v1/travel-lisbon-002,1.4.0,no-cells,4.0.
 library/tasks/experimental/deepplanning-v1/travel-lisbon-002,2.0.0,no-cells,4.0.0
 library/tasks/experimental/deepplanning-v1/travel-lisbon-002,3.0.0,no-cells,4.0.0
 library/tasks/experimental/syn-funcdag-easy,3.0.0,no-cells,4.0.0
-library/tasks/experimental/syn-funcdag-hard,3.0.0,no-cells,4.0.0
-library/tasks/experimental/syn-funcdag-medium,3.0.0,no-cells,4.0.0
+library/tasks/experimental/syn-funcdag-hard,3.0.0,no-cells,
+library/tasks/experimental/syn-funcdag-medium,3.0.0,no-cells,
 library/tasks/query-optimize,3.0.0,no-cells,
 library/tasks/query-optimize,4.0.0,no-cells,
-library/tasks/release-branch-rescue,3.0.0,no-cells,4.0.0
+library/tasks/release-branch-rescue,3.0.0,no-cells,
 library/tasks/sheet-recalc,1.4.0,no-cells,
 library/tasks/sheet-recalc,2.0.0,no-cells,
 library/tasks/sheet-recalc-cutoff,1.4.0,no-cells,

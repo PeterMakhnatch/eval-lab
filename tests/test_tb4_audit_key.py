@@ -508,52 +508,6 @@ def test_postload_mutation_is_rejected_on_the_next_call(tmp_path: Path) -> None:
         tools.run("grep", {"path": ".", "pattern": "square"})
 
 
-def test_pr_comment_links_are_not_concrete_issue_reports() -> None:
-    sys.path.insert(0, str(KEY))
-    try:
-        spec = importlib.util.spec_from_file_location(
-            "tb4_audit_sources", KEY / "auditor_sources.py"
-        )
-        assert spec is not None and spec.loader is not None
-        sources = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(sources)
-    finally:
-        sys.path.remove(str(KEY))
-    base = "https://github.com/harbor-framework/terminal-bench"
-    row = {
-        "github_issue_numbers": [1972, 1645],
-        "github_refs": [
-            {
-                "number": 1972,
-                "where": "sources",
-                "kind": "issue",
-                "href": f"{base}/issues/1972#issuecomment-123",
-            },
-            {
-                "number": 1980,
-                "where": "sources",
-                "kind": "issue",
-                "href": f"{base}/pull/1980#discussion_r9",
-            },
-            {
-                "number": 1981,
-                "where": "upstream",
-                "kind": "issue",
-                "href": f"{base}/pull/1981#pullrequestreview-7",
-            },
-            {"number": 1645, "where": "sources", "kind": "issue", "href": f"{base}/issues/1645"},
-        ],
-    }
-    assert sources._finding_issue_refs(row) == ({1645}, set())
-    for finding in SOURCE["findings"]:
-        if any(
-            r.get("kind") == "comment_on_pr" and r["number"] == 1972 for r in finding["github_refs"]
-        ):
-            assert 1972 not in finding["auditor_evidence"]["github_issue_numbers_concrete"]
-    items = [json.loads(line) for line in (KEY / "items.jsonl").read_text().splitlines()]
-    assert not any(1972 in i["auditor_evidence"]["github_issue_numbers_concrete"] for i in items)
-
-
 def _stratum_counts(rows: list[dict]) -> dict[str, dict[str, int]]:
     """Per split/stratum row counts, the shape ``summary.json`` reports."""
     return {

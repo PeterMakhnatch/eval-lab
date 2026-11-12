@@ -8,10 +8,11 @@ regenerated table. The point is the gap list: which packages never saw
 `3.0.0`/`4.0.0`, which cells errored, and which ran on bytes no receipt can
 bind to the package's current content.
 
-Reproduce (repo root; the digest helper is evallab's, so the locked project
-environment is required):
+The builder and its dedicated tests are archived in `archive/pre-round3-2026-11-12`.
+The evidence tables remain. Restore the builder before using these historical commands:
 
 ```bash
+git checkout archive/pre-round3-2026-11-12 -- research/experiments/library-ladder-coverage/build.py
 uv run python research/experiments/library-ladder-coverage/build.py --check   # exit 0 = no drift
 uv run python research/experiments/library-ladder-coverage/build.py           # rewrite coverage.csv
 ```

@@ -1520,10 +1520,11 @@ store directory is recoverable from Git plus the parent package alone.
 MiMo code tasks run `environment/setup/setup.sh` from a gzip+base64 tar
 embedded in `task.toml`'s `[environment.healthcheck]` command, not from the
 files on disk, so a setup change must re-embed that payload in the same
-variant. `research/experiments/har105-exploration/setup_payload.py` encodes
-it byte for byte as the adapter does (`gzip.GzipFile` with `mtime=0` and an
-empty filename; `gzip.compress` stamps a different OS byte on macOS) and
-checks that the on-disk setup reproduces the embedded one before a change.
+variant. The archived utility
+`research/experiments/har105-exploration/setup_payload.py` encodes it byte for
+byte as the adapter does (`gzip.GzipFile` with `mtime=0` and an empty filename).
+It checks that the on-disk setup reproduces the embedded one before a change.
+Restore the utility from `archive/pre-round3-2026-11-12`.
 
 ### Setup-only Python lookup repairs
 
@@ -1952,7 +1953,8 @@ one release and PyPI is open but no dated upstream fix was found; `git_only`
 when a repo is known and no release followed the fix (the note says whether
 git hosts are blocked, and that a root agent can rewrite `/etc/hosts`);
 `none_found`; `unknown` when the blocklist or the pypi.json entry is missing.
-`leak_check.py` knows a task's repo from the split group, from the matched
+`leak_check.py` is archived in `archive/pre-round3-2026-11-12`.
+The historical script identifies a task's repo from the split group, from the matched
 PyPI project's GitHub URL, or, when neither names one, from a GitHub-wide
 search for the task title that finds an exactly matching issue or PR title in
 exactly one repo (`repo_source` `issue_title`); that repo then gets the same

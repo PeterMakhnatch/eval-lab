@@ -1,4 +1,4 @@
-"""Deterministic unit tests for ov1104-judges (views, prompts, reply parser, signals, stability, scorer)."""
+"""Deterministic tests for retained ov1104-judges views, prompts, parser, signals, and scorer."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ import judge  # noqa: E402
 import prompts  # noqa: E402
 import score_local  # noqa: E402
 import signals  # noqa: E402
-import stability  # noqa: E402
 import views  # noqa: E402
 
 
@@ -131,21 +130,6 @@ def test_batch_loading_and_split_filter(tmp_path: Path) -> None:
     )
     assert signals.split_filter(runs, "dev") == {"k:a", "k:shared"}
     assert signals.split_filter(runs, "dev,heldout") == {"k:a", "k:b", "k:shared"}
-
-
-def test_stability_spearman_and_wilson(tmp_path: Path) -> None:
-    for name, scores in [("a", [0.0, 10.0, 80.0, 90.0]), ("b", [0.0, 12.0, 75.0, 95.0])]:
-        rdir = tmp_path / name / "results"
-        rdir.mkdir(parents=True)
-        for idx, sc in enumerate(scores):
-            (rdir / f"r{idx}.json").write_text(json.dumps({"run_key": f"k:{idx}", "score": sc}))
-    a = stability.load(tmp_path / "a")
-    b = stability.load(tmp_path / "b")
-    xs = [a[f"k:{i}"] for i in range(4)]
-    ys = [b[f"k:{i}"] for i in range(4)]
-    assert abs(stability.spearman(xs, ys) - 1.0) < 1e-9  # type: ignore[arg-type]
-    lo, hi = stability.wilson(4, 4)
-    assert 0.5 < lo <= 1.0 and hi == 1.0
 
 
 def test_score_local_auroc_and_threshold() -> None:

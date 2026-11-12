@@ -290,8 +290,9 @@ for manual triage. Absent reference fixes are explicit not-applicable
 oracle cells, never fabricated oracle passes. These are control coverage
 counts, not a full-ladder acceptance result.
 
-[resume_controls.py](resume_controls.py) is the retained **controls-only**
-driver. It cannot select custom agents or execute attack/probe scripts.
+`resume_controls.py` is archived in `archive/pre-round3-2026-11-12`.
+It is the historical **controls-only** driver.
+It cannot select custom agents or execute attack/probe scripts.
 It reuses scored positive **or negative** cells only at the exact
 `task_id + full final_digest + agent`, requiring three reward values,
 three case-proof flags, no repeat errors, and no native trial exception.
@@ -315,10 +316,11 @@ rather than killing a CLI and risking orphan containers. Oracle and nop
 release FIFO separately; rewards and active/queue times are journaled
 after each cell, making partial pairs resumable.
 
-From an isolated current-main worktree, with the exact packages already
-derived in the shared read-only task store:
+Restore the driver before using the historical command below.
+Use an isolated worktree with the exact packages in the shared read-only task store.
 
 ```bash
+git checkout archive/pre-round3-2026-11-12 -- research/experiments/mimo-clean-v6/resume_controls.py
 export EVALLAB_STATE_JOURNAL=off
 uv run --extra laminar python research/experiments/mimo-clean-v6/resume_controls.py \
   --package-root "$HOME/Developer/eval-lab" \

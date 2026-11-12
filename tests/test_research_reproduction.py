@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import sys
 from pathlib import Path
 from types import ModuleType
 
@@ -17,34 +16,6 @@ def _load_script(relative: str, name: str) -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-@pytest.mark.parametrize("archived", [False, True])
-def test_census_includes_retained_har115_jobs_from_clean_checkout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, archived: bool
-) -> None:
-    home = tmp_path / "home"
-    checkout = tmp_path / "lab" / ".worktrees" / "analysis"
-    checkout.mkdir(parents=True)
-    monkeypatch.setenv("HOME", str(home))
-    common = ModuleType("common")
-    common.ROOT = checkout
-    common.CENSUS = checkout / "census"
-    monkeypatch.setitem(sys.modules, "common", common)
-    retained = (
-        home / ".local/share/wt-archive/eval-lab/har115-census-20261001"
-        if archived
-        else checkout.parent / "har115-census-20261001"
-    )
-    runs = retained / "runs"
-    expected = [runs / "har115-nop-000001", runs / "har115-rnop-000002-abcdef"]
-    for job in [*expected, runs / "har115-probe-000001", runs / "har115-nop-000003-hung-01"]:
-        job.mkdir(parents=True)
-    module = _load_script(
-        "research/experiments/har113-variants/census_update.py", "har132_census_fixture"
-    )
-
-    assert module.jobs() == sorted(map(str, expected))
 
 
 @pytest.mark.parametrize(

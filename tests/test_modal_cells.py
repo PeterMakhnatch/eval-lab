@@ -472,7 +472,7 @@ def test_should_2_cross_process_same_cell(tmp_path: Path) -> None:
         import os, sys, time
         from pathlib import Path
         from dataclasses import dataclass
-        from evallab.modal_cells import ReserveSettleSpendGate, ModalCellRunner, CellSpec
+        from evallab.modal_cells import ReserveSettleSpendGate, modal_cell_runner
         @dataclass
         class Obs:
             status: str
@@ -487,14 +487,14 @@ def test_should_2_cross_process_same_cell(tmp_path: Path) -> None:
                 time.sleep(0.5)
                 return Obs('executed', None, {{'reward': 1.0}})
         g = ReserveSettleSpendGate(approval='twoproc', cap_usd=1.0, spend_ledger={str(ledger)!r})
-        r = ModalCellRunner(repo_root=Path({str(tmp_path)!r}), spend_gate=g, results_dir=Path({str(results_dir)!r}), backend_factory=lambda **_: B(g))
-        r.run_cell(CellSpec(package=Path({str(pkg)!r}), variant='v', submission='same', timeout_seconds=240))
+        r = modal_cell_runner(repo_root=Path({str(tmp_path)!r}), spend_gate=g, results_dir=Path({str(results_dir)!r}), timeout_seconds=240, backend_factory=lambda **_: B(g))
+        r(Path({str(tmp_path)!r}) / "cells" / "v", Path({str(pkg)!r}), "same")
     """)
 
     p1 = subprocess.Popen([sys.executable, "-c", worker_code])
     p2 = subprocess.Popen([sys.executable, "-c", worker_code])
-    p1.wait()
-    p2.wait()
+    assert p1.wait() == 0
+    assert p2.wait() == 0
 
     calls = calls_file.read_text().strip().splitlines() if calls_file.exists() else []
     assert len(calls) == 1

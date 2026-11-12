@@ -398,7 +398,7 @@ def test_mcp_compose_validation_rejects_unauthorized_constructs():
 
 
 def test_mirror_base_runtime_accepts_same_digest_without_docker_hub():
-    mirror = f"registry.example/python:3.12.11-slim@{PINNED_BASE_IMAGE_INDEX_DIGEST}"
+    mirror = f"mirror.gcr.io/library/python:3.12.11-slim@{PINNED_BASE_IMAGE_INDEX_DIGEST}"
     runtime = validate_target_base_runtime(
         DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG, mirror
     )

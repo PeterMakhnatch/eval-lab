@@ -1,18 +1,4 @@
-"""Bounded semantic test repairs for EnvCheck verifier defects.
-
-Append-only proposals cover mutation survivors. Explicitly opted-in proposals
-may also replace a complete hidden Python test that over-constrains the prompt,
-bound to its exact preimage and an instruction quotation. All variants use
-``derive_task`` and retain ``verifier-repair@1`` lineage. Native validation
-replays the actual reference / nop / previous-survivor scripts through
-``runner.run_matrix``; accepting a prompt-valid alternate needs its own replay.
-
-Fails closed everywhere: missing reports, skips, infrastructure outcomes and
-partial rewards never certify a repair. No paid API is touched in preview
-mode; every model call is preceded by a live subscription quota check
-(weekly consumption must stay ``<= 60%``). No silent retries, no model
-fallback.
-"""
+"""Native verifier patch and command builders."""
 
 from __future__ import annotations
 
@@ -26,23 +12,9 @@ from pydantic import Field
 
 from evallab.schemas import ContractModel
 
-#: Lineage transform recorded by :func:`derive_task`.
-
 #: Models the repair proposer may address. Passed through verbatim; there is
 #: no fallback and no silent substitution.
 ALLOWED_MODELS = frozenset({"gpt-6.1-sol", "gpt-6-sol", "gpt-6-astra"})
-
-#: Weekly subscription consumption ceiling: refuse every model call above it.
-
-#: Bounds keeping a model proposal small and reviewable.
-
-#: Context truncation bounds (bytes).
-
-#: Conservative source-fingerprint and resource checks, not an OS sandbox.
-#: Proposed code executes only inside an isolated task-verifier container.
-
-#: String/bytes literals longer than this compared with ``==``/``!=``/``in``
-#: count as hardcoded reference byte checks.
 
 
 class RepairError(ValueError):
@@ -61,45 +33,6 @@ class RepairTest(ContractModel):
     #: New path inside the testbed repository, not a Harbor-package member.
     repo_path: str = Field(min_length=1, max_length=256)
     code: str = Field(min_length=1)
-
-
-#: Returns the live subscription state; injected so tests never touch auth.
-
-#: Runs one proposal turn; returns the raw model text plus usage facts.
-#: Injected so the module itself never spends.
-
-#: Grades a matrix; defaults to ``runner.run_matrix`` via the validator.
-
-#: Derives a test-only variant; defaults to ``task_variants.derive_task``.
-
-
-# --------------------------------------------------------------------------- #
-# Quota gate
-# --------------------------------------------------------------------------- #
-
-
-# --------------------------------------------------------------------------- #
-# Subscription Codex proposer (no paid-credit fallback, no retries)
-# --------------------------------------------------------------------------- #
-
-
-#: Codex CLI used for repair proposals. Resolved at call time so tests can
-#: substitute it; must be a ChatGPT-subscription login, never API-key auth.
-
-
-# --------------------------------------------------------------------------- #
-# Report intake and survivor ranking
-# --------------------------------------------------------------------------- #
-
-
-# --------------------------------------------------------------------------- #
-# Repair context and prompt
-# --------------------------------------------------------------------------- #
-
-
-# --------------------------------------------------------------------------- #
-# Proposal validation
-# --------------------------------------------------------------------------- #
 
 
 _COMMAND_FORBIDDEN = re.compile(r"[;&|`$><\n]")
@@ -197,25 +130,3 @@ def build_command_wrapper(
 
 
 _EDIT_HUNK = re.compile(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@([^\n]*)\n")
-
-
-# --------------------------------------------------------------------------- #
-# Variant derivation (test artifacts only, via existing derive_task)
-# --------------------------------------------------------------------------- #
-
-
-# --------------------------------------------------------------------------- #
-# Validation through runner.run_matrix with the existing mutant scripts
-# --------------------------------------------------------------------------- #
-
-
-# --------------------------------------------------------------------------- #
-# Orchestration
-# --------------------------------------------------------------------------- #
-
-
-# --------------------------------------------------------------------------- #
-# CLI (parent registers this parser under ``evallab hack``)
-# --------------------------------------------------------------------------- #
-
-

@@ -1390,6 +1390,7 @@ def counts_table(rows: list[dict]) -> list[tuple[Any, Any, Any, int]]:
 
 
 _PATH_TOKEN = re.compile(r"([^.\[\]]+)|\[(\d+)\]")
+RAW_SCHEMA = "cheatbench.raw_trace.v1"
 
 
 def resolve_field_path(obj: Any, path: str) -> Any:
@@ -1404,6 +1405,20 @@ def resolve_field_path(obj: Any, path: str) -> Any:
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise LookupError(f"unresolvable field path {path!r}") from exc
     return current
+
+
+def parse_raw_trace(payload: str) -> dict:
+    """Parse a serialized trace; reject a mismatched declared schema."""
+    try:
+        trace = json.loads(payload)
+    except ValueError as exc:
+        raise CheatbenchError(f"trace is not JSON: {exc}") from exc
+    if not isinstance(trace, dict):
+        raise CheatbenchError("trace payload must be a JSON object")
+    declared = trace.get("schema_version", trace.get("schema"))
+    if declared is not None and declared != RAW_SCHEMA:
+        raise CheatbenchError(f"unsupported trace schema {declared!r}")
+    return trace
 
 
 def validate_staged(trajectory: Mapping[str, Any]) -> list[str]:

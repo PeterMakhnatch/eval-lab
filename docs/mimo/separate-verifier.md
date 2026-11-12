@@ -166,7 +166,7 @@ stubs (rewritten; 9/9 in-container, then 1 under @3).
 
 ## separate-verifier@4: rootdir matching and pristine-workdir deltas (2026-10-10)
 
-`separate-verifier@4` (`TRANSFORM_ID_V4`, `build_changes_v4`,
+`separate-verifier@4` (`build_changes_v4`,
 `derive_separate_verifier_v4`, `render_wrapper_test_sh_v4` in
 `src/evallab/separate_verifier.py`; tests in
 `tests/test_separate_verifier.py`) keeps every `@3` guarantee, fixes the
@@ -192,8 +192,7 @@ the independent fix below.
 
 ### The matcher
 
-`junit_case_matches_expected(classname, name, file, expected_id)` (pure;
-`evaluate_junit_v4` wraps it with the unchanged `@3` contract):
+The verifier matches JUnit cases against expected test IDs:
 
 - Module paths align by suffix at `/` or `.` component boundaries — either
   side may carry an extra prefix (`tests/unit/test_x` ≡ `unit/test_x`).
@@ -255,9 +254,9 @@ a baked `.venv/_pytest`: honest oracle 1, nop 0, and an actual runner change
 
 ## separate-verifier@5: skip-tolerant grading and multi-phase junit union (2026-10-10)
 
-`separate-verifier@5` (`TRANSFORM_ID_V5`, `build_changes_v5`,
+`separate-verifier@5` (`build_changes_v5`,
 `derive_separate_verifier_v5`, `render_wrapper_test_sh_v5`,
-`evaluate_junit_v5`, `V5_ARCHIVE_HOOK` in
+`V5_ARCHIVE_HOOK` in
 `src/evallab/separate_verifier.py`; tests in
 `tests/test_separate_verifier.py`) keeps every `@4` guarantee and fixes two
 oracle false-0 shapes measured on exact-v3 packages (fleet census
@@ -338,8 +337,7 @@ skipped.
 ## separate-verifier@6: pristine-baseline fail-to-pass (2026-10-10)
 
 `separate-verifier@6` (`TRANSFORM_ID_V6`, `build_changes_v6`,
-`derive_separate_verifier_v6`, `render_wrapper_test_sh_v6`,
-`evaluate_junit_v6`, `evaluate_unittest_v6` in
+`derive_separate_verifier_v6`, `render_wrapper_test_sh_v6` in
 `src/evallab/separate_verifier.py`; tests in
 `tests/test_separate_verifier.py`) keeps every `@5` guarantee and closes the
 source-skip hole behaviorally. No `@2`–`@5` symbol or template byte changes,
@@ -411,9 +409,7 @@ and the unittest import-time raise fail closed.
 ## separate-verifier@7: G-shape certification (2026-10-11)
 
 `separate-verifier@7` (`TRANSFORM_ID_V7`, `build_changes_v7`,
-`derive_separate_verifier_v7`, `render_wrapper_test_sh_v7`,
-`evaluate_go_output_v7`, `evaluate_js_output_v7`, `evaluate_junit_v7`,
-`strip_ansi`, `effective_js_runner` in
+`derive_separate_verifier_v7`, `render_wrapper_test_sh_v7` in
 `src/evallab/separate_verifier.py`; tests in
 `tests/test_separate_verifier.py`) keeps every `@6` guarantee and certifies
 the 29 legitimate reference fixes the v4 census triaged as grader gaps
@@ -459,8 +455,7 @@ Files`-line alternative would certify zero passing tests.
 ## separate-verifier@8: terse reporter and dashed modules (2026-10-11)
 
 `separate-verifier@8` (`TRANSFORM_ID_V8`, `build_changes_v8`,
-`derive_separate_verifier_v8`, `render_wrapper_test_sh_v8`,
-`evaluate_js_output_v8`, `effective_js_runner_v8`, `evaluate_junit_v8` in
+`derive_separate_verifier_v8`, `render_wrapper_test_sh_v8` in
 `src/evallab/separate_verifier.py`; tests in
 `tests/test_separate_verifier.py`) keeps every `@7` guarantee and fixes
 the two shapes the v5 regrade surfaced on `@7` packages (both graded 0
@@ -484,8 +479,7 @@ changes, so their records stay valid. Ships in `mimo-clean-v5`.
 ## separate-verifier@9: skips in satisfied collection-error modules (2026-10-12)
 
 `separate-verifier@9` (`TRANSFORM_ID_V9`, `build_changes_v9`,
-`derive_separate_verifier_v9`, `render_wrapper_test_sh_v9`,
-`evaluate_junit_v9`, `_v9_skip_excused` in
+`derive_separate_verifier_v9`, `render_wrapper_test_sh_v9` in
 `src/evallab/separate_verifier.py`; tests in
 `tests/test_separate_verifier.py`, captured junits in
 `tests/fixtures/separate_verifier/001431-{baseline,agent}.xml`) keeps every
@@ -547,7 +541,7 @@ ladder threat model, as with `@7`'s module-path decoys.
 
 `separate-verifier@10` (`TRANSFORM_ID_V10`, `build_changes_v10`,
 `derive_separate_verifier_v10`, `render_wrapper_test_sh_v10`,
-`evaluate_unittest_v10`, `V10_INTEGRITY_HOOK`, `V10_UNITTEST_SHIM` in
+`V10_INTEGRITY_HOOK`, `V10_UNITTEST_SHIM` in
 `src/evallab/separate_verifier.py`; tests in
 `tests/test_separate_verifier.py`) closes the three holes Traces proved
 on canonical `@8` packages in the own-runs scan

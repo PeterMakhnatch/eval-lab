@@ -190,14 +190,6 @@ def _cascade_rows(cm6_dir: Path) -> dict[str, dict[str, Any]]:
     return rows
 
 
-def load_cascade(cm6_dir: Path) -> dict[str, bool]:
-    """Frozen cascade alarms only; callers must intersect with admitted DEV ids."""
-    return {
-        run_id: row["alarmed"] for run_id, row in _cascade_rows(cm6_dir).items()
-        if not row["excluded"]
-    }
-
-
 def _predictions(record: Mapping[str, Any]) -> dict[str, bool]:
     suspicion = record["suspicion"]
     return {

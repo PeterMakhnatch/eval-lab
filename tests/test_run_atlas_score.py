@@ -296,9 +296,6 @@ def test_label_and_cascade_loaders_preserve_dev_guards(fixture: Fixture) -> None
                                run_ids=(A, E, G, H, P, R))
     assert labels == {A: True, E: False, G: None, P: True, R: False}
     assert atlas.load_labels(database=fixture.database, repo_root=fixture.root, run_ids=[]) == {}
-    cascade = atlas.load_cascade(fixture.cm6)
-    assert cascade[A] is False and cascade[B] is True
-    assert C not in cascade and S not in cascade
     with pytest.raises(ValueError, match="TEST"):
         atlas.load_labels(database=fixture.database, repo_root=fixture.root, run_ids=[T])
 

@@ -9,7 +9,16 @@ from pathlib import Path
 import pytest
 
 from evallab import cli
-from evallab.task_lint import _build_env_scripts, _hidden_shell_blobs, lint_task
+from evallab.task_lint import _build_env_scripts, _hidden_shell_blobs, discover_tasks, lint_task
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# A shared verifier is a known, allowed warning on these two packages. The
+# hidden-inputs rule must keep every other library package error-free.
+_ALLOWED_VERIFIER_ISOLATION_WARNINGS = {
+    ("library/tasks/query-optimize/task.toml", "verifier-isolation"),
+    ("library/tasks/tau3-retail-1/task.toml", "verifier-isolation"),
+}
 
 
 @pytest.fixture
@@ -77,6 +86,42 @@ def test_separate_verifier_requires_artifacts(task: Path, capsys) -> None:
 )
 def test_hidden_verifier_inputs_cannot_enter_agent_image(task: Path, instruction: str) -> None:
     (task / "environment/Dockerfile").write_text(f"FROM python:3.12\n{instruction}\n")
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity) == ("hidden-inputs-not-baked", "error")
+
+
+def test_copy_of_existing_environment_tests_directory_is_agent_visible(task: Path) -> None:
+    (task / "environment/tests").mkdir()
+    (task / "environment/tests/test_smoke.py").write_text("def test_ok(): pass\n")
+    (task / "environment/Dockerfile").write_text(
+        "FROM python:3.12\nCOPY app/ /app\nCOPY tests /app/tests\n"
+    )
+    assert lint_task(task) == []
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "COPY ../tests /private",
+        "COPY /abs/tests /private",
+        "COPY tests /private",
+        "COPY ../solution /private",
+        "COPY nested/tests /private",
+    ],
+)
+def test_copy_sources_outside_the_build_context_still_flag(task: Path, instruction: str) -> None:
+    (task / "tests").mkdir()
+    (task / "environment/Dockerfile").write_text(f"FROM python:3.12\n{instruction}\n")
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity) == ("hidden-inputs-not-baked", "error")
+
+
+def test_environment_symlink_to_hidden_tests_dir_still_flags(task: Path) -> None:
+    (task / "tests").mkdir()
+    (task / "environment/tests").symlink_to(task / "tests")
+    (task / "environment/Dockerfile").write_text(
+        "FROM python:3.12\nCOPY tests /app/tests\n"
+    )
     finding, = lint_task(task)
     assert (finding.rule, finding.severity) == ("hidden-inputs-not-baked", "error")
 
@@ -176,6 +221,24 @@ def test_directory_discovery_is_immediate_and_accepts_multiple_paths(task: Path,
     finding, = json.loads(capsys.readouterr().out)
     assert finding["rule"] == "verifier-isolation"
     assert finding["path"] == str(sibling / "task.toml")
+
+
+def test_committed_task_library_lints_without_error_findings() -> None:
+    packages = sorted(REPO_ROOT.glob("library/tasks/**/task.toml"))
+    tasks = discover_tasks([package.parent for package in packages])
+    assert len(tasks) == 12
+
+    findings = [finding for task in tasks for finding in lint_task(task)]
+    assert [finding for finding in findings if finding.severity == "error"] == []
+    warnings = {
+        (Path(finding.path).relative_to(REPO_ROOT).as_posix(), finding.rule)
+        for finding in findings
+        if finding.severity == "warning"
+    }
+    assert warnings == _ALLOWED_VERIFIER_ISOLATION_WARNINGS
+    assert cli.run_cli(
+        ["tasks", "lint", str(REPO_ROOT / "library/tasks")], workspace=REPO_ROOT
+    ) == 0
 
 
 @pytest.fixture

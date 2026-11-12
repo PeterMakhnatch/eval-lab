@@ -39,10 +39,6 @@ from pathlib import Path
 from typing import Any
 
 from evallab.modal_cells import (
-    ESTIMATE_MARGIN,
-    MODAL_CPU_USD_PER_S,
-    MODAL_GIB_USD_PER_S,
-    PROJECTED_CELL_SECONDS,
     CellRunner,
     SandboxMeter,
     modal_cell_runner,
@@ -64,15 +60,6 @@ APPLIED_MARKER = "MUTANT_APPLIED"
 PROBE_MARKER = "MUTANT_PROBE"
 PROBE_DONE_MARKER = "MUTANT_PROBE_DONE"
 #: Pricing constants re-exported from modal_cells
-__all__ = [
-    "CellRunner",
-    "ESTIMATE_MARGIN",
-    "MODAL_CPU_USD_PER_S",
-    "MODAL_GIB_USD_PER_S",
-    "PROJECTED_CELL_SECONDS",
-    "SandboxMeter",
-    "modal_cell_runner",
-]
 
 _COMPARE_FLIPS: dict[type[ast.cmpop], tuple[str, str, str]] = {
     ast.Lt: ("boundary_flip", "<", "<="),
@@ -655,8 +642,6 @@ def mutant_applied(agent_log: str, mutant: Mutant) -> bool:
 
 
 # --------------------------------------------------------------------------- execution
-
-
 
 
 def _workdir(package: Path) -> str:

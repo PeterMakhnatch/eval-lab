@@ -31,13 +31,10 @@ Every run is a solution-override control on the oracle channel, like
 
 from __future__ import annotations
 
-import argparse
 import ast
-import contextlib
 import hashlib
 import io
 import json
-import sys
 import tokenize
 from collections.abc import Sequence
 from pathlib import Path
@@ -75,7 +72,6 @@ FAKES = (
     "success-exit",
     "equality-spoofing",
 )
-CONTROLS = ("oracle", "comment-free", "reformatted", "renamed-locals")
 
 _SPOOF = (
     'return type("_EnvcheckAlwaysEqual", (), {"__eq__": lambda self, other: True, '
@@ -612,52 +608,3 @@ def run_battery_audit(
 # --------------------------------------------------------------------------- #
 
 
-def _battery_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
-    del harbor
-    progress = contextlib.redirect_stdout(sys.stderr) if args.json else contextlib.nullcontext()
-    try:
-        with progress:
-            report, run_dir = run_battery_audit(
-                args.package,
-                repo_root=root,
-                targets=args.target,
-                execute=args.execute,
-                workers=args.workers,
-                timeout_seconds=args.timeout_seconds,
-            )
-    except (OSError, ValueError, RuntimeError) as exc:
-        print(f"hack battery: {exc}", file=sys.stderr)
-        return 1
-    if args.json:
-        print(json.dumps(report.model_dump(mode="json", by_alias=True), indent=2, sort_keys=True))
-    else:
-        print(f"Task: {report.task} ({report.battery})")
-        print(f"Verdict: {report.verdict} ({report.verdict_reason or 'capture plan written'})")
-        for probe in report.probes:
-            print(f"  {probe.kind:7} {probe.probe:24} {probe.file}: {probe.reward} {probe.outcome}")
-    print(f"run directory: {run_dir}", file=sys.stderr if args.json else sys.stdout)
-    return 0
-
-
-def add_battery_parser(hack_commands: Any) -> None:
-    battery = hack_commands.add_parser(
-        "battery",
-        help=(
-            "Hollow-program battery (Bohrin battery 2): five fakes of the reference "
-            "solution's changed functions must score 0, four known-good rewrites must "
-            "score 1 (local, free)"
-        ),
-    )
-    battery.add_argument("package", type=Path)
-    battery.add_argument(
-        "--target",
-        action="append",
-        default=[],
-        help="Absolute container path of a file the reference solution changes; repeatable "
-        "(default: the task's declared artifacts)",
-    )
-    battery.add_argument("--workers", type=int, default=1, choices=(1, 2))
-    battery.add_argument("--execute", action="store_true", help="Run the local control matrices")
-    battery.add_argument("--timeout-seconds", type=int, default=1_800)
-    battery.add_argument("--json", action="store_true")
-    battery.set_defaults(func=_battery_command)

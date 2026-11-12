@@ -10,7 +10,6 @@ from evallab.gc import (
     CatalogEntry,
     apply_gc,
     archive_path,
-    catalog_path_exists,
     doctor_disk_line,
     filesystem_catalog,
     format_plan,
@@ -170,7 +169,6 @@ def test_apply_compresses_then_prunes_with_tombstones_and_catalog(
     assert payload["reward_summary"]["reward"] == 1.0
     assert payload["why"] == "compress_14d"
     assert catalog.get("00000000-0000-0000-0000-000000000010") is not None
-    assert catalog_path_exists(tmp_path, catalog, "00000000-0000-0000-0000-000000000010")
     assert events[-1].event == "gc_compressed"
 
     at_prune = t0 + PRUNE_AFTER + timedelta(minutes=1)
@@ -188,7 +186,6 @@ def test_apply_compresses_then_prunes_with_tombstones_and_catalog(
     assert stone.is_file()
     pruned = json.loads(stone.read_text())
     assert pruned["why"] == "prune_60d"
-    assert catalog_path_exists(tmp_path, catalog, "00000000-0000-0000-0000-000000000010")
     entry = catalog.get("00000000-0000-0000-0000-000000000010")
     assert entry is not None
     assert (tmp_path / entry.evidence_path).is_file()
@@ -353,7 +350,6 @@ def test_apply_persists_catalog_so_fresh_load_resolves_existing_path(tmp_path: P
     fresh = filesystem_catalog(tmp_path)
     entry = fresh.get(job_id)
     assert entry is not None
-    assert catalog_path_exists(tmp_path, fresh, job_id)
     resolved = tmp_path / entry.evidence_path
     assert resolved.is_file()
     assert resolved.name == f"{job_id}.json"

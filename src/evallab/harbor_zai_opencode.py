@@ -37,8 +37,6 @@ from evallab.harbor_common import (
     sanitize_native_trajectory as _sanitize_native_trajectory,
 )
 
-ADAPTER_VERSION = "1.0.0"
-
 #: OpenCode release every install uses unless an explicit override is passed.
 PINNED_OPENCODE_VERSION = "1.18.25"
 
@@ -63,7 +61,6 @@ REMOVE_AUTH_LINK_COMMAND = f"rm -f {AUTH_LINK_PATH}"
 # Proxy lane constants
 # --------------------------------------------------------------------------
 
-ZAI_PROXY_HOST = "zai-secret-proxy"
 ZAI_SECRET_COMPOSE = Path("containers/zai-secret.compose.yaml")
 
 CREATE_PROXY_AUTH_COMMAND = (

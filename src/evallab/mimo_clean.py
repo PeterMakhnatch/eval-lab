@@ -358,22 +358,6 @@ def resolve_language(*, ledger_row: bool, category: str | None) -> str | None:
 #: ``exploit_probe.PURGE_INAPPLICABLE`` (HAR-194; reproduced in local Docker,
 #: setup rc=1). The builder lazy-imports that tuple and only documents it
 #: here so unit tests stay free of the probe's dependency tree.
-PURGE_FAIL_CLOSED_REASONS = {
-    "format-code-task-002552": (
-        "poetry project on a python-3.8 image: the offline editable reinstall "
-        "cannot use its backend and the link fallback has no worktree source"
-    ),
-    "format-code-task-000792": "no identifiable project name at the worktree",
-    "format-code-task-002139": (
-        "bitbake: pip installs a real copy instead of an editable one, "
-        "so the purge verify step fails"
-    ),
-    "format-code-task-002391": (
-        "PEP 668 externally-managed image refuses pip and the link fallback "
-        "cannot identify the project version"
-    ),
-    "format-code-task-002486": "no identifiable project name at the worktree",
-}
 
 #: ``+def test_*`` lines of a hidden test patch (same shape as the probe's
 #: ``new_test_names``; the marker is the first new test name).

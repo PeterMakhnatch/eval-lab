@@ -794,7 +794,6 @@ separate `--stages exploit` probe is requested.
   Limits: Python targets only; a verifier that runs the code in an interpreter
   the prologue did not find, or replaces `sys.settrace` (pytest-cov on <3.12),
   falls back to unguided.
-- `evallab hack battery <package> [--target PATH ...] [--execute]` — the
   hollow-program battery (Bohrin battery 2, `src/evallab/verifier_battery.py`):
   after the reference solution, every function it changed in each target Python
   file is replaced by five fakes that do no work (each must score 0) and three
@@ -803,7 +802,6 @@ separate `--stages exploit` probe is requested.
   `fake_rewarded` / `control_rejected` / `no_probes` / `task_broken` /
   `unscored`; receipts in `runs/.envcheck/battery-<slug>-<nonce>/`. `tasks admit`
   runs it as the `battery` step.
-- `evallab hack repair <mutation-report.json> --model gpt-6.1-sol
   [--execute] [--output-dir <runs/dir>] [--json]` — propose missing semantic
   assertions through the installed ChatGPT-subscription Codex CLI. Preview
   writes bounded context and the prompt without a model call. Execution checks
@@ -1048,7 +1046,6 @@ separate `--stages exploit` probe is requested.
     Trace T0 check. A passing trial whose `verifier/agent.diff` leaves every
     untested reference block alone is a suspected partial fix
     (`false_positive`, unverified).
-- `evallab hack ref-repair <ref-subset report dir> [--execute]
   [--feedback <prior repair-result.json>]` repairs a weak verifier with
   instruction-scoped test additions. Intake verifies the task/package and
   reference digests and replays the probe's **cumulative** greedy removals,

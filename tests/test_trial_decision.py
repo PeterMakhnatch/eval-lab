@@ -14,7 +14,6 @@ from evallab.process_job import process_job
 from evallab.trial_decision import (
     PAGE_CALIBRATION,
     build_decision,
-    compare_hand_key,
     render_counts,
     render_decision_markdown,
     render_task_ledger,
@@ -187,18 +186,6 @@ def test_suspect_grader_is_the_task_and_nop_can_confirm() -> None:
     assert decision["judgments"]["grader_alignment"]["answer"] == "no"
     assert decision["nop_same_crash"]["answer"] == "yes"
     assert decision["nop_same_crash"]["nop_trial"] == "qual-1789"
-    compared = compare_hand_key(
-        decision,
-        {"outcome": {"rule": "R-ENV-02", "attribution": "harness"}},
-    )
-    assert compared["rule_match"] is True
-    assert compared["attribution_match"] is True
-    mismatch = compare_hand_key(
-        decision,
-        {"outcome": {"rule": "R-COMP-02", "attribution": "model"}},
-    )
-    assert mismatch["rule_match"] is False
-    assert mismatch["attribution_match"] is False
 
 
 def test_counts_field_is_rendered_and_never_computed() -> None:
@@ -313,8 +300,6 @@ def test_counts_task_status_renders_match_and_mismatch() -> None:
     assert mismatched["status"] == "unknown"
     assert mismatched["digest_match"] is False
     assert "not matched" in (mismatched["reason"] or "")
-
-
 
 
 def test_echo_task_complete_is_a_completion_claim_loop(tmp_path: Path) -> None:

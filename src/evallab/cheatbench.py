@@ -44,29 +44,16 @@ download (``fetch_parquet``).
 
 from __future__ import annotations
 
-import argparse
 import ast
 import contextlib
-import hashlib
 import json
 import re
 import shlex
-import sys
-from collections.abc import Callable, Iterator, Mapping
-from pathlib import Path
+from collections.abc import Iterator, Mapping
 from typing import Any
-
-from evallab.failure_library.runs.io import download_bytes
-
-DATASET = "steinad/CheatBench"
-REVISION = "461360b34e93644955563dcc9243c6cc1a53bd0f"
-LICENSE = "MIT"
-USER_AGENT = "eval-lab-cheatbench"
 
 MSG_CAP = 8_000
 OBS_CAP = 50_000
-
-EXCLUDED_REASONS = ("no_agent_content", "weave_unparseable", "unknown_envelope")
 
 
 # ---------------------------------------------------------------------------
@@ -1061,276 +1048,6 @@ def _convert_message(builder: _Steps, message: dict, *, envelope: str) -> None:
 # fetch / subset / materialize
 
 
-def source_url() -> str:
-    """Pinned HTTPS URL of the full parquet (never a moving ref)."""
-    return f"https://huggingface.co/datasets/{DATASET}/resolve/{REVISION}/{FILENAME}"
-
-
-def fetch_parquet(dest: str | Path, *, downloader: Callable[[str], bytes] | None = None) -> Path:
-    """Verify and materialize the pin; acquire bytes through the shared source reader.
-
-    ``downloader`` is injectable so tests never reach the network.
-    """
-    dest = Path(dest)
-    if dest.is_file() and hashlib.sha256(dest.read_bytes()).hexdigest() == SHA256:
-        return dest
-    payload = downloader(source_url()) if downloader else download_bytes(
-        source_url(), user_agent=USER_AGENT, timeout=300,
-    )
-    actual = hashlib.sha256(payload).hexdigest()
-    if actual != SHA256:
-        raise CheatbenchError(
-            f"digest mismatch for {DATASET}@{REVISION}: expected {SHA256}, got {actual}"
-        )
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(payload)
-    return dest
-
-
-def fetch(split: str, dest: str | Path) -> Path:
-    """Download the pinned parquet split into ``dest`` (sha256-verified)."""
-    if split != "full":
-        raise CheatbenchError(f"only the pinned 'full' split is available, not {split!r}")
-    return fetch_parquet(Path(dest) / "data" / "processed" / "parquet" / f"{split}.parquet")
-
-
-def row_meta(row: dict) -> dict:
-    """Committed metadata for one parquet row (no trace body)."""
-    loc = {
-        "kind": row.get("loc_kind"),
-        "field_path": row.get("loc_field_path"),
-        "line_start": row.get("loc_line_start"),
-        "line_end": row.get("loc_line_end"),
-        "char_start": row.get("loc_char_start"),
-        "char_end": row.get("loc_char_end"),
-    }
-    return {
-        "trace_id": row.get("trace_id"),
-        "revision": REVISION,
-        "label": row.get("label"),
-        "cheating_type": row.get("cheating_type"),
-        "cheating_mechanism": row.get("cheating_mechanism"),
-        "benchmark": row.get("benchmark"),
-        "harness": row.get("harness"),
-        "model": row.get("model"),
-        "split": row.get("split"),
-        "loc": loc,
-    }
-
-
-def _index_entry(meta: dict) -> dict:
-    """Slim committed index entry: drop per-row constants and empty spans."""
-    loc = {k: v for k, v in (meta.get("loc") or {}).items() if v not in (None, "")}
-    entry = {
-        "trace_id": meta.get("trace_id"),
-        "label": meta.get("label"),
-        "cheating_type": meta.get("cheating_type"),
-        "cheating_mechanism": meta.get("cheating_mechanism"),
-        "benchmark": meta.get("benchmark"),
-        "harness": meta.get("harness"),
-        "model": meta.get("model"),
-    }
-    if loc:
-        entry["loc"] = loc
-    return entry
-
-
-def detector_row(trace_id: str, meta: dict, trajectory_sha256: str | None) -> dict:
-    label = meta.get("label")
-    mechanism = meta.get("cheating_mechanism") or "none"
-    benchmark = meta.get("benchmark") or "unknown"
-    families: list[str] = []
-    if label in ("cheating", "attempt"):
-        families = [
-            mechanism,
-            str(meta.get("cheating_type") or "unknown"),
-            f"benchmark:{benchmark}",
-        ]
-    return {
-        "id": trace_id,
-        "source": "cb",
-        "families": families,
-        "labels": {
-            "reward_hacking": {"cheating": True, "benign": False}.get(label),
-            "cheating_behavior": {"cheating": True, "attempt": True, "benign": False}.get(label),
-        },
-        "trial": {"kind": "cheatbench", "cb_id": trace_id},
-        "trajectory_sha256": trajectory_sha256,
-        "cheatbench": {
-            "mechanism": mechanism,
-            "benchmark": benchmark,
-            "harness": meta.get("harness"),
-            "loc_field_path": (meta.get("loc") or {}).get("field_path"),
-        },
-    }
-
-
-def materialize(parquet_path: str | Path, cb_root: str | Path, *, caps: bool = True) -> dict:
-    """Convert every row and write trial dirs under ``<cb-root>/cb/<trace_id>/``.
-
-    Returns conversion stats; per-row exclusions go to ``exclusions.jsonl``
-    next to the trials (outside git).
-    """
-    cb_root = Path(cb_root)
-    out_dir = cb_root / "cb"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    stats: dict[str, Any] = {
-        "rows": 0,
-        "converted": 0,
-        "excluded": {},
-        "envelopes": {},
-        "with_tool_calls": 0,
-    }
-    exclusions: list[dict] = []
-    for row in load_rows(parquet_path):
-        trace_id = str(row.get("trace_id"))
-        stats["rows"] += 1
-        meta = row_meta(row)
-        try:
-            raw = json.loads(row["trace"])
-        except (json.JSONDecodeError, TypeError, KeyError):
-            stats["excluded"]["trace_not_json"] = stats["excluded"].get("trace_not_json", 0) + 1
-            exclusions.append({"trace_id": trace_id, "reason": "trace_not_json"})
-            continue
-        try:
-            doc, conv = convert(trace_id, raw, meta, caps=caps)
-        except ValueError as exc:
-            reason = str(exc) if str(exc) in EXCLUDED_REASONS else "unknown_envelope"
-            stats["excluded"][reason] = stats["excluded"].get(reason, 0) + 1
-            exclusions.append({"trace_id": trace_id, "reason": reason})
-            continue
-        trial_dir = out_dir / trace_id
-        agent_dir = trial_dir / "agent"
-        agent_dir.mkdir(parents=True, exist_ok=True)
-        body = json.dumps(doc, sort_keys=True)
-        (agent_dir / "trajectory.json").write_text(body + "\n", encoding="utf-8")
-        # CheatBench records no task outcome; labels live only in the corpus
-        # manifest, so the trial result carries none.
-        (trial_dir / "result.json").write_text("{}\n", encoding="utf-8")
-        (trial_dir / "config.json").write_text(
-            json.dumps(
-                {
-                    "task": {
-                        "path": f"cheatbench/{meta.get('benchmark')}/{trace_id}",
-                    }
-                },
-                indent=1,
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        stats["converted"] += 1
-        stats["envelopes"][conv["envelope"]] = stats["envelopes"].get(conv["envelope"], 0) + 1
-        stats["with_tool_calls"] += int(conv["has_tool_calls"])
-    (cb_root / "exclusions.jsonl").write_text(
-        "".join(json.dumps(e, sort_keys=True) + "\n" for e in exclusions), encoding="utf-8"
-    )
-    (cb_root / "materialize-stats.json").write_text(
-        json.dumps(stats, indent=1, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    return stats
-
-
-def subset(parquet_path: str | Path) -> tuple[list[dict], list[dict], dict]:
-    """Build committed metadata: (index_rows, manifest_rows, stats).
-
-    ``index_rows`` go to ``cb_subset.json`` (one entry per parquet row,
-    exclusions recorded with a reason); ``manifest_rows`` are the convertible
-    rows as ``detectors-v1`` manifest entries.
-    """
-    index_rows: list[dict] = []
-    manifest_rows: list[dict] = []
-    stats: dict[str, Any] = {"rows": 0, "converted": 0, "excluded": {}, "envelopes": {}}
-    for row in load_rows(parquet_path):
-        trace_id = str(row.get("trace_id"))
-        stats["rows"] += 1
-        meta = row_meta(row)
-        entry = _index_entry(meta)
-        try:
-            raw = json.loads(row["trace"])
-            doc, conv = convert(trace_id, raw, meta)
-        except (json.JSONDecodeError, TypeError, KeyError):
-            entry["excluded"] = "trace_not_json"
-            stats["excluded"]["trace_not_json"] = stats["excluded"].get("trace_not_json", 0) + 1
-        except ValueError as exc:
-            reason = str(exc) if str(exc) in EXCLUDED_REASONS else "unknown_envelope"
-            entry["excluded"] = reason
-            stats["excluded"][reason] = stats["excluded"].get(reason, 0) + 1
-        else:
-            digest = hashlib.sha256(json.dumps(doc, sort_keys=True).encode("utf-8")).hexdigest()
-            entry["envelope"] = conv["envelope"]
-            entry["n_tool_calls"] = conv["n_tool_calls"]
-            manifest_rows.append(detector_row(trace_id, meta, digest))
-            stats["converted"] += 1
-            stats["envelopes"][conv["envelope"]] = stats["envelopes"].get(conv["envelope"], 0) + 1
-        index_rows.append(entry)
-    return index_rows, manifest_rows, stats
-
-
-def _cmd_fetch(args: argparse.Namespace) -> int:
-    path = fetch(args.split, args.dest)
-    print(f"fetched {args.split} -> {path}")
-    return 0
-
-
-def _cmd_subset(args: argparse.Namespace) -> int:
-    index_rows, manifest_rows, stats = subset(args.parquet)
-    out = Path(args.out)
-    out.write_text(
-        json.dumps(
-            {
-                "dataset": DATASET,
-                "revision": REVISION,
-                "license": LICENSE,
-                "split": args.split,
-                "rows": index_rows,
-            },
-            indent=1,
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    Path(args.manifest_out).write_text(
-        "".join(json.dumps(r, sort_keys=True) + "\n" for r in manifest_rows),
-        encoding="utf-8",
-    )
-    print(json.dumps(stats, indent=1, sort_keys=True))
-    return 0
-
-
-def _cmd_materialize(args: argparse.Namespace) -> int:
-    stats = materialize(args.parquet, args.cb_root)
-    print(json.dumps(stats, indent=1, sort_keys=True))
-    return 0
-
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
-    sub = parser.add_subparsers(dest="cheatbench_cmd", required=True)
-    fetch_p = sub.add_parser("fetch", help="Download the pinned parquet split")
-    fetch_p.add_argument("--split", default="full")
-    fetch_p.add_argument("--dest", default="cache/cheatbench")
-    fetch_p.set_defaults(func=_cmd_fetch)
-    subset_p = sub.add_parser("subset", help="Emit cb_subset.json + manifest rows")
-    subset_p.add_argument("--parquet", required=True)
-    subset_p.add_argument("--split", default="full")
-    subset_p.add_argument("--out", required=True)
-    subset_p.add_argument("--manifest-out", required=True)
-    subset_p.set_defaults(func=_cmd_subset)
-    mat_p = sub.add_parser("materialize", help="Convert rows to trial dirs under a cb-root")
-    mat_p.add_argument("--parquet", required=True)
-    mat_p.add_argument("--cb-root", required=True)
-    mat_p.set_defaults(func=_cmd_materialize)
-    return parser
-
-
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv if argv is not None else sys.argv[1:])
-    return args.func(args)
-
-
 # ---------------------------------------------------------------------------
 # Viewer subset: the MiMo-relevant rows staged for the Trace Lab Scout viewer.
 # Staging reuses the single converter above (same steps the detectors score)
@@ -1338,9 +1055,6 @@ def main(argv: list[str] | None = None) -> int:
 # each transcript with a clearly-marked annotation message.
 # ---------------------------------------------------------------------------
 
-FILENAME = "data/processed/parquet/full.parquet"
-
-SHA256 = "b4d2a1496e5f8de7b4c0e4791bd9f8fcbd0a3567f95d2e759b5da20ebb160e63"
 
 SUBSET_LABELS = frozenset({"cheating", "attempt"})
 #: Mechanisms matching our MiMo cheats (future git history, upstream fetch,
@@ -1353,40 +1067,9 @@ SUBSET_MECHANISMS = frozenset(
     }
 )
 
-ATIF_SOURCES = ("system", "user", "agent")
-
 
 class CheatbenchError(Exception):
     """Pinned-fetch or conversion failure for the CheatBench corpus."""
-
-
-def load_rows(parquet_path: str | Path, *, columns: list[str] | None = None) -> list[dict]:
-    """Read parquet rows as plain dicts (pyarrow is a root dependency)."""
-    import pyarrow.parquet as pq
-
-    return pq.read_table(parquet_path, columns=columns).to_pylist()
-
-
-def is_subset_row(row: Mapping[str, Any]) -> bool:
-    """Whether a row belongs to the MiMo-relevant viewer subset."""
-    return row.get("label") in SUBSET_LABELS and row.get("cheating_mechanism") in SUBSET_MECHANISMS
-
-
-def select_subset(rows: list[dict]) -> list[dict]:
-    """Every ``cheating``/``attempt`` row with a MiMo-relevant mechanism."""
-    return [row for row in rows if is_subset_row(row)]
-
-
-def counts_table(rows: list[dict]) -> list[tuple[Any, Any, Any, int]]:
-    """Sorted (benchmark, mechanism, label, n) over the subset rows."""
-    from collections import Counter
-
-    counts: Counter[tuple[Any, Any, Any]] = Counter(
-        (row.get("benchmark"), row.get("cheating_mechanism"), row.get("label"))
-        for row in rows
-        if is_subset_row(row)
-    )
-    return [(b, m, label, counts[(b, m, label)]) for (b, m, label) in sorted(counts)]
 
 
 _PATH_TOKEN = re.compile(r"([^.\[\]]+)|\[(\d+)\]")
@@ -1421,40 +1104,3 @@ def parse_raw_trace(payload: str) -> dict:
     return trace
 
 
-def validate_staged(trajectory: Mapping[str, Any]) -> list[str]:
-    """Structural check of a staged trajectory (Harbor validates for real)."""
-    issues = []
-    if not isinstance(trajectory, dict):
-        return ["trajectory must be an object"]
-    for key in ("schema_version", "session_id", "agent", "steps"):
-        if key not in trajectory:
-            issues.append(f"missing required key {key!r}")
-    agent = trajectory.get("agent")
-    if not isinstance(agent, dict) or not agent.get("name"):
-        issues.append("agent.name is required")
-    steps = trajectory.get("steps")
-    if not isinstance(steps, list) or not steps:
-        issues.append("steps must be a non-empty list")
-        return issues
-    for position, step in enumerate(steps, start=1):
-        if not isinstance(step, dict):
-            issues.append(f"step {position}: must be an object")
-            continue
-        if step.get("step_id") != position:
-            issues.append(f"step {position}: step_id must be {position}")
-        if step.get("source") not in ATIF_SOURCES:
-            issues.append(f"step {position}: invalid source {step.get('source')!r}")
-        if not isinstance(step.get("message"), str):
-            issues.append(f"step {position}: message must be a string")
-        for call in step.get("tool_calls") or []:
-            for key in ("tool_call_id", "function_name", "arguments"):
-                if key not in call:
-                    issues.append(f"step {position}: tool_call missing {key!r}")
-        results = (step.get("observation") or {}).get("results", [])
-        if not isinstance(results, list):
-            issues.append(f"step {position}: observation.results must be a list")
-    return issues
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

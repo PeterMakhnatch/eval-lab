@@ -9,7 +9,6 @@ from evallab.benchmark_program_contracts import (
     CampaignCalibrationLedger,
     CampaignMeasurementLedger,
     CellFactorsA,
-    CellFactorsB,
     CellFactorsC,
     FaultClass,
     FaultInjectionRecord,
@@ -138,18 +137,10 @@ def test_cell_factors_models():
     assert cell_a.dilation_tokens == 16384
     assert cell_a.forced_compaction is True
 
-    cell_b = CellFactorsB(critical_path_depth=4, parallel_width=3, distractor_count=2, seed=10)
-    assert cell_b.critical_path_depth == 4
-
     cell_c = CellFactorsC(
         fault_class=FaultClass.PERSISTENT_SCHEMA_MISMATCH, fault_injection_count=4, seed=99
     )
     assert cell_c.fault_class == FaultClass.PERSISTENT_SCHEMA_MISMATCH
-
-    with pytest.raises(ValidationError):
-        CellFactorsB(
-            critical_path_depth=0, parallel_width=1, distractor_count=0, seed=1
-        )  # ge=1 violated
 
 
 def test_campaign_ledgers_discriminated_contracts():

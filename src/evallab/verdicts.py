@@ -164,17 +164,6 @@ def validate_discovery_id(
     return discovery_id
 
 
-def execute_verdicts_views(
-    conn: duckdb.DuckDBPyConnection,
-    sql_path: Path | None = None,
-) -> None:
-    """Execute sql/verdicts.sql in a DuckDB connection to register views and fallbacks."""
-    target_sql = sql_path or SQL_VERDICTS_PATH
-    if not target_sql.is_file():
-        raise FileNotFoundError(f"SQL file not found: {target_sql}")
-    conn.execute(target_sql.read_text(encoding="utf-8"))
-
-
 def write_verdict_to_catalog(
     verdict: Verdict,
     database_url: str | None = None,
@@ -352,65 +341,6 @@ def get_verdict_history_from_catalog(
         print(f"error: {msg}", file=sys.stderr)
         raise SystemExit(2) from exc
 
-def list_current_verdicts_from_duckdb(
-    conn: duckdb.DuckDBPyConnection,
-    *,
-    status: str | None = None,
-) -> list[Verdict]:
-    """Query current verdicts from a DuckDB session with views initialized."""
-    query = 'SELECT discovery_id, status, "by", "at", note FROM v_current_verdicts'
-    params: list[Any] = []
-    if status is not None:
-        query += ' WHERE status = ? ORDER BY "at" DESC, discovery_id'
-        params.append(status)
-    else:
-        query += ' ORDER BY "at" DESC, discovery_id'
-    rows = conn.execute(query, params).fetchall()
-    results: list[Verdict] = []
-    for row in rows:
-        raw_at = row[3]
-        at_dt = raw_at if isinstance(raw_at, datetime) else datetime.fromisoformat(str(raw_at))
-        if at_dt.tzinfo is None:
-            at_dt = at_dt.replace(tzinfo=UTC)
-        results.append(
-            Verdict(
-                discovery_id=str(row[0]),
-                status=validate_status(str(row[1])),
-                by=str(row[2]),
-                at=at_dt,
-                note=str(row[4]) if row[4] is not None else None,
-            )
-        )
-    return results
-
-def get_verdict_history_from_duckdb(
-    conn: duckdb.DuckDBPyConnection,
-    discovery_id: str,
-) -> list[Verdict]:
-    """Query full history for a discovery from DuckDB session, oldest first."""
-    query = """
-        SELECT discovery_id, status, "by", "at", note
-        FROM v_verdicts_history
-        WHERE discovery_id = ?
-        ORDER BY "at" ASC
-    """
-    rows = conn.execute(query, [discovery_id]).fetchall()
-    results: list[Verdict] = []
-    for row in rows:
-        raw_at = row[3]
-        at_dt = raw_at if isinstance(raw_at, datetime) else datetime.fromisoformat(str(raw_at))
-        if at_dt.tzinfo is None:
-            at_dt = at_dt.replace(tzinfo=UTC)
-        results.append(
-            Verdict(
-                discovery_id=str(row[0]),
-                status=validate_status(str(row[1])),
-                by=str(row[2]),
-                at=at_dt,
-                note=str(row[4]) if row[4] is not None else None,
-            )
-        )
-    return results
 
 def record_verdict(
     discovery_id: str,

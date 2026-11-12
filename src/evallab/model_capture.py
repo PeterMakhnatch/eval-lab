@@ -1476,13 +1476,6 @@ def attribute_calls(calls: list[dict[str, Any]], trials: list[TrialEvidence]) ->
 #: no captured calls): with zero evidence on either side an idle control agent
 #: is indistinguishable from a full bypass, so the operator must check the
 #: ``agent_execution`` window in ``result.json``; the receipt says so.
-VERDICTS = (
-    "complete",
-    "trajectory_missing",
-    "trajectory_truncated",
-    "capture_missing",
-    "ambiguous",
-)
 
 
 def _captured_texts(calls: list[dict[str, Any]]) -> list[str]:

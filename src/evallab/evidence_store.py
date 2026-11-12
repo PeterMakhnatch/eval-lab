@@ -407,19 +407,11 @@ def archive_evidence(
     )
 
 
-def load_archive(store_root: Path, uri: str) -> Path:
-    """Validate a CAS archive through no-follow descriptors and return its path."""
-    digest = _validate_uri(uri)
-    with _open_archive_file(store_root, uri):
-        pass
-    return _absolute(store_root) / "blobs/sha256" / digest[:2] / f"{digest}.tar.gz"
 @contextmanager
 def open_archive(store_root: Path, uri: str) -> Iterator[BinaryIO]:
     """Open a CAS archive while retaining no-follow directory descriptors."""
     with _open_archive_file(store_root, uri) as source:
         yield source
-
-
 
 
 def read_archive(store_root: Path, uri: str) -> bytes:
@@ -493,47 +485,6 @@ def store_blob(store_root: Path, content: bytes | str) -> str:
                 f"evidence blob digest mismatch: expected {digest_hex}, got {actual_digest}"
             )
     return uri
-
-
-def load_blob(store_root: Path, uri: str) -> bytes:
-    """Load raw payload bytes from content-addressed storage."""
-    digest = _validate_uri(uri)
-    try:
-        with (
-            _open_directory_chain(store_root, create=False) as root_descriptor,
-            _open_nested_directory(
-                root_descriptor,
-                ("blobs", "sha256", digest[:2]),
-                create=False,
-            ) as blob_directory,
-        ):
-            descriptor = _open_regular(
-                blob_directory,
-                f"{digest}.bin",
-                missing_ok=True,
-            )
-            if descriptor is None:
-                archive = _open_regular(
-                    blob_directory,
-                    f"{digest}.tar.gz",
-                    missing_ok=True,
-                )
-                if archive is not None:
-                    os.close(archive)
-                    raise ValueError(
-                        f"URI {uri} points to a directory archive, use load_archive instead"
-                    )
-                raise FileNotFoundError(f"evidence blob is missing: {uri}")
-            try:
-                content = _read_descriptor(descriptor)
-            finally:
-                os.close(descriptor)
-    except FileNotFoundError as exc:
-        raise FileNotFoundError(f"evidence blob is missing: {uri}") from exc
-    actual_digest = hashlib.sha256(content).hexdigest()
-    if actual_digest != digest:
-        raise ValueError(f"evidence blob digest mismatch: expected {digest}, got {actual_digest}")
-    return content
 
 
 def read_record(store_root: Path, *, kind: str, record_id: str) -> bytes:

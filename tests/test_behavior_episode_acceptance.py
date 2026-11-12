@@ -10,19 +10,15 @@ from typing import Any
 
 import pytest
 
-from evallab.behavior_calibration import calibrate_behavior_episodes
-from evallab.behavior_catalog import load_behavior_catalog
 from evallab.behavior_episodes import (
     BehaviorDetectionContext,
     detect_behavior_episodes,
     detect_effect_loop_candidates,
-    deterministic_episode_id,
     load_behavior_episodes,
     normalize_behavior_actions,
     persist_behavior_episodes,
 )
 from evallab.evidence.event_mart import EventMartProjection
-from evallab.labels import select_behavior_episode_review_queue
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTION_FIXTURE = Path(__file__).parent / "fixtures/behavior_episodes/normalized_actions.json"
@@ -248,102 +244,3 @@ def test_episode_provenance_is_deeply_immutable() -> None:
         immutable.provenance["source"]["kind"] = "human"
 
 
-def test_catalog_exposes_exact_calibrated_dimensions() -> None:
-    catalog = load_behavior_catalog()
-
-    assert set(catalog.behaviors) == {
-        "tool_error",
-        "unchanged_retry",
-        "recovered_progress",
-        "verification_gap",
-    }
-    assert "effect_loop_candidate" not in catalog.behaviors
-
-
-def test_review_queue_and_calibration_keep_experimental_dimension_separate() -> None:
-    episode = _result("recovered").episodes[0]
-    queue = select_behavior_episode_review_queue([episode], limit=1)
-    report = calibrate_behavior_episodes([], [])
-
-    assert len(queue) == 1
-    assert queue[0].behavior == "recovered_progress"
-    assert set(report.per_behavior) == {
-        "tool_error",
-        "unchanged_retry",
-        "recovered_progress",
-        "verification_gap",
-    }
-
-
-def test_calibration_uses_only_explicit_human_routes_and_unresolved_negative() -> None:
-    candidate = _result("recovered").episodes[0]
-    human_provenance = {"source": "human", "annotator_id": "reviewer-negative"}
-
-    def human_route(
-        *,
-        label: str,
-        start_step: int,
-        end_step: int,
-        evidence_step_ids: tuple[int, ...],
-        evidence_span_ids: tuple[str, ...],
-    ):
-        episode_id = deterministic_episode_id(
-            candidate.trial_id,
-            candidate.document_id,
-            start_step,
-            end_step,
-            label,
-            evidence_step_ids=evidence_step_ids,
-            evidence_span_ids=evidence_span_ids,
-            detector_version=candidate.detector_version,
-            catalog_version=candidate.catalog_version,
-            annotator_kind="human",
-            annotator_id="reviewer-negative",
-            trajectory_id=candidate.trajectory_id,
-            session_id=candidate.session_id,
-            provenance=human_provenance,
-        )
-        return candidate.model_copy(
-            update={
-                "episode_id": episode_id,
-                "start_step": start_step,
-                "end_step": end_step,
-                "label": label,
-                "status": "confirmed",
-                "evidence_step_ids": evidence_step_ids,
-                "evidence_span_ids": evidence_span_ids,
-                "annotator_kind": "human",
-                "annotator_id": "reviewer-negative",
-                "provenance": human_provenance,
-                "reviewed_at": candidate.updated_at,
-            }
-        )
-
-    human_same_route = human_route(
-        label="unresolved_error",
-        start_step=candidate.start_step,
-        end_step=candidate.end_step,
-        evidence_step_ids=candidate.evidence_step_ids,
-        evidence_span_ids=candidate.evidence_span_ids,
-    )
-    human_missing_candidate = human_route(
-        label="unresolved_error",
-        start_step=90,
-        end_step=90,
-        evidence_step_ids=(90,),
-        evidence_span_ids=("span-human-negative",),
-    )
-    report = calibrate_behavior_episodes(
-        [candidate],
-        [human_same_route, human_missing_candidate],
-    )
-
-    recovered = report.per_behavior["recovered_progress"]
-    assert (recovered.tp, recovered.fp, recovered.fn, recovered.tn) == (0, 1, 0, 1)
-    assert recovered.precision == 0.0
-    assert recovered.recall is None
-    for behavior, counts in report.per_behavior.items():
-        if behavior != "recovered_progress":
-            assert counts.evaluated_count == 0
-            assert counts.precision is None
-            assert counts.recall is None

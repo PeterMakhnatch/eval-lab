@@ -1529,9 +1529,7 @@ def parser() -> argparse.ArgumentParser:
         help="Fleet spend cap in USD for running trials (alerts at 80%% and 100%%)",
     )
     native_live_watch_watch.set_defaults(func=native_live_watch._watch_command)
-    from evallab.interpretation.features import build_features_parser as _build_features_parser
 
-    _build_features_parser(commands)
     from evallab.storage.trials import build_trials_parser
 
     build_trials_parser(commands)

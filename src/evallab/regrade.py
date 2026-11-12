@@ -66,45 +66,6 @@ from evallab.execution_backend import require_local_docker
 from evallab.harbor_telemetry import harbor_child_environment
 from evallab.schemas import ContractModel
 
-__all__ = [
-    "CLOUD_REGRADE_ENVIRONMENTS",
-    "LOCAL_REGRADE_ENVIRONMENTS",
-    "REGRADE_JOB_RECEIPT_FILENAME",
-    "REGRADE_TRIAL_RECEIPT_FILENAME",
-    "CloudSpendGate",
-    "RegradeExecution",
-    "RegradeInvocation",
-    "RegradeJobInvocation",
-    "RegradeJobPlan",
-    "RegradeJobPlanTrial",
-    "RegradeJobReceiptV1",
-    "RegradeJobVerdict",
-    "RegradeReceiptV1",
-    "RegradeRefusalCode",
-    "RegradeVerdict",
-    "RewardObservation",
-    "SourceTrialIdentity",
-    "SpendCapReached",
-    "VerifierIdentity",
-    "build_job_regrade_command",
-    "build_regrade_command",
-    "default_regrade_job_name",
-    "expand_task_dirs",
-    "lab_harbor_problem",
-    "modal_resource_blocker",
-    "plan_regrade_job",
-    "read_reward_observation",
-    "regrade_job",
-    "regrade_many",
-    "regrade_trial",
-    "render_job_plan",
-    "render_job_receipt",
-    "render_receipt",
-    "source_trial_identity",
-    "verifier_identity",
-]
-
-
 #: Marker appended to generated regrade trial names. Regrade outputs are trials
 #: in their own right; the suffix keeps them recognisable in a jobs tree without
 #: parsing `config.source_trial`.
@@ -1167,27 +1128,6 @@ def render_receipt(receipt: RegradeReceiptV1) -> str:
     return (
         f"{head} reward {recorded} -> {regraded}{delta} (verifier {receipt.verifier.digest[:15]})"
     )
-
-
-def regrade_many(
-    *,
-    trial_dirs: Sequence[Path],
-    task_dir: Path,
-    trials_dir: Path,
-    environment: str = "docker",
-    runner: Any = subprocess.run,
-) -> list[RegradeReceiptV1]:
-    """Re-score several recorded trials against one verifier."""
-    return [
-        regrade_trial(
-            trial_dir=Path(trial_dir),
-            task_dir=task_dir,
-            trials_dir=trials_dir,
-            environment=environment,
-            runner=runner,
-        )
-        for trial_dir in trial_dirs
-    ]
 
 
 def default_regrade_job_name(job_dir: Path) -> str:

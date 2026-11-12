@@ -390,7 +390,6 @@ def _native_needs_overlay(trial_dir: Path, job_dir: Path) -> bool:
     return bool(trial_integrity(trial_dir, job_dir)["fired"])
 
 
-
 def _scored_reward(rewards: Any) -> float | int | None:
     if not isinstance(rewards, dict):
         return None
@@ -651,8 +650,6 @@ def _plan_overlays(
 #: in the source job name. Anything without a hit keeps its full job name as
 #: the arm, so trials stay distinguishable but each forms its own group.
 DEFAULT_ARM_REGEX = r"(?P<arm>stock|tuned|gepa)"
-
-TRIAL_SOURCE_SCHEMA = "harbor_view/trial_source/v1"
 
 
 def parse_merge_spec(spec: str) -> tuple[str, str]:
@@ -1376,15 +1373,3 @@ def build_view_parser(commands: argparse._SubParsersAction) -> None:
     view.set_defaults(func=_view_command)
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Serve Harbor jobs with integrity reward dims"
-    )
-    sub = parser.add_subparsers(dest="command", required=True)
-    build_view_parser(sub)
-    args = parser.parse_args(argv)
-    return _view_command(args, Path.cwd())
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

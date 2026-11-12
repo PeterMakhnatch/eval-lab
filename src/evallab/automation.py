@@ -52,7 +52,6 @@ from evallab.storage.paths import DERIVED_ROOT_ENV, derived_root_from_environmen
 
 MIN_FREE_DISK_BYTES = 5 * 1024**3
 MIN_FREE_DISK_FRACTION = 0.05
-KEYCHAIN_SERVICE = profiles_module.KEYCHAIN_SERVICE
 
 BooleanProbe = Callable[[], bool]
 LaunchctlRunner = Callable[[list[str], bool], subprocess.CompletedProcess[str]]
@@ -63,7 +62,6 @@ DigestEnricher = Callable[[Path, date], None]
 CompletedJobIngester = Callable[[], IngestProjectionResult]
 DatabaseBackup = Callable[[date], Path]
 StatusUpdater = Callable[[date], Path]
-Compactor = Callable[[date], object]
 
 OnFailPolicy = Literal["abort", "continue"]
 StepStatus = Literal["ran", "skipped", "failed"]

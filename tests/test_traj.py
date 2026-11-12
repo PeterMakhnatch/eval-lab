@@ -15,18 +15,14 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.evidence.facts import AnalyzerCallResult
 from evallab.labels import (
-    label_trajectory_with_model,
     persist_behavior_label,
 )
 from evallab.schemas import BehaviorLabel
 from evallab.storage.paths import DERIVED_ROOT_ENV
 from evallab.traj import (
     TRAJ_FEATURES_PARQUET_SCHEMA,
-    LoopSuspicion,
     StepOutline,
-    TrajectoryOutline,
     _analyze_loop_suspicion,
     _build_phases,
     extract_features,
@@ -452,88 +448,6 @@ def test_label_persistence_preserves_noop_bytes_and_concurrent_writers(
         before = parquet.read_bytes()
         persist_behavior_label(first, repo_root=repo_root, derived_root=destination)
         assert parquet.read_bytes() == before
-
-
-def test_model_labeler_uses_guarded_adapter_and_validates_evidence() -> None:
-    outline = TrajectoryOutline(
-        trial_id="t1",
-        job_id="j1",
-        trial_name="trial-1",
-        job_name="job-1",
-        task_name="task-1",
-        agent_name="codex",
-        agent_version=None,
-        model_name="model-x",
-        status="featured",
-        unavailable_reason=None,
-        source_path="path",
-        source_sha256=f"sha256:{'a' * 64}",
-        duration_seconds=10.0,
-        primary_reward=1.0,
-        exception_class=None,
-        total_steps=1,
-        agent_steps=1,
-        system_steps=0,
-        user_steps=0,
-        total_tool_calls=0,
-        total_errors=0,
-        recovery_count=0,
-        step_to_first_tool=None,
-        step_to_first_edit=None,
-        time_to_first_tool_seconds=None,
-        time_to_first_edit_seconds=None,
-        total_prompt_tokens=10,
-        total_completion_tokens=10,
-        total_cached_tokens=0,
-        total_cost_usd=0.001,
-        loop_suspicion=LoopSuspicion(0.0, False, (), 0, 0, 0),
-        phases=(),
-        steps=(
-            StepOutline(
-                step_id=1,
-                source="agent",
-                timestamp=None,
-                model_name="model-x",
-                tool_name=None,
-                tool_command=None,
-                exit_code=None,
-                is_error=False,
-                error_message=None,
-                prompt_tokens=10,
-                completion_tokens=10,
-                cached_tokens=0,
-                cost_usd=0.001,
-                thought_snippet="inspected evidence",
-            ),
-        ),
-        citations=(),
-    )
-
-    def adapter(prompt: str, schema: dict[str, object]) -> AnalyzerCallResult:
-        assert "do not infer unobserved filesystem effects" in prompt
-        assert schema["type"] == "object"
-        return AnalyzerCallResult(
-            raw_output=json.dumps(
-                {
-                    "label": "evidence_driven",
-                    "rationale": "The recorded step cites the inspected evidence.",
-                    "confidence": "high",
-                    "evidence": [{"step_id": 1, "supports": "Inspected evidence"}],
-                }
-            )
-        )
-
-    label = label_trajectory_with_model(
-        outline,
-        adapter=adapter,
-        model="model-x",
-        agent="guarded-test",
-        agent_version="1",
-        rubric_digest=f"sha256:{'b' * 64}",
-    )
-    assert label.label == "evidence_driven"
-    assert label.provenance == "model"
-    assert label.evidence[0].step_id == 1
 
 
 def test_sql_traj_views_with_data() -> None:

@@ -29,24 +29,6 @@ from typing import Any
 
 from evallab.token_flow import _is_edit, _is_ephemeral_only, _touched_paths
 
-__all__ = [
-    "FIELDS",
-    "NUMERIC_METRICS",
-    "BINARY_METRICS",
-    "WITHDRAWN_METRICS",
-    "wilson",
-    "quartiles",
-    "first_edit_step",
-    "metrics_for_trial",
-    "mask_text_content",
-    "extract_task_id",
-    "leak_scan_file",
-    "leak_scan_pack",
-    "review_prepare",
-    "review_freeze",
-    "review_join",
-]
-
 #: RATER_GUIDE_v2 evaluated fields
 FIELDS: tuple[str, ...] = (
     "stop_reason",

@@ -20,7 +20,6 @@ import pyarrow as pa
 
 from evallab.evidence.atif import (
     ExportedTable,
-    ExportResult,
     TrialTrajectoryProjection,
     project_trial,
 )
@@ -483,23 +482,3 @@ def export_job_event_mart(
     return exported
 
 
-def export_event_mart(
-    jobs: list[JobRecord],
-    output_root: Path,
-    projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] | None = None,
-) -> ExportResult:
-    """Project event tables for all trials into normal job/trial partitions."""
-    output_root = output_root.resolve()
-    exported: list[ExportedTable] = []
-    for job in sorted(jobs, key=lambda item: item.id):
-        job_projections = (
-            projections_by_job.setdefault(job.id, {}) if projections_by_job is not None else None
-        )
-        exported.extend(
-            export_job_event_mart(
-                job,
-                output_root,
-                projections=job_projections,
-            )
-        )
-    return ExportResult(root=output_root, tables=tuple(exported))

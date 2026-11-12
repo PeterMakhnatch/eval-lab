@@ -18,13 +18,10 @@ from evallab.schemas import Verdict
 from evallab.verdicts import (
     DEFAULT_DISCOVERIES_PATH,
     SQL_VERDICTS_PATH,
-    execute_verdicts_views,
     format_verdict_history_table,
     format_verdicts_table,
     get_verdict_history_from_catalog,
-    get_verdict_history_from_duckdb,
     list_current_verdicts_from_catalog,
-    list_current_verdicts_from_duckdb,
     record_verdict,
     resolve_discovery_ids,
     validate_discovery_id,
@@ -69,92 +66,6 @@ def test_standalone_sql_script_with_fallbacks() -> None:
         for view_name in ["v_verdicts_history", "v_current_verdicts"]:
             rows = con.execute(f"SELECT * FROM {view_name}").fetchall()
             assert rows == []
-
-
-def test_verdict_roundtrip_duckdb(tmp_path: Path) -> None:
-    """A verdict round-trips: written, then returned with right status and actor."""
-    _create_sample_discoveries_journal(tmp_path)
-
-    with duckdb.connect(":memory:") as con:
-        execute_verdicts_views(con)
-
-        now = datetime.now(UTC)
-        verdict = record_verdict(
-            SAMPLE_DISCOVERY_HEADER_ID,
-            "accepted",
-            by="Peter Makhnatch",
-            note="Verified against run evidence",
-            at=now,
-            repo_root=tmp_path,
-            duckdb_conn=con,
-        )
-
-        assert verdict.discovery_id == SAMPLE_DISCOVERY_HEADER_ID
-        assert verdict.status == "accepted"
-        assert verdict.by == "Peter Makhnatch"
-        assert verdict.note == "Verified against run evidence"
-
-        current = list_current_verdicts_from_duckdb(con)
-        assert len(current) == 1
-        assert current[0].discovery_id == SAMPLE_DISCOVERY_HEADER_ID
-        assert current[0].status == "accepted"
-        assert current[0].by == "Peter Makhnatch"
-        assert current[0].note == "Verified against run evidence"
-        assert current[0].at == now
-
-
-def test_verdict_append_only_history(tmp_path: Path) -> None:
-    """Two verdicts persist; current reports later, history reports both oldest-first."""
-    _create_sample_discoveries_journal(tmp_path)
-
-    with duckdb.connect(":memory:") as con:
-        execute_verdicts_views(con)
-
-        t1 = datetime(2026, 8, 17, 10, 0, 0, tzinfo=UTC)
-        t2 = datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
-
-        v1 = record_verdict(
-            SAMPLE_DISCOVERY_HEADER_ID,
-            "pending",
-            by="Peter Makhnatch",
-            note="Initial triage",
-            at=t1,
-            repo_root=tmp_path,
-            duckdb_conn=con,
-        )
-
-        record_verdict(
-            SAMPLE_DISCOVERY_HEADER_ID,
-            "accepted",
-            by="Peter Makhnatch",
-            note="Promoted after evidence review",
-            at=t2,
-            repo_root=tmp_path,
-            duckdb_conn=con,
-        )
-
-        # Current view returns only the latest verdict (v2)
-        current = list_current_verdicts_from_duckdb(con)
-        assert len(current) == 1
-        assert current[0].status == "accepted"
-        assert current[0].note == "Promoted after evidence review"
-        assert current[0].at == t2
-
-        # History returns all rows oldest-first
-        history = get_verdict_history_from_duckdb(con, SAMPLE_DISCOVERY_HEADER_ID)
-        assert len(history) == 2
-        assert history[0].status == "pending"
-        assert history[0].note == "Initial triage"
-        assert history[0].at == t1
-        assert history[1].status == "accepted"
-        assert history[1].note == "Promoted after evidence review"
-        assert history[1].at == t2
-
-        # Invariant: the first row in history is strictly unchanged
-        assert history[0].status == v1.status
-        assert history[0].by == v1.by
-        assert history[0].at == v1.at
-        assert history[0].note == v1.note
 
 
 def test_refuse_empty_or_whitespace_actor() -> None:
@@ -218,33 +129,6 @@ def test_refuse_malformed_discovery_id(tmp_path: Path) -> None:
                 by="Peter Makhnatch",
                 repo_root=tmp_path,
             )
-
-
-def test_record_verdict_on_real_committed_journal() -> None:
-    """Record a verdict on a real ID from the committed journal (D-20260815-KTXJSHGZ)."""
-    with duckdb.connect(":memory:") as con:
-        execute_verdicts_views(con)
-        now = datetime.now(UTC)
-        verdict = record_verdict(
-            "D-20260815-KTXJSHGZ",
-            "accepted",
-            by="Peter Makhnatch",
-            note="Verified against real committed journal",
-            at=now,
-            duckdb_conn=con,
-        )
-        assert verdict.discovery_id == "D-20260815-KTXJSHGZ"
-        assert verdict.status == "accepted"
-        assert verdict.by == "Peter Makhnatch"
-
-        current = list_current_verdicts_from_duckdb(con)
-        assert len(current) == 1
-        assert current[0].discovery_id == "D-20260815-KTXJSHGZ"
-        assert current[0].status == "accepted"
-
-        history = get_verdict_history_from_duckdb(con, "D-20260815-KTXJSHGZ")
-        assert len(history) == 1
-        assert history[0].discovery_id == "D-20260815-KTXJSHGZ"
 
 
 def test_refuse_invalid_status() -> None:
@@ -345,25 +229,6 @@ def test_unreachable_catalog_fails_distinctly(capsys: pytest.CaptureFixture[str]
     assert "catalog read failed [unavailable]" in err_hist
     assert "127.0.0.1:59999" in err_hist
     assert "v_verdicts_history" in err_hist
-
-
-def test_genuinely_empty_table_prints_friendly_message() -> None:
-    """A genuinely empty table still prints the friendly empty message and exits zero."""
-    with duckdb.connect(":memory:") as con:
-        execute_verdicts_views(con)
-
-        # Current view on empty table
-        current = list_current_verdicts_from_duckdb(con)
-        assert current == []
-        assert format_verdicts_table(current) == "No verdicts recorded."
-
-        # History view on empty table
-        history = get_verdict_history_from_duckdb(con, SAMPLE_DISCOVERY_HEADER_ID)
-        assert history == []
-        assert (
-            format_verdict_history_table(SAMPLE_DISCOVERY_HEADER_ID, history)
-            == f"No verdict history for {SAMPLE_DISCOVERY_HEADER_ID}."
-        )
 
 
 _DSN_FOR_TEST = database_url_from_environment()

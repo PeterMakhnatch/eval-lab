@@ -27,7 +27,6 @@ from evallab.storage.paths import (
 )
 
 VALID_STATUSES = ("living", "historical")
-VALID_AUDIENCES = ("builder", "analyst", "runner", "operator")
 FRONT_MATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
@@ -610,7 +609,6 @@ def attach(
     except Exception:
         conn.close()
         raise
-
 
 
 def build_sql_preamble(

@@ -724,11 +724,3 @@ def run_gc(
     )
 
 
-def catalog_path_exists(repo_root: Path, catalog: CatalogStore, job_id: str) -> bool:
-    entry = catalog.get(job_id)
-    if entry is None:
-        return True
-    path = Path(entry.evidence_path)
-    if not path.is_absolute():
-        path = repo_root / path
-    return path.exists()

@@ -25,7 +25,6 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -560,61 +559,3 @@ def load_quality_report_for_trial(
         return None
 
 
-def register_quality_tables_in_duckdb(
-    conn: duckdb.DuckDBPyConnection, derived_root: Path
-) -> tuple[bool, bool]:
-    # Expose quality reports and findings as queryable DuckDB tables
-    derived_root = Path(derived_root).resolve()
-    reports_path = derived_root / f"{QUALITY_REPORT_TABLE}.parquet"
-    findings_path = derived_root / f"{QUALITY_FINDINGS_TABLE}.parquet"
-
-    has_reports = reports_path.is_file()
-    has_findings = findings_path.is_file()
-
-    if has_reports:
-        conn.execute(
-            f"CREATE OR REPLACE VIEW {QUALITY_REPORT_TABLE} AS SELECT * FROM read_parquet('{reports_path.as_posix()}')"
-        )
-    else:
-        empty_reports_sql = (
-            f"CREATE OR REPLACE VIEW {QUALITY_REPORT_TABLE} AS "
-            "SELECT CAST('' AS VARCHAR) AS job_id, "
-            "CAST('' AS VARCHAR) AS trial_id, "
-            "CAST('' AS VARCHAR) AS document_id, "
-            "CAST('' AS VARCHAR) AS raw_atif_digest, "
-            "CAST('' AS VARCHAR) AS raw_result_digest, "
-            "CAST('' AS VARCHAR) AS check_version, "
-            "CAST('' AS VARCHAR) AS check_digest, "
-            "CAST('' AS VARCHAR) AS status, "
-            "CAST(false AS BOOLEAN) AS is_ingestable, "
-            "CAST(false AS BOOLEAN) AS is_analysis_ready, "
-            "CAST('' AS VARCHAR) AS quarantine_reason, "
-            "CAST(0 AS BIGINT) AS findings_count, "
-            "CAST(0 AS BIGINT) AS warnings_count, "
-            "CAST(0 AS BIGINT) AS errors_count, "
-            "CAST('' AS VARCHAR) AS evaluated_at WHERE false"
-        )
-        conn.execute(empty_reports_sql)
-
-    if has_findings:
-        conn.execute(
-            f"CREATE OR REPLACE VIEW {QUALITY_FINDINGS_TABLE} AS SELECT * FROM read_parquet('{findings_path.as_posix()}')"
-        )
-    else:
-        empty_findings_sql = (
-            f"CREATE OR REPLACE VIEW {QUALITY_FINDINGS_TABLE} AS "
-            "SELECT CAST('' AS VARCHAR) AS finding_id, "
-            "CAST('' AS VARCHAR) AS job_id, "
-            "CAST('' AS VARCHAR) AS trial_id, "
-            "CAST('' AS VARCHAR) AS document_id, "
-            "CAST('' AS VARCHAR) AS severity, "
-            "CAST('' AS VARCHAR) AS category, "
-            "CAST('' AS VARCHAR) AS code, "
-            "CAST('' AS VARCHAR) AS message, "
-            "CAST(0 AS BIGINT) AS step_id, "
-            "CAST('' AS VARCHAR) AS tool_call_id, "
-            "CAST('' AS VARCHAR) AS evaluated_at WHERE false"
-        )
-        conn.execute(empty_findings_sql)
-
-    return has_reports, has_findings

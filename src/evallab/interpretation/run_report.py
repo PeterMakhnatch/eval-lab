@@ -105,7 +105,6 @@ if TYPE_CHECKING:
     from evallab.interpretation.trajectory_ir import IREpisode, IREvent, TrajectoryIR
 
 
-
 FeatureCategory = Literal[
     "identity",
     "mechanical_fact",
@@ -188,27 +187,6 @@ class FeatureDefinition:
                     f"Feature {self.column_name!r} with verdict_coupling={self.verdict_coupling!r} requires non-empty coupling_basis"
                 )
         return errors
-
-
-class FeatureRegistry:
-    """Registry of validated trajectory features with producer CI contracts."""
-
-    def __init__(self) -> None:
-        self._features: dict[str, FeatureDefinition] = {}
-
-    def register(self, feature: FeatureDefinition) -> FeatureDefinition:
-        """Register a feature definition, asserting contract invariants."""
-        contract_errors = feature.validate_contract()
-        if contract_errors:
-            raise ValueError(
-                f"Invalid feature definition for {feature.column_name}: {'; '.join(contract_errors)}"
-            )
-        self._features[feature.column_name] = feature
-        return feature
-
-    def get(self, name: str) -> FeatureDefinition | None:
-        """Get feature definition by column name."""
-        return self._features.get(name)
 
 
 def audit_denominator_policy(feature: FeatureDefinition) -> str | None:
@@ -883,8 +861,6 @@ def _is_code_host(host: str | None) -> bool:
     if not host:
         return False
     return any(host == known or host.endswith("." + known) for known in _CODE_HOSTS)
-
-
 
 
 def _option_value(args: Sequence[str], names: set[str]) -> str | None:
@@ -1566,8 +1542,6 @@ INFO_PATH = Path("verifier/grader/info.json")
 
 MIN_WEIGHT = 3.0
 _TASK_SLUG_RE = re.compile(r"-env\d+__task_\d+", re.IGNORECASE)
-
-
 
 
 def _info_shape(trial_dir: Path) -> bool:

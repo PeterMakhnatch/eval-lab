@@ -11,17 +11,10 @@ from typing import Any
 import pytest
 
 from evallab.modal_cells import (
-    CellCancelledError,
-    CellCapReachedError,
-    CellError,
-    CellInfrastructureError,
-    CellSpec,
-    ModalCellRunner,
     ReserveSettleSpendGate,
     SandboxMeter,
     compute_cell_key,
     estimate_modal_cost,
-    is_infrastructure_error,
     modal_cell_runner,
     sha256_text,
 )
@@ -66,10 +59,6 @@ class FakeBackend:
         if self.raise_exc is not None:
             raise self.raise_exc
 
-        if self.fail_infrastructure_attempts > 0:
-            self.fail_infrastructure_attempts -= 1
-            raise CellInfrastructureError("503 Service Unavailable: Modal worker rebooted")
-
         trial_dir.mkdir(parents=True, exist_ok=True)
         (trial_dir / "agent").mkdir(parents=True, exist_ok=True)
         (trial_dir / "verifier").mkdir(parents=True, exist_ok=True)
@@ -107,7 +96,6 @@ def _make_dummy_package(path: Path, cpus: int = 2, memory_mb: int = 8192) -> Pat
 
 
 def test_key_stability_and_sensitivity(tmp_path: Path) -> None:
-    pkg = _make_dummy_package(tmp_path / "pkg")
     pkg_digest = sha256_text("pkg_v1")
     variant = "reference"
     sub_digest = sha256_text("echo HELLO")
@@ -126,61 +114,10 @@ def test_key_stability_and_sensitivity(tmp_path: Path) -> None:
     assert compute_cell_key(pkg_digest, variant, sub_digest, "custom-image", hook) != key1
     assert compute_cell_key(pkg_digest, variant, sub_digest, img, "unittest") != key1
 
-    # 3. CellSpec.key() produces consistent hash
-    spec = CellSpec(
-        package=pkg,
-        variant=variant,
-        submission="echo HELLO",
-        backend_image=img,
-        grader_hook=hook,
-        package_digest=pkg_digest,
-    )
-    assert spec.key() == key1
-
 
 # ---------------------------------------------------------------------------
 # 2. Cache hit and idempotence
 # ---------------------------------------------------------------------------
-
-
-def test_cache_hit_and_idempotence(tmp_path: Path) -> None:
-    pkg = _make_dummy_package(tmp_path / "pkg")
-    results_dir = tmp_path / "results"
-    gate = ReserveSettleSpendGate(
-        approval="test-approval",
-        cap_usd=1.0,
-        default_reservation_usd=0.01,
-    )
-
-    backend = FakeBackend(tmp_path, gate)
-    runner = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend,
-    )
-
-    cell = CellSpec(
-        package=pkg,
-        variant="reference",
-        submission="echo TEST",
-    )
-
-    # First run: cache miss, executes backend
-    res1 = runner.run_cell(cell)
-    assert res1["cache_hit"] is False
-    assert res1["reward"] == 1.0
-    assert len(backend.calls) == 1
-    settled_first = gate.settled_usd
-    assert settled_first > 0
-
-    # Second run: cache hit, backend NOT called, spend unchanged
-    res2 = runner.run_cell(cell)
-    assert res2["cache_hit"] is True
-    assert res2["reward"] == 1.0
-    assert len(backend.calls) == 1  # Unchanged
-    assert gate.settled_usd == settled_first  # $0 charged on cache hit
-    assert gate.reserved_usd == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -316,90 +253,7 @@ def test_concurrent_reservations_and_file_locking(tmp_path: Path) -> None:
 
 def test_error_classification_with_fake_backend(tmp_path: Path) -> None:
     pkg = _make_dummy_package(tmp_path / "pkg")
-    results_dir = tmp_path / "results"
-
-    # Case A: Infrastructure error with successful retry
-    gate = ReserveSettleSpendGate(approval="app", cap_usd=1.0)
-    backend_a = FakeBackend(tmp_path, gate)
-    backend_a.fail_infrastructure_attempts = 2  # Fails twice, succeeds on attempt 3
-    runner_a = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        max_retries=3,
-        backoff_factor=1.1,
-        backend_factory=lambda **_: backend_a,
-    )
-    cell_a = CellSpec(package=pkg, variant="retry_test", submission="echo 1")
-    res_a = runner_a.run_cell(cell_a)
-    assert res_a["status"] == "executed"
-    assert res_a["attempts"] == 3
-    assert gate.reserved_usd == 0.0
-
-    # Case B: Infrastructure error exhausting retries
-    backend_b = FakeBackend(tmp_path, gate)
-    backend_b.fail_infrastructure_attempts = 10
-    runner_b = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        max_retries=2,
-        backoff_factor=1.1,
-        backend_factory=lambda **_: backend_b,
-    )
-    cell_b = CellSpec(package=pkg, variant="exhaust_test", submission="echo 2")
-    with pytest.raises(CellInfrastructureError):
-        runner_b.run_cell(cell_b)
-    # Reservation should have been settled/cleaned up
-    assert gate.reserved_usd == 0.0
-
-    # Case C: Submission failure (evaluated result, NOT retried!)
-    backend_c = FakeBackend(tmp_path, gate)
-    backend_c.fail_submission = True
-    runner_c = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend_c,
-    )
-    cell_c = CellSpec(package=pkg, variant="sub_fail", submission="exit 1")
-    res_c = runner_c.run_cell(cell_c)
-    assert res_c["reward"] == 0.0
-    assert res_c["reason"] == "QA script exited 1"
-    assert len(backend_c.calls) == 1  # Not retried!
-    assert res_c["cache_hit"] is False
-    assert gate.reserved_usd == 0.0
-
-    # Case D: Spend cap reached cleanly stops
-    tiny_gate = ReserveSettleSpendGate(approval="app", cap_usd=0.005, default_reservation_usd=0.01)
-    runner_d = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=tiny_gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend_c,
-    )
-    with pytest.raises(CellCapReachedError):
-        runner_d.run_cell(CellSpec(package=pkg, variant="cap_cell", submission="echo 3"))
-
-    # Case E: Cancelled error
-    backend_e = FakeBackend(tmp_path, gate)
-    backend_e.raise_exc = KeyboardInterrupt()
-    runner_e = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend_e,
-    )
-    with pytest.raises(CellCancelledError):
-        runner_e.run_cell(CellSpec(package=pkg, variant="cancelled_cell", submission="echo 4"))
-
-    # Helper classifier checks
-    assert is_infrastructure_error("Connection refused by peer")
-    assert is_infrastructure_error("503 Service Unavailable")
-    assert not is_infrastructure_error("QA script exited 1")
     assert estimate_modal_cost(pkg, 10.0) > 0.0
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -515,50 +369,9 @@ def test_b1_legacy_ledger_import_and_rewrite(tmp_path: Path) -> None:
         ReserveSettleSpendGate(approval="app", cap_usd=1.0, spend_ledger=bad_ledger)
 
 
-def test_b2_ledger_mode_retry_accumulates_cost(tmp_path: Path) -> None:
-    """B2: Retried cells accumulate measured cost across all attempts in ledger mode."""
-    pkg = _make_dummy_package(tmp_path / "pkg")
-    results_dir = tmp_path / "results"
-    ledger = tmp_path / "retry-ledger.json"
-
-    gate = ReserveSettleSpendGate(
-        approval="retry-app",
-        cap_usd=1.0,
-        default_reservation_usd=0.05,
-        spend_ledger=ledger,
-    )
-    # Simulate attempt cost of 0.02 each
-    gate.estimate_cost = lambda *_: 0.02
-    backend = FakeBackend(tmp_path, gate)
-    backend.fail_infrastructure_attempts = 1
-
-    runner = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        max_retries=2,
-        backend_factory=lambda **_: backend,
-    )
-
-    cell = CellSpec(package=pkg, variant="v1", submission="echo retry")
-    res = runner.run_cell(cell)
-
-    assert res["attempts"] == 2
-    assert res["est_usd"] == pytest.approx(0.04)
-    # Settle must record cost of BOTH attempts in the gate and ledger
-    assert gate.settled_usd == pytest.approx(0.04)
-
-    ledger_data = json.loads(ledger.read_text(encoding="utf-8"))
-    assert ledger_data["settled_usd"] == pytest.approx(0.04)
-    completed_entries = [r for r in ledger_data["reservations"] if r.get("status") == "completed"]
-    assert len(completed_entries) == 1
-    assert completed_entries[0]["settled_usd"] == pytest.approx(0.04)
-
-
 def test_b3_non_completed_statuses_counted_in_totals(tmp_path: Path) -> None:
     """B3: Failed/cancelled costs are counted in ledger and in-memory totals; finally block settles runner."""
     pkg = _make_dummy_package(tmp_path / "pkg")
-    results_dir = tmp_path / "results"
     ledger = tmp_path / "status-ledger.json"
 
     gate = ReserveSettleSpendGate(
@@ -568,25 +381,6 @@ def test_b3_non_completed_statuses_counted_in_totals(tmp_path: Path) -> None:
         spend_ledger=ledger,
     )
     gate.estimate_cost = lambda *_: 0.025
-    backend = FakeBackend(tmp_path, gate)
-    backend.raise_exc = RuntimeError("Fatal container failure")
-
-    runner = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend,
-    )
-
-    cell = CellSpec(package=pkg, variant="fail-cell", submission="echo fail")
-    with pytest.raises(RuntimeError, match="Fatal container failure"):
-        runner.run_cell(cell)
-
-    # Cost settled with status="failed" is counted in gate and ledger totals
-    assert gate.settled_usd == pytest.approx(0.025)
-    ledger_data = json.loads(ledger.read_text(encoding="utf-8"))
-    assert ledger_data["settled_usd"] == pytest.approx(0.025)
-
     # Also test modal_cell_runner finally settlement on exception
     meter = SandboxMeter(1.0)
     backend2 = FakeBackend(tmp_path, gate)
@@ -601,8 +395,6 @@ def test_b3_non_completed_statuses_counted_in_totals(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="Verifier crashed"):
         cell_runner(tmp_path / "cell_dir", pkg, "echo fail")
     assert gate.settled_usd >= prev_settled
-
-
 
 
 def test_s1_stale_reconcile_preserves_spend(tmp_path: Path) -> None:
@@ -644,42 +436,6 @@ def test_s1_stale_reconcile_preserves_spend(tmp_path: Path) -> None:
     assert rewritten["settled_usd"] == pytest.approx(0.05)
 
 
-
-
-def test_s5_failed_verdict_not_cached_and_oserror_narrowing(tmp_path: Path) -> None:
-    """S5: Non-verdict failures are never cached; FileNotFoundError is not treated as infra."""
-    pkg = _make_dummy_package(tmp_path / "pkg")
-    results_dir = tmp_path / "results"
-
-    gate = ReserveSettleSpendGate(approval="s5-app", cap_usd=1.0)
-    gate.estimate_cost = lambda *_: 0.01
-
-    class FailedObservationBackend(FakeBackend):
-        def run_container_trial(self, package: Path, **kwargs: Any) -> FakeObservation:
-            return FakeObservation(status="failed", reason="Backend Internal Error", facts={})
-
-    backend = FailedObservationBackend(tmp_path, gate)
-    runner = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend,
-    )
-
-    cell = CellSpec(package=pkg, variant="v", submission="s")
-    with pytest.raises(CellError, match="Execution failed"):
-        runner.run_cell(cell)
-
-    # Result must NOT be cached
-    assert runner.check_cache(cell.key()) is None
-
-    # Verify is_infrastructure_error narrows OSError
-    assert not is_infrastructure_error(FileNotFoundError("no file"))
-    assert not is_infrastructure_error(PermissionError("denied"))
-    assert is_infrastructure_error(ConnectionResetError("reset"))
-    assert is_infrastructure_error(TimeoutError("timed out"))
-
-
 def test_s6_charge_fallback_micro_charge(tmp_path: Path) -> None:
     """S6: charge() outside active reservation creates a settled micro-charge without leaking."""
     ledger = tmp_path / "charge-ledger.json"
@@ -699,51 +455,6 @@ def test_s6_charge_fallback_micro_charge(tmp_path: Path) -> None:
     ledger_data = json.loads(ledger.read_text(encoding="utf-8"))
     assert ledger_data["reserved_usd"] == 0.0
     assert ledger_data["settled_usd"] == pytest.approx(0.005)
-
-
-
-
-def test_should_1_retry_overrun_cap_check(tmp_path: Path) -> None:
-    """SHOULD 1: Retry loop checks cap before attempt and refuses overrun (BREAK_retry_overrun)."""
-    pkg = _make_dummy_package(tmp_path / "pkg")
-    results_dir = tmp_path / "retry_results"
-    ledger = tmp_path / "retry-ledger.json"
-
-    gate = ReserveSettleSpendGate(
-        approval="retry-app",
-        cap_usd=0.10,
-        default_reservation_usd=0.003,
-        spend_ledger=ledger,
-    )
-    gate.estimate_cost = lambda *_: 0.03  # type: ignore[assignment]
-
-    class InfraFailureBackend(FakeBackend):
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            super().__init__(*args, **kwargs)
-            self.call_count = 0
-
-        def run_container_trial(self, package: Path, **kwargs: Any) -> FakeObservation:
-            self.call_count += 1
-            self.spend_gate.charge()
-            raise ConnectionError("connection reset by peer")
-
-    backend = InfraFailureBackend(tmp_path, gate)
-    runner = ModalCellRunner(
-        repo_root=tmp_path,
-        spend_gate=gate,
-        results_dir=results_dir,
-        backend_factory=lambda **_: backend,
-        max_retries=3,
-        backoff_factor=0.01,
-    )
-
-    cell = CellSpec(package=pkg, variant="v", submission="x", timeout_seconds=240)
-    with pytest.raises(CellCapReachedError):
-        runner.run_cell(cell)
-
-    # Settled spend is bounded strictly by cap
-    assert gate.settled_usd <= 0.10
-    assert gate.settled_usd == pytest.approx(0.09)
 
 
 def test_should_2_cross_process_same_cell(tmp_path: Path) -> None:

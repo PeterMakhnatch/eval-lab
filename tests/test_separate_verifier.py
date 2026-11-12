@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.cheat_ladder import CHEAT_LADDER_V3, run_ladder, subprocess_run_fn
+from evallab.cheat_ladder import CHEAT_LADDER_V3, run_ladder
 from evallab.purge_installed_copies import SETUP_PYTHON_PATH, shell_block_v2
 from evallab.separate_verifier import (
     SNAP_DIR,
@@ -377,8 +377,6 @@ def test_v2_snapshot_hook_falls_back_to_full_tar_without_git(
     assert members["node_modules/dep/index.js"] == b"dep\n"
 
 
-
-
 def test_v10_solution_injected_only_when_parent_has_none(parent_dir_v2: Path) -> None:
     solve = b"#!/bin/bash\necho oracle\n"
     changes, _ = build_changes_v10(parent_dir_v2, marker=MARKER, solution_sh=solve)
@@ -437,8 +435,6 @@ def test_addopts_cleared_detects_unset_and_override() -> None:
     assert addopts_cleared("env -u PYTEST_ADDOPTS python -m pytest")
     assert not addopts_cleared("python -m pytest tests/ -v")
     assert not addopts_cleared(PYTEST_CMD)
-
-
 
 
 def test_resolve_command_text_decodes_base64_forms() -> None:
@@ -713,8 +709,6 @@ def test_embedded_grader_grades_runner_outcomes(
     )
 
 
-
-
 def test_v3_conftest_hook_collects_a_junit_report(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -742,8 +736,6 @@ def test_v3_conftest_hook_collects_a_junit_report(
     assert len(cases) == 3
     assert sum(1 for c in cases if c.find("failure") is not None) == 1
     assert sum(1 for c in cases if c.find("skipped") is not None) == 1
-
-
 
 
 # --------------------------------------------------------------------------- #
@@ -951,8 +943,6 @@ def test_embedded_v4_grader_grades_rootdir_shifted_reports(
     )
 
 
-
-
 @pytest.mark.parametrize("ignored", [False, True])
 @pytest.mark.parametrize("edit", ["nop", "oracle", "tamper"])
 def test_v10_uses_pristine_untracked_dependencies_as_the_diff_base(
@@ -1041,8 +1031,6 @@ def test_v10_uses_pristine_untracked_dependencies_as_the_diff_base(
         assert baked.read_bytes() == original_baked
         assert ".venv" not in (verifier / "agent.kept.diff").read_text()
         assert "tamper" not in (verifier / "tamper.log").read_text()
-
-
 
 
 # --------------------------------------------------------------------------- #
@@ -1280,8 +1268,6 @@ def test_embedded_v5_grader_grades_phase_reports(
     )
 
 
-
-
 def _v5_target_script() -> str:
     """Extract the shipped conftest-target computer."""
     import re as _re
@@ -1317,8 +1303,6 @@ def test_v5_hook_targets_cover_named_test_dirs(
     monkeypatch.setattr("sys.argv", ["targets", resolved, str(cwd)])
     exec(compile(_v5_target_script(), "v5targets", "exec"), {"__name__": "v5targets"})
     assert capsys.readouterr().out.split() == [".", "tests/ops/qubit"]
-
-
 
 
 # --------------------------------------------------------------------------- #
@@ -1512,8 +1496,6 @@ def test_embedded_v6_grades_from_archives_without_plugin_report(
     )
 
 
-
-
 def test_embedded_v6_go_empty_run(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1586,15 +1568,11 @@ _V7_G2_ORACLE = (
 )
 
 
-
-
 # 000828 oracle bytes: vitest colorizes the summary words themselves.
 _V7_G4_ORACLE = (
     "\x1b[2m Test Files \x1b[22m \x1b[1m\x1b[32m1 passed\x1b[39m\x1b[22m\x1b[90m (1)\x1b[39m\n"
     "\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[32m14 passed\x1b[39m\x1b[22m\x1b[90m (14)\x1b[39m\n"
 )
-
-
 
 
 # Real pytest-8 junit shapes (locally reproduced): pristine collection
@@ -1617,8 +1595,6 @@ _V7_G5_AGENT_JUNIT = (
 # Old-pytest file-attr shape: the module is ambiguous, the file is exact.
 
 
-
-
 # 000934/001839: tap-labeled commands emitting mocha spec-reporter output.
 _V7_G6_SPEC_CMD = "node_modules/.bin/tap test/schema-feature.test.js --no-coverage -R spec"
 _V7_G6_SPEC_OUT = (
@@ -1639,8 +1615,6 @@ _V7_G6_CLASSIC_OUT = (
     "\n"
     "  ok\n"
 )
-
-
 
 
 # 000511 resolved shape (multi-phase `set -e`) vs 000083 (single pytest).
@@ -1693,8 +1667,6 @@ def test_v7_multiphase_gate_counts_runner_invocations(tmp_path: Path) -> None:
     ).stdout.splitlines()
     assert len(multi_hits) == 3
     assert len(single_hits) == 1
-
-
 
 
 def _v7_noerrexit_body() -> str:
@@ -2020,8 +1992,6 @@ _V8_TERSE_CMD = (
 )
 
 
-
-
 # Locally reproduced dashed-dir junits (pytest 8.4.2): pristine collection
 # error with a dashed synthetic key, passing run with class-qualified keys.
 _V8_DASH_BASE_JUNIT = (
@@ -2039,8 +2009,6 @@ _V8_DASH_AGENT_JUNIT = (
     b'<testcase classname="dashed-dir.test_thing" name="test_top" time="0" />'
     b"</testsuite>"
 )
-
-
 
 
 def _v8_grader_block() -> str:
@@ -2362,8 +2330,6 @@ def test_v10_binary_artifact_paths() -> None:
     assert not is_binary_artifact_path("docs/manual.pdf")
 
 
-
-
 def test_v10_integrity_hook_detects_runtest_swap(tmp_path: Path) -> None:
     import os
 
@@ -2669,8 +2635,6 @@ def test_v10_opaque_wrapper_repeats_three_times(
     assert rewards == expected
 
 
-
-
 @pytest.mark.parametrize("runner", ["pytest", "unittest"])
 @pytest.mark.parametrize("edit", ["oracle", "nop"])
 def test_v10_python_snapshot_preserves_correct_and_noop_grades(
@@ -2767,9 +2731,26 @@ def _grade_v10_python_snapshot(
     elif edit != "nop":
         evidence = tmp_path / "ladder"
         evidence.mkdir()
+        from evallab.cheat_ladder import ExecOutcome
+
+        async def run_attack(script: str, timeout_sec: int) -> ExecOutcome:
+            completed = subprocess.run(
+                ["bash", "-c", script],
+                capture_output=True,
+                text=True,
+                timeout=timeout_sec,
+                cwd=agent,
+                env={**os.environ, "CHEAT_CWD": str(agent)},
+            )
+            return ExecOutcome(
+                return_code=completed.returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+            )
+
         records = asyncio.run(
             run_ladder(
-                str(agent), subprocess_run_fn(str(agent)), evidence,
+                str(agent), run_attack, evidence,
                 [edit], ladder_version=CHEAT_LADDER_V3,
             )
         )

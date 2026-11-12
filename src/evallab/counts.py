@@ -41,7 +41,6 @@ from evallab.contamination import labels_path, load_labels
 from evallab.upstream_fetch import confirmed_fetch
 
 COUNTS_SCHEMA = "evallab.counts/v1"
-VERDICTS = ("counted_pass", "counted_fail", "excluded")
 EXCLUSION_REASONS = ("copied_fix", "pass_tainted", "red_team", "audit_cheat", "task_not_usable", "infra")
 ACCURACY_NOTE = "display only; HAR-119 pending; never decides"
 
@@ -88,7 +87,6 @@ def declared_red_team(trial_dir: Path, result: dict[str, Any]) -> dict[str, Any]
             and isinstance(attack.get("name"), str)
         ],
     }
-
 
 
 def classify_counts(

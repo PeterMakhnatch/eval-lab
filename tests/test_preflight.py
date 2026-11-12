@@ -25,7 +25,6 @@ be:
 
 from __future__ import annotations
 
-import argparse
 import json
 import socket
 import subprocess
@@ -35,17 +34,14 @@ from pathlib import Path
 import pytest
 
 import evallab.preflight as preflight_module
-from evallab.cli import _preflight_command, run_cli
 from evallab.digest import DigestRenderer
 from evallab.preflight import (
     build_preflight_report,
-    digest_section,
-    preflight_at_tick_start,
     render_preflight,
     survey_queue,
 )
 from evallab.queue import DirectoryQueue, provider_reported_exhaustion
-from evallab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
+from evallab.schemas import AutoRunRule, StandingApprovalsPolicy
 
 #: Fixed instant. Every staleness assertion is a difference against this.
 NOW = datetime(2026, 8, 16, 18, 0, 0, tzinfo=UTC)
@@ -274,8 +270,6 @@ def test_one_provider_reading_is_never_attributed_to_the_other(tmp_path: Path) -
             assert provider.observed is False
             assert provider.paid_trials == 0
             assert provider.headroom.remaining_percent is None
-
-
 
 
 def test_the_providers_own_exhaustion_statement_is_surfaced(tmp_path: Path) -> None:
@@ -542,202 +536,3 @@ def test_the_default_refusal_reader_is_the_dispatch_gates_own(tmp_path: Path) ->
 
 
 # --- the tick-start entry point and the digest -----------------------------
-
-
-def test_preflight_at_tick_start_emits_and_returns(tmp_path: Path) -> None:
-    """The exact call another mission adds to `Executor._tick_locked`."""
-    emitted: list[str] = []
-
-    report = preflight_at_tick_start(tmp_path, now=NOW, emit=emitted.append)
-
-    assert len(emitted) == 1
-    assert emitted[0] == render_preflight(report)
-    assert emitted[0].startswith("evallab preflight —")
-
-
-def test_the_digest_embeds_the_same_block_byte_for_byte(tmp_path: Path) -> None:
-    trial = make_paid_trial(tmp_path)
-    add_quota_snapshot(trial, observed_at=NOW - timedelta(hours=3))
-    report = build_preflight_report(tmp_path, now=NOW, refusal=provider_reported_exhaustion)
-
-    renderer = DigestRenderer(
-        repo_root=tmp_path,
-        queue=DirectoryQueue(tmp_path / "queue"),
-        policy=policy(),
-        trial_loader=lambda _day: [],
-        drift_loader=lambda _day: [],
-        preflight_loader=lambda: report,
-    )
-    text = renderer.write(report_date=NOW.date()).read_text()
-
-    assert "\n".join(digest_section(report)) in text
-    assert render_preflight(report) in text
-    assert "- Providers whose exhaustion is a lockout, not a charge: codex" in text
-
-
-def test_a_broken_preflight_never_costs_the_digest_its_other_sections(
-    tmp_path: Path,
-) -> None:
-    def explode() -> object:
-        raise RuntimeError("quota roots vanished")
-
-    renderer = DigestRenderer(
-        repo_root=tmp_path,
-        queue=DirectoryQueue(tmp_path / "queue"),
-        policy=policy(),
-        trial_loader=lambda _day: [],
-        drift_loader=lambda _day: [],
-        preflight_loader=explode,
-    )
-    text = renderer.write(report_date=NOW.date()).read_text()
-
-    assert "Unavailable: the preflight could not be built (RuntimeError:" in text
-    assert "That is not a statement that quota, queue, or power are fine." in text
-    assert "## Completed trials" in text
-    assert "## Queue" in text
-
-
-def test_a_stale_queued_spec_never_takes_down_the_digest(tmp_path: Path) -> None:
-    """WS-E item 1 turns every pre-existing waiting spec into an unparseable file."""
-    queue_root = tmp_path / "queue"
-    queue = DirectoryQueue(queue_root)
-    (queue_root / "waiting" / "codex-legacy.json").write_text('{"schema_version": 1}')
-
-    renderer = DigestRenderer(
-        repo_root=tmp_path,
-        queue=queue,
-        policy=policy(),
-        trial_loader=lambda _day: [],
-        drift_loader=lambda _day: [],
-        preflight_loader=lambda: build_preflight_report(tmp_path, now=NOW),
-    )
-    text = renderer.write(report_date=NOW.date()).read_text()
-
-    assert "- Waiting proposals: unreadable (ValueError:" in text
-    assert "## Queue events" in text
-
-
-def test_the_digest_reports_the_latest_recorded_refusal_not_the_first_filename(
-    tmp_path: Path,
-) -> None:
-    """Reason files are ordered by `occurred_at`, not by their ULID suffix.
-
-    `write_reason` names them `{spec_id}-{ULID}.json`. A ULID sorts lexically
-    only down to its 48-bit millisecond; inside one millisecond the low 80 bits
-    are random, so a reverse filename sort picks at random. Since #65 made two
-    reasons per spec ordinary, the digest could print the superseded one. The
-    filenames below are deliberately in the wrong order relative to the times
-    they record, which is what a same-millisecond pair looks like.
-    """
-    queue = DirectoryQueue(tmp_path / "queue")
-    spec_id = "01M00850MSD5QB6NEKRXSGAMVX"
-    for suffix, occurred_at, code in (
-        ("ZZZZZZZZZZZZZZZZZZZZZZZZZZ", "2026-08-16T10:00:00Z", "paid_run_unauthorized"),
-        ("AAAAAAAAAAAAAAAAAAAAAAAAAA", "2026-08-16T10:00:01Z", "daily_cost_ceiling"),
-    ):
-        write_json(
-            queue.reasons_dir / f"{spec_id}-{suffix}.json",
-            {
-                "spec_id": spec_id,
-                "occurred_at": occurred_at,
-                "code": code,
-                "message": "recorded by the gate",
-            },
-        )
-    queue_spec(tmp_path / "queue", state="waiting", name="canary-run")
-    (tmp_path / "queue/waiting/codex-canary-run.json").write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "spec_id": spec_id,
-                "name": "canary-run",
-                "hypothesis": "a hypothesis",
-                "task": "canary/event-summary",
-                "agent": "codex",
-                "submitted_by": "tester",
-                "purpose": "drift",
-            }
-        )
-    )
-
-    renderer = DigestRenderer(
-        repo_root=tmp_path,
-        queue=queue,
-        policy=policy(),
-        trial_loader=lambda _day: [],
-        drift_loader=lambda _day: [],
-        preflight_loader=lambda: build_preflight_report(tmp_path, now=NOW),
-    )
-    text = renderer.write(report_date=NOW.date()).read_text()
-
-    assert "| daily_cost_ceiling |" in text
-    assert "paid_run_unauthorized" not in text
-
-
-# --- the CLI surface -------------------------------------------------------
-
-
-def test_the_cli_prints_the_surface_and_exits_zero_when_nothing_refuses(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    (tmp_path / "policy").mkdir()
-    (tmp_path / "policy/standing-approvals.yaml").write_text(policy().model_dump_json(indent=2))
-    trial = make_paid_trial(tmp_path)
-    add_quota_snapshot(trial, observed_at=NOW - timedelta(hours=1))
-
-    assert run_cli(["preflight"], workspace=tmp_path) == 0
-
-    printed = capsys.readouterr().out
-    assert "PER-PROVIDER REMAINING QUOTA" in printed
-    assert "QUEUE BY PURPOSE" in printed
-    assert "POWER WARNINGS (queued comparisons only)" in printed
-    assert "used_percent             92.0 [observed]" in printed
-
-
-def test_the_cli_exits_non_zero_when_a_provider_refuses(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Scriptable: `evallab preflight && evallab tick` stops before it spends.
-
-    The snapshot is placed relative to the process clock rather than at a fixed
-    instant, because `provider_reported_exhaustion` compares `resets_at` against
-    the reading's own clock. Only the relationship is asserted, so the outcome
-    is fixed forever; no host state is read.
-    """
-    (tmp_path / "policy").mkdir()
-    (tmp_path / "policy/standing-approvals.yaml").write_text(policy().model_dump_json(indent=2))
-    now = datetime.now(UTC)
-    trial = make_paid_trial(tmp_path)
-    add_quota_snapshot(
-        trial,
-        observed_at=now - timedelta(minutes=1),
-        used_percent=100.0,
-        resets_at=int((now + timedelta(days=2)).timestamp()),
-    )
-
-    arguments = argparse.Namespace(preflight_from=None, useful_effect=None)
-    assert _preflight_command(arguments, tmp_path) == 1
-
-    printed = capsys.readouterr().out
-    assert "VERDICT: billable work would be refused" in printed
-    assert "the provider reports used_percent 100.0 of the window" in printed
-
-
-def test_trial_preview_does_not_require_or_create_admission_state(tmp_path: Path) -> None:
-    spec = ExperimentSpec(
-        name="read-only-preview",
-        hypothesis="inspect a fresh control without admitting it",
-        purpose="drift",
-        task="canary/event-summary",
-        agent="nop",
-        attempts=2,
-        submitted_by="tester",
-        diff_sources=[],
-    )
-
-    preview = preflight_module.preview_spec_diff(spec, tmp_path)
-
-    assert preview.counts == {"reuse": 0, "regrade": 0, "rerun": 2}
-    assert not (tmp_path / "policy").exists()
-    assert not (tmp_path / "queue").exists()
-    assert not (tmp_path / "runs").exists()

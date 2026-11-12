@@ -6,7 +6,6 @@ import pytest
 
 from evallab.interpretation.run_report import (
     FeatureDefinition,
-    FeatureRegistry,
     audit_predictor_eligibility,
     audit_verdict_coupling,
 )
@@ -45,22 +44,6 @@ def test_predictor_audit_refusal(changes, strict, refusal):
     assert audit_predictor_eligibility(replace(FEATURE, **changes), strict_independence=strict) == refusal
 
 
-@pytest.mark.parametrize(
-    "changes",
-    [
-        {"verdict_coupling": "invalid"},
-        {"verdict_coupling": "correlates", "coupling_basis": ""},
-        {"verdict_coupling": "defines", "coupling_basis": None},
-    ],
-)
-def test_registry_rejects_invalid_coupling(changes):
-    with pytest.raises(ValueError):
-        FeatureRegistry().register(replace(FEATURE, **changes))
-
-
 def test_feature_definition_accepts_documented_coupling():
     feature = replace(FEATURE, verdict_coupling="correlates", coupling_basis="search depth")
-    registry = FeatureRegistry()
-    registry.register(feature)
-    assert registry.get(feature.column_name) == feature
     assert audit_verdict_coupling(feature) is None

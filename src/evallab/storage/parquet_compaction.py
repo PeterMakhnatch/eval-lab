@@ -11,12 +11,10 @@ Enforces zero row loss and exact schema integrity before and after writes.
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import shutil
 import stat
-import sys
 import tempfile
 import threading
 from collections.abc import Sequence
@@ -32,7 +30,7 @@ import pyarrow.parquet as pq
 from evallab.evidence.atif import PARQUET_SCHEMAS
 from evallab.evidence.event_mart import EVENT_MART_SCHEMAS
 from evallab.evidence.facts import FACT_SCHEMAS
-from evallab.evidence.parquet_io import parquet_publication_lock, parquet_root_lock
+from evallab.evidence.parquet_io import parquet_root_lock
 from evallab.semantic_facts import SEMANTIC_FACT_SCHEMAS
 from evallab.storage.fs import durable_mkdir, durable_replace, fsync_directory
 from evallab.storage.paths import (
@@ -640,16 +638,6 @@ def deduplicate_and_sort(table: pa.Table, table_name: str) -> pa.Table:
         con.unregister("tbl")
 
 
-def write_compact_table(
-    table: pa.Table,
-    target_path: Path,
-    table_name: str,
-) -> int:
-    """Write table to target_path atomically and validate row count & schema."""
-    with parquet_publication_lock(target_path):
-        return _write_compact_table_locked(table, target_path, table_name)
-
-
 def _write_compact_table_locked(
     table: pa.Table, target_path: Path, table_name: str
 ) -> int:
@@ -944,107 +932,3 @@ def compact(
 # --------------------------------------------------------------------------- #
 
 
-def render_compaction_summary(result: CompactionResult) -> str:
-    lines = ["parquet compaction"]
-    lines.append(f"  derived_root: {result.derived_root}")
-    lines.append(f"  compacted days: {len(result.compacted_days)}")
-    for day in result.compacted_days:
-        counts_str = " ".join(f"{k}={v}" for k, v in sorted(day.table_row_counts.items()))
-        lines.append(f"    dt={day.dt}: {counts_str}")
-        if day.pruned_job_ids:
-            lines.append(f"      pruned granular partitions: {len(day.pruned_job_ids)} jobs")
-        if day.retained_job_ids:
-            lines.append(f"      retained granular partitions: {len(day.retained_job_ids)} jobs")
-
-    total_str = " ".join(f"{k}={v}" for k, v in sorted(result.total_compacted_rows.items()))
-    lines.append(f"  total compacted rows: {total_str}")
-    lines.append(f"  total pruned jobs: {len(result.pruned_jobs)}")
-    lines.append(f"  total retained jobs: {len(result.retained_jobs)}")
-    for err in result.errors:
-        lines.append(f"  ERROR: {err}")
-    return "\n".join(lines)
-
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="python -m evallab.parquet_compaction",
-        description="Deterministic Parquet compaction engine (WS-E item 4).",
-    )
-    subparsers = parser.add_subparsers(dest="command", required=False)
-
-    compact_parser = subparsers.add_parser(
-        "compact",
-        help="compact closed-day data into derived/parquet/compact/dt=YYYY-MM-DD/",
-    )
-    for p in (parser, compact_parser):
-        p.add_argument(
-            "--target-date",
-            type=str,
-            default=None,
-            help="compact only a specific date (YYYY-MM-DD)",
-        )
-        p.add_argument(
-            "--derived-dir",
-            "--out",
-            "--parquet-dir",
-            type=Path,
-            default=None,
-            help="override derived Parquet root (default: derived/parquet)",
-        )
-        p.add_argument(
-            "--retention-days",
-            type=int,
-            default=DEFAULT_RETENTION_DAYS,
-            help=f"days to retain granular partitions (default: {DEFAULT_RETENTION_DAYS})",
-        )
-        p.add_argument(
-            "--no-prune",
-            action="store_true",
-            help="keep all granular partitions even for days older than retention window",
-        )
-        p.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="plan compaction without modifying filesystem",
-        )
-        p.add_argument(
-            "--json",
-            action="store_true",
-            help="emit summary as JSON",
-        )
-
-    return parser
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-
-    try:
-        derived_root = (
-            args.derived_dir.resolve()
-            if args.derived_dir is not None
-            else derived_root_from_environment(Path.cwd())
-        )
-    except Exception as exc:
-        print(f"Error resolving derived root: {exc}", file=sys.stderr)
-        return 1
-
-    result = compact(
-        derived_root=derived_root,
-        target_date=args.target_date,
-        retention_days=args.retention_days,
-        prune=not args.no_prune,
-        dry_run=args.dry_run,
-    )
-
-    if args.json:
-        print(json.dumps(result.to_dict(), indent=2))
-    else:
-        print(render_compaction_summary(result))
-
-    return 0 if result.ok else 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

@@ -712,25 +712,6 @@ def _field_calibration(
     return text + "."
 
 
-def compare_hand_key(decision: dict[str, Any], hand_row: dict[str, Any]) -> dict[str, Any]:
-    """Compare the page's probe-03 fields to one frozen hand-key row.
-
-    The hand key's ``outcome.rule`` and ``outcome.attribution`` are the
-    contract. ``whose`` is not compared: it is a page reading, not a label
-    the readers wrote.
-    """
-    raw_outcome = hand_row.get("outcome")
-    outcome: dict[str, Any] = raw_outcome if isinstance(raw_outcome, dict) else {}
-    return {
-        "rule_match": decision.get("rule_id") == outcome.get("rule"),
-        "attribution_match": decision.get("attribution") == outcome.get("attribution"),
-        "decision_rule": decision.get("rule_id"),
-        "hand_rule": outcome.get("rule"),
-        "decision_attribution": decision.get("attribution"),
-        "hand_attribution": outcome.get("attribution"),
-    }
-
-
 def _whose(rule_id: Any, attribution: Any) -> str:
     if rule_id == "R-ENV-02":
         return "task"
@@ -783,12 +764,8 @@ def _grader_gap(
     return "verifier passage has no test count and no named gap", "unknown"
 
 
-
-
 def _answer_words(answer: Any) -> str:
     return str(answer or "unknown").replace("_", " ")
-
-
 
 
 def _verifier_message(trial: Path) -> str:

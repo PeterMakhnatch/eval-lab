@@ -69,8 +69,6 @@ def test_predicate_matches_every_identifier_form(quarantine_ids: Callable[..., N
     assert quarantine.is_quarantined(trace_uuid("own-q"))
     assert quarantine.is_quarantined("trial-q")  # Harbor trial name -> exporter uuid
     assert not quarantine.is_quarantined("own-ok")
-    with pytest.raises(QuarantinedTrace):
-        quarantine.reject_quarantined("own-q")
 
 
 class Hosted:

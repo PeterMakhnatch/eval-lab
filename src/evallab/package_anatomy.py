@@ -49,11 +49,6 @@ _MAX_LIST = 12
 _MAX_EVIDENCE = 6
 _ARCHIVE_SUFFIXES = (".whl", ".zip", ".tar.gz", ".tgz", ".tar")
 
-_AUTOLOAD_GLOBS = (
-    "conftest.py", "sitecustomize.py", "usercustomize.py", "pytest.ini", "tox.ini", "setup.cfg",
-    "pyproject.toml", "*.pth", "jest.config.*", "vitest.config.*", ".mocharc*", "babel.config.*",
-    ".babelrc", "package.json", "Makefile", "build.rs", ".cargo/config.toml", "go.work",
-)
 _HOOK_CLASSES_BY_RUNNER = {
     "pytest": ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml", "sitecustomize.py",
                "usercustomize.py", "*.pth"),

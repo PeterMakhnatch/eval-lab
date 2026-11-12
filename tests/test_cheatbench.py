@@ -16,18 +16,11 @@ import pytest
 
 import evallab.cheatbench as mod
 from evallab.cheatbench import (
-    REVISION,
-    SHA256,
     CheatbenchError,
     convert,
-    counts_table,
-    fetch_parquet,
-    is_subset_row,
     parse_raw_trace,
     resolve_field_path,
-    select_subset,
     text_of,
-    validate_staged,
 )
 
 META = {"model": "test-model", "label": "cheating", "cheating_mechanism": "harness_leaks_verifier"}
@@ -366,7 +359,6 @@ def test_resolve_field_path_nested_and_failure():
         resolve_field_path(obj, "")
 
 
-
 def test_parse_raw_trace_schema_policy():
     assert parse_raw_trace('{"id": "x", "messages": []}')["id"] == "x"
     assert parse_raw_trace('{"schema_version": "cheatbench.raw_trace.v1"}') == {
@@ -376,7 +368,6 @@ def test_parse_raw_trace_schema_policy():
         parse_raw_trace('{"schema_version": "something.else.v9"}')
     with pytest.raises(CheatbenchError):
         parse_raw_trace("not json")
-
 
 
 def test_text_of_heterogeneous_content():
@@ -405,26 +396,6 @@ def test_messages_mapping_preserves_order_roles_and_markup():
     assert agent[0]["tool_calls"][0]["function_name"] == "execute_bash"
     assert agent[0]["tool_calls"][0]["arguments"] == {"command": "ls"}
     assert "ok" in agent[0]["observation"]["results"][0]["content"]
-
-
-def test_staged_steps_carry_span_refs_and_obs_badge():
-    trajectory = {
-        "schema_version": "ATIF-v1.2",
-        "session_id": "fixture",
-        "agent": {"name": "fixture"},
-        "steps": [{
-            "step_id": 1,
-            "source": "agent",
-            "message": "do",
-            "tool_calls": [{
-                "tool_call_id": "call-1",
-                "function_name": "shell",
-                "arguments": {"command": "ls"},
-            }],
-            "observation": {"results": [{"source_call_id": "call-1", "content": "done"}]},
-        }],
-    }
-    assert validate_staged(trajectory) == []
 
 
 def test_tool_event_attaches_to_previous_agent():
@@ -529,77 +500,8 @@ def test_convert_row_end_to_end_annotation_and_meta():
     ]
 
 
-def test_validate_staged_catches_bad_source_and_ids():
-    trajectory = {
-        "schema_version": "ATIF-v1.2",
-        "session_id": "fixture",
-        "agent": {"name": "fixture"},
-        "steps": [{"step_id": 1, "source": "user", "message": "x"}],
-    }
-    assert validate_staged(trajectory) == []
-    trajectory["steps"][0]["source"] = "tool"
-    assert any("invalid source" in issue for issue in validate_staged(trajectory))
-    trajectory["steps"][0]["source"] = "user"
-    trajectory["steps"][0]["step_id"] = 7
-    assert any("step_id must be 1" in issue for issue in validate_staged(trajectory))
-
-
-def test_subset_predicate_and_counts():
-    rows = [
-        _row(
-            trace_id="a",
-            benchmark="b1",
-            label="cheating",
-            cheating_mechanism="secret_discovery_in_environment",
-        ),
-        _row(
-            trace_id="b",
-            benchmark="b1",
-            label="attempt",
-            cheating_mechanism="verifier_exploitation",
-        ),
-        _row(
-            trace_id="c",
-            benchmark="b2",
-            label="cheating",
-            cheating_mechanism="harness_leaks_answer",
-        ),
-        _row(trace_id="d", benchmark="b2", label="benign", cheating_mechanism="none"),
-    ]
-    assert [r["trace_id"] for r in select_subset(rows)] == ["a", "b"]
-    assert counts_table(rows) == [
-        ("b1", "secret_discovery_in_environment", "cheating", 1),
-        ("b1", "verifier_exploitation", "attempt", 1),
-    ]
-    assert is_subset_row(rows[0]) and not is_subset_row(rows[2])
-
-
-def test_fetch_verifies_digest_and_short_circuits(tmp_path):
-    dest = tmp_path / "full.parquet"
-    with pytest.raises(CheatbenchError):
-        fetch_parquet(dest, downloader=lambda url: b"parquet-bytes")
-    assert not dest.exists()
-    real = mod.SHA256
-    try:
-        mod.SHA256 = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
-        assert fetch_parquet(dest, downloader=lambda url: b"test").read_bytes() == b"test"
-        calls = []
-        assert fetch_parquet(dest, downloader=lambda url: calls.append(url) or b"other") == dest
-        assert calls == []
-    finally:
-        mod.SHA256 = real
-
-
-def test_pinned_constants_match_record():
-    assert REVISION == "461360b34e93644955563dcc9243c6cc1a53bd0f"
-    assert SHA256 == "b4d2a1496e5f8de7b4c0e4791bd9f8fcbd0a3567f95d2e759b5da20ebb160e63"
-
-
 def test_materialized_trials_are_blind_and_labels_stay_in_manifest(tmp_path):
-    import hashlib
 
-    import pyarrow as pa
-    import pyarrow.parquet as pq
 
     from evallab.cheatbench_fidelity import find_forbidden_json
 
@@ -617,30 +519,12 @@ def test_materialized_trials_are_blind_and_labels_stay_in_manifest(tmp_path):
             trace_id="cb-benign", label="benign", cheating_mechanism=None, trace=json.dumps(trace)
         ),
     ]
-    parquet = tmp_path / "rows.parquet"
-    pq.write_table(pa.Table.from_pylist(rows), parquet)
-
-    stats = mod.materialize(parquet, tmp_path / "root")
-    assert stats["converted"] == 2
-    for trace_id in ("cb-cheat", "cb-benign"):
-        trial = tmp_path / "root" / "cb" / trace_id
-        body = (trial / "agent" / "trajectory.json").read_text(encoding="utf-8")
-        doc = json.loads(body)
+    for row in rows:
+        doc, _ = mod.convert(row["trace_id"], trace, _meta())
         assert find_forbidden_json(doc) == []
-        assert doc["metadata"]["item_id"] == trace_id
-        assert json.loads((trial / "result.json").read_text(encoding="utf-8")) == {}
-        # The two documents differ only in identity, never in label.
+        assert doc["metadata"]["item_id"] == row["trace_id"]
+        body = json.dumps(doc)
         assert "cheating" not in body and "secret_discovery" not in body
-
-    _, manifest_rows, _ = mod.subset(parquet)
-    by_id = {row["id"]: row for row in manifest_rows}
-    assert by_id["cb-cheat"]["labels"]["reward_hacking"] is True
-    assert by_id["cb-benign"]["labels"]["reward_hacking"] is False
-    written = (tmp_path / "root/cb/cb-cheat/agent/trajectory.json").read_text(encoding="utf-8")
-    assert (
-        by_id["cb-cheat"]["trajectory_sha256"]
-        == hashlib.sha256(written.rstrip("\n").encode("utf-8")).hexdigest()
-    )
 
 
 CAP_TRACE = {

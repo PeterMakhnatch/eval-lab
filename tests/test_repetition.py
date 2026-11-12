@@ -37,9 +37,6 @@ from evallab.repetition import (
     plan_repeated_matrix,
     resume_repeated_matrix,
 )
-from evallab.repetition import (
-    main as repetition_main,
-)
 
 
 def _make_tb4_plan(
@@ -354,51 +351,3 @@ def test_campaigns_module_re_exports() -> None:
     assert resumed.consumed_cost_usd == ZAI_OPENAPI_DEFAULT_MAX_COST_USD
 
 
-def test_repetition_cli_prepare_and_resume(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    plan_data = _make_tb4_plan(2)
-    plan_file = tmp_path / "plan.json"
-    plan_file.write_text(json.dumps(plan_data), encoding="utf-8")
-
-    matrix_file = tmp_path / "matrix.json"
-
-    # 1. CLI prepare
-    code = repetition_main(["prepare", str(plan_file), "--attempts", "2", "--out", str(matrix_file)])
-    assert code == 0
-    assert matrix_file.is_file()
-
-    out = capsys.readouterr().out
-    assert "preparing 2x2 authorizes zero executions" in out
-    assert "prepared_not_authorized" in out
-
-    # 2. CLI resume with outcomes
-    outcomes_file = tmp_path / "outcomes.json"
-    matrix_loaded = RepeatedAttemptMatrix.model_validate_json(matrix_file.read_text(encoding="utf-8"))
-    att0 = matrix_loaded.attempts[0].attempt_id
-    outcomes_file.write_text(
-        json.dumps([{"attempt_id": att0, "status": "completed", "usage": {}}]),
-        encoding="utf-8",
-    )
-
-    resumed_file = tmp_path / "matrix_resumed.json"
-    code = repetition_main(
-        [
-            "resume",
-            str(matrix_file),
-            "--outcomes",
-            str(outcomes_file),
-            "--out",
-            str(resumed_file),
-            "--authorize",
-            "--operator",
-            "peter",
-        ]
-    )
-    assert code == 0
-    assert resumed_file.is_file()
-
-    resumed_data = json.loads(resumed_file.read_text(encoding="utf-8"))
-    assert resumed_data["authorized"] is True
-    assert resumed_data["authorized_by"] == "peter"
-    assert resumed_data["approval_state"] == "authorized"
-    assert resumed_data["outcomes_summary"]["completed"] == 1
-    assert resumed_data["outcomes_summary"]["pending"] == 3

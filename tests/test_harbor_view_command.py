@@ -26,7 +26,6 @@ from evallab.harbor_view import (
     _view_command,
     harbor_runtime_problem,
     installed_harbor_version,
-    main,
     pinned_harbor_bin_dir,
     require_harbor_runtime,
 )
@@ -613,21 +612,6 @@ def test_installed_harbor_version_none_without_version_match(
 # ---------------------------------------------------------------------------
 # main() wiring
 # ---------------------------------------------------------------------------
-
-
-def test_main_builds_viewer_root(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    job = _two_trial_job(tmp_path)
-
-    assert main(["view", str(job), "--no-launch"]) == 0
-    assert "viewer root: " in capsys.readouterr().out
-
-
-def test_main_requires_a_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
-    with pytest.raises(SystemExit) as excinfo:
-        main([])
-
-    assert excinfo.value.code == 2
-    assert "required" in capsys.readouterr().err
 
 
 def test_module_entry_point_exits_zero_with_no_launch(

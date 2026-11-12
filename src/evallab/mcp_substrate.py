@@ -57,9 +57,6 @@ DEFAULT_PINNED_BASE_IMAGE = (
 # Google's public pull-through mirror of Docker Hub library images. Same bytes
 # (identical index digest), fetchable without Docker Hub authentication. CI
 # pulls this reference; the local/product default stays on docker.io.
-MIRROR_PINNED_BASE_IMAGE = (
-    "mirror.gcr.io/library/python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
-)
 PINNED_BASE_IMAGE_INDEX_DIGEST = (
     "sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
 )
@@ -382,8 +379,6 @@ def validate_target_base_runtime(
     }
 
 
-
-
 @dataclass(frozen=True)
 class MCPToolParameter:
     name: str
@@ -627,7 +622,6 @@ class MCPToolDefinition:
     output_type: str = "object"
     metadata: Mapping[str, Any] = field(default_factory=dict)
     execution_body: str | None = None
-
 
 
 def generate_fastmcp_server_script(
@@ -1087,40 +1081,6 @@ def materialize_mcp_sidecar_package(
         "collect_fragment": collect_fragment,
         "proof_sha256": compute_sha256(proof_data),
     }
-
-
-def compute_mcp_substrate_digest(
-    topology: dict[str, Any],
-    tool_defs: Sequence[MCPToolDefinition] | None = None,
-    *,
-    target: WheelhouseTarget | None = None,
-    base_image: str = DEFAULT_PINNED_BASE_IMAGE,
-    runtime_assets: Sequence[RuntimeAsset] = (),
-    op_registry_module: str | None = None,
-) -> str:
-    """Compute deterministic SHA-256 digest of the MCP substrate manifest, requirements, and full tool definitions."""
-    selected_target = target or WheelhouseTarget(
-        python_tag=DEFAULT_TARGET_PYTHON_TAG, platform_tag=DEFAULT_TARGET_PLATFORM_TAG
-    )
-    payload: dict[str, Any] = {
-        "substrate_version": MCP_SUBSTRATE_VERSION,
-        "topology": topology,
-        "requirements_hash": compute_sha256(canonical_json(FASTMCP_VERSION_CONSTRAINTS)),
-        "base_runtime": validate_target_base_runtime(
-            selected_target.python_tag, selected_target.platform_tag, base_image
-        ),
-    }
-    prepared_assets = validate_runtime_assets(runtime_assets)
-    if prepared_assets:
-        payload["runtime_assets"] = _runtime_asset_proof_records(prepared_assets)
-    payload["event_schema_version"] = MCP_TOOL_EVENT_SCHEMA_VERSION
-    payload["trusted_manifest_digest"] = trusted_wheel_manifest_digest()
-    payload["trusted_manifest_source"] = trusted_wheel_manifest_source()
-    if tool_defs is not None:
-        payload["tool_definitions_sha256"] = compute_tool_definitions_sha256(
-            tool_defs, op_registry_module
-        )
-    return compute_sha256(payload)
 
 
 def render_mcp_compose_document(

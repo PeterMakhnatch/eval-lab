@@ -547,7 +547,6 @@ These are more valuable initially than a general-purpose “AI scientist” agen
 
 ## Trial features
 
-`evallab features <job_dir_or_runs_root>... --out <stem>` scans Harbor trial
 directories (same discovery rule as `evallab watch`: a path is either a job
 dir whose children are `<task>__<id>` trials, or a runs root whose children
 are job dirs) and writes `<stem>.parquet` plus a `<stem>.csv` sibling for
@@ -556,7 +555,6 @@ detection logic; every signal comes from an existing deterministic detector
 (see trust notes).
 
 ```bash
-uv run evallab features runs/ovn-g5-000169-tuned --out state/g5
 ```
 
 ## Column dictionary

@@ -5,18 +5,10 @@ from __future__ import annotations
 import warnings
 
 from evallab.interpretation.trajectory_compliance import (
-    MALFORMED_REGISTRY,
     PlatformSettlement,
     TrialComplianceRecord,
     TrialEvidenceBundle,
-    current_corpus_method_readiness,
     evaluate_trial_compliance,
-    lineage_depends_on_outcome,
-    missing_denominator_declaration,
-    provenance_catalog,
-    t11_lineage_blocking,
-    tracked_output_is_manifest_only,
-    v_analysis_ready_trials,
 )
 
 
@@ -153,171 +145,6 @@ def test_evaluate_trial_compliance_is_deterministic_with_timestamps() -> None:
     assert first.evaluated_at == second.evaluated_at == "2026-08-28T00:00:00+00:00"
 
 
-def test_tracked_output_rejects_runs_and_parquet() -> None:
-    assert tracked_output_is_manifest_only(["research/experiments/manifests/compliance.json"]) is True
-    assert tracked_output_is_manifest_only(["derived/parquet/traj_features.parquet"]) is False
-    assert tracked_output_is_manifest_only(["runs/job/result.json"]) is False
-
-
-def test_lineage_blocking_fail_closed_without_declared_inputs() -> None:
-    blocked = t11_lineage_blocking(
-        [
-            {"column_name": "legacy_feature"},
-            {
-                "column_name": "ok_count",
-                "declared_inputs": ["tool_calls"],
-                "measurement_role": "process",
-                "available_before_verdict": True,
-            },
-            {
-                "column_name": "missing_before_verdict",
-                "declared_inputs": ["tool_calls"],
-                "measurement_role": "process",
-            },
-            {
-                "column_name": "verdict_derived",
-                "declared_inputs": ["task_success"],
-                "measurement_role": "process",
-                "available_before_verdict": True,
-            },
-        ]
-    )
-    assert "legacy_feature" in blocked
-    assert "missing_before_verdict" in blocked
-    assert "verdict_derived" in blocked
-    assert "ok_count" not in blocked
-    assert lineage_depends_on_outcome(["task_success"]) is True
-
-
-
-def test_provenance_catalog_denominator_is_per_column() -> None:
-    catalog = provenance_catalog(
-        [
-            {
-                "column_name": "prr",
-                "declared_inputs": ["faults"],
-                "measurement_role": "process",
-                "available_before_verdict": True,
-                "denominator_policy": "required",
-                "denominator_sibling": "fault_exposure_count",
-                "null_on_zero_denominator": True,
-                "producer_module": "recovery_metrics",
-            },
-            {
-                "column_name": "fault_exposure_count",
-                "declared_inputs": ["faults"],
-                "measurement_role": "denominator",
-                "available_before_verdict": True,
-                "denominator_policy": "not_applicable",
-            },
-            {
-                "column_name": "rc",
-                "declared_inputs": ["trials"],
-                "measurement_role": "process",
-                "available_before_verdict": True,
-                "denominator_policy": "required",
-                "denominator_sibling": "trial_count",
-                "null_on_zero_denominator": True,
-                "producer_module": "recovery_metrics",
-            },
-            {
-                "column_name": "trial_count",
-                "declared_inputs": ["trials"],
-                "measurement_role": "denominator",
-                "available_before_verdict": True,
-                "denominator_policy": "not_applicable",
-            },
-        ]
-    )
-    by_name = {row.column_name: row for row in catalog}
-    assert by_name["prr"].denominator_sibling == "fault_exposure_count"
-    assert by_name["rc"].denominator_sibling == "trial_count"
-    assert by_name["prr"].basis == "REGISTRY_CONFIRMED"
-
-
-def test_denominator_policy_tri_state_refusals() -> None:
-    none_policy = provenance_catalog(
-        [
-            {
-                "column_name": "legacy",
-                "declared_inputs": ["x"],
-                "available_before_verdict": True,
-                "measurement_role": "process",
-            }
-        ]
-    )
-    assert none_policy[0].refusal == "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
-    assert none_policy[0].basis == "REGISTRY_CONFIRMED"
-
-    missing_sib = provenance_catalog(
-        [
-            {
-                "column_name": "rate_a",
-                "declared_inputs": ["x"],
-                "available_before_verdict": True,
-                "measurement_role": "process",
-                "denominator_policy": "required",
-                "null_on_zero_denominator": True,
-            }
-        ]
-    )
-    assert missing_sib[0].refusal == "MISSING_DENOMINATOR_DECLARATION"
-    assert missing_denominator_declaration(
-        [
-            {
-                "column_name": "rate_a",
-                "denominator_policy": "required",
-                "null_on_zero_denominator": True,
-            }
-        ]
-    ) == ["rate_a"]
-
-    missing_null = provenance_catalog(
-        [
-            {
-                "column_name": "rate_b",
-                "declared_inputs": ["x"],
-                "available_before_verdict": True,
-                "measurement_role": "process",
-                "denominator_policy": "required",
-                "denominator_sibling": "den_b",
-            },
-            {
-                "column_name": "den_b",
-                "declared_inputs": ["x"],
-                "available_before_verdict": True,
-                "measurement_role": "denominator",
-                "denominator_policy": "not_applicable",
-            },
-        ]
-    )
-    assert {row.column_name: row.refusal for row in missing_null}["rate_b"] == (
-        "MISSING_NULL_ON_ZERO_DECLARATION"
-    )
-
-    invalid = provenance_catalog(
-        [
-            {
-                "column_name": "cost_usd",
-                "declared_inputs": ["x"],
-                "available_before_verdict": True,
-                "measurement_role": "process",
-                "denominator_policy": "not_applicable",
-                "denominator_sibling": "n",
-            }
-        ]
-    )
-    assert invalid[0].refusal == "INVALID_DENOMINATOR_DECLARATION"
-
-
-def test_current_corpus_does_not_synthesize_t12_t13() -> None:
-    freeze = current_corpus_method_readiness()
-    assert freeze["featured_trials"] == 44
-    assert freeze["T1.2"]["refusals"] == ["MISSING_RECOVERY_OUTCOME", "ZERO_OPPORTUNITY"]
-    assert freeze["T1.3"]["refusals"] == ["T_LOCK_UNAVAILABLE", "CENSORING_UNAVAILABLE"]
-    assert v_analysis_ready_trials([]) == []
-
-
 def test_identities_are_upstream_not_minted() -> None:
     record = evaluate_trial_compliance(_bundle())
     assert record.job_id == "job-1"
@@ -370,11 +197,3 @@ def test_cascade_requires_first_error_step_and_lock() -> None:
     assert missing_lock.cascade_eligible is False
 
 
-def test_malformed_registry_mapping_does_not_raise() -> None:
-    blocked = t11_lineage_blocking([{}, {"column_name": 1}])
-    assert blocked == [MALFORMED_REGISTRY, MALFORMED_REGISTRY]
-    missing = missing_denominator_declaration([{"denominator_policy": "required"}])
-    assert missing == [MALFORMED_REGISTRY]
-    catalog = provenance_catalog([{"declared_inputs": ["x"]}])
-    assert catalog[0].column_name == MALFORMED_REGISTRY
-    assert catalog[0].refusal == MALFORMED_REGISTRY

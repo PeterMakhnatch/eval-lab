@@ -24,19 +24,12 @@ from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-im
 from evallab.execution_contracts import (
     ZAI_OPENAPI_ALLOWED_MODELS,
     ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS,
-    ZAI_OPENAPI_MODEL_SELECTOR,
     ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
     ZAI_OPENAPI_PROXY_TOKEN,
     ZAI_OPENAPI_PROXY_URL,
     collected_secret_values,
 )
 from evallab.harbor_common import sanitize_native_trajectory
-
-__all__ = [
-    "SecretSafeZaiMiniSweAgent",
-    "ZAI_OPENAPI_ALLOWED_MODELS",
-    "ZAI_OPENAPI_MODEL_SELECTOR",
-]
 
 
 def _scrubbed_connection_env(connection: ResolvedModelConnection) -> dict[str, str]:

@@ -41,7 +41,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import csv
 import difflib
 import hashlib
 import io
@@ -53,11 +52,9 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-import threading
 import time
 import tomllib
 from collections.abc import Callable, Iterable, Sequence
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
@@ -77,7 +74,6 @@ from evallab.verifier_mutation import Mutant, generate_mutants, select_mutants
 SCHEMA_REPORT = "evallab.ref_subset.report/v1"
 SCHEMA_FINDING = "qa.finding/v1"
 STAGE_TASK = "S2.ref_subset"
-STAGE_TRACE = "T0.ref_coverage"
 STAGE_MUTANTS = "S2.ref_mutants"
 REVIEWER = {"agent": "evallab hack ref-subset", "model": None, "tokens": 0, "cost_usd": 0.0}
 
@@ -87,8 +83,6 @@ HIGH_KEEP = 0.25
 MEDIUM_KEEP = 0.5
 #: Grades per task including both baselines and the confirmation.
 DEFAULT_MAX_GRADES = 24
-#: Lines of slack when matching a trial's edits to a reference block.
-TRACE_SLACK = 3
 
 BlockKind = Literal["code", "comment", "noncode", "test"]
 Status = Literal[
@@ -1993,24 +1987,6 @@ class Job:
     image: str
 
 
-def load_jobs(index: Path, tasks_root: Path, order: Sequence[str] = ()) -> list[Job]:
-    jobs: list[Job] = []
-    for row in csv.DictReader(index.open()):
-        if row.get("label") != "oracle:pass+nop:fail":
-            continue
-        package = tasks_root / row["task_id"]
-        try:
-            loaded = Package.load(package)
-            image, separate = loaded.image, loaded.separate
-        except (OSError, ValueError, tomllib.TOMLDecodeError):
-            image, separate = "", False
-        patch = Path(row["patch_path"]) if row.get("patch_path") else None
-        if patch is not None or separate:
-            jobs.append(Job(row["task_id"], package, None if separate else patch, image))
-    rank = {task: i for i, task in enumerate(order)}
-    return sorted(jobs, key=lambda job: (rank.get(job.task_id, len(rank)), job.task_id))
-
-
 def patch_code_blocks(patch: str, tests: Iterable[str] = ()) -> int:
     """Code change runs in a patch (docs, comments and reset test files excluded); no Docker."""
     skip = set(tests)
@@ -2042,160 +2018,6 @@ def patch_code_blocks(patch: str, tests: Iterable[str] = ()) -> int:
     return count
 
 
-class ImageCache:
-    """Pull ahead of the lanes; remove an image this process pulled once its last job ends."""
-
-    def __init__(self, jobs: Sequence[Job], ahead: int) -> None:
-        self.images = list(dict.fromkeys(job.image for job in jobs))
-        self.users = {image: sum(1 for job in jobs if job.image == image) for image in self.images}
-        self.slots = threading.Semaphore(ahead)
-        self.ready = {image: threading.Event() for image in self.images}
-        self.errors: dict[str, str] = {}
-        self.pulled: set[str] = set()
-        self.lock = threading.Lock()
-
-    def prefetch(self) -> None:
-        for image in self.images:
-            self.slots.acquire()
-            if _docker("image", "inspect", image).returncode != 0:
-                result = _docker("pull", image)
-                if result.returncode != 0:
-                    self.errors[image] = result.stderr.decode(errors="replace")[-400:]
-                else:
-                    with self.lock:
-                        self.pulled.add(image)
-            self.ready[image].set()
-
-    def wait(self, image: str) -> str | None:
-        self.ready[image].wait()
-        return self.errors.get(image)
-
-    def release(self, image: str) -> None:
-        with self.lock:
-            self.users[image] -= 1
-            last = self.users[image] == 0
-            mine = image in self.pulled
-        if last:
-            if mine:
-                _docker("rmi", image)
-            self.slots.release()
-
-
-def sweep(
-    jobs: list[Job],
-    out_root: Path,
-    *,
-    lanes: int,
-    ahead: int,
-    max_grades: int,
-    memory: str,
-    mutants: int = 0,
-    environment: str = "docker",
-    spend_gate: CloudSpendGate | None = None,
-    log: Callable[[str], None] = print,
-) -> list[dict[str, Any]]:
-    """Probe each job (resumable). Without the line-level pass, tasks with fewer than two code
-    blocks skip Docker; with it, a one-block fix is exactly where it looks."""
-    _check_environment(environment, spend_gate, lanes=lanes)
-    if environment == "modal" and mutants < 0:
-        raise ValueError("Modal mutant count must be nonnegative")
-    todo = [job for job in jobs if not (out_root / job.task_id / "report.json").is_file()]
-    log(
-        f"ref-subset sweep: {len(jobs)} tasks, {len(jobs) - len(todo)} already reported, {len(todo)} to run"
-    )
-    execution_jobs: list[Job] = []
-    reports: list[dict[str, Any]] = []
-    for job in todo:
-        out_dir = out_root / job.task_id
-        try:
-            package = Package.load(job.package)
-            if not package.separate and job.patch is None:
-                raise ValueError("a raw MiMo package needs a reference patch")
-            blocks = (
-                patch_code_blocks(job.patch.read_text(errors="replace"), package.tests)
-                if job.patch is not None and not package.separate
-                else None
-            )
-        except (OSError, ValueError) as exc:
-            reports.append(
-                _write_skipped(
-                    job.task_id,
-                    job.package,
-                    out_dir,
-                    "unavailable",
-                    str(exc),
-                    environment=environment,
-                    spend_gate=spend_gate,
-                )
-            )
-            continue
-        if blocks is not None and blocks < 2 and not mutants:
-            reason = f"{blocks} code change run(s) in the reference patch: no proper subset to try"
-            reports.append(
-                _write_skipped(
-                    job.task_id,
-                    job.package,
-                    out_dir,
-                    "not_applicable",
-                    reason,
-                    environment=environment,
-                    spend_gate=spend_gate,
-                )
-            )
-        else:
-            execution_jobs.append(job)
-    log(
-        f"ref-subset sweep: {len(execution_jobs)} need {environment}, {len(reports)} recorded without it"
-    )
-    cache = None
-    if environment == "docker":
-        cache = ImageCache([job for job in execution_jobs if job.image], lanes + ahead)
-        threading.Thread(target=cache.prefetch, daemon=True).start()
-
-    def one(job: Job) -> dict[str, Any]:
-        out_dir = out_root / job.task_id
-        error = cache.wait(job.image) if cache is not None and job.image else None
-        try:
-            if error:
-                return _write_skipped(
-                    job.task_id, job.package, out_dir, "unavailable", f"image pull failed: {error}"
-                )
-            report = probe_task(
-                job.package, job.patch, out_dir, max_grades=max_grades, memory=memory,
-                mutants=mutants, environment=environment, spend_gate=spend_gate, log=log,
-            )  # fmt: skip
-            log(
-                f"{job.task_id}: {report['status']} verdict={report['verdict']} kept={report.get('kept_fraction')}"
-            )
-            return report
-        finally:
-            if cache is not None and job.image:
-                cache.release(job.image)
-
-    with ThreadPoolExecutor(max_workers=lanes) as pool:
-        reports += list(pool.map(one, execution_jobs))
-    if environment == "modal":
-        assert spend_gate is not None
-        out_root.mkdir(parents=True, exist_ok=True)
-        (out_root / "run-receipt.json").write_text(
-            json.dumps(
-                {
-                    "schema": "evallab.ref_subset.run/v1",
-                    "backend": environment,
-                    "tasks": [job.task_id for job in jobs],
-                    "lanes": lanes,
-                    "spend": spend_gate.to_json(),
-                    "reservation_policy": "estimates include unused native retry attempts; not a provider billing hard kill",
-                    "finished_at": _now(),
-                },
-                indent=1,
-                sort_keys=True,
-            )
-            + "\n"
-        )
-    return reports
-
-
 def _write_skipped(
     task_id: str,
     package: Path,
@@ -2219,186 +2041,6 @@ def _write_skipped(
         json.dumps(finding(report, out_dir), indent=1, sort_keys=True) + "\n"
     )
     return report
-
-
-def collect(out_root: Path) -> dict[str, Any]:
-    reports = [json.loads(path.read_text()) for path in sorted(out_root.glob("*/report.json"))]
-    status: dict[str, int] = {}
-    severity: dict[str, int] = {}
-    for report in reports:
-        status[report["status"]] = status.get(report["status"], 0) + 1
-        if report["verdict"] == "fail":
-            severity[report["severity"]] = severity.get(report["severity"], 0) + 1
-    findings = [
-        json.loads(path.read_text())
-        for report in sorted(out_root.glob("*/report.json"))
-        for path in (report.parent / "finding.json", report.parent / "finding-mutants.json")
-        if path.is_file()
-    ]
-    (out_root / "findings.jsonl").write_text(
-        "".join(json.dumps(item, sort_keys=True) + "\n" for item in findings)
-    )
-    summary = {
-        "schema": "evallab.ref_subset.summary/v1",
-        "tasks": len(reports),
-        "status": status,
-        "verdict": {
-            v: sum(1 for r in reports if r["verdict"] == v) for v in ("pass", "fail", "unknown")
-        },
-        "weak_by_severity": severity,
-        "weak": sorted(
-            (
-                {
-                    "task_id": r["task_id"],
-                    "severity": r["severity"],
-                    "kept_fraction": r["kept_fraction"],
-                    "kept_code_lines": r["kept_code_lines"],
-                    "code_lines": r["code_lines"],
-                }
-                for r in reports
-                if r["verdict"] == "fail"
-            ),
-            key=lambda item: (item["kept_fraction"], item["task_id"]),
-        ),  # fmt: skip
-    }
-    (out_root / "summary.json").write_text(json.dumps(summary, indent=1, sort_keys=True) + "\n")
-    return summary
-
-
-# ---------------------------------------------------------------------------
-# QA Trace T0: does a passing trial skip the reference blocks no test checks?
-
-
-def edited_ranges(diff: str) -> dict[str, list[tuple[int, int]]]:
-    """Base-file line ranges (0-based, half-open) a unified diff edits, per path."""
-    ranges: dict[str, list[tuple[int, int]]] = {}
-    path: str | None = None
-    line = 0
-    start: int | None = None
-
-    def flush() -> None:
-        nonlocal start
-        if path is not None and start is not None:
-            ranges.setdefault(path, []).append((start, max(line, start + 1)))
-        start = None
-
-    for raw in diff.splitlines():
-        if raw.startswith("diff --git "):
-            flush()
-            match = re.match(r"diff --git a/(.+?) b/(.+)$", raw)
-            path = match.group(2) if match else None
-            continue
-        if path is None or raw.startswith(("--- ", "+++ ", "\\")):
-            continue
-        header = re.match(r"@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@", raw)
-        if header:
-            flush()
-            line = int(header.group(1)) - (0 if header.group(2) == "0" else 1)
-            continue
-        if raw.startswith(("-", "+")):
-            if start is None:
-                start = line
-            if raw.startswith("-"):
-                line += 1
-            continue
-        flush()
-        line += 1
-    flush()
-    return ranges
-
-
-def _touches(block: dict[str, Any], ranges: dict[str, list[tuple[int, int]]]) -> bool:
-    spans = ranges.get(block["path"])
-    if not spans:
-        return False
-    start, end = block["base_lines"]
-    end = max(end, start + 1)
-    return any(lo < end + TRACE_SLACK and hi > start - TRACE_SLACK for lo, hi in spans)
-
-
-def trace_check(trial_dir: Path, report: dict[str, Any] | None) -> dict[str, Any]:
-    """One ``qa.finding/v1`` for a trial: is its pass a partial fix the tests cannot see?"""
-    result = json.loads((trial_dir / "result.json").read_text())
-    task_id = str(result.get("task_name") or "").split("/")[-1]
-    reward_file = trial_dir / "verifier" / "reward.txt"
-    reward = reward_file.read_text().strip() if reward_file.is_file() else None
-    diff_file = trial_dir / "verifier" / "agent.diff"
-    base = {
-        "schema": SCHEMA_FINDING,
-        "subject": {
-            "kind": "trace",
-            "task_id": task_id,
-            "task_digest": None,
-            "trial_id": trial_dir.name,
-        },
-        "stage": STAGE_TRACE,
-        "category": "false_positive",
-        "fault": None,
-        "severity": None,
-        "reproducer": None,
-        "reviewer": REVIEWER,
-    }
-    unknown = base | {
-        "verdict": "unknown",
-        "refutation": {"status": "unverified", "by": None, "reason": ""},
-    }
-    if reward != "1":
-        return unknown | {
-            "summary": f"not a pass (reward {reward}); this check judges passes only",
-            "evidence_refs": [],
-        }
-    if report is None or report.get("verdict") not in {"pass", "fail"}:
-        status = (
-            "no reference-subset report"
-            if report is None
-            else f"task report {report.get('status')}"
-        )
-        return unknown | {"summary": f"{status} for {task_id}", "evidence_refs": []}
-    if not diff_file.is_file():
-        return unknown | {"summary": "trial has no verifier/agent.diff", "evidence_refs": []}
-    ranges = edited_ranges(diff_file.read_text(errors="replace"))
-    code = [block for block in report["blocks"] if block["kind"] == "code"]
-    untested = [block for block in code if block["id"] in set(report["dropped_code"])]
-    tested = [block for block in code if block["id"] not in set(report["dropped_code"])]
-    covered_tested = [block["id"] for block in tested if _touches(block, ranges)]
-    covered_untested = [block["id"] for block in untested if _touches(block, ranges)]
-    evidence = [str(diff_file), str(report.get("report_path", ""))]
-    metrics = {
-        "tested_blocks": len(tested),
-        "tested_touched": len(covered_tested),
-        "untested_blocks": len(untested),
-        "untested_touched": len(covered_untested),
-        "untested_lines": sum(block["removed"] + block["added"] for block in untested),
-    }
-    if not untested:
-        return base | {
-            "verdict": "pass", "summary": "every reference block is needed by the hidden tests",
-            "evidence_refs": evidence, "metrics": metrics,
-            "refutation": {"status": "unverified", "by": None, "reason": ""},
-        }  # fmt: skip
-    suspect = not covered_untested
-    lines = metrics["untested_lines"]
-    severity = report.get("severity") if suspect else None
-    summary = (
-        f"pass leaves all {len(untested)} untested reference blocks ({lines} lines) unchanged: "
-        "a partial fix would score the same"
-        if suspect
-        else f"diff touches {len(covered_untested)}/{len(untested)} untested reference blocks"
-    )
-    return base | {
-        "verdict": "fail" if suspect else "pass",
-        "severity": severity,
-        "fault": "eval" if suspect else None,
-        "summary": summary,
-        "evidence_refs": evidence,
-        "metrics": metrics,
-        "refutation": {
-            "status": "unverified",
-            "by": None,
-            "reason": "the agent may implement the untested behaviour elsewhere or the behaviour may be optional; "
-            "compare the diff with dropped.patch",
-        },
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -2607,122 +2249,3 @@ def _run_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = N
     )
 
 
-def _sweep_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
-    del root, harbor
-    order = json.loads(args.order.read_text()) if args.order else ()
-    jobs = load_jobs(args.index, args.tasks_root, order)
-    if args.task:
-        jobs = [job for job in jobs if job.task_id in set(args.task)]
-    if args.limit:
-        jobs = jobs[: args.limit]
-    if args.plan:
-        return _plan_command(args, jobs, sweep_mode=True)
-    try:
-        spend_gate = _command_spend_gate(args)
-    except ValueError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-    reports = sweep(
-        jobs,
-        args.output_dir,
-        lanes=args.lanes,
-        ahead=args.ahead,
-        max_grades=args.max_grades,
-        memory=args.memory,
-        mutants=args.mutants,
-        environment=args.environment,
-        spend_gate=spend_gate,
-    )
-    print(json.dumps(collect(args.output_dir), indent=1))
-    return int(
-        args.environment == "modal"
-        and any(report["status"] in {"unavailable", "budget_exhausted"} for report in reports)
-    )
-
-
-def _trace_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
-    del root, harbor
-    out: list[dict[str, Any]] = []
-    for trial in args.trial:
-        result = json.loads((trial / "result.json").read_text())
-        task_id = str(result.get("task_name") or "").split("/")[-1]
-        report_path = args.reports / task_id / "report.json"
-        report = (
-            json.loads(report_path.read_text()) | {"report_path": str(report_path)}
-            if report_path.is_file()
-            else None
-        )
-        out.append(trace_check(trial, report))
-    text = "".join(json.dumps(item, sort_keys=True) + "\n" for item in out)
-    if args.output:
-        args.output.write_text(text)
-    else:
-        sys.stdout.write(text)
-    return 0
-
-
-def add_ref_subset_parser(hack_commands: Any) -> None:
-    parser = hack_commands.add_parser(
-        "ref-subset",
-        help="Weak-test probe: the smallest part of a reference fix that still passes the hidden "
-        "tests (Docker by default; explicitly approved Modal)",
-    )
-    commands = parser.add_subparsers(dest="ref_subset_command", required=True)
-    run = commands.add_parser(
-        "run",
-        help="Probe raw MiMo against --patch, separate-verifier oracle artifacts, or an unchanged "
-        "shared Harbor task through native matrices with --target files",
-    )
-    run.add_argument("package", type=Path)
-    run.add_argument("--patch", type=Path, help="Reference patch (MiMo packages only)")
-    run.add_argument("--target", action="append", default=[], help="Absolute native shared target FILE; repeat per file")
-    run.add_argument("--seed", help="Deterministic line-mutant selection seed (default: task id)")
-    run.add_argument("--output-dir", type=Path, required=True)
-    run.add_argument("--max-grades", type=int, default=DEFAULT_MAX_GRADES)
-    run.add_argument("--memory", default="4g")
-    run.add_argument(
-        "--mutants",
-        type=int,
-        default=0,
-        help="Line-level pass: grade up to N one-edit mutants of the lines the reference wrote",
-    )
-    run.add_argument(
-        "--oracle-timeout",
-        type=float,
-        default=3_600,
-        help="Seconds for solution/solve.sh; also lowers Modal image/setup timeout below 1800s",
-    )
-    _add_environment_options(run)
-    run.set_defaults(func=_run_command)
-    many = commands.add_parser(
-        "sweep", help="Probe every oracle:pass+nop:fail row of a reference-fix index"
-    )
-    many.add_argument("--index", type=Path, required=True)
-    many.add_argument(
-        "--tasks-root",
-        type=Path,
-        required=True,
-        help="Directory holding the raw packages by task id",
-    )
-    many.add_argument(
-        "--output-dir", type=Path, required=True, help="Resumable: tasks with a report are skipped"
-    )
-    many.add_argument("--order", type=Path, help="JSON list of task ids to run first, in order")
-    many.add_argument("--task", action="append", default=[])
-    many.add_argument("--limit", type=int)
-    many.add_argument(
-        "--lanes", type=int, default=1, choices=range(1, 17), help="Docker: 1-2; Modal: 1-16"
-    )
-    many.add_argument("--ahead", type=int, default=1, help="Images pulled ahead of the lanes")
-    many.add_argument("--max-grades", type=int, default=DEFAULT_MAX_GRADES)
-    many.add_argument("--memory", default="4g")
-    many.add_argument("--mutants", type=int, default=0, help="Line-level pass per task (see run)")
-    _add_environment_options(many)
-    many.set_defaults(func=_sweep_command)
-    trace = commands.add_parser(
-        "trace", help="QA Trace T0: flag passes that skip the untested reference blocks"
-    )
-    trace.add_argument("trial", type=Path, nargs="+")
-    trace.add_argument("--reports", type=Path, required=True, help="A sweep output directory")
-    trace.add_argument("--output", type=Path)
-    trace.set_defaults(func=_trace_command)

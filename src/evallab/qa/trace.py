@@ -1848,55 +1848,6 @@ def judge_corpus_rows(
 # --------------------------------------------------------------------------- answer keys
 
 
-def tj_atif(row: dict[str, Any]) -> dict[str, Any]:
-    """A trajectory-judge trajectory as ATIF; ``extra.source_index`` keeps the
-    upstream step index, which the workspace seals as its ``step_origin``."""
-    steps: list[dict[str, Any]] = [{"step_id": 1, "source": "user", "message": row["goal"]}]
-    for step in row["steps"]:
-        call_id = f"call-{step['index']}"
-        steps.append(
-            {
-                "step_id": len(steps) + 1,
-                "source": "agent",
-                "message": step.get("thought") or "",
-                "tool_calls": [
-                    {
-                        "tool_call_id": call_id,
-                        "function_name": step["call"]["tool"],
-                        "arguments": step["call"]["args"],
-                    }
-                ],
-                "observation": {
-                    "results": [
-                        {
-                            "source_call_id": call_id,
-                            "content": json.dumps(step["observation"], sort_keys=True),
-                        }
-                    ]
-                },
-                "extra": {"source_index": step["index"]},
-            }
-        )
-    if row.get("final_answer"):
-        # Upstream has no final-answer step: the answer is emitted at the last
-        # recorded step, so localisations of "stopped / replied here" map there.
-        last = row["steps"][-1]["index"] if row["steps"] else None
-        steps.append(
-            {
-                "step_id": len(steps) + 1,
-                "source": "agent",
-                "message": row["final_answer"],
-                "extra": {"source_index": last},
-            }
-        )
-    return {
-        "schema_version": "ATIF-v1.6",
-        "session_id": hashlib.sha256(row["trajectory_id"].encode()).hexdigest()[:16],
-        "agent": {"name": "support-desk-agent", "version": "trajectory-judge-0.2.0"},
-        "steps": steps,
-    }
-
-
 def blind_id(trial_id: str) -> str:
     """Opaque id for key items whose upstream ids carry the label
     (trajectory-judge names faults ``<instance>-<failure_type>``)."""

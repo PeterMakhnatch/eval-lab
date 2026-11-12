@@ -21,7 +21,6 @@ import pytest
 
 from evallab import ref_subset
 from evallab.ref_subset import (
-    TRACE_SLACK,
     Block,
     FileChange,
     Grade,
@@ -31,14 +30,12 @@ from evallab.ref_subset import (
     _dockerfile_bases,
     block_kind,
     compose,
-    edited_ranges,
     file_change,
     modal_execution_bound,
     mutation_pass,
     patch_code_blocks,
     probe_task,
     summarize,
-    trace_check,
     unified_patch,
 )
 from evallab.regrade import SpendCapReached
@@ -570,135 +567,13 @@ def test_patch_code_blocks_counts_only_code_runs() -> None:
     assert patch_code_blocks("") == 0
 
 
-# ---------------------------------------------------------------------------
-# Trace T0
-
-
-def test_edited_ranges_maps_hunks_to_base_lines() -> None:
-    diff = (
-        "diff --git a/f.py b/f.py\n--- a/f.py\n+++ b/f.py\n"
-        "@@ -10,0 +11,2 @@\n+added1\n+added2\n tail\n"
-        "@@ -20,3 +22,2 @@ def f():\n ctx\n-gone1\n-gone2\n+new\n tail\n"
-        "diff --git a/g.py b/g.py\n--- a/g.py\n+++ b/g.py\n"
-        "@@ -7 +7 @@\n-old\n+new\n"
-    )
-    assert edited_ranges(diff) == {
-        # Insert after base line 10 (0-based: before index 10): reported on the next line.
-        "f.py": [(10, 11), (20, 22)],
-        "g.py": [(6, 7)],
-    }
-
-
-def test_edited_ranges_keeps_an_edit_that_ends_its_hunk() -> None:
-    diff = (
-        "diff --git a/f.py b/f.py\n--- a/f.py\n+++ b/f.py\n"
-        "@@ -10,0 +11,2 @@\n+added1\n+added2\n"
-        "@@ -30,2 +32,2 @@\n ctx\n-old\n+new\n"
-        "diff --git a/g.py b/g.py\n--- a/g.py\n+++ b/g.py\n"
-        "@@ -3,2 +3,2 @@\n ctx\n-old\n+new\n"
-        "diff --git a/h.py b/h.py\n--- a/h.py\n+++ b/h.py\n"
-        "@@ -1 +1 @@\n-old\n+new\n"
-    )
-    assert edited_ranges(diff) == {"f.py": [(10, 11), (30, 31)], "g.py": [(3, 4)], "h.py": [(0, 1)]}
-
-
-def _report() -> dict[str, Any]:
-    """Task report: two separated code blocks (lines 4 and 30), only the first one tested."""
-    base, fixed = _edited(4, 30)
-    changes = [file_change("src/m.go", base, fixed, set())]
-    tested, untested = [block.id for block in changes[0].blocks]
-    report = summarize("task-1", changes, "measured", {tested}, "", [])
-    assert report["dropped_code"] == [untested] and report["severity"] == "medium"
-    return report
-
-
-def _trial(root: Path, *, reward: str | None, diff: str | None, name: str = "org/task-1") -> Path:
-    trial = root / "trial-1"
-    (trial / "verifier").mkdir(parents=True)
-    (trial / "result.json").write_text(json.dumps({"task_name": name}))
-    if reward is not None:
-        (trial / "verifier" / "reward.txt").write_text(reward)
-    if diff is not None:
-        (trial / "verifier" / "agent.diff").write_text(diff)
-    return trial
-
-
-def _hunk(first_line: int) -> str:
-    """A diff editing base line ``first_line`` (1-based) of src/m.go."""
-    return (
-        "diff --git a/src/m.go b/src/m.go\n--- a/src/m.go\n+++ b/src/m.go\n"
-        f"@@ -{first_line},1 +{first_line},1 @@\n-line{first_line - 1}\n+changed\n"
-    )
-
-
-def test_trace_check_flags_a_pass_that_skips_the_untested_block(tmp_path: Path) -> None:
-    trial = _trial(tmp_path, reward="1\n", diff=_hunk(5))  # base index 4: the tested block
-    result = trace_check(trial, _report())
-    assert result["verdict"] == "fail"
-    assert result["category"] == "false_positive"
-    assert result["severity"] == "medium"
-    assert result["fault"] == "eval"
-    assert result["subject"] == {
-        "kind": "trace",
-        "task_id": "task-1",
-        "task_digest": None,
-        "trial_id": "trial-1",
-    }
-    assert result["metrics"] == {
-        "tested_blocks": 1,
-        "tested_touched": 1,
-        "untested_blocks": 1,
-        "untested_touched": 0,
-        "untested_lines": 2,
-    }
-
-
-def test_trace_check_passes_when_the_diff_touches_the_untested_block(tmp_path: Path) -> None:
-    trial = _trial(tmp_path, reward="1", diff=_hunk(5) + _hunk(31))  # base indexes 4 and 30
-    result = trace_check(trial, _report())
-    assert result["verdict"] == "pass"
-    assert result["severity"] is None and result["fault"] is None
-    assert result["metrics"]["untested_touched"] == 1
-
-
-@pytest.mark.parametrize(
-    ("index", "verdict"),
-    [
-        (30 - TRACE_SLACK - 1, "fail"),
-        (30 - TRACE_SLACK, "pass"),
-        (30 + TRACE_SLACK, "pass"),
-        (30 + TRACE_SLACK + 1, "fail"),
-    ],
-)
-def test_trace_check_matches_edits_within_the_slack_of_a_block(
-    tmp_path: Path, index: int, verdict: str
-) -> None:
-    # The untested block is base line index 30; an edit this far away does (not) count as touching it.
-    trial = _trial(tmp_path, reward="1", diff=_hunk(index + 1))
-    assert trace_check(trial, _report())["verdict"] == verdict
-
-
-def test_trace_check_is_unknown_without_a_passing_reward_or_a_usable_report(
-    tmp_path: Path,
-) -> None:
-    failed = _trial(tmp_path / "a", reward="0", diff=_hunk(5))
-    assert trace_check(failed, _report())["verdict"] == "unknown"
-    unscored = _trial(tmp_path / "b", reward=None, diff=_hunk(5))
-    assert trace_check(unscored, _report())["verdict"] == "unknown"
-
-    passed = _trial(tmp_path / "c", reward="1", diff=_hunk(5))
-    assert trace_check(passed, None)["verdict"] == "unknown"
-    unmeasured = _report() | {"verdict": "unknown", "status": "flaky"}
-    assert trace_check(passed, unmeasured)["verdict"] == "unknown"
-
-    nodiff = _trial(tmp_path / "d", reward="1", diff=None)
-    assert trace_check(nodiff, _report())["verdict"] == "unknown"
-
 
 def _ref_args(*arguments: str) -> argparse.Namespace:
+    from evallab.reward_hack import build_reward_hack_parser
+
     parser = argparse.ArgumentParser()
-    ref_subset.add_ref_subset_parser(parser.add_subparsers(required=True))
-    return parser.parse_args(["ref-subset", *arguments])
+    build_reward_hack_parser(parser.add_subparsers(required=True))
+    return parser.parse_args(["hack", "ref-subset", *arguments])
 
 
 def _forbid_execution(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -708,10 +583,8 @@ def _forbid_execution(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (
         "Sandbox",
         "SeparateSandbox",
-        "ImageCache",
         "_docker",
         "probe_task",
-        "sweep",
         "lab_harbor_problem",
     ):
         monkeypatch.setattr(ref_subset, name, forbidden)
@@ -768,58 +641,6 @@ def test_cli_plan_is_zero_execution_and_keeps_package_bytes_immutable(
     assert before == {
         p.relative_to(package): p.read_bytes() for p in package.rglob("*") if p.is_file()
     }
-
-
-def test_modal_sweep_plan_lists_all_selected_tasks_and_resume_skips(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    tasks = tmp_path / "tasks"
-    for name in ("one", "two", "not-selected"):
-        _mimo_package(tasks / name)
-    patch = tmp_path / "reference.patch"
-    patch.write_text(_PATCH)
-    index = tmp_path / "index.csv"
-    index.write_text(
-        "task_id,label,patch_path\n"
-        + "".join(
-            f"{name},oracle:pass+nop:fail,{patch}\n" for name in ("one", "two", "not-selected")
-        )
-    )
-    output = tmp_path / "out"
-    report = output / "one" / "report.json"
-    report.parent.mkdir(parents=True)
-    report.write_text('{"status": "not_applicable"}\n')
-    _forbid_execution(monkeypatch)
-    args = _ref_args(
-        "sweep",
-        "--index",
-        str(index),
-        "--tasks-root",
-        str(tasks),
-        "--output-dir",
-        str(output),
-        "--environment",
-        "modal",
-        "--lanes",
-        "16",
-        "--plan",
-        "--task",
-        "one",
-        "--task",
-        "two",
-        "--max-usd",
-        "100",
-        "--approve",
-        "plan approval example",
-    )
-    assert args.func(args, tmp_path) == 0
-    plan = json.loads(capsys.readouterr().out)
-    assert [task["task_id"] for task in plan["tasks"]] == ["one", "two"]
-    assert [task["action"] for task in plan["tasks"]] == ["resume_skip", "probe"]
-    assert plan["lanes"] == 16 and plan["reservation_units_upper_bound"] == 51
-    assert plan["fits_cap"] is True and plan["execution_refused"] is False
-    assert report.read_text() == '{"status": "not_applicable"}\n'
-    assert not (output / "two").exists() and not (output / "run-receipt.json").exists()
 
 
 @pytest.mark.parametrize(

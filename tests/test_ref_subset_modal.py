@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 
 from evallab import ref_subset
-from evallab.ref_subset import Job, probe_task, sweep
+from evallab.ref_subset import probe_task
 from evallab.registry import task_directory_digest
 from evallab.regrade import CloudSpendGate
 
@@ -329,7 +329,6 @@ def provider(monkeypatch: pytest.MonkeyPatch) -> _Provider:
         raise AssertionError("Modal must never invoke host Docker or its image cache")
 
     monkeypatch.setattr(ref_subset, "_docker", no_docker)
-    monkeypatch.setattr(ref_subset, "ImageCache", no_docker)
     return provider
 
 
@@ -433,35 +432,6 @@ def test_native_preparation_errors_release_all_cloud_sandboxes(
     assert report["status"] == "unavailable" and report["verdict"] == "unknown"
     assert not provider.grades
     assert provider.allocations and all(s.terminated for s in provider.allocations)
-
-
-def test_modal_sweep_accepts_sixteen_lanes_with_one_shared_gate_and_no_docker(
-    tmp_path: Path, provider: _Provider
-) -> None:
-    patch = tmp_path / "reference.patch"
-    patch.write_text(_PATCH)
-    jobs = [
-        Job(f"task-{i}", _package(tmp_path / f"task-{i}"), patch, "unused-image") for i in range(16)
-    ]
-    gate = CloudSpendGate("inert shared gate", 3, 1)
-    reports = sweep(
-        jobs,
-        tmp_path / "out",
-        lanes=16,
-        ahead=100,
-        max_grades=24,
-        memory="4g",
-        environment="modal",
-        spend_gate=gate,
-        log=lambda _: None,
-    )
-    assert len(reports) == 16
-    assert all(r["status"] == "budget_exhausted" and r["verdict"] == "unknown" for r in reports)
-    assert gate.executions == 3 and len(provider.allocations) <= 1
-    assert all(s.terminated for s in provider.allocations)
-    receipt = json.loads((tmp_path / "out" / "run-receipt.json").read_text())
-    assert receipt["tasks"] == [job.task_id for job in jobs]
-    assert receipt["spend"] == gate.to_json() and receipt["lanes"] == 16
 
 
 def test_previous_run_lock_evidence_is_not_reused_after_budget_refusal(

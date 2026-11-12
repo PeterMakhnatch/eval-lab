@@ -566,7 +566,6 @@ def test_shared_reward_and_agent_exit_across_consumers(tmp_path: Path) -> None:
 
     from evallab.analysis_worker import eligible_trials
     from evallab.counts import classify_counts
-    from evallab.mimo_exploit import trial_reward
 
     trial = tmp_path / "job" / "trial"
     trial.mkdir(parents=True)
@@ -579,7 +578,6 @@ def test_shared_reward_and_agent_exit_across_consumers(tmp_path: Path) -> None:
         (trial / "result.json").write_text(json.dumps(result))
         raw, scored, source = probe03.read_reward(trial)
         assert (raw, scored, source) == (reward, True, "verifier_result")
-        assert trial_reward(trial) == reward
         assert eligible_trials([SimpleNamespace(trials=[SimpleNamespace(path=trial)])])[0][2] is None
         assert classify_counts(reward=raw, scored=scored)["verdict"] == (
             "counted_pass" if reward == 1.0 else "counted_fail"
@@ -591,10 +589,8 @@ def test_shared_reward_and_agent_exit_across_consumers(tmp_path: Path) -> None:
     (trial / "verifier").mkdir()
     (trial / "verifier" / "reward.txt").write_text("1.0")
     assert probe03.read_reward(trial) == (1.0, True, "reward.txt")
-    assert trial_reward(trial) == 1.0
     assert eligible_trials([SimpleNamespace(trials=[SimpleNamespace(path=trial)])])[0][2] is None
 
     (trial / "verifier" / "reward.txt").write_text("-1")
     assert probe03.read_reward(trial) == (-1.0, False, "reward.txt")
-    assert trial_reward(trial) is None
     assert eligible_trials([SimpleNamespace(trials=[SimpleNamespace(path=trial)])])[0][2].startswith("defer:")

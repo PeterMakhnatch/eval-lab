@@ -261,12 +261,6 @@ def test_cards_are_deterministic_and_use_only_known_mechanism_classes(tmp_path):
     assert scores == sorted(scores, reverse=True)
 
 
-def test_mechanism_classes_match_the_seeker_taxonomy():
-    from evallab.production.seeker_worker import MECHANISM_CLASSES as SEEKER
-
-    assert set(MECHANISM_CLASSES) == set(SEEKER)
-
-
 def test_discover_packages_expands_collections_and_refuses_missing_paths(tmp_path):
     _write(tmp_path / "coll/a", {"task.toml": ""})
     _write(tmp_path / "coll/b", {"instruction.md": "x"})

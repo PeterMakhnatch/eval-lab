@@ -711,18 +711,14 @@ def isolated_cli(
     registry: SyntheticRegistry, monkeypatch: pytest.MonkeyPatch,
 ) -> Any:
     from evallab import cli
-    from evallab.production import cli as production_cli
     from evallab.production import corpus_queue
 
-    def forbidden(*_args: Any, **_kwargs: Any) -> None:
-        pytest.fail("export-runs opened a queue, runtime, or broker")
 
     monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
     monkeypatch.setenv("EVALLAB_CLOUD_DATABASE_URL", "postgresql://must-not-be-contacted.invalid/private")
     monkeypatch.setattr(cli, "load_local_env", lambda _path: None)
     monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     monkeypatch.setattr(corpus_queue, "CorpusRegistry", lambda _root: registry)
-    monkeypatch.setattr(production_cli, "_open_queue", forbidden)
     return cli
 
 

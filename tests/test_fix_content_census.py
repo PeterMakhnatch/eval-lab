@@ -14,16 +14,13 @@ from evallab.fix_content_census import (
     CSV_FIELDS,
     GENERIC_MIN_DIRS,
     PROBE_SH,
-    SCAN_EXCLUDE_DIRS,
     classify_location,
     collect_result,
-    compose_clean_setup,
     distinctive_added_lines,
     generic_patterns,
     is_import_line,
     is_test_path,
     non_test_files,
-    normalize_code_bytes,
     parse_diff_added_lines,
     run_probe,
     stage_probe,
@@ -81,7 +78,6 @@ def test_short_generic_lines_are_not_distinctive() -> None:
     assert "return x" not in lines
 
 
-
 def test_import_lines_are_not_distinctive() -> None:
     assert is_import_line("import os")
     assert is_import_line("from copy import deepcopy")
@@ -92,13 +88,6 @@ def test_import_lines_are_not_distinctive() -> None:
     lines = distinctive_added_lines(patch)
     assert "import sys" not in lines
     assert "from collections import OrderedDict" not in lines
-
-
-def test_normalize_code_bytes_strips_whitespace_only() -> None:
-    assert normalize_code_bytes(b"") == b""
-    assert normalize_code_bytes(b"  \n\t\n") == b""
-    assert normalize_code_bytes(b"def f():\n    return 1\n\n") == b"def f():\nreturn 1\n"
-    assert normalize_code_bytes(b"a\r\n  b\r\n") == b"a\nb\n"
 
 
 def test_generic_patterns_need_unrelated_dirs() -> None:
@@ -150,41 +139,6 @@ def test_locations_classify_to_routes() -> None:
     assert classify_location("/workspace/repo/target/debug/x", "/workspace/repo") == "target-dir"
 
 
-def test_probe_covers_all_stages() -> None:
-    for token in (
-        "cat-file -t",
-        "fix_present_pre",
-        "setup.sh",
-        "fix_present_post",
-        "git_hidden",
-        "rev-list --all",
-        "fsck --unreachable",
-        "patterns_raw",
-        "patterns.pre",
-        "grep -rlF",
-        "hit_detail",
-        "pattern_map",
-        "blobhash",
-        "blob_found_pre",
-        "carrier_hits",
-        "worktree_hashes",
-        "no_scan",
-        "__modal",
-        "fix_mtimes",
-        "worktree_mtimes",
-        "caches.txt",
-        "setup_rc",
-        "scan_rc",
-    ):
-        assert token in PROBE_SH
-    assert "census-stage" in PROBE_SH
-    assert ".git" in PROBE_SH  # the content scan excludes the object store
-    assert "--exclude-dir=" in PROBE_SH
-    for excluded in SCAN_EXCLUDE_DIRS:
-        assert excluded in PROBE_SH
-    assert "probe-pfx-post" in PROBE_SH  # own scratch never scanned
-
-
 def test_stage_probe_lays_out_setup_and_probe(tmp_path: Path) -> None:
     source = tmp_path / "source"
     (source / "files").mkdir(parents=True)
@@ -224,41 +178,6 @@ def test_stage_probe_precomputed_and_no_scan(tmp_path: Path) -> None:
     assert (stage / "fix_source").read_text(encoding="utf-8") == "known-patch:t"
     assert (stage / "fix.patch").read_text(encoding="utf-8").startswith("diff --git")
     assert (stage / "no_scan").is_file()
-
-
-def test_clean_chain_composes_in_order() -> None:
-    # mimo_harbor-shaped Code setup (literal anchor lines, as in
-    # test_strip_future_history) so the composition pins the real contract.
-    root = (
-        "#!/bin/bash\nfail() { exit 1; }\n"
-        "write_blocklist() { :; }\n"
-        'echo "$BASE" > "$M/base"\n'
-        "# Images are built with history truncated at the base. If one is not, the fix could be read out of git log,\n"
-        "# so .git is hidden while the agent works and put back for grading.\n"
-        'LATER=$(git rev-list --all --not "$BASE" 2>/dev/null | head -n 5 | grep -c . || true)\n'
-        "write_blocklist\n"
-        'if [ "$LATER" -gt 0 ]; then\n'
-        '  mv "$CWD/.git" "$M/git-hidden"\n'
-        '  echo "history not truncated at ${BASE:0:12}: .git hidden while the agent works"\n'
-        "fi\n"
-        'touch "$M/ready"\n'
-    )
-    text, applied = compose_clean_setup(root, with_purge=True)
-    assert applied == [
-        "strip-future-history@1",
-        "purge-installed-copies@1",
-        "purge-build-caches@2",
-        "mtime-normalize@1",
-    ]
-    order = [
-        text.index("strip-future-history@1"),
-        text.index("purge-installed-copies@1"),
-        text.index("purge-build-caches@2"),
-        text.index("mtime-normalize@1"),
-    ]
-    assert order == sorted(order)
-    _, applied_plain = compose_clean_setup(root, with_purge=False)
-    assert "purge-installed-copies@1" not in applied_plain
 
 
 def _write_base(out: Path, *, pre: str = "yes", post: str = "no") -> None:

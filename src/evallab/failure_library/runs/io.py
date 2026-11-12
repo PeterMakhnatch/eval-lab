@@ -1,16 +1,13 @@
-"""Shared source downloads, immutable raw custody and bounded native-row iteration."""
+"""Immutable raw custody and bounded native-row iteration."""
 
 from __future__ import annotations
 
-import gzip
 import hashlib
 import json
 import os
-import shutil
 import urllib.parse
 import urllib.request
 from collections.abc import Iterator
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -23,13 +20,6 @@ from evallab.failure_library.runs.cached import (
 )
 from evallab.failure_library.runs.published import SOURCES
 
-COLLECTIONS = (
-    "terminal-wrench",
-    "goodfire-reward-hack-data",
-    "cheatbench",
-    *SOURCES,
-    "metr-malt",
-)
 MALT_REVISION = "6100006c2fd23d81e5afe2b1cc3bf3f3fff48df1"
 MALT_REDISTRIBUTION_REVISION = "1045a7336432c40182924bbd3698af292ea24acb"
 REPOSITORIES = {
@@ -152,164 +142,12 @@ def parquet_rows(path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
             index += 1
 
 
-def jsonl_rows(path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
-    opener = gzip.open if path.suffix == ".gz" else open
-    with opener(path, "rt", encoding="utf-8") as handle:
-        for index, line in enumerate(handle):
-            if not line.strip():
-                continue
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
-                # Ablation's early smoke exports concatenate pretty-printed objects
-                # despite their .jsonl suffix. Retain each object's actual start line.
-                decoder = json.JSONDecoder()
-                buffer = line
-                base = index
-                while True:
-                    start = len(buffer) - len(buffer.lstrip())
-                    if start == len(buffer):
-                        base += buffer.count("\n")
-                        buffer = handle.read(65536)
-                        if not buffer:
-                            return
-                        continue
-                    try:
-                        row, end = decoder.raw_decode(buffer, start)
-                    except json.JSONDecodeError:
-                        chunk = handle.read(65536)
-                        if not chunk:
-                            raise
-                        buffer += chunk
-                        continue
-                    yield base + buffer.count("\n", 0, start), row
-                    base += buffer.count("\n", 0, end)
-                    buffer = buffer[end:]
-            yield index, row
-
-
 def _source_files(collection: str, filename: str) -> bool:
     if collection == "terminal-wrench":
         return filename in {"baseline.parquet", "hack.parquet", "non_hack.parquet", "tasks.parquet"}
     if collection == "goodfire-reward-hack-data":
         return filename.endswith(("traces.jsonl", "judge_rollouts.jsonl", "monitor_rollouts.jsonl"))
     return filename.endswith((".parquet", ".jsonl", ".jsonl.gz"))
-
-
-def stage_input(collection: str, source: Path, destination: Path) -> None:
-    """Archive existing raw bytes once; refuse to overwrite different pinned bytes."""
-    if source.resolve() == destination.resolve():
-        return
-    if source.is_file():
-        name = "redistributed.parquet" if collection == "metr-malt" else source.name
-        files = [(source, Path(name))]
-    else:
-        files = [
-            (path, path.relative_to(source))
-            for path in sorted(source.rglob("*"))
-            if path.is_file() and _source_files(collection, str(path.relative_to(source)))
-        ]
-    for original, relative in files:
-        target = destination / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if target.exists():
-            if digest(target) != digest(original):
-                raise ValueError(f"different bytes already occupy pinned raw path {target}")
-            continue
-        shutil.copyfile(original, target)
-        target.chmod(0o444)
-
-
-def _selected_download(collection: str, path: str) -> bool:
-    if path in {"README.md", "MANIFEST.json"}:
-        return collection not in {"cheatbench", "terminal-wrench"}
-    if collection == "reward-hacking-ablation":
-        return path.endswith(
-            (
-                "/episodes.jsonl",
-                "/trajectories.jsonl",
-                "/trajectories.jsonl.gz",
-                "/records.jsonl.gz",
-            )
-        )
-    if collection == "termgrade":
-        return path in {"data/trials.parquet", "data/tests.parquet"} or path.startswith(
-            "data/terminus/"
-        )
-    if collection == "hacktrace":
-        return path.startswith("trajectories/") and path.endswith(".parquet")
-    if collection == "olmo-reward-hacking":
-        return path.startswith("data/") and path.endswith(".parquet")
-    if collection == "metr-malt":
-        return path.startswith("data/public-") and path.endswith(".parquet")
-    if collection == "cheatbench":
-        return path == "data/processed/parquet/full.parquet"
-    if collection == "terminal-wrench":
-        return path in {
-            "data/baseline/train-00000-of-00001.parquet",
-            "data/hack/train-00000-of-00001.parquet",
-            "data/non_hack/train-00000-of-00001.parquet",
-            "data/tasks/train-00000-of-00001.parquet",
-        }
-    if collection == "goodfire-reward-hack-data":
-        return path.endswith((".md", ".json", ".jsonl"))
-    return False
-
-
-def download_source(collection: str, destination: Path) -> list[Path]:
-    repo, revision = REPOSITORIES[collection]
-    # Retained bytes are the recovery path for a 403 or a removed repository.
-    # Never contact the host, overwrite evidence, or silently accept corrupt
-    # bytes when this immutable revision is already present.
-    if destination.is_dir() and any(destination.iterdir()):
-        verify_retained_bundle(destination, RETAINED_BUNDLE_SHA256[collection])
-        files = sorted(path for path in destination.rglob("*") if path.is_file())
-        if not any(_source_files(collection, str(path.relative_to(destination))) for path in files):
-            raise ValueError("retained access receipt has no native dataset bytes")
-        return files
-    headers = {"User-Agent": "eval-lab-failure-library/1"}
-    if os.environ.get("HF_TOKEN"):
-        headers["Authorization"] = "Bearer " + os.environ["HF_TOKEN"]
-    request = urllib.request.Request(
-        f"https://huggingface.co/api/datasets/{repo}/revision/{revision}", headers=headers
-    )
-    with urllib.request.urlopen(request, timeout=120) as response:  # noqa: S310
-        metadata = json.load(response)
-    if metadata.get("sha") != revision:
-        raise ValueError("Hugging Face returned a different dataset revision")
-    files = [
-        item["rfilename"]
-        for item in metadata["siblings"]
-        if _selected_download(collection, item["rfilename"])
-    ]
-
-    def fetch(filename: str) -> Path:
-        relative = Path(filename)
-        if relative.is_absolute() or ".." in relative.parts:
-            raise ValueError("dataset filename escapes its retained bundle")
-        if collection == "cheatbench":
-            relative = Path(relative.name)
-        elif collection == "terminal-wrench":
-            relative = Path(relative.parts[1] + ".parquet")
-        target = destination / relative
-        if target.is_file():
-            return target
-        target.parent.mkdir(parents=True, exist_ok=True)
-        encoded = urllib.parse.quote(filename, safe="/")
-        request = urllib.request.Request(
-            f"https://huggingface.co/datasets/{repo}/resolve/{revision}/{encoded}", headers=headers
-        )
-        partial = target.with_name(target.name + ".partial")
-        with urllib.request.urlopen(request, timeout=300) as response, partial.open("wb") as out:  # noqa: S310
-            shutil.copyfileobj(response, out)
-        partial.replace(target)
-        target.chmod(0o444)
-        return target
-
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        retained = list(pool.map(fetch, files))
-    verify_retained_bundle(destination, RETAINED_BUNDLE_SHA256[collection])
-    return retained
 
 
 def raw_root(state_root: Path, collection: str) -> Path:

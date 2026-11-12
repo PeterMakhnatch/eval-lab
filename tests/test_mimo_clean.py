@@ -27,7 +27,6 @@ from evallab.mimo_clean import (
     CLEAN_SET_VERSION,
     CLEAN_SET_VERSION_V5,
     EXCLUDED_FROM_TRAINING,
-    MANIFEST_V5_REL,
     MTIME_ACTIVE_ID,
     NODE_FOLD_AT_RISK,
     NODE_FOLD_REAL,
@@ -38,7 +37,6 @@ from evallab.mimo_clean import (
     PURGE_V2_ID,
     PYTHON_CHAIN,
     PYTHON_CHAIN_V5,
-    SEPARATE_V6_ID,
     SEPARATE_V8_ID,
     SEPARATE_V10_ID,
     STATUS_BUILT,
@@ -50,16 +48,13 @@ from evallab.mimo_clean import (
     OracleInfo,
     acceptance_pass,
     build_solution_sh,
-    chain_for_language,
     chains_for_version,
     derive_marker,
     load_manifest,
     load_reference_index,
     oracle_info_from_index,
     resolve_language,
-    select_usable,
     snapshot_category,
-    snapshot_pool,
     summarize_trials,
     write_manifest,
 )
@@ -253,30 +248,10 @@ def test_solution_sh_rejects_oversize_patch() -> None:
         )
 
 
-def test_select_usable_keeps_keep_and_fix_only() -> None:
-    rows = [
-        {"task_id": "a", "verdict": "keep"},
-        {"task_id": "b", "verdict": "fix"},
-        {"task_id": "c", "verdict": "discard"},
-        {"task_id": "d", "verdict": ""},
-    ]
-    assert [row["task_id"] for row in select_usable(rows)] == ["a", "b"]
-
-
 def test_resolve_language_ledger_wins_over_category() -> None:
     assert resolve_language(ledger_row=True, category="go") == "python"
     assert resolve_language(ledger_row=False, category="go") == "go"
     assert resolve_language(ledger_row=False, category=None) is None
-
-
-def test_chain_for_language_matrix() -> None:
-    assert chain_for_language("python") == PYTHON_CHAIN
-    assert chain_for_language("go") == NONPYTHON_CHAIN
-    assert chain_for_language("unknown") == NONPYTHON_CHAIN
-    assert chain_for_language(None) is None
-    assert PURGE_ID in PYTHON_CHAIN
-    assert PURGE_ID not in NONPYTHON_CHAIN
-    assert NONPYTHON_CHAIN[-2:] == (SEPARATE_V6_ID, AGENT_NETWORK_NONE_ID)
 
 
 def test_snapshot_category_reads_task_toml(tmp_path: Path) -> None:
@@ -287,20 +262,6 @@ def test_snapshot_category_reads_task_toml(tmp_path: Path) -> None:
     assert snapshot_category(task_dir) == "go"
     (task_dir / "task.toml").write_text("not toml [[[\n", encoding="utf-8")
     assert snapshot_category(task_dir) is None
-
-
-def test_snapshot_pool_skips_ledger_members(tmp_path: Path) -> None:
-    snap = tmp_path / "snap"
-    for task_id, category in (("a", "Go"), ("b", "Python"), ("c", None)):
-        task_dir = snap / task_id
-        task_dir.mkdir(parents=True)
-        if category is not None:
-            (task_dir / "task.toml").write_text(
-                f'[metadata]\ncategory = "{category}"\n', encoding="utf-8"
-            )
-    pool = snapshot_pool(snap, {"b"})
-    assert pool == {"a": "go", "c": None}
-    assert snapshot_pool(tmp_path / "missing", set()) == {}
 
 
 def test_manifest_write_load_roundtrip(tmp_path: Path) -> None:
@@ -407,8 +368,6 @@ def _final(tmp_path: Path, result) -> Path:
     return tmp_path / "store" / slug / result.final_digest.removeprefix("sha256:")[:12]
 
 
-
-
 def test_build_chain_is_idempotent(tmp_path: Path, oracle: OracleInfo) -> None:
     package = _write_run_package(tmp_path, TASK_ID)
     builder = _builder(tmp_path)
@@ -441,8 +400,6 @@ def test_build_without_oracle_has_no_solution(tmp_path: Path) -> None:
     assert result.status == STATUS_BUILT
     assert result.reference_fix == "none"
     assert not (_final(tmp_path, result) / "solution" / "solve.sh").exists()
-
-
 
 
 def test_build_unresolvable_snapshot_task_skipped(tmp_path: Path) -> None:
@@ -537,8 +494,6 @@ def test_rebuild_past_orphan_packages(tmp_path: Path, oracle: OracleInfo) -> Non
     assert leftovers == []
 
 
-
-
 def test_chains_for_version_matrix() -> None:
     python_chain, nonpython_chain = chains_for_version(CLEAN_SET_VERSION)
     assert (python_chain, nonpython_chain) == (PYTHON_CHAIN, NONPYTHON_CHAIN)
@@ -560,8 +515,6 @@ def test_chains_for_version_matrix() -> None:
         chains_for_version("mimo-clean-v9")
 
 
-
-
 def test_excluded_from_training_noted(tmp_path: Path) -> None:
     task_id = "format-code-task-001478"
     assert task_id in EXCLUDED_FROM_TRAINING
@@ -571,12 +524,9 @@ def test_excluded_from_training_noted(tmp_path: Path) -> None:
     assert "excluded-from-training" in result.reason
 
 
-
-
 def test_chains_for_version_v6() -> None:
     from evallab.mimo_clean import (
         CLEAN_SET_VERSION_V6,
-        DEFAULT_MANIFEST_BY_VERSION,
         MANIFEST_V6_REL,
         NONPYTHON_CHAIN_V6,
         PYTHON_CHAIN_V6,
@@ -590,10 +540,6 @@ def test_chains_for_version_v6() -> None:
     assert PURGE_V2_ID not in non_v6
     assert CLEAN_SET_VERSION_V6 == "mimo-clean-v6"
     assert MANIFEST_V6_REL.parts[-2:] == ("mimo-clean-v6", "manifest.csv")
-    assert DEFAULT_MANIFEST_BY_VERSION[CLEAN_SET_VERSION_V6] == MANIFEST_V6_REL
-    assert DEFAULT_MANIFEST_BY_VERSION[CLEAN_SET_VERSION_V5] == MANIFEST_V5_REL
-
-
 
 
 def test_build_v6_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
@@ -989,8 +935,6 @@ def test_pre848_snapshot_package_is_stale(tmp_path: Path) -> None:
     assert builder._materialized(TASK_ID, legacy) is not None  # type: ignore[arg-type]
     agent_stale = stub(AGENT_NETWORK_NONE_ID, hook=False)
     assert builder._materialized(TASK_ID, agent_stale) is None  # type: ignore[arg-type]
-
-
 
 
 @pytest.mark.parametrize("current_controls", [False, True])

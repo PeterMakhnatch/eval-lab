@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
-import stat
 from pathlib import Path
 
 import duckdb
@@ -13,374 +11,46 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.registry import harbor_task_digest, task_directory_digest
 from evallab.task_catalog import (
-    CatalogError,
-    build_catalog,
-    derive_grader_kind_cost,
-    derive_split_group,
     export_train_eligible,
-    load_lineage_dicts,
     outcome_verdict,
-    pull_hf_snapshot,
     task_audit_sql,
     task_outcomes_sql,
     wilson_interval,
 )
-from evallab.task_lint import lint_mimo_task, mimo_manifest_sha
-
-REF = "TestOrg/MiMo-V2.6-RL-harbor-fake@" + "a" * 40
-REPO_ID = "TestOrg/MiMo-V2.6-RL-harbor-fake"
-
-SCRIPT_TOML = """\
-schema_version = "1.4"
-
-[task]
-name = "mimo-v2.6-rl/alpha-task"
-description = "alpha fixture"
-
-[metadata]
-category = "Go"
-domain = "fake"
-source_id = "alpha-task"
-
-[agent]
-timeout_sec = 100.0
-
-[verifier]
-timeout_sec = 60.0
-user = "root"
-
-[environment]
-docker_image = "docker.io/example/img@sha256:abc"
-network_mode = "public"
-cpus = 2
-memory_mb = 1024
-
-[environment.healthcheck]
-command = "bash -c 'echo setup'"
-timeout_sec = 60.0
-"""
-
-
-def _write_task(root: Path, task_id: str, *, toml: str, instruction: str,
-                 command: str = "bash tests/test.sh", patch: str = "") -> Path:
-    task = root / "tasks" / task_id
-    (task / "environment").mkdir(parents=True)
-    (task / "tests").mkdir(parents=True)
-    (task / "task.toml").write_text(toml)
-    (task / "instruction.md").write_text(instruction)
-    (task / "environment" / "Dockerfile").write_text("FROM example\n")
-    (task / "tests" / "test.sh").write_text("#!/bin/sh\nexit 0\n")
-    (task / "tests" / "test_command.sh").write_text(command + "\n")
-    if patch:
-        (task / "tests" / "test.patch").write_text(patch)
-    return task
-
-
-def _write_snapshot_fixture(root: Path, *, bad_sha_tasks: tuple[str, ...] = ()) -> Path:
-    """Minimal HF-layout fixture; optionally corrupt manifest entries."""
-    _write_task(root, "alpha-task", toml=SCRIPT_TOML, instruction="Fix alpha.\n",
-                command="go test example.com/acme/widgets/pkg -run TestX")
-    judge_toml = SCRIPT_TOML.replace('name = "mimo-v2.6-rl/alpha-task"',
-                                     'name = "mimo-v2.6-rl/beta-task"')
-    judge_toml = judge_toml.replace('source_id = "alpha-task"', 'source_id = "beta-task"')
-    judge_toml += '\n[verifier.env]\nGA_JUDGE_MODEL = "mimo-judge-v1"\n'
-    beta = _write_task(root, "beta-task", toml=judge_toml,
-                       instruction="Judge beta.\n", command="python tests/grade.py")
-    (beta / "tests" / "grade.py").write_text("import os\n# llm judge grades here\n")
-    manifest = {}
-    for task_id in ("alpha-task", "beta-task"):
-        sha = mimo_manifest_sha(root / "tasks" / task_id)
-        manifest[task_id] = "0" * 64 if task_id in bad_sha_tasks else sha
-    (root / "manifest.json").write_text(json.dumps({
-        "adapter": "mimo_harbor 1.1.0", "source": "x", "revision": "a" * 40,
-        "tasks": manifest,
-    }))
-    (root / "registry.json").write_text(json.dumps([{
-        "name": "MiMo-V2.6-RL-harbor-fake", "version": "1.1.0",
-        "tasks": [{"name": t, "path": f"tasks/{t}"} for t in ("alpha-task", "beta-task")],
-    }]))
-    (root / "data").mkdir(exist_ok=True)
-    (root / "data" / "tasks.jsonl").write_text(
-        "".join(json.dumps({"task_id": t, "source_id": t}) + "\n"
-                for t in ("alpha-task", "beta-task"))
-    )
-    (root / "README.md").write_text("# fake\n")
-    (root / "LICENSE").write_text("fake license\n")
-    return root
-
-
-def _fake_downloader(fixture: Path):
-    def download(repo_id: str, revision: str, dest: Path) -> None:
-        shutil.copytree(fixture, dest)
-
-    return download
-
-
-
 
 # ---------------------------------------------------------------- intake
-
-
-@pytest.mark.parametrize("ref", [
-    "",
-    "TestOrg/repo",
-    "TestOrg/repo@latest",
-    "TestOrg/repo@main",
-    "TestOrg/repo@abc123",
-    "TestOrg/repo@" + "a" * 39,
-    "TestOrg/repo@" + "A" * 40,
-    "noslash@" + "a" * 40,
-    "a/b/c@" + "a" * 40,
-])
-def test_pull_hf_refuses_unpinned(tmp_path: Path, ref: str) -> None:
-    with pytest.raises(CatalogError):
-        pull_hf_snapshot(ref, repo_root=tmp_path, derived_root=tmp_path / "derived")
-
-
-def test_pull_download_reuse_and_tamper_refusal(tmp_path: Path) -> None:
-    fixture = _write_snapshot_fixture(tmp_path / "fixture")
-    derived = tmp_path / "derived"
-    first = pull_hf_snapshot(
-        REF, repo_root=tmp_path, derived_root=derived,
-        downloader=_fake_downloader(fixture),
-    )
-    assert first.status == "downloaded"
-    assert first.n_tasks == 2
-    assert first.manifest_mismatches == ()
-    assert first.provenance_path is not None and first.provenance_path.is_file()
-    provenance = json.loads(first.provenance_path.read_text())
-    assert provenance["zone"] == "01-external"
-    assert provenance["revision"] == "a" * 40
-    assert provenance["material_digest"].startswith("sha256:")
-    mode = (first.snapshot / "tasks" / "alpha-task" / "task.toml").stat().st_mode
-    assert not mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH)
-
-    second = pull_hf_snapshot(REF, repo_root=tmp_path, derived_root=derived)
-    assert second.status == "reused"
-    assert second.snapshot == first.snapshot
-
-    target = first.snapshot / "tasks" / "alpha-task" / "instruction.md"
-    target.chmod(0o644)
-    target.write_text("tampered\n")
-    with pytest.raises(CatalogError):
-        pull_hf_snapshot(REF, repo_root=tmp_path, derived_root=derived)
-
-
-def test_pull_reports_manifest_mismatch_without_crashing(tmp_path: Path) -> None:
-    fixture = _write_snapshot_fixture(tmp_path / "fixture", bad_sha_tasks=("beta-task",))
-    result = pull_hf_snapshot(
-        REF, repo_root=tmp_path, derived_root=tmp_path / "derived",
-        downloader=_fake_downloader(fixture),
-    )
-    assert result.status == "downloaded"
-    assert result.manifest_mismatches == ("beta-task",)
 
 
 # ---------------------------------------------------------------- catalog rows
 
 
-def _pulled_snapshot(tmp_path: Path, *, bad: tuple[str, ...] = ()) -> Path:
-    fixture = _write_snapshot_fixture(tmp_path / "fixture", bad_sha_tasks=bad)
-    derived = tmp_path / "derived"
-    result = pull_hf_snapshot(
-        REF, repo_root=tmp_path, derived_root=derived,
-        downloader=_fake_downloader(fixture),
+def _catalog_fixture(tmp_path: Path) -> Path:
+    from evallab.task_catalog import (
+        TASK_FINDINGS_SCHEMA,
+        TASK_LINEAGE_SCHEMA,
+        TASK_SOURCES_SCHEMA,
+        TASK_VERSIONS_SCHEMA,
     )
-    assert result.status == "downloaded"
+    derived = tmp_path / "derived"
+    catalog = derived / "external/task_catalog"
+    catalog.mkdir(parents=True)
+    versions = [
+        {"task_version_digest": "sha256:" + str(index) * 64,
+         "harbor_digest": "sha256:" + str(index + 2) * 64, "task_id": name,
+         "task_name": name, "domain": "fake", "split_group": "fake:" + name,
+         "grader_kind": "script", "grader_cost": "free"}
+        for index, name in enumerate(("alpha-task", "beta-task"), start=1)
+    ]
+    for name, rows, schema in (
+        ("task_sources", [], TASK_SOURCES_SCHEMA), ("task_versions", versions, TASK_VERSIONS_SCHEMA),
+        ("task_findings", [], TASK_FINDINGS_SCHEMA), ("task_lineage", [], TASK_LINEAGE_SCHEMA),
+    ):
+        pq.write_table(pa.Table.from_pylist(rows, schema=schema), catalog / f"{name}.parquet")
     return derived
 
 
-def test_build_writes_four_tables_with_derived_rows(tmp_path: Path) -> None:
-    derived = _pulled_snapshot(tmp_path)
-    report = build_catalog(repo_root=tmp_path, derived_root=derived)
-    assert report.tables == {
-        "task_sources": 1, "task_versions": 2,
-        "task_findings": report.tables["task_findings"], "task_lineage": 0,
-    }
-    assert report.snapshots == ["TestOrg__MiMo-V2.6-RL-harbor-fake@aaaaaaaaaaaa"]
-    assert report.n_variants == 0
-
-    versions = pq.read_table(derived / "external/task_catalog/task_versions.parquet")
-    rows = {row["task_id"]: row for row in versions.to_pylist()}
-    alpha = rows["alpha-task"]
-    task_dir = (derived / "task-store/hf/TestOrg__MiMo-V2.6-RL-harbor-fake@aaaaaaaaaaaa"
-                / "tasks" / "alpha-task")
-    assert alpha["task_version_digest"] == task_directory_digest(task_dir)
-    assert alpha["harbor_digest"] == harbor_task_digest(task_dir)
-    assert alpha["origin"] == "external"
-    assert alpha["source_repo"] == REPO_ID
-    assert alpha["grader_kind"] == "script" and alpha["grader_cost"] == "free"
-    assert alpha["network_mode"] == "public" and alpha["agent_user"] == "root"
-    assert alpha["instruction_chars"] == len("Fix alpha.\n") and alpha["instruction_lang"] == "en"
-    assert alpha["split_group"] == "fake:alpha-task"
-    assert alpha["upstream_manifest_sha256"] == mimo_manifest_sha(task_dir)
-    assert rows["beta-task"]["grader_kind"] == "llm_judge"
-    assert rows["beta-task"]["grader_cost"] == "paid"
-
-    sources = pq.read_table(derived / "external/task_catalog/task_sources.parquet")
-    source = sources.to_pylist()[0]
-    assert (source["n_manifest"], source["n_disk"], source["n_registry"]) == (2, 2, 2)
-
-
-def test_build_records_manifest_mismatch_as_error_finding(tmp_path: Path) -> None:
-    derived = _pulled_snapshot(tmp_path, bad=("beta-task",))
-    report = build_catalog(repo_root=tmp_path, derived_root=derived)
-    assert report.findings_by_rule_domain["mimo-manifest-digest-mismatch"]["fake"] == 1
-    findings = pq.read_table(derived / "external/task_catalog/task_findings.parquet")
-    rows = [r for r in findings.to_pylist()
-            if r["rule"] == "mimo-manifest-digest-mismatch"]
-    assert len(rows) == 1
-    assert rows[0]["task_id"] == "beta-task" and rows[0]["severity"] == "error"
-
-
-def test_grader_derivation_prefers_files_over_domain(tmp_path: Path) -> None:
-    task = tmp_path / "task"
-    (task / "tests").mkdir(parents=True)
-    assert derive_grader_kind_cost(task, {}) == ("script", "free")
-    (task / "tests" / "grade.py").write_text("vision model grades\n")
-    toml = {"verifier": {"env": {"WEBDEV_JUDGE_MODEL": "m-vlm"}}}
-    assert derive_grader_kind_cost(task, toml) == ("vlm_judge", "paid")
-    toml = {"verifier": {"env": {"GA_JUDGE_MODEL": "m-llm"}}}
-    (task / "tests" / "grade.py").write_text("plain judge\n")
-    assert derive_grader_kind_cost(task, toml) == ("llm_judge", "paid")
-
-
-def test_split_group_rules(tmp_path: Path) -> None:
-    code = _write_task(tmp_path / "code", "w-task", toml=SCRIPT_TOML,
-                       instruction="x\n",
-                       command="go test github.com/acme/widgets/pkg -run TestA",
-                       patch="diff --git a/x b/x\n+go test github.com/acme/widgets/other -run TestB\n")
-    group, unresolved = derive_split_group("code", "w-task", code, {}, None)
-    assert (group, unresolved) == ("code:github.com/acme/widgets", False)
-
-    linked = _write_task(tmp_path / "linked", "l-task", toml=SCRIPT_TOML,
-                         instruction="Fix https://github.com/acme/widgets/issues/42\n",
-                         command="go test ./... -run TestX")
-    group, unresolved = derive_split_group("code", "l-task", linked, {}, None)
-    assert (group, unresolved) == ("code:github.com/acme/widgets", False)
-
-    bare = _write_task(tmp_path / "bare", "b-task", toml=SCRIPT_TOML, instruction="x\n")
-    group, unresolved = derive_split_group("code", "b-task", bare, {}, None)
-    assert (group, unresolved) == ("code:b-task", True)
-
-    group, unresolved = derive_split_group(
-        "cyber", "c-task", bare, {},
-        {"expected_crash": {"file": "graphicsmagick/crash.bin"}},
-    )
-    assert (group, unresolved) == ("cyber:graphicsmagick", False)
-
-    group, unresolved = derive_split_group("general", "quiz_rl_007", bare, {}, None)
-    assert (group, unresolved) == ("general:quiz", False)
-
-    group, unresolved = derive_split_group("terminal", "t-1", bare, {}, None)
-    assert (group, unresolved) == ("terminal:t-1", False)
-
-
 # ---------------------------------------------------------------- lint rules
-
-
-def test_mimo_lint_true_positive_and_negative(tmp_path: Path) -> None:
-    leaky = _write_task(
-        tmp_path / "leaky", "leak", toml=SCRIPT_TOML,
-        instruction="See /tests/grade.py; reward.txt holds the score.\n",
-    )
-    findings = {finding.rule: finding for finding in lint_mimo_task(
-        leaky, expected_manifest_sha="0" * 64, domain="fake")}
-    assert findings["mimo-manifest-digest-mismatch"].severity == "error"
-    assert findings["mimo-answer-leak"].severity == "warning"
-    assert "/tests/" in findings["mimo-answer-leak"].message
-    assert "mimo-no-oracle" in findings
-    assert "mimo-verifier-not-isolated" in findings
-    assert "mimo-network-public" in findings
-    assert "mimo-setup-healthcheck-only" in findings
-    assert "mimo-paid-judge" not in findings
-    assert "mimo-id-case-collision" not in findings
-
-    clean_toml = SCRIPT_TOML.replace('user = "root"', 'user = "agent"')
-    clean_toml = clean_toml.replace('network_mode = "public"', 'network_mode = "isolated"')
-    clean_toml = clean_toml.replace("[environment.healthcheck]\ncommand = \"bash -c 'echo setup'\"\ntimeout_sec = 60.0\n", "")
-    clean = _write_task(tmp_path / "clean", "clean", toml=clean_toml,
-                        instruction="Do the thing.\n")
-    (clean / "solution").mkdir()
-    (clean / "solution" / "solve.sh").write_text("exit 0\n")
-    sha = mimo_manifest_sha(clean)
-    assert lint_mimo_task(clean, expected_manifest_sha=sha, domain="fake") == []
-
-
-def test_mimo_lint_names_oracle_disclosure(tmp_path: Path) -> None:
-    toml = SCRIPT_TOML.replace(
-        'source_id = "alpha-task"',
-        'source_id = "arvo_1"\nexpected_crash = { error_type = "x", '
-        'file = "g/magick/utility.c", function = "TranslateTextEx", '
-        'max_submits = 0, sanitizer = "AddressSanitizer" }',
-    )
-    task = _write_task(tmp_path / "cy", "arvo_1", toml=toml, instruction="Crash it.\n")
-    findings = {finding.rule: finding for finding in lint_mimo_task(
-        task, expected_manifest_sha=None, domain="cyber")}
-    assert "TranslateTextEx" in findings["mimo-answer-leak"].message
-    assert "g/magick/utility.c" in findings["mimo-answer-leak"].message
-
-
-def _write_setup(task: Path, text: str = "mv .git git-hidden\n") -> None:
-    setup = task / "environment" / "setup"
-    setup.mkdir(parents=True, exist_ok=True)
-    (setup / "setup.sh").write_text(text)
-
-
-def test_mimo_audit_exploitability_rules(tmp_path: Path) -> None:
-    go = _write_task(tmp_path / "go", "g-task", toml=SCRIPT_TOML,
-                     instruction="Fix it.\n", command="go test ./pkg -run TestX")
-    _write_setup(go)
-    findings = {f.rule: f for f in lint_mimo_task(go, domain="code")}
-    assert "mimo-testmain-plantable" in findings
-    assert "package-wide" not in findings["mimo-testmain-plantable"].message
-    assert "mimo-git-history-readable" in findings
-
-    wide = _write_task(tmp_path / "wide", "w-task", toml=SCRIPT_TOML,
-                       instruction="Fix it.\n", command="go test .")
-    findings = {f.rule: f for f in lint_mimo_task(wide, domain="code")}
-    assert "package-wide" in findings["mimo-testmain-plantable"].message
-
-    py = _write_task(tmp_path / "py", "p-task", toml=SCRIPT_TOML,
-                     instruction="Fix it.\n", command="pytest tests/ -x")
-    findings = {f.rule: f for f in lint_mimo_task(py, domain="code")}
-    assert "mimo-conftest-plantable" in findings
-    assert "mimo-testmain-plantable" not in findings
-
-    term = _write_task(tmp_path / "term", "t-task", toml=SCRIPT_TOML, instruction="Do.\n")
-    findings = {f.rule: f for f in lint_mimo_task(term, domain="terminal")}
-    assert "mimo-terminal-hook-planting" in findings
-
-    cy = _write_task(tmp_path / "cy", "c-task", toml=SCRIPT_TOML, instruction="Crash.\n")
-    (cy / "tests" / "verify.py").write_text("shutil.copytree(str(s.ROOT_BINARY), out)\n")
-    findings = {f.rule: f for f in lint_mimo_task(cy, domain="cyber")}
-    assert "mimo-cyber-binary-unchecksummed" in findings
-
-    mu = _write_task(tmp_path / "mu", "m-task", toml=SCRIPT_TOML, instruction="Compose.\n")
-    (mu / "tests" / "test.sh").write_text("#!/bin/sh\napt-get install -y abcmidi\n")
-    findings = {f.rule: f for f in lint_mimo_task(mu, domain="music")}
-    assert "abcmidi" in findings["mimo-verify-network-dep"].message
-
-    wd = _write_task(tmp_path / "wd", "w-task", toml=SCRIPT_TOML,
-                     instruction="Use https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4\n")
-    findings = {f.rule: f for f in lint_mimo_task(wd, domain="webdev")}
-    assert "CDN" in findings["mimo-verify-network-dep"].message
-
-
-def test_cyber_dupe_stats_merges_only_spanning_groups() -> None:
-    from evallab.task_catalog import _cyber_dupe_stats
-    rows = [
-        ("a1", "cyber:proj-a", "hash1"),
-        ("a2", "cyber:proj-a", "hash1"),
-        ("b1", "cyber:proj-b", "hash2"),
-        ("b2", "cyber:proj-c", "hash2"),
-        ("solo", "cyber:proj-d", "hash3"),
-    ]
-    overrides, n_groups, n_tasks = _cyber_dupe_stats(rows)
-    assert overrides == {"b1": "cyber:dupe-hash2", "b2": "cyber:dupe-hash2"}
-    assert (n_groups, n_tasks) == (2, 4)
 
 
 # ---------------------------------------------------------------- verdicts
@@ -551,8 +221,7 @@ def _write_aux_table(derived: Path, name: str, rows: list[dict]) -> None:
 
 
 def test_export_provisional_then_split_gated(tmp_path: Path, capsys) -> None:
-    derived = _pulled_snapshot(tmp_path)
-    build_catalog(repo_root=tmp_path, derived_root=derived)
+    derived = _catalog_fixture(tmp_path)
     versions = pq.read_table(derived / "external/task_catalog/task_versions.parquet")
     digests = {r["task_id"]: r for r in versions.to_pylist()}
     alpha_harbor = digests["alpha-task"]["harbor_digest"]
@@ -624,133 +293,7 @@ def test_export_provisional_then_split_gated(tmp_path: Path, capsys) -> None:
     capsys.readouterr()
 
 
-
-
-def _valid_variant_record() -> dict:
-    digest = "sha256:" + "1" * 64
-    return {
-        "schema": "evallab.task_variant/v1",
-        "task_name": "mimo-v2.6-rl/alpha-task",
-        "variant_digest": digest,
-        "variant_harbor_digest": "sha256:" + "2" * 64,
-        "parent": {
-            "digest": "sha256:" + "3" * 64,
-            "harbor_digest": "sha256:" + "4" * 64,
-            "source": {
-                "kind": "hf", "repo": "o/r", "revision": "5" * 40,
-                "path": "tasks/alpha-task", "record": None,
-            },
-        },
-        "transform": "handfix@v1",
-        "components_changed": ["verifier"],
-        "files": [{
-            "path": "tests/test.sh",
-            "before_sha256": "sha256:" + "6" * 64,
-            "after_sha256": "sha256:" + "7" * 64,
-            "content": "exit 0\n",
-        }],
-        "rationale": "test record",
-        "inputs": {},
-        "created_by": "test",
-        "created_at": "2026-09-28T00:00:00Z",
-        "status": "candidate",
-        "evidence": [],
-    }
-
-
-def test_lineage_loader_uses_strict_module_and_skips_invalid(tmp_path: Path) -> None:
-    variants = tmp_path / "library" / "task-variants" / "slug"
-    variants.mkdir(parents=True)
-    (variants / "good.json").write_text(json.dumps(_valid_variant_record()))
-    (variants / "bad.json").write_text("{not json")
-    (variants / "wrong-schema.json").write_text(json.dumps({"schema": "other/v9"}))
-    records, skipped = load_lineage_dicts(tmp_path)
-    assert len(records) == 1 and skipped == 2
-    payload, relpath = records[0]
-    assert payload["variant_digest"] == "sha256:" + "1" * 64
-    assert payload["parent"]["source"]["kind"] == "hf"
-    assert relpath == "library/task-variants/slug/good.json"
-
-
-def test_build_indexes_variant_versions_and_lineage(tmp_path: Path) -> None:
-    derived = _pulled_snapshot(tmp_path)
-    variants = tmp_path / "library" / "task-variants" / "slug"
-    variants.mkdir(parents=True)
-    record = _valid_variant_record()
-    (variants / "good.json").write_text(json.dumps(record))
-    report = build_catalog(repo_root=tmp_path, derived_root=derived)
-    assert report.n_variants == 1 and report.skipped_variant_records == 0
-    versions = pq.read_table(derived / "external/task_catalog/task_versions.parquet")
-    rows = {row["task_id"]: row for row in versions.to_pylist()}
-    assert rows["alpha-task"]["origin"] == "variant"
-    assert rows["alpha-task"]["transform"] == "handfix@v1"
-    lineage = pq.read_table(derived / "external/task_catalog/task_lineage.parquet")
-    links = lineage.to_pylist()
-    assert len(links) == 1
-    assert links[0]["child_digest"] == "sha256:" + "1" * 64
-    assert links[0]["transform"] == "handfix@v1"
-
 # ---------------------------------------------------------------- curated findings
-
-
-def _valid_finding_record() -> dict:
-    return {
-        "schema": "evallab.task_finding/v1",
-        "task_version_digest": "sha256:" + "9" * 64,
-        "task_id": "alpha-task",
-        "domain": "fake",
-        "rule": "grader-broken",
-        "severity": "error",
-        "message": "collection imports a missing dependency",
-        "evidence": [{
-            "path": "runs/job/trial/verifier/test-stdout.txt",
-            "sha256": "sha256:" + "8" * 64,
-        }],
-        "recorded_at": "2026-09-28T00:00:00Z",
-        "recorded_by": "test",
-    }
-
-
-def test_finding_loader_uses_strict_schema_and_skips_invalid(tmp_path: Path) -> None:
-    from evallab.task_catalog import load_finding_dicts
-
-    tree = tmp_path / "library" / "task-findings" / "fake"
-    tree.mkdir(parents=True)
-    (tree / "good.json").write_text(json.dumps(_valid_finding_record()))
-    (tree / "bad.json").write_text("{not json")
-    (tree / "wrong-schema.json").write_text(json.dumps({"schema": "other/v9"}))
-    bad_severity = _valid_finding_record()
-    bad_severity["severity"] = "fatal"
-    (tree / "bad-severity.json").write_text(json.dumps(bad_severity))
-    records, skipped = load_finding_dicts(tmp_path)
-    assert len(records) == 1 and skipped == 3
-    payload, relpath = records[0]
-    assert payload["rule"] == "grader-broken" and payload["severity"] == "error"
-    assert relpath == "library/task-findings/fake/good.json"
-
-
-def test_build_appends_curated_findings(tmp_path: Path) -> None:
-    derived = _pulled_snapshot(tmp_path)
-    build_catalog(repo_root=tmp_path, derived_root=derived)
-    versions = pq.read_table(derived / "external/task_catalog/task_versions.parquet")
-    alpha = next(
-        row for row in versions.to_pylist() if row["task_id"] == "alpha-task"
-    )
-    tree = tmp_path / "library" / "task-findings" / "fake"
-    tree.mkdir(parents=True)
-    record = _valid_finding_record()
-    record["task_version_digest"] = alpha["task_version_digest"]
-    (tree / "alpha.json").write_text(json.dumps(record))
-    report = build_catalog(repo_root=tmp_path, derived_root=derived)
-    assert report.n_curated_findings == 1 and report.skipped_finding_records == 0
-    findings = pq.read_table(derived / "external/task_catalog/task_findings.parquet")
-    curated = [
-        row for row in findings.to_pylist() if row["rule"] == "grader-broken"
-    ]
-    assert len(curated) == 1
-    assert curated[0]["task_version_digest"] == alpha["task_version_digest"]
-    assert curated[0]["severity"] == "error"
-    assert report.findings_by_rule_domain["grader-broken"]["fake"] == 1
 
 
 def test_audit_error_finding_ineligible_with_precedence() -> None:

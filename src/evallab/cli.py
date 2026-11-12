@@ -21,21 +21,9 @@ from evallab.automation import (
     NightlyCycle,
     ScheduleInstaller,
     audit_launch_agents,
-    record_quarantine,
-    record_researcher_deferral,
     sync_primary_status,
 )
 from evallab.backups import create_postgres_backup
-from evallab.calibrate import (
-    dispatch_approved_codex_calibration,
-    dspy_split_summary,
-    evaluate_predictions,
-    load_prediction_bundle,
-    make_stub_bundle,
-    stage_queue_bundle,
-    write_calibration_record,
-    write_catalog_record,
-)
 from evallab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter, load_canary_suite
 from evallab.cohort import (
     index_comparison_associations,
@@ -62,16 +50,6 @@ from evallab.gc import (
     run_gc,
 )
 from evallab.lineage import lineage_to_dict, render_lineage_tree, resolve_lineage
-from evallab.modal_billing import (
-    aggregate_daily,
-    compare_days,
-    lab_selfhosted_daily,
-    normalize_report_rows,
-    render_comparisons,
-    sandbox_receipt_line,
-    store_billing_rows,
-)
-from evallab.modal_ops import default_runner as modal_default_runner
 from evallab.modal_ops import stop_selfhosted_app_if_drained
 from evallab.preflight import build_preflight_report, render_preflight
 from evallab.queue import (
@@ -751,39 +729,6 @@ def _print_campaign_status(
             print(f"  approve: {attempt.approval_command}")
 
 
-def _campaign_plan_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    from evallab.campaigns import plan_campaign
-
-    manifest, path = plan_campaign(
-        _resolve(root, args.definition),
-        repo_root=root,
-    )
-    if args.json:
-        print(
-            json.dumps(
-                {
-                    "campaign_id": manifest.campaign_id,
-                    "benchmark": manifest.benchmark,
-                    "manifest_digest": manifest.manifest_digest,
-                    "manifest_path": path.relative_to(root).as_posix(),
-                    "attempts": len(manifest.attempts),
-                },
-                indent=2,
-                sort_keys=True,
-            )
-        )
-    else:
-        print(f"campaign_id: {manifest.campaign_id}")
-        print(f"benchmark: {manifest.benchmark}")
-        print(f"manifest_digest: {manifest.manifest_digest}")
-        print(f"manifest: {path}")
-        print(f"attempts: {len(manifest.attempts)}")
-    return 0
-
-
 def _campaign_orchestrator(args: argparse.Namespace, root: Path) -> Any:
     from evallab.campaigns import CAMPAIGN_STATE_ROOT, CampaignOrchestrator
 
@@ -793,6 +738,24 @@ def _campaign_orchestrator(args: argparse.Namespace, root: Path) -> Any:
         state_root=root / CAMPAIGN_STATE_ROOT,
         requested_parallel=getattr(args, "parallel", None),
     )
+
+
+def _campaign_run_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    status = _campaign_orchestrator(args, root).run(dry_run=args.dry_run)
+    _print_campaign_status(status, as_json=args.json)
+    return 0
+
+
+def _campaign_resume_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    status = _campaign_orchestrator(args, root).resume(dry_run=args.dry_run)
+    _print_campaign_status(status, as_json=args.json)
+    return 0
 
 
 def _campaign_status_command(
@@ -828,24 +791,6 @@ def _campaign_status_command(
                 "budget_bound": cap.campaign_budget_bound(root, status.campaign_id),
             }
         _print_campaign_status(status, as_json=args.json, spend_snapshot=spend_snapshot)
-    return 0
-
-
-def _campaign_run_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    status = _campaign_orchestrator(args, root).run(dry_run=args.dry_run)
-    _print_campaign_status(status, as_json=args.json)
-    return 0
-
-
-def _campaign_resume_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    status = _campaign_orchestrator(args, root).resume(dry_run=args.dry_run)
-    _print_campaign_status(status, as_json=args.json)
     return 0
 
 
@@ -1072,44 +1017,6 @@ def _digest_command(
     return 0
 
 
-def _research_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    report_date = args.report_date or date.today()
-    executor = Executor.from_repo(root)
-    report = HeadlessDoctor(root, executor=executor).run()
-    if not report.healthy:
-        record_quarantine(
-            executor.queue,
-            event="researcher_quarantined",
-            report=report,
-            actor="manual-researcher",
-        )
-        print("researcher pass quarantined by headless doctor")
-        return 1
-    if not report.checks.codex_auth_present:
-        record_researcher_deferral(
-            executor.queue,
-            report_date=report_date,
-            actor="manual-researcher",
-            reason="missing_credential:codex",
-        )
-        print("researcher pass deferred: missing Codex credential")
-        return 0
-    result = ResearcherLoop.from_repo(root).run(report_date=report_date)
-    print(f"pass: {result.pass_id}")
-    print(f"invocations: {result.invocation_count}")
-    print(f"attributed cost: ${result.attributed_cost_usd:.2f}")
-    if result.proposal_path is not None:
-        print(f"proposal: {result.proposal_path}")
-    if result.deferred_reason:
-        print(f"deferred: {result.deferred_reason}")
-    if result.failed_reason:
-        print(f"failed: {result.failed_reason}")
-        return 1
-    return 0
-
-
 def _nightly_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1198,74 +1105,6 @@ def _canary_import_command(
         destination=_resolve(root, args.destination),
     )
     print(f"imported: {imported}")
-    return 0
-
-
-def _calibrate_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    if args.dispatch_approved:
-        readiness, dispatched = dispatch_approved_codex_calibration(
-            root, args.family, args.dispatch_approved
-        )
-        print(json.dumps({"healthy": readiness.healthy, **readiness.__dict__}, indent=2))
-        print(f"dispatched: {dispatched}")
-        return 0
-    if args.dspy_dry_run:
-        print(json.dumps(dspy_split_summary(root, args.family), indent=2))
-        return 0
-    if args.predictions is None and not args.stub:
-        staged = stage_queue_bundle(
-            root,
-            args.family,
-            backend=args.stage or "codex",
-            judge_model=args.judge_model,
-            est_cost_usd=args.est_cost_usd,
-            run_date=args.calibration_date,
-        )
-        print(f"task: {staged.task_path}")
-        print(f"queue spec: {staged.spec_path}")
-        print(f"submit with: uv run evallab submit {staged.spec_path.relative_to(root)}")
-        return 0
-
-    if args.stub:
-        bundle = make_stub_bundle(root, args.family)
-        prediction_artifact = args.prediction_artifact or "stub://deterministic-all-no"
-        status = "stub"
-    else:
-        prediction_path = _resolve(root, args.predictions)
-        bundle = load_prediction_bundle(prediction_path)
-        if bundle.family != args.family:
-            raise ValueError(
-                f"prediction family {bundle.family!r} does not match CLI family {args.family!r}"
-            )
-        if args.judge_model:
-            bundle = bundle.model_copy(update={"judge_model": args.judge_model})
-        prediction_artifact = (
-            args.prediction_artifact or prediction_path.relative_to(root).as_posix()
-        )
-        status = "measured"
-    record = evaluate_predictions(
-        root,
-        bundle,
-        prediction_artifact=prediction_artifact,
-        evaluated_on=args.calibration_date,
-        status=status,
-        pending_backends=args.pending_backend,
-    )
-    if args.records_dir is not None:
-        records_root = _resolve(root, args.records_dir)
-    elif status == "stub":
-        records_root = root / "queue/stub-calibration-records"
-    else:
-        records_root = None
-    record_path = write_calibration_record(root, record, records_root=records_root)
-    if status == "measured" and not args.skip_catalog:
-        write_catalog_record(record, record_path, database_url=args.database_url)
-    print(f"record: {record_path}")
-    print(f"mean agreement: {record.mean_agreement:.4f}")
-    print(f"reportable: {'yes' if record.reportable else 'no (stub)'}")
-    print(f"meets {record.agreement_floor:.2f} floor: {'yes' if record.meets_floor else 'no'}")
     return 0
 
 
@@ -1728,98 +1567,6 @@ def _db_init_command(
     url = database_url_from_environment(args.database_url)
     database.initialize(url)
     print("database schema is current")
-    return 0
-
-
-def _modal_billing_reconcile_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    """Fetch Modal billing rows (read-only) and compare against lab cost."""
-    del harbor
-    if args.for_day is not None:
-        try:
-            start = date.fromisoformat(args.for_day)
-        except ValueError:
-            print(f"invalid --for day: {args.for_day!r} (expected YYYY-MM-DD)", file=sys.stderr)
-            return 2
-        end = date.fromordinal(start.toordinal() + 1)
-    else:
-        today = date.today()
-        try:
-            start = (
-                date.fromisoformat(args.start)
-                if args.start
-                else date.fromordinal(today.toordinal() - 2)
-            )
-            end = date.fromisoformat(args.end) if args.end else today
-        except ValueError:
-            print("invalid --start/--end (expected YYYY-MM-DD)", file=sys.stderr)
-            return 2
-    if end <= start or (end - start).days > 93:
-        print("billing range must satisfy start < end and span at most 93 days", file=sys.stderr)
-        return 2
-    runner = modal_default_runner(root)
-    try:
-        completed = runner(
-            [
-                "billing",
-                "report",
-                "--start",
-                start.isoformat(),
-                "--end",
-                end.isoformat(),
-                "--resolution",
-                "d",
-                "--tag-names",
-                "*",
-                "--json",
-            ]
-        )
-    except Exception as exc:
-        print(f"modal billing report failed: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return 1
-    if completed.returncode != 0:
-        print(f"modal billing report failed: {completed.stderr[-500:]}", file=sys.stderr)
-        return 1
-    try:
-        rows = normalize_report_rows(json.loads(completed.stdout), resolution="d")
-    except (json.JSONDecodeError, ValueError) as exc:
-        print(f"modal billing report unreadable: {exc}", file=sys.stderr)
-        return 1
-    url = database_url_from_environment(args.database_url)
-    database.initialize(url)
-    stored = store_billing_rows(url, rows, resolution="d")
-    billed = aggregate_daily(rows)
-    days = [date.fromordinal(start.toordinal() + offset) for offset in range((end - start).days)]
-    lab = {day: lab_selfhosted_daily(url, day) for day in days}
-    comparisons = compare_days(days, billed, lab)
-    print(f"billing rows stored: {stored}")
-    print(render_comparisons(comparisons))
-    print(sandbox_receipt_line())
-    if args.json:
-        print(
-            json.dumps(
-                {
-                    "start": start.isoformat(),
-                    "end": end.isoformat(),
-                    "rows_stored": stored,
-                    "days": [
-                        {
-                            "day": item.day.isoformat(),
-                            "modal_billed_usd": item.modal_billed_usd,
-                            "modal_reason": item.modal_reason,
-                            "lab_selfhosted_usd": item.lab_selfhosted_usd,
-                            "lab_reason": item.lab_reason,
-                            "lab_trials": item.lab_trials,
-                            "lab_trials_without_cost": item.lab_trials_without_cost,
-                        }
-                        for item in comparisons
-                    ],
-                },
-                indent=2,
-                sort_keys=True,
-            )
-        )
     return 0
 
 
@@ -2556,43 +2303,6 @@ def _tasks_anatomy_command(
     return 0
 
 
-def _tasks_import_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.task_import import import_task_batch
-
-    report = import_task_batch(
-        _resolve(root, args.source),
-        _resolve(root, args.destination),
-        _resolve(root, args.ledger),
-        limit=args.limit,
-    )
-    payload = {
-        "discovered": report.discovered,
-        "imported": report.imported,
-        "skipped": report.skipped,
-        "failed": report.failed,
-        "items": [
-            {
-                "source": str(item.source),
-                "source_digest": item.source_digest,
-                "destination": str(item.destination) if item.destination else None,
-                "status": item.status,
-                "reason": item.reason,
-            }
-            for item in report.items
-        ],
-    }
-    if args.json:
-        print(json.dumps(payload, indent=2))
-    else:
-        print(
-            f"tasks: {report.discovered} discovered, {report.imported} imported, "
-            f"{report.skipped} resumed, {report.failed} failed"
-        )
-    return 1 if report.failed else 0
-
-
 def _parse_key_value(assignments: Sequence[str], *, label: str) -> dict[str, str]:
     parsed: dict[str, str] = {}
     for assignment in assignments:
@@ -3101,31 +2811,6 @@ def _gc_command(
     return 0
 
 
-def _registry_list_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.registry import TaskRegistry
-
-    reg = TaskRegistry.from_repo(root)
-    records = reg.list_records(args.state)
-    if args.json:
-        payload = [record.model_dump(mode="json") for record in records]
-        print(json.dumps(payload, indent=2))
-        return 0
-    if not records:
-        filter_msg = f" with state {args.state!r}" if args.state else ""
-        print(f"No task records found in library/registry/{filter_msg}.")
-        return 0
-    print(f"{'TASK ID':<32} {'VERSION':<10} {'STATE':<12} {'ZONE':<18} {'PATH'}")
-    print("-" * 100)
-    for record in records:
-        print(
-            f"{record.task_id:<32} {record.version:<10} {record.state:<12} "
-            f"{record.provenance_zone:<18} {record.task_path}"
-        )
-    return 0
-
-
 def _registry_promote_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3189,7 +2874,6 @@ def _registry_promote_command(
             print(f"  approved: {record.approved_by} at {record.approved_at}")
     return 0
 
-
 def _registry_register_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3219,6 +2903,31 @@ def _registry_register_command(
         print(f"registered: {record.task_id}@{record.version} (state: {record.state})")
         print(f"  approved by: {record.approved_by}")
         print(f"  approved at: {record.approved_at}")
+    return 0
+
+
+def _registry_list_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.registry import TaskRegistry
+
+    reg = TaskRegistry.from_repo(root)
+    records = reg.list_records(args.state)
+    if args.json:
+        payload = [record.model_dump(mode="json") for record in records]
+        print(json.dumps(payload, indent=2))
+        return 0
+    if not records:
+        filter_msg = f" with state {args.state!r}" if args.state else ""
+        print(f"No task records found in library/registry/{filter_msg}.")
+        return 0
+    print(f"{'TASK ID':<32} {'VERSION':<10} {'STATE':<12} {'ZONE':<18} {'PATH'}")
+    print("-" * 100)
+    for record in records:
+        print(
+            f"{record.task_id:<32} {record.version:<10} {record.state:<12} "
+            f"{record.provenance_zone:<18} {record.task_path}"
+        )
     return 0
 
 
@@ -3700,13 +3409,6 @@ def parser() -> argparse.ArgumentParser:
         dest="campaign_command",
         required=True,
     )
-    campaign_plan = campaign_commands.add_parser(
-        "plan",
-        help="Validate a campaign definition and freeze its immutable manifest",
-    )
-    campaign_plan.add_argument("definition", type=Path)
-    campaign_plan.add_argument("--json", action="store_true")
-    campaign_plan.set_defaults(func=_campaign_plan_command)
 
     campaign_status = campaign_commands.add_parser(
         "status",
@@ -3739,6 +3441,7 @@ def parser() -> argparse.ArgumentParser:
         campaign_execute.add_argument("--json", action="store_true")
     campaign_run.set_defaults(func=_campaign_run_command)
     campaign_resume.set_defaults(func=_campaign_resume_command)
+
 
     campaign_approve = campaign_commands.add_parser(
         "approve",
@@ -3855,12 +3558,6 @@ def parser() -> argparse.ArgumentParser:
     )
     nightly.set_defaults(func=_nightly_command)
 
-    research = commands.add_parser(
-        "research",
-        help="Run one guarded analyst/synthesizer/proposer pass",
-    )
-    research.add_argument("--date", dest="report_date", type=date.fromisoformat)
-    research.set_defaults(func=_research_command)
 
     canary = commands.add_parser("canary", help="Manage version-pinned nightly canaries")
     canary_commands = canary.add_subparsers(dest="canary_command", required=True)
@@ -3873,25 +3570,6 @@ def parser() -> argparse.ArgumentParser:
     import_task.add_argument("--destination", type=Path, required=True)
     import_task.set_defaults(func=_canary_import_command)
 
-    calibrate = commands.add_parser(
-        "calibrate", help="Measure a judge against one sealed calibration family"
-    )
-    calibrate.add_argument("family", choices=("checkout-pool-exhaustion", "retry-storm-backlog"))
-    calibration_mode = calibrate.add_mutually_exclusive_group()
-    calibration_mode.add_argument("--predictions", type=Path)
-    calibration_mode.add_argument("--stub", action="store_true")
-    calibration_mode.add_argument("--stage", choices=("codex", "anthropic"))
-    calibration_mode.add_argument("--dispatch-approved", metavar="SPEC_ID")
-    calibration_mode.add_argument("--dspy-dry-run", action="store_true")
-    calibrate.add_argument("--judge-model")
-    calibrate.add_argument("--est-cost-usd", type=float, default=2.75)
-    calibrate.add_argument("--date", dest="calibration_date", type=date.fromisoformat)
-    calibrate.add_argument("--records-dir", type=Path)
-    calibrate.add_argument("--prediction-artifact")
-    calibrate.add_argument("--pending-backend", action="append", default=[])
-    calibrate.add_argument("--database-url")
-    calibrate.add_argument("--skip-catalog", action="store_true")
-    calibrate.set_defaults(func=_calibrate_command)
 
     run = commands.add_parser("run", help="Run one explicitly named Harbor job")
     run.add_argument("--task", type=Path, required=True)
@@ -4178,24 +3856,6 @@ def parser() -> argparse.ArgumentParser:
     )  # noqa: E501
     db_attach.set_defaults(func=_db_attach_command)
 
-    modal = commands.add_parser("modal", help="Self-hosted Modal operations")
-    modal_commands = modal.add_subparsers(dest="modal_command", required=True)
-    modal_billing = modal_commands.add_parser(
-        "billing-reconcile",
-        help="Fetch Modal billing rows (read-only) and compare against lab cost",
-    )
-    modal_billing.add_argument(
-        "--for",
-        dest="for_day",
-        default=None,
-        metavar="YYYY-MM-DD",
-        help="Reconcile a single UTC day",
-    )
-    modal_billing.add_argument("--start", default=None, metavar="YYYY-MM-DD")
-    modal_billing.add_argument("--end", default=None, metavar="YYYY-MM-DD")
-    modal_billing.add_argument("--database-url")
-    modal_billing.add_argument("--json", action="store_true")
-    modal_billing.set_defaults(func=_modal_billing_reconcile_command)
 
     spend = commands.add_parser("spend", help="Lab spend accounting and daily ledgers")
     spend_commands = spend.add_subparsers(dest="spend_command", required=True)
@@ -4494,23 +4154,6 @@ def parser() -> argparse.ArgumentParser:
     tasks_replay.add_argument("--json", action="store_true")
     tasks_replay.set_defaults(func=_tasks_replay_command)
 
-    tasks_import = tasks_commands.add_parser(
-        "import", help="Restartable batch import of local Harbor task packages"
-    )
-    tasks_import.add_argument("source", type=Path)
-    tasks_import.add_argument(
-        "--destination",
-        type=Path,
-        default=Path("library/tasks/imported"),
-    )
-    tasks_import.add_argument(
-        "--ledger",
-        type=Path,
-        default=Path("derived/imports/tasks.sqlite3"),
-    )
-    tasks_import.add_argument("--limit", type=int)
-    tasks_import.add_argument("--json", action="store_true")
-    tasks_import.set_defaults(func=_tasks_import_command)
 
     tasks_lint = tasks_commands.add_parser(
         "lint", help="Read-only static checks for task verifier trust boundaries"
@@ -4822,27 +4465,6 @@ def parser() -> argparse.ArgumentParser:
         help="Run free oracle/nop on N tasks (Harbor -n <= 2) and record rewards",
     )
     fetch.set_defaults(func=_fetch_command)
-    probe_exploit = commands.add_parser(
-        "probe-exploit",
-        help="HAR-161 exploit probe: write a task's exploit/image-check specs, or judge jobs",
-    )
-    probe_exploit.add_argument("probe_command", choices=("specs", "verdict"))
-    probe_exploit.add_argument("tasks", nargs="+", help="format-code-task-NNNNNN ids")
-    probe_exploit.add_argument("--out", type=Path, help="specs: directory for the spec files")
-    probe_exploit.add_argument("--runs", type=Path, default=Path("runs"), help="verdict: jobs dir")
-    probe_exploit.add_argument("--prefix", default="har161", help="job-name prefix")
-    probe_exploit.add_argument(
-        "--hardened",
-        action="store_true",
-        help="specs: target the strip/purge/mtime hardened chain instead of the ledger package",
-    )
-    probe_exploit.add_argument(
-        "--cost-cap",
-        type=float,
-        default=0.25,
-        help="specs: per-task exploit-run cost_limit_usd (binding hard stop)",
-    )
-    probe_exploit.set_defaults(func=_probe_exploit_command)
 
     gc = commands.add_parser(
         "gc",
@@ -4869,32 +4491,6 @@ def parser() -> argparse.ArgumentParser:
         dest="registry_command",
         required=True,
     )
-    registry_list = registry_commands.add_parser(
-        "list",
-        help="List explicit task registry records",
-    )
-    registry_list.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit records as JSON array",
-    )
-    registry_list.add_argument(
-        "--state",
-        choices=["candidate", "registered", "retired"],
-        help="Filter records by admission state",
-    )
-    registry_list.set_defaults(func=_registry_list_command)
-
-    registry_audit = registry_commands.add_parser(
-        "audit",
-        help="Audit task registry records and queue claims",
-    )
-    registry_audit.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit audit report as JSON",
-    )
-    registry_audit.set_defaults(func=_registry_audit_command)
 
     registry_promote = registry_commands.add_parser(
         "promote",
@@ -5023,6 +4619,35 @@ def parser() -> argparse.ArgumentParser:
         help="Emit registered record as JSON",
     )
     registry_register.set_defaults(func=_registry_register_command)
+
+    registry_list = registry_commands.add_parser(
+        "list",
+        help="List explicit task registry records",
+    )
+    registry_list.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit records as JSON array",
+    )
+    registry_list.add_argument(
+        "--state",
+        choices=["candidate", "registered", "retired"],
+        help="Filter records by admission state",
+    )
+    registry_list.set_defaults(func=_registry_list_command)
+
+    registry_audit = registry_commands.add_parser(
+        "audit",
+        help="Audit task registry records and queue claims",
+    )
+    registry_audit.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit audit report as JSON",
+    )
+    registry_audit.set_defaults(func=_registry_audit_command)
+
+
     registry_devloop = registry_commands.add_parser(
         "devloop",
         help="Map working tree changes to affected test modules and run targeted pytest",
@@ -5452,23 +5077,6 @@ def _normalize_review_argv(argv: Sequence[str] | None) -> Sequence[str] | None:
             normalized.append(argv[i])
             i += 1
     return normalized
-
-
-def _probe_exploit_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.exploit_probe import run_command
-
-    return run_command(
-        args.probe_command,
-        args.tasks,
-        root=root,
-        out=args.out,
-        runs=args.runs,
-        prefix=args.prefix,
-        hardened=args.hardened,
-        cost_cap_usd=args.cost_cap,
-    )
 
 
 def run_cli(

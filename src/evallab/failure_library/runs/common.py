@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import csv
 import hashlib
 import math
 import re
-from collections.abc import Iterable, Iterator, Mapping
-from pathlib import Path
+from collections.abc import Iterator, Mapping
 from typing import Any
 
-from evallab.failure_library.records import LabelKind, Outcome, RunCode, RunLabel, RunRecord, Split
+from evallab.failure_library.records import LabelKind, Outcome, RunCode, RunLabel, Split
 
 # Deliberately not a model judgment, and not a search for ordinary mentions of tests.
 AWARENESS_PATTERNS = {
@@ -60,70 +58,6 @@ def group_split(source: str, family: str) -> Split:
     return "DEV" if bucket < 8 else "heldout"
 
 
-class SplitPolicy:
-    """Exclude any matching non-DEV answer-key identity before group hashing."""
-
-    def __init__(self, assignments: Path) -> None:
-        self.excluded: set[str] = set()
-        self.dev: set[str] = set()
-        if assignments.is_file():
-            with assignments.open(encoding="utf-8", newline="") as handle:
-                for row in csv.DictReader(handle):
-                    destination = self.dev if row["split"].lower() == "dev" else self.excluded
-                    destination.update(self.identities(row["task"]))
-                    destination.update(self.identities(row["unit"]))
-
-    @staticmethod
-    def identities(value: str) -> set[str]:
-        return {value, value.rsplit("/", 1)[-1]}
-
-    def assign(
-        self,
-        source: str,
-        family: str,
-        *,
-        aliases: Iterable[str] = (),
-        force: Split | None = None,
-    ) -> Split:
-        identities = set().union(*(self.identities(v) for v in (family, *aliases)))
-        if force == "cross_test" or identities & self.excluded:
-            return "cross_test"
-        if force is not None:
-            return force
-        if identities & self.dev:
-            return "DEV"
-        return group_split(source, family)
-
-
-def awareness(run_id: str, texts: Iterable[str], *, available: bool = True) -> dict[str, Any]:
-    flags = dict.fromkeys(AWARENESS_PATTERNS, False)
-    needles = {
-        "tested": ("tested", "evaluated", "eval"),
-        "monitored": ("monitor",),
-        "graded": ("grad",),
-    }
-    for text in texts:
-        if all(flags.values()):
-            break
-        folded = text.lower()
-        for name, pattern in AWARENESS_PATTERNS.items():
-            # Literal gates avoid three costly Unicode regex scans of every long
-            # reasoning segment; the regex still makes every positive decision.
-            if (
-                not flags[name]
-                and any(word in folded for word in needles[name])
-                and pattern.search(text)
-            ):
-                flags[name] = True
-    return {
-        "run_id": run_id,
-        "method": "agent-text-regex/v1",
-        "text_available": available,
-        "eval_awareness": any(flags.values()),
-        **flags,
-    }
-
-
 def agent_text(value: Any) -> Iterator[str]:
     """Visit assistant/agent prose only, excluding instructions and tool observations."""
     if isinstance(value, str):
@@ -155,32 +89,3 @@ def agent_text(value: Any) -> Iterator[str]:
             yield from agent_text(value["message"])
 
 
-def link_findings(
-    runs: Iterable[RunRecord], findings: Iterable[Any], aliases: Mapping[str, Iterable[str]]
-) -> list[RunRecord]:
-    """Identity links are leads, not assertions that another revision has the defect."""
-    index: dict[tuple[str, str], set[str]] = {}
-    excluded: set[tuple[str, str]] = set()
-    for finding in findings:
-        index.setdefault((finding.task.source_id, finding.task.task_id), set()).add(
-            finding.finding_id
-        )
-        if getattr(finding, "split", "unassigned") != "DEV":
-            excluded.add((finding.task.source_id, finding.task.task_id))
-    linked = []
-    for run in runs:
-        ids = set(run.finding_ids)
-        blocked = False
-        for task_id in (run.task.task_id, *aliases.get(run.run_id, ())):
-            key = (run.task.source_id, task_id)
-            ids.update(index.get(key, ()))
-            blocked |= key in excluded
-        linked.append(
-            run.model_copy(
-                update={
-                    "finding_ids": sorted(ids),
-                    "split": "cross_test" if blocked else run.split,
-                }
-            )
-        )
-    return linked

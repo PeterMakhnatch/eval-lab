@@ -39,7 +39,6 @@ from evallab.strip_future_history import pack_setup, render_task_toml
 from evallab.task_variants import VariantInvalid, VariantRecord, derive_task
 
 TRANSFORM_ID = "purge-installed-copies@1"
-MARKER = "purge-installed-copies@1"
 SETUP_REL = "environment/setup/setup.sh"
 #: The call, not the ``write_blocklist()`` definition.
 ANCHOR = "\nwrite_blocklist\n"
@@ -64,36 +63,6 @@ V1_BLOCK_START = "# purge-installed-copies@1: remove this project's build and in
 _HEREDOC_END = "\nPY\n"
 
 
-def shell_block() -> str:
-    """Setup text inserted before ``write_blocklist``. Fail closed."""
-    return (
-        "# purge-installed-copies@1: remove this project's build and installed copies,\n"
-        "# then reinstall the base tree editable and offline. Other distributions stay.\n"
-        "python3 - \"$CWD\" remove <<'PY' || fail \"purge-installed-copies@1 failed\"\n"
-        + PURGE_PY
-        + "PY\n"
-        "if ! python3 -m pip install -e \"$CWD\" --no-deps --no-index --no-build-isolation; then\n"
-        "  echo \"purge-installed-copies@1: pip editable install unavailable; linking the worktree source\"\n"
-        "  python3 - \"$CWD\" link <<'PY' || fail \"purge-installed-copies@1 editable install failed\"\n"
-        + PURGE_PY
-        + "PY\n"
-        "fi\n"
-        "rm -rf \"$CWD/build\" || fail \"purge-installed-copies@1 cannot remove build\"\n"
-        "python3 - \"$CWD\" verify <<'PY' || fail \"purge-installed-copies@1 left an installed copy\"\n"
-        + PURGE_PY
-        + "PY\n"
-    )
-
-
-def build_setup_sh(parent_setup_sh: str) -> str:
-    """Parent ``setup.sh`` plus the purge block. Refuses a second insert."""
-    if MARKER in parent_setup_sh:
-        raise VariantInvalid("parent setup.sh already carries purge-installed-copies@1")
-    if ANCHOR not in parent_setup_sh:
-        raise VariantInvalid("setup.sh has no write_blocklist call; refusing to purge")
-    return parent_setup_sh.replace(ANCHOR, "\n" + shell_block() + "write_blocklist\n", 1)
-
-
 def _read_parent(parent_dir: Path) -> tuple[str, str, str, str]:
     try:
         text = (parent_dir / "task.toml").read_text(encoding="utf-8")
@@ -114,63 +83,6 @@ def _read_parent(parent_dir: Path) -> tuple[str, str, str, str]:
     if not setup_path.is_file():
         raise VariantInvalid(f"parent has no {SETUP_REL}")
     return task_name, workdir, image, setup_path.read_text(encoding="utf-8")
-
-
-def derive_purge_installed_copies(
-    parent_dir: Path | str,
-    *,
-    repairs_digest: str,
-    rationale: str = (
-        "Remove build/, project egg-info and site-packages copies of this "
-        "project, then reinstall the base tree editable and offline. Fail "
-        "setup if a copy remains or the import does not resolve under the worktree."
-    ),
-    created_by: str = "har194-hardening",
-    repo_root: Path | str | None = None,
-    parent_source: dict[str, Any] | None = None,
-    variants_root: Path | str | None = None,
-) -> VariantRecord:
-    """Derive ``purge-installed-copies@1`` for the package the ledger runs.
-
-    ``repairs_digest`` is that package's digest. The parent may be a strip
-    variant of it; the ledger switches to this variant only once it is validated.
-    """
-    if _DIGEST.fullmatch(repairs_digest) is None:
-        raise VariantInvalid(f"repairs_digest is not a sha256 digest: {repairs_digest}")
-    parent = Path(parent_dir)
-    task_name, workdir, image, setup_sh = _read_parent(parent)
-    new_setup = build_setup_sh(setup_sh)
-    new_blob = pack_setup(parent / "environment" / "setup", setup_sh=new_setup.encode("utf-8"))
-    parent_toml = (parent / "task.toml").read_text(encoding="utf-8")
-    changes: dict[str, bytes | None] = {
-        SETUP_REL: new_setup.encode("utf-8"),
-        "task.toml": render_task_toml(parent_toml, new_blob=new_blob).encode("utf-8"),
-    }
-    inputs: dict[str, Any] = {
-        "parent_task": task_name,
-        "workdir": workdir,
-        "docker_image": image,
-        "repairs_digest": repairs_digest,
-        "removed": ["build/", "project-egg-info", "site-packages-copy"],
-        "setup_before_sha256": f"sha256:{hashlib.sha256(setup_sh.encode()).hexdigest()}",
-        "setup_after_sha256": f"sha256:{hashlib.sha256(new_setup.encode()).hexdigest()}",
-    }
-    kwargs: dict[str, Any] = {}
-    if repo_root is not None:
-        kwargs["repo_root"] = repo_root
-    if parent_source is not None:
-        kwargs["parent_source"] = parent_source
-    if variants_root is not None:
-        kwargs["variants_root"] = variants_root
-    return derive_task(
-        parent,
-        changes=changes,
-        transform=TRANSFORM_ID,
-        rationale=rationale,
-        created_by=created_by,
-        inputs=inputs,
-        **kwargs,
-    )
 
 
 def shell_block_v2() -> str:
@@ -296,20 +208,3 @@ def derive_purge_installed_copies_v2(
     )
 
 
-__all__ = [
-    "ANCHOR",
-    "MARKER",
-    "MARKER_V2",
-    "PURGE_PY",
-    "SETUP_PYTHON_PATH",
-    "SETUP_REL",
-    "TRANSFORM_ID",
-    "TRANSFORM_ID_V2",
-    "V1_BLOCK_START",
-    "build_setup_sh",
-    "build_setup_sh_v2",
-    "derive_purge_installed_copies",
-    "derive_purge_installed_copies_v2",
-    "shell_block",
-    "shell_block_v2",
-]

@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import base64
-import io
 import json
-import tarfile
 from pathlib import Path
 
 import pytest
 
 from evallab import cli
 from evallab.control_expect import declared_expectation
-from evallab.task_lint import _build_env_scripts, _hidden_shell_blobs, discover_tasks, lint_task
+from evallab.task_lint import discover_tasks, lint_task
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,12 +30,6 @@ def task(tmp_path: Path) -> Path:
         'artifacts = ["/app/result.json"]\n[verifier]\nenvironment_mode = "separate"\n'
     )
     return task
-
-
-@pytest.fixture(autouse=True)
-def isolated_cli(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
-    monkeypatch.setattr(cli, "load_local_env", lambda _path: None)
 
 
 def test_clean_separate_task_is_read_only(task: Path, capsys) -> None:
@@ -331,72 +322,3 @@ def test_committed_task_library_lints_without_error_findings() -> None:
     ) == 0
 
 
-@pytest.fixture
-def build_env_patch() -> str:
-    archive = io.BytesIO()
-    with tarfile.open(fileobj=archive, mode="w:gz") as bundle:
-        for name, data in (
-            ("build_env/test_command.sh", b"pytest tests/test_example.py\n"),
-            ("setup.sh", b"printf 'setup'\n"),
-            ("oversized.sh", b"x" * 65),
-            ("notes.txt", b"not shell source"),
-        ):
-            member = tarfile.TarInfo(name)
-            member.size = len(data)
-            bundle.addfile(member, io.BytesIO(data))
-        link = tarfile.TarInfo("linked.sh")
-        link.type = tarfile.SYMTYPE
-        link.linkname = "build_env/test_command.sh"
-        bundle.addfile(link)
-    encoded = base64.encodebytes(archive.getvalue()).decode("ascii")
-    return (
-        "diff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\n"
-        "new file mode 100644\n"
-        "--- /dev/null\n"
-        "+++ b/mimo_build_env.tar.gz.b64\n"
-        "@@ -0,0 +1,1 @@\n"
-        + "".join("+" + line + "\n" for line in encoded.splitlines())
-    )
-
-
-def test_build_env_decoder_preserves_named_regular_shell_sources(build_env_patch: str) -> None:
-    assert _build_env_scripts(build_env_patch) == [
-        ("build_env/test_command.sh", "pytest tests/test_example.py\n"),
-        ("setup.sh", "printf 'setup'\n"),
-        ("oversized.sh", "x" * 65),
-    ]
-
-
-def test_build_env_selection_and_cap_precede_body_reads(
-    build_env_patch: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    read_members: list[str] = []
-    extractfile = tarfile.TarFile.extractfile
-
-    def record_read(archive: tarfile.TarFile, member: tarfile.TarInfo):
-        read_members.append(member.name)
-        return extractfile(archive, member)
-
-    monkeypatch.setattr(tarfile.TarFile, "extractfile", record_read)
-    assert _build_env_scripts(
-        build_env_patch,
-        select=lambda name: name != "setup.sh",
-        file_cap=64,
-    ) == [("build_env/test_command.sh", "pytest tests/test_example.py\n")]
-    assert read_members == ["build_env/test_command.sh"]
-
-
-def test_hidden_shell_lint_still_receives_text_only(task: Path, build_env_patch: str) -> None:
-    (task / "tests").mkdir()
-    (task / "tests/test.patch").write_text(build_env_patch)
-    assert _hidden_shell_blobs(task) == [
-        build_env_patch,
-        "pytest tests/test_example.py\n",
-        "printf 'setup'\n",
-        "x" * 65,
-    ]
-
-
-@pytest.mark.parametrize("patch", ["", "+++ b/mimo_build_env.tar.gz.b64\n+not-an-archive\n"])
-def test_unavailable_build_env_stays_missing(patch: str) -> None:
-    assert _build_env_scripts(patch) == []

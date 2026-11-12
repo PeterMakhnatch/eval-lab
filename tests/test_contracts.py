@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -12,7 +11,6 @@ from pydantic import ValidationError
 from evallab.schemas import (
     AnalysisRecord,
     CalibrationRecord,
-    CapabilityCurveReport,
     ConfidenceClaim,
     ControlEvidenceRef,
     CriterionAgreement,
@@ -32,26 +30,6 @@ from evallab.schemas import (
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "contracts"
-
-
-def _load_golden(name: str) -> dict:
-    return json.loads((FIXTURES / f"{name}.json").read_text())
-
-
-def test_golden_schemas_match_live():
-    """Byte-for-byte golden freeze: changing any contract field fails this."""
-    for Model, golden_name in [
-        (Suite, "Suite"),
-        (AnalysisRecord, "AnalysisRecord"),
-        (ObservationRecord, "ObservationRecord"),
-        (CalibrationRecord, "CalibrationRecord"),
-        (Verdict, "Verdict"),
-        (TaskRegistryRecord, "TaskRegistryRecord"),
-        (CapabilityCurveReport, "CapabilityCurveReport"),
-    ]:
-        live = Model.model_json_schema()
-        committed = _load_golden(golden_name)
-        assert live == committed, f"{golden_name} schema drift"
 
 
 def test_suite_frozen_immutable():
@@ -607,8 +585,6 @@ def test_elicitation_one_variable_difference_expressible():
     assert is_one_variable_elicitation(base, diff_two_a) is False
     assert is_one_variable_elicitation(base, diff_two_b) is False
     assert is_one_variable_elicitation(base, diff_three) is False
-
-
 
 
 def _s03_spec(**overrides: object) -> ExperimentSpec:

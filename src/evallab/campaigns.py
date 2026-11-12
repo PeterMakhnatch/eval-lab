@@ -61,17 +61,15 @@ from evallab.queue import (
 )
 from evallab.registry import TaskRegistry, compute_task_digests
 from evallab.results import JobRecord, load_job
-from evallab.schemas import ContractModel, ExperimentMatrix, ExperimentSpec, QueueState
+from evallab.schemas import ContractModel, ExperimentSpec, QueueState
 
 CampaignLedger = CampaignCalibrationLedger | CampaignMeasurementLedger
 
 
-_SCHEMA_DEFINITION = "campaign-definition/v1"
 _SCHEMA_MANIFEST = "campaign-manifest/v3"
 _SCHEMA_EVENT = "campaign-event/v1"
 _SCHEMA_STATUS = "campaign-status/v1"
 CAMPAIGN_STATE_ROOT = Path("runs/campaigns")
-MATRIX_REGISTRY_PATH = "research/experiments/matrix-registry.json"
 _TRANSIENT_PREFIX = "transient_harness:"
 _SPEC_DIGEST_EXCLUDES = {
     "submitted_at",
@@ -119,11 +117,6 @@ def _write_all(descriptor: int, payload: bytes) -> None:
         remaining = remaining[written:]
 
 
-def _safe_component(value: str) -> str:
-    cleaned = "".join(character if character.isalnum() else "-" for character in value.lower())
-    return cleaned.strip("-") or "campaign"
-
-
 def _repo_relative(value: str) -> str:
     if value.startswith("/") or ".." in value.split("/"):
         raise ValueError("campaign paths must stay relative to the repository")
@@ -138,48 +131,6 @@ def _resolved_repo_subpath(repo_root: Path, relative_path: str, *, label: str) -
     except ValueError as exc:
         raise CampaignDriftError(f"{label} resolves outside the repository") from exc
     return resolved
-
-
-def _read_repo_regular_file(
-    repo_root: Path,
-    relative_path: str,
-    *,
-    label: str,
-) -> bytes:
-    """Read one repo-confined regular file without following path symlinks."""
-    components = _repo_relative(relative_path).split("/")
-    if not components or any(component in {"", "."} for component in components):
-        raise ValueError(f"{label} path is not canonical")
-    directory = os.open(
-        repo_root.resolve(),
-        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
-    )
-    try:
-        for component in components[:-1]:
-            next_directory = os.open(
-                component,
-                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
-                dir_fd=directory,
-            )
-            os.close(directory)
-            directory = next_directory
-        descriptor = os.open(
-            components[-1],
-            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
-            dir_fd=directory,
-        )
-        try:
-            metadata = os.fstat(descriptor)
-            if not stat.S_ISREG(metadata.st_mode):
-                raise ValueError(f"{label} must be a regular file")
-            chunks: list[bytes] = []
-            while chunk := os.read(descriptor, 64 * 1024):
-                chunks.append(chunk)
-            return b"".join(chunks)
-        finally:
-            os.close(descriptor)
-    finally:
-        os.close(directory)
 
 
 def experiment_spec_digest(spec: ExperimentSpec) -> str:
@@ -245,78 +196,6 @@ class CampaignMatrixContract(_FrozenContract):
     task_path: str = Field(min_length=1)
     verifier_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-
-
-class MatrixRegistryEntry(_FrozenContract):
-    matrix_id: str = Field(pattern=r"^[0-9A-HJKMNP-TV-Z]{26}$")
-    path: str = Field(min_length=1)
-    matrix_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-
-    @model_validator(mode="after")
-    def path_is_repo_relative(self) -> MatrixRegistryEntry:
-        _repo_relative(self.path)
-        return self
-
-
-class MatrixRegistry(_FrozenContract):
-    schema_version: Literal[1] = 1
-    matrices: tuple[MatrixRegistryEntry, ...] = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def matrix_ids_and_paths_are_unique(self) -> MatrixRegistry:
-        ids = [entry.matrix_id for entry in self.matrices]
-        paths = [entry.path for entry in self.matrices]
-        if len(ids) != len(set(ids)):
-            raise ValueError("matrix registry contains duplicate matrix_id")
-        if len(paths) != len(set(paths)):
-            raise ValueError("matrix registry contains duplicate matrix path")
-        return self
-
-    @classmethod
-    def from_repo(cls, repo_root: Path) -> MatrixRegistry:
-        try:
-            payload = _read_repo_regular_file(
-                repo_root,
-                MATRIX_REGISTRY_PATH,
-                label="matrix registry",
-            )
-            return cls.model_validate_json(payload)
-        except (OSError, ValueError) as exc:
-            raise ValueError("canonical matrix registry is unreadable") from exc
-
-    def get(self, matrix_id: str) -> MatrixRegistryEntry | None:
-        return next(
-            (entry for entry in self.matrices if entry.matrix_id == matrix_id),
-            None,
-        )
-
-    def resolve(
-        self,
-        repo_root: Path,
-        matrix_id: str,
-    ) -> tuple[MatrixRegistryEntry, ExperimentMatrix, str]:
-        entry = self.get(matrix_id)
-        if entry is None:
-            raise ValueError(
-                f"matrix_id {matrix_id!r} is absent from the canonical matrix registry"
-            )
-        try:
-            matrix_bytes = _read_repo_regular_file(
-                repo_root,
-                entry.path,
-                label="campaign matrix",
-            )
-            matrix = ExperimentMatrix.model_validate_json(matrix_bytes)
-        except (OSError, ValueError) as exc:
-            raise ValueError(
-                f"matrix_id {matrix_id!r} does not resolve to a frozen matrix"
-            ) from exc
-        matrix_digest = _digest(matrix.model_dump(mode="json"))
-        if matrix.matrix_id != matrix_id:
-            raise ValueError("matrix identity does not match its registry key")
-        if matrix_digest != entry.matrix_digest:
-            raise ValueError("matrix digest does not match the canonical registry")
-        return entry, matrix, matrix_digest
 
 
 class CampaignAnalysisCell(_FrozenContract):
@@ -428,59 +307,6 @@ class CampaignDefinitionAttempt(_FrozenContract):
                 < 1
             ):
                 raise ValueError("billable attempts require token ceilings")
-        return self
-
-
-class CampaignDefinition(_FrozenContract):
-    schema_version: Literal["campaign-definition/v1"] = _SCHEMA_DEFINITION
-    ledger: CampaignLedger
-    submitted_by: str = Field(min_length=1)
-    limits: CampaignLimits
-    attempts: tuple[CampaignDefinitionAttempt, ...] = Field(min_length=1)
-    evidence_store: str = "derived/evidence-cas"
-
-    @property
-    def campaign_id(self) -> str:
-        return self.ledger.ledger_id
-
-    @property
-    def benchmark(self) -> str:
-        return self.ledger.family.value
-
-    @model_validator(mode="after")
-    def campaign_is_single_benchmark_and_fully_reserved(self) -> CampaignDefinition:
-        _repo_relative(self.evidence_store)
-        if (
-            self.ledger.status != "pending"
-            or self.ledger.dispatched_trials != 0
-            or self.ledger.completed_trials != 0
-        ):
-            raise ValueError("campaign definitions require an unused pending canonical ledger")
-        billable = [item.spec.billable for item in self.attempts]
-        if isinstance(self.ledger, CampaignCalibrationLedger) and any(billable):
-            raise ValueError("calibration ledgers cannot authorize billable attempts")
-        if isinstance(self.ledger, CampaignMeasurementLedger) and not any(billable):
-            raise ValueError("measurement ledgers require at least one billable attempt")
-        identities = [(item.cell_id, item.task_id, item.attempt) for item in self.attempts]
-        if len(identities) != len(set(identities)):
-            raise ValueError("campaign attempt identities must be unique")
-        reserved_requests = sum(item.limits.max_requests for item in self.attempts)
-        reserved_cost = sum(item.limits.max_cost_usd for item in self.attempts)
-        reserved_input = sum(item.limits.max_input_tokens for item in self.attempts)
-        reserved_output = sum(item.limits.max_output_tokens for item in self.attempts)
-        reserved_total = sum(item.limits.max_total_tokens for item in self.attempts)
-        reserved_wall = sum(item.limits.max_wall_clock_seconds for item in self.attempts)
-        reservations = (
-            (reserved_requests, self.limits.max_requests, "request"),
-            (reserved_cost, self.limits.max_cost_usd, "cost"),
-            (reserved_input, self.limits.max_input_tokens, "input-token"),
-            (reserved_output, self.limits.max_output_tokens, "output-token"),
-            (reserved_total, self.limits.max_total_tokens, "total-token"),
-            (reserved_wall, self.limits.max_wall_clock_seconds, "wall-clock"),
-        )
-        for reserved, ceiling, label in reservations:
-            if reserved > ceiling:
-                raise ValueError(f"reserved per-trial {label} ceilings exceed the campaign ceiling")
         return self
 
 
@@ -624,113 +450,6 @@ def campaign_manifest_digest(manifest: CampaignManifest | Mapping[str, Any]) -> 
     return _digest(payload)
 
 
-def _bind_execution_identity(
-    definition: CampaignDefinition,
-    item: CampaignDefinitionAttempt,
-) -> _CampaignAttemptBinding:
-    """Bind canonical campaign-ledger identity to queue execution coordinates."""
-    return _CampaignAttemptBinding(
-        ledger=definition.ledger,
-        cell_id=item.cell_id,
-        task_id=item.task_id,
-        attempt=item.attempt,
-    )
-
-
-def _deterministic_job_name(identity: _CampaignAttemptBinding, seed_digest: str) -> str:
-    suffix = seed_digest.removeprefix("sha256:")[:12]
-    base = _safe_component(
-        "-".join(
-            (
-                identity.ledger.ledger_id,
-                identity.cell_id,
-                identity.task_id,
-                f"a{identity.attempt}",
-            )
-        )
-    )
-    prefix = base[: 80 - len(suffix) - 1].rstrip("-")
-    return f"{prefix}-{suffix}"
-
-
-def _resolve_campaign_task_contract(
-    definition: CampaignDefinition,
-    item: CampaignDefinitionAttempt,
-    repo_root: Path,
-) -> CampaignTaskContract:
-    registry_record = TaskRegistry.from_repo(repo_root).get(item.task_id)
-    if registry_record is None:
-        raise ValueError(
-            f"campaign task {item.task_id!r} is missing from the explicit task registry"
-        )
-    if registry_record.state != "registered":
-        raise ValueError(f"campaign task {item.task_id!r} is not in registered admission state")
-    if "measurement" not in registry_record.allowed_uses:
-        raise ValueError(f"campaign task {item.task_id!r} is not approved for measurement")
-    if item.spec.task_family is None:
-        raise ValueError("campaign specs must declare the registered task family")
-    if (
-        item.spec.task_family != registry_record.task_family
-        or registry_record.task_family != definition.benchmark
-    ):
-        raise ValueError("campaign task family does not match the registered benchmark family")
-    if item.spec.task.startswith("registered/"):
-        if item.spec.task != f"registered/{item.task_id}":
-            raise ValueError("campaign registered task reference disagrees with task_id")
-        if item.spec.task_path not in {None, registry_record.task_path}:
-            raise ValueError("campaign task_path redirects the registered task")
-    elif item.spec.executable_task_path != registry_record.task_path:
-        raise ValueError("campaign task path does not match the registered task record")
-
-    task_path = registry_record.task_path
-    task_dir = _resolved_repo_subpath(repo_root, task_path, label="campaign task")
-    current_digests = compute_task_digests(task_dir)
-    if current_digests != registry_record.digests:
-        raise ValueError("campaign task package bytes differ from the registered digests")
-    if item.spec.task_version not in {None, registry_record.version}:
-        raise ValueError("campaign task version does not match the registered task")
-    if item.spec.verifier_digest not in {None, registry_record.digests.verifier}:
-        raise ValueError("campaign verifier digest does not match the registered task")
-    if item.spec.task_package_digest not in {None, registry_record.digests.package}:
-        raise ValueError("campaign package digest does not match the registered task")
-    return CampaignTaskContract(
-        task_id=registry_record.task_id,
-        task_ref=item.spec.task,
-        task_path=task_path,
-        task_family=registry_record.task_family,
-        task_version=registry_record.version,
-        verifier_digest=registry_record.digests.verifier,
-        package_digest=registry_record.digests.package,
-    )
-
-
-def _resolve_campaign_matrix_contract(
-    definition: CampaignDefinition,
-    repo_root: Path,
-) -> CampaignMatrixContract:
-    matrix_ref = definition.ledger.matrix_ref
-    registry = MatrixRegistry.from_repo(repo_root)
-    try:
-        entry, matrix, matrix_digest = registry.resolve(repo_root, matrix_ref)
-    except ValueError as exc:
-        raise ValueError(
-            f"campaign matrix_ref {matrix_ref!r} does not resolve through "
-            "the canonical matrix registry"
-        ) from exc
-    if matrix.benchmark_family != definition.benchmark:
-        raise ValueError("campaign matrix benchmark family does not match the ledger")
-    return CampaignMatrixContract(
-        matrix_id=matrix.matrix_id,
-        matrix_path=entry.path,
-        matrix_digest=matrix_digest,
-        benchmark_family=matrix.benchmark_family,
-        task_id=matrix.task_id,
-        task_path=matrix.task,
-        verifier_digest=matrix.verifier_digest,
-        package_digest=matrix.task_package_digest,
-    )
-
-
 def _analysis_cell_holds(
     attempts: Sequence[CampaignDefinitionAttempt | CampaignAttempt],
 ) -> tuple[str, ...]:
@@ -762,122 +481,6 @@ def _analysis_cell_holds(
         if len(cell_attempts) < 2 or len(seeds) != len(set(seeds)):
             holds.append(f"analysis_cell_repeats_insufficient:{min(cell_ids)}")
     return tuple(sorted(set(holds)))
-
-
-def build_campaign_manifest(
-    definition: CampaignDefinition,
-    *,
-    repo_root: Path,
-) -> CampaignManifest:
-    attempts: list[CampaignAttempt] = []
-    placeholder = "sha256:" + "0" * 64
-    matrix_contract = _resolve_campaign_matrix_contract(definition, repo_root)
-    for item in definition.attempts:
-        identity = _bind_execution_identity(definition, item)
-        task_contract = _resolve_campaign_task_contract(definition, item, repo_root)
-        if (
-            task_contract.task_id != matrix_contract.task_id
-            or task_contract.task_path != matrix_contract.task_path
-            or task_contract.task_family != matrix_contract.benchmark_family
-            or task_contract.verifier_digest != matrix_contract.verifier_digest
-            or task_contract.package_digest != matrix_contract.package_digest
-        ):
-            raise ValueError("campaign task registry identity does not match the frozen matrix")
-        task_fields = {
-            "task_id": task_contract.task_id,
-            "task_path": task_contract.task_path,
-            "task_family": task_contract.task_family,
-            "task_version": task_contract.task_version,
-            "verifier_digest": task_contract.verifier_digest,
-            "task_package_digest": task_contract.package_digest,
-        }
-        source_spec = item.spec.model_copy(update=task_fields)
-        attempt_id = "attempt-" + _digest(identity.model_dump(mode="json"))[7:31]
-        source_payload = source_spec.model_dump(mode="json", exclude_none=True)
-        source_payload.pop("name", None)
-        source_payload.pop("spec_id", None)
-        seed_digest = _digest(
-            {
-                "identity": identity.model_dump(mode="json"),
-                "task_contract": (
-                    task_contract.model_dump(mode="json") if task_contract is not None else None
-                ),
-                "analysis_cell": (
-                    item.analysis_cell.model_dump(mode="json")
-                    if item.analysis_cell is not None
-                    else None
-                ),
-                "repeat_seed": item.repeat_seed,
-                "spec": source_payload,
-                "limits": item.limits.model_dump(mode="json"),
-            }
-        )
-        spec_id = "campaign-" + seed_digest[7:31]
-        job_name = _deterministic_job_name(identity, seed_digest)
-        spec = source_spec.model_copy(
-            update={
-                "spec_id": spec_id,
-                "name": job_name,
-                "attempts": 1,
-                "concurrency": 1,
-                "timeout_seconds": min(
-                    source_spec.timeout_seconds,
-                    item.limits.max_wall_clock_seconds,
-                ),
-                "max_requests": (item.limits.max_requests if source_spec.billable else None),
-                "max_input_tokens": (
-                    item.limits.max_input_tokens if source_spec.billable else None
-                ),
-                "max_output_tokens": (
-                    item.limits.max_output_tokens if source_spec.billable else None
-                ),
-                "max_total_tokens": (
-                    item.limits.max_total_tokens if source_spec.billable else None
-                ),
-                "cost_limit_usd": item.limits.max_cost_usd if source_spec.billable else None,
-                "est_cost_usd": (
-                    item.limits.max_cost_usd if source_spec.billable else source_spec.est_cost_usd
-                ),
-                "campaign_ledger": definition.ledger,
-                "campaign_cell_id": item.cell_id,
-                "campaign_attempt_id": attempt_id,
-                "campaign_attempt_index": item.attempt,
-                "campaign_manifest_digest": placeholder,
-                "campaign_spec_digest": placeholder,
-                "campaign_evidence_store": definition.evidence_store,
-            }
-        )
-        spec_digest = experiment_spec_digest(spec)
-        spec = spec.model_copy(update={"campaign_spec_digest": spec_digest})
-        attempts.append(
-            CampaignAttempt(
-                attempt_id=attempt_id,
-                identity=identity,
-                spec_id=spec_id,
-                job_name=job_name,
-                spec_digest=spec_digest,
-                spec=spec,
-                limits=item.limits,
-                task_contract=task_contract,
-                analysis_cell=item.analysis_cell,
-                repeat_seed=item.repeat_seed,
-            )
-        )
-    raw: dict[str, Any] = {
-        "schema_version": _SCHEMA_MANIFEST,
-        "ledger": definition.ledger.model_dump(mode="json"),
-        "submitted_by": definition.submitted_by,
-        "limits": definition.limits.model_dump(mode="json"),
-        "matrix": matrix_contract.model_dump(mode="json"),
-        "attempts": [item.model_dump(mode="json", exclude_none=True) for item in attempts],
-        "evidence_store": definition.evidence_store,
-        "analysis_holds": _analysis_cell_holds(definition.attempts),
-    }
-    manifest_digest = campaign_manifest_digest(raw)
-    raw["manifest_digest"] = manifest_digest
-    for attempt in raw["attempts"]:
-        attempt["spec"]["campaign_manifest_digest"] = manifest_digest
-    return CampaignManifest.model_validate(raw)
 
 
 class CampaignEvent(_FrozenContract):
@@ -2607,22 +2210,6 @@ class CampaignOrchestrator:
 
     def resume(self, *, dry_run: bool = False) -> CampaignStatus:
         return self._execute(resume=True, dry_run=dry_run)
-
-
-def plan_campaign(
-    definition_path: Path,
-    *,
-    repo_root: Path,
-) -> tuple[CampaignManifest, Path]:
-    definition = CampaignDefinition.model_validate_json(definition_path.read_text(encoding="utf-8"))
-    manifest = build_campaign_manifest(definition, repo_root=repo_root)
-    state_root = _resolved_repo_subpath(
-        repo_root,
-        CAMPAIGN_STATE_ROOT.as_posix(),
-        label="campaign state root",
-    )
-    store = CampaignStore(state_root, manifest.campaign_id)
-    return manifest, store.freeze(manifest)
 
 
 def plan_repeated_matrix(

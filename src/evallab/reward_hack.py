@@ -32,10 +32,10 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from evallab import ref_subset
 from evallab.control_expect import declared_expectation
 from evallab.execution_contracts import new_ulid
 from evallab.ref_repair import add_ref_repair_parser
-from evallab.ref_subset import add_ref_subset_parser
 from evallab.registry import compute_task_digests, harbor_task_digest
 from evallab.runner import run_matrix
 from evallab.schemas import ContractModel, ExperimentMatrix, MatrixRun
@@ -903,5 +903,36 @@ def build_reward_hack_parser(subparsers: Any) -> None:
     add_battery_parser(hack_commands)
     add_hunt_parser(hack_commands)
     add_repair_parser(hack_commands)
-    add_ref_subset_parser(hack_commands)
+    parser = hack_commands.add_parser(
+        "ref-subset",
+        help="Weak-test probe: the smallest part of a reference fix that still passes the hidden "
+        "tests (Docker by default; explicitly approved Modal)",
+    )
+    commands = parser.add_subparsers(dest="ref_subset_command", required=True)
+    run = commands.add_parser(
+        "run",
+        help="Probe raw MiMo against --patch, separate-verifier oracle artifacts, or an unchanged "
+        "shared Harbor task through native matrices with --target files",
+    )
+    run.add_argument("package", type=Path)
+    run.add_argument("--patch", type=Path, help="Reference patch (MiMo packages only)")
+    run.add_argument("--target", action="append", default=[], help="Absolute native shared target FILE; repeat per file")
+    run.add_argument("--seed", help="Deterministic line-mutant selection seed (default: task id)")
+    run.add_argument("--output-dir", type=Path, required=True)
+    run.add_argument("--max-grades", type=int, default=ref_subset.DEFAULT_MAX_GRADES)
+    run.add_argument("--memory", default="4g")
+    run.add_argument(
+        "--mutants",
+        type=int,
+        default=0,
+        help="Line-level pass: grade up to N one-edit mutants of the lines the reference wrote",
+    )
+    run.add_argument(
+        "--oracle-timeout",
+        type=float,
+        default=3_600,
+        help="Seconds for solution/solve.sh; also lowers Modal image/setup timeout below 1800s",
+    )
+    ref_subset._add_environment_options(run)
+    run.set_defaults(func=ref_subset._run_command)
     add_ref_repair_parser(hack_commands)

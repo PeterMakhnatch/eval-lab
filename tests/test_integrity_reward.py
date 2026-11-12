@@ -400,28 +400,38 @@ def test_real_rewardkit_layout_emits_three_dims(
         '"""Harness-only stub: programmatic criteria never touch litellm."""\n'
         "REASONING_EFFORT = str\n"
     )
-    sys.modules.pop("rewardkit", None)
-    sys.modules.pop("litellm", None)
-    monkeypatch.syspath_prepend(str(REWARDKIT_SRC))
-    monkeypatch.syspath_prepend(str(stub))
-    from rewardkit.runner import run
-
-    logs = _synthetic_logs(tmp_path, reward="1\n", dirty=True)
-    tests = _synthetic_tests_dir(tmp_path)
-    monkeypatch.setenv("INTEGRITY_LOGS_DIR", str(logs))
-    monkeypatch.setenv("INTEGRITY_TESTS_DIR", str(tests))
-    out = tmp_path / "out" / "reward.json"
-    dims = run(str(tests), workspace=str(tmp_path / "workspace"), output=str(out))
-    assert dims == {"integrity": 0.0, "reward": 1.0, "reward_gated": 0.0}
-    assert json.loads(out.read_text()) == dims
-    details = json.loads(out.with_name("reward-details.json").read_text())
-    assert set(details) == {"reward", "integrity", "reward_gated"}
-    assert details["integrity"]["aggregation"] == "all-pass"
-    rule_names = {
-        component["detail"]["criteria"][0]["name"]
-        for component in details["integrity"]["components"]
+    previous_modules = {
+        name: module for name, module in sys.modules.items()
+        if name.partition(".")[0] in {"rewardkit", "litellm"}
     }
-    assert rule_names == set(core.RULE_IDS)
+    for name in previous_modules:
+        sys.modules.pop(name)
+    try:
+        monkeypatch.syspath_prepend(str(REWARDKIT_SRC))
+        monkeypatch.syspath_prepend(str(stub))
+        from rewardkit.runner import run
+
+        logs = _synthetic_logs(tmp_path, reward="1\n", dirty=True)
+        tests = _synthetic_tests_dir(tmp_path)
+        monkeypatch.setenv("INTEGRITY_LOGS_DIR", str(logs))
+        monkeypatch.setenv("INTEGRITY_TESTS_DIR", str(tests))
+        out = tmp_path / "out" / "reward.json"
+        dims = run(str(tests), workspace=str(tmp_path / "workspace"), output=str(out))
+        assert dims == {"integrity": 0.0, "reward": 1.0, "reward_gated": 0.0}
+        assert json.loads(out.read_text()) == dims
+        details = json.loads(out.with_name("reward-details.json").read_text())
+        assert set(details) == {"reward", "integrity", "reward_gated"}
+        assert details["integrity"]["aggregation"] == "all-pass"
+        rule_names = {
+            component["detail"]["criteria"][0]["name"]
+            for component in details["integrity"]["components"]
+        }
+        assert rule_names == set(core.RULE_IDS)
+    finally:
+        for name in tuple(sys.modules):
+            if name.partition(".")[0] in {"rewardkit", "litellm"}:
+                sys.modules.pop(name)
+        sys.modules.update(previous_modules)
 
 
 def test_derive_transform_identity(tmp_path: Path) -> None:

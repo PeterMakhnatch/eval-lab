@@ -1287,6 +1287,10 @@ A package-check packet never supplies a missing Gold result.
 uv run evallab tasks lint path/to/task --json
 ```
 
+A path may be one task or a collection root. Collection roots discover nested
+task packages at any depth; hidden directories are skipped, and a task's own
+subdirectories are never searched.
+
 This command checks verifier separation, declared artifacts, solution presence,
 control expectation headers, and hidden inputs in Docker `COPY`/`ADD` operands.
 Operands are resolved against the task's `environment/` build context: a source

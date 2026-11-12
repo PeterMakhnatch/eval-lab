@@ -203,29 +203,83 @@ def test_invalid_manifest_does_not_guess_verifier_mode(task: Path) -> None:
     assert (finding.rule, finding.severity) == ("task-toml-parses", "error")
 
 
-def test_directory_discovery_is_immediate_and_accepts_multiple_paths(task: Path, capsys) -> None:
+def test_discovery_recurses_from_a_collection_and_accepts_multiple_paths(
+    task: Path, capsys
+) -> None:
     collection = task.parent / "collection"
     sibling = collection / "shared-task"
     (sibling / "solution").mkdir(parents=True)
     (sibling / "task.toml").write_text('[verifier]\nenvironment_mode = "shared"\n')
     (sibling / "solution/solve.sh").write_text("exit 0\n")
     nested = collection / "not-a-task" / "nested"
-    nested.mkdir(parents=True)
+    (nested / "solution").mkdir(parents=True)
+    (nested / "solution/solve.sh").write_text("exit 0\n")
     (nested / "task.toml").write_text("invalid TOML")
     empty = task.parent / "empty-collection"
     empty.mkdir()
 
     assert cli.run_cli(
         ["tasks", "lint", str(task), str(collection), str(empty), "--json"], workspace=task.parent
-    ) == 0
+    ) == 1
+    findings = json.loads(capsys.readouterr().out)
+    assert {(finding["rule"], finding["severity"], finding["path"]) for finding in findings} == {
+        ("verifier-isolation", "warning", str(sibling / "task.toml")),
+        ("task-toml-parses", "error", str(nested / "task.toml")),
+    }
+
+
+def test_discovery_reports_a_nested_package_error_from_the_root(
+    tmp_path: Path, capsys
+) -> None:
+    nested = tmp_path / "collection" / "group" / "deep-task"
+    (nested / "solution").mkdir(parents=True)
+    (nested / "solution/solve.sh").write_text("#!/bin/sh\nexit 0\n")
+    (nested / "tests").mkdir()
+    (nested / "environment").mkdir()
+    (nested / "environment/Dockerfile").write_text("FROM python:3.12\nCOPY tests /private\n")
+    (nested / "task.toml").write_text(
+        'artifacts = ["/app/result.json"]\n[verifier]\nenvironment_mode = "separate"\n'
+    )
+
+    assert discover_tasks([tmp_path / "collection"]) == [nested]
+    assert cli.run_cli(
+        ["tasks", "lint", str(tmp_path / "collection"), "--json"], workspace=tmp_path
+    ) == 1
     finding, = json.loads(capsys.readouterr().out)
-    assert finding["rule"] == "verifier-isolation"
-    assert finding["path"] == str(sibling / "task.toml")
+    assert (finding["rule"], finding["severity"], finding["path"]) == (
+        "hidden-inputs-not-baked",
+        "error",
+        str(nested / "environment/Dockerfile"),
+    )
+
+
+def test_discovery_does_not_descend_into_a_task_package(tmp_path: Path) -> None:
+    package = tmp_path / "collection" / "task"
+    (package / "tests").mkdir(parents=True)
+    (package / "task.toml").write_text("")
+    (package / "tests/task.toml").write_text("")
+
+    assert discover_tasks([tmp_path / "collection"]) == [package]
+
+
+def test_discovery_skips_hidden_directories_and_sorts_by_posix_path(tmp_path: Path) -> None:
+    collection = tmp_path / "collection"
+    for name in ("z-task", "a-task", ".hidden-task"):
+        (collection / name).mkdir(parents=True)
+        (collection / name / "task.toml").write_text("")
+    nested = collection / "m-group" / "nested-task"
+    nested.mkdir(parents=True)
+    (nested / "task.toml").write_text("")
+
+    assert discover_tasks([collection]) == [
+        collection / "a-task",
+        nested,
+        collection / "z-task",
+    ]
 
 
 def test_committed_task_library_lints_without_error_findings() -> None:
-    packages = sorted(REPO_ROOT.glob("library/tasks/**/task.toml"))
-    tasks = discover_tasks([package.parent for package in packages])
+    tasks = discover_tasks([REPO_ROOT / "library/tasks"])
     assert len(tasks) == 12
 
     findings = [finding for task in tasks for finding in lint_task(task)]

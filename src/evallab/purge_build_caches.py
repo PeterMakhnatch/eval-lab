@@ -110,7 +110,6 @@ from typing import Any
 from evallab.strip_future_history import pack_setup, render_task_toml
 from evallab.task_variants import VariantInvalid, VariantRecord, derive_task
 
-TRANSFORM_ID = "purge-build-caches@1"
 MARKER = "purge-build-caches@1"
 SETUP_REL = "environment/setup/setup.sh"
 #: Same anchor as purge-installed-copies: this block is appended after the
@@ -703,12 +702,8 @@ LANG_BLOCK_V4 = (LANG_BLOCK[:_pip_start] + PIP_LEG_V4 + LANG_BLOCK[_go_start:]).
 )
 
 
-def shell_block() -> str:
-    """Setup text appended after ``write_blocklist``. Fail closed."""
-    return CACHE_BLOCK
 
 
-TRANSFORM_ID_V2 = "purge-build-caches@2"
 MARKER_V2 = "purge-build-caches@2"
 
 #: Language sections in ``LANG_BLOCK`` (recorded in @2 lineage inputs).
@@ -726,18 +721,11 @@ LANGUAGE_SECTIONS = (
 )
 
 
-def shell_block_v2() -> str:
-    """@1 sweep plus the language-aware project-cache purge. Fail closed."""
-    return CACHE_BLOCK + LANG_BLOCK
 
 
-TRANSFORM_ID_V3 = "purge-build-caches@3"
 MARKER_V3 = "purge-build-caches@3"
 
 
-def shell_block_v3() -> str:
-    """@2 plus the node gitignored build-output handling. Fail closed."""
-    return CACHE_BLOCK + LANG_BLOCK + NODE_BUILD_BLOCK
 
 
 TRANSFORM_ID_V5 = "purge-build-caches@5"
@@ -800,43 +788,10 @@ def build_setup_sh_v5(parent_setup_sh: str) -> str:
     return parent_setup_sh.replace(ANCHOR, "\nwrite_blocklist\n" + shell_block_v5(), 1)
 
 
-def build_setup_sh_v3(parent_setup_sh: str) -> str:
-    """Parent ``setup.sh`` plus the @3 block. Refuses @1/@2/@3 parents and bare setups."""
-    if MARKER_V3 in parent_setup_sh:
-        raise VariantInvalid("parent setup.sh already carries purge-build-caches@3")
-    if MARKER_V2 in parent_setup_sh:
-        raise VariantInvalid(
-            "parent setup.sh already carries purge-build-caches@2; @3 supersedes it"
-        )
-    if MARKER in parent_setup_sh:
-        raise VariantInvalid(
-            "parent setup.sh already carries purge-build-caches@1; @3 supersedes it"
-        )
-    if ANCHOR not in parent_setup_sh:
-        raise VariantInvalid("setup.sh has no write_blocklist call; refusing to purge caches")
-    return parent_setup_sh.replace(ANCHOR, "\nwrite_blocklist\n" + shell_block_v3(), 1)
 
 
-def build_setup_sh_v2(parent_setup_sh: str) -> str:
-    """Parent ``setup.sh`` plus the @2 block. Refuses @1/@2 parents and bare setups."""
-    if MARKER_V2 in parent_setup_sh:
-        raise VariantInvalid("parent setup.sh already carries purge-build-caches@2")
-    if MARKER in parent_setup_sh:
-        raise VariantInvalid(
-            "parent setup.sh already carries purge-build-caches@1; @2 supersedes it"
-        )
-    if ANCHOR not in parent_setup_sh:
-        raise VariantInvalid("setup.sh has no write_blocklist call; refusing to purge caches")
-    return parent_setup_sh.replace(ANCHOR, "\nwrite_blocklist\n" + shell_block_v2(), 1)
 
 
-def build_setup_sh(parent_setup_sh: str) -> str:
-    """Parent ``setup.sh`` plus the cache-purge block. Refuses a second insert."""
-    if MARKER in parent_setup_sh:
-        raise VariantInvalid("parent setup.sh already carries purge-build-caches@1")
-    if ANCHOR not in parent_setup_sh:
-        raise VariantInvalid("setup.sh has no write_blocklist call; refusing to purge caches")
-    return parent_setup_sh.replace(ANCHOR, "\nwrite_blocklist\n" + shell_block(), 1)
 
 
 def _read_parent(parent_dir: Path) -> tuple[str, str, str, str]:
@@ -861,188 +816,16 @@ def _read_parent(parent_dir: Path) -> tuple[str, str, str, str]:
     return task_name, workdir, image, setup_path.read_text(encoding="utf-8")
 
 
-def build_changes(
-    parent_dir: Path | str,
-) -> tuple[dict[str, bytes | None], dict[str, Any]]:
-    """Build the ``derive_task`` changes mapping plus lineage inputs."""
-    parent = Path(parent_dir)
-    task_name, workdir, image, setup_sh = _read_parent(parent)
-    new_setup = build_setup_sh(setup_sh)
-    new_blob = pack_setup(parent / "environment" / "setup", setup_sh=new_setup.encode("utf-8"))
-    parent_toml = (parent / "task.toml").read_text(encoding="utf-8")
-    changes: dict[str, bytes | None] = {
-        SETUP_REL: new_setup.encode("utf-8"),
-        "task.toml": render_task_toml(parent_toml, new_blob=new_blob).encode("utf-8"),
-    }
-    inputs: dict[str, Any] = {
-        "parent_task": task_name,
-        "workdir": workdir,
-        "docker_image": image,
-        "cache_names": list(CACHE_NAMES),
-        "cache_globs": list(CACHE_GLOBS),
-        "setup_before_sha256": f"sha256:{hashlib.sha256(setup_sh.encode()).hexdigest()}",
-        "setup_after_sha256": f"sha256:{hashlib.sha256(new_setup.encode()).hexdigest()}",
-    }
-    return changes, inputs
 
 
-def derive_purge_build_caches(
-    parent_dir: Path | str,
-    *,
-    rationale: str = (
-        "Remove regenerable build/module caches (pycache, pytest/mypy/ruff "
-        "caches, node .cache/.vitest) that can carry the fixed tree, and fail "
-        "setup if any survive. Dependency dirs and project copies stay."
-    ),
-    created_by: str = "vals-closure",
-    repo_root: Path | str | None = None,
-    parent_source: dict[str, Any] | None = None,
-    variants_root: Path | str | None = None,
-) -> VariantRecord:
-    """Derive ``purge-build-caches@1`` for a MiMo task package."""
-    parent = Path(parent_dir)
-    changes, inputs = build_changes(parent)
-    kwargs: dict[str, Any] = {}
-    if repo_root is not None:
-        kwargs["repo_root"] = repo_root
-    if parent_source is not None:
-        kwargs["parent_source"] = parent_source
-    if variants_root is not None:
-        kwargs["variants_root"] = variants_root
-    return derive_task(
-        parent,
-        changes=changes,
-        transform=TRANSFORM_ID,
-        rationale=rationale,
-        created_by=created_by,
-        inputs=inputs,
-        **kwargs,
-    )
 
 
-def build_changes_v2(
-    parent_dir: Path | str,
-) -> tuple[dict[str, bytes | None], dict[str, Any]]:
-    """Build the ``derive_task`` changes mapping plus lineage inputs for @2."""
-    parent = Path(parent_dir)
-    task_name, workdir, image, setup_sh = _read_parent(parent)
-    new_setup = build_setup_sh_v2(setup_sh)
-    new_blob = pack_setup(parent / "environment" / "setup", setup_sh=new_setup.encode("utf-8"))
-    parent_toml = (parent / "task.toml").read_text(encoding="utf-8")
-    changes: dict[str, bytes | None] = {
-        SETUP_REL: new_setup.encode("utf-8"),
-        "task.toml": render_task_toml(parent_toml, new_blob=new_blob).encode("utf-8"),
-    }
-    inputs: dict[str, Any] = {
-        "parent_task": task_name,
-        "workdir": workdir,
-        "docker_image": image,
-        "cache_names": list(CACHE_NAMES),
-        "cache_globs": list(CACHE_GLOBS),
-        "language_sections": list(LANGUAGE_SECTIONS),
-        "setup_before_sha256": f"sha256:{hashlib.sha256(setup_sh.encode()).hexdigest()}",
-        "setup_after_sha256": f"sha256:{hashlib.sha256(new_setup.encode()).hexdigest()}",
-    }
-    return changes, inputs
 
 
-def derive_purge_build_caches_v2(
-    parent_dir: Path | str,
-    *,
-    rationale: str = (
-        "Remove regenerable caches (@1 sweep) plus this project's own entries "
-        "in shared caches (pip wheels, go module/build cache, cargo target and "
-        "registry copies, maven artifacts, gradle project cache, npm/yarn/pnpm "
-        "package entries), and fail setup if any survive. Shared dependency "
-        "caches stay."
-    ),
-    created_by: str = "vals-routes-v2",
-    repo_root: Path | str | None = None,
-    parent_source: dict[str, Any] | None = None,
-    variants_root: Path | str | None = None,
-) -> VariantRecord:
-    """Derive ``purge-build-caches@2`` for a MiMo task package."""
-    parent = Path(parent_dir)
-    changes, inputs = build_changes_v2(parent)
-    kwargs: dict[str, Any] = {}
-    if repo_root is not None:
-        kwargs["repo_root"] = repo_root
-    if parent_source is not None:
-        kwargs["parent_source"] = parent_source
-    if variants_root is not None:
-        kwargs["variants_root"] = variants_root
-    return derive_task(
-        parent,
-        changes=changes,
-        transform=TRANSFORM_ID_V2,
-        rationale=rationale,
-        created_by=created_by,
-        inputs=inputs,
-        **kwargs,
-    )
 
 
-def build_changes_v3(
-    parent_dir: Path | str,
-) -> tuple[dict[str, bytes | None], dict[str, Any]]:
-    """Build the ``derive_task`` changes mapping plus lineage inputs for @3."""
-    parent = Path(parent_dir)
-    task_name, workdir, image, setup_sh = _read_parent(parent)
-    new_setup = build_setup_sh_v3(setup_sh)
-    new_blob = pack_setup(parent / "environment" / "setup", setup_sh=new_setup.encode("utf-8"))
-    parent_toml = (parent / "task.toml").read_text(encoding="utf-8")
-    changes: dict[str, bytes | None] = {
-        SETUP_REL: new_setup.encode("utf-8"),
-        "task.toml": render_task_toml(parent_toml, new_blob=new_blob).encode("utf-8"),
-    }
-    inputs: dict[str, Any] = {
-        "parent_task": task_name,
-        "workdir": workdir,
-        "docker_image": image,
-        "cache_names": list(CACHE_NAMES),
-        "cache_globs": list(CACHE_GLOBS),
-        "language_sections": list(LANGUAGE_SECTIONS),
-        "build_output_dirs": ["lib", "dist", "build", "out"],
-        "setup_before_sha256": f"sha256:{hashlib.sha256(setup_sh.encode()).hexdigest()}",
-        "setup_after_sha256": f"sha256:{hashlib.sha256(new_setup.encode()).hexdigest()}",
-    }
-    return changes, inputs
 
 
-def derive_purge_build_caches_v3(
-    parent_dir: Path | str,
-    *,
-    rationale: str = (
-        "Remove regenerable caches (@2: sweep plus project entries in shared "
-        "caches) plus node gitignored build outputs (lib/, dist/, build/, "
-        "out/): delete when grading tests import from src/, else rebuild "
-        "from the base tree and fail setup when neither is safe. "
-        "Shared dependency caches stay."
-    ),
-    created_by: str = "vals-routes-v3",
-    repo_root: Path | str | None = None,
-    parent_source: dict[str, Any] | None = None,
-    variants_root: Path | str | None = None,
-) -> VariantRecord:
-    """Derive ``purge-build-caches@3`` for a MiMo task package."""
-    parent = Path(parent_dir)
-    changes, inputs = build_changes_v3(parent)
-    kwargs: dict[str, Any] = {}
-    if repo_root is not None:
-        kwargs["repo_root"] = repo_root
-    if parent_source is not None:
-        kwargs["parent_source"] = parent_source
-    if variants_root is not None:
-        kwargs["variants_root"] = variants_root
-    return derive_task(
-        parent,
-        changes=changes,
-        transform=TRANSFORM_ID_V3,
-        rationale=rationale,
-        created_by=created_by,
-        inputs=inputs,
-        **kwargs,
-    )
 
 
 def build_changes_v4(
@@ -1179,86 +962,5 @@ def derive_purge_build_caches_v5(
     )
 
 
-def foreign_pth_leaks(cwd: Path | str, roots: list[Path | str]) -> list[str]:
-    """Project-external ``.pth``/``egg-link`` targets (test seam, no I/O beyond reads).
-
-    Returns ``["<pointer>:<target>", ...]`` for pointers naming a path
-    outside ``cwd``. Mirrors the container-side check without executing setup.
-    """
-    base = Path(cwd).resolve()
-    leaks: list[str] = []
-    for root in [Path(r).resolve() for r in roots]:
-        if not root.is_dir():
-            continue
-        try:
-            children = list(root.iterdir())
-        except OSError:
-            continue
-        for child in children:
-            if child.suffix == ".pth" and child.is_file():
-                try:
-                    targets = child.read_text(errors="replace").split()
-                except OSError:
-                    continue
-                for target in targets:
-                    if target.startswith(("import ", "#")) or not target.startswith("/"):
-                        continue
-                    dest = Path(target).resolve()
-                    if dest != base and base not in dest.parents:
-                        leaks.append(f"{child}:{target}")
-            elif child.name.endswith(".egg-link") and child.is_file():
-                try:
-                    target = child.read_text(errors="replace").split()[0]
-                except (OSError, IndexError):
-                    continue
-                dest = Path(target).resolve()
-                if dest != base and base not in dest.parents:
-                    leaks.append(f"{child}:{target}")
-    return leaks
 
 
-__all__ = [
-    "ANCHOR",
-    "CACHE_BLOCK",
-    "CACHE_GLOBS",
-    "CACHE_NAMES",
-    "DISABLED_TOLERANT_LEGS",
-    "LANG_BLOCK",
-    "LANG_BLOCK_V4",
-    "LANGUAGE_SECTIONS",
-    "MARKER",
-    "MARKER_V2",
-    "MARKER_V3",
-    "MARKER_V4",
-    "MARKER_V5",
-    "NODE_BUILD_BLOCK",
-    "NODE_BUILD_BLOCK_V5",
-    "PIP_LEG_V4",
-    "SETUP_REL",
-    "TRANSFORM_ID",
-    "TRANSFORM_ID_V2",
-    "TRANSFORM_ID_V3",
-    "TRANSFORM_ID_V4",
-    "TRANSFORM_ID_V5",
-    "build_changes",
-    "build_changes_v2",
-    "build_changes_v3",
-    "build_changes_v4",
-    "build_changes_v5",
-    "build_setup_sh",
-    "build_setup_sh_v2",
-    "build_setup_sh_v3",
-    "build_setup_sh_v4",
-    "build_setup_sh_v5",
-    "derive_purge_build_caches",
-    "derive_purge_build_caches_v2",
-    "derive_purge_build_caches_v3",
-    "derive_purge_build_caches_v4",
-    "derive_purge_build_caches_v5",
-    "foreign_pth_leaks",
-    "shell_block",
-    "shell_block_v2",
-    "shell_block_v3",
-    "shell_block_v4",
-    "shell_block_v5",
-]

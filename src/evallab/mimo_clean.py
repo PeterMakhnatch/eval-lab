@@ -54,9 +54,7 @@ from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import TRANSFORM_ID_V2 as PURGE_V2_ID
 from evallab.registry import harbor_task_digest
 from evallab.separate_verifier import TRANSFORM_ID_V6 as SEPARATE_V6_ID
-from evallab.separate_verifier import TRANSFORM_ID_V7 as SEPARATE_V7_ID
 from evallab.separate_verifier import TRANSFORM_ID_V8 as SEPARATE_V8_ID
-from evallab.separate_verifier import TRANSFORM_ID_V9 as SEPARATE_V9_ID
 from evallab.separate_verifier import TRANSFORM_ID_V10 as SEPARATE_V10_ID
 from evallab.separate_verifier import (
     build_changes_v10,
@@ -277,11 +275,6 @@ CLEAN_SET_VERSION_V5 = "mimo-clean-v5"
 MANIFEST_V5_REL = Path("research/experiments/mimo-clean-v5/manifest.csv")
 CLEAN_SET_VERSION_V6 = "mimo-clean-v6"
 MANIFEST_V6_REL = Path("research/experiments/mimo-clean-v6/manifest.csv")
-DEFAULT_MANIFEST_BY_VERSION = {
-    CLEAN_SET_VERSION: MANIFEST_REL,
-    CLEAN_SET_VERSION_V5: MANIFEST_V5_REL,
-    CLEAN_SET_VERSION_V6: MANIFEST_V6_REL,
-}
 CHAIN_VERSIONS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     CLEAN_SET_VERSION: (PYTHON_CHAIN, NONPYTHON_CHAIN),
     CLEAN_SET_VERSION_V5: (PYTHON_CHAIN_V5, NONPYTHON_CHAIN_V5),
@@ -317,9 +310,6 @@ EXCLUDED_FROM_TRAINING: dict[str, str] = {
 #: every other resolved language takes the non-Python chain (including
 #: ``unknown`` snapshot categories: @6 grades those with the exit-code
 #: fallback under patch isolation). ``None`` (unresolvable task) has no chain.
-LANGUAGE_CHAINS: dict[str, tuple[str, ...] | None] = {
-    "python": PYTHON_CHAIN,
-}
 
 #: Ledger layout constants (mirrors :mod:`evallab.exploit_probe`, kept local
 #: so this module stays importable without the probe's heavy deps).
@@ -336,13 +326,6 @@ HF_SOURCE = {
 }
 
 
-def chain_for_language(language: str | None) -> tuple[str, ...] | None:
-    """Clean chain for a resolved language (``None`` = no chain)."""
-    if language is None:
-        return None
-    if language == "python":
-        return PYTHON_CHAIN
-    return NONPYTHON_CHAIN
 
 
 def snapshot_category(task_dir: Path) -> str | None:
@@ -411,9 +394,6 @@ def read_csv_rows(path: Path) -> list[dict[str, str]]:
         return [dict(row) for row in csv.DictReader(handle)]
 
 
-def select_usable(rows: Collection[Mapping[str, str]]) -> list[dict[str, str]]:
-    """Ledger rows the clean set builds: verdict ``keep`` or ``fix``."""
-    return [dict(row) for row in rows if row.get("verdict") in SELECTED_VERDICTS]
 
 
 def run_package_rel(row: Mapping[str, str]) -> Path:
@@ -505,45 +485,8 @@ class OracleInfo:
     patch_bytes: bytes
 
 
-def load_oracle_sweep(
-    sweep_path: Path, *, results_home: Path | None = None
-) -> dict[str, dict[str, str]]:
-    """Index oracle_sweep.csv by task id (label, fix_commit, evidence)."""
-    out: dict[str, dict[str, str]] = {}
-    for row in read_csv_rows(sweep_path):
-        out[row["task_id"]] = {
-            "label": row.get("label", ""),
-            "fix_commit": row.get("fix_commit", ""),
-        }
-    return out
 
 
-def oracle_info_for(
-    task_id: str,
-    sweep: Mapping[str, Mapping[str, str]],
-    *,
-    results_home: Path,
-) -> OracleInfo | None:
-    """The oracle-pass reference fix for a task, or None.
-
-    Returns None unless the sweep row's label is an oracle pass *and* the
-    HAR-191 solution patch file exists.
-    """
-    entry = sweep.get(task_id)
-    if entry is None:
-        return None
-    label = entry.get("label", "")
-    if not label.startswith(ORACLE_PASS_PREFIX):
-        return None
-    patch = results_home / "tasks" / task_id / "oracle" / "solution-patch.stdout.log"
-    if not patch.is_file():
-        return None
-    return OracleInfo(
-        label=label,
-        fix_commit=entry.get("fix_commit", ""),
-        patch_path=str(patch),
-        patch_bytes=patch.read_bytes(),
-    )
 
 
 def load_reference_index(index_path: Path) -> dict[str, dict[str, str]]:
@@ -603,11 +546,6 @@ def oracle_info_from_index(
     )
 
 
-def purge_inapplicable() -> Collection[str]:
-    """Tasks where purge-installed-copies breaks setup fail-closed."""
-    from evallab.exploit_probe import PURGE_INAPPLICABLE
-
-    return PURGE_INAPPLICABLE
 
 
 @dataclass
@@ -1487,88 +1425,7 @@ def _resolve(root: Path, value: Path) -> Path:
     return value if value.is_absolute() else (root / value)
 
 
-def snapshot_pool(snapshot_tasks: Path, ledger_ids: Collection[str]) -> dict[str, str | None]:
-    """Non-ledger snapshot tasks: task id -> category (None when unreadable)."""
-    pool: dict[str, str | None] = {}
-    if not snapshot_tasks.is_dir():
-        return pool
-    for task_dir in sorted(p for p in snapshot_tasks.iterdir() if p.is_dir()):
-        if task_dir.name in ledger_ids:
-            continue
-        pool[task_dir.name] = snapshot_category(task_dir)
-    return pool
 
 
 
 
-__all__ = [
-    "AGENT_NETWORK_NONE_ID",
-    "CACHE_ACTIVE_ID",
-    "CACHE_ACTIVE_MARKER",
-    "CACHE_V5_ID",
-    "CACHE_V5_MARKER",
-    "CLEAN_SET_VERSION",
-    "CLEAN_SET_VERSION_V5",
-    "CLEAN_SET_VERSION_V6",
-    "CREATED_BY",
-    "DEFAULT_MANIFEST_BY_VERSION",
-    "LANGUAGE_CHAINS",
-    "CHAIN_VERSIONS",
-    "MANIFEST_COLUMNS",
-    "MANIFEST_REL",
-    "EXCLUDED_FROM_TRAINING",
-    "MANIFEST_V5_REL",
-    "MANIFEST_V6_REL",
-    "MTIME_ACTIVE_ID",
-    "MTIME_ACTIVE_MARKER",
-    "MTIME_ID",
-    "NONPYTHON_CHAIN",
-    "NONPYTHON_CHAIN_V5",
-    "NONPYTHON_CHAIN_V6",
-    "NODE_FOLD_AT_RISK",
-    "NODE_FOLD_REAL",
-    "NODE_FOLD_TASKS",
-    "ORACLE_PASS_PREFIX",
-    "PURGE_ID",
-    "PURGE_V2_ID",
-    "PYTHON_CHAIN",
-    "PYTHON_CHAIN_V5",
-    "PYTHON_CHAIN_V6",
-    "REFERENCE_INDEX_REL",
-    "SELECTED_VERDICTS",
-    "SEPARATE_V6_ID",
-    "SEPARATE_V7_ID",
-    "SEPARATE_V8_ID",
-    "SEPARATE_V9_ID",
-    "SEPARATE_V10_ID",
-    "SEPARATE_V10_TASKS",
-    "SEPARATE_V9_TASKS",
-    "STATUS_BUILT",
-    "STATUS_SKIPPED",
-    "STRIP_ID",
-    "VERIFY_UNVERIFIED",
-    "ChainBuilder",
-    "ChainResult",
-    "OracleInfo",
-    "acceptance_pass",
-    "build_solution_sh",
-    "chain_for_language",
-    "chains_for_version",
-    "derive_marker",
-    "load_manifest",
-    "load_oracle_sweep",
-    "load_reference_index",
-    "oracle_info_for",
-    "oracle_info_from_index",
-    "purge_inapplicable",
-    "read_csv_rows",
-    "resolve_language",
-    "run_package_rel",
-    "select_usable",
-    "setup_carries",
-    "snapshot_category",
-    "snapshot_pool",
-    "summarize_trials",
-    "variant_source",
-    "write_manifest",
-]

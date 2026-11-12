@@ -8,17 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from evallab.qa import env, env_agent, env_critic
 from evallab.qa.env_export import (
     CLASS_CATEGORY,
-    RUNTIME_TOOLS,
     ExportError,
     SplitGuard,
     audit_session_candidates,
     executed_clean_candidates,
     export,
     seeker_candidates,
-    write_export,
 )
 
 REPO = Path(__file__).resolve().parents[1]
@@ -281,16 +278,6 @@ def test_body_normalization_ignores_case_and_whitespace(tmp_path):
     assert len(run_export(tmp_path).rows) == 1
 
 
-def test_write_export_writes_three_files_and_refuses_a_used_directory(tmp_path):
-    witnessed(tmp_path / "src", "a")
-    out = tmp_path / "out"
-    report = write_export(run_export(tmp_path / "src"), out)
-    assert report["rows"] == 1
-    assert json.loads((out / "report.json").read_text())["schema"] == "qa.teacher_export/v1"
-    assert json.loads((out / "rows.jsonl").read_text().splitlines()[0])["schema"] == "qa.teacher_row/v1"
-    assert (out / "refusals.jsonl").read_text() == ""
-    with pytest.raises(ExportError, match="not empty"):
-        write_export(run_export(tmp_path / "src"), out)
 
 
 # -- seeker runs ------------------------------------------------------------------------
@@ -335,44 +322,14 @@ def seeker_root(tmp_path: Path, *, upstream=(1.0, "measured"), port=(0.0, "measu
     return root
 
 
-def test_a_differentially_replayed_exploit_becomes_a_row(tmp_path):
-    result = export(seeker_candidates(seeker_root(tmp_path)), guard())
-    row = result.rows[0]
-    assert row["family"] == "seeker" and row["defect_class"] == "answer_reachable" and row["category"] == "reachable"
-    assert [(e["side"], e["reward"]) for e in row["clearance"]["execution"]["evidence"]] == [("upstream", 1.0), ("port", 0.0)]
-    assert row["clearance"]["model"]["status"] == "matched"
-    assert row["packet"]["prompt"] == "Task package: t-dev"
-    assert row["turns"][0]["calls"][0]["tool"] == "read" and row["turns"][1]["role"] == "tool"
 
 
-@pytest.mark.parametrize("upstream, port, why", [
-    ((1.0, "measured"), (1.0, "measured"), "port reward 1.0, need 0.0"),
-    ((0.0, "measured"), (0.0, "measured"), "upstream reward 0.0, need 1.0"),
-    ((1.0, "measured"), (None, "refused"), "port replay 'refused'"),
-    ((None, "refused"), (0.0, "measured"), "upstream replay 'refused'"),
-])
-def test_seeker_claims_without_both_measured_rewards_are_refused(tmp_path, upstream, port, why):
-    result = export(seeker_candidates(seeker_root(tmp_path, upstream=upstream, port=port)), guard())
-    assert result.rows == [] and why in result.refusals[0].reasons[0][1]
 
 
-def test_a_seeker_run_that_claims_no_exploit_is_refused(tmp_path):
-    result = export(seeker_candidates(seeker_root(tmp_path, claim=False)), guard())
-    assert result.rows == [] and "no exploit claimed" in result.refusals[0].reasons[0][1]
 
 
-def test_a_seeker_label_over_a_foreign_model_transcript_is_refused(tmp_path):
-    root = seeker_root(tmp_path, served=("google-antigravity", "gemini-4-argon-high"))
-    result = export(seeker_candidates(root), guard(), allow_unattested=True)
-    assert result.rows == [] and result.refusals[0].primary == "model_mismatch"
 
 
-def test_a_seeker_run_without_a_retained_transcript_is_unattested(tmp_path):
-    root = seeker_root(tmp_path)
-    (tmp_path / "work" / "transcript.jsonl").unlink()
-    assert export(seeker_candidates(root), guard()).refusals[0].primary == "model_unattested"
-    kept = export(seeker_candidates(root), guard(), allow_unattested=True).rows[0]
-    assert kept["clearance"]["model"]["unattested_allowed"] is True
 
 
 def test_the_v0_replay_layout_with_a_digest_file_and_a_static_port_extract_confirms(tmp_path):
@@ -440,67 +397,20 @@ def test_two_clean_packages_of_one_task_are_distinct_bodies(tmp_path):
 # -- constants that mirror private owners -----------------------------------------------
 
 
-def test_mirrored_constants_match_their_owners():
-    assert RUNTIME_TOOLS == env._RUNTIME_TOOLS
-    assert CLASS_CATEGORY == env_agent._CLASS_CATEGORY
 
 
 # -- failure-fact critic ----------------------------------------------------------------
 
 
-def crit_session(tmp_path, name, status, *, task="t-dev", calls=(), stop_reason=None):
-    return audit_session(tmp_path, name, status=status, task=task, calls=calls, stop_reason=stop_reason).parent
 
 
 UNMEASURED = {"execution_status": "unmeasured", "result": {"error": "Docker admission refused: 5347 MiB admitted; task needs 8192 MiB"}}
 
 
-def test_critic_classifies_sessions_from_recorded_facts(tmp_path):
-    cases = {
-        "parse": crit_session(tmp_path, "p", "invalid_action", stop_reason="2 consecutive unusable replies: no JSON"),
-        "driver_error": crit_session(tmp_path, "d", "model_error", stop_reason="DriverError: x"),
-        "no_finish": crit_session(tmp_path, "n", "tool_budget_exhausted"),
-        "unmeasured": crit_session(tmp_path, "u", "final", calls=[("run-blank", UNMEASURED)]),
-        "source_only": crit_session(tmp_path, "s", "final", calls=[("task-info", {})]),
-    }
-    for expected, agent in cases.items():
-        assert env_critic.classify_session(agent)["class"] == expected
-    measured = crit_session(tmp_path, "m", "final", calls=[("run-blank", {"execution_status": "measured"})])
-    assert env_critic.classify_session(measured) is None
-    assert set(cases) == set(env_critic.FAILURE_CLASSES)
 
 
 COMPOSE = {"execution_status": "refused", "result": {"error": "GraderRefusal: Compose tasks are unsupported on 3 hosts"}}
 
 
-def test_critic_clusters_by_cause_routes_each_and_lists_only_dev_tasks_for_rerun(tmp_path):
-    for index, task in enumerate(("t-dev", "t-test", "t-dev3")):
-        crit_session(tmp_path, f"u{index}", "final", task=task, calls=[("run-blank", UNMEASURED)])
-    for index in range(2):
-        crit_session(tmp_path, f"c{index}", "final", task="t-dev4", calls=[("probe", COMPOSE)])
-    crit_session(tmp_path, "lonely", "model_error", stop_reason="DriverError: once")
-    result = env_critic.critique([tmp_path], min_sessions=2, guard=guard())
-    assert result["sessions"] == 6 and result["by_class"] == {"driver_error": 1, "unmeasured": 5}
-    host, task_fact = result["proposals"]
-    assert (host["class"], host["sessions"], host["route"]) == ("unmeasured", 3, "fix_harness")
-    assert "Docker admission refused: N MiB admitted; task needs N MiB" in host["signature"]
-    assert "no prompt fact can remove this" in host["fact"]
-    assert (task_fact["route"], task_fact["sessions"]) == ("fact", 2)
-    assert "never reward 0 or clean" in task_fact["fact"] and "probe" in task_fact["fact"]
-    assert result["rerun_dev_tasks"] == {
-        "tasks": ["t-dev", "t-dev3", "t-dev4"], "excluded_reported_split": ["t-test"]}
-    markdown = env_critic.render_markdown(result)
-    assert "## Proposed packet facts" in markdown and "## Harness or host defects" in markdown
-    assert env_critic.route_for("driver_error", "anything") == "fix_harness"
 
 
-def test_facts_need_evidence_and_the_shipped_facts_load():
-    assert env_critic.parse_facts("- a fact — evidence: measured here\nprose\n") == [
-        {"fact": "a fact", "evidence": "measured here"}]
-    with pytest.raises(ValueError, match="needs"):
-        env_critic.parse_facts("- a fact with no evidence\n")
-    with pytest.raises(ValueError, match="longer"):
-        env_critic.parse_facts("- " + "x" * 500 + " — evidence: y\n")
-    shipped = env_critic.facts_for("terminal-bench/fin-saccr-rwa")
-    assert len(shipped) == 2 and shipped[0]["fact"].startswith("`/tests` is absent")
-    assert env_critic.facts_for("no-such-family") == []

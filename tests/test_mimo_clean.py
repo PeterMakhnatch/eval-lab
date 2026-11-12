@@ -38,7 +38,6 @@ from evallab.mimo_clean import (
     PURGE_V2_ID,
     PYTHON_CHAIN,
     PYTHON_CHAIN_V5,
-    SEPARATE_V6_ID,
     SEPARATE_V8_ID,
     SEPARATE_V10_ID,
     STATUS_BUILT,
@@ -50,16 +49,13 @@ from evallab.mimo_clean import (
     OracleInfo,
     acceptance_pass,
     build_solution_sh,
-    chain_for_language,
     chains_for_version,
     derive_marker,
     load_manifest,
     load_reference_index,
     oracle_info_from_index,
     resolve_language,
-    select_usable,
     snapshot_category,
-    snapshot_pool,
     summarize_trials,
     write_manifest,
 )
@@ -253,14 +249,6 @@ def test_solution_sh_rejects_oversize_patch() -> None:
         )
 
 
-def test_select_usable_keeps_keep_and_fix_only() -> None:
-    rows = [
-        {"task_id": "a", "verdict": "keep"},
-        {"task_id": "b", "verdict": "fix"},
-        {"task_id": "c", "verdict": "discard"},
-        {"task_id": "d", "verdict": ""},
-    ]
-    assert [row["task_id"] for row in select_usable(rows)] == ["a", "b"]
 
 
 def test_resolve_language_ledger_wins_over_category() -> None:
@@ -269,14 +257,6 @@ def test_resolve_language_ledger_wins_over_category() -> None:
     assert resolve_language(ledger_row=False, category=None) is None
 
 
-def test_chain_for_language_matrix() -> None:
-    assert chain_for_language("python") == PYTHON_CHAIN
-    assert chain_for_language("go") == NONPYTHON_CHAIN
-    assert chain_for_language("unknown") == NONPYTHON_CHAIN
-    assert chain_for_language(None) is None
-    assert PURGE_ID in PYTHON_CHAIN
-    assert PURGE_ID not in NONPYTHON_CHAIN
-    assert NONPYTHON_CHAIN[-2:] == (SEPARATE_V6_ID, AGENT_NETWORK_NONE_ID)
 
 
 def test_snapshot_category_reads_task_toml(tmp_path: Path) -> None:
@@ -289,18 +269,6 @@ def test_snapshot_category_reads_task_toml(tmp_path: Path) -> None:
     assert snapshot_category(task_dir) is None
 
 
-def test_snapshot_pool_skips_ledger_members(tmp_path: Path) -> None:
-    snap = tmp_path / "snap"
-    for task_id, category in (("a", "Go"), ("b", "Python"), ("c", None)):
-        task_dir = snap / task_id
-        task_dir.mkdir(parents=True)
-        if category is not None:
-            (task_dir / "task.toml").write_text(
-                f'[metadata]\ncategory = "{category}"\n', encoding="utf-8"
-            )
-    pool = snapshot_pool(snap, {"b"})
-    assert pool == {"a": "go", "c": None}
-    assert snapshot_pool(tmp_path / "missing", set()) == {}
 
 
 def test_manifest_write_load_roundtrip(tmp_path: Path) -> None:

@@ -10,85 +10,25 @@ import re
 import subprocess
 import sys
 import tempfile
-import threading
 from collections.abc import Mapping
 from contextlib import closing
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote, urlsplit
 
 if TYPE_CHECKING:
-    from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
+    pass
 
 _CONNECTION_URL = re.compile(r"(?i)\b(?:postgres(?:ql)?|nats|tls|ws|wss)://[^\s\"'<>]+")
 _LIVE_DATABASE = Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite"
 
 
-Backend = Literal["sqlite", "postgresql"]
 
 
-@dataclass
-class QueueConnection:
-    """Own one queue without permitting a later switch between durable stores."""
-
-    queue: ContinuousWorkQueue
-    backend: Backend
-    fallback_reason: str | None = None
-    _closed: bool = field(default=False, init=False, repr=False)
-
-    def close(self) -> None:
-        if not self._closed:
-            self.queue.close()
-            self._closed = True
-
-    def __enter__(self) -> QueueConnection:
-        return self
-
-    def __exit__(self, *args: Any) -> None:
-        self.close()
 
 
-def _sqlite_path(database: str | Path) -> Path:
-    path = str(database)
-    if path.startswith("sqlite:///"):
-        path = path[len("sqlite:///") :]
-    result = Path(path).expanduser()
-    result.parent.mkdir(parents=True, exist_ok=True)
-    return result
 
 
-def open_production_queue(
-    database: str | Path,
-    *,
-    registry: CorpusRegistry,
-    sqlite_fallback: Path | None = None,
-    connect_timeout: int = 3,
-) -> QueueConnection:
-    """Open the requested store, falling back only before PostgreSQL connects.
-
-    A malformed DSN, schema error, corrupt database, or any later disconnect is
-    not an availability fallback. The dedicated connection error contains no
-    driver exception text or connection credentials.
-    """
-    from evallab.production.corpus_queue import ContinuousWorkQueue, ProductionQueueConnectionError
-
-    if type(connect_timeout) is not int or connect_timeout <= 0:
-        raise ValueError("connect_timeout must be a positive integer")
-    if not str(database).startswith(("postgresql://", "postgres://")):
-        return QueueConnection(ContinuousWorkQueue(_sqlite_path(database), registry=registry), "sqlite")
-    try:
-        queue = ContinuousWorkQueue(database, registry=registry, connect_timeout=connect_timeout)
-    except ProductionQueueConnectionError:
-        if sqlite_fallback is None:
-            raise
-        queue = ContinuousWorkQueue(_sqlite_path(sqlite_fallback), registry=registry)
-        return QueueConnection(
-            queue,
-            "sqlite",
-            "PostgreSQL initial connection unavailable; using the explicit SQLite fallback.",
-        )
-    return QueueConnection(queue, "postgresql")
 
 
 def _queue_options(parser: argparse.ArgumentParser) -> None:
@@ -121,18 +61,7 @@ def register_parser(commands: Any) -> None:
     production.set_defaults(repo_root=None, database=None, sqlite_fallback=None)
     _queue_options(production)
     actions = production.add_subparsers(dest="prod_command", required=True)
-    ingest = actions.add_parser("ingest", help="Admit and seed public DEV corpora idempotently")
-    _queue_options(ingest)
-    ingest.add_argument(
-        "--dataset", dest="dataset_ids", action="append",
-        help="Registry dataset ID; repeat to select several (default: all public DEV corpora)",
-    )
-    ingest.add_argument("--run-id", default="production-seed")
-    ingest.set_defaults(func=_command)
 
-    status = actions.add_parser("status", help="Read an existing queue strictly read-only; never create or migrate it")
-    _queue_options(status)
-    status.set_defaults(func=_command)
 
     project = actions.add_parser(
         "project-actor",
@@ -270,22 +199,6 @@ def register_parser(commands: Any) -> None:
     findings.set_defaults(func=_command)
 
 
-    summary = actions.add_parser(
-        "seeker-summary",
-        help="Read stored Seeker results without models, graders, or writes",
-    )
-    summary.add_argument(
-        "--cohort", type=Path,
-        default=Path("research/experiments/sb1-clean-seeker-set-20261027/cohort.json"),
-        help="evallab.sb1_clean_seeker_set/v1 manifest",
-    )
-    summary.add_argument("--out", type=Path, required=True, help="Stored cell directory")
-    summary.add_argument("--models", nargs="+", required=True, metavar="ROUTE")
-    summary.add_argument(
-        "--visible-tests", action="store_true",
-        help="Read only stored cells with hide_tests=false",
-    )
-    summary.set_defaults(func=_command)
 
 
 
@@ -307,77 +220,8 @@ def _database(root: Path, value: str | None) -> str | Path:
     return _resolve(root, Path(value))
 
 
-def _open_queue(args: argparse.Namespace, root: Path) -> Any:
-    from evallab.production.corpus_queue import CorpusRegistry
-
-    fallback = _resolve(root, args.sqlite_fallback or Path("derived/production/prod-queue.sqlite"))
-    return open_production_queue(
-        _database(root, args.database), registry=CorpusRegistry(root), sqlite_fallback=fallback,
-    )
 
 
-def _open_status_queue(args: argparse.Namespace, root: Path) -> Any:
-    """Reuse the queue's snapshot reader without invoking its migrating writer constructor."""
-    import sqlite3
-
-    from evallab.production.actor_projection import source_read_uri
-    from evallab.production.corpus_queue import (
-        ContinuousWorkQueue,
-        ProductionQueueConnectionError,
-    )
-
-    class StatusQueue(ContinuousWorkQueue):
-        def __init__(self, database: str | Path) -> None:
-            self._lock = threading.RLock()
-            self._postgres = str(database).startswith(("postgresql://", "postgres://"))
-            if self._postgres:
-                import psycopg
-
-                try:
-                    self._connection = psycopg.connect(
-                        str(database), autocommit=True, connect_timeout=3,
-                        options="-c default_transaction_read_only=on",
-                    )
-                except psycopg.OperationalError:
-                    raise ProductionQueueConnectionError(
-                        "PostgreSQL production queue connection unavailable",
-                    ) from None
-            else:
-                path = Path(database)
-                if not path.is_file():
-                    raise ValueError("status requires an existing queue database")
-                sidecars = [path.with_name(path.name + suffix) for suffix in ("-wal", "-shm")]
-                if all(sidecar.is_file() for sidecar in sidecars):
-                    uri = path.as_uri() + "?mode=ro"
-                else:
-                    try:
-                        uri = source_read_uri(path)
-                    except ValueError as exc:
-                        raise ValueError(str(exc).replace("before projection", "before reading queue status")) from exc
-                self._connection = sqlite3.connect(uri, uri=True, isolation_level=None)
-            try:
-                if not self._postgres:
-                    self._connection.execute("PRAGMA query_only=ON")
-                tables = self._execute(
-                    "SELECT tablename FROM pg_tables WHERE schemaname = current_schema()"
-                    if self._postgres else "SELECT name FROM sqlite_schema WHERE type = 'table'",
-                ).fetchall()
-                if not {"queue_state", "events", "outbox", "consumer_cursors"} <= {row[0] for row in tables}:
-                    raise ValueError("status requires a queue database (missing queue tables)")
-            except BaseException:
-                self._connection.close()
-                raise
-
-    database = _database(root, args.database)
-    try:
-        queue = StatusQueue(database)
-    except ProductionQueueConnectionError:
-        fallback = _resolve(root, args.sqlite_fallback or Path("derived/production/prod-queue.sqlite"))
-        return QueueConnection(
-            StatusQueue(fallback), "sqlite",
-            "PostgreSQL initial connection unavailable; using the explicit SQLite fallback.",
-        )
-    return QueueConnection(queue, "postgresql" if queue._postgres else "sqlite")
 
 
 def _emit(payload: dict[str, Any], args: argparse.Namespace, *, error: bool = False) -> None:
@@ -418,12 +262,6 @@ def _emit(payload: dict[str, Any], args: argparse.Namespace, *, error: bool = Fa
     )
 
 
-def _snapshot(connection: Any) -> dict[str, Any]:
-    return {
-        "backend": connection.backend,
-        "fallback_reason": connection.fallback_reason,
-        "queue": connection.queue.queue_snapshot(),
-    }
 
 
 def _read_allowlist(path: Path) -> bytes:
@@ -498,20 +336,6 @@ def _export_cluster_scope(args: argparse.Namespace, root: Path) -> dict[str, Any
 
 
 
-def _seeker_summary(args: argparse.Namespace, root: Path) -> dict[str, Any]:
-    from evallab.production.seeker_error_first import (
-        CampaignConfig,
-        load_cohort,
-        summarize_campaign,
-    )
-
-    config = CampaignConfig(
-        cohort=load_cohort(_local_path(root, args.cohort)),
-        out=_local_path(root, args.out),
-        models=tuple(args.models),
-        hide_tests=not args.visible_tests,
-    )
-    return summarize_campaign(config)
 
 
 
@@ -613,7 +437,6 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
     """Honor the existing CLI's integer return convention, with redacted JSON errors."""
     try:
         root = _resolve(root, args.repo_root) if args.repo_root is not None else root.resolve()
-        exit_code = 0
         if args.prod_command == "project-actor":
             _emit({"command": args.prod_command, **_project_actor(args, root)}, args)
             return 0
@@ -658,25 +481,6 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 )
             _emit({"command": args.prod_command, **receipt}, args)
             return 0
-        if args.prod_command == "seeker-summary":
-            _emit({"command": args.prod_command, **_seeker_summary(args, root)}, args)
-            return 0
-        if args.prod_command == "status":
-            with _open_status_queue(args, root) as connection:
-                _emit({"command": args.prod_command, **_snapshot(connection)}, args)
-            return 0
-        with _open_queue(args, root) as connection:
-            if args.prod_command == "ingest":
-                from evallab.production.ingest import ingest_corpus
-
-                result = ingest_corpus(
-                    connection.queue, dataset_ids=args.dataset_ids, run_id=args.run_id,
-                )
-                receipt: dict[str, Any] = {"ingest": result, **_snapshot(connection)}
-            else:
-                raise ValueError("Unknown production command")
-            _emit({"command": args.prod_command, **receipt}, args)
-            return exit_code
     except KeyboardInterrupt:
         _emit({"command": args.prod_command, "event": "interrupted"}, args, error=True)
         return 130

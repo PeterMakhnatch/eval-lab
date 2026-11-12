@@ -6,9 +6,6 @@ Copied and infrastructure outcomes remain unknown, not solve failures.
 
 from __future__ import annotations
 
-import csv
-import io
-import json
 import re
 import tomllib
 from collections.abc import Mapping, Sequence
@@ -61,27 +58,10 @@ def verdict_tag(ledger: Mapping[str, str]) -> str:
     return f"verdict:{verdict}"
 
 
-def _path(root: Path, value: Path) -> Path:
-    return value if value.is_absolute() else root / value
 
 
 
 
-def _csv_rows(raw: bytes, *, required: set[str], label: str) -> dict[str, dict[str, str]]:
-    reader = csv.DictReader(io.StringIO(raw.decode("utf-8")))
-    if not required <= set(reader.fieldnames or []):
-        raise ValueError(
-            f"{label}: missing columns {sorted(required - set(reader.fieldnames or []))}"
-        )
-    rows = {}
-    for row in reader:
-        task_id = row.get("task_id", "")
-        if not _TASK_ID.fullmatch(task_id) or task_id in rows:
-            raise ValueError(f"{label}: invalid or duplicate task_id {task_id!r}")
-        if any(row.get(key) is None for key in required):
-            raise ValueError(f"{label}: incomplete row for {task_id}")
-        rows[task_id] = row
-    return rows
 
 
 def solve_summary(history: Mapping[str, str] | None) -> dict[str, Any]:
@@ -208,49 +188,5 @@ def metadata_bytes(
     return output
 
 
-def _probe_binding(row: Mapping[str, Any], *, input_dir: Path) -> dict[str, str | None]:
-    """Bind native HAR-161 output via Lab provenance or its native task lock."""
-    digest = row.get("task_package_digest")
-    if digest is not None:
-        if not isinstance(digest, str) or not _DIGEST.fullmatch(digest):
-            raise ValueError("exploit: invalid task_package_digest")
-        return {"package": digest, "harbor": None}
-    trial_value = row.get("trial")
-    if not isinstance(trial_value, str) or not trial_value:
-        return {"package": None, "harbor": None}
-    trial = _path(input_dir, Path(trial_value))
-    metadata_path = trial.parent / "lab-metadata.json"
-    if metadata_path.is_file():
-        payload = json.loads(metadata_path.read_text(encoding="utf-8"))
-        digest = (payload.get("task_staging") or {}).get("source_package_digest")
-        if isinstance(digest, str) and _DIGEST.fullmatch(digest):
-            return {"package": digest, "harbor": None}
-    # Native jobs can lack the Lab sidecar that the published copy retains.
-    # A task ref matched to this trial in the immutable lock still identifies
-    # the executed Harbor package. Do not guess from a job-name suffix.
-    config_path = trial / "config.json"
-    if not config_path.is_file():
-        return {"package": None, "harbor": None}
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    task_path = (config.get("task") or {}).get("path")
-    if not isinstance(task_path, str):
-        return {"package": None, "harbor": None}
-    for lock_path in (trial / "lock.json", trial.parent / "lock.json"):
-        if not lock_path.is_file():
-            continue
-        lock = json.loads(lock_path.read_text(encoding="utf-8"))
-        refs = [lock] if "task" in lock else lock.get("trials", [])
-        digests = {
-            ref["task"]["digest"]
-            for ref in refs
-            if isinstance(ref, dict)
-            and isinstance(ref.get("task"), dict)
-            and ref["task"].get("path") == task_path
-            and isinstance(ref["task"].get("digest"), str)
-            and _DIGEST.fullmatch(ref["task"]["digest"])
-        }
-        if len(digests) == 1:
-            return {"package": None, "harbor": next(iter(digests))}
-    return {"package": None, "harbor": None}
 
 

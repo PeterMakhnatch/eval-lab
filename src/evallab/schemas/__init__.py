@@ -1035,14 +1035,6 @@ class HeadlessDoctorReport(ContractModel):
         return self.healthy and self.checks.launch_agents_intact
 
 
-class DigestJob(ContractModel):
-    job_name: str
-    task_name: str | None = None
-    agent_name: str | None = None
-    reward: float | None = None
-    exception_type: str | None = None
-    cost_usd: float | None = None
-    policy_rule: str | None = None
 
 
 class RunProvenance(ContractModel):
@@ -1171,207 +1163,22 @@ class CohortComparisonSpec(ContractModel):
         return self
 
 
-CurveFactorValue = str | int | float | bool
 
 
-class CurvePrimaryContrast(ContractModel):
-    """The single preregistered inferential contrast on an empirical curve."""
-
-    level: CurveFactorValue
-    k: int = Field(ge=1)
 
 
-class CurveComparisonSource(ContractModel):
-    """One reference-versus-level comparison, either live or already frozen."""
-
-    level: CurveFactorValue
-    comparison_spec: CohortComparisonSpec | None = None
-    comparison_artifact: str | None = None
-    comparison_artifact_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
-
-    @model_validator(mode="after")
-    def exactly_one_source(self) -> CurveComparisonSource:
-        if (self.comparison_spec is None) == (self.comparison_artifact is None):
-            raise ValueError(
-                "curve comparison source requires exactly one of comparison_spec "
-                "or comparison_artifact"
-            )
-        if self.comparison_artifact is not None:
-            if self.comparison_artifact.startswith("/") or ".." in self.comparison_artifact.split(
-                "/"
-            ):
-                raise ValueError("curve comparison artifacts must stay relative to the repository")
-            if self.comparison_artifact_digest is None:
-                raise ValueError("frozen comparison artifacts require a sha256 digest")
-        elif self.comparison_artifact_digest is not None:
-            raise ValueError("comparison_artifact_digest requires comparison_artifact")
-        return self
 
 
-class CapabilityCurveSpec(ContractModel):
-    """Strict empirical curve contract; it intentionally has no fitted-model fields."""
-
-    schema_version: Literal[1] = 1
-    curve_id: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
-    factor_name: str = Field(min_length=1)
-    factor_unit: str = Field(min_length=1)
-    factor_kind: Literal["execution", "task_generator"]
-    ordered_levels: list[CurveFactorValue] = Field(min_length=2)
-    reference_level: CurveFactorValue
-    primary_contrast: CurvePrimaryContrast
-    prereg: PreregSpec
-    treatment_binding: Literal["concurrency", "timeout_seconds"] | None = None
-    comparisons: list[CurveComparisonSource] = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def coherent_curve(self) -> CapabilityCurveSpec:
-        if self.factor_kind == "execution" and self.treatment_binding is None:
-            raise ValueError("execution capability curves require an explicit treatment_binding")
-        if self.factor_kind == "task_generator" and self.treatment_binding is not None:
-            raise ValueError(
-                "task_generator capability curves must not declare a harness treatment_binding"
-            )
-        identities = [json.dumps(value, sort_keys=True) for value in self.ordered_levels]
-        if len(identities) != len(set(identities)):
-            raise ValueError("curve ordered_levels must be unique")
-        reference = json.dumps(self.reference_level, sort_keys=True)
-        primary = json.dumps(self.primary_contrast.level, sort_keys=True)
-        if reference not in identities:
-            raise ValueError("curve reference_level must occur in ordered_levels")
-        if primary not in identities or primary == reference:
-            raise ValueError("curve primary contrast level must be a non-reference ordered level")
-        source_levels = [json.dumps(item.level, sort_keys=True) for item in self.comparisons]
-        expected_levels = [item for item in identities if item != reference]
-        if source_levels != expected_levels:
-            raise ValueError(
-                "curve comparisons must occur once in ordered non-reference level order"
-            )
-        for source in self.comparisons:
-            comparison = source.comparison_spec
-            if comparison is None:
-                continue
-            if comparison.pairing_key != "task_block_id":
-                raise ValueError("curve comparisons require pairing_key='task_block_id'")
-            if len(comparison.cohorts) != 2:
-                raise ValueError("curve comparisons require exactly two cohorts")
-            if comparison.declared_variable != "factor_values_digest":
-                raise ValueError(
-                    "curve comparisons require declared_variable='factor_values_digest'"
-                )
-        primary_source = next(
-            item for item in self.comparisons if json.dumps(item.level, sort_keys=True) == primary
-        )
-        if (
-            primary_source.comparison_spec is not None
-            and self.primary_contrast.k not in primary_source.comparison_spec.pass_k
-        ):
-            raise ValueError("primary contrast k must be requested by its comparison spec")
-        return self
 
 
-class CurveMetricReport(ContractModel):
-    k: int = Field(ge=1)
-    n_tasks: int = Field(ge=0)
-    rate: float | None = Field(default=None, ge=0, le=1)
-    task_interval_95: list[float] | None = None
-    passes: int = Field(ge=0)
-    selected_task_blocks: list[str]
-    insufficient_task_blocks: list[str]
-
-    @field_validator("task_interval_95")
-    @classmethod
-    def interval_is_ordered_pair(cls, value: list[float] | None) -> list[float] | None:
-        if value is not None and (len(value) != 2 or value[0] > value[1]):
-            raise ValueError("curve task intervals must be ordered [lower, upper] pairs")
-        return value
 
 
-class CurveContrastReport(ContractModel):
-    k: int = Field(ge=1)
-    pass_all_first_k_delta: float | None = None
-    pass_all_first_k_interval_95: list[float] | None = None
-    pass_all_first_k_wins: int = Field(ge=0)
-    pass_all_first_k_ties: int = Field(ge=0)
-    pass_all_first_k_losses: int = Field(ge=0)
-    n_pairs: int = Field(ge=0)
-    paired_delta: float | None = None
-    paired_interval_95: list[float] | None = None
-    wins: int = Field(ge=0)
-    ties: int = Field(ge=0)
-    losses: int = Field(ge=0)
-    rankable: bool
-    refusal_reasons: list[str]
-
-    @field_validator("paired_interval_95", "pass_all_first_k_interval_95")
-    @classmethod
-    def intervals_are_ordered_pairs(cls, value: list[float] | None) -> list[float] | None:
-        if value is not None and (len(value) != 2 or value[0] > value[1]):
-            raise ValueError("curve paired intervals must be ordered [lower, upper] pairs")
-        return value
 
 
-class CurveExceptionReport(ContractModel):
-    trial_id: str
-    task_block_id: str | None
-    exception_class: str
 
 
-class CurveLevelReport(ContractModel):
-    level: CurveFactorValue
-    role: Literal["reference", "primary", "descriptive"]
-    exact_pair_set: list[str]
-    unpaired_task_blocks: list[str]
-    censored_task_blocks: list[str]
-    exception_trials: list[CurveExceptionReport]
-    missing_reward_trials: list[str]
-    pass_any_first_k: list[CurveMetricReport]
-    pass_all_first_k: list[CurveMetricReport]
-    contrasts: list[CurveContrastReport]
 
 
-class CapabilityCurveReport(ContractModel):
-    """A provenance-backed empirical curve, never a scalar capability score."""
-
-    schema_version: Literal[1] = 1
-    curve_id: str
-    factor_name: str
-    factor_unit: str
-    factor_kind: Literal["execution", "task_generator"]
-    ordered_levels: list[CurveFactorValue]
-    reference_level: CurveFactorValue
-    primary_contrast: CurvePrimaryContrast
-    prereg: PreregSpec
-    common_controlled_fingerprint: str | None = Field(
-        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
-    )
-    input_digests: dict[str, str]
-    produced_at: datetime
-    produced_by: str = Field(min_length=1)
-    rankable: bool
-    refuse_to_rank_reasons: list[str]
-    levels: list[CurveLevelReport]
-    contract_note: Literal[
-        "empirical paired contract enforcement; not substantive generality evidence"
-    ] = "empirical paired contract enforcement; not substantive generality evidence"
-
-    @field_validator("input_digests")
-    @classmethod
-    def inputs_are_sha256_digests(cls, values: dict[str, str]) -> dict[str, str]:
-        if not values or any(
-            not re.fullmatch(r"sha256:[0-9a-f]{64}", value) for value in values.values()
-        ):
-            raise ValueError("curve input_digests must be a non-empty sha256 manifest")
-        return values
-
-    @model_validator(mode="after")
-    def rank_and_level_contract_is_coherent(self) -> CapabilityCurveReport:
-        identities = [json.dumps(value, sort_keys=True) for value in self.ordered_levels]
-        reported = [json.dumps(item.level, sort_keys=True) for item in self.levels]
-        if reported != identities:
-            raise ValueError("curve report levels must preserve ordered_levels exactly")
-        if self.rankable == bool(self.refuse_to_rank_reasons):
-            raise ValueError("rankable curves require no refusal reasons and vice versa")
-        return self
 
 
 FailureCategory = Literal[
@@ -1638,37 +1445,10 @@ class CanaryDriftObservation(ContractModel):
         return self
 
 
-class JudgeCriterionVerdict(ContractModel):
-    verdict: Literal["yes", "no"]
-    rationale: str = Field(min_length=1)
 
 
-class JudgeDocumentPrediction(ContractModel):
-    document_id: str = Field(min_length=1)
-    criteria: dict[str, dict[str, JudgeCriterionVerdict]]
 
 
-class JudgePredictionBundle(ContractModel):
-    schema_version: Literal[1] = 1
-    family: str = Field(min_length=1)
-    judge_backend: str = Field(min_length=1)
-    judge_model: str = Field(min_length=1)
-    judge_engine_version: str | None = None
-    rubric_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    corpus_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    # Digest of the vendored evidence pack the judge was shown next to each
-    # document. ``None`` means the judge saw only the rubric and the document,
-    # the pre-evidence input contract; such measurements are never calibrated.
-    evidence_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
-    generated_at: datetime
-    predictions: list[JudgeDocumentPrediction] = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def document_ids_are_unique(self) -> JudgePredictionBundle:
-        ids = [prediction.document_id for prediction in self.predictions]
-        if len(ids) != len(set(ids)):
-            raise ValueError("judge prediction document ids must be unique")
-        return self
 
 
 class CriterionAgreementRate(ContractModel):
@@ -1721,55 +1501,6 @@ class JudgeCalibrationRecord(ContractModel):
         return self
 
 
-class ProvenanceMetadata(ContractModel):
-    """Auditable sidecar for every data item the lab stores or derives.
-
-    One instance accompanies each dataset, trajectory corpus, synthetic task
-    batch, or distilled export. Zones are defined in docs/data-architecture.md:
-    01 external, 02 local evidence, 03 synthetic, 04 curated distillation.
-    """
-
-    schema_version: Literal[1] = 1
-    item_id: str = Field(pattern=r"^[a-z0-9][a-z0-9._@-]+$", max_length=120)
-    zone: Literal["01-external", "02-local-evidence", "03-synthetic", "04-curated"]
-    source_uri: str = Field(min_length=1)
-    revision: str | None = None
-    material_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    license: str | None = None
-    created_at: datetime
-    created_by: str = Field(min_length=1)
-    transform: str | None = Field(
-        default=None,
-        description="converter/generator identity as name@version; None for raw acquisitions",
-    )
-    parent_digests: list[str] = Field(default_factory=list)
-    notes: str | None = None
-
-    @field_validator("parent_digests")
-    @classmethod
-    def parents_are_sha256(cls, value: list[str]) -> list[str]:
-        for digest in value:
-            if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
-                raise ValueError(f"parent digest is not sha256-formatted: {digest!r}")
-        return value
-
-    @field_validator("transform")
-    @classmethod
-    def transform_is_versioned(cls, value: str | None) -> str | None:
-        pattern = r"[a-z0-9][a-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*"
-        if value is not None and not re.fullmatch(pattern, value):
-            raise ValueError("transform must be name@version")
-        return value
-
-    @model_validator(mode="after")
-    def zone_invariants(self) -> ProvenanceMetadata:
-        if self.zone == "01-external" and not self.revision:
-            raise ValueError("zone 01 items require an immutable revision pin")
-        if self.zone in {"03-synthetic", "04-curated"} and self.transform is None:
-            raise ValueError(f"zone {self.zone} items are machine-produced and require a transform")
-        if self.zone == "04-curated" and not self.parent_digests:
-            raise ValueError("zone 04 distillations must cite parent digests")
-        return self
 
 
 class TaskDigests(ContractModel):
@@ -2783,74 +2514,14 @@ LadderGridSpec = GridSpec
 # Authoring / Generation Proposal Specs (SG-1..3)
 # --------------------------------------------------------------------------- #
 
-AuthoringSeedClass = Literal["mutation", "scenario", "craft-gap", "inversion"]
 
 
-class ProposalAxes(ContractModel):
-    """Axis coordinates for a task proposal spec (SG-2)."""
-
-    category: str = Field(min_length=1)
-    scenario: str = Field(min_length=1)
-    difficulty: str = Field(min_length=1)
-    target_facets: dict[str, Any] | None = None
 
 
-class ProposalSpec(ContractModel):
-    """Specification for a task proposal generated by authoring / meta-loop."""
-
-    schema_version: Literal["spec/1"] = "spec/1"
-    name: str = Field(min_length=1)
-    category: str = Field(min_length=1)
-    scenario: str = Field(min_length=1)
-    difficulty: str = Field(min_length=1)
-    summary: str | None = None
-    seed_class: AuthoringSeedClass = "craft-gap"
-    target_facets: dict[str, Any] | None = None
-    scenario_path: str | None = None
-    ref_task: str | None = None
-    provenance: str | None = None
-    axes: dict[str, Any] | ProposalAxes | None = None
 
 
-class InversionAnalysis(ContractModel):
-    """§2.1 / SG-3 Inversion analysis metadata binding data asset, code, and verified key.
-
-    The answer key is correct by construction because it was computed by executing
-    analysis code against real data.
-    """
-
-    schema_version: Literal["inversion/1"] = "inversion/1"
-    data_asset_path: str = Field(
-        min_length=1, description="relative path to source data asset in repo"
-    )
-    data_asset_digest: str = Field(
-        pattern=r"^sha256:[0-9a-f]{64}$", description="content hash of data asset"
-    )
-    analysis_code: str = Field(
-        min_length=1, description="reference Python code executed against data asset"
-    )
-    analysis_digest: str = Field(
-        pattern=r"^sha256:[0-9a-f]{64}$", description="content hash of analysis code"
-    )
-    computed_value: Any = Field(description="exact answer key produced by code execution")
-    executed_at: str = Field(description="ISO-8601 UTC timestamp of execution")
-    output_path: str = Field(
-        default="output/summary.json", description="target output path relative to container root"
-    )
 
 
-class InversionSpec(ContractModel):
-    """Specification for generating an inversion task proposal."""
-
-    schema_version: Literal["spec/1"] = "spec/1"
-    name: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
-    seed_class: Literal["inversion"] = "inversion"
-    data_asset_path: str = Field(min_length=1)
-    data_asset_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    analysis_code: str | None = None
-    category: str = "data-processing"
-    difficulty: str = "medium"
-    summary: str = Field(min_length=1)
 
 
 class StateEventMetadata(ContractModel):

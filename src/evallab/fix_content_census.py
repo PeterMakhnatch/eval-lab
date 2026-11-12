@@ -114,26 +114,12 @@ GENERIC_MIN_DIRS = 3
 #: ``__modal`` is Modal's debug-shell mount (LeakTriage Q1: probe-only
 #: artifact, absent from published/local-Docker containers); proc/sys/dev
 #: are kernel pseudo-filesystems; census-stage/census-out are our mounts.
-HARNESS_EXCLUDE_DIRS = (
-    "proc",
-    "sys",
-    "dev",
-    ".git",
-    "census-stage",
-    "census-out",
-    "__modal",
-)
 
 #: Probe's own scratch dir basenames (patch-application area holding
 #: post-fix content by construction): excluded from every scan, same as
 #: the census mounts. Distinctive names so no real path collides.
-PROBE_SCRATCH_DIRS = (
-    "probe-pfx-base",
-    "probe-pfx-post",
-)
 
 #: All scan-excluded dir basenames (harness + own scratch).
-SCAN_EXCLUDE_DIRS = HARNESS_EXCLUDE_DIRS + PROBE_SCRATCH_DIRS
 
 #: Backend-injected path prefixes ignored in verdicts even if scanned.
 #: Harbor/Daytona agents run inside the workdir mounts (no separate injected
@@ -199,16 +185,6 @@ def is_import_line(stripped: str) -> bool:
     return bool(_IMPORT_RE.match(stripped))
 
 
-def normalize_code_bytes(data: bytes) -> bytes:
-    """Whitespace-normalized variant of file bytes for blob comparison.
-
-    Per-line strip, blank lines dropped: catches installed copies that
-    reindent or rewrap fix content while keeping the digest sensitive to
-    real content changes.
-    """
-    text = data.decode("utf-8", errors="replace")
-    kept = [line.strip() for line in text.splitlines() if line.strip()]
-    return ("\n".join(kept) + "\n").encode() if kept else b""
 
 
 def distinctive_added_lines(
@@ -584,40 +560,6 @@ def stage_probe(
         (stage / "no_scan").write_text("fast published control\n", encoding="utf-8")
 
 
-def compose_clean_setup(
-    root_setup_sh: str, *, with_purge: bool, caches_version: int = 2
-) -> tuple[str, list[str]]:
-    """Clean-chain setup.sh composed with the real transform functions.
-
-    Order: strip-future-history@1, purge-installed-copies@1 (Python tasks
-    where it applies), purge-build-caches@2/@3, mtime-normalize@1. Returns
-    (setup text, applied transform ids).
-    """
-    from evallab import mtime_normalize, purge_build_caches, strip_future_history
-    from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
-    from evallab.purge_installed_copies import build_setup_sh as purge_setup
-    from evallab.task_variants import VariantInvalid
-
-    if caches_version not in (2, 3):
-        raise ValueError(f"caches_version must be 2 or 3, got {caches_version}")
-    applied: list[str] = []
-    text = strip_future_history.build_setup_sh(root_setup_sh)
-    applied.append(strip_future_history.TRANSFORM_ID)
-    if with_purge:
-        try:
-            text = purge_setup(text)
-            applied.append(PURGE_ID)
-        except VariantInvalid:
-            applied.append(PURGE_ID + "(present)")
-    if caches_version == 3:
-        text = purge_build_caches.build_setup_sh_v3(text)
-        applied.append(purge_build_caches.TRANSFORM_ID_V3)
-    else:
-        text = purge_build_caches.build_setup_sh_v2(text)
-        applied.append(purge_build_caches.TRANSFORM_ID_V2)
-    text = mtime_normalize.build_setup_sh(text)
-    applied.append(mtime_normalize.TRANSFORM_ID)
-    return text, applied
 
 
 def run_probe(
@@ -1471,36 +1413,3 @@ def recover_fix_lite(git_dir: Path | str, base: str, test_files: list[str]) -> d
     return {"sha": candidates[0][0], "method": "lite-s1"}
 
 
-__all__ = [
-    "COLOCATE_MIN",
-    "CSV_FIELDS",
-    "DISTINCTIVE_MIN_LEN",
-    "GENERIC_MIN_DIRS",
-    "HARNESS_EXCLUDE_DIRS",
-    "HARNESS_PREFIXES",
-    "PATTERN_MIN_LEN",
-    "PATTERNS_AWK",
-    "PROBE_SH",
-    "PROBE_SCRATCH_DIRS",
-    "SCAN_EXCLUDE_DIRS",
-    "classify_location",
-    "collect_result",
-    "compose_clean_setup",
-    "copy_git_from_image",
-    "distinctive_added_lines",
-    "generic_patterns",
-    "is_import_line",
-    "is_test_path",
-    "leak_oracle_extract",
-    "main",
-    "non_test_files",
-    "normalize_code_bytes",
-    "parse_diff_added_lines",
-    "probe_task_known_patch",
-    "recover_fix_lite",
-    "run_batch",
-    "run_probe",
-    "stage_probe",
-    "summarize_hits",
-    "write_csv",
-]

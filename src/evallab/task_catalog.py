@@ -24,35 +24,22 @@ from ``registry.harbor_task_digest``.
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import json
 import math
 import re
-import tomllib
-from collections import Counter
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import pyarrow as pa
-import pyarrow.parquet as pq
-from pydantic import Field
 
-from evallab.fetch import FetchError, parse_pin
 from evallab.mimo_exploit import TABLE_FILENAME as EXPLOITS_PARQUET_FILENAME
-from evallab.registry import compute_task_digests, harbor_task_digest, task_directory_digest
-from evallab.schemas import ContractModel, ProvenanceMetadata
 from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
-from evallab.task_lint import Finding, lint_mimo_task, mimo_manifest_sha
 from evallab.task_stability import TABLE_FILENAME as STABILITY_PARQUET_FILENAME
 
 
-def _as_dict(value: object) -> dict[str, Any]:
-    """Narrow an untyped mapping lookup to a dict (ty cannot narrow call results)."""
-    return value if isinstance(value, dict) else {}
 
 def _repo_relative(path: Path, repo_root: Path) -> str:
     """Portable path for git-tracked records; absolute only outside the repo."""
@@ -83,7 +70,6 @@ MIMO_EXPECTED_COUNTS: dict[str, int] = {
 }
 
 TASK_STORE_DIRNAME = "task-store"
-HF_SNAPSHOTS_DIRNAME = "hf"
 VARIANTS_DIRNAME = "variants"
 CATALOG_RELPATH = Path("external/task_catalog")
 CATALOG_TABLES = ("task_sources", "task_versions", "task_findings", "task_lineage")
@@ -112,89 +98,20 @@ FINDING_RECORD_SCHEMA = "evallab.task_finding/v1"
 FINDINGS_DIRNAME = Path("library/task-findings")
 
 
-class FindingRecordError(CatalogError):
-    """Raised when a curated task-finding record is invalid (skipped, never fatal)."""
 
 
-class TaskFindingEvidence(ContractModel):
-    """One evidence pointer: a repo-relative stdout path plus its sha256."""
-
-    path: str = Field(min_length=1)
-    sha256: str = Field(pattern=r"^(sha256:)?[0-9a-f]{64}$")
 
 
-class TaskFindingRecord(ContractModel):
-    """One evidence-backed task defect; the durable ``evallab.task_finding/v1`` record."""
-
-    schema_: str = Field(alias="schema", pattern=r"^evallab\.task_finding/v1$")
-    task_version_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    task_id: str = Field(min_length=1)
-    domain: str = Field(min_length=1)
-    rule: str = Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9._-]*$")
-    severity: Literal["error", "warning"] = Field()
-    message: str = Field(min_length=1)
-    evidence: list[TaskFindingEvidence] = Field(min_length=1)
-    recorded_at: str = Field(min_length=1)
-    recorded_by: str = Field(min_length=1)
-
-    model_config = {**ContractModel.model_config, "populate_by_name": True}
 
 
-def resolve_finding_record(path: Path) -> TaskFindingRecord:
-    """Parse one curated finding record (strict ``evallab.task_finding/v1``)."""
-    try:
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise FindingRecordError(f"finding record is unreadable ({path}): {exc}") from exc
-    try:
-        return TaskFindingRecord.model_validate(payload)
-    except ValueError as exc:
-        raise FindingRecordError(f"finding record is invalid ({path}): {exc}") from exc
 
 
-def load_finding_dicts(repo_root: Path) -> tuple[list[tuple[dict[str, Any], str]], int]:
-    """Curated finding records as ``(dict, record_relpath)`` pairs.
-
-    Each file under ``library/task-findings/**/*.json`` is parsed with
-    strict ``evallab.task_finding/v1`` validation. Returns
-    ``(records, skipped)``; invalid records are skipped with a count, never
-    a crash, so catalog builds stay rebuildable while findings evolve.
-    Evidence paths are recorded as written (they may point at untracked
-    ``runs/`` stdout); only their shape is validated, never their presence.
-    """
-    tree = Path(repo_root) / FINDINGS_DIRNAME
-    records: list[tuple[dict[str, Any], str]] = []
-    skipped = 0
-    if tree.is_dir():
-        for path in sorted(tree.rglob("*.json")):
-            if not path.is_file():
-                continue
-            try:
-                record = resolve_finding_record(path)
-            except FindingRecordError:
-                skipped += 1
-                continue
-            try:
-                relpath = path.relative_to(repo_root).as_posix()
-            except ValueError:
-                relpath = path.name
-            records.append((record.model_dump(mode="json", by_alias=True), relpath))
-    return records, skipped
 
 
-def mimo_repo_id(domain: str) -> str:
-    """Canonical HF repo for one MiMo domain."""
-    return f"FineEnvs/MiMo-V2.6-RL-harbor-{domain}"
 
 
-def snapshot_dir_name(org: str, repo: str, revision: str) -> str:
-    """Store-relative snapshot directory for a pinned repo."""
-    return f"{org}__{repo}@{revision[:12]}"
 
 
-def hf_task_store(store_root: Path) -> Path:
-    """Snapshot root: ``<task store>/hf``."""
-    return store_root / HF_SNAPSHOTS_DIRNAME
 
 
 def catalog_dir(derived_root: Path) -> Path:
@@ -219,276 +136,31 @@ def task_store_root(repo_root: Path, *, derived_root: Path | None = None) -> Pat
     return default_task_store_root(repo_root)
 
 
-def parse_hf_pin(ref: str) -> tuple[str, str, str]:
-    """Split ``<org>/<repo>@<40-hex-sha>``; refuse anything unpinned.
-
-    Reuses :func:`fetch.parse_pin` refusal for empty/unpinned refs, then
-    requires exactly ``org/repo`` and a full 40-hex commit sha (never a
-    branch, tag, or short prefix).
-    """
-    try:
-        pin = parse_pin(ref)
-    except FetchError as exc:
-        raise CatalogError(str(exc)) from exc
-    org, slash, repo = pin.name.partition("/")
-    if not slash or "/" in repo or not org or not repo:
-        raise CatalogError(
-            f"refused {ref!r}: require <org>/<repo>@<40-hex-sha> "
-            "(exactly one slash in the repo name)"
-        )
-    if not _HEX40.match(pin.version):
-        raise CatalogError(
-            f"refused {ref!r}: require a full 40-hex commit sha "
-            "(never a branch, tag, or short prefix)"
-        )
-    return org, repo, pin.version
 
 
-SnapshotDownloader = Callable[[str, str, Path], None]
 """Download collaborator: ``(repo_id, revision, dest_dir)``. Tests inject fakes."""
 
 
-def hub_snapshot_download(repo_id: str, revision: str, dest: Path) -> None:
-    """Default downloader: anonymous ``huggingface_hub.snapshot_download``."""
-    from huggingface_hub import snapshot_download
-
-    snapshot_download(
-        repo_id=repo_id,
-        repo_type="dataset",
-        revision=revision,
-        local_dir=str(dest),
-        max_workers=8,
-    )
 
 
-def snapshot_material_digest(snapshot: Path) -> str:
-    """Tree digest over snapshot bytes, excluding the provenance sidecar.
-
-    Same aggregate format as :func:`fetch.material_digest`
-    (``"<file-sha>  ./<relpath>"`` lines); the sidecar is excluded because it
-    records this digest.
-    """
-    if not snapshot.is_dir():
-        raise CatalogError(f"snapshot directory is missing: {snapshot}")
-    aggregate = hashlib.sha256()
-    files = sorted(
-        path
-        for path in snapshot.rglob("*")
-        if path.is_file()
-        and not path.is_symlink()
-        and path.name not in SNAPSHOT_SKIP_NAMES
-        and ".git" not in path.parts
-        and ".cache" not in path.parts
-    )
-    if not files:
-        raise CatalogError(f"no material files under {snapshot}")
-    for candidate in files:
-        relative = candidate.relative_to(snapshot).as_posix()
-        file_digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
-        aggregate.update(f"{file_digest}  ./{relative}\n".encode())
-    return f"sha256:{aggregate.hexdigest()}"
 
 
-def detect_snapshot_license(snapshot: Path) -> str:
-    """Best-effort license note from top-level license files."""
-    for name in ("LICENSE", "LICENSE.md", "COPYING", "COPYING.md"):
-        if (snapshot / name).is_file():
-            return f"Upstream {name} in snapshot; lab-internal eval use."
-    return "See upstream Harbor dataset card; lab-internal eval use."
 
 
-def make_snapshot_read_only(snapshot: Path) -> None:
-    """Strip write bits (keeping exec on scripts) so snapshots stay immutable."""
-    files = [p for p in snapshot.rglob("*") if not p.is_symlink() and p.is_file()]
-    dirs = [p for p in snapshot.rglob("*") if not p.is_symlink() and p.is_dir()]
-    for path in files:
-        mode = path.stat().st_mode
-        path.chmod(0o444 | (0o111 if mode & 0o111 else 0))
-    for path in dirs:
-        path.chmod(0o555)
-    snapshot.chmod(0o555)
 
 
-def read_snapshot_manifest(snapshot: Path) -> dict[str, str]:
-    """Adapter ``manifest.json`` task map (task_id -> hex sha256)."""
-    manifest_path = snapshot / "manifest.json"
-    try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise CatalogError(f"snapshot has no readable manifest.json: {snapshot}") from exc
-    tasks = payload.get("tasks")
-    if not isinstance(tasks, dict):
-        raise CatalogError(f"snapshot manifest.json has no tasks map: {snapshot}")
-    return {str(task_id): str(sha) for task_id, sha in tasks.items()}
 
 
-def list_snapshot_tasks(snapshot: Path) -> list[Path]:
-    """Task directories on disk (sorted by directory name)."""
-    tasks_root = snapshot / "tasks"
-    if not tasks_root.is_dir():
-        return []
-    return sorted(
-        (child for child in tasks_root.iterdir() if (child / "task.toml").is_file()),
-        key=lambda child: child.name,
-    )
 
 
-def verify_snapshot_manifest(snapshot: Path) -> tuple[str, ...]:
-    """Task ids whose bytes differ from the adapter manifest (or are absent)."""
-    expected = read_snapshot_manifest(snapshot)
-    mismatched: list[str] = []
-    for task_dir in list_snapshot_tasks(snapshot):
-        digest = mimo_manifest_sha(task_dir)
-        if expected.get(task_dir.name) != digest:
-            mismatched.append(task_dir.name)
-    return tuple(mismatched)
 
 
-@dataclass(frozen=True)
-class PullResult:
-    """Outcome of one pinned snapshot intake."""
-
-    status: Literal["downloaded", "reused"]
-    snapshot: Path
-    repo: str
-    revision: str
-    n_tasks: int
-    manifest_mismatches: tuple[str, ...] = ()
-    provenance_path: Path | None = None
 
 
-def _write_provenance(
-    snapshot: Path,
-    *,
-    repo_id: str,
-    revision: str,
-    material_digest: str,
-    license: str,
-    created_by: str,
-) -> Path:
-    org, _, repo = repo_id.partition("/")
-    item_id = f"hf-{org.lower()}__{repo.lower()}@{revision[:12]}".replace("/", "__")
-    provenance = ProvenanceMetadata(
-        item_id=item_id[:120],
-        zone="01-external",
-        source_uri=f"https://huggingface.co/datasets/{repo_id}",
-        revision=revision,
-        material_digest=material_digest,
-        license=license,
-        created_at=datetime.now(UTC),
-        created_by=created_by,
-        notes=f"Pinned snapshot of {repo_id}; adapter conversion output, not lab evidence.",
-    )
-    path = snapshot / PROVENANCE_FILENAME
-    path.write_text(provenance.model_dump_json(indent=2) + "\n", encoding="utf-8")
-    path.chmod(0o444)
-    return path
 
 
-def _check_existing_snapshot(
-    dest: Path, *, repo_id: str, revision: str
-) -> tuple[str, ...] | None:
-    """Return manifest mismatches when an existing snapshot is reusable, else None.
-
-    Any staleness (missing/invalid provenance, repo or revision drift,
-    material-digest drift) returns None so the caller refuses rather than
-    overwriting.
-    """
-    provenance_path = dest / PROVENANCE_FILENAME
-    if not provenance_path.is_file():
-        return None
-    try:
-        recorded = json.loads(provenance_path.read_text(encoding="utf-8"))
-    except ValueError:
-        return None
-    if recorded.get("revision") != revision:
-        return None
-    if recorded.get("source_uri") != f"https://huggingface.co/datasets/{repo_id}":
-        return None
-    try:
-        current = snapshot_material_digest(dest)
-    except CatalogError:
-        return None
-    if recorded.get("material_digest") != current:
-        return None
-    return verify_snapshot_manifest(dest)
 
 
-def pull_hf_snapshot(
-    ref: str,
-    *,
-    repo_root: Path,
-    derived_root: Path | None = None,
-    downloader: SnapshotDownloader | None = None,
-    created_by: str = "evallab-tasks-pull-hf",
-) -> PullResult:
-    """Download (or reuse) one pinned HF snapshot; refuse anything unpinned.
-
-    Raises :class:`CatalogError` on unpinned refs, on an existing directory
-    whose provenance does not match, or on download failures. Manifest
-    mismatches are reported in the result, never raised.
-    """
-    org, repo, revision = parse_hf_pin(ref)
-    repo_id = f"{org}/{repo}"
-    store = hf_task_store(task_store_root(repo_root, derived_root=derived_root))
-    dest = store / snapshot_dir_name(org, repo, revision)
-
-    if dest.exists():
-        if not dest.is_dir():
-            raise CatalogError(f"snapshot path exists and is not a directory: {dest}")
-        reusable = _check_existing_snapshot(dest, repo_id=repo_id, revision=revision)
-        if reusable is None:
-            raise CatalogError(
-                f"refusing to overwrite {dest}: existing snapshot does not match "
-                f"{repo_id}@{revision} (moved pin or edited bytes?). Remove it "
-                "manually if a re-pull is intended."
-            )
-        tasks = list_snapshot_tasks(dest)
-        return PullResult(
-            status="reused",
-            snapshot=dest,
-            repo=repo_id,
-            revision=revision,
-            n_tasks=len(tasks),
-            manifest_mismatches=reusable,
-            provenance_path=dest / PROVENANCE_FILENAME,
-        )
-
-    download = downloader or hub_snapshot_download
-    store.mkdir(parents=True, exist_ok=True)
-    try:
-        download(repo_id, revision, dest)
-    except Exception as exc:
-        raise CatalogError(
-            f"snapshot download failed for {repo_id}@{revision}: "
-            f"{type(exc).__name__}: {exc}"
-        ) from exc
-    cache_dir = dest / ".cache"
-    if cache_dir.is_dir():
-        import shutil
-
-        shutil.rmtree(cache_dir)
-    digest = snapshot_material_digest(dest)
-    provenance_path = _write_provenance(
-        dest,
-        repo_id=repo_id,
-        revision=revision,
-        material_digest=digest,
-        license=detect_snapshot_license(dest),
-        created_by=created_by,
-    )
-    make_snapshot_read_only(dest)
-    mismatches = verify_snapshot_manifest(dest)
-    tasks = list_snapshot_tasks(dest)
-    return PullResult(
-        status="downloaded",
-        snapshot=dest,
-        repo=repo_id,
-        revision=revision,
-        n_tasks=len(tasks),
-        manifest_mismatches=mismatches,
-        provenance_path=provenance_path,
-    )
 
 TASK_SOURCES_SCHEMA = pa.schema(
     [
@@ -564,98 +236,16 @@ TASK_LINEAGE_SCHEMA = pa.schema(
     ]
 )
 
-_CATALOG_SCHEMAS = {
-    "task_sources": TASK_SOURCES_SCHEMA,
-    "task_versions": TASK_VERSIONS_SCHEMA,
-    "task_findings": TASK_FINDINGS_SCHEMA,
-    "task_lineage": TASK_LINEAGE_SCHEMA,
-}
 
 
-def instruction_features(text: str) -> tuple[int, str]:
-    """Character count plus a cheap zh-vs-en language signal (CJK fraction)."""
-    chars = len(text)
-    nonspace = [char for char in text if not char.isspace()]
-    cjk = len(_CJK.findall(text))
-    frac = (cjk / len(nonspace)) if nonspace else 0.0
-    lang = "zh" if frac > 0.05 else ("mixed" if frac > 0.005 else "en")
-    return chars, lang
 
 
-def slug_of(source_id: str) -> str:
-    """Lowercase alphanumeric fold used to spot id collisions."""
-    return "".join(
-        char if char.isalnum() or char in "-_." else "-" for char in source_id.lower()
-    ).strip("-.")
 
 
-def derive_grader_kind_cost(task_dir: Path, toml: Mapping[str, Any]) -> tuple[str, str]:
-    """Derive (grader_kind, grader_cost) from task files, not the domain name.
-
-    A paid model judge is present when the verifier env wires ``*JUDGE*``
-    keys or ``tests/grade.py`` grades via a judge; vision markers select the
-    VLM kind. Everything else is a $0 script.
-    """
-    verifier = toml.get("verifier")
-    env = verifier.get("env") if isinstance(verifier, dict) else None
-    env_blob = json.dumps(env, sort_keys=True) if isinstance(env, dict) else ""
-    grade_path = task_dir / "tests" / "grade.py"
-    grade_text = ""
-    if grade_path.is_file():
-        try:
-            grade_text = grade_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            grade_text = ""
-    if "JUDGE" in env_blob or "judge" in grade_text.lower():
-        lowered = (env_blob + "\n" + grade_text).lower()
-        if "webdev_judge" in lowered or "vlm" in lowered or "vision" in lowered:
-            return "vlm_judge", "paid"
-        return "llm_judge", "paid"
-    return "script", "free"
 
 
-def _go_test_targets(task_dir: Path) -> list[str]:
-    """Module-style ``go test`` targets from the visible and hidden test commands."""
-    blobs: list[str] = []
-    command_path = task_dir / "tests" / "test_command.sh"
-    if command_path.is_file():
-        with contextlib.suppress(OSError):
-            blobs.append(command_path.read_text(encoding="utf-8", errors="replace"))
-    patch_path = task_dir / "tests" / "test.patch"
-    if patch_path.is_file():
-        try:
-            patch = patch_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            patch = ""
-        hidden: list[str] = []
-        for line in patch.splitlines():
-            if line.startswith("+") and not line.startswith("+++"):
-                hidden.append(line[1:])
-        blobs.append("\n".join(hidden))
-    targets: list[str] = []
-    for blob in blobs:
-        for match in _GO_TEST_TARGET.finditer(blob):
-            target = match.group(1).strip().strip("'\"").rstrip(",;")
-            if re.fullmatch(r"[A-Za-z0-9_./~+@-]+", target or "") and (
-                "/" in target or target in ("./...", "...")
-            ):
-                targets.append(target)
-    return targets
 
 
-def _module_repo_root(target: str) -> str | None:
-    """Best-effort repository root for a Go module-style test target."""
-    if target.startswith(("./", "../", "...")):
-        return None
-    hosted = _HOSTED_REPO.match(target)
-    if hosted:
-        return f"{hosted.group(1)}/{hosted.group(2)}/{hosted.group(3)}"
-    parts = target.split("/")
-    if "." in parts[0] and len(parts) >= 3:
-        return "/".join(parts[:3])
-    if "." in parts[0]:
-        return target
-    return None
 
 
 _REPO_URL = re.compile(
@@ -663,546 +253,38 @@ _REPO_URL = re.compile(
 )
 
 
-def _repo_urls_in_text(text: str) -> Counter[str]:
-    """Repository roots from hosted code URLs (issue text usually links home)."""
-    votes: Counter[str] = Counter()
-    for match in _REPO_URL.finditer(text or ""):
-        votes[f"{match.group(1)}/{match.group(2)}/{match.group(3)}"] += 1
-    return votes
 
 
-def extract_code_repo(task_dir: Path) -> str | None:
-    """Repository identity for a code task, derived from task files.
-
-    Tier 1: majority vote over module-style ``go test`` targets (visible
-    command plus the hidden command inside ``tests/test.patch``). Tier 2: Go
-    import paths in the patch (excluding test-helper modules). Tier 3: hosted
-    code URLs in the instruction and task description. Returns None when
-    nothing derivable exists; the caller falls back to the task id and emits
-    a ``split-group-unresolved`` finding.
-    """
-    votes: dict[str, int] = {}
-    for target in _go_test_targets(task_dir):
-        repo = _module_repo_root(target)
-        if repo is not None:
-            votes[repo] = votes.get(repo, 0) + 1
-    if not votes:
-        patch_path = task_dir / "tests" / "test.patch"
-        if patch_path.is_file():
-            try:
-                patch = patch_path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                patch = ""
-            for match in re.finditer(r'"((?:github|gitlab)\.com/[^"]+)"', patch):
-                repo = _module_repo_root(match.group(1))
-                if repo is not None and repo not in _TEST_HELPER_MODULES:
-                    votes[repo] = votes.get(repo, 0) + 1
-    if not votes:
-        toml = _read_task_toml(task_dir)
-        metadata = _as_dict(toml.get("metadata"))
-        task_block = _as_dict(toml.get("task"))
-        try:
-            instruction = (task_dir / "instruction.md").read_text(
-                encoding="utf-8", errors="replace"
-            )
-        except OSError:
-            instruction = ""
-        text = "\n".join(
-            [
-                instruction,
-                str(metadata.get("title") or ""),
-                str(metadata.get("description") or ""),
-                str(task_block.get("description") or ""),
-            ]
-        )
-        for repo, count in _repo_urls_in_text(text).items():
-            votes[repo] = votes.get(repo, 0) + count
-    if not votes:
-        return None
-    return sorted(votes.items(), key=lambda item: (-item[1], item[0]))[0][0]
 
 
-def derive_split_group(
-    domain: str,
-    task_id: str,
-    task_dir: Path,
-    toml: Mapping[str, Any],
-    jsonl_row: Mapping[str, Any] | None,
-) -> tuple[str, bool]:
-    """Stable family key so sibling tasks never straddle train/held-out.
-
-    Rules (lead-decided): code groups by repository identity derived from
-    graded test targets; cyber groups by ARVO project (first component of
-    ``expected_crash.file``); general strips the trailing ``_rl_NNN`` sibling
-    suffix; terminal/webdev/music group by task id until near-duplicate
-    analysis lands. Returns ``(group, unresolved)``; unresolved groups fall
-    back to the task id so nothing is ever silently merged.
-    """
-    if domain == "code":
-        repo = extract_code_repo(task_dir)
-        if repo is None:
-            return f"code:{task_id}", True
-        return f"code:{repo}", False
-    if domain == "cyber":
-        crash: Any = (jsonl_row or {}).get("expected_crash")
-        if not isinstance(crash, dict):
-            metadata = toml.get("metadata")
-            crash = metadata.get("expected_crash") if isinstance(metadata, dict) else None
-        crash_file = crash.get("file") if isinstance(crash, dict) else None
-        if isinstance(crash_file, str) and crash_file:
-            project = crash_file.split("/")[0]
-            if project:
-                return f"cyber:{project}", False
-        return f"cyber:{task_id}", True
-    if domain == "general":
-        return f"general:{_RL_SUFFIX.sub('', task_id)}", False
-    return f"{domain}:{task_id}", False
 
 
-def _int_or_none(value: Any) -> int | None:
-    return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def _float_or_none(value: Any) -> float | None:
-    if isinstance(value, bool):
-        return None
-    return float(value) if isinstance(value, (int, float)) else None
 
 
-def _read_task_toml(task_dir: Path) -> dict[str, Any]:
-    try:
-        payload = tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
 
 
-def _read_jsonl_map(snapshot: Path) -> dict[str, dict[str, Any]]:
-    jsonl_path = snapshot / "data" / "tasks.jsonl"
-    rows: dict[str, dict[str, Any]] = {}
-    if not jsonl_path.is_file():
-        return rows
-    try:
-        lines = jsonl_path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return rows
-    for line in lines:
-        if not line.strip():
-            continue
-        try:
-            row = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(row, dict) and row.get("task_id"):
-            rows[str(row["task_id"])] = row
-    return rows
 
 
-def _read_registry_names(snapshot: Path) -> list[str]:
-    try:
-        payload = json.loads((snapshot / "registry.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    names: list[str] = []
-    entries = payload if isinstance(payload, list) else [payload]
-    for entry in entries:
-        if isinstance(entry, dict):
-            for task in entry.get("tasks") or []:
-                if isinstance(task, dict) and task.get("name"):
-                    names.append(str(task["name"]))
-    return names
 
 
-@dataclass
-class _ExternalTask:
-    version_row: dict[str, Any]
-    findings: list[Finding]
 
 
-def _build_external_task(
-    task_dir: Path,
-    *,
-    repo_id: str,
-    revision: str,
-    domain: str,
-    expected_manifest_sha: str | None,
-    jsonl_row: Mapping[str, Any] | None,
-) -> _ExternalTask:
-    toml = _read_task_toml(task_dir)
-    task_block = _as_dict(toml.get("task"))
-    metadata = _as_dict(toml.get("metadata"))
-    agent = _as_dict(toml.get("agent"))
-    verifier = _as_dict(toml.get("verifier"))
-    environment = _as_dict(toml.get("environment"))
-    task_id = task_dir.name
-    source_id = str(metadata.get("source_id") or (jsonl_row or {}).get("source_id") or task_id)
-    instruction_path = task_dir / "instruction.md"
-    try:
-        instruction = instruction_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        instruction = ""
-    chars, lang = instruction_features(instruction)
-    digests = compute_task_digests(task_dir)
-    grader_kind, grader_cost = derive_grader_kind_cost(task_dir, toml)
-    split_group, unresolved = derive_split_group(domain, task_id, task_dir, toml, jsonl_row)
-    step_limit = _int_or_none(metadata.get("reference_step_limit"))
-    if step_limit is None:
-        raw_step = (jsonl_row or {}).get("step_limit")
-        step_limit = _int_or_none(raw_step)
-        if step_limit is None and isinstance(raw_step, str) and raw_step.isdigit():
-            step_limit = int(raw_step)
-    solution = task_dir / "solution"
-    row = {
-        "task_version_digest": task_directory_digest(task_dir),
-        "harbor_digest": harbor_task_digest(task_dir),
-        "task_name": str(task_block.get("name") or f"mimo-v2.6-rl/{task_id}"),
-        "task_id": task_id,
-        "source_id": source_id,
-        "origin": "external",
-        "source_repo": repo_id,
-        "source_revision": revision,
-        "source_path": f"tasks/{task_id}",
-        "upstream_manifest_sha256": expected_manifest_sha,
-        "parent_digest": None,
-        "transform": None,
-        "digest_task_toml": digests.task_toml,
-        "digest_instruction": digests.instruction,
-        "digest_environment": digests.environment,
-        "digest_verifier": digests.verifier,
-        "domain": domain,
-        "category": str(metadata.get("category") or ""),
-        "docker_image": str(environment.get("docker_image") or ""),
-        "grader_kind": grader_kind,
-        "grader_cost": grader_cost,
-        "has_solution": solution.is_dir() and any(solution.rglob("*")),
-        "network_mode": str(environment.get("network_mode") or ""),
-        "agent_user": str(agent.get("user") or "root"),
-        "step_limit": step_limit,
-        "agent_timeout_sec": _float_or_none(agent.get("timeout_sec")),
-        "verifier_timeout_sec": _float_or_none(verifier.get("timeout_sec")),
-        "cpus": _int_or_none(environment.get("cpus")),
-        "memory_mb": _int_or_none(environment.get("memory_mb")),
-        "instruction_chars": chars,
-        "instruction_lang": lang,
-        "split_group": split_group,
-    }
-    findings = lint_mimo_task(task_dir, expected_manifest_sha=expected_manifest_sha, domain=domain)
-    if expected_manifest_sha is None:
-        findings.append(
-            Finding(
-                "mimo-manifest-digest-mismatch",
-                "error",
-                str(task_dir),
-                f"task {task_id!r} is on disk but absent from the adapter manifest.json",
-            )
-        )
-    if unresolved:
-        findings.append(
-            Finding(
-                "split-group-unresolved",
-                "warning",
-                str(task_dir / "task.toml"),
-                f"no stable family key derivable for {domain}/{task_id}; "
-                "split_group falls back to the task id (never merged silently)",
-            )
-        )
-    return _ExternalTask(version_row=row, findings=findings)
 
 
-def load_lineage_dicts(repo_root: Path) -> tuple[list[tuple[dict[str, Any], str]], int]:
-    """Lineage records as ``(dict, record_relpath)`` pairs via TaskVariants.
-
-    Each file under ``library/task-variants/**/*.json`` is parsed with
-    ``evallab.task_variants.resolve_record`` (strict
-    ``evallab.task_variant/v1`` validation). Returns ``(records, skipped)``;
-    invalid records are skipped with a count, never a crash, so catalog
-    builds stay rebuildable while lineage evolves.
-    """
-    from evallab.task_variants import RECORDS_DIRNAME, LineageError, resolve_record
-
-    tree = Path(repo_root) / RECORDS_DIRNAME
-    records: list[tuple[dict[str, Any], str]] = []
-    skipped = 0
-    if tree.is_dir():
-        for path in sorted(tree.rglob("*.json")):
-            if not path.is_file():
-                continue
-            try:
-                record = resolve_record(path)
-            except LineageError:
-                skipped += 1
-                continue
-            try:
-                relpath = path.relative_to(repo_root).as_posix()
-            except ValueError:
-                relpath = path.name
-            records.append((record.model_dump(mode="json", by_alias=True), relpath))
-    return records, skipped
 
 
-def _variant_version_row(record: Mapping[str, Any]) -> dict[str, Any]:
-    parent = _as_dict(record.get("parent"))
-    source = _as_dict(parent.get("source"))
-    domain: str | None = None
-    if source.get("kind") == "hf" and isinstance(source.get("repo"), str):
-        domain = source["repo"].rsplit("harbor-", 1)[-1]
-    return {
-        "task_version_digest": record.get("variant_digest"),
-        "harbor_digest": record.get("variant_harbor_digest"),
-        "task_name": record.get("task_name"),
-        "task_id": str(record.get("task_name") or "").rsplit("/", 1)[-1],
-        "source_id": str(record.get("task_name") or "").rsplit("/", 1)[-1],
-        "origin": "variant",
-        "source_repo": source.get("repo") if source.get("kind") == "hf" else None,
-        "source_revision": source.get("revision") if source.get("kind") == "hf" else None,
-        "source_path": source.get("path") or source.get("record"),
-        "upstream_manifest_sha256": None,
-        "parent_digest": parent.get("digest"),
-        "transform": record.get("transform"),
-        "digest_task_toml": None,
-        "digest_instruction": None,
-        "digest_environment": None,
-        "digest_verifier": None,
-        "domain": domain,
-        "category": None,
-        "docker_image": None,
-        "grader_kind": None,
-        "grader_cost": None,
-        "has_solution": None,
-        "network_mode": None,
-        "agent_user": None,
-        "step_limit": None,
-        "agent_timeout_sec": None,
-        "verifier_timeout_sec": None,
-        "cpus": None,
-        "memory_mb": None,
-        "instruction_chars": None,
-        "instruction_lang": None,
-        "split_group": None,
-    }
 
 
-def _cyber_dupe_stats(
-    rows: list[tuple[str, str, str]],
-) -> tuple[dict[str, str], int, int]:
-    """M0: exact-duplicate cyber instructions must share ``split_group``.
-
-    Input is ``(task_id, split_group, instruction_hash12)`` per cyber task.
-    Returns ``(overrides, n_groups, n_tasks)`` where ``overrides`` maps
-    task ids whose duplicate-instruction group spans more than one project
-    group to a merged ``cyber:dupe-<hash>`` key. Project-pure groups (all
-    194 on current data) need no override: the project key already keeps
-    them together.
-    """
-    by_hash: dict[str, list[tuple[str, str]]] = {}
-    for task_id, group, inst in rows:
-        by_hash.setdefault(inst, []).append((task_id, group))
-    multi = {inst: members for inst, members in by_hash.items() if len(members) > 1}
-    overrides: dict[str, str] = {}
-    for inst, members in multi.items():
-        if len({group for _, group in members}) > 1:
-            for task_id, _ in members:
-                overrides[task_id] = f"cyber:dupe-{inst}"
-    return overrides, len(multi), sum(len(members) for members in multi.values())
 
 
-@dataclass
-class CatalogBuildReport:
-    """Counts and finding tallies from one catalog build."""
-
-    catalog_dir: Path
-    snapshots: list[str] = field(default_factory=list)
-    tables: dict[str, int] = field(default_factory=dict)
-    n_variants: int = 0
-    skipped_variant_records: int = 0
-    n_curated_findings: int = 0
-    skipped_finding_records: int = 0
-    findings_by_rule_domain: dict[str, dict[str, int]] = field(default_factory=dict)
-    unresolved_splits: dict[str, int] = field(default_factory=dict)
-    cyber_dupe_groups: int = 0
-    cyber_dupe_tasks: int = 0
 
 
-def _snapshot_relpath(snapshot: Path, repo_root: Path) -> str:
-    """Store path relative to the shared checkout root (portable across worktrees)."""
-    try:
-        return snapshot.relative_to(shared_checkout_root(repo_root)).as_posix()
-    except ValueError:
-        return snapshot.name
 
 
-def _domain_of_snapshot(repo_id: str) -> str:
-    return repo_id.rsplit("harbor-", 1)[-1] if "harbor-" in repo_id else repo_id
 
 
-def build_catalog(
-    *,
-    repo_root: Path,
-    derived_root: Path | None = None,
-) -> CatalogBuildReport:
-    """Scan pulled snapshots plus lineage records; write the four catalog tables."""
-    derived = derived_root or derived_root_from_environment(repo_root)
-    store = hf_task_store(task_store_root(repo_root, derived_root=derived_root))
-    outdir = catalog_dir(derived)
-    outdir.mkdir(parents=True, exist_ok=True)
-    report = CatalogBuildReport(catalog_dir=outdir)
-
-    sources: list[dict[str, Any]] = []
-    versions: list[dict[str, Any]] = []
-    finding_rows: list[dict[str, Any]] = []
-    slug_index: dict[str, list[tuple[str, str]]] = {}
-    cyber_inst: list[tuple[str, str, str]] = []
-
-    snapshots = sorted(
-        (child for child in store.iterdir() if child.is_dir() and (child / PROVENANCE_FILENAME).is_file()),
-        key=lambda child: child.name,
-    ) if store.is_dir() else []
-    for snapshot in snapshots:
-        provenance = json.loads((snapshot / PROVENANCE_FILENAME).read_text(encoding="utf-8"))
-        repo_id = str(provenance.get("source_uri", "")).rsplit("/datasets/", 1)[-1]
-        revision = str(provenance.get("revision") or "")
-        domain = _domain_of_snapshot(repo_id)
-        try:
-            manifest = read_snapshot_manifest(snapshot)
-        except CatalogError:
-            manifest = {}
-        registry_names = _read_registry_names(snapshot)
-        jsonl_rows = _read_jsonl_map(snapshot)
-        task_dirs = list_snapshot_tasks(snapshot)
-        report.snapshots.append(snapshot.name)
-        sources.append(
-            {
-                "source_repo": repo_id,
-                "source_revision": revision,
-                "domain": domain,
-                "snapshot_relpath": _snapshot_relpath(snapshot, repo_root),
-                "n_manifest": len(manifest),
-                "n_disk": len(task_dirs),
-                "n_registry": len(registry_names),
-                "license": provenance.get("license"),
-                "material_digest": provenance.get("material_digest"),
-            }
-        )
-        for task_dir in task_dirs:
-            built = _build_external_task(
-                task_dir,
-                repo_id=repo_id,
-                revision=revision,
-                domain=domain,
-                expected_manifest_sha=manifest.get(task_dir.name),
-                jsonl_row=jsonl_rows.get(task_dir.name),
-            )
-            versions.append(built.version_row)
-            if domain == "cyber":
-                try:
-                    inst_hash = hashlib.sha256(
-                        (task_dir / "instruction.md").read_bytes()
-                    ).hexdigest()[:12]
-                except OSError:
-                    inst_hash = ""
-                cyber_inst.append(
-                    (task_dir.name, str(built.version_row["split_group"]), inst_hash)
-                )
-            slug_index.setdefault(
-                slug_of(str(built.version_row["source_id"])), []
-            ).append((domain, task_dir.name))
-            for finding in built.findings:
-                finding_rows.append(
-                    {
-                        "task_version_digest": built.version_row["task_version_digest"],
-                        "task_id": task_dir.name,
-                        "domain": domain,
-                        "rule": finding.rule,
-                        "severity": finding.severity,
-                        "message": finding.message,
-                    }
-                )
-
-    dupe_overrides, n_dupe_groups, n_dupe_tasks = _cyber_dupe_stats(cyber_inst)
-    report.cyber_dupe_groups = n_dupe_groups
-    report.cyber_dupe_tasks = n_dupe_tasks
-    if dupe_overrides:
-        version_by_key = {(row["domain"], row["task_id"]): row for row in versions}
-        for task_id, group in dupe_overrides.items():
-            version_by_key[("cyber", task_id)]["split_group"] = group
-    collisions = {
-        slug: members for slug, members in slug_index.items() if len(set(members)) > 1
-    }
-    digest_of = {(row["domain"], row["task_id"]): row["task_version_digest"] for row in versions}
-    for slug, members in sorted(collisions.items()):
-        involved = sorted({f"{domain}/{task_id}" for domain, task_id in members})
-        if len(involved) < 2:
-            continue
-        for domain, task_id in sorted(set(members)):
-            finding_rows.append(
-                {
-                    "task_version_digest": digest_of[(domain, task_id)],
-                    "task_id": task_id,
-                    "domain": domain,
-                    "rule": "mimo-id-case-collision",
-                    "severity": "warning",
-                    "message": f"slug {slug!r} collides across tasks: {', '.join(involved)}",
-                }
-            )
-
-    lineage: list[dict[str, Any]] = []
-    records, skipped = load_lineage_dicts(repo_root)
-    report.n_variants = len(records)
-    report.skipped_variant_records = skipped
-    for record, record_path in records:
-        versions.append(_variant_version_row(record))
-        parent = _as_dict(record.get("parent"))
-        lineage.append(
-            {
-                "child_digest": record.get("variant_digest"),
-                "child_harbor_digest": record.get("variant_harbor_digest"),
-                "parent_digest": parent.get("digest"),
-                "parent_harbor_digest": parent.get("harbor_digest"),
-                "transform": record.get("transform"),
-                "record_path": record_path,
-                "origin": "variant",
-            }
-        )
-
-    curated, skipped_curated = load_finding_dicts(repo_root)
-    report.n_curated_findings = len(curated)
-    report.skipped_finding_records = skipped_curated
-    for record, _record_path in curated:
-        finding_rows.append(
-            {
-                "task_version_digest": record.get("task_version_digest"),
-                "task_id": record.get("task_id"),
-                "domain": record.get("domain"),
-                "rule": record.get("rule"),
-                "severity": record.get("severity"),
-                "message": record.get("message"),
-            }
-        )
-
-    tables: dict[str, list[dict[str, Any]]] = {
-        "task_sources": sources,
-        "task_versions": versions,
-        "task_findings": finding_rows,
-        "task_lineage": lineage,
-    }
-    for name in CATALOG_TABLES:
-        rows = tables[name]
-        table = pa.Table.from_pylist(rows, schema=_CATALOG_SCHEMAS[name])
-        pq.write_table(table, outdir / f"{name}.parquet")
-        report.tables[name] = len(rows)
-
-    tally: dict[str, dict[str, int]] = {}
-    for row in finding_rows:
-        tally.setdefault(row["rule"], {}).setdefault(row["domain"], 0)
-        tally[row["rule"]][row["domain"]] += 1
-    report.findings_by_rule_domain = tally
-    unresolved: dict[str, int] = {}
-    for row in finding_rows:
-        if row["rule"] == "split-group-unresolved":
-            domain = str(row["domain"])
-            unresolved[domain] = unresolved.get(domain, 0) + 1
-    report.unresolved_splits = unresolved
-    return report
 
 
 def wilson_interval(n_pass: int, n_scored: int, z: float = 1.96) -> tuple[float | None, float | None]:
@@ -1303,149 +385,8 @@ def task_outcomes_sql(trials: str = "trial_facts", versions: str = "task_version
     """
 
 
-def render_build_report(report: CatalogBuildReport) -> str:
-    """Human-readable build summary with row counts and finding tallies."""
-    lines = [f"catalog: {report.catalog_dir}"]
-    lines.append("snapshots: " + (", ".join(report.snapshots) if report.snapshots else "(none)"))
-    for name in CATALOG_TABLES:
-        lines.append(f"  {name}: {report.tables.get(name, 0)} rows")
-    lines.append(
-        f"variants: {report.n_variants} indexed, {report.skipped_variant_records} skipped"
-    )
-    if report.findings_by_rule_domain:
-        lines.append("findings (rule x domain):")
-        for rule in sorted(report.findings_by_rule_domain):
-            per_domain = report.findings_by_rule_domain[rule]
-            detail = ", ".join(f"{domain}={per_domain[domain]}" for domain in sorted(per_domain))
-            lines.append(f"  {rule}: {detail}")
-    if report.unresolved_splits:
-        detail = ", ".join(
-            f"{domain}={count}" for domain, count in sorted(report.unresolved_splits.items())
-        )
-        lines.append(f"split_group fallbacks (task_id, unresolved): {detail}")
-    if report.cyber_dupe_groups:
-        lines.append(
-            f"cyber instruction-dupe groups: {report.cyber_dupe_groups} groups, "
-            f"{report.cyber_dupe_tasks} tasks (share split_group via project key)"
-        )
-    return "\n".join(lines) + "\n"
 
 
-def show_task(
-    selector: str,
-    *,
-    repo_root: Path,
-    derived_root: Path | None = None,
-) -> str:
-    """Render identity, digests, pin, findings, lineage, and outcomes for one task."""
-    from evallab.storage.attach import attach
-
-    derived = derived_root or derived_root_from_environment(repo_root)
-    result = attach(repo_root=repo_root, explicit_derived=derived)
-    conn = result.connection
-    rows = conn.execute(
-        """
-        SELECT * FROM task_versions
-        WHERE task_id = ? OR task_version_digest = ?
-           OR harbor_digest = ? OR task_version_digest LIKE ?
-           OR harbor_digest LIKE ?
-        """,
-        [selector, selector, selector, f"%{selector}%", f"%{selector}%"],
-    ).fetchall()
-    columns = [desc[0] for desc in conn.description]
-    if not rows:
-        result.connection.close()
-        raise CatalogError(f"no catalog task matches {selector!r}")
-    if len(rows) > 1:
-        ids = sorted({str(row[columns.index("task_id")]) for row in rows})
-        result.connection.close()
-        raise CatalogError(
-            f"{len(rows)} catalog tasks match {selector!r}: {', '.join(ids[:10])}"
-            + (" ..." if len(ids) > 10 else "")
-            + " (use a full digest)"
-        )
-    row = dict(zip(columns, rows[0], strict=True))
-    digest = str(row["task_version_digest"])
-    harbor = str(row["harbor_digest"])
-    try:
-        findings = conn.execute(
-            "SELECT rule, severity, message FROM task_findings "
-            "WHERE task_version_digest = ? ORDER BY rule",
-            [digest],
-        ).fetchall()
-    except Exception:
-        findings = []
-    try:
-        children = conn.execute(
-            "SELECT child_digest, transform FROM task_lineage WHERE parent_digest = ?",
-            [digest],
-        ).fetchall()
-    except Exception:
-        children = []
-    try:
-        outcomes = conn.execute(
-            "SELECT backend, agent_name, model_name, n_attempts, n_scored, n_infra, "
-            "pass_rate, pass_rate_lo, pass_rate_hi, verdict FROM v_task_outcomes "
-            "WHERE task_version_digest = ?",
-            [digest],
-        ).fetchall()
-    except Exception:
-        outcomes = []
-    try:
-        qualification = conn.execute(
-            "SELECT backend, job_name, trial_name, agent_name, status, "
-            "reasons, reward, trial_seconds, est_cost_usd FROM task_qualification "
-            "WHERE task_version_digest = ? ORDER BY backend, job_name, trial_name",
-            [digest],
-        ).fetchall()
-    except Exception:
-        qualification = []
-    result.connection.close()
-
-    lines = [
-        f"task: {row.get('task_name')} (task_id={row.get('task_id')}, source_id={row.get('source_id')})",
-        f"origin: {row.get('origin')}",
-        f"task_version_digest: {digest}",
-        f"harbor_digest: {harbor}",
-        "components: "
-        f"task_toml={row.get('digest_task_toml')} "
-        f"instruction={row.get('digest_instruction')} "
-        f"environment={row.get('digest_environment')} "
-        f"verifier={row.get('digest_verifier')}",
-        f"source: {row.get('source_repo')}@{row.get('source_revision')} "
-        f"path={row.get('source_path')} manifest_sha={row.get('upstream_manifest_sha256')}",
-        f"parent: {row.get('parent_digest')} transform={row.get('transform')}",
-        f"domain={row.get('domain')} category={row.get('category')} image={row.get('docker_image')}",
-        f"grader: {row.get('grader_kind')}/{row.get('grader_cost')} "
-        f"solution={row.get('has_solution')} net={row.get('network_mode')} "
-        f"agent_user={row.get('agent_user')}",
-        f"limits: steps={row.get('step_limit')} agent_timeout={row.get('agent_timeout_sec')} "
-        f"verifier_timeout={row.get('verifier_timeout_sec')} "
-        f"cpus={row.get('cpus')} mem_mb={row.get('memory_mb')}",
-        f"instruction: {row.get('instruction_chars')} chars lang={row.get('instruction_lang')}",
-        f"split_group: {row.get('split_group')}",
-        f"findings ({len(findings)}):",
-    ]
-    for rule, severity, message in findings:
-        lines.append(f"  [{severity}] {rule}: {message}")
-    lines.append(f"lineage children ({len(children)}):")
-    for child_digest, transform in children:
-        lines.append(f"  {child_digest} via {transform}")
-    lines.append(f"outcomes ({len(outcomes)}):")
-    for outcome in outcomes:
-        lines.append(
-            f"  backend={outcome[0]!r} agent={outcome[1]!r} model={outcome[2]!r} "
-            f"attempts={outcome[3]} scored={outcome[4]} infra={outcome[5]} "
-            f"pass_rate={outcome[6]} [{outcome[7]}, {outcome[8]}] verdict={outcome[9]}"
-        )
-    lines.append(f"qualification ({len(qualification)}):")
-    for qual_row in qualification:
-        lines.append(
-            f"  backend={qual_row[0]!r} {qual_row[1]}/{qual_row[2]} "
-            f"agent={qual_row[3]!r} status={qual_row[4]} reasons={qual_row[5]} "
-            f"reward={qual_row[6]} trial_seconds={qual_row[7]} est_cost_usd={qual_row[8]}"
-        )
-    return "\n".join(lines) + "\n"
 
 def task_audit_sql(
     outcomes: str = "v_task_outcomes",

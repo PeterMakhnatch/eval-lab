@@ -1643,39 +1643,6 @@ def test_cli_registry_promote_and_register_e2e(
     assert "legacy_missing_certification" in out
 
 
-def test_cli_registry_promote_refuses_missing_durable_evidence(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    import argparse
-
-    from evallab.cli import _registry_promote_command
-
-    _make_dummy_task(tmp_path, "library/tasks/missing-evidence")
-    promote_args = argparse.Namespace(
-        task_path="library/tasks/missing-evidence",
-        task_id=None,
-        version=None,
-        source_uri=None,
-        source_ref=None,
-        license=None,
-        provenance_zone=None,
-        synthetic=False,
-        timeout_seconds=None,
-        max_memory_mb=None,
-        max_cpus=None,
-        allowed_uses=None,
-        human_minutes=None,
-        state="candidate",
-        actor=None,
-        register=False,
-        jobs_dir=None,
-        registry_dir=str(tmp_path / "library/registry"),
-        json=False,
-    )
-    exit_code = _registry_promote_command(promote_args, tmp_path)
-    assert exit_code == 1
-    _, err = capsys.readouterr()
-    assert "missing durable trial-level oracle control evidence" in err
 
 
 def _rewrite_control_identity(

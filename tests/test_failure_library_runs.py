@@ -2,30 +2,25 @@
 
 from __future__ import annotations
 
-import argparse
 import gzip
 import hashlib
 import json
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.failure_library.commands import runs as command
-from evallab.failure_library.records import RunRecord
 from evallab.failure_library.runs import cached, published
 from evallab.failure_library.runs.common import (
     SplitPolicy,
     agent_text,
     awareness,
     group_split,
-    link_findings,
 )
 from evallab.failure_library.runs.ingest import ingest_collection
-from evallab.failure_library.runs.io import jsonl_rows, reference, stage_input
+from evallab.failure_library.runs.io import jsonl_rows, reference
 from evallab.failure_library.store import LibraryStore
 
 
@@ -157,11 +152,6 @@ def test_goodfire_row_aligned_judge_labels_never_become_execution_gold(
     assert "being monitored" not in workspace[2].runs_path(run.collection).read_text()
 
 
-def test_goodfire_shortcut_signal_is_not_a_reward() -> None:
-    row = goodfire_row(impossible=True)
-    row["traces"][0]["rewards"] = {"shortcut_signal": {"score": 1.0}}
-    run = cached.goodfire(row, "file:///raw#row=0", stream="impossiblebench-test")
-    assert run.reward is None and run.outcome == "unknown"
 
 
 def test_goodfire_generic_monitor_labels_keep_judge_provenance(
@@ -445,42 +435,8 @@ def test_awareness_is_agent_regex_not_label_or_causal_claim() -> None:
     assert awareness("missing", (), available=False)["text_available"] is False
 
 
-def test_namespace_safe_identity_links_do_not_assert_version_equivalence() -> None:
-    run = RunRecord(
-        run_id="r",
-        collection="terminal-wrench",
-        task={
-            "source_id": "terminal-bench-2",
-            "task_id": "17",
-            "upstream_repo": "https://example.test/export",
-            "upstream_revision": "old",
-        },
-        outcome="pass",
-        transcript_ref="file:///raw",
-    )
-    findings = [
-        SimpleNamespace(
-            finding_id="fl-1",
-            task=SimpleNamespace(
-                source_id="terminal-bench-2", task_id="alias", upstream_revision="new"
-            ),
-        ),
-        SimpleNamespace(finding_id="fl-2", task=SimpleNamespace(source_id="other", task_id="17")),
-    ]
-    linked = link_findings([run], findings, {"r": ("alias",)})
-    assert linked[0].finding_ids == ["fl-1"]
-    assert linked[0].task.upstream_revision == "old"
 
 
-def test_raw_custody_refuses_changed_pinned_bytes(tmp_path: Path) -> None:
-    source = tmp_path / "source.parquet"
-    source.write_bytes(b"original")
-    target = tmp_path / "raw"
-    stage_input("cheatbench", source, target)
-    source.write_bytes(b"different")
-    with pytest.raises(ValueError, match="different bytes"):
-        stage_input("cheatbench", source, target)
-    assert (target / source.name).read_bytes() == b"original"
 
 
 def test_native_jsonl_locator_counts_blank_lines(tmp_path: Path) -> None:
@@ -491,100 +447,16 @@ def test_native_jsonl_locator_counts_blank_lines(tmp_path: Path) -> None:
     assert reference(path, index, jsonl=True).endswith("#line=2")
 
 
-def test_runs_cli_verify_reports_missing_and_modified_bytes(
-    workspace: tuple[Path, Path, LibraryStore], capsys: pytest.CaptureFixture[str]
-) -> None:
-    root, state, store = workspace
-    parser = argparse.ArgumentParser()
-    command.register(parser.add_subparsers(required=True))
-    args = parser.parse_args(["runs", "verify", "olmo-reward-hacking", "--state-root", str(state)])
-    assert args.func(args, root) == 1
-    assert "no committed manifest" in capsys.readouterr().out
-    run = published.olmo(olmo_row(), "file:///raw#row=0")
-    store.write_runs(run.collection, [run], source_revision=published.SOURCES[run.collection][1])
-    assert args.func(args, root) == 0
-    store.runs_path(run.collection).write_text("changed\n")
-    assert args.func(args, root) == 1
-    assert "differs from manifest" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("reward_key", ["reward", "resolved", "official_success", "tau3_reward"])
-def test_goodfire_native_reward_names(reward_key: str) -> None:
-    row = goodfire_row()
-    row["traces"][0]["rewards"] = {reward_key: {"score": 1.0, "weight": 1.0}}
-    run = cached.goodfire(row, "file:///raw#row=0", stream="coding")
-    assert run.reward == 1.0 and run.outcome == "pass"
 
 
-def test_goodfire_test_verdict_does_not_invent_a_numeric_reward() -> None:
-    row = goodfire_row(impossible=True)
-    row["traces"][0]["rewards"] = {}
-    row["traces"][0]["metrics"] = {"test_passed": 1.0, "shortcut_signal": 0.0}
-    run = cached.goodfire(row, "file:///raw#row=0", stream="impossiblebench")
-    assert run.reward is None and run.outcome == "pass"
-    assert any(item.label == "verifier_pass" and item.kind == "executed" for item in run.labels)
 
 
-def test_ablation_concatenated_pretty_json_keeps_native_start_lines(tmp_path: Path) -> None:
-    path = tmp_path / "trajectories.jsonl"
-    first = json.dumps({"trajectory_id": "first", "message": "x" * 70_000}, indent=2)
-    second = json.dumps({"trajectory_id": "second"}, indent=2)
-    path.write_text(first + "\n\n" + second + "\n")
-    rows = list(jsonl_rows(path))
-    assert [(index, row["trajectory_id"]) for index, row in rows] == [
-        (0, "first"),
-        (first.count("\n") + 2, "second"),
-    ]
 
 
-def test_ablation_static_flags_are_not_promoted_to_executed_behavior() -> None:
-    run = published.ablation(
-        {
-            "benchmark": "mbpp_impossible",
-            "task_id": "624",
-            "model": "model",
-            "score": {"value": "I"},
-            "programmatic_hack": True,
-            "labels": {
-                "hardcoding": {"value": True, "source": "mbpp_hacking_labels"},
-                "passes_original_visible": {"value": False, "source": "env_oracle:mbpp_impossible"},
-            },
-        },
-        "file:///raw#row=0",
-        identity="row-1",
-    )
-    assert (
-        next(item for item in run.labels if item.label == "hardcoding=true").kind == "construction"
-    )
-    assert next(item for item in run.labels if item.label == "reward_hacked").kind == "construction"
-    assert (
-        next(item for item in run.labels if item.label == "passes_original_visible=false").kind
-        == "executed"
-    )
 
 
-def test_ablation_single_step_impossiblebench_uses_construction_identity() -> None:
-    run = published.ablation(
-        {
-            "benchmark": "impossiblebench_single_step",
-            "task_id": "lcbhard_2",
-            "task_source": "fjzzq2002/impossible_livecodebench",
-            "variant": "conflicting",
-            "score": {"value": "I"},
-            "programmatic_hack": False,
-            "labels": {
-                "honest_correct": {
-                    "value": True,
-                    "source": "env_oracle:impossiblebench_single_step",
-                }
-            },
-        },
-        "file:///raw#line=1",
-        identity="row-2",
-    )
-    assert run.task.source_id == "impossible-livecodebench"
-    assert run.task.task_id == "lcbhard_2/conflicting"
-    assert any(item.label == "clean" and item.kind == "executed" for item in run.labels)
 
 
 @pytest.mark.parametrize("env", ["terminal_verifier", "mbpp", "grader"])

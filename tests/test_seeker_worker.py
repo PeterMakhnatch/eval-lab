@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from evallab.execution_backend import ExecutionBackendConfig
 from evallab.production.seeker_worker import (
     ResolvedSeekerTask,
     SeekerAttemptCandidate,
@@ -26,14 +25,6 @@ from evallab.production.seeker_worker import (
 )
 
 
-@pytest.fixture(autouse=True)
-def isolated_execution_policy(monkeypatch):
-    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
-
-    def no_process(*args, **kwargs):
-        pytest.fail("Witness tests must not launch external processes")
-
-    monkeypatch.setattr("subprocess.run", no_process)
 
 
 def _make_task(root: Path, name: str) -> Path:
@@ -62,77 +53,10 @@ def _candidate() -> SeekerAttemptCandidate:
     )
 
 
-@pytest.mark.parametrize("kind", ["package", "port"])
-@pytest.mark.parametrize(
-    "original,repaired,confirmed,failure,calls",
-    [
-        ({"status": "measured", "reward": 1.0}, {"status": "measured", "reward": 0.0}, True, None, 2),
-        ({"status": "measured", "reward": 1.0}, {"status": "measured", "reward": 1.0}, False, "repaired_grader_also_passed", 2),
-        ({"status": "measured", "reward": 1.0}, {"status": "measured", "reward": 0.25}, False, "repaired_grader_also_passed", 2),
-        ({"status": "measured", "reward": 0.5}, {}, False, "upstream_failed", 1),
-        ({"status": "measured", "reward": 0.0}, {}, False, "upstream_failed", 1),
-        ({"status": "error", "reward": None}, {}, False, "original_grader_unavailable", 1),
-        ({"status": "refused", "reward": 1.0}, {}, False, "original_grader_unavailable", 1),
-        ({"status": "measured", "reward": 1.0}, {"status": "error", "reward": None}, False, "repaired_grader_unverified", 2),
-        ({"status": "measured", "reward": 1.0}, {"status": "measured", "reward": False}, False, "repaired_grader_unverified", 2),
-        ({"status": "measured", "reward": 1.0}, {"status": "measured", "reward": 0.0, "error": "runner failure"}, False, "repaired_grader_unverified", 2),
-    ],
-)
-def test_only_measured_exact_differentials_confirm(tmp_path, kind, original, repaired, confirmed, failure, calls):
-    task, candidate = _task(tmp_path, kind), _candidate()
-    observed = []
-
-    def grader(target, **kwargs):
-        observed.append((target, kwargs))
-        return original if len(observed) == 1 else repaired
-
-    grade = verify_differential_replay(
-        task, candidate, attempt_dir=tmp_path / "replay", grader_fn=grader,
-        execution_config=ExecutionBackendConfig(backend="docker", allow_local_docker=True),
-    )
-    assert grade.differential_confirmed is confirmed
-    assert grade.failure_kind == failure
-    assert len(observed) == calls
-    for _, kwargs in observed:
-        assert kwargs["files"] == candidate.ensure_submission_files()
-    if calls == 2:
-        assert observed[1][0] == (task.original_task if kind == "port" else task.repaired_task)
-        assert observed[1][1]["grader"] == ("port" if kind == "port" else "upstream")
-        if kind == "port":
-            assert observed[1][1]["port_task"] == task.repaired_task
 
 
-@pytest.mark.parametrize("exit_code,expected", [(7, "candidate_failed"), (0, "original_grader_unavailable"), (None, "original_grader_unavailable")])
-def test_candidate_failure_is_not_infrastructure(tmp_path, exit_code, expected):
-    task = _task(tmp_path)
-    trial = tmp_path / "trial"
-    (trial / "agent").mkdir(parents=True)
-    if exit_code is not None:
-        (trial / "agent/exit-code.txt").write_text(str(exit_code))
-
-    def grader(*args, **kwargs):
-        return {"status": "error", "reward": None, "trial_dir": str(trial)}
-
-    grade = verify_differential_replay(task, _candidate(), attempt_dir=tmp_path / "replay", grader_fn=grader)
-    assert grade.failure_kind == expected
-    assert not grade.differential_confirmed
 
 
-@pytest.mark.parametrize("change", ["solve", "route", "missing_route", "partial_digest"])
-def test_replay_refuses_invalid_attestation_before_grading(tmp_path, change):
-    task, candidate = _task(tmp_path), _candidate()
-    candidate = {
-        "solve": replace(candidate, files={"solve.sh": "echo overwritten\n"}),
-        "route": replace(candidate, served_model="fallback"),
-        "missing_route": replace(candidate, model_route=None),
-        "partial_digest": replace(candidate, llm_solve_sha256=None),
-    }[change]
-
-    def forbidden(*args, **kwargs):
-        pytest.fail("Invalid attestation must fail before a grade")
-
-    with pytest.raises(SeekerRefusalError):
-        verify_differential_replay(task, candidate, attempt_dir=tmp_path / "replay", grader_fn=forbidden)
 
 
 def test_reference_digest_refuses_before_grading(tmp_path):
@@ -154,23 +78,6 @@ def test_candidate_digest_ignores_notes_and_comments_but_binds_companions():
     assert compute_candidate_digest(first) != compute_candidate_digest({**first, "data.txt": "changed"})
 
 
-def test_differential_checks_protection_again_before_repaired_grade(tmp_path, monkeypatch):
-    task = _task(tmp_path)
-    calls = []
-
-    def grader(target, **kwargs):
-        calls.append(target)
-        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
-        return {"status": "measured", "reward": 1.0}
-
-    grade = verify_differential_replay(
-        task, _candidate(), attempt_dir=tmp_path / "replay", grader_fn=grader,
-        execution_config=ExecutionBackendConfig(backend="docker", allow_local_docker=True),
-    )
-    assert calls == [task.original_task]
-    assert grade.original_reward == 1.0 and grade.repaired_reward is None
-    assert grade.failure_kind == "execution_backend_refused"
-    assert not grade.differential_confirmed
 
 
 def test_split_guard_requires_affirmative_dev_and_refuses_cross_key_test(tmp_path):

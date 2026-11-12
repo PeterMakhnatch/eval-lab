@@ -5,13 +5,11 @@ import os
 import sqlite3
 from contextlib import closing
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 import evallab.production.cli as production_cli
 from evallab import cli
-from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
 
 DATASET = "tb4-audit-v1"
 DEV = "public-dev"
@@ -53,61 +51,12 @@ def _path(root: Path) -> Path:
     return root / "derived/production/prod-queue.sqlite"
 
 
-def _seed(root: Path, *systems: str) -> None:
-    path = _path(root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with ContinuousWorkQueue(path, registry=CorpusRegistry(root)) as queue:
-        for system in systems:
-            queue.append_event({
-                "event_id": "cli-job:" + system,
-                "run_id": "cli-regression",
-                "system": system,
-                "event_type": JOB_TYPES[system],
-                "status": "confirmed",
-                "payload": {"dataset_id": DATASET, "item_id": DEV},
-            })
 
 
-def _state(root: Path) -> dict[str, Any]:
-    with ContinuousWorkQueue(_path(root), registry=CorpusRegistry(root)) as queue:
-        return queue.queue_snapshot()
 
 
-def test_ingest_persists_admission_idempotently_and_reports_sealed_exclusions(
-    corpus_root: Path, capsys: pytest.CaptureFixture[str],
-) -> None:
-    argv = ["prod", "ingest", "--dataset", DATASET]
-    assert cli.run_cli(argv, workspace=corpus_root) == 0
-    first_text = capsys.readouterr().out
-    first = json.loads(first_text)
-    assert first["ingest"]["totals"]["admitted"] == 1
-    assert first["ingest"]["totals"]["excluded"] == 1
-    assert first["ingest"]["totals"]["blocked"] == 1
-    assert SEALED not in first_text
-    before = _state(corpus_root)
-    assert before["depth"] == 0
-    assert cli.run_cli(argv, workspace=corpus_root) == 0
-    second_text = capsys.readouterr().out
-    assert SEALED not in second_text
-    assert _state(corpus_root) == before
-    with ContinuousWorkQueue(_path(corpus_root), registry=CorpusRegistry(corpus_root)) as queue:
-        events = queue.read_events(limit=100)
-    assert any(event["event_type"] == "queue.corpus_admitted" for event in events)
-    assert SEALED not in json.dumps(events)
 
 
-def test_status_reads_persistent_jobs_without_claiming_or_publishing(
-    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    _seed(corpus_root, "misalignment")
-    before = _state(corpus_root)
-    assert cli.run_cli(["prod", "status"], workspace=corpus_root) == 0
-    receipt = json.loads(capsys.readouterr().out)
-    assert receipt["backend"] == "sqlite"
-    assert receipt["queue"]["depth"] == 1
-    assert receipt["queue"]["jobs"] == {"queued": 1, "leased": 0, "completed": 0}
-    assert receipt["queue"]["active_leases"] == []
-    assert _state(corpus_root) == before
 
 
 def test_explicit_root_and_relative_database_work_on_either_side_of_subcommand(
@@ -126,25 +75,6 @@ def test_explicit_root_and_relative_database_work_on_either_side_of_subcommand(
     assert not (workspace / "queues/explicit.sqlite").exists()
 
 
-def test_connection_error_receipt_redacts_encoded_credentials_and_environment_token(
-    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    token = "sensitive-operator-token"
-    database = "postgresql://user:password%2Fwith%20spaces@localhost/lab"
-    monkeypatch.setenv("EVALLAB_OPERATOR_TOKEN", token)
-
-    def broken_open(*_: Any) -> Any:
-        raise OSError(f"{database} password/with spaces {token}")
-
-    monkeypatch.setattr(production_cli, "_open_queue", broken_open)
-    assert cli.run_cli([
-        "prod", "ingest", "--database", database,
-    ], workspace=corpus_root) == 2
-    captured = capsys.readouterr()
-    receipt = json.loads(captured.err)
-    assert receipt["error"]["type"] == "OSError"
-    for secret in (token, database, "password/with spaces"):
-        assert secret not in captured.out + captured.err
 
 
 def _actor_source(root: Path) -> tuple[Path, Path, str, bytes]:
@@ -365,98 +295,11 @@ def test_project_actor_refuses_output_under_the_source_cas_before_writing(
 
 
 
-@pytest.mark.parametrize("explicit", (False, True))
-def test_status_missing_queue_never_creates_a_database_or_parent(
-    corpus_root: Path, capsys: pytest.CaptureFixture[str], explicit: bool,
-) -> None:
-    path = corpus_root / "missing-parent/queue.sqlite" if explicit else _path(corpus_root)
-    options = ["--database", str(path)] if explicit else []
-    assert not path.parent.exists()
-    assert cli.run_cli(["prod", "status", *options], workspace=corpus_root) != 0
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "existing queue database" in json.loads(captured.err)["error"]["message"]
-    assert not path.exists() and not path.parent.exists()
 
 
-@pytest.mark.parametrize("partial_queue", (False, True))
-def test_status_non_queue_sqlite_is_byte_identical_and_has_no_new_tables_or_sidecars(
-    corpus_root: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str], partial_queue: bool,
-) -> None:
-    path = tmp_path / "cloud.sqlite"
-    with closing(sqlite3.connect(path)) as connection:
-        connection.execute("CREATE TABLE corpus_tasks (task_id TEXT PRIMARY KEY, body TEXT)")
-        connection.execute("INSERT INTO corpus_tasks VALUES ('private-task', 'immutable evidence')")
-        if partial_queue:
-            connection.execute("CREATE TABLE queue_state (singleton INTEGER, last_seq INTEGER)")
-        connection.commit()
-    before = path.read_bytes()
-    files_before = {item.name for item in tmp_path.iterdir()}
-    assert cli.run_cli(["prod", "status", "--database", str(path)], workspace=corpus_root) != 0
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "queue database" in json.loads(captured.err)["error"]["message"]
-    assert path.read_bytes() == before
-    assert {item.name for item in tmp_path.iterdir()} == files_before
-    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as connection:
-        tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_schema WHERE type='table'")}
-    assert tables == ({"corpus_tasks", "queue_state"} if partial_queue else {"corpus_tasks"})
 
 
-def test_status_real_queue_uses_existing_state_without_changing_any_bytes_or_creating_files(
-    corpus_root: Path, capsys: pytest.CaptureFixture[str],
-) -> None:
-    _seed(corpus_root, "misalignment", "task_quality")
-    path = _path(corpus_root)
-    before = {item.name: item.read_bytes() for item in path.parent.iterdir() if item.is_file()}
-    assert cli.run_cli(["prod", "status"], workspace=corpus_root) == 0
-    captured = capsys.readouterr()
-    assert captured.err == ""
-    receipt = json.loads(captured.out)
-    assert receipt["backend"] == "sqlite" and receipt["queue"]["depth"] == 2
-    assert receipt["queue"]["jobs"] == {"queued": 2, "leased": 0, "completed": 0}
-    assert receipt["queue"]["last_seq"] == 2
-    assert {item.name: item.read_bytes() for item in path.parent.iterdir() if item.is_file()} == before
 
 
-def test_status_reads_an_open_queue_including_its_uncheckpointed_wal_without_writing(
-    corpus_root: Path, capsys: pytest.CaptureFixture[str],
-) -> None:
-    _seed(corpus_root, "misalignment")
-    path = _path(corpus_root)
-    with ContinuousWorkQueue(path, registry=CorpusRegistry(corpus_root)) as queue:
-        queue.append_event({
-            "event_id": "live-status-job", "run_id": "cli-regression", "system": "task_quality",
-            "event_type": JOB_TYPES["task_quality"], "status": "confirmed",
-            "payload": {"dataset_id": DATASET, "item_id": DEV},
-        })
-        wal = path.with_name(path.name + "-wal")
-        shm = path.with_name(path.name + "-shm")
-        assert wal.is_file() and shm.is_file()
-        entries_before = set(path.parent.iterdir())
-        database_before, wal_before = path.read_bytes(), wal.read_bytes()
-        assert cli.run_cli(["prod", "status"], workspace=corpus_root) == 0
-        captured = capsys.readouterr()
-        assert captured.err == ""
-        receipt = json.loads(captured.out)
-        assert receipt["backend"] == "sqlite" and receipt["queue"]["depth"] == 2
-        assert receipt["queue"]["jobs"] == {"queued": 2, "leased": 0, "completed": 0}
-        assert receipt["queue"]["last_seq"] == 2
-        assert set(path.parent.iterdir()) == entries_before
-        assert path.read_bytes() == database_before and wal.read_bytes() == wal_before
 
 
-@pytest.mark.parametrize("suffix", ("-wal", "-shm"))
-def test_status_refuses_an_incomplete_wal_snapshot_without_creating_the_missing_sidecar(
-    corpus_root: Path, capsys: pytest.CaptureFixture[str], suffix: str,
-) -> None:
-    _seed(corpus_root, "misalignment")
-    path = _path(corpus_root)
-    path.with_name(path.name + suffix).write_bytes(b"unpaired sidecar")
-    before = {entry.name: entry.read_bytes() for entry in path.parent.iterdir()}
-    assert cli.run_cli(["prod", "status"], workspace=corpus_root) != 0
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    message = json.loads(captured.err)["error"]["message"]
-    assert "reading queue status" in message and "projection" not in message
-    assert {entry.name: entry.read_bytes() for entry in path.parent.iterdir()} == before

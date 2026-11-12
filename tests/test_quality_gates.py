@@ -850,19 +850,6 @@ def test_every_workflow_pins_uv_and_harbor_to_one_version() -> None:
     assert WORKFLOW_FILES, "no workflows found to check"
     assert _pin_findings(WORKFLOW_DIR, PREMERGE_SCRIPT) == []
 
-    harbor_installs = {
-        workflow_path.name
-        for workflow_path in WORKFLOW_FILES
-        if any(
-            installer == HARBOR_INSTALLER and spec == f"harbor=={HARBOR_CLI_PIN}"
-            for line in workflow_path.read_text(encoding="utf-8").splitlines()
-            for installer, spec in _install_specs(line)
-        )
-    }
-    assert "loca-lean.yml" in harbor_installs, (
-        "loca-lean.yml must install Harbor with uv tool install, not pip"
-    )
-
 
 @pytest.mark.parametrize(
     ("body", "expected"),

@@ -362,7 +362,12 @@ def test_cli_analyst_commands(tmp_path: Path) -> None:
         if not path.name.endswith(".trajectory.json")
     ]
     assert len(conclusions) == 1
-    assert conclusions[0]["model"] == "stub"
+    with duckdb.connect(":memory:") as con:
+        rows = con.execute(
+            "SELECT analysis_id, trial_id FROM read_parquet(?)",
+            [str(derived / "analyses" / "analyses.parquet")],
+        ).fetchall()
+    assert rows == [(conclusions[0]["analysis_id"], conclusions[0]["trial_id"])]
 
 
 @pytest.mark.parametrize(

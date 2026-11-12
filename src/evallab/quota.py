@@ -39,18 +39,14 @@ Boundaries this module keeps deliberately:
   not count the same reading twice.
 - It measures. It does not authorise, and it imports nothing from the policy
   gate.
-
-Command line: ``python -m evallab.quota [--json] [ROOT ...]``.
 """
 
 from __future__ import annotations
 
-import argparse
 import contextlib
 import json
 import math
 import subprocess
-import sys
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, date, datetime, timedelta
@@ -62,12 +58,10 @@ from pydantic import BaseModel, Field
 from evallab.execution_contracts import (
     MIMO_AGENT,
     TERMINUS_AGENT,
-    TERMINUS_LOCAL_MODEL_SELECTOR,
     ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS,
     is_breaker_selfhosted_model,
     is_mimo_selfhosted_model,
     is_openrouter_model,
-    is_tinker_terminus_model,
 )
 from evallab.results import discover_job_dirs
 
@@ -91,16 +85,12 @@ PROVIDER_SUBSCRIPTIONS: dict[str, str] = {
 
 def provider_subscription_description(agent: str, model: str | None = None) -> str:
     if agent in {TERMINUS_AGENT, MIMO_AGENT}:
-        if model == TERMINUS_LOCAL_MODEL_SELECTOR:
-            return "local Ollama compute (no provider API charge)"
         if is_breaker_selfhosted_model(model):
             return "self-hosted breaker GPU (time-billed; token ceilings do not cap GPU spend)"
         if is_mimo_selfhosted_model(model):
             return "self-hosted Modal SGLang GPU (time-billed, no per-token charge)"
         if is_openrouter_model(model):
             return "OpenRouter metered API balance (pinned upstream endpoint)"
-        if is_tinker_terminus_model(model):
-            return "Thinking Machines Tinker API balance"
         if model in ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS:
             return "Z.ai Open Platform standard-API balance"
     return PROVIDER_SUBSCRIPTIONS.get(agent, f"{agent} subscription/policy state")
@@ -1158,170 +1148,9 @@ def load_quota_report(
     )
 
 
-def _duration(seconds: float | None) -> str:
-    if seconds is None:
-        return label("unavailable")
-    hours, remainder = divmod(int(seconds), 3600)
-    minutes, secs = divmod(remainder, 60)
-    if hours:
-        return f"{hours}h{minutes:02d}m"
-    return f"{minutes}m{secs:02d}s" if minutes else f"{secs}s"
-
-
-def _instant(moment: datetime | None) -> str:
-    return moment.isoformat() if moment is not None else label("unavailable")
-
-
-def _totals_line(name: str, totals: ConsumptionTotals) -> str:
-    tokens = (
-        f"{totals.uncached_input_tokens:>9,} uncached in  "
-        f"{totals.cache_tokens:>9,} cached  {totals.output_tokens:>7,} out"
-        if totals.tokens_availability == "observed"
-        else f"tokens {label('unavailable')}".ljust(44)
-    )
-    return (
-        f"  {name:<44} {totals.paid_trials:>3} trials  "
-        f"{totals.trials_with_observed_usage:>3} used  "
-        f"{totals.model_turns:>4} turns  {tokens}  "
-        f"wall {_duration(totals.job_wall_clock_seconds)}"
-    )
-
-
-def _headroom_lines(headroom: Headroom, resolution: float | None) -> list[str]:
-    lines = ["", f"REMAINING on the subscription (scope: {headroom.scope}, NOT the lab)"]
-    if headroom.availability != "observed":
-        return lines + [
-            f"  remaining allowance                  {label('unavailable')}",
-            f"    reason: {headroom.reason}",
-        ]
-    lines += [
-        f"  used_percent                         {headroom.used_percent} {label('observed')}",
-        f"  remaining_percent                    {headroom.remaining_percent} {label('observed')}",
-        f"  limit_id / plan_type                 "
-        f"{headroom.limit_id or label('unavailable')} / "
-        f"{headroom.plan_type or label('unavailable')}",
-        f"  window                               {headroom.window_minutes} minutes "
-        f"({_duration((headroom.window_minutes or 0) * 60)})",
-        f"  resets_at                            {_instant(headroom.resets_at)}",
-        f"  observed_at                          {_instant(headroom.observed_at)}",
-        f"  staleness                            {_duration(headroom.staleness_seconds)}",
-        f"  credits_balance                      "
-        f"{headroom.credits_balance or label('unavailable')}",
-        f"  hard stop                            {headroom.hard_stop}",
-        f"    {headroom.hard_stop_note}",
-        f"  rate_limit_reached_type              "
-        f"{headroom.rate_limit_reached_type or label('unavailable')}",
-        f"  counter resolution                   "
-        f"{f'{resolution} percentage point' if resolution else label('unavailable')}",
-        "    consumption below one point of the window registers as no movement",
-        f"  source                               {headroom.source}",
-    ]
-    return lines
-
-
-def render_report(report: QuotaReport) -> str:
-    """Human-readable report. Every figure carries its provenance label.
-
-    Remaining allowance comes first because it is the constraint that binds;
-    consumption follows because it is what the lab controls.
-    """
-    ledger = report.consumed
-    totals = ledger.totals()
-    lines: list[str] = [
-        "Subscription quota accounting",
-        f"generated_at: {report.generated_at.isoformat()}",
-        f"paid agents:  {', '.join(report.paid_agents)}",
-        f"roots:        {', '.join(str(root) for root in report.roots)}",
-    ]
-    lines += _headroom_lines(report.headroom, report.counter_resolution_percent())
-    lines += [
-        f"  lab's share of that percentage       {label(report.headroom.lab_attributable)}",
-        f"    reason: {report.headroom.lab_attributable_reason}",
-        "",
-        "CONSUMED by the lab (scope: this lab only)",
-        f"  paid jobs                            {totals.jobs} {label('observed')}",
-        f"  paid trials dispatched               {totals.paid_trials} {label('observed')}",
-        f"  with observed usage                  {totals.trials_with_observed_usage} "
-        f"{label('observed')}",
-        f"  without usage evidence               {totals.trials_without_usage_evidence} "
-        f"{label('observed')}",
-        f"  model turns                          {totals.model_turns} {label('observed')}",
-    ]
-    if totals.tokens_availability == "observed":
-        ratio = totals.cached_input_ratio
-        lines += [
-            f"  uncached input tokens                {totals.uncached_input_tokens:,} "
-            f"{label('observed')}",
-            f"  cached input tokens                  {totals.cache_tokens:,} {label('observed')}",
-            f"  input tokens (incl. cached)          {totals.input_tokens:,} {label('observed')}",
-            f"  output tokens                        {totals.output_tokens:,} {label('observed')}",
-            f"  cached share of input                {ratio:.1%} {label('observed')}"
-            if ratio is not None
-            else f"  cached share of input                {label('unavailable')}",
-            f"    {CACHED_WEIGHTING_NOTE}",
-        ]
-    else:
-        lines.append(f"  tokens                               {label('unavailable')}")
-    lines += [
-        f"  job wall clock                       {_duration(totals.job_wall_clock_seconds)} "
-        f"{label('observed')}",
-        f"  longest single trial                 {_duration(totals.longest_trial_seconds)} "
-        f"{label('observed')}",
-    ]
-    if totals.attempts_declared is not None:
-        lines.append(
-            f"  attempt slots declared (per job)     {totals.attempts_declared} {label('observed')}"
-        )
-    if totals.reported_cost_usd is not None:
-        lines.append(
-            f"  reported_cost_usd                    {totals.reported_cost_usd:.4f} "
-            f"{label('observed')} -- API list-price equivalent, NOT subscription spend"
-        )
-    if totals.exception_types:
-        rendered = ", ".join(f"{name}={count}" for name, count in totals.exception_types.items())
-        lines.append(f"  exceptions                           {rendered} {label('observed')}")
-
-    for title, grouping in (
-        ("by day", ledger.by_day()),
-        ("by task", ledger.by_task()),
-        ("by agent", ledger.by_agent()),
-        ("by policy rule", ledger.by_policy_rule()),
-        ("by job", ledger.by_job()),
-    ):
-        lines += ["", f"CONSUMED {title}"]
-        lines += [_totals_line(name, group) for name, group in grouping.items()]
-
-    lines += ["", f"snapshots harvested: {len(report.observations)} {label('observed')}"]
-    return "\n".join(lines)
-
 
 def default_roots(repository_root: Path) -> tuple[Path, ...]:
     """Job directories a lab checkout keeps paid-trial evidence in."""
     return (repository_root / "runs", repository_root / "research" / "evidence" / "runs")
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        prog="python -m evallab.quota",
-        description="Report subscription consumption and, when observable, remaining quota.",
-    )
-    parser.add_argument(
-        "roots",
-        nargs="*",
-        type=Path,
-        help="Harbor job directories or roots to scan (default: this checkout's run roots).",
-    )
-    parser.add_argument("--json", action="store_true", help="Emit the report as JSON.")
-    arguments = parser.parse_args(argv)
-    repository_root = Path(__file__).resolve().parents[2]
-    roots = tuple(arguments.roots) or default_roots(repository_root)
-    report = load_quota_report(roots, now=datetime.now(UTC))
-    if arguments.json:
-        print(report.model_dump_json(indent=2))
-    else:
-        print(render_report(report))
-    return 0
-
-
-if __name__ == "__main__":  # pragma: no cover - module entry point
-    sys.exit(main())

@@ -280,15 +280,6 @@ def wave_cost_estimate(n_trials: int) -> CampaignCostEstimate:
     )
 
 
-def fenced_spend_bound(budget_usd: float) -> float:
-    """Realized-spend bound the HAR-175 budget gate enforces (HAR-188).
-
-    The gate refuses a launch once reservations plus settled actuals plus the
-    candidate estimate exceed the budget, so at most one wave of already
-    running trials can still settle: ``budget + 19 * $0.60``.
-    """
-    return round(budget_usd + DAYTONA_WAVE_CONCURRENCY * HAR168_TRIAL_CEILING_USD, 2)
-
 
 class ExperimentCampaign(_FrozenContract):
     """The approvable content of one experiment campaign (HAR-175)."""

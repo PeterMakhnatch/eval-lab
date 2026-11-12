@@ -65,11 +65,6 @@ from evallab.execution_contracts import (
 
 SELFHOSTED_KEY_ENV = "MIMO_SELFHOSTED_API_KEY"
 
-#: Bounded warm-up window: ~10 minutes covers the observed ~4 minute cold
-#: start with headroom; configurable per tick.
-DEFAULT_SELFHOSTED_WARMUP_SECONDS = 600.0
-#: Single probe attempt timeout.
-DEFAULT_SELFHOSTED_PROBE_TIMEOUT_SECONDS = 10.0
 #: Backoff between probe attempts while the endpoint reports cold.
 PROBE_BACKOFF_BASE_SECONDS = 2.0
 PROBE_BACKOFF_CAP_SECONDS = 10.0

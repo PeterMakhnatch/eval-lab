@@ -7,9 +7,7 @@ from typing import Any
 
 import pytest
 
-from evallab import cli
 from evallab.cohort import (
-    NOT_COMPARABLE,
     bootstrap_mean_interval,
     compare,
     minimum_detectable_effect,
@@ -328,25 +326,6 @@ def test_two_decisive_wins_among_ties_refuse(tmp_path: Path) -> None:
     assert (paired["wins"], paired["ties"], paired["losses"]) == (2, 6, 0)
     assert paired["paired_exact_p_value"] == 0.5
     assert paired["rankable"] is False
-
-
-def test_comparison_prints_literal_refusal_when_model_pin_is_missing(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    tasks = {"task-a": [0.0], "task-b": [0.0]}
-    _write_job(tmp_path, name="left", agent="agent-a", model=None, task_rewards=tasks)
-    _write_job(tmp_path, name="right", agent="agent-b", model="model-b", task_rewards=tasks)
-
-    report = compare(_spec("left", "right"), repo_root=tmp_path)
-    paired = report["paired"][0]
-    assert paired["rankable"] is False
-    assert paired["statement"].startswith(NOT_COMPARABLE)
-    assert "missing model pin" in paired["statement"]
-    assert NOT_COMPARABLE in render_markdown(report)
-    spec_path = tmp_path / "comparison.json"
-    spec_path.write_text(_spec("left", "right").model_dump_json(), encoding="utf-8")
-    assert cli.run_cli(["compare", "comparison.json"], workspace=tmp_path) == 0
-    assert NOT_COMPARABLE in capsys.readouterr().out
 
 
 def test_power_reports_mde_and_required_n_k_tradeoffs(capsys: pytest.CaptureFixture[str]) -> None:

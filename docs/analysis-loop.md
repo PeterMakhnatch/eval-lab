@@ -115,7 +115,6 @@ conservative uncached accounting is not an invoice.
 
 ### Per-run report
 
-`uv run evallab report run <trial_dir | job_dir> [--json] [--output-dir DIR]`
 renders one deterministic report per trial (schema `evallab.run_report/v1`) and,
 for a job directory, a rollup (`evallab.job_report/v1`). The Markdown is rendered
 from the JSON, so people and models read the same facts. It never writes into
@@ -126,7 +125,6 @@ events, errors, an optional benchmark domain section (`## Domain: <name>`,
 absent as `domain: null` when no plugin detects the trial), a bounded
 timeline (`--full-timeline` lists every step), and data-quality notes.
 
-Use `evallab report run` for cited run evidence. The `evallab traj pack` model-input factory is retired.
 The native report owns domain readers, baseline facts, evidence coverage, and custom feature eligibility.
 `interpretation/features.py` owns the shared quote-aware command parser. Semantic IR and settlement compliance remain separate.
 
@@ -141,7 +139,6 @@ the sidecars). Operator path (the adapter is an independent uv project so
 `sqlcipher3` never becomes an evallab core dependency):
 `uv run --project library/adapters/ceo_bench python -m ceo_bench <run_dir>`
 (prints the trial dir; `--out` overrides the `<run_dir>.trial` default),
-then `uv run evallab report run <trial_dir>`. An encrypted `world.nmdb`
 needs the published SQLCipher key (`NMDB_KEY`, else `--ceobench-src`
 `<checkout>`); without either it degrades to timing fallbacks with a reason.
 The section reports cash-by-sim-day, bankruptcy (cash below $0),
@@ -603,7 +600,6 @@ uv run evallab features runs/ovn-g5-000169-tuned --out state/g5
 
 ## Durable analyst records
 
-`evallab analyst run <trial-id>` uses a deterministic offline analyzer by default.
 An explicit `--model` selects a model-backed call and requires current approval.
 No model selector or credentials means no provider execution.
 `analyst list` and `analyst show <analysis-id> --json` inspect stored results.
@@ -659,10 +655,6 @@ No automatic retry can repeat a possibly paid call.
 Per-request kernel locks serialize execution and preserve another owner's lease path.
 
 ```sh
-uv run evallab analyze worker-plan
-uv run evallab analyze worker-status
-uv run evallab analyze worker-run-one <request-id>
-uv run evallab analyze worker-resolve-ambiguous <request-id> --action quarantine --actor <operator>
 ```
 
 Resolution records an attributed disposition. `--action retry` acknowledges possible prior spend.
@@ -673,7 +665,6 @@ Source trial bytes remain unchanged.
 
 ## Behavioral queries
 
-`evallab behavior [--json] [--task TASK] [--agent AGENT]` reads the attach surface.
 `sql/behavior.sql` owns the summary, effort, efficiency, struggle, step-shape, and token-economics views.
 Every metric reports its population and populated counts.
 Do not replace those views with broad direct Parquet globs.
@@ -731,7 +722,6 @@ Reflection needs a separately authorized training payload with task/package and 
 
 ## Receipt-bound program reports
 
-`evallab report program` reads `<program>/*/RESULT.md` without a model call.
 Start with `--index-only --output-dir <new-directory>`.
 `facts.json` preserves every number-bearing physical line with content-bound IDs and source location.
 `checks.json` records missing receipts, unmatched numbers, arithmetic, and receipt hashes.

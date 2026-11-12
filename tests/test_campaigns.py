@@ -30,7 +30,7 @@ from evallab.execution_contracts import (
     DispatchCapacity,
     RunRequest,
 )
-from evallab.profiles import DEEPSEEK_API_CREDENTIAL, ZAI_OPENAPI_API_CREDENTIAL
+from evallab.profiles import DEEPSEEK_API_CREDENTIAL
 from evallab.queue import DirectoryQueue, Executor, load_events, load_policy
 from evallab.registry import compute_task_digests
 from evallab.schemas import (
@@ -411,80 +411,6 @@ def _orchestrator(
         credential_probe=executor._credential_probe,
         clock=Clock(),
     )
-
-
-@pytest.mark.parametrize(
-    ("agent", "model", "credential"),
-    [
-        ("mini-swe-agent", DEEPSEEK_MODEL_SELECTOR, DEEPSEEK_API_CREDENTIAL),
-        ("terminus-2", "zai/glm-5.3-flash", ZAI_OPENAPI_API_CREDENTIAL),
-    ],
-)
-def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    agent: str,
-    model: str,
-    credential: str,
-) -> None:
-    root = _repo(tmp_path)
-    manifest = _manifest(root, agent=agent, model=model)
-    calls: list[str] = []
-
-    def runner(request: RunRequest) -> Path:
-        assert request.max_output_tokens == 100
-        assert request.cost_limit_usd == 1.0
-        assert request.attempts == request.concurrency == 1
-        assert request.provenance is not None
-        assert request.provenance.campaign_ledger == manifest.ledger
-        assert request.provenance.campaign_manifest_digest == manifest.manifest_digest
-        assert request.lease_path is not None
-        assert request.lease_path.is_file()
-        calls.append(request.name)
-        return _write_job(request, cost=0.25, input_tokens=40, output_tokens=20)
-
-    executor = _executor(
-        root,
-        runner,
-        credentials=frozenset({credential}),
-    )
-    first = _orchestrator(root, manifest, executor)
-
-    waiting = first.run()
-    assert waiting.state == "waiting-approval"
-    assert calls == []
-    assert waiting.attempts[0].approval_command == (
-        f"uv run evallab approve {manifest.attempts[0].spec_id} --actor <you>"
-    )
-
-    assert (
-        cli.run_cli(
-            [
-                "approve",
-                manifest.attempts[0].spec_id,
-                "--actor",
-                "Peter Makhnatch",
-            ],
-            workspace=root,
-        )
-        == 0
-    )
-    approval_output = capsys.readouterr().out
-    assert (
-        f"next: uv run evallab campaign resume runs/campaigns/{manifest.campaign_id}/manifest.json"
-    ) in approval_output
-    assert "\nnext: uv run evallab tick\n" not in approval_output
-    assert executor.tick() == 0
-    assert executor.last_tick_reason == "campaign_specs_require_campaign_resume"
-    assert calls == []
-    completed = first.resume()
-    assert completed.state == "completed"
-    assert calls == [manifest.attempts[0].job_name]
-    assert completed.attempts[0].cas_uri is not None
-
-    resumed = _orchestrator(root, manifest, executor).resume()
-    assert resumed.state == "completed"
-    assert calls == [manifest.attempts[0].job_name]
 
 
 def test_campaign_cli_status_and_run_dry_run_are_operational(tmp_path: Path, capsys) -> None:

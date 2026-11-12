@@ -226,10 +226,6 @@ These storage zones differ from the 4 provenance categories above.
 | z5 | Coordination records | Derived records, not execution evidence. |
 
 ```sh
-uv run evallab db attach --zones
-uv run evallab db attach --print-sql
-uv run evallab db attach --query 'SELECT COUNT(*) FROM z3.trial_facts'
-uv run evallab db attach --trace --zones
 ```
 
 ```python
@@ -270,7 +266,6 @@ Lineage uses the same front-matter parser.
 uv run evallab trials
 uv run evallab trials --runs-dir /absolute/path/to/job
 uv run evallab trials --sql 'SELECT campaign, legit, count(*) FROM trials GROUP BY campaign, legit'
-uv run evallab db attach --trace --query 'SELECT * FROM v_trace_cohort_raw'
 ```
 
 The census is a transient DuckDB view, not another stored database.
@@ -318,7 +313,6 @@ Do not repair a broken join by silently removing its row from the denominator.
 ## Lineage
 
 ```sh
-uv run evallab lineage /path/to/artifact --json
 ```
 
 Each generated artifact declares direct `inputs` as `path` or `id` plus a `sha256:` digest.

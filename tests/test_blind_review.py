@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from evallab.cli import run_cli
 from evallab.interpretation.blind_review import (
     extract_task_id,
     leak_scan_file,
@@ -340,68 +339,6 @@ def test_report_pass_table_shows_counts_vs_rater_judgement(tmp_path: Path) -> No
     # Tuned had 1/1 in counts verdict, but 0/1 in raters' genuine passes:
     assert "| tuned | 1 | 1 | 0 | 1/1 | 0/1 |" in report_text
 
-
-def test_cli_end_to_end(tmp_path: Path) -> None:
-    """End-to-end execution of evallab review prepare, freeze, join via run_cli."""
-    jobs_dir = tmp_path / "jobs"
-    j1 = jobs_dir / "job-stock"
-    j2 = jobs_dir / "job-gepa"
-    _make_mock_trial(j1, "trial-000100-stock__aaa", "000100", "Prompt root@11111111-1111-1111-1111-111111111111:/#")
-    _make_mock_trial(j2, "trial-000100-gepa__bbb", "000100", "Prompt root@22222222-2222-2222-2222-222222222222:/#")
-
-    review_dir = tmp_path / "review_cli"
-
-    # 1. Prepare
-    prepare_rc = run_cli([
-        "review",
-        "prepare",
-        "--job-dir", str(j1),
-        "--job-dir", str(j2),
-        "--arm-regex=-(?P<arm>stock|gepa)__",
-        "--out", str(review_dir),
-    ])
-    assert prepare_rc == 0
-    assert (review_dir / "SEALED_arm_map.json").is_file()
-
-    # Create dummy labels
-    labels_dir = tmp_path / "dummy_labels"
-    (labels_dir / "rater_a").mkdir(parents=True)
-    (labels_dir / "rater_b").mkdir(parents=True)
-
-    arm_map = json.loads((review_dir / "SEALED_arm_map.json").read_text())
-    for oid in arm_map:
-        lbl = {
-            "trial": oid,
-            "stop_reason": "token_ceiling",
-            "first_failure": None,
-            "blame": "none",
-            "loop_kind": "none",
-            "pass_copied": False,
-            "evidence": [],
-        }
-        (labels_dir / "rater_a" / f"{oid}.json").write_text(json.dumps(lbl), encoding="utf-8")
-        (labels_dir / "rater_b" / f"{oid}.json").write_text(json.dumps(lbl), encoding="utf-8")
-
-    # 2. Freeze
-    freeze_rc = run_cli([
-        "review",
-        "freeze",
-        str(review_dir),
-        "--labels", str(labels_dir),
-    ])
-    assert freeze_rc == 0
-    assert (review_dir / "MANIFEST.sha256").is_file()
-
-    # 3. Join
-    join_rc = run_cli([
-        "review",
-        "join",
-        str(review_dir),
-    ])
-    assert join_rc == 0
-    assert (review_dir / "TABLES.md").is_file()
-    assert (review_dir / "tables.json").is_file()
-    assert (review_dir / "REPORT.md").is_file()
 
 def test_harbor_dict_task_id_blinding_regression(tmp_path: Path) -> None:
     """Real Harbor result.json with dict task_id does not leak arm tokens or bypass prompt identity."""

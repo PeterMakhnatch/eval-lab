@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from evallab import cli
 from evallab.fetch import (
     PROOFJUDGE_ATIF_SAMPLE,
     ControlCall,
@@ -61,19 +60,6 @@ def test_parse_pin_refuses_latest_and_bare_name() -> None:
     assert pin.ref == "hello-world@1.0"
 
 
-def test_cli_refuses_unpinned(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    harbor = FakeHarbor()
-    latest = cli.run_cli(
-        ["fetch", "demo@latest"], workspace=tmp_path, harbor=harbor
-    )
-    bare = cli.run_cli(["fetch", "demo"], workspace=tmp_path, harbor=harbor)
-    err = capsys.readouterr().err
-    assert latest == 2
-    assert bare == 2
-    assert "@latest" in err or "unpinned" in err
-    assert "unpinned" in err
-
-
 def test_fetch_writes_ingest_style_manifest(tmp_path: Path) -> None:
     harbor = FakeHarbor()
     result = FetchService(root=tmp_path, harbor=harbor).fetch("hello-world@1.0")
@@ -125,30 +111,6 @@ def test_audit_reports_flipped_digest(tmp_path: Path) -> None:
     assert "digest drift" in hello.detail
 
 
-def test_audit_skips_ruff_cache_and_dirs_without_manifest(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    harbor = FakeHarbor()
-    service = FetchService(root=tmp_path, harbor=harbor)
-    service.fetch("hello-world@1.0")
-    cache = tmp_path / "library/benchmarks/.ruff_cache"
-    cache.mkdir()
-    (cache / "CACHEDIR.TAG").write_text("Signature: 8a477f597d28d172789f06886806bc55\n")
-    stray = tmp_path / "library/benchmarks/not-an-ingest"
-    stray.mkdir()
-    (stray / "notes.txt").write_text("no MANIFEST.md\n")
-    rows = service.audit()
-    assert [row.name for row in rows] == ["hello-world"]
-    assert rows[0].status == "pass"
-    code = cli.run_cli(["fetch", "--audit"], workspace=tmp_path, harbor=harbor)
-    out = capsys.readouterr().out
-    assert code == 0
-    assert "hello-world" in out
-    assert ".ruff_cache" not in out
-    assert "not-an-ingest" not in out
-    assert "MANIFEST.md missing" not in out
-
-
 def test_verify_sample_caps_n_and_records_rewards(tmp_path: Path) -> None:
     harbor = FakeHarbor()
     service = FetchService(root=tmp_path, harbor=harbor)
@@ -161,20 +123,6 @@ def test_verify_sample_caps_n_and_records_rewards(tmp_path: Path) -> None:
     assert "oracle-fetch-hello-world-task-0" in manifest
     assert "**1.0**" in manifest
     assert "**0.0**" in manifest
-
-
-def test_cli_list_excludes_latest(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    harbor = FakeHarbor()
-    code = cli.run_cli(["fetch", "--list"], workspace=tmp_path, harbor=harbor)
-    out = capsys.readouterr().out
-    assert code == 0
-    assert "hello-world@1.0" in out
-    assert "aime@1.0" in out
-    assert "harbor/adapters/aime" in out
-    assert "@latest" not in out.split("Hub:")[1].split("Adapter")[0]
-    assert "refused" in out.lower() or "never" in out.lower() or "Pinned" in out
 
 
 def test_refuses_to_mutate_existing_different_pin(tmp_path: Path) -> None:

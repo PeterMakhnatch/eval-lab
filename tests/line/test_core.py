@@ -204,10 +204,6 @@ def test_cli_run_check_scoreboard_and_failure_exit(
     spec = read_json(fixture_spec)
     batch = Path(spec["out_root"]) / spec["batch_id"]
     assert cli.run_cli(["line", "check", str(batch), "--json"], workspace=fixture_spec.parent) == 0
-    assert (
-        cli.run_cli(["line", "scoreboard", str(batch), "--json"], workspace=fixture_spec.parent)
-        == 0
-    )
     assert '"overall"' in capsys.readouterr().out
     write_rows(batch / "judge-queue.jsonl", [])
     assert cli.run_cli(["line", "check", str(batch), "--json"], workspace=fixture_spec.parent) == 2

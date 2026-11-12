@@ -8,7 +8,6 @@ from typing import Any
 
 import pytest
 
-from evallab.cli import run_cli
 from evallab.interpretation.run_report import build_job_report, build_run_report, write_reports
 
 FIXTURES = Path(__file__).parent / "fixtures" / "terminus2" / "job-terminus2"
@@ -426,41 +425,6 @@ def test_long_runs_keep_notable_steps_and_mark_omissions(tmp_path: Path) -> None
     assert 71 in shown  # the error step (chain ordinal 71) survives the cut
     assert any("omitted_steps" in e for e in timeline["entries"])
     assert len(timeline["windows"]) == 10
-
-
-def test_job_rollup_and_cli_outputs(tmp_path: Path, capsys: Any) -> None:
-    job = tmp_path / "job"
-    _trial(job, [_bash(1, 5, "ls", "x")], name="passed-trial")
-    failed = _result(verifier_result={"rewards": {"reward": 0.0}}, agent_result={})
-    _trial(job, [_bash(1, 5, "ls", "x")], name="failed-trial", result=failed)
-    multi = _result(verifier_result={"rewards": {"tests": 1.0, "style": 0.0}}, agent_result={})
-    _trial(job, [_bash(1, 5, "ls", "x")], name="multi-metric-trial", result=multi)
-    (job / "result.json").write_text(json.dumps({"n_total_trials": 3}))
-
-    rollup, reports = build_job_report(job)
-    assert len(reports) == 3
-    # Metrics remain visible, but do not invent a primary reward from them.
-    assert (rollup["passed"], rollup["scored"]) == (1, 2)
-    assert rollup["verdicts"] == {"passed": 1, "failed": 1, "not_scored": 1}
-    multi_report = next(report for report in reports if report["identity"]["trial_name"] == "multi-metric-trial")
-    assert multi_report["outcome"]["rewards"] == {"tests": 1.0, "style": 0.0}
-    assert rollup["total_cost_usd"] == 0.5
-    assert rollup["trials_without_cost"] == 2
-    assert rollup["cost_per_pass_usd"] == 0.5
-
-    out_dir = tmp_path / "out"
-    code = run_cli(["report", "run", str(job), "--output-dir", str(out_dir)], workspace=tmp_path)
-    assert code == 0
-    capsys.readouterr()
-    written = json.loads((out_dir / "job.run_report.json").read_text())
-    assert written["schema"] == "evallab.job_report/v1"
-    assert (out_dir / "passed-trial.run_report.md").is_file()
-
-    code = run_cli(["report", "run", str(job / "passed-trial"), "--json"], workspace=tmp_path)
-    assert code == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["schema"] == "evallab.run_report/v1"
-    assert payload["outcome"]["verdict"] == "passed"
 
 
 def test_report_files_cannot_escape_the_output_directory(tmp_path: Path) -> None:

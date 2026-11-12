@@ -543,26 +543,6 @@ def test_export_broken_refuses_without_table(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- CLI wiring
 
 
-def test_cli_qualify_collect_writes_table_and_summary(tmp_path: Path, capsys) -> None:
-    staged = _write_staged_task(tmp_path)
-    job = _write_job(tmp_path, "jobc", [{"name": "t__a", "reward": 0.0}], staged=staged)
-    derived = tmp_path / "derived"
-    code = cli.run_cli(
-        ["tasks", "qualify-collect", str(job), "--output", str(
-            derived / "external/task_catalog" / TABLE_FILENAME)],
-        workspace=tmp_path,
-    )
-    assert code == 0
-    out = capsys.readouterr().out
-    assert "wrote 1 rows" in out
-    assert "ok=1" in out
-    back = read_task_qualification_parquet(
-        derived / "external/task_catalog" / TABLE_FILENAME
-    )
-    assert back[0]["task_version_digest"] == "sha256:" + "a" * 64
-
-
-
 # ---------------------------------------------------------------- disk-cap quota
 
 

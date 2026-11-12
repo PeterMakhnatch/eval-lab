@@ -296,7 +296,6 @@ measures this fallback, review effort, strict coverage, and historical token loa
 ```bash
 uv run evallab line run ~/Developer/eval-lab-results/line-inputs/dev-example.json --json
 uv run evallab line check ~/Developer/eval-lab-results/line/dev-example --json
-uv run evallab line scoreboard ~/Developer/eval-lab-results/line/dev-example --json
 ```
 
 A batch ID cannot overwrite an existing batch. Choose a new ID for another run.
@@ -917,8 +916,6 @@ uv run evallab line watch ~/Developer/eval-lab-results/line-inputs/live.json \
   --state-dir ~/.local/state/evallab-prod-live/line-watch          # runs until stopped
 uv run evallab line watch live.json --state-dir DIR --once --json  # one cycle (for a scheduler)
 uv run evallab line check DIR            # every child's eight checks + 3 global checks
-uv run evallab line scoreboard DIR       # cumulative scoreboard over all increments
-uv run evallab line watchdog DIR         # ok / stalled / failed, exit 0 only for ok
 ```
 
 The config is `evallab.line_watch/v1`: the line spec's task status, AutoReview (`off` or

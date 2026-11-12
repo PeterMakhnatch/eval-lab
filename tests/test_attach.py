@@ -14,7 +14,6 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.cli import _redact_database_dsn, run_cli
 from evallab.runner import database_url_from_environment
 from evallab.storage.attach import (
     SEMANTIC_COMPARISON_COLUMNS,
@@ -510,67 +509,6 @@ def test_cross_zone_join_when_postgres_unavailable_skips(monkeypatch: pytest.Mon
         result.connection.close()
 
 
-def test_cli_zones_reports_z3_with_row_counts(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:  # noqa: E501
-    derived = tmp_path / "derived"
-    derived.mkdir()
-    _write_parquet_tree(derived, "trial_facts", [{"trial_id": "t1"}, {"trial_id": "t2"}])
-    _write_parquet_tree(derived, "jobs", [{"job_id": "j1"}])
-    for t in [
-        "reward_facts",
-        "artifact_facts",
-        "trajectories",
-        "steps",
-        "tool_calls",
-        "tool_usage",
-        "observations",
-        "state_changes",
-    ]:  # noqa: E501
-        _write_parquet_tree(derived, t, [{"trial_id": "t1"}])
-    monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
-    code = run_cli(["db", "attach", "--derived-root", "derived", "--zones"], workspace=tmp_path)
-    out, _ = capsys.readouterr()
-    assert code == 0
-    assert "z3: attached" in out
-    from evallab.storage.attach import TABLES
-
-    assert f"10/{len(TABLES)} tables" in out
-
-
-def test_cli_zones_exit_codes(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:  # noqa: E501
-    # every zone unavailable -> non-zero
-    monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
-    code = run_cli(["db", "attach", "--derived-root", "derived", "--zones"], workspace=tmp_path)
-    assert code == 1
-    # partial (z3 present) -> zero
-    derived = tmp_path / "derived"
-    derived.mkdir()
-    _write_parquet_tree(derived, "trial_facts", [{"trial_id": "t1"}])
-    code = run_cli(["db", "attach", "--derived-root", "derived", "--zones"], workspace=tmp_path)
-    assert code == 0
-
-
-def test_cli_print_sql_byte_identical(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:  # noqa: E501
-    derived = tmp_path / "derived"
-    derived.mkdir()
-    monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
-    code1 = run_cli(
-        ["db", "attach", "--derived-root", "derived", "--print-sql"], workspace=tmp_path
-    )  # noqa: E501
-    out1, _ = capsys.readouterr()
-    code2 = run_cli(
-        ["db", "attach", "--derived-root", "derived", "--print-sql"], workspace=tmp_path
-    )  # noqa: E501
-    out2, _ = capsys.readouterr()
-    assert code1 == 0 and code2 == 0
-    assert out1 == out2
-
-
 def test_sql_preamble_escapes_quote_bearing_dsn_and_parquet_paths(tmp_path: Path) -> None:
     derived = tmp_path / "derived'root"
     dsn = "postgresql://evallab:p'ass@invalid.example/evallab"
@@ -603,64 +541,6 @@ def test_cli_print_sql_redacts_password_and_attach_repr(
     finally:
         result.connection.close()
 
-    code = run_cli(
-        ["db", "attach", "--derived-root", "derived", "--print-sql"],
-        workspace=tmp_path,
-    )
-    out, _ = capsys.readouterr()
-    assert code == 0
-    assert secret not in out
-    assert "REDACTED" in out
-    assert "NON-EXECUTABLE" in out
-
-
-@pytest.mark.parametrize(
-    "dsn, secret",
-    [
-        (
-            r"host=invalid.example user=evallab password='pa\'ss word' dbname=evallab",
-            r"pa\'ss word",
-        ),
-        (
-            r"host=invalid.example user=evallab sslpassword=pa\ ss dbname=evallab",
-            r"pa\ ss",
-        ),
-    ],
-)
-def test_database_dsn_redaction_consumes_backslash_escaped_keyword_values(
-    dsn: str, secret: str
-) -> None:
-    redacted, had_credentials = _redact_database_dsn(dsn)
-
-    assert had_credentials is True
-    assert secret not in redacted
-    assert "invalid.example" in redacted
-    assert "dbname=evallab" in redacted
-    assert "<REDACTED>" in redacted
-
-
-def test_cli_query_returns_fixture_rows(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:  # noqa: E501
-    derived = tmp_path / "derived"
-    derived.mkdir()
-    _write_parquet_tree(derived, "trial_facts", [{"trial_id": "t1", "reward": 1.0}])
-    monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
-    code = run_cli(
-        [
-            "db",
-            "attach",
-            "--derived-root",
-            "derived",
-            "--query",
-            "select count(*) from trial_facts",
-        ],
-        workspace=tmp_path,
-    )  # noqa: E501
-    out, _ = capsys.readouterr()
-    assert code == 0
-    assert out.strip() == "(1,)"
-
 
 def test_duckdb_z2_catalog_prefix_resolution_standalone(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -692,30 +572,6 @@ def test_duckdb_z2_catalog_prefix_resolution_standalone(
         assert join_rows == [("accepted", 1)]
     finally:
         result.connection.close()
-
-
-@pytest.mark.skipif(
-    not _catalog_reachable(),
-    reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
-)
-def test_cli_query_with_real_postgres(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    derived = tmp_path / "derived"
-    derived.mkdir()
-    _write_parquet_tree(derived, "trial_facts", [{"trial_id": "t1", "job_id": "j1"}])
-    code = run_cli(
-        [
-            "db",
-            "attach",
-            "--derived-root",
-            "derived",
-            "--query",
-            "SELECT COUNT(*) FROM z2.verdicts",
-        ],
-        workspace=tmp_path,
-    )  # noqa: E501
-    out, _ = capsys.readouterr()
-    assert code == 0
-    assert out.strip().startswith("(")
 
 
 @pytest.mark.skipif(

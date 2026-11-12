@@ -897,7 +897,6 @@ separate `--stages exploit` probe is requested.
   Passing the numeric gate does not establish that every added assertion is in
   scope. Check the assertions against the instruction before accepting a task
   variant for training; unrelated API tests cannot turn a survivor into a defect.
-- `evallab hack ref-subset run <package> --patch <reference.patch> --output-dir DIR`
   and `... sweep --index research/experiments/mimo-reference-fixes/index.csv
   --tasks-root <raw MiMo tasks> --output-dir DIR [--lanes N]` — the
   reference-subset weak-test probe (`src/evallab/ref_subset.py`, QA Task S2).
@@ -984,7 +983,6 @@ separate `--stages exploit` probe is requested.
     USD, cap fit and reasons real execution would be refused. For example:
 
     ```bash
-    uv run evallab hack ref-subset run <package> --patch <reference.patch> \
       --output-dir runs/ref-subset-modal --environment modal --plan \
       --max-usd 1 --usd-per-execution 0.01
     ```
@@ -1217,7 +1215,6 @@ scoring package.
 - `nop` agent: reward must be 0 and the verifier must finish. A pass is a free reward; a verifier error means
   setup or grading is broken.
 - Oracle: only where a provided or recovered reference exists; require a completed, bound verifier result.
-- Record both per backend: `evallab tasks qualify-collect` writes one
   `task_qualification` row per trial (reasons, status, Daytona cost estimate)
   and `catalog export-broken` publishes the per-backend broken list —
   full rules appear in [backend qualification](#backend-qualification).
@@ -1264,7 +1261,6 @@ writes the list with its sha256, plus the digests of the tables it was built fro
 ## Stage 4: behavior
 
 Turns, tokens, repeated tool calls ((N − U) / N over identical calls in a turn), and error classes, from
-`evallab report run`. The [independent capture](execution-tiers.md#independent-model-call-capture) shows whether the harness trace is
 complete before any of these numbers are trusted. On the Terminus-2 lane it is not: summarization and handoff
 calls never appear as trajectory steps.
 
@@ -1415,13 +1411,10 @@ Stored evidence and receipts remain intact. See [registry and publication](#regi
 ### List Tasks
 ```bash
 # List all registered tasks
-uv run evallab registry list
 
 # List candidate tasks
-uv run evallab registry list --state candidate
 
 # Output JSON
-uv run evallab registry list --json
 ```
 
 ### Audit Registry
@@ -1509,7 +1502,6 @@ store directory is recoverable from Git plus the parent package alone.
   relative paths that escape the package, deletions of files the parent does
   not have, and no-op derivations (variant digest == parent digest) are all
   rejected with explicit errors.
-- **Append-only history.** `evallab tasks variant-status` appends evidence
   and moves `candidate → validated|rejected`. Identity fields are immutable
   and verdicts are final; a reversed decision requires a new variant derived
   from the same parent, so scores stay attributable to one exact package.
@@ -1551,7 +1543,6 @@ wrong-submission rejection or authorize scoring.
 
 ```bash
 # Derive: changed files come from --set REPATH=FILE (repeatable) and --delete
-evallab tasks derive \
   --parent /private/tmp/mimo-data/terminal/tasks/<task_id> \
   --set instruction.md=/tmp/new-instruction.md \
   --transform instruction-candidate@1 \
@@ -1560,10 +1551,8 @@ evallab tasks derive \
   --parent-source '{"kind":"hf","repo":"FineEnvs/MiMo-V2.6-RL-harbor-terminal","revision":"<40-hex>","path":"tasks/<task_id>"}'
 
 # Lineage: chain back to the original, with per-file digest changes
-evallab tasks lineage library/task-variants/<slug>/<digest12>.json
 
 # Validation verdict: append evidence, never rewrite
-evallab tasks variant-status <record-or-digest> validated --evidence runs/<job>
 ```
 
 Python API: `derive_task`, `materialize`, `verify`, `load_records`,
@@ -1713,7 +1702,6 @@ uv run evallab tasks catalog show <task_id|digest> [--derived-root PATH]
 uv run evallab tasks catalog export-eligible --out train_eligible.json [--split split.json]
 
 # After any nop/control run: per-trial backend health -> task_qualification.parquet
-uv run evallab tasks qualify-collect runs/<job>... [--backend-rate-card daytona]
 uv run evallab tasks catalog export-broken --backend daytona --out broken-daytona.json
 # Census a pool: one health label per task -> task_health.parquet
 uv run evallab tasks health-collect --pool research/experiments/har108-python-census/pool.json --jobs-root runs/
@@ -1815,7 +1803,6 @@ their own rows and never mix into a model's pass rate: they cannot make
 a task look learnable, and a uniformly-failing nop row is simply not
 learnable (control, not training signal).
 
-`task_stability` comes from `evallab tasks stability-collect`
 ([verifier stability](#verifier-stability)). The catalog still reads existing `task_exploits`
 evidence. The duplicate `exploit-collect` command and its writer are retired.
 No stored exploit evidence is removed. `train_eligible` =
@@ -1837,7 +1824,6 @@ split is `unassigned`.
 
 ## Backend qualification
 
-`evallab tasks qualify-collect <job_dir>...` writes one
 `task_qualification.parquet` row per trial: task digests (attributed by the
 package digest the queue staged; when the executor
 died before writing `lab-metadata.json`, by the trial `lock.json` task digest,
@@ -2073,10 +2059,8 @@ Docker). Sources stay read-only: each task is staged under
 `<jobs-dir>/.stage/` before Harbor sees it.
 
 ```bash
-uv run evallab tasks stability-run \
   --tasks /private/tmp/mimo-data/terminal/tasks/<task-id> [...] \
   --job-prefix har83-stab
-uv run evallab tasks stability-collect \
   --job-name har83-stab-<task-id> [...] \
   --output derived/parquet/external/task_catalog/task_stability.parquet
 ```
@@ -2208,14 +2192,9 @@ digest-bound admission record (`evallab.task_admission/v1`, gate
 
 ```bash
 # print the 19-step plan without running Docker
-uv run evallab tasks admit --task <package> --dry-run
 # run the gate ($0, local Docker, n-concurrent 1)
-uv run evallab tasks admit --task <package> --job-prefix admit --json
 # explicit oracle reference (receipt or raw patch); "none" skips the lookup
-uv run evallab tasks admit --task <package> --reference auto
 # fewer mutants, or skip the mutation step (the skip is recorded)
-uv run evallab tasks admit --task <package> --max-mutants 6
-uv run evallab tasks admit --task <package> --skip-mutation
 ```
 
 Exit 0 = admitted; 1 = any other verdict (`needs_review` included — it
@@ -2309,7 +2288,6 @@ Admission is task-side evidence, not a rollout label. Build the manifest consume
 unchanged by `hack-drop --certified-tasks` and the assembly line:
 
 ```bash
-uv run evallab tasks status build \
   --admission /path/to/jobs/admission-records/ \
   --gold-results /path/to/gold/certification.json \
   --out /path/to/task-status.json
@@ -2427,7 +2405,6 @@ One contract for task QA, trace QA, the reward seeker and tripwire findings,
 so their output is comparable and scoreable on external answer keys.
 Implementation: `src/evallab/qa/` (`models`, `answer_key`, `score`, `suite`,
 `cli`); tests: `tests/test_qa.py`, `tests/test_qa_suite.py`. The trace auditor
-(`evallab qa trace`, `src/evallab/qa/trace.py`) is described in
 [execution tiers](execution-tiers.md#harbor-results-viewer-and-source-bound-readers). Plan of record: `research-context/FOCUS.md`.
 
 ## Finding: `qa.finding/v1`
@@ -2478,7 +2455,6 @@ non-alphanumerics becomes `_`, so `Proxy-check too weak` equals
 | `expected_root_causes` (list) | new keys (canonical) | as listed |
 | `expected_mechanisms` (list) | `breaker-bench-v1` | benchflow mechanism (`conftest_hook`, `path_trojan`, `pth_injection`) or Terminal Wrench exploit class (`hollow-implementation`, ...) |
 | `root_cause` (records) | `envcheck-tb4-39`, `delphik-open-defect-tb2` | each record's `id` and its `source_class` (EnvCheck: `proxy-check-too-weak`, `answer-material-readable-by-candidate`, ...; Delphik classes are free text, so exact matching rarely fires) |
-| `expected_root_cause` dict | `trajectory-judge-400` | `failure_type` (`premature_stop`, `wrong_tool`, ...; step localisation is scored by `evallab qa trace score`) |
 | `expected_root_cause` string | `trace-paired-v1` | `cheat_ladder: a,b` → the attack names; `upstream_fetch`, `answer_leak`, `false_claim` as is; free text after a colon (`weak_hidden_tests: ...`) → the prefix |
 
 Never tune on the split you report; every score row names its split.
@@ -2697,7 +2673,6 @@ checks never count as passes.
 
 ## Adaptive task reviewer: `qa env`
 
-`evallab qa env audit` is an **agent loop**, not another fixed S0–S3
 sequence. One task gets one continuing model conversation. The reviewer chooses
 source reads, ordinary functional candidates, diagnostic checks, findings and its
 final stop. The host alone dispatches JSON capabilities; native model tools are
@@ -2707,7 +2682,6 @@ available independently.
 Choose an explicit model lane and every task budget:
 
 ```bash
-evallab qa env audit \
   --task /absolute/dev-task --out /absolute/owned-qa-run \
   --lane omp --model anthropic/claude-sonnet-5-5 \
   --hackbook /absolute/generic-taxonomy.yaml \
@@ -2745,7 +2719,6 @@ usage stops before its returned action is executed; it is never replaced by zero
 ### JSON capabilities
 
 Every capability is also available as
-`evallab qa env <tool> --request request.json` (or `--request -` for stdin):
 
 ```json
 {"task":"/absolute/dev-task","out":"/absolute/owned-qa-run","args":{},"max_seconds":600}
@@ -3306,7 +3279,6 @@ Use the filter for triage, not a claim of semantically clean training data.
 The original exact stage rules and documented false-drop limits follow.
 No threshold or label changes here.
 
-`evallab hack-drop` is a deterministic, multi-stage filter designed to remove cheating rollouts, reward hacking, and exploitable task runs from prospective SFT/RL training exports.
 
 ---
 
@@ -3314,7 +3286,6 @@ No threshold or label changes here.
 
 Training generative or reinforcement-learning models on rollouts that cheat (e.g. monkeypatching test runners, tampering with grading assertions, or acquiring answers out-of-band) teaches the model to cheat rather than solve tasks. 
 
-`evallab hack-drop` evaluates two orthogonal sources of evidence prior to data export:
 1. **Task-Level Evidence:** Has the task verifier been certified robust, or is it weak/exploitable?
 2. **Trace-Level Evidence:** Did the rollout trigger deterministic L0 tripwires, alter protected evaluation surfaces, or receive a cheating verdict from compact card AutoReview?
 
@@ -3416,19 +3387,15 @@ Known honest false drops (data lost, never leaked): a new test using `pytest.ski
 
 ```bash
 # Basic evaluation over a rollout directory
-uv run evallab hack-drop runs/sft-candidates/ --out-dir filtered/
 
 # With certified tasks manifest and evaluation labels
-uv run evallab hack-drop manifest.jsonl \
   --certified-tasks certified_tasks.json \
   --labels labels.jsonl \
   --out-dir filtered/
 
 # Dry run with JSON report output
-uv run evallab hack-drop manifest.jsonl --dry-run --json
 
 # Enabling Stage-3 AutoReview with budget controls
-uv run evallab hack-drop manifest.jsonl \
   --with-autoreview \
   --autoreview-route google-antigravity/gemini-3.8-flash \
   --max-calls 50 \
@@ -3487,11 +3454,9 @@ In strict adherence to Third-Party Data Policy, output manifests contain **ident
 Build an evidence-backed DEV manifest without reading rollout outcomes or labels:
 
 ```bash
-uv run evallab tasks status build \
   --admission /path/to/admission-records/ \
   --gold-results /path/to/certification.json /path/to/summary.json \
   --out /path/to/task-status.json
-uv run evallab hack-drop manifest.jsonl --certified-tasks /path/to/task-status.json
 ```
 
 `--admission` and `--gold-results` accept multiple paths and may be repeated.
@@ -3819,7 +3784,6 @@ their banked digests (incl. 001431 on `@9`).
 
 Harbor's `RepeatVerifier` (`--verifier
 evallab.harbor_repeat_verifier:RepeatVerifier --verifier-kwarg
-repeat_n=3`, used by `evallab tasks admit`) reruns `tests/test.sh`
 three times in the **same** verifier container. The agent runs in a
 different container: its diff reaches the verifier only as
 `/var/tmp/mimo-separate/workspace.tgz`, which each `test.sh`
@@ -4135,11 +4099,6 @@ its grader, runs controls and candidate probes against the real graders,
 and writes findings that are only counted once independently confirmed.
 
 ```bash
-.venv/bin/evallab qa env audit --task <task-id> --view <sealed-view> --out <dir> --lane codex|omp|openai --model <model> --max-seconds <s> --max-tokens <n> --max-tool-calls <n> --max-usd <usd>
-.venv/bin/evallab qa env task-info --request <request.json>
-.venv/bin/evallab qa env run-upstream-grader --request <request.json>
-.venv/bin/evallab qa env run-port-grader --request <request.json>
-.venv/bin/evallab qa env run-reference | run-blank | probe | diff | hackbook | record-finding --request <request.json>
 .venv/bin/evallab qa task --task <task-id> [--key tb4-audit-v1] [--split dev] [--plan]
 .venv/bin/evallab qa task-score --key tb4-audit-v1 --findings <findings-dir>   # flagged vs verified; unmeasured never counts as pass
 ```
@@ -4257,8 +4216,6 @@ about specific candidate mechanisms; the full T0–T4 review is the expensive ti
 
 ```bash
 .venv/bin/evallab qa trace-cheap <trial-dir|trajectory.json> [--model <openrouter-model>] [--offline] [--out finding.json]
-.venv/bin/evallab qa trace run|review|batch|score ...
-.venv/bin/evallab detectors list|score|run ...      # scored on labelled trace corpora
 # tripwire rule measurement is experiment tooling:
 ls research/experiments/tripwires-v3-hackbook-20261021 research/experiments/tripwires-v4-precision-20261021
 ```
@@ -4386,7 +4343,6 @@ Do not write to the live catalog or infer corpus availability from a developer's
 
 ## External dataset admission
 
-`evallab admit` automates the W3 admission procedure. It uses local deterministic detectors, not model calls.
 The first approved adapter profile reuses the HackBench admission from PR #1888.
 The access command also checks other Hugging Face datasets. It does not admit unknown label semantics.
 The admission entry point does not load unrelated analysis or SQL resources.
@@ -4399,7 +4355,6 @@ The command downloads up to 1024 bytes. Missing credentials, empty responses, an
 It prints the HTTP status, but never the response body, signed URL, or credential.
 
 ```bash
-keys run -- uv run evallab admit access AlignmentResearch/impossible-swe-nemotron-rollouts \
   --revision ce2f2f3d645bcee5672ab9ffbaa93d1b8f54917d --file rollouts/step_001.parquet
 ```
 
@@ -4412,7 +4367,6 @@ Choose a new external output directory and a new registration path.
 Keep raw source bytes, terms, converted views, and per-record results outside Git.
 
 ```bash
-keys run -- uv run evallab admit prepare \
   --output ~/.local/state/evallab-ev1105/w3/admission \
   --registration research/experiments/ev1105-w3/freeze.json \
   --prior-exposure ~/.local/state/evallab-cross-test/meta-hackbench/meta-hackbench-cm11/cascade-command.jsonl
@@ -4445,8 +4399,6 @@ A local-only commit, changed thresholds, changed code, changed views, or a missi
 The requested commit must remain a current pushed branch head at scoring time.
 
 ```bash
-uv run evallab admit preregister --registration research/experiments/ev1105-w3/freeze.json
-uv run evallab admit score \
   --output ~/.local/state/evallab-ev1105/w3/admission \
   --registration research/experiments/ev1105-w3/freeze.json \
   --commit <full-pushed-commit>
@@ -4462,7 +4414,6 @@ Use the publication phase to commit aggregate results, push, and create the admi
 It refuses unexpected report fields and per-record identities. It reuses an existing open branch PR on repetition.
 
 ```bash
-uv run evallab admit pr \
   --output ~/.local/state/evallab-ev1105/w3/admission \
   --registration research/experiments/ev1105-w3/freeze.json
 ```

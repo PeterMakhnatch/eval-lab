@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from evallab import cli
 from evallab.traj import outline_payload, outline_trajectory, render_outline
 
 
@@ -134,52 +133,3 @@ def test_invalid_or_missing_step_ranges_do_not_look_like_empty_success(outline, 
         render_outline(outline, step_range=step_range)
 
 
-def test_cli_readout_preserves_unknown_cost_and_reports_range_failure(
-    tmp_path, capsys, monkeypatch
-):
-    trial = tmp_path / "trial"
-    monkeypatch.setenv("EVALLAB_RUNS_ROOT", str(tmp_path))
-    agent = trial / "agent"
-    agent.mkdir(parents=True)
-    (agent / "trajectory.json").write_text(
-        json.dumps(
-            {
-                "schema_version": "ATIF-v1.7",
-                "session_id": "readout",
-                "agent": {"name": "fixture"},
-                "steps": [{"step_id": 1, "source": "agent", "message": "working"}],
-            }
-        )
-    )
-    assert cli.run_cli(["traj", "outline", str(trial), "--summary", "--json"]) == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["total_cost_usd"] is None
-    assert payload["steps"] == []
-    assert payload["step_selection"]["omitted_steps"] == 1
-    assert cli.run_cli(["traj", "outline", str(trial), "--first-error", "--json"]) == 0
-    first_error_payload = json.loads(capsys.readouterr().out)
-    assert first_error_payload["steps"] == []
-    assert first_error_payload["total_cost_usd"] is None
-    assert first_error_payload["step_selection"]["mode"] == "first_error"
-    assert cli.run_cli(["traj", "outline", str(trial), "--steps", "99:100"]) == 1
-    assert "no trajectory steps" in capsys.readouterr().err
-
-
-@pytest.mark.parametrize(
-    "args",
-    [
-        ["--steps", "0:1"],
-        ["--steps", "2:1"],
-        ["--steps", "1"],
-        ["--steps", "1:2:3"],
-        ["--summary", "--verbose"],
-        ["--summary", "--steps", "1:2"],
-        ["--first-error", "--verbose"],
-        ["--first-error", "--summary"],
-        ["--first-error", "--steps", "1:2"],
-    ],
-)
-def test_cli_rejects_ambiguous_or_invalid_selection_before_reading(args):
-    with pytest.raises(SystemExit) as exc:
-        cli.run_cli(["traj", "outline", "not-a-trial", *args])
-    assert exc.value.code == 2

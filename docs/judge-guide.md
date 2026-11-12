@@ -260,7 +260,6 @@ This change does not modify stored queues or verdicts.
 
 ## Blind multi-arm review
 
-The `evallab review` command family provides a repeatable, leak-proof workflow for
 evaluating multi-arm agent experiments (e.g. stock baseline vs tuned adapter vs prompt optimization).
 It operationalizes the HAR-128 G6 methodology into three deterministic commands.
 
@@ -281,28 +280,23 @@ Trace review separates human and model judgments from experimental arm labels to
              │
              ▼
 ┌─────────────────────────┐
-│  evallab review prepare │ ──> packs/<id>/, SEALED_arm_map.json (0400),
 └────────────┬────────────┘     metrics_blind.jsonl, rater_batches.json, leak_scan.json
              │
              │ (Blind raters label runs without knowing arm identity)
              ▼
 ┌─────────────────────────┐
-│   evallab review freeze │ ──> MANIFEST.sha256, FROZEN_AT
 └────────────┬────────────┘
              │
              │ (Sealed freeze verified before reading arm map)
              ▼
 ┌─────────────────────────┐
-│    evallab review join  │ ──> TABLES.md, tables.json, REPORT.md, scores.md
 └─────────────────────────┘
 ```
 
 ---
 
-## Step 1: `evallab review prepare`
 
 ```bash
-uv run evallab review prepare \
   --jobs-glob "runs/HAR-126-ovn-g5-*" \
   --arm-regex "-(?P<arm>stock|tuned|gepa)__" \
   --mask-text-file path/to/addendum.txt \
@@ -337,10 +331,8 @@ uv run evallab review prepare \
 
 ---
 
-## Step 2: `evallab review freeze`
 
 ```bash
-uv run evallab review freeze derived/review --labels derived/review/labels
 ```
 
 ### Inputs
@@ -357,10 +349,8 @@ uv run evallab review freeze derived/review --labels derived/review/labels
 
 ---
 
-## Step 3: `evallab review join`
 
 ```bash
-uv run evallab review join derived/review [--predictions derived/review/predictions]
 ```
 
 ### Inputs
@@ -379,7 +369,6 @@ Detectors flagged in `research/explorations/trace-lab/QUIRKS.md` as broken are t
 ## Human discovery verdicts
 
 Discovery findings in `digests/DISCOVERIES.md` remain drafts until human review.
-`evallab verdict` records an append-only decision in the catalog.
 Accepted, rejected, needs-evidence, and pending states remain distinct:
 
 | Status | Meaning |
@@ -398,12 +387,9 @@ Reconsideration appends a new timestamped row; it does not replace the earlier d
 `v_current_verdicts` selects the latest timestamp. `v_verdicts_history` retains the complete sequence.
 
 ```sh
-uv run evallab verdict list --json
-uv run evallab verdict history D-20260815-KTXJSHGZ --json
 ```
 
 Only the responsible human uses the write form:
-`evallab verdict <discovery-id> <status> --by <human-name> --note <evidence>`.
 
 ## Repository review boundary
 

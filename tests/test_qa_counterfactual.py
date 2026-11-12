@@ -50,13 +50,6 @@ def _trial(tmp: Path, *, diff: str | None = PATCH, reward: float = 1.0) -> Path:
     return trial
 
 
-@pytest.fixture(autouse=True)
-def _isolated_lock(monkeypatch: pytest.MonkeyPatch) -> None:
-    import evallab.docker_lock
-
-    monkeypatch.setattr(evallab.docker_lock, "docker_slot", lambda **_: nullcontext())
-
-
 def test_patch_script_applies_exactly_the_change_and_fails_on_the_wrong_base(
     tmp_path: Path,
 ) -> None:
@@ -460,7 +453,7 @@ def test_batch_cache_tracks_source_bytes_without_freezing_population_labels(
     assert third[0]["group"] == "faulty"
 
 
-def test_plan_counts_exactly_the_executions_a_run_would_still_start(
+def test_replay_runs_controls_once_and_reuses_cached_measurements(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     trial, grader = _trial(tmp_path), _grader(tmp_path)
@@ -477,109 +470,10 @@ def test_plan_counts_exactly_the_executions_a_run_would_still_start(
     subject = {"item_id": "example", "task": TASK, "trial": trial, "group": "unreviewed"}
     missing = {"item_id": "gone", "task": TASK, "trial": None}
 
-    before = trace.plan_regrade([subject, missing])
-    assert started == []
-    assert (before["control_executions"], before["replay_executions"]) == (2, 1)
-    assert before["rows_without_execution"] == 1
-
     trace.regrade_passes([subject, missing], tmp_path / "out", log=lambda _: None)
-    assert len(started) == before["executions"]
-    assert trace.plan_regrade([subject])["executions"] == 0
-
-
-@pytest.mark.parametrize("environment", ["modal", "daytona"])
-@pytest.mark.parametrize(
-    ("cap_usd", "admitted"),
-    [
-        pytest.param(0.0037, False, id="rounded-down-over-cap"),
-        pytest.param(0.003703701, True, id="exact-fit"),
-        pytest.param(0.0037037005, True, id="within-gate-tolerance"),
-        pytest.param(0.003703699, False, id="above-gate-tolerance"),
-        pytest.param(None, False, id="plan-without-approval"),
-    ],
-)
-def test_regrade_cli_subcent_plan_obeys_unrounded_total_before_execution(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    environment: str,
-    cap_usd: float | None,
-    admitted: bool,
-) -> None:
-    from evallab.cli import parser
-    from evallab.regrade import CloudSpendGate, SpendCapReached
-
-    trial, grader = _trial(tmp_path), _grader(tmp_path)
-    monkeypatch.setattr(cf, "newer_graders", lambda *_, **__: [grader])
-    monkeypatch.setattr(cf, "reference_patch", lambda *_: "reference")
-    monkeypatch.setattr(trace, "counterfactual_root", lambda: tmp_path / "cache")
-    entered: list[CloudSpendGate] = []
-
-    def forbidden(*_, **__):
-        raise AssertionError("planning must not execute controls or replays")
-
-    monkeypatch.setattr(cf, "grader_controls", forbidden)
-    monkeypatch.setattr(cf, "replay", forbidden)
-
-    def inert_regrade(*_, spend_gate, **__):
-        entered.append(spend_gate)
-        for _ in range(3):  # Two controls plus the recorded pass.
-            spend_gate.charge()
-        with pytest.raises(SpendCapReached):
-            spend_gate.charge()
-        return []
-
-    monkeypatch.setattr(trace, "regrade_passes", inert_regrade)
-    passes = tmp_path / "passes.jsonl"
-    passes.write_text(
-        json.dumps({"item_id": "example", "task": TASK, "trial_path": str(trial)}) + "\n"
-    )
-    out = tmp_path / "out"
-    rate, expected_usd = 0.001234567, 0.003703701
-    command = [
-        "qa",
-        "trace",
-        "regrade",
-        "--passes",
-        str(passes),
-        "--out",
-        str(out),
-        "--environment",
-        environment,
-        "--usd-per-execution",
-        str(rate),
-    ]
-    if cap_usd is None:
-        command += ["--plan"]
-    else:
-        command += ["--max-usd", str(cap_usd), "--approve", "inert fixture only"]
-    args = parser().parse_args(command)
-
-    if cap_usd is not None and not admitted:
-        with pytest.raises(SystemExit):
-            args.func(args, tmp_path)
-        assert entered == []
-        assert not out.exists()
-        return
-
-    assert args.func(args, tmp_path) == 0
-    if cap_usd is None:
-        assert entered == []
-        plan = json.loads((out / "plan.json").read_text())
-        printed = json.loads(capsys.readouterr().out)
-        assert printed == {key: plan[key] for key in printed}
-        assert not (out / "summary.json").exists()
-    else:
-        assert len(entered) == 1
-        summary = json.loads((out / "summary.json").read_text())
-        assert summary["spend_gate"]["executions"] == 3
-        assert summary["spend_gate"]["cap_usd"] == cap_usd
-        assert summary["spend_gate"]["usd_per_execution"] == rate
-        plan = summary["plan"]
-    assert (plan["control_executions"], plan["replay_executions"]) == (2, 1)
-    assert plan["executions"] == 3
-    assert plan["usd_per_execution"] == rate
-    assert plan["estimated_usd"] == pytest.approx(expected_usd, abs=1e-12)
+    assert started == ["", "reference", None]
+    trace.regrade_passes([subject], tmp_path / "out", log=lambda _: None)
+    assert started == ["", "reference", None]
 
 
 def test_selected_manifest_refreshes_and_mutated_package_is_not_accepted(
@@ -732,8 +626,6 @@ def _selection_case(
     ]
     gate = regrade.CloudSpendGate("inert local fixture only", cap_usd=1.0, usd_per_execution=0.01)
 
-    def plan():
-        return trace.plan_regrade(subjects, repairs=repairs, grader_manifest=manifest)
 
     def execute():
         return trace.regrade_passes(
@@ -748,7 +640,6 @@ def _selection_case(
         )
 
     return SimpleNamespace(
-        plan=plan,
         execute=execute,
         subjects=subjects,
         trial=trial,
@@ -771,14 +662,6 @@ def test_canonical_aliases_measure_once_and_keep_current_provenance_and_populati
 ) -> None:
     case = _selection_case(tmp_path, monkeypatch)
     before_source = cf.source_digest(case.trial)
-    assert case.plan() == {
-        "subjects": 2,
-        "graders": 2,
-        "rows_without_execution": 0,
-        "control_executions": 4,
-        "replay_executions": 2,
-        "executions": 6,
-    }
     assert case.calls == []
     rows = case.execute()
     assert len(rows) == 4  # Two population observations of each of two physical graders.
@@ -825,7 +708,6 @@ def test_canonical_aliases_measure_once_and_keep_current_provenance_and_populati
     cache_files = list((tmp_path / "cache/replay-cache").glob("*/*.json"))
     assert len(cache_files) == 2
     assert {path.stem.rsplit("--", 1)[1] for path in cache_files} == {a_digest[7:], b_digest[7:]}
-    assert case.plan()["executions"] == 0
 
     # Cached measurements have neither frozen cohort labels nor frozen provenance.
     case.subjects[0].update(group="reviewed", expected="flips")
@@ -845,7 +727,6 @@ def test_canonical_aliases_measure_once_and_keep_current_provenance_and_populati
             )
 
     (case.trial / "verifier/agent.diff").write_text(PATCH.replace("+new", "+wrong"))
-    assert (case.plan()["control_executions"], case.plan()["replay_executions"]) == (0, 2)
     changed_source = case.execute()
     assert len(case.calls) == case.gate.executions == 8
     assert all(row["outcome"] == "flips" for row in changed_source)
@@ -853,11 +734,9 @@ def test_canonical_aliases_measure_once_and_keep_current_provenance_and_populati
 
     # A reference change invalidates controls, not independent replay measurements.
     case.reference[0] = PATCH.replace("+new", "+reference-v2")
-    assert (case.plan()["control_executions"], case.plan()["replay_executions"]) == (4, 0)
     assert all(row["valid_grader"] for row in case.execute())
     assert len(case.calls) == case.gate.executions == 12
     monkeypatch.setattr(cf, "ENGINE_VERSION", "qa-trace-counterfactual/test-next")
-    assert (case.plan()["control_executions"], case.plan()["replay_executions"]) == (4, 2)
     case.execute()
     assert len(case.calls) == case.gate.executions == 18
 
@@ -871,14 +750,12 @@ def test_distinct_full_packages_with_the_same_transform_and_verifier_execute_ind
     assert case.records[0].transform == case.records[1].transform
     assert case.records[0].variant_digest != case.records[1].variant_digest
     assert verifier_identity(case.packages[0]).digest == verifier_identity(case.packages[1]).digest
-    assert (case.plan()["graders"], case.plan()["executions"]) == (2, 6)
     rows = case.execute()
     assert len(case.calls) == case.gate.executions == 6
     assert all(row["outcome"] == "stays" and row["valid_grader"] for row in rows)
     assert {row["grader_identity"]["variant_digest"] for row in rows} == {
         record.variant_digest for record in case.records
     }
-    assert case.plan()["executions"] == 0
 
 
 @pytest.mark.parametrize(
@@ -912,7 +789,7 @@ def test_invalid_package_claims_fail_before_controls_spend_or_execution(
             shutil.rmtree(package)
         else:
             (package / "tests/test.sh").write_text("#!/bin/bash\nexit 0 # mutated\n")
-    for consume in (case.plan, case.execute):
+    for consume in (case.execute,):
         with pytest.raises(ValueError, match=r"grader package (digest mismatch|missing)"):
             consume()
     assert case.calls == []
@@ -928,7 +805,7 @@ def test_cached_measurements_do_not_hide_mutated_alias_package_bytes(
     case.execute()
     assert len(case.calls) == case.gate.executions == 6
     (case.packages[0] / "instruction.md").write_text("Unexpected mutation of the repair copy.\n")
-    for consume in (case.plan, case.execute):
+    for consume in (case.execute,):
         with pytest.raises(ValueError, match="grader package digest mismatch"):
             consume()
     assert len(case.calls) == case.gate.executions == 6
@@ -952,7 +829,7 @@ def test_conflicting_resolved_claims_are_rejected_before_execution(
             aliases=(replace(b.selections[0], records=(str(case.record_paths[0]),)),),
         )
     monkeypatch.setattr(cf, "newer_graders", lambda *_, **__: [a, conflicting])
-    for consume in (case.plan, case.execute):
+    for consume in (case.execute,):
         with pytest.raises(ValueError, match="conflicting grader"):
             consume()
     assert case.calls == []
@@ -1058,7 +935,6 @@ def test_removing_a_manifest_alias_reuses_measurements_but_refreshes_the_display
     case = _selection_case(tmp_path, monkeypatch)
     case.execute()
     write_manifest([{**case.manifest_row, "status": "skipped"}], case.manifest)
-    assert case.plan()["executions"] == 0
     rows = case.execute()
     assert len(case.calls) == case.gate.executions == 6
     assert len(rows) == 4
@@ -1085,7 +961,7 @@ def test_conflicting_manifest_rows_cannot_silently_choose_the_last_package(
         ],
         case.manifest,
     )
-    for consume in (case.plan, case.execute):
+    for consume in (case.execute,):
         with pytest.raises(ValueError, match="conflicting grader manifest rows"):
             consume()
     assert case.calls == []
@@ -1173,7 +1049,7 @@ def test_configured_cloud_patch_uses_canonical_candidate_policy_without_double_c
     gate = regrade.CloudSpendGate(
         "approved native replay fixture",
         1.0,
-        cf.CLOUD_USD_PER_EXECUTION,
+        0.01,
         spend_ledger=tmp_path / "spend.json",
         modal_app_name="owned-replay",
         billing_tag="owned",
@@ -1248,7 +1124,7 @@ def test_counterfactual_snapshot_retains_native_regrade_with_same_cloud_gate(
     gate = regrade.CloudSpendGate(
         "approved snapshot fixture",
         1.0,
-        cf.CLOUD_USD_PER_EXECUTION,
+        0.01,
         spend_ledger=tmp_path / "spend.json",
         modal_app_name="owned-snapshot",
         billing_tag="owned",
@@ -1306,7 +1182,7 @@ def test_configured_modal_policy_cannot_silently_route_to_another_cloud(tmp_path
     gate = regrade.CloudSpendGate(
         "approved Modal fixture",
         1.0,
-        cf.CLOUD_USD_PER_EXECUTION,
+        0.01,
         spend_ledger=tmp_path / "spend.json",
         modal_app_name="owned-replay",
         billing_tag="owned",

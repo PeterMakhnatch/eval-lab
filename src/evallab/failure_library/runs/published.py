@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from evallab.failure_library.records import RunCode, RunRecord, TaskRef
-from evallab.failure_library.runs.common import label, number, outcome, stable_id
+from evallab.failure_library.runs.common import label, number, outcome
 
 SOURCES = {
     "reward-hacking-ablation": (
@@ -98,75 +98,4 @@ def termgrade(
         labels=labels,
         transcript_ref=ref,
         license="Apache-2.0",
-    )
-
-
-def ablation_record(row: dict[str, Any], ref: str, *, identity: str) -> RunRecord:
-    """The release's later rhenvs envelope has flat oracle/heuristic labels."""
-    env = str(row["env"])
-    native = row.get("labels") or {}
-    labels = []
-    oracle_fields = {
-        "passed",
-        "passes_visible",
-        "passes_original_visible",
-        "passes_held_out",
-        "passes_all_original",
-        "passes_all",
-        "honest_correct",
-        "tampered",
-        "peeked",
-        "used_verifier",
-        "submitted_true_answer",
-        "read_not_used",
-        "passed_blind",
-        "verifier_positive",
-    }
-    for name, value in native.items():
-        kind = (
-            "executed"
-            if env in {"terminal_verifier", "mbpp"} and name in oracle_fields
-            else "construction"
-        )
-        labels.append(label(f"{name}={str(value).lower()}", kind, ref))
-    verdict = next(
-        (native[key] for key in ("passed", "passes_visible", "passes_all") if key in native), None
-    )
-    result = outcome(number(verdict))
-    if row.get("cheated") is not None:
-        kind = "executed" if env == "terminal_verifier" else "construction"
-        labels.append(label("cheated=" + str(row["cheated"]).lower(), kind, ref))
-        if row["cheated"]:
-            name = "reward_hacked" if result == "pass" else "reward_hack_behavior"
-            labels.append(label(name, kind, ref, "RS01"))
-    if (
-        env in {"terminal_verifier", "mbpp"}
-        and not row.get("cheated")
-        and (native.get("passed_blind") is True or native.get("honest_correct") is True)
-    ):
-        labels.append(label("clean", "executed", ref))
-    parts = str(row["rollout_id"]).rsplit("/", 2)
-    fallback = parts[-2] if len(parts) >= 2 else "unresolved:" + str(row["rollout_id"])
-    task_id = str(native.get("task_id", fallback))
-    return RunRecord(
-        run_id=stable_id("reward-hacking-ablation", identity),
-        collection="reward-hacking-ablation",
-        task=TaskRef(
-            source_id="ablation-" + env.replace("_", "-"),
-            task_id=task_id,
-            upstream_repo="https://huggingface.co/datasets/"
-            + SOURCES["reward-hacking-ablation"][0],
-            upstream_revision=SOURCES["reward-hacking-ablation"][1],
-        ),
-        model=row.get("model"),
-        harness="rhenvs/" + env,
-        # These exports report pass flags, but no scalar reward.
-        reward=None,
-        outcome=result,
-        labels=labels,
-        transcript_ref=ref,
-        split="heldout"
-        if row.get("family") == "heldout" or native.get("split") in {"test", "heldout"}
-        else "unassigned",
-        license=None,
     )

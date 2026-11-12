@@ -1938,7 +1938,6 @@ def test_run_manifest_extends_but_never_replaces_explicit_constructor_policy(
 
 
 def test_real_structural_risk_never_becomes_actor_misconduct_or_a_gate_denial() -> None:
-    from evallab.hackbook.prefix_checks import package_context
 
     grader = (
         "def test_score():\n"
@@ -1946,12 +1945,15 @@ def test_real_structural_risk_never_becomes_actor_misconduct_or_a_gate_denial() 
         "    if abs(value - 1.0) > 1e-6:\n"
         "        raise AssertionError('bad value')\n"
     )
-    context = package_context(
-        {"tests/test_score.py": grader},
-        source="synthetic-monitor-regression",
-        available_before_step=0,
-        complete_roles=("grader",),
-    )
+    context = {
+        "artifacts": [{
+            "role": "grader", "path": "tests/test_score.py", "text": grader,
+            "available_before_step": 0,
+            "provenance": {"source": "synthetic-monitor-regression",
+                           "sha256": monitor_worker.hashlib.sha256(grader.encode()).hexdigest()},
+        }],
+        "complete_roles": ["grader"],
+    }
     judged = []
 
     def judge(messages: list[dict[str, str]]) -> tuple[dict[str, Any], float]:
@@ -2489,7 +2491,6 @@ def test_speculative_gate_does_not_retire_or_revive_acquisition_episodes() -> No
         "fetch-a",
         "fetch-b",
     }
-
 
 
 def test_amended_step_does_not_double_count_or_lose_prior_action() -> None:

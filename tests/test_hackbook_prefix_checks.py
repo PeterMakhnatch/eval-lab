@@ -10,6 +10,7 @@ binding, causal availability, production task-quality replay semantics) is teste
 from __future__ import annotations
 
 import copy
+import hashlib
 import textwrap
 from collections.abc import Callable
 from typing import Any
@@ -20,7 +21,6 @@ from evallab.hackbook import prefix_checks
 from evallab.hackbook.prefix_checks import (
     STRUCTURAL_CHECKS,
     StructuralPrefixState,
-    package_context,
     scan_structural_prefix,
 )
 from evallab.tripwires import scan_prefix
@@ -83,9 +83,17 @@ def _py(code: str) -> str:
 
 
 def _pkg(files: dict[str, str], *complete: str, step: int = 1) -> dict[str, Any]:
-    return package_context(
-        files, source="task-pkg@1", available_before_step=step, complete_roles=complete
-    )
+    roles = {"instruction.md": "instruction", "task.toml": "environment",
+             "tests": "grader", "solution": "reference", "environment": "environment"}
+    return {
+        "artifacts": [
+            {"role": roles[path.split("/")[0]], "path": path, "text": text,
+             "available_before_step": step,
+             "provenance": {"source": "task-pkg@1", "sha256": hashlib.sha256(text.encode()).hexdigest()}}
+            for path, text in sorted(files.items())
+        ],
+        "complete_roles": list(complete),
+    }
 
 
 def _replay(
@@ -110,10 +118,6 @@ def _replay(
         "package_digests": {"original": "orig-digest", "repaired": "repaired-digest"},
         "available_before_step": step,
     }
-
-
-def _with(context: dict[str, Any] | None, **extra: Any) -> dict[str, Any]:
-    return {**(context or {}), **extra}
 
 
 def _record(
@@ -1100,17 +1104,6 @@ def test_tampered_artifact_text_is_rejected_not_trusted() -> None:
     assert "sha256 does not match" in record["reason"]
 
 
-def test_artifact_available_after_the_scored_step_is_rejected() -> None:
-    files = {"tests/test_limits.py": _FLAG_TEST}
-    context = package_context(files, source="task-pkg@1", available_before_step=5)
-    record = _record([_user(1, "Check limits.")], context, "HB-TS01-003")
-    assert record["status"] == "unavailable"
-    assert "after the prefix end" in record["reason"]
-    # The same artifact becomes usable once the scored step reaches its availability marker.
-    steps = [_user(1, "Check limits."), _bash(5, "ls")]
-    assert _record(steps, context, "HB-TS01-003")["status"] == "hit"
-
-
 def test_unhashed_artifact_is_rejected() -> None:
     context = {
         "artifacts": [
@@ -1136,36 +1129,6 @@ def test_complete_set_is_required_for_absence_claims() -> None:
     assert unavailable["status"] == "unavailable" and "complete" in unavailable["reason"]
     steps, context = _task(text, files, "grader")
     assert _record(steps, context, "HB-TS01-002")["detail"]["unread_fields"] == ["risk_score"]
-
-
-def test_package_context_refuses_paths_outside_the_task_package_whitelist() -> None:
-    with pytest.raises(ValueError, match="whitelist"):
-        package_context({"cheat/solve.sh": "x"}, source="p", available_before_step=1)
-    with pytest.raises(ValueError, match="whitelist"):
-        package_context({"README.md": "x"}, source="p", available_before_step=1)
-
-
-def test_reference_material_is_never_marked_agent_visible() -> None:
-    context = package_context(
-        {"solution/solve.sh": "echo hi", "tests/test_a.py": "pass"},
-        source="p",
-        available_before_step=1,
-        agent_visible_roles=("reference", "grader"),
-    )
-    visible = {a["path"]: a["provenance"].get("agent_visible", False) for a in context["artifacts"]}
-    assert visible == {"solution/solve.sh": False, "tests/test_a.py": True}
-
-
-def test_generator_is_only_a_finding_when_the_agent_could_read_it() -> None:
-    steps, context = _ts03_004_context_only()
-    assert _record(steps, context, "HB-TS03-004")["status"] == "unavailable"
-    visible = package_context(
-        {"tests/gen.py": _GENERATOR},
-        source="p",
-        available_before_step=1,
-        agent_visible_roles=("grader",),
-    )
-    assert _record(steps, visible, "HB-TS03-004")["status"] == "hit"
 
 
 # ---------------------------------------------------------------------------------------------

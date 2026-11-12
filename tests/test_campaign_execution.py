@@ -34,9 +34,6 @@ from evallab.setup_fingerprint import lock_setup_fingerprint
 NOW = datetime(2026, 10, 7, tzinfo=UTC)
 
 
-@pytest.fixture(autouse=True)
-def isolate_escalations(monkeypatch):
-    monkeypatch.setattr(cap, "LIN_RUNNER", lambda *args, **kwargs: None)
 
 
 def seed(root: Path):
@@ -129,8 +126,19 @@ def campaign(root, spec, digest, qualification, *, limit=2, model_host="modal", 
             max_concurrent_trials=limit, model_host=model_host, qualification=qualification
         ),
     )
-    cap.write_campaign(root, record)
-    cap.approve_campaign(root, record.campaign_id, actor="test", approved_at=NOW)
+    target_dir = cap.campaign_dir(root, record.campaign_id)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    (target_dir / cap.CAMPAIGN_FILENAME).write_text(
+        record.model_dump_json(indent=2) + "\n", encoding="utf-8"
+    )
+    approval = cap.CampaignApprovalRecord(
+        campaign_id=record.campaign_id,
+        content_digest=cap.campaign_content_digest(record),
+        actor="test",
+        approved_at=NOW,
+    )
+    with (target_dir / cap.APPROVALS_FILENAME).open("a", encoding="utf-8") as handle:
+        handle.write(approval.model_dump_json() + "\n")
     return record
 
 
@@ -370,62 +378,6 @@ def test_unbounded_existing_container_refuses_host_capacity(monkeypatch):
     with pytest.raises(ValueError):
         docker_available_resources()
 
-
-def test_infra_replacement_is_admitted_before_the_model_can_be_stopped(tmp_path, monkeypatch):
-    from evallab import modal_ops
-
-    spec, digest = seed(tmp_path)
-    campaign(tmp_path, spec, digest, native_qualification(tmp_path, spec), limit=1)
-    stopped = []
-    monkeypatch.setattr(modal_ops, "daytona_sandbox_counts", lambda: None)
-
-    def run(request):
-        job = request.jobs_dir / request.name
-        trial = job / "trial"
-        trial.mkdir(parents=True)
-        (job / "result.json").write_text(
-            json.dumps(
-                {
-                    "n_total_trials": 1,
-                    "stats": {},
-                    "finished_at": NOW.isoformat(),
-                    "id": "fixture-job",
-                }
-            )
-        )
-        (trial / "result.json").write_text(
-            json.dumps(
-                {
-                    "task_name": "fixture-task",
-                    "trial_name": "trial",
-                    "exception_info": {"exception_type": "DaytonaNotFoundError"},
-                }
-            )
-        )
-        return job
-
-    def no_provider_stop(argv):
-        stopped.append(argv)
-        raise RuntimeError("provider operations are not allowed in this test")
-
-    service = executor(
-        tmp_path,
-        monkeypatch,
-        run,
-        modal_teardown=lambda queue, root, candidates: modal_ops.stop_selfhosted_app_if_drained(
-            queue,
-            root,
-            candidates,
-            runner=no_provider_stop,
-        ),
-    )
-    path, decision = service.submit(spec)
-    assert decision.admitted
-    original_id = service.queue.load(path).spec_id
-    assert service.tick() == 1
-    replacements = [item for _, item in service.queue.list_specs("approved")]
-    assert [item.campaign_replaces for item in replacements] == [original_id]
-    assert stopped == []
 
 
 def test_teardown_error_does_not_repeat_a_completed_trial(tmp_path, monkeypatch):

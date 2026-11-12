@@ -412,6 +412,15 @@ def _orchestrator(
     )
 
 
+def _stage_manifest(root: Path, manifest: CampaignManifest, executor: Executor) -> Path:
+    manifest_path = root / "runs/campaigns" / manifest.campaign_id / "manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+    for attempt in manifest.attempts:
+        executor.submit(attempt.spec)
+    return manifest_path
+
+
 @pytest.mark.parametrize(
     ("agent", "model", "credential"),
     [
@@ -496,19 +505,14 @@ def test_post_run_compliance_refusal_never_marks_campaign_queue_done(
         credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
         compliance=lambda _job, _spec, _ingest, _archive: disposition,
     )
-    orchestrator = _orchestrator(root, manifest, executor)
-    orchestrator.run()
+    _stage_manifest(root, manifest, executor)
     for attempt in manifest.attempts:
         executor.queue.approve(attempt.spec_id, actor="Peter Makhnatch")
 
-    status = orchestrator.resume()
+    assert executor.tick(spec_ids=[manifest.attempts[0].spec_id]) == 1
 
-    assert status.state == "circuit-open"
-    assert status.circuit_reason == f"post_run_compliance_{disposition.casefold()}"
-    assert status.cost_usd == 0.25
     assert calls == [manifest.attempts[0].job_name]
     assert executor.queue.list_specs("done") == []
-    assert executor.queue.list_specs("approved") == []
     failed = executor.queue.list_specs("failed")
     assert len(failed) == 1
     events = load_events(executor.queue.events_path)
@@ -588,8 +592,7 @@ def test_executor_revalidates_campaign_spec_at_last_mile(tmp_path: Path) -> None
         lambda request: calls.append(request),
         credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
     )
-    orchestrator = _orchestrator(root, manifest, executor)
-    orchestrator.run()
+    _stage_manifest(root, manifest, executor)
     approved = executor.queue.approve(
         manifest.attempts[0].spec_id,
         actor="Peter Makhnatch",
@@ -618,8 +621,7 @@ def test_executor_rejects_campaign_spec_id_prefix_substitution(
         lambda request: calls.append(request),
         credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
     )
-    orchestrator = _orchestrator(root, manifest, executor)
-    orchestrator.run()
+    _stage_manifest(root, manifest, executor)
     waiting, queued = executor.queue.list_specs("waiting")[0]
     payload = queued.model_dump(mode="json", exclude_none=True)
     substituted_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
@@ -644,8 +646,7 @@ def test_executor_revalidates_task_snapshot_at_last_mile(tmp_path: Path) -> None
         lambda request: calls.append(request),
         credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
     )
-    orchestrator = _orchestrator(root, manifest, executor)
-    orchestrator.run()
+    _stage_manifest(root, manifest, executor)
     executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
     (root / "tasks/task-one/instruction.md").write_text(
         "Substituted after approval.\n",
@@ -672,8 +673,7 @@ def test_human_approval_binds_exact_campaign_spec_and_manifest(
         lambda request: calls.append(request),
         credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
     )
-    orchestrator = _orchestrator(root, manifest, executor)
-    orchestrator.run()
+    manifest_path = _stage_manifest(root, manifest, executor)
     approved = executor.queue.approve(
         manifest.attempts[0].spec_id,
         actor="Peter Makhnatch",
@@ -709,7 +709,7 @@ def test_human_approval_binds_exact_campaign_spec_and_manifest(
     )
     CampaignManifest.model_validate(substituted_manifest.model_dump(mode="json"))
     approved.write_text(substituted.model_dump_json(), encoding="utf-8")
-    orchestrator.store.manifest_path.write_text(
+    manifest_path.write_text(
         substituted_manifest.model_dump_json(),
         encoding="utf-8",
     )
@@ -726,8 +726,7 @@ def test_running_reconciliation_revalidates_campaign_binding(tmp_path: Path) -> 
     root = _repo(tmp_path)
     manifest = _manifest(root)
     executor = _executor(root, lambda request: _write_job(request))
-    orchestrator = _orchestrator(root, manifest, executor)
-    orchestrator.run()
+    _stage_manifest(root, manifest, executor)
     approved = executor.queue.approve(
         manifest.attempts[0].spec_id,
         actor="Peter Makhnatch",

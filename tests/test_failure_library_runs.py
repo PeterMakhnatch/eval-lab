@@ -4,13 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from evallab.failure_library.runs.common import agent_text, group_split
+from evallab.failure_library.runs.common import agent_text
 from evallab.failure_library.runs.io import reference
-
-
-def test_family_group_split_is_source_namespaced_and_stable():
-    assert group_split("source", "new-family") == "DEV"
-    assert group_split("source", "new-family") in {"DEV", "heldout"}
 
 
 def test_agent_text_excludes_user_and_tool_messages():

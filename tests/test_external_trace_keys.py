@@ -151,7 +151,6 @@ def test_build_materializes_consumer_ready_views_and_rebuilds_identically(
     import pyarrow.parquet as pq
 
     from evallab.qa.answer_key import load_answer_key
-    from evallab.qa.trace import key_trial_dir
 
     results = tmp_path / "results"
     monkeypatch.setenv("EVALLAB_RESULTS_HOME", str(results))
@@ -204,11 +203,10 @@ def test_build_materializes_consumer_ready_views_and_rebuilds_identically(
     key = load_answer_key(key_dir)
     assert len(key.items) == 4
     for item in key.items:
-        trial = key_trial_dir(item)
-        assert trial is not None
-        full_path = trial / "agent/trajectory.json"
         extras = item.model_extra
         assert extras is not None
+        trial = results / extras["trial_ref"]["path"]
+        full_path = trial / "agent/trajectory.json"
         actions_path = results / extras["actions_only_ref"]["path"] / "agent/trajectory.json"
         assert external.file_digest(full_path) == extras["trajectory_sha256"]
         assert external.file_digest(actions_path) == extras["actions_only_sha256"]

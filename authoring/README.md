@@ -20,6 +20,6 @@ used by the synthesis pipeline to generate evaluable tasks.
 - `uv run pytest tests/test_authoring_properties.py`
 
 ## What not to add here
-- Do not store generated tasks or proposals here; use `library/tasks/` or `library/synthetic/`.
+- Do not store generated tasks or proposals here; use `library/tasks/`.
 - Do not place ephemeral run artifacts, caches, or unvetted seed data here.
 - Do not add language runtimes or non-YAML configuration files.

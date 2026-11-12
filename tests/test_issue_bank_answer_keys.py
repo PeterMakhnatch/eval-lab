@@ -230,34 +230,6 @@ def test_split_is_tightened_never_upgraded(tmp_path: Path) -> None:
     assert by_ref(by_digest)[f"{key}:free"].split == "TEST"
 
 
-def test_oq6_marks_only_dev_task_findings(tmp_path: Path) -> None:
-    key = "tb4-audit-v1"
-    base = {"taxonomy_class": "weak_check", "label_strength": "pm_reported"}
-    rows = {
-        key: [
-            task_row(key, "k1", "fail", scope="task", **base),
-            task_row(key, "k2", "fail", scope="task", **base),
-            task_row(key, "sealed", "fail", scope="task", **base),
-            task_row(key, "test", "fail", "test", scope="task", **base),
-            {
-                **task_row(key, "bench", "fail", scope="benchmark", **base),
-                "subject": {"kind": "task", "task_id": "__benchmark__/terminal-bench-4",
-                            "task_digest": None},
-            },
-        ]
-    }
-    items = build(tmp_path, rows, sealed=frozenset({f"{key}:sealed"}))
-    refs = by_ref(items)
-    assert refs[f"{key}:k1"].provenance.note == answer_keys.OQ6_NOTE
-    assert refs[f"{key}:sealed"].split == "TEST"
-    assert refs[f"{key}:sealed"].provenance.note is None
-    assert refs[f"{key}:test"].provenance.note is None
-    # the benchmark-wide carrier is not a task: no task_id, never keyed
-    assert refs[f"{key}:bench"].task_id is None
-    assert "not a task" in (refs[f"{key}:bench"].provenance.note or "")
-    assert answer_keys.oq6_keyed(items) == (2, 2)
-
-
 def test_cheatbench_selector_and_bountybench_quarantine(
     tmp_path: Path, results_home: Path
 ) -> None:

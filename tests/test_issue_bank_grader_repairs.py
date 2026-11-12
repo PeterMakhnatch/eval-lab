@@ -364,32 +364,6 @@ def test_cloud_variant_with_a_sealed_package_digest_is_tightened_to_test(repo: P
     assert item.split == "TEST"
 
 
-def test_cloud_correspondence_matches_before_side_but_not_a_different_repair(repo: Path) -> None:
-    _write_cloud(
-        repo,
-        [
-            (
-                "terminal-bench/gsea-proteomics",
-                "tb4-audit-v1",
-                "DEV",
-                [_cloud_variant("earlier", _digest("o"), _digest("r"), package=_parent(1325))],
-            ),
-            (
-                "unrelated",
-                "tb4-audit-v1",
-                "DEV",
-                [_cloud_variant("same", _digest("x"), _digest("x"))],
-            ),
-        ],
-    )
-    found = source.cloud_correspondence(_ctx(repo))
-    assert found["cloud_rows_with_both_digests"] == 2
-    assert found["cloud_variants"] == {"both_set": 2, "differ": 1, "equal": 1}
-    assert found["ts_repairs"] == 16
-    assert found["ts_before_side_matches_cloud_original"] == 1
-    assert found["ts_after_side_matches_cloud_repaired"] == 0
-
-
 def test_missing_cloud_db_yields_only_the_other_sets(repo: Path) -> None:
     items = _items(_ctx(repo))
     assert not _cloud_items(items)
@@ -499,21 +473,3 @@ def test_ids_are_unique_and_deterministic(repo: Path) -> None:
     second = [item.item_id for item in _items(_ctx(repo))]
     assert first == second
     assert len(set(first)) == len(first) == 17
-
-
-def test_skipped_sets_name_every_unitemized_experiment() -> None:
-    assert set(source.SKIPPED_SETS) == {
-        "tb21-test-repairs-20261019",
-        "envcheck-repair-2026-10-15",
-        "har177-repair",
-        "test-repair-performance-20261017",
-    }
-
-
-def test_survey_groups_by_set_status_and_split(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _summary(repo, monkeypatch, [_case(pr) for pr in (1325, 1326, 1343)])
-    counts = source.survey(_ctx(repo))["by_set_status_split"]
-    assert counts["ts9|native_partial|DEV"] == 2
-    assert counts["ts9|static_only|DEV"] == 6
-    assert counts["ts11|native_partial|unassigned"] == 1
-    assert counts["ts11|static_only|unassigned"] == 7

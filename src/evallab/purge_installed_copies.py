@@ -63,10 +63,6 @@ V1_BLOCK_START = "# purge-installed-copies@1: remove this project's build and in
 _HEREDOC_END = "\nPY\n"
 
 
-
-
-
-
 def _read_parent(parent_dir: Path) -> tuple[str, str, str, str]:
     try:
         text = (parent_dir / "task.toml").read_text(encoding="utf-8")
@@ -87,8 +83,6 @@ def _read_parent(parent_dir: Path) -> tuple[str, str, str, str]:
     if not setup_path.is_file():
         raise VariantInvalid(f"parent has no {SETUP_REL}")
     return task_name, workdir, image, setup_path.read_text(encoding="utf-8")
-
-
 
 
 def shell_block_v2() -> str:

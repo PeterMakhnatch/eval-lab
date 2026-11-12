@@ -29,15 +29,12 @@ from evallab.purge_container import (
     v2_project_tops,
 )
 from evallab.purge_installed_copies import (
-    MARKER,
     MARKER_V2,
     SETUP_PYTHON_PATH,
     SETUP_REL,
     V1_BLOCK_START,
-    build_setup_sh,
     build_setup_sh_v2,
     derive_purge_installed_copies_v2,
-    shell_block,
     shell_block_v2,
 )
 from evallab.strip_future_history import pack_setup
@@ -964,8 +961,12 @@ def test_setup_block_v2_inserts_once_and_supersedes_v1() -> None:
     with pytest.raises(VariantInvalid, match="write_blocklist"):
         build_setup_sh_v2("#!/bin/bash\nfail() { exit 1; }\n")
 
-    carrying = build_setup_sh(parent)
-    assert MARKER in carrying
+    old_block = V1_BLOCK_START + (
+        "python3 <<'PY'\n"
+        "# Native v1 setup retained to exercise the original three-heredoc excision boundary.\n"
+        "print(1)\nPY\n"
+    ) * 3
+    carrying = parent.replace("\nwrite_blocklist\n", "\n" + old_block + "\nwrite_blocklist\n")
     migrated, superseded = build_setup_sh_v2(carrying)
     assert superseded is True
     assert V1_BLOCK_START not in migrated
@@ -990,10 +991,6 @@ def test_v2_block_survives_bash_syntax_check(tmp_path: Path) -> None:
 
     proc = subprocess.run([bash, "-n", str(script)], capture_output=True, check=False)
     assert proc.returncode == 0, proc.stderr.decode("utf-8", "replace")
-
-
-def test_v1_block_shape_still_detected() -> None:
-    assert shell_block().startswith(V1_BLOCK_START)
 
 
 def test_v2_healthcheck_payload_pins_helpers_but_preserves_project_interpreter(

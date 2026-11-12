@@ -12,24 +12,6 @@ from evallab.task_variants import VariantInvalid
 PARENT_SETUP = "#!/bin/bash\nfail() { exit 1; }\nwrite_blocklist() { :; }\nwrite_blocklist\n"
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def test_v2_block_purges_fixture_caches_without_touching_deps(tmp_path: Path) -> None:
     """Execute the @2 language sections against fixture dirs (no Docker)."""
     import shutil
@@ -348,12 +330,6 @@ def _run_node_block(
     )
 
 
-
-
-
-
-
-
 def test_v3_deletes_src_tested_build_output(tmp_path: Path) -> None:
     """Tests import from src/: ignored lib/ is deleted, sources stay."""
     import shutil
@@ -475,23 +451,18 @@ def test_v3_skips_without_ignored_output(tmp_path: Path) -> None:
 
 
 def test_v4_supersedes_v3_and_refuses_marked_parents() -> None:
-    from evallab.purge_build_caches import (
-        build_setup_sh,
-        build_setup_sh_v2,
-        build_setup_sh_v3,
-        build_setup_sh_v4,
-    )
+    from evallab.purge_build_caches import build_setup_sh_v4
 
     updated = build_setup_sh_v4(PARENT_SETUP)
     assert "purge-build-caches@4" in updated
     with pytest.raises(VariantInvalid, match="already carries purge-build-caches@4"):
         build_setup_sh_v4(updated)
     with pytest.raises(VariantInvalid, match="already carries purge-build-caches@3"):
-        build_setup_sh_v4(build_setup_sh_v3(PARENT_SETUP))
+        build_setup_sh_v4(PARENT_SETUP + "\n# purge-build-caches@3\n")
     with pytest.raises(VariantInvalid, match="already carries purge-build-caches@2"):
-        build_setup_sh_v4(build_setup_sh_v2(PARENT_SETUP))
+        build_setup_sh_v4(PARENT_SETUP + "\n# purge-build-caches@2\n")
     with pytest.raises(VariantInvalid, match="already carries purge-build-caches@1"):
-        build_setup_sh_v4(build_setup_sh(PARENT_SETUP))
+        build_setup_sh_v4(PARENT_SETUP + "\n# purge-build-caches@1\n")
     with pytest.raises(VariantInvalid, match="write_blocklist"):
         build_setup_sh_v4("#!/bin/bash\nfail() { exit 1; }\n")
 
@@ -895,13 +866,7 @@ def _npm_stub(tmp_path: Path, out_dir: str = "lib") -> Path:
 
 
 def test_v5_supersedes_v4_and_refuses_marked_parents() -> None:
-    from evallab.purge_build_caches import (
-        build_setup_sh,
-        build_setup_sh_v2,
-        build_setup_sh_v3,
-        build_setup_sh_v4,
-        build_setup_sh_v5,
-    )
+    from evallab.purge_build_caches import build_setup_sh_v4, build_setup_sh_v5
 
     updated = build_setup_sh_v5(PARENT_SETUP)
     assert "purge-build-caches@5" in updated
@@ -911,11 +876,11 @@ def test_v5_supersedes_v4_and_refuses_marked_parents() -> None:
     with pytest.raises(VariantInvalid, match="already carries purge-build-caches@4"):
         build_setup_sh_v5(build_setup_sh_v4(PARENT_SETUP))
     with pytest.raises(VariantInvalid, match="already carries purge-build-caches@3"):
-        build_setup_sh_v5(build_setup_sh_v3(PARENT_SETUP))
+        build_setup_sh_v5(PARENT_SETUP + "\n# purge-build-caches@3\n")
     with pytest.raises(VariantInvalid, match="already carries purge-build-caches@2"):
-        build_setup_sh_v5(build_setup_sh_v2(PARENT_SETUP))
+        build_setup_sh_v5(PARENT_SETUP + "\n# purge-build-caches@2\n")
     with pytest.raises(VariantInvalid, match="already carries purge-build-caches@1"):
-        build_setup_sh_v5(build_setup_sh(PARENT_SETUP))
+        build_setup_sh_v5(PARENT_SETUP + "\n# purge-build-caches@1\n")
     with pytest.raises(VariantInvalid, match="write_blocklist"):
         build_setup_sh_v5("#!/bin/bash\nfail() { exit 1; }\n")
 

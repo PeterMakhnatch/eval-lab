@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import tomllib
+from pathlib import Path
 
 import pytest
 
 from evallab.task_health_tags import (
+    _probe_binding,
     health_tag,
     metadata_bytes,
     solve_summary,
@@ -102,3 +105,27 @@ command = "echo '[metadata] tags = []'"
     assert metadata_bytes(updated, ["health:sound", "solve:mixed"]) == updated
 
 
+def test_exploit_binding_uses_the_executed_package_and_never_falls_back(tmp_path: Path):
+    trial = tmp_path / "job/probe__trial"
+    trial.mkdir(parents=True)
+    (trial / "config.json").write_text(json.dumps({"task": {"path": "/staged/current"}}))
+    native_digest = "sha256:" + "a" * 64
+    (trial.parent / "lock.json").write_text(
+        json.dumps(
+            {
+                "trials": [
+                    {"task": {"path": "/staged/other", "digest": "sha256:" + "c" * 64}},
+                    {"task": {"path": "/staged/current", "digest": native_digest}},
+                ]
+            }
+        )
+    )
+    row = {"verdict": "cracked", "trial": str(trial)}
+    assert _probe_binding(row, input_dir=tmp_path) == {
+        "package": None,
+        "harbor": native_digest,
+    }
+    explicit_digest = "sha256:" + "d" * 64
+    assert _probe_binding(
+        {**row, "task_package_digest": explicit_digest}, input_dir=tmp_path
+    ) == {"package": explicit_digest, "harbor": None}

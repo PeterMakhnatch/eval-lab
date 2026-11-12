@@ -1,4 +1,4 @@
-"""Shared source downloads, immutable raw custody and bounded native-row iteration."""
+"""Immutable raw custody and bounded native-row iteration."""
 
 from __future__ import annotations
 
@@ -142,20 +142,12 @@ def parquet_rows(path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
             index += 1
 
 
-
-
 def _source_files(collection: str, filename: str) -> bool:
     if collection == "terminal-wrench":
         return filename in {"baseline.parquet", "hack.parquet", "non_hack.parquet", "tasks.parquet"}
     if collection == "goodfire-reward-hack-data":
         return filename.endswith(("traces.jsonl", "judge_rollouts.jsonl", "monitor_rollouts.jsonl"))
     return filename.endswith((".parquet", ".jsonl", ".jsonl.gz"))
-
-
-
-
-
-
 
 
 def raw_root(state_root: Path, collection: str) -> Path:

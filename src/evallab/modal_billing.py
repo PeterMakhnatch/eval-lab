@@ -1,13 +1,4 @@
-"""Modal billing reconcile: billed GPU-seconds versus lab-computed cost.
-
-``modal billing report`` (read-only) is the billed side. The lab side sums
-catalog ``trials.cost_usd`` for self-hosted MiMo trials per UTC day. Ingested
-self-hosted trials record a native model id (the base
-``XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`` or an admitted ``...:<adapter>``),
-not the ``selfhosted/`` queue selector, so both spellings match. Missing data is ``None`` with a reason,
-never 0: the self-hosted route bills by server time, so per-trial cost is
-routinely absent from the catalog.
-"""
+"""Normalize recorded provider billing rows and read stored usage reports."""
 
 from __future__ import annotations
 
@@ -18,7 +9,6 @@ from typing import Any
 
 import psycopg
 from psycopg.types.json import Jsonb
-
 
 #: Catalog table holding fetched Modal billing rows. Also applied through
 #: ``sql/schema.sql``; created here too so direct users get the same shape.
@@ -56,8 +46,6 @@ class BillingRow:
             for key, value in self.tags.items()
         ):
             raise ValueError("billing tags must be a string-to-string object")
-
-
 
 
 def normalize_report_rows(payload: Any, *, resolution: str) -> list[BillingRow]:
@@ -99,8 +87,6 @@ def normalize_report_rows(payload: Any, *, resolution: str) -> list[BillingRow]:
             )
         )
     return rows
-
-
 
 
 def store_billing_rows(database_url: str, rows: list[BillingRow], *, resolution: str) -> int:
@@ -181,15 +167,5 @@ def fetch_modal_billing_report(
     except Exception as exc:
         raise RuntimeError(f"modal billing report unreadable: {exc}") from exc
     return normalize_report_rows(payload, resolution=resolution)
-
-
-
-
-
-
-
-
-
-
 
 

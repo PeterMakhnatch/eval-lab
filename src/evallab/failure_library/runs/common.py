@@ -58,10 +58,6 @@ def group_split(source: str, family: str) -> Split:
     return "DEV" if bucket < 8 else "heldout"
 
 
-
-
-
-
 def agent_text(value: Any) -> Iterator[str]:
     """Visit assistant/agent prose only, excluding instructions and tool observations."""
     if isinstance(value, str):

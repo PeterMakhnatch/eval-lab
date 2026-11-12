@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-
 from evallab.schemas import (
     CalibrationRecord,
 )
@@ -247,10 +246,6 @@ class DspySplit:
     heldout: tuple[DspyExample, ...]
 
 
-
-
-
-
 class DspyOptimizer(Protocol):
     def compile(self, program: Any, *, trainset: Sequence[Any], valset: Sequence[Any]) -> Any: ...
 
@@ -295,10 +290,6 @@ def load_corpus(repo_root: Path, family: str) -> list[CorpusDocument]:
             )
         )
     return documents
-
-
-
-
 
 
 def evidence_root(repo_root: Path) -> Path:
@@ -360,8 +351,6 @@ def load_evidence_pack(repo_root: Path, family: str) -> EvidencePack:
     )
 
 
-
-
 def render_evidence_pack(pack: EvidencePack) -> str:
     """The judge-facing text of the evidence directory: every file, verbatim, named."""
     parts = [
@@ -387,42 +376,6 @@ def rubric_payload(family: str) -> dict[str, Any]:
         ),
         **RUBRICS[family],
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def load_dspy_examples(repo_root: Path, family: str) -> list[DspyExample]:
@@ -483,8 +436,6 @@ DSPY_JUDGE_INSTRUCTIONS = (
 )
 
 
-
-
 def check_dspy_program_state(program: Any, path: Path) -> None:
     """Refuse saved program state whose fields do not match the live signature.
 
@@ -504,16 +455,6 @@ def check_dspy_program_state(program: Any, path: Path) -> None:
                 f"{path}: saved fields {stored} do not match the judge signature {live}; "
                 "this program was compiled against a different input contract"
             )
-
-
-
-
-
-
-
-
-
-
 
 
 def dspy_split_summary(repo_root: Path, family: str) -> dict[str, Any]:
@@ -580,8 +521,6 @@ class AlwaysPassStubVerifier(StubVerifier):
         return 1.0
 
 
-
-
 def load_llm_verifier() -> Any:
     """Dynamically import llm_verifier or raise a graceful degradation error."""
     try:
@@ -628,24 +567,6 @@ class LlmVerifier:
         return float(backend.score(task, candidate))
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def save_calibration_record(records_root: Path, record: CalibrationRecord) -> Path:
     """Save a schema-conforming CalibrationRecord to disk."""
     records_root = records_root.resolve()
@@ -669,7 +590,5 @@ def load_calibration_records(records_root: Path) -> list[CalibrationRecord]:
         except Exception:
             continue
     return records
-
-
 
 

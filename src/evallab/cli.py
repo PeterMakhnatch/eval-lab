@@ -729,8 +729,6 @@ def _print_campaign_status(
             print(f"  approve: {attempt.approval_command}")
 
 
-
-
 def _campaign_orchestrator(args: argparse.Namespace, root: Path) -> Any:
     from evallab.campaigns import CAMPAIGN_STATE_ROOT, CampaignOrchestrator
 
@@ -740,6 +738,15 @@ def _campaign_orchestrator(args: argparse.Namespace, root: Path) -> Any:
         state_root=root / CAMPAIGN_STATE_ROOT,
         requested_parallel=getattr(args, "parallel", None),
     )
+
+
+def _campaign_run_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    status = _campaign_orchestrator(args, root).run(dry_run=args.dry_run)
+    _print_campaign_status(status, as_json=args.json)
+    return 0
 
 
 def _campaign_resume_command(
@@ -785,10 +792,6 @@ def _campaign_status_command(
             }
         _print_campaign_status(status, as_json=args.json, spend_snapshot=spend_snapshot)
     return 0
-
-
-
-
 
 
 def _campaign_approve_command(
@@ -1014,8 +1017,6 @@ def _digest_command(
     return 0
 
 
-
-
 def _nightly_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1105,8 +1106,6 @@ def _canary_import_command(
     )
     print(f"imported: {imported}")
     return 0
-
-
 
 
 def _run_command(
@@ -1569,8 +1568,6 @@ def _db_init_command(
     database.initialize(url)
     print("database schema is current")
     return 0
-
-
 
 
 def _spend_day_command(
@@ -2306,8 +2303,6 @@ def _tasks_anatomy_command(
     return 0
 
 
-
-
 def _parse_key_value(assignments: Sequence[str], *, label: str) -> dict[str, str]:
     parsed: dict[str, str] = {}
     for assignment in assignments:
@@ -2841,10 +2836,6 @@ def _registry_list_command(
     return 0
 
 
-
-
-
-
 def _registry_audit_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3332,22 +3323,28 @@ def parser() -> argparse.ArgumentParser:
     campaign_status.add_argument("--json", action="store_true")
     campaign_status.set_defaults(func=_campaign_status_command)
 
+    campaign_run = campaign_commands.add_parser(
+        "run",
+        help="Submit a new campaign through PolicyGate and dispatch only admitted specs",
+    )
     campaign_resume = campaign_commands.add_parser(
         "resume",
         help="Resume exact-digest attempts without repeating completed work",
     )
-    campaign_resume.add_argument("manifest", type=Path)
-    campaign_resume.add_argument(
-        "--parallel",
-        type=int,
-        help="Dispatch workers; cannot exceed the frozen campaign ceiling",
-    )
-    campaign_resume.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Validate and report without queue, journal, or Harbor mutations",
-    )
-    campaign_resume.add_argument("--json", action="store_true")
+    for campaign_execute in (campaign_run, campaign_resume):
+        campaign_execute.add_argument("manifest", type=Path)
+        campaign_execute.add_argument(
+            "--parallel",
+            type=int,
+            help="Dispatch workers; cannot exceed the frozen campaign ceiling",
+        )
+        campaign_execute.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Validate and report without queue, journal, or Harbor mutations",
+        )
+        campaign_execute.add_argument("--json", action="store_true")
+    campaign_run.set_defaults(func=_campaign_run_command)
     campaign_resume.set_defaults(func=_campaign_resume_command)
 
 
@@ -4856,8 +4853,6 @@ def _normalize_review_argv(argv: Sequence[str] | None) -> Sequence[str] | None:
             normalized.append(argv[i])
             i += 1
     return normalized
-
-
 
 
 def run_cli(

@@ -1035,8 +1035,6 @@ class HeadlessDoctorReport(ContractModel):
         return self.healthy and self.checks.launch_agents_intact
 
 
-
-
 class RunProvenance(ContractModel):
     schema_version: Literal[1] = 1
     spec_id: str
@@ -1161,24 +1159,6 @@ class CohortComparisonSpec(ContractModel):
         if len(labels) != len(set(labels)):
             raise ValueError("cohort labels must be unique")
         return self
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 FailureCategory = Literal[
@@ -1445,12 +1425,6 @@ class CanaryDriftObservation(ContractModel):
         return self
 
 
-
-
-
-
-
-
 class CriterionAgreementRate(ContractModel):
     agreements: int = Field(ge=0)
     total: int = Field(ge=1)
@@ -1499,8 +1473,6 @@ class JudgeCalibrationRecord(ContractModel):
         if self.reportable != (self.status == "measured"):
             raise ValueError("only measured calibration records are reportable")
         return self
-
-
 
 
 class TaskDigests(ContractModel):
@@ -2513,15 +2485,6 @@ LadderGridSpec = GridSpec
 # --------------------------------------------------------------------------- #
 # Authoring / Generation Proposal Specs (SG-1..3)
 # --------------------------------------------------------------------------- #
-
-
-
-
-
-
-
-
-
 
 
 class StateEventMetadata(ContractModel):

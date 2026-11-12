@@ -702,8 +702,6 @@ LANG_BLOCK_V4 = (LANG_BLOCK[:_pip_start] + PIP_LEG_V4 + LANG_BLOCK[_go_start:]).
 )
 
 
-
-
 MARKER_V2 = "purge-build-caches@2"
 
 #: Language sections in ``LANG_BLOCK`` (recorded in @2 lineage inputs).
@@ -721,11 +719,7 @@ LANGUAGE_SECTIONS = (
 )
 
 
-
-
 MARKER_V3 = "purge-build-caches@3"
-
-
 
 
 TRANSFORM_ID_V5 = "purge-build-caches@5"
@@ -788,12 +782,6 @@ def build_setup_sh_v5(parent_setup_sh: str) -> str:
     return parent_setup_sh.replace(ANCHOR, "\nwrite_blocklist\n" + shell_block_v5(), 1)
 
 
-
-
-
-
-
-
 def _read_parent(parent_dir: Path) -> tuple[str, str, str, str]:
     try:
         text = (parent_dir / "task.toml").read_text(encoding="utf-8")
@@ -814,18 +802,6 @@ def _read_parent(parent_dir: Path) -> tuple[str, str, str, str]:
     if not setup_path.is_file():
         raise VariantInvalid(f"parent has no {SETUP_REL}")
     return task_name, workdir, image, setup_path.read_text(encoding="utf-8")
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def build_changes_v4(
@@ -960,7 +936,5 @@ def derive_purge_build_caches_v5(
         inputs=inputs,
         **kwargs,
     )
-
-
 
 

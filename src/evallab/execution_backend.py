@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 
 
-
 class LocalDockerDisabledError(RuntimeError):
     """Local container execution was forbidden by the operator or worker policy."""
 

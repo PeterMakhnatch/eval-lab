@@ -117,8 +117,6 @@ def _write_all(descriptor: int, payload: bytes) -> None:
         remaining = remaining[written:]
 
 
-
-
 def _repo_relative(value: str) -> str:
     if value.startswith("/") or ".." in value.split("/"):
         raise ValueError("campaign paths must stay relative to the repository")
@@ -133,8 +131,6 @@ def _resolved_repo_subpath(repo_root: Path, relative_path: str, *, label: str) -
     except ValueError as exc:
         raise CampaignDriftError(f"{label} resolves outside the repository") from exc
     return resolved
-
-
 
 
 def experiment_spec_digest(spec: ExperimentSpec) -> str:
@@ -200,10 +196,6 @@ class CampaignMatrixContract(_FrozenContract):
     task_path: str = Field(min_length=1)
     verifier_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-
-
-
-
 
 
 class CampaignAnalysisCell(_FrozenContract):
@@ -316,8 +308,6 @@ class CampaignDefinitionAttempt(_FrozenContract):
             ):
                 raise ValueError("billable attempts require token ceilings")
         return self
-
-
 
 
 class _CampaignAttemptBinding(_FrozenContract):
@@ -460,14 +450,6 @@ def campaign_manifest_digest(manifest: CampaignManifest | Mapping[str, Any]) -> 
     return _digest(payload)
 
 
-
-
-
-
-
-
-
-
 def _analysis_cell_holds(
     attempts: Sequence[CampaignDefinitionAttempt | CampaignAttempt],
 ) -> tuple[str, ...]:
@@ -499,8 +481,6 @@ def _analysis_cell_holds(
         if len(cell_attempts) < 2 or len(seeds) != len(set(seeds)):
             holds.append(f"analysis_cell_repeats_insufficient:{min(cell_ids)}")
     return tuple(sorted(set(holds)))
-
-
 
 
 class CampaignEvent(_FrozenContract):
@@ -2230,8 +2210,6 @@ class CampaignOrchestrator:
 
     def resume(self, *, dry_run: bool = False) -> CampaignStatus:
         return self._execute(resume=True, dry_run=dry_run)
-
-
 
 
 def plan_repeated_matrix(

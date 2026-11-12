@@ -185,8 +185,6 @@ def is_import_line(stripped: str) -> bool:
     return bool(_IMPORT_RE.match(stripped))
 
 
-
-
 def distinctive_added_lines(
     patch_text: str,
     *,
@@ -558,8 +556,6 @@ def stage_probe(
             (stage / "fix.patch").write_text(str(patch), encoding="utf-8")
     if not scan:
         (stage / "no_scan").write_text("fast published control\n", encoding="utf-8")
-
-
 
 
 def run_probe(

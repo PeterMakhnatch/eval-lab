@@ -185,20 +185,6 @@ def test_refuses_to_mutate_existing_different_pin(tmp_path: Path) -> None:
         service.fetch("hello-world@2.0")
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def test_proofjudge_sample_is_commit_and_checksum_pinned() -> None:
     assert len(PROOFJUDGE_ATIF_SAMPLE.revision) == 40
     assert len(PROOFJUDGE_ATIF_SAMPLE.sha256) == 64

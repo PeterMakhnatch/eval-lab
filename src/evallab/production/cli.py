@@ -1,4 +1,4 @@
-"""Public DEV queue admission, read-only status, and evidence exports."""
+"""Public DEV evidence exports and admitted trace imports."""
 
 from __future__ import annotations
 
@@ -13,22 +13,11 @@ import tempfile
 from collections.abc import Mapping
 from contextlib import closing
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from urllib.parse import unquote, urlsplit
-
-if TYPE_CHECKING:
-    pass
 
 _CONNECTION_URL = re.compile(r"(?i)\b(?:postgres(?:ql)?|nats|tls|ws|wss)://[^\s\"'<>]+")
 _LIVE_DATABASE = Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite"
-
-
-
-
-
-
-
-
 
 
 def _queue_options(parser: argparse.ArgumentParser) -> None:
@@ -37,28 +26,18 @@ def _queue_options(parser: argparse.ArgumentParser) -> None:
         "--repo-root", type=Path, default=argparse.SUPPRESS,
         help="Corpus/source root (default: the current Eval Lab workspace)",
     )
-    parser.add_argument(
-        "--database", default=argparse.SUPPRESS,
-        help="PostgreSQL DSN or SQLite path (default: derived/production/prod-queue.sqlite)",
-    )
-    parser.add_argument(
-        "--sqlite-fallback", type=Path, default=argparse.SUPPRESS,
-        help="Initial PostgreSQL connection fallback (default: the root-derived SQLite queue)",
-    )
-
-
 
 
 def register_parser(commands: Any) -> None:
     """Register deterministically without opening databases, brokers, or models."""
     production = commands.add_parser(
-        "prod", help="Admit and inspect the durable production queue; export evidence",
+        "prod", help="Export evidence and import admitted DEV trace records",
         description=(
             "Public DEV production lane. TEST/heldout records remain sealed. "
-            "Queue status is read-only. All receipts are JSON."
+            "All receipts are JSON."
         ),
     )
-    production.set_defaults(repo_root=None, database=None, sqlite_fallback=None)
+    production.set_defaults(repo_root=None)
     _queue_options(production)
     actions = production.add_subparsers(dest="prod_command", required=True)
 
@@ -199,10 +178,6 @@ def register_parser(commands: Any) -> None:
     findings.set_defaults(func=_command)
 
 
-
-
-
-
 def _resolve(root: Path, path: Path) -> Path:
     path = path.expanduser()
     return (path if path.is_absolute() else root / path).resolve()
@@ -218,10 +193,6 @@ def _database(root: Path, value: str | None) -> str | Path:
     if value.startswith("sqlite:///"):
         value = value[len("sqlite:///"):]
     return _resolve(root, Path(value))
-
-
-
-
 
 
 def _emit(payload: dict[str, Any], args: argparse.Namespace, *, error: bool = False) -> None:
@@ -260,8 +231,6 @@ def _emit(payload: dict[str, Any], args: argparse.Namespace, *, error: bool = Fa
         json.dumps(scrub(redact_mapping(payload)), sort_keys=True, allow_nan=False),
         file=sys.stderr if error else sys.stdout, flush=True,
     )
-
-
 
 
 def _read_allowlist(path: Path) -> bytes:
@@ -332,12 +301,6 @@ def _export_cluster_scope(args: argparse.Namespace, root: Path) -> dict[str, Any
         _local_path(root, args.source_database), args.cluster_id, _local_path(root, args.manifest),
         registry=CorpusRegistry(root), revision=revision or None,
     )
-
-
-
-
-
-
 
 
 def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
@@ -470,7 +433,7 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 )
             _emit({"command": args.prod_command, **receipt}, args)
             return 0
-        if args.prod_command == "import-run-clusters":
+        else:
             from evallab.production.cloud_trace_db import CloudTraceDatabase, import_run_clusters
             from evallab.production.corpus_queue import CorpusRegistry
 

@@ -1,26 +1,4 @@
-"""Pinned MiMo HF snapshot intake and task-catalog Parquet builds.
-
-This module owns the data side of Peter's MiMo RL-environment experiments:
-
-1. ``pull_hf_snapshot`` downloads one pinned ``<org>/<repo>@<40-hex-sha>``
-   Hugging Face dataset snapshot anonymously into the shared derived store at
-   ``derived/task-store/hf/<org>__<repo>@<rev12>/`` under the primary
-   checkout root (``default_task_store_root``, shared across worktrees),
-   makes it read-only, and records a ``ProvenanceMetadata`` sidecar
-   (zone ``01-external``). Idempotent: a complete snapshot whose provenance
-   and material digest still match is reused; any mismatch is refused, never
-   overwritten.
-2. ``build_catalog`` scans pulled snapshots (plus git-tracked lineage records
-   under ``library/task-variants/``) and writes the four contract Parquet
-   tables under ``<derived root>/parquet/external/task_catalog/``.
-3. ``show_task`` prints one task version: identity, digests, source pin,
-   findings, lineage, and outcome rows.
-
-Per-task bytes are verified against the adapter's ``manifest.json`` with the
-exact hashing the adapter uses (``relpath + NUL + bytes + NUL`` per file,
-sorted); mismatches become findings, never crashes. Harbor join digests come
-from ``registry.harbor_task_digest``.
-"""
+"""Stored task-catalog schemas, outcome views, and split-gated training exports."""
 
 from __future__ import annotations
 
@@ -40,14 +18,12 @@ from evallab.storage.paths import derived_root_from_environment, shared_checkout
 from evallab.task_stability import TABLE_FILENAME as STABILITY_PARQUET_FILENAME
 
 
-
 def _repo_relative(path: Path, repo_root: Path) -> str:
     """Portable path for git-tracked records; absolute only outside the repo."""
     try:
         return path.resolve().relative_to(repo_root.resolve()).as_posix()
     except ValueError:
         return str(path)
-
 
 
 MIMO_HF_PINS: dict[str, str] = {
@@ -98,22 +74,6 @@ FINDING_RECORD_SCHEMA = "evallab.task_finding/v1"
 FINDINGS_DIRNAME = Path("library/task-findings")
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def catalog_dir(derived_root: Path) -> Path:
     """Rebuildable catalog root: ``<derived root>/parquet/external/task_catalog``."""
     return derived_root / CATALOG_RELPATH
@@ -136,30 +96,7 @@ def task_store_root(repo_root: Path, *, derived_root: Path | None = None) -> Pat
     return default_task_store_root(repo_root)
 
 
-
-
 """Download collaborator: ``(repo_id, revision, dest_dir)``. Tests inject fakes."""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 TASK_SOURCES_SCHEMA = pa.schema(
@@ -237,54 +174,9 @@ TASK_LINEAGE_SCHEMA = pa.schema(
 )
 
 
-
-
-
-
-
-
-
-
-
-
-
 _REPO_URL = re.compile(
     r"https?://(github\.com|gitlab\.com)/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)"
 )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def wilson_interval(n_pass: int, n_scored: int, z: float = 1.96) -> tuple[float | None, float | None]:
@@ -383,9 +275,6 @@ def task_outcomes_sql(trials: str = "trial_facts", versions: str = "task_version
         END AS verdict
     FROM ({inner}) AS rollup
     """
-
-
-
 
 
 def task_audit_sql(

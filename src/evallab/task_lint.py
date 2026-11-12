@@ -49,12 +49,6 @@ _NETWORK_INSTALL = re.compile(
 _GO_FLAG_WITH_VALUE = frozenset({"-run", "-count", "-timeout", "-tags", "-cpu", "-parallel"})
 
 
-
-
-
-
-
-
 @dataclass(frozen=True)
 class Finding:
     rule: str
@@ -261,16 +255,6 @@ def discover_tasks(paths: Sequence[Path]) -> list[Path]:
         else:
             tasks[path] = None
     return sorted(tasks, key=lambda task: task.as_posix())
-
-
-
-
-
-
-
-
-
-
 
 
 # Native package metadata and security checks.

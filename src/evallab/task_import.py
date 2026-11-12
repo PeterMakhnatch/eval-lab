@@ -1,4 +1,4 @@
-"""Restartable, failure-isolated import of Harbor task packages."""
+"""Harbor task package loading and source identity."""
 
 from __future__ import annotations
 
@@ -9,12 +9,6 @@ import tomllib
 from pathlib import Path
 
 _IGNORED_NAMES = {".DS_Store", ".git", "__pycache__", ".pytest_cache"}
-
-
-
-
-
-
 
 
 def _package_files(root: Path) -> list[Path]:
@@ -54,8 +48,6 @@ def _task_name(root: Path) -> str:
     if not normalized:
         raise ValueError("task name is empty")
     return normalized
-
-
 
 
 def _reclaim_stale_staging(destination: Path) -> None:
@@ -143,7 +135,5 @@ def discover_task_packages(source_root: Path) -> list[Path]:
     if not root.is_dir():
         raise FileNotFoundError(f"task source directory does not exist: {root}")
     return sorted({path.parent for path in root.rglob("task.toml")}, key=str)
-
-
 
 

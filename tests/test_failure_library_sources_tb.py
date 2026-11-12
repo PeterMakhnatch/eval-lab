@@ -10,8 +10,6 @@ from typing import Any
 
 import pytest
 
-from evallab.cli import run_cli
-from evallab.failure_library.commands import ingest
 from evallab.failure_library.sources import collection_builders, json_rows, mimo, normalize_split
 from evallab.failure_library.sources.mimo import (
     KEY as MIMO_KEY,
@@ -30,7 +28,6 @@ from evallab.failure_library.sources.tb_family import (
     build_tb21_weak,
     envcheck_records,
 )
-from evallab.failure_library.store import LibraryStore
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -297,31 +294,12 @@ def test_mimo_db_rejects_unqualified_tier1_instead_of_laundering_execution() -> 
         defect_map_records([row])
 
 
-def test_registry_discovers_source_modules_and_cli_writes_reproducibly(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    expected = {
-        "pm-tb4-findings",
-        "envcheck-tb4",
-        "tb21-weak-tests",
-        "tb2-to-tb21-fixes",
-        "mimo-weak-tests",
-        "mimo-defect-map",
-    }
+def test_registry_discovers_source_modules_and_builds_findings():
+    expected = {"pm-tb4-findings", "envcheck-tb4", "tb21-weak-tests", "tb2-to-tb21-fixes",
+                "mimo-weak-tests", "mimo-defect-map"}
     assert expected <= collection_builders().keys()
     finding = defect_map_records([_issue("tier3_provisional", "heldout")])[0]
-    monkeypatch.setattr(
-        ingest,
-        "collection_builders",
-        lambda: {finding.collection: lambda root, state_root=None: [finding]},
-    )
-    command = ["failures", "ingest", finding.collection, "--state-root", str(tmp_path / "state")]
-    assert run_cli(command, workspace=tmp_path) == 0
-    store = LibraryStore.for_repo(tmp_path, state_root=tmp_path / "state")
-    original = store.findings_path(finding.collection).read_bytes()
-    assert run_cli(command, workspace=tmp_path) == 0
-    assert store.findings_path(finding.collection).read_bytes() == original
-    assert store.stats()["findings"]["by_collection"] == {finding.collection: 1}
+    assert finding.tier == "V0_unverified" and finding.split == "heldout"
 
 
 def test_mimo_db_snapshot_is_read_only_pinned_and_survives_source_removal(

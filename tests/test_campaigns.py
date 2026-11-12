@@ -8,24 +8,20 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
 
 from evallab import cli
 from evallab.benchmark_program_contracts import (
-    CampaignCalibrationLedger,
     CampaignMeasurementLedger,
     SyntheticFamilyType,
 )
 from evallab.campaigns import (
-    CampaignDefinition,
-    CampaignDefinitionAttempt,
+    CampaignAttempt,
     CampaignDriftError,
     CampaignLimits,
     CampaignManifest,
     CampaignOrchestrator,
     CampaignSecretSanitizer,
     TrialLimits,
-    build_campaign_manifest,
     campaign_manifest_digest,
     experiment_spec_digest,
 )
@@ -170,10 +166,6 @@ def _repo(tmp_path: Path) -> Path:
     return root
 
 
-
-
-
-
 def _spec(*, billable: bool) -> ExperimentSpec:
     return ExperimentSpec(
         name="definition-placeholder",
@@ -194,66 +186,63 @@ def _spec(*, billable: bool) -> ExperimentSpec:
     )
 
 
-def _definition(
-    *,
-    billable: bool,
-    attempts: int = 1,
-    campaign_cost: float | None = None,
-    circuit_failures: int = 1,
-    max_concurrency: int = 1,
-) -> CampaignDefinition:
-    trial = TrialLimits(
-        max_requests=2 if billable else 0,
-        max_cost_usd=1.0 if billable else 0.0,
-        max_input_tokens=100 if billable else 0,
-        max_output_tokens=100 if billable else 0,
-        max_total_tokens=200 if billable else 0,
-        max_wall_clock_seconds=60,
+def _manifest(root: Path, *, attempts: int = 1, agent: str = "mini-swe-agent",
+              model: str = DEEPSEEK_MODEL_SELECTOR) -> CampaignManifest:
+    """An explicit frozen manifest for the retained resume and custody contracts."""
+    ledger = CampaignMeasurementLedger(
+        ledger_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", matrix_ref="01ARZ3NDEKTSV4RRFFQ69G5FAW",
+        campaign_phase="billable_cohort", family=SyntheticFamilyType.FAMILY_A_STATE_INVERSION,
+        status="pending",
     )
-    ledger = (
-        CampaignMeasurementLedger(
-            ledger_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            matrix_ref="01ARZ3NDEKTSV4RRFFQ69G5FAW",
-            campaign_phase="billable_cohort",
-            family=SyntheticFamilyType.FAMILY_A_STATE_INVERSION,
-            status="pending",
-        )
-        if billable
-        else CampaignCalibrationLedger(
-            ledger_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            matrix_ref="01ARZ3NDEKTSV4RRFFQ69G5FAW",
-            family=SyntheticFamilyType.FAMILY_A_STATE_INVERSION,
-            status="pending",
-        )
-    )
-    return CampaignDefinition(
-        ledger=ledger,
-        submitted_by="campaign-test",
-        limits=CampaignLimits(
-            max_requests=2 * attempts if billable else 0,
-            max_cost_usd=(attempts if billable else 0.0)
-            if campaign_cost is None
-            else campaign_cost,
-            max_input_tokens=100 * attempts if billable else 0,
-            max_output_tokens=100 * attempts if billable else 0,
-            max_total_tokens=200 * attempts if billable else 0,
-            max_wall_clock_seconds=60 * attempts,
-            max_concurrency=max_concurrency,
-            max_consecutive_transient_failures=circuit_failures,
-        ),
-        attempts=tuple(
-            CampaignDefinitionAttempt(
-                cell_id=f"cell-{index}",
-                task_id="task-one",
-                attempt=index,
-                spec=_spec(billable=billable),
-                limits=trial,
-            )
-            for index in range(1, attempts + 1)
-        ),
-    )
-
-
+    digests = compute_task_digests(root / "tasks/task-one")
+    task_contract = {
+        "task_id": "task-one", "task_ref": "tasks/task-one", "task_path": "tasks/task-one",
+        "task_family": ledger.family.value, "task_version": "1.0",
+        "verifier_digest": digests.verifier, "package_digest": digests.package,
+    }
+    matrix = json.loads((root / "research/experiments/local-controls.json").read_text())
+    trial_limits = TrialLimits(max_requests=2, max_cost_usd=1.0, max_input_tokens=100,
+                               max_output_tokens=100, max_total_tokens=200, max_wall_clock_seconds=60)
+    placeholder = "sha256:" + "0" * 64
+    rows = []
+    for index in range(1, attempts + 1):
+        attempt_id, spec_id = f"attempt-{index:024x}", f"campaign-{index:024x}"
+        name = f"fixture-campaign-{index}"
+        spec = _spec(billable=True).model_copy(update={
+            "agent": agent, "model": model, "name": name, "spec_id": spec_id,
+            "task_path": "tasks/task-one", "task_version": "1.0",
+            "verifier_digest": digests.verifier, "task_package_digest": digests.package,
+            "max_requests": 2, "max_input_tokens": 100, "max_output_tokens": 100,
+            "max_total_tokens": 200, "cost_limit_usd": 1.0, "est_cost_usd": 1.0,
+            "campaign_ledger": ledger, "campaign_cell_id": f"cell-{index}",
+            "campaign_attempt_id": attempt_id, "campaign_attempt_index": index,
+            "campaign_manifest_digest": placeholder, "campaign_spec_digest": placeholder,
+            "campaign_evidence_store": "derived/evidence-cas",
+        })
+        spec_digest = experiment_spec_digest(spec)
+        spec = spec.model_copy(update={"campaign_spec_digest": spec_digest})
+        rows.append(CampaignAttempt(
+            attempt_id=attempt_id, spec_id=spec_id, job_name=name, spec_digest=spec_digest,
+            identity={"ledger": ledger, "cell_id": f"cell-{index}", "task_id": "task-one", "attempt": index},
+            spec=spec, limits=trial_limits, task_contract=task_contract,
+        ).model_dump(mode="json", exclude_none=True))
+    raw = {
+        "schema_version": "campaign-manifest/v3", "ledger": ledger.model_dump(mode="json"),
+        "submitted_by": "campaign-test", "evidence_store": "derived/evidence-cas",
+        "limits": CampaignLimits(max_requests=2 * attempts, max_cost_usd=float(attempts),
+                                 max_input_tokens=100 * attempts, max_output_tokens=100 * attempts,
+                                 max_total_tokens=200 * attempts, max_wall_clock_seconds=60 * attempts,
+                                 max_concurrency=1, max_consecutive_transient_failures=1).model_dump(mode="json"),
+        "matrix": {"matrix_id": matrix["matrix_id"], "matrix_path": "research/experiments/local-controls.json",
+                   "matrix_digest": json.loads((root / "research/experiments/matrix-registry.json").read_text())["matrices"][0]["matrix_digest"], "benchmark_family": ledger.family.value,
+                   "task_id": "task-one", "task_path": "tasks/task-one", "verifier_digest": digests.verifier,
+                   "package_digest": digests.package},
+        "attempts": rows, "analysis_holds": [],
+    }
+    raw["manifest_digest"] = campaign_manifest_digest(raw)
+    for row in rows:
+        row["spec"]["campaign_manifest_digest"] = raw["manifest_digest"]
+    return CampaignManifest.model_validate(raw)
 
 
 def _write_job(
@@ -424,16 +413,6 @@ def _orchestrator(
     )
 
 
-
-
-def test_campaign_refuses_reserved_budget_above_ceiling() -> None:
-    with pytest.raises(
-        ValidationError,
-        match="reserved per-trial cost ceilings exceed the campaign ceiling",
-    ):
-        _definition(billable=True, attempts=2, campaign_cost=1.5)
-
-
 @pytest.mark.parametrize(
     ("agent", "model", "credential"),
     [
@@ -449,10 +428,7 @@ def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
     credential: str,
 ) -> None:
     root = _repo(tmp_path)
-    definition_data = _definition(billable=True).model_dump(mode="json")
-    definition_data["attempts"][0]["spec"].update(agent=agent, model=model)
-    definition = CampaignDefinition.model_validate(definition_data)
-    manifest = build_campaign_manifest(definition, repo_root=root)
+    manifest = _manifest(root, agent=agent, model=model)
     calls: list[str] = []
 
     def runner(request: RunRequest) -> Path:
@@ -511,94 +487,20 @@ def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
     assert calls == [manifest.attempts[0].job_name]
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def test_campaign_cli_plan_status_and_dry_run_are_operational(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_campaign_cli_status_and_run_dry_run_are_operational(tmp_path: Path, capsys) -> None:
     root = _repo(tmp_path)
-    definition_path = root / "campaign.json"
-    definition_path.write_text(
-        _definition(billable=True).model_dump_json(indent=2),
-        encoding="utf-8",
-    )
-
-    assert (
-        cli.run_cli(
-            ["campaign", "plan", "campaign.json", "--json"],
-            workspace=root,
-        )
-        == 0
-    )
-    plan = json.loads(capsys.readouterr().out)
-    manifest_path = root / plan["manifest_path"]
-    assert manifest_path.is_file()
-    assert not (root / "queue").exists()
-
-    assert (
-        cli.run_cli(
-            [
-                "campaign",
-                "run",
-                plan["manifest_path"],
-                "--dry-run",
-                "--json",
-            ],
-            workspace=root,
-        )
-        == 0
-    )
+    manifest = _manifest(root)
+    manifest_path = root / "runs/campaigns" / manifest.campaign_id / "manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(manifest.model_dump_json(indent=2))
+    relative = str(manifest_path.relative_to(root))
+    assert cli.run_cli(["campaign", "run", relative, "--dry-run", "--json"], workspace=root) == 0
     dry_run = json.loads(capsys.readouterr().out)
-    assert dry_run["state"] == "planned"
-    assert dry_run["dry_run"] is True
+    assert dry_run["state"] == "planned" and dry_run["dry_run"] is True
     assert not (root / "queue").exists()
     assert not (manifest_path.parent / "journal.jsonl").exists()
-
-    assert (
-        cli.run_cli(
-            ["campaign", "status", plan["manifest_path"], "--json"],
-            workspace=root,
-        )
-        == 0
-    )
-    status = json.loads(capsys.readouterr().out)
-    assert status["state"] == "planned"
-
-
-
-
-
-
-
-
-
+    assert cli.run_cli(["campaign", "status", relative, "--json"], workspace=root) == 0
+    assert json.loads(capsys.readouterr().out)["state"] == "planned"
 
 
 @pytest.mark.parametrize("disposition", ["QUALITY_WARN", "HOLD", "QUARANTINED"])
@@ -607,10 +509,7 @@ def test_post_run_compliance_refusal_never_marks_campaign_queue_done(
     disposition: str,
 ) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(
-        _definition(billable=True, attempts=2),
-        repo_root=root,
-    )
+    manifest = _manifest(root, attempts=2)
     calls: list[str] = []
 
     def runner(request: RunRequest) -> Path:
@@ -651,31 +550,11 @@ def test_post_run_compliance_refusal_never_marks_campaign_queue_done(
     )
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def test_resume_rejects_valid_archive_with_wrong_content_digest(tmp_path: Path) -> None:
     from evallab.evidence_store import archive_evidence
 
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    manifest = _manifest(root)
     executor = _executor(
         root,
         lambda request: _write_job(
@@ -731,12 +610,9 @@ def test_resume_rejects_valid_archive_with_wrong_content_digest(tmp_path: Path) 
         orchestrator._verify_archive_details(manifest.attempts[0], job_dir, details)
 
 
-
-
-
 def test_executor_revalidates_campaign_spec_at_last_mile(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    manifest = _manifest(root)
     calls: list[RunRequest] = []
     executor = _executor(
         root,
@@ -766,7 +642,7 @@ def test_executor_rejects_campaign_spec_id_prefix_substitution(
     tmp_path: Path,
 ) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    manifest = _manifest(root)
     calls: list[RunRequest] = []
     executor = _executor(
         root,
@@ -792,7 +668,7 @@ def test_executor_rejects_campaign_spec_id_prefix_substitution(
 
 def test_executor_revalidates_task_snapshot_at_last_mile(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    manifest = _manifest(root)
     calls: list[RunRequest] = []
     executor = _executor(
         root,
@@ -816,13 +692,11 @@ def test_executor_revalidates_task_snapshot_at_last_mile(tmp_path: Path) -> None
     )
 
 
-
-
 def test_human_approval_binds_exact_campaign_spec_and_manifest(
     tmp_path: Path,
 ) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    manifest = _manifest(root)
     calls: list[RunRequest] = []
     executor = _executor(
         root,
@@ -879,11 +753,9 @@ def test_human_approval_binds_exact_campaign_spec_and_manifest(
     )
 
 
-
-
 def test_running_reconciliation_revalidates_campaign_binding(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    manifest = _manifest(root)
     executor = _executor(root, lambda request: _write_job(request))
     orchestrator = _orchestrator(root, manifest, executor)
     orchestrator.run()
@@ -919,25 +791,5 @@ def test_running_reconciliation_revalidates_campaign_binding(tmp_path: Path) -> 
         event.reason_code == "campaign_binding_missing"
         for event in load_events(executor.queue.events_path)
     )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

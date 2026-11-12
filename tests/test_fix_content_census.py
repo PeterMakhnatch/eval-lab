@@ -78,7 +78,6 @@ def test_short_generic_lines_are_not_distinctive() -> None:
     assert "return x" not in lines
 
 
-
 def test_import_lines_are_not_distinctive() -> None:
     assert is_import_line("import os")
     assert is_import_line("from copy import deepcopy")
@@ -89,8 +88,6 @@ def test_import_lines_are_not_distinctive() -> None:
     lines = distinctive_added_lines(patch)
     assert "import sys" not in lines
     assert "from collections import OrderedDict" not in lines
-
-
 
 
 def test_generic_patterns_need_unrelated_dirs() -> None:
@@ -142,8 +139,6 @@ def test_locations_classify_to_routes() -> None:
     assert classify_location("/workspace/repo/target/debug/x", "/workspace/repo") == "target-dir"
 
 
-
-
 def test_stage_probe_lays_out_setup_and_probe(tmp_path: Path) -> None:
     source = tmp_path / "source"
     (source / "files").mkdir(parents=True)
@@ -183,8 +178,6 @@ def test_stage_probe_precomputed_and_no_scan(tmp_path: Path) -> None:
     assert (stage / "fix_source").read_text(encoding="utf-8") == "known-patch:t"
     assert (stage / "fix.patch").read_text(encoding="utf-8").startswith("diff --git")
     assert (stage / "no_scan").is_file()
-
-
 
 
 def _write_base(out: Path, *, pre: str = "yes", post: str = "no") -> None:

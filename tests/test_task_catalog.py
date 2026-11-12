@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 from pathlib import Path
 
 import duckdb
@@ -12,181 +11,46 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.registry import harbor_task_digest, task_directory_digest
 from evallab.task_catalog import (
-    build_catalog,
     export_train_eligible,
     outcome_verdict,
-    pull_hf_snapshot,
     task_audit_sql,
     task_outcomes_sql,
     wilson_interval,
 )
-from evallab.task_lint import mimo_manifest_sha
-
-REF = "TestOrg/MiMo-V2.6-RL-harbor-fake@" + "a" * 40
-REPO_ID = "TestOrg/MiMo-V2.6-RL-harbor-fake"
-
-SCRIPT_TOML = """\
-schema_version = "1.4"
-
-[task]
-name = "mimo-v2.6-rl/alpha-task"
-description = "alpha fixture"
-
-[metadata]
-category = "Go"
-domain = "fake"
-source_id = "alpha-task"
-
-[agent]
-timeout_sec = 100.0
-
-[verifier]
-timeout_sec = 60.0
-user = "root"
-
-[environment]
-docker_image = "docker.io/example/img@sha256:abc"
-network_mode = "public"
-cpus = 2
-memory_mb = 1024
-
-[environment.healthcheck]
-command = "bash -c 'echo setup'"
-timeout_sec = 60.0
-"""
-
-
-def _write_task(root: Path, task_id: str, *, toml: str, instruction: str,
-                 command: str = "bash tests/test.sh", patch: str = "") -> Path:
-    task = root / "tasks" / task_id
-    (task / "environment").mkdir(parents=True)
-    (task / "tests").mkdir(parents=True)
-    (task / "task.toml").write_text(toml)
-    (task / "instruction.md").write_text(instruction)
-    (task / "environment" / "Dockerfile").write_text("FROM example\n")
-    (task / "tests" / "test.sh").write_text("#!/bin/sh\nexit 0\n")
-    (task / "tests" / "test_command.sh").write_text(command + "\n")
-    if patch:
-        (task / "tests" / "test.patch").write_text(patch)
-    return task
-
-
-def _write_snapshot_fixture(root: Path, *, bad_sha_tasks: tuple[str, ...] = ()) -> Path:
-    """Minimal HF-layout fixture; optionally corrupt manifest entries."""
-    _write_task(root, "alpha-task", toml=SCRIPT_TOML, instruction="Fix alpha.\n",
-                command="go test example.com/acme/widgets/pkg -run TestX")
-    judge_toml = SCRIPT_TOML.replace('name = "mimo-v2.6-rl/alpha-task"',
-                                     'name = "mimo-v2.6-rl/beta-task"')
-    judge_toml = judge_toml.replace('source_id = "alpha-task"', 'source_id = "beta-task"')
-    judge_toml += '\n[verifier.env]\nGA_JUDGE_MODEL = "mimo-judge-v1"\n'
-    beta = _write_task(root, "beta-task", toml=judge_toml,
-                       instruction="Judge beta.\n", command="python tests/grade.py")
-    (beta / "tests" / "grade.py").write_text("import os\n# llm judge grades here\n")
-    manifest = {}
-    for task_id in ("alpha-task", "beta-task"):
-        sha = mimo_manifest_sha(root / "tasks" / task_id)
-        manifest[task_id] = "0" * 64 if task_id in bad_sha_tasks else sha
-    (root / "manifest.json").write_text(json.dumps({
-        "adapter": "mimo_harbor 1.1.0", "source": "x", "revision": "a" * 40,
-        "tasks": manifest,
-    }))
-    (root / "registry.json").write_text(json.dumps([{
-        "name": "MiMo-V2.6-RL-harbor-fake", "version": "1.1.0",
-        "tasks": [{"name": t, "path": f"tasks/{t}"} for t in ("alpha-task", "beta-task")],
-    }]))
-    (root / "data").mkdir(exist_ok=True)
-    (root / "data" / "tasks.jsonl").write_text(
-        "".join(json.dumps({"task_id": t, "source_id": t}) + "\n"
-                for t in ("alpha-task", "beta-task"))
-    )
-    (root / "README.md").write_text("# fake\n")
-    (root / "LICENSE").write_text("fake license\n")
-    return root
-
-
-def _fake_downloader(fixture: Path):
-    def download(repo_id: str, revision: str, dest: Path) -> None:
-        shutil.copytree(fixture, dest)
-
-    return download
-
-
-
 
 # ---------------------------------------------------------------- intake
-
-
-
-
-
-
 
 
 # ---------------------------------------------------------------- catalog rows
 
 
-def _pulled_snapshot(tmp_path: Path, *, bad: tuple[str, ...] = ()) -> Path:
-    fixture = _write_snapshot_fixture(tmp_path / "fixture", bad_sha_tasks=bad)
-    derived = tmp_path / "derived"
-    result = pull_hf_snapshot(
-        REF, repo_root=tmp_path, derived_root=derived,
-        downloader=_fake_downloader(fixture),
+def _catalog_fixture(tmp_path: Path) -> Path:
+    from evallab.task_catalog import (
+        TASK_FINDINGS_SCHEMA,
+        TASK_LINEAGE_SCHEMA,
+        TASK_SOURCES_SCHEMA,
+        TASK_VERSIONS_SCHEMA,
     )
-    assert result.status == "downloaded"
+    derived = tmp_path / "derived"
+    catalog = derived / "external/task_catalog"
+    catalog.mkdir(parents=True)
+    versions = [
+        {"task_version_digest": "sha256:" + str(index) * 64,
+         "harbor_digest": "sha256:" + str(index + 2) * 64, "task_id": name,
+         "task_name": name, "domain": "fake", "split_group": "fake:" + name,
+         "grader_kind": "script", "grader_cost": "free"}
+        for index, name in enumerate(("alpha-task", "beta-task"), start=1)
+    ]
+    for name, rows, schema in (
+        ("task_sources", [], TASK_SOURCES_SCHEMA), ("task_versions", versions, TASK_VERSIONS_SCHEMA),
+        ("task_findings", [], TASK_FINDINGS_SCHEMA), ("task_lineage", [], TASK_LINEAGE_SCHEMA),
+    ):
+        pq.write_table(pa.Table.from_pylist(rows, schema=schema), catalog / f"{name}.parquet")
     return derived
 
 
-def test_build_writes_four_tables_with_derived_rows(tmp_path: Path) -> None:
-    derived = _pulled_snapshot(tmp_path)
-    report = build_catalog(repo_root=tmp_path, derived_root=derived)
-    assert report.tables == {
-        "task_sources": 1, "task_versions": 2,
-        "task_findings": report.tables["task_findings"], "task_lineage": 0,
-    }
-    assert report.snapshots == ["TestOrg__MiMo-V2.6-RL-harbor-fake@aaaaaaaaaaaa"]
-    assert report.n_variants == 0
-
-    versions = pq.read_table(derived / "external/task_catalog/task_versions.parquet")
-    rows = {row["task_id"]: row for row in versions.to_pylist()}
-    alpha = rows["alpha-task"]
-    task_dir = (derived / "task-store/hf/TestOrg__MiMo-V2.6-RL-harbor-fake@aaaaaaaaaaaa"
-                / "tasks" / "alpha-task")
-    assert alpha["task_version_digest"] == task_directory_digest(task_dir)
-    assert alpha["harbor_digest"] == harbor_task_digest(task_dir)
-    assert alpha["origin"] == "external"
-    assert alpha["source_repo"] == REPO_ID
-    assert alpha["grader_kind"] == "script" and alpha["grader_cost"] == "free"
-    assert alpha["network_mode"] == "public" and alpha["agent_user"] == "root"
-    assert alpha["instruction_chars"] == len("Fix alpha.\n") and alpha["instruction_lang"] == "en"
-    assert alpha["split_group"] == "fake:alpha-task"
-    assert alpha["upstream_manifest_sha256"] == mimo_manifest_sha(task_dir)
-    assert rows["beta-task"]["grader_kind"] == "llm_judge"
-    assert rows["beta-task"]["grader_cost"] == "paid"
-
-    sources = pq.read_table(derived / "external/task_catalog/task_sources.parquet")
-    source = sources.to_pylist()[0]
-    assert (source["n_manifest"], source["n_disk"], source["n_registry"]) == (2, 2, 2)
-
-
-
-
-
-
-
-
 # ---------------------------------------------------------------- lint rules
-
-
-
-
-
-
-
-
-
-
 
 
 # ---------------------------------------------------------------- verdicts
@@ -357,8 +221,7 @@ def _write_aux_table(derived: Path, name: str, rows: list[dict]) -> None:
 
 
 def test_export_provisional_then_split_gated(tmp_path: Path, capsys) -> None:
-    derived = _pulled_snapshot(tmp_path)
-    build_catalog(repo_root=tmp_path, derived_root=derived)
+    derived = _catalog_fixture(tmp_path)
     versions = pq.read_table(derived / "external/task_catalog/task_versions.parquet")
     digests = {r["task_id"]: r for r in versions.to_pylist()}
     alpha_harbor = digests["alpha-task"]["harbor_digest"]
@@ -430,20 +293,7 @@ def test_export_provisional_then_split_gated(tmp_path: Path, capsys) -> None:
     capsys.readouterr()
 
 
-
-
-
-
-
-
-
 # ---------------------------------------------------------------- curated findings
-
-
-
-
-
-
 
 
 def test_audit_error_finding_ineligible_with_precedence() -> None:

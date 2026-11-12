@@ -1,4 +1,4 @@
-"""Source dispatch, conservative split admission, provenance notes and regex sidecars."""
+"""Shared run-source provenance and selection helpers."""
 
 from __future__ import annotations
 
@@ -44,14 +44,6 @@ class Inputs:
         return path
 
 
-
-
-
-
-
-
-
-
 def _hacktrace(root: Path, inputs: Inputs, *, limit: int) -> Iterator[Candidate]:
     paths = sorted(root.glob("trajectories/*.parquet"))
     if not paths:
@@ -85,10 +77,6 @@ def _hacktrace(root: Path, inputs: Inputs, *, limit: int) -> Iterator[Candidate]
             if row["split"] == "test":
                 run = run.model_copy(update={"split": "heldout"})
             yield Candidate(run, agent_text(row["messages"]))
-
-
-
-
 
 
 def _malt(root: Path, inputs: Inputs) -> Iterator[Candidate]:
@@ -149,7 +137,5 @@ def _malt(root: Path, inputs: Inputs) -> Iterator[Candidate]:
                 text for sample in row["samples"] for text in agent_text(sample.get("output", []))
             )
             yield Candidate(run, texts, family=meta["task_id"].split("/")[0])
-
-
 
 

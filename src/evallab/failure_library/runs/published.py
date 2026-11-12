@@ -21,8 +21,6 @@ SOURCES = {
 }
 
 
-
-
 def hacktrace(row: dict[str, Any], ref: str) -> RunRecord:
     kind = "judge" if "judge" in row["label_source"] else "construction"
     labels = [label(f"ACT={int(row['ACT'])}", kind, ref)]
@@ -62,10 +60,6 @@ def hacktrace(row: dict[str, Any], ref: str) -> RunRecord:
         transcript_ref=ref,
         license="CC-BY-4.0",
     )
-
-
-
-
 
 
 def termgrade(

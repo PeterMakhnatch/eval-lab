@@ -31,14 +31,6 @@ from evallab.queue import new_ulid
 from evallab.schemas import CalibrationRecord, CriterionAgreement
 
 
-
-
-
-
-
-
-
-
 def test_calibration_record_round_trip(tmp_path: Path) -> None:
     """CalibrationRecord validates, persists to disk, and round-trips through history loader."""
     calib_id = new_ulid()

@@ -32,10 +32,10 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from evallab import ref_subset
 from evallab.control_expect import declared_expectation
 from evallab.execution_contracts import new_ulid
 from evallab.ref_repair import add_ref_repair_parser
-from evallab import ref_subset
 from evallab.registry import compute_task_digests, harbor_task_digest
 from evallab.runner import run_matrix
 from evallab.schemas import ContractModel, ExperimentMatrix, MatrixRun

@@ -326,8 +326,6 @@ HF_SOURCE = {
 }
 
 
-
-
 def snapshot_category(task_dir: Path) -> str | None:
     """Lower-cased snapshot ``task.toml`` category, or None when unreadable."""
     toml_path = task_dir / "task.toml"
@@ -392,8 +390,6 @@ def read_csv_rows(path: Path) -> list[dict[str, str]]:
     """Read a CSV ledger into row dicts (empty strings, never None)."""
     with path.open(newline="", encoding="utf-8") as handle:
         return [dict(row) for row in csv.DictReader(handle)]
-
-
 
 
 def run_package_rel(row: Mapping[str, str]) -> Path:
@@ -485,10 +481,6 @@ class OracleInfo:
     patch_bytes: bytes
 
 
-
-
-
-
 def load_reference_index(index_path: Path) -> dict[str, dict[str, str]]:
     """Index a mimo-reference-fixes ``index.csv`` by task id.
 
@@ -544,8 +536,6 @@ def oracle_info_from_index(
         patch_path=str(patch),
         patch_bytes=patch_bytes,
     )
-
-
 
 
 @dataclass
@@ -1423,9 +1413,5 @@ def acceptance_pass(
 
 def _resolve(root: Path, value: Path) -> Path:
     return value if value.is_absolute() else (root / value)
-
-
-
-
 
 

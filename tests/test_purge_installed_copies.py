@@ -13,8 +13,6 @@ from evallab.purge_container import (
     remaining_leaks,
     remove_copies,
 )
-from evallab.purge_installed_copies import build_setup_sh, shell_block
-from evallab.task_variants import VariantInvalid
 
 
 def _project(root: Path, name: str = "responses") -> Path:
@@ -121,22 +119,3 @@ def test_missing_project_name_fails_closed(tmp_path: Path) -> None:
         remove_copies(tmp_path, [])
 
 
-def test_setup_block_inserts_once_and_installs_offline() -> None:
-    parent = "#!/bin/bash\nfail() { exit 1; }\nwrite_blocklist() { :; }\nwrite_blocklist\n"
-    updated = build_setup_sh(parent)
-    assert updated.index("purge-installed-copies@1") < updated.index("\nwrite_blocklist\n")
-    block = shell_block()
-    assert "--no-deps" in block
-    assert "--no-index" in block
-    assert "--no-build-isolation" in block
-    assert "def remove_copies" in block
-    assert 'python3 - "$CWD" link' in block
-    assert block.count('python3 - "$CWD" remove') == 1
-    assert block.count('python3 - "$CWD" verify') == 1
-    with pytest.raises(VariantInvalid, match="already carries"):
-        build_setup_sh(updated)
-
-
-def test_setup_without_the_anchor_is_refused() -> None:
-    with pytest.raises(VariantInvalid, match="write_blocklist"):
-        build_setup_sh("#!/bin/bash\nfail() { exit 1; }\n")

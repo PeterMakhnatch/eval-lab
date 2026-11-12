@@ -51,30 +51,22 @@ def _path(root: Path) -> Path:
     return root / "derived/production/prod-queue.sqlite"
 
 
-
-
-
-
-
-
-
-
-def test_explicit_root_and_relative_database_work_on_either_side_of_subcommand(
-    corpus_root: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str],
-) -> None:
+@pytest.mark.parametrize("root_before", [True, False])
+def test_explicit_root_works_on_either_side_of_subcommand(corpus_root: Path, tmp_path: Path, root_before: bool):
+    source, source_cas, uri, _ = _actor_source(corpus_root)
+    allowlist = tmp_path / "allowlist.json"
+    allowlist.write_text(json.dumps([uri]))
+    output = tmp_path / "bundle"
+    root_options = ["--repo-root", str(corpus_root)]
+    command = ["prod", *(root_options if root_before else []), "project-actor",
+               *([] if root_before else root_options), "--source-database", str(source),
+               "--source-cas", str(source_cas), "--cas-allowlist", str(allowlist),
+               "--output-directory", str(output), "--max-bytes", "100000"]
     workspace = tmp_path / "other-workspace"
     workspace.mkdir()
-    options = ["--repo-root", str(corpus_root), "--database", "queues/explicit.sqlite"]
-    assert cli.run_cli(["prod", *options, "ingest", "--dataset", DATASET], workspace=workspace) == 0
-    first = json.loads(capsys.readouterr().out)
-    assert first["queue"]["last_seq"] > 0
-    assert cli.run_cli(["prod", "status", *options], workspace=workspace) == 0
-    second = json.loads(capsys.readouterr().out)
-    assert second["queue"] == first["queue"]
-    assert (corpus_root / "queues/explicit.sqlite").is_file()
-    assert not (workspace / "queues/explicit.sqlite").exists()
-
-
+    assert cli.run_cli(command, workspace=workspace) == 0
+    assert (output / "cloud-trace-db.sqlite").is_file()
+    assert not _path(corpus_root).exists()
 
 
 def _actor_source(root: Path) -> tuple[Path, Path, str, bytes]:
@@ -291,15 +283,5 @@ def test_project_actor_refuses_output_under_the_source_cas_before_writing(
         path.relative_to(corpus_root): (path.stat().st_ino, path.stat().st_mtime_ns)
         for path in corpus_root.rglob("*")
     } == before
-
-
-
-
-
-
-
-
-
-
 
 

@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
-from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from evallab.production.seeker_worker import (
-    ResolvedSeekerTask,
-    SeekerAttemptCandidate,
     SeekerEvidenceError,
     SeekerRefusalError,
     _evidence_custody_key,
@@ -21,10 +18,7 @@ from evallab.production.seeker_worker import (
     _stream_served_route,
     compute_candidate_digest,
     require_cross_key_dev_only,
-    verify_differential_replay,
 )
-
-
 
 
 def _make_task(root: Path, name: str) -> Path:
@@ -34,41 +28,14 @@ def _make_task(root: Path, name: str) -> Path:
     return task
 
 
-def _task(tmp_path: Path, kind="package") -> ResolvedSeekerTask:
-    return ResolvedSeekerTask(
-        run_id="stored-witness", job_type="reward_seeker.seek_task", dataset_id="synthetic",
-        item_id="fixture", task_id="fixture", split="dev", measurable=True,
-        original_task=_make_task(tmp_path, "original"),
-        repaired_task=_make_task(tmp_path, "repaired"), repaired_grader_kind=kind,
-    )
+def _task(tmp_path: Path):
+    return SimpleNamespace(run_id="stored-witness", task_id="fixture",
+                           original_task=_make_task(tmp_path, "original"),
+                           repaired_task=_make_task(tmp_path, "repaired"))
 
 
-def _candidate() -> SeekerAttemptCandidate:
-    solve = "#!/bin/bash\nprintf x > /app/output.json\n"
-    return SeekerAttemptCandidate(
-        files={"solve.sh": solve}, mechanism="stored witness", model_route="test/synthetic",
-        llm_stdout_sha256=hashlib.sha256(b"stored response").hexdigest(),
-        llm_solve_sha256=hashlib.sha256(solve.encode()).hexdigest(),
-        served_provider="test", served_model="synthetic",
-    )
-
-
-
-
-
-
-
-
-def test_reference_digest_refuses_before_grading(tmp_path):
-    task, candidate = _task(tmp_path), _candidate()
-    task = replace(task, reference_digest=compute_candidate_digest(candidate.ensure_submission_files()))
-
-    def forbidden(*args, **kwargs):
-        pytest.fail("Reference payload must not run")
-
-    grade = verify_differential_replay(task, candidate, attempt_dir=tmp_path / "replay", grader_fn=forbidden)
-    assert grade.failure_kind == "identical_to_reference"
-    assert not grade.differential_confirmed
+def _candidate():
+    return SimpleNamespace(files={"solve.sh": "#!/bin/bash\nprintf x > /app/output.json\n"})
 
 
 def test_candidate_digest_ignores_notes_and_comments_but_binds_companions():
@@ -76,8 +43,6 @@ def test_candidate_digest_ignores_notes_and_comments_but_binds_companions():
     second = {"solve.sh": "#!/bin/bash\n# second\n  printf x  \n", "notes.json": "second"}
     assert compute_candidate_digest(first) == compute_candidate_digest(second)
     assert compute_candidate_digest(first) != compute_candidate_digest({**first, "data.txt": "changed"})
-
-
 
 
 def test_split_guard_requires_affirmative_dev_and_refuses_cross_key_test(tmp_path):

@@ -12,11 +12,7 @@ from typing import Any
 
 import pytest
 
-from evallab.modal_billing import (
-    BillingRow,
-    aggregate_daily,
-    normalize_report_rows,
-)
+from evallab.modal_billing import BillingRow, normalize_report_rows
 
 
 def _report_entry(**overrides: Any) -> dict[str, Any]:
@@ -28,8 +24,6 @@ def _report_entry(**overrides: Any) -> dict[str, Any]:
         "cost": "2.04560628",
         **overrides,
     }
-
-
 
 
 def test_normalize_report_rows_accepts_daily_payload() -> None:
@@ -76,7 +70,6 @@ def test_normalize_report_rows_preserves_provider_tags_and_cost(encoded: bool) -
 
     assert rows[0].tags == tags
     assert rows[0].cost_usd == pytest.approx(2.04560628)
-    assert aggregate_daily(rows) == {date(2026, 10, 15): pytest.approx(2.04560628)}
 
 
 @pytest.mark.parametrize(
@@ -132,40 +125,5 @@ def test_billing_row_rejects_non_string_tags() -> None:
 def test_normalize_report_rows_rejects_bad_payload(payload: object) -> None:
     with pytest.raises(ValueError):
         normalize_report_rows(payload, resolution="d")
-
-
-def test_aggregate_daily_sums_across_objects() -> None:
-    rows = normalize_report_rows(
-        [
-            {
-                "object_id": "ap-1",
-                "description": "evallab-mimo-v26-9b",
-                "environment": "main",
-                "interval_start": "2026-09-29T00:00:00",
-                "cost": "2.0",
-            },
-            {
-                "object_id": "ap-2",
-                "description": "evallab-mimo-v26-9b",
-                "environment": "main",
-                "interval_start": "2026-09-29T05:00:00",
-                "cost": "0.5",
-            },
-            {
-                "object_id": "ap-1",
-                "description": "evallab-mimo-v26-9b",
-                "environment": "main",
-                "interval_start": "2026-09-30T00:00:00",
-                "cost": "1.0",
-            },
-        ],
-        resolution="d",
-    )
-    totals = aggregate_daily(rows)
-    assert totals[date(2026, 9, 29)] == pytest.approx(2.5)
-    assert totals[date(2026, 9, 30)] == pytest.approx(1.0)
-
-
-
 
 

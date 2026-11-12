@@ -32,8 +32,6 @@ def task(tmp_path: Path) -> Path:
     return task
 
 
-
-
 def test_clean_separate_task_is_read_only(task: Path, capsys) -> None:
     (task / "controls").mkdir()
     (task / "controls/positive.sh").write_text("#!/bin/sh\n# expect: 1\nexit 0\n")
@@ -322,13 +320,5 @@ def test_committed_task_library_lints_without_error_findings() -> None:
     assert cli.run_cli(
         ["tasks", "lint", str(REPO_ROOT / "library/tasks")], workspace=REPO_ROOT
     ) == 0
-
-
-
-
-
-
-
-
 
 

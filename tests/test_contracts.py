@@ -32,10 +32,6 @@ from evallab.schemas import (
 FIXTURES = Path(__file__).parent / "fixtures" / "contracts"
 
 
-
-
-
-
 def test_suite_frozen_immutable():
     """frozen_at set => mutation rejected (enforced in model)."""
     now = datetime.now(UTC)
@@ -589,8 +585,6 @@ def test_elicitation_one_variable_difference_expressible():
     assert is_one_variable_elicitation(base, diff_two_a) is False
     assert is_one_variable_elicitation(base, diff_two_b) is False
     assert is_one_variable_elicitation(base, diff_three) is False
-
-
 
 
 def _s03_spec(**overrides: object) -> ExperimentSpec:

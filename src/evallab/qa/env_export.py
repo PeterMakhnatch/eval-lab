@@ -1,25 +1,4 @@
-"""Teacher-data export for the open QA harness (spec ``audit-harness-spec.md`` item 8).
-
-Retained audit sessions, reward-seeker runs and executed-clean package manifests become
-teacher rows only when every gate passes:
-
-* **execution** - the run ends in an execution-confirmed finding (a host-validated measured
-  ``witness:<id>``, or a differential replay with upstream reward 1.0 and port reward 0.0) or
-  in an execution-confirmed *clean* (strict repeat controls: reference all 1.0, nop all 0.0).
-  A source-only finding, a refuted finding or an unmeasured run never becomes a row.
-* **split guard** - a task that is a reported-split item in any answer key (``test`` or
-  ``heldout``), a tb4-audit-v1 TEST task by name or digest, or a listed held-out id is refused.
-* **model** - the model that actually answered must equal the requested one
-  (``agent_lanes.attest_model``). A mismatch is always refused; an unreported model is refused
-  unless ``allow_unattested`` is set, and the row then says so.
-* **dedup** - one row per distinct ``(task, body)``; duplicates are reported, not exported.
-
-Every row carries a clearance record with the evidence for each gate. Every refusal is written
-with all failing reasons, so counts can be audited. Nothing here runs a model or Docker.
-
-    evallab qa env export-sft --audit-root DIR --seeker-root DIR --executed-clean FILE --out DIR
-    evallab qa env attest --session AGENT_DIR | --transcript FILE --requested MODEL
-"""
+"""Stored QA candidate records, split guards, and strict repeat-control adapters."""
 
 from __future__ import annotations
 
@@ -32,7 +11,6 @@ from dataclasses import dataclass, field
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
-
 
 from evallab.qa.agent_lanes import (
     read_jsonl,
@@ -226,44 +204,10 @@ class Refusal:
         }
 
 
-
-
-
-
-
-
-
-
-
-
 # -- adapter: qa env audit sessions ----------------------------------------------------
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 # -- adapter: reward-seeker runs -------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # -- adapter: executed-clean package manifests -----------------------------------------
@@ -309,11 +253,5 @@ def executed_clean_candidates(manifest_path: Path) -> Iterator[Candidate | Refus
 
 
 # -- CLI -------------------------------------------------------------------------------
-
-
-
-
-
-
 
 

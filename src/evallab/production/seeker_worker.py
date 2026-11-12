@@ -1,8 +1,4 @@
-"""Stored witness replay, candidate attestation, split guards, and evidence custody.
-
-An exploit requires measured original reward 1.0 and repaired reward 0.0.
-This module does not generate candidates or launch attackers.
-"""
+"""Stored witness route validation, split guards, and evidence custody."""
 
 from __future__ import annotations
 
@@ -16,7 +12,6 @@ from collections.abc import Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
-
 
 _SOLVE_WRITE_RE = re.compile(
     r"(?:cat\s*>\s*|tee\s+|cp\s+\S+\s+|mv\s+\S+\s+|write_text\(|open\()['\"]?([A-Za-z0-9_./\-]+)"
@@ -32,26 +27,8 @@ MECHANISM_CLASSES = frozenset(
 )
 
 
-
-
 class SeekerEvidenceError(RuntimeError):
     """Declared witness evidence is missing or cannot be pinned immutably."""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def _omp_stream_messages(stream_text: str) -> list[Mapping[str, Any]]:
@@ -106,10 +83,6 @@ def _stream_served_route(
     return routes[0] if routes else (None, None)
 
 
-
-
-
-
 def compute_candidate_digest(files: Mapping[str, str | bytes]) -> str:
     """Deterministic digest of the executable submission payload (excluding notes.json)."""
     hasher = hashlib.sha256()
@@ -127,12 +100,6 @@ def compute_candidate_digest(files: Mapping[str, str | bytes]) -> str:
             data = "\n".join(stripped_lines).encode("utf-8")
         hasher.update(key.encode("utf-8") + b"\0" + data + b"\0")
     return "sha256:" + hasher.hexdigest()
-
-
-
-
-
-
 
 
 def _evidence_content_digest(path: Path) -> str:
@@ -440,7 +407,6 @@ def require_cross_key_dev_only(
         raise SeekerRefusalError(
             f"task {task_id!r} has no affirmative DEV assignment in assignments.csv"
         )
-
 
 
 def _parse_omp_json_stdout(raw_text: str) -> tuple[str, str | None, str | None]:

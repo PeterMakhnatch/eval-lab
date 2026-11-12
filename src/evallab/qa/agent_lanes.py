@@ -1041,12 +1041,6 @@ class ModelMismatch(DriverError):
     """The model that answered is not the model that was requested, or is unknown."""
 
 
-
-
-
-
-
-
 def require_attested(attestation: dict[str, Any], *, allow_unreported: bool = False) -> dict[str, Any]:
     """Raise ``ModelMismatch`` unless the attestation matched (or is unreported and allowed)."""
     status = attestation.get("status")
@@ -1067,10 +1061,6 @@ def read_jsonl(path: Path) -> list[Any]:
             except ValueError:
                 continue
     return rows
-
-
-
-
 
 
 # -- factory ---------------------------------------------------------------------------

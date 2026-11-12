@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Protocol
 from urllib.parse import quote
 
-
 from evallab.runner import subscription_environment
 
 UNPINNED_VERSIONS = frozenset({"latest", "head", "main", "master"})
@@ -873,15 +872,5 @@ PROOFJUDGE_ATIF_SAMPLE = PublicAtifSource(
     sha256="79b7d3e71d28af6dc1630cb135d697c035a4e74de5eb9226db6e1c0cd3ee17fb",
     license="mit",
 )
-
-
-
-
-
-
-
-
-
-
 
 

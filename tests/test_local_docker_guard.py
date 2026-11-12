@@ -15,12 +15,8 @@ def _disable_local_docker(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
 
 
-
-
 def _forbidden(*_args: Any, **_kwargs: Any) -> None:
     pytest.fail("local Docker opt-out must precede runtime discovery or execution")
-
-
 
 
 def test_cheat_refuses_before_executor_discovery(
@@ -35,11 +31,5 @@ def test_cheat_refuses_before_executor_discovery(
         cheat.run_cheat_trial(
             tmp_path / "task", (), repo_root=tmp_path, jobs_dir=tmp_path / "runs", name="disabled"
         )
-
-
-
-
-
-
 
 

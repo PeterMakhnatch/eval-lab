@@ -1,4 +1,4 @@
-"""Normalize native Wrench, Goodfire, CheatBench and redistributed MALT rows."""
+"""Offline adapters for retained published trajectory rows."""
 
 from __future__ import annotations
 
@@ -10,13 +10,6 @@ from evallab.failure_library.runs.common import label
 WRENCH_INDEX_REVISION = "622449769ec6ddf33f770794489b8cd21712a0ad"
 GOODFIRE_REVISION = "bd8fb473568b8ef1d12fc2325a5c8af939c15ad9"
 CHEATBENCH_REVISION = "461360b34e93644955563dcc9243c6cc1a53bd0f"
-
-
-
-
-
-
-
 
 
 def redistributed_malt(row: dict[str, Any], ref: str) -> RunRecord:

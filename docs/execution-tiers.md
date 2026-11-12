@@ -2391,9 +2391,18 @@ or trials. Printed cost is the token-price estimate for this invocation, distinc
 from the retained lifetime reservations. `--json` and the question-hashed JSON
 under `--out` retain the answer, tool provenance, refutations and accounting.
 
+### QA Agent - Trace: `evallab qa trace`
 
 ```bash
+uv run evallab qa trace bundle <trial> --out DIR    # B0 only: sealed read-only workspace
+uv run evallab qa trace verify DIR                  # workspace seal intact?
+uv run evallab qa trace run <trial> --out DIR       # B0 + T0-T4 (subscription routes)
+uv run evallab qa trace batch --passes PASSES.jsonl --out DIR  # B0 + T0-T4 per listed trial, DIR/summary.json
+uv run evallab qa trace key-run --key trajectory-judge-400 --split test --out DIR  # DIR/runs, DIR/findings
 uv run evallab qa score --key trajectory-judge-400 --findings DIR/findings --split test
+uv run evallab qa trace score --key trajectory-judge-400 --split test --out DIR  # strata, steps, upstream judges
+uv run --extra laminar evallab qa trace regrade --key trace-paired-v1 --out DIR  # stored passes vs newer graders (Docker)
+uv run --extra laminar evallab qa trace regrade --passes research/experiments/qa-trace/regrade/ordinary-passes.jsonl \
   --grader-manifest <repaired-v6-manifest.csv> --repairs <worktree>/library/task-variants --out DIR
 uv run evallab detectors run --detector qa_trace_t0 ...              # live T0 only, $0
 uv run evallab detectors run --detector qa_trace --allow-paid --refresh --ids FILE ...

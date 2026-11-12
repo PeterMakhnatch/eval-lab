@@ -2405,6 +2405,7 @@ One contract for task QA, trace QA, the reward seeker and tripwire findings,
 so their output is comparable and scoreable on external answer keys.
 Implementation: `src/evallab/qa/` (`models`, `answer_key`, `score`, `suite`,
 `cli`); tests: `tests/test_qa.py`, `tests/test_qa_suite.py`. The trace auditor
+(`evallab qa trace`, `src/evallab/qa/trace.py`) is described in
 [execution tiers](execution-tiers.md#harbor-results-viewer-and-source-bound-readers). Plan of record: `research-context/FOCUS.md`.
 
 ## Finding: `qa.finding/v1`
@@ -2455,6 +2456,7 @@ non-alphanumerics becomes `_`, so `Proxy-check too weak` equals
 | `expected_root_causes` (list) | new keys (canonical) | as listed |
 | `expected_mechanisms` (list) | `breaker-bench-v1` | benchflow mechanism (`conftest_hook`, `path_trojan`, `pth_injection`) or Terminal Wrench exploit class (`hollow-implementation`, ...) |
 | `root_cause` (records) | `envcheck-tb4-39`, `delphik-open-defect-tb2` | each record's `id` and its `source_class` (EnvCheck: `proxy-check-too-weak`, `answer-material-readable-by-candidate`, ...; Delphik classes are free text, so exact matching rarely fires) |
+| `expected_root_cause` dict | `trajectory-judge-400` | `failure_type` (`premature_stop`, `wrong_tool`, ...; step localisation is scored by `evallab qa trace score`) |
 | `expected_root_cause` string | `trace-paired-v1` | `cheat_ladder: a,b` → the attack names; `upstream_fetch`, `answer_leak`, `false_claim` as is; free text after a colon (`weak_hidden_tests: ...`) → the prefix |
 
 Never tune on the split you report; every score row names its split.
@@ -2673,6 +2675,7 @@ checks never count as passes.
 
 ## Adaptive task reviewer: `qa env`
 
+`evallab qa env audit` is an **agent loop**, not another fixed S0–S3
 sequence. One task gets one continuing model conversation. The reviewer chooses
 source reads, ordinary functional candidates, diagnostic checks, findings and its
 final stop. The host alone dispatches JSON capabilities; native model tools are
@@ -2682,6 +2685,7 @@ available independently.
 Choose an explicit model lane and every task budget:
 
 ```bash
+evallab qa env audit \
   --task /absolute/dev-task --out /absolute/owned-qa-run \
   --lane omp --model anthropic/claude-sonnet-5-5 \
   --hackbook /absolute/generic-taxonomy.yaml \
@@ -2719,6 +2723,7 @@ usage stops before its returned action is executed; it is never replaced by zero
 ### JSON capabilities
 
 Every capability is also available as
+`evallab qa env <tool> --request request.json` (or `--request -` for stdin):
 
 ```json
 {"task":"/absolute/dev-task","out":"/absolute/owned-qa-run","args":{},"max_seconds":600}
@@ -4099,6 +4104,11 @@ its grader, runs controls and candidate probes against the real graders,
 and writes findings that are only counted once independently confirmed.
 
 ```bash
+.venv/bin/evallab qa env audit --task <task-id> --view <sealed-view> --out <dir> --lane codex|omp|openai --model <model> --max-seconds <s> --max-tokens <n> --max-tool-calls <n> --max-usd <usd>
+.venv/bin/evallab qa env task-info --request <request.json>
+.venv/bin/evallab qa env run-upstream-grader --request <request.json>
+.venv/bin/evallab qa env run-port-grader --request <request.json>
+.venv/bin/evallab qa env run-reference | run-blank | probe | diff | hackbook | record-finding --request <request.json>
 .venv/bin/evallab qa task --task <task-id> [--key tb4-audit-v1] [--split dev] [--plan]
 .venv/bin/evallab qa task-score --key tb4-audit-v1 --findings <findings-dir>   # flagged vs verified; unmeasured never counts as pass
 ```
@@ -4216,6 +4226,8 @@ about specific candidate mechanisms; the full T0–T4 review is the expensive ti
 
 ```bash
 .venv/bin/evallab qa trace-cheap <trial-dir|trajectory.json> [--model <openrouter-model>] [--offline] [--out finding.json]
+.venv/bin/evallab qa trace run|review|batch|score ...
+.venv/bin/evallab detectors list|score|run ...      # scored on labelled trace corpora
 # tripwire rule measurement is experiment tooling:
 ls research/experiments/tripwires-v3-hackbook-20261021 research/experiments/tripwires-v4-precision-20261021
 ```

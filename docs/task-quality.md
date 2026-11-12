@@ -1655,7 +1655,7 @@ When comparing results, filter or stratify by `origin` and `family`. A `harbor-n
 
 The native catalog and readers remain supported; the `mimo-clean` and `mimo-census` producers are retired.
 The following source contracts preserve backend, measurement, and split boundaries.
-The task-health census implementation is retired. Stored census labels and evidence remain unchanged.
+The qualification collector and task-health census are retired. The following sections describe stored evidence.
 
 ## Storage
 

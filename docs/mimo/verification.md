@@ -96,7 +96,7 @@ For every clean-set manifest row, four checks on the FINAL clean package
     and native `CheatAgent` ladder-v3 rejections for `002139` and `002866`
     without claiming fleet-wide certification.
 (d) **fix-content census = 0 locations with a real positive control** —
-    for all reference tasks, `evallab.fix_content_census` stages signatures
+    for all reference tasks, the historical fix-content probe stages signatures
     from the actual indexed patch and measures BOTH the published-image
     baseline setup and the ACTUAL shipped clean-package setup. No synthetic
     marker is injected, and no setup is recomposed. Published zero is
@@ -259,7 +259,7 @@ touched.
 
 ## Fix-content probe v2 (256 reference tasks + 196 v4 probe-pending)
 
-Probe v2 (`src/evallab/fix_content_census.py`, `batch` subcommand; receipt
+The retired probe v2 producer (receipt
 `research/experiments/fix-probe-v2/README.md`) closes every gap hand-triage
 found in the v1 check (d) (65 clean signature hits, 164 probe-blind):
 post-fix blob SHA + whitespace-normalized variant per changed non-test file

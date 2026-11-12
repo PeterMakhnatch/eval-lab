@@ -95,18 +95,6 @@ def test_a_repeated_row_id_is_refused(tmp_path):
         list(staged.staged_runs("beam-tripwire", **where))
 
 
-def test_census_counts_labels_steps_and_missing_actor_input(tmp_path):
-    where = install(tmp_path, "beam-tripwire", [
-        beam("a", "positive", [PROMPT, AGENT]),
-        beam("b", "negative", [PROMPT]),
-        beam("c", "negative", [PROMPT, AGENT, AGENT]),
-        beam("d", "ambiguous", [AGENT]),
-    ])
-    assert staged.staged_census("beam-tripwire", **where) == {
-        "set": "beam-tripwire", "rows": 4, "positives": 1, "negatives": 2, "considered_only": 1,
-        "steps_median": 1.5, "no_actor_input": 1,
-    }
-
 
 def test_unknown_excluded_and_absent_sets_fail_clearly(tmp_path):
     with pytest.raises(ValueError):

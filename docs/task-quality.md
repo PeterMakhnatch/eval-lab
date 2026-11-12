@@ -271,7 +271,6 @@ JSONL with retrieval's own admission; the last fully valid record wins. Refused
 replacements cannot discard a valid prefix, and a torn UTF-8/JSON append is counted
 without losing the complete preceding records.
 
-`evallab prod import-run-clusters --cloud-database <db> --jsonl <clusters-v1.jsonl>
 [--drop-unfaceted]` stores the **final contiguous build** of the producer's cluster
 stream, as the Run Atlas reader selects it. An incomplete build (a level not yet
 covering `facet_count` runs, e.g. mid-write) stores nothing. Scoring-time label
@@ -502,11 +501,9 @@ uv run evallab qa-data window RUN_ID --around 12 --radius 3      # or --first A 
 uv run evallab qa-data history TASK_ID [--flag git_history_peek] # past issues, similar issues, playbook cards
 uv run evallab qa-data findings [--run RUN_ID | --task TASK_ID]  # Scout / Laminar / Docent leads, or per-tool totals
 uv run evallab qa-data trace-card RUN_ID [--no-ledgers]            # one card (<= 1.5k tokens): every stored detector verdict, flags, playbook
-uv run evallab qa-data clusters [--source db|file] [--level N] [--members CLUSTER_ID]
 uv run evallab qa-data recount                                    # facets interim JSONL vs database
 uv run evallab qa-data split task TASK_ID | split item KEY_ID ITEM_ID   # DEV for an admitted id; any other id is refused
 uv run evallab qa-data export --facet answer_material_accessed=true --limit 5 --out DIR   # blinded, with step map
-uv run evallab qa-data steps DIR.sealed-manifest.json TRACE_OR_BLIND_ID --original N      # original <-> exported step
 uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministic Scout text scanners, no model call
 ```
 

@@ -36,11 +36,7 @@ _WITH_OUTCOMES_HELP = (
     "Also return outcome labels: each issue's trust_tier and original/repaired reward differential. "
     "Off by default so QA reads stay label-free; the choice is recorded in meta.with_outcomes"
 )
-CALLS = (
-    "task", "runs", "window", "history", "findings", "inventory", "traces", "clusters", "recount",
-    "split", "export", "steps", "scan", "trace-card",
-)
-NO_STORE_CALLS = frozenset({"steps", "scan"})
+NO_STORE_CALLS = frozenset({"scan"})
 OUTCOME_CALLS = frozenset({"task", "history"})  # calls with a --with-outcomes gate
 
 
@@ -226,10 +222,6 @@ def _open(args: argparse.Namespace, budget: Budget) -> QaContext:
 
 def _dispatch_without_store(call: str, args: argparse.Namespace, budget: Budget) -> dict[str, Any]:
     """Calls that never open the trace store: step maps and local scanners."""
-    if call == "steps":
-        from evallab.production.qa_data_export import steps
-
-        return steps(args.manifest, args.trace, original=args.original, blinded=args.blinded)
     from evallab.production.qa_data_scan import scan
 
     return scan(args.transcripts, args.scanner, budget)
@@ -258,7 +250,7 @@ def _dispatch(call: str, context: QaContext, args: argparse.Namespace) -> dict[s
         if args.run is None and args.task is None:
             return qa_data_findings.summary(context)
         return qa_data_findings.findings(context, run_id=args.run, task_id=args.task, limit=args.limit)
-    if call in {"inventory", "traces", "clusters", "recount"}:
+    if call in {"inventory", "traces", "recount"}:
         from evallab.production import qa_data_inventory
 
         if call == "inventory":
@@ -268,8 +260,6 @@ def _dispatch(call: str, context: QaContext, args: argparse.Namespace) -> dict[s
                 context, task_id=args.task, dataset=args.dataset, model=args.model, outcome=args.outcome,
                 limit=args.limit, ids_only=args.ids_only, alarmed_by=args.alarmed_by, sort=args.sort,
             )
-        if call == "clusters":
-            return qa_data_inventory.clusters(context, members=args.members, source=args.source, level=args.level)
         return qa_data_inventory.recount(context)
     if call == "export":
         from evallab.production.qa_data_export import export
@@ -453,12 +443,6 @@ def register_parser(commands: Any) -> None:
         help="task: dataset, task, model, run (default); alarms: most alarming detectors first",
     )
 
-    clusters = calls.add_parser("clusters", help="Run Atlas clusters: the database view or the latest build file")
-    common(clusters)
-    clusters.add_argument("--members", default=None, metavar="CLUSTER_ID", help="Admitted member ids of one cluster")
-    clusters.add_argument("--source", choices=("db", "file"), default="db")
-    clusters.add_argument("--level", type=int, choices=(1, 2, 3), default=None, help="List only this level")
-
     recount = calls.add_parser("recount", help="Facets: the interim JSONL against the database, over admitted runs")
     common(recount)
 
@@ -476,14 +460,6 @@ def register_parser(commands: Any) -> None:
     export.add_argument("--format", choices=("atif", "harbor", "scout"), default="atif")
     export.add_argument("--out", type=Path, required=True, help="NEW directory; the sealed manifest goes beside it as <name>.sealed-manifest.json")
 
-    steps = calls.add_parser("steps", help="Map original step ids to exported step numbers (and back) with a sealed manifest")
-    common(steps)
-    steps.add_argument("manifest", type=Path)
-    steps.add_argument("trace", help="Trace id or blind id")
-    which = steps.add_mutually_exclusive_group()
-    which.add_argument("--original", type=int, default=None)
-    which.add_argument("--blinded", type=int, default=None)
-
     card = calls.add_parser(
         "trace-card", help="One compact evidence card for one run: every detector verdict, cited steps, flags, playbook cards",
     )
@@ -496,9 +472,4 @@ def register_parser(commands: Any) -> None:
     scan.add_argument("transcripts", type=Path, help="transcripts.jsonl from `export --format scout`")
     scan.add_argument("--scanner", action="append", default=None, help="Default: all four text scanners")
 
-
-__all__ = [
-    "CALLS", "DEFAULT_BUDGET", "MIN_BUDGET", "UNAVAILABLE", "Budget", "QaContext", "QaDataError",
-    "estimate_tokens", "register_parser", "run",
-]
 

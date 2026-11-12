@@ -27,7 +27,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from evallab.production.cloud_trace_db import TRACE_FINDING_KINDS, TRACE_FINDING_VERDICTS
+from evallab.production.cloud_trace_db import TRACE_FINDING_VERDICTS
 from evallab.production.run_atlas import (
     CHEATBENCH_DATASET,
     DEFAULT_DATABASE,
@@ -45,9 +45,7 @@ from evallab.production.trace_findings import (
     _finding,
 )
 
-FINDINGS_VERSION = "trace-findings/v1"
 VERDICTS = TRACE_FINDING_VERDICTS
-KINDS = TRACE_FINDING_KINDS
 HARNESS_ROOT = STATE_ROOT / "trace-harness"
 DEFAULT_FINDINGS = HARNESS_ROOT / "findings-v1.jsonl"
 FINDING_FIELDS = (

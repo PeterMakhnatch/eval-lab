@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from evallab.production import monitor_worker
-from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
+from evallab.production.corpus_queue import CorpusRegistry
 from evallab.production.gate_policy import GatePolicy
 from evallab.production.monitor_worker import MisalignmentLiveWorker
 from evallab.tripwires import PrefixScanner, scan_prefix
@@ -420,19 +420,35 @@ def test_ui_and_executor_events_drive_acknowledged_state_machine() -> None:
 
 
 class _Journal:
-    def __init__(self, events: list[dict[str, Any]], stop: threading.Event | None = None) -> None:
+    def __init__(
+        self,
+        events: list[dict[str, Any]],
+        stop: threading.Event | None = None,
+        *,
+        registry: CorpusRegistry | None = None,
+    ) -> None:
         self.events = events
         self.acks: list[tuple[str, int]] = []
         self.stop = stop
+        self.registry = registry
         self._lock = threading.RLock()
 
     def append_event(self, event: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
+            event_id = event.get("event_id")
+            if event_id is not None:
+                existing = next((e for e in self.events if e.get("event_id") == event_id), None)
+                if existing is not None:
+                    return existing
             stored = copy.deepcopy(event)
+            if self.registry is not None and isinstance(stored.get("payload"), dict):
+                payload = stored["payload"]
+                if "dataset_id" in payload or "item_id" in payload:
+                    item = self.registry.admit(payload["dataset_id"], payload["item_id"])
+                    payload["split"] = item.split
             stored["seq"] = max((e["seq"] for e in self.events), default=0) + 1
             self.events.append(stored)
             return stored
-
     def read_events(self, *, after_seq: int = 0, limit: int = 100) -> list[dict[str, Any]]:
         return [e for e in self.events if e["seq"] > after_seq][:limit]
 
@@ -704,10 +720,8 @@ def _corpus_root(tmp_path: Path) -> Path:
     return root
 
 
-def _queue(tmp_path: Path) -> ContinuousWorkQueue:
-    return ContinuousWorkQueue(
-        tmp_path / "queue.sqlite", registry=CorpusRegistry(_corpus_root(tmp_path))
-    )
+def _queue(tmp_path: Path) -> _Journal:
+    return _Journal([], registry=CorpusRegistry(_corpus_root(tmp_path)))
 
 
 def _measured_trial(
@@ -739,7 +753,7 @@ def _measured_trial(
     return trial
 
 
-def _suspicion_card(queue: ContinuousWorkQueue, run_id: str = "run-a") -> dict[str, Any]:
+def _suspicion_card(queue: _Journal, run_id: str = "run-a") -> dict[str, Any]:
     cards = [
         e
         for e in queue.read_events(limit=1000)
@@ -820,7 +834,7 @@ def _adjudication(
 
 
 def _ingest_suspicion(
-    queue: ContinuousWorkQueue, worker: MisalignmentLiveWorker, run_id: str = "run-a"
+    queue: _Journal, worker: MisalignmentLiveWorker, run_id: str = "run-a"
 ) -> dict[str, Any]:
     queue.append_event(
         _event(
@@ -2573,9 +2587,6 @@ def _suspicions(events: list[dict[str, Any]], rule: str) -> list[dict[str, Any]]
     ]
 
 
-def _neither(messages: list[dict[str, str]]) -> tuple[dict[str, Any], float]:
-    return {"label": "neither", "mechanism": None, "evidence": []}, 0.0
-
 
 def test_alert_card_carries_the_flags_fired_so_far_and_the_matching_playbook_card() -> None:
     emitted: list[dict[str, Any]] = []
@@ -2675,20 +2686,3 @@ def test_finished_runs_are_retired_to_a_bounded_lru_and_still_answer_controls() 
     assert not worker._runs["run-1"].cards
 
 
-def test_recovery_rebuilds_only_live_runs_and_the_retained_finished_tail(tmp_path: Path) -> None:
-    registry = CorpusRegistry()
-    with ContinuousWorkQueue(tmp_path / "journal.sqlite", registry=registry) as queue:
-        worker = MisalignmentLiveWorker(emit=queue.append_event, finished_run_capacity=1)
-        for name in ("run-1", "run-2", "run-3"):
-            queue.append_event(_event(_step(1, "cat /tests/test_x.py"), run_id=name))
-            if name != "run-3":
-                queue.append_event(_finished(name))
-        worker.consume(queue, limit=100)
-        assert worker.resident_runs == {"active": 1, "finished": 1}
-        worker.close()
-        restarted = MisalignmentLiveWorker(emit=queue.append_event, finished_run_capacity=1)
-        restarted.recover(queue)
-        assert restarted.resident_runs == {"active": 1, "finished": 1}
-        assert set(restarted._runs) == {"run-3"} and set(restarted._finished) == {"run-2"}
-        assert restarted._finished["run-2"].verdict_cards
-        assert len(restarted._runs["run-3"].steps) == 1

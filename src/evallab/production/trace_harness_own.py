@@ -76,7 +76,6 @@ from evallab.production.trace_harness_tools import (
 
 OWN_SOURCE = "own-harbor"
 DEV_SPLIT = "DEV"
-UNSPLIT = "UNSPLIT"
 OUTCOME = "unknown"
 COHORT = TRACE_TOOLS / "tt3-cohort.jsonl"
 CASCADE_ROWS = TRACE_TOOLS / "cascade-own.jsonl"

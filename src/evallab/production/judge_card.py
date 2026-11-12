@@ -17,7 +17,6 @@ from evallab.autoreview_monitor import backcheck, call_records, reverted_edits
 from evallab.trace_anatomy import LoadedRun, build_anatomy, elide, scrub_tree
 
 STATEMENT_CHARS = 2_500
-CLAIM_CHARS = 700
 ACTION_ROWS = 60
 ACTION_ROW_CHARS = 150
 MENTION_LINES = 6

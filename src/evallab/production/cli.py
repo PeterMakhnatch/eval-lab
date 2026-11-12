@@ -148,22 +148,6 @@ def register_parser(commands: Any) -> None:
     facets.add_argument("--jsonl", type=Path, required=True, help="Append-only facets JSONL keyed by run_id")
     facets.set_defaults(func=_command)
 
-    clusters = actions.add_parser(
-        "import-run-clusters",
-        help="Import the final complete Run Atlas run-clusters/v1 build (DEV-admitted, faceted runs only)",
-    )
-    clusters.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
-    clusters.add_argument(
-        "--cloud-database", required=True,
-        help="Cloud trace database: SQLite path/URL or PostgreSQL URL",
-    )
-    clusters.add_argument("--jsonl", type=Path, required=True, help="Append-only clusters JSONL")
-    clusters.add_argument(
-        "--drop-unfaceted", action="store_true",
-        help="Drop (and count) clustered runs with no stored admitted facets instead of refusing the build",
-    )
-    clusters.set_defaults(func=_command)
-
     findings = actions.add_parser(
         "import-trace-findings",
         help="Import trace-findings/v1 JSONL (one detector verdict per line) into the cloud trace database (DEV-admitted runs only)",
@@ -410,7 +394,7 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 )
             _emit({"command": args.prod_command, **receipt})
             return 0
-        if args.prod_command == "import-trace-findings":
+        else:
             from evallab.production.cloud_trace_db import CloudTraceDatabase
             from evallab.production.corpus_queue import CorpusRegistry
             from evallab.production.trace_findings import import_trace_findings
@@ -421,18 +405,6 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 )
             _emit({"command": args.prod_command, **receipt})
             return 0
-        else:
-            from evallab.production.cloud_trace_db import CloudTraceDatabase, import_run_clusters
-            from evallab.production.corpus_queue import CorpusRegistry
-
-            with CloudTraceDatabase(_database(root, args.cloud_database)) as database:
-                receipt = import_run_clusters(
-                    database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
-                    drop_unfaceted=args.drop_unfaceted,
-                )
-            _emit({"command": args.prod_command, **receipt})
-            return 0
-    except KeyboardInterrupt:
         _emit({"command": args.prod_command, "event": "interrupted"}, error=True)
         return 130
     except Exception as exc:

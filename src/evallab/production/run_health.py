@@ -41,7 +41,6 @@ from typing import Any
 
 from evallab.token_flow import _is_edit, _step_calls, _stitched_steps, normalized_command
 
-FINDING_SCHEMA = "trace-findings/v1"
 DETECTOR_VERSION = "run-health/6"
 KINDS = ("loop", "runaway", "latency", "infra")
 AGENT_SOURCES = frozenset({"agent", "assistant"})
@@ -757,29 +756,6 @@ def triggers(run: HealthRun, *, now: float | None = None,
     return out
 
 
-#: Numeric feature fields that are step ids or clock readings, not distributions.
-_NOT_DISTRIBUTIONS = frozenset({"last_step", "last_step_at", "max_gap_step", "identical_command_run_step",
-                                "identical_message_run_step", "cycle_step"})
-
-
-def baseline(rows: Iterable[Mapping[str, Any]], *, by: str = "source",
-             quantiles: Sequence[float] = (0.5, 0.9, 0.99)) -> dict[str, dict[str, dict[str, float]]]:
-    """Per-group quantiles of every numeric feature (``features`` rows), for "far above
-    the usual for this job type" triggers. Missing values are skipped, never zero."""
-    values: dict[str, dict[str, list[float]]] = {}
-    for row in rows:
-        group = values.setdefault(str(row.get(by)), {})
-        for name, value in row.items():
-            if isinstance(value, int | float) and not isinstance(value, bool) and name not in _NOT_DISTRIBUTIONS:
-                group.setdefault(name, []).append(float(value))
-    return {
-        group: {name: {"n": len(vals), **{f"p{round(q * 100):g}": round(_quantile(sorted(vals), q) or 0.0, 3)
-                                          for q in quantiles}}
-                for name, vals in sorted(feats.items())}
-        for group, feats in sorted(values.items())
-    }
-
-
 # --------------------------------------------------------------------------- loaders
 
 
@@ -928,10 +904,6 @@ def _runs_from_args(args: argparse.Namespace) -> Iterator[HealthRun]:
 
 def _command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     del root
-    if args.run_health_command == "baseline":
-        with args.features.open(encoding="utf-8") as handle:
-            print(json.dumps(baseline((json.loads(line) for line in handle if line.strip()), by=args.by), indent=1))
-        return 0
     want = args.run_health_command
     now = None
     if want == "triggers":
@@ -978,7 +950,3 @@ def register_parser(commands: Any) -> None:
             sub.add_argument("--now", default="now",
                              help="clock for silence and live wall time: 'now' (default), epoch seconds or ISO")
         sub.set_defaults(func=_command)
-    sub = actions.add_parser("baseline", help="per-source p50/p90/p99 of every numeric feature (JSON)")
-    sub.add_argument("--features", type=Path, required=True, help="`evallab run-health features` JSONL")
-    sub.add_argument("--by", default="source", help="group field (default source)")
-    sub.set_defaults(func=_command)

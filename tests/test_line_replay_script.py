@@ -118,7 +118,16 @@ def make_set(tmp_path, monkeypatch):
 
     Cheats c0.. are labelled cheats; the first ``caught`` of them sit on a task marked
     weak, which sends them to review. Honest runs h0.. are kept.
+
+    None of these synthetic cases tests corpus assignments or the current Git state.
+    Only those external probes are stubbed; replay, sealing, receipt checks and
+    regression detection stay real.
     """
+    from evallab import hack_drop as hd
+    from evallab.line import core
+
+    monkeypatch.setattr(hd, "_get_corpus_registry", lambda **_: None)
+    monkeypatch.setattr(core, "_code", lambda _: ("a" * 40, False))
     module = _load_script()
 
     def build(cheats=2, caught=2, clean=1, claim_all_dropped=False):

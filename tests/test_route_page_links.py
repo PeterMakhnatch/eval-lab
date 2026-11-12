@@ -1,4 +1,4 @@
-"""Relative Markdown links on the route pages and ladder READMEs must resolve."""
+"""Relative Markdown links on the route pages, MiMo experiment READMEs and task library must resolve."""
 
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ LINK_CHECKED_PAGES: tuple[str, ...] = (
     "README.md",
     "docs/NOW.md",
     "docs/mimo/*.md",
-    "research/experiments/mimo-clean-v6/README.md",
-    "research/experiments/mimo-v6-full-fleet/README.md",
+    "research/experiments/mimo-*/README.md",
+    "library/tasks/**/*.md",
     "research/experiments/library-ladder-coverage/README.md",
 )
 
@@ -113,6 +113,22 @@ def test_missing_target_fails_naming_page_and_target(tmp_path: Path) -> None:
     assert dead_links(tmp_path, ("docs/page.md",)) == ["docs/page.md -> gone/missing.md"]
     with pytest.raises(AssertionError, match=r"docs/page\.md -> gone/missing\.md"):
         assert_no_dead_links(tmp_path, ("docs/page.md",))
+
+
+def test_dead_link_on_task_library_page_fails_by_page_and_target(tmp_path: Path) -> None:
+    task_dir = tmp_path / "library" / "tasks" / "demo"
+    (task_dir / "docs").mkdir(parents=True)
+    (task_dir / "README.md").write_text("[ok](docs/guide.md)\n", encoding="utf-8")
+    (task_dir / "docs" / "guide.md").write_text(
+        "[gone](../../../../research/experiments/gone-runs/README.md)\n", encoding="utf-8"
+    )
+
+    with pytest.raises(
+        AssertionError,
+        match=r"library/tasks/demo/docs/guide\.md -> "
+        r"\.\./\.\./\.\./\.\./research/experiments/gone-runs/README\.md",
+    ):
+        assert_no_dead_links(tmp_path, ("library/tasks/**/*.md",))
 
 
 def test_dead_reference_definition_and_missing_page_are_reported(tmp_path: Path) -> None:

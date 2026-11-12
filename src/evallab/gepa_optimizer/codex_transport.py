@@ -18,7 +18,6 @@ import re
 import signal
 import subprocess
 import time
-import uuid
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -283,26 +282,6 @@ def parse_transcript(path: Path, *, allow_preamble: bool = False) -> tuple[str, 
     return response, usage
 
 
-def transcript_thread_ids(path: Path) -> list[str]:
-    """Every ``thread.started`` id in a transcript, tolerating unparsable lines.
-
-    Used only to bind a turn to its native thread; ``parse_transcript``
-    remains the authority on whether the turn itself is usable.
-    """
-    if path.stat().st_size > MAX_TRANSCRIPT_BYTES:
-        raise CodexTransportError("Codex transcript exceeded its bound")
-    ids: list[str] = []
-    for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            event = json.loads(raw_line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(event, dict) and event.get("type") == "thread.started":
-            thread_id = event.get("thread_id")
-            ids.append(thread_id if isinstance(thread_id, str) else "")
-    return ids
-
-
 def _poll_events(
     path: Path, offset: int, pending: bytes, started: bool = False
 ) -> tuple[int, bytes, bool]:
@@ -565,141 +544,3 @@ class CodexTransport:
             "usage": {**usage, "requested_model": f"codex/{self.model}"},
             "transport": facts,
         }
-
-
-class CodexSession:
-    """One persisted native Codex thread advanced by ``codex exec resume``.
-
-    The first turn starts a non-ephemeral thread; every later turn resumes that
-    exact UUID with the same pins, cwd and disabled tools. Each invocation must
-    be one completed text-only turn bound to the same ``thread.started`` id:
-    ``exec resume`` silently starts a new thread when an id is unresolvable
-    (``codex-rs/exec/src/lib.rs``), so a changed id fails the session closed.
-
-    ``turn.completed`` usage is the thread's cumulative total
-    (``usage_from_last_total`` in ``exec/src/event_processor_with_jsonl_output.rs``;
-    resume seeds it from the rollout via ``last_token_info_from_rollout`` in
-    ``core/src/session/mod.rs``). Per-turn usage is therefore the delta from the
-    previous report; a decrease, a dropped field, or a zero delta is unknown
-    usage and fails closed. A failed invocation leaves usage unknown.
-    """
-
-    def __init__(self, transport: CodexTransport, *, directory: Path) -> None:
-        if any(part.is_symlink() for part in (directory, *directory.parents)):
-            raise ValueError("Codex session directories must not follow symlinks")
-        directory.mkdir(parents=True, exist_ok=False, mode=0o700)
-        self.transport = transport
-        self.directory = directory
-        self.cwd = directory / "cwd"
-        self.cwd.mkdir(mode=0o700)
-        self.thread_id: str | None = None
-        self.invocations = 0
-        self.cumulative: dict[str, int] = {}
-        self.facts: dict[str, Any] | None = None
-
-    def turn(self, prompt: str, *, timeout_seconds: float) -> dict[str, Any]:
-        """Run one more turn of the thread; never retry, reroute or fork."""
-        if not isinstance(prompt, str) or not prompt.strip():
-            raise ValueError("Codex session prompt must not be empty")
-        if not timeout_seconds > 0:
-            raise CodexTransportError("Codex session has no time left for a turn")
-        deadline = time.monotonic() + timeout_seconds
-        facts = self.transport.preflight(deadline=deadline)
-        facts = {
-            **facts,
-            "text_only": {**facts["text_only"], "ephemeral": False},
-            "native_session": "codex exec resume <thread_id>; rollout persisted in CODEX_HOME",
-        }
-        if self.facts is None:
-            self.facts = facts
-        elif facts != self.facts:
-            raise CodexTransportError("Codex route changed during the session")
-        self.invocations += 1
-        turn_dir = self.directory / f"turn-{self.invocations:03d}"
-        turn_dir.mkdir(mode=0o700)
-        prompt_file = turn_dir / "prompt.txt"
-        persist_private_bytes(prompt_file, prompt.encode(), secrets=())
-        events_path = turn_dir / "events.jsonl"
-        log_path = turn_dir / "client.log"
-        last_message = turn_dir / "last_message.txt"
-        for path in (events_path, log_path, last_message):
-            path.touch(mode=0o600, exist_ok=False)
-        argv = self.transport._argv(
-            cwd=self.cwd,
-            last_message=last_message,
-            persist=True,
-            resume_thread_id=self.thread_id,
-        )
-        try:
-            _execute(
-                argv,
-                cwd=self.cwd,
-                prompt_file=prompt_file,
-                events_path=events_path,
-                log_path=log_path,
-                timeout_seconds=_probe_timeout(deadline, timeout_seconds),
-            )
-        finally:
-            self._bind_thread(events_path, required=False)
-        if any(
-            path.stat().st_size > MAX_TRANSCRIPT_BYTES
-            for path in (events_path, log_path, last_message)
-        ):
-            raise CodexTransportError("Codex output limit reached")
-        self._bind_thread(events_path, required=True)
-        response, usage = parse_transcript(events_path, allow_preamble=True)
-        delta: dict[str, int] = {}
-        for name in USAGE_FIELDS:
-            previous = self.cumulative.get(name)
-            current = usage.get(name)
-            if current is None:
-                if previous is not None:
-                    raise CodexTransportError(f"Codex stopped reporting {name}; usage unknown")
-                continue
-            if current < (previous or 0):
-                raise CodexTransportError(f"Codex cumulative {name} decreased; usage unknown")
-            delta[name] = current - (previous or 0)
-        if delta.get("input_tokens", 0) <= 0 or delta.get("output_tokens", 0) <= 0:
-            raise CodexTransportError("Codex reported no usage for a completed turn; usage unknown")
-        self.cumulative = {name: usage[name] for name in USAGE_FIELDS if name in usage}
-        return {
-            "response": response,
-            "thread_id": self.thread_id,
-            "invocation": self.invocations,
-            "directory": str(turn_dir),
-            "usage": delta,
-            "cumulative_usage": dict(self.cumulative),
-            "text_selection": usage.get("text_selection"),
-            "requested_model": f"codex/{self.transport.model}",
-            "upstream_estimated_cost_usd": None,
-            "transport": facts,
-        }
-
-    def _bind_thread(self, events_path: Path, *, required: bool) -> None:
-        try:
-            ids = transcript_thread_ids(events_path)
-        except (OSError, CodexTransportError):
-            if required:
-                raise
-            return
-        if len(ids) != 1:
-            if required:
-                raise CodexTransportError("Codex turn did not report exactly one thread id")
-            return
-        (thread_id,) = ids
-        if self.thread_id is None:
-            try:
-                canonical = str(uuid.UUID(thread_id))
-            except ValueError as exc:
-                if required:
-                    raise CodexTransportError("Codex thread id is not a UUID") from exc
-                return
-            if canonical != thread_id:
-                if required:
-                    raise CodexTransportError("Codex thread id is not a canonical UUID")
-                return
-            self.thread_id = thread_id
-        elif thread_id != self.thread_id:
-            raise CodexTransportError(
-                "Codex resumed a different thread; the session is not one conversation"
-            )

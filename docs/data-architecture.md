@@ -371,7 +371,6 @@ Raw step text comes from retained ATIF under explicitly resolved run roots.
 Missing trajectories are reported by path, not invented.
 
 ```sh
-uv sync --locked --group lance
 uv run python -m evallab.lance build --table all
 uv run python -m evallab.lance search 'quick brown' --table tasks --k 5
 ```

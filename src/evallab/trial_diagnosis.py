@@ -83,7 +83,6 @@ reward. No model calls of any kind.
 
 from __future__ import annotations
 
-import argparse
 import json
 import re
 from collections.abc import Mapping, Sequence
@@ -100,7 +99,6 @@ from evallab.step_layers import (
     executed_output,
     stitch_steps,
 )
-from evallab.tracing import TraceError, is_job_dir, is_trial_dir
 from evallab.traj import (
     TrajectoryError,
     TrajectoryOutline,
@@ -114,7 +112,6 @@ DETECTOR_VERSION = "trial_diagnosis/v3"
 PASS_THRESHOLD = 1.0
 DEFAULT_MAX_CHARS = 2000
 EXCERPT_CHARS = 160
-TRUNCATION_MARKER = "[truncated: feedback exceeded max_chars budget]"
 
 Outcome = Literal["scored", "unscored", "infra_failed"]
 
@@ -1233,86 +1230,3 @@ def diagnose_atif(
         notices=tuple(notices),
     )
 
-
-def diagnose_job(job_dir: str | Path) -> list[TrialDiagnosis]:
-    """Diagnose every trial directory directly under a job directory, sorted."""
-    job = Path(job_dir)
-    if not job.is_dir():
-        raise TraceError(f"not a job directory: {job}")
-    trials = sorted(
-        (child for child in job.iterdir() if is_trial_dir(child)),
-        key=lambda item: item.name,
-    )
-    return [diagnose_trial(trial, explicit_runs_root=job.resolve()) for trial in trials]
-
-
-def render_diagnosis_text(diagnosis: TrialDiagnosis, max_chars: int = DEFAULT_MAX_CHARS) -> str:
-    """Render bounded plain text for Reef's report ``feedback`` (string form).
-
-    Signature stability: HAR-74 / ReefTraffic attaches this rendering to Reef
-    reports, so keep ``(diagnosis, max_chars) -> str`` and the ``len(text) <=
-    max_chars`` guarantee. ``TrialDiagnosis.to_dict()`` is the matching
-    object form (JSON-serializable, same content).
-    """
-    if max_chars <= 0:
-        raise ValueError("max_chars must be a positive integer")
-    reward = (
-        f"{diagnosis.reward:.4f}" if isinstance(diagnosis.reward, float) else str(diagnosis.reward)
-    )
-    lines = [
-        f"Trial {diagnosis.trial_name} ({diagnosis.task_name}): "
-        f"outcome={diagnosis.outcome} reward={reward}"
-    ]
-    if diagnosis.exception_class:
-        lines.append(f"Infra: {sanitize_excerpt(diagnosis.exception_class, 120)}")
-    if diagnosis.modes:
-        lines.append(f"Failure modes: {', '.join(mode.mode for mode in diagnosis.modes)}")
-        for mode in diagnosis.modes:
-            steps = ",".join(str(step) for step in mode.step_ids)
-            lines.append(f'- {mode.mode} (steps {steps}): "{mode.excerpt}"')
-            lines.append(f"  Harness fix: {mode.suggestion}")
-    else:
-        lines.append("Failure modes: none")
-    for notice in diagnosis.notices:
-        lines.append(f"Note: {sanitize_excerpt(notice, 200)}")
-    text = "\n".join(lines).strip() + "\n"
-    if len(text) <= max_chars:
-        return text
-    if max_chars <= len(TRUNCATION_MARKER) + 1:
-        return text[:max_chars]
-    return text[: max_chars - len(TRUNCATION_MARKER) - 1].rstrip() + "\n" + TRUNCATION_MARKER
-
-
-def main(argv: list[str] | None = None) -> int:
-    """CLI: ``python -m evallab.trial_diagnosis <trial_or_job_dir> [--json]``."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("path", type=Path, help="Harbor trial or job directory")
-    parser.add_argument("--json", action="store_true", help="Emit JSON instead of bounded text")
-    parser.add_argument(
-        "--max-chars",
-        type=int,
-        default=DEFAULT_MAX_CHARS,
-        help="Upper bound on each text rendering",
-    )
-    args = parser.parse_args(argv)
-    try:
-        if args.max_chars <= 0:
-            raise TraceError("max_chars must be a positive integer")
-        if is_trial_dir(args.path) and not is_job_dir(args.path):
-            diagnoses = [diagnose_trial(args.path)]
-        else:
-            diagnoses = diagnose_job(args.path)
-        if args.json:
-            output = json.dumps([item.to_dict() for item in diagnoses], indent=2) + "\n"
-        else:
-            output = "".join(
-                render_diagnosis_text(item, args.max_chars) + "\n" for item in diagnoses
-            )
-    except (TraceError, OSError, ValueError) as exc:
-        parser.error(str(exc))
-    print(output, end="")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

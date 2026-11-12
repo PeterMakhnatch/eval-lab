@@ -26,14 +26,19 @@ latest build without re-embedding.
 from __future__ import annotations
 
 import argparse
+import dataclasses
+import hashlib
 import json
 import math
 import os
 import random
 import re
 import time
+import urllib.error
+import urllib.request
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -57,6 +62,121 @@ _STOP_WORDS = frozenset((
 Cluster = dict[str, Any]
 SparseVector = list[tuple[int, float]]
 Namer = Callable[[list[str]], str]
+
+@dataclass(frozen=True)
+class HashingEmbedder:
+    r"""Pure deterministic lexical embedder.
+
+    Tokenises on \w+, hashes tokens stably with MD5 into dim buckets,
+    accumulates counts, L2-normalises. Same text always yields identical
+    vector in-process and across processes. Captures only lexical overlap,
+    not semantics. Use a real model later via the protocol without changing
+    callers.
+    """
+
+    dim: int = 256
+    identity: str = "hashing"
+    version: str = "v1"
+
+    @property
+    def digest(self) -> str:
+        return hashlib.sha256(f"{self.identity}:{self.version}:dim={self.dim}".encode()).hexdigest()
+
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        vectors: list[list[float]] = []
+        for text in texts:
+            v = [0.0] * self.dim
+            for tok in re.findall(r"\w+", text.lower()):
+                h = int(hashlib.md5(tok.encode()).hexdigest(), 16) % self.dim
+                v[h] += 1
+            norm = math.sqrt(sum(x * x for x in v)) or 1.0
+            vectors.append([x / norm for x in v])
+        return vectors
+
+
+@dataclass(frozen=True)
+class OpenAICompatibleEmbedder:
+    """Pinned neural embedding backend for local or remote OpenAI-compatible servers."""
+
+    endpoint: str
+    model: str
+    model_revision: str
+    tokenizer_id: str
+    tokenizer_revision: str
+    dim: int
+    normalization: str = "l2"
+    timeout_seconds: float = 60.0
+    api_key: str | None = dataclasses.field(default=None, repr=False, compare=False)
+    identity: str = "openai-compatible"
+
+    @property
+    def version(self) -> str:
+        return self.model_revision
+
+    @property
+    def digest(self) -> str:
+        body = {
+            "identity": self.identity,
+            "endpoint": self.endpoint,
+            "model": self.model,
+            "model_revision": self.model_revision,
+            "tokenizer_id": self.tokenizer_id,
+            "tokenizer_revision": self.tokenizer_revision,
+            "dim": self.dim,
+            "normalization": self.normalization,
+        }
+        return hashlib.sha256(
+            json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        if not self.endpoint.startswith(("http://", "https://")):
+            raise ValueError("embedding endpoint must use http:// or https://")
+        if self.dim <= 0:
+            raise ValueError("embedding dimension must be positive")
+        payload = json.dumps(
+            {
+                "model": self.model,
+                "input": list(texts),
+                "encoding_format": "float",
+            },
+            separators=(",", ":"),
+        ).encode()
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        request = urllib.request.Request(
+            self.endpoint.rstrip("/") + "/v1/embeddings",
+            data=payload,
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                response_body = json.loads(response.read().decode("utf-8"))
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"embedding backend request failed: {exc}") from exc
+        records = response_body.get("data") if isinstance(response_body, dict) else None
+        if not isinstance(records, list) or len(records) != len(texts):
+            raise ValueError("embedding backend returned a mismatched data array")
+        ordered = sorted(records, key=lambda row: int(row.get("index", 0)))
+        vectors: list[list[float]] = []
+        for record in ordered:
+            raw_vector = record.get("embedding") if isinstance(record, dict) else None
+            if not isinstance(raw_vector, list) or len(raw_vector) != self.dim:
+                raise ValueError("embedding backend returned an invalid vector dimension")
+            vector = [float(value) for value in raw_vector]
+            if not all(math.isfinite(value) for value in vector):
+                raise ValueError("embedding backend returned a non-finite vector")
+            if self.normalization == "l2":
+                norm = math.sqrt(sum(value * value for value in vector))
+                if norm == 0:
+                    raise ValueError("embedding backend returned a zero vector")
+                vector = [value / norm for value in vector]
+            elif self.normalization != "none":
+                raise ValueError("normalization must be 'l2' or 'none'")
+            vectors.append(vector)
+        return vectors
 
 
 def facet_text(facet: Mapping[str, Any]) -> str:
@@ -162,8 +282,6 @@ def cluster_facets(
     if any(str(record.get("split", "DEV")).upper() != "DEV" for record in records):
         raise ValueError("clustering accepts admitted DEV facets only")
     if embedder is None:
-        from evallab.lance import HashingEmbedder
-
         embedder = HashingEmbedder()
     texts = [facet_text(record) for record in records]
     raw_vectors = embedder.embed(texts)
@@ -676,8 +794,6 @@ class _CappedRemoteEmbedder:
 
 
 def _embedder(args: argparse.Namespace) -> Any:
-    from evallab.lance import HashingEmbedder, OpenAICompatibleEmbedder
-
     if args.embedder == "hashing":
         return HashingEmbedder(dim=args.embedding_dim)
     if (args.spend_cap_usd is None or not math.isfinite(args.spend_cap_usd)

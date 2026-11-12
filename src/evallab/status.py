@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import socket
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -104,14 +103,6 @@ def probe_postgres(url: str | None = None) -> bool:
     except Exception:
         return False
     return True
-
-
-def probe_phoenix(host: str = PHOENIX_HOST, port: int = PHOENIX_PORT) -> bool:
-    try:
-        with socket.create_connection((host, port), timeout=0.2):
-            return True
-    except OSError:
-        return False
 
 
 def _availability_for_presence(present: bool) -> Availability:
@@ -455,12 +446,7 @@ def build_status_snapshot(
         postgres_ok = probe_postgres(postgres_url)
     else:
         postgres_ok = False
-    if phoenix_probe is not None:
-        phoenix_ok = phoenix_probe()
-    elif lab_checkout:
-        phoenix_ok = probe_phoenix()
-    else:
-        phoenix_ok = False
+    phoenix_ok = phoenix_probe() if phoenix_probe is not None else False
     queue_present = layout.queue_root.is_dir()
     entries = _queue_entries(layout.queue_root)
     jobs, malformed_jobs = _load_jobs(layout.job_roots)
@@ -541,9 +527,3 @@ def render_status_text(snapshot: StatusSnapshot) -> str:
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
-
-def iter_labeled_items(snapshot: StatusSnapshot) -> list[StatusItem]:
-    items: list[StatusItem] = []
-    for section in snapshot.section_map().values():
-        items.extend(section.items)
-    return items

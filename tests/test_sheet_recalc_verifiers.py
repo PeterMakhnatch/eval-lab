@@ -10,16 +10,10 @@ must fail and name the failing tests (HAR-406).
 
 from __future__ import annotations
 
-import os
 import re
-import subprocess
-import sys
-from pathlib import Path
 
 import pytest
-
-ROOT = Path(__file__).resolve().parents[1]
-PACKAGES = ("sheet-recalc", "sheet-recalc-cutoff")
+from sheet_recalc_host import PACKAGES, package_path, run_verifier, transcript
 
 # The shipped engine grades slowly: the full verifier file took 194 s here and
 # 17 of 19 tests fail. These two tests fail within two seconds each on the
@@ -33,47 +27,6 @@ SOLUTION_TIMEOUT_SECONDS = 100.0
 FAILING_TIMEOUT_SECONDS = 30.0
 
 _FAILED_TEST = re.compile(r"^FAILED .*test_sheet\.py::test_\S+", re.MULTILINE)
-
-
-def package_path(package: str, relative: str) -> Path:
-    return ROOT / "library" / "tasks" / package / relative
-
-
-def run_verifier(
-    package: str, submission: Path, *, selector: str | None, timeout: float
-) -> subprocess.CompletedProcess[str]:
-    verifier = package_path(package, "tests/test_sheet.py")
-    assert verifier.is_file(), verifier
-    assert submission.is_file(), submission
-    command = [
-        sys.executable,
-        "-I",
-        "-m",
-        "pytest",
-        "-q",
-        "-c",
-        os.devnull,
-        "--noconftest",
-        "--import-mode=importlib",
-        "-p",
-        "no:cacheprovider",
-        f"--rootdir={verifier.parent}",
-    ]
-    if selector is not None:
-        command += ["-k", selector]
-    command.append(str(verifier))
-    return subprocess.run(
-        command,
-        cwd=ROOT,
-        env={**os.environ, "SHEET_RECALC_SUBMITTED": str(submission)},
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-
-
-def transcript(completed: subprocess.CompletedProcess[str]) -> str:
-    return completed.stdout + completed.stderr
 
 
 @pytest.mark.parametrize("package", PACKAGES)

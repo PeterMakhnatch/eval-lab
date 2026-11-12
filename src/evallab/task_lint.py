@@ -24,7 +24,7 @@ from typing import Any, Literal, cast
 
 import yaml
 
-_EXPECTATION = re.compile(r"#\s*expect:\s*[01]\s*")
+from evallab.control_expect import declared_expectation
 
 # Agent-visible leak markers for converted (e.g. MiMo) tasks: grading secrets
 # an agent could read before grading. Spec-necessary API names are excluded on
@@ -295,16 +295,14 @@ def lint_task(task_dir: Path) -> list[Finding]:
         findings.extend(_lint_dockerfile(dockerfile))
 
     for control in sorted((task_dir / "controls").glob("*.sh")):
-        if not control.is_file() or not any(
-            _EXPECTATION.fullmatch(line)
-            for line in control.read_text(encoding="utf-8").splitlines()
-        ):
+        if not control.is_file() or declared_expectation(control) is None:
             findings.append(
                 Finding(
                     "controls-declare-expectation",
                     "error",
                     str(control),
-                    "control script must contain a # expect: 0 or # expect: 1 header line",
+                    "control script must contain a # expect: 0 or # expect: 1 header line "
+                    "in its first 20 lines",
                 )
             )
     return findings

@@ -32,6 +32,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from evallab.control_expect import declared_expectation
 from evallab.execution_contracts import new_ulid
 from evallab.ref_repair import add_ref_repair_parser
 from evallab.ref_subset import add_ref_subset_parser
@@ -500,22 +501,6 @@ class ControlScript:
     source: str
     sha256: str
     declared: float | None
-
-
-_EXPECT_HEADER = re.compile(r"^#\s*expect:\s*(1|0|1\.0|0\.0)\s*$")
-
-
-def declared_expectation(script: Path) -> float | None:
-    """Read the control-author's ``# expect: 1`` header, when one is present."""
-    try:
-        lines = script.read_text(encoding="utf-8").splitlines()[:20]
-    except (OSError, UnicodeDecodeError):
-        return None
-    for line in lines:
-        match = _EXPECT_HEADER.match(line.strip())
-        if match:
-            return 1.0 if match.group(1).startswith("1") else 0.0
-    return None
 
 
 def _slug(text: str, *, limit: int = 32) -> str:

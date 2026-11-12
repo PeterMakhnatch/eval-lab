@@ -1143,6 +1143,9 @@ def test_real_repository_registry_audit_and_drift_detection(tmp_path: Path) -> N
 def test_promote_task_discovers_control_evidence_and_creates_candidate(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    import shlex
+
+    from evallab.cli import parser
 
     packet_root = (
         Path(__file__).resolve().parents[1]
@@ -1169,17 +1172,16 @@ def test_promote_task_discovers_control_evidence_and_creates_candidate(
         tmp_path, task_dir, "nop", 0.0, result_task_name=f"evallab/{task_dir.name}"
     )
 
-    promote_task(
-        rel_path,
-        tmp_path,
-        task_id=task_id,
-        task_family=fields["task_family"]["value"],
-        source_uri=fields["source_uri"]["value"],
-        license_str=fields["license"]["value"],
-        provenance_zone="03-synthetic",
-        is_synthetic=True,
-        allowed_uses=["measurement"],
-    )
+    command = checklist["pre_registration_execution_pipeline"]["step_5_candidate_record"][
+        "cli_command"
+    ]
+    argv = [
+        rel_path if item == "<materialized-package>" else item
+        for item in shlex.split(command)[1:]
+    ]
+    args = parser().parse_args(argv)
+    assert args.func(args, tmp_path) == 0
+    capsys.readouterr()
 
     loaded = TaskRegistry.from_repo(tmp_path).get(task_id)
     assert loaded is not None
@@ -1563,23 +1565,117 @@ def test_promote_task_refuses_tampered_package_without_version_bump(tmp_path: Pa
     assert record_v2.version == "1.0.1"
 
 
-def test_cli_registry_list_and_audit_e2e(tmp_path: Path, capsys) -> None:
+def test_cli_registry_promote_and_register_e2e(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     import argparse
 
-    from evallab.cli import _registry_audit_command, _registry_list_command
+    from evallab.cli import (
+        _registry_audit_command,
+        _registry_list_command,
+        _registry_promote_command,
+        _registry_register_command,
+    )
+
     task_dir = _make_dummy_task(tmp_path, "library/tasks/cli-test-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
-    promote_task("library/tasks/cli-test-task", tmp_path)
-    assert _registry_list_command(argparse.Namespace(state=None, json=False), tmp_path) == 0
-    out = capsys.readouterr().out
-    assert "cli-test-task" in out and "candidate" in out
+
+    # 1. Promote via CLI
+    promote_args = argparse.Namespace(
+        task_path="library/tasks/cli-test-task",
+        task_id=None,
+        version=None,
+        source_uri=None,
+        source_ref=None,
+        license=None,
+        provenance_zone=None,
+        synthetic=False,
+        timeout_seconds=None,
+        max_memory_mb=None,
+        max_cpus=None,
+        allowed_uses=None,
+        human_minutes=None,
+        state="candidate",
+        actor=None,
+        register=False,
+        jobs_dir=None,
+        registry_dir=str(tmp_path / "library/registry"),
+        json=False,
+    )
+    exit_code = _registry_promote_command(promote_args, tmp_path)
+    assert exit_code == 0
+    out, _ = capsys.readouterr()
+    assert "promoted: cli-test-task@1.0.0 (state: candidate)" in out
+
+    # 2. List shows candidate
+    list_args = argparse.Namespace(state=None, json=False)
+    # Point registry from_repo to tmp_path
+    exit_code = _registry_list_command(list_args, tmp_path)
+    assert exit_code == 0
+    out, _ = capsys.readouterr()
+    assert "cli-test-task" in out
+    assert "candidate" in out
+
+    # 3. Register via CLI
+    reg_args = argparse.Namespace(
+        task_id="cli-test-task",
+        actor="Peter Makhnatch",
+        registry_dir=str(tmp_path / "library/registry"),
+        json=False,
+    )
+    exit_code = _registry_register_command(reg_args, tmp_path)
+    assert exit_code == 1
+    _, err = capsys.readouterr()
+    assert "certification-packet" in err
     _make_canary_policy(tmp_path)
+
     inventory_path = tmp_path / "research/registration/inventory.json"
     inventory_path.parent.mkdir(parents=True, exist_ok=True)
-    inventory_path.write_text(json.dumps(inventory_tasks(tmp_path).to_dict(), indent=2) + "\n")
-    assert _registry_audit_command(argparse.Namespace(json=False), tmp_path) == 0
-    assert "legacy_missing_certification" in capsys.readouterr().out
+    inventory_path.write_text(
+        json.dumps(inventory_tasks(tmp_path).to_dict(), indent=2) + "\n"
+    )
+    # 4. Audit passes with an explicit legacy-certificate warning.
+    audit_args = argparse.Namespace(json=False)
+    exit_code = _registry_audit_command(audit_args, tmp_path)
+    assert exit_code == 0
+    out, _ = capsys.readouterr()
+    assert "legacy_missing_certification" in out
+
+
+def test_cli_registry_promote_refuses_missing_durable_evidence(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import argparse
+
+    from evallab.cli import _registry_promote_command
+
+    _make_dummy_task(tmp_path, "library/tasks/missing-evidence")
+    promote_args = argparse.Namespace(
+        task_path="library/tasks/missing-evidence",
+        task_id=None,
+        version=None,
+        source_uri=None,
+        source_ref=None,
+        license=None,
+        provenance_zone=None,
+        synthetic=False,
+        timeout_seconds=None,
+        max_memory_mb=None,
+        max_cpus=None,
+        allowed_uses=None,
+        human_minutes=None,
+        state="candidate",
+        actor=None,
+        register=False,
+        jobs_dir=None,
+        registry_dir=str(tmp_path / "library/registry"),
+        json=False,
+    )
+    exit_code = _registry_promote_command(promote_args, tmp_path)
+    assert exit_code == 1
+    _, err = capsys.readouterr()
+    assert "missing durable trial-level oracle control evidence" in err
 
 
 def _rewrite_control_identity(

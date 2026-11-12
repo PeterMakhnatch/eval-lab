@@ -5,10 +5,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import importlib.util
+import inspect
 import json
 import os
 import subprocess
+import sys
 import tomllib
+import zlib
 from collections.abc import Sequence
 from fnmatch import fnmatch
 from pathlib import Path
@@ -23,12 +26,169 @@ _CONFTEST_PATH = Path(__file__).resolve().parent / "conftest.py"
 _spec = importlib.util.spec_from_file_location("local_tests_conftest", _CONFTEST_PATH)
 assert _spec is not None and _spec.loader is not None
 _conftest = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = _conftest
 _spec.loader.exec_module(_conftest)
 
 _CALL_DURATIONS = _conftest._CALL_DURATIONS
 _slow_test_budget_seconds = _conftest._slow_test_budget_seconds
 pytest_runtest_makereport = _conftest.pytest_runtest_makereport
 pytest_terminal_summary = _conftest.pytest_terminal_summary
+
+
+@pytest.mark.parametrize("total", range(1, 9))
+def test_shard_partition_preserves_crc32_and_applicable_pins(
+    total: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = [
+        f"{directory}/test_{name}.py"
+        for directory in (
+            "tests",
+            "tests/line",
+            "dashboard/tests",
+            "research/analysis/tests",
+            "research/calibration/tests",
+            "research/experiments/library-ladder-coverage",
+        )
+        for name in ("job_diff", "regrade", "cheat", "ci_coverage", "évidence")
+    ]
+    pins = {path: index % 8 + 1 for index, path in enumerate(paths[:16])}
+    monkeypatch.setattr(_conftest, "SHARD_OVERRIDES", pins)
+    partitions = {
+        index: {path for path in paths if _conftest.shard_for(path, total) == index}
+        for index in range(1, total + 1)
+    }
+    assert set.union(*partitions.values()) == set(paths)
+    assert sum(map(len, partitions.values())) == len(paths)
+    for path in paths:
+        pin = pins.get(path)
+        expected = pin if pin is not None and pin <= total else zlib.crc32(path.encode()) % total + 1
+        assert _conftest.shard_for(path, total) == expected
+
+
+def _write_shard_collection_tree(root: Path) -> list[str]:
+    """Copy the real collection hooks without unrelated repository fixtures."""
+    header = (
+        "from __future__ import annotations\n"
+        "import json, os, zlib\n"
+        "from pathlib import Path\n"
+        "from collections.abc import Generator\n"
+        "from typing import Any\n"
+        "import pytest\n"
+        "_COLLECTED_MODULES = pytest.StashKey()\n"
+        "_DEFAULT_COLLECTION = pytest.StashKey()\n"
+        "_SHARD_ASSIGNMENT = pytest.StashKey()\n"
+        "_SHARD_SKIPPED_MODULES = pytest.StashKey()\n"
+        "_CALL_DURATIONS = pytest.StashKey()\n"
+        "DEFAULT_SLOW_TEST_BUDGET_SECONDS = 60.0\n"
+        "SHARD_OVERRIDES = {}\n"
+    )
+    hooks = "\n\n".join(
+        inspect.getsource(getattr(_conftest, name))
+        for name in (
+            "shard_for",
+            "_OtherShardFile",
+            "_module_path",
+            "_ShardCollection",
+            "pytest_addoption",
+            "_parse_shard_option",
+            "pytest_configure",
+            "pytest_collection_modifyitems",
+            "_slow_test_budget_seconds",
+            "pytest_terminal_summary",
+        )
+    )
+    snapshot = (
+        "\ndef pytest_collection_finish(session):\n"
+        "    worker = os.environ.get('PYTEST_XDIST_WORKER', 'serial')\n"
+        "    (session.config.rootpath / f'collection-{worker}.json').write_text(\n"
+        "        json.dumps([item.nodeid for item in session.items]))\n"
+    )
+    (root / "tests").mkdir()
+    (root / "tests/conftest.py").write_text(header + hooks + snapshot)
+    (root / "pytest.ini").write_text(
+        "[pytest]\ntestpaths = tests dashboard/tests research/analysis/tests\n"
+    )
+    paths = [
+        f"{directory}/test_probe_{group}_{number}.py"
+        for group, directory in enumerate(
+            ("tests/nested", "dashboard/tests", "research/analysis/tests")
+        )
+        for number in range(4)
+    ]
+    paths.append("tests/test_ci_coverage.py")
+    for path in paths:
+        module = root / path
+        module.parent.mkdir(parents=True, exist_ok=True)
+        owner = _conftest.shard_for(path, 2)
+        allowed = f"(None, '{owner}')" if path != "tests/test_ci_coverage.py" else "(None, '1', '2')"
+        module.write_text(
+            "import os\nfrom pathlib import Path\n"
+            f"if os.environ.get('EXPECTED_SHARD') not in {allowed}:\n"
+            "    raise RuntimeError('another shard imported this module')\n"
+            "Path(__file__).with_suffix('.imported').touch()\n"
+            "def test_probe():\n    assert True\n"
+        )
+    return paths
+
+
+@pytest.mark.parametrize("explicit_paths", [False, True])
+@pytest.mark.parametrize("workers", [0, 2])
+def test_shards_skip_imports_and_preserve_collection_union(
+    tmp_path: Path, explicit_paths: bool, workers: int
+) -> None:
+    paths = _write_shard_collection_tree(tmp_path)
+    if explicit_paths:
+        (tmp_path / "tests/test_not_requested.py").write_text(
+            "raise RuntimeError('an unrequested file was imported')\n"
+        )
+    env = {**os.environ, "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"}
+    env.pop("EXPECTED_SHARD", None)
+    env.pop("PYTEST_ADDOPTS", None)
+
+    def run(index: int | None) -> set[str]:
+        for marker in (*tmp_path.rglob("*.imported"), *tmp_path.glob("collection-*.json")):
+            marker.unlink()
+        command = [
+            sys.executable, "-m", "pytest", "-p", "xdist.plugin",
+            "-n", str(workers), "-q", "-p", "no:cacheprovider",
+        ]
+        if index is not None:
+            command.extend(("--shard", f"{index}/2"))
+        if explicit_paths:
+            command.extend(paths)
+        completed = subprocess.run(
+            command,
+            cwd=tmp_path,
+            env=env if index is None else {**env, "EXPECTED_SHARD": str(index)},
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+        snapshots = list(tmp_path.glob("collection-*.json"))
+        assert snapshots
+        nodeids = set().union(*(json.loads(path.read_text()) for path in snapshots))
+        imported = {
+            path.with_suffix(".py").relative_to(tmp_path).as_posix()
+            for path in tmp_path.rglob("*.imported")
+        }
+        assert imported == {nodeid.partition("::")[0] for nodeid in nodeids}
+        if index is not None:
+            expected = {
+                path for path in paths
+                if path == "tests/test_ci_coverage.py" or _conftest.shard_for(path, 2) == index
+            }
+            assert imported == expected
+            assert (
+                f"shard {index}/2: collected {len(expected)} test files, "
+                f"left {len(paths) - len(expected)} to other shards"
+            ) in completed.stdout
+        return nodeids
+
+    unsharded = run(None)
+    shards = [run(index) for index in (1, 2)]
+    assert set.union(*shards) == unsharded
+    assert shards[0] & shards[1] == {"tests/test_ci_coverage.py::test_probe"}
 
 
 def _find_bare_module_collisions(

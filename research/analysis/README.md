@@ -111,23 +111,6 @@ hash, configured toolset, and `k`), and the interval excludes zero. Otherwise
 it prints `not distinguishable / not comparable` with the reasons. Exploratory
 summaries remain available, but validity warnings prohibit a ranking.
 
-Plan an experiment before spending:
-
-```bash
-# Minimum detectable per-attempt difference for a fixed paired-task design.
-uv run evallab power --n-tasks 100 --k 3 --baseline 0.30
-
-# Required paired tasks and total attempts across candidate k values.
-uv run evallab power --target 0.15 --baseline 0.30 --max-k 8
-```
-
-The planner transforms per-attempt rates to pass@k under an explicit independent-
-attempt planning assumption, then uses a documented normal approximation for
-paired task outcomes. Its between-cohort task-pair correlation assumption is
-explicit and has a neutral default of zero. Empirical comparisons still
-cluster attempts within each task; the planning assumption never changes the
-analysis evidence unit.
-
 ## Trajectory family reports and eval cards
 
 After rebuilding Parquet, render one plain-language task-family report:
@@ -153,13 +136,6 @@ an unresolved contamination note, and observed threats. Drafts require human
 review before publication.
 
 ## Stage-5 sidecars
-
-Dry-run planning never calls a model:
-
-```bash
-uv run evallab analyze plan \
-  research/evidence/runs/event-summary-oracle-evidence/event-summary__FZg7pvq
-```
 
 Fixture/stub validation writes a new immutable sidecar and can index it:
 
@@ -225,19 +201,6 @@ adapter has no direct CLI execution route: it revalidates a matching
 `queue/running` authorization with `policy_rule=researcher-followups` at every
 call and caps schema retry plus initial call at two. No live model was invoked
 for this implementation.
-
-Compare completed valid sidecars with the fixed calibration labels without
-altering either source:
-
-```bash
-uv run evallab analyze agreement derived/analyses \
-  --labels research/calibration/trajectory-labels
-```
-
-The deterministic JSON report records source-file digests, exact category
-agreement, valid-sidecar label coverage, unmatched analyses, and labels lacking
-a valid analysis. Sidecars marked invalid are reported but excluded from both
-the agreement and coverage denominators.
 
 ## Verification
 

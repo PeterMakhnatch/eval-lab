@@ -18,30 +18,40 @@ Pool rule (exact package, keyed by task_id + package_digest):
 This is executed-evidence cleanliness for the stated control scope only. It is
 not semantic certification and grants no training admission; the frozen 33
 held-out task IDs stay excluded from training under every package version.
+
+Regenerate with `python build_pool.py`; `--check` rebuilds in memory, compares
+the committed bytes and exits 1 on drift without writing.
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import sys
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
-CLEAN_V7 = ROOT / "research/experiments/mimo-clean-v7/manifest.json"
-DEFECT = ROOT / "research/experiments/mimo-defect-map-v1"
+EXPERIMENT = "research/experiments/mimo-executed-clean-v1"
+OUTPUT_NAME = "manifest.json"
 
 
 def digest(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
-def main() -> None:
-    clean = json.loads(CLEAN_V7.read_bytes())
-    findings = json.loads((DEFECT / "findings.json").read_bytes())["findings"]
-    repairs = json.loads((DEFECT / "repairs.json").read_bytes())["repairs"]
+def build(root: Path = ROOT) -> dict[str, Any]:
+    """Rebuild the manifest from the committed inputs; never touches the disk."""
+    clean_path = root / "research/experiments/mimo-clean-v7/manifest.json"
+    findings_path = root / "research/experiments/mimo-defect-map-v1/findings.json"
+    repairs_path = root / "research/experiments/mimo-defect-map-v1/repairs.json"
+    clean = json.loads(clean_path.read_bytes())
+    findings = json.loads(findings_path.read_bytes())["findings"]
+    repairs = json.loads(repairs_path.read_bytes())["repairs"]
 
     open_packages = {
         (row["task_id"], row["package_digest"])
@@ -138,17 +148,70 @@ def main() -> None:
         },
         "members": members,
         "sources": [
-            {"path": "research/experiments/mimo-clean-v7/manifest.json", "sha256": digest(CLEAN_V7.read_bytes())},
-            {"path": "research/experiments/mimo-defect-map-v1/findings.json", "sha256": digest((DEFECT / "findings.json").read_bytes())},
-            {"path": "research/experiments/mimo-defect-map-v1/repairs.json", "sha256": digest((DEFECT / "repairs.json").read_bytes())},
+            {"path": "research/experiments/mimo-clean-v7/manifest.json", "sha256": digest(clean_path.read_bytes())},
+            {"path": "research/experiments/mimo-defect-map-v1/findings.json", "sha256": digest(findings_path.read_bytes())},
+            {"path": "research/experiments/mimo-defect-map-v1/repairs.json", "sha256": digest(repairs_path.read_bytes())},
         ],
         "spend_usd": 0,
     }
-    out = HERE / "manifest.json"
-    out.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    return manifest
+
+
+def render(manifest: dict[str, Any]) -> str:
+    """The exact committed bytes for a manifest."""
+    return json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+
+
+def check(rendered: str, target: Path) -> bool:
+    """Compare ``rendered`` against the committed file's bytes; True when equal."""
+    rebuilt = rendered.encode("utf-8")
+    if not target.is_file():
+        print(f"{OUTPUT_NAME}: missing; rerun without --check to write it", file=sys.stderr)
+        return False
+    committed = target.read_bytes()
+    if committed == rebuilt:
+        print(f"{OUTPUT_NAME}: reproduces from committed inputs")
+        return True
+    offset = next(
+        (
+            index
+            for index, (left, right) in enumerate(zip(committed, rebuilt, strict=False))
+            if left != right
+        ),
+        min(len(committed), len(rebuilt)),
+    )
+    print(
+        f"{OUTPUT_NAME}: drift at byte {offset} (committed {len(committed)} bytes, "
+        f"rebuilt {len(rebuilt)} bytes); rerun without --check to regenerate",
+        file=sys.stderr,
+    )
+    return False
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help=f"exit 1 if the committed {OUTPUT_NAME} differs from a rebuild; write nothing",
+    )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=ROOT,
+        help="checkout root that holds the committed inputs and manifest",
+    )
+    args = parser.parse_args(argv)
+    target = args.root / EXPERIMENT / OUTPUT_NAME
+    manifest = build(args.root)
+    rendered = render(manifest)
+    if args.check:
+        return 0 if check(rendered, target) else 1
+    target.write_text(rendered, encoding="utf-8")
     print(json.dumps(manifest["counts"], sort_keys=True))
     print(json.dumps(manifest["training_pool_wrong_pass_overlap"], sort_keys=True))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

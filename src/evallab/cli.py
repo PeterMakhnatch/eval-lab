@@ -5123,7 +5123,10 @@ def parser() -> argparse.ArgumentParser:
         "lint", help="Read-only static checks for task verifier trust boundaries"
     )
     tasks_lint.add_argument(
-        "paths", nargs="+", type=Path, help="Task directories or task collections"
+        "paths",
+        nargs="+",
+        type=Path,
+        help="Task directories or task collections; nested task packages are discovered",
     )
     tasks_lint.add_argument("--json", action="store_true")
     tasks_lint.set_defaults(func=_tasks_lint_command)

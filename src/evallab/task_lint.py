@@ -17,7 +17,7 @@ import tarfile
 import tomllib
 import unicodedata
 import urllib.parse
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, cast
@@ -310,18 +310,38 @@ def lint_task(task_dir: Path) -> list[Finding]:
     return findings
 
 
+def _task_packages(root: Path) -> Iterator[Path]:
+    """Task directories below `root`, skipping hidden directories.
+
+    A directory that holds `task.toml` is one task, and its subdirectories are
+    never searched.
+    """
+    pending = [root]
+    while pending:
+        for child in pending.pop().iterdir():
+            if not child.is_dir() or child.name.startswith("."):
+                continue
+            if (child / "task.toml").is_file():
+                yield child
+            else:
+                pending.append(child)
+
+
 def discover_tasks(paths: Sequence[Path]) -> list[Path]:
-    """Expand immediate task children; nonexistent inputs remain lint errors."""
+    """Expand task packages under each path, sorted by posix path.
+
+    A path that is itself a task stays one task. Any other existing directory
+    is searched recursively, so collection roots may nest packages. A path that
+    does not exist stays one candidate, and lint reports its missing manifest.
+    """
     tasks: dict[Path, None] = {}
     for path in paths:
-        candidates = (
-            sorted(child for child in path.iterdir() if (child / "task.toml").is_file())
-            if path.is_dir() and not (path / "task.toml").is_file()
-            else [path]
-        )
-        for task in candidates:
-            tasks[task] = None
-    return list(tasks)
+        if path.is_dir() and not (path / "task.toml").is_file():
+            for task in _task_packages(path):
+                tasks[task] = None
+        else:
+            tasks[path] = None
+    return sorted(tasks, key=lambda task: task.as_posix())
 
 
 def _as_dict(value: object) -> dict[str, Any]:

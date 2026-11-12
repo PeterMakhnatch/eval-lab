@@ -19,12 +19,6 @@ JOBS = FIXTURES / "jobs"
 ANALYSES = FIXTURES / "analyses"
 
 
-# ---- outcomes: pass / reward failure / unscored agent exit -------------------
-
-
-# ---- trajectory ------------------------------------------------------------
-
-
 def test_the_fixture_records_exit_codes_where_the_validated_shape_puts_them():
     """The exit codes are in the document, and `atif` reads all four of them.
 
@@ -46,9 +40,6 @@ def test_the_fixture_records_exit_codes_where_the_validated_shape_puts_them():
     ) == [("L0", 2), ("L1", 2), ("L2", 2), ("L3", 2)]
 
 
-# ---- artifacts and path jail -----------------------------------------------
-
-
 def test_secret_shaped_config_values_are_redacted(tmp_path: Path):
     """Redaction proven against a constructed config, no longer against fiction.
 
@@ -64,10 +55,7 @@ def test_secret_shaped_config_values_are_redacted(tmp_path: Path):
     assert "nested-secret" not in str(nested)
 
 
-# ---- analyses and citations -------------------------------------------------
-
-
-def test_review_beside_a_sidecar_is_not_parsed_as_one(tmp_path: Path):
+def test_review_writer_persists_disposition(tmp_path: Path):
     """The review writer persists the supplied decision beside the sidecar."""
     analyses = tmp_path / "analyses"
     shutil.copytree(ANALYSES / "valid", analyses / "11111111-1111-4111-8111-111111111111")
@@ -85,25 +73,10 @@ def test_review_beside_a_sidecar_is_not_parsed_as_one(tmp_path: Path):
     assert saved["disposition"] == "accepted"
 
 
-# ---- withheld vs missing vs readable evidence --------------------------------
-
-
-# ---- F-04: a nested jobs_dir is named, never silently dropped ----------------
-
-
-# ---- duplicates, cold start, degradation ------------------------------------
-
-
-# ---- status/explorer consistency --------------------------------------------
-
-
-def test_explorer_agrees_with_status_snapshot_on_rewards():
+def test_status_snapshot_preserves_agent_exit_error():
     # FIXTURES has jobs/ and no src/evallab -> status scratch layout applies
     snapshot = build_status_snapshot(FIXTURES)
     status_text = snapshot.model_dump_json()
     assert "AgentTimeoutError" in status_text
-
-
-# ---- next actions: strings only ---------------------------------------------
 
 

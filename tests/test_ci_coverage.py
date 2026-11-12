@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -35,14 +36,27 @@ def committed_unit_test_modules(root: Path) -> list[Path]:
 
 
 def modules_missing_from_collection(
-    collected_nodeids: list[str], required_modules: list[Path], *, root: Path
+    collected_nodeids: list[str],
+    required_modules: list[Path],
+    *,
+    root: Path,
+    skipped_modules: frozenset[str] = frozenset(),
+    assignment: tuple[int, int] | None = None,
+    shard_for_path: Callable[[str, int], int] | None = None,
 ) -> list[str]:
     collected_modules = {nodeid.partition("::")[0] for nodeid in collected_nodeids}
     missing: list[str] = []
     for path in required_modules:
         posix = path.relative_to(root).as_posix()
-        if posix not in collected_modules:
-            missing.append(posix)
+        if posix in collected_modules:
+            continue
+        if assignment is not None and posix in skipped_modules and shard_for_path is not None:
+            index, total = assignment
+            if 1 <= index <= total and posix != "tests/test_ci_coverage.py":
+                owner = shard_for_path(posix, total)
+                if 1 <= owner <= total and owner != index:
+                    continue
+        missing.append(posix)
     return missing
 
 
@@ -59,12 +73,61 @@ def test_collection_contract_detects_an_omitted_module() -> None:
     assert missing == ["tests/test_does_not_exist.py"]
 
 
+@pytest.mark.parametrize("assignment", [None, (1, 2), (2, 2), (3, 2), (0, 2), (1, 0)])
+def test_collection_contract_rechecks_skipped_module_ownership(
+    assignment: tuple[int, int] | None,
+    shard_for_path: Callable[[str, int], int],
+) -> None:
+    paths = [f"tests/test_contract_{number}.py" for number in range(20)]
+    owner_one = next(path for path in paths if shard_for_path(path, 2) == 1)
+    owner_two = next(path for path in paths if shard_for_path(path, 2) == 2)
+    unrecorded = "research/analysis/tests/test_omitted.py"
+    shared = "tests/test_ci_coverage.py"
+    required = [ROOT / path for path in (owner_one, owner_two, unrecorded, shared)]
+    missing = modules_missing_from_collection(
+        [],
+        required,
+        root=ROOT,
+        skipped_modules=frozenset((owner_one, owner_two, shared)),
+        assignment=assignment,
+        shard_for_path=shard_for_path,
+    )
+    expected = [owner_one, owner_two, unrecorded, shared]
+    if assignment in ((1, 2), (2, 2)):
+        expected.remove(owner_two if assignment == (1, 2) else owner_one)
+    assert missing == expected
+
+
+@pytest.mark.parametrize("owner", [0, 3])
+def test_collection_contract_rejects_invalid_shard_owners(owner: int) -> None:
+    path = "tests/test_invalid_owner.py"
+    assert modules_missing_from_collection(
+        [],
+        [ROOT / path],
+        root=ROOT,
+        skipped_modules=frozenset((path,)),
+        assignment=(1, 2),
+        shard_for_path=lambda _path, _total: owner,
+    ) == [path]
+
+
 def test_declared_unit_test_modules_are_collected(
-    default_collection_session: bool, collected_module_paths: frozenset[str]
+    default_collection_session: bool,
+    collected_module_paths: frozenset[str],
+    shard_skipped_module_paths: frozenset[str],
+    shard_assignment: tuple[int, int] | None,
+    shard_for_path: Callable[[str, int], int],
 ) -> None:
     if not default_collection_session:
         pytest.skip("positional paths were given; only a bare `pytest` run exercises testpaths")
     required = committed_unit_test_modules(ROOT)
     assert required, "declared unit-test directories contained no test_*.py files"
-    missing = modules_missing_from_collection(sorted(collected_module_paths), required, root=ROOT)
+    missing = modules_missing_from_collection(
+        sorted(collected_module_paths),
+        required,
+        root=ROOT,
+        skipped_modules=shard_skipped_module_paths,
+        assignment=shard_assignment,
+        shard_for_path=shard_for_path,
+    )
     assert missing == [], f"default pytest omitted {missing}"

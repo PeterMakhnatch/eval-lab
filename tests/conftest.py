@@ -255,12 +255,91 @@ def _sweep_per_test_temp_roots() -> Generator[None, None, None]:
 _COLLECTED_MODULES: pytest.StashKey[frozenset[str]] = pytest.StashKey()
 _DEFAULT_COLLECTION: pytest.StashKey[bool] = pytest.StashKey()
 _SHARD_ASSIGNMENT: pytest.StashKey[tuple[int, int] | None] = pytest.StashKey()
+_SHARD_SKIPPED_MODULES: pytest.StashKey[set[str]] = pytest.StashKey()
 _CALL_DURATIONS: pytest.StashKey[dict[str, float]] = pytest.StashKey()
 
 DEFAULT_SLOW_TEST_BUDGET_SECONDS: float = 60.0
 
 # Shard pins that flip a test module's crc32 shard to balance CI shard load.
 SHARD_OVERRIDES: dict[str, int] = {}
+
+
+def shard_for(rel_path: str, total: int) -> int:
+    """Assign a repo-relative POSIX module path to one shard."""
+    override = SHARD_OVERRIDES.get(rel_path)
+    if override is not None and override <= total:
+        return override
+    return zlib.crc32(rel_path.encode("utf-8")) % total + 1
+
+
+def _module_path(path: Path, config: pytest.Config) -> str:
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(config.rootpath.resolve()).as_posix()
+    except ValueError:
+        return resolved.as_posix()
+
+
+class _OtherShardFile(pytest.File):
+    """Recognize an explicit file argument without importing its module."""
+
+    def collect(self) -> tuple[()]:
+        self.config.stash[_SHARD_SKIPPED_MODULES].add(_module_path(self.path, self.config))
+        return ()
+
+
+class _ShardCollection:
+    """Global file hook: tests/conftest.py also shards sibling test roots."""
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_collect_file(
+        self, file_path: Path, parent: pytest.Collector
+    ) -> Generator[None, list[pytest.Collector], list[pytest.Collector]]:
+        collectors = yield
+        config = parent.config
+        assignment = config.stash[_SHARD_ASSIGNMENT]
+        if assignment is None or file_path.suffix != ".py" or file_path.name == "conftest.py":
+            return collectors
+        index, total = assignment
+        rel_path = _module_path(file_path, config)
+        if rel_path == "tests/test_ci_coverage.py" or shard_for(rel_path, total) == index:
+            return collectors
+        # An empty file collector prevents pytest's "not found" error for
+        # explicit file arguments. Its collect() never imports the module.
+        selected: list[pytest.Collector] = []
+        for collector in collectors:
+            if isinstance(collector, pytest.Module):
+                selected.append(_OtherShardFile.from_parent(parent, path=file_path))
+            else:
+                selected.append(collector)
+        return selected
+
+    def pytest_sessionfinish(self, session: pytest.Session) -> None:
+        config = session.config
+        if hasattr(config, "workeroutput"):
+            config.workeroutput["shard_collection"] = {
+                "collected": sorted(config.stash.get(_COLLECTED_MODULES, frozenset())),
+                "skipped": sorted(config.stash[_SHARD_SKIPPED_MODULES]),
+            }
+
+    @pytest.hookimpl(optionalhook=True)
+    def pytest_testnodedown(self, node: Any) -> None:
+        census = node.workeroutput.get("shard_collection", {})
+        config = node.config
+        config.stash[_COLLECTED_MODULES] = config.stash.get(
+            _COLLECTED_MODULES, frozenset()
+        ) | frozenset(census.get("collected", []))
+        config.stash[_SHARD_SKIPPED_MODULES].update(census.get("skipped", []))
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    shard_option = config.getoption("shard", default=None)
+    config.stash[_SHARD_ASSIGNMENT] = (
+        _parse_shard_option(shard_option) if shard_option else None
+    )
+    config.stash[_SHARD_SKIPPED_MODULES] = set()
+    if shard_option:
+        config.pluginmanager.register(_ShardCollection(), "evallab-shard-collection")
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -287,51 +366,23 @@ def _parse_shard_option(value: str) -> tuple[int, int]:
 def pytest_collection_modifyitems(
     session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    """Record collected module paths and whether this was a bare (testpaths) invocation.
-
-    Under pytest-xdist every worker collects the full set before receiving its
-    share, so the record is complete in workers as well as in a serial run.
-    """
-    root = config.rootpath.resolve()
-    collected: set[str] = set()
-    for item in items:
-        path = Path(item.path).resolve()
-        try:
-            collected.add(path.relative_to(root).as_posix())
-        except ValueError:
-            collected.add(path.as_posix())
-    config.stash[_COLLECTED_MODULES] = frozenset(collected)
+    """Record imported modules, then authoritatively select this shard's items."""
+    config.stash[_COLLECTED_MODULES] = frozenset(_module_path(item.path, config) for item in items)
     config.stash[_DEFAULT_COLLECTION] = not config.option.file_or_dir
 
-    shard_option: str | None = config.getoption("shard", default=None)
-    if not shard_option:
-        config.stash[_SHARD_ASSIGNMENT] = None
+    assignment = config.stash[_SHARD_ASSIGNMENT]
+    if assignment is None:
         return
-
-    index, total = _parse_shard_option(shard_option)
-    config.stash[_SHARD_ASSIGNMENT] = (index, total)
+    index, total = assignment
 
     kept: list[pytest.Item] = []
     deselected: list[pytest.Item] = []
     for item in items:
-        path = Path(item.path).resolve()
-        try:
-            rel_path = path.relative_to(root).as_posix()
-        except ValueError:
-            rel_path = path.as_posix()
-
-        if rel_path == "tests/test_ci_coverage.py":
+        rel_path = _module_path(item.path, config)
+        if rel_path == "tests/test_ci_coverage.py" or shard_for(rel_path, total) == index:
             kept.append(item)
         else:
-            override = SHARD_OVERRIDES.get(rel_path)
-            if override is not None and override <= total:
-                item_shard = override
-            else:
-                item_shard = (zlib.crc32(rel_path.encode("utf-8")) % total) + 1
-            if item_shard == index:
-                kept.append(item)
-            else:
-                deselected.append(item)
+            deselected.append(item)
     if deselected:
         config.hook.pytest_deselected(items=deselected)
     items[:] = kept
@@ -353,6 +404,18 @@ def default_collection_session(request: pytest.FixtureRequest) -> bool:
 def shard_assignment(request: pytest.FixtureRequest) -> tuple[int, int] | None:
     """The (index, total) shard assignment tuple if --shard was given, otherwise None."""
     return request.config.stash.get(_SHARD_ASSIGNMENT, None)
+
+
+@pytest.fixture(scope="session")
+def shard_skipped_module_paths(request: pytest.FixtureRequest) -> frozenset[str]:
+    """Collectable Python modules left unimported for another shard."""
+    return frozenset(request.config.stash[_SHARD_SKIPPED_MODULES])
+
+
+@pytest.fixture(scope="session")
+def shard_for_path() -> Any:
+    """Expose the assignment rule without importing another conftest module."""
+    return shard_for
 
 
 def _slow_test_budget_seconds() -> float:
@@ -383,6 +446,15 @@ def pytest_terminal_summary(
     config: pytest.Config,
 ) -> None:
     """Print per-test durations (>=1s) and report tests over the slow-test budget."""
+    assignment = config.stash.get(_SHARD_ASSIGNMENT, None)
+    if assignment is not None:
+        index, total = assignment
+        collected = len(config.stash.get(_COLLECTED_MODULES, frozenset()))
+        skipped = len(config.stash.get(_SHARD_SKIPPED_MODULES, set()))
+        terminalreporter.write_line(
+            f"shard {index}/{total}: collected {collected} test files, "
+            f"left {skipped} to other shards"
+        )
     budget = _slow_test_budget_seconds()
     durations = dict(config.stash.get(_CALL_DURATIONS, {}))
     if hasattr(terminalreporter, "stats"):

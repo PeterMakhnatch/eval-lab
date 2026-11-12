@@ -260,8 +260,11 @@ _CALL_DURATIONS: pytest.StashKey[dict[str, float]] = pytest.StashKey()
 
 DEFAULT_SLOW_TEST_BUDGET_SECONDS: float = 60.0
 
-# Shard pins that flip a test module's crc32 shard to balance CI shard load.
-SHARD_OVERRIDES: dict[str, int] = {}
+# Shard pins that flip a test module's crc32 shard to balance CI shard load. A pin
+# applies only when its index fits the run's shard total; otherwise crc32 decides.
+# test_mimoagent_worker.py is 50 to 85 s of the serial native step. With four shards,
+# crc32 puts it on shard 2, the slowest (368 s on 2026-11-11); shard 4 is the fastest (229 s).
+SHARD_OVERRIDES: dict[str, int] = {"tests/test_mimoagent_worker.py": 4}
 
 
 def shard_for(rel_path: str, total: int) -> int:

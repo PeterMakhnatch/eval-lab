@@ -12,6 +12,12 @@ push run, `merge_group` and `workflow_dispatch` also run it on Python 3.14. No m
 queue is enabled, so a 3.14-only regression is found by the push run on the merged
 revision, not before merge. Fix it forward from that run.
 
+Pull requests split the suite into four shards; push, merge-group and manual runs use
+two. Each shard imports and runs only its own test files, so the shards together run
+every test exactly once, except `tests/test_ci_coverage.py`, which runs in every shard.
+More shards shorten the wait for a PR author but add about 45 s of setup per shard to
+the shared pool of 20 hosted jobs. Nobody waits on a push run, so it keeps two.
+
 `quality` and `typecheck` run on every PR target branch, including stacked topic
 branches, and on `merge_group: checks_requested`. PR edits also rerun them so
 retargeting does not reuse evidence for the old base. Push runs remain limited to
@@ -23,7 +29,7 @@ gates to **GitHub Actions**:
 
 | Required check | Direct prerequisites |
 |---|---|
-| `quality-required` | `lint` and every `test` matrix row: `test (3.12, 1/2)`, `test (3.12, 2/2)` on pull requests; plus `test (3.14, 1/2)`, `test (3.14, 2/2)` on push, merge-group and manual runs |
+| `quality-required` | `lint` and every `test` matrix row: `test (3.12, 1/4)`, `test (3.12, 2/4)`, `test (3.12, 3/4)`, `test (3.12, 4/4)` on pull requests; `test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)` on push, merge-group and manual runs |
 | `typecheck-required` | `ty` |
 
 Both gate jobs use `always()` and accept only the literal prerequisite result
@@ -59,8 +65,8 @@ trigger and dependency handling fail closed, including merge-group support.
 | Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze, sealed paths matched by root `.ignore` |
 | Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |
 | Lessons freshness | `uv run python -m evallab.lessons` | locked; statistical lessons lineage |
-| Tests | `uv run pytest` (CI: `--shard ${{ matrix.shard }}`) | locked pytest; two-shard matrix on Python 3.12 for pull requests (`test (3.12, 1/2)`, `test (3.12, 2/2)`), plus Python 3.14 (`test (3.14, 1/2)`, `test (3.14, 2/2)`) on push, merge-group and manual runs |
-| Native Harbor verification | After the base suite, each shard installs the locked `laminar` extra, checks `harbor.job_diff`, and syncs `tools/mimoagent-harbor` with Python 3.12. It prepares pinned Harbor source for RewardKit, then runs the native file inventory. Its JUnit census rejects Harbor-named skips. The inventory coverage gate remains until full native discovery is safe. | Python 3.12 on pull requests; Python 3.12 and 3.14 on push, merge-group and manual runs; both shards |
+| Tests | `uv run pytest` (CI: `--shard ${{ matrix.shard }}`) | locked pytest; four-shard matrix on Python 3.12 for pull requests (`test (3.12, 1/4)` to `test (3.12, 4/4)`); two-shard matrix on Python 3.12 and 3.14 (`test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)`) on push, merge-group and manual runs. `tests/test_quality_gates.py` proves that each shard list is a complete partition. |
+| Native Harbor verification | After the base suite, each shard installs the locked `laminar` extra, checks `harbor.job_diff`, and syncs `tools/mimoagent-harbor` with Python 3.12. It prepares pinned Harbor source for RewardKit, then runs the native file inventory. Its JUnit census rejects Harbor-named skips. The inventory coverage gate remains until full native discovery is safe. | Python 3.12 on pull requests; Python 3.12 and 3.14 on push, merge-group and manual runs; every shard |
 | Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate (runs before tests in premerge) |
 
 The full suite writes `full-suite.xml`; its census reports skips without rejecting
@@ -153,8 +159,8 @@ full local reproduction:
    It does not reproduce the separate hosted native phase. That phase remains
    necessary until the complete suite supports native dependencies.
 4. **Full hosted CI gate on GitHub Actions**:
-   Pull requests run the 3.12 two-shard matrix; the push run on the merged revision
-   additionally proves Python 3.14. Green is a
+   Pull requests run the 3.12 four-shard matrix; the push run on the merged revision
+   runs two shards on 3.12 and additionally proves Python 3.14. Green is a
    property of the exact pull-request head on GitHub Actions; local runs reproduce
    the commands on Python 3.12, but do not substitute for hosted gates or branch
    enforcement.
@@ -276,8 +282,9 @@ enable a queue.
 
 After publishing the workflow change, open or update a PR against a non-`main`,
 non-`integrate/**` stack base and retarget it without changing its head. Confirm
-fresh PR runs contain `lint`, `test (3.12, 1/2)`, `test (3.12, 2/2)`, `ty`, and both
-gates (`main` push runs also contain `test (3.14, 1/2)` and `test (3.14, 2/2)`).
+fresh PR runs contain `lint`, `test (3.12, 1/4)` to `test (3.12, 4/4)`, `ty`, and both
+gates (`main` push runs contain `test (3.12, 1/2)`, `test (3.12, 2/2)`,
+`test (3.14, 1/2)` and `test (3.14, 2/2)`).
 Wait for successful runs before selecting the new check names in settings.
 Reopen or synchronize older PRs whose workflow definitions predate this change;
 do not dispatch an unrelated workflow and call them green.

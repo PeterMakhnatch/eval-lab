@@ -7,6 +7,7 @@ so the gate and doctor compare workflow installs with the same constant.
 from __future__ import annotations
 
 import ast
+import json
 import os
 import re
 import shutil
@@ -1171,6 +1172,82 @@ def test_full_suite_finds_postgres_server_binaries_on_path() -> None:
     late = [s for s in steps if s.get("name") != expose]
     late.append(next(s for s in steps if s.get("name") == expose))
     assert _postgres_server_binaries_problems(late) != []
+
+
+def _shard_matrix_problems(job: dict) -> list[str]:
+    """Report a test matrix whose shards do not run every test file exactly once.
+
+    Each shard imports only the files `tests/conftest.py::shard_for` assigns to its
+    index, so a missing index silently drops those files from CI. The matrix may
+    choose a shard list per event; every list it can choose must be 1/N..N/N.
+    """
+    problems: list[str] = []
+    shard = ((job.get("strategy") or {}).get("matrix") or {}).get("shard")
+    if isinstance(shard, list):
+        candidates = [shard]
+    else:
+        candidates = [json.loads(text) for text in re.findall(r"'(\[[^']*\])'", str(shard))]
+    if not candidates:
+        problems.append("the test matrix declares no shard list")
+    for candidate in candidates:
+        parts = [str(entry).partition("/") for entry in candidate]
+        totals = {total for _, _, total in parts}
+        if len(totals) != 1 or not next(iter(totals)).isdigit():
+            problems.append(f"shard list {candidate} mixes or omits shard totals")
+            continue
+        total = int(next(iter(totals)))
+        if sorted(index for index, _, _ in parts) != sorted(str(i) for i in range(1, total + 1)):
+            problems.append(f"shard list {candidate} is not exactly 1/{total}..{total}/{total}")
+    for step in job.get("steps", []):
+        run = str(step.get("run") or "") if isinstance(step, dict) else ""
+        if "--junitxml" in run and "--shard ${{ matrix.shard }}" not in run:
+            problems.append(f"pytest step {step.get('name')!r} does not pass --shard ${{{{ matrix.shard }}}}")
+    return problems
+
+
+def test_every_shard_list_is_a_complete_partition() -> None:
+    job = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))["jobs"]["test"]
+    assert _shard_matrix_problems(job) == []
+
+
+@pytest.mark.parametrize(
+    ("shard", "expected"),
+    [
+        pytest.param(["1/2", "2/2"], None, id="plain-list"),
+        pytest.param(
+            "${{ fromJSON(github.event_name == 'pull_request' && '[\"1/3\", \"2/3\", \"3/3\"]'"
+            " || '[\"1/2\", \"2/2\"]') }}",
+            None,
+            id="per-event-lists",
+        ),
+        pytest.param(
+            "${{ fromJSON(github.event_name == 'pull_request' && '[\"1/4\", \"2/4\", \"4/4\"]'"
+            " || '[\"1/2\", \"2/2\"]') }}",
+            "is not exactly 1/4..4/4",
+            id="dropped-index",
+        ),
+        pytest.param(["1/2", "1/2"], "is not exactly 1/2..2/2", id="duplicate-index"),
+        pytest.param(["1/2", "2/3"], "mixes or omits shard totals", id="mixed-totals"),
+        pytest.param(["1", "2"], "mixes or omits shard totals", id="no-total"),
+        pytest.param("${{ inputs.shards }}", "declares no shard list", id="opaque-expression"),
+    ],
+)
+def test_shard_matrix_gate_rejects_incomplete_partitions(
+    shard: object, expected: str | None
+) -> None:
+    job = {"strategy": {"matrix": {"shard": shard}}, "steps": []}
+    problems = _shard_matrix_problems(job)
+    assert (problems == []) if expected is None else any(expected in p for p in problems)
+
+
+def test_shard_matrix_gate_rejects_an_unsharded_pytest_step() -> None:
+    job = {
+        "strategy": {"matrix": {"shard": ["1/2", "2/2"]}},
+        "steps": [{"name": "Full test suite", "run": "pytest --junitxml=full-suite.xml"}],
+    }
+    assert _shard_matrix_problems(job) == [
+        "pytest step 'Full test suite' does not pass --shard ${{ matrix.shard }}"
+    ]
 
 
 def _full_suite_inspect_problems(steps: list[dict]) -> list[str]:

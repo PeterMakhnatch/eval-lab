@@ -91,7 +91,13 @@ jobs:
         # pushes, `merge_group` and manual runs keep the full 3.12 + 3.14 matrix, so a 3.14
         # regression is caught on the merged revision (agents/CHECKS.md).
         python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.12", "3.14"]') }}
-        shard: ["1/2", "2/2"]
+        # Pull requests use four shards so the author waits about half as long (measured
+        # 2026-11-11: slowest job 368 s with four shards against 536 s with two). Push,
+        # merge_group and manual runs keep two shards: nobody waits on them, and each extra
+        # shard adds about 45 s of setup to the shared 20-job pool. Each shard imports only
+        # its own test files (tests/conftest.py). tests/test_quality_gates.py proves that
+        # each list below is a complete 1..N partition.
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '["1/4", "2/4", "3/4", "4/4"]' || '["1/2", "2/2"]') }}
     # HAR-297: the catalog, verdict and z2-table suites run only against a live
     # database; without this service they skip on every CI run. Files are sharded
     # by path hash, so every matrix row needs its own service container.
@@ -156,7 +162,7 @@ jobs:
         run: uv run --no-sync pytest --shard ${{ matrix.shard }} --junitxml=full-suite.xml
       - name: Full-suite skip reason census
         run: uv run --no-sync python scripts/ci/check_harbor_skips.py --report-only full-suite.xml
-      - if: matrix.python-version == '3.12' && matrix.shard == '1/2'
+      - if: matrix.python-version == '3.12' && startsWith(matrix.shard, '1/')
         run: uv run --no-sync python -m evallab.smoke --docker-free
       - name: Native Harbor diff, regrade and observability contracts
         run: |

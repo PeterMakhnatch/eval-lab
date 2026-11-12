@@ -1520,10 +1520,11 @@ store directory is recoverable from Git plus the parent package alone.
 MiMo code tasks run `environment/setup/setup.sh` from a gzip+base64 tar
 embedded in `task.toml`'s `[environment.healthcheck]` command, not from the
 files on disk, so a setup change must re-embed that payload in the same
-variant. `research/experiments/har105-exploration/setup_payload.py` encodes
-it byte for byte as the adapter does (`gzip.GzipFile` with `mtime=0` and an
-empty filename; `gzip.compress` stamps a different OS byte on macOS) and
-checks that the on-disk setup reproduces the embedded one before a change.
+variant. The archived utility
+`research/experiments/har105-exploration/setup_payload.py` encodes it byte for
+byte as the adapter does (`gzip.GzipFile` with `mtime=0` and an empty filename).
+It checks that the on-disk setup reproduces the embedded one before a change.
+Restore the utility from `archive/pre-round3-2026-11-12`.
 
 ### Setup-only Python lookup repairs
 

@@ -256,9 +256,14 @@ Definitions the report applies:
   fabricated zero or an exception. Counts over an unavailable input are `null`
   with a reason (`Chart reads: unavailable (...)`), never zero.
 
-### CLI reference: deterministic trajectory analysis
+### Archived CLI reference: deterministic trajectory analysis
 
-The deterministic analyzer runs directly on retained raw native ATIF trajectories without invoking models, sandboxes, or tools:
+This analyzer is archived in `archive/pre-round3-2026-11-12`.
+Restore it before using the historical command below:
+
+```bash
+git checkout archive/pre-round3-2026-11-12 -- research/analysis/harness-mechanics
+```
 
 ```bash
 uv run python research/analysis/harness-mechanics/analyze.py \

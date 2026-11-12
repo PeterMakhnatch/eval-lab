@@ -311,9 +311,9 @@ cap. See the [MiMo v6 readiness receipt](../research/experiments/mimo-clean-v6/R
 for the deliberately unlaunched hard-cap case.
 
 The native repair qualifier
-`research/experiments/test-repair-performance-20261017/qualify.py` requires
-explicit `--approval` and `--modal-app-name` arguments. Use the current approved
-scope and an owned `mimo-clean-census-*` app, not the earlier overnight campaign.
+`research/experiments/test-repair-performance-20261017/qualify.py` is archived
+in `archive/pre-round3-2026-11-12`. Its historical interface requires explicit
+`--approval` and `--modal-app-name` arguments. Those arguments do not authorize execution.
 Its persisted gate refuses a changed approval, cap, or per-execution reservation;
 reopening the same gate preserves prior charges, including failed controls.
 The current EnvCheck v7 CLI ceiling is $6 across both phases, not a standing

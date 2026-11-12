@@ -5,9 +5,8 @@ count and the loop-break record land in ``context.metadata`` and in every
 trajectory file's ``final_metrics.extra``, and per-run state resets before the
 next episode. These tests drive those ``finally`` paths, the finish-reason
 LLM swap on the self-hosted MiMo route, the replay parser wrapper, and the
-local-Ollama and breaker-selfhosted constructor bindings with the same fake
-Harbor surface as ``tests/test_terminus2_runtime.py``: no network, no model
-calls.
+breaker-selfhosted constructor binding with the same fake Harbor surface as
+``tests/test_terminus2_runtime.py``: no network, no model calls.
 """
 
 from __future__ import annotations
@@ -35,7 +34,6 @@ from evallab.execution_contracts import (
     MIMO_SELFHOSTED_TEMPERATURE,
     TERMINUS_PROXY_URL_ENV,
 )
-from evallab.terminus_local import OllamaBinding
 
 CAPABILITY_SENTINEL = "test-runrecords-capability-token"
 
@@ -575,45 +573,8 @@ def test_mimo_replay_parser_replays_the_stock_parse_with_clamped_durations(
 
 
 # ---------------------------------------------------------------------------
-# Constructor bindings: local Ollama and breaker self-hosted (binding only)
+# Constructor bindings: breaker self-hosted (binding only)
 # ---------------------------------------------------------------------------
-
-
-def test_local_ollama_binding_binds_model_info_and_zero_cost_run(
-    bound: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    binding = OllamaBinding(
-        selector="ollama_chat/qwen2.5:7b",
-        model="qwen2.5:7b",
-        model_digest="sha256:" + "ab" * 32,
-        endpoint="http://127.0.0.1:11434",
-        context_budget_tokens=8192,
-    )
-    monkeypatch.setattr(bound, "resolve_ollama_binding", lambda model: binding)
-
-    agent = bound.SecretSafeTerminus2(
-        logs_dir=tmp_path, model_name="ollama_chat/qwen2.5:7b"
-    )
-
-    assert agent.api_base == "http://127.0.0.1:11434"
-    assert agent.extra_kwargs["model_info"] == {
-        "max_input_tokens": 8192,
-        "max_output_tokens": 8192,
-        "input_cost_per_token": 0.0,
-        "output_cost_per_token": 0.0,
-        "litellm_provider": "ollama_chat",
-    }
-    with pytest.raises(ValueError, match="runtime-bound"):
-        bound.SecretSafeTerminus2(
-            logs_dir=tmp_path,
-            model_name="ollama_chat/qwen2.5:7b",
-            model_info={"max_input_tokens": 1},
-        )
-
-    context = SimpleNamespace(metadata={"n_episodes": 1}, cost_usd=9.99)
-    asyncio.run(agent.run("task", None, context))
-    assert context.cost_usd == 0.0
-    assert context.metadata["local_ollama"] == binding.to_dict()
 
 
 def test_breaker_selfhosted_binding_binds_model_info_and_capability(

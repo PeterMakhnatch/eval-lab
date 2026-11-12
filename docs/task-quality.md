@@ -1953,7 +1953,8 @@ one release and PyPI is open but no dated upstream fix was found; `git_only`
 when a repo is known and no release followed the fix (the note says whether
 git hosts are blocked, and that a root agent can rewrite `/etc/hosts`);
 `none_found`; `unknown` when the blocklist or the pypi.json entry is missing.
-`leak_check.py` knows a task's repo from the split group, from the matched
+`leak_check.py` is archived in `archive/pre-round3-2026-11-12`.
+The historical script identifies a task's repo from the split group, from the matched
 PyPI project's GitHub URL, or, when neither names one, from a GitHub-wide
 search for the task title that finds an exactly matching issue or PR title in
 exactly one repo (`repo_source` `issue_title`); that repo then gets the same

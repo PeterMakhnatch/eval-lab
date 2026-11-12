@@ -234,8 +234,7 @@ Only uncited experiments without retained recipes lose their data.
 
 | Archived directory | Description | Restore command |
 | --- | --- | --- |
-| `research/analysis/harness-first` | Unused harness first research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/analysis/harness-first` |
-| `research/analysis/harness-first/harness_first` | Unused harness first research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/analysis/harness-first/harness_first` |
+| `research/analysis/harness-first` | Unused CLI wrapper; the checkpoint library and fixtures remain. | `git checkout archive/pre-round3-2026-11-12 -- research/analysis/harness-first` |
 | `research/analysis/harness-mechanics` | Unused harness mechanics research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/analysis/harness-mechanics` |
 | `research/analysis/harness-mechanics/harness_mechanics` | Unused harness mechanics research code; retained data remains. | `git checkout archive/pre-round3-2026-11-12 -- research/analysis/harness-mechanics/harness_mechanics` |
 | `research/analysis/tests` | Tests of archived harness analysis code; core evidence tests remain. | `git checkout archive/pre-round3-2026-11-12 -- research/analysis/tests` |

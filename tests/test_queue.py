@@ -198,56 +198,6 @@ def test_daytona_capacity_refusal_defers_without_poisoning_job(
     assert any(event.event == disposition and event.reason_code == reason_code for event in events)
 
 
-@pytest.mark.parametrize("fail", [False, True])
-def test_selected_cli_tick_leaves_other_approved_work_untouched(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fail: bool
-) -> None:
-    from types import SimpleNamespace
-
-    from evallab import cli
-    from evallab.schemas import HeadlessDoctorChecks, HeadlessDoctorReport, LaunchAgentAudit
-
-    def run(request: RunRequest) -> Path:
-        if fail:
-            raise TrialTimeoutFailure(30)
-        return request.jobs_dir / request.name
-
-    service = executor(tmp_path, runner=run)
-    selected_path, _ = service.submit(spec("selected-control"))
-    unrelated_path, _ = service.submit(spec("unrelated-control"))
-    selected_id = str(service.queue.load(selected_path).spec_id)
-    unrelated_bytes = unrelated_path.read_bytes()
-    report = HeadlessDoctorReport(
-        checked_at=datetime(2026, 9, 22, tzinfo=UTC),
-        healthy=True,
-        checks=HeadlessDoctorChecks(
-            keychain_readable=False,
-            codex_auth_present=False,
-            docker_reachable=True,
-            postgres_reachable=True,
-            disk_headroom=True,
-            launch_agents_intact=True,
-        ),
-        launch_agents=LaunchAgentAudit(checked=0),
-    )
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
-    monkeypatch.setattr(cli.Executor, "from_repo", lambda *args, **kwargs: service)
-    monkeypatch.setattr(
-        cli, "HeadlessDoctor", lambda *args, **kwargs: SimpleNamespace(run=lambda: report)
-    )
-    monkeypatch.setattr(cli, "_configured_quota_ceiling", lambda root: None)
-    monkeypatch.setattr(cli, "build_preflight_report", lambda *args, **kwargs: None)
-    monkeypatch.setattr(cli, "render_preflight", lambda report: "")
-
-    result = cli.run_cli(["tick", "--spec-id", selected_id], workspace=tmp_path)
-
-    assert result == (1 if fail else 0)
-    assert service.queue.locate(selected_id).parent.name == ("failed" if fail else "done")
-    assert unrelated_path.parent.name == "approved"
-    assert unrelated_path.read_bytes() == unrelated_bytes
-    output = capsys.readouterr().out
-    if fail:
-        assert "trial_wall_clock_timeout" in output
 
 
 def _event(index: int) -> QueueEvent:

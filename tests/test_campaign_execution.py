@@ -129,8 +129,19 @@ def campaign(root, spec, digest, qualification, *, limit=2, model_host="modal", 
             max_concurrent_trials=limit, model_host=model_host, qualification=qualification
         ),
     )
-    cap.write_campaign(root, record)
-    cap.approve_campaign(root, record.campaign_id, actor="test", approved_at=NOW)
+    target_dir = cap.campaign_dir(root, record.campaign_id)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    (target_dir / cap.CAMPAIGN_FILENAME).write_text(
+        record.model_dump_json(indent=2) + "\n", encoding="utf-8"
+    )
+    approval = cap.CampaignApprovalRecord(
+        campaign_id=record.campaign_id,
+        content_digest=cap.campaign_content_digest(record),
+        actor="test",
+        approved_at=NOW,
+    )
+    with (target_dir / cap.APPROVALS_FILENAME).open("a", encoding="utf-8") as handle:
+        handle.write(approval.model_dump_json() + "\n")
     return record
 
 

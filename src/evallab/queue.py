@@ -60,8 +60,6 @@ from evallab.evidence_store import EvidenceArchive, archive_evidence
 from evallab.execution_contracts import (
     CHEAT_AGENT,
     EGRESS_LOCK_AGENTS,
-    TERMINUS_AGENT,
-    TERMINUS_LOCAL_MODEL_SELECTOR,
     ZAI_OPENCODE_AGENT,
     ZAI_OPENCODE_MODEL_SELECTORS,
     DispatchCapacity,
@@ -374,11 +372,6 @@ def render_headroom_notice(
     model: str | None = None,
 ) -> str:
     """What the operator is told about one provider's allowance."""
-    if agent == TERMINUS_AGENT and model == TERMINUS_LOCAL_MODEL_SELECTOR:
-        return (
-            f"{provider_subscription_description(agent, model)}: provider quota does not apply; "
-            "per-spec approval is still required."
-        )
     provider = (
         f"{provider_subscription_description(agent, model)} allowance/policy state"
         if agent is not None

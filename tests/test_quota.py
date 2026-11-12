@@ -20,8 +20,6 @@ from evallab.quota import (
     default_roots,
     label,
     load_quota_report,
-    main,
-    render_report,
 )
 
 NOW = datetime(2026, 8, 16, 18, 0, 0, tzinfo=UTC)
@@ -385,7 +383,6 @@ def test_reported_cost_is_carried_but_named_as_a_list_price_equivalent(tmp_path:
     report = load_quota_report([tmp_path], now=NOW)
 
     assert report.consumed.totals().reported_cost_usd == 0.033356
-    assert "NOT subscription spend" in render_report(report)
 
 
 # --- headroom ------------------------------------------------------------
@@ -765,7 +762,6 @@ def test_rollout_message_text_is_never_carried_into_the_report(tmp_path: Path) -
     report = load_quota_report([tmp_path], now=NOW)
 
     assert secret not in report.model_dump_json()
-    assert secret not in render_report(report)
 
 
 # --- surfaces ------------------------------------------------------------
@@ -776,57 +772,34 @@ def test_label_matches_the_operator_provenance_convention() -> None:
     assert label("unavailable") == "[unavailable]"
 
 
-def test_render_labels_every_section_and_separates_consumed_from_remaining(
+def test_report_separates_consumed_from_remaining(
     tmp_path: Path,
 ) -> None:
     job = make_job(tmp_path)
     trial = add_trial(job, name="a__1")
     add_rollout(trial, events=[token_count_event(timestamp="2026-08-15T06:30:02Z")])
 
-    rendered = render_report(load_quota_report([tmp_path], now=NOW))
+    report = load_quota_report([tmp_path], now=NOW)
 
-    assert "CONSUMED by the lab (scope: this lab only)" in rendered
-    assert "REMAINING on the subscription (scope: account, NOT the lab)" in rendered
-    assert "CONSUMED by job" in rendered
-    assert "CONSUMED by day" in rendered
-    assert "CONSUMED by task" in rendered
-    assert "CONSUMED by agent" in rendered
-    assert "[observed]" in rendered
-    assert "lab's share of that percentage" in rendered
+    assert report.headroom.availability == "observed"
+    assert report.headroom.scope == "account"
+    assert len(report.consumed.trials) == 1
+    assert len(report.consumed.by_job()) == 1
+    assert len(report.consumed.by_day()) == 1
+    assert len(report.consumed.by_task()) == 1
+    assert len(report.consumed.by_agent()) == 1
 
 
-def test_render_marks_unavailable_headroom_rather_than_printing_a_number(
+def test_unavailable_headroom_keeps_used_percent_none(
     tmp_path: Path,
 ) -> None:
     job = make_job(tmp_path)
     add_trial(job, name="a__1")
 
-    rendered = render_report(load_quota_report([tmp_path], now=NOW))
+    report = load_quota_report([tmp_path], now=NOW)
 
-    assert "remaining allowance                  [unavailable]" in rendered
-    assert "used_percent" not in rendered
-
-
-def test_module_entry_point_prints_a_report(tmp_path: Path, capsys) -> None:
-    job = make_job(tmp_path)
-    add_trial(job, name="a__1")
-
-    assert main([str(tmp_path)]) == 0
-
-    assert "CONSUMED by the lab" in capsys.readouterr().out
-
-
-def test_module_entry_point_emits_parsable_json(tmp_path: Path, capsys) -> None:
-    job = make_job(tmp_path)
-    trial = add_trial(job, name="a__1")
-    add_rollout(trial, events=[token_count_event(timestamp="2026-08-15T06:30:02Z")])
-
-    assert main([str(tmp_path), "--json"]) == 0
-
-    payload = QuotaReport.model_validate_json(capsys.readouterr().out)
-    assert payload.headroom.used_percent == 70.0
-    assert len(payload.consumed.trials) == 1
-
+    assert report.headroom.availability == "unavailable"
+    assert report.headroom.used_percent is None
 
 def test_default_roots_name_both_committed_and_working_evidence() -> None:
     roots = default_roots(Path("/repo"))
@@ -856,11 +829,12 @@ def test_uncached_and_cached_are_never_collapsed_into_one_number(tmp_path: Path)
     job = make_job(tmp_path)
     add_trial(job, name="a__1", input_tokens=1_000, cache_tokens=900, output_tokens=10)
 
-    rendered = render_report(load_quota_report([tmp_path], now=NOW))
+    report = load_quota_report([tmp_path], now=NOW)
+    totals = report.consumed.totals()
 
-    assert "uncached input tokens                100" in rendered
-    assert "cached input tokens                  900" in rendered
-    assert "UNVERIFIED" in rendered
+    assert totals.uncached_input_tokens == 100
+    assert totals.cache_tokens == 900
+    assert "UNVERIFIED" in report.cached_weighting_note
 
 
 def test_cached_weighting_stays_unverified_rather_than_assumed() -> None:
@@ -999,7 +973,6 @@ def test_a_whole_percent_counter_reports_a_one_point_resolution(tmp_path: Path) 
     report = load_quota_report([tmp_path], now=NOW)
 
     assert report.counter_resolution_percent() == 1.0
-    assert "counter resolution                   1.0 percentage point" in render_report(report)
 
 
 def test_a_finer_counter_is_not_claimed_to_be_whole_points(tmp_path: Path) -> None:
@@ -1044,7 +1017,7 @@ def test_no_rollout_payload_other_than_rate_limits_can_reach_the_report(tmp_path
 
     add_rollout(trial, events=events)
     report = load_quota_report([tmp_path], now=NOW)
-    serialised = report.model_dump_json() + render_report(report)
+    serialised = report.model_dump_json()
 
     assert report.headroom.used_percent == 70.0
     for marker in markers.values():

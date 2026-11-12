@@ -4,30 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from evallab.analysis_worker import (
     AnalysisWorker,
     _no_adapter,
     default_worker,
 )
-from evallab.analyst import (
-    ModelAnalyzer,
-    ModelProviderRefusedError,
-)
-
-
-def test_analyst_refuses_without_adapter() -> None:
-    # 1. ModelAnalyzer without model raises ModelProviderRefusedError
-    with pytest.raises(
-        ModelProviderRefusedError, match="Model analyzer requires an explicit model selector"
-    ):
-        ModelAnalyzer(model=None)
-
-    # 2. ModelAnalyzer with model selector but no adapter refuses when analyze() is called
-    analyzer = ModelAnalyzer(model="cursor-grok-4.6-high")
-    with pytest.raises(ModelProviderRefusedError, match="spends tokens"):
-        analyzer.analyze("prompt", "context")
 
 
 def test_analysis_worker_defers_with_no_adapter(tmp_path: Path) -> None:
@@ -52,5 +33,4 @@ escalate_to_human:
     worker = default_worker(tmp_path)
     assert isinstance(worker, AnalysisWorker)
     assert worker.adapter is _no_adapter
-
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +10,6 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from evallab.dataset_audit_contracts import ALL_STAGES, AuditDataset, AuditRecord
-from evallab.evidence.parquet_io import parquet_root_lock, write_table_atomic
 
 SCHEMA = "evallab.task_audit/v1"
 AUDIT_SCHEMA = pa.schema([
@@ -115,46 +113,3 @@ def read_audit_records(path: Path) -> list[AuditRecord]:
             for value in read_audit_table(path).column("record_json").to_pylist()]
 
 
-def write_audit(
-    records: Sequence[AuditRecord], path: Path, *, dataset: AuditDataset,
-) -> Path:
-    """Refresh only identical dataset/task/package versions, atomically.
-
-    Other datasets and historical package versions remain in the root table.
-    Stage facts stay inside the single complete record, never fan out trials.
-    """
-    path = Path(path)
-    descriptor = dataset.model_dump(mode="json", exclude={"tasks"})
-    descriptor_json = _json(descriptor)
-    selected = {task.task_id: task for task in dataset.tasks}
-    if len(selected) != len(dataset.tasks):
-        raise ValueError("an audit dataset must have unique canonical task ids")
-    replacements: dict[tuple[Any, ...], dict[str, Any]] = {}
-    for record in records:
-        if record.task.dataset_id != dataset.dataset_id or selected.get(record.task.task_id) != record.task:
-            raise ValueError(f"audit record is not the selected dataset package: {record.task.task_id}")
-        row = {
-            **_record_columns(record),
-            "dataset_source_uri": dataset.source_uri,
-            "dataset_revision": dataset.revision,
-            "dataset_json": descriptor_json,
-        }
-        identity = _identity(row)
-        if identity in replacements:
-            raise ValueError(f"duplicate input audit package: {record.task.task_id}")
-        replacements[identity] = row
-    with parquet_root_lock(path.parent):
-        rows = {_identity(row): row for row in read_audit_table(path).to_pylist()}
-        rows.update(replacements)
-        ordered = sorted(rows.values(), key=lambda row: _json(_identity(row)))
-        declared = {row["dataset_json"] for row in ordered}
-        if replacements:
-            declared.add(descriptor_json)
-        datasets = sorted(declared)
-        metadata = {
-            b"evallab.audit.schema": SCHEMA.encode(),
-            b"evallab.audit.projector": b"evallab.storage.task_audit.write_audit",
-            b"evallab.audit.datasets": _json([json.loads(value) for value in datasets]).encode(),
-        }
-        write_table_atomic(path, ordered, AUDIT_SCHEMA.with_metadata(metadata))
-    return path

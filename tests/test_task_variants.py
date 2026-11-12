@@ -26,7 +26,6 @@ from evallab.task_variants import (
     derive_task,
     lineage_chain,
     load_records,
-    load_variant_records,
     materialize,
     render_lineage,
     verify,
@@ -374,7 +373,7 @@ def test_status_evidence_is_append_only_and_one_way(tmp_path: Path) -> None:
     assert again.status == "validated"
 
 
-def test_load_records_fail_closed_and_plain_dict_loader(tmp_path: Path) -> None:
+def test_load_records_fails_closed(tmp_path: Path) -> None:
     repo, records, variants = _scratch(tmp_path)
     parent = _mini_task(tmp_path / "sources")
     record = _derive(
@@ -383,10 +382,6 @@ def test_load_records_fail_closed_and_plain_dict_loader(tmp_path: Path) -> None:
         repo=repo,
         variants=variants,
     )
-    dicts = load_variant_records(repo)
-    assert len(dicts) == 1
-    assert dicts[0]["schema"] == "evallab.task_variant/v1"
-    assert dicts[0]["variant_digest"] == record.variant_digest
     broken = records / record.task_slug / "broken00000000.json"
     broken.write_text("{not json", encoding="utf-8")
     with pytest.raises(LineageError, match="unreadable"):

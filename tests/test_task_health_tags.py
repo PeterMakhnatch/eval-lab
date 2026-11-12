@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import tomllib
 from pathlib import Path
 
 import pytest
@@ -11,7 +10,6 @@ import pytest
 from evallab.task_health_tags import (
     _probe_binding,
     health_tag,
-    metadata_bytes,
     solve_summary,
 )
 
@@ -78,31 +76,6 @@ def test_repair_identity_distinguishes_old_nop_from_current_failure():
         health_tag(row, {"locked_nop": "sound", "note": "repaired:" + "a" * 12})
         == "health:unchecked"
     )
-
-
-def test_metadata_projection_preserves_every_other_configuration_field():
-    original = b"""version = "1.0"
-[task]
-name = "mimo-v2.6-rl/format-code-task-000001"
-keywords = ["health:unrelated-keyword"]
-[metadata]
-category = "Python"
-tags = [
-  "upstream", "health:discarded", "solve:never-run",
-  "task:retained",
-]
-[metadata.custom]
-flag = true
-[environment]
-memory_mb = 2048
-[environment.healthcheck]
-command = "echo '[metadata] tags = []'"
-"""
-    updated = metadata_bytes(original, ["health:sound", "solve:mixed"])
-    expected = tomllib.loads(original.decode())
-    expected["metadata"]["tags"] = ["upstream", "task:retained", "health:sound", "solve:mixed"]
-    assert tomllib.loads(updated.decode()) == expected
-    assert metadata_bytes(updated, ["health:sound", "solve:mixed"]) == updated
 
 
 def test_exploit_binding_uses_the_executed_package_and_never_falls_back(tmp_path: Path):

@@ -1,77 +1,21 @@
-"""Stored task-catalog schemas, outcome views, and split-gated training exports."""
+"""Stored task-catalog schemas and read-only outcome views."""
 
 from __future__ import annotations
 
-import hashlib
-import json
-import math
-import re
-from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import pyarrow as pa
 
 from evallab.mimo_exploit import TABLE_FILENAME as EXPLOITS_PARQUET_FILENAME
-from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
+from evallab.storage.paths import shared_checkout_root
 from evallab.task_stability import TABLE_FILENAME as STABILITY_PARQUET_FILENAME
 
-
-def _repo_relative(path: Path, repo_root: Path) -> str:
-    """Portable path for git-tracked records; absolute only outside the repo."""
-    try:
-        return path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        return str(path)
-
-
-MIMO_HF_PINS: dict[str, str] = {
-    "code": "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785",
-    "cyber": "763882ade5fc018892f1aa3c559f997138eb92cc",
-    "general": "10b732c5079c47244a77402f5759d62763800f20",
-    "terminal": "fe1c2b665aae1ba7a09a270d979724d32269ae6a",
-    "webdev": "e1a6293376e8910e1fb1f28efabd93dad2f8b475",
-    "music": "e1a66d4553ee20b26c571de1bc2f4193d4a32c3c",
-}
-
-#: Expected on-disk task counts per domain (registry/manifest/jsonl agree).
-MIMO_EXPECTED_COUNTS: dict[str, int] = {
-    "code": 2698,
-    "cyber": 1000,
-    "general": 925,
-    "terminal": 64,
-    "webdev": 2093,
-    "music": 1000,
-}
-
 TASK_STORE_DIRNAME = "task-store"
-VARIANTS_DIRNAME = "variants"
 CATALOG_RELPATH = Path("external/task_catalog")
-CATALOG_TABLES = ("task_sources", "task_versions", "task_findings", "task_lineage")
 STABILITY_TABLE_FILENAME = STABILITY_PARQUET_FILENAME
 STABILITY_TABLE = Path(STABILITY_TABLE_FILENAME).stem
 EXPLOITS_TABLE_FILENAME = EXPLOITS_PARQUET_FILENAME
 EXPLOITS_TABLE = Path(EXPLOITS_TABLE_FILENAME).stem
-PROVENANCE_FILENAME = "provenance.json"
-SNAPSHOT_SKIP_NAMES = frozenset({PROVENANCE_FILENAME})
-_HEX40 = re.compile(r"^[0-9a-f]{40}$")
-_RL_SUFFIX = re.compile(r"_rl_\d+$")
-_CJK = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\㐀-\䶿豈-\﫿]")
-_GO_TEST_TARGET = re.compile(r"go test\s+(?:-[^\s]+\s+)*(\S+)")
-_HOSTED_REPO = re.compile(r"^(github\.com|gitlab\.com|bitbucket\.org)/([^/]+)/([^/]+)")
-_TEST_HELPER_MODULES = frozenset({"github.com/stretchr/testify"})
-
-
-class CatalogError(ValueError):
-    """User-facing pull/build/show refusal."""
-
-
-#: Durable curated-defect record schema. Owned here, read by the catalog build.
-FINDING_RECORD_SCHEMA = "evallab.task_finding/v1"
-
-#: Git-tracked curated finding records live under this repo-relative directory.
-FINDINGS_DIRNAME = Path("library/task-findings")
 
 
 def catalog_dir(derived_root: Path) -> Path:
@@ -96,7 +40,6 @@ def task_store_root(repo_root: Path, *, derived_root: Path | None = None) -> Pat
     return default_task_store_root(repo_root)
 
 
-"""Download collaborator: ``(repo_id, revision, dest_dir)``. Tests inject fakes."""
 
 
 TASK_SOURCES_SCHEMA = pa.schema(
@@ -174,40 +117,6 @@ TASK_LINEAGE_SCHEMA = pa.schema(
 )
 
 
-_REPO_URL = re.compile(
-    r"https?://(github\.com|gitlab\.com)/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)"
-)
-
-
-def wilson_interval(n_pass: int, n_scored: int, z: float = 1.96) -> tuple[float | None, float | None]:
-    """Wilson score interval for a pass rate (95% by default; null when unscored)."""
-    if n_scored <= 0:
-        return None, None
-    rate = n_pass / n_scored
-    denom = 1.0 + z * z / n_scored
-    center = (rate + z * z / (2.0 * n_scored)) / denom
-    margin = (
-        z * math.sqrt(rate * (1.0 - rate) / n_scored + z * z / (4.0 * n_scored * n_scored)) / denom
-    )
-    return max(0.0, center - margin), min(1.0, center + margin)
-
-
-def outcome_verdict(n_attempts: int, n_scored: int, n_pass: int) -> str:
-    """HAR-83 verdict: infra attempts never count as pass or fail.
-
-    nop/control trials stay distinguishable because the view groups by agent
-    name and model; they never merge into model learnability rows.
-    """
-    if n_attempts == 0:
-        return "untested"
-    if n_scored == 0:
-        return "infra_only"
-    rate = n_pass / n_scored
-    if rate >= 1.0:
-        return "always_pass"
-    if rate <= 0.0:
-        return "always_fail"
-    return "learnable"
 
 
 def task_outcomes_sql(trials: str = "trial_facts", versions: str = "task_versions") -> str:
@@ -442,138 +351,4 @@ def task_audit_sql(
     LEFT JOIN ferr ON ferr.digest = v.task_version_digest
     """
 
-@dataclass(frozen=True)
-class ExportResult:
-    """Outcome of one train-eligible export."""
 
-    path: Path
-    sha256: str
-    n_eligible: int
-    provisional: bool
-    table_digests: dict[str, str | None]
-
-
-def _sha256_file(path: Path) -> str:
-    return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
-
-
-def _read_split_map(split_path: Path | None) -> dict[str, str]:
-    if split_path is None:
-        return {}
-    try:
-        payload = json.loads(split_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise CatalogError(f"unreadable split file {split_path}: {exc}") from exc
-    mapping = payload.get("splits") if isinstance(payload, dict) else None
-    if mapping is None:
-        mapping = payload
-    if not isinstance(mapping, dict):
-        raise CatalogError(f"split file {split_path} must map digests to train|heldout")
-    splits: dict[str, str] = {}
-    for digest, split in mapping.items():
-        if split not in ("train", "heldout"):
-            raise CatalogError(
-                f"split file {split_path}: {digest!r} maps to {split!r} (want train|heldout)"
-            )
-        splits[str(digest)] = str(split)
-    return splits
-
-
-def export_train_eligible(
-    out: Path,
-    *,
-    repo_root: Path,
-    derived_root: Path | None = None,
-    split_path: Path | None = None,
-) -> ExportResult:
-    """Write the git-tracked train-eligible JSON with table digests and a self hash.
-
-    Eligibility = view ``train_eligible`` and split != heldout. Without a
-    split file the export is marked provisional and splits stay unassigned.
-    """
-    from evallab.storage.attach import attach
-    from evallab.task_qualification import TABLE as QUALIFICATION_TABLE
-    from evallab.task_qualification import TABLE_FILENAME as QUALIFICATION_PARQUET_FILENAME
-
-    derived = derived_root or derived_root_from_environment(repo_root)
-    catalog = catalog_dir(derived)
-    if not (catalog / "task_versions.parquet").is_file():
-        raise CatalogError(f"no catalog tables under {catalog}; run catalog build first")
-    table_digests: dict[str, str | None] = {}
-    for name, filename in (
-        *((name, f"{name}.parquet") for name in CATALOG_TABLES),
-        (STABILITY_TABLE, STABILITY_TABLE_FILENAME),
-        (EXPLOITS_TABLE, EXPLOITS_TABLE_FILENAME),
-        (QUALIFICATION_TABLE, QUALIFICATION_PARQUET_FILENAME),
-    ):
-        path = catalog / filename
-        table_digests[name] = _sha256_file(path) if path.is_file() else None
-
-    splits = _read_split_map(split_path)
-    result = attach(repo_root=repo_root, explicit_derived=derived)
-    try:
-        rows = result.connection.execute(
-            "SELECT task_version_digest, harbor_digest, task_name, split_group, backend, "
-            "agent_name, model_name, verdict, pass_rate, stability, exploit_status, "
-            "train_eligible, train_ineligible_reason FROM v_task_audit"
-        ).fetchall()
-        columns = [desc[0] for desc in result.connection.description]
-    finally:
-        result.connection.close()
-    provisional = split_path is None
-    items: list[dict[str, Any]] = []
-    for row in rows:
-        record = dict(zip(columns, row, strict=True))
-        if not record.get("train_eligible"):
-            continue
-        digest = str(record["task_version_digest"])
-        split = splits.get(digest, "unassigned")
-        if split == "heldout":
-            continue
-        items.append(
-            {
-                "task_version_digest": digest,
-                "harbor_digest": record.get("harbor_digest"),
-                "task_name": record.get("task_name"),
-                "split_group": record.get("split_group"),
-                "split": split,
-                "backend": record.get("backend"),
-                "agent_name": record.get("agent_name"),
-                "model_name": record.get("model_name"),
-                "verdict": record.get("verdict"),
-                "pass_rate": record.get("pass_rate"),
-                "stability": record.get("stability"),
-                "exploit_status": record.get("exploit_status"),
-            }
-        )
-    items.sort(
-        key=lambda item: (
-            str(item["task_version_digest"]),
-            str(item["backend"]),
-            str(item["agent_name"]),
-            str(item["model_name"]),
-        )
-    )
-    # The digest names the training set itself: same items, same digest, no
-    # matter when or from which table snapshot it was exported (see meta).
-    identity = {"schema": "evallab.train_eligible/v1", "items": items}
-    canonical = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
-    sha = f"sha256:{hashlib.sha256(canonical).hexdigest()}"
-    meta = {
-        "created_at": datetime.now(UTC).isoformat(),
-        "provisional": provisional,
-        "split_path": _repo_relative(split_path, repo_root) if split_path else None,
-        "table_digests": table_digests,
-        "n_eligible": len(items),
-        "n_considered": len(rows),
-    }
-    payload = {**identity, "meta": meta}
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(
-        json.dumps({**payload, "sha256": sha}, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    return ExportResult(
-        path=out, sha256=sha, n_eligible=len(items),
-        provisional=provisional, table_digests=table_digests,
-    )

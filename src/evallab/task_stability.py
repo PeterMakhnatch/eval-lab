@@ -33,7 +33,6 @@ from evallab.harbor_repeat_verifier import (
 from evallab.harbor_telemetry import HARBOR_TELEMETRY_ENV, HARBOR_TELEMETRY_OFF
 
 METHODS = ("repeat_verifier", "nop_repeat", "diff_replay")
-VERDICTS = ("stable", "flipped", "errored")
 
 STATE_PRESERVATION = {
     "repeat_verifier": (
@@ -129,8 +128,6 @@ def read_trial_reward(trial_dir: Path) -> float | None:
         except (TypeError, ValueError):
             return None
     return None
-
-
 
 
 def iter_trial_dirs(job_dir: Path) -> list[Path]:

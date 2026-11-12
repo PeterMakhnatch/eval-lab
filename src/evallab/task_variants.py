@@ -785,16 +785,6 @@ def load_records(
     return records
 
 
-def load_variant_records(
-    root: Path | str, *, records_dir: Path | str = RECORDS_DIRNAME
-) -> list[dict[str, Any]]:
-    """Loader for catalog builders: the same records as plain JSON dicts."""
-    return [
-        record.model_dump(mode="json", by_alias=True)
-        for record in load_records(root, records_dir=records_dir)
-    ]
-
-
 @dataclass(frozen=True)
 class LineageStep:
     """One node in a lineage chain, newest first."""
@@ -912,8 +902,6 @@ def _resolve_start(
 # Status transitions
 # --------------------------------------------------------------------------- #
 
-_STATUS_FINALITY: dict[str, int] = {"candidate": 0, "validated": 1, "rejected": 1}
-
 
 def append_status_evidence(
     record: VariantRecord | Path | str,
@@ -1006,31 +994,3 @@ def render_lineage(steps: Sequence[LineageStep]) -> str:
     return "\n".join(lines)
 
 
-__all__ = [
-    "COMPONENT_KEYS",
-    "MAX_INLINE_FILE_BYTES",
-    "RECORDS_DIRNAME",
-    "VARIANT_RECORD_SCHEMA",
-    "VARIANTS_STORE_DIRNAME",
-    "LineageError",
-    "LineageStep",
-    "TaskVariantEvidence",
-    "TaskVariantFileChange",
-    "TaskVariantParent",
-    "TaskVariantParentSource",
-    "VariantError",
-    "VariantExistsError",
-    "VariantInvalid",
-    "VariantLocations",
-    "VariantRecord",
-    "append_status_evidence",
-    "default_variants_root",
-    "derive_task",
-    "lineage_chain",
-    "load_records",
-    "load_variant_records",
-    "materialize",
-    "render_lineage",
-    "resolve_record",
-    "verify",
-]

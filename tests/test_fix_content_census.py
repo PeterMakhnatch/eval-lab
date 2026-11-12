@@ -11,7 +11,6 @@ import pytest
 
 from evallab.fix_content_census import (
     COLOCATE_MIN,
-    CSV_FIELDS,
     GENERIC_MIN_DIRS,
     PROBE_SH,
     classify_location,
@@ -25,7 +24,6 @@ from evallab.fix_content_census import (
     run_probe,
     stage_probe,
     summarize_hits,
-    write_csv,
 )
 
 PATCH = """\
@@ -326,24 +324,6 @@ def test_summarize_counts_routes() -> None:
     counts, annotated = summarize_hits(hits, "/testbed")
     assert counts == {"tmp": 2}
     assert all(h["route"] == "tmp" for h in annotated)
-
-
-def test_write_csv_drops_nested_hits(tmp_path: Path) -> None:
-    dest = tmp_path / "census.csv"
-    write_csv(
-        [
-            {
-                "task_id": "t",
-                "mode": "clean",
-                "open_leak": "no",
-                "hits": [{"path": "/x"}],
-            }
-        ],
-        dest,
-    )
-    text = dest.read_text(encoding="utf-8")
-    assert text.splitlines()[0].split(",") == list(CSV_FIELDS)
-    assert "/x" not in text
 
 
 def test_patterns_awk_matches_host_classifier(tmp_path: Path) -> None:

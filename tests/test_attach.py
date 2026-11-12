@@ -6,6 +6,7 @@ CI has no derived/, runs/, or PostgreSQL — tests must pass without them.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from pathlib import Path
 
@@ -988,18 +989,33 @@ def _trial_catalog(derived: Path) -> Path:
 def _publish_trial_pair(
     catalog: Path, treatments: list[dict], captures: list[dict]
 ) -> dict[str, Path]:
-    """Publish one immutable generation via the snapshot writer API."""
-    from evallab.evidence.parquet_io import parquet_root_lock, write_parquet_snapshot
-    from evallab.trial_treatment import capture_schema, treatment_schema
-
-    with parquet_root_lock(catalog):
-        return write_parquet_snapshot(
-            catalog / ".trial-tables",
-            {
-                "trial_treatment.parquet": (treatments, treatment_schema()),
-                "trial_capture.parquet": (captures, capture_schema()),
-            },
-        )
+    """Write a valid immutable snapshot as input for the native reader."""
+    root = catalog / ".trial-tables"
+    generations = root / "generations"
+    generations.mkdir(parents=True, exist_ok=True)
+    generation = f"{len(list(generations.iterdir())):032x}"
+    directory = generations / generation
+    directory.mkdir()
+    paths = {}
+    entries = []
+    for name, rows in (
+        ("trial_treatment.parquet", treatments),
+        ("trial_capture.parquet", captures),
+    ):
+        path = directory / name
+        pq.write_table(pa.Table.from_pylist(rows), path)
+        paths[name] = path
+        entries.append({
+            "name": name,
+            "rows": len(rows),
+            "sha256": "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest(),
+        })
+    (root / "current.json").write_text(json.dumps({
+        "schema": "evallab.parquet-snapshot/v1",
+        "generation": generation,
+        "files": entries,
+    }))
+    return paths
 
 
 def _pair_rows(marker: str, stamp: str) -> tuple[list[dict], list[dict]]:

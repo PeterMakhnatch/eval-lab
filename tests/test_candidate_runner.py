@@ -9,13 +9,10 @@ from __future__ import annotations
 
 import contextlib
 import json
-import runpy
 import shutil
 import subprocess
 import sys
 import threading
-import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -302,32 +299,6 @@ def test_disabled_local_docker_planning_remains_pure(
     assert not output.exists()
     assert not options["spend_ledger"].exists()
     assert not any(name.startswith(("harbor.", "modal.")) for name in set(sys.modules) - modules)
-
-
-@pytest.mark.parametrize("environment_disabled", [False, True])
-def test_batch_local_docker_permission_is_forwarded_and_cannot_be_overridden(
-    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any, environment_disabled: bool,
-) -> None:
-    if environment_disabled:
-        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
-    else:
-        monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
-    monkeypatch.setattr(runner, "_stage_payload", no_runtime_io)
-    monkeypatch.setattr(runner, "_local_lane", no_runtime_io)
-    monkeypatch.setattr(native, "run_upstream_grader", no_runtime_io)
-    request = {"task": task, "files": {"answer.txt": "good\n"}}
-    results = runner.run_candidates(
-        [request, request | {"allow_local_docker": True}, request | {"backend": "modal"}],
-        backend="docker", allow_local_docker=environment_disabled,
-        output_dir=tmp_path / "disabled-batch",
-    )
-    assert [item["status"] for item in results] == ["refused"] * 3
-    assert results[0]["reason_code"] == "execution_backend_refused"
-    assert "LocalDockerDisabledError" in results[0]["error"]
-    for outcome in results[1:]:
-        assert "batch policy" in outcome["error"]
-    assert all(item["reward"] is None and item["executed"] is False for item in results)
 
 
 def test_mapping_installs_real_bytes_and_returns_native_grade_logs_and_tests(
@@ -758,113 +729,6 @@ def test_mimo_without_a_hosted_judge_uses_the_ordinary_native_files_path(
     assert len(transport.calls) == 1
 
 
-@pytest.mark.parametrize("invalid_files", [False, True])
-def test_batch_global_path_refusal_preserves_one_unmeasured_outcome_per_input(
-    task: Path, tmp_path: Path, transport: Any, invalid_files: bool
-) -> None:
-    before = native._tree_digest(task)
-    results = runner.run_candidates(
-        [
-            {"task": task, "files": "\x00" if invalid_files else {"answer.txt": "good\n"}}
-            for _ in range(2)
-        ],
-        backend="docker", output_dir=task / "not-evidence",
-    )
-    assert [item["batch_index"] for item in results] == [0, 1]
-    assert [item["status"] for item in results] == ["refused", "refused"]
-    assert all(item["reward"] is item["passed"] is None for item in results)
-    assert all(item["output_dir"] is None for item in results)
-    assert not (task / "not-evidence").exists()
-    assert native._tree_digest(task) == before
-    assert transport.calls == []
-
-
-def test_batch_orders_actual_outcomes_and_keeps_partial_refusals(
-    task: Path, tmp_path: Path, transport: Any
-) -> None:
-    release = threading.Event()
-    completed: list[int] = []
-
-    def before(call: dict[str, Any], _: Any) -> None:
-        if call["index"] == 0:
-            assert release.wait(5)
-
-    def after(call: dict[str, Any], _: Any, __: Any) -> None:
-        completed.append(call["index"])
-        if call["index"] == 1:
-            release.set()
-
-    transport.before, transport.after = before, after
-    requests = [
-        {"task": task, "files": {"answer.txt": "good\n"}},
-        {"task": task, "files": {"answer.txt": "incorrect\n"}},
-        {"task": task, "files": {"../escape": "invalid"}},
-        {"task": task, "files": {"answer.txt": "good\n"}},
-    ]
-    results = runner.run_candidates(
-        requests, max_concurrency=2, output_dir=tmp_path / "batch", **modal_options(tmp_path)
-    )
-    assert [item["batch_index"] for item in results] == [0, 1, 2, 3]
-    assert [item["reward"] for item in results] == [1, 0, None, 1]
-    assert [item["status"] for item in results] == ["measured", "measured", "refused", "measured"]
-    assert completed[0] == 1
-    assert transport.peak == 2
-    assert len({item["output_dir"] for item in results}) == 4
-    checkpoint = json.loads((tmp_path / "batch" / "batch.json").read_text())
-    assert checkpoint["results"] == results
-    for index, result in enumerate(results):
-        assert json.loads((tmp_path / "batch" / "outcomes" / f"{index:05d}.json").read_text()) == result
-        assert json.loads(Path(result["output_dir"], "candidate.json").read_text()) == result
-
-
-def test_local_trials_serialize_even_when_batch_allows_more_workers(
-    task: Path, tmp_path: Path, transport: Any
-) -> None:
-    transport.before = lambda *_: time.sleep(0.03)
-    results = runner.run_candidates(
-        [{"task": task, "files": {"answer.txt": "good\n"}} for _ in range(4)],
-        backend="docker", max_concurrency=4, output_dir=tmp_path / "local-batch",
-    )
-    assert [item["reward"] for item in results] == [1, 1, 1, 1]
-    assert transport.peak == 1
-    assert max(len(item["resources"]) for item in results) * transport.peak <= 2
-    assert len({call["sandbox"] for call in transport.calls}) == 4
-
-
-def test_batch_shares_one_real_native_reservation_cap_and_cannot_override_policy(
-    task: Path, tmp_path: Path, transport: Any
-) -> None:
-    reservation = native.plan_upstream_grader(task, blank=True, timeout_seconds=140)["modal_reservation"]["reserved_usd"]
-    options = modal_options(tmp_path) | {"max_usd": reservation * 1.1}
-    transport.closure_proven = False
-    results = runner.run_candidates(
-        [
-            {"task": task, "files": {"answer.txt": "good\n"}},
-            {"task": task, "files": {"answer.txt": "good\n"}},
-            {"task": task, "files": {"answer.txt": "good\n"}, "max_usd": 999},
-        ],
-        max_concurrency=3, output_dir=tmp_path / "capped-batch", **options,
-    )
-    assert sorted(item["status"] for item in results) == ["measured", "refused", "refused"]
-    assert len(transport.calls) == 1
-    measured = next(item for item in results if item["status"] == "measured")
-    assert measured["reward"] == 1  # uncertain cleanup does not erase a grade
-    assert measured["spend"]["reconciliation"]["status"] == "retained-full-reservation"
-    assert measured["cost"]["reservation_cap_usd"] == options["max_usd"]
-    assert measured["cost"]["actual_invoice_usd"] is None
-    assert "batch policy" in results[2]["error"]
-    ledger = json.loads(options["spend_ledger"].read_text())
-    assert len(ledger["reservations"]) == 1
-    assert ledger["reserved_usd"] == pytest.approx(reservation)
-    assert ledger["max_usd"] == options["max_usd"]
-    identity = ledger["reservations"][0]
-    assert identity["modal_app_name"] == options["modal_app_name"]
-    assert identity["billing_tag"] == options["billing_tag"]
-    for item in results:
-        if item["status"] != "measured":
-            assert item["reward"] is item["passed"] is None
-
-
 def test_candidate_bytes_do_not_change_actual_native_environment_identity(
     task: Path, tmp_path: Path, transport: Any
 ) -> None:
@@ -888,43 +752,6 @@ def test_candidate_bytes_do_not_change_actual_native_environment_identity(
     third = runner.run_candidate(task, {"answer.txt": "good\n"}, backend="docker", output_dir=tmp_path / "image-three")
     assert first["images"]["observed"][0] == third["images"]["observed"][0]
     assert first["images"]["observed"][1]["environment_id"] != third["images"]["observed"][1]["environment_id"]
-
-
-def test_interrupted_batch_keeps_completed_receipts_and_marks_pending_work_unstarted(
-    task: Path, tmp_path: Path, transport: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    second_started = threading.Event()
-    release = threading.Event()
-    root = tmp_path / "interrupted"
-
-    def before(call: dict[str, Any], _: Any) -> None:
-        if call["index"] == 1:
-            second_started.set()
-            assert release.wait(5)
-
-    class ReleasingExecutor(ThreadPoolExecutor):
-        def shutdown(self, wait: bool = True, *, cancel_futures: bool = False) -> None:
-            release.set()
-            super().shutdown(wait=wait, cancel_futures=cancel_futures)
-
-    def interrupt_after_first(futures: Any) -> Any:
-        first = next(iter(futures))
-        first.result(timeout=5)
-        assert json.loads((root / "outcomes" / "00000.json").read_text())["reward"] == 1
-        assert second_started.wait(5)
-        raise KeyboardInterrupt
-
-    transport.before = before
-    monkeypatch.setattr(runner, "ThreadPoolExecutor", ReleasingExecutor)
-    monkeypatch.setattr(runner, "as_completed", interrupt_after_first)
-    results = runner.run_candidates(
-        [{"task": task, "files": {"answer.txt": "good\n"}} for _ in range(3)],
-        backend="docker", max_concurrency=1, output_dir=root,
-    )
-    assert [item["status"] for item in results] == ["measured", "measured", "unstarted"]
-    assert [item["reward"] for item in results] == [1, 1, None]
-    assert len(transport.calls) == 2
-    assert json.loads((root / "batch.json").read_text())["results"] == results
 
 
 def test_port_interface_prepares_full_native_scorer_and_keeps_both_exact_identities(
@@ -979,39 +806,6 @@ def test_port_interface_prepares_full_native_scorer_and_keeps_both_exact_identit
     assert original["images"]["source_contexts"][1] != fixed["images"]["source_contexts"][1]
 
 
-def test_module_cli_emits_one_json_value_and_installs_real_artifact_content(
-    task: Path, tmp_path: Path, transport: Any, monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    mapping = tmp_path / "files.json"
-    mapping.write_text(json.dumps({"answer.txt": "good\n"}))
-    monkeypatch.setattr(
-        sys, "argv",
-        ["evallab.candidate_runner", str(task), "--files-json", str(mapping),
-         "--backend", "docker", "--output-dir", str(tmp_path / "module-cli")],
-    )
-    with pytest.raises(SystemExit) as stopped:
-        runpy.run_module("evallab.candidate_runner", run_name="__main__", alter_sys=True)
-    result = json.loads(capsys.readouterr().out)
-    assert stopped.value.code == 0
-    assert result["reward"] == 1
-    assert result["per_test"]["tests"][0]["status"] == "passed"
-    assert len(transport.calls) == 1
-
-
-def test_cli_batch_json_uses_one_policy_and_keeps_refusal_outcomes(
-    task: Path, tmp_path: Path, transport: Any, capsys: pytest.CaptureFixture[str]
-) -> None:
-    batch = tmp_path / "batch-requests.json"
-    batch.write_text(json.dumps([
-        {"task": str(task), "files": {"answer.txt": "good\n"}},
-        {"task": str(task), "files": {"../escape": "bad"}},
-    ]))
-    code = runner.main(["--batch", str(batch), "--backend", "docker", "--output-dir", str(tmp_path / "cli-batch")])
-    results = json.loads(capsys.readouterr().out)
-    assert code == 2
-    assert [item["reward"] for item in results] == [1, None]
-    assert [item["batch_index"] for item in results] == [0, 1]
 
 
 @pytest.mark.parametrize("backend", ["docker", "auto"])

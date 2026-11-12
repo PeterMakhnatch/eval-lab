@@ -1535,9 +1535,6 @@ def parser() -> argparse.ArgumentParser:
     from evallab.storage.trials import build_trials_parser
 
     build_trials_parser(commands)
-    from evallab.task_dossier import build_task_dossier_parser
-
-    build_task_dossier_parser(commands)
     from evallab import reward_hack
 
     hack = commands.add_parser(
@@ -1572,7 +1569,6 @@ def parser() -> argparse.ArgumentParser:
     run.set_defaults(func=reward_hack._hack_run_command)
     reward_hack.add_mutate_parser(hack_commands)
     reward_hack.add_battery_parser(hack_commands)
-    reward_hack.add_hunt_parser(hack_commands)
     reward_hack.add_repair_parser(hack_commands)
     reward_hack.add_ref_repair_parser(hack_commands)
     from evallab.mutant_auditor import build_audit_mutants_parser

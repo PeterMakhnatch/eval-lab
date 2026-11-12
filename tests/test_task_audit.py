@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
 from evallab.dataset_audit_contracts import (
@@ -17,7 +20,6 @@ from evallab.storage.task_audit import (
     AUDIT_SCHEMA,
     read_audit_records,
     read_audit_table,
-    write_audit,
 )
 from evallab.storage.trials import connect_trials
 
@@ -67,37 +69,52 @@ def _record(task: AuditTask, *, verdict: str = "keep") -> AuditRecord:
     )
 
 
+def _write_projection(records, path: Path, *, dataset) -> None:
+    from evallab.storage.task_audit import AUDIT_SCHEMA, SCHEMA, _record_columns
+
+    descriptor = dataset.model_dump(mode="json", exclude={"tasks"})
+    rows = [
+        {
+            **_record_columns(record),
+            "dataset_source_uri": dataset.source_uri,
+            "dataset_revision": dataset.revision,
+            "dataset_json": json.dumps(descriptor),
+        }
+        for record in records
+    ]
+    schema = AUDIT_SCHEMA.with_metadata({
+        b"evallab.audit.schema": SCHEMA.encode(),
+        b"evallab.audit.datasets": json.dumps([descriptor]).encode(),
+    })
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.Table.from_pylist(rows, schema=schema), path)
+
+
 def test_roundtrip_preserves_complete_record(tmp_path: Path) -> None:
     path = tmp_path / "audit.parquet"
     task, other = _task(), _task("other/task", package=DIGEST_B, harbor=HARBOR_B)
-    write_audit([_record(task), _record(other)], path, dataset=_dataset(task, other))
+    _write_projection([_record(task), _record(other)], path, dataset=_dataset(task, other))
 
     assert read_audit_records(path) == [_record(task), _record(other)]
 
 
-def test_refresh_replaces_same_identity_and_keeps_versions(tmp_path: Path) -> None:
+def test_read_preserves_distinct_package_versions(tmp_path: Path) -> None:
     path = tmp_path / "audit.parquet"
     old, new = _task(), _task(package=DIGEST_B, harbor=HARBOR_B)
-    write_audit([_record(old)], path, dataset=_dataset(old))
-    # Same dataset snapshot, refreshed package version: both rows persist.
-    write_audit([_record(new, verdict="fix")], path, dataset=_dataset(new))
-
+    _write_projection(
+        [_record(old, verdict="discard"), _record(new, verdict="fix")],
+        path, dataset=_dataset(old),
+    )
     table = read_audit_table(path)
-    assert table.num_rows == 2
-    assert sorted(table.column("verdict").to_pylist()) == ["fix", "keep"]
-
-    # Refreshing the original identity replaces only that row.
-    write_audit([_record(old, verdict="discard")], path, dataset=_dataset(old))
-    table = read_audit_table(path)
-    assert table.num_rows == 2
-    rows = {row["package_digest"]: row["verdict"] for row in table.to_pylist()}
-    assert rows == {DIGEST_A: "discard", DIGEST_B: "fix"}
+    assert {row["package_digest"]: row["verdict"] for row in table.to_pylist()} == {
+        DIGEST_A: "discard", DIGEST_B: "fix",
+    }
 
 
 def test_stage_facts_are_columns_not_rows(tmp_path: Path) -> None:
     path = tmp_path / "audit.parquet"
     task = _task()
-    write_audit([_record(task)], path, dataset=_dataset(task))
+    _write_projection([_record(task)], path, dataset=_dataset(task))
 
     table = read_audit_table(path)
     assert table.num_rows == 1
@@ -122,17 +139,10 @@ def test_corrupt_file_is_a_visible_error(tmp_path: Path) -> None:
         read_audit_records(path)
 
 
-def test_record_outside_dataset_is_refused(tmp_path: Path) -> None:
-    path = tmp_path / "audit.parquet"
-    task = _task()
-    with pytest.raises(ValueError, match="not the selected dataset package"):
-        write_audit([_record(_task(dataset="other"))], path, dataset=_dataset(task))
-
-
 def test_audit_queryable_without_any_native_trial(tmp_path: Path) -> None:
     derived = tmp_path / "derived"
     task = _task()
-    write_audit([_record(task)], derived / "audit.parquet", dataset=_dataset(task))
+    _write_projection([_record(task)], derived / "audit.parquet", dataset=_dataset(task))
 
     con, info = connect_trials(repo_root=tmp_path, roots=[], derived_root=derived)
     try:

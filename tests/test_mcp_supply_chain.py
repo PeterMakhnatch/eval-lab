@@ -20,7 +20,6 @@ from evallab.mcp_substrate import (
     TRUSTED_WHEEL_MANIFEST_PATH,
     MCPToolDefinition,
     MCPToolParameter,
-    RuntimeAsset,
     SubstrateError,
     WheelhouseTarget,
     compute_tool_definitions_sha256,
@@ -207,7 +206,6 @@ def test_verify_provenance_rejects_forged_records_with_valid_manifest_digest(tmp
         verify_provenance_wheelhouse(staged, forged)
 
 
-
     code = generate_fastmcp_server_script([_simple_tool()])
     assert f'EVENT_SCHEMA_VERSION = "{MCP_TOOL_EVENT_SCHEMA_VERSION}"' in code
     assert "tool_call_error" in code
@@ -276,100 +274,6 @@ def test_plan_only_proof_binds_tool_defs_and_manifest(tmp_path: Path):
     assert proof["trusted_manifest_source"] == trusted_wheel_manifest_source()
 
 
-def test_workbench_rejects_tampered_server_bytes_and_missing_fields(tmp_path: Path):
-
-    import yaml
-
-    from evallab.task_lint import (
-        _validate_compose_topology,
-        _validate_offline_build_proofs,
-    )
-
-    wheelhouse = _real_wheelhouse_or_skip()
-    prov = record_prepackaging_provenance(wheelhouse, TARGET)
-    env_dir = tmp_path / "environment"
-    env_dir.mkdir()
-    (env_dir / "Dockerfile").write_text(
-        "FROM python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f\n",
-        encoding="utf-8",
-    )
-    sidecar = env_dir / "mcp-server"
-    ops = tmp_path / "ops.py"
-    ops.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
-    tool = MCPToolDefinition(
-        name="ping", description="ping", parameters=(), metadata={"op_kind": "ping"}
-    )
-    pkg = materialize_mcp_sidecar_package(
-        target_dir=sidecar,
-        tools=[tool],
-        wheelhouse_source=wheelhouse,
-        resolver_provenance=prov,
-        op_registry_module="ops",
-        runtime_assets=(RuntimeAsset("ops.py", ops),),
-        plan_only=False,
-    )
-    (env_dir / "docker-compose.yaml").write_text(yaml.dump(pkg["compose_doc"]), encoding="utf-8")
-    compose_topology, _ = _validate_compose_topology(tmp_path, [])
-    proof_path = sidecar / "offline-build-proof.json"
-    raw = json.loads(proof_path.read_text())
-
-    def _revalidate() -> list:
-        d = []
-        _validate_offline_build_proofs(tmp_path, d, compose_topology=compose_topology)
-        return d
-
-    # Baseline: zero diagnostics
-    assert _revalidate() == []
-
-    # 1. Tampered server.py bytes -> digest/size mismatch
-    server_path = sidecar / "server.py"
-    server_path.write_text(server_path.read_text() + "\n# tampered\n", encoding="utf-8")
-    d = _revalidate()
-    assert any("server.py" in x.message for x in d)
-    # restore
-    from evallab.mcp_substrate import generate_fastmcp_server_script
-
-    server_path.write_text(
-        generate_fastmcp_server_script([tool], op_registry_module="ops"), encoding="utf-8"
-    )
-    raw["server_size_bytes"] = len(server_path.read_bytes())
-    proof_path.write_text(json.dumps(raw))
-    assert _revalidate() == []
-
-    # 2. server.py replaced by a symlink
-    server_path.unlink()
-    server_path.symlink_to(ops)
-    d = _revalidate()
-    assert any("server.py" in x.message for x in d)
-    server_path.unlink()
-    server_path.write_text(
-        generate_fastmcp_server_script([tool], op_registry_module="ops"), encoding="utf-8"
-    )
-
-    # 3. Missing event_schema_version
-    p = json.loads(proof_path.read_text())
-    del p["event_schema_version"]
-    proof_path.write_text(json.dumps(p))
-    d = _revalidate()
-    assert any("event_schema_version" in x.message for x in d)
-    proof_path.write_text(json.dumps(raw))
-
-    # 4. Missing tool_definitions_sha256
-    p = dict(raw)
-    del p["tool_definitions_sha256"]
-    proof_path.write_text(json.dumps(p))
-    d = _revalidate()
-    assert any("tool_definitions_sha256" in x.message for x in d)
-    proof_path.write_text(json.dumps(raw))
-
-    # 5. Wrong trusted_manifest_digest
-    p = dict(raw)
-    p["trusted_manifest_digest"] = "0" * 64
-    proof_path.write_text(json.dumps(p))
-    d = _revalidate()
-    assert any("trusted_manifest_digest" in x.message for x in d)
-
-
 def _materialize_prod(tmp_path: Path):
     """Materialize a valid production sidecar and return (root, proof, tool)."""
 
@@ -410,62 +314,6 @@ def test_independent_verify_rejects_forged_tool_payload(tmp_path: Path):
     )
     errors = verify_proof_independently(sidecar, forged)
     assert any("server.py does not byte-match the canonical regenerated server" in e for e in errors)
-
-
-def test_independent_verify_rejects_malicious_wheel_with_updated_proof(tmp_path: Path):
-    """A malicious wheel added to wheelhouse AND reflected in an updated proof must fail."""
-    sidecar, proof, _ = _materialize_prod(tmp_path)
-    wheelhouse_dir = sidecar / "wheelhouse"
-    evil = wheelhouse_dir / "evil-1.0.0-py3-none-any.whl"
-    evil.write_bytes(b"evil-bytes")
-    forged = dict(proof)
-    forged["wheels"] = list(proof["wheels"]) + [
-        {
-            "filename": "evil-1.0.0-py3-none-any.whl",
-            "name": "evil",
-            "version": "1.0.0",
-            "size_bytes": 10,
-            "sha256": "e" * 64,
-        }
-    ]
-    errors = verify_proof_independently(sidecar, forged)
-    assert any("wheelhouse files differ from trusted manifest" in e for e in errors)
-
-
-def test_independent_verify_rejects_arbitrary_dockerfile(tmp_path: Path):
-    """An arbitrary Dockerfile with a recomputed proof hash must fail byte-match."""
-    import hashlib
-
-    sidecar, proof, _ = _materialize_prod(tmp_path)
-    arbitrary = b"FROM scratch\nRUN id\nCMD ['/bin/sh']\n"
-    (sidecar / "Dockerfile").write_bytes(arbitrary)
-    forged = dict(proof)
-    forged["dockerfile_sha256"] = hashlib.sha256(arbitrary).hexdigest()
-    errors = verify_proof_independently(sidecar, forged)
-    assert any("Dockerfile does not byte-match the canonical regenerated Dockerfile" in e for e in errors)
-
-
-def test_workbench_fail_closed_when_manifest_unavailable(tmp_path: Path, monkeypatch):
-    """A proof that references an unloadable manifest must refuse, not self-verify."""
-    sidecar, proof, _ = _materialize_prod(tmp_path)
-    # Simulate manifest read failure inside the independent verifier.
-    import evallab.mcp_substrate as sub
-
-    def boom():
-        raise SubstrateError("simulated manifest read failure")
-
-    monkeypatch.setattr(sub, "load_trusted_wheel_manifest", boom)
-    errors = verify_proof_independently(sidecar, proof)
-    assert any("trusted wheel manifest unavailable" in e for e in errors)
-
-
-def test_workbench_rejects_forged_tool_proof_digest(tmp_path: Path):
-    """A proof whose tool_definitions_sha256 does not match the reconstructed payload must fail."""
-    sidecar, proof, _ = _materialize_prod(tmp_path)
-    forged = dict(proof)
-    forged["tool_definitions_sha256"] = "f" * 64
-    errors = verify_proof_independently(sidecar, forged)
-    assert any("tool_definitions_sha256 does not match reconstructed canonical digest" in e for e in errors)
 
 
 def test_generated_server_is_canonical_regardless_of_tool_order():

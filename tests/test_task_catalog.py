@@ -2,21 +2,15 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from pathlib import Path
 
 import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
-import pytest
 
 from evallab.task_catalog import (
-    export_train_eligible,
-    outcome_verdict,
     task_audit_sql,
     task_outcomes_sql,
-    wilson_interval,
 )
 
 # ---------------------------------------------------------------- intake
@@ -54,25 +48,6 @@ def _catalog_fixture(tmp_path: Path) -> Path:
 
 
 # ---------------------------------------------------------------- verdicts
-
-
-@pytest.mark.parametrize(("attempts", "scored", "passed", "want"), [
-    (0, 0, 0, "untested"),
-    (1, 0, 0, "infra_only"),
-    (2, 2, 2, "always_pass"),
-    (2, 2, 0, "always_fail"),
-    (3, 2, 1, "learnable"),
-])
-def test_outcome_verdict_cases(attempts: int, scored: int, passed: int, want: str) -> None:
-    assert outcome_verdict(attempts, scored, passed) == want
-
-
-def test_wilson_interval_bounds() -> None:
-    assert wilson_interval(0, 0) == (None, None)
-    for n_pass, n_scored in ((0, 1), (1, 1), (1, 4), (7, 10)):
-        lo, hi = wilson_interval(n_pass, n_scored)
-        assert lo is not None and hi is not None
-        assert 0.0 <= lo <= n_pass / n_scored <= hi <= 1.0
 
 
 def _trial_table(rows: list[dict]) -> pa.Table:
@@ -207,90 +182,6 @@ def test_audit_view_broken_backend_ineligible_without_fanout() -> None:
 
 
 # ---------------------------------------------------------------- export + CLI
-
-
-def _write_trial_facts(derived: Path, rows: list[dict]) -> None:
-    job_dir = derived / "job_id=testjob" / "trial_id=testtrial"
-    job_dir.mkdir(parents=True, exist_ok=True)
-    pq.write_table(pa.Table.from_pylist(rows), job_dir / "trial_facts.parquet")
-
-
-def _write_aux_table(derived: Path, name: str, rows: list[dict]) -> None:
-    catalog = derived / "external/task_catalog"
-    pq.write_table(pa.Table.from_pylist(rows), catalog / f"{name}.parquet")
-
-
-def test_export_provisional_then_split_gated(tmp_path: Path, capsys) -> None:
-    derived = _catalog_fixture(tmp_path)
-    versions = pq.read_table(derived / "external/task_catalog/task_versions.parquet")
-    digests = {r["task_id"]: r for r in versions.to_pylist()}
-    alpha_harbor = digests["alpha-task"]["harbor_digest"]
-    _write_trial_facts(derived, [
-        {"trial_id": "a1", "job_id": "j", "task_digest": alpha_harbor,
-         "agent_name": "agentx", "model_name": "m", "environment_type": "docker",
-         "primary_reward": 1.0, "exception_class": None},
-        {"trial_id": "a2", "job_id": "j", "task_digest": alpha_harbor,
-         "agent_name": "agentx", "model_name": "m", "environment_type": "docker",
-         "primary_reward": 0.0, "exception_class": None},
-    ])
-    _write_aux_table(derived, "task_stability", [
-        {"task_version_digest": digests["alpha-task"]["task_version_digest"],
-         "harbor_digest": alpha_harbor, "job_name": "j", "trial_name": "a1",
-         "method": "repeat_verifier", "backend": "docker",
-         "state_preservation": "image snapshot", "n_runs": 2,
-         "rewards": [1.0, 1.0], "verdict": "stable",
-         "evidence_path": "runs/j", "produced_at": "2026-09-28T00:00:00Z"},
-    ])
-    _write_aux_table(derived, "task_exploits", [
-        {"task_version_digest": digests["alpha-task"]["task_version_digest"],
-         "harbor_digest": alpha_harbor, "job_name": "j", "trial_name": "a1",
-         "probe_config": "probe-1@abc", "reward": 0.0, "exploit_status": "none",
-         "method": "prompt-injection", "evidence_path": "runs/j",
-         "produced_at": "2026-09-28T00:00:00Z"},
-    ])
-
-    out = tmp_path / "eligible.json"
-    result = export_train_eligible(out, repo_root=tmp_path, derived_root=derived)
-    assert result.provisional is True
-    assert result.n_eligible == 1
-    payload = json.loads(out.read_text())
-    assert payload["items"][0]["split"] == "unassigned"
-    canonical = json.dumps(
-        {key: payload[key] for key in ("schema", "items")},
-        sort_keys=True, separators=(",", ":"),
-    ).encode()
-    assert payload["sha256"] == f"sha256:{hashlib.sha256(canonical).hexdigest()}"
-    # Same eligible set exported again -> same digest (created_at is not identity).
-    again = export_train_eligible(tmp_path / "again.json", repo_root=tmp_path, derived_root=derived)
-    assert again.sha256 == result.sha256
-    assert set(payload["meta"]["table_digests"]) >= {
-        "task_sources", "task_versions", "task_findings", "task_lineage",
-        "task_stability", "task_exploits",
-    }
-
-    _write_aux_table(derived, "task_qualification", [
-        {"task_version_digest": digests["alpha-task"]["task_version_digest"],
-         "harbor_digest": alpha_harbor, "task_id": "alpha-task",
-         "domain": "fake", "backend": "docker", "job_name": "j",
-         "trial_name": "a1", "status": "broken",
-         "reasons": ["nop_passes"],
-         "finished_at": "2026-09-28T00:00:00Z"},
-    ])
-    out3 = tmp_path / "eligible3.json"
-    broken = export_train_eligible(out3, repo_root=tmp_path, derived_root=derived)
-    assert broken.n_eligible == 0
-    assert broken.provisional is True
-
-    digest = digests["alpha-task"]["task_version_digest"]
-    split_path = tmp_path / "split.json"
-    split_path.write_text(json.dumps({digest: "heldout"}))
-    out2 = tmp_path / "eligible2.json"
-    held = export_train_eligible(
-        out2, repo_root=tmp_path, derived_root=derived, split_path=split_path)
-    assert held.provisional is False
-    assert held.n_eligible == 0
-
-    capsys.readouterr()
 
 
 # ---------------------------------------------------------------- curated findings

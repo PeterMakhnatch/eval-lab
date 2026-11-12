@@ -80,7 +80,6 @@ if TYPE_CHECKING:
     from evallab.task_variants import VariantRecord
 
 #: Durable admission-record schema tag.
-ADMISSION_SCHEMA = "evallab.task_admission/v1"
 
 #: Gate implementation version pinned in every record (step-list revisions bump this).
 GATE_VERSION = "tasks.admit/v3"
@@ -1753,37 +1752,3 @@ def admit_task(
     )
 
 
-__all__ = [
-    "ADMISSION_SCHEMA",
-    "GATE_VERSION",
-    "AdmissionError",
-    "AdmissionFinding",
-    "AdmissionRecord",
-    "AdmissionResult",
-    "AdmissionStepRecord",
-    "CheatOutcome",
-    "ControlOutcome",
-    "DEFAULT_MAX_MUTANTS",
-    "BatteryOutcome",
-    "MutationOutcome",
-    "ScanOutcome",
-    "StepContext",
-    "StepDef",
-    "STEP_RUNNERS",
-    "DEFAULT_SWEEP_CSV",
-    "ORACLE_PROVEN_LABEL",
-    "OracleReference",
-    "ReferenceUnproven",
-    "admit_task",
-    "default_cheat",
-    "default_control",
-    "default_battery",
-    "default_mutation",
-    "default_scan",
-    "default_steps",
-    "plan_admission",
-    "record_filename",
-    "render_reference_solve_sh",
-    "resolve_oracle_reference",
-    "resolve_task_record",
-]

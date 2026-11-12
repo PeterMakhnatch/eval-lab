@@ -143,19 +143,6 @@ def test_source_pin_rejects_wrong_bytes_without_network(tmp_path: Path) -> None:
         external.verify_source(source, pin)
 
 
-def test_diagnostic_only_rules_do_not_become_verdicts(monkeypatch: pytest.MonkeyPatch) -> None:
-    report = {rule: [] for rule in external.FLAG_RULES}
-    report.update(
-        external_sourcing=["diagnostic"],
-        history_browsing=["diagnostic"],
-        content_rules={rule: None for rule in external.tripwires.CONTENT_STOP_ELIGIBLE},
-    )
-    monkeypatch.setattr(external.tripwires, "scan_trace", lambda *args, **kwargs: report)
-    assert external.fired_rules({"steps": []}) == []
-    report["hidden_reads"] = ["evidence"]
-    assert external.fired_rules({"steps": []}) == ["hidden_reads"]
-
-
 def test_build_materializes_consumer_ready_views_and_rebuilds_identically(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

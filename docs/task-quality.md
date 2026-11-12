@@ -3714,7 +3714,7 @@ The certifier generations remain separate and unchanged.
 
 `separate-verifier@10` (`TRANSFORM_ID_V10`, `build_changes_v10`,
 `derive_separate_verifier_v10`, `render_wrapper_test_sh_v10`,
-`evaluate_unittest_v10`, `V10_INTEGRITY_HOOK`, `V10_UNITTEST_SHIM` in
+`V10_INTEGRITY_HOOK`, `V10_UNITTEST_SHIM` in
 `src/evallab/separate_verifier.py`; tests in
 `tests/test_separate_verifier.py`) closes the three holes Traces proved
 on canonical `@8` packages in the own-runs scan

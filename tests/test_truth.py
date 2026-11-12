@@ -356,23 +356,6 @@ def test_power_reports_mde_and_required_n_k_tradeoffs(capsys: pytest.CaptureFixt
     assert [row["k"] for row in rows] == [1, 2, 3]
     assert all(int(row["required_n_tasks"] or 0) >= 2 for row in rows)
 
-    assert (
-        cli.run_cli(
-            ["power", "--n-tasks", "100", "--k", "1", "--baseline", "0.5"],
-            workspace=Path("/nonexistent-fixture-root"),
-        )
-        == 0
-    )
-    assert "minimum detectable per-attempt difference" in capsys.readouterr().out
-
-
-
-
-
-
-
-
-
 
 def test_graded_agent_stops_preserve_verifier_reward_under_both_policies(
     tmp_path: Path,

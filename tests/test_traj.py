@@ -7,22 +7,20 @@ from __future__ import annotations
 import json
 import multiprocessing
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 import duckdb
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab import cli
 from evallab.evidence.facts import AnalyzerCallResult
 from evallab.labels import (
-    evaluate_heuristic_precision,
-    label_trajectory,
     label_trajectory_with_model,
-    load_behavior_labels,
     persist_behavior_label,
-    select_review_queue,
 )
+from evallab.schemas import BehaviorLabel
 from evallab.storage.paths import DERIVED_ROOT_ENV
 from evallab.traj import (
     TRAJ_FEATURES_PARQUET_SCHEMA,
@@ -31,8 +29,8 @@ from evallab.traj import (
     TrajectoryOutline,
     _analyze_loop_suspicion,
     _build_phases,
+    extract_features,
     outline_trajectory,
-    project_trajectory_features,
     render_outline,
 )
 
@@ -408,119 +406,29 @@ def test_phase_grouping_and_ordering() -> None:
     assert phases[2].tool_calls == 2
 
 
-def test_project_mechanical_features_to_parquet(repo_root: Path) -> None:
-    """Extract mechanical features from all runs and write Parquet table."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        out_root = Path(tmpdir) / "traj_features"
-        result = project_trajectory_features(
-            runs_roots=[repo_root / "research/evidence/runs"],
-            output_root=out_root,
-            repo_root=repo_root,
-        )
-
-        assert result.total_scanned > 0
-        assert result.featured_count > 0
-        assert result.output_path.is_file()
-
-        tbl = pq.read_table(result.output_path)
-        assert tbl.num_rows == result.table_rows
-        for col_name in TRAJ_FEATURES_PARQUET_SCHEMA.names:
-            assert col_name in tbl.column_names
-
-
-def test_review_queue_prioritization_and_diversity(repo_root: Path) -> None:
-    """Review queue selects unlabeled real-agent trials across diverse task families."""
-    queue = select_review_queue(
-        limit=3,
-        runs_roots=[repo_root / "research/evidence/runs"],
-        repo_root=repo_root,
-    )
-
-    assert len(queue) <= 3
-    assert len(queue) > 0
-    # Controls excluded
-    for item in queue:
-        assert item.agent_name.lower() not in {"oracle", "nop"}
-        assert item.next_command.startswith("uv run evallab traj label")
-        assert item.suggested_taxonomy is not None
-
-    # Determinism: re-running yields identical selection
-    queue_again = select_review_queue(
-        limit=3,
-        runs_roots=[repo_root / "research/evidence/runs"],
-        repo_root=repo_root,
-    )
-    assert [i.trial_id for i in queue] == [i.trial_id for i in queue_again]
-
-
-def test_human_label_idempotence(repo_root: Path) -> None:
-    """Labeling persists human labels idempotently without duplication."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        derived = Path(tmpdir) / "derived/parquet"
-
-        trial_cand = (
-            repo_root
-            / "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__h2D9f6f"
-        )
-        l1 = label_trajectory(
-            trial_cand,
-            label="tool_use",
-            note="Initial observation",
-            author="peter",
-            repo_root=repo_root,
-            derived_root=derived / "behavior_labels",
-        )
-
-        assert l1.label == "tool_use"
-        assert l1.rationale == "Initial observation"
-        assert l1.provenance == "human"
-
-        labels = load_behavior_labels(repo_root=repo_root, derived_root=derived / "behavior_labels")
-        assert len(labels) == 1
-        assert labels[0].trial_id == l1.trial_id
-
-        # Update note / taxonomy idempotently
-        l2 = label_trajectory(
-            trial_cand,
-            label="clean_success",
-            note="Updated verdict after review",
-            author="peter",
-            repo_root=repo_root,
-            derived_root=derived / "behavior_labels",
-        )
-        assert l2.label == "clean_success"
-        labels_after = load_behavior_labels(
-            repo_root=repo_root, derived_root=derived / "behavior_labels"
-        )
-        assert len(labels_after) == 1
-        assert labels_after[0].label == "clean_success"
-        assert labels_after[0].rationale == "Updated verdict after review"
-
-
 def test_label_persistence_preserves_noop_bytes_and_concurrent_writers(
     repo_root: Path,
 ) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
-        source = (
-            repo_root
-            / "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__h2D9f6f"
-        )
-        staging = root / "staging"
-        first = label_trajectory(
-            source,
-            "clean_success",
+        first = BehaviorLabel(
+            label_id="sha256:" + "a" * 64,
+            target_type="trajectory",
+            target_id="trial",
+            trial_id="trial",
+            trial_name="trial",
+            task_name="fixture",
+            taxonomy="trajectory_behavior/v1",
+            label="clean_success",
+            provenance="human",
             author="alice",
-            repo_root=repo_root,
-            derived_root=staging,
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
-        second = label_trajectory(
-            source,
-            "tool_use",
-            author="bob",
-            repo_root=repo_root,
-            derived_root=staging,
-        )
+        second = first.model_copy(update={
+            "label_id": "sha256:" + "b" * 64,
+            "label": "tool_use",
+            "author": "bob",
+        })
         destination = root / "concurrent"
         context = multiprocessing.get_context("spawn")
         barrier = context.Barrier(2)
@@ -537,72 +445,13 @@ def test_label_persistence_preserves_noop_bytes_and_concurrent_writers(
             process.join(20)
             assert process.exitcode == 0
 
-        persisted = load_behavior_labels(repo_root, destination)
-        assert {item.author for item in persisted} == {"alice", "bob"}
+        persisted = pq.read_table(destination / "behavior_labels.parquet").to_pylist()
+        assert {item["author"] for item in persisted} == {"alice", "bob"}
 
         parquet = destination / "behavior_labels.parquet"
         before = parquet.read_bytes()
         persist_behavior_label(first, repo_root=repo_root, derived_root=destination)
         assert parquet.read_bytes() == before
-
-
-def test_heuristic_precision_evaluation(repo_root: Path) -> None:
-    """Heuristic precision report compares human labels vs heuristic proposals."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        derived = Path(tmpdir) / "derived/parquet"
-        trial_cand = (
-            repo_root
-            / "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__h2D9f6f"
-        )
-
-        label_trajectory(
-            trial_cand,
-            label="clean_success",
-            note="Ground truth",
-            author="peter",
-            repo_root=repo_root,
-            derived_root=derived / "behavior_labels",
-        )
-
-        report = evaluate_heuristic_precision(
-            repo_root=repo_root, derived_root=derived / "behavior_labels"
-        )
-
-        assert report.human_label_count == 1
-        assert report.matched_trials_count == 1
-        assert report.exact_taxonomy_matches == 1
-        assert report.precision == 1.0
-
-
-def test_heuristic_precision_counts_every_human_author(repo_root: Path) -> None:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        derived = Path(tmpdir) / "behavior_labels"
-        trial = (
-            repo_root
-            / "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__h2D9f6f"
-        )
-        label_trajectory(
-            trial,
-            "clean_success",
-            author="alice",
-            repo_root=repo_root,
-            derived_root=derived,
-        )
-        label_trajectory(
-            trial,
-            "tool_use",
-            author="bob",
-            repo_root=repo_root,
-            derived_root=derived,
-        )
-
-        report = evaluate_heuristic_precision(repo_root, derived)
-
-        assert report.human_label_count == 2
-        assert report.matched_trials_count == 2
-        assert report.exact_taxonomy_matches == 1
-        assert report.precision == 0.5
-        assert [item["human_author"] for item in report.disagreements] == ["bob"]
 
 
 def test_model_labeler_uses_guarded_adapter_and_validates_evidence() -> None:
@@ -768,32 +617,6 @@ def test_sql_traj_views_with_data() -> None:
         assert summary[9] == 1  # human_labels_count
 
 
-def test_cli_label_uses_isolated_derived_store(
-    real_canary_trial: Path,
-    repo_root: Path,
-    isolated_derived_root: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    assert cli.run_cli(["traj", "outline", str(real_canary_trial), "--json"]) == 0
-    outline = json.loads(capsys.readouterr().out)
-
-    assert (
-        cli.run_cli(
-            ["traj", "label", str(real_canary_trial), "test_label", "--note", "CLI label test"]
-        )
-        == 0
-    )
-    labels_root = isolated_derived_root / "behavior_labels"
-    assert (labels_root / "behavior_labels.parquet").is_file()
-    persisted = load_behavior_labels(repo_root=repo_root, derived_root=labels_root)
-    assert len(persisted) == 1
-    assert persisted[0].label == "test_label"
-    assert persisted[0].rationale == "CLI label test"
-    assert persisted[0].provenance == "human"
-    assert persisted[0].trial_id == outline["trial_id"]
-    assert persisted[0].source_sha256 == f"sha256:{outline['source_sha256']}"
-
-
 def test_invalid_trajectory_shape_is_accounted(repo_root: Path) -> None:
     """Valid JSON with a non-object payload cannot become empty success."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -809,65 +632,19 @@ def test_invalid_trajectory_shape_is_accounted(repo_root: Path) -> None:
         assert outline.total_steps == 0
 
 
-def test_feature_projection_is_byte_deterministic(repo_root: Path) -> None:
-    """Repeated projection of immutable sources produces the same Parquet bytes."""
-    runs = repo_root / "research/evidence/runs"
-    with tempfile.TemporaryDirectory() as tmpdir:
-        first = project_trajectory_features(
-            runs_roots=[runs],
-            output_root=Path(tmpdir) / "one",
-            repo_root=repo_root,
-        )
-        second = project_trajectory_features(
-            runs_roots=[runs],
-            output_root=Path(tmpdir) / "two",
-            repo_root=repo_root,
-        )
-
-        assert first.table_rows == second.table_rows
-        assert first.sha256 == second.sha256
-        assert first.output_path.read_bytes() == second.output_path.read_bytes()
-
-
-def test_label_same_submission_is_a_true_noop(repo_root: Path) -> None:
-    """Idempotence preserves the original label timestamp and file bytes."""
-    trial = (
-        repo_root
-        / "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__h2D9f6f"
-    )
-    with tempfile.TemporaryDirectory() as tmpdir:
-        labels_root = Path(tmpdir) / "labels"
-        first = label_trajectory(
-            trial,
-            "clean_success",
-            note="same",
-            repo_root=repo_root,
-            derived_root=labels_root,
-        )
-        before = (labels_root / "behavior_labels.parquet").read_bytes()
-        second = label_trajectory(
-            trial,
-            "clean_success",
-            note="same",
-            repo_root=repo_root,
-            derived_root=labels_root,
-        )
-
-        assert second == first
-        assert (labels_root / "behavior_labels.parquet").read_bytes() == before
-
-
 def test_attach_surface_exposes_trajectory_features(repo_root: Path) -> None:
     """The shared DuckDB attach surface can query the projected feature table."""
     from evallab.storage.attach import attach
 
-    runs = repo_root / "research/evidence/runs"
+    trial = repo_root / "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__h2D9f6f"
     with tempfile.TemporaryDirectory() as tmpdir:
         derived = Path(tmpdir) / "derived"
-        projection = project_trajectory_features(
-            runs_roots=[runs],
-            output_root=derived / "traj_features",
-            repo_root=repo_root,
+        output = derived / "traj_features" / "traj_features.parquet"
+        output.parent.mkdir(parents=True)
+        features = extract_features(outline_trajectory(trial, repo_root=repo_root))
+        pq.write_table(
+            pa.Table.from_pylist([features.to_dict()], schema=TRAJ_FEATURES_PARQUET_SCHEMA),
+            output,
         )
         attached = attach(repo_root=repo_root, explicit_derived=derived)
         try:
@@ -878,7 +655,6 @@ def test_attach_surface_exposes_trajectory_features(repo_root: Path) -> None:
         finally:
             attached.connection.close()
 
-        assert projection.featured_count > 0
         assert row is not None
         assert row[1] == "featured"
 

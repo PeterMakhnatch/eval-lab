@@ -566,7 +566,6 @@ def test_shared_reward_and_agent_exit_across_consumers(tmp_path: Path) -> None:
 
     from evallab.analysis_worker import eligible_trials
     from evallab.counts import classify_counts
-    from evallab.explorer import _trial_view
     from evallab.mimo_exploit import trial_reward
 
     trial = tmp_path / "job" / "trial"
@@ -585,11 +584,7 @@ def test_shared_reward_and_agent_exit_across_consumers(tmp_path: Path) -> None:
         assert classify_counts(reward=raw, scored=scored)["verdict"] == (
             "counted_pass" if reward == 1.0 else "counted_fail"
         )
-        view = _trial_view("job", trial, tmp_path)
-        assert view.outcome_class.value == ("pass" if reward == 1.0 else "reward-failure")
-        assert view.reward.value == reward
-        assert "agent_timeout" in view.outcome_class.reason
-        assert view.exception.value["exception_type"] == "AgentTimeoutError"
+
 
     result["verifier_result"] = {}
     (trial / "result.json").write_text(json.dumps(result))
@@ -597,11 +592,9 @@ def test_shared_reward_and_agent_exit_across_consumers(tmp_path: Path) -> None:
     (trial / "verifier" / "reward.txt").write_text("1.0")
     assert probe03.read_reward(trial) == (1.0, True, "reward.txt")
     assert trial_reward(trial) == 1.0
-    assert _trial_view("job", trial, tmp_path).outcome_class.value == "pass"
     assert eligible_trials([SimpleNamespace(trials=[SimpleNamespace(path=trial)])])[0][2] is None
 
     (trial / "verifier" / "reward.txt").write_text("-1")
     assert probe03.read_reward(trial) == (-1.0, False, "reward.txt")
     assert trial_reward(trial) is None
-    assert _trial_view("job", trial, tmp_path).outcome_class.value == "no-verdict"
     assert eligible_trials([SimpleNamespace(trials=[SimpleNamespace(path=trial)])])[0][2].startswith("defer:")

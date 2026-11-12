@@ -25,13 +25,11 @@ from typing import Any, Literal, Protocol
 
 import duckdb
 import pyarrow as pa
-import pyarrow.parquet as pq
 
 from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES, blank_quoted_and_heredocs
 from evallab.results import sha256_file
 from evallab.step_layers import StitchStats, effective_tool_calls, stitch_steps
 from evallab.storage.paths import (
-    derived_root_from_environment,
     resolve_runs_roots,
 )
 from evallab.trajectory_error_taxonomy import (
@@ -338,18 +336,6 @@ class TrajectoryFeatures:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
-
-
-@dataclass(frozen=True)
-class TrajectoryProjectResult:
-    """Result of projecting mechanical features to Parquet."""
-
-    total_scanned: int
-    featured_count: int
-    unavailable_count: int
-    output_path: Path
-    table_rows: int
-    sha256: str
 
 
 TRAJ_FEATURES_PARQUET_SCHEMA = pa.schema(
@@ -922,10 +908,6 @@ def _compute_exit_code_cascade(steps: Sequence[StepOutline]) -> int:
             current_streak = 0
 
     return max_streak
-
-
-compute_cbv_slope = _compute_cbv_slope
-compute_exit_code_cascade = _compute_exit_code_cascade
 
 
 _PATH_TOKEN_PATTERN = re.compile(
@@ -2327,167 +2309,6 @@ def render_outline(
         )
 
     return "\n".join(lines)
-
-
-def project_trajectory_features(
-    runs_roots: Sequence[Path] | None = None,
-    output_root: Path | None = None,
-    repo_root: Path | None = None,
-) -> TrajectoryProjectResult:
-    """Scan candidate runs, extract mechanical features, and atomically write Parquet."""
-    root = (repo_root or Path.cwd()).resolve()
-    candidate_roots = list(runs_roots) if runs_roots else _resolve_candidate_roots(root)
-    droot = output_root or (derived_root_from_environment(root) / "traj_features")
-
-    discovered_trial_dirs: set[Path] = set()
-    for c_root in candidate_roots:
-        if not c_root.exists():
-            continue
-        for job_dir in c_root.iterdir():
-            if not job_dir.is_dir() or job_dir.name.startswith("."):
-                continue
-            for trial_dir in job_dir.iterdir():
-                if not trial_dir.is_dir() or trial_dir.name.startswith("."):
-                    continue
-                if (
-                    (trial_dir / "agent/trajectory.json").exists()
-                    or (trial_dir / "trajectory.json").exists()
-                    or (trial_dir / "result.json").exists()
-                ):
-                    discovered_trial_dirs.add(trial_dir)
-                elif trial_dir.name.startswith("trials"):
-                    for sub in trial_dir.iterdir():
-                        if (
-                            sub.is_dir()
-                            and not sub.name.startswith(".")
-                            and (
-                                (sub / "agent/trajectory.json").exists()
-                                or (sub / "trajectory.json").exists()
-                                or (sub / "result.json").exists()
-                            )
-                        ):
-                            discovered_trial_dirs.add(sub)
-                else:
-                    discovered_trial_dirs.add(trial_dir)
-
-    features_list: list[TrajectoryFeatures] = []
-    featured_count = 0
-    unavailable_count = 0
-
-    for t_dir in sorted(discovered_trial_dirs, key=lambda p: str(p)):
-        try:
-            outline = outline_trajectory(
-                t_dir, repo_root=root, explicit_runs_root=t_dir.parent.parent
-            )
-            feat = extract_features(outline)
-            features_list.append(feat)
-            if feat.status == "featured":
-                featured_count += 1
-            else:
-                unavailable_count += 1
-        except Exception as exc:
-            # Explicit missing/failed accounting
-            parent_dir = t_dir.parent
-            if parent_dir.name.startswith("trials") and parent_dir.parent.name not in (
-                "runs",
-                "evidence",
-            ):
-                parent_dir = parent_dir.parent
-            feat = TrajectoryFeatures(
-                trial_id=t_dir.name,
-                job_id=parent_dir.name,
-                trial_name=t_dir.name,
-                job_name=parent_dir.name,
-                task_name="unknown",
-                agent_name="unknown",
-                agent_version=None,
-                model_name="unknown",
-                status="accounted_unavailable",
-                unavailable_reason=f"extraction_exception: {type(exc).__name__}: {exc}",
-                source_path=str(t_dir),
-                source_sha256="",
-                step_count=0,
-                agent_step_count=0,
-                system_step_count=0,
-                user_step_count=0,
-                tool_call_count=0,
-                unique_tools_count=0,
-                tool_mix_json="{}",
-                error_count=0,
-                recovery_count=0,
-                loop_suspicion_score=0.0,
-                loop_suspicion_detected=False,
-                loop_reasons_json="[]",
-                repeated_command_count=0,
-                step_to_first_tool=None,
-                step_to_first_edit=None,
-                time_to_first_tool_seconds=None,
-                time_to_first_edit_seconds=None,
-                prompt_tokens=0,
-                completion_tokens=0,
-                cached_tokens=0,
-                cost_usd=None,
-                primary_reward=None,
-                exception_class=None,
-                duration_seconds=None,
-                created_at="",
-                is_expected_negative=False,
-                expected_probe_count=0,
-                step_to_first_error=None,
-                time_to_first_error_seconds=None,
-                recovery_latency_steps=None,
-                recovery_latency_seconds=None,
-                unrecovered_at_terminal=False,
-                intervention_category="autonomous",
-                autonomous_step_count=0,
-                assisted_step_count=0,
-                intervention_count=0,
-                state_diff_observed=False,
-                state_journal_status="not_observed",
-                state_journal_reason=None,
-                state_events_count=0,
-                state_mutations_count=0,
-                state_files_created_count=0,
-                state_files_modified_count=0,
-                state_files_deleted_count=0,
-                state_diff_path_count=0,
-                state_diff_bytes_delta=0,
-                unobserved_state_mutations_count=0,
-                path_reference_count=0,
-                valid_path_reference_count=0,
-                invalid_path_reference_count=0,
-                citation_reference_count=0,
-                valid_citation_reference_count=0,
-                invalid_citation_reference_count=0,
-                edit_call_count=0,
-                edit_efficiency_screening=None,
-                path_reference_validity_rate_screening=None,
-                citation_reference_validity_rate_screening=None,
-                projected_at="",
-            )
-            features_list.append(feat)
-            unavailable_count += 1
-
-    droot.mkdir(parents=True, exist_ok=True)
-    out_file = droot / "traj_features.parquet"
-
-    rows = [f.to_dict() for f in features_list]
-    table = pa.Table.from_pylist(rows, schema=TRAJ_FEATURES_PARQUET_SCHEMA)
-
-    tmp_file = out_file.with_suffix(".parquet.tmp")
-    pq.write_table(table, tmp_file, compression="zstd")
-    tmp_file.replace(out_file)
-
-    out_sha = sha256_file(out_file)
-
-    return TrajectoryProjectResult(
-        total_scanned=len(discovered_trial_dirs),
-        featured_count=featured_count,
-        unavailable_count=unavailable_count,
-        output_path=out_file,
-        table_rows=len(rows),
-        sha256=out_sha,
-    )
 
 
 # --------------------------------------------------------------------------- #

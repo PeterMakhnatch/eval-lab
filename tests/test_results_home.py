@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from evallab.process_job import process_job
-from evallab.results_home import backfill, publish_job, write_index
+from evallab.results_home import publish_job, write_index
 
 
 def _job(
@@ -288,25 +288,6 @@ def test_process_job_publishes_into_overridden_home(tmp_path: Path, monkeypatch)
     assert report["results_home"] == str(home / "2026-09-30" / "HAR-117-har117-sample")
     assert "HAR-117" in (home / "INDEX.md").read_text()
     assert "1 pass, 0 fail, 0 unscored" in (home / "INDEX-all.md").read_text()
-
-
-def test_backfill_skips_executor_and_old_cards(tmp_path: Path) -> None:
-    trees = tmp_path / "worktrees"
-    kept = _job(trees / "har117", "har117-kept")
-    old = trees / "har80" / "runs" / "har80-old"
-    old.mkdir(parents=True)
-    (old / "config.json").write_text("{}", encoding="utf-8")
-    (old / "result.json").write_text("{}", encoding="utf-8")
-    staging = kept.parent / ".exec-stage" / "har117-staged"
-    staging.mkdir(parents=True)
-    (staging / "config.json").write_text("{}", encoding="utf-8")
-    (staging / "result.json").write_text("{}", encoding="utf-8")
-
-    report = backfill(home=tmp_path / "results", worktrees=trees, archive=tmp_path / "archive")
-    assert report["published"] == 1
-    assert report["by_card"] == {"HAR-117": 1}
-    assert report["skipped"] == []
-    assert os.listdir(tmp_path / "results" / "2026-09-30") == ["HAR-117-har117-kept"]
 
 
 def test_index_lists_agent_runs_first_newest_first(tmp_path: Path) -> None:

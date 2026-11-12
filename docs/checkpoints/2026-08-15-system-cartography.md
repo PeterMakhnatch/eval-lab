@@ -74,7 +74,7 @@ End-to-end loop that exists on this checkout:
 | Persist evidence | Immutable job dir | `runs/<job>/` (gitignored) or promoted `research/evidence/runs/` | proven live (two promoted jobs) |
 | Index | Catalog + Parquet | `evallab ingest` / `trajectories` → `atif.ingest_and_project` | fixture-proven (`tests/test_pipeline.py`); live compose depends on local Postgres |
 | See what ran | Status / explorer / digest | `evallab status`; `dashboard/`; `digests/` | fixture-proven (`tests/test_status.py`, `tests/test_explorer.py`); dashboard UI is visual |
-| Analyze | Stage-5 stub path | `evallab analyze plan\|stub\|ingest-sidecar\|review` | fixture-proven (`research/analysis/stub-oracle-analysis.json`; `tests/test_smoke.py`) |
+| Analyze | Stage-5 stub path | `evallab analyze stub\|ingest-sidecar\|review` | fixture-proven (`research/analysis/stub-oracle-analysis.json`; `tests/test_smoke.py`) |
 | Compare | Declared cohorts | `evallab compare` | fixture-proven (`tests/test_truth.py`, `research/analysis/control-oracle-vs-nop.json`) |
 | Next experiment | Program ledger | `research/experiments/PROGRAM.json` + `STATUS.md` | designed + reviewed notes; several next cells **blocked** |
 
@@ -475,7 +475,6 @@ uv run evallab status --help
 uv run evallab registry list
 uv run evallab registry audit
 uv run evallab analyze --help
-uv run evallab analyze plan --help
 uv run evallab compare --help
 uv run evallab report --help
 uv run evallab trace --help

@@ -57,15 +57,12 @@ custody remains the authority, not a mutable latest view.
 
 ```sh
 uv run evallab failures --help
-uv run evallab failures ingest pm-tb4-findings
-uv run evallab failures runs verify
 uv run evallab failures stats --json
 ```
 
-Each collection's adjacent Markdown note gives its exact pinned source, licensing,
-evidence limits and deterministic rebuild command. Large normalized runs and raw
-transcripts stay outside Git. Ingestion parses data; it does not execute imported
-patches or test bodies.
+Each collection's adjacent Markdown note records its pinned source, license,
+evidence limits, and historical rebuild command. Large normalized runs and raw
+transcripts remain outside Git.
 
 ## Issue bank: one inventory across every source
 

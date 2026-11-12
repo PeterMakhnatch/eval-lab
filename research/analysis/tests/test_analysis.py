@@ -9,13 +9,9 @@ import pytest
 
 from evallab.evidence.facts import (
     AnalyzerCallResult,
-    analysis_plan,
-    failure_taxonomy_agreement,
-    load_analysis_source,
     run_trial_analysis,
     validate_queue_authorization,
     write_analysis_review,
-    write_failure_taxonomy_agreement,
 )
 from evallab.results import load_job
 from evallab.schemas import TrialAnalysisSidecar
@@ -72,41 +68,14 @@ def _run(
     )
 
 
-def test_plan_is_bounded_and_makes_no_model_call(tmp_path: Path) -> None:
-    trial_path = (
-        ROOT
-        / "research/evidence/runs/event-summary-oracle-evidence"
-        / "event-summary__FZg7pvq"
-    )
-    job, trial = load_analysis_source(trial_path)
-
-    plan = analysis_plan(
-        job,
-        trial,
-        repo_root=ROOT,
-        destination_root=tmp_path,
-        prompt_path=PROMPT,
-        rubric_path=RUBRIC,
-        agent="codex",
-        agent_version="local",
-        model="queue-selected",
-    )
-
-    assert plan.source_trial_id == trial.id
-    assert plan.estimated_model_calls == 1
-    assert plan.maximum_model_calls == 2
-    assert plan.queue_policy_rule == "researcher-followups"
-    assert plan.prompt_digest.startswith("sha256:")
-    assert plan.rubric_digest.startswith("sha256:")
-
-
 def test_saved_output_writes_new_sidecars_with_complete_provenance(tmp_path: Path) -> None:
     trial_path = (
         ROOT
         / "research/evidence/runs/event-summary-oracle-evidence"
         / "event-summary__FZg7pvq"
     )
-    job, trial = load_analysis_source(trial_path)
+    job = load_job(trial_path.parent)
+    trial = next(item for item in job.trials if item.path == trial_path)
     before = _tree_digests(trial.path)
 
     first_path, first = _run(job, trial, tmp_path)
@@ -126,11 +95,8 @@ def test_saved_output_writes_new_sidecars_with_complete_provenance(tmp_path: Pat
 
 
 def test_schema_validation_retries_once(tmp_path: Path) -> None:
-    job, trial = load_analysis_source(
-        ROOT
-        / "research/evidence/runs/event-summary-oracle-evidence"
-        / "event-summary__FZg7pvq"
-    )
+    job = load_job(ROOT / "research/evidence/runs/event-summary-oracle-evidence")
+    trial = next(item for item in job.trials if item.path.name == "event-summary__FZg7pvq")
     responses = [
         json.dumps({"primary_category": "not-a-category"}),
         STUB.read_text(),
@@ -149,11 +115,8 @@ def test_schema_validation_retries_once(tmp_path: Path) -> None:
 
 
 def test_unknown_failure_category_is_rejected_after_one_retry(tmp_path: Path) -> None:
-    job, trial = load_analysis_source(
-        ROOT
-        / "research/evidence/runs/event-summary-oracle-evidence"
-        / "event-summary__FZg7pvq"
-    )
+    job = load_job(ROOT / "research/evidence/runs/event-summary-oracle-evidence")
+    trial = next(item for item in job.trials if item.path.name == "event-summary__FZg7pvq")
     output = json.loads(STUB.read_text())
     output["primary_category"] = "invented-category"
     calls = 0
@@ -250,11 +213,8 @@ def test_harness_exception_cannot_be_mislabeled_as_agent_failure(tmp_path: Path)
 
 
 def test_review_is_append_only_and_preserves_original_analysis(tmp_path: Path) -> None:
-    job, trial = load_analysis_source(
-        ROOT
-        / "research/evidence/runs/event-summary-oracle-evidence"
-        / "event-summary__FZg7pvq"
-    )
+    job = load_job(ROOT / "research/evidence/runs/event-summary-oracle-evidence")
+    trial = next(item for item in job.trials if item.path.name == "event-summary__FZg7pvq")
     sidecar_path, sidecar = _run(job, trial, tmp_path)
     original = sidecar_path.read_bytes()
 
@@ -304,60 +264,3 @@ def test_live_adapter_requires_matching_running_queue_authorization(tmp_path: Pa
     assert authorization["max_model_calls"] == 2
 
 
-def test_failure_taxonomy_agreement_uses_only_valid_sidecars(tmp_path: Path) -> None:
-    job, trial = load_analysis_source(
-        ROOT
-        / "research/evidence/runs/event-summary-oracle-evidence"
-        / "event-summary__FZg7pvq"
-    )
-    valid_path, valid = _run(job, trial, tmp_path / "analyses")
-    invalid_payload = valid.model_dump(mode="json")
-    invalid_payload["analysis_id"] = "00000000-0000-0000-0000-000000000001"
-    invalid_payload["validation_status"] = "invalid"
-    invalid_payload["validation_errors"] = ["fixture-invalid citation"]
-    invalid_dir = tmp_path / "analyses/invalid"
-    invalid_dir.mkdir()
-    invalid_path = invalid_dir / "analysis.json"
-    invalid_path.write_text(json.dumps(invalid_payload, indent=2, sort_keys=True) + "\n")
-
-    labels_root = ROOT / "research/calibration/trajectory-labels"
-    before = _tree_digests(labels_root)
-    report = failure_taxonomy_agreement(
-        [valid_path, invalid_path],
-        labels_root=labels_root,
-        reference_root=ROOT,
-    )
-
-    # The label corpus grows whenever evidence is promoted, so the coverage
-    # arithmetic is asserted against the observed label count rather than a
-    # frozen one. Exactly one label must match the one valid sidecar.
-    n_labels = report["n_labels"]
-    assert n_labels == len(list(labels_root.glob("*.json")))
-    assert n_labels > 1
-    assert report["n_sidecars"] == 2
-    assert report["n_matched_valid"] == 1
-    assert report["n_invalid_analyses"] == 1
-    assert report["exact_matches"] == 1
-    assert report["exact_agreement"] == 1.0
-    assert report["label_coverage"] == 1 / n_labels
-    assert len(report["labels_without_valid_analysis"]) == n_labels - 1
-    assert report["comparisons"][0]["label_sha256"].startswith("sha256:")
-    assert report["comparisons"][0]["sidecar_sha256"].startswith("sha256:")
-    assert _tree_digests(labels_root) == before
-
-    report_path = tmp_path / "reports/agreement.json"
-    written_path, written = write_failure_taxonomy_agreement(
-        [tmp_path / "analyses"],
-        labels_root=labels_root,
-        output_path=report_path,
-        reference_root=ROOT,
-    )
-    first_bytes = written_path.read_bytes()
-    write_failure_taxonomy_agreement(
-        [tmp_path / "analyses"],
-        labels_root=labels_root,
-        output_path=report_path,
-        reference_root=ROOT,
-    )
-    assert written == report
-    assert report_path.read_bytes() == first_bytes

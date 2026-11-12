@@ -756,8 +756,10 @@ separate `--stages exploit` probe is requested.
   `allow_billable=False`, so it can never spend). The matrix is the same artifact
   class as `research/experiments/release-branch-rescue-local-controls.json`:
   reference oracle (expect 1), no-agent control (expect 0), then one run per
-  script, with `# expect: 1` on the script's first lines recording the author's
-  prediction. Without `--execute` it writes the plan only.
+  script, with `# expect: 1` in the script's first 20 lines recording the
+  author's prediction. Task lint and this runner read that header with the same
+  parser, so a header lint accepts is the header the runner reads. Without
+  `--execute` it writes the plan only.
 - `evallab hack mutate <package> [--target PATH ...] [--max-mutants N] [--workers 1|2]
   [--mutant ID ...] [--no-coverage] [--execute]` — verifier mutation testing for the
   insufficient-checking family (a verifier that rewards a wrong answer). It

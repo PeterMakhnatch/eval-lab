@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from evallab import cli
+from evallab.control_expect import declared_expectation
 from evallab.task_lint import _build_env_scripts, _hidden_shell_blobs, discover_tasks, lint_task
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -178,6 +179,41 @@ def test_non_utf8_dockerfile_reports_error(task: Path) -> None:
     (task / "environment/Dockerfile").write_bytes(b"FROM python:3.12\nCOPY \xff /private\n")
     finding, = lint_task(task)
     assert (finding.rule, finding.severity) == ("dockerfile-copy-parses", "error")
+
+
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [
+        ("# expect: 1.0", 1.0),
+        ("# expect: 0.0", 0.0),
+        ("  # expect: 1", 1.0),
+    ],
+)
+def test_control_header_is_accepted_by_lint_and_runtime(
+    task: Path, header: str, expected: float
+) -> None:
+    (task / "controls").mkdir()
+    control = task / "controls/control.sh"
+    control.write_text(f"#!/bin/sh\n{header}\nexit 0\n")
+    assert lint_task(task) == []
+    assert declared_expectation(control) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "#!/bin/sh\n" + "\n" * 19 + "# expect: 1\nexit 0\n",
+        "#!/bin/sh\n# expect 1\nexit 0\n",
+        "#!/bin/sh\n# expect: 10\nexit 0\n",
+    ],
+)
+def test_control_header_is_rejected_by_lint_and_runtime(task: Path, text: str) -> None:
+    (task / "controls").mkdir()
+    control = task / "controls/control.sh"
+    control.write_text(text)
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity) == ("controls-declare-expectation", "error")
+    assert declared_expectation(control) is None
 
 
 def test_control_requires_exact_expectation_header(task: Path) -> None:

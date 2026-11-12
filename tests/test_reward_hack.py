@@ -155,16 +155,39 @@ def test_scan_rejects_a_non_package(tmp_path: Path) -> None:
         scan_package(tmp_path / "absent")
 
 
-def test_declared_expectation_reads_only_the_control_header(tmp_path: Path) -> None:
-    declared_one = tmp_path / "one.sh"
-    _write(declared_one, "#!/bin/bash\n# expect: 1\nset -eu\n")
-    declared_zero = tmp_path / "zero.sh"
-    _write(declared_zero, "#!/bin/bash\n# expect: 0\nexit 0\n")
-    silent = tmp_path / "silent.sh"
-    _write(silent, "#!/bin/bash\nexit 0\n")
-    assert declared_expectation(declared_one) == 1.0
-    assert declared_expectation(declared_zero) == 0.0
-    assert declared_expectation(silent) is None
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("#!/bin/bash\n# expect: 1\nexit 0\n", 1.0),
+        ("#!/bin/bash\n# expect: 0\nexit 0\n", 0.0),
+        ("#!/bin/bash\n# expect: 1.0\nexit 0\n", 1.0),
+        ("#!/bin/bash\n# expect: 0.0\nexit 0\n", 0.0),
+        ("#!/bin/bash\n  # expect: 1\nexit 0\n", 1.0),
+        ("#!/bin/bash\n# expect: 0\n# expect: 1\nexit 0\n", 0.0),
+        ("#!/bin/bash\n# expect: 1\n# expect: 0\nexit 0\n", 1.0),
+        ("#!/bin/bash\n" + "\n" * 19 + "# expect: 1\nexit 0\n", None),
+        ("#!/bin/bash\n# expect 1\nexit 0\n", None),
+        ("#!/bin/bash\n# expect: 10\nexit 0\n", None),
+        ("#!/bin/bash\nexit 0\n", None),
+    ],
+)
+def test_declared_expectation_reads_only_the_control_header(
+    tmp_path: Path, text: str, expected: float | None
+) -> None:
+    script = tmp_path / "control.sh"
+    _write(script, text)
+    assert declared_expectation(script) == expected
+
+
+def test_every_committed_library_control_declares_a_binary_expectation() -> None:
+    root = Path(__file__).resolve().parents[1]
+    controls = [
+        path
+        for task in ("release-branch-rescue", "sheet-recalc", "sheet-recalc-cutoff")
+        for path in sorted((root / "library/tasks" / task / "controls").glob("*.sh"))
+    ]
+    assert len(controls) == 28
+    assert {declared_expectation(path) for path in controls} == {0.0, 1.0}
 
 
 def test_plan_matrix_binds_baselines_and_solution_overrides(tmp_path: Path) -> None:

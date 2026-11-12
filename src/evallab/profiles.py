@@ -52,8 +52,6 @@ from evallab.execution_contracts import (
     MIMO_SELFHOSTED_MODEL_SELECTORS,
     OPENCODE_AUTH_RELATIVE_PATH,
     TERMINUS_AGENT,
-    TERMINUS_LOCAL_ENDPOINT_ENV,
-    TERMINUS_LOCAL_MODEL_SELECTOR,
     ZAI_AUTH_PROVIDER,
     ZAI_OPENCODE_AGENT,
     ProfileInferenceSettings,
@@ -90,7 +88,6 @@ AuthMode = Literal[
     "subscription-keychain",
     "subscription-cli-session",
     "subscription-gateway",
-    "local-service",
 ]
 
 CONTROL_ADAPTERS = frozenset({"oracle", "nop"})
@@ -219,16 +216,8 @@ class AgentProfile(BaseModel):
                 )
             if not self.model:
                 raise ValueError("billable profiles require an exact model pin")
-            if self.secret_source is None and self.auth_mode != "local-service":
+            if self.secret_source is None:
                 raise ValueError("billable profiles must identify their secret source")
-        if self.auth_mode == "local-service" and (
-            self.adapter != TERMINUS_AGENT
-            or self.model != TERMINUS_LOCAL_MODEL_SELECTOR
-            or self.secret_source is not None
-        ):
-            raise ValueError(
-                "local-service profiles require the admitted local Terminus model and no secret"
-            )
         if (
             self.auth_mode == "subscription-keychain"
             and self.secret_source is not None
@@ -412,25 +401,6 @@ class EnvironmentPresenceProbe:
             ok=False,
             reason="credential environment missing: " + " or ".join(self.names),
         )
-
-@dataclass(frozen=True)
-class LocalOllamaProbe:
-    """Qualify an explicitly configured, already-installed local model."""
-
-    environment: Mapping[str, str]
-
-    def __call__(self, profile: AgentProfile) -> ProbeResult:
-        if not self.environment.get(TERMINUS_LOCAL_ENDPOINT_ENV):
-            return ProbeResult(
-                ok=False, reason=f"local endpoint missing: {TERMINUS_LOCAL_ENDPOINT_ENV}"
-            )
-        from evallab.terminus_local import resolve_ollama_binding
-
-        try:
-            resolve_ollama_binding(profile.model or "", environment=self.environment)
-        except ValueError as exc:
-            return ProbeResult(ok=False, reason=str(exc))
-        return ProbeResult(ok=True)
 
 def _parse_expiry(value: object) -> datetime | None:
     if isinstance(value, (int, float)) and value > 0:
@@ -920,18 +890,6 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 ),
             ),
             AgentProfile(
-                profile_id="terminus-2-qwen2.5-7b-local",
-                adapter=TERMINUS_AGENT,
-                model=TERMINUS_LOCAL_MODEL_SELECTOR,
-                auth_mode="local-service",
-                capabilities=("billing:local-no-api-charge", "structured-trajectory:atif"),
-                limits=ProfileLimits(
-                    max_timeout_seconds=28_800,
-                    max_attempts=1,
-                    max_concurrency=1,
-                ),
-            ),
-            AgentProfile(
                 profile_id="terminus-2-openrouter-mimo-v2-6-flash",
                 adapter=TERMINUS_AGENT,
                 model="openrouter-metered/xiaomi/mimo-v2.6-flash",
@@ -1190,8 +1148,6 @@ def default_probe_for(
     """Wire the standard probe for a profile through injected seams only."""
     if profile.auth_mode == "none":
         return None
-    if profile.auth_mode == "local-service":
-        return LocalOllamaProbe(environment=os.environ if environment is None else environment)
     if profile.profile_id in DECLARED_UNAVAILABLE and not profile.verified_facts:
         return DeclaredUnavailableProbe(
             reason=f"{profile.profile_id} is declared but not independently proven in this lab"
@@ -1247,7 +1203,6 @@ MIMO_SELFHOSTED_API_CREDENTIAL = "mimo_selfhosted_api_environment"
 BREAKER_SELFHOSTED_API_CREDENTIAL = "breaker_selfhosted_api_environment"
 OPENROUTER_API_CREDENTIAL = "openrouter_api_environment"
 GLM_SELFHOSTED_API_CREDENTIAL = "glm_selfhosted_api_environment"
-LOCAL_OLLAMA_ENDPOINT = "local_ollama_endpoint"
 # Agents whose runs require a credential. Control agents (oracle, nop) are
 # deliberately absent: they must run with no credential at all.
 AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
@@ -1265,7 +1220,6 @@ AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
     ZAI_OPENCODE_AGENT: ZAI_OPENCODE_AUTH,
     MIMO_AGENT: MIMO_SELFHOSTED_API_CREDENTIAL,
     TERMINUS_AGENT: ZAI_OPENAPI_API_CREDENTIAL,
-    (TERMINUS_AGENT, TERMINUS_LOCAL_MODEL_SELECTOR): LOCAL_OLLAMA_ENDPOINT,
 }
 
 _PROFILES = builtin_profiles()
@@ -1472,10 +1426,6 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(OPENROUTER_API_CREDENTIAL)
     if probe_glm_selfhosted_api():
         found.add(GLM_SELFHOSTED_API_CREDENTIAL)
-    if os.environ.get(TERMINUS_LOCAL_ENDPOINT_ENV):
-        # This is configured availability only. The selected profile verifies
-        # the endpoint and installed model before an environment is created.
-        found.add(LOCAL_OLLAMA_ENDPOINT)
     return frozenset(found)
 
 
@@ -1546,7 +1496,6 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str | tuple[str, str], str] = {
     ZAI_OPENCODE_AGENT: "zai-opencode-glm-5.3-flash",
     MIMO_AGENT: "mimoagent-selfhosted-mimo-v2-6-9b",
     TERMINUS_AGENT: "terminus-2-glm-5.3-flash",
-    (TERMINUS_AGENT, TERMINUS_LOCAL_MODEL_SELECTOR): "terminus-2-qwen2.5-7b-local",
 }
 
 DEFAULT_AGENT_MODELS: dict[str, str] = {

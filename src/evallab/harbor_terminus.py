@@ -81,7 +81,6 @@ from evallab.execution_contracts import (
     OPENROUTER_MODEL_SELECTORS,
     OPENROUTER_PROXY_CAPABILITY_ENV,
     OPENROUTER_PROXY_TOKEN,
-    TERMINUS_LOCAL_MODEL_SELECTOR,
     TERMINUS_PROXY_URL_ENV,
     ZAI_OPENAPI_ALLOWED_MODELS,
     ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS,
@@ -114,7 +113,6 @@ from evallab.step_layers import (
     build_recorded_layers,
     copied_layers,
 )
-from evallab.terminus_local import OllamaBinding, resolve_ollama_binding
 from evallab.token_flow import COMMAND_RUN_MIN
 
 __all__ = [
@@ -566,7 +564,6 @@ class SecretSafeTerminus2(Terminus2):
         self._loop_model_next: str | None = None
         self._loop_stop_pending = False
         self._pending_composed_message = ""
-        self._local_binding: OllamaBinding | None = None
         self._mimo_selfhosted = False
         self._prose_completions = 0
         self._pending_prose_step: Any = _NO_PENDING_PROSE_STEP
@@ -576,11 +573,7 @@ class SecretSafeTerminus2(Terminus2):
         self._layer_queue: list[dict[str, Any]] = []
         self._layer_steps_id: int | None = None
         self._layer_annotated: int = 0
-        if model_name == TERMINUS_LOCAL_MODEL_SELECTOR:
-            self._local_binding = resolve_ollama_binding(model_name)
-            model = model_name
-        else:
-            model, self._mimo_selfhosted = _resolve_metered_model(model_name)
+        model, self._mimo_selfhosted = _resolve_metered_model(model_name)
         if api_base is not None:
             raise ValueError(
                 "SecretSafeTerminus2 rejects api_base overrides: "
@@ -598,88 +591,72 @@ class SecretSafeTerminus2(Terminus2):
                 )
         clean_llm_kwargs = _reject_kwarg_overrides(llm_kwargs, source="llm_kwargs")
         clean_llm_call_kwargs = _reject_kwarg_overrides(llm_call_kwargs, source="llm_call_kwargs")
-        if self._local_binding is not None:
+        proxy_url = _require_loopback_proxy_url()
+        if is_breaker_selfhosted_model(model):
             if kwargs.get("model_info") is not None:
-                raise ValueError(
-                    "local model context/pricing is runtime-bound, not a harness override"
-                )
-            proxy_url = self._local_binding.endpoint
-            capability = None
-            provider = None
+                raise ValueError("breaker model context/pricing is runtime-bound")
             kwargs["model_info"] = {
-                "max_input_tokens": self._local_binding.context_budget_tokens,
-                "max_output_tokens": self._local_binding.context_budget_tokens,
+                "max_input_tokens": BREAKER_SELFHOSTED_CONTEXT_TOKENS,
+                "max_output_tokens": BREAKER_SELFHOSTED_MAX_COMPLETION_TOKENS,
                 "input_cost_per_token": 0.0,
                 "output_cost_per_token": 0.0,
-                "litellm_provider": "ollama_chat",
+                "litellm_provider": "openai",
             }
+            kwargs["temperature"] = 1.0
+            capability = _require_capability(
+                BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN
+            )
+            provider = "breaker_selfhosted"
+        elif self._mimo_selfhosted:
+            # Context/pricing of the served MiMo weights is runtime-bound:
+            # the 262,144-token window drives native context summarization before
+            # overflow, and zero per-token prices mark the time-billed
+            # route (GPU hours, not tokens). A caller-supplied model_info
+            # can never override it.
+            if kwargs.get("model_info") is not None:
+                raise ValueError(
+                    "self-hosted MiMo model context/pricing is runtime-bound, not a harness override"
+                )
+            kwargs["model_info"] = {
+                "max_input_tokens": MIMO_SELFHOSTED_CONTEXT_TOKENS,
+                "max_output_tokens": MIMO_SELFHOSTED_CONTEXT_TOKENS,
+                "input_cost_per_token": 0.0,
+                "output_cost_per_token": 0.0,
+                "litellm_provider": "openai",
+            }
+            # The trajectory must record the real sampling the proxy
+            # enforces; the proxy still overrides any caller value.
+            kwargs["temperature"] = MIMO_SELFHOSTED_TEMPERATURE
+            capability = _require_capability(
+                MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV, MIMO_SELFHOSTED_PROXY_TOKEN
+            )
+            provider = "mimo_selfhosted"
+        elif is_openrouter_model(model):
+            # Context/pricing of the pinned OpenRouter endpoint is
+            # runtime-bound from the route table: its context window,
+            # completion cap, and pinned list prices. A caller-supplied
+            # model_info can never override it.
+            if kwargs.get("model_info") is not None:
+                raise ValueError(
+                    "OpenRouter model context/pricing is runtime-bound, not a harness override"
+                )
+            route = openrouter_route(model)
+            kwargs["model_info"] = {
+                "max_input_tokens": route.context_input_tokens,
+                "max_output_tokens": route.max_completion_tokens,
+                "input_cost_per_token": route.input_cost_micros_per_million / 1e12,
+                "output_cost_per_token": route.output_cost_micros_per_million / 1e12,
+                "litellm_provider": "openai",
+            }
+            capability = _require_capability(
+                OPENROUTER_PROXY_CAPABILITY_ENV, OPENROUTER_PROXY_TOKEN
+            )
+            provider = "openrouter"
         else:
-            proxy_url = _require_loopback_proxy_url()
-            if is_breaker_selfhosted_model(model):
-                if kwargs.get("model_info") is not None:
-                    raise ValueError("breaker model context/pricing is runtime-bound")
-                kwargs["model_info"] = {
-                    "max_input_tokens": BREAKER_SELFHOSTED_CONTEXT_TOKENS,
-                    "max_output_tokens": BREAKER_SELFHOSTED_MAX_COMPLETION_TOKENS,
-                    "input_cost_per_token": 0.0,
-                    "output_cost_per_token": 0.0,
-                    "litellm_provider": "openai",
-                }
-                kwargs["temperature"] = 1.0
-                capability = _require_capability(
-                    BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN
-                )
-                provider = "breaker_selfhosted"
-            elif self._mimo_selfhosted:
-                # Context/pricing of the served MiMo weights is runtime-bound:
-                # the 262,144-token window drives native context summarization before
-                # overflow, and zero per-token prices mark the time-billed
-                # route (GPU hours, not tokens). A caller-supplied model_info
-                # can never override it.
-                if kwargs.get("model_info") is not None:
-                    raise ValueError(
-                        "self-hosted MiMo model context/pricing is runtime-bound, not a harness override"
-                    )
-                kwargs["model_info"] = {
-                    "max_input_tokens": MIMO_SELFHOSTED_CONTEXT_TOKENS,
-                    "max_output_tokens": MIMO_SELFHOSTED_CONTEXT_TOKENS,
-                    "input_cost_per_token": 0.0,
-                    "output_cost_per_token": 0.0,
-                    "litellm_provider": "openai",
-                }
-                # The trajectory must record the real sampling the proxy
-                # enforces; the proxy still overrides any caller value.
-                kwargs["temperature"] = MIMO_SELFHOSTED_TEMPERATURE
-                capability = _require_capability(
-                    MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV, MIMO_SELFHOSTED_PROXY_TOKEN
-                )
-                provider = "mimo_selfhosted"
-            elif is_openrouter_model(model):
-                # Context/pricing of the pinned OpenRouter endpoint is
-                # runtime-bound from the route table: its context window,
-                # completion cap, and pinned list prices. A caller-supplied
-                # model_info can never override it.
-                if kwargs.get("model_info") is not None:
-                    raise ValueError(
-                        "OpenRouter model context/pricing is runtime-bound, not a harness override"
-                    )
-                route = openrouter_route(model)
-                kwargs["model_info"] = {
-                    "max_input_tokens": route.context_input_tokens,
-                    "max_output_tokens": route.max_completion_tokens,
-                    "input_cost_per_token": route.input_cost_micros_per_million / 1e12,
-                    "output_cost_per_token": route.output_cost_micros_per_million / 1e12,
-                    "litellm_provider": "openai",
-                }
-                capability = _require_capability(
-                    OPENROUTER_PROXY_CAPABILITY_ENV, OPENROUTER_PROXY_TOKEN
-                )
-                provider = "openrouter"
-            else:
-                capability = _require_capability(
-                    ZAI_OPENAPI_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN
-                )
-                provider = "zai"
+            capability = _require_capability(
+                ZAI_OPENAPI_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN
+            )
+            provider = "zai"
         clean_extra_env = _scrubbed_extra_env(extra_env, capability=capability)
         super().__init__(
             logs_dir=logs_dir,
@@ -1229,11 +1206,6 @@ class SecretSafeTerminus2(Terminus2):
                         _record_loop_break(path, record)
                     except Exception:
                         continue
-            if self._local_binding is not None:
-                # Installed local inference has no provider API charge. This is
-                # a billing fact, not invented missing token or call telemetry.
-                context.cost_usd = 0.0
-                metadata["local_ollama"] = self._local_binding.to_dict()
             if metadata:
                 context.metadata = {**(context.metadata or {}), **metadata}
 

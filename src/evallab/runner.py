@@ -99,8 +99,6 @@ from evallab.execution_contracts import (
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
     TERMINUS_AGENT,
     TERMINUS_AGENT_IMPORT_PATH,
-    TERMINUS_LOCAL_ENDPOINT_ENV,
-    TERMINUS_LOCAL_MODEL_SELECTOR,
     TERMINUS_PROXY_URL_ENV,
     WATCHDOG_POLL_SECONDS,
     ZAI_CAPABILITY_EXPIRES_AT_ENV,
@@ -184,7 +182,6 @@ from evallab.harbor_network import (
 from evallab.ledger import build_cost_block, split_calls
 from evallab.results import JobRecord, load_job
 from evallab.schemas import ExperimentMatrix, MatrixRun
-from evallab.terminus_local import local_ollama_endpoint, resolve_ollama_binding
 
 __all__ = [
     "_SUBSCRIPTION_ENVIRONMENT_KEYS",
@@ -886,7 +883,6 @@ def _capture_binding_for_metadata(request: RunRequest) -> dict[str, Any] | None:
         MIMO_SELFHOSTED_UPSTREAM_ENV,
         OPENROUTER_UPSTREAM_ENV,
         ZAI_OPENAPI_UPSTREAM_ENV,
-        TERMINUS_LOCAL_ENDPOINT_ENV,
     ):
         upstream = os.environ.get(env_name)
         if not upstream:
@@ -1456,8 +1452,7 @@ def run_harbor_process(
     # Native Xiaomi and Terminus model clients live on the controller host.
     # Both use this supervised loopback proxy, never a sandbox-side transport.
     terminus_client = TERMINUS_AGENT_IMPORT_PATH in command or MIMO_AGENT_IMPORT_PATH in command
-    local_terminus = terminus_client and TERMINUS_LOCAL_MODEL_SELECTOR in command
-    terminus_lane = terminus_client and not local_terminus
+    terminus_lane = terminus_client
     zai_openapi_lane = (
         (
             zai_miniswe_adapter in command
@@ -1487,8 +1482,6 @@ def run_harbor_process(
         prepend_pinned_harbor_path(runtime_environment, fallback=os.environ.get("PATH"))
     if MIMO_AGENT_IMPORT_PATH in command and laminar_metadata is not None:
         runtime_environment["EVALLAB_LAMINAR_METADATA"] = json.dumps(laminar_metadata)
-    if local_terminus:
-        runtime_environment[TERMINUS_LOCAL_ENDPOINT_ENV] = local_ollama_endpoint()
     secret_values = collected_secret_values()
     owned_secret_dir: Path | None = None
     owned_secret_path: Path | None = None
@@ -2292,7 +2285,6 @@ def _write_run_metadata(
     task_staging: dict[str, Any] | None = None,
     toolbox: dict[str, Any] | None = None,
     harness_tree: dict[str, Any] | None = None,
-    local_ollama: dict[str, Any] | None = None,
 ) -> None:
     job_dir = request.jobs_dir / request.name
     if not job_dir.exists():
@@ -2404,8 +2396,6 @@ def _write_run_metadata(
         key: value for key, value in repository.items() if not key.startswith("_")
     }
     write_run_provenance(job_dir, repository)
-    if local_ollama is not None:
-        metadata["local_ollama"] = local_ollama
     capture_binding = _capture_binding_for_metadata(request)
     if capture_binding is not None:
         metadata["model_capture"] = capture_binding
@@ -2576,9 +2566,7 @@ def _proxy_attempt_id(request: RunRequest) -> str | None:
     return request.name
 
 
-def _harness_execution_settings(
-    request: RunRequest, local_ollama: dict[str, Any] | None
-) -> dict[str, Any]:
+def _harness_execution_settings(request: RunRequest) -> dict[str, Any]:
     """Keep every non-treatment spec setting comparable across fresh runs."""
     if request.experiment_spec is not None:
         settings = request.experiment_spec.model_dump(
@@ -2632,7 +2620,6 @@ def _harness_execution_settings(
     settings["base_skills"] = list(request.resolved_skills)
     settings["load_trajectory"] = str(request.load_trajectory) if request.load_trajectory else None
     settings["export_traces"] = request.export_traces
-    settings["local_ollama"] = local_ollama
     return settings
 
 
@@ -2715,11 +2702,6 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     harness_refusal = preflight_harness_agent_imports(request, repo_root=repo_root)
     if harness_refusal is not None:
         raise RuntimeError(harness_refusal)
-    local_binding = (
-        resolve_ollama_binding(TERMINUS_LOCAL_MODEL_SELECTOR)
-        if request.agent == TERMINUS_AGENT and request.model == TERMINUS_LOCAL_MODEL_SELECTOR
-        else None
-    )
     if not shutil.which("harbor"):
         raise RuntimeError("harbor is not installed or not on PATH")
 
@@ -2772,9 +2754,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 rendered_skill_paths=[
                     (staged_root / relative).as_posix() for relative in harness_meta["skill_roots"]
                 ],
-                execution_settings=_harness_execution_settings(
-                    request, local_binding.to_dict() if local_binding is not None else None
-                ),
+                execution_settings=_harness_execution_settings(request),
             )
         staged_toolbox: Path | None = None
         toolbox_meta: dict[str, Any] | None = None
@@ -2920,7 +2900,6 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             task_staging=task_staging,
             toolbox=toolbox_meta,
             harness_tree=harness_meta,
-            local_ollama=local_binding.to_dict() if local_binding is not None else None,
         )
         if staged_toolbox is not None and toolbox_meta is not None and job_dir.exists():
             from evallab.toolbox import retain_toolbox_evidence

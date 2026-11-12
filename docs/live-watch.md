@@ -1652,11 +1652,8 @@ ordered by positive runs within the cluster ranking, so the densest
 cluster-task pairs are read first.
 
 
-Logic: `store_coverage` in `src/evallab/production/run_atlas.py`. Tests:
-`tests/test_run_atlas_reader_mix.py`. Read-only and model-free.
+Logic: `store_coverage` in `src/evallab/production/run_atlas.py`. Read-only and model-free.
 
-```bash
-```
 
 - Stored records (latest line per `run_id`) counted by `facet_model`, prompt
   version and `source`. The prompt version comes from the call receipts of the

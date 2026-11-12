@@ -3626,7 +3626,9 @@ def _registry_devloop_command(
     del harbor
     from evallab.devloop import run_devloop
 
-    return run_devloop(root, since=args.since, run=args.run, as_json=args.json)
+    return run_devloop(
+        root, since=args.since, run=args.run, as_json=args.json, checkpoint=args.checkpoint
+    )
 
 
 
@@ -5643,6 +5645,11 @@ def parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Emit results as JSON",
+    )
+    registry_devloop.add_argument(
+        "--checkpoint",
+        action="store_true",
+        help="Run repository contracts and direct consumers; bounded local check, not CI green",
     )
     registry_devloop.set_defaults(func=_registry_devloop_command)
 

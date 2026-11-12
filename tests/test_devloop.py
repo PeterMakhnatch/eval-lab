@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -13,6 +14,7 @@ import pytest
 from evallab.devloop import (
     _referenced_modules,
     affected_test_modules,
+    get_changed_files,
     is_doc_path,
     is_full_suite_trigger,
     is_src_path,
@@ -194,7 +196,7 @@ def test_run_devloop_preserves_child_output_and_status(
 
 @pytest.mark.parametrize(
     ("since", "failed_command"),
-    [("missing-ref", "diff"), ("working", "diff"), ("working", "ls-files")],
+    [("missing-ref", "merge-base"), ("working", "diff"), ("working", "ls-files")],
 )
 @pytest.mark.parametrize("as_json", [False, True])
 def test_git_inventory_failure_never_becomes_successful_empty_plan(
@@ -550,3 +552,142 @@ def test_deleted_or_renamed_test_uses_remaining_suite(tmp_path) -> None:
     assert plan.lane == "full"
     assert plan.modules == ["__all__"]
     assert "tests/test_removed.py" not in plan.command
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        ["docs/removed-page.md"],
+        ["fixtures/old.json", "fixtures/new.json"],
+        ["research/evidence/sample.yaml"],
+    ],
+)
+def test_checkpoint_selects_deleted_renamed_and_non_python_references(tmp_path, changed) -> None:
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    for index, path in enumerate(changed):
+        (tests / f"test_consumer_{index}.py").write_text(f"RESOURCE = {path!r}\n")
+    (tests / "test_unrelated.py").write_text("def test_unrelated(): pass\n")
+
+    plan = plan_devloop(changed, tmp_path, checkpoint=True)
+
+    assert plan.modules == [f"tests/test_consumer_{i}.py" for i in range(len(changed))]
+    assert plan.lane == "focused"
+    assert all((tmp_path / module).is_file() for module in plan.modules)
+
+
+def test_checkpoint_selects_asset_runtime_loader_consumers(tmp_path) -> None:
+    source = tmp_path / "src/evallab"
+    source.mkdir(parents=True)
+    (source / "guide.py").write_text('GUIDE = "docs" / "guide.md"\n')
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests/test_guide.py").write_text("from evallab.guide import GUIDE\n")
+
+    plan = plan_devloop(["docs/guide.md"], tmp_path, checkpoint=True)
+
+    assert plan.modules == ["tests/test_guide.py"]
+
+
+@pytest.mark.parametrize("changed", [[], ["src/evallab/unrelated.py"], ["Makefile"]])
+def test_checkpoint_always_selects_repository_contracts(tmp_path, changed) -> None:
+    contracts = {
+        "tests/test_quality_gates.py",
+        "tests/test_ci_coverage.py",
+        "tests/test_governance.py",
+        "tests/test_route_page_links.py",
+        "tests/test_fixture_conformance.py",
+        "research/analysis/tests/test_harness_first_analysis.py",
+        "tests/test_attach.py::TestFrontMatterParsing",
+    }
+    for selector in contracts:
+        path = tmp_path / selector.partition("::")[0]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("def test_contract(): pass\n")
+
+    plan = plan_devloop(changed, tmp_path, checkpoint=True)
+
+    assert set(plan.modules) == contracts
+    assert "-n2" in plan.command
+    assert "__all__" not in plan.modules
+
+
+def test_checkpoint_keeps_renamed_test_and_consumers_of_deleted_name(tmp_path) -> None:
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests/test_new.py").write_text("def test_new(): pass\n")
+    (tmp_path / "tests/test_manifest.py").write_text('FILES = ["tests/test_old.py"]\n')
+
+    plan = plan_devloop(["tests/test_old.py", "tests/test_new.py"], tmp_path, checkpoint=True)
+
+    assert plan.modules == ["tests/test_manifest.py", "tests/test_new.py"]
+    assert "tests/test_old.py" not in shlex.split(plan.command)
+
+
+def test_branch_inventory_includes_commits_both_rename_sides_and_local_edits(tmp_path) -> None:
+    def git(*args):
+        return subprocess.run(
+            ["git", *args], cwd=tmp_path, check=True, capture_output=True, text=True
+        ).stdout.strip()
+
+    git("init", "-q")
+    git("config", "user.email", "test@example.invalid")
+    git("config", "user.name", "Test")
+    (tmp_path / "old.json").write_text("{}\n")
+    (tmp_path / "tracked.py").write_text("before = 1\n")
+    git("add", "old.json", "tracked.py")
+    git("commit", "-qm", "base")
+    git("branch", "baseline")
+    git("mv", "old.json", "new.json")
+    git("commit", "-qm", "rename")
+    (tmp_path / "tracked.py").write_text("after = 2\n")
+    (tmp_path / "untracked file.json").write_text("{}\n")
+
+    assert get_changed_files(tmp_path, since="baseline") == [
+        "new.json",
+        "old.json",
+        "tracked.py",
+        "untracked file.json",
+    ]
+
+
+def test_checkpoint_includes_individually_declared_test_file(tmp_path) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["research/test_single.py"]\n'
+    )
+    (tmp_path / "research").mkdir()
+    (tmp_path / "research/test_single.py").write_text('ASSET = "fixtures/sample.json"\n')
+
+    plan = plan_devloop(["fixtures/sample.json"], tmp_path, checkpoint=True)
+
+    assert plan.modules == ["research/test_single.py"]
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        ["src/evallab/removed.py"],
+        ["src/evallab/removed.py", "src/evallab/renamed.py"],
+    ],
+)
+def test_checkpoint_preserves_consumers_of_removed_module_names(tmp_path, changed) -> None:
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests/test_consumer.py").write_text("from evallab.removed import load\n")
+
+    plan = plan_devloop(changed, tmp_path, checkpoint=True)
+
+    assert plan.modules == ["tests/test_consumer.py"]
+
+
+def test_checkpoint_does_not_expand_prose_references_into_runtime_suites(tmp_path) -> None:
+    source = tmp_path / "src/evallab"
+    source.mkdir(parents=True)
+    (source / "unrelated.py").write_text(
+        '# See docs/topic.md.\nHELP = "Read docs/topic.md before invoking this command."\n'
+    )
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests/test_unrelated.py").write_text(
+        "import evallab.unrelated\npytestmark = pytest.mark.docs_consumer\n"
+    )
+
+    plan = plan_devloop(["docs/topic.md"], tmp_path, checkpoint=True)
+
+    assert plan.modules == []

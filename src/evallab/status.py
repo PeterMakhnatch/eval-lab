@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import socket
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -104,14 +103,6 @@ def probe_postgres(url: str | None = None) -> bool:
     except Exception:
         return False
     return True
-
-
-def probe_phoenix(host: str = PHOENIX_HOST, port: int = PHOENIX_PORT) -> bool:
-    try:
-        with socket.create_connection((host, port), timeout=0.2):
-            return True
-    except OSError:
-        return False
 
 
 def _availability_for_presence(present: bool) -> Availability:
@@ -457,8 +448,6 @@ def build_status_snapshot(
         postgres_ok = False
     if phoenix_probe is not None:
         phoenix_ok = phoenix_probe()
-    elif lab_checkout:
-        phoenix_ok = probe_phoenix()
     else:
         phoenix_ok = False
     queue_present = layout.queue_root.is_dir()

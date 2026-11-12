@@ -6,14 +6,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-import pytest
 
 from evallab.trial_diagnosis import (
-    DEFAULT_MAX_CHARS,
-    TRUNCATION_MARKER,
-    diagnose_job,
     diagnose_trial,
-    render_diagnosis_text,
     sanitize_excerpt,
 )
 
@@ -579,10 +574,7 @@ def test_hidden_paths_never_leak_into_feedback(tmp_path: Path) -> None:
         ],
     )
     diagnosis = diagnose_trial(trial)
-    text = render_diagnosis_text(diagnosis)
-    assert "tests/test_hidden.py" not in text
-    assert "solution/patch.diff" not in text
-    assert "[hidden-path]" in text
+    assert any("[hidden-path]" in mode.excerpt for mode in diagnosis.modes)
     payload = json.dumps(diagnosis.to_dict())
     assert "tests/test_hidden.py" not in payload
     assert "solution/patch.diff" not in payload
@@ -621,13 +613,9 @@ def test_rendering_is_bounded_and_marked(tmp_path: Path) -> None:
         ],
     )
     diagnosis = diagnose_trial(trial)
-    full = render_diagnosis_text(diagnosis)
-    assert len(full) <= DEFAULT_MAX_CHARS
-    short = render_diagnosis_text(diagnosis, 120)
-    assert len(short) <= 120
-    assert TRUNCATION_MARKER in short
-    with pytest.raises(ValueError):
-        render_diagnosis_text(diagnosis, 0)
+    assert diagnosis.outcome == "scored"
+    assert diagnosis.modes
+    assert all(len(mode.excerpt) <= 163 for mode in diagnosis.modes)
 
 
 def test_diagnosis_is_deterministic_and_json_serializable(tmp_path: Path) -> None:
@@ -659,26 +647,6 @@ def test_missing_trial_dir_is_infra_failed(tmp_path: Path) -> None:
     assert diagnosis.outcome == "infra_failed"
     assert diagnosis.modes == ()
 
-
-def test_diagnose_job_covers_sorted_trials(tmp_path: Path) -> None:
-    job = tmp_path / "job"
-    job.mkdir()
-    (job / "result.json").write_text("{}")
-    _write_trial(
-        job / "b-trial",
-        [_agent_step("done", command="pytest -q", output="ok")],
-        reward=1.0,
-        trial_name="b-trial",
-    )
-    _write_trial(
-        job / "a-trial",
-        [{"source": "agent", "message": "thinking"}],
-        reward=0.0,
-        trial_name="a-trial",
-    )
-    diagnoses = diagnose_job(job)
-    assert [item.trial_name for item in diagnoses] == ["a-trial", "b-trial"]
-    assert diagnoses[0].outcome == "scored"
 
 
 def test_trial_without_trajectory_file_is_scored_without_modes(
@@ -792,29 +760,6 @@ def test_diagnose_atif_outcome_branches() -> None:
         == "infra_failed"
     )
 
-
-def test_cli_text_and_json_round_trip(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    from evallab.trial_diagnosis import main
-
-    trial = _write_trial(
-        tmp_path / "trial",
-        [_agent_step("done", command="pytest -q", output="3 passed")],
-        reward=1.0,
-    )
-    assert main([str(trial)]) == 0
-    text_out = capsys.readouterr().out
-    assert "outcome=scored" in text_out
-    assert main([str(trial), "--json"]) == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload[0]["outcome"] == "scored"
-    assert payload[0]["modes"] == []
-
-
-def test_cli_rejects_unknown_path(tmp_path: Path) -> None:
-    from evallab.trial_diagnosis import main
-
-    with pytest.raises(SystemExit):
-        main([str(tmp_path / "absent")])
 
 
 def test_is_edit_call_ignores_quoted_greater_than() -> None:

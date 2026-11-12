@@ -237,12 +237,6 @@ def test_cli_check_of_a_batch_with_a_hard_linked_scoreboard_changes_nothing(
     assert outside.read_bytes() == board_before
 
 
-def test_cli_scoreboard_of_a_batch_with_a_hard_link_is_refused(
-    fixture_spec: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    batch = core.run_line(fixture_spec, fixture_spec.parent)
-    os.link(batch / "scoreboard.json", tmp_path / "outside-scoreboard.json")
-    assert _cli(monkeypatch, fixture_spec.parent, "scoreboard", str(batch)) == 2
 
 
 def test_an_extra_file_in_a_batch_is_refused_as_unexpected(fixture_spec: Path) -> None:

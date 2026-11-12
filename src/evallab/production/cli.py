@@ -14,7 +14,6 @@ from collections.abc import Mapping
 from contextlib import closing
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlsplit
 
 _CONNECTION_URL = re.compile(r"(?i)\b(?:postgres(?:ql)?|nats|tls|ws|wss)://[^\s\"'<>]+")
 _LIVE_DATABASE = Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite"
@@ -195,7 +194,7 @@ def _database(root: Path, value: str | None) -> str | Path:
     return _resolve(root, Path(value))
 
 
-def _emit(payload: dict[str, Any], args: argparse.Namespace, *, error: bool = False) -> None:
+def _emit(payload: dict[str, Any], *, error: bool = False) -> None:
     from evallab.explorer import redact_mapping, redact_text
 
     secrets = {
@@ -204,17 +203,6 @@ def _emit(payload: dict[str, Any], args: argparse.Namespace, *, error: bool = Fa
             "API_KEY", "ACCESS_KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL",
         ))
     }
-    value = args.database
-    if value and "://" in value:
-        secrets.add(value)
-        try:
-            parsed = urlsplit(value)
-            if parsed.password:
-                secrets.add(unquote(parsed.password))
-            elif parsed.scheme in {"nats", "tls"} and parsed.username:
-                secrets.add(unquote(parsed.username))
-        except ValueError:
-            pass
 
     def scrub(value: Any) -> Any:
         if isinstance(value, str):
@@ -401,16 +389,16 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
     try:
         root = _resolve(root, args.repo_root) if args.repo_root is not None else root.resolve()
         if args.prod_command == "project-actor":
-            _emit({"command": args.prod_command, **_project_actor(args, root)}, args)
+            _emit({"command": args.prod_command, **_project_actor(args, root)})
             return 0
         if args.prod_command == "export-runs":
-            _emit({"command": args.prod_command, **_export_runs(args, root)}, args)
+            _emit({"command": args.prod_command, **_export_runs(args, root)})
             return 0
         if args.prod_command == "export-cheatbench-runs":
-            _emit({"command": args.prod_command, **_export_cheatbench_runs(args, root)}, args)
+            _emit({"command": args.prod_command, **_export_cheatbench_runs(args, root)})
             return 0
         if args.prod_command == "export-cluster-scope":
-            _emit({"command": args.prod_command, **_export_cluster_scope(args, root)}, args)
+            _emit({"command": args.prod_command, **_export_cluster_scope(args, root)})
             return 0
         if args.prod_command == "import-run-facets":
             from evallab.production.cloud_trace_db import CloudTraceDatabase, import_run_facets
@@ -420,7 +408,7 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 receipt = import_run_facets(
                     database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
                 )
-            _emit({"command": args.prod_command, **receipt}, args)
+            _emit({"command": args.prod_command, **receipt})
             return 0
         if args.prod_command == "import-trace-findings":
             from evallab.production.cloud_trace_db import CloudTraceDatabase
@@ -431,7 +419,7 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 receipt = import_trace_findings(
                     database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
                 )
-            _emit({"command": args.prod_command, **receipt}, args)
+            _emit({"command": args.prod_command, **receipt})
             return 0
         else:
             from evallab.production.cloud_trace_db import CloudTraceDatabase, import_run_clusters
@@ -442,14 +430,14 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                     database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
                     drop_unfaceted=args.drop_unfaceted,
                 )
-            _emit({"command": args.prod_command, **receipt}, args)
+            _emit({"command": args.prod_command, **receipt})
             return 0
     except KeyboardInterrupt:
-        _emit({"command": args.prod_command, "event": "interrupted"}, args, error=True)
+        _emit({"command": args.prod_command, "event": "interrupted"}, error=True)
         return 130
     except Exception as exc:
         _emit({
             "command": args.prod_command,
             "error": {"type": type(exc).__name__, "message": str(exc)},
-        }, args, error=True)
+        }, error=True)
         return 2

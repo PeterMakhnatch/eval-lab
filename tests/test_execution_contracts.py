@@ -10,7 +10,6 @@ from typing import Any
 import pytest
 
 from evallab.execution_contracts import (
-    DAYTONA_AUTO_STOP_INTERVAL_MINS,
     MAX_TRIAL_TIMEOUT_SECONDS,
     DispatchCapacity,
     PaidRunAuthorization,
@@ -725,24 +724,5 @@ def test_validate_request_gates_openrouter_terminus_selector(
     else:
         with pytest.raises(ValueError):
             validate_request(req)
-
-
-def test_daytona_auto_stop_covers_max_model_call_plus_503_wait() -> None:
-    """The idle stop must outlast the longest sandbox-quiet window.
-
-    One full model call (the proxy's upstream timeout) plus the bounded 503
-    wait, rounded up to whole minutes — and at least 15 minutes. G5 lost 3
-    sandboxes under the old 5-minute stop while the proxy was still waiting
-    through 503s.
-    """
-    import importlib.util
-
-    source = Path(__file__).resolve().parents[1] / "containers" / "zai_openapi_secret_proxy.py"
-    spec = importlib.util.spec_from_file_location("auto_stop_proxy_probe", source)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    longest_quiet_seconds = module.UPSTREAM_TIMEOUT_SECONDS + module.UPSTREAM_503_WAIT_DEFAULT_SECONDS
-    assert longest_quiet_seconds <= DAYTONA_AUTO_STOP_INTERVAL_MINS * 60
 
 

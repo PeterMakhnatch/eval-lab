@@ -341,8 +341,6 @@ ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION = 150_000
 ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION = 500_000
 PROXY_LIVE_DIR_ENV = "EVALLAB_PROXY_LIVE_DIR"
 PROXY_LIVE_DIR_NAME = "proxy-live"
-PROXY_LIVE_CALLS_FILE = "calls.jsonl"
-PROXY_LIVE_LIMITS_FILE = "limits.json"
 ZAI_OPENAPI_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     {
         ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
@@ -414,20 +412,11 @@ def zai_openapi_price_for(model: str) -> tuple[int, int]:
 
 
 TINKER_MODEL_PREFIX = "tinker/"
-TINKER_UPSTREAM_HOST = "tinker.thinkingmachines.dev"
-TINKER_UPSTREAM_PATH = "/services/tinker-prod/oai/api/v1/chat/completions"
-TINKER_UPSTREAM_DEFAULT = f"https://{TINKER_UPSTREAM_HOST}"
 TINKER_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset({"TINKER_API_KEY"})
 TINKER_PROXY_TOKEN = "evallab-proxy-placeholder"
 TINKER_SECRET_FILE_ENV = "EVALLAB_TINKER_SECRET_FILE"
-TINKER_SECRET_PATH_ENV = "EVALLAB_TINKER_SECRET_PATH"
 TINKER_PROXY_CAPABILITY_ENV = "EVALLAB_TINKER_PROXY_CAPABILITY"
-TINKER_CAPABILITY_EXPIRES_AT_ENV = "EVALLAB_TINKER_CAPABILITY_EXPIRES_AT"
 TINKER_UPSTREAM_ENV = "EVALLAB_TINKER_UPSTREAM"
-TINKER_PROXY_ATTEMPT_ID_ENV = "EVALLAB_TINKER_ATTEMPT_ID"
-TINKER_PROXY_USAGE_FILE_ENV = "EVALLAB_TINKER_USAGE_FILE"
-TINKER_EXPECTED_BASE_ENV = "EVALLAB_TINKER_EXPECTED_BASE"
-TINKER_PROXY_PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
 #: Thinking Machines Tinker list prices per base model (USD per 1M tokens,
 #: micros; prefill/sample — cached prefill is deliberately not credited in
 #: settlement). Qwen/Qwen3.6-35B-A3B 0.45/1.335; Qwen/Qwen3.8-27B 0.6975/5.595;
@@ -453,7 +442,6 @@ TINKER_CACHED_PREFILL_MICROS_PER_MILLION: Mapping[str, int] = MappingProxyType(
     }
 )
 #: Context window shared by the Tinker-hosted Qwen students (input+output).
-TINKER_CONTEXT_TOKENS = 65_536
 #: ``tinker://<run-id>:train:<index>/sampler_weights/<step>`` — the checkpoint
 #: form Tinker's OpenAI-compatible sampler accepts. Run ids are opaque
 #: alphanumeric (including ``-``/``_``); train index and step are integers.
@@ -550,7 +538,6 @@ MIMO_SELFHOSTED_MODEL_SELECTORS: frozenset[str] = frozenset(
     f"{MIMO_SELFHOSTED_MODEL_PREFIX}{native}" for native in MIMO_SELFHOSTED_NATIVE_MODELS
 )
 #: LiteLLM/OpenAI-compatible id sent upstream (served-model-name).
-MIMO_SELFHOSTED_LITELLM_MODEL = f"openai/{MIMO_SELFHOSTED_NATIVE_MODEL}"
 #: Context window as served (input+output).
 MIMO_SELFHOSTED_CONTEXT_TOKENS = 262_144
 #: Sampling the proxy enforces on every call (the model's generation_config):
@@ -570,7 +557,6 @@ MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT_ENV = "EVALLAB_MIMO_SELFHOSTED_CAPABILITY_
 MIMO_SELFHOSTED_UPSTREAM_ENV = "EVALLAB_MIMO_SELFHOSTED_UPSTREAM"
 MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV = "EVALLAB_MIMO_SELFHOSTED_ATTEMPT_ID"
 MIMO_SELFHOSTED_PROXY_USAGE_FILE_ENV = "EVALLAB_MIMO_SELFHOSTED_USAGE_FILE"
-MIMO_SELFHOSTED_PROXY_PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
 MIMO_SELFHOSTED_PROXY_PROVIDER = "mimo_selfhosted"
 #: Operator knob for the secret proxy's bounded upstream-503 wait: total
 #: seconds one model call waits through 503s (re-issuing the same
@@ -581,17 +567,6 @@ MIMO_SELFHOSTED_PROXY_PROVIDER = "mimo_selfhosted"
 #: ``runner._terminus_proxy_env``. Default covers a full Modal cold start
 #: with headroom (G5 2026-10-01 measured 3.5-4 min).
 PROXY_UPSTREAM_503_WAIT_ENV = "EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS"
-PROXY_UPSTREAM_503_WAIT_DEFAULT_SECONDS = 360.0
-PROXY_UPSTREAM_503_WAIT_MAX_SECONDS = 3600.0
-#: Daytona sandbox idle auto-stop, in whole minutes, applied by
-#: ``harbor_daytona.BoundedDaytonaEnvironment``. It must cover the longest a
-#: trial can go without sandbox activity: one full model call (the proxy's
-#: 600 s upstream timeout) plus the bounded 503 wait above (360 s default),
-#: rounded up — 16 minutes. G5 (2026-10-01) lost 3 sandboxes after 255-281 s
-#: model stalls under the old 5-minute stop while the proxy was still inside
-#: its 503 wait. Still bounded well below the trial TTL (execution timeout
-#: plus allowance) and the reservation monitor, so idle sandboxes cannot leak.
-DAYTONA_AUTO_STOP_INTERVAL_MINS = 16
 
 #: Env var carrying the per-job capture route token into the metered secret
 #: proxy. When set, the proxy forwards upstream to ``/t/<token>/<path>``;
@@ -982,9 +957,6 @@ def mimo_selfhosted_trial_cost_usd(
 #: admitted; anything else under the prefix fails closed in
 #: :func:`parse_openrouter_model`.
 OPENROUTER_MODEL_PREFIX = "openrouter-metered/"
-OPENROUTER_UPSTREAM_HOST = "openrouter.ai"
-OPENROUTER_UPSTREAM_PATH = "/api/v1/chat/completions"
-OPENROUTER_UPSTREAM_DEFAULT = f"https://{OPENROUTER_UPSTREAM_HOST}"
 
 
 @dataclass(frozen=True)
@@ -1159,7 +1131,6 @@ OPENROUTER_CAPABILITY_EXPIRES_AT_ENV = "EVALLAB_OPENROUTER_CAPABILITY_EXPIRES_AT
 OPENROUTER_UPSTREAM_ENV = "EVALLAB_OPENROUTER_UPSTREAM"
 OPENROUTER_PROXY_ATTEMPT_ID_ENV = "EVALLAB_OPENROUTER_ATTEMPT_ID"
 OPENROUTER_PROXY_USAGE_FILE_ENV = "EVALLAB_OPENROUTER_USAGE_FILE"
-OPENROUTER_PROXY_PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
 OPENROUTER_PROXY_PROVIDER = "openrouter"
 
 
@@ -1234,7 +1205,6 @@ class ProfileInferenceSettings(BaseModel):
     max_tokens: int | None = None
 
 
-InferenceSettings = ProfileInferenceSettings
 ZAI_MINISWE_AGENT_IMPORT_PATH = "evallab.harbor_zai_miniswe:SecretSafeZaiMiniSweAgent"
 REDACTED_SECRET_VALUE = "<redacted>"
 REDACTED_SECRET_BYTES = REDACTED_SECRET_VALUE.encode()
@@ -1566,28 +1536,6 @@ def materialize_zai_openapi_secret_file(
     persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
     return destination
 
-
-def materialize_tinker_secret_file(
-    destination: Path,
-    environment: Mapping[str, str] | None = None,
-) -> Path:
-    """Write the Tinker API key to a 0400 file for the host loopback proxy."""
-    source = os.environ if environment is None else environment
-    value = source.get("TINKER_API_KEY")
-    if value == TINKER_PROXY_TOKEN:
-        value = None
-    if not value:
-        existing = source.get(TINKER_SECRET_FILE_ENV)
-        if existing:
-            path = Path(existing)
-            try:
-                read_owner_secret_file(path)
-            except OSError as exc:
-                raise RuntimeError("Tinker provider credential is missing") from exc
-            return path
-        raise RuntimeError("Tinker provider credential is missing")
-    persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
-    return destination
 
 
 def materialize_mimo_selfhosted_secret_file(
@@ -2055,11 +2003,7 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
             raise ValueError("mimoagent requires a supported locked task environment")
     if request.agent == TERMINUS_AGENT:
         model = request.model
-        if is_tinker_terminus_model(model):
-            # Strict fail-closed parse: unknown base or malformed checkpoint
-            # refuses here, before any spec freeze or execution.
-            parse_tinker_model(model)
-        elif is_breaker_selfhosted_model(model):
+        if is_breaker_selfhosted_model(model):
             parse_breaker_selfhosted_model(model)
         elif is_mimo_selfhosted_model(model):
             # Exactly one self-hosted selector is admitted; anything else
@@ -2075,10 +2019,8 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
         }:
             raise ValueError(
                 "terminus-2 requires a Z.ai standard-API model "
-                f"({sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}), a Tinker "
-                f"route ({TINKER_MODEL_PREFIX}<base>[@tinker://<run>:train:<i>"
-                "/sampler_weights/<step>]), the self-hosted route "
-                f"{MIMO_SELFHOSTED_MODEL_SELECTOR!r}, the matched breaker-selfhosted "
+                f"({sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}), "
+                f"the self-hosted route {MIMO_SELFHOSTED_MODEL_SELECTOR!r}, the matched breaker-selfhosted "
                 f"base/L1 routes, the OpenRouter routes {OPENROUTER_MODEL_SELECTORS!r}, or installed local "
                 f"{TERMINUS_LOCAL_MODEL_SELECTOR!r}; Coding Plan credentials "
                 "are not admitted for this harness"

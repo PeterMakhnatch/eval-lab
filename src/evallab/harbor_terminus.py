@@ -83,22 +83,16 @@ from evallab.execution_contracts import (
     OPENROUTER_PROXY_TOKEN,
     TERMINUS_LOCAL_MODEL_SELECTOR,
     TERMINUS_PROXY_URL_ENV,
-    TINKER_CONTEXT_TOKENS,
-    TINKER_MODEL_PREFIX,
-    TINKER_PROXY_CAPABILITY_ENV,
-    TINKER_PROXY_TOKEN,
     ZAI_OPENAPI_ALLOWED_MODELS,
     ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS,
     ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
     ZAI_OPENAPI_PROXY_TOKEN,
-    TinkerModelSpec,
     collected_secret_values,
     is_breaker_selfhosted_model,
     is_openrouter_model,
     openrouter_route,
     parse_breaker_selfhosted_model,
     parse_mimo_selfhosted_model,
-    parse_tinker_model,
 )
 from evallab.harbor_common import sanitize_native_trajectory
 from evallab.loopfix import (
@@ -332,7 +326,6 @@ async def apply_mimo_blocklist(environment: Any) -> str:
 #: The capability token (never the provider key) is what lands here.
 _PROVIDER_KEY_ENVS = {
     "zai": "ZAI_API_KEY",
-    "tinker": "OPENAI_API_KEY",
     "mimo_selfhosted": "OPENAI_API_KEY",
     "breaker_selfhosted": "OPENAI_API_KEY",
     "openrouter": "OPENAI_API_KEY",
@@ -376,12 +369,10 @@ _FORBIDDEN_EXTRA_ENV_PREFIXES = (
 )
 
 
-def _resolve_metered_model(model_name: str | None) -> tuple[str, TinkerModelSpec | None, bool]:
-    """Return the validated model string, its Tinker spec, and the MiMo flag.
+def _resolve_metered_model(model_name: str | None) -> tuple[str, bool]:
+    """Return the validated model string and the MiMo flag.
 
-    Z.ai routes must be one of the exact admitted selectors. Tinker routes
-    are parsed strictly (fail-closed on unknown bases and malformed
-    checkpoints) so the selector string fully identifies the sampled weights.
+    Z.ai routes must be one of the exact admitted selectors.
     The self-hosted MiMo route admits exactly one selector; anything else
     under ``selfhosted/`` fails closed. The OpenRouter route admits exactly
     the selectors of its route table and keeps the STOCK Terminus JSON parser
@@ -390,23 +381,19 @@ def _resolve_metered_model(model_name: str | None) -> tuple[str, TinkerModelSpec
     """
     if isinstance(model_name, str) and model_name.startswith(OPENROUTER_MODEL_PREFIX):
         openrouter_route(model_name)
-        return model_name, None, False
+        return model_name, False
     if is_breaker_selfhosted_model(model_name):
         parse_breaker_selfhosted_model(model_name)
         assert isinstance(model_name, str)
-        return model_name, None, False
+        return model_name, False
     if isinstance(model_name, str) and model_name.startswith(MIMO_SELFHOSTED_MODEL_PREFIX):
         parse_mimo_selfhosted_model(model_name)
-        return model_name, None, True
-    if isinstance(model_name, str) and model_name.startswith(TINKER_MODEL_PREFIX):
-        spec = parse_tinker_model(model_name)
-        return model_name, spec, False
+        return model_name, True
     if model_name in ZAI_OPENAPI_ALLOWED_MODELS:
-        return model_name, None, False
+        return model_name, False
     raise ValueError(
         "SecretSafeTerminus2 requires an exact metered model: one of "
-        f"{sorted(ZAI_OPENAPI_ALLOWED_MODELS)}, a Tinker route "
-        "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/<step>]', "
+        f"{sorted(ZAI_OPENAPI_ALLOWED_MODELS)}, "
         f"the self-hosted route {MIMO_SELFHOSTED_MODEL_SELECTOR!r}, "
         f"the matched breaker-selfhosted base/L1 routes, or OpenRouter {OPENROUTER_MODEL_SELECTORS!r}; "
         f"got {model_name!r}. Coding Plan credentials are not admitted."
@@ -580,7 +567,6 @@ class SecretSafeTerminus2(Terminus2):
         self._loop_stop_pending = False
         self._pending_composed_message = ""
         self._local_binding: OllamaBinding | None = None
-        self._tinker_spec: TinkerModelSpec | None = None
         self._mimo_selfhosted = False
         self._prose_completions = 0
         self._pending_prose_step: Any = _NO_PENDING_PROSE_STEP
@@ -594,7 +580,7 @@ class SecretSafeTerminus2(Terminus2):
             self._local_binding = resolve_ollama_binding(model_name)
             model = model_name
         else:
-            model, self._tinker_spec, self._mimo_selfhosted = _resolve_metered_model(model_name)
+            model, self._mimo_selfhosted = _resolve_metered_model(model_name)
         if api_base is not None:
             raise ValueError(
                 "SecretSafeTerminus2 rejects api_base overrides: "
@@ -689,25 +675,6 @@ class SecretSafeTerminus2(Terminus2):
                     OPENROUTER_PROXY_CAPABILITY_ENV, OPENROUTER_PROXY_TOKEN
                 )
                 provider = "openrouter"
-            elif self._tinker_spec is not None:
-                # Context/pricing of the pinned Tinker base is runtime-bound:
-                # the 64K window drives native context summarization before
-                # overflow, and the table price keeps native cost estimates
-                # honest. A caller-supplied model_info can never override it.
-                if kwargs.get("model_info") is not None:
-                    raise ValueError(
-                        "Tinker model context/pricing is runtime-bound, not a harness override"
-                    )
-                spec = self._tinker_spec
-                kwargs["model_info"] = {
-                    "max_input_tokens": TINKER_CONTEXT_TOKENS,
-                    "max_output_tokens": TINKER_CONTEXT_TOKENS,
-                    "input_cost_per_token": spec.input_cost_micros_per_million / 1e12,
-                    "output_cost_per_token": spec.output_cost_micros_per_million / 1e12,
-                    "litellm_provider": "openai",
-                }
-                capability = _require_capability(TINKER_PROXY_CAPABILITY_ENV, TINKER_PROXY_TOKEN)
-                provider = "tinker"
             else:
                 capability = _require_capability(
                     ZAI_OPENAPI_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN

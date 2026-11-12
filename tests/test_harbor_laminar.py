@@ -20,6 +20,7 @@ from types import SimpleNamespace
 import pytest
 
 from evallab import harbor_laminar as hl
+from evallab.execution_contracts import MIMO_AGENT_IMPORT_PATH
 
 
 class FakeSpan:
@@ -92,7 +93,7 @@ def _mimo_config(trials_dir, trial_name="trial-a"):
         trial_name=trial_name,
         trials_dir=Path(trials_dir),
         job_id="job-1",
-        agent=SimpleNamespace(name=hl.MIMO_AGENT_IMPORT_PATH, import_path=None),
+        agent=SimpleNamespace(name=MIMO_AGENT_IMPORT_PATH, import_path=None),
     )
 
 
@@ -392,7 +393,7 @@ def test_canonical_cli_agent_identity_opens_sdk_trace_but_builtin_precedence_doe
     AgentConfig = pytest.importorskip("harbor.models.trial.config").AgentConfig
     plugin = hl.LaminarTrialPlugin()
     config = _mimo_config(tmp_path)
-    config.agent = AgentConfig(name=hl.MIMO_AGENT_IMPORT_PATH)
+    config.agent = AgentConfig(name=MIMO_AGENT_IMPORT_PATH)
     trial_id = uuid.uuid4()
     event = _event(config, trial_id, event_value="start")
     asyncio.run(plugin._on_trial_started(event))
@@ -402,7 +403,7 @@ def test_canonical_cli_agent_identity_opens_sdk_trace_but_builtin_precedence_doe
     assert sidechannel["trace_id"] == trace.trace_id
 
     other = _other_config(tmp_path)
-    other.agent = AgentConfig(name="nop", import_path=hl.MIMO_AGENT_IMPORT_PATH)
+    other.agent = AgentConfig(name="nop", import_path=MIMO_AGENT_IMPORT_PATH)
     other_id = uuid.uuid4()
     asyncio.run(plugin._on_trial_started(_event(other, other_id, event_value="start")))
     assert str(other_id) not in hl._TRACES
@@ -474,65 +475,6 @@ def test_parent_metadata_transport_allowlist(monkeypatch, tmp_path):
     assert hl._load_parent_metadata()["card"] is None
     monkeypatch.delenv(hl.METADATA_ENV)
     assert hl._load_parent_metadata()["card"] is None
-
-
-def _valid_root_context(trace):
-    trace.trace_id = str(uuid.uuid4())
-    root_span_id = 0x123456789ABCDEF
-    trace.root_context = json.dumps(
-        {"trace_id": trace.trace_id, "span_id": str(uuid.UUID(int=root_span_id))}
-    )
-    return uuid.UUID(trace.trace_id).hex, f"{root_span_id:016x}"
-
-
-def test_native_sandbox_parent_is_actual_trial_root_not_environment_session_or_phase(
-    fake_runtime, tmp_path
-):
-    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
-    trace_id, parent_id = _valid_root_context(trace)
-    phase = fake_runtime.start_span("harbor.agent")
-    phase._context = json.dumps(
-        {"trace_id": trace.trace_id, "span_id": str(uuid.UUID(int=0x2222222222222222))}
-    )
-    trace.phase_spans[1] = phase
-    labels = hl.daytona_telemetry_labels(config.trials_dir / config.trial_name)
-    assert labels["evallab.trace_id"] == trace_id
-    assert labels["evallab.parent_span_id"] == parent_id
-    assert labels["trial_id"] == str(trial_id)
-    assert labels["evallab.session_id"] == "job-x"
-
-
-def test_native_sandbox_directory_isolates_equal_trial_names_across_jobs(fake_runtime, tmp_path):
-    first_id, first_config, first = _register_trace(fake_runtime, tmp_path / "job-one")
-    second_id, second_config, second = _register_trace(fake_runtime, tmp_path / "job-two")
-    _valid_root_context(first)
-    _valid_root_context(second)
-    assert hl.daytona_telemetry_labels(first_config.trials_dir / "trial-a")["trial_id"] == str(
-        first_id
-    )
-    assert hl.daytona_telemetry_labels(second_config.trials_dir / "trial-a")["trial_id"] == str(
-        second_id
-    )
-
-
-def test_native_sandbox_context_stays_unbound_after_close_or_ambiguous_open(fake_runtime, tmp_path):
-    _, config, trace = _register_trace(fake_runtime, tmp_path)
-    _valid_root_context(trace)
-    trace.closed = True
-    assert hl.daytona_telemetry_labels(config.trials_dir / config.trial_name) == {}
-    trace.closed = False
-    _, _, other = _register_trace(fake_runtime, tmp_path)
-    _valid_root_context(other)
-    assert hl.daytona_telemetry_labels(config.trials_dir / config.trial_name) == {}
-
-
-def test_native_sandbox_labels_cannot_silently_change_comma_delimited_identity(
-    fake_runtime, tmp_path
-):
-    _, config, trace = _register_trace(fake_runtime, tmp_path)
-    _valid_root_context(trace)
-    trace.session_id = "job-one,trial_id=different"
-    assert hl.daytona_telemetry_labels(config.trials_dir / config.trial_name) == {}
 
 
 # ---------------------------------------------------------------------------
@@ -780,105 +722,6 @@ def test_verifier_wrapper_without_usable_rewards_returns_result_unchanged(
     assert trace.phase_spans == {}
 
 
-def _install_egress_wrapper(monkeypatch, original):
-    pytest.importorskip("harbor.environments.daytona.environment")
-    from evallab.harbor_daytona import BoundedDaytonaEnvironment
-
-    # Snapshot the class attribute so monkeypatch restores the real method.
-    monkeypatch.setattr(BoundedDaytonaEnvironment, "_lock_egress", original)
-    hl._wrap_egress_lock()
-    wrapped = BoundedDaytonaEnvironment._lock_egress
-    assert wrapped is not original
-    assert getattr(wrapped, "__evallab_laminar_wrapped__", False) is True
-    hl._wrap_egress_lock()
-    assert BoundedDaytonaEnvironment._lock_egress is wrapped
-    return wrapped
-
-
-def _egress_original(error=None):
-    calls = []
-
-    async def original(self):
-        calls.append(self)
-        if error is not None:
-            raise error
-
-    return original, calls
-
-
-def _daytona_env(context_id, *, network_block_all=True):
-    return SimpleNamespace(
-        context_id=context_id,
-        _sandbox=SimpleNamespace(id="sandbox-1", network_block_all=network_block_all),
-    )
-
-
-def test_egress_lock_wrapper_records_verified_lock_on_span_and_root(
-    fake_runtime, tmp_path, monkeypatch
-):
-    trial_id, _, trace = _register_trace(fake_runtime, tmp_path)
-    original, calls = _egress_original()
-    lock_egress = _install_egress_wrapper(monkeypatch, original)
-    env = _daytona_env(str(trial_id))
-
-    assert asyncio.run(lock_egress(env)) is None
-    assert calls == [env]
-    (span,) = _spans_named(fake_runtime, "harbor.egress_lock")
-    assert span.ended and span.error_type is None
-    assert span.metadata["verified"] is True
-    assert span.metadata["network_block_all"] is True
-    assert span.metadata["sandbox_id"] == "sandbox-1"
-    assert span.metadata["mechanism"] == "daytona update_network_settings(network_block_all=True)"
-    for observed in (trace.metadata, trace.root.metadata):
-        assert observed["egress_lock_observed"] == "verified"
-        assert observed["network_block_all"] is True
-
-
-@pytest.mark.parametrize("error", _OUTCOMES[1:])
-def test_egress_lock_wrapper_never_marks_failed_or_cancelled_lock_verified(
-    fake_runtime, tmp_path, monkeypatch, error
-):
-    trial_id, _, trace = _register_trace(fake_runtime, tmp_path)
-    original, calls = _egress_original(error)
-    lock_egress = _install_egress_wrapper(monkeypatch, original)
-    env = _daytona_env(str(trial_id), network_block_all=False)
-
-    asyncio.run(_await_outcome(lock_egress(env), error, None))
-    assert calls == [env]
-    (span,) = _spans_named(fake_runtime, "harbor.egress_lock")
-    assert span.ended
-    assert span.error_type == type(error).__name__
-    if isinstance(error, asyncio.CancelledError):
-        # Remote state is ambiguous on cancel: nothing is claimed either way.
-        assert "verified" not in span.metadata
-    else:
-        assert span.metadata["verified"] is False
-        assert span.metadata["network_block_all"] is False
-    assert trace.metadata["egress_lock_observed"] == "pending"
-    assert trace.root.metadata["egress_lock_observed"] == "pending"
-
-
-@pytest.mark.parametrize("state", ["no-context", "absent", "closed", "disabled"])
-def test_egress_lock_wrapper_passes_through_without_live_enabled_trace(
-    fake_runtime, tmp_path, monkeypatch, state
-):
-    trial_id, _, trace = _register_trace(fake_runtime, tmp_path)
-    span_count = len(fake_runtime.spans)
-    original, calls = _egress_original()
-    lock_egress = _install_egress_wrapper(monkeypatch, original)
-    context_id = {"no-context": None, "absent": str(uuid.uuid4())}.get(state, str(trial_id))
-    env = _daytona_env(context_id)
-    if state == "closed":
-        trace.closed = True
-    elif state == "disabled":
-        fake_runtime.enabled = False
-
-    assert asyncio.run(lock_egress(env)) is None
-    assert calls == [env]
-    assert len(fake_runtime.spans) == span_count
-    assert trace.metadata["egress_lock_observed"] == "pending"
-
-
 def _install_run_wrapper(monkeypatch, original):
     Trial = pytest.importorskip("harbor.trial.trial").Trial
     # Snapshot the class attribute so monkeypatch restores the real Trial.run.
@@ -993,17 +836,12 @@ _WRAPPED_TRIAL_METHODS = (
 def _snapshot_plugin_globals(monkeypatch):
     """Restore every class and module global that on_job_start mutates."""
     Trial = pytest.importorskip("harbor.trial.trial").Trial
-    pytest.importorskip("harbor.environments.daytona.environment")
-    from evallab.harbor_daytona import BoundedDaytonaEnvironment
 
     for name in _WRAPPED_TRIAL_METHODS:
         monkeypatch.setattr(Trial, name, getattr(Trial, name))
-    monkeypatch.setattr(
-        BoundedDaytonaEnvironment, "_lock_egress", BoundedDaytonaEnvironment._lock_egress
-    )
     for name in ("_WRAPPERS_INSTALLED", "_JOB_SESSION", "_PARENT_METADATA"):
         monkeypatch.setattr(hl, name, getattr(hl, name))
-    return Trial, BoundedDaytonaEnvironment
+    return Trial
 
 
 class _RecordingJob:
@@ -1020,7 +858,7 @@ class _RecordingJob:
 
 def test_plugin_hooks_drive_one_trace_through_every_phase(fake_runtime, tmp_path, monkeypatch):
     TrialEvent = pytest.importorskip("harbor.trial.hooks").TrialEvent
-    Trial, BoundedDaytonaEnvironment = _snapshot_plugin_globals(monkeypatch)
+    Trial = _snapshot_plugin_globals(monkeypatch)
     monkeypatch.setenv(hl.METADATA_ENV, json.dumps({"job_name": "job-hooks"}))
     flushed = []
     monkeypatch.setattr(fake_runtime, "flush_async", lambda: flushed.append(True))
@@ -1074,7 +912,6 @@ def test_plugin_hooks_drive_one_trace_through_every_phase(fake_runtime, tmp_path
     # on_job_start installed every Harbor wrapper exactly once.
     installed = {name: getattr(Trial, name) for name in _WRAPPED_TRIAL_METHODS}
     assert all(getattr(fn, "__evallab_laminar_wrapped__", False) for fn in installed.values())
-    assert getattr(BoundedDaytonaEnvironment._lock_egress, "__evallab_laminar_wrapped__", False)
     hl._ensure_wrappers_installed()
     assert {name: getattr(Trial, name) for name in _WRAPPED_TRIAL_METHODS} == installed
 
@@ -1196,30 +1033,6 @@ def test_native_worker_context_is_empty_unless_trial_is_live_and_enabled(fake_ru
     fake_runtime.enabled = True
     trace.root_context = None
     assert hl.native_worker_context(str(trial_id)) == {}
-
-
-@pytest.mark.parametrize("case", ["disabled", "zero-trace", "malformed-context"])
-def test_native_sandbox_labels_stay_unbound_for_disabled_or_invalid_roots(
-    fake_runtime, tmp_path, case
-):
-    _, config, trace = _register_trace(fake_runtime, tmp_path)
-    _valid_root_context(trace)
-    if case == "disabled":
-        fake_runtime.enabled = False
-    elif case == "zero-trace":
-        zero = str(uuid.UUID(int=0))
-        trace.root_context = json.dumps({"trace_id": zero, "span_id": str(uuid.UUID(int=1))})
-    else:
-        trace.root_context = "not-json"
-    assert hl.daytona_telemetry_labels(config.trials_dir / config.trial_name) == {}
-
-
-def test_native_sandbox_labels_carry_model_session(fake_runtime, tmp_path):
-    _, config, trace = _register_trace(fake_runtime, tmp_path)
-    _valid_root_context(trace)
-    trace.metadata["model_session"] = "session-7"
-    labels = hl.daytona_telemetry_labels(config.trials_dir / config.trial_name)
-    assert labels["model_session"] == "session-7"
 
 
 def test_trial_root_opens_once_and_closes_once(fake_runtime, tmp_path):

@@ -102,13 +102,6 @@ from evallab.execution_contracts import (
     TERMINUS_LOCAL_ENDPOINT_ENV,
     TERMINUS_LOCAL_MODEL_SELECTOR,
     TERMINUS_PROXY_URL_ENV,
-    TINKER_CAPABILITY_EXPIRES_AT_ENV,
-    TINKER_PROXY_ATTEMPT_ID_ENV,
-    TINKER_PROXY_CAPABILITY_ENV,
-    TINKER_PROXY_USAGE_FILE_ENV,
-    TINKER_SECRET_FILE_ENV,
-    TINKER_SECRET_PATH_ENV,
-    TINKER_UPSTREAM_ENV,
     WATCHDOG_POLL_SECONDS,
     ZAI_CAPABILITY_EXPIRES_AT_ENV,
     ZAI_INPUT_COST_MICROS_PER_MILLION,
@@ -149,7 +142,6 @@ from evallab.execution_contracts import (
     ProxyTrialLimits,
     RedactingBinaryWriter,
     RunRequest,
-    TinkerModelSpec,
     TransientHarnessFailure,
     TrialTimeoutFailure,
     build_command,
@@ -159,18 +151,15 @@ from evallab.execution_contracts import (
     is_lease_generation,
     is_mimo_selfhosted_model,
     is_openrouter_model,
-    is_tinker_terminus_model,
     materialize_breaker_selfhosted_secret_file,
     materialize_deepseek_secret_file,
     materialize_mimo_selfhosted_secret_file,
     materialize_openrouter_secret_file,
-    materialize_tinker_secret_file,
     materialize_zai_openapi_secret_file,
     materialize_zai_secret_file,
     openrouter_route,
     parse_breaker_selfhosted_model,
     parse_mimo_selfhosted_model,
-    parse_tinker_model,
     persist_private_bytes,
     proxy_runtime_identity,
     read_owner_secret_file,
@@ -895,7 +884,6 @@ def _capture_binding_for_metadata(request: RunRequest) -> dict[str, Any] | None:
     binding: dict[str, Any] = {"capture_dir": str(capture_dir)}
     for env_name in (
         MIMO_SELFHOSTED_UPSTREAM_ENV,
-        TINKER_UPSTREAM_ENV,
         OPENROUTER_UPSTREAM_ENV,
         ZAI_OPENAPI_UPSTREAM_ENV,
         TERMINUS_LOCAL_ENDPOINT_ENV,
@@ -1015,7 +1003,6 @@ def _terminus_proxy_env(
     usage_path: Path,
     limits: ProxyTrialLimits,
     timeout_seconds: float,
-    tinker_spec: TinkerModelSpec | None = None,
     mimo_native: str | None = None,
     openrouter_spec: OpenRouterRoute | None = None,
     breaker_native: str | None = None,
@@ -1083,25 +1070,6 @@ def _terminus_proxy_env(
             time.time() + float(timeout_seconds) + 60.0
         )
         return _proxy_503_wait_passthrough(env)
-    if provider == "tinker":
-        if tinker_spec is None:
-            raise ValueError("tinker proxy env requires the parsed model spec")
-        env[TINKER_SECRET_PATH_ENV] = str(secret_path)
-        upstream = os.environ.get(TINKER_UPSTREAM_ENV)
-        if upstream:
-            env[TINKER_UPSTREAM_ENV] = upstream
-        env.update(_capture_route_token(upstream, attempt_id))
-        env[TINKER_PROXY_CAPABILITY_ENV] = capability
-        env[TINKER_PROXY_ATTEMPT_ID_ENV] = attempt_id
-        env[TINKER_PROXY_USAGE_FILE_ENV] = str(usage_path)
-        env["EVALLAB_TINKER_EXPECTED_BASE"] = tinker_spec.base_model
-        env["EVALLAB_TINKER_MAX_REQUESTS"] = str(limits.max_requests)
-        env["EVALLAB_TINKER_MAX_INPUT_TOKENS"] = str(limits.max_input_tokens)
-        env["EVALLAB_TINKER_MAX_OUTPUT_TOKENS"] = str(limits.max_output_tokens)
-        env["EVALLAB_TINKER_MAX_TOTAL_TOKENS"] = str(limits.max_total_tokens)
-        env["EVALLAB_TINKER_MAX_COST_MICROS"] = str(limits.max_cost_micros)
-        env[TINKER_CAPABILITY_EXPIRES_AT_ENV] = str(time.time() + float(timeout_seconds) + 60.0)
-        return _proxy_503_wait_passthrough(env)
     if provider == OPENROUTER_PROXY_PROVIDER:
         if openrouter_spec is None:
             raise ValueError("openrouter proxy env requires the resolved route")
@@ -1167,7 +1135,6 @@ def _start_terminus_proxy(
     limits: ProxyTrialLimits,
     timeout_seconds: float,
     work_dir: Path,
-    tinker_spec: TinkerModelSpec | None = None,
     mimo_native: str | None = None,
     openrouter_spec: OpenRouterRoute | None = None,
     breaker_native: str | None = None,
@@ -1195,7 +1162,6 @@ def _start_terminus_proxy(
         usage_path=usage_path,
         limits=limits,
         timeout_seconds=timeout_seconds,
-        tinker_spec=tinker_spec,
         mimo_native=mimo_native,
         openrouter_spec=openrouter_spec,
         breaker_native=breaker_native,
@@ -1776,14 +1742,10 @@ def run_harbor_process(
                 raise ValueError("Terminus execution requires a bound trial capability")
             # The command's --model value selects the provider profile: a
             # ``selfhosted/`` selector routes to the self-hosted MiMo profile,
-            # a ``tinker/`` selector to the Tinker profile, an
             # ``openrouter-metered/`` selector to the OpenRouter profile,
             # every other metered Terminus model to Z.ai OpenAPI.
             mimo_client = any(
                 isinstance(arg, str) and arg.startswith("selfhosted/") for arg in command
-            )
-            tinker_client = any(
-                isinstance(arg, str) and arg.startswith("tinker/") for arg in command
             )
             openrouter_client = any(
                 isinstance(arg, str) and arg.startswith("openrouter-metered/") for arg in command
@@ -1797,7 +1759,6 @@ def run_harbor_process(
             breaker_client = is_breaker_selfhosted_model(model_value)
             breaker_native = parse_breaker_selfhosted_model(model_value) if breaker_client else None
             mimo_native = parse_mimo_selfhosted_model(model_value) if mimo_client else None
-            tinker_spec = parse_tinker_model(model_value) if tinker_client else None
             openrouter_spec = openrouter_route(model_value) if openrouter_client else None
             provider = (
                 MIMO_SELFHOSTED_PROXY_PROVIDER
@@ -1805,7 +1766,7 @@ def run_harbor_process(
                 else (
                     OPENROUTER_PROXY_PROVIDER
                     if openrouter_client
-                    else ("tinker" if tinker_client else "zai_openapi")
+                    else "zai_openapi"
                 )
             )
             if breaker_client:
@@ -1832,11 +1793,6 @@ def run_harbor_process(
                 proxy_pricing = {
                     "input_cost_micros_per_million": input_rate,
                     "output_cost_micros_per_million": output_rate,
-                }
-            elif tinker_spec is not None:
-                proxy_pricing = {
-                    "input_cost_micros_per_million": tinker_spec.input_cost_micros_per_million,
-                    "output_cost_micros_per_million": tinker_spec.output_cost_micros_per_million,
                 }
             elif openrouter_spec is not None:
                 # The pinned OpenRouter list price is exact for the pinned
@@ -1878,7 +1834,7 @@ def run_harbor_process(
                 else (
                     OPENROUTER_SECRET_FILE_ENV
                     if openrouter_client
-                    else (TINKER_SECRET_FILE_ENV if tinker_client else ZAI_OPENAPI_SECRET_FILE_ENV)
+                    else ZAI_OPENAPI_SECRET_FILE_ENV
                 )
             )
             if breaker_client:
@@ -1915,8 +1871,6 @@ def run_harbor_process(
                     materialize_mimo_selfhosted_secret_file(owned_secret_path)
                 elif openrouter_client:
                     materialize_openrouter_secret_file(owned_secret_path)
-                elif tinker_client:
-                    materialize_tinker_secret_file(owned_secret_path)
                 else:
                     materialize_zai_openapi_secret_file(owned_secret_path)
                 secret_path = owned_secret_path
@@ -1933,7 +1887,6 @@ def run_harbor_process(
                 limits=proxy_limits,
                 timeout_seconds=timeout_seconds,
                 work_dir=owned_usage_dir,
-                tinker_spec=tinker_spec,
                 mimo_native=mimo_native,
                 openrouter_spec=openrouter_spec,
                 breaker_native=breaker_native,
@@ -1953,12 +1906,6 @@ def run_harbor_process(
                 runtime_environment[MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
             elif openrouter_client:
                 runtime_environment[OPENROUTER_PROXY_CAPABILITY_ENV] = capability
-                # litellm's openai-compatible lookup reads this in the
-                # controller process; the adapter overwrites it with the
-                # capability before any call. Never a task-container value.
-                runtime_environment["OPENAI_API_KEY"] = capability
-            elif tinker_client:
-                runtime_environment[TINKER_PROXY_CAPABILITY_ENV] = capability
                 # litellm's openai-compatible lookup reads this in the
                 # controller process; the adapter overwrites it with the
                 # capability before any call. Never a task-container value.
@@ -2065,15 +2012,9 @@ def run_harbor_process(
                         isinstance(arg, str) and arg.startswith("selfhosted/") for arg in command
                     )
                     else (
-                        "Tinker"
-                        if any(
-                            isinstance(arg, str) and arg.startswith("tinker/") for arg in command
-                        )
-                        else (
-                            "Z.ai OpenAPI"
-                            if (zai_openapi_lane or terminus_lane)
-                            else ("Z.ai" if zai_lane else "DeepSeek")
-                        )
+                        "Z.ai OpenAPI"
+                        if (zai_openapi_lane or terminus_lane)
+                        else ("Z.ai" if zai_lane else "DeepSeek")
                     ),
                     expected_pricing=proxy_pricing,
                 )
@@ -2332,11 +2273,6 @@ def _accepted_returned_models(model: str) -> frozenset[str]:
     if is_mimo_selfhosted_model(model):
         # SGLang echoes its --served-model-name: the selector minus ``selfhosted/``.
         accepted.add(parse_mimo_selfhosted_model(model))
-    if is_tinker_terminus_model(model):
-        # Tinker echoes the native id it sampled: the selector minus ``tinker/``
-        # (observed 2026-10-09 for ``Qwen/Qwen3.6-35B-A3B``). A checkpoint replay
-        # accepts only its own checkpoint path, never the base id.
-        accepted.add(parse_tinker_model(model).native_model)
     if is_openrouter_model(model):
         # OpenRouter echoes the canonical slug of the endpoint that served
         # the call; the route lists the echoes of its pinned endpoint.
@@ -3032,20 +2968,16 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 "Mimo self-hosted"
                 if is_mimo_selfhosted_model(request.model)
                 else (
-                    "Tinker"
-                    if is_tinker_terminus_model(request.model)
-                    else (
-                        "Z.ai OpenAPI"
-                        if (
-                            request.agent in {TERMINUS_AGENT, MIMO_AGENT}
-                            or (
-                                request.agent == "mini-swe-agent"
-                                and request.model is not None
-                                and request.model.startswith("zai/")
-                            )
+                    "Z.ai OpenAPI"
+                    if (
+                        request.agent in {TERMINUS_AGENT, MIMO_AGENT}
+                        or (
+                            request.agent == "mini-swe-agent"
+                            and request.model is not None
+                            and request.model.startswith("zai/")
                         )
-                        else ("Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek")
                     )
+                    else ("Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek")
                 )
             )
             if is_breaker_selfhosted_model(request.model):

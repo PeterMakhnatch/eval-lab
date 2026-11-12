@@ -23,7 +23,6 @@ from evallab.profiles import (
     builtin_profiles,
     default_probe_for,
     preflight,
-    scrub_environment,
     validate_model_pin,
 )
 from evallab.runner import subscription_environment
@@ -365,12 +364,6 @@ def test_subscription_environment_forwards_agy_oauth_token_but_not_cursor_key():
     assert env["AGY_AUTH_JSON_PATH"] == "/tokens/agy-oauth-token"
     assert "CURSOR_API_KEY" not in env
     assert FAKE_SECRET not in json.dumps(env)
-
-
-def test_scrub_environment_drops_key_shaped_names_even_if_allowlisted():
-    allow = frozenset({"HOME", "SNEAKY_API_KEY"})
-    clean = scrub_environment({"HOME": "/h", "SNEAKY_API_KEY": FAKE_SECRET}, allow)
-    assert clean == {"HOME": "/h"}
 
 
 # ---- deterministic serialization -------------------------------------------

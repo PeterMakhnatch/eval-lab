@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Iterator, Sequence
-from dataclasses import FrozenInstanceError, is_dataclass
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +21,6 @@ from evallab.production.cloud_trace_db import (
     CloudTraceRetriever,
     RetrievedExample,
     RetrievedStep,
-    RetrievedTraceExample,
     format_retrieval_prompt_block,
 )
 from evallab.production.corpus_queue import CorpusRegistry
@@ -116,7 +115,7 @@ def seed(db: CloudTraceDatabase, task_id: str = "synthetic-task") -> None:
     add_trace(db, task_id, f"{task_id}-trace" if task_id != "synthetic-task" else "trace-1")
 
 
-def legacy_example(**extra: Any) -> RetrievedTraceExample:
+def legacy_example(**extra: Any) -> RetrievedExample:
     fields: dict[str, Any] = {
         "issue_id": "issue", "task_id": "task", "dataset_id": "dataset",
         "defect_class": "weak_check", "direction": "wrong_pass", "status": "confirmed",
@@ -136,7 +135,7 @@ def legacy_example(**extra: Any) -> RetrievedTraceExample:
         ),
         **extra,
     }
-    return RetrievedTraceExample(**fields)
+    return RetrievedExample(**fields)
 
 
 def run_start(lines: Sequence[str], run: Sequence[str]) -> int | None:
@@ -169,10 +168,6 @@ def assert_no_forged_structure(block: str, *, examples: int) -> None:
 # --- one model: aliases, legacy constructor, frozen results, JSON ---------------------
 
 
-def test_both_public_names_are_the_same_frozen_dataclasses() -> None:
-    assert RetrievedExample is RetrievedTraceExample
-    assert is_dataclass(RetrievedTraceExample) and is_dataclass(RetrievedStep)
-    assert isinstance(legacy_example(), RetrievedExample)
 
 
 def test_legacy_constructor_serializers_and_prompt_lines_need_no_database() -> None:
@@ -218,7 +213,7 @@ def test_one_result_serves_legacy_and_nested_consumers(
     found = retriever.retrieve_similar_examples(QUERY, kind)
     assert len(found) == 1
     example = found[0]
-    assert isinstance(example, RetrievedTraceExample) and isinstance(example, RetrievedExample)
+    assert isinstance(example, RetrievedExample)
 
     assert (example.issue_id, example.task_id, example.dataset_id) == (
         "issue-1", "synthetic-task", "synthetic-corpus",

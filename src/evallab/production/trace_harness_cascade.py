@@ -38,8 +38,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import shutil
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,8 +49,6 @@ from evallab.production.trace_harness import HARNESS_ROOT, HarnessOptions, Harne
 
 JUDGE_MODEL = "kimi-code/k3.1-pro-highspeed"
 CORPORA = ("goodfire", "cheatbench")
-ARMS = ("after", "before")
-SCRATCH_DIR = Path("/tmp/cm11b")
 SNAPSHOT_DIR = HARNESS_ROOT / "sources" / "cm11b"
 MANIFEST_NAME = "manifest.json"
 HACKBENCH_PREFIX = "hackbench:"
@@ -63,7 +59,6 @@ HACKBENCH_CASCADE = (
 CM6_ARM = "pf_r"
 V8_PASS_THROUGH = frozenset(window_cascade.PASS_THROUGH_RULES)
 V7_PASS_THROUGH = V8_PASS_THROUGH | {"submission_tamper"}
-SNAPSHOT_SUFFIXES = ("", ".calls.json", ".keys.json")
 
 
 # --------------------------------------------------------------------------- #
@@ -78,40 +73,6 @@ def _sha256(path: Path) -> str:
             digest.update(block)
     return digest.hexdigest()
 
-
-def snapshot_sources(src: Path = SCRATCH_DIR, dest: Path = SNAPSHOT_DIR) -> dict[str, Any]:
-    """Copy the CM-11b per-run rows byte-for-byte and record a sha256 manifest.
-
-    Existing destination bytes are never overwritten: a differing file raises
-    ``FileExistsError``. Re-running with identical bytes is a no-op.
-    """
-    manifest_path = dest / MANIFEST_NAME
-    files: dict[str, dict[str, Any]] = {}
-    if manifest_path.is_file():
-        files = dict(json.loads(manifest_path.read_text(encoding="utf-8"))["files"])
-    dest.mkdir(parents=True, exist_ok=True)
-    for arm in ARMS:
-        for corpus in CORPORA:
-            for suffix in SNAPSHOT_SUFFIXES:
-                name = f"{arm}-{corpus}.jsonl{suffix}"
-                source = src / name
-                if not source.is_file():
-                    raise FileNotFoundError(f"cascade source missing: {source}")
-                target = dest / name
-                digest = _sha256(source)
-                if target.exists():
-                    if _sha256(target) != digest:
-                        raise FileExistsError(
-                            f"{target} exists with different bytes; not overwriting"
-                        )
-                else:
-                    shutil.copyfile(source, target)
-                files[name] = {"sha256": digest, "bytes": target.stat().st_size}
-    manifest = {"source": str(src), "files": dict(sorted(files.items()))}
-    temporary = manifest_path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    os.replace(temporary, manifest_path)
-    return manifest
 
 
 def _verified(path: Path) -> Path:

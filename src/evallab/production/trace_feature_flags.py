@@ -24,7 +24,6 @@ from typing import Any, TypedDict
 
 from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES
 from evallab.production.command_prefilter import cues
-from evallab.production.corpus_queue import CorpusRegistry
 
 ACTION_FEATURES = (
     "git_history_peek",
@@ -98,15 +97,6 @@ class TraceFeatureFlags(TypedDict):
     reasoning_step_count: int
     features: dict[str, FeatureFlag]
 
-
-class IndexedStep(TypedDict):
-    """A bounded projection of one step; never the caller's original mapping."""
-
-    step_idx: int
-    role: str
-    command: str | None
-    text: str | None
-    observation: str | None
 
 
 def _text(value: Any) -> str:
@@ -224,111 +214,3 @@ def compute_trace_feature_flags(steps: Sequence[Mapping[str, Any]]) -> TraceFeat
     }
 
 
-def format_compact_trace_index(flags: TraceFeatureFlags, max_tokens: int = 160) -> str:
-    """Render ``feature@first_index xcount`` leads, with full indices kept on demand.
-
-    Only the first exact position per family enters agent context, rather than
-    filling spare space with repetitive numeric lists. The card is capped at
-    ``4 * max_tokens`` characters (the existing approximate-token convention,
-    not a tokenizer guarantee). Small budgets explicitly disclose omitted flags;
-    a budget too small for even that notice returns an empty card.
-    """
-    if max_tokens < 0:
-        raise ValueError("max_tokens must be nonnegative")
-    budget = max_tokens * 4
-    if budget == 0:
-        return ""
-    fired = [(name, flag) for name, flag in flags["features"].items() if flag["fired"]]
-    header = (
-        "Trace leads, not verdicts; idx=0-based; @first xcount. "
-        f"A={flags['action_step_count']} R={flags['reasoning_step_count']}."
-    )
-    footer = "Inspect: inspect_step_window(steps, idx, radius=3, task=...). Full indices: flags['features']."
-    lines = [f"{name}@{flag['step_indices'][0]}x{flag['count']}" for name, flag in fired]
-    if not fired:
-        lines = ["No flags fired."]
-    omitted = 0
-    while len("\n".join([header, *lines, footer])) > budget and lines:
-        lines.pop()
-        omitted += int(bool(fired))
-        header = f"Trace leads, not verdicts; {omitted}/{len(fired)} flags omitted."
-    card = "\n".join([header, *lines, footer])
-    if len(card) <= budget:
-        return card
-    notice = f"{len(fired)} flags; full index: flags['features']."
-    return notice if len(notice) <= budget else ""
-
-
-#: Step sources/roles a window may disclose: agent actions and reasoning, and the
-#: tool/environment observations they caused. User and system prompts (task
-#: instructions, hidden context) never are.
-WINDOW_ROLES = frozenset({"agent", "assistant", "tool", "environment"})
-
-
-def _observation_text(step: Mapping[str, Any]) -> str:
-    observation = step.get("observation", step.get("observation_preview"))
-    if isinstance(observation, Mapping):
-        results = observation.get("results")
-        if isinstance(results, Sequence) and not isinstance(results, (str, bytes)):
-            return "\n".join(
-                item["content"] for item in results
-                if isinstance(item, Mapping) and isinstance(item.get("content"), str)
-            )
-        return ""
-    return _text(observation)
-
-
-def _bounded(text: str, max_chars: int) -> str | None:
-    if not text:
-        return None
-    return text if len(text) <= max_chars else text[:max_chars - 1] + "…"
-
-
-def inspect_step_window(
-    steps: Sequence[Mapping[str, Any]], step_idx: int, radius: int = 3, *,
-    task: Mapping[str, Any], registry: CorpusRegistry | None = None, max_chars: int = 600,
-) -> list[IndexedStep]:
-    """Disclose a bounded view of one position and up to ``radius`` neighbors per side.
-
-    ``task`` is the trace's identity row (the seven admission keys of
-    ``admitted_cloud_task_ids``: ``task_id``, ``dataset_id``, ``split``, both
-    grader digests, ``item_id`` and ``item_type``). Nothing is read from
-    ``steps`` unless that task is admitted DEV by ``registry`` (default
-    ``CorpusRegistry()``); otherwise ``PermissionError``. Only steps whose
-    ``source``/``role`` is in ``WINDOW_ROLES`` are returned (missing both means a
-    command-only agent step), as fresh projections whose command, prose and
-    observation are each cut to ``max_chars`` characters. Out-of-range
-    positions and negative radii are errors, never Python's negative indexing
-    or a silently substituted step.
-    """
-    from evallab.production.cloud_trace_db import admitted_cloud_task_ids
-
-    if not isinstance(max_chars, int) or isinstance(max_chars, bool) or max_chars < 1:
-        raise ValueError("max_chars must be a positive integer")
-    authority = CorpusRegistry() if registry is None else registry
-    if task.get("task_id") not in admitted_cloud_task_ids([task], registry=authority):
-        raise PermissionError("task is not admitted DEV; no step is disclosed")
-    if not 0 <= step_idx < len(steps):
-        raise IndexError("step_idx is outside the supplied trace prefix")
-    if radius < 0:
-        raise ValueError("radius must be nonnegative")
-    window: list[IndexedStep] = []
-    for index in range(max(0, step_idx - radius), min(len(steps), step_idx + radius + 1)):
-        step = steps[index]
-        role = step.get("source", step.get("role", "agent"))
-        if role not in WINDOW_ROLES:
-            continue
-        command = "\n".join(
-            text for call in _calls(step)
-            for key in ("command", "cmd", "code", "patch", "input")
-            if (text := _text(call["arguments"].get(key)))
-        )
-        prose = "\n".join(
-            text for key in ("message", "content", "content_text", "reasoning_content", "reasoning", "analysis")
-            if (text := _text(step.get(key)))
-        )
-        window.append({
-            "step_idx": index, "role": role, "command": _bounded(command, max_chars),
-            "text": _bounded(prose, max_chars), "observation": _bounded(_observation_text(step), max_chars),
-        })
-    return window

@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
-import statistics
 import sys
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
@@ -240,24 +239,3 @@ def staged_labels(
     return frozenset(positive), positive, {}
 
 
-def staged_census(
-    set_name: str, *, root: Path | None = None, repo_root: Path | None = None
-) -> dict[str, Any]:
-    """Counts for one set, computed from the adapter: rows, labels, steps median, runs with no actor input."""
-    steps: list[int] = []
-    no_actor = positives = negatives = 0
-    for _run_id, spec, label in _rows(set_name, root, repo_root):
-        run_steps = spec["_steps"]
-        steps.append(len(run_steps))
-        no_actor += not actor_inputs_available(run_steps)
-        positives += label is True
-        negatives += label is False
-    return {
-        "set": set_name,
-        "rows": len(steps),
-        "positives": positives,
-        "negatives": negatives,
-        "considered_only": len(steps) - positives - negatives,
-        "steps_median": statistics.median(steps) if steps else None,
-        "no_actor_input": no_actor,
-    }

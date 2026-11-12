@@ -76,7 +76,6 @@ CM13_JUDGE = "openai-codex/gpt-6.1-terra"
 CM13_PLAN_VERSION = "cm13-plan/v1:c35d2b6064b2"
 CM13_CONTROL_VERSION = "cm13-control/v1:c376a8ce9482"
 
-CM16 = "cm16-facet-prefix-20261028"
 CM16_STATE = COMPARISONS / "cm16"
 CM16_READER = "anthropic/claude-haiku-5-5"
 

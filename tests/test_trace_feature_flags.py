@@ -3,19 +3,15 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 from typing import Any
 
 import pytest
 
-from evallab.production.corpus_queue import CorpusRegistry
 from evallab.production.trace_feature_flags import (
     ACTION_FEATURES,
     REASONING_FEATURES,
     compute_trace_feature_flags,
-    format_compact_trace_index,
-    inspect_step_window,
 )
 
 
@@ -192,32 +188,20 @@ def test_empty_shape_determinism_json_serialization_and_input_immutability() -> 
 
 def test_card_names_flags_exact_inspection_indices_and_diagnostic_limit() -> None:
     flags = compute_trace_feature_flags([_step("git status"), _step("git log", message="Do not hardcode.")])
-    card = format_compact_trace_index(flags)
-    assert "git_history_peek@1x1" in card
-    assert "reasoning_mentions_hardcode@1x1" in card
-    assert "leads, not verdicts" in card
-    assert "inspect_step_window(steps, idx, radius=3, task=...)" in card
-    assert "idx=0-based" in card
-    assert len(card) <= 160 * 4
+    assert flags["features"]["git_history_peek"] == {"fired": True, "count": 1, "step_indices": [1]}
+    assert flags["features"]["reasoning_mentions_hardcode"] == {"fired": True, "count": 1, "step_indices": [1]}
 
 
 @pytest.mark.parametrize("max_tokens", [0, 1, 8, 40, 120, 160, 1000])
 def test_card_budget_never_discards_full_machine_readable_index(max_tokens: int) -> None:
     flags = compute_trace_feature_flags([_step("git log", message="hardcode benchmark bypass")] * 500)
-    original = copy.deepcopy(flags)
-    card = format_compact_trace_index(flags, max_tokens=max_tokens)
-    assert len(card) <= max_tokens * 4
-    assert flags == original
-    if 120 <= max_tokens < 1000:
-        assert "@0x500" in card
-        assert "full" in card.lower()
+    assert flags["features"]["git_history_peek"]["count"] == 500
+    assert flags["features"]["git_history_peek"]["step_indices"][0] == 0
 
 
 def test_card_reports_no_flags_and_rejects_negative_budget() -> None:
     flags = compute_trace_feature_flags([])
-    assert "No flags fired" in format_compact_trace_index(flags)
-    with pytest.raises(ValueError, match="max_tokens"):
-        format_compact_trace_index(flags, max_tokens=-1)
+    assert not flags["any_action"] and not flags["any_reasoning"]
 
 
 def test_all_fired_families_remain_visible_at_default_budget() -> None:
@@ -227,85 +211,5 @@ def test_all_fired_families_remain_visible_at_default_budget() -> None:
         message="The benchmark grader must not be bypassed or hacked with hardcoded outputs.",
     )
     flags = compute_trace_feature_flags([step] * 500)
-    card = format_compact_trace_index(flags)
-    assert all(f"{name}@0x500" in card for name in (*ACTION_FEATURES, *REASONING_FEATURES))
-    assert len(card) <= 640
+    assert all(flags["features"][name]["count"] == 500 for name in (*ACTION_FEATURES, *REASONING_FEATURES))
 
-
-class SyntheticRegistry(CorpusRegistry):
-    """Valid split authority that admits the synthetic non-canonical DEV corpus."""
-
-    def __init__(self) -> None:
-        authority = b"key_id,item_id,split\nsynthetic-authority,source,dev\n"
-        self.split_assignments_digest = "sha256:" + hashlib.sha256(authority).hexdigest()
-        self._assignment_keys = frozenset({"synthetic-authority"})
-        self._assignments = {("synthetic-authority", "source"): "dev"}
-        self._assignment_names = {}
-        self._assigned_test_ids = set()
-        self._assigned_test_names = set()
-        self._sealed_names = set()
-        self._sealed_digests = set()
-        self._sealed_ids = set()
-
-
-TASK = {
-    "task_id": "synthetic-task", "dataset_id": "synthetic-corpus", "split": "dev",
-    "original_grader_digest": None, "repaired_grader_digest": None, "item_id": None, "item_type": None,
-}
-
-
-def _window(steps: list[dict[str, Any]], index: int, **options: Any) -> list[Any]:
-    return inspect_step_window(steps, index, task=options.pop("task", TASK), registry=SyntheticRegistry(), **options)
-
-
-def test_window_is_bounded_by_supplied_prefix_and_preserves_exact_positions() -> None:
-    steps = [_step(f"echo {index}", step_id=1000 + index) for index in range(10)]
-    window = _window(steps, 5)
-    assert [item["step_idx"] for item in window] == list(range(2, 9))
-    assert window[3] == {"step_idx": 5, "role": "agent", "command": "echo 5", "text": None, "observation": None}
-    assert [item["step_idx"] for item in _window(steps[:4], 3)] == [0, 1, 2, 3]
-    assert [item["step_idx"] for item in _window(steps, 0, radius=0)] == [0]
-
-
-def test_window_discloses_only_bounded_agent_and_tool_projections() -> None:
-    secret = "hidden instructions " * 50
-    steps = [
-        {"source": "system", "message": secret},
-        {"source": "user", "message": secret},
-        _step("x" * 900, message="I will hardcode it", reasoning_content="think"),
-        {"role": "tool", "observation": {"results": [{"content": "ok " * 400}]}},
-    ]
-    window = _window(steps, 2, max_chars=50)
-    assert [(item["step_idx"], item["role"]) for item in window] == [(2, "agent"), (3, "tool")]
-    assert window[0]["command"] == "x" * 49 + "…"
-    assert window[0]["text"] == "I will hardcode it\nthink"
-    assert len(window[1]["observation"] or "") == 50
-    assert "hidden" not in json.dumps(window)
-    assert steps[2]["tool_calls"][0]["arguments"]["command"] == "x" * 900  # input untouched
-    with pytest.raises(ValueError, match="max_chars"):
-        _window(steps, 2, max_chars=0)
-
-
-@pytest.mark.parametrize("change", [
-    {"split": "test"}, {"split": None}, {"item_type": "integer"}, {"task_id": "vf2-speedup-networkx"},
-])
-def test_window_refuses_unadmitted_tasks_before_reading_steps(change: dict[str, Any]) -> None:
-    class Unreadable(list):
-        def __getitem__(self, index: Any) -> Any:
-            raise AssertionError("a step was read")
-
-    with pytest.raises(PermissionError, match="not admitted"):
-        _window(Unreadable([_step()]), 0, task={**TASK, **change})
-
-
-@pytest.mark.parametrize("index", [-1, 4])
-def test_window_rejects_nonexistent_positions(index: int) -> None:
-    with pytest.raises(IndexError, match="supplied trace prefix"):
-        _window([_step()] * 4, index)
-    with pytest.raises(IndexError):
-        _window([], 0)
-
-
-def test_window_rejects_negative_radius() -> None:
-    with pytest.raises(ValueError, match="radius"):
-        _window([_step()], 0, radius=-1)

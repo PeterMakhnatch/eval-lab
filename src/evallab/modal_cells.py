@@ -92,14 +92,6 @@ class CellError(Exception):
     """Base error for cell execution."""
 
 
-class CellCapReachedError(CellError, SpendCapReached):
-    """Execution would exceed approved spend cap. Clean stop, resumable."""
-
-
-class CellCancelledError(CellError):
-    """Cell execution was cancelled (e.g. keyboard interrupt or job abort)."""
-
-
 # ---------------------------------------------------------------------------
 # Reserve / Settle Spend Gate
 # ---------------------------------------------------------------------------

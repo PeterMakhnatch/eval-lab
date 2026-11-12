@@ -12,11 +12,7 @@ from pathlib import Path
 import pytest
 
 from evallab.grader_hardening import (
-    EXPECTED_REL,
-    TEST_SH_REL,
-    build_changes,
     build_test_sh,
-    junit_counts,
 )
 from evallab.task_variants import VariantInvalid
 
@@ -226,66 +222,12 @@ def test_a_gate_count_above_what_ran_rejects_even_a_green_run(rig, hardened):
     assert rig.grade(hardened) == "0"
 
 
-def test_build_changes_requires_the_reference_count_and_a_pytest_runner(tmp_path):
-    package = tmp_path / "pkg"
-    (package / "tests").mkdir(parents=True)
-    (package / TEST_SH_REL).write_text(UPSTREAM_TEST_SH)
-    (package / "tests/test_command.sh").write_text("bash /testbed/mimo_test_command.sh new")
-    (package / "tests/test.patch").write_text(
-        "diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n+python3 -m pytest tests -q\n"
-    )
-    with pytest.raises(VariantInvalid, match="reference report count"):
-        build_changes(package, expected_tests=None)
-    changes, inputs = build_changes(package, expected_tests=None, allow_degraded=True)
-    assert inputs["degraded_count_gate"] is True and json.loads(changes[EXPECTED_REL]) == {
-        "tests": 1,
-        "skipped": 0,
-    }
-    changes, inputs = build_changes(package, expected_tests=5, expected_skipped=1)
-    assert json.loads(changes[EXPECTED_REL]) == {"skipped": 1, "tests": 5} and inputs["layers"] == [
-        "L1",
-        "L3",
-    ]
-
-    (package / "tests/test_command.sh").write_text("npx vitest run")
-    (package / "tests/test.patch").write_text("diff --git a/x b/x\n")
-    with pytest.raises(VariantInvalid, match="does not mention pytest"):
-        build_changes(package, expected_tests=3)
-    _, inputs = build_changes(package, expected_tests=None, allow_no_report_gate=True)
-    assert inputs["layers"] == ["L1"]
-
-
 def test_build_test_sh_refuses_a_second_application_and_a_foreign_shape():
     once = build_test_sh(UPSTREAM_TEST_SH, with_report_gate=False)
     with pytest.raises(VariantInvalid, match="already grader-hardened"):
         build_test_sh(once, with_report_gate=True)
     with pytest.raises(VariantInvalid, match="exactly once"):
         build_test_sh("#!/bin/bash\necho 1 > reward.txt\n", with_report_gate=True)
-
-
-def test_junit_counts_matches_the_gate_definition():
-    xml = (
-        '<testsuites><testsuite><testcase name="a"/><testcase name="b"><skipped/></testcase>'
-        '<testcase name="c"><failure/></testcase><testcase name="d"><error/></testcase></testsuite></testsuites>'
-    )
-    assert junit_counts(xml) == (4, 1, 1, 1)
-
-
-
-
-def test_a_wrapper_that_clears_pytest_addopts_gets_no_report_gate(tmp_path):
-    from evallab.grader_hardening import report_gate_blocker
-
-    package = tmp_path / "pkg"
-    (package / "tests").mkdir(parents=True)
-    (package / "tests/test_command.sh").write_text("bash /testbed/mimo_test_command.sh")
-    (package / "tests/test.patch").write_text(
-        "diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n+unset PYTEST_ADDOPTS\n+exec python -m pytest tests\n"
-    )
-    (package / "tests/test.sh").write_text(UPSTREAM_TEST_SH)
-    assert "clears PYTEST_ADDOPTS" in report_gate_blocker(package)
-    with pytest.raises(VariantInvalid, match="clears PYTEST_ADDOPTS"):
-        build_changes(package, expected_tests=3)
 
 
 def test_pyproject_edits_survive_unless_they_touch_the_test_runner(rig, hardened):

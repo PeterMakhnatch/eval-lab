@@ -1,10 +1,7 @@
 # `peter/sheet-recalc`
 
-A hand-authored SWE task about incremental recomputation. The agent repairs the
-recalculation core of a spreadsheet engine to an exact contract: values current
-when the edit returns, ranges that depend on cells that are still empty, cycle
-detection and recovery, atomic batches, and **exactly one** `formula.evaluate`
-call per affected cell, after its inputs are final.
+This task measures repairs to incremental spreadsheet recalculation under an exact evaluation contract.
+The agent must maintain current values, live ranges, cycle recovery, atomic batches, and exactly one evaluation per affected cell.
 
 See [instruction.md](instruction.md) for the agent-visible contract.
 
@@ -36,10 +33,15 @@ task needs none). The agent sees `/app/sheet` (with the correct, immutable
 [instruction.md](instruction.md). Run them with
 `cd /app && python -m pytest -q tests`.
 
+The agent image builds from `environment/Dockerfile`.
+`task.toml` does not set `storage_mb`; it sets no package-specific storage limit.
+
 ## Verifier
 
-`environment_mode = "separate"`. The verifier image builds from `tests/`, gets
-`/app` as an artifact, and never imports the submission into the pytest process.
+`environment_mode = "separate"` builds `tests/Dockerfile` from `ubuntu:24.04`.
+The verifier receives only the declared `/app/sheet` artifact and uses only its
+`engine.py`. It never imports the submission into the pytest process.
+The verifier timeout is 900 seconds.
 
 - `/tests/test_sheet.py` (mode 700, root) owns an independent oracle: it parses
   with its own pristine `sheet_formula.py`, recomputes all values from scratch,
@@ -59,6 +61,12 @@ task needs none). The agent sees `/app/sheet` (with the correct, immutable
   recovery, `set_many` atomicity, a 10,000-cell chain edited three times (head,
   full cascade, cycle, recovery), wide fan-out with 2,000 readers, and six
   seeds × 300 randomized operations against the oracle.
+
+`tests/test.sh` runs isolated pytest and writes `/logs/verifier/reward.txt`.
+It requests `/logs/verifier/ctrf.json` when pytest runs.
+Missing or symlinked `engine.py` files receive reward `0` before pytest starts.
+All checks must pass for reward `1`; otherwise reward is `0`.
+Expected rewards are `1` for Oracle and `0` for nop.
 
 ## Controls
 
@@ -81,15 +89,17 @@ no model calls). Measured 2026-10-28 on Harbor 0.24.0:
 Static scan (`evallab hack scan`) reports four claims, all accepted with
 reasons: the "test material in the agent image" is the visible smoke suite the
 ticket deliberately gives the agent; the agent container runs as root with
-public network, which is the Harbor baseline and touches no grader state, since
-only `engine.py` is collected.
+public network, which is the Harbor baseline and touches no grader state.
+Harbor collects `/app/sheet`, but the verifier uses only its `engine.py`.
 
 ## Model calibration
 
 Claude Code trials on the lab's subscription gateway, 2026-10-28:
 `claude-haiku-5-5` 2/2, `claude-sonnet-5-5` 1/1, `claude-opus-5-5` 1/1. This
 contract did not separate them. Numbers and method:
-[`research/experiments/sheet-recalc-model-runs`](../../../research/experiments/sheet-recalc-model-runs/README.md).
+`research/experiments/sheet-recalc-model-runs`, now archived; restore it with
+the [research archive](../../../research/ARCHIVE.md) row
+(`git checkout archive/research-pre-ev1110-2026-11-10 -- research/experiments/sheet-recalc-model-runs`).
 
 ## Known limits
 
@@ -104,3 +114,34 @@ contract did not separate them. Numbers and method:
   worst-case complexity.
 - The verifier has not been mutation-tested (`evallab hack mutate`); the
   controls above measure the scripted channels, not every weaker-check family.
+
+## Layout
+
+```text
+README.md                    Package documentation and retained control evidence
+instruction.md               Agent-visible recalculation contract
+task.toml                    Task name, limits, and /app/sheet artifact boundary
+environment/                 Agent image and visible starter files
+  Dockerfile                 Python image with pytest
+  sheet/                     Spreadsheet package with the engine to repair
+  tests/test_engine.py        Visible smoke tests
+solution/                    Oracle reference implementation
+  solve.sh                   Installs the reference engine
+  engine.py                  Incremental recalculation implementation
+tests/                       Separate trusted verifier build context
+  Dockerfile                 Ubuntu image with Python and isolated test files
+  test.sh                    Runs pytest and writes reward and CTRF files
+  test_sheet.py              Independent oracle and recalculation checks
+  runner.py                  Unprivileged submitted-engine driver
+  sheet_formula.py           Trusted formula parser and evaluator
+controls/                    Valid alternative and scripted gaming probes
+```
+
+## Run
+
+```bash
+uv run evallab run --task library/tasks/sheet-recalc --agent oracle --name sheet-recalc-oracle
+uv run evallab run --task library/tasks/sheet-recalc --agent nop --name sheet-recalc-nop
+```
+
+Expected rewards are `1` for Oracle and `0` for nop.

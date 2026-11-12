@@ -430,8 +430,8 @@ at review.
 - **Lease:** `research/experiments/` (PROGRAM + a small extracts
   JSON), handoff. No `src/`.
 - **Deps:** none.
-- **Acceptance:** `validate_program.py` still passes; STATUS links
-  match extract digests already quoted in
+- **Historical acceptance:** `validate_program.py` (now archived in
+  `archive/pre-round3-2026-11-12`) passes; STATUS links match extract digests already quoted in
   `baselines/codex-canary-20260815.md`.
 - **Failure:** If baseline file lacks digests, stop and record.
 - **Stop:** Do not git-add raw `runs/` trees.

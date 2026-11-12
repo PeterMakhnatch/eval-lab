@@ -62,7 +62,7 @@ Guarded merge uses the head-commit guard to prevent racing pushes:
 gh pr merge <PR_NUMBER> --squash --delete-branch --match-head-commit <EXACT_HEAD_SHA>
 ```
 
-Never pass `--admin` to bypass required checks or branch protections. Native auto-merge is optional: opt in only after all reported CI checks pass, never for a draft or an explicit operator-held PR. A changed head/base requires fresh combined evidence before merging.
+Never pass `--admin` to bypass required checks or branch protections. Native auto-merge is optional: enable it under the conditions in [Keep CI cycles low](CHECKS.md#keep-ci-cycles-low), never for a draft or an explicit operator-held PR. A changed head, or a retarget to another base branch, requires fresh combined evidence before merging. New commits on `main` do not: do not rebase for them unless GitHub reports a conflict.
 
 `evallab ship <PR_NUMBER>` automates exact-head checks, configured path gates,
 guarded merge, main ancestry proof, optional smoke, and conservative retirement.

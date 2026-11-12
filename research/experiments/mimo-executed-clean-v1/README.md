@@ -27,6 +27,8 @@ sources (no new executions, $0):
   `record_id`, exclusion counts, training-overlap accounting, source digests.
 - `build_pool.py`: standard-library producer; rerun from repo root with
   `python research/experiments/mimo-executed-clean-v1/build_pool.py`.
+  Add `--check` to rebuild in memory, compare the committed bytes and exit 1 on
+  drift without writing.
 
 ## Limits
 

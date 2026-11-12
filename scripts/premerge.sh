@@ -3,9 +3,9 @@ set -euo pipefail
 
 usage() {
   printf '%s\n' \
-    'Usage: scripts/premerge.sh [--full | --static | --focused TEST_FILE [PYTEST_ARGS...]]' \
+    'Usage: scripts/premerge.sh [--full | --static | --focused [TEST_FILE [PYTEST_ARGS...]]]' \
     '  --static   Run static gates only; no tests or runtime smoke.' \
-    '  --focused  Run static gates and explicitly selected pytest tests.' \
+    '  --focused  Run static gates and automatic branch tests, or explicit tests.' \
     '  --full     Reproduce the complete Python 3.12 CI gate (default).'
 }
 
@@ -14,8 +14,8 @@ case "${1:-}" in
   --focused)
     mode=focused
     shift
-    if [[ $# -eq 0 || "$1" == -* || ! -f "${1%%::*}" ]]; then
-      echo "error: --focused requires an existing test file or file::node selector first" >&2
+    if [[ $# -gt 0 && ( "$1" == -* || ! -f "${1%%::*}" ) ]]; then
+      echo "error: --focused expects an existing test file or file::node selector" >&2
       usage >&2
       exit 2
     fi
@@ -58,7 +58,9 @@ uv sync --locked --no-group observability --group benchmarks --group lance --gro
 uv run --no-sync ruff check .
 uv run --no-sync python -m evallab.governance check
 uv run --no-sync evallab registry audit --json
-uv run --no-sync python -m evallab.lessons
+if [[ "${mode}" != focused || $# -ne 0 ]]; then
+  uv run --no-sync python -m evallab.lessons
+fi
 mkdir -p "$(dirname "${TY_OUTPUT}")"
 set +e
 uvx "ty@${TY_VERSION}" check src/ --output-format=concise > "${TY_OUTPUT}" 2>&1
@@ -75,7 +77,14 @@ case "${mode}" in
     echo "static checks passed: Python ${PYTHON_FLOOR}; no tests or runtime smoke run; not CI green"
     ;;
   focused)
-    uv run --no-sync pytest "$@"
+    echo "local prepush checkpoint: selected coverage only; not CI green"
+    if [[ $# -eq 0 ]]; then
+      uv run --no-sync pytest --collect-only -q -n 0 -p no:cacheprovider
+      uv run --no-sync evallab registry devloop \
+        --since "${EVALLAB_PREPUSH_BASE:-origin/main}" --checkpoint --run
+    else
+      uv run --no-sync pytest -n 0 -p no:cacheprovider "$@"
+    fi
     echo "focused checks passed: Python ${PYTHON_FLOOR}; full suite and runtime smoke not run; not CI green"
     ;;
   full)

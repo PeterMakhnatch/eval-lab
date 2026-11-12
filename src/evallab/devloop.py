@@ -62,35 +62,32 @@ class DevloopPlan:
 
 
 def get_changed_files(root: Path, since: str = "working") -> list[str]:
-    """Return relative paths of files modified according to `since`."""
+    """Include both rename sides, deletions, untracked files, and local edits."""
     root_path = Path(root).resolve()
-    if since == "working" or since is None or since == "":
-        diff_res = subprocess.run(
-            ["git", "diff", "--name-only", "HEAD"],
+    baseline = "HEAD"
+    if since not in ("working", None, ""):
+        baseline = subprocess.run(
+            ["git", "merge-base", since, "HEAD"],
             cwd=root_path,
             capture_output=True,
             text=True,
             check=True,
-        )
-        untracked_res = subprocess.run(
-            ["git", "ls-files", "--others", "--exclude-standard"],
-            cwd=root_path,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        lines = diff_res.stdout.splitlines() + untracked_res.stdout.splitlines()
-    else:
-        diff_res = subprocess.run(
-            ["git", "diff", "--name-only", since],
-            cwd=root_path,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        lines = diff_res.stdout.splitlines()
-
-    return sorted({line.strip() for line in lines if line.strip()})
+        ).stdout.strip()
+    diff_res = subprocess.run(
+        ["git", "diff", "--no-renames", "--name-only", "-z", baseline],
+        cwd=root_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    untracked_res = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+        cwd=root_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return sorted(set(filter(None, (diff_res.stdout + untracked_res.stdout).split("\0"))))
 
 
 def is_full_suite_trigger(path_str: str) -> bool:
@@ -449,14 +446,115 @@ def _is_unclassified(path_str: str, test_roots: Sequence[str] = ("tests",)) -> b
     )
 
 
+CHECKPOINT_CONTRACT_TESTS = (
+    "tests/test_quality_gates.py",
+    "tests/test_ci_coverage.py",
+    "tests/test_governance.py",
+    "tests/test_route_page_links.py",
+    "tests/test_fixture_conformance.py",
+    "research/analysis/tests/test_harness_first_analysis.py",
+    "tests/test_attach.py::TestFrontMatterParsing",
+)
+
+
+def _path_references(path: str) -> list[str]:
+    asset = PurePosixPath(path)
+    # Basenames cover Path('docs') / 'page.md'; parents cover directory scans.
+    needles = [path, asset.name]
+    if len(asset.parent.parts) >= 2 and not is_src_path(path):
+        needles.append(asset.parent.as_posix())
+    return needles
+
+
+def _checkpoint_plan(changed: Sequence[str], root: Path) -> DevloopPlan:
+    """Select direct consumers and repository contracts without a full fallback."""
+    test_roots = _test_roots(root)
+    consumers: dict[str, Path] = {}
+    for test_root in test_roots:
+        candidate = root / test_root
+        paths = (
+            [candidate]
+            if candidate.is_file()
+            else [
+                path
+                for pattern in ("test_*.py", "*_test.py")
+                for path in candidate.rglob(pattern)
+            ]
+        )
+        for path in paths:
+            if path.is_file():
+                consumers[path.relative_to(root).as_posix()] = path
+    normalized = [path.replace("\\", "/") for path in changed]
+    targets = {src_path_to_module(path) for path in normalized if is_src_path(path)}
+    references = {path: _path_references(path) for path in normalized}
+    asset_needles = {
+        needle
+        for path, needles in references.items()
+        if not path.endswith(".py")
+        for needle in needles
+        if needle != "README.md"
+    }
+    # Match literal loader paths, not comments or prose pointing at a manual.
+    if asset_needles:
+        for source in (root / "src/evallab").rglob("*.py"):
+            try:
+                tree = ast.parse(source.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, SyntaxError):
+                continue
+            if any(
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and node.value in asset_needles
+                for node in ast.walk(tree)
+            ):
+                targets.add(src_path_to_module(source.relative_to(root).as_posix()))
+    cache_path = _import_graph_cache_path(root) if targets else None
+    cache = _load_import_graph_cache(cache_path)
+    reasons: dict[str, list[str]] = {
+        selector: ["Always-run repository contract"]
+        for selector in CHECKPOINT_CONTRACT_TESTS
+        if (root / selector.partition("::")[0]).is_file()
+    }
+    for path in normalized:
+        if is_test_path(path, test_roots) and (root / path).is_file():
+            reasons.setdefault(path, []).append("Direct test file modification")
+    for rel, consumer in sorted(consumers.items()):
+        matched = _referenced_modules(consumer, targets, cache) if targets else set()
+        if matched:
+            reasons.setdefault(rel, []).append(f"References {', '.join(sorted(matched))}")
+        content = consumer.read_text(encoding="utf-8")
+        for path, needles in references.items():
+            if any(needle in content for needle in needles):
+                reasons.setdefault(rel, []).append(f"References changed path {path}")
+                break
+    if cache.dirty and cache_path is not None:
+        _write_import_graph_cache(cache_path, cache)
+    # A whole file already contains any selected nodes from that file.
+    modules = sorted(
+        selector
+        for selector in reasons
+        if "::" not in selector or selector.partition("::")[0] not in reasons
+    )
+    command = (
+        "uv run --no-sync pytest -q -n2 -p no:cacheprovider " + shlex.join(modules)
+        if modules
+        else ""
+    )
+    return DevloopPlan(list(changed), modules, command, reasons, "focused" if modules else "none")
+
+
 def affected_test_modules(changed: Sequence[str], root: Path) -> list[str]:
     """Pure function mapping changed file paths to affected test modules."""
     return plan_devloop(changed, root).modules
 
 
-def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
+def plan_devloop(
+    changed: Sequence[str], root: Path, *, checkpoint: bool = False
+) -> DevloopPlan:
     """Compute selection and reasons together from one local consumer inventory."""
     root_path = Path(root).resolve()
+    if checkpoint:
+        return _checkpoint_plan(changed, root_path)
     if not changed:
         return DevloopPlan(changed=[], modules=[], command="", reasons={}, lane="none")
 
@@ -560,6 +658,7 @@ def run_devloop(
     since: str = "working",
     run: bool = False,
     as_json: bool = False,
+    checkpoint: bool = False,
 ) -> int:
     """Execute devloop resolution and optionally stream pytest run."""
     root_path = Path(root).resolve()
@@ -569,7 +668,7 @@ def run_devloop(
         detail = exc.stderr.strip() if isinstance(exc, subprocess.CalledProcessError) else str(exc)
         print(f"error: Git change inventory failed for {since!r}: {detail}", file=sys.stderr)
         return 1
-    plan = plan_devloop(changed, root_path)
+    plan = plan_devloop(changed, root_path, checkpoint=checkpoint)
 
     if as_json:
         payload = {
@@ -586,8 +685,8 @@ def run_devloop(
         return 0
 
     # Human-readable output
-    if not plan.changed:
-        print("devloop: no working tree changes detected.")
+    if not plan.changed and not plan.command:
+        print("devloop: no changes detected.")
         return 0
 
     print(f"devloop: {len(plan.changed)} changed file(s) detected.")

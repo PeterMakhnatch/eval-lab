@@ -12,6 +12,12 @@ push run, `merge_group` and `workflow_dispatch` also run it on Python 3.14. No m
 queue is enabled, so a 3.14-only regression is found by the push run on the merged
 revision, not before merge. Fix it forward from that run.
 
+Pull requests split the suite into four shards; push, merge-group and manual runs use
+two. Each shard imports and runs only its own test files, so the shards together run
+every test exactly once, except `tests/test_ci_coverage.py`, which runs in every shard.
+More shards shorten the wait for a PR author but add about 45 s of setup per shard to
+the shared pool of 20 hosted jobs. Nobody waits on a push run, so it keeps two.
+
 `quality` and `typecheck` run on every PR target branch, including stacked topic
 branches, and on `merge_group: checks_requested`. PR edits also rerun them so
 retargeting does not reuse evidence for the old base. Push runs remain limited to
@@ -23,7 +29,7 @@ gates to **GitHub Actions**:
 
 | Required check | Direct prerequisites |
 |---|---|
-| `quality-required` | `lint` and every `test` matrix row: `test (3.12, 1/2)`, `test (3.12, 2/2)` on pull requests; plus `test (3.14, 1/2)`, `test (3.14, 2/2)` on push, merge-group and manual runs |
+| `quality-required` | `lint` and every `test` matrix row: `test (3.12, 1/4)`, `test (3.12, 2/4)`, `test (3.12, 3/4)`, `test (3.12, 4/4)` on pull requests; `test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)` on push, merge-group and manual runs |
 | `typecheck-required` | `ty` |
 
 Both gate jobs use `always()` and accept only the literal prerequisite result
@@ -59,8 +65,8 @@ trigger and dependency handling fail closed, including merge-group support.
 | Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze, sealed paths matched by root `.ignore` |
 | Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |
 | Lessons freshness | `uv run python -m evallab.lessons` | locked; statistical lessons lineage |
-| Tests | `uv run pytest` (CI: `--shard ${{ matrix.shard }}`) | locked pytest; two-shard matrix on Python 3.12 for pull requests (`test (3.12, 1/2)`, `test (3.12, 2/2)`), plus Python 3.14 (`test (3.14, 1/2)`, `test (3.14, 2/2)`) on push, merge-group and manual runs |
-| Native Harbor verification | After the base suite, each shard installs the locked `laminar` extra, checks `harbor.job_diff`, and syncs `tools/mimoagent-harbor` with Python 3.12. It prepares pinned Harbor source for RewardKit, then runs the native file inventory. Its JUnit census rejects Harbor-named skips. The inventory coverage gate remains until full native discovery is safe. | Python 3.12 on pull requests; Python 3.12 and 3.14 on push, merge-group and manual runs; both shards |
+| Tests | `uv run pytest` (CI: `--shard ${{ matrix.shard }}`) | locked pytest; four-shard matrix on Python 3.12 for pull requests (`test (3.12, 1/4)` to `test (3.12, 4/4)`); two-shard matrix on Python 3.12 and 3.14 (`test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)`) on push, merge-group and manual runs. `tests/test_quality_gates.py` proves that each shard list is a complete partition. |
+| Native Harbor verification | After the base suite, each shard installs the locked `laminar` extra, checks `harbor.job_diff`, and syncs `tools/mimoagent-harbor` with Python 3.12. It prepares pinned Harbor source for RewardKit, then runs the native file inventory. Its JUnit census rejects Harbor-named skips. The inventory coverage gate remains until full native discovery is safe. | Python 3.12 on pull requests; Python 3.12 and 3.14 on push, merge-group and manual runs; every shard |
 | Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate (runs before tests in premerge) |
 
 The full suite writes `full-suite.xml`; its census reports skips without rejecting
@@ -124,27 +130,35 @@ for historical coverage.
 
 ### Local checkpoints versus full CI
 
-Verification separates rapid local checkpoints, full hosted CI gates, and explicit
-full local reproduction:
+Run **`make prepush` before every push**. This is a local checkpoint, **not CI green**.
 
-1. **Static checkpoint (`make check` or `scripts/premerge.sh --static`)**:
-   Runs static gates only (the locked `benchmarks`, `lance`, and `inspect` groups,
-   `ruff`, `governance`, `registry audit`, `lessons`, and `ty@0.0.71`).
-   No tests or runtime smoke execute; this is **not** CI green.
-2. **Focused prepush checkpoint (`make prepush TESTS='tests/test_foo.py [pytest args]'` or `scripts/premerge.sh --focused TEST_FILE [PYTEST_ARGS...]`)**:
-   Runs the same static gates and typecheck, followed by explicitly selected pytest
-   tests. `--focused` requires an existing test file or `file::node` selector and
-   refuses immediately (exit code 2) before dependency installation if the selector
-   is missing or invalid. The full test suite and runtime smoke do not run; this is
-   **not** CI green. During inner development loops, `make loop` or
-   `uv run evallab registry devloop [--run]` may also be used to compute and execute
-   targeted tests for changed working-tree modules. Selection uses direct and
-   transitive imports through evallab modules, plus textual references, within
-   every declared pytest `testpaths` root. Each invocation inventories consumers
-   once for both selection and reasons. `--json` includes `lane` and per-consumer `reasons`;
-   with `--run --json`, stdout remains one JSON document, child output streams to
-   stderr, and the command returns the child's exit status. Without `--json`,
-   child output keeps its normal interactive stdout/stderr streams.
+1. **Static checkpoint (`make check`)**:
+   Runs the locked static gates: `ruff`, `governance`, `registry audit`, `lessons`,
+   and `ty@0.0.71`. It runs no tests or runtime smoke.
+2. **Prepush checkpoint (`make prepush`)**:
+   Reuses `scripts/premerge.sh --focused`. It runs the cheap static gates and
+   typecheck. It leaves the expensive lessons lineage check to full static/CI.
+   It selects
+   tests against the merge base with `origin/main`, including committed branch
+   changes, local edits, untracked files, and both sides of renames.
+   It selects direct module consumers and tests that reference changed paths,
+   filenames, or parent directories. This includes deleted and non-Python files.
+   Asset references in runtime loaders also select their direct test consumers.
+   It does not expand every Markdown edit to all documentation consumer tests.
+   A bare collect-only run checks the full test tree for import and collection errors.
+   Workflow/native-list, governance, route links, fixture conformance, harness
+   fixture analysis, and front-matter parser contracts run without branch changes.
+   Pytest uses at most 2 workers. Typical changes should finish within
+   2 minutes; broad changes can take longer. No automatic full-suite fallback runs.
+   This does not prove transitive or dynamic dependencies, runtime smoke, or CI.
+   For an explicit selection, use `make prepush TESTS='tests/test_foo.py [pytest args]'`
+   or `scripts/premerge.sh --focused TEST_FILE [PYTEST_ARGS...]`.
+   During development, `make loop` retains the conservative devloop planner.
+   Devloop `--json` includes `lane` and per-consumer `reasons`.
+   With `--run --json`, stdout remains one JSON document, child output goes to
+   stderr, and the command returns the child's exit status.
+   Inspect the prepush selection with
+   `uv run evallab registry devloop --since origin/main --checkpoint --json`.
 3. **Explicit full local reproduction (`make premerge` or `scripts/premerge.sh [--full]`)**:
    Pins Python 3.12, checks uv 0.9.24, and installs the locked static CI profile.
    It runs static gates and typecheck before the complete pytest suite.
@@ -153,8 +167,8 @@ full local reproduction:
    It does not reproduce the separate hosted native phase. That phase remains
    necessary until the complete suite supports native dependencies.
 4. **Full hosted CI gate on GitHub Actions**:
-   Pull requests run the 3.12 two-shard matrix; the push run on the merged revision
-   additionally proves Python 3.14. Green is a
+   Pull requests run the 3.12 four-shard matrix; the push run on the merged revision
+   runs two shards on 3.12 and additionally proves Python 3.14. Green is a
    property of the exact pull-request head on GitHub Actions; local runs reproduce
    the commands on Python 3.12, but do not substitute for hosted gates or branch
    enforcement.
@@ -208,10 +222,12 @@ Before any role (author DRI or integrator) merges a PR:
 3. Ensure there are no unresolved CI failures or known concrete bugs on the branch.
    Authors own fixing concrete issues on their changes; removing the review gate does
    not permit knowingly merging broken code.
-4. Inspect the corresponding workflow runs for the current head/base pair and
-   successful `lint`, both Python `test` jobs, and `ty`. PR workflows normally
+4. Inspect the corresponding workflow runs for the current head and base branch and
+   successful `lint`, every `test` matrix row, and `ty`. PR workflows normally
    check out GitHub's test merge commit; record both PR head and tested merge SHA
-   where available. A base change requires fresh combined evidence.
+   where available. Retargeting the PR to another base branch requires fresh combined
+   evidence, and GitHub reruns both gates for it. New commits on the same base branch
+   do not; see [Keep CI cycles low](#keep-ci-cycles-low).
 5. Do not substitute local green, an old run, a manual dispatch, mergeability, or
    unavailable branch protection for these checks.
 6. Apply the guarded merge rules in `agents/WORKFLOW.md`, executing
@@ -229,15 +245,41 @@ fully green. Run `scripts/premerge.sh` on the merge result before pushing, and p
 both `Premerge: scripts/premerge.sh (pass)` and the green PR number/head SHA in the
 merge commit body.
 
+### Keep CI cycles low
+
+On 2026-11-11, 210 PR runs served 82 PRs. 24% of the runs repeated an unchanged
+head after a PR title or body edit. 23% followed a rebase that no rule required.
+Every run uses the shared pool of 20 hosted jobs.
+
+- Write the complete PR title and body in `gh pr create`. Do not edit them later.
+  Each edit reruns both gates on the same head. Add later evidence with `gh pr comment`.
+- Do not rebase or update the branch because `main` moved. Branch protection does
+  not require an up-to-date branch, and PR CI tests GitHub's merge of the head into
+  the base. Rebase only when GitHub reports a conflict, or when the change needs a
+  commit that landed after the branch point. The push run on `main` proves the merged
+  revision; fix forward from that run.
+- Push one head per fix. Read the result of the running CI before the next push,
+  unless you already know that the head is wrong.
+- When the PR is final, enable auto-merge at once:
+  `gh pr merge <n> --auto --squash --delete-branch --match-head-commit <HEAD_SHA>`.
+  GitHub merges when `quality-required` and `typecheck-required` pass. Use it only
+  when steps 1 and 3 hold, the PR is not a draft or held, the diff selects no
+  `agents/ship-gates.toml` path gate, and `gh pr checks` reports no check outside the
+  `quality` and `typecheck` workflows. Otherwise merge by hand or with `evallab ship`
+  after all reported checks pass. A later push keeps auto-merge armed for the new head;
+  run `gh pr merge <n> --disable-auto` first if that head must not merge.
+
 ## GitHub enforcement versus process
 
 Recommended protection for `main` and any branch accepting integrated work:
 require a PR, require `quality-required` and `typecheck-required` from GitHub
-Actions, require the branch to be up to date, require conversation resolution,
+Actions, require conversation resolution,
 block force pushes/deletion, and apply the rules to administrators with no bypass.
 Zero reviewer approvals are required. Use an active ruleset or explicit
 non-overlapping branch protections; merely running checks on arbitrary stack
 bases does not protect those bases.
+Do not require the branch to be up to date while the merge queue is disabled: that
+setting forces one full CI cycle on every open PR for each merge to `main`.
 
 Draft pull requests and explicit operator holds (e.g. labels) remain honored pauses
 preventing accidental merge.
@@ -248,8 +290,9 @@ enable a queue.
 
 After publishing the workflow change, open or update a PR against a non-`main`,
 non-`integrate/**` stack base and retarget it without changing its head. Confirm
-fresh PR runs contain `lint`, `test (3.12, 1/2)`, `test (3.12, 2/2)`, `ty`, and both
-gates (`main` push runs also contain `test (3.14, 1/2)` and `test (3.14, 2/2)`).
+fresh PR runs contain `lint`, `test (3.12, 1/4)` to `test (3.12, 4/4)`, `ty`, and both
+gates (`main` push runs contain `test (3.12, 1/2)`, `test (3.12, 2/2)`,
+`test (3.14, 1/2)` and `test (3.14, 2/2)`).
 Wait for successful runs before selecting the new check names in settings.
 Reopen or synchronize older PRs whose workflow definitions predate this change;
 do not dispatch an unrelated workflow and call them green.

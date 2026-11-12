@@ -6,8 +6,8 @@ It ensures that platform components, data pipelines, policy enforcement, and
 task admissions function correctly and deterministically.
 
 ## What lives here / entry points
-- `tests/conftest.py`: session hooks that record what the run collected (used by `tests/test_ci_coverage.py`).
-- `tests/test_test_hygiene.py`: Checks bare module names, shard overrides, and slow-test budgets.
+- `tests/conftest.py`: selects shard files before import and records collected or shard-skipped modules for the coverage contract.
+- `tests/test_test_hygiene.py`: Checks bare module names, shard partitions and collection, and slow-test budgets.
 - `tests/fixtures/`: Synthetic fixtures, mock data, and test environments.
 - `tests/golden/`: Golden reference files for digest, report, and artifact comparisons.
 - `tests/test_smoke.py`: Fast smoke verification suite for essential platform paths.

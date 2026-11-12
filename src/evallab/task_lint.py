@@ -17,14 +17,14 @@ import tarfile
 import tomllib
 import unicodedata
 import urllib.parse
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, cast
 
 import yaml
 
-_EXPECTATION = re.compile(r"#\s*expect:\s*[01]\s*")
+from evallab.control_expect import declared_expectation
 
 # Agent-visible leak markers for converted (e.g. MiMo) tasks: grading secrets
 # an agent could read before grading. Spec-necessary API names are excluded on
@@ -167,6 +167,26 @@ def _docker_sources(arguments: str) -> list[str]:
     return operands[:-1]
 
 
+def _hidden_docker_source(source: str, context: Path) -> bool:
+    """Screen one COPY/ADD source operand against the Docker build context.
+
+    Harbor builds environment/Dockerfile with environment/ as the build context,
+    so a source naming tests or solution enters the agent image only from that
+    context. An operand that resolves to an existing context path is the task's
+    own agent-visible material; one that escapes the context, follows a symlink
+    out of it, or matches nothing still reaches for hidden verifier inputs.
+    """
+    if not {"tests", "solution"}.intersection(PurePosixPath(source.casefold()).parts):
+        return False
+    root = context.resolve()
+    try:
+        resolved = (root / source.lstrip("/")).resolve()
+        resolved.relative_to(root)
+    except (OSError, ValueError):
+        return True
+    return not resolved.exists()
+
+
 def _lint_dockerfile(dockerfile: Path) -> list[Finding]:
     findings: list[Finding] = []
 
@@ -213,11 +233,7 @@ def _lint_dockerfile(dockerfile: Path) -> list[Finding]:
         except ValueError as exc:
             syntax_error(start, str(exc))
             continue
-        hidden = [
-            source
-            for source in sources
-            if {"tests", "solution"}.intersection(PurePosixPath(source.casefold()).parts)
-        ]
+        hidden = [source for source in sources if _hidden_docker_source(source, dockerfile.parent)]
         if hidden:
             findings.append(
                 Finding(
@@ -225,7 +241,8 @@ def _lint_dockerfile(dockerfile: Path) -> list[Finding]:
                     "error",
                     str(dockerfile),
                     f"line {start}: COPY/ADD source operands {hidden!r} name tests or "
-                    "solution; hidden verifier inputs must not enter the agent image",
+                    "solution and do not resolve inside the environment build context; "
+                    "hidden verifier inputs must not enter the agent image",
                 )
             )
     if pending:
@@ -278,33 +295,51 @@ def lint_task(task_dir: Path) -> list[Finding]:
         findings.extend(_lint_dockerfile(dockerfile))
 
     for control in sorted((task_dir / "controls").glob("*.sh")):
-        if not control.is_file() or not any(
-            _EXPECTATION.fullmatch(line)
-            for line in control.read_text(encoding="utf-8").splitlines()
-        ):
+        if not control.is_file() or declared_expectation(control) is None:
             findings.append(
                 Finding(
                     "controls-declare-expectation",
                     "error",
                     str(control),
-                    "control script must contain a # expect: 0 or # expect: 1 header line",
+                    "control script must contain a # expect: 0 or # expect: 1 header line "
+                    "in its first 20 lines",
                 )
             )
     return findings
 
 
+def _task_packages(root: Path) -> Iterator[Path]:
+    """Task directories below `root`, skipping hidden directories.
+
+    A directory that holds `task.toml` is one task, and its subdirectories are
+    never searched.
+    """
+    pending = [root]
+    while pending:
+        for child in pending.pop().iterdir():
+            if not child.is_dir() or child.name.startswith("."):
+                continue
+            if (child / "task.toml").is_file():
+                yield child
+            else:
+                pending.append(child)
+
+
 def discover_tasks(paths: Sequence[Path]) -> list[Path]:
-    """Expand immediate task children; nonexistent inputs remain lint errors."""
+    """Expand task packages under each path, sorted by posix path.
+
+    A path that is itself a task stays one task. Any other existing directory
+    is searched recursively, so collection roots may nest packages. A path that
+    does not exist stays one candidate, and lint reports its missing manifest.
+    """
     tasks: dict[Path, None] = {}
     for path in paths:
-        candidates = (
-            sorted(child for child in path.iterdir() if (child / "task.toml").is_file())
-            if path.is_dir() and not (path / "task.toml").is_file()
-            else [path]
-        )
-        for task in candidates:
-            tasks[task] = None
-    return list(tasks)
+        if path.is_dir() and not (path / "task.toml").is_file():
+            for task in _task_packages(path):
+                tasks[task] = None
+        else:
+            tasks[path] = None
+    return sorted(tasks, key=lambda task: task.as_posix())
 
 
 def _as_dict(value: object) -> dict[str, Any]:

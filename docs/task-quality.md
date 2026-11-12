@@ -756,8 +756,10 @@ separate `--stages exploit` probe is requested.
   `allow_billable=False`, so it can never spend). The matrix is the same artifact
   class as `research/experiments/release-branch-rescue-local-controls.json`:
   reference oracle (expect 1), no-agent control (expect 0), then one run per
-  script, with `# expect: 1` on the script's first lines recording the author's
-  prediction. Without `--execute` it writes the plan only.
+  script, with `# expect: 1` in the script's first 20 lines recording the
+  author's prediction. Task lint and this runner read that header with the same
+  parser, so a header lint accepts is the header the runner reads. Without
+  `--execute` it writes the plan only.
 - `evallab hack mutate <package> [--target PATH ...] [--max-mutants N] [--workers 1|2]
   [--mutant ID ...] [--no-coverage] [--execute]` — verifier mutation testing for the
   insufficient-checking family (a verifier that rewards a wrong answer). It
@@ -1287,9 +1289,16 @@ A package-check packet never supplies a missing Gold result.
 uv run evallab tasks lint path/to/task --json
 ```
 
+A path may be one task or a collection root. Collection roots discover nested
+task packages at any depth; hidden directories are skipped, and a task's own
+subdirectories are never searched.
+
 This command checks verifier separation, declared artifacts, solution presence,
 control expectation headers, and hidden inputs in Docker `COPY`/`ADD` operands.
-It reports unsupported syntax instead of silently accepting unreadable instructions.
+Operands are resolved against the task's `environment/` build context: a source
+that names `tests` or `solution` but leaves that context, follows a symlink out of
+it, or matches nothing inside it is an error. It reports unsupported syntax instead
+of silently accepting unreadable instructions.
 
 ## Native metadata and security checks
 
@@ -1511,10 +1520,11 @@ store directory is recoverable from Git plus the parent package alone.
 MiMo code tasks run `environment/setup/setup.sh` from a gzip+base64 tar
 embedded in `task.toml`'s `[environment.healthcheck]` command, not from the
 files on disk, so a setup change must re-embed that payload in the same
-variant. `research/experiments/har105-exploration/setup_payload.py` encodes
-it byte for byte as the adapter does (`gzip.GzipFile` with `mtime=0` and an
-empty filename; `gzip.compress` stamps a different OS byte on macOS) and
-checks that the on-disk setup reproduces the embedded one before a change.
+variant. The archived utility
+`research/experiments/har105-exploration/setup_payload.py` encodes it byte for
+byte as the adapter does (`gzip.GzipFile` with `mtime=0` and an empty filename).
+It checks that the on-disk setup reproduces the embedded one before a change.
+Restore the utility from `archive/pre-round3-2026-11-12`.
 
 ### Setup-only Python lookup repairs
 
@@ -1943,7 +1953,8 @@ one release and PyPI is open but no dated upstream fix was found; `git_only`
 when a repo is known and no release followed the fix (the note says whether
 git hosts are blocked, and that a root agent can rewrite `/etc/hosts`);
 `none_found`; `unknown` when the blocklist or the pypi.json entry is missing.
-`leak_check.py` knows a task's repo from the split group, from the matched
+`leak_check.py` is archived in `archive/pre-round3-2026-11-12`.
+The historical script identifies a task's repo from the split group, from the matched
 PyPI project's GitHub URL, or, when neither names one, from a GitHub-wide
 search for the task title that finds an exactly matching issue or PR title in
 exactly one repo (`repo_source` `issue_title`); that repo then gets the same

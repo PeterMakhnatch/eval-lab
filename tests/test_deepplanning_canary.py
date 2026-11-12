@@ -6,10 +6,10 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 from evallab.deepplanning import load_cohort
 from evallab.task_lint import CandidateSource, check_package
-
-sys.dont_write_bytecode = True
 
 TASK_DIR = Path("library/tasks/experimental/deepplanning-v1/travel-lisbon-002")
 
@@ -44,6 +44,7 @@ def test_canary_agent_task_json_has_zero_leak() -> None:
 
 
 def test_canary_oracle_and_verifier_flow(tmp_path: Path) -> None:
+    task_digest = _tree_digest(TASK_DIR)
     app_dir = tmp_path / "app"
     data_dir = app_dir / "data"
     logs_dir = tmp_path / "logs" / "verifier"
@@ -62,7 +63,10 @@ def test_canary_oracle_and_verifier_flow(tmp_path: Path) -> None:
     solve_spec = importlib.util.spec_from_file_location("canary_solve", TASK_DIR / "solution" / "solve.py")
     assert solve_spec is not None and solve_spec.loader is not None
     solve_mod = importlib.util.module_from_spec(solve_spec)
-    solve_spec.loader.exec_module(solve_mod)
+    # Keep bytecode out of the task package without disabling other tests' caches.
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(sys, "dont_write_bytecode", True)
+        solve_spec.loader.exec_module(solve_mod)
 
     solve_mod.solve(task_path=data_dir / "task.json", output_path=app_dir / "answer.json")
 
@@ -75,7 +79,9 @@ def test_canary_oracle_and_verifier_flow(tmp_path: Path) -> None:
     verify_spec = importlib.util.spec_from_file_location("canary_verify", TASK_DIR / "tests" / "verify.py")
     assert verify_spec is not None and verify_spec.loader is not None
     verify_mod = importlib.util.module_from_spec(verify_spec)
-    verify_spec.loader.exec_module(verify_mod)
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(sys, "dont_write_bytecode", True)
+        verify_spec.loader.exec_module(verify_mod)
 
     # Patch LOG_DIR in verifier module
     verify_mod.LOG_DIR = logs_dir
@@ -89,9 +95,11 @@ def test_canary_oracle_and_verifier_flow(tmp_path: Path) -> None:
     result = json.loads((logs_dir / "result.json").read_text())
     assert result["reward"] == 1.0
     assert result["status"] == "infeasible"
+    assert _tree_digest(TASK_DIR) == task_digest
 
 
 def test_canary_verifier_fails_on_adversarial_mutants(tmp_path: Path) -> None:
+    task_digest = _tree_digest(TASK_DIR)
     app_dir = tmp_path / "app"
     logs_dir = tmp_path / "logs" / "verifier"
     tests_dir = tmp_path / "tests"
@@ -103,7 +111,9 @@ def test_canary_verifier_fails_on_adversarial_mutants(tmp_path: Path) -> None:
     verify_spec = importlib.util.spec_from_file_location("canary_verify", TASK_DIR / "tests" / "verify.py")
     assert verify_spec is not None and verify_spec.loader is not None
     verify_mod = importlib.util.module_from_spec(verify_spec)
-    verify_spec.loader.exec_module(verify_mod)
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(sys, "dont_write_bytecode", True)
+        verify_spec.loader.exec_module(verify_mod)
     verify_mod.LOG_DIR = logs_dir
 
     # 1. NOP / missing file
@@ -143,6 +153,7 @@ def test_canary_verifier_fails_on_adversarial_mutants(tmp_path: Path) -> None:
     }))
     assert verify_mod.verify(answer_path=app_dir / "answer.json", golden_path=tests_dir / "golden.json") == 1
     assert (logs_dir / "reward.txt").read_text().strip() == "0.0"
+    assert _tree_digest(TASK_DIR) == task_digest
 
 
 def _tree_digest(root: Path) -> str:
@@ -164,7 +175,9 @@ def test_canary_materialization_is_deterministic_and_passes_package_checks(
     )
     assert materializer_spec is not None and materializer_spec.loader is not None
     materializer = importlib.util.module_from_spec(materializer_spec)
-    materializer_spec.loader.exec_module(materializer)
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(sys, "dont_write_bytecode", True)
+        materializer_spec.loader.exec_module(materializer)
     cohort = load_cohort(Path("library/external/deepplanning-v1/cohort.json"))
     task = next(row for row in cohort if row["task_id"] == "travel-lisbon-002")
     output_root = tmp_path / "tasks"

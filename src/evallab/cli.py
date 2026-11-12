@@ -38,23 +38,14 @@ from evallab.calibrate import (
 )
 from evallab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter, load_canary_suite
 from evallab.cohort import (
-    clustered_minimum_detectable_effect,
-    clustered_power_requirements,
-    design_effect,
     index_comparison_associations,
-    minimum_detectable_effect,
-    pass_at_k_probability,
-    power_requirements,
     write_comparison,
 )
 from evallab.digest import DigestRenderer
 from evallab.evidence.atif import check_projection_invariant, ingest_and_project
 from evallab.evidence.facts import (
-    analysis_plan,
     ingest_analysis_sidecar,
-    load_analysis_source,
     write_analysis_review,
-    write_failure_taxonomy_agreement,
 )
 from evallab.fetch import (
     FetchError,
@@ -69,11 +60,6 @@ from evallab.gc import (
     format_plan,
     nightly_gc_plan,
     run_gc,
-)
-from evallab.labels import (
-    evaluate_heuristic_precision,
-    label_trajectory,
-    select_review_queue,
 )
 from evallab.lineage import lineage_to_dict, render_lineage_tree, resolve_lineage
 from evallab.modal_billing import (
@@ -327,8 +313,6 @@ def _doctor_command(
     for name, ok, detail in checks:
         print(f"{'ok' if ok else 'FAIL':4}  {name:14} {detail}")
     return int(status != 0 or any(not ok for _, ok, _ in checks))
-
-
 
 
 def _status_command(
@@ -1463,179 +1447,6 @@ def _compare_command(
     return 0
 
 
-
-
-def _power_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    clustered_requested = args.icc is not None or args.cluster_size is not None
-    if clustered_requested:
-        if args.icc is None or args.cluster_size is None:
-            print(
-                "refusing to quote clustered n without an explicit design-effect "
-                "declaration: both --icc and --cluster-size are required",
-                file=sys.stderr,
-            )
-            return 2
-        return _clustered_power_command(args, root, harbor=harbor)
-    if args.n_tasks is not None:
-        if args.k is None:
-            raise ValueError("--k is required with --n-tasks")
-        effect = minimum_detectable_effect(
-            n_tasks=args.n_tasks,
-            k=args.k,
-            baseline=args.baseline,
-            alpha=args.alpha,
-            target_power=args.target_power,
-            pair_correlation=args.pair_correlation,
-        )
-        baseline_pass = pass_at_k_probability(args.baseline, args.k)
-        print("Task-paired pass@k power plan")
-        print(f"n_tasks: {args.n_tasks}")
-        print(f"k: {args.k}")
-        print(f"baseline per-attempt pass rate: {args.baseline:.3f}")
-        print(f"baseline pass@{args.k}: {baseline_pass:.3f}")
-        print(f"alpha / power: {args.alpha:.3f} / {args.target_power:.3f}")
-        if effect is None:
-            print("minimum detectable per-attempt difference: unavailable at this n and k")
-        else:
-            comparison_pass = pass_at_k_probability(args.baseline + effect, args.k)
-            print(f"minimum detectable per-attempt difference: {effect:.4f}")
-            print(f"implied pass@{args.k} difference: {comparison_pass - baseline_pass:.4f}")
-        print(
-            "Assumptions: independent attempts for the pass@k transformation and a normal "
-            "approximation to paired task outcomes; "
-            f"pair correlation={args.pair_correlation:.3f}."
-        )
-        print(
-            "pass_at_k_probability is a model-based independent-attempt planning "
-            "transform; it is not realized first-k and not Chen/Yao unbiased pass@k."
-        )
-        return 0
-
-    rows = power_requirements(
-        baseline=args.baseline,
-        attempt_effect=args.target,
-        max_k=args.max_k,
-        alpha=args.alpha,
-        target_power=args.target_power,
-        pair_correlation=args.pair_correlation,
-    )
-    print("| k | baseline pass@k | comparison pass@k | task effect | n_tasks | attempts |")
-    print("|---:|---:|---:|---:|---:|---:|")
-    for row in rows:
-        print(
-            f"| {row['k']} | {row['baseline_pass_at_k']:.3f} | "
-            f"{row['comparison_pass_at_k']:.3f} | {row['task_level_effect']:.3f} | "
-            f"{row['required_n_tasks']} | {row['total_attempts_two_cohorts']} |"
-        )
-    print(
-        "n_tasks is paired tasks per cohort; attempts counts both cohorts. "
-        f"alpha={args.alpha:.3f}, power={args.target_power:.3f}, "
-        f"pair correlation={args.pair_correlation:.3f}."
-    )
-    print("Assumption: attempts are independent for the pass@k transformation.")
-    print(
-        "pass_at_k_probability is a model-based independent-attempt planning "
-        "transform; it is not realized first-k and not Chen/Yao unbiased pass@k."
-    )
-    return 0
-
-
-def _clustered_power_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    try:
-        factor = design_effect(icc=args.icc, cluster_size=args.cluster_size)
-    except ValueError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-    if args.n_tasks is not None:
-        if args.k is None:
-            raise ValueError("--k is required with --n-tasks")
-        plan = clustered_minimum_detectable_effect(
-            n_tasks=args.n_tasks,
-            k=args.k,
-            baseline=args.baseline,
-            alpha=args.alpha,
-            target_power=args.target_power,
-            pair_correlation=args.pair_correlation,
-            icc=args.icc,
-            cluster_size=args.cluster_size,
-        )
-        baseline_pass = pass_at_k_probability(args.baseline, args.k)
-        print("Clustered pass@k power plan (design effect)")
-        print(f"n_tasks (clustered): {args.n_tasks}")
-        print(f"k: {args.k}")
-        print(
-            f"icc / cluster size / design effect: "
-            f"{args.icc:.3f} / {args.cluster_size} / {factor:.3f}"
-        )
-        print(f"effective (independent) n_tasks: {plan['effective_n_tasks']:.3f}")
-        print(f"baseline per-attempt pass rate: {args.baseline:.3f}")
-        print(f"baseline pass@{args.k}: {baseline_pass:.3f}")
-        print(f"alpha / power: {args.alpha:.3f} / {args.target_power:.3f}")
-        mde = plan["minimum_detectable_effect"]
-        if mde is None:
-            print("minimum detectable per-attempt difference: unavailable at this n, k, and design")
-        else:
-            comparison_pass = pass_at_k_probability(args.baseline + mde, args.k)
-            print(f"minimum detectable per-attempt difference: {mde:.4f}")
-            print(f"implied pass@{args.k} difference: {comparison_pass - baseline_pass:.4f}")
-        print(
-            "Design effect DE=1+(m-1)*rho inflates between-cluster variance; "
-            "it is separate from the paired covariance term (pair correlation)."
-        )
-        print(
-            "pass_at_k_probability is a model-based independent-attempt planning "
-            "transform; it is not realized first-k and not Chen/Yao unbiased pass@k."
-        )
-        return 0
-
-    rows = clustered_power_requirements(
-        baseline=args.baseline,
-        attempt_effect=args.target,
-        max_k=args.max_k,
-        alpha=args.alpha,
-        target_power=args.target_power,
-        pair_correlation=args.pair_correlation,
-        icc=args.icc,
-        cluster_size=args.cluster_size,
-    )
-    print(
-        "| k | baseline pass@k | comparison pass@k | task effect | independent n | "
-        "clustered n | effective n | attempts |"
-    )
-    print("|---:|---:|---:|---:|---:|---:|---:|---:|")
-    for row in rows:
-        print(
-            f"| {row['k']} | {row['baseline_pass_at_k']:.3f} | "
-            f"{row['comparison_pass_at_k']:.3f} | {row['task_level_effect']:.3f} | "
-            f"{row['required_n_tasks_independent']} | {row['required_n_tasks_clustered']} | "
-            f"{row['effective_n_tasks']:.3f} | {row['total_attempts_two_cohorts']} |"
-        )
-    print(
-        f"icc={args.icc:.3f}, cluster size={args.cluster_size}, "
-        f"design effect={factor:.3f}. "
-        f"alpha={args.alpha:.3f}, power={args.target_power:.3f}, "
-        f"pair correlation={args.pair_correlation:.3f}."
-    )
-    print(
-        "Clustered n is the design-effect-inflated requirement; effective n is the "
-        "independent-equivalent sample size, so clustered observations never "
-        "masquerade as independent trials."
-    )
-    print(
-        "pass_at_k_probability is a model-based independent-attempt planning "
-        "transform; it is not realized first-k and not Chen/Yao unbiased pass@k."
-    )
-    return 0
-
-
-
-
-
-
 def _report_run_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1803,28 +1614,6 @@ def _capture_smoke_command(
     return 0
 
 
-def _analyze_plan_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    job, trial = load_analysis_source(_resolve(root, args.path))
-    prompt_path = root / "research/analysis/stage5-prompt.md"
-    rubric_path = root / "research/analysis/stage5-rubric.json"
-    output_root = _resolve(root, args.output_dir)
-    plan = analysis_plan(
-        job,
-        trial,
-        repo_root=root,
-        destination_root=output_root,
-        prompt_path=prompt_path,
-        rubric_path=rubric_path,
-        agent=args.agent,
-        agent_version=args.agent_version,
-        model=args.model,
-    )
-    print(json.dumps(asdict(plan), indent=2, sort_keys=True))
-    return 0
-
-
 def _analyze_worker_plan_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1931,35 +1720,6 @@ def _analyze_review_command(
             f"next: uv run evallab analyze ingest-sidecar {shlex.quote(str(sidecar_path))} --database-url <url>"
         )
     return 0
-
-
-def _analyze_agreement_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    report_path, report = write_failure_taxonomy_agreement(
-        [_resolve(root, path) for path in args.paths],
-        labels_root=_resolve(root, args.labels),
-        output_path=_resolve(root, args.output),
-        reference_root=root,
-    )
-    agreement = report["exact_agreement"]
-    print(f"report: {report_path}")
-    print(
-        "agreement: "
-        f"{report['exact_matches']}/{report['n_matched_valid']} "
-        f"({'n/a' if agreement is None else f'{agreement:.3f}'})"
-    )
-    coverage = report["label_coverage"]
-    print(f"label coverage: {'n/a' if coverage is None else f'{coverage:.3f}'}")
-    return 0
-
-
-
-
-
-
-
-
 
 
 def _db_init_command(
@@ -2538,68 +2298,6 @@ def _analyst_run_command(
     return 0
 
 
-def _analyst_list_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.analyst import list_analyses
-
-    records = list_analyses(root, trial_id=args.trial_id)
-    if not records:
-        print("No analysis records found.")
-        return 0
-    print("| analysis_id | trial_id | model | category | confidence | evidence |")
-    print("|---|---|---|---|---|---:|")
-    for r in records:
-        print(
-            f"| {r['analysis_id']} | {r['trial_id']} | {r['model']} | "
-            f"{r['category']} | {r['confidence']} | {r['evidence_count']} |"
-        )
-    return 0
-
-
-def _analyst_show_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.analyst import show_analysis
-
-    try:
-        conclusion, trajectory = show_analysis(args.analysis_id, root)
-    except FileNotFoundError as err:
-        print(f"error: {err}", file=sys.stderr)
-        return 1
-    if getattr(args, "json", False):
-        payload = {"conclusion": conclusion, "trajectory": trajectory}
-        print(json.dumps(payload, indent=2))
-        return 0
-    print(f"# Analysis {conclusion.get('analysis_id')}")
-    print(f"Trial ID: {conclusion.get('trial_id')}")
-    print(f"Model: {conclusion.get('model')}")
-    print(f"Category: {conclusion.get('category')}")
-    conf = conclusion.get("confidence") or {}
-    conf_level = conf.get("level") if isinstance(conf, dict) else str(conf)
-    print(f"Confidence: {conf_level}")
-    print(f"Summary: {conclusion.get('summary', '')}")
-    print("\n## Cited Evidence:")
-    for ev in conclusion.get("evidence", []):
-        step_info = f" (step {ev['step']})" if ev.get("step") is not None else ""
-        print(f"- {ev.get('path')}{step_info}")
-    print("\n## Lineage Inputs:")
-    for inp in conclusion.get("inputs", []):
-        print(f"- {inp.get('path')} ({inp.get('digest')})")
-    print("\n## Analyst Trajectory Steps:")
-    for step in trajectory.get("steps", []):
-        sid = step.get("step_id")
-        src = step.get("source")
-        ts = step.get("timestamp")
-        msg = step.get("message")
-        print(f"[{sid}] {src} ({ts}): {msg}")
-    return 0
-
-
-
-
-
-
 def _behavior_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2621,47 +2319,6 @@ def _behavior_command(
         print(json.dumps(report_to_dict(report), indent=2))
     else:
         print(render_behavior_report(report))
-    return 0
-
-
-def _semantic_facts_project_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.semantic_facts import load_fact_bundle, project_fact_bundle
-
-    bundle = load_fact_bundle(_resolve(root, args.bundle))
-    paths = project_fact_bundle(bundle, _resolve(root, args.output_dir))
-    if args.json:
-        print(json.dumps({name: str(path) for name, path in paths.items()}, sort_keys=True))
-    else:
-        print(f"Projected {len(paths)} semantic fact tables to {args.output_dir}")
-    return 0
-
-
-def _evidence_archive_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.evidence_store import archive_evidence
-
-    source = _resolve(root, args.source)
-    archive = archive_evidence(
-        source,
-        _resolve(root, args.store),
-        record_id=args.record_id or source.name,
-        kind=args.kind,
-    )
-    payload = {
-        "record_id": archive.record_id,
-        "kind": archive.kind,
-        "uri": archive.uri,
-        "content_digest": archive.content_digest,
-        "archive_digest": archive.archive_digest,
-        "blob_path": str(archive.blob_path),
-        "manifest_path": str(archive.manifest_path),
-        "file_count": archive.file_count,
-        "uncompressed_bytes": archive.uncompressed_bytes,
-    }
-    print(json.dumps(payload, indent=2) if args.json else archive.uri)
     return 0
 
 
@@ -2734,20 +2391,6 @@ def _regrade_command(
         else render_job_receipt(receipt)
     )
     return 1 if receipt.refused or receipt.n_refused else 0
-
-
-def _evidence_restore_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.evidence_store import restore_evidence
-
-    destination = restore_evidence(
-        _resolve(root, args.store),
-        args.uri,
-        _resolve(root, args.destination),
-    )
-    print(destination)
-    return 0
 
 
 def _tasks_prepare_command(
@@ -3278,8 +2921,6 @@ def _tasks_stability_collect_command(
     return 0
 
 
-
-
 def _tasks_qualify_collect_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3618,8 +3259,6 @@ def _registry_audit_command(
     return 0 if report.passed else 1
 
 
-
-
 def _registry_devloop_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3629,10 +3268,6 @@ def _registry_devloop_command(
     return run_devloop(
         root, since=args.since, run=args.run, as_json=args.json, checkpoint=args.checkpoint
     )
-
-
-
-
 
 
 def _verdict_command(
@@ -3754,25 +3389,6 @@ def _traj_outline_command(
     return 0 if outline.status == "featured" else 1
 
 
-def _results_backfill_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor, root
-    from evallab.results_home import backfill
-
-    report = backfill(home=args.home)
-    print(
-        f"results backfill: published {report['published']}, "
-        f"skipped {len(report['skipped'])}, collisions {len(report['collisions'])}"
-    )
-    for card, count in sorted(report["by_card"].items()):
-        print(f"  {card}: {count}")
-    for item in report["skipped"]:
-        print(f"  skipped {item['job']}: {item['reason']}")
-    print(f"index: {report['index']}")
-    return 0
-
-
 def _process_job_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3809,122 +3425,6 @@ def _process_job_command(
             )
         print(f"ingest: {summary.get('ingest')}")
     return 0
-
-
-def _traj_queue_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    runs_roots = [_resolve(root, args.runs_dir)] if args.runs_dir else None
-    queue_items = select_review_queue(
-        limit=args.limit,
-        runs_roots=runs_roots,
-        repo_root=root,
-    )
-    if args.json:
-        print(json.dumps([asdict(item) for item in queue_items], indent=2))
-    else:
-        if not queue_items:
-            print("No unlabeled trajectories in review queue.")
-            return 0
-        print(f"TRAJECTORY REVIEW QUEUE ({len(queue_items)} items):")
-        print("=" * 80)
-        for idx, item in enumerate(queue_items, start=1):
-            print(
-                f"{idx}. [{item.task_name}] {item.trial_name} ({item.agent_name}/{item.model_name})"
-            )
-            print(f"   Signals:    {item.outline_preview}")
-            print(f"   Suggested:  {item.suggested_taxonomy} ({item.suggestion_reason})")
-            print(f"   Action:     {item.next_command}")
-            print("")
-    return 0
-
-
-def _traj_label_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    try:
-        label = label_trajectory(
-            args.trial,
-            label=args.label,
-            note=args.note,
-            provenance=args.provenance,
-            author=args.author,
-            repo_root=root,
-        )
-    except Exception as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-    if getattr(args, "json", False):
-        print(label.model_dump_json(indent=2))
-    else:
-        note_str = f" (note: {label.rationale})" if label.rationale else ""
-        print(
-            f"Recorded label: {label.trial_name} -> {label.label} "
-            f"by {label.author} [{label.provenance}]{note_str}"
-        )
-    return 0
-
-
-def _traj_report_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    report = evaluate_heuristic_precision(repo_root=root)
-    if args.json:
-        print(json.dumps(asdict(report), indent=2))
-    else:
-        print("HEURISTIC PRECISION REPORT:")
-        print(f"  Human Labels:        {report.human_label_count}")
-        print(f"  Heuristic Proposals: {report.heuristic_proposal_count}")
-        print(f"  Matched Trials:      {report.matched_trials_count}")
-        print(f"  Exact Matches:       {report.exact_taxonomy_matches}")
-        pct = f"{report.precision * 100:.1f}%" if report.matched_trials_count > 0 else "N/A"
-        print(f"  Precision:           {pct}")
-        if report.disagreements:
-            print(f"\nDISAGREEMENTS ({len(report.disagreements)}):")
-            for d in report.disagreements:
-                t_name = d["task_name"]
-                t_id = d["trial_id"]
-                h_tax = d["human_label"]
-                he_tax = d["heuristic_label"]
-                print(f"  - {t_name} ({t_id}): human={h_tax!r} vs heuristic={he_tax!r}")
-    return 0
-
-
-def _traj_ir_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.interpretation.trajectory_ir import build_trajectory_ir
-
-    explicit_root = _resolve(root, args.runs_dir) if getattr(args, "runs_dir", None) else None
-    if explicit_root is None:
-        try:
-            target_path = Path(args.trial)
-            target_resolved = target_path.resolve()
-            repo_resolved = root.resolve()
-            if target_resolved != repo_resolved and repo_resolved not in target_resolved.parents:
-                explicit_root = (
-                    target_resolved.parent if target_resolved.is_file() else target_resolved
-                )
-        except Exception:
-            pass
-
-    store_root = explicit_root if (explicit_root and (explicit_root / "blobs").exists()) else None
-    try:
-        ir = build_trajectory_ir(
-            args.trial, repo_root=root, explicit_runs_root=explicit_root, store_root=store_root
-        )
-        output_str = json.dumps(ir.to_dict(), indent=2)
-        if getattr(args, "output", None):
-            out_path = _resolve(root, args.output)
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            out_path.write_text(output_str, encoding="utf-8")
-            print(f"Wrote TrajectoryIR (digest: {ir.ir_digest}) -> {out_path}")
-        else:
-            print(output_str)
-        return 0 if ir.status == "featured" else 1
-    except Exception as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
 
 
 def _review_command(
@@ -3985,8 +3485,6 @@ def _review_command(
             out_report=out_report,
         )
     return 2
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -4482,39 +3980,6 @@ def parser() -> argparse.ArgumentParser:
     compare.set_defaults(func=_compare_command)
 
 
-
-    power = commands.add_parser("power", help="Plan task-paired pass@k comparison power")
-    power_mode = power.add_mutually_exclusive_group(required=True)
-    power_mode.add_argument(
-        "--n-tasks",
-        type=int,
-        help="Compute the minimum detectable per-attempt difference for this many paired tasks",
-    )
-    power_mode.add_argument(
-        "--target",
-        type=float,
-        help="Compute required paired tasks across k for this per-attempt difference",
-    )
-    power.add_argument("--k", type=int, help="Attempts per task for --n-tasks mode")
-    power.add_argument("--max-k", type=int, default=8, help="Largest k for --target mode")
-    power.add_argument("--baseline", type=float, required=True)
-    power.add_argument("--alpha", type=float, default=0.05)
-    power.add_argument("--power", dest="target_power", type=float, default=0.8)
-    power.add_argument("--pair-correlation", type=float, default=0.0)
-    power.add_argument(
-        "--icc",
-        type=float,
-        default=None,
-        help="intraclass correlation (rho) for clustered/repeated-measure design-effect sizing",
-    )
-    power.add_argument(
-        "--cluster-size",
-        type=int,
-        default=None,
-        help="observations per cluster for clustered/repeated-measure design-effect sizing",
-    )
-    power.set_defaults(func=_power_command)
-
     report = commands.add_parser("report", help="Render Harbor run reports")
     report_commands = report.add_subparsers(dest="report_command", required=True)
 
@@ -4593,15 +4058,6 @@ def parser() -> argparse.ArgumentParser:
     capture_smoke.set_defaults(func=_capture_smoke_command)
     analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
     analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)
-    analyze_plan_parser = analyze_commands.add_parser(
-        "plan", help="Show a no-call stage-5 analysis plan"
-    )
-    analyze_plan_parser.add_argument("path", type=Path)
-    analyze_plan_parser.add_argument("--agent", default="codex")
-    analyze_plan_parser.add_argument("--agent-version", default="local")
-    analyze_plan_parser.add_argument("--model", default="configured-by-queue")
-    analyze_plan_parser.add_argument("--output-dir", type=Path, default=Path("derived/analyses"))
-    analyze_plan_parser.set_defaults(func=_analyze_plan_command)
 
     analyze_worker_plan = analyze_commands.add_parser(
         "worker-plan", help="Read-only: what an analysis-worker cycle would do"
@@ -4673,23 +4129,6 @@ def parser() -> argparse.ArgumentParser:
     )
     analyze_review.add_argument("--database-url")
     analyze_review.set_defaults(func=_analyze_review_command)
-
-    analyze_agreement = analyze_commands.add_parser(
-        "agreement", help="Compare valid analysis categories with fixed labels"
-    )
-    analyze_agreement.add_argument("paths", type=Path, nargs="+")
-    analyze_agreement.add_argument(
-        "--labels",
-        type=Path,
-        default=Path("research/calibration/trajectory-labels"),
-    )
-    analyze_agreement.add_argument(
-        "--output",
-        type=Path,
-        default=Path("derived/analysis/failure-taxonomy-agreement.json"),
-    )
-    analyze_agreement.set_defaults(func=_analyze_agreement_command)
-
 
 
     db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
@@ -4950,22 +4389,6 @@ def parser() -> argparse.ArgumentParser:
     )
     analyst_run.set_defaults(func=_analyst_run_command)
 
-    analyst_list = analyst_commands.add_parser("list", help="List stored analysis conclusions")
-    analyst_list.add_argument(
-        "--trial",
-        dest="trial_id",
-        default=None,
-        help="filter conclusions by source trial_id",
-    )
-    analyst_list.set_defaults(func=_analyst_list_command)
-
-    analyst_show = analyst_commands.add_parser(
-        "show", help="Show an analysis conclusion and its recorded trajectory"
-    )
-    analyst_show.add_argument("analysis_id", help="ULID of the analysis record to show")
-    analyst_show.add_argument("--json", action="store_true", help="emit raw structured JSON")
-    analyst_show.set_defaults(func=_analyst_show_command)
-
 
     behavior = commands.add_parser(
         "behavior", help="Analyze agent execution behavior, effort, and efficiency"
@@ -4982,36 +4405,6 @@ def parser() -> argparse.ArgumentParser:
     )
     behavior.set_defaults(func=_behavior_command)
 
-    semantic_facts = commands.add_parser(
-        "semantic-facts", help="Project and query typed benchmark analysis facts"
-    )
-    semantic_facts_commands = semantic_facts.add_subparsers(
-        dest="semantic_facts_command", required=True
-    )
-    semantic_facts_project = semantic_facts_commands.add_parser(
-        "project", help="Project a normalized JSON fact bundle to typed Parquet"
-    )
-    semantic_facts_project.add_argument("bundle", type=Path)
-    semantic_facts_project.add_argument("--output-dir", type=Path, required=True)
-    semantic_facts_project.add_argument("--json", action="store_true")
-    semantic_facts_project.set_defaults(func=_semantic_facts_project_command)
-
-    evidence_parser = commands.add_parser(
-        "evidence", help="Archive and restore content-addressed raw evidence"
-    )
-    evidence_commands = evidence_parser.add_subparsers(dest="evidence_command", required=True)
-    evidence_archive = evidence_commands.add_parser("archive")
-    evidence_archive.add_argument("source", type=Path)
-    evidence_archive.add_argument("--store", type=Path, required=True)
-    evidence_archive.add_argument("--record-id")
-    evidence_archive.add_argument("--kind", default="job")
-    evidence_archive.add_argument("--json", action="store_true")
-    evidence_archive.set_defaults(func=_evidence_archive_command)
-    evidence_restore = evidence_commands.add_parser("restore")
-    evidence_restore.add_argument("uri")
-    evidence_restore.add_argument("--store", type=Path, required=True)
-    evidence_restore.add_argument("--destination", type=Path, required=True)
-    evidence_restore.set_defaults(func=_evidence_restore_command)
 
     tasks_parser = commands.add_parser("tasks", help="Import and manage task corpora")
     tasks_commands = tasks_parser.add_subparsers(dest="tasks_command", required=True)
@@ -5731,38 +5124,6 @@ def parser() -> argparse.ArgumentParser:
     traj_outline.add_argument("--json", action="store_true", help="Emit outline as JSON")
     traj_outline.set_defaults(func=_traj_outline_command)
 
-    traj_queue = traj_commands.add_parser("queue", help="Deterministic daily reading/review queue")
-    traj_queue.add_argument(
-        "--limit", type=int, default=3, help="Number of trajectories to select (default: 3)"
-    )
-    traj_queue.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
-    traj_queue.add_argument("--json", action="store_true", help="Emit queue as JSON")
-    traj_queue.set_defaults(func=_traj_queue_command)
-
-    traj_label = traj_commands.add_parser(
-        "label", help="Persist a human or heuristic trajectory behavior label"
-    )
-    traj_label.add_argument("trial", help="Trial identifier or directory")
-    traj_label.add_argument("label", help="Behavior label (e.g. tool_use_loop)")
-    traj_label.add_argument("--note", help="Optional label explanation or observation")
-    traj_label.add_argument("--provenance", default="human", choices=["human", "heuristic"])
-    traj_label.add_argument("--author", default="peter", help="Author of the label")
-    traj_label.add_argument("--json", action="store_true", help="Emit label as JSON")
-    traj_label.set_defaults(func=_traj_label_command)
-
-    traj_report = traj_commands.add_parser(
-        "report", help="Precision report of heuristic labels vs human ground truth"
-    )
-    traj_report.add_argument("--json", action="store_true", help="Emit report as JSON")
-    traj_report.set_defaults(func=_traj_report_command)
-
-    traj_ir = traj_commands.add_parser(
-        "ir", help="Build a deterministic TrajectoryIR intermediate representation"
-    )
-    traj_ir.add_argument("trial", help="Trial identifier, directory, or result.json")
-    traj_ir.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
-    traj_ir.add_argument("--output", "-o", type=Path, help="Write IR JSON to file")
-    traj_ir.set_defaults(func=_traj_ir_command)
 
     regrade_parser = commands.add_parser(
         "regrade",
@@ -5867,14 +5228,6 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip publishing the job to the results home",
     )
-    results = commands.add_parser("results", help="Publish finished jobs to the results home")
-    results_commands = results.add_subparsers(dest="results_command", required=True)
-    results_backfill = results_commands.add_parser(
-        "backfill",
-        help="Publish every HAR-81+ job under worktrees and the wt-archive",
-    )
-    results_backfill.add_argument("--home", type=Path, default=None)
-    results_backfill.set_defaults(func=_results_backfill_command)
     review = commands.add_parser("review", help="Repeatable blind trace-review workflow")
     review_subparsers = review.add_subparsers(dest="review_command", required=True)
 
@@ -6024,12 +5377,19 @@ def parser() -> argparse.ArgumentParser:
     from evallab.score.cli import build_score_parser
 
     build_score_parser(commands)
-    from evallab.laminar import build_laminar_parser
+    from evallab import laminar
 
-    build_laminar_parser(commands)
-    from evallab.run_telemetry import build_telemetry_parser
+    laminar_parser = commands.add_parser("laminar", help="Laminar Signals as code")
+    laminar_actions = laminar_parser.add_subparsers(dest="laminar_action", required=True)
+    laminar_signals = laminar_actions.add_parser("signals", help="Create or update the four HAR-166 Signals by name")
+    laminar_signals.add_argument(
+        "--byok-zai",
+        action="store_true",
+        help=f"Run the Signals on Z.ai {laminar.ZAI_SIGNAL_MODEL} through a workspace LLM profile "
+        f"(needs {laminar.ZAI_KEY_ENV}; required to create Signals through the Cloud API)",
+    )
+    laminar_parser.set_defaults(func=laminar._laminar_command)
 
-    build_telemetry_parser(commands)
     from evallab.harbor_view import build_view_parser as _build_view_parser
 
     _build_view_parser(commands)

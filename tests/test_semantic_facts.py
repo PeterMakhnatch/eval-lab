@@ -10,7 +10,6 @@ from evallab.semantic_facts import (
     EvidenceCoverage,
     NormalizedFactBundle,
     RetrievalFact,
-    load_fact_bundle,
     normalize_bundle,
     project_fact_bundle,
     query_scorecard,
@@ -160,7 +159,7 @@ def test_json_bundle_loader_does_not_invent_absent_facts(tmp_path) -> None:
     path.write_text(
         json.dumps({"capability_opportunities": [opportunity().model_dump(mode="json")]})
     )
-    loaded = load_fact_bundle(path)
+    loaded = normalize_bundle(json.loads(path.read_text()))
     assert len(loaded.capability_opportunities) == 1
     assert loaded.retrieval_facts == ()
     project_fact_bundle(loaded, tmp_path / "projected")

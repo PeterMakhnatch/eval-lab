@@ -20,7 +20,6 @@ from evallab.analyst import (
     TrialData,
     assemble_context,
     create_judge_deterministic_context,
-    list_analyses,
     resolve_trial,
     run_analysis,
     run_trajectory_judge,
@@ -246,10 +245,6 @@ def test_multiple_analyses_persist_without_overwrite(tmp_path: Path) -> None:
     assert file1.is_file()
     assert file2.is_file()
 
-    listed = list_analyses(tmp_path, trial_id=rec1.trial_id)
-    assert len(listed) == 2
-    categories = {r["category"] for r in listed}
-    assert categories == {"hypothesis_1", "hypothesis_2"}
 
     # Both present in Parquet view
     sql = Path("sql/analyst.sql").read_text(encoding="utf-8")
@@ -349,7 +344,7 @@ def test_sql_views_in_clean_duckdb_session() -> None:
 
 
 def test_cli_analyst_commands(tmp_path: Path) -> None:
-    """Test evallab analyst run, list, show CLI subcommands."""
+    """The analyst run command persists its conclusion and trajectory."""
     _create_synthetic_trial(tmp_path)
     derived = tmp_path / "derived" / "parquet"
 
@@ -360,21 +355,14 @@ def test_cli_analyst_commands(tmp_path: Path) -> None:
     )
     assert ret == 0
 
-    records = list_analyses(tmp_path)
-    assert len(records) == 1
-    analysis_id = records[0]["analysis_id"]
-
-    # 2. list CLI
-    ret_list = run_cli(["analyst", "list"], workspace=tmp_path)
-    assert ret_list == 0
-
-    # 3. show CLI
-    ret_show = run_cli(["analyst", "show", analysis_id], workspace=tmp_path)
-    assert ret_show == 0
-
-    # 4. show CLI with --json
-    ret_show_json = run_cli(["analyst", "show", analysis_id, "--json"], workspace=tmp_path)
-    assert ret_show_json == 0
+    records = list((tmp_path / "research/analysis").glob("*.json"))
+    conclusions = [
+        json.loads(path.read_text())
+        for path in records
+        if not path.name.endswith(".trajectory.json")
+    ]
+    assert len(conclusions) == 1
+    assert conclusions[0]["model"] == "stub"
 
 
 @pytest.mark.parametrize(
@@ -593,15 +581,6 @@ def test_run_analysis_persists_bindings_and_decision_ineligible(tmp_path: Path) 
     assert loaded_raw["source_snapshot_digest"] == snapshot_digest
     assert loaded_raw["source_queue_digest"] == queue_digest
     assert loaded_raw["decision_eligible"] is False
-
-    # Check list_analyses projection
-    listed = list_analyses(tmp_path)
-    assert len(listed) == 1
-    assert listed[0]["analysis_role"] == "review_queue_review"
-    assert listed[0]["source_manifest_digest"] == manifest_digest
-    assert listed[0]["source_snapshot_digest"] == snapshot_digest
-    assert listed[0]["source_queue_digest"] == queue_digest
-    assert listed[0]["decision_eligible"] is False
 
     # Check Parquet table projection
     with duckdb.connect(":memory:") as con:

@@ -367,8 +367,8 @@ not do. It reads the state directories directly instead of through
 must not create one.
 
 **Power warnings, for queued comparisons only.** Computed with
-`cohort.minimum_detectable_effect`, the same estimator behind `evallab power`
-and every comparison report. With no comparison queued it says so; it does not
+`cohort.minimum_detectable_effect`, the estimator used in every comparison report.
+With no comparison queued it says so; it does not
 manufacture a warning. It warns when a comparison cannot reach a task-paired
 interval at all — fewer than two distinct tasks, or no detectable per-attempt
 difference at the declared `attempts` — and when no arm declares an

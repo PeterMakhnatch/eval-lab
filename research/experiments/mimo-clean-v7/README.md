@@ -75,7 +75,8 @@ value. Atlas rows do not supply a verifier digest.
 This consumer reads the public metadata only. Executing a target additionally
 requires authorized access to its exact materialized package, applicable image
 and native evidence. Locate packages by full digest using the existing
-[task-variant custody contract](../../../docs/task-variants.md), verify package,
+task-variant custody contract (`docs/task-variants.md`, retired; read it at tag
+`pre-deslop-2026-11-10`), verify package,
 Harbor and verifier identities, and use the source's approved control/runtime
 protocol. This catalog is not a package download service and does not silently
 rebuild, register, install dependencies, relax assertions or launch work.

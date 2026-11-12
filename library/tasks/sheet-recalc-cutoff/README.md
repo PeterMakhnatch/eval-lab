@@ -82,7 +82,9 @@ Claude Code trials on the lab's subscription gateway, 2026-10-28:
 `claude-sonnet-5-5` 0/2 (over-evaluation on the randomized sequences),
 `claude-haiku-5-5` 2/2, `claude-opus-5-5` 2/2. Numbers, failure analysis and
 method:
-[`research/experiments/sheet-recalc-model-runs`](../../../research/experiments/sheet-recalc-model-runs/README.md).
+`research/experiments/sheet-recalc-model-runs`, now archived; restore it with
+the [research archive](../../../research/ARCHIVE.md) row
+(`git checkout archive/research-pre-ev1110-2026-11-10 -- research/experiments/sheet-recalc-model-runs`).
 
 ## Known limits
 

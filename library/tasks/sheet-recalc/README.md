@@ -89,7 +89,9 @@ only `engine.py` is collected.
 Claude Code trials on the lab's subscription gateway, 2026-10-28:
 `claude-haiku-5-5` 2/2, `claude-sonnet-5-5` 1/1, `claude-opus-5-5` 1/1. This
 contract did not separate them. Numbers and method:
-[`research/experiments/sheet-recalc-model-runs`](../../../research/experiments/sheet-recalc-model-runs/README.md).
+`research/experiments/sheet-recalc-model-runs`, now archived; restore it with
+the [research archive](../../../research/ARCHIVE.md) row
+(`git checkout archive/research-pre-ev1110-2026-11-10 -- research/experiments/sheet-recalc-model-runs`).
 
 ## Known limits
 

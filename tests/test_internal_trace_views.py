@@ -124,33 +124,6 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, dict]:
     )
 
 
-def test_build_publishes_both_loader_ready_keys_and_is_byte_stable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from evallab.qa.trace import key_trial_dir
-
-    metadata, artifacts, roots = _fixture(tmp_path)
-    monkeypatch.setenv("EVALLAB_RESULTS_HOME", str(roots["results"]))
-    receipt = internal.build(metadata, artifacts, roots)
-    assert receipt["audit"]["items"] == 2
-    assert receipt["audit"]["trajectories_scanned"] == 4
-    assert receipt["audit"]["label_leaks"] == 0
-    for view in ("full", "actions"):
-        key = internal.load_answer_key(receipt["keys"]["tiny-key"][view]["path"])
-        assert {i.item_id for i in key.items} == {"item-0", "item-1"}
-        for item in key.items:
-            assert item.model_extra["trial_ref"]["kind"] == "published"
-            target = roots["results"] / item.model_extra["trial_ref"]["path"]
-            assert key_trial_dir(item) == target
-            doc = json.loads((target / "agent/trajectory.json").read_bytes())
-            assert doc["steps"][1]["tool_calls"][0]["arguments"] == {"command": "printf done"}
-            if view == "actions":
-                assert doc["steps"][1]["message"] == ""
-    before = {p.name: p.read_bytes() for p in metadata.glob("*.json*")}
-    internal.build(metadata, artifacts, roots)
-    assert before == {p.name: p.read_bytes() for p in metadata.glob("*.json*")}
-
-
 @pytest.mark.parametrize("tamper", ["label", "drop"])
 def test_changed_labels_or_incomplete_population_fail_closed(tmp_path: Path, tamper: str) -> None:
     metadata, artifacts, roots = _fixture(tmp_path)

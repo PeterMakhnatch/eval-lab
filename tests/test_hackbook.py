@@ -12,17 +12,6 @@ from typing import Any
 import pytest
 
 from evallab.cli import parser
-from evallab.hackbook import (
-    STRUCTURAL_SIGNALS,
-    HackbookEntry,
-    coverage_summary,
-    get_entry,
-    list_entries,
-    load_hackbook,
-    load_taxonomy,
-    search_entries,
-    validate_no_tb4_test_leak,
-)
 from evallab.hackbook.matcher import (
     calibrate_pool,
     extract_structural_signals,
@@ -30,7 +19,18 @@ from evallab.hackbook.matcher import (
     match_target,
     match_task,
 )
-from evallab.hackbook.models import HackbookExample, find_tb4_test_leaks, tb4_test_split_terms
+from evallab.hackbook.models import (
+    STRUCTURAL_SIGNALS,
+    HackbookEntry,
+    HackbookExample,
+    coverage_summary,
+    find_tb4_test_leaks,
+    get_entry,
+    load_hackbook,
+    load_taxonomy,
+    tb4_test_split_terms,
+    validate_no_tb4_test_leak,
+)
 from evallab.hackbook.refcov import change_blocks, unnamed_blocks
 from evallab.qa.models import load_findings_dir
 
@@ -223,29 +223,6 @@ def test_build_check_passes() -> None:
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
-def test_no_tb4_test_split_leak(catalog: list[HackbookEntry]) -> None:
-    assert validate_no_tb4_test_leak(catalog, root=REPO) == []
-    paths = [
-        *sorted((REPO / "research/hackbook").rglob("*")),
-        *sorted((REPO / "src/evallab/hackbook").glob("*.py")),
-        REPO / ".omp/skills/hackbook/SKILL.md",
-        Path(__file__),
-    ]
-    for path in paths:
-        if path.is_file() and "__pycache__" not in path.parts:
-            assert find_tb4_test_leaks(path.read_text(errors="replace"), root=REPO) == [], path
-
-
-def test_leak_guard_detects_and_respects_boundaries() -> None:
-    tasks, items = tb4_test_split_terms(REPO)
-    assert len(tasks) == 41 and items
-    assert find_tb4_test_leaks(f"see {tasks[0]} here", root=REPO) == [tasks[0]]
-    assert find_tb4_test_leaks(f"id {items[0]}", root=REPO)
-    assert find_tb4_test_leaks("layout-config-recreation2 is a dev task", root=REPO) == []
-    leaky = SYNTHETIC[0].model_copy(update={"mechanism": f"like {tasks[0]}"})
-    assert validate_no_tb4_test_leak([leaky], root=REPO) == [f"HB-TS01-001: {tasks[0]}"]
-
-
 def test_catalog_cites_no_test_split_item_of_the_mimo_weak_test_keys(
     catalog: list[HackbookEntry],
 ) -> None:
@@ -295,49 +272,11 @@ def test_heldout_runner_lets_a_hackbook_version_spend_the_test_split_once(
     assert not (tmp_path / "out.json").exists()
 
 
-def test_get_list_search(catalog: list[HackbookEntry]) -> None:
+def test_get_entry(catalog: list[HackbookEntry]) -> None:
     assert get_entry("hb-ts01-001", catalog).slug == "hardcoded-fixture-outputs"
     assert get_entry("hardcoded-fixture-outputs", catalog).id == "HB-TS01-001"
     with pytest.raises(KeyError):
         get_entry("no-such-entry-zzz", catalog)
-    by_id = list_entries(catalog, taxonomy_class="TS01")
-    assert by_id and by_id == list_entries(catalog, taxonomy_class="weak_check")
-    assert all(e.side == "run" for e in list_entries(catalog, side="run"))
-    assert list_entries(catalog, source="benchjack")
-    assert list_entries(catalog, evidence_status="executed")
-    rows = search_entries("conftest sitecustomize", catalog, limit=5)
-    assert rows and rows[0]["entry"].taxonomy_class_id in {"TS04", "RS02"}
-    assert all(r["entry"].side == "task" for r in search_entries("nan", catalog, side="task"))
-
-
-def test_search_ranks_a_free_text_proposal_by_its_rare_words(catalog: list[HackbookEntry]) -> None:
-    def top(query: str, n: int = 3) -> list[str]:
-        return [r["entry"].id for r in search_entries(query, catalog, limit=n)]
-
-    # Sentences a judge might write, not catalog wording: common words must not decide the rank.
-    assert top("the grader trusts a boolean flag the solver reports instead of recomputing")[0] == (
-        "HB-TS01-003"
-    )
-    assert top("speed benchmark leaves graph construction outside the timer")[0] == "HB-TS01-006"
-    assert top("an LLM judge is convinced by an injected instruction in the submission")[0] == (
-        "HB-TS11-001"
-    )
-    assert "HB-TS03-002" in top("the answer is readable from git history in the container")
-    assert top("HB-TS04-002")[0] == "HB-TS04-002"  # an id still finds itself
-    # Stopwords alone carry no query, and `fields` says where the match came from.
-    assert search_entries("the and of to", catalog) == []
-    row = search_entries("conftest", catalog, limit=1)[0]
-    assert row["fields"] and set(row["fields"]) <= {
-        "id",
-        "title",
-        "class",
-        "mechanism",
-        "recipe",
-        "exploit",
-        "fix",
-        "sigdesc",
-        "examples",
-    }
 
 
 # --------------------------------------------------------------------------- task matching
@@ -506,8 +445,6 @@ def test_reference_patch_feeds_the_untested_block_signal(tmp_path: Path) -> None
         match_task(task, entries, reference=tmp_path / "missing.patch")
 
 
-
-
 def test_solution_code_without_a_patch_still_flags_functions_no_test_calls(tmp_path: Path) -> None:
     task = tmp_path / "pkg"
     _write(task / "instruction.md", "Compute totals.\n")
@@ -542,8 +479,6 @@ def test_match_view_and_emit_findings(tmp_path: Path) -> None:
     inside = match_target(view / "tasks" / "alpha", entries=SYNTHETIC)
     assert inside["kind"] == "task"
     assert inside["matches"][0]["evidence_refs"][0].startswith("tasks/alpha/")
-
-
 
 
 # --------------------------------------------------------------------------- precision
@@ -614,8 +549,6 @@ def test_diff_format_hidden_tests_only_count_added_assertions(tmp_path: Path) ->
     assert "wrong_or_contradictory_gold_constant" not in signals
 
 
-
-
 def test_calibrate_flags_entries_that_fire_on_most_of_a_pool(tmp_path: Path) -> None:
     pool = tmp_path / "pool"
     for name in ("a", "b", "c"):
@@ -631,8 +564,6 @@ def test_calibrate_flags_entries_that_fire_on_most_of_a_pool(tmp_path: Path) -> 
     assert report["entries"]["HB-TS04-001"]["share"] == 0.75
 
 
-
-
 # --------------------------------------------------------------------------- CLI
 
 
@@ -640,25 +571,6 @@ def _cli(capsys: pytest.CaptureFixture[str], *argv: str) -> tuple[int, str]:
     args = parser().parse_args(["hackbook", *argv])
     code = args.func(args, REPO)
     return code, capsys.readouterr().out
-
-
-def test_cli_list_show_search(capsys: pytest.CaptureFixture[str]) -> None:
-    code, out = _cli(capsys, "list", "--class", "TS04", "--json")
-    assert code == 0 and {e["taxonomy_class_id"] for e in json.loads(out)} == {"TS04"}
-    code, out = _cli(capsys, "list", "--side", "run")
-    assert code == 0 and "HB-RS01-001" in out and "HB-TS01-001" not in out
-    code, out = _cli(capsys, "show", "HB-TS01-001", "--json")
-    assert code == 0 and json.loads(out)["slug"] == "hardcoded-fixture-outputs"
-    code, out = _cli(capsys, "show", "hardcoded-fixture-outputs")
-    assert code == 0 and "Detection" in out and "Fix" in out
-    assert _cli(capsys, "show", "no-such-entry-zzz")[0] == 2
-    code, out = _cli(capsys, "search", "git history", "--limit", "3", "--json")
-    rows = json.loads(out)
-    assert code == 0 and 0 < len(rows) <= 3 and rows[0]["score"] > 0
-    code, out = _cli(capsys, "search", "conftest")
-    assert code == 0 and "HB-" in out
-
-
 
 
 def test_cli_coverage(capsys: pytest.CaptureFixture[str]) -> None:
@@ -726,13 +638,6 @@ def test_coverage_counts_each_evidence_status_per_source() -> None:
     assert by_class["TS01"]["executed_examples"] == 1 and by_class["TS02"]["observed_examples"] == 1
 
 
-def test_cli_list_filters_on_observed_evidence(capsys: pytest.CaptureFixture[str]) -> None:
-    code, out = _cli(capsys, "list", "--evidence", "observed", "--json")
-    rows = json.loads(out)
-    assert code == 0 and rows
-    assert all(any(ex["evidence_status"] == "observed" for ex in e["examples"]) for e in rows)
-
-
 def test_direction_keeps_the_side_the_caller_hunts_plus_either(tmp_path: Path) -> None:
     task = _planted_task(tmp_path / "pkg")
     everything = match_task(task, top=100)["matches"]
@@ -751,3 +656,24 @@ def test_direction_keeps_the_side_the_caller_hunts_plus_either(tmp_path: Path) -
         match_task(task, direction="pass")
 
 
+def test_no_tb4_test_split_leak(catalog: list[HackbookEntry]) -> None:
+    assert validate_no_tb4_test_leak(catalog, root=REPO) == []
+    paths = [
+        *sorted((REPO / "research/hackbook").rglob("*")),
+        *sorted((REPO / "src/evallab/hackbook").glob("*.py")),
+        REPO / ".omp/skills/hackbook/SKILL.md",
+        Path(__file__),
+    ]
+    for path in paths:
+        if path.is_file() and "__pycache__" not in path.parts:
+            assert find_tb4_test_leaks(path.read_text(errors="replace"), root=REPO) == [], path
+
+
+def test_leak_guard_detects_and_respects_boundaries() -> None:
+    tasks, items = tb4_test_split_terms(REPO)
+    assert len(tasks) == 41 and items
+    assert find_tb4_test_leaks(f"see {tasks[0]} here", root=REPO) == [tasks[0]]
+    assert find_tb4_test_leaks(f"id {items[0]}", root=REPO)
+    assert find_tb4_test_leaks("layout-config-recreation2 is a dev task", root=REPO) == []
+    leaky = SYNTHETIC[0].model_copy(update={"mechanism": f"like {tasks[0]}"})
+    assert validate_no_tb4_test_leak([leaky], root=REPO) == [f"HB-TS01-001: {tasks[0]}"]

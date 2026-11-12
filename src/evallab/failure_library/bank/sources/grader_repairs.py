@@ -48,7 +48,6 @@ import hashlib
 import json
 import os
 import sqlite3
-from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -91,24 +90,6 @@ _FAMILY_PREFIX = "mimo-v2.6-rl/"
 _NATIVE_WITNESS = "retained-native-execution-and-witness"
 _QUALIFIED_SCOPE = "reference_validated_weak_test_and_repair_qualification"
 
-SKIPPED_SETS: dict[str, str] = {
-    "tb21-test-repairs-20261019": (
-        "3 task patches plus a mutation-survival report per task; no before or after grader "
-        "digest in the repository (the tb2-to-tb21 variants that carry digests are in cloud-variant)"
-    ),
-    "envcheck-repair-2026-10-15": (
-        "8 repaired variants have an after digest and local-control receipts, but the before "
-        "(parent) digest lives only in machine-local variant packages, not in repository files"
-    ),
-    "har177-repair": (
-        "one strip-future-history pilot task: an environment git-history transform, "
-        "not a grader repair, and a single pair"
-    ),
-    "test-repair-performance-20261017": (
-        "analysis scripts only; no per-repair table of tasks and before/after identities "
-        "is kept in the repository"
-    ),
-}
 
 # (pull request, squash-merge short sha, variant record) for the 16 merged static repairs.
 _TS_REPAIRS: tuple[tuple[int, str, str, str], ...] = (
@@ -480,60 +461,3 @@ def build(ctx: BankContext) -> Iterator[IssueItem | SourceSummary]:
     yield from _ts_items(ctx, cloud_splits)
     yield from _cloud_items(ctx)
     yield from _v6_items(ctx, cloud_splits)
-
-
-def cloud_correspondence(ctx: BankContext) -> dict[str, Any]:
-    """Whether the cloud grader-digest pairs line up with the merged TS-9/TS-11 repairs.
-
-    Cloud rows hold *grader-manifest* digests; the TS variants hold *package*
-    digests. They correspond through the cloud variant's ``original_package_digest``
-    (the before side) and ``repaired_package_digest`` (the after side).
-    """
-    parents: dict[str, tuple[int, str]] = {}
-    for pr, _merge, _mission, record in _TS_REPAIRS:
-        path = ctx.repo_root / "library/task-variants" / f"{record}.json"
-        variant = json.loads(path.read_text(encoding="utf-8"))
-        parents[variant["parent"]["digest"]] = (pr, variant["variant_digest"])
-    rows_both: set[str] = set()
-    variants: Counter[str] = Counter()
-    before_hit: set[int] = set()
-    after_hit: set[int] = set()
-    for found in _cloud_variants(ctx):
-        variant = found.variant
-        has_both = bool(
-            variant.get("original_grader_digest") and variant.get("repaired_grader_digest")
-        )
-        if has_both:
-            rows_both.add(found.task_id)
-            variants["both_set"] += 1
-            variants["differ" if _cloud_pair(variant) else "equal"] += 1
-        parent = variant.get("original_package_digest")
-        if has_both and parent in parents:
-            pr, ts_variant = parents[parent]
-            before_hit.add(pr)
-            if variant.get("repaired_package_digest") == ts_variant:
-                after_hit.add(pr)
-    return {
-        "cloud_rows_with_both_digests": len(rows_both),
-        "cloud_variants": dict(variants),
-        "ts_repairs": len(parents),
-        "ts_before_side_matches_cloud_original": len(before_hit),
-        "ts_after_side_matches_cloud_repaired": len(after_hit),
-    }
-
-
-def survey(ctx: BankContext) -> dict[str, Any]:
-    """Live counts: set x validation status x split, plus the cloud correspondence."""
-    by_set: Counter[tuple[str, str, str]] = Counter()
-    for item in build(ctx):
-        if isinstance(item, IssueItem):
-            label_set, _, rest = item.label.partition(":")
-            status = rest.rsplit(":", 1)[-1].split(" ")[0]
-            if label_set == "cloud-variant":
-                label_set = f"cloud-variant/{rest.split(':')[0]}"
-            by_set[(label_set, status, item.split)] += 1
-    return {
-        "by_set_status_split": {"|".join(key): count for key, count in sorted(by_set.items())},
-        "cloud": cloud_correspondence(ctx),
-        "skipped_sets": SKIPPED_SETS,
-    }

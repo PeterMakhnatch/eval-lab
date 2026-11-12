@@ -47,7 +47,6 @@ from evallab.qa.trace import (
     _text,
     blind_id,
     render_steps,
-    tj_atif,
 )
 from evallab.storage.paths import shared_checkout_root
 from evallab.task_variants import harbor_task_digest, task_directory_digest
@@ -1449,95 +1448,4 @@ def build_workspace(
             "truncations": notes,
         },
         step_origin=blind_atif_step_origins(source_trajectory),
-    )
-
-
-def tj_workspace(row: dict[str, Any], out_dir: Path) -> Bundle:
-    """A v3 trajectory-judge workspace: request and ATIF only, no invented grader.
-
-    The ATIF goes through ``blind_atif`` like a trial's; each step's upstream
-    index is sealed as ``step_origin`` so localisation can be scored.
-    """
-    identity = str(row["trajectory_id"])
-    blind = blind_id(identity)
-    source = tj_atif(row)
-    upstream = {
-        step["step_id"]: (step.get("extra") or {}).get("source_index") for step in source["steps"]
-    }
-    trajectory = blind_atif(source, item_id=blind)
-    steps = trajectory["steps"]
-
-    def redact(text: str) -> str:
-        return text.replace(identity, blind)
-
-    reward = {
-        "value": None,
-        "rewards": None,
-        "source": "none recorded (no grader in trajectory-judge)",
-    }
-    availability = dict.fromkeys(
-        (
-            "prompt",
-            "trajectory",
-            "trace_evidence",
-            "verifier_output",
-            "tests",
-            "diff",
-            "task_codebase",
-            "agent_logs",
-            "task_priors",
-        ),
-        "missing",
-    )
-    trajectory_bytes = redact(_json_bytes(trajectory).decode()).encode()
-    evidence = trace_evidence(json.loads(trajectory_bytes)["steps"])
-    availability.update(
-        prompt="present" if row["goal"].strip() else "missing",
-        trajectory="present" if steps else "missing",
-        trace_evidence="present" if evidence["events"] else "missing",
-    )
-    # trajectory-judge ids spell the label (``<instance>-<failure_type>``): even the
-    # sealer's record carries only the opaque id (findings name the key item).
-    subject = {
-        "kind": "trace",
-        "task_id": row["instance_id"],
-        "task_digest": _sha256_bytes(row["goal"].encode()),
-        "trial_id": blind,
-    }
-    resolution = Resolution(None, "not_available (trajectory-judge)", None, None, None)
-    files = {
-        "prompt.md": row["goal"].encode(),
-        "trajectory.json": trajectory_bytes,
-        "trace_evidence.json": _json_bytes(evidence),
-        "steps.txt": (render_steps(steps, field_limit=4000, budget=10**9) + "\n").encode(),
-        "trajectory_summary.md": trajectory_summary(steps, agent_logs={}).encode(),
-        "README.md": _readme(availability, resolution, [], "missing").encode(),
-        "evaluation_result.json": _json_bytes(reward),
-        "metadata.json": _json_bytes(
-            {
-                "schema": WORKSPACE_SCHEMA,
-                "subject": subject,
-                "reward": reward,
-                "agent_model": None,
-                **_trace_counts(steps),
-                "availability": availability,
-            }
-        ),
-        "task_priors.json": _json_bytes(
-            {"task_id": row["instance_id"], "task_digest": subject["task_digest"], "priors": []}
-        ),
-    }
-    return _seal(
-        Path(out_dir),
-        {
-            rel: data if rel == "trace_evidence.json" else redact(data.decode()).encode()
-            for rel, data in files.items()
-        },
-        subject=subject,
-        reward=reward,
-        availability=availability,
-        resolution=resolution,
-        model=None,
-        provenance={"source": "trajectory-judge upstream trajectory"},
-        step_origin=[upstream[step_id] for step_id in blind_atif_step_origins(source)],
     )

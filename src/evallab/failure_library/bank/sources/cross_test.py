@@ -237,26 +237,6 @@ def _registry(ctx: BankContext) -> dict[str, Any]:
     return raw  # type: ignore[no-any-return]
 
 
-def held_sets(ctx: BankContext) -> dict[str, str]:
-    """The registry's gated or unstaged sets (never itemized), id -> why."""
-    raw = _registry(ctx)
-    held = {entry["id"]: str(entry.get("why_held") or entry.get("status", "held")) for entry in raw.get("hold_access", [])}
-    held.update(
-        {entry["id"]: str(entry.get("why") or entry.get("status", "not staged"))
-         for entry in raw.get("hold_licence_not_staged", [])}
-    )
-    return held
-
-
-def not_itemized(ctx: BankContext) -> dict[str, str]:
-    """Staged registry entries this source does not itemize, id -> why."""
-    ids = {entry["id"] for entry in _registry(ctx)["entries"]}
-    return {
-        slug: reason for slug in ids
-        if (reason := _NOT_ITEMIZED.get(slug) or _excluded(slug))
-    }
-
-
 def _provenance(entry: Mapping[str, Any], ref: str, note: str | None = None) -> Provenance:
     return Provenance(
         store=f"cross-test:{entry['id']}", ref=ref, digest=entry["manifest"]["sha256"], note=note

@@ -577,9 +577,3 @@ def build(ctx: BankContext) -> Iterator[IssueItem | SourceSummary]:
                     note=_note(OQ6_NOTE if oq6 else None, decision.note),
                 ),
             )
-
-
-def oq6_keyed(items: list[IssueItem]) -> tuple[int, int]:
-    """(annotations, distinct tasks) among items carrying the ``oq6-keyed`` mark."""
-    marked = [i for i in items if (i.provenance.note or "").startswith(OQ6_NOTE)]
-    return len(marked), len({i.task_id for i in marked})

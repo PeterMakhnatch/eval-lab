@@ -51,15 +51,6 @@ from evallab.failure_library.bank import IssueItem
 from evallab.failure_library.store import _atomic_write, _line
 
 SCHEMA_VERSION = "issue-bank-matrix/v1"
-CELLS = (
-    "catch",
-    "miss",
-    "false_alarm",
-    "correct_clear",
-    "abstain",
-    "unknown",
-    "not_run",
-)
 VERDICTS = frozenset({"alarm", "clear", "abstain", "unknown"})
 TASK_KINDS = frozenset({"grader_wrong_pass", "grader_unfair_fail", "task_defect", "other"})
 GENERIC_SELECTORS = frozenset({"cheatbench"})

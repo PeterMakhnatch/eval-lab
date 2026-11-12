@@ -66,7 +66,7 @@ continuation files: ``discover_trajectory_parts`` + ``stitch_steps`` (+
 the only allowed way to merge ``trajectory.json`` with its
 ``trajectory.cont-N.json`` parts. Consumers: ``traj`` (chain stitching),
 ``trial_diagnosis``, ``trial_treatment`` (capture token sums), ``explorer``,
-``interpretation/trajectory_ir``, ``interpretation/trace_readiness``,
+``interpretation/trajectory_ir``,
 ``sft_terminus`` (whole-segment identity), ``process_job``.
 """
 

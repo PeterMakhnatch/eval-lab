@@ -40,7 +40,6 @@ import pytest
 
 from evallab.evidence.atif import project_trial
 from evallab.evidence.facts import extract_job_facts, extract_trial_fact
-from evallab.interpretation.trace_readiness import check_trace_readiness
 from evallab.interpretation.trajectory_ir import build_trajectory_ir
 from evallab.results import load_job
 from evallab.traj import outline_trajectory
@@ -285,8 +284,8 @@ def test_continuation_stitch_preserves_earlier_actions() -> None:
     assert cited[1].endswith("agent/trajectory.cont-1.json")
 
 
-def test_continuation_fact_and_readiness_agree_with_outline() -> None:
-    """Facts, readiness, and explorer resolve the same chain, not stale roots."""
+def test_continuation_fact_agrees_with_outline() -> None:
+    """Facts resolve the same chain, not stale roots."""
     job = load_job(FIXTURE_JOB)
     continued = next(t for t in job.trials if t.path.name == "trial-continued")
 
@@ -297,15 +296,7 @@ def test_continuation_fact_and_readiness_agree_with_outline() -> None:
     assert fact.output_tokens == 490
     assert fact.cache_tokens == 600
 
-    readiness = check_trace_readiness(_trial("trial-continued"), repo_root=FIXTURE_ROOT)
-    assert readiness["steps"] == 6
-    assert readiness["prompt_tokens"] == 4500
-    assert readiness["verdict"] in {"interpretable", "degraded"}
 
-
-    report = check_trace_readiness(_trial("trial-summarized"), repo_root=FIXTURE_ROOT)
-    assert report["steps"] == 8
-    assert report["prompt_tokens"] == 18150
 
 
 def test_continuation_events_cite_native_documents() -> None:
@@ -378,16 +369,6 @@ def test_missing_continuation_tail_is_unavailable_not_featured(tmp_path: Path) -
     assert "incomplete_continuation_chain" in (outline.unavailable_reason or "")
     assert outline.total_prompt_tokens == 0
 
-    readiness = check_trace_readiness(trial_dir, repo_root=tmp_path)
-    assert readiness["verdict"] == "degraded"
-    assert any(
-        reason.startswith("incomplete_continuation_chain")
-        for reason in readiness["reasons"]
-    )
-    # Partial steps are reported, but no stale partial head poses as authority.
-    assert readiness["steps"] == 2
-    assert readiness["final_metrics_present"] is False
-
     fact = extract_trial_fact(load_job(job), load_job(job).trials[0])
     assert fact.step_count == 2
     assert fact.input_tokens is None
@@ -439,12 +420,6 @@ def test_cyclic_continuation_terminates_unavailable(tmp_path: Path) -> None:
     assert outline.status == "accounted_unavailable"
     assert "cycle" in (outline.unavailable_reason or "")
 
-    readiness = check_trace_readiness(trial_dir, repo_root=tmp_path)
-    assert readiness["verdict"] == "degraded"
-    assert any(
-        reason.startswith("incomplete_continuation_chain")
-        for reason in readiness["reasons"]
-    )
 
 
 def test_failure_dump_is_parseable_but_never_a_pass() -> None:

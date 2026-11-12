@@ -329,6 +329,21 @@ def test_two_decisive_wins_among_ties_refuse(tmp_path: Path) -> None:
     assert paired["rankable"] is False
 
 
+def test_comparison_prints_literal_refusal_when_model_pin_is_missing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tasks = {"task-a": [0.0], "task-b": [0.0]}
+    _write_job(tmp_path, name="left", agent="agent-a", model=None, task_rewards=tasks)
+    _write_job(tmp_path, name="right", agent="agent-b", model="model-b", task_rewards=tasks)
+
+    report = compare(_spec("left", "right"), repo_root=tmp_path)
+    paired = report["paired"][0]
+    assert paired["rankable"] is False
+    assert paired["statement"].startswith(NOT_COMPARABLE)
+    assert "missing model pin" in paired["statement"]
+    assert NOT_COMPARABLE in render_markdown(report)
+
+
 def test_power_reports_mde_and_required_n_k_tradeoffs(capsys: pytest.CaptureFixture[str]) -> None:
     effect = minimum_detectable_effect(n_tasks=100, k=1, baseline=0.5)
     assert effect is not None and 0 < effect < 0.3
@@ -447,16 +462,3 @@ def test_graded_unrelated_error_keeps_verifier_outcome_under_both_policies(
         assert report["paired"][0]["n_pairs"] == 1
 
 
-def test_comparison_prints_literal_refusal_when_model_pin_is_missing(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    tasks = {"task-a": [0.0], "task-b": [0.0]}
-    _write_job(tmp_path, name="left", agent="agent-a", model=None, task_rewards=tasks)
-    _write_job(tmp_path, name="right", agent="agent-b", model="model-b", task_rewards=tasks)
-
-    report = compare(_spec("left", "right"), repo_root=tmp_path)
-    paired = report["paired"][0]
-    assert paired["rankable"] is False
-    assert paired["statement"].startswith(NOT_COMPARABLE)
-    assert "missing model pin" in paired["statement"]
-    assert NOT_COMPARABLE in render_markdown(report)

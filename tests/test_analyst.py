@@ -286,7 +286,6 @@ def test_lineage_resolution_on_stored_record(tmp_path: Path) -> None:
     # Check that it resolved to Zone 1 evidence files
     assert any(child.zone == "z1" for child in node.inputs)
 
-    # Also test CLI lineage command
 
 
 def test_no_model_invoked_without_model_flag(

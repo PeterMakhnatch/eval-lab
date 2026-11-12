@@ -112,7 +112,6 @@ inputs:
     assert leaf_node.resolved is True
     assert len(leaf_node.inputs) == 0
 
-    # CLI returns 0
 
 
 def test_digest_mismatch_reported_as_mismatch(tmp_path: Path) -> None:

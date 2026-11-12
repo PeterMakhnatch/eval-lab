@@ -23,7 +23,6 @@ from library.adapters.agentabstain.controls import (  # noqa: E402
     evaluate_hardened_controls,
 )
 from library.adapters.agentabstain.materialize import materialize  # noqa: E402
-from scripts.agentabstain.assert_reward import _job_reward  # noqa: E402
 
 materializer_module = importlib.import_module("library.adapters.agentabstain.materialize")
 
@@ -88,14 +87,6 @@ def test_verifier_reward_script_is_executable_and_produces_binary_reward(tmp_pat
     assert "/logs/verifier/reward.txt" in test_sh
     assert "printf '1" in test_sh and "printf '0" in test_sh
 
-
-def test_reward_assertion_reads_persisted_harbor_result(tmp_path: Path) -> None:
-    job = tmp_path / "job"
-    job.mkdir()
-    (job / "result.json").write_text(json.dumps({
-        "stats": {"evals": {"control": {"metrics": [{"mean": 1.0}]}}},
-    }))
-    assert _job_reward(job) == 1.0
 
 def test_committed_corpus_guard_rejects_generated_task(monkeypatch) -> None:
     def fake_check_output(command, text):

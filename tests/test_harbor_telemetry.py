@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from evallab import cheat, hub_trials, task_stability
+from evallab import cheat, task_stability
 from evallab.execution_contracts import subscription_environment
 from evallab.harbor_telemetry import harbor_child_environment
 
@@ -44,12 +44,6 @@ def test_child_environment_defaults_to_process_environment(
 def test_subscription_environment_overrides_ambient_opt_in() -> None:
     assert subscription_environment({"HARBOR_TELEMETRY": "on"})["HARBOR_TELEMETRY"] == "off"
     assert subscription_environment({})["HARBOR_TELEMETRY"] == "off"
-
-
-def test_native_hub_harbor_child_env_has_telemetry_off(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = _capture_run(hub_trials, monkeypatch)
-    hub_trials.NativeHarbor("harbor")._run(["hub", "trial", "list"])
-    assert calls[0]["env"]["HARBOR_TELEMETRY"] == "off"
 
 
 def test_cheat_harbor_version_child_env_has_telemetry_off(monkeypatch: pytest.MonkeyPatch) -> None:

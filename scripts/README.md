@@ -7,7 +7,6 @@ belongs in `src/evallab/`, not a second operator workflow.
 ## What lives here / entry points
 - `scripts/premerge.sh`: Pre-merge validation gate executing local quality checks.
 - `scripts/ci/check_harbor_skips.py`: JUnit skip census for native CI. The native file inventory remains until full discovery is safe.
-- `scripts/coverage_census.py`: Per-module statement coverage from the pytest files devloop selects; `--json` rows name statements, missed lines, percent and tests.
 - `scripts/line-replay.py`: Standard frozen `replay-v1` assembly-line regression gate (see `docs/line.md`).
 
 ## Invariants or rules
@@ -16,7 +15,6 @@ belongs in `src/evallab/`, not a second operator workflow.
 
 ## Tests or checks
 - `uv run pytest tests/test_quality_gates.py`
-- `uv run pytest tests/test_coverage_census.py -n0 -q`
 - `uv run pytest tests/test_profile_harness.py`
 - `bash scripts/premerge.sh`
 

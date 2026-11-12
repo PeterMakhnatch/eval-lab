@@ -44,10 +44,10 @@ tests/                      Separate verifier image and trusted fixture
 ## Run
 
 ```bash
-uv run harbor-lab run --task tasks/event-summary --agent oracle \
-  --name event-summary-oracle-local
-uv run harbor-lab run --task tasks/event-summary --agent nop \
-  --name event-summary-nop-local
+uv run evallab run --task library/tasks/event-summary --agent oracle \
+  --name event-summary-oracle
+uv run evallab run --task library/tasks/event-summary --agent nop \
+  --name event-summary-nop
 ```
 
 Expected rewards are `1` for Oracle and `0` for no-op.

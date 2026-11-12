@@ -9,10 +9,10 @@ library/tasks/experimental/syn-funcdag-medium,3.0.0,no-cells,4.0.0
 library/tasks/query-optimize,3.0.0,no-cells,
 library/tasks/query-optimize,4.0.0,no-cells,
 library/tasks/release-branch-rescue,3.0.0,no-cells,4.0.0
-library/tasks/sheet-recalc,1.4.0,no-cells,4.0.0
-library/tasks/sheet-recalc,2.0.0,no-cells,4.0.0
-library/tasks/sheet-recalc-cutoff,1.4.0,no-cells,4.0.0
-library/tasks/sheet-recalc-cutoff,2.0.0,no-cells,4.0.0
+library/tasks/sheet-recalc,1.4.0,no-cells,
+library/tasks/sheet-recalc,2.0.0,no-cells,
+library/tasks/sheet-recalc-cutoff,1.4.0,no-cells,
+library/tasks/sheet-recalc-cutoff,2.0.0,no-cells,
 library/tasks/tau3-retail-1,1.4.0,errored,
 library/tasks/tau3-retail-1,2.0.0,errored,
 library/tasks/tau3-retail-1,3.0.0,no-cells,

@@ -118,8 +118,8 @@ Rules that keep the table honest:
 | `experimental/syn-funcdag-medium` | clean | clean | - | clean | yes (`4.0.0`) |
 | `query-optimize` | cracked | cracked | - | - | unrecorded |
 | `release-branch-rescue` | clean | clean | - | clean | yes (`4.0.0`) |
-| `sheet-recalc` | - | - | clean | clean | yes (`3.0.0`, `4.0.0`) |
-| `sheet-recalc-cutoff` | - | - | clean | clean | yes (`3.0.0`, `4.0.0`) |
+| `sheet-recalc` | - | - | clean | clean | no (stale `3.0.0`, `4.0.0`) |
+| `sheet-recalc-cutoff` | - | - | clean | clean | no (stale `3.0.0`, `4.0.0`) |
 | `tau3-retail-1` | - (1 errored cell) | - (1 errored cell) | - | - | unrecorded |
 | `terminal-bench-html-js-filter` | clean | clean | - | clean | yes (`4.0.0`) |
 | `transaction-reconciliation` | clean (superseded `cracked`) | clean (superseded `cracked`) | - | clean | yes (`1.4.0`, `2.0.0`, `4.0.0`) |
@@ -133,8 +133,9 @@ Rules that keep the table honest:
   `terminal-bench-html-js-filter` (4) and `transaction-reconciliation` (4) ran
   the three `.pth` start-up probes on 2026-11-02, and
   `experimental/deepplanning-v1/travel-lisbon-002` (1) on 2026-11-03
-  (HAR-285); all came back clean, with digests that still match today's
-  package bytes. The other 2 packages have no `4.0.0` cell.
+  (HAR-285); all came back clean. 8 of those digests still match today's
+  package bytes; the two sheet-recalc digests are stale (see below). The other
+  2 packages have no `4.0.0` cell.
 - **`3.0.0` covers only the two hand-authored packages** (`sheet-recalc`,
   `sheet-recalc-cutoff`); the other 10 packages have no `3.0.0` cell.
 - **`tau3-retail-1` has never been laddered**: both recorded cells are
@@ -146,8 +147,11 @@ Rules that keep the table honest:
   bound to current bytes.
 - **34 of 48 rows ran on bytes no receipt records.** Only the two sheet-recalc
   packages (`3.0.0`), the ten `4.0.0` packages and `transaction-reconciliation`
-  (`1.4.0`, `2.0.0`) carry a recorded digest, and all fourteen match today's
-  package digest. For the rest,
+  (`1.4.0`, `2.0.0`) carry a recorded digest. Ten of those fourteen match
+  today's package digest. The four sheet-recalc rows (`3.0.0`, `4.0.0`) are
+  stale: HAR-404 (2026-11-12) edited only each package's `README.md` to replace
+  a dead link, and Harbor's package digest includes `README.md`. Their
+  `1.4.0`/`2.0.0` gaps are therefore no longer superseded. For the rest,
   `digest_recorded=no` is the gap: the generation ran, but the row cannot say
   on which bytes, so a re-run (not a reinterpretation) is what closes it.
 

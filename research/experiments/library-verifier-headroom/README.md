@@ -40,8 +40,8 @@ Packages below 50% on the phase maximum: `peter/sheet-recalc` 30.5%,
 `terminal-bench/html-js-filter` 28.9%, `peter/sheet-recalc-cutoff` 28.5%,
 `evallab/syn-funcdag-hard` 45.1%, `evallab/syn-funcdag-medium` 44.0%,
 `petermakhnatch/transaction-reconciliation` 43.2%. `sierra-research/tau3-bench__tau3-retail-1`
-has two published trials; both failed with `ValueError` before the verifier
-started, so it has no phase sample.
+has two published trials; both record `ValueError` and no verifier phase, so it
+has no phase sample.
 
 ## Where Harbor applies `timeout_sec`
 

@@ -17,7 +17,9 @@ from typing import Any
 import pytest
 
 from evallab import cli, database
+from evallab.evidence import atif
 from evallab.evidence.facts import AnalyzerCallResult, run_trial_analysis
+from evallab.queue import Executor
 from evallab.results import load_job
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -121,13 +123,13 @@ def test_doctor_names_the_catalog_it_inspected_without_credentials(
     task.write_text("version = 1\n")
     monkeypatch.setenv("DATABASE_URL", CATALOG_URL)
     monkeypatch.setattr(
-        cli.Executor,
+        Executor,
         "from_repo",
         lambda root: type("R", (), {"local_runtime_checks": lambda self: []})(),
     )
-    monkeypatch.setattr(cli.database, "ping", lambda url: "PostgreSQL 16")
+    monkeypatch.setattr(database, "ping", lambda url: "PostgreSQL 16")
     monkeypatch.setattr(
-        cli,
+        atif,
         "check_projection_invariant",
         lambda url, output, events: ProjectionInvariant(
             catalog_job_ids=frozenset({"job"}),
@@ -156,7 +158,7 @@ def test_doctor_names_the_catalog_even_when_postgres_is_unreachable(
     task.write_text("version = 1\n")
     monkeypatch.setenv("DATABASE_URL", CATALOG_URL)
     monkeypatch.setattr(
-        cli.Executor,
+        Executor,
         "from_repo",
         lambda root: type("R", (), {"local_runtime_checks": lambda self: []})(),
     )
@@ -164,7 +166,7 @@ def test_doctor_names_the_catalog_even_when_postgres_is_unreachable(
     def refuse(url: str) -> str:
         raise OSError("connection refused")
 
-    monkeypatch.setattr(cli.database, "ping", refuse)
+    monkeypatch.setattr(database, "ping", refuse)
 
     assert cli._doctor(tmp_path, home=tmp_path / "home") == 1
 
@@ -345,9 +347,9 @@ def test_sync_primary_row_takes_the_status_path_and_interval_from_the_environmen
 def _stub_doctor_database(monkeypatch: pytest.MonkeyPatch) -> None:
     from evallab.evidence.atif import ProjectionInvariant
 
-    monkeypatch.setattr(cli.database, "ping", lambda url: "PostgreSQL 16")
+    monkeypatch.setattr(database, "ping", lambda url: "PostgreSQL 16")
     monkeypatch.setattr(
-        cli,
+        atif,
         "check_projection_invariant",
         lambda url, output, events: ProjectionInvariant(
             catalog_job_ids=frozenset({"job"}),
@@ -361,7 +363,7 @@ def _stub_doctor_database(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _stub_local_doctor(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        cli.Executor,
+        Executor,
         "from_repo",
         lambda root: type("R", (), {"local_runtime_checks": lambda self: []})(),
     )

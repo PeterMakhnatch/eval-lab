@@ -1,4 +1,4 @@
-"""The console entry point preserves the full CLI's version route."""
+"""Version and parser construction remain independent of execution dependencies."""
 
 from __future__ import annotations
 
@@ -6,30 +6,32 @@ import json
 import subprocess
 import sys
 
-PROBE = """
-import sys
-from {module} import main
-try:
-    main({argv!r})
-except SystemExit as stop:
-    code = stop.code
-else:
-    code = 0
-sys.stderr.write(json.dumps({{"code": code, "full_cli": "evallab.cli" in sys.modules,
-                              "workers": "evallab.production.seeker_worker" in sys.modules}}))
-"""
+from evallab import __version__
 
 
-def run(module: str, argv: list[str]) -> tuple[str, dict[str, object]]:
+def test_console_version() -> None:
     done = subprocess.run(
-        [sys.executable, "-c", "import json\n" + PROBE.format(module=module, argv=argv)],
+        [sys.executable, "-c", "from evallab.entry import main; main(['--version'])"],
         capture_output=True, text=True, check=False, timeout=120,
     )
-    stderr = done.stderr.strip()
-    state = json.loads(stderr[stderr.rindex("{"):])
-    return done.stdout, state
+    assert done.returncode == 0, done.stderr
+    assert done.stdout == __version__ + "\n"
 
 
-def test_other_commands_still_reach_the_full_cli() -> None:
-    out, state = run("evallab.entry", ["--version"])
-    assert out.strip() and state["full_cli"] is True
+def test_parser_startup_excludes_execution_dependencies() -> None:
+    done = subprocess.run(
+        [sys.executable, "-c", """
+import json
+import sys
+from evallab.cli import parser
+parser()
+blocked = ("psycopg", "pyarrow", "duckdb", "evallab.database", "evallab.runner", "evallab.queue")
+print(json.dumps(sorted(
+    name for name in sys.modules
+    if any(name == prefix or name.startswith(prefix + ".") for prefix in blocked)
+)))
+"""],
+        capture_output=True, text=True, check=False, timeout=120,
+    )
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout) == [], "Heavy startup imports: " + done.stdout.strip()

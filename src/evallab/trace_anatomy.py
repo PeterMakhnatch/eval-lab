@@ -1436,36 +1436,6 @@ def database_scrub_pattern(database: Path) -> re.Pattern[str]:
     return scrub_pattern(ids)
 
 
-def register_subcommands(actions: Any) -> None:
-    """``evallab trace anatomy``; registration opens nothing."""
-    parser = actions.add_parser(
-        "anatomy",
-        help="Label-free structured case anatomy of one admitted DEV run or local ATIF trial",
-        description=(
-            "Task contract, exact final patch, file-mutation ledger (protected vs product surfaces), "
-            "high-signal actions and claim-vs-reality. Cloud trace ids and CheatBench item ids pass the "
-            "DEV admission gate; --atif-file reads a local Harbor/ATIF trial."
-        ),
-    )
-    parser.add_argument("run", nargs="?", help="Cloud trace id or CheatBench item id")
-    parser.add_argument(
-        "--atif-file", type=Path, help="Local Harbor/ATIF trial JSON or trial directory"
-    )
-    parser.add_argument(
-        "--json", action="store_true", help="Print the anatomy JSON instead of the card"
-    )
-    parser.add_argument(
-        "--include-narration", action="store_true", help="Add agent messages and reasoning"
-    )
-    parser.add_argument(
-        "--include-final-claim", action="store_true", help="Add the agent's final claim text"
-    )
-    parser.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
-    parser.add_argument("--cas-dir", type=Path, default=DEFAULT_CAS_DIR)
-    parser.add_argument(
-        "--results-root", type=Path, help="Published results home (CheatBench trajectories)"
-    )
-    parser.set_defaults(func=_anatomy_command)
 
 
 def _anatomy_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:

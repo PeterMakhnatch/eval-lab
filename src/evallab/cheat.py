@@ -32,7 +32,6 @@ from evallab.cheat_ladder import (
     CHEAT_LADDER_V2,  # noqa: F401  (re-exported for sibling lanes)
     CHEAT_LADDER_V3,  # noqa: F401  (re-exported for sibling lanes)
     CHEAT_LADDER_V4,  # noqa: F401  (re-exported for sibling lanes)
-    DEFAULT_LADDER_VERSION,
     LADDERS,
     parse_attack_selection,
     parse_ladder_version,
@@ -442,34 +441,3 @@ def _cheat_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     return 0
 
 
-def build_cheat_parser(commands: argparse._SubParsersAction) -> None:
-    """Register the ``evallab cheat`` subcommand (one self-contained block)."""
-    cheat = commands.add_parser(
-        "cheat",
-        help="Deterministic cheat audit on local Docker ($0, model-free)",
-        description=__doc__.split("\n\n")[0] if __doc__ else "cheat audit",
-    )
-    sub = cheat.add_subparsers(dest="cheat_cmd", required=True)
-    runner = sub.add_parser("run", help="Run the fixed attack ladder against one task")
-    runner.add_argument("--task", type=Path, required=True, help="Task directory")
-    runner.add_argument("--name", required=True, help="Harbor job name")
-    runner.add_argument("--jobs-dir", type=Path, default=Path("runs"))
-    runner.add_argument("--attempts", type=int, default=1)
-    runner.add_argument(
-        "--attacks",
-        default=None,
-        help="comma-separated subset for the selected ladder; default: full ladder",
-    )
-    runner.add_argument(
-        "--ladder-version",
-        choices=sorted(LADDERS),
-        default=None,
-        help=f"ladder generation (default: {DEFAULT_LADDER_VERSION})",
-    )
-    runner.add_argument(
-        "--timeout-seconds",
-        type=int,
-        default=600,
-        help="executor wall-clock allowance per attempted trial",
-    )
-    runner.set_defaults(func=_cheat_run_command)

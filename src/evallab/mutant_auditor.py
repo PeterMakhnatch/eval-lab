@@ -609,25 +609,6 @@ def _finish(out_dir: Path, record: dict[str, Any]) -> dict[str, Any]:
 # --------------------------------------------------------------------------- CLI
 
 
-def build_audit_mutants_parser(subparsers: Any) -> None:
-    parser = subparsers.add_parser(
-        "audit-mutants",
-        help="STING-style reference-patch semantic mutants through a task's grader (Modal, capped)",
-    )
-    parser.add_argument("--package", type=Path, required=True, help="Original task package")
-    parser.add_argument("--reference-patch", type=Path, required=True)
-    parser.add_argument("--out", type=Path, required=True, help="Audit output directory")
-    parser.add_argument("--repaired-package", type=Path, help="Repaired grader snapshot")
-    parser.add_argument("--limit", type=int, default=DEFAULT_MUTANTS)
-    parser.add_argument(
-        "--plan", action="store_true", help="Offline: list the Python mutation targets and exit"
-    )
-    parser.add_argument("--approval", help="Recorded approval text for the Modal spend gate")
-    parser.add_argument("--max-usd", type=float, default=1.75)
-    parser.add_argument("--per-execution-usd", type=float, default=0.005)
-    parser.add_argument("--ledger", type=Path, help="Persisted spend ledger (outside evidence)")
-    parser.add_argument("--app-name", default="mutant-auditor")
-    parser.set_defaults(func=_audit_mutants_command)
 
 
 def _audit_mutants_command(args: Any, root: Path, *, harbor: Any = None) -> int:

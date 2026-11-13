@@ -1,1 +1,1 @@
-"""Subcommands of ``evallab failures``; each module exposes ``register(subparsers)``."""
+"""Failure Library command implementations, loaded only when a command runs."""

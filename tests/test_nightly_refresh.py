@@ -765,11 +765,12 @@ def test_nightly_refresh_command_never_constructs_executor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     from evallab import cli
+    from evallab.queue import Executor
 
     def explode(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("paid nightly must not be constructed")
 
-    monkeypatch.setattr(cli.Executor, "from_repo", explode)
+    monkeypatch.setattr(Executor, "from_repo", explode)
     seen: list[RefreshConfig] = []
 
     def fake_run(config: RefreshConfig, *, now: datetime | None = None) -> dict[str, Any]:

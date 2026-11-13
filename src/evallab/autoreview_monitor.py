@@ -42,7 +42,6 @@ from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from evallab.production.run_atlas import DEFAULT_DATABASE
 from evallab.trace_anatomy import (
     COMMAND_CHARS,
     DIFF_START,
@@ -1251,24 +1250,6 @@ def autoreview_run(
     return result
 
 
-def register_subcommands(actions: Any) -> None:
-    """``evallab trace autoreview`` subparser."""
-    parser = actions.add_parser(
-        "autoreview",
-        help="Budgeted compact view, targeted raw-step retrieval, and L0 cascade monitor",
-        description=(
-            "Audit an agent run for benchmark reward hacking without viewing reasoning. "
-            "Passes Stage 1 compact view with test/fixture disambiguation, conditionally triggers "
-            "Stage 2 budgeted targeted retrieval (capped steps and characters), and optionally integrates deterministic L0 tripwires."
-        ),
-    )
-    parser.add_argument("run_id_or_atif_path", help="Cloud trace id, CheatBench item id, or local ATIF trial JSON path")
-    parser.add_argument("--db", type=Path, default=DEFAULT_DATABASE, help="Path to cloud trace database")
-    parser.add_argument("--compact-only", action="store_true", help="Deterministically print compact card and Stage-2 status without model calls ($0)")
-    parser.add_argument("--model", default="google-antigravity/gemini-3.8-flash", help="Model to evaluate run (default: google-antigravity/gemini-3.8-flash)")
-    parser.add_argument("--with-l0-cascade", action="store_true", help="Include L0 tripwire scan and report cascade/union alerts")
-    parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
-    parser.set_defaults(func=_autoreview_command)
 
 
 def _autoreview_command(args: Any, root: Path, *, harbor: Any = None) -> int:

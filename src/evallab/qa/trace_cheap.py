@@ -590,18 +590,3 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
     return 0
 
 
-def add_trace_cheap_commands(sub: Any) -> None:
-    """Register ``trace-cheap`` under ``evallab qa``."""
-    p = sub.add_parser(
-        "trace-cheap",
-        help="Cheap-model trace QA: tripwires -> hackbook candidate -> cheap judge (qa.finding/v1)",
-    )
-    p.add_argument("target", type=Path, help="Trial dir, or its agent/trajectory.json")
-    p.add_argument("--model", default=DEFAULT_MODEL, help="OpenRouter model id")
-    p.add_argument("--task-id", default=None, help="Subject task id (default: trial dir name)")
-    p.add_argument("--out", type=Path, default=None, help="Write the finding JSON here")
-    p.add_argument(
-        "--offline", action="store_true", help="No judge call: prefilter + candidates only"
-    )
-    p.add_argument("--json", action="store_true", help="Include mode/candidate/prefilter in output")
-    p.set_defaults(func=_cmd)

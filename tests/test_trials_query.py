@@ -7,7 +7,6 @@ evidence and existing projections, including on cache gaps.
 
 from __future__ import annotations
 
-import argparse
 import json
 from pathlib import Path
 
@@ -15,7 +14,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.storage.trials import command, connect_trials
+from evallab.storage.trials import connect_trials
 
 # Contract-pinned legit inputs (the view DDL in sql/trials.sql owns the
 # predicate; these are fixture values for the rows under test).
@@ -534,52 +533,6 @@ def test_empty_roots_selection_scans_nothing(tmp_path):
         assert _fetch(con, 'SELECT COUNT(*) FROM "trials"')[1] == [(0,)]
     finally:
         con.close()
-
-
-def test_command_summary_sql_safety_and_stderr(tmp_path, monkeypatch, capsys):
-    runs = tmp_path / "runs"
-    derived = tmp_path / "derived"
-    _install_posture(
-        monkeypatch,
-        {
-            "task__s1": dict(LEGIT_OK),
-            "task__s2": {**LEGIT_OK, "model": "other/model"},
-        },
-    )
-    job = _make_job(runs, "job-cli", job_id="job-cli", n_total=2)
-    _make_trial(job, "task__s1", trial_id="tk-1", job_id="job-cli",
-                trial_name="trial-1", task_name="t")
-    _make_trial(job, "task__s2", trial_id="tk-2", job_id="job-cli",
-                trial_name="trial-2", task_name="t")
-    for trial_id in ("tk-1", "tk-2"):
-        _write_hot(derived, "job-cli", trial_id, primary=1.0,
-                   rewards={"reward": 1.0, "integrity": 1.0, "reward_gated": 1.0})
-    stray = runs / "job-cli" / "stray"
-    stray.mkdir()
-    (stray / "result.json").write_text("{not json", encoding="utf-8")
-
-    args = argparse.Namespace(sql=None, runs_dir=[str(runs)], derived_root=str(derived))
-    assert command(args, tmp_path, harbor=None) == 0
-    captured = capsys.readouterr()
-    assert "total: 2" in captured.out
-    assert "legit: 1" in captured.out
-    assert "campaign HAR-178-probe: 2 (legit 1)" in captured.out
-    assert "rows carry projection errors; 1 unreadable result.json files" in captured.err
-    assert "stray/result.json" in captured.err
-
-    args = argparse.Namespace(
-        sql='SELECT "trial", "legit" FROM "trials" ORDER BY "trial"',
-        runs_dir=[str(runs)],
-        derived_root=str(derived),
-    )
-    assert command(args, tmp_path, harbor=None) == 0
-    out = capsys.readouterr().out.splitlines()
-    assert out[0] == "trial\tlegit"
-    assert out[1:] == ["trial-1\ttrue", "trial-2\tfalse"]
-
-    for bad in ('DELETE FROM "trials"', 'COPY "trials" TO \'/tmp/trials-x.csv\'', ""):
-        args = argparse.Namespace(sql=bad, runs_dir=[str(runs)], derived_root=str(derived))
-        assert command(args, tmp_path, harbor=None) == 1
 
 
 def test_read_only_task_selection_projects_cache_gaps_without_writes(tmp_path, monkeypatch):

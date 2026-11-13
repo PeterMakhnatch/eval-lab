@@ -1436,9 +1436,6 @@ def parser() -> argparse.ArgumentParser:
     )
     native_live_watch_watch.set_defaults(func=native_live_watch._watch_command)
 
-    from evallab.storage.trials import build_trials_parser
-
-    build_trials_parser(commands)
     from evallab import reward_hack
 
     hack = commands.add_parser(
@@ -1602,38 +1599,8 @@ def parser() -> argparse.ArgumentParser:
 
     register_production_parser(commands)
 
-    import evallab.production.run_atlas as native_run_atlas
-    """``evallab atlas``; registration opens no database, gateway or model."""
-    native_run_atlas_atlas = commands.add_parser("atlas", help="Run Atlas: blinded whole-run facets and clusters")
+    native_run_atlas_atlas = commands.add_parser("atlas", help="Run Atlas: clusters and scorecards")
     native_run_atlas_actions = native_run_atlas_atlas.add_subparsers(dest="atlas_command", required=True)
-    native_run_atlas_facet = native_run_atlas_actions.add_parser(
-        "facet", help="Fill run-facets/v1 for admitted DEV runs with a subscription model",
-        description=(
-            "Reads each run blinded (no labels, split or source names reach the model), "
-            "map-reduces long runs without cutting reasoning, validates every record and "
-            "appends it to the interim JSONL. Idempotent by run_id."
-        ),
-    )
-    native_run_atlas_facet.add_argument("--corpus", choices=("cloud", "cheatbench"), default="cloud")
-    native_run_atlas_facet.add_argument("--database", type=native_run_atlas.Path, default=native_run_atlas.DEFAULT_DATABASE)
-    native_run_atlas_facet.add_argument("--dataset", dest="dataset_ids", action="append",
-                       help="Cloud dataset_id; repeat for several (default: all admitted DEV)")
-    native_run_atlas_facet.add_argument("--tier", dest="trust_tiers", action="append",
-                       help="Cloud trust tier; repeat for several")
-    native_run_atlas_facet.add_argument("--run-id", dest="run_ids", action="append",
-                       help="Rollout id (cloud trace_id or answer-key item_id); repeatable")
-    native_run_atlas_facet.add_argument("--run-ids-file", type=native_run_atlas.Path, help="File with one run id per line")
-    native_run_atlas_facet.add_argument("--results-root", type=native_run_atlas.Path, help="Published results home (CheatBench)")
-    native_run_atlas_facet.add_argument("--route", dest="routes", action="append",
-                       help=f"Subscription provider/model; repeatable (default: {', '.join(native_run_atlas.DEFAULT_ROUTES)})")
-    native_run_atlas_facet.add_argument("--per-route", type=int, default=4, help="Concurrent runs per route (max 8)")
-    native_run_atlas_facet.add_argument("--chunk-chars", type=int, default=native_run_atlas.CHUNK_CHARS)
-    native_run_atlas_facet.add_argument("--limit", type=int, help="Stop after this many new runs")
-    native_run_atlas_facet.add_argument("--facets", type=native_run_atlas.Path, default=native_run_atlas.DEFAULT_FACETS)
-    native_run_atlas_facet.add_argument("--calls", type=native_run_atlas.Path, default=native_run_atlas.DEFAULT_CALLS)
-    native_run_atlas_facet.add_argument("--dry-run", action="store_true",
-                       help="Blind, render and plan chunks only; no model call, no write")
-    native_run_atlas_facet.set_defaults(func=native_run_atlas._facet_command)
     from evallab.production.run_atlas_score import add_score_parser
 
     add_score_parser(native_run_atlas_actions)
@@ -1814,11 +1781,6 @@ def run_cli(
 
 def main(argv: Sequence[str] | None = None) -> None:
     raise SystemExit(run_cli(argv))
-
-
-def legacy_main() -> None:
-    print("warning: harbor-lab is deprecated; use evallab", file=sys.stderr)
-    main()
 
 
 if __name__ == "__main__":

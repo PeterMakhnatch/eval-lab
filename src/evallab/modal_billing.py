@@ -7,25 +7,6 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 
-#: Catalog table holding fetched Modal billing rows. Also applied through
-#: ``sql/schema.sql``; created here too so direct users get the same shape.
-BILLING_TABLE_DDL = """
-CREATE TABLE IF NOT EXISTS modal_billing_rows (
-    object_id text NOT NULL,
-    description text NOT NULL,
-    environment text NOT NULL,
-    interval_start timestamptz NOT NULL,
-    resource text NOT NULL DEFAULT '',
-    cost_usd double precision NOT NULL,
-    resolution text NOT NULL,
-    reported_at timestamptz NOT NULL DEFAULT now(),
-    tags jsonb NOT NULL DEFAULT '{}'::jsonb,
-    PRIMARY KEY (object_id, interval_start, resource)
-);
-ALTER TABLE modal_billing_rows
-    ADD COLUMN IF NOT EXISTS tags jsonb NOT NULL DEFAULT '{}'::jsonb
-""".strip()
-
 
 @dataclass(frozen=True)
 class BillingRow:

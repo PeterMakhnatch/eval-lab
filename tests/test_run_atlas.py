@@ -822,23 +822,16 @@ def test_extract_runs_logs_failures_without_writing_facets(
     _assert_requests_blind(transport, atlas_run)
 
 
-@pytest.mark.parametrize("argv", [("atlas", "--help"), ("atlas", "facet", "--help")])
 def test_atlas_help_does_not_open_database_or_gateway(
-    argv: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(cli, "load_local_env", lambda _path: None)
     monkeypatch.setattr(cli, "instrument_openinference", _forbidden)
     monkeypatch.setattr(atlas, "connect_readonly", _forbidden)
-    monkeypatch.setattr(atlas, "_runs", _forbidden)
     monkeypatch.setattr(sqlite3, "connect", _forbidden)
     with pytest.raises(SystemExit) as stopped:
-        cli.run_cli(argv, workspace=tmp_path)
+        cli.run_cli(("atlas", "--help"), workspace=tmp_path)
     assert stopped.value.code == 0
-    help_text = capsys.readouterr().out
-    assert "facet" in help_text
-    if "facet" in argv:
-        assert "--database" in help_text and "--route" in help_text
     assert not any(tmp_path.iterdir())
 
 

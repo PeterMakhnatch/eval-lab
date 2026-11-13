@@ -44,10 +44,6 @@ DRAIN_WATCH_STATES: tuple[QueueState, ...] = ("pending", "approved", "running")
 
 #: States that mean a spec will never need the server again.
 TERMINAL_STATES = ("done", "failed")
-#: `modal app list` states that mean the stop took effect. `stopping...`
-#: (dots included) is transitional and is polled, not treated as failure.
-_STOPPED_STATES = frozenset({"stopped"})
-_STOPPING_STATES = frozenset({"stopping..."})
 #: How long a drained tick waits for the stop to finish before calling it a
 #: failure. A container drains in well under a minute; the bound keeps a tick
 #: from hanging if the stop never lands.

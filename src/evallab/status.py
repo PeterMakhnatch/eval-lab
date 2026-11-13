@@ -509,21 +509,3 @@ def build_status_snapshot(
     )
 
 
-def snapshot_as_dict(snapshot: StatusSnapshot) -> dict[str, Any]:
-    return snapshot.model_dump(mode="json")
-
-
-def render_status_text(snapshot: StatusSnapshot) -> str:
-    lines = ["Eval Lab status", f"generated_at: {snapshot.generated_at.isoformat()}", ""]
-    for key in SECTION_KEYS:
-        section: StatusSection = getattr(snapshot, key)
-        lines.append(f"{key} [{section.availability}]")
-        if not section.items:
-            lines.append("  (empty)")
-            continue
-        for item in section.items:
-            detail = f" — {item.detail}" if item.detail else ""
-            lines.append(f"  [{item.availability}] {item.label}{detail}")
-        lines.append("")
-    return "\n".join(lines).rstrip() + "\n"
-

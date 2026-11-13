@@ -25,7 +25,6 @@ never counted as a negative judgment.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -164,23 +163,6 @@ def system_prompt(
     return prompt
 
 
-def prompt_sha256(
-    *,
-    with_examples: bool = False,
-    with_reasoning: bool = False,
-    with_context_reasoning: bool = False,
-    with_playbook: bool = False,
-) -> str:
-    """Digest of the frozen judge instructions (reported with every measurement)."""
-    prompt = system_prompt(
-        with_examples=with_examples,
-        with_reasoning=with_reasoning,
-        with_context_reasoning=with_context_reasoning,
-        with_playbook=with_playbook,
-    )
-    return hashlib.sha256(prompt.encode("utf-8")).hexdigest()
-
-
 def has_priority(card: Mapping[str, Any]) -> bool:
     """Whether a card may take any free Stage 2 slot: ``gating_alert`` or a prefilter cue.
 
@@ -254,40 +236,6 @@ class FamilyBudget:
 
 
 ExamplesFn = Callable[[Mapping[str, Any], str, "Window"], Sequence[str]]
-
-
-def retrieved_examples(
-    retriever: Any, *, exclude_task_ids: Sequence[str] = (), top_k: int = MAX_EXAMPLES
-) -> ExamplesFn:
-    """Provider of Tier-2 reference examples for :func:`build_messages`.
-
-    ``retriever`` is a ``CloudTraceRetriever``. Only DEV, consensus-labeled traces come
-    back, and the run's own task plus ``exclude_task_ids`` are never searched. Each
-    example is the action of a step whose passage all three judges verified positive.
-    """
-
-    def provide(card: Mapping[str, Any], task_id: str, window: Window) -> list[str]:
-        shown = window.action(window.flagged_step)
-        query = f"{card['summary']} {shown['text'][:200] if shown else ''}"
-        found = retriever.retrieve_similar_examples(
-            query,
-            "misalignment",
-            top_k,
-            exclude_task_ids=[task_id, *exclude_task_ids],
-        )
-        lines = []
-        for example in found[:top_k]:
-            step = next((s for s in example.steps if s.command_or_action), None)
-            if step is None or step.command_or_action is None:
-                continue
-            tool = f":{step.tool_name}" if step.tool_name else ""
-            lines.append(
-                f"[{example.trust_tier}] flagged step [{step.role}{tool}]: "
-                f"{step.command_or_action[:_EXAMPLE_ACTION_CHARS]}"
-            )
-        return lines
-
-    return provide
 
 
 def _normalized(text: str) -> str:

@@ -715,11 +715,6 @@ def resolve_ref(batch: Path, raw: str) -> Path:
     return resolved
 
 
-def snapshot_station(batch: Path, source: Path) -> Path:
-    """Copy Station bytes into the batch once; identical bytes reuse their snapshot."""
-    return _write_snapshot(batch, read_bytes(source) if source.is_file() else b"")
-
-
 def _write_snapshot(batch: Path, wanted: bytes) -> Path:
     snapshots = batch / "evidence" / "station-inputs"
     snapshots.mkdir(parents=True, exist_ok=True)

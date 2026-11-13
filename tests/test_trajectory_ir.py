@@ -1,18 +1,13 @@
-"""Tests for canonical TrajectoryIR lossless representation, normalization, and outlines."""
+"""Tests for canonical TrajectoryIR lossless representation and normalization."""
 
 from __future__ import annotations
 
-import json
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
 
-from evallab.trajectory_ir import (
-    build_trajectory_ir,
-    trajectory_ir_from_file,
-    trajectory_ir_to_dict,
-    trajectory_ir_to_outline,
-)
+from evallab.trajectory_ir import build_trajectory_ir
 
 
 def test_trajectory_ir_build_and_roundtrip(tmp_path: Path) -> None:
@@ -99,16 +94,15 @@ def test_trajectory_ir_build_and_roundtrip(tmp_path: Path) -> None:
     assert stored_reasoning.decode("utf-8") == "Chain-of-thought analysis for directory inspection."
 
     # Verify serialization
-    d = trajectory_ir_to_dict(ir)
+    d = asdict(ir)
     assert d["schema_version"] == "ATIF-v1.7"
     assert d["agent_name"] == "codex"
     assert len(d["steps"]) == 1
     assert d["loss_report"]["is_fully_declared"] is True
 
 
-def test_trajectory_ir_from_file_and_outline(tmp_path: Path) -> None:
-    """Verify reading TrajectoryIR from file on disk and converting to TrajectoryOutline."""
-    traj_path = tmp_path / "trajectory.json"
+def test_trajectory_ir_stores_observation_content(tmp_path: Path) -> None:
+    """Verify normalization keeps observation content in the content-addressed store."""
     raw_data = {
         "schema_version": "ATIF-v1.7",
         "session_id": "test-session-file",
@@ -142,13 +136,10 @@ def test_trajectory_ir_from_file_and_outline(tmp_path: Path) -> None:
             }
         ],
     }
-    traj_path.write_text(json.dumps(raw_data), encoding="utf-8")
 
-    ir = trajectory_ir_from_file(traj_path, store_root=tmp_path)
+    ir = build_trajectory_ir(raw_data, store_root=tmp_path)
     assert ir.agent_name == "reviewer"
     assert ir.model_name == "claude-3.7-sonnet"
-    assert ir.source_path == str(traj_path)
-    assert ir.source_sha256 is not None
 
     # Strengthen observable assertions on nested observation retention
     assert len(ir.steps) == 1
@@ -163,39 +154,6 @@ def test_trajectory_ir_from_file_and_outline(tmp_path: Path) -> None:
     assert obs0.content_ref is not None
     stored_obs = (tmp_path / "blobs" / "sha256" / (obs0.content_ref).rsplit("/", 1)[-1][:2] / ((obs0.content_ref).rsplit("/", 1)[-1] + ".bin")).read_bytes()
     assert stored_obs.decode("utf-8") == "Wrote 15 bytes"
-    outline = trajectory_ir_to_outline(
-        ir,
-        trial_id="trial-101",
-        job_id="job-202",
-        trial_name="trial-name",
-        job_name="job-name",
-        task_name="task-name",
-    )
-    assert outline.trial_id == "trial-101"
-    assert outline.agent_name == "reviewer"
-    assert outline.model_name == "claude-3.7-sonnet"
-    assert outline.total_steps == 1
-    assert outline.total_tool_calls == 1
-    assert outline.step_to_first_tool == 1
-    assert outline.step_to_first_edit == 1  # write is an edit tool
-    assert outline.status == "featured"
-
-
-def test_trajectory_ir_invalid_file_handling(tmp_path: Path) -> None:
-    """Verify proper error handling for missing and malformed trajectory files."""
-    missing = tmp_path / "nonexistent.json"
-    with pytest.raises(FileNotFoundError):
-        trajectory_ir_from_file(missing)
-
-    malformed = tmp_path / "malformed.json"
-    malformed.write_text("invalid json {{{", encoding="utf-8")
-    with pytest.raises(ValueError, match="Invalid JSON"):
-        trajectory_ir_from_file(malformed)
-
-    non_object = tmp_path / "array.json"
-    non_object.write_text("[1, 2, 3]", encoding="utf-8")
-    with pytest.raises(ValueError, match="JSON object"):
-        trajectory_ir_from_file(non_object)
 
 
 def test_trajectory_ir_native_atif_observation_ingestion() -> None:
@@ -237,7 +195,7 @@ def test_trajectory_ir_native_atif_observation_ingestion() -> None:
     assert obs.content_bytes == 6
 
     # Verify serialization roundtrip preserves observation results
-    d = trajectory_ir_to_dict(ir)
+    d = asdict(ir)
     step_d = d["steps"][0]
     assert len(step_d["observation_results"]) == 1
     assert step_d["observation_results"][0]["source_call_id"] == "call-x"

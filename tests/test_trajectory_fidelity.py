@@ -7,13 +7,11 @@ token ID persistence, sampling parameter extraction, and zero undeclared field l
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 from evallab.traj import outline_trajectory
-from evallab.trajectory_ir import (
-    build_trajectory_ir,
-    trajectory_ir_to_dict,
-)
+from evallab.trajectory_ir import build_trajectory_ir
 from evallab.trajectory_loss_manifest import (
     audit_trajectory_loss,
     get_declared_loss_manifest,
@@ -186,7 +184,7 @@ def test_build_trajectory_ir_cas_reasoning_and_tokens(tmp_path: Path) -> None:
     assert step.sample_index == 0
 
     # Verify serialization to dict
-    ir_dict = trajectory_ir_to_dict(ir)
+    ir_dict = asdict(ir)
     assert ir_dict["schema_version"] == "ATIF-v1.7"
     assert ir_dict["steps"][0]["reasoning_content_ref"] == step.reasoning_content_ref
     assert ir_dict["loss_report"]["is_fully_declared"] is True

@@ -623,7 +623,7 @@ a follow-up.
 | adversarial 4, gates 4 | Station rows: a TEST identity or answer-key path in a row, and a torn last line, are not refused (the Station reads them the same way) | pre-existing |
 | adversarial 5 | `autoreview.cache` is not read when the mode is `off`, so a sealed hard link there is not noticed; a cache folder's files are not compared with the other declared inputs by `load_spec` (`run_line` compares them with the labels) | new-path gap |
 | behaviour (case) | `verifier/agent.diff` is recognised by admission but never scored (the loader reads `final.diff` only) | pre-existing |
-| behaviour nit | `line scoreboard` prints metrics in insertion order, `SCOREBOARD.md` in sorted order; `core.snapshot_station` is dead code | nit |
+| behaviour nit | `line scoreboard` prints metrics in insertion order, `SCOREBOARD.md` in sorted order | nit |
 
 Fixed in the same round because they were worse than main: a refused `line check` no longer
 stays `PENDING`, `Final.diff`/`.JSON` and other upper-case names are matched like their

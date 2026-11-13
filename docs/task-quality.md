@@ -2239,7 +2239,7 @@ leaves the record untouched. `needs_review`, `not_admitted`, and
 ## Label-blind task-status export
 
 Admission is task-side evidence, not a rollout label. Build the manifest consumed
-unchanged by `hack-drop --certified-tasks` and the assembly line:
+unchanged by the assembly line:
 
 ```bash
   --admission /path/to/jobs/admission-records/ \

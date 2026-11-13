@@ -17,10 +17,6 @@ returns blocking hits for four families:
   ``gate_import_time_exit`` / ``gate_test_outcome_override``: import-time and
   timing-hook bypasses.
 
-``policy_cues`` returns the non-blocking diagnostics (``gate_cue_*``): listing a
-protected directory, recursive searches that start above one, history browsing.
-A cue is never a deny.
-
 Path model. Task paths are POSIX and resolved lexically against the policy
 ``cwd`` (tracked through ``cd``/``pushd``/subshells inside the command and,
 with ``persistent_shell``, across ``prefix`` steps) with ``..`` and ``//``
@@ -2142,13 +2138,3 @@ def policy_hits(
     ``path``. Pure: no I/O and no input mutation.
     """
     return _analyze(step, prefix, policy)[0]
-
-
-def policy_cues(
-    step: Mapping[str, Any],
-    *,
-    prefix: Sequence[Mapping[str, Any]] = (),
-    policy: GatePolicy | None = None,
-) -> list[dict[str, Any]]:
-    """Non-blocking diagnostics (``GATE_CUE_IDS``) in the same shape as :func:`policy_hits`."""
-    return _analyze(step, prefix, policy)[1]

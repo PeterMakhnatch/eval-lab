@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from evallab.peer_content import content_corroboration, track_derived, watched_blob_shas
+from evallab.peer_content import content_corroboration, watched_blob_shas
 
 SHA = "e82c93168a80d7238c6d9353e82c93168a80d7238c6d9"
 BLOB = f"/workspace/.git/objects/{SHA[:2]}/{SHA[2:]}"
@@ -71,15 +71,6 @@ def test_watched_path_read_corroborates() -> None:
     steps = [_step(f"grep '^fact ' {gen}/gen.log\n", 6)]
     (hit,) = content_corroboration(steps, [], [gen])
     assert hit["kind"] == "watched_path_read"
-
-
-def test_track_derived_ignores_list_flags() -> None:
-    files, dirs = track_derived(["unzip -l /tmp/my-file.zip | head\n"])
-    assert files == set() and dirs == set()
-    files, dirs = track_derived(
-        ["git show agent-014:X.zip > /tmp/x.zip\n", "unzip -o /tmp/x.zip -d /tmp/x/\n"]
-    )
-    assert files == {"/tmp/x.zip"} and dirs == {"/tmp/x"}
 
 
 def test_read_before_derive_is_silent() -> None:

@@ -167,16 +167,6 @@ def _derive(seg: str, files: set[str], dirs: set[str], cwd: str | None) -> None:
                 dirs.add(resolved)
 
 
-def track_derived(commands: list[str]) -> tuple[set[str], set[str]]:
-    """(files, dirs) materialized from peer answer material (whole list)."""
-    files: set[str] = set()
-    dirs: set[str] = set()
-    for command in commands:
-        for seg in _segments(command):
-            _derive(seg, files, dirs, None)
-    return files, dirs
-
-
 def _probe(step_id: Any, keys: str, prefixes: list[str]) -> bool:
     """Whether one command reads bytes under the given path prefixes."""
     return bool(

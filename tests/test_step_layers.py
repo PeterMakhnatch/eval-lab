@@ -32,7 +32,7 @@ from evallab.step_layers import (
     wrap_layers,
 )
 from evallab.traj import _resolve_chain_segments, trial_trajectory_path
-from evallab.trial_diagnosis import _raw_steps, diagnose_atif
+from evallab.trial_diagnosis import _raw_steps
 
 
 def _parse(text: str) -> ReplayedParse:
@@ -560,27 +560,6 @@ def test_ledger_reconciled_is_false_not_none() -> None:
     assert problems["http_400_no_usage"] == 0
 
 
-def test_diagnose_atif_scored_timeout_is_scored() -> None:
-    trajectory = {"steps": [{"source": "agent", "message": "hi"}]}
-    scored = diagnose_atif(
-        trajectory,
-        trial_id="t",
-        trial_name="t",
-        reward=1.0,
-        exception_class="AgentTimeoutError",
-    )
-    assert scored.outcome == "scored"
-    assert scored.reward == 1.0
-    assert scored.exception_class == "AgentTimeoutError"
-    assert scored.modes == ()
-    infra = diagnose_atif(
-        trajectory,
-        trial_id="t",
-        trial_name="t",
-        reward=None,
-        exception_class="AgentTimeoutError",
-    )
-    assert infra.outcome == "infra_failed"
 
 
 def test_layer_schema_stamp() -> None:

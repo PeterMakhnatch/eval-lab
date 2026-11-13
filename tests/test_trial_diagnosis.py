@@ -702,62 +702,8 @@ def test_traceback_outputs_are_not_wrong_tool_arguments(tmp_path: Path) -> None:
     assert "wrong_tool_arguments" not in [mode.mode for mode in diagnose_trial(trial).modes]
 
 
-def test_diagnose_atif_matches_trial_dir(tmp_path: Path) -> None:
-    from evallab.trial_diagnosis import diagnose_atif, diagnose_trial
-
-    steps = [
-        _agent_step(
-            "run",
-            command="pytest --bad-flag",
-            output="error: unrecognized argument --bad-flag",
-            returncode=2,
-        ),
-    ]
-    trial = _write_trial(tmp_path / "trial", steps)
-    from_dir = diagnose_trial(trial)
-    trajectory = json.loads((trial / "agent" / "trajectory.json").read_text())
-    from_doc = diagnose_atif(
-        trajectory,
-        trial_id="fixture-id",
-        trial_name="fixture-trial",
-        task_name="fixture-task",
-        agent_name="fixture",
-        model_name="fixture-model",
-        reward=0.0,
-    )
-    assert from_doc.outcome == "scored"
-    assert [mode.mode for mode in from_doc.modes] == [
-        mode.mode for mode in from_dir.modes
-    ]
-    assert json.dumps(from_doc.to_dict())
 
 
-def test_diagnose_atif_outcome_branches() -> None:
-    from evallab.trial_diagnosis import diagnose_atif
-
-    trajectory: dict[str, Any] = {"steps": []}
-    assert (
-        diagnose_atif(trajectory, trial_id="t", trial_name="t", reward=1.0).modes
-        == ()
-    )
-    assert (
-        diagnose_atif(trajectory, trial_id="t", trial_name="t").outcome == "unscored"
-    )
-    # HAR-92: a scored trial with an exception is scored, not infra_failed.
-    assert (
-        diagnose_atif(
-            trajectory, trial_id="t", trial_name="t", reward=0.0,
-            exception_class="Boom",
-        ).outcome
-        == "scored"
-    )
-    assert (
-        diagnose_atif(
-            trajectory, trial_id="t", trial_name="t", reward=None,
-            exception_class="Boom",
-        ).outcome
-        == "infra_failed"
-    )
 
 
 

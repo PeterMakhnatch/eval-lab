@@ -153,49 +153,10 @@ class FaultInjectionRecord(ProgramContractModel):
         return compute_sha256(payload)
 
 
-class CellFactorsA(ProgramContractModel):
-    """Vertical A: Context Dilation, State Inversion & Actionable Memory factors."""
-
-    dilation_tokens: int = Field(
-        ge=0, description="Context padding volume in tokens (4k, 16k, 64k, 128k)"
-    )
-    forced_compaction: bool = Field(
-        default=False, description="Whether forced compaction budget pressure is active"
-    )
-    semantic_distractors: bool = Field(
-        default=False, description="Matched semantic vs neutral distractor arm"
-    )
-    seed: int = Field(ge=0, description="Deterministic task generation seed")
 
 
-class CellFactorsC(ProgramContractModel):
-    """Vertical C: Single-Fault Recovery Twin factors."""
-
-    fault_class: FaultClass = Field(description="Target fault taxonomy class")
-    fault_injection_count: int = Field(
-        ge=1, description="Persistence dose ladder fault count (1, 2, 4, 8)"
-    )
-    seed: int = Field(ge=0, description="Deterministic seed")
 
 
-class SyntheticFamilySpec(ProgramContractModel):
-    """Specification metadata for synthetic benchmark tasks."""
-
-    family: SyntheticFamilyType
-    variant_id: str
-    dilation_tokens: int = Field(default=0, ge=0)
-    forced_compaction: bool = False
-    critical_path_depth: int = Field(default=0, ge=0)
-    parallel_width: int = Field(default=0, ge=0)
-    distractor_count: int = Field(default=0, ge=0)
-    fault_record: FaultInjectionRecord | None = None
-    hidden_contract_hash: str = Field(pattern=SHA256_HEX)
-    twin_task_ref: str | None = None
-
-    def identity_digest(self) -> str:
-        """Compute canonical identity digest without timestamps or mutable clocks."""
-        data = self.model_dump(mode="json")
-        return compute_sha256(data)
 
 
 class CampaignCalibrationLedger(ProgramContractModel):

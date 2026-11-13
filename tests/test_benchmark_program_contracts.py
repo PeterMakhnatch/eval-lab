@@ -8,11 +8,8 @@ from pydantic import ValidationError
 from evallab.benchmark_program_contracts import (
     CampaignCalibrationLedger,
     CampaignMeasurementLedger,
-    CellFactorsA,
-    CellFactorsC,
     FaultClass,
     FaultInjectionRecord,
-    SyntheticFamilySpec,
     SyntheticFamilyType,
     canonical_bytes,
     canonical_json,
@@ -107,40 +104,8 @@ def test_fault_injection_record_contracts():
         record.target_tool = "other"  # type: ignore
 
 
-def test_synthetic_family_specs_and_identity_stability():
-    spec = SyntheticFamilySpec(
-        family=SyntheticFamilyType.FAMILY_B_FUNCDAG_V2,
-        variant_id="depth_3_width_2",
-        critical_path_depth=3,
-        parallel_width=2,
-        distractor_count=1,
-        hidden_contract_hash="c" * 64,
-    )
-
-    digest1 = spec.identity_digest()
-    digest2 = spec.identity_digest()
-    assert digest1 == digest2
-    assert len(digest1) == 64
-
-    # Extra forbid
-    with pytest.raises(ValidationError):
-        SyntheticFamilySpec(
-            family=SyntheticFamilyType.FAMILY_B_FUNCDAG_V2,
-            variant_id="depth_3_width_2",
-            hidden_contract_hash="c" * 64,
-            bogus_key="forbidden",  # type: ignore
-        )
 
 
-def test_cell_factors_models():
-    cell_a = CellFactorsA(dilation_tokens=16384, forced_compaction=True, seed=42)
-    assert cell_a.dilation_tokens == 16384
-    assert cell_a.forced_compaction is True
-
-    cell_c = CellFactorsC(
-        fault_class=FaultClass.PERSISTENT_SCHEMA_MISMATCH, fault_injection_count=4, seed=99
-    )
-    assert cell_c.fault_class == FaultClass.PERSISTENT_SCHEMA_MISMATCH
 
 
 def test_campaign_ledgers_discriminated_contracts():

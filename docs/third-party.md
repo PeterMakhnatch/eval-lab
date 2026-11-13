@@ -96,7 +96,7 @@ Its validator preserves lab custody and redaction metadata. SDK installation mus
 ## Backup recovery
 
 The installed nightly plist omits `--backup`. The old code therefore only reports age and never creates a dump.
-The fixed refresh uses the same `postgres_backup` step when the verified dump is missing or older than 36 hours.
+The fixed refresh uses a 120-second backup guard when the verified dump is missing or older than 36 hours.
 `--backup` still requests a dated dump even when the previous dump is fresh. Immutable same-date generations remain reusable.
 Health returns FAIL and exit 1 while the verified dump is missing or stale, including on a projection `noop`.
 Run `uv run python -m evallab.backups create --root "$PRIMARY_ROOT"` for a manual dated backup.

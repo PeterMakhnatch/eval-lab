@@ -23,6 +23,19 @@ from evallab import harbor_laminar as hl
 from evallab.execution_contracts import MIMO_AGENT_IMPORT_PATH
 
 
+def _reset_laminar_state() -> None:
+    with hl._RUNTIME_LOCK:
+        hl._RUNTIME = None
+    hl._JOB_SESSION = None
+    hl._PARENT_METADATA = {}
+    hl._WRAPPERS_INSTALLED = False
+    with hl._TRACES_LOCK:
+        hl._TRACES.clear()
+    hl._ENVIRONMENT_PHASE.set(None)
+    hl._AGENT_PHASE.set(None)
+    hl._VERIFIER_PHASE.set(None)
+
+
 class FakeSpan:
     def __init__(self, name, runtime, trace_id):
         self.name = name
@@ -129,7 +142,7 @@ def _event(config, trial_id, rewards=None, exception_type=None, event_value="end
 @pytest.fixture
 def fake_runtime(monkeypatch):
     runtime = FakeRuntime()
-    hl._reset_for_tests()
+    _reset_laminar_state()
     monkeypatch.setattr(hl, "_RUNTIME", runtime)
     monkeypatch.setenv(hl.KEY_ENV, "test-key")
     return runtime
@@ -350,7 +363,7 @@ def test_reward_boundaries_preserved(fake_runtime, tmp_path, rewards, expected):
 
 def test_non_mimo_and_disabled_are_noops(tmp_path, monkeypatch):
     pytest.importorskip("harbor.trial.hooks")
-    hl._reset_for_tests()
+    _reset_laminar_state()
     monkeypatch.delenv(hl.KEY_ENV, raising=False)
     plugin = hl.LaminarTrialPlugin()
 
@@ -981,7 +994,7 @@ def test_lifecycle_hooks_swallow_errors_but_propagate_cancellation(
 
 @pytest.mark.parametrize("fails", [False, True], ids=["initialized", "init-raises"])
 def test_ensure_runtime_passes_redaction_inputs_and_fails_open(monkeypatch, fails):
-    hl._reset_for_tests()
+    _reset_laminar_state()
     monkeypatch.setenv(hl.KEY_ENV, "test-key")
     monkeypatch.setattr(hl, "_PARENT_METADATA", {"bearer_pattern": "  parent-pattern  "})
     assert hl.trace_runtime() is hl._DISABLED
@@ -1008,7 +1021,7 @@ def test_ensure_runtime_passes_redaction_inputs_and_fails_open(monkeypatch, fail
         assert runtime.error_type == "RuntimeError"
     else:
         assert runtime is initialized
-    hl._reset_for_tests()
+    _reset_laminar_state()
 
 
 def test_native_worker_context_is_empty_unless_trial_is_live_and_enabled(fake_runtime, tmp_path):

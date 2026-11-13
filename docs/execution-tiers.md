@@ -2254,8 +2254,7 @@ new health records.
 | Reader | How it runs | Copy recall (H12 / copy benchmark) | False positives |
 |---|---|---|---|
 | Laminar Signal `copied_upstream_fix` | Automatic: Laminar Cloud on every trace (Z.ai `glm-5.3-flash`, about $0.013 per trial for the 3 kept Signals). The viewer pulls verdicts every 5 min when `LMNR_PROJECT_API_KEY` is set; the installer runs it under `keys run --`. | 2/2, 8/8 | 0/9, 0/19 |
-| `harbor analyze` (default rubric) | Manual: `python -m evallab.readers.harbor_analyze analyze <trial>` (mini-swe-agent, `glm-5.3-flash`, about $0.018 per trial, about 3 min) | 1/2, 1/8 | 0/8, 0/5 |
-| `harbor check` | Manual, once per task: `... harbor_analyze check <task> --task-name <name>` (about $0.032 per task) | n/a | n/a |
+| `harbor analyze` (default rubric) | `evallab detectors` (`harbor_analyze`, mini-swe-agent, `glm-5.3-flash`, about $0.018 per trial, about 3 min) | 1/2, 1/8 | 0/8, 0/5 |
 
 - **Analyze inputs are blinded.** Its copy omits Eval Lab labels (`integrity`,
   `reward_gated`, `reward-details.json`, processed/watch files) and our integrity

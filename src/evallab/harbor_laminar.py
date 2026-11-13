@@ -1130,18 +1130,3 @@ class LaminarTrialPlugin:
             raise
         except Exception:
             pass
-
-
-def _reset_for_tests() -> None:
-    """Test-only reset of module globals (never used at runtime)."""
-    global _RUNTIME, _JOB_SESSION, _PARENT_METADATA, _WRAPPERS_INSTALLED
-    with _RUNTIME_LOCK:
-        _RUNTIME = None
-    _JOB_SESSION = None
-    _PARENT_METADATA = {}
-    _WRAPPERS_INSTALLED = False
-    with _TRACES_LOCK:
-        _TRACES.clear()
-    _ENVIRONMENT_PHASE.set(None)
-    _AGENT_PHASE.set(None)
-    _VERIFIER_PHASE.set(None)

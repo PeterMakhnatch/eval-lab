@@ -518,7 +518,8 @@ def test_preflight_only_passes_without_wait_or_merge(delivery, monkeypatch):
     git("commit", "-m", "unrelated local commit")
     args.preflight_only = True
     change(unknown_views=100, pending=True)
-    monkeypatch.setattr("evallab.ship.time.sleep", lambda _: pytest.fail("preflight must not wait"))
+    monkeypatch.setattr("evallab.ship.time", SimpleNamespace(
+        sleep=lambda _: pytest.fail("preflight must not wait")))
     assert run_command(args, root) == 0
     remote = json.loads(state.read_text())
     assert remote["views"] == 1

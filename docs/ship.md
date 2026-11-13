@@ -43,7 +43,8 @@ The final cleanup checks remain in place.
 
 Preflight checks active topic processes and every unknown ignored path.
 It preserves unknown ignored bytes with explicit move commands, not deletion.
-The nested `tools/mimoagent-harbor/.venv` environment is not automatically disposable.
+The generated `$TOPIC/tools/mimoagent-harbor/.venv` environment is not automatically disposable.
+Here, `$TOPIC` is the topic worktree path.
 A lockfile cannot prove that its local source or installed files contain no unique bytes.
 Move that environment outside the worktree when preflight names it.
 

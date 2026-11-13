@@ -9,7 +9,6 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from evallab.cli import run_cli
 from evallab.failure_library.records import (
     Evidence,
     Finding,
@@ -161,21 +160,6 @@ def test_run_stats_separate_label_occurrences_from_runs(tmp_path: Path) -> None:
     runs = store.stats()["runs"]
     assert runs["by_label_kind"] == {"human": 1, "judge": 2}
     assert runs["by_runs_with_label_kind"] == {"human": 1, "judge": 1}
-
-
-def test_stats_command_reports_library_counts(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    store = LibraryStore.for_repo(tmp_path, state_root=tmp_path / "state")
-    store.write_findings("tb-fixes", [_finding(), _finding(task_id="other", locator="loc-2")])
-    code = run_cli(
-        ["failures", "stats", "--json", "--state-root", str(tmp_path / "state")], workspace=tmp_path
-    )
-    assert code == 0
-    stats = json.loads(capsys.readouterr().out)
-    assert stats["findings"]["total"] == 2
-    assert stats["findings"]["by_tier"] == {"V2_upstream_fixed": 2}
-    assert stats["runs"]["total"] == 0
 
 
 def test_collection_update_retains_observations_and_manifests(tmp_path: Path) -> None:

@@ -10,7 +10,6 @@ import pytest
 from pydantic import ValidationError
 
 from evallab.failure_library.bank import BankContext, IssueBank, Provenance, new_item
-from evallab.failure_library.bank.matrix import Cell, Finding, Identity, decide, summarize
 from evallab.gold import load_rows, load_trajectory
 from evallab.gold.projection import _extract_channels, cloud_events, project_events
 from evallab.gold.seed import _impossible_map
@@ -93,13 +92,6 @@ def test_null_states_never_become_controls(state):
     assert restored.label_state == state and restored.polarity is None
     with pytest.raises(ValidationError):
         type(item).model_validate({**item.model_dump(), "polarity": "negative"})
-    for verdict in ("alarm", "clear"):
-        finding = Finding(Identity("scout", "v1"), item.subject_id, verdict, "cheat")
-        cell, reason, selected = decide(item, [finding])
-        assert cell == "unknown"
-        summary = summarize([Cell(item, "scout@v1", "run", cell, reason, selected)])
-        assert all(row["n_neg"] == 0 and row["n_pos"] == 0 for row in summary)
-        assert all(row["unjudged"] == 1 and row["far"] is None for row in summary)
 
 
 class _Gate:

@@ -82,9 +82,6 @@ _SLUG = r"^[a-z0-9][a-z0-9._-]*$"
 _BARE_NUMBER = re.compile(r"^\d+$")
 STATE_SUBDIR = "bank"
 CLOUD_DB_ENV = "EVALLAB_CLOUD_TRACE_DB"
-PROD_LIVE_ENV = "EVALLAB_PROD_LIVE_ROOT"
-CROSS_TEST_REGISTRY_ENV = "EVALLAB_CROSS_TEST_REGISTRY"
-TASK_PACKAGE_ROOTS_ENV = "EVALLAB_TASK_PACKAGE_ROOTS"
 
 
 _THREAD_LOCK = threading.RLock()
@@ -278,25 +275,6 @@ class BankContext:
                 CLOUD_DB_ENV,
                 Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite",
             )
-        )
-    )
-    prod_live: Path = field(
-        default_factory=lambda: Path(
-            os.environ.get(PROD_LIVE_ENV, Path.home() / ".local/state/evallab-prod-live")
-        )
-    )
-    cross_test_registry: Path = field(
-        default_factory=lambda: Path(
-            os.environ.get(
-                CROSS_TEST_REGISTRY_ENV,
-                Path.home()
-                / "Developer/research-context/bridge/2026-10-27-run-atlas/cross-test-registry.json",
-            )
-        )
-    )
-    task_package_roots: tuple[Path, ...] = field(
-        default_factory=lambda: tuple(
-            Path(root) for root in os.environ.get(TASK_PACKAGE_ROOTS_ENV, "").split(os.pathsep) if root
         )
     )
 

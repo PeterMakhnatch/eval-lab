@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import argparse
 import json
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
-from evallab.hackbook.cli import build_hackbook_parser
 from evallab.hackbook.playbook_cards import (
     format_playbook_cards,
     list_playbook_cards,
@@ -17,13 +15,6 @@ from evallab.hackbook.playbook_cards import (
 
 def _ids(cards) -> list[str]:
     return [card["card_id"] for card in cards]
-
-
-def _run_cards(tmp_path: Path, *argv: str) -> int:
-    parser = argparse.ArgumentParser()
-    build_hackbook_parser(parser.add_subparsers(required=True))
-    args = parser.parse_args(["hackbook", "cards", *argv])
-    return args.func(args, tmp_path)
 
 
 def test_packaged_catalog_contains_only_the_twelve_compact_cards() -> None:
@@ -116,51 +107,3 @@ def test_formatter_is_compact_card_json_without_audit_or_invented_index() -> Non
     assert all(line == json.dumps(card, ensure_ascii=False, separators=(",", ":"))
                for line, card in zip(lines, cards, strict=True))
     assert format_playbook_cards([]) == ""
-
-
-def test_cli_without_flags_lists_only_a_short_index(tmp_path: Path, capsys) -> None:
-    assert _run_cards(tmp_path) == 0
-    captured = capsys.readouterr()
-    assert len(captured.out.splitlines()) == 12
-    assert "QA01" in captured.out and "TW06" in captured.out
-    assert "verification_recipe" not in captured.out
-    assert "flags=" in captured.out
-    assert "leads, not verdicts" in captured.err
-
-
-def test_cli_kind_filters_index_and_explicit_json_catalog(tmp_path: Path, capsys) -> None:
-    assert _run_cards(tmp_path, "--kind", "trace") == 0
-    captured = capsys.readouterr()
-    assert len(captured.out.splitlines()) == 6
-    assert "TW01" in captured.out and "QA01" not in captured.out
-    assert _run_cards(tmp_path, "--kind", "task", "--json") == 0
-    assert _ids(json.loads(capsys.readouterr().out)) == [f"QA{i:02}" for i in range(1, 7)]
-
-
-def test_cli_flags_emit_only_selected_cards(tmp_path: Path, capsys) -> None:
-    assert _run_cards(
-        tmp_path, "--flag", "test_exclusion_flag", "--flag", "test_or_grader_edit",
-        "--flag", "git_history_peek", "--max-cards", "1",
-    ) == 0
-    captured = capsys.readouterr()
-    assert [json.loads(line)["card_id"] for line in captured.out.splitlines()] == ["TW05"]
-    assert "1 matching cards" in captured.err
-    assert _run_cards(tmp_path, "--flag", "git_history_peek", "--json") == 0
-    assert _ids(json.loads(capsys.readouterr().out)) == ["TW02"]
-
-
-def test_cli_no_matches_and_negative_limit(tmp_path: Path, capsys) -> None:
-    assert _run_cards(tmp_path, "--flag", "unknown", "--json") == 0
-    assert json.loads(capsys.readouterr().out) == []
-    assert _run_cards(tmp_path, "--flag", "git_history_peek", "--max-cards", "-1") == 2
-    captured = capsys.readouterr()
-    assert not captured.out
-    assert "max_cards must be nonnegative" in captured.err
-
-
-def test_root_cli_registers_cards(tmp_path: Path, capsys) -> None:
-    from evallab.cli import parser
-
-    args = parser().parse_args(["hackbook", "cards", "--flag", "package_fetch", "--json"])
-    assert args.func(args, tmp_path) == 0
-    assert _ids(json.loads(capsys.readouterr().out)) == ["TW03"]

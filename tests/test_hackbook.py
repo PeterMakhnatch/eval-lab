@@ -1,4 +1,4 @@
-"""Hackbook v0: catalog validation, leak guard, matcher, findings, and CLI."""
+"""Hackbook v0: catalog validation, leak guard, matcher, and findings."""
 
 from __future__ import annotations
 
@@ -11,9 +11,7 @@ from typing import Any
 
 import pytest
 
-from evallab.cli import parser
 from evallab.hackbook.matcher import (
-    calibrate_pool,
     extract_structural_signals,
     load_task_surface,
     match_target,
@@ -547,57 +545,6 @@ def test_diff_format_hidden_tests_only_count_added_assertions(tmp_path: Path) ->
     )
     signals = extract_structural_signals(load_task_surface(task))
     assert "wrong_or_contradictory_gold_constant" not in signals
-
-
-def test_calibrate_flags_entries_that_fire_on_most_of_a_pool(tmp_path: Path) -> None:
-    pool = tmp_path / "pool"
-    for name in ("a", "b", "c"):
-        _write(pool / name / "instruction.md", "do it\n")
-        _write(pool / name / "tests" / "test_x.py", 'sys.path.insert(0, "/app")\n')
-    _write(pool / "d" / "instruction.md", "do it\n")
-    _write(pool / "d" / "tests" / "test_x.py", "assert True\n")
-    (pool / "notes").mkdir()  # not a task package: skipped, not counted
-    _write(pool / "notes" / "readme.txt", "x\n")
-    report = calibrate_pool(pool, entries=SYNTHETIC, threshold=0.5)
-    assert report["n"] == 4 and report["zero_hit"] == 1
-    assert report["universal"] == ["HB-TS04-001"]
-    assert report["entries"]["HB-TS04-001"]["share"] == 0.75
-
-
-# --------------------------------------------------------------------------- CLI
-
-
-def _cli(capsys: pytest.CaptureFixture[str], *argv: str) -> tuple[int, str]:
-    args = parser().parse_args(["hackbook", *argv])
-    code = args.func(args, REPO)
-    return code, capsys.readouterr().out
-
-
-def test_cli_coverage(capsys: pytest.CaptureFixture[str]) -> None:
-    code, out = _cli(capsys, "coverage", "--json")
-    cov = json.loads(out)
-    assert code == 0 and cov["total_entries"] >= 57
-    assert cov["entries_with_executed_evidence"] >= 39
-    assert {row["taxonomy_class_id"] for row in cov["by_class"]} == CLASSES
-    assert {
-        "preference_model_tb4",
-        "benchjack",
-        "cheatbench",
-        "terminal_wrench",
-        "hacktrace",
-        "envcheck",
-        "mimo_atlas",
-        "eval3",
-        "tb2_to_tb21",
-        "bespoke_tb4",
-        "automationbench_verified",
-        "rea_environments",
-        "wandr",
-        "reward_seeker",
-        "tb4_run_census",
-    } <= {row["source"] for row in cov["by_source"]}
-    code, out = _cli(capsys, "coverage")
-    assert code == 0 and "By taxonomy class:" in out and "By source:" in out
 
 
 def test_coverage_counts_each_evidence_status_per_source() -> None:

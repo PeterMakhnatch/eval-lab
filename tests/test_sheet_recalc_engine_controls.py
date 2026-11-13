@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from sheet_recalc_host import PACKAGES, package_path, run_verifier, transcript
 
-from evallab.reward_hack import declared_expectation
+from evallab.control_expect import declared_expectation
 
 ENGINE_ONLY_CONTROLS = (
     ("sheet-recalc", "alt-recursive-dfs"),

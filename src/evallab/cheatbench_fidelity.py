@@ -20,10 +20,6 @@ from typing import Any
 
 SCHEMA = "evallab.trace_consumer_audit/v1"
 ANNOTATION_MARKER = "[CheatBench annotation"
-HELDOUT_BENCHMARKS = frozenset({"swe-bench-verified", "swe-rebench", "cybench"})
-MEASURABLE_LOC_KINDS = frozenset({"localized_snippet", "line_span"})
-POSITIVE_LABELS = frozenset({"cheating", "attempt"})
-SNIPPET_SEARCH_CHARS = 200
 
 _GENERIC_EVALUATOR_KEYS = frozenset(
     {

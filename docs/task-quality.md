@@ -2374,14 +2374,9 @@ What it is: a versioned, machine-readable catalog of ways agents cheat and
 tasks break — mechanism, signatures, a detection recipe, a probe template,
 a fix pattern, and examples labelled `executed` / `observed` / `claimed`.
 
-```bash
-.venv/bin/evallab hackbook coverage [--json]
-```
-
 - Inputs/outputs: the private task matcher takes a task package or exported
   view and emits task metadata leads. Trace tools use `evallab.tripwires.scan_trace`
-  for step-level evidence, not a weighted catalog score. `coverage` prints
-  entries/examples by taxonomy class, source, and evidence status.
+  for step-level evidence, not a weighted catalog score.
   Data: `research/hackbook/entries.jsonl`.
 - Models/lanes: no model is needed for catalog lookup or tripwire evidence.
 - Measured: 57 entries over 18 classes (#1126, #1131, later #1148/#1158/#1160);
@@ -2392,9 +2387,8 @@ a fix pattern, and examples labelled `executed` / `observed` / `claimed`.
 - Caveats: that recall is mostly in-sample — 47 of the 59 matched DEV
   findings are cited as catalog examples; on uncited DEV findings recall
   is 12/28 (43%). The weighted trace matcher and its outcome gates are retired.
-  Trace QA uses the shared tripwire engine. The historical hackbook.md §3
-  receipt table overcounts examples; `evallab hackbook coverage` is the
-  live count. Verifier verdicts: `status-0800.md` rows 1–6.
+  Trace QA uses the shared tripwire engine. Verifier verdicts:
+  `status-0800.md` rows 1–6.
 
 ### Compact, on-demand playbook cards
 
@@ -2403,12 +2397,6 @@ cards: six Task-QA/Reward-Seeker cards (`QA01`–`QA06`) and six Trace-Watcher
 cards (`TW01`–`TW06`). It reads no trace database and makes no model calls.
 This static mechanism library complements the Cloud Trace DB's compact
 evidence-instance cards; it does not replace their provenance or expansion.
-
-```bash
-.venv/bin/evallab hackbook cards                       # brief index, not all card bodies
-.venv/bin/evallab hackbook cards --flag git_history_peek --kind trace
-.venv/bin/evallab hackbook cards --flag test_or_grader_edit --flag test_exclusion_flag --json
-```
 
 ```python
 from evallab.hackbook.playbook_cards import match_playbook_cards, format_playbook_cards
@@ -2422,8 +2410,6 @@ Matching ranks distinct fired-flag overlap, then card ID; unknown flags
 produce no fallback. Pass fired names, not a state mapping with false keys.
 `kind="task"` selects both Task QA and Reward Seeker. The default is at most
 two matched cards; `list_playbook_cards()` explicitly returns the full catalog.
-Without flags, the CLI prints only an index; `--json` explicitly requests the
-catalog objects. With flags, it emits only selected cards.
 
 The formatter joins compact card JSON only (empty text for no matches).
 Prepend the existing observed trace-feature index separately: the measured

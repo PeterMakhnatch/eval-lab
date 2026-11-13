@@ -289,10 +289,7 @@ def _reverse_import_graph(root: Path, cache: _DevloopCache) -> dict[str, set[str
     for path in (root / "src/evallab").rglob("*.py"):
         module = src_path_to_module(path.relative_to(root).as_posix())
         package = module if path.name == "__init__.py" else module.rpartition(".")[0]
-        try:
-            content = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError):
-            continue
+        content = path.read_text(encoding="utf-8")
         digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
         statements = cache.sources.get(digest)
         if statements is None:
@@ -376,13 +373,15 @@ def _consumer_features(content: str, test_path: Path) -> tuple[_ConsumerFeatures
 
 
 def _referenced_modules(
-    test_path: Path, target_modules: set[str], cache: _DevloopCache | None = None
+    test_path: Path,
+    target_modules: set[str],
+    cache: _DevloopCache | None = None,
+    *,
+    content: str | None = None,
 ) -> set[str]:
     """Read a consumer once and reuse target-independent features by content."""
-    try:
+    if content is None:
         content = test_path.read_text(encoding="utf-8")
-    except Exception:
-        return set()
     digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
     cached = cache.consumers.get(digest) if cache is not None else None
     strings: list[str] = []
@@ -465,9 +464,8 @@ def _path_references(path: str) -> list[str]:
     return needles
 
 
-def _checkpoint_plan(changed: Sequence[str], root: Path) -> DevloopPlan:
-    """Select direct consumers and repository contracts without a full fallback."""
-    test_roots = _test_roots(root)
+def _test_consumers(root: Path, test_roots: Sequence[str]) -> dict[str, Path]:
+    """Discover directory and individually declared pytest consumers."""
     consumers: dict[str, Path] = {}
     for test_root in test_roots:
         candidate = root / test_root
@@ -483,22 +481,31 @@ def _checkpoint_plan(changed: Sequence[str], root: Path) -> DevloopPlan:
         for path in paths:
             if path.is_file():
                 consumers[path.relative_to(root).as_posix()] = path
+    return consumers
+
+
+def _checkpoint_plan(changed: Sequence[str], root: Path) -> DevloopPlan:
+    """Select direct consumers and repository contracts without a full fallback."""
+    test_roots = _test_roots(root)
+    consumers = _test_consumers(root, test_roots) if changed else {}
     normalized = [path.replace("\\", "/") for path in changed]
     targets = {src_path_to_module(path) for path in normalized if is_src_path(path)}
     references = {path: _path_references(path) for path in normalized}
     asset_needles = {
         needle
         for path, needles in references.items()
-        if not path.endswith(".py")
+        if not is_src_path(path)
+        and not is_test_path(path, test_roots)
+        and PurePosixPath(path).name != "conftest.py"
         for needle in needles
-        if needle != "README.md"
+        if needle not in {"README.md", "__init__.py"}
     }
     # Match literal loader paths, not comments or prose pointing at a manual.
     if asset_needles:
         for source in (root / "src/evallab").rglob("*.py"):
             try:
                 tree = ast.parse(source.read_text(encoding="utf-8"))
-            except (OSError, UnicodeError, SyntaxError):
+            except SyntaxError:
                 continue
             if any(
                 isinstance(node, ast.Constant)
@@ -517,11 +524,19 @@ def _checkpoint_plan(changed: Sequence[str], root: Path) -> DevloopPlan:
     for path in normalized:
         if is_test_path(path, test_roots) and (root / path).is_file():
             reasons.setdefault(path, []).append("Direct test file modification")
+        fixture_dir = PurePosixPath(path).parent
+        if PurePosixPath(path).name == "conftest.py" and any(
+            fixture_dir != PurePosixPath(test_root) and fixture_dir.is_relative_to(test_root)
+            for test_root in test_roots
+        ):
+            for rel in consumers:
+                if PurePosixPath(rel).is_relative_to(fixture_dir):
+                    reasons.setdefault(rel, []).append(f"Uses fixtures from changed {path}")
     for rel, consumer in sorted(consumers.items()):
-        matched = _referenced_modules(consumer, targets, cache) if targets else set()
+        content = consumer.read_text(encoding="utf-8")
+        matched = _referenced_modules(consumer, targets, cache, content=content) if targets else set()
         if matched:
             reasons.setdefault(rel, []).append(f"References {', '.join(sorted(matched))}")
-        content = consumer.read_text(encoding="utf-8")
         for path, needles in references.items():
             if any(needle in content for needle in needles):
                 reasons.setdefault(rel, []).append(f"References changed path {path}")
@@ -591,13 +606,7 @@ def plan_devloop(
         targets = {module for reachable in expansions.values() for module in reachable}
         test_paths: dict[str, Path] = {}
         if targets:
-            test_paths = {
-                test_file.relative_to(root_path).as_posix(): test_file
-                for test_root in test_roots
-                for pattern in ("test_*.py", "*_test.py")
-                for test_file in (root_path / test_root).rglob(pattern)
-                if test_file.is_file()
-            }
+            test_paths = _test_consumers(root_path, test_roots)
             # Directly changed consumers need reasons even when their names do
             # not match pytest's discovery patterns.
             test_paths.update(
@@ -662,7 +671,11 @@ def run_devloop(
         detail = exc.stderr.strip() if isinstance(exc, subprocess.CalledProcessError) else str(exc)
         print(f"error: Git change inventory failed for {since!r}: {detail}", file=sys.stderr)
         return 1
-    plan = plan_devloop(changed, root_path, checkpoint=checkpoint)
+    try:
+        plan = plan_devloop(changed, root_path, checkpoint=checkpoint)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"error: test selection failed: {exc}", file=sys.stderr)
+        return 1
 
     if as_json:
         payload = {

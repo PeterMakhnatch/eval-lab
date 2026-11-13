@@ -44,7 +44,6 @@ readonly PYTHON_FLOOR="3.12"
 readonly UV_VERSION="0.9.24"
 readonly TY_VERSION="0.0.71"
 readonly TY_BASELINE="0"
-readonly TY_OUTPUT="runs/_premerge/ty.txt"
 
 if [[ "$(uv --version)" != "uv ${UV_VERSION}"* ]]; then
   echo "error: premerge requires uv ${UV_VERSION}; found $(uv --version)" >&2
@@ -58,10 +57,14 @@ uv sync --locked --no-group observability --group benchmarks --group inspect
 uv run --no-sync ruff check .
 uv run --no-sync python -m evallab.governance check
 uv run --no-sync evallab registry audit --json
-if [[ "${mode}" != focused || $# -ne 0 ]]; then
+if [[ "${mode}" != focused ]]; then
   uv run --no-sync python -m evallab.lessons
 fi
-mkdir -p "$(dirname "${TY_OUTPUT}")"
+# Typecheck output is ephemeral tool scratch, not retained Harbor run evidence.
+# Use a private file outside the checkout, including when TMPDIR points into it.
+TY_OUTPUT="$(mktemp /tmp/evallab-premerge-ty.XXXXXX)"
+readonly TY_OUTPUT
+trap 'rm -f -- "${TY_OUTPUT}"' EXIT
 set +e
 uvx "ty@${TY_VERSION}" check src/ --output-format=concise > "${TY_OUTPUT}" 2>&1
 ty_exit=$?

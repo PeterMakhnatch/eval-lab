@@ -235,9 +235,9 @@ retained without developing or executing exploit payloads.
 
 ### Source-bound 001246 collection repair
 
-`format-code-task-001246` has a separate, bounded runtime-repair producer:
-`python -m evallab.mimo_runtime_repair`. It is **not** an EnvCheck semantic
-repair, and does not relax the append-only `verifier-repair@1` selector.
+`format-code-task-001246` retains its bounded runtime-repair producer and validation helpers.
+The historical `python -m evallab.mimo_runtime_repair` command is archived.
+The repair is **not** an EnvCheck semantic repair and does not relax the append-only `verifier-repair@1` selector.
 The optional `--runtime-repair-handoff /absolute/runtime-plan.json` argument
 is forwarded by assembly and exact-source validation. Without it, selection
 is unchanged. Supplying both selectors for 001246 is rejected.
@@ -266,20 +266,8 @@ A missing helper must now fail a named test body, not be counted as a
 successful zero-case rejection. Native controls must still establish this;
 derivation alone makes no reference/nop outcome claim.
 
-Use this worktree's already-installed interpreter and editable source, with
-explicit artifact destinations (no native execution occurs):
-
-```sh
-.venv/bin/python -B -m evallab.mimo_runtime_repair \
-  --parent "$FROZEN_001246_PARENT" \
-  --inventory "$BRIDGE/input-inventory-v7-v3.json" \
-  --causal-evidence /absolute/retained-causal-evidence.json \
-  --repo-root "$PWD" \
-  --output-dir "$PWD/derived/001246-control-plan" \
-  --variants-root "$PWD/derived/001246-variants" \
-  --handoff /absolute/new-runtime-plan.json \
-  --created-by "$ACTOR"
-```
+The historical producer command is available in `archive/pre-round3-2026-11-12`.
+Restore `src/evallab/mimo_runtime_repair.py` from that tag to use the original command.
 
 The producer never overwrites a plan, handoff or canonical record. It uses
 `derive_task` for a new variant and `materialize` to rebuild an existing exact
@@ -339,8 +327,9 @@ pointing them at a new filename does not authorize a changed grader.
 
 ### Source-bound 002486 training collection repair
 
-`collection_patch_002486` in `evallab.mimo_runtime_repair` addresses a
-different training-only collection defect. The frozen tests import the
+The archived `collection_patch_002486` helper addresses a separate training-only collection defect.
+Its source remains in `archive/pre-round3-2026-11-12`.
+The frozen tests import the
 requested `build_install_plan` API before either suite can collect, although
 the pristine application does not implement that API. Supplying it during
 setup would install part of the answer. The retained nop's zero rewards

@@ -77,14 +77,8 @@ Research-Harbor asked for a mitigation that keeps the arms equal. Both settings 
 - catalog sha256:0bf5ba10…d050f0 (7,780 rows)
 - Held-out membership is assigned by whole `split_group`, never by task_id.
 
-Reproduce it (a re-freeze from merged main is byte-identical):
-
-```bash
-uv run python -m evallab.sft_split freeze --salt har81-sealed-20260928 \
-  --heldout-count terminal=16 --heldout-count cyber=100 --heldout-count code=270 \
-  --heldout-count general=92 --heldout-count webdev=209 --heldout-count music=100 \
-  --out research/experiments/har81-mimo-sft/split.json
-```
+The historical split producer is archived in `archive/pre-round3-2026-11-12`.
+Use a separate checkout of that tag to reproduce the original split with its original dependencies.
 
 | domain | tasks | groups | held-out tasks (groups) |
 |---|---|---|---|

@@ -16,9 +16,6 @@ EXPLOITS_TABLE_FILENAME = EXPLOITS_PARQUET_FILENAME
 EXPLOITS_TABLE = Path(EXPLOITS_TABLE_FILENAME).stem
 
 
-def catalog_dir(derived_root: Path) -> Path:
-    """Rebuildable catalog root: ``<derived root>/parquet/external/task_catalog``."""
-    return derived_root / CATALOG_RELPATH
 
 
 TASK_SOURCES_SCHEMA = pa.schema(

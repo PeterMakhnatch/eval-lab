@@ -6,7 +6,7 @@ Covers:
 - Unfrozen suite membership mutability
 - v_quota_today UTC day bucketing across midnight boundaries
 - sql/views.sql execution in clean DuckDB session with zero pre-created tables
-- PostgreSQL live catalog tests with skipif when catalog is unreachable
+- PostgreSQL live catalog tests enabled explicitly by EVALLAB_RUN_POSTGRES_TESTS=1
 """
 
 from __future__ import annotations
@@ -21,22 +21,6 @@ import pytest
 from evallab.database import initialize
 from evallab.runner import database_url_from_environment
 
-_DSN_FOR_TEST = database_url_from_environment()
-
-
-def _catalog_reachable(dsn: str | None = None) -> bool:
-    try:
-        import psycopg
-    except ImportError:
-        return False
-    try:
-        url = dsn or os.environ.get("DATABASE_URL") or _DSN_FOR_TEST
-        with psycopg.connect(url, connect_timeout=1) as conn:
-            conn.execute("SELECT 1")
-        return True
-    except Exception:
-        return False
-
 
 def _derive_isolated_db_url(base_url: str, name: str) -> str:
     parsed = urlsplit(base_url)
@@ -45,14 +29,13 @@ def _derive_isolated_db_url(base_url: str, name: str) -> str:
 
 @pytest.fixture(scope="module")
 def isolated_database_url() -> Iterator[str]:
-    """Create and drop an isolated PostgreSQL database for test isolation."""
+    """Create and drop a database only in the explicit PostgreSQL integration scope."""
+    if os.environ.get("EVALLAB_RUN_POSTGRES_TESTS") != "1":
+        pytest.skip("set EVALLAB_RUN_POSTGRES_TESTS=1 to run PostgreSQL integration tests")
     pytest.importorskip("psycopg", reason="psycopg required for PostgreSQL tests")
     import psycopg
 
-    base_url = os.environ.get("DATABASE_URL") or _DSN_FOR_TEST
-    if not _catalog_reachable(base_url):
-        pytest.skip(f"requires live PostgreSQL at {base_url} (unreachable)")
-
+    base_url = database_url_from_environment()
     db_name = f"test_z2_{uuid4().hex[:12]}"
     target_url = _derive_isolated_db_url(base_url, db_name)
 
@@ -61,15 +44,9 @@ def isolated_database_url() -> Iterator[str]:
 
     try:
         initialize(target_url)
-        old_env = os.environ.get("DATABASE_URL")
-        os.environ["DATABASE_URL"] = target_url
-        try:
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setenv("DATABASE_URL", target_url)
             yield target_url
-        finally:
-            if old_env is not None:
-                os.environ["DATABASE_URL"] = old_env
-            else:
-                os.environ.pop("DATABASE_URL", None)
     finally:
         with psycopg.connect(base_url, autocommit=True) as conn:
             try:
@@ -88,10 +65,6 @@ def isolated_database_url() -> Iterator[str]:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(
-    not _catalog_reachable(),
-    reason="requires live PostgreSQL (unreachable or psycopg missing)",
-)
 def test_schema_ddl_idempotent(isolated_database_url: str) -> None:
     """Applying schema DDL multiple times succeeds and leaves one set of objects."""
     import psycopg
@@ -124,10 +97,6 @@ def test_schema_ddl_idempotent(isolated_database_url: str) -> None:
         assert len(views) == 1
 
 
-@pytest.mark.skipif(
-    not _catalog_reachable(),
-    reason="requires live PostgreSQL (unreachable or psycopg missing)",
-)
 def test_unfrozen_suite_accepts_membership_mutations(isolated_database_url: str) -> None:
     """An unfrozen suite allows inserting, updating, and deleting members."""
     import psycopg
@@ -182,10 +151,6 @@ def test_unfrozen_suite_accepts_membership_mutations(isolated_database_url: str)
         assert members == [("task-beta", "1.1")]
 
 
-@pytest.mark.skipif(
-    not _catalog_reachable(),
-    reason="requires live PostgreSQL (unreachable or psycopg missing)",
-)
 def test_frozen_suite_rejects_membership_mutations(isolated_database_url: str) -> None:
     """A frozen suite rejects all membership insertions, updates, and deletions in the DB.
 

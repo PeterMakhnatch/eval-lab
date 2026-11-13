@@ -1,9 +1,10 @@
 """Tests for discovery verdict persistence, validation, and views (§2.1, §2.2).
 
 Verdicts are append-only human judgements on discovery findings.
-CI has no PostgreSQL or derived corpus — tests use tmp_path and in-memory DuckDB.
+PostgreSQL cases run only with EVALLAB_RUN_POSTGRES_TESTS=1; unit cases stay offline.
 """
 
+import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -79,9 +80,18 @@ def test_refuse_invalid_status() -> None:
             validate_status(bad_status)
 
 
-def test_unreachable_catalog_fails_distinctly(capsys: pytest.CaptureFixture[str]) -> None:
+def test_unreachable_catalog_fails_distinctly(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """An unreachable catalog produces a distinguishable failure with a reason, not empty."""
     unreachable_url = "postgresql://127.0.0.1:59999/evallab_unreachable"
+
+    import psycopg
+
+    def unavailable(*args: object, **kwargs: object) -> None:
+        raise psycopg.OperationalError("connection refused")
+
+    monkeypatch.setattr(psycopg, "connect", unavailable)
 
     # 1. list_current_verdicts_from_catalog fails with non-zero exit and informative stderr
     with pytest.raises(SystemExit) as exc_list:
@@ -98,18 +108,6 @@ def test_unreachable_catalog_fails_distinctly(capsys: pytest.CaptureFixture[str]
 _DSN_FOR_TEST = database_url_from_environment()
 
 
-def _catalog_reachable(dsn: str | None = None) -> bool:
-    try:
-        import psycopg
-
-        url = dsn or _DSN_FOR_TEST
-        with psycopg.connect(url, connect_timeout=1) as conn:
-            conn.execute("SELECT 1")
-        return True
-    except Exception:
-        return False
-
-
 def _derive_isolated_db_url(base_url: str, name: str) -> str:
     parsed = urlsplit(base_url)
     return urlunsplit(parsed._replace(path=f"/{name}"))
@@ -118,9 +116,8 @@ def _derive_isolated_db_url(base_url: str, name: str) -> str:
 @pytest.fixture(scope="module")
 def isolated_database_url() -> Iterator[str]:
     """Create and drop an isolated PostgreSQL database for test isolation."""
-    if not _catalog_reachable():
-        yield _DSN_FOR_TEST
-        return
+    if os.environ.get("EVALLAB_RUN_POSTGRES_TESTS") != "1":
+        pytest.skip("set EVALLAB_RUN_POSTGRES_TESTS=1 to run PostgreSQL integration tests")
 
     import psycopg
 
@@ -141,19 +138,15 @@ def isolated_database_url() -> Iterator[str]:
                 conn.execute(f'DROP DATABASE IF EXISTS "{db_name}"')
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def _isolate_database_env(
     isolated_database_url: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Ensure DATABASE_URL environment variable points to the isolated test database."""
-    if _catalog_reachable():
-        monkeypatch.setenv("DATABASE_URL", isolated_database_url)
+    monkeypatch.setenv("DATABASE_URL", isolated_database_url)
 
 
-@pytest.mark.skipif(
-    not _catalog_reachable(),
-    reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
-)
+@pytest.mark.usefixtures("_isolate_database_env")
 def test_postgres_catalog_roundtrip_if_available(
     tmp_path: Path, isolated_database_url: str
 ) -> None:
@@ -176,10 +169,7 @@ def test_postgres_catalog_roundtrip_if_available(
     assert matching[0].note == "Catalog roundtrip test"
 
 
-@pytest.mark.skipif(
-    not _catalog_reachable(),
-    reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
-)
+@pytest.mark.usefixtures("_isolate_database_env")
 def test_postgres_verdict_writes_leave_live_catalog_untouched(
     tmp_path: Path, isolated_database_url: str
 ) -> None:

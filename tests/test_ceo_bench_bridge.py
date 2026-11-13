@@ -30,21 +30,18 @@ import pytest
 RUN_ID = "ab12cd34"
 STAMP = "2026-09-20T10:00:00Z"
 ROOT = Path(__file__).parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-if str(ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(ROOT / "src"))
 ADAPTER = ROOT / "library" / "adapters" / "ceo_bench"
-if str(ADAPTER) not in sys.path:
-    sys.path.insert(0, str(ADAPTER))
-
-from ceo_bench.bridge import (  # noqa: E402
-    CeoBenchBridgeError,
-    bridge_ceo_bench_run,
-    is_completed_week_advance,
-    is_state_changing_call,
-    resolve_nmdb_key,
-)
+with pytest.MonkeyPatch.context() as _imports:
+    _imports.syspath_prepend(str(ROOT))
+    _imports.syspath_prepend(str(ROOT / "src"))
+    _imports.syspath_prepend(str(ADAPTER))
+    from ceo_bench.bridge import (
+        CeoBenchBridgeError,
+        bridge_ceo_bench_run,
+        is_completed_week_advance,
+        is_state_changing_call,
+        resolve_nmdb_key,
+    )
 
 
 def _config(**overrides: Any) -> dict[str, Any]:

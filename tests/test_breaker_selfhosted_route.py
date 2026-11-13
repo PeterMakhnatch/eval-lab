@@ -91,7 +91,9 @@ def test_proxy_prevents_arm_switch_and_protocol_drift_then_enforces_budget(
             return
 
     upstream = ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
-    thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=upstream.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     secret = tmp_path / "provider-key"
     secret.write_text(SECRET)

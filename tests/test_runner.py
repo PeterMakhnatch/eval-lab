@@ -602,8 +602,8 @@ def test_local_env_loader_ignores_model_api_keys(
     assert os.environ["DATABASE_URL"] == "postgresql://local"
     assert os.environ["EVALLAB_DERIVED_ROOT"] == "shared/parquet"
     assert "OPENAI_API_KEY" not in os.environ
-    os.environ.pop("DATABASE_URL", None)
-    os.environ.pop("EVALLAB_DERIVED_ROOT", None)
+    monkeypatch.delenv("DATABASE_URL")
+    monkeypatch.delenv("EVALLAB_DERIVED_ROOT")
 
 
 @pytest.mark.parametrize(

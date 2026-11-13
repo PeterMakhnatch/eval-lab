@@ -2404,10 +2404,3 @@ async def run_ladder(
 def selected_attacks(raw: str | None, *, version: str | None = None) -> tuple[str, ...]:
     """Parse the agent-facing attack selection (env var or CLI subset)."""
     return parse_attack_selection(raw, version=version)
-
-
-# ---------------------------------------------------------------------------
-# Self-contained container entry point: ``python3 cheat_ladder.py``
-# ---------------------------------------------------------------------------
-
-

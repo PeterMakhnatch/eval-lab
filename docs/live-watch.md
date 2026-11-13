@@ -1564,14 +1564,8 @@ uv run evallab atlas clusters build --name-with-model xai-oauth/grok-4.20-0309-n
 uv run evallab atlas clusters show --with-labels      # label and rule rates at scoring time
 ```
 
-- Input text per run is `approach + " | " + shortcut` only, embedded with the
-  free 256-dimension `HashingEmbedder` (lexical). A remote embedder requires
-  `--embedder remote`, a positive `--spend-cap-usd`, an approved
-  `--embedding-input-usd-per-million` and pinned endpoint/model/tokenizer.
-  Before each batch, the existing `InvestigationBudget` ledger reserves a
-  conservative UTF-8-size token bound. Failed calls retain their reservation;
-  restarting cannot reset the lifetime cap. No remote embedding calls were
-  used for the Atlas study.
+- Input text per run is `approach + " | " + shortcut` only.
+  The free 256-dimension `HashingEmbedder` supplies lexical embeddings.
 - Deterministic (seeded) bisecting k-means on cosine builds three levels;
   every run is in exactly one cluster per level, and a cluster too small to
   split continues unchanged to the next level. Ids look like `L1-03.2.1`.

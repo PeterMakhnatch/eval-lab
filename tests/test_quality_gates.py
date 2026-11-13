@@ -25,7 +25,7 @@ def _executable(path: Path, body: str) -> None:
 def _environment(tmp_path: Path, checker: str | None) -> dict[str, str]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    for name in ("mkdir", "dirname", "cat"):
+    for name in ("mktemp", "rm", "cat"):
         executable = shutil.which(name)
         assert executable is not None
         (bin_dir / name).symlink_to(executable)

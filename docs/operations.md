@@ -740,6 +740,30 @@ Only small representative runs belong in `research/evidence/runs/`:
 For large evidence, leave the job in ignored `runs/`, ingest its metadata, and
 write a small report with digests and a durable artifact URI once object storage
 is configured.
+## Local checks
+
+Run `make prepush` before each push. This checkpoint does not prove CI green.
+It runs locked sync, Ruff, governance, registry audit, and the pinned typechecker.
+Both focused forms leave the lessons lineage check to full static checks and CI.
+
+- `make prepush` checks collection across the full test tree, then runs the automatic branch selection.
+  Selection includes committed branch changes, local edits, deleted paths, both rename sides, and repository contracts.
+  It selects direct module and asset consumers, not all transitive or dynamic dependencies.
+  Runtime Python assets select their loader consumers. Nested fixture changes select descendant tests.
+  Both devloop modes discover individually declared test files. Read errors stop selection instead of omitting consumers.
+  Inspect it with `uv run evallab registry devloop --since origin/main --checkpoint --json`.
+- `make prepush TESTS='tests/test_devloop.py [pytest args]'` replaces automatic test selection with explicit selectors.
+  It does not run the automatic collection check or repository contracts unless you select them.
+  It keeps the same focused static gates and uses a single pytest process.
+- `make check` runs all static gates, including lessons. It runs no tests or runtime smoke.
+- `make premerge` runs all static gates, the full Python 3.12 suite, and the Docker-free runtime smoke.
+  Hosted CI still provides the separate native phase and supported Python matrix.
+
+The typechecker uses a unique private file under `/tmp`, outside the checkout.
+The script prints its complete output and removes that file on exit, including checker failure.
+It does not write `runs/_premerge/ty.txt`. Existing receipts remain subject to the evidence retention policy.
+Static, selection, collection, and test failures return a nonzero status.
+
 ## CI: pinned uv via PyPI, not marketplace action
 
 Every workflow installs `uv==0.9.24` with `python3 -m pip install --user uv==0.9.24`. Every job that runs python or uv then provisions its interpreter with SHA-pinned `actions/setup-python` and exports `UV_PYTHON_PREFERENCE=only-system`, because the `cpython-3.12.12+20251217` linux x86_64 python-build-standalone asset serves 504 and a uv-managed download reddens the jobs that need 3.12 (HAR-330, `quality` run 42567901536; HAR-339, `perf` run 42582557769 and `mcp-wheelhouse-platform` run 42582557805). setup-python resolves the runner toolcache before any download, and `only-system` keeps uv on that interpreter — a missing pin fails at the provisioning step rather than uv downloading a managed build mid-run. No workflow installs an interpreter with uv. This replaces the former `astral-sh/setup-uv` step.

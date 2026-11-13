@@ -30,6 +30,9 @@ def checkpoint(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         "    Path('installed').touch()\n"
         "elif 'ruff' in args and os.environ.get('FAIL_STATIC'):\n"
         "    sys.exit(23)\n"
+        "elif 'evallab.lessons' in args and os.environ.get('FAIL_LESSONS'):\n"
+        "    print('lessons unavailable', file=sys.stderr)\n"
+        "    sys.exit(26)\n"
         "elif 'pytest' in args:\n"
         "    offset = args.index('pytest') + 1\n"
         "    os.execv(sys.executable, [sys.executable, '-m', 'pytest', "
@@ -46,7 +49,22 @@ def checkpoint(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     )
     uv.chmod(0o755)
     uvx = bin_dir / "uvx"
-    uvx.write_text("#!/bin/sh\nexit 0\n")
+    uvx.write_text(
+        "#!/bin/sh\n"
+        'printf "%s\\n" "${CHECKER_OUTPUT:-clean checker}"\n'
+        'exit "${CHECKER_EXIT:-0}"\n'
+    )
+    mktemp = bin_dir / "mktemp"
+    mktemp.write_text(
+        f"#!{sys.executable}\n"
+        "import subprocess, sys\n"
+        "from pathlib import Path\n"
+        f"path = subprocess.check_output([{shutil.which('mktemp')!r}, *sys.argv[1:]], "
+        "text=True).strip()\n"
+        "Path('receipt-path').write_text(path)\n"
+        "print(path)\n"
+    )
+    mktemp.chmod(0o755)
     uvx.chmod(0o755)
     (tmp_path / "test_selected.py").write_text(
         "from pathlib import Path\ndef test_selected():\n    Path('test-ran').touch()\n"
@@ -66,6 +84,8 @@ def checkpoint(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     }
     env.pop("FAIL_STATIC", None)
     env.pop("EVALLAB_PREPUSH_BASE", None)
+    for name in ("FAIL_LESSONS", "CHECKER_OUTPUT", "CHECKER_EXIT"):
+        env.pop(name, None)
     return tmp_path, env
 
 
@@ -203,3 +223,53 @@ def test_make_prepush_without_selector_runs_automatic_checkpoint(
     assert (root / "automatic-ran").exists()
     assert not (root / "test-ran").exists()
     assert not (root / "smoke-ran").exists()
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_focused_checkpoint_leaves_lessons_to_static_and_ci(checkpoint, explicit) -> None:
+    root, env = checkpoint
+    env["FAIL_LESSONS"] = "1"
+    if explicit:
+        args = ("test_selected.py",)
+    else:
+        for args_git in (["init", "-q"], ["add", "test_selected.py"],
+                         ["commit", "-qm", "base"],
+                         ["update-ref", "refs/remotes/origin/main", "HEAD"]):
+            subprocess.run(["git", *args_git], cwd=root, env=env, check=True, capture_output=True)
+        (root / "tests").mkdir()
+        (root / "tests/test_changed.py").write_text("def test_changed(): assert True\n")
+        args = ()
+
+    result = _run(checkpoint, "--focused", *args)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("mode", ["--static", "--full"])
+def test_static_and_full_checkpoints_preserve_lessons_failure(checkpoint, mode) -> None:
+    root, env = checkpoint
+    env["FAIL_LESSONS"] = "1"
+
+    result = _run(checkpoint, mode)
+
+    assert result.returncode == 26
+    assert "lessons unavailable" in result.stderr
+    assert not (root / "test-ran").exists()
+
+
+@pytest.mark.parametrize("checker_exit", [0, 2])
+def test_typecheck_receipt_is_private_ephemeral_and_outside_checkout(checkpoint, checker_exit) -> None:
+    root, env = checkpoint
+    env["CHECKER_OUTPUT"] = "complete checker diagnostic"
+    env["CHECKER_EXIT"] = str(checker_exit)
+    env["TMPDIR"] = str(root)
+
+    result = _run(checkpoint, "--focused", "test_selected.py")
+
+    assert result.returncode == checker_exit, result.stdout + result.stderr
+    assert "complete checker diagnostic" in result.stdout
+    receipt = Path((root / "receipt-path").read_text())
+    assert not receipt.resolve().is_relative_to(root.resolve())
+    assert not receipt.exists()
+    assert not (root / "runs").exists()
+    assert (root / "test-ran").exists() == (checker_exit == 0)

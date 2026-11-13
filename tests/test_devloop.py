@@ -536,14 +536,24 @@ def test_checkpoint_selects_deleted_renamed_and_non_python_references(tmp_path, 
     assert all((tmp_path / module).is_file() for module in plan.modules)
 
 
-def test_checkpoint_selects_asset_runtime_loader_consumers(tmp_path) -> None:
+@pytest.mark.parametrize(
+    "changed",
+    [
+        ["docs/guide.md"],
+        ["containers/removed.py"],
+        ["containers/old.py", "containers/new.py"],
+    ],
+)
+def test_checkpoint_selects_asset_runtime_loader_consumers(tmp_path, changed) -> None:
     source = tmp_path / "src/evallab"
     source.mkdir(parents=True)
-    (source / "guide.py").write_text('GUIDE = "docs" / "guide.md"\n')
+    (source / "guide.py").write_text(
+        "\n".join(f"RESOURCE_{index} = {path!r}" for index, path in enumerate(changed))
+    )
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests/test_guide.py").write_text("from evallab.guide import GUIDE\n")
 
-    plan = plan_devloop(["docs/guide.md"], tmp_path, checkpoint=True)
+    plan = plan_devloop(changed, tmp_path, checkpoint=True)
 
     assert plan.modules == ["tests/test_guide.py"]
 
@@ -650,3 +660,66 @@ def test_checkpoint_does_not_expand_prose_references_into_runtime_suites(tmp_pat
     plan = plan_devloop(["docs/topic.md"], tmp_path, checkpoint=True)
 
     assert plan.modules == []
+
+
+@pytest.mark.parametrize("checkpoint", [False, True])
+@pytest.mark.parametrize(
+    "statement",
+    ["import evallab.guide", "from evallab import guide", "from evallab.guide import load"],
+)
+def test_import_consumers_in_individually_declared_test_files(tmp_path, checkpoint, statement) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["research/test_single.py"]\n'
+    )
+    (tmp_path / "research").mkdir()
+    (tmp_path / "research/test_single.py").write_text(statement + "\n")
+
+    plan = plan_devloop(["src/evallab/guide.py"], tmp_path, checkpoint=checkpoint)
+
+    assert plan.modules == ["research/test_single.py"]
+
+
+@pytest.mark.parametrize("checkpoint", [False, True])
+@pytest.mark.parametrize("failure", ["consumer", "source", "config"])
+def test_selection_read_errors_fail_closed_without_child_execution(
+    tmp_path, monkeypatch, capsys, checkpoint, failure
+) -> None:
+    files = {
+        "consumer": "tests/test_consumer.py",
+        "source": "src/evallab/loader.py",
+        "config": "pyproject.toml",
+    }
+    broken = tmp_path / files[failure]
+    broken.parent.mkdir(parents=True, exist_ok=True)
+    broken.write_bytes(b"\xff")
+    changed = ["assets/template.txt"] if checkpoint else ["src/evallab/guide.py"]
+    monkeypatch.setattr("evallab.devloop.get_changed_files", lambda *a, **kw: changed)
+
+    def unexpected_child(*args, **kwargs):
+        raise AssertionError("A selection error must not execute pytest")
+
+    monkeypatch.setattr("evallab.devloop.subprocess.run", unexpected_child)
+    monkeypatch.setenv("EVALLAB_DEVLOOP_CACHE_DIR", str(tmp_path / "cache"))
+
+    assert run_devloop(tmp_path, checkpoint=checkpoint, as_json=True, run=True) == 1
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "test selection failed" in output.err
+
+
+@pytest.mark.parametrize("present", [False, True])
+def test_checkpoint_selects_nested_fixture_consumers_without_full_fallback(tmp_path, present) -> None:
+    files = ["tests/nested/test_a.py", "tests/nested/deeper/test_b.py", "tests/test_unrelated.py"]
+    for name in files:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("def test_example(): assert True\n")
+    if present:
+        (tmp_path / "tests/nested/conftest.py").write_text("import pytest\n")
+
+    plan = plan_devloop(["tests/nested/conftest.py"], tmp_path, checkpoint=True)
+
+    assert plan.modules == sorted(files[:2])
+    assert "__all__" not in plan.modules
+    root_plan = plan_devloop(["tests/conftest.py"], tmp_path, checkpoint=True)
+    assert root_plan.modules == []

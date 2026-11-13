@@ -991,7 +991,6 @@ Every workflow installs `uv==0.9.24` with `python3 -m pip install --user uv==0.9
 Harbor 0.24.0 is a base dependency in `pyproject.toml`, independent of the optional Laminar exporter.
 Run `uv sync --locked` to install its supported native SDK and console script.
 The remaining isolated workflow CLI install selects `harbor==0.24.0`.
-`tests/test_quality_gates.py::test_every_workflow_pins_uv_and_harbor_to_one_version` compares workflow installs with `runner.HARBOR_CLI_PIN`.
 Update the runtime pin, lock, workflow install, and recorded native field contracts together.
 The normal doctor treats a missing or drifting Harbor runtime as a failure, not an advisory.
 
@@ -1004,7 +1003,7 @@ Rationale (preserves the two invariants that existed before the outage):
 
 This change was made because a single throttled codeload path made every job unrunnable even when the rest of the pipeline was healthy. The PyPI path is a different CDN and has never exhibited the same 429/502/503 cascade in our runs. The PR that introduced it will itself run the modified workflows; a green result on that PR is the verification that the jobs remain executable.
 
-The workflows moved back to `setup-python` (v6 SHA) because a single release asset made every 3.12 job unrunnable even while the sibling 3.14 asset served normally. The runner image already ships the provisioned versions in its toolcache, so the common path performs no network download at all. HAR-330 repaired `ci.yml` and `typecheck.yml`; HAR-339 moved the ten auxiliary workflows onto the same pin and aligned the two remaining v5 uses (`loca-lean.yml`, `tau-knowledge.yml`). `tests/test_quality_gates.py::test_workflows_never_provision_python_with_uv` refuses a uv-managed interpreter install anywhere under `.github/workflows/`, including in a comment, and `test_jobs_provision_python_with_pinned_setup_python` requires the v6 SHA with a `python-version` plus an `only-system` export before the first uv command. `test_python_run_steps_follow_an_interpreter_pin` accepts only `actions/setup-python` as a pin.
+The workflows moved back to `setup-python` (v6 SHA) because a single release asset made every 3.12 job unrunnable even while the sibling 3.14 asset served normally. The runner image already ships the provisioned versions in its toolcache, so the common path performs no network download at all. HAR-330 repaired `ci.yml` and `typecheck.yml`; HAR-339 moved the ten auxiliary workflows onto the same pin and aligned the two remaining v5 uses (`loca-lean.yml`, `tau-knowledge.yml`).
 
 ## CI: uv package cache and bounded download retries (HAR-252)
 
@@ -1029,9 +1028,6 @@ Every workflow job that resolves packages now:
 `uv run` without `--no-sync` syncs implicitly, so those jobs carry the same cover. Jobs
 that only run `uv tool install`, `uv python install` or `uvx` need the retry floor but
 no project cache.
-`tests/test_quality_gates.py::test_uv_downloading_jobs_cache_packages_and_retry`
-enforces both properties, and its fixture cases fail a job that drops the cache step,
-restores it after the sync, keys it without `uv.lock`, or lowers the retry count.
 
 Cache trust: entries hold only wheels and index responses, the artifacts
 `uv sync --locked` already verifies against the lock hashes. A cache saved by a pull

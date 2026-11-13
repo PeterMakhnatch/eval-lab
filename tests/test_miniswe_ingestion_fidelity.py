@@ -68,11 +68,6 @@ def _setup_mock_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(runner_module, "tool_version", lambda _cmd: "1.0")
     monkeypatch.setattr(
         runner_module,
-        "git_state",
-        lambda _root: {"commit": "abc1234", "dirty": False},
-    )
-    monkeypatch.setattr(
-        runner_module,
         "preflight_request",
         lambda _req: type("Decision", (), {"proceed": True, "reason": None})(),
     )

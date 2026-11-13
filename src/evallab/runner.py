@@ -207,7 +207,6 @@ __all__ = [
     "database_url_from_environment",
     "expected_primary_reward",
     "executor_state_path",
-    "git_state",
     "harbor_container_ids",
     "load_matrix",
     "maybe_link_capture",
@@ -453,22 +452,6 @@ def tool_version(command: str) -> str | None:
         return None
     output = (completed.stdout or completed.stderr).strip()
     return output.splitlines()[0] if output else None
-
-
-def git_state(root: Path) -> dict[str, Any]:
-    from evallab.results_home import capture_repository
-
-    captured = capture_repository(root)
-    captured.pop("_diff", None)
-    return {
-        "remote": captured["remote"],
-        "worktree": captured["worktree"],
-        "branch": captured["branch"],
-        "commit": captured["commit"],
-        "dirty": captured["dirty"],
-        "untracked": captured["untracked"],
-        "uncommitted_diff_sha256": captured["uncommitted_diff_sha256"],
-    }
 
 
 def _terminate_process_group(process: subprocess.Popen[Any]) -> None:

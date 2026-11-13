@@ -178,6 +178,33 @@ def test_analyzer_reports_manifest_errors_and_rejects_wrong_selector(tmp_path: P
         module.load_run("owner/repo", 123, tmp_path)
 
 
+def test_analyzer_resolves_closed_pr_by_repository_and_commit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = analyzer()
+    manifest = {"schema_version": 1, "status": "ok", "tested_sha": "a" * 40,
+                "base_sha": "b" * 40, "merge_base_sha": "c" * 40,
+                "selector_revision": "b" * 40, "selector_sha256": "e" * 64,
+                "head_sha": "f" * 40, "run_id": "123", "run_attempt": "1"}
+    (tmp_path / "selection-manifest.json").write_text(json.dumps(manifest))
+    metadata = {"event": "pull_request", "name": "quality", "status": "completed",
+                "head_sha": "f" * 40, "run_attempt": 1, "pull_requests": [],
+                "head_branch": "topic", "head_repository": {"full_name": "owner/repo"},
+                "created_at": "2026-11-13T00:00:00Z"}
+    candidate = {"number": 12, "headRefOid": "1" * 40,
+                 "headRepository": {"nameWithOwner": "owner/repo"}}
+    def fake_gh(*args):
+        if args[0] == "pr":
+            return json.dumps([candidate])
+        if "/pulls/" in args[1]:
+            return "f" * 40
+        return json.dumps(metadata)
+    monkeypatch.setattr(module, "gh", fake_gh)
+    assert module.load_run("owner/repo", 123, tmp_path)["pr"] == 12
+    candidate["headRepository"]["nameWithOwner"] = "other/repo"
+    metadata["pull_requests"] = []
+    with pytest.raises(ValueError, match="expected 1 associated PR"):
+        module.load_run("owner/repo", 123, tmp_path)
+
+
 def test_duration_receipt_includes_fixture_time_and_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     plugin = runpy.run_path(str(ROOT / "tests/conftest.py"))["_ModuleDurations"]()
     for phase, duration in (("setup", 2.0), ("call", 0.1), ("teardown", 3.0)):

@@ -64,6 +64,21 @@ def load_run(repo: str, run_id: int, directory: Path) -> dict[str, Any]:
     if (manifest.get("run_id"), manifest.get("run_attempt")) != expected:
         raise ValueError(f"run {run_id}: stale manifest run or attempt")
     prs = metadata["pull_requests"]
+    if not prs:
+        # GitHub can omit closed PRs from run associations. Bind the branch
+        # candidate to the exact head commit, including earlier PR revisions.
+        candidates = json.loads(gh(
+            "pr", "list", "--repo", repo, "--state", "all", "--head", metadata["head_branch"],
+            "--json", "number,headRefOid,headRepository", "--limit", "1000",
+        ))
+        for candidate in candidates:
+            if (candidate.get("headRepository") or {}).get("nameWithOwner") != metadata["head_repository"]["full_name"]:
+                continue
+            if candidate["headRefOid"] == metadata["head_sha"] or metadata["head_sha"] in gh(
+                "api", f"repos/{repo}/pulls/{candidate['number']}/commits",
+                "--paginate", "--jq", ".[].sha",
+            ).splitlines():
+                prs.append(candidate)
     if len(prs) != 1:
         raise ValueError(f"run {run_id}: expected 1 associated PR")
     receipts = [json.loads(path.read_text()) for path in directory.rglob("*.modules.json")]

@@ -41,7 +41,6 @@ from evallab.cheat import (
     CHEAT_LADDER_V2,
     CHEAT_LADDER_V3,
     CHEAT_LADDER_V4,
-    DEFAULT_LADDER_VERSION,
     build_verdicts,
     cheat_verdict_for_reward,
     parse_attack_selection,
@@ -49,6 +48,7 @@ from evallab.cheat import (
     trial_reward,
     write_cheat_verdicts,
 )
+from evallab.cheat_ladder import DEFAULT_LADDER_VERSION
 from evallab.execution_contracts import (
     CHEAT_AGENT,
     CHEAT_AGENT_IMPORT_PATH,

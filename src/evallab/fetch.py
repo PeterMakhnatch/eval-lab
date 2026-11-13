@@ -9,18 +9,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
-from urllib.parse import quote
 
 UNPINNED_VERSIONS = frozenset({"latest", "head", "main", "master"})
-PROTECTED_INGESTS = frozenset(
-    {"aime", "gpqa-diamond", "humanevalfix", "terminal-bench-sample"}
-)
 SAMPLE_HEADING = "## Sample verification"
 STATE_NAME = ".fetch.json"
 MANIFEST_NAME = "MANIFEST.md"
 SKIP_DIGEST_NAMES = frozenset({MANIFEST_NAME, STATE_NAME})
 MAX_N_CONCURRENT = 2
-HUB_ROW = re.compile(r"│ (\S+) +│ (\S+) +│\s+(\d+) │")
 SHA_RE = re.compile(r"\b([0-9a-f]{40})\b")
 PIN_IN_TEXT = re.compile(
     r"`([A-Za-z0-9._/-]+)@([A-Za-z0-9._-]+)`|harbor download ([A-Za-z0-9._/-]+)@([A-Za-z0-9._-]+)"
@@ -350,32 +345,3 @@ def state_from_manifest(text: str, *, dest: Path) -> FetchState | None:
         lane="hub",
         license="",
     )
-
-
-@dataclass(frozen=True)
-class PublicAtifSource:
-    """Anonymous, immutable Hugging Face ATIF file."""
-
-    item_id: str
-    repo_id: str
-    revision: str
-    filename: str
-    sha256: str
-    license: str
-
-    @property
-    def url(self) -> str:
-        path = quote(self.filename, safe="/")
-        return f"https://huggingface.co/datasets/{self.repo_id}/resolve/{self.revision}/{path}"
-
-
-PROOFJUDGE_ATIF_SAMPLE = PublicAtifSource(
-    item_id="proofjudge-eval-traces@qwen3-32b",
-    repo_id="SJCaldwell/proofjudge-eval-traces",
-    revision="aac1f0f4c96e8394da6315a04778e4b7f13ac900",
-    filename="data/traces_qwen3-32b.jsonl",
-    sha256="79b7d3e71d28af6dc1630cb135d697c035a4e74de5eb9226db6e1c0cd3ee17fb",
-    license="mit",
-)
-
-

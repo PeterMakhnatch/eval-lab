@@ -53,6 +53,89 @@ def _docker_sources(arguments: str) -> list[str]:
     return operands[:-1]
 
 
+_ABSOLUTE_PATH = re.compile(r"(?<![\w./:-])/(?:[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)")
+
+
+def _posix_path(text: str) -> str:
+    return text.rstrip("/") or "/"
+
+
+def _contains(path: str, base: str) -> bool:
+    return path == base or path.startswith(base + "/")
+
+
+def _top_directory(path: str) -> str:
+    parts = PurePosixPath(path).parts
+    return str(PurePosixPath(*parts[:2])) if len(parts) > 2 else path
+
+
+def _absolute_paths(text: str) -> set[str]:
+    return {_posix_path(match.group(0)).rstrip(".") for match in _ABSOLUTE_PATH.finditer(text)}
+
+
+def _artifact_contract_findings(task_dir: Path, artifacts: Sequence[str]) -> list[Finding]:
+    artifacts = [
+        _posix_path(path) for path in artifacts if isinstance(path, str) and path.startswith("/")
+    ]
+    if not artifacts:
+        return []
+    findings: list[Finding] = []
+    declared = ", ".join(artifacts)
+
+    def relates(path: str) -> bool:
+        return any(_contains(path, artifact) or _contains(artifact, path) for artifact in artifacts)
+
+    instruction = task_dir / "instruction.md"
+    if instruction.is_file() and not any(
+        relates(path)
+        for path in _absolute_paths(instruction.read_text(encoding="utf-8", errors="replace"))
+    ):
+        findings.append(
+            Finding(
+                "artifacts-instructed",
+                "warning",
+                str(instruction),
+                "the instruction never names a declared artifact path; "
+                f"the agent cannot know what to produce ({declared})",
+            )
+        )
+
+    tests = task_dir / "tests"
+    if not tests.is_dir():
+        return findings
+    paths_by_file: dict[Path, set[str]] = {}
+    verified_paths: set[str] = set()
+    for tests_file in sorted(tests.rglob("*")):
+        if tests_file.is_file():
+            paths = _absolute_paths(tests_file.read_text(encoding="utf-8", errors="replace"))
+            paths_by_file[tests_file] = paths
+            verified_paths.update(paths)
+    if not any(relates(path) for path in verified_paths):
+        findings.append(
+            Finding(
+                "artifacts-verified",
+                "warning",
+                str(tests),
+                "no file under tests/ names a declared artifact, a path above it, or a path below it; "
+                f"the separate verifier cannot observe the produced artifact ({declared})",
+            )
+        )
+    top_directories = {_top_directory(artifact) for artifact in artifacts}
+    for tests_file, paths in paths_by_file.items():
+        for path in sorted(paths):
+            if any(_contains(path, top) for top in top_directories) and not relates(path):
+                findings.append(
+                    Finding(
+                        "verifier-reads-undeclared",
+                        "warning",
+                        str(tests_file),
+                        f"the verifier reads {path}, which is outside the declared artifacts; "
+                        f"a separate verifier sees only ({declared})",
+                    )
+                )
+    return findings
+
+
 def _hidden_docker_source(source: str, context: Path) -> bool:
     """Screen one COPY/ADD source operand against the Docker build context.
 
@@ -201,12 +284,15 @@ def _lint_sources(task_dir: Path) -> list[Finding]:
 def lint_task(task_dir: Path) -> list[Finding]:
     """Inspect one task without executing or modifying any task content."""
     findings: list[Finding] = []
+    artifact_findings: list[Finding] = []
     manifest = task_dir / "task.toml"
     diagnostics: list[Diagnostic] = []
     config = _parse_task_toml(manifest, diagnostics)
     if not manifest.is_file() or diagnostics:
         findings.append(
-            Finding("task-toml-parses", "error", str(manifest), "task.toml is missing or invalid TOML")
+            Finding(
+                "task-toml-parses", "error", str(manifest), "task.toml is missing or invalid TOML"
+            )
         )
     else:
         verifier = config.get("verifier")
@@ -231,6 +317,10 @@ def lint_task(task_dir: Path) -> list[Finding]:
                     "nothing from the agent container reaches the verifier",
                 )
             )
+        else:
+            artifacts = config.get("artifacts")
+            if isinstance(artifacts, list):
+                artifact_findings = _artifact_contract_findings(task_dir, artifacts)
 
     solution = task_dir / "solution" / "solve.sh"
     if not solution.is_file():
@@ -254,6 +344,7 @@ def lint_task(task_dir: Path) -> list[Finding]:
                 )
             )
     findings.extend(_lint_sources(task_dir))
+    findings.extend(artifact_findings)
     return findings
 
 

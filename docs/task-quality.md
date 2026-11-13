@@ -592,6 +592,14 @@ on every `*.py` under `tests/` and `solution/`, and `json.loads` on every `*.jso
 under `tests/`. Any `bash -n` diagnostic is an error, including a warning without
 a failing exit. When `bash` is not on `PATH`, shell files get no finding.
 
+Only tasks with `environment_mode = "separate"` and declared artifacts receive
+these warnings: `artifacts-instructed` when `instruction.md` names no declared
+artifact path; `artifacts-verified` when no file under `tests/` names an artifact,
+a parent directory, or a path below it; and `verifier-reads-undeclared` when a
+tests file names an absolute path at or below an artifact's top directory
+(`/app` for `/app/x`) that is neither the artifact, above it, nor below it.
+These warnings leave the exit code at 0; other rules' errors still fail.
+
 ## Retained packet and receipt readers
 
 Registry continues to validate historical `certification.json` packets against exact package hashes.

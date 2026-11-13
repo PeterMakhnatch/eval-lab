@@ -31,7 +31,6 @@ def test_a_refused_check_is_a_finished_failing_result(
     capsys: pytest.CaptureFixture[str],
     which: str,
 ) -> None:
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     root = fixture_spec.parent
     batch = core.run_line(fixture_spec, root)
     spec = read_json(fixture_spec)
@@ -56,7 +55,6 @@ def test_an_invalid_batch_directory_writes_nothing(
     fixture_spec: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The refusal of the batch itself (preflight) happens before any file is rewritten."""
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     root = fixture_spec.parent
     batch = core.run_line(fixture_spec, root)
     before = (batch / "check.json").read_bytes()

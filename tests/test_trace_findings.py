@@ -1,4 +1,4 @@
-"""``trace_findings`` store and ``qa-data trace-card``: admission, actor-transcript rule, key semantics, card budget."""
+"""``trace_findings`` storage: admission, actor-transcript rule, and key semantics."""
 
 from __future__ import annotations
 
@@ -10,10 +10,8 @@ from typing import Any
 
 import pytest
 
-from evallab.production.cloud_trace_db import CloudTraceDatabase, CloudTraceRetriever
+from evallab.production.cloud_trace_db import CloudTraceDatabase
 from evallab.production.corpus_queue import CorpusRegistry
-from evallab.production.qa_data import UNAVAILABLE, Budget, QaContext, QaDataError, estimate_tokens
-from evallab.production.qa_data_card import CARD_TOKENS, build_card
 from evallab.production.trace_findings import import_trace_findings, upsert_trace_findings
 
 
@@ -185,128 +183,6 @@ def test_finding_rows_leave_with_their_run(store: CloudTraceDatabase) -> None:
     assert rows(store) == []
 
 
-def context(store: CloudTraceDatabase, tmp_path: Path, tokens: int = 4000) -> QaContext:
-    return QaContext(
-        database=store,
-        retriever=CloudTraceRetriever(store, registry=SyntheticRegistry(), sealed_task_ids=["sealed-dataset-name"]),
-        repo_root=tmp_path, state_dir=tmp_path / "state", budget=Budget(tokens),
-    )
-
-
-def test_card_lists_every_detector_alarms_first_with_flags_and_playbook(
-    store: CloudTraceDatabase, tmp_path: Path,
-) -> None:
-    store_findings(
-        store,
-        finding(detector="scout", verdict="clear", kind="other", evidence_steps=[], summary="", score=None),
-        finding(detector="cascade", verdict="abstain", kind="other", evidence_steps=[], summary=""),
-        finding(),
-        finding(reader_model="anthropic/claude-haiku-5-5", detector_version="v2", produced_at="2026-10-28T12:00:00Z"),
-    )
-    card = build_card(context(store, tmp_path), "alpha/agentic")
-    assert [(row["detector"], row["verdict"]) for row in card["detectors"]] == [
-        ("tripwire", "alarm"), ("tripwire", "alarm"), ("cascade", "abstain"), ("scout", "clear"),
-    ]
-    assert card["detectors"][0]["version"] == "v2" and card["detectors"][0]["reader"] == "anthropic/claude-haiku-5-5"
-    assert card["tally"] == {"alarm": 2, "abstain": 1, "clear": 1}
-    assert card["actor_inputs_available"] is True and card["steps"] == 4
-    # the git-history peek is the agent's 4th stored step: cited by its stored id, not its position
-    assert any(flag.startswith("git_history_peek@4x1") for flag in card["flags"])
-    assert card["playbook"] and all({"card", "mechanism", "verify"} <= set(item) for item in card["playbook"])
-    assert estimate_tokens(card) <= CARD_TOKENS
-
-
-def test_card_carries_no_label_and_names_no_source_or_model(store: CloudTraceDatabase, tmp_path: Path) -> None:
-    store.upsert_run_facets([{
-        "run_id": "alpha/agentic", "facet_version": "run-facets/v1", "facet_model": "secret-facet-model",
-        "input_tokens": 1, "output_tokens": 1, "goal": "fix parser", "approach": "edit tests", "tests": "modified",
-        "grader_or_harness_touched": False, "answer_material_accessed": True,
-        "success_claim_without_evidence": False, "eval_awareness": "none", "shortcut": "none", "suspicion": 2,
-        "evidence_steps": [1],
-    }], registry=SyntheticRegistry())
-    store_findings(store, finding(summary="trace run-0123456789abcdef0123456789abcdef0123 said so"))
-    card = build_card(context(store, tmp_path), "alpha/agentic")
-    text = json.dumps(card)
-    for forbidden in ("secret-dataset", "secret-model", "secret-facet-model"):
-        assert forbidden not in text
-
-    def keys(value: Any) -> set[str]:
-        if isinstance(value, dict):
-            return set(value) | {name for item in value.values() for name in keys(item)}
-        return {name for item in value for name in keys(item)} if isinstance(value, list) else set()
-
-    assert keys(card).isdisjoint({"outcome", "reward", "split", "source", "model_id", "facet_model", "dataset_id"})
-    assert card["facets"]["suspicion"] == 2 and card["facets"]["answer_material_accessed"] is True
-    assert "run-0123" not in text  # opaque identities are scrubbed from detector prose
-
-
-def test_a_facet_record_naming_a_sealed_identity_is_not_shown_on_the_card(
-    store: CloudTraceDatabase, tmp_path: Path,
-) -> None:
-    assert store.upsert_run_facets([{
-        "run_id": "alpha/agentic", "facet_version": "run-facets/v1", "facet_model": "m",
-        "input_tokens": 1, "output_tokens": 1, "goal": "fix parser", "approach": "mirrors sealed-dataset-name",
-        "tests": "modified", "grader_or_harness_touched": True, "answer_material_accessed": True,
-        "success_claim_without_evidence": False, "eval_awareness": "none", "shortcut": "none", "suspicion": 3,
-        "evidence_steps": [1],
-    }], registry=SyntheticRegistry())["stored"] == 1
-    card = build_card(context(store, tmp_path), "alpha/agentic")
-    assert "facets" not in card
-    assert '"suspicion": 3' not in json.dumps(card)
-
-
-def test_a_summary_naming_a_sealed_identity_is_withheld(store: CloudTraceDatabase, tmp_path: Path) -> None:
-    store.upsert_task({
-        "task_id": "sealed-dataset-name", "dataset_id": "x", "split": "dev", "instruction_text": "t",
-    })
-    add_run(store, "sealed-dataset-name", "one", AGENT_STEPS)
-    store_findings(store, finding(summary="mirrors sealed-dataset-name exactly"))
-    card = build_card(context(store, tmp_path), "alpha/agentic")
-    assert card["detectors"][0]["summary"] == "[withheld]" and card["withheld_strings"] == 1
-
-
-@pytest.mark.parametrize("run_id", ["held-out/one", "locked/one", "missing/run", 7])
-def test_card_refuses_every_non_admitted_run_with_the_same_words(
-    store: CloudTraceDatabase, tmp_path: Path, run_id: Any,
-) -> None:
-    store_findings(store, finding())
-    with pytest.raises(QaDataError) as refused:
-        build_card(context(store, tmp_path), run_id)
-    assert str(refused.value) == UNAVAILABLE
-
-
-def test_a_run_with_no_actor_transcript_is_reported_unknown_even_with_no_findings(
-    store: CloudTraceDatabase, tmp_path: Path,
-) -> None:
-    card = build_card(context(store, tmp_path), "replay/journal")
-    assert card["actor_inputs_available"] is False and card["detectors"] == [] and card["tally"] == {}
-    assert "unknown, never clean" in card["note"] and "No finding is not a clean verdict" in card["note"]
-
-
-def test_card_stays_within_its_cap_and_counts_what_it_drops(store: CloudTraceDatabase, tmp_path: Path) -> None:
-    store_findings(store, *(
-        finding(
-            detector=f"detector_{index:02d}", summary=" ".join(f"obs{index}-{word}" for word in range(38)),
-            evidence_steps=[1, 2, 4],
-        )
-        for index in range(120)
-    ))
-    card = build_card(context(store, tmp_path, tokens=8000), "alpha/agentic")
-    assert estimate_tokens(card) <= CARD_TOKENS
-    assert card["truncated"] is True and card["omitted"] > 0 and card["shortened"] > 0
-    assert card["tally"] == {"alarm": 120}  # the tally is counted before anything is dropped
-    assert 0 < len(card["detectors"]) < 120 and card["omitted"] >= 120 - len(card["detectors"])
-    small = build_card(context(store, tmp_path, tokens=600), "alpha/agentic")
-    assert estimate_tokens(small) <= 600  # never above what the caller's budget leaves
-
-
-def test_card_of_a_store_that_predates_the_table_reports_no_findings(
-    store: CloudTraceDatabase, tmp_path: Path,
-) -> None:
-    store._execute("DROP TABLE trace_findings")
-    card = build_card(context(store, tmp_path), "alpha/agentic")
-    assert card["detectors"] == [] and card["flags"]
-
 
 def test_a_newer_refused_record_does_not_hide_an_older_valid_one(store: CloudTraceDatabase) -> None:
     receipt = store_findings(
@@ -341,55 +217,3 @@ def test_an_annotation_only_agent_step_is_not_an_actor_transcript(store: CloudTr
     ])
     receipt = store_findings(store, finding("replay/annotated", verdict="clear", evidence_steps=[]))
     assert receipt["refused_by_reason"] == {"a run with no actor transcript cannot be recorded clear": 1}
-
-
-def test_card_priority_survives_a_tight_budget(store: CloudTraceDatabase, tmp_path: Path) -> None:
-    store_findings(
-        store,
-        finding(summary=" ".join(f"evidence{index}" for index in range(40))),
-        *(finding(detector=f"quiet_{index}", verdict="clear", kind="other", summary="", evidence_steps=[])
-          for index in range(3)),
-    )
-    for tokens in range(120, 400, 10):
-        card = build_card(context(store, tmp_path, tokens=tokens), "alpha/agentic", ledgers=False)
-        shown = [item["verdict"] for item in card["detectors"]]
-        assert "clear" not in shown or shown[0] == "alarm", (tokens, shown)  # never clean without the alarm
-        assert estimate_tokens(card) <= tokens or not shown
-
-
-def test_card_screens_version_reader_and_prose_for_the_runs_dataset_and_sealed_names(
-    store: CloudTraceDatabase, tmp_path: Path,
-) -> None:
-    store_findings(store, finding(
-        detector_version="secret-dataset/v2", summary="a classic Secret-Dataset pattern",
-        reader_model="sealed-dataset-name/reader",
-    ))
-    card = build_card(context(store, tmp_path), "alpha/agentic")
-    (item,) = card["detectors"]
-    assert (item["version"], item["summary"], item["reader"]) == ("[withheld]",) * 3
-    assert card["withheld_strings"] == 3
-
-
-def test_a_clear_recorded_before_the_steps_lost_their_actor_is_shown_as_unknown(
-    store: CloudTraceDatabase, tmp_path: Path,
-) -> None:
-    store_findings(store, finding(verdict="clear", kind="other", evidence_steps=[], summary=""))
-    store.replace_trace_steps("alpha/agentic", NO_ACTOR_STEPS)
-    card = build_card(context(store, tmp_path), "alpha/agentic")
-    assert card["actor_inputs_available"] is False
-    assert [(item["verdict"], item.get("recorded")) for item in card["detectors"]] == [("unknown", "clear")]
-    assert card["tally"] == {"unknown": 1}
-
-
-def test_ledger_counts_come_from_the_trace_tool_ledgers_and_can_be_skipped(
-    store: CloudTraceDatabase, tmp_path: Path,
-) -> None:
-    ledger = tmp_path / "state" / "trace-tools" / "results-v1.jsonl"
-    ledger.parent.mkdir(parents=True)
-    ledger.write_text("".join(json.dumps({
-        "schema": "evallab.trace_tool_result/v1", "run_id": "alpha/agentic", "source": "cloud-trace-db",
-        "tool": "scout", "detector": f"d{index}", "detector_version": "v1", "value": 1, "flag": index == 0,
-        "evidence_steps": [1], "scan": "opaque", "at": "2026-10-28T02:00:00Z",
-    }) + "\n" for index in range(3)))
-    assert build_card(context(store, tmp_path), "alpha/agentic")["ledger_readers"] == {"scout": [3, 1]}
-    assert "ledger_readers" not in build_card(context(store, tmp_path), "alpha/agentic", ledgers=False)

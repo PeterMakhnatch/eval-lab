@@ -28,7 +28,6 @@ _CLEAN = "def add(a, b):\n    return a + b\n"
 def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(hd, "_get_corpus_registry", lambda **_: None)
     monkeypatch.setattr(core, "_code", lambda _: ("a" * 40, False))
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     return tmp_path
 
 

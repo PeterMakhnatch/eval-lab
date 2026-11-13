@@ -194,7 +194,6 @@ def test_an_external_queue_that_fails_verification_after_the_append_fails_judge_
 def _cli(monkeypatch: pytest.MonkeyPatch, root: Path, *argv: str) -> int:
     from evallab import cli
 
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     return cli.run_cli(["line", *argv], workspace=root)
 
 

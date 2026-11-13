@@ -122,7 +122,6 @@ def _hard_link_to_sealed(path: Path, secret: Path) -> None:
 def _cli(monkeypatch: pytest.MonkeyPatch, root: Path, *argv: str) -> int:
     from evallab import cli as top_cli
 
-    monkeypatch.setattr(top_cli, "instrument_openinference", lambda: None)
     return top_cli.run_cli(["line", *argv], workspace=root)
 
 

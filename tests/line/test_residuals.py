@@ -410,7 +410,6 @@ def test_the_cli_check_of_a_symlinked_batch_is_refused_before_anything_is_rewrit
 ) -> None:
     from evallab import cli
 
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     batch = core.run_line(fixture_spec, fixture_spec.parent)
     (batch / "inside_link.jsonl").symlink_to(_secret(tmp_path))
     before = {p.name: p.read_bytes() for p in (batch / "check.json", batch / "scoreboard.json")}

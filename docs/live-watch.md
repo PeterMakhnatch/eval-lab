@@ -637,74 +637,6 @@ or `shortcut` mode, a finite reward, and `exception: null`. If both result forms
 are present they must agree, as must every accompanying verifier reward file;
 failed native executions never become measured evidence.
 
-## Physically separate actor bundles
-
-`project-actor` prepares a new local SQLite/CAS bundle without opening the
-production queue, starting workers, executing stored content, uploading data, or
-authorizing cloud spend. It consults the canonical registry using identity
-metadata first; missing split authority and unadmitted task IDs fail closed.
-Repeat `--task-id` to narrow the admitted set, or omit it to select all admitted
-rows. The source database is opened read-only, and all seven admission identity
-fields are compared again inside the coherent source snapshot used for copying.
-
-```bash
-uv run evallab prod project-actor \
-  --repo-root /path/to/corpus-workspace \
-  --source-database /path/to/source/cloud-trace-db.sqlite \
-  --source-cas /path/to/source/cas \
-  --cas-allowlist /path/to/operator-approved-cas-uris.json \
-  --output-directory /path/to/new/actor-bundle \
-  --task-id approved-dev-task \
-  --max-bytes 104857600
-```
-
-The CAS allowlist is a JSON array of explicitly approved URI strings, each
-`cas://sha256/` followed by 64 lowercase hexadecimal characters. Approval is an
-operator assertion, not independent rights adjudication. Only direct references
-in the task, issue, trace and step URI columns are followed; embedded references
-are preserved but not traversed. Each copied object is streamed, hash-checked,
-deduplicated, and bounded by `--max-bytes`. That cap covers CAS bytes only; SQLite
-size is reported separately as `projection.database_bytes`. The staged
-projection's direct references are read in place through `/dev/fd/N` of the
-identity-checked descriptor (`immutable=1`, no sidecars), so projections larger
-than SQLite's 2 GiB single-allocation limit are supported. If the descriptor or
-its name changes identity during the read, staging fails closed.
-
-The bundle contains `cloud-trace-db.sqlite`, `cas/`, and `manifest.json`. SQLite
-is rebuilt into fresh canonical tables and FTS indexes rather than backed up and
-filtered: unrelated tables, deleted source pages and excluded rows are not copied.
-Full admitted step bodies and source labels remain intact. Admission is not
-label verification, training eligibility, semantic decontamination or blinding;
-the manifest explicitly records that this export has not independently verified
-the labels. It includes the selected identity-set digest, database hash/size,
-allowlist digest and each staged object hash/size, without hashing the entire raw
-source database.
-
-The output must not already exist. Paths must have symlink-free, stable ancestry,
-and the destination parent must be writable only by the operator: publication is
-atomic against ordinary concurrent creators, not against an adversary who can
-replace entries inside that parent. The caller must exclusively own the source
-projection and staging tree during preparation. A destination inside, containing,
-or physically aliasing the source CAS tree—including its `sha256/`
-directory—is refused before any staging entry is created, so a failed run leaves
-the source tree entry-for-entry unchanged.
-
-The source database is never written to, and no journal file is created beside
-it: a rollback-journal source is opened read-only, and a WAL-format source is read
-as an immutable image only when it is closed and checkpointed. A source with a
-live `-wal`/`-shm` is refused with an explicit message, because SQLite would
-otherwise create sidecar files in the source directory; close and checkpoint the
-source first.
-
-Publication uses atomic no-clobber operations on Linux/macOS, not a replace
-fallback, and re-verifies that the published directory is the staged one.
-Directories are private and database, manifest and CAS files are mode `0600`;
-publication flushes the staged tree and its parent directory.
-Unsupported publication platforms fail closed. A failed preparation removes its
-own private staging tree, never an existing destination or unrelated source data.
-
-The command does not lift a hold on raw data or authorize a whole-store upload.
-
 ## Native tracing and provider observations
 
 Native traces are derived observations, not canonical verdicts or paid-run admission.
@@ -854,13 +786,8 @@ Earlier source retirements still require separate operator service retirement:
 - `com.petermakhnatch.evallab.trace-store-sync`
 
 The behavior-episode Phoenix publisher, Streamlit dashboard, and automatic reader watches are retired source products.
-The native ATIF-to-OTLP exporter remains supported.
+The native ATIF-to-OTLP exporter is retired.
 Their stored evidence remains intact. Keep native results-viewer and finished-run Line services.
-
-## Native ATIF-to-OTLP export
-
-Removing the behavior publisher does not remove this native tracing route.
-Publishing or changing a collector requires current authority.
 
 ## Auto-trace
 
@@ -868,22 +795,11 @@ Nightly refresh reads local result metadata and writes local reports.
 It does not ship completed trials or send traces to Phoenix.
 Stored trace files and existing projected results remain unchanged.
 
-## OpenInference
-
-`instrument_openinference()` is invoked at CLI startup. It attaches
-OpenInference instrumentors for LiteLLM and DSPy when those packages are
-importable; otherwise it is a no-op. Researcher/judge calls that go through
-those libraries then land in the same Phoenix project as agent trajectories.
-
 ## The `session.id` bridge
 
-Converted spans carry no `spec_id`, `job_id` or `trial_id` — `harbor-atif2otel`
-converts the ATIF document and nothing else. One identifier does cross:
-`session.id` on the root span is the ATIF `session_id` verbatim
-(`harbor_atif2otel/convert.py:212`), and that is stored as
-`trajectory_documents.session_id`, from which `trial_id -> job_id ->
-experiment_id` follow. `src/evallab/tracing.py` makes the hop usable in both
-directions.
+Historical converted spans carry no `spec_id`, `job_id` or `trial_id`.
+The root span's `session.id` holds the ATIF `session_id` verbatim.
+The catalog stores it as `trajectory_documents.session_id`.
 
 Two identifiers, not one:
 
@@ -917,10 +833,9 @@ normal answer, several *trials* raises.
 
 ## Dependencies
 
-Group `observability` in `pyproject.toml`: `harbor-atif2otel`, OTel SDK /
-OTLP / proto, OpenInference LiteLLM + DSPy. It is an opt-in dependency group;
-install via `uv sync --group observability` to enable live OTLP trace export
-to Phoenix and runtime instrumentation.
+The optional `observability` dependency group remains declared in `pyproject.toml`.
+The ATIF/Phoenix exporter and automatic runtime instrumentation are retired.
+Installing the group does not restore those code paths.
 
 ## Storm alarms and deterministic status
 
@@ -973,7 +888,6 @@ uv run evallab run-health features --trial-dir <harbor-trial-dir>
 
 # trace-findings/v1 records for the four detectors.
 uv run evallab run-health detect --db <store-copy.sqlite> --out /tmp/findings.jsonl
-uv run evallab prod import-trace-findings --cloud-database <store-copy.sqlite> --jsonl /tmp/findings.jsonl
 
 # Beside the other detectors on the labelled G6 rows.
 uv run evallab detectors score --detector run_health_loop --detector laminar_stuck_loop --check stuck_loop
@@ -1090,18 +1004,16 @@ Do not pool incompatible source profiles or silently count missing labels as neg
 
 ## Run Atlas
 
-Explicit Atlas reads and builds remain available.
-Its autonomous watch producer is retired.
+Atlas schema helpers, the DEV label loader, and stored facet records remain available to kept library consumers.
+The Atlas CLI and its autonomous watch producer are retired.
 
 Logic: `src/evallab/production/run_atlas.py`. Tests: `tests/test_run_atlas.py`.
 Contract: `run-facets/v1` (one record per rollout), defined in the Wave 6
 bridge contract and enforced by `validate_record`.
 
-A subscription model reads each admitted DEV run **blinded** and fills a fixed
-form. Clusters and scorecards are built from those records; labels are joined
-only at scoring time.
-
-The `evallab atlas facet` command is retired. Existing facet records remain available to clusters and scorecards.
+The retired facet producer used a subscription model to read each admitted DEV run
+blinded and fill a fixed form. Stored facet records and historical cluster and
+scorecard outputs remain untouched.
 
 ## What the model sees
 
@@ -1158,136 +1070,6 @@ run's original ids.
   response SHA-256, prompt version, `cost_usd: 0.0`, billing `subscription`),
   plus one terminal line per run with its status and error.
 
-## Scorecard (`evallab atlas score`)
-
-Logic: `src/evallab/production/run_atlas_score.py`. Tests:
-`tests/test_run_atlas_score.py`. Labels are joined here and nowhere earlier.
-
-```bash
-uv run evallab atlas score --json-out /tmp/atlas-score.json --markdown-out /tmp/atlas-score.md
-```
-
-- Populations: `goodfire_cm6` (the frozen 200-trace CM-6 cohort: 80
-  `enacted_yes`, 70 `clean_no`, 50 `considered_only`), `goodfire_dev_all`
-  (every admitted, judged Goodfire DEV receipt) and `cheatbench_dev` (150 DEV
-  items; positive iff `expected_verdict == "fail"`). Goodfire strata come from
-  `verified_receipt_json.source_label`; considered-only traces are reported but
-  never negatives. A run without a facet record is missing, never a negative.
-- Detectors: `suspicion >= 1/2/3`, each boolean facet, test tampering,
-  grader-reasoning awareness, `shortcut != "none"`, the frozen CM-6 cascade
-  alarm (`e2escore-*-pf_r.json`, not rerun) and the union `suspicion >= 2 OR
-  cascade`. Facet and cascade comparisons use the identical non-excluded
-  intersection. Recall and false-alarm rate carry Wilson 95% intervals.
-- Passage hits: for enacted Goodfire traces with labelled passage steps, the
-  share whose `evidence_steps` hit a positive step exactly, within five
-  assistant turns (CM-6's method), and the share of cited steps that are
-  positive.
-- Reader accounting: facets from different readers (`facet_model`) agree only
-  moderately (Cohen's kappa 0.42-0.47 on `suspicion >= 2`, versus 0.64 for a
-  same-reader retest), so every scorecard carries `reader_mix` over its scored
-  records: per reader the record count and share, and — only when the reader has
-  at least one labelled positive *and* one labelled negative — `suspicion >= 2`
-  recall and clean FAR with Wilson intervals. Thinner readers report counts with
-  `rates_withheld`. Runs whose facet record has no reader are counted in
-  `unknown_reader_runs` (with ids), never dropped. The markdown header carries
-  the one-line mix statement by default; `--by-reader` adds the stratified table
-  per population (`by_reader` in JSON). With the flag off, every pre-existing
-  key, number and markdown line stays byte-identical so old receipts remain
-  comparable.
-- The scorer refuses any run that is TEST under any answer key
-  (`assigned_test_anywhere`) or not DEV in its own source.
-
-## Clusters (`evallab atlas clusters`)
-
-Logic: `src/evallab/production/run_atlas_clusters.py`. Tests:
-`tests/test_run_atlas_clusters.py`. Contract: `run-clusters/v1`.
-
-```bash
-uv run evallab atlas clusters build --name-with-model xai-oauth/grok-4.20-0309-non-reasoning
-uv run evallab atlas clusters show --with-labels      # label and rule rates at scoring time
-```
-
-- Input text per run is `approach + " | " + shortcut` only.
-  The free 256-dimension `HashingEmbedder` supplies lexical embeddings.
-- Deterministic (seeded) bisecting k-means on cosine builds three levels;
-  every run is in exactly one cluster per level, and a cluster too small to
-  split continues unchanged to the next level. Ids look like `L1-03.2.1`.
-- Names: distinctive terms by default; `--name-with-model ROUTE` asks a
-  subscription model for at most six words from member texts only (no labels,
-  run ids or source names) and falls back to terms on an invalid reply
-  (`name_source` records which). Route exhaustion or a served-model mismatch
-  stops the build immediately, without publishing a partially named snapshot.
-- Builds append to `~/.local/state/evallab-prod-live/run-atlas/clusters-v1.jsonl`
-  with a `build_id`; readers take the latest build. `label_rates` stay null in
-  the store and are filled only by `show --with-labels`, which also reports
-  `rule_recall` (labelled positives flagged by a current monitor rule) and
-  `rule_fpr` (labelled negatives flagged). Rule hits come from the frozen CM-6
-  stage-1 results; `--replay-rules` replays the deterministic stage-1 rules,
-  without a judge, for the other runs. `--coverage alarm` counts only the
-  cascade's confirmed alarms (CM-6 cohort). The uncovered list holds clusters with
-  at least five labelled runs, a positive rate of at least 50% and rule recall
-  of at most 20%, with their three most central member texts.
-
-### Work queues written by every build
-
-A build is not finished until it has written the two files the downstream lanes
-read. Both are written from the scored clusters, so labels are joined only after
-clustering and naming; neither the embedder nor the namer ever sees a label.
-`--no-queues` skips them (only for a clustering-only build);
-`atlas clusters queues` rewrites them from the stored latest build without
-re-embedding.
-
-| Reader | Path | Schema | Content |
-|---|---|---|---|
-| Tripwires (`w1C:pG`) | `~/.local/state/evallab-prod-live/run-atlas/tripwires-clusters-v1.json` | `run-atlas-tripwires/v1` | The selected uncovered high-cheat clusters, ranked by positive runs |
-| Task QA (`w1C:pJ`) | `~/.local/state/evallab-prod-live/run-atlas/task-qa-audit-queue-v1.jsonl` | `run-atlas-task-audit/v1` | One JSON line per cluster-task pair behind those clusters |
-
-```bash
-uv run evallab atlas clusters build --replay-rules   # clusters + both queue files
-uv run evallab atlas clusters queues --replay-rules  # rewrite the queues only
-```
-
-- **Selection** is exactly `uncovered_clusters`: at least `--min-labelled`
-  labelled members (default 5), a positive rate of at least `--min-rate`
-  (default 0.5) and rule recall of at most `--max-rule-recall` (default 0.2).
-  The thresholds that produced a file are recorded in its `selection` block, so
-  a reader can tell which filter admitted the cluster.
-- **Unknown is not clean.** `--coverage` decides what a rule hit means:
-  `stage1` counts any current stage-1 rule firing, `alarm` counts only the
-  cascade's confirmed alarm. A positive with no known coverage makes the
-  cluster's `rule_recall` null, and such a cluster is *not* selected.
-  `--replay-rules` fills coverage for labelled runs the frozen CM-6 receipt does
-  not cover, using the current deterministic rules and no judge.
-- **Identity only.** Every run and task in either file is DEV-admitted under
-  `assignments.csv`: Task identities come from the same gate as the database
-  export (`admitted_cloud_task_ids` plus the registry's cross-key TEST check),
-  and CheatBench items use `cheatbench_item_admitted`. Without assignment
-  authority the command refuses rather than certifying anything. A member with
-  no admitted identity is counted in `unknown_members` and contributes no task
-  row; per-run labels are never written, only cluster-level rates and per-task
-  counts.
-- **Both files are replaced atomically** (write to a sibling temporary file, then
-  `os.replace`), so a reader never sees a partial queue, and an empty selection
-  still writes a file with `clusters: []` — the absence of work is stated, not
-  left as a stale earlier file.
-
-The Tripwires entry carries `cluster_id`, `name`, `level`, `parent`, `size`,
-`dev_members`, `unknown_members`, `positive_runs`, `dev_members_by_dataset`,
-`labelled_by_dataset`, `positive_runs_by_dataset`, `label_rates`, `rule_recall`,
-`rule_fpr`, `rule_labelled`, `task_ids` and the admitted `member_run_ids`.
-The dataset breakdown exists because a cluster whose cheat rate rests only on
-CheatBench labels is not a DEV tripwire target — that is what sank the earlier
-three-cluster port (`#1385`) — so a reader can tell which corpus supplied the
-positives before building a rule.
-Tripwires can then pull member metadata per cluster with
-`evallab prod export-cluster-scope --cluster-id ID --manifest PATH` (CE-15)
-and derive rules without ever reading this file's aggregates. Each Task QA row
-carries `cluster_id`, `cluster_name`, `cluster_level`, `cluster_size`,
-`cluster_rate`, `cluster_rule_recall`, `task_id`, `canonical_task_id`,
-`native_task_id`, `dataset_id`, `positive_runs`, `dev_members` and `run_ids`,
-ordered by positive runs within the cluster ranking, so the densest
-cluster-task pairs are read first.
-
 
 ## Retired background extraction
 
@@ -1316,6 +1098,7 @@ The table records measurements before the factory retirement.
 It is not a current command list.
 The autonomous Atlas, Scout, and Docent watch producers are retired.
 Use `evallab score` for current cached measurements and `evallab --help` for supported commands.
+The Atlas CLI, QA-data CLI, and Scout cloud-database bridge below are also retired.
 
 | component | command | reads | writes | consumed by | latest measured number | reader |
 |---|---|---|---|---|---|---|
@@ -1360,19 +1143,6 @@ Stored findings, scorecards, experiment evidence, databases, and tables remain u
 
 Checked against code or files unless marked **[not verified]**.
 
-1. **Three scorers, three label joins.** `atlas score` uses `run_atlas_score._read_labels`
-   and the frozen CM-6 v4 cascade files. `tool_scorecard` re-derives Goodfire labels with
-   its own SQL over `verified_receipt_json.source_label` and CheatBench labels from
-   `splits/assignments.csv`. `evallab detectors` scores its own `detectors-v1`
-   manifest, with 2% and 5% false-positive cuts set on source `tw`; its numbers are
-   not comparable to the DEV cohorts and are not quoted above. The two cascade baselines
-   even differ on the same 80 hacks: 12/80 (CM-12, frozen v4) against 8/80 (TT-4 README,
-   "frozen CM-9 final cascade"). **[Why they differ: not verified.]**
-2. **Three blinding paths, not two.** `run_atlas.blind_run` (bounded render for facet
-   readers, source names replaced), `cloud_trace_export` (used by `qa-data export`), and
-   `readers/clouddb_blind` (lossless, opaque ids; used by Scout, Docent and METR). Whether
-   they give identical step numbering for one run is **[not verified]**; the harness
-   must pick one and carry original step ids.
 3. **Cascade v8 per-run rows live in `/tmp/cm11b/`** (both files exist today: 03:55 and
    22:32). CM-12's committed JSON holds hashed selections and aggregate counts; whether
    any committed file holds per-run v8 decisions is **[not verified]**. The harness
@@ -1396,11 +1166,6 @@ Checked against code or files unless marked **[not verified]**.
 7. **Facet readers disagree with each other.** Cross-reader kappa 0.42-0.47 on
    `suspicion >= 2`, against 0.64 for a Haiku retest.
    report). Every score in this page must state its reader, hence the column.
-8. **Cloud persistence is an explicit operator step.** The cloud table/importer and
-   `qa-data trace-card` are now on `main`.
-   `evallab prod import-trace-findings --cloud-database … --jsonl …` admits cloud
-   DEV runs and stored step ids. CheatBench item ids and local-only HackBench rows
-   cannot be inserted as cloud trace ids. No live import is part of this integration.
 9. **Unmeasured on HackBench or DEV**: Laminar, harbor analyze, trace feature flags and
    playbook cards have no detection number against GF-200 or CB-150.
 

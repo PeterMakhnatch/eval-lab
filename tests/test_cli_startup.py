@@ -1,13 +1,10 @@
-"""``evallab qa-data`` answers like the full CLI without loading it."""
+"""The console entry point preserves the full CLI's version route."""
 
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import sys
-
-import pytest
 
 PROBE = """
 import sys
@@ -31,22 +28,6 @@ def run(module: str, argv: list[str]) -> tuple[str, dict[str, object]]:
     stderr = done.stderr.strip()
     state = json.loads(stderr[stderr.rindex("{"):])
     return done.stdout, state
-
-
-@pytest.mark.parametrize("argv", [
-    ["qa-data", "split", "task", "no-such-task"],
-    ["qa-data", "task", "--help"],
-    ["qa-data", "history"],  # usage error
-])
-def test_qa_data_replies_exactly_as_the_full_cli_without_loading_it(argv: list[str]) -> None:
-    fast_out, fast = run("evallab.entry", argv)
-    full_out, full = run("evallab.cli", argv)
-    def steady(text: str) -> str:
-        return re.sub(r'"latency_ms":[0-9.]+', '"latency_ms":0', text)
-
-    assert steady(fast_out) == steady(full_out) and fast["code"] == full["code"]
-    assert fast["full_cli"] is False and fast["workers"] is False
-    assert full["full_cli"] is True
 
 
 def test_other_commands_still_reach_the_full_cli() -> None:

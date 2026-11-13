@@ -4,10 +4,12 @@ from pathlib import Path
 import pytest
 
 from evallab.governance import (
+    check,
     collect_issues,
     declared_roots,
     folder_documents,
     git_tracked_paths,
+    main,
     sealed_tracked_paths,
 )
 
@@ -192,7 +194,7 @@ def _git_repo_with(root: Path, files: dict[str, str]) -> tuple[str, ...]:
     structure = root / "agents/STRUCTURE.md"
     structure.write_text(
         structure.read_text().replace(
-            "├── agents/ governance", "├── .ignore\n├── agents/ governance"
+            "├── agents/ governance", "├── .ignore\n├── .gitignore\n├── agents/ governance"
         )
     )
     for relative, content in files.items():
@@ -255,3 +257,53 @@ def test_missing_root_ignore_exposes_every_sealed_path(tmp_path: Path) -> None:
     issues = collect_issues(tmp_path, tracked)
     assert len(issues) == 1
     assert "research/answer-keys/k/items.jsonl" in issues[0]
+
+
+def test_gitignore_cannot_replace_missing_sealed_search_rules(tmp_path: Path) -> None:
+    tracked = _git_repo_with(
+        tmp_path,
+        {
+            ".ignore": "# No search rule\n",
+            ".gitignore": "research/answer-keys/\n",
+            "research/answer-keys/k/items.jsonl": "{}\n",
+        },
+    )
+    issues = collect_issues(tmp_path, tracked)
+    assert len(issues) == 1
+    assert "research/answer-keys/k/items.jsonl" in issues[0]
+
+
+def test_root_ignore_negation_exposes_only_the_named_sealed_path(tmp_path: Path) -> None:
+    tracked = _git_repo_with(
+        tmp_path,
+        {
+            ".ignore": "research/datasets/*/test.jsonl\n!research/datasets/open/test.jsonl\n",
+            "research/datasets/open/test.jsonl": "{}\n",
+            "research/datasets/closed/test.jsonl": "{}\n",
+        },
+    )
+    issues = collect_issues(tmp_path, tracked)
+    assert len(issues) == 1
+    assert "research/datasets/open/test.jsonl" in issues[0]
+    assert "research/datasets/closed/test.jsonl" not in issues[0]
+
+
+def test_check_and_cli_base_enforce_growth_on_real_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("GITHUB_EVENT_NAME", raising=False)
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+    _git_repo_with(tmp_path, {})
+    subprocess.run(
+        ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+         "-c", "commit.gpgsign=false", "commit", "-qm", "baseline"],
+        cwd=tmp_path, check=True,
+    )
+    assert check(tmp_path, "HEAD") == []
+    (tmp_path / "tests/new.py").write_text("# line\n" * 601)
+    subprocess.run(["git", "add", "--", "tests/new.py"], cwd=tmp_path, check=True)
+    issues = check(tmp_path, "HEAD")
+    assert len(issues) == 1
+    assert "new-file: tests/new.py has 601 lines; limit 600" in issues[0]
+    assert main(["check", "--root", str(tmp_path), "--base", "HEAD"]) == 1
+    assert f"governance check failed: {issues[0]}" in capsys.readouterr().out

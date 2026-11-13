@@ -11,6 +11,9 @@ import subprocess
 from collections.abc import Iterable, Sequence
 from fnmatch import fnmatchcase
 from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from evallab.governance_growth import growth_issues
 
 REQUIRED_DOCUMENTS: dict[str, tuple[str, ...]] = {
     "agents/missions/ACTIVE.md": ("# Mission board", "## Now", "## Missions"),
@@ -110,16 +113,31 @@ def sealed_tracked_paths(paths: Iterable[str]) -> list[str]:
     )
 
 
-def search_ignored_paths(root: Path) -> frozenset[str]:
-    """Tracked paths matched by the root ``.ignore`` file, using Git's ignore semantics."""
-    if not (root / SEARCH_IGNORE_FILE).is_file():
+def search_ignored_paths(root: Path, paths: Sequence[str]) -> frozenset[str]:
+    """Match only these paths against root .ignore, without scanning the source tree."""
+    ignore = (root / SEARCH_IGNORE_FILE).resolve()
+    if not ignore.is_file():
         return frozenset()
-    result = subprocess.run(
-        ["git", "ls-files", "-z", "-c", "-i", f"--exclude-from={SEARCH_IGNORE_FILE}"],
-        cwd=root,
-        check=True,
-        capture_output=True,
-    )
+    # Use Git's matcher in an empty repository. Real .gitignore and info/exclude
+    # files must not make an absent .ignore rule appear to cover a sealed path.
+    with TemporaryDirectory(prefix="evallab-ignore-") as directory:
+        scratch = Path(directory)
+        git_dir = scratch / ".git"
+        (git_dir / "objects").mkdir(parents=True)
+        (git_dir / "refs").mkdir()
+        (git_dir / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+        result = subprocess.run(
+            [
+                "git", f"--git-dir={git_dir}", f"--work-tree={scratch}",
+                "-c", f"core.excludesFile={ignore}",
+                "check-ignore", "--no-index", "-z", "--stdin",
+            ],
+            cwd=scratch,
+            input=b"".join(path.encode() + b"\0" for path in paths),
+            capture_output=True,
+        )
+        if result.returncode not in {0, 1}:
+            result.check_returncode()
     return frozenset(path for path in result.stdout.decode().split("\0") if path)
 
 
@@ -128,7 +146,7 @@ def sealed_search_issues(root: Path, tracked_paths: Iterable[str]) -> list[str]:
     sealed = sealed_tracked_paths(tracked_paths)
     if not sealed:
         return []
-    exposed = sorted(set(sealed) - search_ignored_paths(root))
+    exposed = sorted(set(sealed) - search_ignored_paths(root, sealed))
     if not exposed:
         return []
     shown = ", ".join(exposed[:5]) + (f" (+{len(exposed) - 5} more)" if len(exposed) > 5 else "")
@@ -285,16 +303,17 @@ def git_tracked_paths(root: Path) -> tuple[str, ...]:
     return tuple(path for path in result.stdout.decode().split("\0") if path)
 
 
-def check(root: Path) -> list[str]:
-    return collect_issues(root, git_tracked_paths(root))
+def check(root: Path, base: str | None = None) -> list[str]:
+    return collect_issues(root, git_tracked_paths(root)) + growth_issues(root, base)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("check",))
     parser.add_argument("--root", type=Path, default=Path.cwd())
+    parser.add_argument("--base", help="Explicit baseline commit for offline growth checks")
     args = parser.parse_args(argv)
-    issues = check(args.root.resolve())
+    issues = check(args.root.resolve(), args.base)
     if issues:
         for issue in issues:
             print(f"governance check failed: {issue}")

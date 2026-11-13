@@ -35,6 +35,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The governance growth rules compare the PR head with its merge base
+          # and never fetch. Only this job needs history; test jobs stay shallow.
+          fetch-depth: 0
       - name: Install uv 0.9.24 from PyPI
         run: |
           python3 -m pip install --user uv==0.9.24

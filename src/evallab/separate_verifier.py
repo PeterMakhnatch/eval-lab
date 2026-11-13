@@ -410,20 +410,9 @@ _TEST_INFRA_BASENAMES = frozenset(
     {"conftest.py", "pytest.ini", "tox.ini", "sitecustomize.py", "usercustomize.py"}
 )
 
-#: Config files dropped only when their changed lines touch runner config.
-_PYTEST_CONFIG_BASENAMES = frozenset({"setup.cfg", "pyproject.toml"})
-
-_PYTEST_CONFIG_RE = re.compile(r"pytest|addopts|plugins", re.IGNORECASE)
-_TESTMAIN_RE = re.compile(r"func TestMain\s*\(")
-_NAMED_ID_RE = re.compile(r"(\S+\.py::[^\s\"']+)")
-
 #: Logged reason when pytest demonstrably ran with our addopts yet no junit
 #: report survived: the report was suppressed, not merely unconfigured.
 JUNIT_MISSING_REASON = "junit missing after pytest start"
-
-#: Markers proving a pytest session started (emitted before collection, so an
-#: import-time exit still leaves them when stdout is unbuffered).
-_PYTEST_COLLECTED_RE = re.compile(r"collected \d+ items?")
 
 #: How a task command can clear our ``PYTEST_ADDOPTS`` (and with it the
 #: junit report): shell unset, direct assignment/override, or ``env -u``.
@@ -501,22 +490,6 @@ def drop_reason(path: str, hidden_paths: Collection[str]) -> str | None:
 # @2/@3 records stay valid. See docs/mimo/separate-verifier.md.
 
 #: Transform id recorded in lineage.
-
-
-# --------------------------------------------------------------------------- #
-# separate-verifier@6 fail-to-pass helpers (pure; mirrored in the @6 grader)
-# --------------------------------------------------------------------------- #
-# @5 grades failures/errors only and ignores skips. A source-level skip in a
-#: module the hidden tests import needs no knowledge of the tests and yields
-#: reward 1 with zero tests passing (measured on @5 packages: 002552 pytest,
-#: rc 0 with 12/12 skipped and 4/4 named IDs present; 000803 unittest, ``Ran
-#: 8 tests OK (skipped=8)``; go ``ok ... [no tests to run]``, rc 0 — all via
-#: call-time hooks from the imported package, invisible to every tamper
-#: signature). @6 runs the hidden tests on its pristine tree first and
-#: requires the fail-to-pass shape: pristine failures must now pass.
-
-
-_UNITTEST_SKIP_RE = re.compile(r"skipped=(\d+)")
 
 
 def render_snapshot_hook_v2(workdir: str, *, snap_dir: str = SNAP_DIR) -> str:
@@ -806,52 +779,9 @@ def detect_runner(command_text: str) -> str:
     return "custom"
 
 
-#: Runners with cheap pass/fail output markers. A passing run always prints,
-#: so ``rc == 0`` with blank output grades 0 (generalized A7 rule). Silent
-#: families (usecase-sh, make, forge, custom, node-run, bats, ...) keep the
-#: exit-code fallback.
-V3_STRUCTURED_RUNNERS = frozenset(
-    {
-        "go-test",
-        "jest",
-        "vitest",
-        "mocha",
-        "ava",
-        "tap",
-        "node-test",
-        "karma",
-        "jasmine",
-        "cargo-test",
-        "rspec",
-        "phpunit",
-        "mvn",
-        "gradle",
-        "unittest",
-    }
-)
-
-_GO_OK_RE = re.compile(r"^ok\s+\S+", re.MULTILINE)
-_GO_FAIL_RE = re.compile(r"^(FAIL|--- FAIL|panic:)", re.MULTILINE)
-_JEST_PASS_RE = re.compile(r"Tests:\s+\d+\s+passed")
-_JEST_FAIL_RE = re.compile(r"Tests:\s+.*failed|Test Suites:\s+.*failed")
-_VITEST_PASS_RE = re.compile(r"(Test Files|Tests)\s+\d+\s+passed")
-_VITEST_FAIL_RE = re.compile(r"(Test Files|Tests)\s+.*failed")
-_MOCHA_PASS_RE = re.compile(r"\d+\s+passing")
-_MOCHA_FAIL_RE = re.compile(r"[1-9]\d*\s+failing")
-_TAP_FAIL_RE = re.compile(r"^not ok\b", re.MULTILINE)
-_TAP_PASS_RE = re.compile(r"^ok\b", re.MULTILINE)
-_KARMA_PASS_RE = re.compile(r"SUCCESS")
-_KARMA_FAIL_RE = re.compile(r"FAILED")
-_RSPEC_PASS_RE = re.compile(r"0\s+failures")
-_RSPEC_FAIL_RE = re.compile(r"[1-9]\d*\s+failures")
-_PHPUNIT_PASS_RE = re.compile(r"^OK\b", re.MULTILINE)
-_PHPUNIT_FAIL_RE = re.compile(r"FAILURES!|ERRORS!|No tests executed")
-_CARGO_PASS_RE = re.compile(r"test result:\s+ok")
-_CARGO_FAIL_RE = re.compile(r"test result:\s+FAILED|panicked")
 _UNITTEST_RAN_RE = re.compile(r"Ran (\d+) test")
 _UNITTEST_OK_RE = re.compile(r"^OK\b", re.MULTILINE)
 _UNITTEST_BAD_RE = re.compile(r"^(FAILED|ERROR)", re.MULTILINE)
-_JASMINE_FAIL_RE = re.compile(r"[1-9]\d*\s+failures?|failed expectations")
 
 
 def evaluate_unittest(test_output: str, rc: int) -> int:
@@ -2015,45 +1945,6 @@ assert _V6_WRAPPER_C != _V5_WRAPPER_C, "@6 replacement did not apply"
 # separate-verifier@7: G-shape certification gaps (v4 census follow-ups)
 # --------------------------------------------------------------------------- #
 
-#: Transform id recorded in lineage.
-TRANSFORM_ID_V7 = "separate-verifier@7"
-
-
-#: ANSI/color/control escapes stripped before marker parsing (G4, @7):
-#: CSI color/style sequences, charset selections, carriage returns.
-_V7_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][0-9A-B]|\r")
-
-
-
-
-#: Bare PASS line printed by a directly executed ``go test -c`` binary
-#: (the ``go test`` tool's ``ok <pkg>`` line never appears; measured 000248).
-_GO_BARE_PASS_RE = re.compile(r"^PASS\s*$", re.MULTILINE)
-
-
-
-
-#: Jest/vitest pass summaries with skipped segments first
-#: (measured 000133: ``Tests: 6 skipped, 2 passed, 8 total``). Vitest
-#: requires the ``Tests`` line itself to carry passes: an all-skipped run
-#: still prints ``Test Files N passed``, so the ``Test Files`` alternative
-#: would certify zero passing tests.
-_JEST_PASS_RE_V7 = re.compile(r"Tests:\s+[^\n]*\d+\s+passed")
-_VITEST_PASS_RE_V7 = re.compile(r"Tests\s+[^\n]*\d+\s+passed")
-
-#: Spec-style reporter selection on a tap-labeled command
-#: (measured 000934: ``tap ... -R spec``).
-_V7_SPEC_REPORTER_RE = re.compile(r"(^|\s)-R\s+\S*spec\b|reporters?\s*[=:]\s*\S*spec\b")
-
-#: TAP markers (line-anchored; indented summary ``ok`` lines do not count).
-_V7_TAP_MARKER_RE = re.compile(r"^(not )?ok\b", re.MULTILINE)
-
-
-#: Dotted-module shape for synthetic collection-error cases (measured
-#: pytest 8: ``classname="" name="pkg.test_broken"`` with an
-#: ``<error message="collection failure">`` child and no ``file``).
-_V7_COLLECTION_MODULE_RE = re.compile(r"[A-Za-z_][\w.]*")
-
 
 #: @7 baseline block: @6 plus every-phase execution for multi-phase
 #: commands (G7). A ``set -e`` command truncates the pristine baseline at
@@ -2268,22 +2159,6 @@ assert _V7_WRAPPER_C != _V6_WRAPPER_C, "@7 replacement did not apply"
 TRANSFORM_ID_V8 = "separate-verifier@8"
 
 
-#: Terse-reporter selection on a tap-labeled command
-#: (measured 000936: ``npx tap ... -R terse``).
-_V8_TERSE_REPORTER_RE = re.compile(r"(^|\s)-R\s+\S*terse\b|reporters?\s*[=:]\s*\S*terse\b")
-
-#: Terse-reporter summary markers (measured 000936 oracle and nop).
-_V8_TERSE_PASS_RE = re.compile(r"Asserts:\s+[^\n]*\d+\s+passed")
-_V8_TERSE_FAIL_RE = re.compile(r"Asserts:\s+[^\n]*failed|Suites:\s+[^\n]*failed")
-
-
-#: Dotted-module shape extended with dashes (measured 000783/001220:
-#: ``classname="" name="usercase-test-coderl/test_x"`` with an ``<error>``
-#: child and no ``file``; the passing run renders the same dashed dotted
-#: path with class suffixes, reproduced locally).
-_V8_COLLECTION_MODULE_RE = re.compile(r"[A-Za-z_][\w.-]*")
-
-
 # --------------------------------------------------------------------------- #
 # separate-verifier@9: skips in satisfied collection-error modules (001431)
 # --------------------------------------------------------------------------- #
@@ -2303,9 +2178,6 @@ _V8_COLLECTION_MODULE_RE = re.compile(r"[A-Za-z_][\w.-]*")
 # (never sets it), so no previous 1 can become 0. No ``@2``–``@8`` symbol
 # or template byte changes, so their records stay valid. See
 # docs/mimo/separate-verifier.md.
-
-#: Transform id recorded in lineage.
-TRANSFORM_ID_V9 = "separate-verifier@9"
 
 
 #: @7 reporter switch extended with the terse reporter (G6, @8).

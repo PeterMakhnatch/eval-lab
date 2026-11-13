@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import socket
 from pathlib import Path
 
 import duckdb
@@ -42,6 +43,15 @@ def _catalog_reachable(dsn: str | None = None) -> bool:
 
 
 _DSN_FOR_TEST = database_url_from_environment()
+
+
+@pytest.fixture
+def unavailable_postgres_address():
+    """Choose a closed loopback port without depending on a host service or DNS."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as endpoint:
+        endpoint.bind(("127.0.0.1", 0))
+        address = f"127.0.0.1:{endpoint.getsockname()[1]}"
+    return address
 
 
 def _write_parquet_tree(root: Path, table: str, rows: list[dict]) -> None:
@@ -454,9 +464,11 @@ def test_standalone_parquet_is_attached_once_and_preamble_has_one_glob(
         result.connection.close()
 
 
-def test_z2_unavailable_reports_reason_not_empty_view(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
-    result = attach(repo_root=Path.cwd())
+def test_z2_unavailable_reports_reason_not_empty_view(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, unavailable_postgres_address: str
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", f"postgresql://{unavailable_postgres_address}/nowhere?connect_timeout=1")
+    result = attach(repo_root=tmp_path)
     try:
         z2 = next(z for z in result.zones if z.name == "z2")
         assert z2.attached is False
@@ -500,9 +512,11 @@ def test_sql_preamble_is_byte_identical(tmp_path: Path) -> None:
         r2.connection.close()
 
 
-def test_cross_zone_join_when_postgres_unavailable_skips(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
-    result = attach(repo_root=Path.cwd())
+def test_cross_zone_join_when_postgres_unavailable_skips(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, unavailable_postgres_address: str
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", f"postgresql://{unavailable_postgres_address}/nowhere?connect_timeout=1")
+    result = attach(repo_root=tmp_path)
     try:
         z2 = next(z for z in result.zones if z.name == "z2")
         assert z2.attached is False
@@ -527,13 +541,14 @@ def test_cli_print_sql_redacts_password_and_attach_repr(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
+    unavailable_postgres_address: str,
 ) -> None:
     derived = tmp_path / "derived"
     derived.mkdir()
     secret = "not-for-output"
     monkeypatch.setenv(
         "DATABASE_URL",
-        f"postgresql://evallab:{secret}@invalid.example/evallab",
+        f"postgresql://evallab:{secret}@{unavailable_postgres_address}/evallab?connect_timeout=1",
     )
 
     result = attach(repo_root=tmp_path, explicit_derived=derived)
@@ -544,10 +559,10 @@ def test_cli_print_sql_redacts_password_and_attach_repr(
 
 
 def test_duckdb_z2_catalog_prefix_resolution_standalone(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unavailable_postgres_address: str
 ) -> None:
     """In a clean DuckDB session with attached database z2, z2.<table> resolves unambiguously."""
-    monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
+    monkeypatch.setenv("DATABASE_URL", f"postgresql://{unavailable_postgres_address}/nowhere?connect_timeout=1")
     db_path = tmp_path / "z2_catalog.duckdb"
     with duckdb.connect(str(db_path)) as z2_con:
         z2_con.execute("CREATE TABLE verdicts (id TEXT, status TEXT)")

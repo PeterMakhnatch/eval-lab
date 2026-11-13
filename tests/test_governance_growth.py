@@ -387,3 +387,77 @@ def test_existing_experiment_and_untracked_files_do_not_consume_count_slack(repo
     (repo / "docs").mkdir()
     (repo / "docs/scratch.md").write_text("# Scratch\n")
     assert growth_issues(repo, baseline) == []
+
+
+def test_each_budget_raise_needs_its_own_reason(repo: Path) -> None:
+    budgets(repo, {"python-lines:tests": 1})
+    baseline = commit(repo)
+    budgets(repo, {"python-lines:tests": 2})
+    issues = growth_issues(repo, baseline)
+    assert len(issues) == 1
+    assert "use a new reason for this raise" in issues[0]
+    put(repo, BUDGETS, (repo / BUDGETS).read_text().replace(
+        "Required consumer behavior", "Add the required parsing cases",
+    ))
+    assert growth_issues(repo, baseline) == []
+
+
+@pytest.mark.parametrize("source", ["empty-baseline", "head", "pr-base"])
+def test_tracked_budget_cannot_disappear_when_ancestor_predates_policy(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, source: str,
+) -> None:
+    ancestor = git(repo, "rev-parse", "HEAD")
+    if source == "empty-baseline":
+        put(repo, BUDGETS, "")
+        ancestor = commit(repo)
+    elif source == "head":
+        budgets(repo, {})
+        commit(repo)
+    else:
+        put(repo, "tests/topic.py", "# Topic\n")
+        head = commit(repo)
+        git(repo, "checkout", "-q", "main")
+        budgets(repo, {})
+        main = commit(repo)
+        git(repo, "checkout", "-q", "topic")
+        git(repo, "merge", "--no-ff", "--no-commit", "main")
+    (repo / BUDGETS).unlink()
+    git(repo, "add", "--", BUDGETS)
+    if source == "pr-base":
+        commit(repo)
+        event = repo / "event.json"
+        event.write_text(json.dumps({"pull_request": {
+            "head": {"sha": head}, "base": {"sha": main},
+        }}))
+        monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+        monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+    assert growth_issues(repo, ancestor if source != "pr-base" else None) == [
+        f"{BUDGETS}: budget file removed; restore all total-size budgets"
+    ]
+
+
+def test_concurrent_base_raise_applies_to_older_topic_without_false_failure(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    budgets(repo, {"python-lines:tests": 1})
+    put(repo, "tests/seed.py", "# Seed\n")
+    baseline = commit(repo)
+    git(repo, "branch", "-f", "main", baseline)
+    put(repo, "tests/topic.py", "# Topic\n")
+    head = commit(repo)
+    git(repo, "checkout", "-q", "main")
+    budgets(repo, {"python-lines:tests": 3})
+    put(repo, BUDGETS, (repo / BUDGETS).read_text().replace(
+        "Required consumer behavior", "Keep the required concurrent contract",
+    ))
+    put(repo, "tests/concurrent.py", "# Concurrent\n")
+    main = commit(repo)
+    git(repo, "checkout", "-q", "topic")
+    git(repo, "merge", "--no-ff", "-qm", "tested merge", "main")
+    event = repo / "event.json"
+    event.write_text(json.dumps({"pull_request": {
+        "head": {"sha": head}, "base": {"sha": main},
+    }}))
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+    assert growth_issues(repo) == []

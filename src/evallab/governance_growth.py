@@ -4,7 +4,7 @@ Totals measure the tested candidate tree; contributions measure the exact PR hea
 against its merge base. With non-strict branch protection, concurrent PRs can each
 fit alone yet exceed a budget together. A PR fails only when its tested total is
 over budget AND its own net contribution to that metric is positive. Shrinking
-and untouched metrics always pass. Push events report budget excess without
+and untouched metrics always pass. Push events report all budget problems without
 failing, so a race cannot make main red. Budget raises stay visible in the same
 PR; deletions never require a budget reduction.
 """
@@ -67,16 +67,20 @@ def _budget_entries(
         limits[key] = row["limit"]
         prior = old.get(key, {})
         prior_limit = prior.get("limit", -1) if isinstance(prior, dict) else -1
-        if not isinstance(prior_limit, int):
+        if not isinstance(prior_limit, int) or isinstance(prior_limit, bool):
             prior_limit = -1
-        if row["limit"] > prior_limit and any(
-            not isinstance(row.get(field), str) or not row[field].strip()
-            or row[field] in {"State the concrete need", "Your name or PR"}
-            for field in ("reason", "raised_by")
+        prior_reason = prior.get("reason") if isinstance(prior, dict) else None
+        if row["limit"] > prior_limit and (
+            any(
+                not isinstance(row.get(field), str) or not row[field].strip()
+                or row[field].strip() in {"State the concrete need", "Your name or PR"}
+                for field in ("reason", "raised_by")
+            )
+            or (isinstance(prior_reason, str) and row["reason"].strip() == prior_reason.strip())
         ):
             issues.append(
                 f"{BUDGETS}: raise for {key} from {prior_limit} to {row['limit']} "
-                "requires a concrete reason and raised_by; replace its line with "
+                "requires a concrete reason and raised_by; use a new reason for this raise; replace its line with "
                 f"{_budget_line(key, row['limit'])} (replace both placeholders)"
             )
     return limits, issues
@@ -108,11 +112,19 @@ def _budget_issues(
     before: dict[str, bytes], after: dict[str, bytes],
 ) -> list[str]:
     policy = root / BUDGETS
-    previous = _blobs(root, ancestor, [BUDGETS]).get(BUDGETS, b"")
-    # Repositories that predate this policy still support the PR-local checker.
-    if not policy.is_file() and not previous:
-        return []
+    previous_blobs = _blobs(root, ancestor, [BUDGETS])
+    previous = previous_blobs.get(BUDGETS, b"")
     if not policy.is_file():
+        required = BUDGETS in previous_blobs or bool(_git(root, "ls-files", "--", BUDGETS))
+        if not required and ancestor:
+            required = BUDGETS in _blobs(root, "HEAD", [BUDGETS])
+        event_path = os.environ.get("GITHUB_EVENT_PATH")
+        if not required and event_path and os.environ.get("GITHUB_EVENT_NAME") == "pull_request":
+            event = json.loads(Path(event_path).read_text(encoding="utf-8"))
+            required = BUDGETS in _blobs(root, event["pull_request"]["base"]["sha"], [BUDGETS])
+        # Repositories that predate this policy still support the PR-local checker.
+        if not required:
+            return []
         return [f"{BUDGETS}: budget file removed; restore all total-size budgets"]
     limits, issues = _budget_entries(policy.read_bytes(), previous)
     if issues:

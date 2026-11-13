@@ -1,0 +1,13 @@
+package,modes_seen,trials,n,phase_p50_s,phase_p95_s,phase_max_s,pytest_max_s,pytest_n,max_pytest_ratio,timeout_sec,timeout_exceptions,exception_types,task_path
+deepplanning-v1/travel-lisbon-002,separate:3,3,3,21.918,56.655,60.515,,0,,60.0,0,,experimental/deepplanning-v1/travel-lisbon-002/task.toml
+evallab/syn-funcdag-easy,separate:9,9,9,10.817,57.689,76.405,,0,,60.0,0,,experimental/syn-funcdag-easy/task.toml
+evallab/syn-funcdag-hard,separate:9,9,9,7.982,26.069,27.057,,0,,60.0,0,,experimental/syn-funcdag-hard/task.toml
+evallab/syn-funcdag-medium,separate:9,9,9,11.122,21.823,26.398,,0,,60.0,0,,experimental/syn-funcdag-medium/task.toml
+local-lab/event-summary,separate:91,91,91,11.826,40.475,130.673,,0,,60.0,0,,event-summary/task.toml
+peter/release-branch-rescue,separate:28,28,28,16.987,120.541,155.505,0.35,28,0.0029,120.0,0,,release-branch-rescue/task.toml
+peter/sheet-recalc,separate:83,83,63,194.38,221.718,274.175,185.95,63,0.2066,900.0,0,AttributeError:9;RuntimeError:9;EnvironmentStartTimeoutError:2,sheet-recalc/task.toml
+peter/sheet-recalc-cutoff,separate:59,59,59,194.405,224.647,256.196,190.71,58,0.2119,900.0,0,RuntimeError:1,sheet-recalc-cutoff/task.toml
+petermakhnatch/transaction-reconciliation,shared:24;separate:19,43,42,9.449,30.477,51.869,0.05,23,0.0004,120.0,0,AttributeError:1,transaction-reconciliation/task.toml
+sierra-research/tau3-bench__tau3-retail-1,shared:2,2,0,,,,,0,,300.0,0,ValueError:2,tau3-retail-1/task.toml
+terminal-bench/html-js-filter,separate:12,12,12,32.651,335.13,520.373,126.61,12,0.0703,1800.0,0,,terminal-bench-html-js-filter/task.toml
+terminal-bench/query-optimize,separate:21;shared:19,40,40,597.787,695.15,1437.816,1427.48,29,0.793,1800.0,0,RewardFileNotFoundError:6;RuntimeError:1,query-optimize/task.toml

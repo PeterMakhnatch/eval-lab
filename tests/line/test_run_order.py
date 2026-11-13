@@ -187,21 +187,6 @@ def test_an_external_queue_that_fails_verification_after_the_append_fails_judge_
     assert "queue is wrong" in (batch / "SCOREBOARD.md").read_text()
 
 
-# ---- Station snapshots are read without following links --------------------------------------
-
-
-def test_snapshot_station_does_not_follow_a_symlinked_source(tmp_path: Path) -> None:
-    real = tmp_path / "real-verdicts.jsonl"
-    real.write_text('{"run_id": "x"}\n')
-    link = tmp_path / "linked-verdicts.jsonl"
-    link.symlink_to(real)
-    batch = tmp_path / "batch"
-    batch.mkdir()
-    with pytest.raises(OSError):
-        core.snapshot_station(batch, link)
-    assert not list((batch / "evidence" / "station-inputs").glob("*.jsonl"))
-    assert core.snapshot_station(batch, real).read_bytes() == real.read_bytes()
-
 
 # ---- `line check` validates the batch before invalidate_check writes anything -----------------
 

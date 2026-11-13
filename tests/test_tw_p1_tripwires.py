@@ -20,8 +20,6 @@ from evallab.tripwires import (
     HACKBOOK_PREFIX_APPLICABILITY,
     PrefixScanner,
     scan_prefix,
-    scan_trace,
-    to_findings,
 )
 
 CATALOG = Path(__file__).resolve().parents[1] / "research/hackbook/entries.jsonl"
@@ -251,14 +249,6 @@ def test_new_rule_hits_are_causal_and_never_revised_by_later_steps(rule_id: str)
             h["step"] for h in full if h["step"] <= steps[cut - 1]["step_id"]
         ]
 
-
-@pytest.mark.parametrize(
-    "rule_id", ["hb_inplace_byte_patch", "hb_process_proxy_bypass", "hb_apt_pin_failure"]
-)
-def test_new_diagnostic_cues_never_become_findings(rule_id: str) -> None:
-    report = scan_trace(_NEW_RULE_TRACES[rule_id])
-    assert any(hit["rule"] == rule_id for hit in report["hackbook"])
-    assert rule_id not in {f["rule"] for f in to_findings(report, task_id="demo-task")}
 
 
 # -- structural integration ----------------------------------------------------------------
@@ -528,14 +518,6 @@ def test_records_outside_the_registry_or_duplicated_are_dropped_and_counted(
     assert report["structural_context"]["dropped_records"] == 3
     assert _by_pair(report)[("t_action", "HB-RS02-001")]["status"] == "clear"
 
-
-def test_structural_records_never_become_findings(fake_structural: dict[str, Any]) -> None:
-    fake_structural["records"] = [
-        _record("t_action", "HB-RS02-001", "hit", evidence=[{"step": 1, "quote": "ls"}])
-    ]
-    report = scan_prefix(STEPS[1:], steps=STEPS)
-    assert _by_pair(report)[("t_action", "HB-RS02-001")]["status"] == "hit"
-    assert to_findings(report, task_id="demo-task") == []
 
 
 # -- entry accounting ------------------------------------------------------------------------

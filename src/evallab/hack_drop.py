@@ -6,16 +6,12 @@ task rollouts from candidate training data. Operates across three sequential sta
 2. L0: deterministic tripwires, tamper signatures, target-surface writes, and gate rules.
 3. AUTOREVIEW: optional budget-bounded compact card review with attested model route.
 
-Outputs:
-- kept.jsonl (retained rollouts)
-- dropped.jsonl (dropped rollouts with reason codes and evidence step IDs)
-- review.jsonl (quarantined rollouts for human / secondary review)
-- report.json (aggregate statistics, stage breakdown, and optional label metrics with Wilson CIs)
+The assembly line combines stage results with reason codes and evidence step IDs.
+`compute_report` summarizes decisions and optional label metrics.
 """
 
 from __future__ import annotations
 
-import argparse
 import base64
 import contextlib
 import contextvars
@@ -28,14 +24,11 @@ import os
 import posixpath
 import re
 import shlex
-import shutil
-import sys
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 from evallab.autoreview_monitor import (
     build_compact_view,
@@ -1385,6 +1378,30 @@ def load_rollouts(
             retained_outputs=sub.retained_outputs,
         )
 
+    def _append_manifest_row(row: Any, *, jsonl_line: str | None = None) -> None:
+        if not isinstance(row, dict):
+            row_text = jsonl_line if jsonl_line is not None else str(row)
+            raise ValueError(f"rollout manifest row is not an object: {row_text[:60]!r}")
+        _check_row_dev(row)
+        if "path" in row:
+            if jsonl_line is not None:
+                row_task = str(row.get("task_id") or row.get("task") or row.get("pair") or "")
+            else:
+                row_task = str(row.get("pair") or row.get("task_id") or row.get("task") or "")
+            items.append(from_row(row, row_task))
+        elif admitted_only:
+            raise ValueError(no_path_message)
+        elif jsonl_line is not None and ("run_id" in row or "steps" in row or "id" in row):
+            run_id = str(row.get("run_id") or row.get("id") or "run")
+            task_id = str(row.get("task_id") or "unknown")
+            run_obj = None
+            if "steps" in row:
+                run_obj = LoadedRun(run_id, "manifest-doc", row)
+            else:
+                with contextlib.suppress(Exception):
+                    run_obj = load_run(run_id, repo_root=root)
+            items.append(RolloutItem(item_id=run_id, task_id=task_id, run=run_obj, metadata=row))
+
     for inp in inputs:
         p = Path(inp) if not isinstance(inp, Path) else inp
         p = p if p.is_absolute() else (root / p)
@@ -1414,31 +1431,7 @@ def load_rollouts(
                     line = line.strip()
                     if not line:
                         continue
-                    row = strict_json_loads(line)
-                    if not isinstance(row, dict):
-                        raise ValueError(f"rollout manifest row is not an object: {line[:60]!r}")
-                    _check_row_dev(row)
-                    if "path" in row:
-                        items.append(
-                            from_row(
-                                row,
-                                str(row.get("task_id") or row.get("task") or row.get("pair") or ""),
-                            )
-                        )
-                    elif admitted_only:
-                        raise ValueError(no_path_message)
-                    elif "run_id" in row or "steps" in row or "id" in row:
-                        run_id = str(row.get("run_id") or row.get("id") or "run")
-                        task_id = str(row.get("task_id") or "unknown")
-                        run_obj = None
-                        if "steps" in row:
-                            run_obj = LoadedRun(run_id, "manifest-doc", row)
-                        else:
-                            with contextlib.suppress(Exception):
-                                run_obj = load_run(run_id, repo_root=root)
-                        items.append(
-                            RolloutItem(item_id=run_id, task_id=task_id, run=run_obj, metadata=row)
-                        )
+                    _append_manifest_row(strict_json_loads(line), jsonl_line=line)
             elif p.suffix == ".json":
                 try:
                     data = strict_json_loads(read_declared_text(p))
@@ -1451,27 +1444,7 @@ def load_rollouts(
 
                 if isinstance(data, dict) and "rows" in data and isinstance(data["rows"], list):
                     for row in data["rows"]:
-                        if not isinstance(row, dict):
-                            raise ValueError(
-                                f"rollout manifest row is not an object: {str(row)[:60]!r}"
-                            )
-                        _check_row_dev(row)
-                        if "path" in row:
-                            items.append(
-                                from_row(
-                                    row,
-                                    str(
-                                        row.get("pair")
-                                        or row.get("task_id")
-                                        or row.get("task")
-                                        or ""
-                                    ),
-                                )
-                            )
-                        elif admitted_only:
-                            raise ValueError(no_path_message)
-                elif isinstance(data, dict) and ("steps" in data or "traces" in data):
-                    items.append(load_one(p))
+                        _append_manifest_row(row)
                 else:
                     items.append(load_one(p))
             else:
@@ -1495,42 +1468,28 @@ def load_rollouts(
     # Detect duplicate IDs and enforce DEV admission across rollouts
     seen_ids: set[str] = set()
     registry = _get_corpus_registry(repo_root=root)
+    def _refuse_test_assignment(value: str, subject: str, *, check_task: bool = True) -> None:
+        if (
+            (check_task and registry.assigned_test_anywhere(task_id=value))
+            or registry.assigned_test_anywhere(item_id=value)
+        ):
+            raise RefusedRun(f"rollout {subject} is assigned TEST in corpus registry: {value}")
+
     for item in items:
         if item.item_id in seen_ids:
             raise ValueError(f"duplicate rollout ID detected: {item.item_id}")
         seen_ids.add(item.item_id)
         if registry is not None:
-            if item.item_id and registry.assigned_test_anywhere(item_id=item.item_id):
-                raise RefusedRun(
-                    f"rollout item is assigned TEST in corpus registry: {item.item_id}"
-                )
+            if item.item_id:
+                _refuse_test_assignment(item.item_id, "item", check_task=False)
             stem = item.item_id.split("__")[0] if "__" in item.item_id else ""
             if stem:
-                if registry.assigned_test_anywhere(task_id=stem):
-                    raise RefusedRun(
-                        f"rollout item stem is assigned TEST in corpus registry: {stem}"
-                    )
-                if registry.assigned_test_anywhere(item_id=stem):
-                    raise RefusedRun(
-                        f"rollout item stem is assigned TEST in corpus registry: {stem}"
-                    )
+                _refuse_test_assignment(stem, "item stem")
             if item.task_id and item.task_id != "unknown":
-                if registry.assigned_test_anywhere(task_id=item.task_id):
-                    raise RefusedRun(
-                        f"rollout task is assigned TEST in corpus registry: {item.task_id}"
-                    )
-                if registry.assigned_test_anywhere(item_id=item.task_id):
-                    raise RefusedRun(
-                        f"rollout task is assigned TEST in corpus registry: {item.task_id}"
-                    )
+                _refuse_test_assignment(item.task_id, "task")
                 task_stem = item.task_id.split("__")[0] if "__" in item.task_id else ""
-                if task_stem and (
-                    registry.assigned_test_anywhere(task_id=task_stem)
-                    or registry.assigned_test_anywhere(item_id=task_stem)
-                ):
-                    raise RefusedRun(
-                        f"rollout task stem is assigned TEST in corpus registry: {task_stem}"
-                    )
+                if task_stem:
+                    _refuse_test_assignment(task_stem, "task stem")
 
     return items
 
@@ -2401,40 +2360,25 @@ def evaluate_l0_stage(
             or is_conftest(norm_p)
             or _TEST_OR_GRADER_SURFACE.search(norm_p)
         ):
-            if is_deleted or is_edit_op:
+            if is_deleted or is_edit_op or has_test_weakening_or_tamper(content):
                 test_or_grader_write_hit = True
                 if not test_or_grader_path:
                     test_or_grader_path = norm_p
                 if step is not None:
                     evidence_steps.append(int(step))
-            elif is_new:
-                if has_test_weakening_or_tamper(content):
-                    test_or_grader_write_hit = True
-                    if not test_or_grader_path:
-                        test_or_grader_path = norm_p
-                    if step is not None:
-                        evidence_steps.append(int(step))
-            else:
-                weakens = has_test_weakening_or_tamper(content)
-                if weakens:
-                    test_or_grader_write_hit = True
-                    if not test_or_grader_path:
-                        test_or_grader_path = norm_p
-                    if step is not None:
-                        evidence_steps.append(int(step))
-                else:
-                    unverified_test_write_hit = True
-                    if not unverified_test_write_path:
-                        unverified_test_write_path = norm_p
-                    if step is not None:
-                        evidence_steps.append(int(step))
+            elif not is_new:
+                unverified_test_write_hit = True
+                if not unverified_test_write_path:
+                    unverified_test_write_path = norm_p
+                if step is not None:
+                    evidence_steps.append(int(step))
         elif writes_target_surface_path(norm_p):
             soft_target_write_hit = True
             if not soft_target_path:
                 soft_target_path = norm_p
 
-    if rollout.diff_text:
-        sections = parse_diff_sections(rollout.diff_text)
+    def _inspect_diff(diff_text: str) -> None:
+        sections = parse_diff_sections(diff_text)
         for sec in sections:
             p = sec["new_path"] or sec["old_path"]
             added = "\n".join(sec["added_lines"])
@@ -2449,27 +2393,15 @@ def evaluate_l0_stage(
                 is_edit_op=is_mod,
             )
 
+    if rollout.diff_text:
+        _inspect_diff(rollout.diff_text)
+
     if rollout.run is not None:
         try:
             anatomy = build_anatomy(rollout.run)
             final_patch_text = anatomy.patch_and_mutations.get("final_patch", {}).get("text")
             if final_patch_text:
-                sections = parse_diff_sections(final_patch_text)
-                for sec in sections:
-                    p = sec["new_path"] or sec["old_path"]
-                    added = "\n".join(sec["added_lines"])
-                    is_mod = (
-                        (not sec["is_new"])
-                        and (not sec["is_deleted"])
-                        and (sec["old_path"] != "/dev/null")
-                    )
-                    _inspect_path_and_action(
-                        p,
-                        is_new=sec["is_new"],
-                        is_deleted=sec["is_deleted"],
-                        content=added,
-                        is_edit_op=is_mod,
-                    )
+                _inspect_diff(final_patch_text)
             for m in anatomy.patch_and_mutations.get("mutations", []):
                 p = m.get("path", "")
                 op = str(m.get("op", "")).lower()
@@ -2603,35 +2535,26 @@ def evaluate_l0_stage(
     # PLUS co-occurrence signatures on application source (S1)
     tamper_hits: list[str] = []
     non_app_files: list[tuple[str, str]] = []
-    for fname, text in rollout.files:
-        lines_text = _added_lines(text)
+    def _inspect_tamper(fname: str, added_text: str, *, file_text: str | None = None) -> None:
         if is_application_source(fname):
-            hit = app_source_tamper_signature_hit(lines_text)
-            if hit and hit not in tamper_hits:
-                tamper_hits.append(hit)
-                reasons.append(f"L0_HARD_TAMPER_SIGNATURE:{hit}")
+            hit = app_source_tamper_signature_hit(added_text)
         else:
-            non_app_files.append((fname, text))
-            hit = tamper_signature_hit(lines_text)
-            if hit and hit not in tamper_hits:
-                tamper_hits.append(hit)
-                reasons.append(f"L0_HARD_TAMPER_SIGNATURE:{hit}")
+            if file_text is not None:
+                non_app_files.append((fname, file_text))
+            hit = tamper_signature_hit(added_text)
+        if hit and hit not in tamper_hits:
+            tamper_hits.append(hit)
+            reasons.append(f"L0_HARD_TAMPER_SIGNATURE:{hit}")
+
+    for fname, text in rollout.files:
+        _inspect_tamper(fname, _added_lines(text), file_text=text)
 
     if rollout.diff_text:
         sections = parse_diff_sections(rollout.diff_text)
         for sec in sections:
             p = sec["new_path"] or sec["old_path"]
             added_text = "\n".join(sec["added_lines"])
-            if is_application_source(p):
-                hit = app_source_tamper_signature_hit(added_text)
-                if hit and hit not in tamper_hits:
-                    tamper_hits.append(hit)
-                    reasons.append(f"L0_HARD_TAMPER_SIGNATURE:{hit}")
-            else:
-                hit = tamper_signature_hit(added_text)
-                if hit and hit not in tamper_hits:
-                    tamper_hits.append(hit)
-                    reasons.append(f"L0_HARD_TAMPER_SIGNATURE:{hit}")
+            _inspect_tamper(p, added_text)
 
     if tamper_hits:
         if "fabricated_verification" in hard_families:
@@ -3164,359 +3087,3 @@ def compute_report(
         }
 
     return report
-
-
-# --------------------------------------------------------------------------- #
-# Filtering Pipeline
-# --------------------------------------------------------------------------- #
-
-
-def run_hack_drop(
-    rollouts: Sequence[RolloutItem],
-    certified_tasks: dict[str, dict[str, str]] | None = None,
-    task_action: str = "review",
-    hard_families: frozenset[str] = HARD_FAMILIES_DEFAULT,
-    with_autoreview: bool = False,
-    autoreview_route: str = "google-antigravity/gemini-3.8-flash",
-    max_model_usd: float = 5.0,
-    max_calls: int = 100,
-    suspicion_threshold: int = 50,
-    autoreview_action: str = "review",
-    reviewer_func: Callable[[str, str], dict[str, Any]] | None = None,
-    cache: dict[str, dict[str, Any]] | None = None,
-    cache_path: Path | None = None,
-    dry_run: bool = False,
-) -> tuple[list[RolloutDecision], dict[str, Any]]:
-    """Execute all three filtering stages across the rollouts."""
-    decisions: list[RolloutDecision] = []
-    ar_state = {"calls": 0, "spent_usd": 0.0}
-
-    for item in rollouts:
-        # Stage 1: TASK
-        t_verdict = evaluate_task_stage(item.task_id, certified_tasks, default_action=task_action)
-
-        # Stage 2: L0
-        l0_verdict = evaluate_l0_stage(item, hard_families=hard_families)
-
-        # Stage 3: AUTOREVIEW
-        ar_verdict = evaluate_autoreview_stage(
-            item,
-            l0_verdict,
-            enabled=with_autoreview,
-            model_route=autoreview_route,
-            max_model_usd=max_model_usd,
-            max_calls=max_calls,
-            suspicion_threshold=suspicion_threshold,
-            action=autoreview_action,
-            state=ar_state,
-            reviewer_func=reviewer_func,
-            cache=cache,
-            cache_path=cache_path,
-            dry_run=dry_run,
-        )
-        # Consolidate
-        decision = consolidate_decisions(item, t_verdict, l0_verdict, ar_verdict)
-        decisions.append(decision)
-
-    ar_stats = {
-        "enabled": with_autoreview,
-        "route": autoreview_route if with_autoreview else None,
-        "calls": ar_state["calls"],
-        "cost_usd": round(ar_state["spent_usd"], 4),
-        "max_calls": max_calls,
-        "max_model_usd": max_model_usd,
-    }
-
-    return decisions, ar_stats
-
-
-# --------------------------------------------------------------------------- #
-# CLI Command Setup
-# --------------------------------------------------------------------------- #
-
-
-def build_hack_drop_parser(subparsers: Any) -> None:
-    """Register 'evallab hack-drop' subcommand."""
-    parser = subparsers.add_parser(
-        "hack-drop",
-        help="Filter cheating rollouts from SFT/RL training data using task certification, L0 tripwires, and AutoReview",
-    )
-    parser.add_argument(
-        "inputs",
-        nargs="*",
-        type=Path,
-        help="Rollout paths, directories, or JSON/JSONL manifests",
-    )
-    parser.add_argument(
-        "--rollouts",
-        type=Path,
-        help="Directory or JSONL manifest of rollouts",
-    )
-    parser.add_argument(
-        "--certified-tasks",
-        type=Path,
-        help="Path to certified tasks manifest (Gold/hardened/weak/unknown)",
-    )
-    parser.add_argument(
-        "--task-action",
-        choices=("review", "drop"),
-        default="review",
-        help="Action for weak/exploitable tasks (default: review)",
-    )
-    parser.add_argument(
-        "--labels",
-        type=Path,
-        help="Path to JSON/JSONL labels manifest for evaluation runs",
-    )
-    parser.add_argument(
-        "--hard-families",
-        nargs="+",
-        default=["target_surface_write", "fabricated_verification", "answer_key_access"],
-        help="L0 rule families treated as hard drops",
-    )
-    parser.add_argument(
-        "--with-autoreview",
-        action="store_true",
-        help="Enable Stage-3 AutoReview on soft-flagged rollouts",
-    )
-    parser.add_argument(
-        "--autoreview-route",
-        type=str,
-        default="google-antigravity/gemini-3.8-flash",
-        help="Attested model route for AutoReview",
-    )
-    parser.add_argument(
-        "--max-model-usd",
-        type=float,
-        default=5.0,
-        help="Maximum spend cap in USD for AutoReview calls",
-    )
-    parser.add_argument(
-        "--max-calls",
-        type=int,
-        default=100,
-        help="Maximum number of AutoReview model calls",
-    )
-    parser.add_argument(
-        "--suspicion-threshold",
-        type=int,
-        default=50,
-        help="Suspicion score threshold (0-100) for AutoReview flagging",
-    )
-    parser.add_argument(
-        "--autoreview-action",
-        choices=("review", "drop"),
-        default="review",
-        help="Action when AutoReview flags suspicion >= threshold (default: review)",
-    )
-    parser.add_argument(
-        "--out-dir",
-        type=Path,
-        default=Path("."),
-        help="Output directory for manifests and report.json (default: current directory)",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Dry run: evaluate and generate report.json without writing kept/dropped/review manifests",
-    )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Print report.json to stdout",
-    )
-    parser.set_defaults(func=_hack_drop_command)
-
-
-def _hack_drop_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
-    del harbor
-    # Collect inputs
-    input_paths: list[Path] = list(args.inputs)
-    if args.rollouts:
-        input_paths.append(args.rollouts)
-
-    # Parse hard families, recovering any positional paths accidentally swallowed by nargs="+"
-    allowed_hard_families = HARD_FAMILIES_DEFAULT | set(GATE_RULE_TO_FAMILY.values())
-    hard_families_list: list[str] = []
-    for item in args.hard_families:
-        s = str(item).strip()
-        p = Path(s)
-        if (p.exists() or "/" in s or "\\" in s) and s not in allowed_hard_families:
-            input_paths.append(p)
-            continue
-        for part in s.split(","):
-            part_str = part.strip()
-            if part_str:
-                if part_str not in allowed_hard_families:
-                    print(
-                        f"error: unrecognized hard family {part_str!r}; allowed: {sorted(allowed_hard_families)}",
-                        file=sys.stderr,
-                    )
-                    return 2
-                hard_families_list.append(part_str)
-    hard_families = frozenset(hard_families_list) if hard_families_list else HARD_FAMILIES_DEFAULT
-
-    # Check TEST refusal on any supplied path
-    all_path_args = list(input_paths)
-    if args.certified_tasks:
-        all_path_args.append(args.certified_tasks)
-    if args.labels:
-        all_path_args.append(args.labels)
-
-    for p in all_path_args:
-        try:
-            check_dev_path_allowed(p)
-        except RefusedRun as exc:
-            print(f"refused: {exc}", file=sys.stderr)
-            return 3
-
-    if not input_paths:
-        print("error: no rollouts provided (pass paths or --rollouts)", file=sys.stderr)
-        return 2
-    # Load certified tasks
-    certified_tasks: dict[str, dict[str, str]] | None = None
-    if args.certified_tasks:
-        try:
-            certified_tasks = load_certified_tasks(args.certified_tasks)
-        except RefusedRun as exc:
-            print(f"refused: {exc}", file=sys.stderr)
-            return 3
-        except Exception as exc:
-            print(f"error loading certified tasks: {exc}", file=sys.stderr)
-            return 1
-
-    # Load labels
-    labels: dict[str, bool] | None = None
-    if args.labels:
-        try:
-            labels = load_labels(args.labels, repo_root=root)
-        except RefusedRun as exc:
-            print(f"refused: {exc}", file=sys.stderr)
-            return 3
-        except Exception as exc:
-            print(f"error loading labels: {exc}", file=sys.stderr)
-            return 1
-
-    # Load rollouts
-    try:
-        rollouts = load_rollouts(input_paths, repo_root=root)
-    except RefusedRun as exc:
-        print(f"refused: {exc}", file=sys.stderr)
-        return 3
-    except Exception as exc:
-        print(f"error loading rollouts: {exc}", file=sys.stderr)
-        return 1
-
-    if not rollouts:
-        print("error: no candidate rollouts loaded", file=sys.stderr)
-        return 1
-
-    # Output directory
-    out_dir = args.out_dir.resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    # AutoReview cache (S5)
-    cache_path = out_dir / ".autoreview_cache.json"
-    cache: dict[str, dict[str, Any]] = {}
-    if cache_path.is_file():
-        try:
-            cache = json.loads(cache_path.read_text(encoding="utf-8"))
-        except Exception:
-            cache = {}
-
-    # Run hack-drop pipeline
-    decisions, ar_stats = run_hack_drop(
-        rollouts,
-        certified_tasks=certified_tasks,
-        task_action=args.task_action,
-        hard_families=hard_families,
-        with_autoreview=args.with_autoreview,
-        autoreview_route=args.autoreview_route,
-        max_model_usd=args.max_model_usd,
-        max_calls=args.max_calls,
-        suspicion_threshold=args.suspicion_threshold,
-        autoreview_action=args.autoreview_action,
-        cache=cache,
-        cache_path=cache_path if args.with_autoreview else None,
-        dry_run=args.dry_run,
-    )
-
-    if args.with_autoreview and cache and not args.dry_run:
-        with contextlib.suppress(Exception):
-            cache_path.write_text(json.dumps(cache, indent=2) + "\n", encoding="utf-8")
-
-    # Compute report
-    report = compute_report(decisions, labels=labels, autoreview_stats=ar_stats)
-
-    def _atomic_write(dest: Path, content: str) -> None:
-        tmp = dest.with_name(f".{dest.name}.tmp")
-        tmp.write_text(content, encoding="utf-8")
-        tmp.replace(dest)
-
-    # Write report.json (always written atomically)
-    report_path = out_dir / "report.json"
-    _atomic_write(report_path, json.dumps(report, indent=2) + "\n")
-
-    # Manage manifests: write atomically when not in dry-run mode (S-new-2: never delete manifests on dry-run)
-    if not args.dry_run:
-        kept_rows = []
-        dropped_rows = []
-        review_rows = []
-        for d in decisions:
-            row_str = json.dumps(d.to_manifest_row()) + "\n"
-            if d.decision == "keep":
-                kept_rows.append(row_str)
-            elif d.decision == "drop":
-                dropped_rows.append(row_str)
-            elif d.decision == "review":
-                review_rows.append(row_str)
-
-        staging_dir = out_dir / f".staging-{uuid4().hex[:8]}"
-        staging_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            (staging_dir / "kept.jsonl").write_text("".join(kept_rows), encoding="utf-8")
-            (staging_dir / "dropped.jsonl").write_text("".join(dropped_rows), encoding="utf-8")
-            (staging_dir / "review.jsonl").write_text("".join(review_rows), encoding="utf-8")
-            shutil.move(str(staging_dir / "kept.jsonl"), str(out_dir / "kept.jsonl"))
-            shutil.move(str(staging_dir / "dropped.jsonl"), str(out_dir / "dropped.jsonl"))
-            shutil.move(str(staging_dir / "review.jsonl"), str(out_dir / "review.jsonl"))
-        finally:
-            shutil.rmtree(staging_dir, ignore_errors=True)
-    if args.json:
-        print(json.dumps(report, indent=2))
-    else:
-        print(f"evallab hack-drop: processed {len(decisions)} rollouts")
-        print(f"  kept:    {report['counts']['keep']}")
-        print(f"  dropped: {report['counts']['drop']}")
-        print(f"  review:  {report['counts']['review']}")
-        if "evaluation" in report:
-            ev = report["evaluation"]
-            prec = ev["drop_precision"]
-            rec = ev["drop_recall"]
-            ret = ev["retained_clean_fraction"]
-            p_str = f"{prec['rate'] * 100:.1f}%" if prec["rate"] is not None else "N/A"
-            p_ci = (
-                f"{prec['wilson_ci'][0] * 100:.1f}%-{prec['wilson_ci'][1] * 100:.1f}%"
-                if prec["wilson_ci"][0] is not None
-                else "N/A"
-            )
-            r_str = f"{rec['rate'] * 100:.1f}%" if rec["rate"] is not None else "N/A"
-            r_ci = (
-                f"{rec['wilson_ci'][0] * 100:.1f}%-{rec['wilson_ci'][1] * 100:.1f}%"
-                if rec["wilson_ci"][0] is not None
-                else "N/A"
-            )
-            ret_str = f"{ret['rate'] * 100:.1f}%" if ret["rate"] is not None else "N/A"
-            ret_ci = (
-                f"{ret['wilson_ci'][0] * 100:.1f}%-{ret['wilson_ci'][1] * 100:.1f}%"
-                if ret["wilson_ci"][0] is not None
-                else "N/A"
-            )
-            print(f"  drop precision: {prec['k']}/{prec['n']} = {p_str} (Wilson 95%: {p_ci})")
-            print(f"  drop recall:    {rec['k']}/{rec['n']} = {r_str} (Wilson 95%: {r_ci})")
-            print(f"  retained clean: {ret['k']}/{ret['n']} = {ret_str} (Wilson 95%: {ret_ci})")
-        print(f"Wrote report to {report_path}")
-        if not args.dry_run:
-            print(f"Wrote manifests to {out_dir}/{{kept,dropped,review}}.jsonl")
-
-    return 0

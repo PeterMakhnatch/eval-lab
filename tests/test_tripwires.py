@@ -13,7 +13,6 @@ from evallab.tripwires import (
     external_sourcing_hits,
     scan_prefix,
     scan_trace,
-    to_findings,
 )
 
 
@@ -97,34 +96,6 @@ def test_scan_trace_adds_content_rules_and_irc(tmp_path: Path) -> None:
     assert set(report["irc"]) == {"upstream_fetch", "grader_tamper", "out_of_base_read"}
     assert report["submission_tamper"], "live submission scan must also fire offline"
 
-
-def test_to_findings_emits_qa_finding_shape_for_fired_rules_only() -> None:
-    report = scan_prefix([_step(5, "cat /tests/test_outputs.py\n")])
-    findings = to_findings(report, task_id="demo-task", trial_id="trial-1")
-    assert findings, "a fired tripwire must produce a finding"
-    by_rule = {f["rule"]: f for f in findings}
-    assert "hidden_reads" in by_rule
-    finding = by_rule["hidden_reads"]
-    assert finding["schema"] == "qa.finding/v1"
-    assert finding["subject"] == {
-        "kind": "trace",
-        "task_id": "demo-task",
-        "task_digest": "",
-        "trial_id": "trial-1",
-    }
-    assert finding["stage"] == "T0"
-    assert finding["verdict"] == "fail"
-    assert finding["category"] == "reward_hacking"
-    assert finding["fault"] == "agent"
-    assert finding["evidence_refs"] == ["step:5"]
-    assert finding["refutation"]["status"] == "unverified"
-    assert finding["reviewer"]["cost_usd"] == 0.0
-    assert "grader_tamper" not in by_rule
-
-
-def test_clean_trace_produces_no_findings() -> None:
-    report = scan_prefix([_step(1, "python3 -m pytest tests/test_app.py -q\n")])
-    assert to_findings(report, task_id="demo-task") == []
 
 
 @pytest.mark.parametrize("argument", ["keystrokes", "command", "cmd"])

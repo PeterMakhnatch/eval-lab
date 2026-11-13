@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 from collections import Counter
 from dataclasses import asdict
 from typing import Any
@@ -108,63 +107,3 @@ def cloud_events(connection: Any, trace_id: str) -> dict[str, Any]:
         ).hexdigest()
         events.append(event)
     return project_events(events)
-
-
-def _cap(text: str, limit: int = 4000) -> str:
-    """Cap channel text and report the exact number of omitted characters."""
-    if not text:
-        return ""
-    if len(text) <= limit:
-        return text
-    dropped = len(text) - limit
-    return text[:limit] + f"\n...[truncated {dropped} chars]..."
-
-
-def _extract_channels(row: sqlite3.Row | dict) -> list[dict[str, Any]]:
-    """Emit separate channel entries for narration / call / output.
-    Narration = asst reasoning + text; call = command_or_action; output = tool preview/content.
-    Returns list so one physical step can contribute narration+call.
-    "l": full length for char_* totals; "t": capped (4000) with drop marker.
-    Only actor content and reasoning are read from source flags.
-    """
-
-    def get(k: str, default: Any = "") -> Any:
-        try:
-            value = row[k]
-        except (KeyError, IndexError):
-            return default
-        return value if value is not None else default
-
-    role = (get("role") or "").lower()
-    step_i = int(get("step_index", "0") or 0)
-    content = get("content_text") or ""
-    preview = get("observation_preview") or ""
-    cmd = get("command_or_action") or ""
-    fl = get("flags_json") or "{}"
-    try:
-        flags = json.loads(fl) if isinstance(fl, str) else (fl or {})
-    except Exception:
-        flags = {}
-    reasoning = (flags.get("reasoning_content") or "") if isinstance(flags, dict) else ""
-
-    chans: list[dict[str, Any]] = []
-    if role in ("assistant", "agent"):
-        nar_text = (reasoning + "\n" + content).strip()
-        if nar_text:
-            nar_len = len(nar_text)
-            chans.append({"i": step_i, "k": "narration", "l": nar_len, "t": _cap(nar_text)})
-        if cmd:
-            call_text = cmd if isinstance(cmd, str) else json.dumps(cmd, ensure_ascii=False)
-            call_len = len(call_text)
-            chans.append({"i": step_i, "k": "call", "l": call_len, "t": _cap(call_text)})
-    elif role == "tool":
-        out_text = content or preview
-        if out_text:
-            out_len = len(out_text)
-            chans.append({"i": step_i, "k": "output", "l": out_len, "t": _cap(out_text)})
-    else:
-        txt = content or preview or ""
-        if txt:
-            txt_len = len(txt)
-            chans.append({"i": step_i, "k": "narration", "l": txt_len, "t": _cap(txt)})
-    return chans

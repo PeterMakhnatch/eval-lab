@@ -528,12 +528,6 @@ def format_watch_lines(alerts: list[dict[str, Any]], *, trial: str | None = None
     return lines
 
 
-def render_watch_lines(job_dir: Path | str, *, trial: str | None = None) -> list[str]:
-    """Markdown ``## Live watch alerts`` section for a job page (or trial)."""
-    alerts = annotate_alerts_with_acks(read_watch_alerts(job_dir), read_watch_acks(job_dir))
-    return format_watch_lines(alerts, trial=trial)
-
-
 def _load_posted(out_dir: Path) -> set[str]:
     try:
         payload = json.loads((out_dir / NOTIFIED_FILENAME).read_text(encoding="utf-8"))

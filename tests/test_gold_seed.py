@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from evallab.failure_library.bank import BankContext, IssueBank, Provenance, new_item
 from evallab.gold import load_rows, load_trajectory
-from evallab.gold.projection import _extract_channels, cloud_events, project_events
+from evallab.gold.projection import cloud_events, project_events
 from evallab.gold.seed import _impossible_map
 from evallab.trace_anatomy import RefusedRun
 from evallab.trajectory_ir import SourceEventRef, build_trajectory_ir
@@ -183,71 +183,6 @@ def test_impossible_file_line_maps_to_prepared_zero_action(tmp_path: Path):
     with pytest.raises(ValueError, match="differs from source"):
         _impossible_map(view, tmp_path, receipt, {str(session): digest})
 
-
-def test_extract_channels_splits_narration_call_output_and_caps() -> None:
-    """Synthetic with all three kinds; asserts split + full char totals (B2b req).
-    Verifies cap marker, no labels.
-    """
-    asst_row = {
-        "step_index": 0,
-        "role": "assistant",
-        "content_text": "I will edit the file now.",
-        "observation_preview": "",
-        "command_or_action": {"cmd": "sed -i 's/foo/bar/' f.py"},
-        "flags_json": '{"reasoning_content": "Plan: use search replace to cheat."}',
-    }
-    tool_row = {
-        "step_index": 1,
-        "role": "tool",
-        "content_text": "file edited, test fails (no real run).",
-        "observation_preview": "",
-        "command_or_action": "",
-        "flags_json": "{}",
-    }
-    long_asst = {
-        **asst_row,
-        "step_index": 2,
-        "content_text": "x" * 5000,
-        "command_or_action": "",
-        "flags_json": "{}",
-    }
-
-    chans0 = _extract_channels(asst_row)
-    chans1 = _extract_channels(tool_row)
-    chans2 = _extract_channels(long_asst)
-
-    all_ch = chans0 + chans1 + chans2
-    kinds = [c["k"] for c in all_ch]
-    assert "narration" in kinds and "call" in kinds and "output" in kinds
-    assert kinds.count("narration") == 2
-    assert kinds.count("call") == 1
-    assert kinds.count("output") == 1
-
-    nar_total = sum(c["l"] for c in all_ch if c["k"] == "narration")
-    call_total = sum(c["l"] for c in all_ch if c["k"] == "call")
-    out_total = sum(c["l"] for c in all_ch if c["k"] == "output")
-    assert nar_total > 5000 and call_total > 10 and out_total > 10
-
-    long_ch = [c for c in chans2 if c["k"] == "narration"][0]
-    assert "truncated" in long_ch["t"] and len(long_ch["t"]) < 4100
-    assert long_ch["l"] == 5000
-
-    for c in all_ch:
-        assert "is_exploit" not in str(c) and "label" not in str(c).lower()
-    assert nar_total + call_total + out_total == sum(c["l"] for c in all_ch)
-
-
-def test_channel_projection_reads_sqlite_columns_not_row_values() -> None:
-    with sqlite3.connect(":memory:") as db:
-        db.row_factory = sqlite3.Row
-        row = db.execute(
-            "SELECT 7 AS step_index, 'assistant' AS role, 'answer' AS content_text,"
-            " 'echo ok' AS command_or_action, '{}' AS flags_json"
-        ).fetchone()
-    assert _extract_channels(row) == [
-        {"i": 7, "k": "narration", "l": 6, "t": "answer"},
-        {"i": 7, "k": "call", "l": 7, "t": "echo ok"},
-    ]
 
 
 @pytest.mark.parametrize("source", ["assistant-axis", "metr-malt"])

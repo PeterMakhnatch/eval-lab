@@ -262,9 +262,18 @@ DEFAULT_SLOW_TEST_BUDGET_SECONDS: float = 60.0
 
 # Shard pins that flip a test module's crc32 shard to balance CI shard load. A pin
 # applies only when its index fits the run's shard total; otherwise crc32 decides.
-# test_mimoagent_worker.py is 50 to 85 s of the serial native step. With four shards,
-# crc32 puts it on shard 2, the slowest (368 s on 2026-11-11); shard 4 is the fastest (229 s).
-SHARD_OVERRIDES: dict[str, int] = {"tests/test_mimoagent_worker.py": 4}
+# Pins of 3 or 4 therefore never change the two-shard push matrix.
+# Choose pins from the `Module durations` tables in the four PR shard logs, not from
+# the per-test list: that list omits fixture setup and sub-second cases.
+# Measured on PR #2187 (2026-11-13), job seconds per shard: 182, 171, 113, 174.
+# - test_mimoagent_worker.py is 42 s of the native step; crc32 puts it on shard 2.
+#   Shard 3 had the shortest job, so it carries this module.
+# - test_cloud_trace_db.py is 55 worker-seconds of shard 2's base step; shard 4
+#   takes it once the native worker module has left.
+SHARD_OVERRIDES: dict[str, int] = {
+    "tests/test_mimoagent_worker.py": 3,
+    "tests/test_cloud_trace_db.py": 4,
+}
 
 
 def shard_for(rel_path: str, total: int) -> int:

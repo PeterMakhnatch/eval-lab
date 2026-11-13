@@ -13,7 +13,7 @@
 	     non-blocking lock on the state directory, so a second copy exits instead of racing.
 	     KeepAlive restarts it after a crash or reboot: an increment without commit.json is
 	     moved to abandoned/ and its runs are planned again. Exit status 2 means the watcher
-	     stopped on a refusal or a failed check: it stays failed (see line-watch-watchdog)
+	     stopped on a refusal or a failed check: it stays failed
 	     until someone reads status.json and errors.jsonl. -->
 	<key>ProgramArguments</key>
 	<array>

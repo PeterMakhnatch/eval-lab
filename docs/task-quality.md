@@ -981,7 +981,7 @@ digest-bound admission record (`evallab.task_admission/v1`, gate
 | 2 | `oracle` (stability-job path, repeat 3) | every trial reward is exactly 1.0 — via the shipped `solution/solve.sh`, or via the HAR-191 reference (see below); `unproven` when neither exists |
 | 3 | `nop` (stability-job path, repeat 3) | every trial reward is exactly 0.0 |
 | 4–17 | `cheat:<attack>` (one single-trial cheat job per attack, full 14-attack ladder) | reward < 1.0 (the lane rule: cracked iff reward >= 1.0) |
-| 18 | `battery` (`hack battery`: 5 hollow fakes + 3 rewrite controls per changed Python file) | every fake scores 0 and every rewrite control scores 1 (see below) |
+| 18 | `battery` (`verifier_battery`: 5 hollow fakes + 3 rewrite controls per changed Python file) | every fake scores 0 and every rewrite control scores 1 (see below) |
 | 19 | `mutation` (`hack mutate` audit, `--max-mutants` 12) | every scored mutant is killed (see below) |
 
 Each executed step records command, job dir, reward(s), duration, and
@@ -1008,7 +1008,7 @@ rewritten at once:
 * four **known-good controls** that keep the reference's meaning: the
   oracle itself (the capture run), comments dropped, `ast.unparse`
   re-layout, and renamed locals in the changed functions (skipped for
-| 18 | `battery` (`verifier_battery`: 5 hollow fakes + 3 rewrite controls per changed Python file) | every fake scores 0 and every rewrite control scores 1 (see below) |
+  functions with nested scopes or scope-sensitive constructs). A control
   that loses reward → step `review`: the verifier is stricter than the
   task's meaning or reads source text.
 
@@ -1038,12 +1038,12 @@ sha, receipt path, recorded arms, and exact/task-level digest binding
 
 ## Verifier mutation (post-ladder probe)
 
-After the ladder passes, `task_admission.py` runs `hack mutate`
-(`evallab.verifier_mutation.report/v1`) against the same staged package
-the oracle step graded, with `--max-mutants` (default 12, one Docker
-trial per mutant) and `skip_mutation` as an explicitly recorded
-operator override (`mutation_skipped: true`, step listed under
-`skipped_steps`).
+The retained `evallab hack mutate` command runs `evallab.verifier_mutation`
+(`evallab.verifier_mutation.report/v1`). The retired admission gate used it
+against the same staged package that the oracle step graded. That gate set
+`--max-mutants` to 12, with one Docker trial per mutant. It recorded the
+`skip_mutation` operator override as `mutation_skipped: true` and listed
+the step under `skipped_steps`.
 
 Targets: with a HAR-191 reference, the source files the reference patch
 changes, as absolute container paths (workdir + `+++ b/<path>`), so
@@ -2068,9 +2068,7 @@ Two primary measurements are performed on execution ground truth:
 > (`purpose=calibration` or `purpose=elicitation`).
 
 This boundary is enforced structurally:
-- **Dependency Isolation**: `llm-verifier` is isolated in its own optional extras group
-  (`[project.optional-dependencies] verifier = ["llm-verifier>=0.2.0"]`), excluded from default
-  and development dependencies.
+- **Dependency Isolation**: `llm-verifier` and its optional `verifier` extras group are removed from `pyproject.toml`.
 - **Import Boundary**: No module in `evallab.task_lint`, `evallab.registry`, or the battery
   imports `llm_verifier`.
 
@@ -2162,8 +2160,7 @@ a fix pattern, and examples labelled `executed` / `observed` / `claimed`.
 - Caveats: that recall is mostly in-sample — 47 of the 59 matched DEV
   findings are cited as catalog examples; on uncited DEV findings recall
   is 12/28 (43%). The weighted trace matcher and its outcome gates are retired.
-  Trace QA uses the shared tripwire engine. Verifier verdicts:
-  `status-0800.md` rows 1–6.
+  Trace QA uses the shared tripwire engine.
 
 ### Compact, on-demand playbook cards
 

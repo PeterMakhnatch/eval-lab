@@ -1003,8 +1003,8 @@ already write inside the state directory.
 | T09ab | Extra files, links or an `answer-keys` name planted inside the state directory, or a state directory passed as a symlink, are not looked for | state-directory write access |
 | T13b | `frozen/task-status.json` plus `watch.json`'s recorded hash can be rewritten together; the frozen file is not compared with the task-status file the config names | state-directory write access |
 
-Launchd templates `scripts/ops/launchd/com.petermakhnatch.evallab.line-watch.plist` and
-`...line-watch-watchdog.plist` are provided but not installed by any script.
+Launchd template `scripts/ops/launchd/com.petermakhnatch.evallab.line-watch.plist` is
+provided but not installed by any script.
 
 Not built on purpose: a second detector, queue format, label loader or task-status system; model
 calls; running Harbor; reading TEST evidence; service installation.

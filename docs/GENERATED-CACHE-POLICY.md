@@ -19,7 +19,7 @@ current cleanup instructions. Module-location rules live in `src/evallab/AGENTS.
 
 | Product | Writer | Read-only verification / scope |
 |---|---|---|
-| `research/lessons.md` | Python API `evallab.lessons.generate_lessons_file` | `python -m evallab.lessons` checks statistical evidence and freshness |
+| `research/lessons.md` | Python APIs `evallab.lessons.build_lessons` and `evallab.lessons.render_lessons_markdown` build and render the Markdown for an explicit write | `python -m evallab.lessons` checks statistical evidence and freshness |
 | `research/registration/inventory.json` | Registration workflow | `evallab registry audit --json`; cleanup does not register or recertify tasks |
 
 `research/experiments/STATUS.md` is an August 15 historical report, not a current status snapshot.

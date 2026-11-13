@@ -25,11 +25,12 @@ oracle trials and all scored reward 1.0.
 | Ratios at or above 1.05 | **0** |
 | Golden median range | 0.74 s to 1.61 s |
 
-The largest ratio is 1.0048. The threshold sits 0.0452 above it, or 4.5% of
-the threshold. Four trials measured above 1.0, so the noise is not one-sided;
-none came within 4.5 points of the threshold. The check passed on every one of
-the 16 runs. The evidence does not show that the check is too tight. It shows a
-margin of about 4.5% between the worst observed run and the line.
+The largest ratio is 1.0048. The threshold sits 0.0452 above it. That gap is
+4.3% of the threshold (4.52 percentage points of ratio). Four trials measured
+above 1.0, so the noise is not one-sided; none came within 0.045 of the
+threshold. The check passed on every one of the 16 runs. The evidence does not
+show that the check is too tight. It shows that the worst observed run sat about
+4.3% of the threshold below it.
 
 Decision input for Peter: the current 1.05 line is not the cause of any known
 failure on these bytes. A host probe that failed the check is not in this

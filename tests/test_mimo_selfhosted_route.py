@@ -42,6 +42,8 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import pytest
+from proxy_timing import fast_proxy_poll as fast_proxy_poll
+from proxy_timing import use_virtual_retries
 
 from evallab import runner as runner_module
 from evallab.execution_contracts import (
@@ -330,6 +332,7 @@ def mimo_upstream() -> Any:
         yield server
     finally:
         server.shutdown()
+        server.server_close()
 
 
 def _proxy_limits(**overrides: Any) -> ProxyTrialLimits:
@@ -783,7 +786,8 @@ def test_mimo_proxy_waits_through_transient_503s_then_recovers(
         (503, {"object": "error", "message": "no container", "code": 503}),
         (503, b"Service Unavailable\n", "text/plain"),
     ]
-    # Two retries sleep 2 s + 4 s; the bound just needs to cover them.
+    # Keep the 2 s + 4 s retry schedule through the existing clock seam.
+    use_virtual_retries(tmp_path, monkeypatch)
     monkeypatch.setenv("EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS", "30")
     process, url, usage_path = _launch_mimo_proxy(
         tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
@@ -829,6 +833,7 @@ def test_mimo_proxy_surfaces_503_after_its_wait_budget_runs_out(
         (503, b"Service Unavailable\n", "text/plain"),
         (503, b"Service Unavailable\n", "text/plain"),
     ]
+    use_virtual_retries(tmp_path, monkeypatch)
     monkeypatch.setenv("EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS", "0.6")
     process, url, usage_path = _launch_mimo_proxy(
         tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()

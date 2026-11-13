@@ -172,6 +172,73 @@ def _hidden_docker_source(source: str, context: Path) -> bool:
     return not resolved.exists()
 
 
+_SHA256_IMAGE_DIGEST = re.compile(r"@sha256:[0-9a-fA-F]{64}\Z")
+_GIT_COMMIT = re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{40}(?![0-9a-fA-F])")
+_GIT_CLONE = re.compile(r"(?<![\w-])git\s+clone(?![\w-])")
+
+
+def _from_operands(arguments: str) -> tuple[str, str | None]:
+    """Return the image operand and the optional stage name of one FROM line."""
+    tokens = arguments.split()
+    while tokens and tokens[0].startswith("--"):
+        tokens.pop(0)
+    if not tokens:
+        return "", None
+    stage = tokens[2] if len(tokens) >= 3 and tokens[1].casefold() == "as" else None
+    return tokens[0], stage
+
+
+def _from_findings(
+    dockerfile: Path, line_number: int, arguments: str, stages: set[str]
+) -> list[Finding]:
+    """Warn when a base image can resolve to different bytes at build time."""
+    image, stage = _from_operands(arguments)
+    resolved = image.casefold()
+    is_stage = resolved in stages
+    if stage is not None:
+        stages.add(stage.casefold())
+    if not image or resolved == "scratch" or is_stage:
+        return []
+    if "$" in image:
+        return [
+            Finding(
+                "unpinned-image",
+                "warning",
+                str(dockerfile),
+                f"line {line_number}: FROM {image} names a build argument, so the base "
+                "image is chosen at build time and cannot be checked; pin the resolved "
+                "image with an @sha256: digest",
+            )
+        ]
+    if _SHA256_IMAGE_DIGEST.search(image):
+        return []
+    return [
+        Finding(
+            "unpinned-image",
+            "warning",
+            str(dockerfile),
+            f"line {line_number}: FROM {image} has no sha256 digest; a tag can move to "
+            "different image bytes, so pin image@sha256:<digest> before a run",
+        )
+    ]
+
+
+def _run_findings(dockerfile: Path, line_number: int, arguments: str) -> list[Finding]:
+    """Warn when a Dockerfile clone takes a branch or tag head instead of a commit."""
+    if not _GIT_CLONE.search(arguments) or _GIT_COMMIT.search(arguments):
+        return []
+    return [
+        Finding(
+            "unpinned-clone",
+            "warning",
+            str(dockerfile),
+            f"line {line_number}: RUN git clone names no 40-hex commit; a branch or tag "
+            "head can move to other bytes, so check out a full commit for reproducible "
+            "evidence",
+        )
+    ]
+
+
 def _lint_dockerfile(dockerfile: Path) -> list[Finding]:
     findings: list[Finding] = []
 
@@ -194,6 +261,7 @@ def _lint_dockerfile(dockerfile: Path) -> list[Finding]:
 
     pending = ""
     start = 1
+    stages: set[str] = set()
     for number, raw in enumerate(text.splitlines(), 1):
         line = raw.strip()
         if line.startswith("#"):
@@ -209,12 +277,20 @@ def _lint_dockerfile(dockerfile: Path) -> list[Finding]:
         if continued:
             pending += " "
             continue
-        instruction = re.match(r"(?i)^(COPY|ADD)\b(.*)$", pending)
+        instruction = re.match(r"(?i)^(FROM|COPY|ADD|RUN)\b(.*)$", pending)
         pending = ""
         if instruction is None:
             continue
+        keyword = instruction[1].upper()
+        arguments = instruction[2]
+        if keyword == "FROM":
+            findings.extend(_from_findings(dockerfile, start, arguments, stages))
+            continue
+        if keyword == "RUN":
+            findings.extend(_run_findings(dockerfile, start, arguments))
+            continue
         try:
-            sources = _docker_sources(instruction[2])
+            sources = _docker_sources(arguments)
         except ValueError as exc:
             syntax_error(start, str(exc))
             continue
@@ -566,9 +642,10 @@ def lint_task(task_dir: Path) -> list[Finding]:
             Finding("solution-present", "error", str(solution), "solution/solve.sh is missing")
         )
 
-    dockerfile = task_dir / "environment" / "Dockerfile"
-    if dockerfile.is_file():
-        findings.extend(_lint_dockerfile(dockerfile))
+    for context in ("environment", "tests"):
+        for dockerfile in sorted((task_dir / context).rglob("Dockerfile")):
+            if dockerfile.is_file():
+                findings.extend(_lint_dockerfile(dockerfile))
 
     for control in sorted((task_dir / "controls").glob("*.sh")):
         if not control.is_file() or declared_expectation(control) is None:

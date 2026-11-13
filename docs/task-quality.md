@@ -420,7 +420,7 @@ These are raw inventory counts, not production-eligible counts.
 
 ## Retired dataset audit frontend
 
-The generic `evallab audit` frontend is retired.
+The generic dataset-audit CLI frontend is retired.
 Use each command's current `--help` and bind every result to exact package bytes.
 Keep existing audit projections, manifests, dossiers, and ledger decisions unchanged.
 An old `keep` route is not certification, task admission, validated repair, or a model-capability result.
@@ -582,8 +582,18 @@ This command checks verifier separation, declared artifacts, solution presence,
 control expectation headers, and hidden inputs in Docker `COPY`/`ADD` operands.
 Operands are resolved against the task's `environment/` build context: a source
 that names `tests` or `solution` but leaves that context, follows a symlink out of
-it, or matches nothing inside it is an error. It reports unsupported syntax instead
-of silently accepting unreadable instructions.
+it, or matches nothing inside it is an error. It reports unsupported syntax
+instead of silently accepting unreadable instructions.
+
+Every Dockerfile under `environment/` (including nested build contexts such as
+`environment/runtime-server/`) and under `tests/` also gets two reproducibility
+warnings. `unpinned-image` fires when a `FROM` names no `@sha256:` digest, because
+a tag can move to other image bytes. `unpinned-clone` fires when a `RUN` contains
+`git clone` without a full 40-hex commit, because a branch or tag head can move.
+`FROM scratch` and a reference to an earlier stage name do not warn. A base image
+named by a build argument resolves only during the build, so that `FROM` warns and
+says it cannot be checked. Backslash continuations are joined before matching, and
+both warnings leave the exit code at 0.
 
 It also parses task sources without executing or writing them, and reports a
 `sources-parse` error that names the file and the parser message: `bash -n` on
@@ -780,11 +790,10 @@ store directory is recoverable from Git plus the parent package alone.
 MiMo code tasks run `environment/setup/setup.sh` from a gzip+base64 tar
 embedded in `task.toml`'s `[environment.healthcheck]` command, not from the
 files on disk, so a setup change must re-embed that payload in the same
-variant. The archived utility
-`research/experiments/har105-exploration/setup_payload.py` encodes it byte for
-byte as the adapter does (`gzip.GzipFile` with `mtime=0` and an empty filename).
-It checks that the on-disk setup reproduces the embedded one before a change.
-Restore the utility from `archive/pre-round3-2026-11-12`.
+variant. `src/evallab/strip_future_history.py` (`pack_setup`) encodes the payload
+with deterministic tar and gzip metadata (`mtime=0` and an empty gzip filename).
+For the archived HAR-105 check utility, restore
+`research/experiments/har105-exploration/` from `archive/pre-round3-2026-11-12`.
 
 ### Setup-only Python lookup repairs
 
@@ -870,7 +879,7 @@ Parquet derived root:
 - `task_qualification`: one row per Harbor trial with backend health.
 
 `grader_kind`/`grader_cost` are derived from task files, never the domain
-name: a `*JUDGE*` verifier env or judge-graded `tests/grade.py` means a
+name: a `*JUDGE*` verifier env or judge-graded `<task-root>/tests/grade.py` means a
 paid model judge (`vlm_judge` when vision markers are present, else
 `llm_judge`); everything else is a `script`/`free` grader.
 
@@ -1295,7 +1304,7 @@ cost**. JSON exposes the nullable suite cost fields and deliberately
 omits the legacy scorer's default-zero `cost_per_item_usd`.
 
 The deterministic Markdown report atomically replaces
-`research/qa-scoreboard/suite-YYYYMMDD.md` (UTC report date by default);
+`research/qa-scoreboard/suite-<YYYYMMDD>.md` (UTC report date by default);
 `--output` overrides that destination and `--json` also prints the rows,
 denominators and SHA256 custody receipts. No scoreboard CSV rows are
 appended. Inputs cannot be used as the output destination. Markdown shows

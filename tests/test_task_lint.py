@@ -13,13 +13,36 @@ from evallab.task_lint import discover_tasks, lint_task
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# These known library warnings remain explicit so new warnings cannot pass unnoticed.
-# Every library package must remain free of error findings and unpinned dependencies.
+# Digest-pinned base image: tests that exercise other Dockerfile findings must
+# not also raise the base-image rule.
+_PINNED_BASE = (
+    "FROM python:3.13-slim@sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
+)
+
+# Known warnings in the committed library, by rule and package. Every other
+# finding is unexpected, so a new warning must be added here deliberately.
 _ALLOWED_LIBRARY_WARNINGS = {
-    ("library/tasks/query-optimize/task.toml", "verifier-isolation"),
-    ("library/tasks/query-optimize/tests/test.sh", "verifier-runtime-install"),
-    ("library/tasks/tau3-retail-1/task.toml", "verifier-isolation"),
+    "unpinned-image": {
+        "library/tasks/event-summary",
+        "library/tasks/query-optimize",
+        "library/tasks/release-branch-rescue",
+        "library/tasks/sheet-recalc",
+        "library/tasks/sheet-recalc-cutoff",
+        "library/tasks/tau3-retail-1",
+        "library/tasks/terminal-bench-html-js-filter",
+        "library/tasks/transaction-reconciliation",
+    },
+    "unpinned-clone": {"library/tasks/tau3-retail-1"},
+    "verifier-isolation": {
+        "library/tasks/query-optimize",
+        "library/tasks/tau3-retail-1",
+    },
+    "verifier-runtime-install": {"library/tasks/query-optimize"},
 }
+
+
+def _dockerfile(*lines: str) -> str:
+    return "\n".join((_PINNED_BASE, *lines)) + "\n"
 
 
 @pytest.fixture
@@ -28,7 +51,7 @@ def task(tmp_path: Path) -> Path:
     (task / "solution").mkdir(parents=True)
     (task / "solution/solve.sh").write_text("#!/bin/sh\nexit 0\n")
     (task / "environment").mkdir()
-    (task / "environment/Dockerfile").write_text("FROM python:3.12\nCOPY app/ /app\n")
+    (task / "environment/Dockerfile").write_text(_dockerfile("COPY app/ /app"))
     (task / "task.toml").write_text(
         'artifacts = ["/app/result.json"]\n[verifier]\nenvironment_mode = "separate"\n'
     )
@@ -210,7 +233,7 @@ def test_shared_mode_skips_the_artifact_contract(task: Path) -> None:
     ],
 )
 def test_hidden_verifier_inputs_cannot_enter_agent_image(task: Path, instruction: str) -> None:
-    (task / "environment/Dockerfile").write_text(f"FROM python:3.12\n{instruction}\n")
+    (task / "environment/Dockerfile").write_text(_dockerfile(instruction))
     finding, = lint_task(task)
     assert (finding.rule, finding.severity) == ("hidden-inputs-not-baked", "error")
 
@@ -219,7 +242,7 @@ def test_copy_of_existing_environment_tests_directory_is_agent_visible(task: Pat
     (task / "environment/tests").mkdir()
     (task / "environment/tests/test_smoke.py").write_text("def test_ok(): pass\n")
     (task / "environment/Dockerfile").write_text(
-        "FROM python:3.12\nCOPY app/ /app\nCOPY tests /app/tests\n"
+        _dockerfile("COPY app/ /app", "COPY tests /app/tests")
     )
     assert lint_task(task) == []
 
@@ -236,7 +259,7 @@ def test_copy_of_existing_environment_tests_directory_is_agent_visible(task: Pat
 )
 def test_copy_sources_outside_the_build_context_still_flag(task: Path, instruction: str) -> None:
     (task / "tests").mkdir(exist_ok=True)
-    (task / "environment/Dockerfile").write_text(f"FROM python:3.12\n{instruction}\n")
+    (task / "environment/Dockerfile").write_text(_dockerfile(instruction))
     finding, = lint_task(task)
     assert (finding.rule, finding.severity) == ("hidden-inputs-not-baked", "error")
 
@@ -244,9 +267,7 @@ def test_copy_sources_outside_the_build_context_still_flag(task: Path, instructi
 def test_environment_symlink_to_hidden_tests_dir_still_flags(task: Path) -> None:
     (task / "tests").mkdir(exist_ok=True)
     (task / "environment/tests").symlink_to(task / "tests")
-    (task / "environment/Dockerfile").write_text(
-        "FROM python:3.12\nCOPY tests /app/tests\n"
-    )
+    (task / "environment/Dockerfile").write_text(_dockerfile("COPY tests /app/tests"))
     finding, = lint_task(task)
     assert (finding.rule, finding.severity) == ("hidden-inputs-not-baked", "error")
 
@@ -262,9 +283,7 @@ def test_environment_symlink_to_hidden_tests_dir_still_flags(task: Path) -> None
     ],
 )
 def test_dockerfile_comments_and_unrelated_paths_do_not_flag(task: Path, instruction: str) -> None:
-    (task / "environment/Dockerfile").write_text(
-        f"FROM python:3.12\n# COPY tests/ /tests\n{instruction}\n"
-    )
+    (task / "environment/Dockerfile").write_text(_dockerfile("# COPY tests/ /tests", instruction))
     assert lint_task(task) == []
 
 
@@ -285,7 +304,7 @@ def test_dockerfile_comments_and_unrelated_paths_do_not_flag(task: Path, instruc
 )
 def test_malformed_copy_reports_actionable_error(task: Path, instruction: str, capsys) -> None:
     dockerfile = task / "environment/Dockerfile"
-    dockerfile.write_text(f"FROM python:3.12\n{instruction}\n")
+    dockerfile.write_text(_dockerfile(instruction))
     assert cli.run_cli(["tasks", "lint", str(task), "--json"], workspace=task.parent) == 1
     finding, = json.loads(capsys.readouterr().out)
     assert (finding["rule"], finding["severity"]) == ("dockerfile-copy-parses", "error")
@@ -294,7 +313,7 @@ def test_malformed_copy_reports_actionable_error(task: Path, instruction: str, c
 
 
 def test_unsupported_escape_directive_is_not_silently_accepted(task: Path) -> None:
-    (task / "environment/Dockerfile").write_text("# escape=`\nFROM python:3.12\n")
+    (task / "environment/Dockerfile").write_text("# escape=`\n" + _dockerfile())
     finding, = lint_task(task)
     assert (finding.rule, finding.severity) == ("dockerfile-copy-parses", "error")
 
@@ -303,6 +322,103 @@ def test_non_utf8_dockerfile_reports_error(task: Path) -> None:
     (task / "environment/Dockerfile").write_bytes(b"FROM python:3.12\nCOPY \xff /private\n")
     finding, = lint_task(task)
     assert (finding.rule, finding.severity) == ("dockerfile-copy-parses", "error")
+
+
+def test_base_image_without_a_digest_warns_without_failing(task: Path, capsys) -> None:
+    dockerfile = task / "environment/Dockerfile"
+    dockerfile.write_text("FROM python:3.12-slim\n")
+
+    (finding,) = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "unpinned-image",
+        "warning",
+        str(dockerfile),
+    )
+    assert "python:3.12-slim" in finding.message
+    assert "sha256" in finding.message
+    assert cli.run_cli(["tasks", "lint", str(task)], workspace=task.parent) == 0
+    assert capsys.readouterr().out == (
+        f"warning unpinned-image {dockerfile}: {finding.message}\n"
+    )
+
+
+def test_digest_pinned_base_image_does_not_warn(task: Path) -> None:
+    (task / "environment/Dockerfile").write_text(_dockerfile("WORKDIR /app"))
+
+    assert lint_task(task) == []
+
+
+def test_scratch_and_earlier_stage_names_do_not_warn(task: Path) -> None:
+    (task / "environment/Dockerfile").write_text(
+        "\n".join(
+            (
+                _PINNED_BASE + " AS build",
+                "FROM build AS runtime",
+                "FROM scratch",
+                "COPY --from=build /app /app",
+            )
+        )
+        + "\n"
+    )
+
+    assert lint_task(task) == []
+
+
+def test_build_argument_base_image_warns_that_it_cannot_be_checked(task: Path) -> None:
+    (task / "environment/Dockerfile").write_text(
+        "ARG BASE_IMAGE=python:3.12-slim\nFROM ${BASE_IMAGE}\n"
+    )
+
+    (finding,) = lint_task(task)
+    assert (finding.rule, finding.severity) == ("unpinned-image", "warning")
+    assert "build argument" in finding.message
+    assert "cannot be checked" in finding.message
+
+
+def test_git_clone_without_a_commit_warns(task: Path) -> None:
+    dockerfile = task / "environment/Dockerfile"
+    dockerfile.write_text(
+        _dockerfile(
+            "RUN apt-get update && \\",
+            "    git clone --depth=1 https://example.test/repo.git /opt/repo",
+        )
+    )
+
+    (finding,) = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "unpinned-clone",
+        "warning",
+        str(dockerfile),
+    )
+    assert "line 2:" in finding.message
+    assert "40-hex commit" in finding.message
+
+
+def test_git_clone_at_a_full_commit_does_not_warn(task: Path) -> None:
+    (task / "environment/Dockerfile").write_text(
+        _dockerfile(
+            "RUN git clone --depth=1 https://example.test/repo.git /opt/repo \\",
+            "    && git -C /opt/repo checkout 0123456789abcdef0123456789abcdef01234567",
+        )
+    )
+
+    assert lint_task(task) == []
+
+
+def test_dockerfiles_under_tests_and_nested_environment_are_scanned(task: Path) -> None:
+    (task / "tests/Dockerfile").write_text("FROM ubuntu:24.04\n")
+    runtime = task / "environment/runtime-server/Dockerfile"
+    runtime.parent.mkdir()
+    runtime.write_text(
+        "FROM ubuntu:24.04\nRUN git clone https://example.test/repo.git /opt/repo\n"
+    )
+
+    findings = lint_task(task)
+    assert {(finding.rule, finding.path) for finding in findings} == {
+        ("unpinned-image", str(task / "tests/Dockerfile")),
+        ("unpinned-image", str(runtime)),
+        ("unpinned-clone", str(runtime)),
+    }
 
 
 @pytest.mark.parametrize(
@@ -398,7 +514,7 @@ def test_discovery_reports_a_nested_package_error_from_the_root(
     (nested / "tests/verify.py").write_text('RESULT = "/app/result.json"\n')
     (nested / "instruction.md").write_text("Write /app/result.json.\n")
     (nested / "environment").mkdir()
-    (nested / "environment/Dockerfile").write_text("FROM python:3.12\nCOPY tests /private\n")
+    (nested / "environment/Dockerfile").write_text(_dockerfile("COPY tests /private"))
     (nested / "task.toml").write_text(
         'artifacts = ["/app/result.json"]\n[verifier]\nenvironment_mode = "separate"\n'
     )
@@ -444,15 +560,21 @@ def test_committed_task_library_lints_without_error_findings() -> None:
     tasks = discover_tasks([REPO_ROOT / "library/tasks"])
     assert len(tasks) == 12
 
-    findings = [finding for task in tasks for finding in lint_task(task)]
-    assert [finding for finding in findings if finding.severity == "error"] == []
-    assert [f for f in findings if f.rule == "unpinned-python-dependency"] == []
-    warnings = {
-        (Path(finding.path).relative_to(REPO_ROOT).as_posix(), finding.rule)
-        for finding in findings
-        if finding.severity == "warning"
-    }
+    findings = [(task, finding) for task in tasks for finding in lint_task(task)]
+    assert [finding for _, finding in findings if finding.severity == "error"] == []
+    assert [
+        finding for _, finding in findings if finding.rule == "unpinned-python-dependency"
+    ] == []
+    warnings: dict[str, set[str]] = {}
+    for task, finding in findings:
+        if finding.severity == "warning":
+            warnings.setdefault(finding.rule, set()).add(
+                task.relative_to(REPO_ROOT).as_posix()
+            )
     assert warnings == _ALLOWED_LIBRARY_WARNINGS
+    # One finding per Dockerfile that breaks a rule, so a second unpinned
+    # Dockerfile inside an already-listed package cannot hide.
+    assert sum(finding.severity == "warning" for _, finding in findings) == 20
     assert cli.run_cli(
         ["tasks", "lint", str(REPO_ROOT / "library/tasks")], workspace=REPO_ROOT
     ) == 0
@@ -559,7 +681,7 @@ def test_well_formed_sources_report_nothing_and_write_nothing(task: Path) -> Non
 
 def test_unpinned_dockerfile_dependency_warns(task: Path) -> None:
     dockerfile = task / "environment/Dockerfile"
-    dockerfile.write_text("FROM python:3.12\nRUN pip install requests\n")
+    dockerfile.write_text(_dockerfile("RUN pip install requests"))
 
     finding, = lint_task(task)
     assert (finding.rule, finding.severity, finding.path) == (
@@ -581,7 +703,7 @@ def test_unpinned_dockerfile_dependency_warns(task: Path) -> None:
 )
 def test_python_install_forms_warn(task: Path, command: str) -> None:
     dockerfile = task / "environment/Dockerfile"
-    dockerfile.write_text(f"FROM python:3.12\nRUN {command}\n")
+    dockerfile.write_text(_dockerfile(f"RUN {command}"))
 
     finding, = lint_task(task)
     assert (finding.rule, finding.severity, finding.path) == (
@@ -682,9 +804,7 @@ def test_verifier_runtime_install_forms_warn(task: Path, command: str) -> None:
 
 
 def test_build_and_solution_installs_are_not_verifier_runtime_installs(task: Path) -> None:
-    (task / "tests/Dockerfile").write_text(
-        "FROM python:3.12\nRUN pip install pytest==8.4.1\n"
-    )
+    (task / "tests/Dockerfile").write_text(_dockerfile("RUN pip install pytest==8.4.1"))
     (task / "solution/solve.sh").write_text("#!/bin/sh\npip install pytest==8.4.1\n")
 
     assert lint_task(task) == []
@@ -727,7 +847,7 @@ def test_python_install_option_values_are_not_requirements(task: Path, option: s
 )
 def test_install_command_parsing_retains_the_first_line(task: Path, instruction: str) -> None:
     dockerfile = task / "environment/Dockerfile"
-    dockerfile.write_text(f"FROM python:3.12\n{instruction}\n")
+    dockerfile.write_text(_dockerfile(instruction))
 
     finding, = lint_task(task)
     assert (finding.rule, finding.severity, finding.path) == (
@@ -740,7 +860,7 @@ def test_install_command_parsing_retains_the_first_line(task: Path, instruction:
 def test_multiple_installs_on_one_logical_line_warn_once(task: Path) -> None:
     dockerfile = task / "tests/Dockerfile"
     dockerfile.write_text(
-        "FROM python:3.12\nRUN pip install requests && uv tool install fastmcp>=3.0\n"
+        _dockerfile("RUN pip install requests && uv tool install fastmcp>=3.0")
     )
 
     finding, = lint_task(task)
@@ -775,7 +895,7 @@ def test_unpinned_urls_warn(task: Path, spec: str) -> None:
 def test_nested_helper_dockerfiles_and_hidden_scripts_are_not_scanned(task: Path) -> None:
     helper = task / "environment/runtime-server"
     helper.mkdir()
-    (helper / "Dockerfile").write_text("FROM python:3.12\nRUN pip install requests\n")
+    (helper / "Dockerfile").write_text(_dockerfile("RUN pip install requests"))
     hidden = task / ".hidden"
     hidden.mkdir()
     (hidden / "install.sh").write_text("pip install requests\n")
@@ -803,7 +923,7 @@ def test_install_line_helpers_keep_unfinished_tails_and_fall_back_on_bad_quotes(
         (3, "pip install  requests  ")
     ]
     dockerfile = task / "environment/Dockerfile"
-    dockerfile.write_text('FROM python:3.12\nRUN pip install "requests\n')
+    dockerfile.write_text(_dockerfile('RUN pip install "requests'))
 
     finding, = lint_task(task)
     assert (finding.rule, finding.severity, finding.path) == (

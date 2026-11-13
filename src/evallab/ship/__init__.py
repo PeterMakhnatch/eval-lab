@@ -75,14 +75,14 @@ class Ship:
         # Never let gh switch/delete a local branch in a linked worktree.
         return self.run(["gh", *args], cwd=self.directory, check=check)
 
-    def view(self) -> dict[str, Any]:
+    def view(self, *, wait: bool = True) -> dict[str, Any]:
         # GitHub reports mergeable UNKNOWN until it has computed the merge after a
         # push or a base change; ask again briefly instead of treating it as a conflict.
         for _ in range(UNKNOWN_MERGEABLE_VIEWS):
             pr = json.loads(self.gh("pr", "view", str(self.pr), "--repo", self.repo, "--json",
                 "number,state,headRefOid,headRefName,baseRefName,baseRefOid,isDraft,mergeable,"
                 "mergeStateStatus,changedFiles,labels,mergeCommit,isCrossRepository,statusCheckRollup").stdout)
-            if pr["state"] != "OPEN" or pr["mergeable"] != "UNKNOWN":
+            if not wait or pr["state"] != "OPEN" or pr["mergeable"] != "UNKNOWN":
                 return pr
             time.sleep(min(self.poll, 5))
         return pr
@@ -301,16 +301,23 @@ class Ship:
                 raise Blocked("Timed out waiting for exact-head CI")
             time.sleep(self.poll)
 
-    def execute(self) -> None:
+    def execute(self, *, preflight_only: bool = False) -> None:
         self.repo = json.loads(self.run(["gh", "repo", "view", "--json", "nameWithOwner"]).stdout)["nameWithOwner"]
         if self.data.get("repository", self.repo) != self.repo:
             raise Blocked("Receipt belongs to another repository")
         self.smoke = self.smoke or self.data.get("smoke_command")
         self.save("resolving", repository=self.repo, smoke_command=self.smoke)
-        pr = self.view()
+        pr = self.view(wait=False)
         if pr.get("isCrossRepository"):
             raise Blocked("Fork retirement is not supported; no changes made")
         self.run(["git", "fetch", "origin", pr["baseRefName"]])
+        from evallab.ship.preflight import inspect_preflight
+
+        if preflight_only:
+            if pr["baseRefName"] != "main":
+                raise Blocked("ship only delivers PRs targeting main")
+            inspect_preflight(self, pr, preflight_only=True)
+            return
         if "pr" not in self.data:
             if pr["changedFiles"] > 3000:
                 raise Blocked("PR exceeds GitHub's complete changed-path API limit")
@@ -326,7 +333,10 @@ class Ship:
             raise Blocked("PR head moved; preserve this receipt and use a fresh --state-dir")
         if pr["baseRefName"] != "main":
             raise Blocked("ship only delivers PRs targeting main")
+        inspect_preflight(self, pr)
         if pr["state"] != "MERGED":
+            if pr["mergeable"] == "UNKNOWN":
+                pr = self.view()
             self.guard(pr)
             pr["files"] = self.data["pr"]["files"]
             self.run(["git", "fetch", "origin", f"pull/{self.pr}/head"])
@@ -371,15 +381,18 @@ class Ship:
 def run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     ship = Ship(args.repo_root or root, args.pr, args.state_dir, poll=args.poll,
                 timeout=args.timeout, rerun=args.rerun_failed_once, smoke=args.smoke)
+    preflight_only = getattr(args, "preflight_only", False)
+    if preflight_only:
+        ship.path = ship.directory / f"{ship.pr}-preflight.json"
     with ship.path.with_suffix(".lock").open("a") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
             raise Blocked("Another ship process owns this PR") from exc
         # Read state under the lock, not before another writer finishes.
-        ship.data = json.loads(ship.path.read_text()) if ship.path.exists() else {}
+        ship.data = json.loads(ship.path.read_text()) if ship.path.exists() and not preflight_only else {}
         try:
-            ship.execute()
+            ship.execute(preflight_only=preflight_only)
         except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
             ship.save("blocked", error=str(exc))
             print(f"ship blocked: {exc}", flush=True)
@@ -396,4 +409,5 @@ def register_parser(commands: Any) -> None:
     parser.add_argument("--timeout", type=float, default=1800)
     parser.add_argument("--rerun-failed-once", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--smoke")
+    parser.add_argument("--preflight-only", action="store_true", help="Check delivery hazards without waiting or merging")
     parser.set_defaults(func=run_command)

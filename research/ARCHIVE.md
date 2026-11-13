@@ -662,3 +662,71 @@ Restore a recipe from the archive tag before you reproduce its stored study.
 | `research/explorations/trace-lab/har119/tools/scout_har119.py` | `git checkout archive/pre-round3-2026-11-12 -- research/explorations/trace-lab/har119/tools/scout_har119.py` |
 | `research/explorations/trace-lab/normalize/harbor_normalize.py` | `git checkout archive/pre-round3-2026-11-12 -- research/explorations/trace-lab/normalize/harbor_normalize.py` |
 | `research/qa-scoreboard/combined_v1_baseline.py` | `git checkout archive/pre-round3-2026-11-12 -- research/qa-scoreboard/combined_v1_baseline.py` |
+
+## Round 8: stale dispatch and exclusive research consumers
+
+W81 retires `submit`, `approve`, `tick`, and `tasks prepare`.
+The retained queue API and direct-run authorization still enforce paid-run approval.
+QA, hack, detectors, run-health, tasks anatomy, and registry register/promote remain supported.
+The private Hackbook task matcher, coverage helpers, card listing/formatter, cohort comparison,
+canary enqueue, task preparation, admission, VerifierCheck, and staged trace adapter have no retained executable consumers.
+Their exclusive drivers and orphan tests retire together. The card matcher and catalog leak guard stay.
+The cohort planning functions, facts extraction/analysis, task discovery/digests, and `Executor.tick` stay.
+
+The revision before this cut is `ede014da7a2e0463814785d00c4d90499fd2c9bb`.
+Inspect an archived file without changing the checkout:
+`git show ede014da7a2e0463814785d00c4d90499fd2c9bb:<path>`.
+Historical references below do not authorize execution, heldout access, or changes to labels and thresholds.
+Raw inputs, immutable results, manifests, task packages, and cited exploit witnesses remain in place.
+Frozen score sources, judge prompts, split guards, and both test-repair-performance recipes remain unchanged.
+The retained fleet census and heldout split implementation remain supported; only obsolete executable drivers retire.
+Standing skill text can describe the historical matcher. It is not a current callable API.
+
+Archived research code and its exclusive tests:
+
+- `research/analysis/harness-first/fixtures.py`
+- `research/analysis/harness-first/harness_first/__init__.py`
+- `research/analysis/harness-first/harness_first/analysis.py`
+- `research/analysis/harness-first/harness_first/collector.py`
+- `research/analysis/harness-first/harness_first/pairing.py`
+- `research/analysis/harness-first/harness_first/renderer.py`
+- `research/analysis/tests/test_harness_first_analysis.py`
+- `research/evidence/runs/corpus-expansion-lb6-20261027/tools/hackbench_adapter.py`
+- `research/evidence/runs/corpus-expansion-pq1-20261027/corpora/infatoshi__kernelbench-hard-runs/tools/adapter.py`
+- `research/evidence/runs/corpus-expansion-pq1-20261027/corpora/matu79go__reflex-sentinel-agent-trajectories/tools/adapter.py`
+- `research/evidence/runs/corpus-expansion-pq2-20261028/corpora/aisa-group__researcharena-trajectories/tools/adapter.py`
+- `research/evidence/runs/corpus-expansion-pq2-20261028/corpora/ameek__mistrace/tools/adapter.py`
+- `research/evidence/runs/corpus-expansion-pq2-20261028/corpora/b0yko__cheat-index/tools/adapter.py`
+- `research/evidence/runs/corpus-expansion-pq2-20261028/corpora/dhairyapandya__beam-tripwire-episodes/tools/adapter.py`
+- `research/evidence/runs/corpus-expansion-pq2-20261028/corpora/joesbobclaw__reward-hacking-benchmark/tools/adapter.py`
+- `research/evidence/runs/corpus-expansion-pq2-20261028/corpora/noahrossi__sdf-shortcut-taking/tools/adapter.py`
+- `research/evidence/runs/corpus-expansion-pq2-20261028/corpora/wiserhumanexperimental__evilgenie-escalation/tools/adapter.py`
+- `research/experiments/auditor-sft-v1/prepare_eval.py`
+- `research/experiments/breaker-bench-dev-v1/run_dev_pairs.py`
+- `research/experiments/breaker-bench-heldout-v1/run_heldout.py`
+- `research/experiments/breaker-rediscovery-v1/run_pilot.py`
+- `research/experiments/cheatbench-port/run_batch.sh`
+- `research/experiments/hackbook-tb4-heldout-20261021/run.py`
+- `research/experiments/har67-gepa-task-candidates/run-after-approval.sh`
+- `research/experiments/har85-mimo-gepa/run-after-approval.sh`
+- `research/experiments/leak-oracle/extract.py`
+- `research/experiments/mimo-clean-v5-census/fill_verify.py`
+- `research/experiments/mimo-daytona-nop/stage.sh`
+- `research/experiments/mimo-hack-probe/stage.sh`
+- `research/experiments/mimo-v6-full-fleet/build_fleet.py`
+- `research/experiments/mimo-v6-full-fleet/prepare_references.py`
+- `research/experiments/mimo-v6-full-fleet/repair_environments.py`
+- `research/experiments/ov1104-detbench/l0_rules.py`
+- `research/experiments/ov1104-detbench/length_signals.py`
+- `research/experiments/ov1104-judges/score_local.py`
+- `research/experiments/ov1105-hackbench/adapter.py`
+- `research/experiments/ov1105-hackbench/evaluate.py`
+- `research/experiments/ov1105-hackbench/intake.py`
+- `research/experiments/ov1106-impscale/evaluation/evaluate.py`
+- `research/experiments/ov1106-impscale/evaluation/native_line.py`
+- `research/experiments/ovn-sft-v0/make_g5_specs.py`
+- `research/experiments/ovn-sft-v0/run_g5.sh`
+- `research/experiments/tb2-to-tb21-v1/materialize.py`
+- `research/experiments/tb2-to-tb21-v1/run_tb2_to_tb21.py`
+- `research/experiments/tests/test_tb2_to_tb21_materialize.py`
+

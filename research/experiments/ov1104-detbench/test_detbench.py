@@ -1,8 +1,7 @@
-"""Unit tests for DetBench (ov1104-detbench): view builder, scorer, combinations, and tool-shape counterfactual."""
+"""Unit tests for retained DetBench view construction, scoring, and combinations."""
 
 from __future__ import annotations
 
-import copy
 import sys
 from pathlib import Path
 
@@ -10,7 +9,6 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import detbench_lib as dl  # noqa: E402
-import l0_rules  # noqa: E402
 
 from evallab.score import metrics  # noqa: E402
 
@@ -115,91 +113,3 @@ def test_choose_threshold_and_combine_methods(tmp_path: Path) -> None:
     )
     assert rc == 0
 
-
-def test_map_tool_shapes_counterfactual() -> None:
-    doc = {
-        "steps": [
-            {
-                "step_id": 1,
-                "source": "agent",
-                "message": "",
-                "tool_calls": [
-                    {"function_name": "bash_command", "arguments": {"keystrokes": "pytest -q\n"}},
-                    {"function_name": "glob", "arguments": {"pattern": "*.py"}},
-                    {"function_name": "edit_file", "arguments": {"path": "a.py", "new_str": "x=1"}},
-                ],
-            }
-        ]
-    }
-    mapped_doc, counts = l0_rules.map_tool_shapes(doc)
-    calls = mapped_doc["steps"][0]["tool_calls"]
-    assert calls[0]["function_name"] == "bash"
-    assert calls[0]["arguments"] == {"command": "pytest -q\n"}
-    assert calls[1]["function_name"] == "think"
-    assert calls[2]["function_name"] == "edit"
-    assert counts["bash_command->bash"] == 1
-    assert counts["glob->think"] == 1
-    assert counts["edit_file->edit"] == 1
-
-
-def test_map_tool_shapes_v2_reads_every_residual_shape() -> None:
-    """cf2 must leave no tool name unread, and must keep the content of capitalised shell names."""
-    doc = {
-        "steps": [
-            {
-                "step_id": 1,
-                "source": "agent",
-                "message": "",
-                "tool_calls": [
-                    {"function_name": "Bash", "arguments": {"command": "grep -r secret ."}},
-                    {"function_name": "safe_bash", "arguments": {"command": "rm -rf tests"}},
-                    {"function_name": "safe_python", "arguments": {"code": "import subprocess"}},
-                    {
-                        "function_name": "text_editor",
-                        "arguments": {"path": "t.py", "content": "pass"},
-                    },
-                    {"function_name": "run_tests", "arguments": {"command": "pytest"}},
-                    {"function_name": "str_replace_editor", "arguments": {"path": "u.py"}},
-                    {"function_name": "submit", "arguments": {"answer": "done"}},
-                    {"function_name": "totally_made_up_tool", "arguments": {"x": 1}},
-                ],
-            }
-        ]
-    }
-    mapped_doc, counts = l0_rules.map_tool_shapes_v2(doc)
-    calls = mapped_doc["steps"][0]["tool_calls"]
-    names = [c["function_name"] for c in calls]
-    assert names == ["bash", "bash", "python", "edit", "bash", "edit", "think", "think"], names
-    assert calls[0]["arguments"]["command"] == "grep -r secret ."
-    assert calls[1]["arguments"]["command"] == "rm -rf tests"
-    assert calls[2]["arguments"]["code"] == "import subprocess"
-    assert calls[3]["arguments"]["path"] == "t.py"
-    assert calls[4]["arguments"]["command"] == "pytest"
-    assert calls[5]["arguments"]["path"] == "u.py"
-    assert counts["unknown(totally_made_up_tool)->think"] == 1
-    assert counts["Bash->bash"] == 1
-    assert counts["safe_bash->bash"] == 1
-    assert counts["str_replace_editor->edit"] == 1
-
-
-def test_map_tool_shapes_v2_preserves_cf1_mappings() -> None:
-    """A shape cf1 already mapped must keep cf1's mapping under cf2."""
-    doc = {
-        "steps": [
-            {
-                "step_id": 1,
-                "source": "agent",
-                "message": "",
-                "tool_calls": [
-                    {"function_name": "bash_command", "arguments": {"keystrokes": "ls\n"}},
-                    {"function_name": "read_file", "arguments": {"path": "a.py"}},
-                ],
-            }
-        ]
-    }
-    cf1_doc, _ = l0_rules.map_tool_shapes(copy.deepcopy(doc))
-    cf2_doc, _ = l0_rules.map_tool_shapes_v2(copy.deepcopy(doc))
-    cf1_names = [c["function_name"] for c in cf1_doc["steps"][0]["tool_calls"]]
-    cf2_names = [c["function_name"] for c in cf2_doc["steps"][0]["tool_calls"]]
-    assert cf1_names == cf2_names
-    assert cf2_doc["steps"][0]["tool_calls"][0]["arguments"] == {"command": "ls\n"}

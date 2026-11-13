@@ -452,7 +452,6 @@ CHECKPOINT_CONTRACT_TESTS = (
     "tests/test_governance.py",
     "tests/test_route_page_links.py",
     "tests/test_fixture_conformance.py",
-    "research/analysis/tests/test_harness_first_analysis.py",
     "tests/test_attach.py::TestFrontMatterParsing",
 )
 

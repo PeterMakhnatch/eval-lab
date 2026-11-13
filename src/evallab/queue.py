@@ -19,7 +19,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -77,16 +77,11 @@ from evallab.interpretation.trajectory_compliance import (
 )
 from evallab.job_diff import DiffPreview, preview_diff, render_diff
 from evallab.profiles import (
+    CONTROL_ADAPTERS,
     DEFAULT_AGENT_MODELS,
     available_credentials,
     missing_credential_for,
 )
-
-if TYPE_CHECKING:
-    from evallab.modal_ops import ModalTeardownHook
-
-
-from evallab.profiles import CONTROL_ADAPTERS
 from evallab.quota import (
     Headroom,
     claude_dispatch_quota_record,
@@ -165,16 +160,13 @@ def approved_spec_digest(spec: ExperimentSpec) -> str:
 
 
 def authorization_required_message(spec: ExperimentSpec) -> str:
-    """The refusal an operator reads — in `submit` output and in queue/reasons/."""
+    """Explain the named-approval refusal recorded in queue/reasons/."""
     spec_id = spec.spec_id or "<spec-id>"
     subscription = provider_subscription_description(spec.agent, spec.model)
     return (
         f"{spec.agent} is a non-control agent and requires named human approval. "
-        f"Cost/account basis: {subscription}. This spec waits until "
-        "a named human authorises it.\n"
-        f"  authorise: uv run evallab approve {spec_id} --actor <you>\n"
-        f'  refuse:    uv run evallab reject {spec_id} --actor <you> --reason "<why>"\n'
-        f"  then run:  uv run evallab tick --spec-id {spec_id}\n"
+        f"Cost/account basis: {subscription}. "
+        f"The billable request ({spec_id}) remains blocked; manual queue commands are retired.\n"
         "The free oracle and nop controls are unaffected and still run unattended."
     )
 
@@ -633,8 +625,8 @@ class PolicyGate:
                     reason_code="paid_run_authorization_mismatch",
                     message=(
                         "this spec records no submission time, so the authorisation "
-                        "cannot be shown to cover it; resubmit it with "
-                        "`uv run evallab submit` and authorise the id that prints"
+                        "cannot be shown to cover it. "
+                        "The billable request remains blocked; manual queue commands are retired."
                     ),
                 )
             if (
@@ -649,8 +641,8 @@ class PolicyGate:
                         f"the authorisation {authorization.actor} recorded at "
                         f"{authorization.authorized_at.isoformat()} predates this spec "
                         f"(submitted {spec.submitted_at.isoformat()}); a spec id is a "
-                        "name, not a reusable token. Authorise the current spec: "
-                        f"uv run evallab approve {spec.spec_id} --actor <you>"
+                        "name, not a reusable token. "
+                        "The billable request remains blocked; manual queue commands are retired."
                     ),
                 )
             # The provider's own statement that paid work cannot succeed. This
@@ -671,9 +663,7 @@ class PolicyGate:
                         "This is the provider's own account of its allowance, not a "
                         "threshold this lab invented.\n"
                         f"{render_headroom_notice(headroom, agent=spec.agent, model=spec.model)}\n"
-                        "  override, only if you have reason to believe the reading is "
-                        f"wrong: uv run evallab approve {spec.spec_id} --actor <you> "
-                        "--despite-quota"
+                        "The billable request remains blocked; manual queue commands are retired."
                     ),
                 )
             if spec.agent == "claude-code" and claude_quota_unavailable(headroom):
@@ -696,8 +686,7 @@ class PolicyGate:
                     message=(
                         f"{threshold_reached}.\n"
                         f"{render_headroom_notice(headroom, agent=spec.agent, model=spec.model)}\n"
-                        f"  override: uv run evallab approve {spec.spec_id} "
-                        "--actor <you> --despite-quota"
+                        "The billable request remains blocked; manual queue commands are retired."
                     ),
                 )
             if spec.est_cost_usd > self.policy.per_job_cost_ceiling_usd:
@@ -1494,7 +1483,7 @@ class Executor:
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
         parallel: int | None = None,
         capacity: DispatchCapacity | None = None,
-        modal_teardown: ModalTeardownHook | None = None,
+        modal_teardown: Callable[[DirectoryQueue, Path, list[ExperimentSpec]], dict[str, Any] | None] | None = None,
         watch_enabled: bool = True,
         watch_interval_seconds: float = 60.0,
         selfhosted_warmup_seconds: float = 600.0,
@@ -1571,7 +1560,7 @@ class Executor:
         capacity: DispatchCapacity | None = None,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
         create_queue: bool = True,
-        modal_teardown: ModalTeardownHook | None = None,
+        modal_teardown: Callable[[DirectoryQueue, Path, list[ExperimentSpec]], dict[str, Any] | None] | None = None,
         selfhosted_warmup_seconds: float = 600.0,
         selfhosted_probe_timeout_seconds: float = 10.0,
         smoke_gate_enabled: bool = True,

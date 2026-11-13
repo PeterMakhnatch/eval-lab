@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
@@ -19,7 +19,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from evallab.qa.models import Category
 
 ENTRY_SCHEMA = "evallab.hackbook.entry/v0"
-MATCH_SCHEMA = "evallab.hackbook.match/v0"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_HACKBOOK_DIR = Path("research/hackbook")
 TB4_AUDIT_DIR = Path("research/answer-keys/tb4-audit-v1")
@@ -178,46 +177,6 @@ class HackbookEntry(_Model):
         return self.model_dump(by_alias=True, mode="json")
 
 
-class HackbookMatchHit(_Model):
-    """One ranked Hackbook entry matched against a task package."""
-
-    entry_id: str
-    slug: str
-    title: str
-    taxonomy_class_id: str
-    taxonomy_class: str
-    side: Side
-    direction: Direction
-    qa_category: Category
-    score: float
-    matched_signals: list[str] = Field(default_factory=list)
-    regex_hits: list[dict[str, Any]] = Field(default_factory=list)
-    evidence_refs: list[str] = Field(default_factory=list)
-    detection_recipe: DetectionRecipe
-    # Share of a declared fleet this entry fires on (``--fleet-rates``); ``non_discriminating``
-    # marks entries above the prevalence gate: they measure the harness, not the task or run.
-    fleet_rate: float | None = None
-    non_discriminating: bool = False
-    exploit_template: ExploitTemplate
-    fix_pattern: FixPattern
-
-
-class HackbookMatchResult(_Model):
-    """Match output for one task package or exported view."""
-
-    schema_: Literal["evallab.hackbook.match/v0"] = Field(default=MATCH_SCHEMA, alias="schema")
-    kind: Literal["task", "view"]
-    target: str
-    task_id: str | None = None
-    signals: dict[str, list[str]] = Field(default_factory=dict)
-    matches: list[HackbookMatchHit] = Field(default_factory=list)
-    tasks: list[HackbookMatchResult] = Field(default_factory=list)
-    aggregate: list[dict[str, Any]] = Field(default_factory=list)
-
-
-HackbookMatchResult.model_rebuild()
-
-
 def _root(root: Path | None) -> Path:
     return REPO_ROOT if root is None else Path(root)
 
@@ -273,13 +232,6 @@ def get_entry(
             names = ", ".join(e.id for e in found[:8])
             raise KeyError(f"ambiguous hackbook entry {entry_id_or_slug!r}: {names}")
     raise KeyError(f"no hackbook entry {entry_id_or_slug!r}")
-
-
-def class_matches(entry: HackbookEntry, taxonomy_class: str | None) -> bool:
-    if not taxonomy_class:
-        return True
-    want = taxonomy_class.strip().lower()
-    return want in (entry.taxonomy_class_id.lower(), entry.taxonomy_class.lower())
 
 
 _TOKEN = re.compile(r"[a-z0-9]+")
@@ -341,103 +293,3 @@ def validate_no_tb4_test_leak(
         text = json.dumps(entry.dump(), sort_keys=True)
         problems += [f"{entry.id}: {term}" for term in find_tb4_test_leaks(text, root=root)]
     return problems
-
-
-def _status_counts(examples: Iterable[HackbookExample]) -> dict[str, int]:
-    counts = {"executed": 0, "observed": 0, "claimed": 0}
-    for ex in examples:
-        counts[ex.evidence_status] += 1
-    return counts
-
-
-def coverage_summary(
-    entries: Sequence[HackbookEntry] | None = None, *, root: Path | None = None
-) -> dict[str, Any]:
-    """Build coverage tables by taxonomy class, seed source, and executed evidence."""
-    pool = list(_entries(entries, root))
-    taxonomy = load_taxonomy(root)
-    class_meta: dict[str, dict[str, str]] = {}
-    for side_key, side_name in (("task_side", "task"), ("run_side", "run")):
-        for row in taxonomy.get(side_key, []):
-            class_meta[row["id"]] = {
-                "taxonomy_class_id": row["id"],
-                "taxonomy_class": row["key"],
-                "name": row.get("name", row["key"]),
-                "side": side_name,
-                "direction": str(row.get("direction", "")),
-            }
-    by_class: list[dict[str, Any]] = []
-    for cid in sorted(class_meta):
-        c_entries = [e for e in pool if e.taxonomy_class_id == cid]
-        exec_entries = [
-            e for e in c_entries if any(ex.evidence_status == "executed" for ex in e.examples)
-        ]
-        examples = [ex for e in c_entries for ex in e.examples]
-        by_status = _status_counts(examples)
-        srcs = sorted({s for e in c_entries for s in e.sources} | {ex.source for ex in examples})
-        by_class.append(
-            {
-                **class_meta[cid],
-                "entries": len(c_entries),
-                "executed_entries": len(exec_entries),
-                "claimed_only_entries": len(c_entries) - len(exec_entries),
-                "examples": len(examples),
-                "executed_examples": by_status["executed"],
-                "observed_examples": by_status["observed"],
-                "claimed_examples": by_status["claimed"],
-                "entry_ids": [e.id for e in c_entries],
-                "sources": srcs,
-            }
-        )
-    all_sources = sorted(
-        {s for e in pool for s in e.sources} | {ex.source for e in pool for ex in e.examples}
-    )
-    by_source: list[dict[str, Any]] = []
-    for src in all_sources:
-        s_entries = [
-            e for e in pool if src in e.sources or any(ex.source == src for ex in e.examples)
-        ]
-        s_exec_entries = [
-            e
-            for e in s_entries
-            if any(
-                ex.evidence_status == "executed" and (ex.source == src or src in e.sources)
-                for ex in e.examples
-            )
-        ]
-        s_examples = [ex for e in pool for ex in e.examples if ex.source == src]
-        s_status = _status_counts(s_examples)
-        by_source.append(
-            {
-                "source": src,
-                "entries": len(s_entries),
-                "executed_entries": len(s_exec_entries),
-                "examples": len(s_examples),
-                "executed_examples": s_status["executed"],
-                "observed_examples": s_status["observed"],
-                "claimed_examples": s_status["claimed"],
-                "classes": sorted({e.taxonomy_class_id for e in s_entries}),
-            }
-        )
-    exec_entry_ids = [
-        e.id for e in pool if any(ex.evidence_status == "executed" for ex in e.examples)
-    ]
-    claimed_only_ids = [e.id for e in pool if e.id not in set(exec_entry_ids)]
-    all_examples = [ex for e in pool for ex in e.examples]
-    total_status = _status_counts(all_examples)
-    return {
-        "total_entries": len(pool),
-        "task_side_entries": sum(1 for e in pool if e.side == "task"),
-        "run_side_entries": sum(1 for e in pool if e.side == "run"),
-        "entries_with_executed_evidence": len(exec_entry_ids),
-        "entries_claimed_only": len(claimed_only_ids),
-        "executed_entry_share": round(len(exec_entry_ids) / len(pool), 4) if pool else 0.0,
-        "total_examples": len(all_examples),
-        "executed_examples": total_status["executed"],
-        "observed_examples": total_status["observed"],
-        "claimed_examples": total_status["claimed"],
-        "executed_entry_ids": exec_entry_ids,
-        "claimed_only_entry_ids": claimed_only_ids,
-        "by_class": by_class,
-        "by_source": by_source,
-    }

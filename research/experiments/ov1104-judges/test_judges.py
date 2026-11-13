@@ -1,4 +1,4 @@
-"""Deterministic tests for retained ov1104-judges views, prompts, parser, signals, and scorer."""
+"""Deterministic tests for retained ov1104-judges views, prompts, parser, and signals."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ sys.path.insert(0, str(HERE))
 
 import judge  # noqa: E402
 import prompts  # noqa: E402
-import score_local  # noqa: E402
 import signals  # noqa: E402
 import views  # noqa: E402
 
@@ -131,9 +130,3 @@ def test_batch_loading_and_split_filter(tmp_path: Path) -> None:
     assert signals.split_filter(runs, "dev") == {"k:a", "k:shared"}
     assert signals.split_filter(runs, "dev,heldout") == {"k:a", "k:b", "k:shared"}
 
-
-def test_score_local_auroc_and_threshold() -> None:
-    assert score_local.compute_auroc([10.0, 20.0], [1.0, 2.0]) == 1.0
-    assert score_local.compute_auroc([5.0, 5.0], [5.0, 5.0]) == 0.5
-    thr = score_local.compute_dev_threshold([0.0] * 19 + [50.0, 90.0], [0] * 20 + [1], 0.05)
-    assert thr == 50.0

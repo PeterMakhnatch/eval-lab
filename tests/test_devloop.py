@@ -192,7 +192,6 @@ def test_all_declared_test_roots_are_selected_and_explained(tmp_path) -> None:
         "dashboard/tests",
         "research/analysis/tests",
         "research/calibration/tests",
-        "research/experiments/tests",
     ]
     (tmp_path / "pyproject.toml").write_text(
         "[tool.pytest.ini_options]\ntestpaths = " + json.dumps(roots) + "\n"
@@ -557,7 +556,6 @@ def test_checkpoint_always_selects_repository_contracts(tmp_path, changed) -> No
         "tests/test_governance.py",
         "tests/test_route_page_links.py",
         "tests/test_fixture_conformance.py",
-        "research/analysis/tests/test_harness_first_analysis.py",
         "tests/test_attach.py::TestFrontMatterParsing",
     }
     for selector in contracts:

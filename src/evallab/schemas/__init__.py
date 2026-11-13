@@ -84,10 +84,9 @@ def validated_jobs_dir(value: str) -> str:
         "addressed as <jobs-root>/<job>/<trial> — the shape the executor writes "
         "and the only shape Harbor's viewer scans — and discovery scans fixed "
         "roots, not this value, so the run would be written and then be "
-        "invisible to `evallab status` and the run explorer (M009 F-04). Set "
+        "invisible to the run explorer (M009 F-04). Set "
         f'"jobs_dir": "{EXPLORATION_JOBS_ROOT}" in the spec and let the run\'s '
-        "`name` distinguish it, then resubmit with `uv run evallab submit "
-        "<spec.json>`"
+        "`name` distinguish it; manual queue commands are retired."
     )
 
 
@@ -1330,69 +1329,6 @@ class AnalysisReview(ContractModel):
 #: artifact type added later — and reports them as malformed sidecars.
 ANALYSIS_SIDECAR_FILENAME = "analysis.json"
 ANALYSIS_REVIEWS_DIRNAME = "reviews"
-
-
-class CanaryMember(ContractModel):
-    name: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
-    task_path: str = Field(min_length=1)
-    task_version: str = Field(min_length=1)
-    task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    source_ref: str = Field(min_length=1)
-    source_content_hash: str | None = Field(
-        default=None,
-        pattern=r"^sha256:[0-9a-f]{64}$",
-    )
-    source_task_name: str | None = None
-    est_cost_usd: float = Field(ge=0)
-
-    @field_validator("task_path")
-    @classmethod
-    def task_path_is_repo_relative(cls, value: str) -> str:
-        if value.startswith("/") or ".." in value.split("/"):
-            raise ValueError("task_path must stay relative to the repository")
-        return value
-
-    @field_validator("source_ref")
-    @classmethod
-    def source_ref_is_immutable(cls, value: str) -> str:
-        ref = value.rsplit("@", 1)[-1].lower()
-        if "@" not in value or ref in {"latest", "head", "main", "master"}:
-            raise ValueError("source_ref must include an immutable revision")
-        return value
-
-
-class CanarySuite(ContractModel):
-    version: Literal[1] = 1
-    attempts: Literal[3] = 3
-    agents: list[Literal["codex", "claude-code", "oracle", "nop"]] = Field(min_length=1)
-    members: list[CanaryMember] = Field(min_length=3, max_length=5)
-    interval_seconds: int = Field(default=86400, gt=0, le=86400)
-    max_cycles_per_day: int = Field(default=1, gt=0)
-
-    @model_validator(mode="after")
-    def member_names_are_unique(self) -> CanarySuite:
-        names = [member.name for member in self.members]
-        if len(names) != len(set(names)):
-            raise ValueError("canary member names must be unique")
-        return self
-
-    @model_validator(mode="after")
-    def cadence_is_bounded(self) -> CanarySuite:
-        available_slots = (86400 + self.interval_seconds - 1) // self.interval_seconds
-        if self.max_cycles_per_day > available_slots:
-            raise ValueError(
-                f"max_cycles_per_day ({self.max_cycles_per_day}) exceeds available slots per day "
-                f"({available_slots}) for interval {self.interval_seconds}s"
-            )
-        return self
-
-    @model_validator(mode="after")
-    def billable_costs_are_positive(self) -> CanarySuite:
-        if any(agent not in {"oracle", "nop"} for agent in self.agents) and any(
-            member.est_cost_usd == 0 for member in self.members
-        ):
-            raise ValueError("billable canary members require a positive cost estimate")
-        return self
 
 
 class CanaryDriftObservation(ContractModel):

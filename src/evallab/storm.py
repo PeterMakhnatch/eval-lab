@@ -54,7 +54,8 @@ REASON_CODE_ACTIONS: dict[str, tuple[AlarmLevel, str]] = {
     "paid_run_unauthorized": (
         "warning",
         "Multiple specs waiting for paid run authorization. "
-        "Operator review needed: approve with --actor or verify standing policy.",
+        "Operator review needed: paid execution requires a current named authorization. "
+        "Manual queue commands are retired.",
     ),
     "paid_run_authorization_mismatch": (
         "warning",
@@ -64,7 +65,7 @@ REASON_CODE_ACTIONS: dict[str, tuple[AlarmLevel, str]] = {
     "paid_run_authorization_stale": (
         "warning",
         "Recorded authorization predates spec submission. "
-        "Re-approve with fresh authorization.",
+        "Keep execution blocked until a current named authorization is recorded.",
     ),
     "purposeless_spec": (
         "warning",

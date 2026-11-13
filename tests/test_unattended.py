@@ -7,25 +7,19 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
-import yaml
 
 import evallab.automation as automation_module
 import evallab.cli as cli_module
 from evallab.automation import (
-    GuardedTick,
     HeadlessDoctor,
     audit_launch_agents,
 )
-from evallab.canary import CanaryEnqueuer, task_directory_digest
 from evallab.digest import DigestRenderer, DigestTrial
-from evallab.queue import DirectoryQueue, Executor, load_events
+from evallab.queue import DirectoryQueue, Executor
 from evallab.schemas import (
     AutoRunRule,
     CanaryDriftObservation,
     ExperimentSpec,
-    HeadlessDoctorChecks,
-    HeadlessDoctorReport,
-    LaunchAgentAudit,
     QueueEvent,
     StandingApprovalsPolicy,
 )
@@ -51,34 +45,6 @@ class RuntimeChecks:
             ("uv", True, "must-not-escape"),
             ("docker-daemon", self.docker_ok, "must-not-escape"),
         ]
-
-
-class StaticDoctor:
-    def __init__(self, report: HeadlessDoctorReport) -> None:
-        self.report = report
-
-    def run(self) -> HeadlessDoctorReport:
-        return self.report
-
-
-def health_report(
-    *, keychain_readable: bool = True, codex_auth_present: bool = True
-) -> HeadlessDoctorReport:
-    checks = HeadlessDoctorChecks(
-        keychain_readable=keychain_readable,
-        codex_auth_present=codex_auth_present,
-        docker_reachable=True,
-        postgres_reachable=True,
-        disk_headroom=True,
-        launch_agents_intact=True,
-    )
-    healthy = checks.docker_reachable and checks.postgres_reachable and checks.disk_headroom
-    return HeadlessDoctorReport(
-        checked_at=datetime.now(UTC),
-        healthy=healthy,
-        checks=checks,
-        launch_agents=LaunchAgentAudit(checked=0),
-    )
 
 
 def test_headless_doctor_emits_boolean_contract_without_secret_values(tmp_path: Path) -> None:
@@ -331,57 +297,6 @@ class FakeLaunchctl:
         return subprocess.CompletedProcess(command, code, self.output, "")
 
 
-def test_guarded_tick_records_dispatch_idle_and_stop_deferrals(tmp_path: Path) -> None:
-    queue = DirectoryQueue(tmp_path / "queue")
-
-    def runner(request):
-        job = request.jobs_dir / request.name
-        job.mkdir(parents=True)
-        return job
-
-    service = Executor(
-        repo_root=tmp_path,
-        queue=queue,
-        policy=policy(),
-        runner=runner,
-        ingester=lambda _path: None,
-        spent_today=lambda: 0,
-        consecutive_harness_failures=lambda: 0,
-        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
-    )
-    tick = GuardedTick(
-        doctor=StaticDoctor(health_report()),  # type: ignore[arg-type]
-        executor=service,
-    )
-
-    assert tick.run().dispatched == 0
-    service.queue.stop()
-    assert tick.run().dispatched == 0
-    service.queue.resume()
-    service.submit(
-        ExperimentSpec(
-            name="tick-outcome-control",
-            hypothesis="record a dispatched cycle",
-            purpose="practice",
-            task="library/tasks/event-summary",
-            agent="oracle",
-            submitted_by="scheduler-test",
-        )
-    )
-    assert tick.run().dispatched == 1
-
-    outcomes = [
-        (event.event, event.reason_code)
-        for event in load_events(queue.events_path)
-        if event.actor == "scheduled-tick"
-    ]
-    assert outcomes == [
-        ("tick_deferred", "no_approved_specs"),
-        ("tick_deferred", "stop_file_present"),
-        ("tick_dispatched", "dispatched:1"),
-    ]
-
-
 def test_digest_uses_queue_when_catalog_is_unavailable(tmp_path: Path) -> None:
     queue = DirectoryQueue(tmp_path / "queue")
     service = Executor(
@@ -544,8 +459,6 @@ def test_doctor_codex_only_night_is_healthy(tmp_path: Path) -> None:
 
 
 def test_doctor_with_no_credentials_keeps_controls_runnable(tmp_path: Path) -> None:
-    from evallab.automation import blocking_health_failures
-
     report = HeadlessDoctor(
         tmp_path,
         home=tmp_path / "empty-home",
@@ -556,66 +469,6 @@ def test_doctor_with_no_credentials_keeps_controls_runnable(tmp_path: Path) -> N
     ).run()
 
     assert report.healthy is True
-    assert blocking_health_failures(report) == []
-
-
-def test_guarded_tick_with_no_credentials_dispatches_only_controls(tmp_path: Path) -> None:
-    queue = DirectoryQueue(tmp_path / "queue")
-    requests = []
-    tick_policy = StandingApprovalsPolicy(
-        daily_cost_ceiling_usd=20,
-        per_job_cost_ceiling_usd=3,
-        quiet_failure_rule=3,
-        auto_run=[
-            AutoRunRule(name="local-controls", agents=["oracle", "nop"]),
-            AutoRunRule(name="model-controls", agents=["codex"]),
-        ],
-    )
-    service = Executor(
-        repo_root=tmp_path,
-        queue=queue,
-        policy=tick_policy,
-        runner=lambda request: requests.append(request) or (request.jobs_dir / request.name),
-        ingester=lambda _path: None,
-        spent_today=lambda: 0,
-        consecutive_harness_failures=lambda: 0,
-        credential_probe=lambda: frozenset(),
-    )
-    service.submit(
-        ExperimentSpec(
-            name="credentialless-control",
-            hypothesis="controls remain runnable without model credentials",
-            purpose="practice",
-            task="library/tasks/event-summary",
-            agent="oracle",
-            submitted_by="scheduler-test",
-        )
-    )
-    codex_waiting, _ = service.submit(
-        ExperimentSpec(
-            name="credentialless-codex",
-            hypothesis="model work waits for its own credential",
-            purpose="practice",
-            task="library/tasks/event-summary",
-            agent="codex",
-            model="openai/example",
-            est_cost_usd=1,
-            submitted_by="scheduler-test",
-        )
-    )
-    # Paid work reaches approved/ only through a recorded human authorisation.
-    queue.approve(str(queue.load(codex_waiting).spec_id), actor="peter")
-    doctor = StaticDoctor(health_report(keychain_readable=False, codex_auth_present=False))
-
-    result = GuardedTick(doctor=doctor, executor=service).run()  # type: ignore[arg-type]
-
-    assert result.dispatched == 1
-    assert [request.name for request in requests] == ["credentialless-control"]
-    assert [spec.name for _, spec in queue.list_specs("approved")] == ["credentialless-codex"]
-    terminal = [
-        event for event in load_events(queue.events_path) if event.actor == "scheduled-tick"
-    ]
-    assert terminal[-1].event == "tick_dispatched"
 
 
 def _section_body(text: str, heading: str) -> list[str]:
@@ -830,113 +683,6 @@ def test_digest_calibrates_a_judge_only_on_an_evidence_bound_record(tmp_path: Pa
     assert "no judge is calibrated" not in passing
 
 
-def _create_fixture_suite(
-    root: Path, *, name: str = "suite", agents: list[str] | None = None
-) -> Path:
-    members = []
-    for i in range(3):
-        task_dir = root / f"library/tasks/{name}-{i}"
-        task_dir.mkdir(parents=True, exist_ok=True)
-        (task_dir / "task.toml").write_text(f'name = "{name}-{i}"\n')
-        members.append(
-            {
-                "name": f"member-{i}",
-                "task_path": f"library/tasks/{name}-{i}",
-                "task_version": "1.0.0",
-                "task_digest": task_directory_digest(task_dir),
-                "source_ref": f"test/{name}-{i}@1",
-                "est_cost_usd": 0,
-            }
-        )
-    suite_data = {
-        "version": 1,
-        "attempts": 3,
-        "agents": agents or ["oracle"],
-        "members": members,
-        "interval_seconds": 3600,
-        "max_cycles_per_day": 2,
-    }
-    path = root / f"{name}.yaml"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.dump(suite_data))
-    return path
-
-
-def test_guarded_tick_with_opt_in_canary_suite(tmp_path: Path) -> None:
-    _create_fixture_suite(tmp_path, name="policy/canary-suite")
-    queue = DirectoryQueue(tmp_path / "queue")
-    dispatched_requests = []
-    service = Executor(
-        repo_root=tmp_path,
-        queue=queue,
-        policy=StandingApprovalsPolicy(
-            daily_cost_ceiling_usd=20,
-            per_job_cost_ceiling_usd=3,
-            quiet_failure_rule=3,
-            auto_run=[
-                AutoRunRule(
-                    name="canary",
-                    tasks=["canary/*"],
-                    agents=["oracle"],
-                    max_attempts=3,
-                )
-            ],
-        ),
-        runner=lambda req: (dispatched_requests.append(req), tmp_path / "runs" / req.name)[1],
-        ingester=lambda _path: None,
-        spent_today=lambda: 0,
-        consecutive_harness_failures=lambda: 0,
-    )
-    enqueuer = CanaryEnqueuer.from_repo(tmp_path, service)
-    guarded = GuardedTick(
-        doctor=StaticDoctor(health_report()),
-        executor=service,
-        canary_enqueuer=lambda: enqueuer.enqueue_due(datetime(2026, 9, 6, 14, 15, tzinfo=UTC)),
-    )
-
-    result = guarded.run()
-    assert result.enqueued == 3
-    assert result.dispatched == 3
-    assert result.quarantined is False
-
-    # Second run in same slot enqueues nothing and dispatches nothing
-    result2 = guarded.run()
-    assert result2.enqueued == 0
-    assert result2.dispatched == 0
-
-
-def test_guarded_tick_canary_digest_mismatch_quarantines_without_dispatch(tmp_path: Path) -> None:
-    _create_fixture_suite(tmp_path, name="policy/canary-suite")
-    queue = DirectoryQueue(tmp_path / "queue")
-    service = Executor(
-        repo_root=tmp_path,
-        queue=queue,
-        policy=policy(),
-        runner=lambda req: tmp_path / "runs" / req.name,
-        ingester=lambda _path: None,
-        spent_today=lambda: 0,
-        consecutive_harness_failures=lambda: 0,
-    )
-    enqueuer = CanaryEnqueuer.from_repo(tmp_path, service)
-
-    # Mutate a task file
-    (tmp_path / "library/tasks/policy/canary-suite-0/task.toml").write_text("corrupted\n")
-
-    guarded = GuardedTick(
-        doctor=StaticDoctor(health_report()),
-        executor=service,
-        canary_enqueuer=lambda: enqueuer.enqueue_due(datetime(2026, 9, 6, 14, 15, tzinfo=UTC)),
-    )
-    result = guarded.run()
-    assert result.quarantined is True
-    assert result.dispatched == 0
-    events = load_events(service.queue.events_path)
-    assert any(
-        e.event == "tick_quarantined" and "canary_enqueue_failed" in (e.reason_code or "")
-        for e in events
-    )
-
-
 def _provider_route_queue_payload(name: str) -> dict:
     """A queued spec as the metered-screening lane actually wrote it.
 
@@ -973,17 +719,8 @@ def _provider_route_queue_payload(name: str) -> dict:
     }
 
 
-
-
-def test_nightly_enqueue_survives_a_provider_route_spec_in_the_queue(tmp_path: Path) -> None:
-    """One lane's spec format must not be able to kill the whole nightly.
-
-    `CanaryEnqueuer` enumerates every queue state before it stages anything, so
-    a single unreadable file anywhere in the queue ends the run. This pins that
-    the provider-route fields a shipped lane writes stay readable, and that the
-    canaries are still staged afterwards.
-    """
-    _create_fixture_suite(tmp_path, name="policy/canary-suite")
+def test_executor_reads_legacy_provider_route_specs_without_dispatch(tmp_path: Path) -> None:
+    """Legacy provider-route fields remain readable through the retained queue API."""
     queue = DirectoryQueue(tmp_path / "queue")
     waiting = queue.state_dir("waiting")
     waiting.mkdir(parents=True, exist_ok=True)
@@ -995,38 +732,20 @@ def test_nightly_enqueue_survives_a_provider_route_spec_in_the_queue(tmp_path: P
     service = Executor(
         repo_root=tmp_path,
         queue=queue,
-        policy=StandingApprovalsPolicy(
-            daily_cost_ceiling_usd=20,
-            per_job_cost_ceiling_usd=3,
-            quiet_failure_rule=3,
-            auto_run=[
-                AutoRunRule(
-                    name="canary",
-                    tasks=["canary/*"],
-                    agents=["oracle"],
-                    max_attempts=3,
-                )
-            ],
-        ),
+        policy=policy(),
         runner=lambda req: (dispatched_requests.append(req), tmp_path / "runs" / req.name)[1],
         ingester=lambda _path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset(),
     )
-    enqueuer = CanaryEnqueuer.from_repo(tmp_path, service)
-    guarded = GuardedTick(
-        doctor=StaticDoctor(health_report()),
-        executor=service,
-        canary_enqueuer=lambda: enqueuer.enqueue_due(datetime(2026, 9, 6, 14, 15, tzinfo=UTC)),
-    )
+    [(path, queued)] = queue.list_specs("waiting")
+    assert str(queued.spec_id) == "01M1KXAY7CHKF9YGXV2NAE1R6J"
+    assert queued.provider_routes == []
+    assert queued.provider_exhaustion_behavior == "fail"
+    original = path.read_bytes()
 
-    result = guarded.run()
-
-    assert result.quarantined is False
-    assert result.enqueued == 3
-    assert result.dispatched == 3
-    assert not any(
-        "canary_enqueue_failed" in (event.reason_code or "")
-        for event in load_events(service.queue.events_path)
-    )
-
+    assert service.tick() == 0
+    assert dispatched_requests == []
+    assert path.read_bytes() == original
+    assert queue.locate(str(queued.spec_id)).parent.name == "waiting"

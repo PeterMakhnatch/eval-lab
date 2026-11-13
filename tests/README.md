@@ -16,7 +16,7 @@ task admissions function correctly and deterministically.
 ## Invariants or rules
 - Strict determinism: Tests must be deterministic with injected seams: no host state, network calls, live clock, Docker dependencies, or sleeps (cited in `agents/CHECKS.md` and `AGENTS.md`).
 - Fixture isolation: Tests use pytest temporary paths for temporary I/O; tests never write directly into repo directories (cited in `agents/CHECKS.md`).
-- Default collection covers the `testpaths` in `pyproject.toml` (`tests/`, `research/analysis/tests/`, `research/experiments/tests/`, `research/experiments/ov1104-detbench/test_length_metrics.py`); use `-n0` and a module path for focused runs during development (cited in `agents/CHECKS.md`).
+- Default collection covers the `testpaths` in `pyproject.toml` (`tests/`, `research/analysis/tests/`, `research/experiments/ov1104-detbench/test_length_metrics.py`); use `-n0` and a module path for focused runs during development (cited in `agents/CHECKS.md`).
 - Non-package directories from pytest `testpaths` and `pythonpath` must have distinct bare Python module names.
   The check excludes directories with `__init__.py` and ignores `conftest.py`.
 

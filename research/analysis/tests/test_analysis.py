@@ -10,8 +10,6 @@ import pytest
 from evallab.evidence.facts import (
     AnalyzerCallResult,
     run_trial_analysis,
-    validate_queue_authorization,
-    write_analysis_review,
 )
 from evallab.results import load_job
 from evallab.schemas import TrialAnalysisSidecar
@@ -212,55 +210,7 @@ def test_harness_exception_cannot_be_mislabeled_as_agent_failure(tmp_path: Path)
     assert any("harness exception" in error for error in sidecar.validation_errors)
 
 
-def test_review_is_append_only_and_preserves_original_analysis(tmp_path: Path) -> None:
-    job = load_job(ROOT / "research/evidence/runs/event-summary-oracle-evidence")
-    trial = next(item for item in job.trials if item.path.name == "event-summary__FZg7pvq")
-    sidecar_path, sidecar = _run(job, trial, tmp_path)
-    original = sidecar_path.read_bytes()
-
-    review_path, review = write_analysis_review(
-        sidecar_path,
-        disposition="accepted",
-        rationale="The cited reward file supports this control-only finding.",
-        reviewer="fixture-reviewer",
-        reviewed_at=datetime(2026, 8, 14, tzinfo=UTC),
-    )
-
-    assert review.analysis_id == sidecar.analysis_id
-    assert review_path.is_file()
-    assert sidecar_path.read_bytes() == original
 
 
-def test_live_adapter_requires_matching_running_queue_authorization(tmp_path: Path) -> None:
-    root = tmp_path / "repo"
-    proposed = root / "queue/proposed/request.json"
-    proposed.parent.mkdir(parents=True)
-    proposed.write_text("{}")
-
-    with pytest.raises(ValueError, match="queue/running"):
-        validate_queue_authorization(
-            proposed,
-            repo_root=root,
-            source_trial_id="trial-1",
-        )
-
-    running = root / "queue/running/request.json"
-    running.parent.mkdir(parents=True)
-    running.write_text(
-        json.dumps(
-            {
-                "kind": "researcher-followup",
-                "policy_rule": "researcher-followups",
-                "source_trial_id": "trial-1",
-                "max_model_calls": 2,
-            }
-        )
-    )
-    authorization = validate_queue_authorization(
-        running,
-        repo_root=root,
-        source_trial_id="trial-1",
-    )
-    assert authorization["max_model_calls"] == 2
 
 

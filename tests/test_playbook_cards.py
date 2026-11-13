@@ -7,8 +7,6 @@ from pathlib import Path
 import pytest
 
 from evallab.hackbook.playbook_cards import (
-    format_playbook_cards,
-    list_playbook_cards,
     match_playbook_cards,
 )
 
@@ -23,11 +21,10 @@ def test_packaged_catalog_contains_only_the_twelve_compact_cards() -> None:
     )
     assert set(payload) == {"schema", "cards"}
     assert payload["schema"] == "evallab.playbook_cards/v1"
-    cards = list_playbook_cards()
+    cards = payload["cards"]
     assert _ids(cards) == [f"QA{i:02}" for i in range(1, 7)] + [
         f"TW{i:02}" for i in range(1, 7)
     ]
-    assert cards == payload["cards"]
     for card in cards:
         assert set(card) == {
             "card_id", "trigger_flags", "mechanism_summary", "signature_pattern",
@@ -48,12 +45,6 @@ def test_catalog_works_outside_the_checkout(
 
 
 def test_returned_cards_cannot_poison_cached_catalog() -> None:
-    listed = list_playbook_cards()
-    listed[0]["card_id"] = "changed"
-    listed[0]["trigger_flags"].append("invented")
-    listed.clear()
-    assert list_playbook_cards()[0]["card_id"] == "QA01"
-    assert "invented" not in list_playbook_cards()[0]["trigger_flags"]
     matched = match_playbook_cards(["git_history_peek"])
     matched[0]["trigger_flags"].clear()
     assert _ids(match_playbook_cards(["git_history_peek"])) == ["TW02"]
@@ -98,12 +89,3 @@ def test_invalid_kind_limit_and_state_mapping_are_not_silently_matched() -> None
         match_playbook_cards({"git_history_peek": False})
 
 
-def test_formatter_is_compact_card_json_without_audit_or_invented_index() -> None:
-    cards = match_playbook_cards(["reasoning_eval_awareness", "git_history_peek"])
-    rendered = format_playbook_cards(cards)
-    lines = rendered.splitlines()
-    assert len(lines) == 2
-    assert [json.loads(line) for line in lines] == cards
-    assert all(line == json.dumps(card, ensure_ascii=False, separators=(",", ":"))
-               for line, card in zip(lines, cards, strict=True))
-    assert format_playbook_cards([]) == ""

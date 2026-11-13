@@ -2,9 +2,9 @@
 
 Raw queues/runs are read-only. Reports, projections, replay and task pages live
 under this service's state directory. No executor, model, cloud reader or network
-publisher is constructed here. The existing paid nightly cycle is separate. The
-database receives a read-only dump when the verified backup is missing or stale,
-or when ``--backup`` requests a dated dump. Backup age is always reported.
+publisher is constructed here. The database receives a read-only dump when the
+verified backup is missing or stale, or when ``--backup`` requests a dated dump.
+Backup age is always reported.
 """
 
 from __future__ import annotations
@@ -418,17 +418,15 @@ def _vanished_source(error: FileNotFoundError, checkouts: tuple[Path, ...]) -> P
 
 def backup_fact(config: RefreshConfig, moment: datetime) -> dict[str, Any]:
     """Refresh a missing/stale backup through the existing bounded dump step."""
-    from evallab.automation import DEFAULT_NIGHTLY_STEPS, StepTimeout, run_with_timeout
+    from evallab.automation import StepTimeout, run_with_timeout
 
     primary = config.data_root or shared_checkout_root(config.repo_root)
     freshness = backup_freshness(primary, now=moment)
     attempt: dict[str, Any] | None = None
     if config.backup or freshness["status"] != "fresh":
-        # The registered postgres_backup step owns the bound for this attempt.
-        step = next(step for step in DEFAULT_NIGHTLY_STEPS if step.name == "postgres_backup")
         day = moment.astimezone(ET).date()
         try:
-            path = run_with_timeout(lambda: create_postgres_backup(primary, day), step.timeout)
+            path = run_with_timeout(lambda: create_postgres_backup(primary, day), 120.0)
         except (Exception, StepTimeout) as exc:
             attempt = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
         else:

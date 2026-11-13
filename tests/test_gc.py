@@ -10,8 +10,6 @@ from evallab.gc import (
     CatalogEntry,
     doctor_disk_line,
     filesystem_catalog,
-    format_plan,
-    nightly_gc_plan,
     plan_gc,
     tombstone_dir,
 )
@@ -212,7 +210,7 @@ def test_exclusions_evidence_digest_unprojected_tombstone(tmp_path: Path) -> Non
     assert (tmp_path / "research/evidence/runs/promoted-job/result.json").is_file()
 
 
-def test_doctor_and_nightly_plan_do_not_apply(tmp_path: Path) -> None:
+def test_doctor_does_not_apply_gc(tmp_path: Path) -> None:
     now = datetime(2026, 6, 1, tzinfo=UTC)
     runs = tmp_path / "runs"
     job = make_job(
@@ -226,18 +224,6 @@ def test_doctor_and_nightly_plan_do_not_apply(tmp_path: Path) -> None:
     line = doctor_disk_line(tmp_path, clock=lambda: now, catalog=catalog, runs_dir=runs)
     assert "compress-candidates=1" in line
     assert line.startswith("disk  ")
-    plan = nightly_gc_plan(tmp_path, clock=lambda: now, catalog=catalog, runs_dir=runs)
-    assert (job / "result.json").is_file()
-    assert "WOULD" in format_plan(plan) or plan.actions[0].action == "compress"
-    digest = tmp_path / "digests/today.md"
-    digest.parent.mkdir(exist_ok=True)
-    digest.write_text("# digest\n")
-    from evallab.gc import append_gc_plan_to_digest
-
-    append_gc_plan_to_digest(digest, plan)
-    text = digest.read_text()
-    assert "WOULD compress" in text
-    assert "plan-only" in text
     assert (job / "result.json").is_file()
 
 

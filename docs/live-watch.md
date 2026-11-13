@@ -1021,9 +1021,9 @@ stack trace.
 
 ## Auto-trace
 
-`evallab nightly` ships completed **billable** trials under `runs/` after
-the digest. oracle/nop controls are skipped unless you pass
-`--include-controls` on the manual `trace` command.
+Nightly refresh reads local result metadata and writes local reports.
+It does not ship completed trials or send traces to Phoenix.
+Stored trace files and existing projected results remain unchanged.
 
 ## OpenInference
 

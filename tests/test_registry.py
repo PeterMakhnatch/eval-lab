@@ -32,7 +32,6 @@ from evallab.registry import (
     register_task,
     verify_control_evidence,
 )
-from evallab.researchers import ResearcherLoop
 from evallab.schemas import (
     ControlEvidenceRef,
     ExperimentSpec,
@@ -739,36 +738,6 @@ def test_executor_tick_end_to_end_dispatch_and_provenance(tmp_path: Path) -> Non
     assert req.provenance.package_digest == record.digests.package
     assert req.provenance.verifier_digest == record.digests.verifier
     assert req.provenance.task_path == "library/tasks/dispatched-task"
-
-
-def test_researcher_loop_preflight_makes_zero_invoker_calls_when_empty(tmp_path: Path) -> None:
-    _make_dummy_task(tmp_path, "library/tasks/some-task")
-    invoker_called = False
-
-    def stub_invoker(*args, **kwargs):
-        nonlocal invoker_called
-        invoker_called = True
-        raise AssertionError("invoker must not be called when registry is empty")
-
-    policy = StandingApprovalsPolicy(
-        daily_cost_ceiling_usd=20.0,
-        per_job_cost_ceiling_usd=3.0,
-        quiet_failure_rule=3,
-        auto_run=[
-            {"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}
-        ],
-    )
-    loop = ResearcherLoop(
-        repo_root=tmp_path,
-        invoker=stub_invoker,
-        policy=policy,
-        evidence_loader=lambda day, path: None,  # type: ignore[arg-type]
-    )
-
-    res = loop.run()
-    assert res.deferred_reason == "no_registered_tasks"
-    assert res.invocation_count == 0
-    assert not invoker_called
 
 
 def test_canaries_remain_independent_under_own_policy(tmp_path: Path) -> None:

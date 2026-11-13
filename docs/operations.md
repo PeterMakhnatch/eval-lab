@@ -212,10 +212,6 @@ require an unnecessary cold start. Old campaigns with no policy retain their app
 digests and behavior. See [cheap campaign execution](execution-tiers.md#cheap-campaign-execution-har-192-source-not-deployment)
 for the exact evidence contract, resource limits and unrun comparison plan.
 
-The nightly canary cycle still stages its paid canaries every night, but they
-land in `waiting/`, not `approved/`: staging is not a failure, and the cycle is
-not quarantined for it. Nothing dispatches until Peter authorises a spec by id.
-
 ## What the quota gate does and does not decide
 
 Authorising a paid run used to say nothing about what it would cost, because
@@ -381,9 +377,7 @@ uv run evallab preflight --useful-effect 0.15
 and a comparison whose smallest detectable difference exceeds it becomes a
 warning.
 
-The same block, byte for byte, is embedded in the nightly digest under
-`## Preflight`, and the operator-facing `evallab tick` prints it before it
-builds an executor.
+The operator-facing `evallab tick` prints the same block before it builds an executor.
 
 ## CORE tool health
 
@@ -506,7 +500,7 @@ Install the two user-session LaunchAgents:
   Per-job projection refusals retain the original guard and exact reason in `state.json` and the digest JSON; the ten-line summary lists reason classes. Refused jobs are excluded from run/trial/legit/history/page counts and never marked processed. Only changed source inputs retry them; unchanged input is a no-op even when refusals remain.
   Source `watch/hooks.jsonl` changes refresh the run and replay; generated `watch` and `processed` outputs do not trigger another refresh.
   Each queue root is an independent source. A configured `--queue-root` that is missing, or a root whose evidence vanishes mid-run (a worktree retired while the refresh walks it), is recorded under `source_failures` as `{path, reason}` in the result and digest JSON and on the digest's queue-roots line; the run restarts without that root and the remaining sources still refresh (`status: partial`). A missing path outside every source still fails the whole run. An auto-discovered worktree retired *before* the run is simply no longer discovered.
-  Every result carries `backup`: the newest checksum-verified dump under the primary's `backups/postgres/`, its creation time, age, and freshness. The limit is 36 hours. A missing or stale backup automatically runs the existing bounded `postgres_backup` step, including on unchanged evidence. `--backup` additionally requests a dated dump while the previous dump remains fresh. The result records `attempt: {ok, path|error}`. The digest shows PASS or FAIL, the backup age, and the limit.
+  Every result carries `backup`: the newest checksum-verified dump under the primary's `backups/postgres/`, its creation time, age, and freshness. The limit is 36 hours. A missing or stale backup automatically runs a dump with a 120-second guard, including on unchanged evidence. `--backup` additionally requests a dated dump while the previous dump remains fresh. The result records `attempt: {ok, path|error}`. The digest shows PASS or FAIL, the backup age, and the limit.
   Exit status: `0` means all sources and backup health pass (also `status: locked`, when another refresh holds the lock). `1` means a source fails, a backup attempt fails, or the verified backup remains missing or stale. This applies to a `noop` result too. `2` means the whole refresh fails.
   Unchanged evidence does not replay projections or advance their high-water state. If backup health or source failures changed, the digest health lines are still republished so a successful backup or retired-source recovery cannot leave yesterday's failure visible.
 
@@ -517,8 +511,8 @@ For a dispatch-only schedule that checks the approved queue every minute:
 
 `--interval-seconds` must be a positive integer; the default remains 1800.
 `--tick-only` unloads and removes an existing nightly schedule before installing
-the tick schedule. It does not run the nightly researcher, canary-enqueue,
-backup, or digest pipeline. Reinstall without `--tick-only` to restore both jobs.
+the tick schedule. It does not run nightly refresh.
+Reinstall without `--tick-only` to restore both jobs.
 Without `--canary-suite`, the timer only consumes existing approved specs: it
 does not replenish an empty queue or authorize paid work. This is periodic
 dispatch while the host is awake and the user session is active, not an
@@ -634,148 +628,21 @@ active file. A process lock serializes rotation and appends across launchd and
 manual commands. The oldest archive is the only event file removed during a
 rotation; size the retained window into any external backup or audit policy.
 
-`tick` and `nightly` both run the headless doctor first. If any infrastructure
-check fails,
-they append a boolean-only quarantine event and dispatch nothing. In particular,
+`tick` runs the headless doctor first. If any infrastructure check fails,
+it appends a boolean-only quarantine event and dispatches nothing. In particular,
 a locked or unreadable Keychain defers Claude specs; Codex and credentialless
 controls remain independently eligible. A nonblocking process lock permits only
 one executor to claim queue work; a concurrent tick records `executor_busy`
 instead of double-dispatching or losing its terminal scheduler event.
 
-## Nightly pipeline and step registry
+## Nightly refresh
 
-The unattended nightly cycle (`evallab nightly`) executes an ordered pipeline of
-registered steps (`NightlyStep` in `src/evallab/automation.py`). Each step
-declares a stable identifier (`name`), its execution callable, a wall-clock
-`timeout` (seconds), an `on_fail` policy (`abort` versus `continue`), human-readable
-`description`, and whether the step is inherently `idempotent`.
-
-### Registered step sequence
-
-Steps run in the exact order below:
-
-| # | Step Name | Timeout | `on_fail` | Idempotent | Description |
-|---|---|---:|---|:---:|---|
-| 1 | `doctor` | 60s | `abort` | Yes | Run boolean headless health probes and quarantine the cycle if infra is unhealthy |
-| 2 | `catalog_ingest` | 300s | `abort` | Yes | Ingest completed Harbor jobs into PostgreSQL catalog and Parquet projections |
-| 3 | `analysis_staging` | 60s | `continue` | Yes | Stage analysis requests for completed jobs without calling models |
-| 4 | `parquet_compaction` | 300s | `continue` | Yes | Consolidate granular Parquet partitions for closed days into `compact/dt=YYYY-MM-DD/` and prune old files |
-| 5 | `postgres_backup` | 120s | `abort` | Yes | Create an atomic, timestamped `pg_dump` backup before dispatch |
-| 6 | `canary_enqueue` | 60s | `abort` | No | Enqueue version-pinned canary evaluation specs for the day |
-| 7 | `dispatch` | executor-owned | `abort` | No | Execute approved queue specs via `Executor.tick()` |
-| 8 | `researcher_pass` | 1860s | `continue` | No | Run unattended researcher loop iterations if budget and credentials allow |
-| 9 | `lessons` | 120s | `continue` | Yes | Materialize statistical lesson views and regenerate `research/lessons.md` |
-| 10 | `digest` | 60s | `abort` | Yes | Render, enrich with fleet telemetry, and commit the daily Markdown digest |
-| 11 | `status_update` | 30s | `continue` | Yes | Generate and update the `STATUS.md` operator surface |
-
-### `on_fail` policy semantics
-
-- **`abort`**: If the step fails (raises an unhandled exception or encounters a fatal condition),
-  `quarantined` and `aborted` are set to `True`. Subsequent non-surface pipeline steps are skipped with
-  reason `quarantined_by_prior_step` or `aborted_by_prior_step`. Terminal reporting surfaces (`digest`
-  and `status_update`) still run so the quarantine state and failure event are durably rendered in the
-  human daily digest and `STATUS.md`.
-- **`continue`**: If the step fails, its failure is captured in its `StepOutcome` and logged as a
-  queue error event (e.g. `parquet_compaction_failed`, `lessons_generation_failed`). The cycle is
-  **not** quarantined, and subsequent pipeline steps continue executing.
-
-For queue event bursts and deterministic status projections, see [live watch](live-watch.md#storm-alarms-and-deterministic-status).
-For native tracing and diagnostics, see [the tracing contract](live-watch.md#native-atif-to-otlp-export).
-
-### Idempotence
-
-- **Idempotent steps** (`doctor`, `catalog_ingest`, `analysis_staging`, `parquet_compaction`,
-  `postgres_backup`, `lessons`, `digest`, `status_update`): Running these steps multiple times over
-  unchanged repository evidence produces identical artifacts and deterministic state.
-- **Inherently stateful / non-idempotent steps** (`canary_enqueue`, `dispatch`, `researcher_pass`):
-  These steps advance the queue, execute trials, or consume daily researcher quotas. They mutate queue
-  directories and consume execution allowances.
-
-### Timeout enforcement
-
-`NightlyCycle.run` enforces each declared `timeout` with a main-thread `SIGALRM`
-(`run_with_timeout`). On expiry it terminates every child process started since
-the cycle began (SIGTERM to each child and to any process group it leads, SIGKILL
-after 5 s) *before* unwinding the step, so cleanup that waits on a child cannot
-hang and nothing is orphaned. `StepTimeout` is a `BaseException`, so step bodies'
-`except Exception` bookkeeping cannot swallow it. Detached Docker containers are
-outside the process tree; the executor's own cleanup still owns those.
-
-No step is ever retried. The outcome is `failed` with the error
-`StepTimeout: exceeded declared timeout of …` and reason `timeout_exceeded`
-(idempotent) or `timeout_exceeded_non_idempotent_not_retried`. An idempotent
-step then follows its `on_fail` policy and records `nightly_step_timed_out`; a
-non-idempotent step fails closed regardless of `on_fail` (its side effects
-before expiry are unknown) and records `nightly_quarantined`, which the digest
-renders as quarantine.
-
-`dispatch` declares no outer timeout: `Executor.tick()` already terminates each
-Harbor process group at `timeout_seconds` + 600 s per trial (see the executor
-resilience boundary below), and a shorter outer alarm would kill paid trials.
-`researcher_pass` is bounded by two attempts of every role's own limit plus 60 s
-(`pass_wall_clock_bound_seconds`).
-
-### How to add or substitute a step
-
-To add a new step or customize the pipeline:
-
-1. **Define a step function** accepting `context: NightlyContext`:
-   ```python
-   def _step_my_custom_task(context: NightlyContext) -> None:
-       # Access context.target_date, context.executor, context.renderer, etc.
-       do_work(context.target_date)
-   ```
-2. **Instantiate a `NightlyStep`**:
-   ```python
-   custom_step = NightlyStep(
-       name="my_custom_task",
-       fn=_step_my_custom_task,
-       timeout=120.0,
-       on_fail="continue",  # or "abort"
-       description="Run custom evaluation task",
-       idempotent=True,
-   )
-   ```
-3. **Pass custom steps or step handlers** to `NightlyCycle`:
-   ```python
-   cycle = NightlyCycle(
-       doctor=doctor,
-       executor=executor,
-       renderer=renderer,
-       steps=[*NightlyCycle.DEFAULT_STEPS[:4], custom_step, *NightlyCycle.DEFAULT_STEPS[4:]],
-   )
-   ```
-4. For testing seams, inject custom callables via `compactor`, `lessons_generator`,
-   `status_updater`, `database_backup`, `completed_job_ingester`, or `canary_enqueuer`.
-
-### Reading the per-step outcome report
-
-`NightlyResult` exposes the outcome of every registered step via `result.steps`
-(`tuple[StepOutcome, ...]`) and `result.step_by_name(name)`:
-
-- `status`: `"ran"`, `"skipped"`, or `"failed"`.
-- `duration_s`: Wall-clock execution time in seconds.
-- `reason`: Explanation when `status == "skipped"` (e.g., `"no_backup_configured"`,
-  `"quarantined_by_prior_step"`) or when a step timed out (`"timeout_exceeded"`,
-  `"timeout_exceeded_non_idempotent_not_retried"`).
-- `error`: Error string when `status == "failed"` (e.g., `"RuntimeError: ..."`).
-
-Use `result.format_step_report()` to format the summary:
-
-```text
-Nightly Step Report:
-  - doctor: ran (0.015s)
-  - catalog_ingest: ran (0.432s)
-  - analysis_staging: skipped [no_stager_configured] (0.000s)
-  - parquet_compaction: ran (0.089s)
-  - postgres_backup: ran (0.052s)
-  - canary_enqueue: skipped [no_canary_enqueuer_configured] (0.000s)
-  - dispatch: ran (0.001s)
-  - researcher_pass: skipped [no_researcher_configured] (0.000s)
-  - lessons: ran (0.045s)
-  - digest: ran (0.012s)
-  - status_update: ran (0.008s)
-```
+`evallab nightly --refresh` runs the installed local refresh.
+It does not dispatch trials or start the researcher loop.
+The command keeps its path options and backup freshness checks.
+A missing or stale backup uses the existing 120-second timeout guard.
+The former no-refresh dispatch pipeline and `--date` mode are retired.
+Stored queues, receipts, reports, and backups remain unchanged.
 
 ## Executor resilience boundary
 
@@ -806,12 +673,7 @@ all attempt evidence for explicit operator resubmission; it never calls the
 provider implicitly during recovery. While any unresolved running spec remains,
 the executor defers every approved spec with `running_specs_unresolved`; this
 prevents detached work from overlapping new provider calls or escaping the
-cost ceiling after a UTC day boundary. Nightly applies the same barrier to the
-out-of-queue researcher pass and records a semantic-date deferral event.
-
-Nightly digest publication also has a fixed timeout on every Git command, uses
-no terminal input, and fails the nightly process instead of waiting for a
-prompt.
+cost ceiling after a UTC day boundary.
 
 After an interrupted Harbor run, cleanup snapshots only containers with all of
 these properties: Docker Compose project labels, a Compose config path inside
@@ -862,23 +724,23 @@ reporting period is the preceding catalog day):
 ```bash
 ```
 
-The nightly command additionally commits only `digests/YYYY-MM-DD.md`; unrelated
-working-tree changes are never staged:
+The installed nightly command refreshes local reports.
+It does not dispatch trials, ship traces, run researchers, or commit a digest.
 
 ```bash
-uv run evallab nightly
+uv run evallab nightly --refresh
 ```
 
-Before canary dispatch, a healthy nightly cycle runs the Compose PostgreSQL
+Nightly refresh runs the Compose PostgreSQL
 container's own `pg_dump` in custom format. Python does not read or forward a
 database password: `POSTGRES_USER` and `POSTGRES_DB` expand inside the container.
 The dump and SHA-256 JSON manifest are fsynced inside one dated generation
 directory, then the complete directory is published with one atomic rename in
 the primary checkout's ignored `backups/postgres/` directory. A same-date rerun
 verifies and reuses the immutable generation rather than replacing it. A process
-lock prevents overlapping manual and scheduled dumps. A failed, empty,
-incomplete, or unpublished dump records `postgres_backup_failed`, renders the
-digest as quarantined, and prevents dispatch.
+lock prevents overlapping manual and scheduled dumps.
+A failed dump remains a backup failure in the refresh report.
+Refresh does not dispatch trials or commit a digest.
 
 Validate a dump without restoring it (set the path to the dated dump first):
 
@@ -947,10 +809,8 @@ every `oracle` and `nop` control used as evidence, is always listed. Spend and
 the exception taxonomy still count self-test trials, so the filter changes what
 is readable and not what is reported.
 
-Nightly also validates and enqueues the pinned suite in
-[execution tiers](execution-tiers.md#canary-suite-and-drift-interpretation) before draining the queue. A changed task digest or
-floating source ref quarantines the cycle before dispatch. Digest excursions
-are labeled harness-drift suspects, never capability news.
+`tick --canary-suite` rejects a changed task digest or floating source ref before dispatch.
+Digest excursions are labeled harness-drift suspects, never capability news.
 
 ## Run controls before model experiments
 
@@ -1000,9 +860,7 @@ Default is a dry-run plan:
 ```bash
 ```
 
-Nightly calls the same planner in plan-only mode and appends a
-**GC would reclaim** section to the digest. Doctor prints one `disk …`
-trend line with candidate counts. Apply is never invoked by nightly.
+Doctor prints one `disk …` trend line with candidate counts.
 
 ## Ingest and query
 
@@ -1012,7 +870,7 @@ uv run evallab ingest runs research/evidence/runs
 
 The first `trajectories` command reports validation and counts without writing.
 Every completed job uses one idempotent ingest-and-project path. Queue completion,
-the nightly backfill, `ingest`, and `trajectories --export` all update
+`ingest`, and `trajectories --export` all update
 PostgreSQL first, then write a `jobs.parquet` marker per job and the
 deterministic trial tables below the configured shared Parquet root at
 `job_id=*/trial_id=*/`. The

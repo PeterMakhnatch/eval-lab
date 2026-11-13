@@ -376,7 +376,9 @@ def _call(
 def test_http_surface_guards_and_roundtrip(station: js.Station) -> None:
     server, token = judge_web.make_server(station, 0)
     port = server.server_port
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     base = f"http://127.0.0.1:{port}"
     try:
@@ -551,7 +553,9 @@ def test_station_orders_disagreements_first_and_records_the_stratum(tmp_path: Pa
 def test_page_and_api_hide_everything_until_submit(tmp_path: Path) -> None:
     station, _ = _station(tmp_path)
     server, token = judge_web.make_server(station, 0)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     base = f"http://127.0.0.1:{server.server_port}"
     hidden = [
@@ -841,7 +845,9 @@ def test_autoreview_shaped_queue_rows_are_ordered_by_priority_and_stay_hidden(
 @contextmanager
 def _running(station: js.Station) -> Iterator[tuple[str, dict[str, str]]]:
     server, token = judge_web.make_server(station, 0)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     try:
         yield (
@@ -1992,7 +1998,9 @@ def test_line_priority_queue_keeps_file_order_and_reveals_priority_only_after_ve
         source, {"line": js.load_queue(path)}, keep_order=True, state_dir=tmp_path / "state",
     )
     server, token = judge_web.make_server(station, 0)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     base = f"http://127.0.0.1:{server.server_port}"
     try:

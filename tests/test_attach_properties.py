@@ -9,12 +9,23 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from evallab.evidence.facts import rebuild_from_raw
 from evallab.results import load_jobs
+from evallab.storage import attach as attach_module
 from evallab.storage.attach import TABLES, attach
+
+
+@pytest.fixture(autouse=True)
+def _isolate_unrelated_postgres_probe(monkeypatch: pytest.MonkeyPatch) -> None:
+    # These properties prove the real Parquet/query boundary, not Z2 connectivity.
+    monkeypatch.setattr(
+        attach_module, "_attach_z2",
+        lambda _connection, _dsn: attach_module.ZoneStatus("z2", False, reason="isolated"),
+    )
 
 
 def _sha256_file(path: Path) -> str:

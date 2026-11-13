@@ -43,6 +43,7 @@ from types import ModuleType
 from typing import Any
 
 import pytest
+from proxy_timing import fast_proxy_poll as fast_proxy_poll
 
 from evallab import runner as runner_module
 from evallab.execution_contracts import (
@@ -245,12 +246,15 @@ def openrouter_upstream() -> Any:
     _OpenRouterUpstream.padding = b""
     _OpenRouterUpstream.usage_extra = {}
     server = ThreadingHTTPServer(("127.0.0.1", 0), _OpenRouterUpstream)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     try:
         yield server
     finally:
         server.shutdown()
+        server.server_close()
 
 
 def _proxy_limits(**overrides: Any) -> ProxyTrialLimits:

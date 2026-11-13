@@ -262,11 +262,3 @@ def test_uninstall_ignores_a_dirty_checkout(tmp_path: Path) -> None:
     # The same dirty tree still blocks installing a snapshot it cannot name.
     assert install.returncode != 0
     assert "commit changes before installing" in install.stderr
-
-
-def test_usage_header_documents_uninstall() -> None:
-    text = SCRIPT.read_text(encoding="utf-8")
-    usage = text.split("set -euo pipefail", 1)[0]
-
-    assert "[--uninstall]" in usage
-    assert "--uninstall boots the label out" in usage

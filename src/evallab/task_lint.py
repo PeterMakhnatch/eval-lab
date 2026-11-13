@@ -82,48 +82,64 @@ def _artifact_contract_findings(task_dir: Path, artifacts: Sequence[str]) -> lis
     findings: list[Finding] = []
     declared = ", ".join(artifacts)
 
-    def relates(path: str) -> bool:
-        return any(_contains(path, artifact) or _contains(artifact, path) for artifact in artifacts)
+    def relates(path: str, artifact: str) -> bool:
+        return _contains(path, artifact) or _contains(artifact, path)
 
     instruction = task_dir / "instruction.md"
-    if instruction.is_file() and not any(
-        relates(path)
-        for path in _absolute_paths(instruction.read_text(encoding="utf-8", errors="replace"))
-    ):
-        findings.append(
-            Finding(
-                "artifacts-instructed",
-                "warning",
-                str(instruction),
-                "the instruction never names a declared artifact path; "
-                f"the agent cannot know what to produce ({declared})",
-            )
+    instructed = (
+        _absolute_paths(instruction.read_text(encoding="utf-8", errors="replace"))
+        if instruction.is_file()
+        else set()
+    )
+    unmentioned = [artifact for artifact in artifacts if artifact not in instructed]
+    if unmentioned:
+        message = (
+            f"instruction.md is missing; the agent cannot know what to produce ({declared})"
+            if not instruction.is_file()
+            else "the instruction never names a declared artifact path as its own path: "
+            f"{', '.join(unmentioned)}; the agent cannot know what to produce"
         )
+        findings.append(Finding("artifacts-instructed", "warning", str(instruction), message))
 
     tests = task_dir / "tests"
+    paths_by_file = {
+        tests_file: _absolute_paths(tests_file.read_text(encoding="utf-8", errors="replace"))
+        for tests_file in (sorted(tests.rglob("*")) if tests.is_dir() else [])
+        if tests_file.is_file()
+    }
+    verified_paths = set().union(*paths_by_file.values())
+    unverified = [
+        artifact
+        for artifact in artifacts
+        if not any(relates(path, artifact) for path in verified_paths)
+    ]
     if not tests.is_dir():
-        return findings
-    paths_by_file: dict[Path, set[str]] = {}
-    verified_paths: set[str] = set()
-    for tests_file in sorted(tests.rglob("*")):
-        if tests_file.is_file():
-            paths = _absolute_paths(tests_file.read_text(encoding="utf-8", errors="replace"))
-            paths_by_file[tests_file] = paths
-            verified_paths.update(paths)
-    if not any(relates(path) for path in verified_paths):
         findings.append(
             Finding(
                 "artifacts-verified",
                 "warning",
                 str(tests),
-                "no file under tests/ names a declared artifact, a path above it, or a path below it; "
-                f"the separate verifier cannot observe the produced artifact ({declared})",
+                "tests/ is missing; the separate verifier cannot observe the produced artifact "
+                f"({declared})",
+            )
+        )
+    elif unverified:
+        findings.append(
+            Finding(
+                "artifacts-verified",
+                "warning",
+                str(tests),
+                "no file under tests/ names the declared artifact path(s) "
+                f"{', '.join(unverified)}, a path above them, or a path below them; "
+                "the separate verifier cannot observe them",
             )
         )
     top_directories = {_top_directory(artifact) for artifact in artifacts}
     for tests_file, paths in paths_by_file.items():
         for path in sorted(paths):
-            if any(_contains(path, top) for top in top_directories) and not relates(path):
+            if any(_contains(path, top) for top in top_directories) and not any(
+                relates(path, artifact) for artifact in artifacts
+            ):
                 findings.append(
                     Finding(
                         "verifier-reads-undeclared",

@@ -114,11 +114,74 @@ def test_artifact_contract_accepts_declared_mentions(task: Path) -> None:
     assert cli.run_cli(["tasks", "lint", str(task)], workspace=task.parent) == 0
 
 
-def test_artifact_contract_accepts_a_parent_directory_mention(task: Path) -> None:
+def test_separate_instruction_requires_each_artifact_path(task: Path) -> None:
     (task / "instruction.md").write_text("Write the result in /app.\n")
     (task / "tests/verify.py").write_text('ROOT = "/app"\n')
 
-    assert lint_task(task) == []
+    (finding,) = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "artifacts-instructed",
+        "warning",
+        str(task / "instruction.md"),
+    )
+    assert "/app/result.json" in finding.message
+
+
+def test_separate_instruction_requires_every_declared_artifact(task: Path) -> None:
+    (task / "task.toml").write_text(
+        'artifacts = ["/app/result.json", "/app/log.txt"]\n'
+        '[verifier]\nenvironment_mode = "separate"\n'
+    )
+    (task / "instruction.md").write_text("Write /app/result.json.\n")
+    (task / "tests/verify.py").write_text('RESULT = "/app/result.json"\nLOG = "/app/log.txt"\n')
+
+    (finding,) = lint_task(task)
+    assert finding.rule == "artifacts-instructed"
+    assert "/app/log.txt" in finding.message
+    assert "/app/result.json" not in finding.message
+
+
+def test_separate_instruction_does_not_accept_a_path_below_the_artifact(task: Path) -> None:
+    (task / "task.toml").write_text(
+        'artifacts = ["/app/output"]\n[verifier]\nenvironment_mode = "separate"\n'
+    )
+    (task / "instruction.md").write_text("Write /app/output/answer.json.\n")
+    (task / "tests/verify.py").write_text('OUTPUT = "/app/output"\n')
+
+    (finding,) = lint_task(task)
+    assert finding.rule == "artifacts-instructed"
+    assert "/app/output" in finding.message
+
+
+def test_separate_task_without_instruction_warns(task: Path) -> None:
+    (task / "instruction.md").unlink()
+
+    (finding,) = lint_task(task)
+    assert (finding.rule, finding.path) == ("artifacts-instructed", str(task / "instruction.md"))
+    assert "missing" in finding.message
+
+
+def test_separate_tests_must_name_every_declared_artifact(task: Path) -> None:
+    (task / "task.toml").write_text(
+        'artifacts = ["/app/result.json", "/app/log.txt"]\n'
+        '[verifier]\nenvironment_mode = "separate"\n'
+    )
+    (task / "instruction.md").write_text("Write /app/result.json and /app/log.txt.\n")
+    (task / "tests/verify.py").write_text('RESULT = "/app/result.json"\n')
+
+    (finding,) = lint_task(task)
+    assert (finding.rule, finding.path) == ("artifacts-verified", str(task / "tests"))
+    assert "/app/log.txt" in finding.message
+
+
+def test_separate_task_without_tests_directory_warns(task: Path) -> None:
+    for path in (task / "tests").rglob("*"):
+        path.unlink()
+    (task / "tests").rmdir()
+
+    (finding,) = lint_task(task)
+    assert (finding.rule, finding.path) == ("artifacts-verified", str(task / "tests"))
+    assert "missing" in finding.message
 
 
 def test_shared_mode_skips_the_artifact_contract(task: Path) -> None:
@@ -332,6 +395,7 @@ def test_discovery_reports_a_nested_package_error_from_the_root(
     (nested / "solution/solve.sh").write_text("#!/bin/sh\nexit 0\n")
     (nested / "tests").mkdir()
     (nested / "tests/verify.py").write_text('RESULT = "/app/result.json"\n')
+    (nested / "instruction.md").write_text("Write /app/result.json.\n")
     (nested / "environment").mkdir()
     (nested / "environment/Dockerfile").write_text("FROM python:3.12\nCOPY tests /private\n")
     (nested / "task.toml").write_text(

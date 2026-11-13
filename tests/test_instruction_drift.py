@@ -84,6 +84,8 @@ _COMMAND = re.compile(r"(?=(?<![\w./-])evallab[ \t]+([^\n`]+))")
 _MAKE = re.compile(r"(?=(?<![\w./-])make[ \t]+([^\n`]+))")
 _PATH = re.compile(r"(?<![\w./-])(?:~?/|\$\w+/|\.{1,2}/)?[.\w-]+(?:/[.\w*?<>@{}=-]+)*/?")
 _SOURCE_SUFFIXES = {".py", ".sh", ".sql", ".md"}
+_ASSET_SUFFIXES = {".json", ".jsonl", ".yaml", ".yml", ".toml", ".txt"}
+_ROOT_SOURCE_FILES = {"AGENTS.md", "README.md", "LICENSE", "Makefile", "pyproject.toml", "uv.lock", "compose.yaml", ".env.example", ".gitignore", ".ignore", ".gitattributes", ".python-version"}
 _REPO_ROOTS = {
     "agents", "authoring", "containers", "digests", "docs", "grids",
     "library", "policy", "research", "scripts", "sql", "src", "tests",
@@ -178,14 +180,18 @@ def _missing_route(words: list[str], routes: dict) -> str | None:
     return None
 
 
-def _repository_reference(token: str) -> bool:
+def _repository_reference(token: str, *, package_instruction: bool) -> bool:
     first = token.split("/", 1)[0]
     if token.startswith(("/", "~/", "$")) or first in _RUNTIME_ROOTS or token in _REPORT_NAMES or token in _TASK_LAYOUT:
         return False
     if first in _REPO_ROOTS or first in _PACKAGE_ROOTS or token.startswith(("./", "../")):
         return True
     # Bare source/module references use the manual or application package root.
-    return Path(token).suffix in _SOURCE_SUFFIXES or token in {"Makefile", "pyproject.toml", "uv.lock", "compose.yaml"}
+    return (
+        token in _ROOT_SOURCE_FILES
+        or Path(token).suffix in _SOURCE_SUFFIXES
+        or (package_instruction and Path(token).suffix in _ASSET_SUFFIXES)
+    )
 
 
 def _path_exists(root: Path, page: Path, token: str) -> bool:
@@ -206,6 +212,7 @@ def drift_findings(
     root: Path, page: Path, routes: dict, targets: set[str], *, text: str | None = None,
 ) -> list[tuple[int, str, str]]:
     findings: set[tuple[int, str, str]] = set()
+    package_instruction = page.is_relative_to(root / "src/evallab")
     for line, code, shell in code_units(page.read_text(encoding="utf-8") if text is None else text):
         if shell:
             for match in _COMMAND.finditer(code.replace("\n", " ")):
@@ -227,7 +234,7 @@ def drift_findings(
             before = code[:match.start()]
             if before.endswith(("/", "~/", "$")) or re.search(r"(?:https?://|[\w.]\.)$", before):
                 continue
-            if "<" in token or "{" in token or not _repository_reference(token):
+            if "<" in token or "{" in token or not _repository_reference(token, package_instruction=package_instruction):
                 continue
             if not _path_exists(root, page, token):
                 findings.add((line + code.count("\n", 0, match.start()), "path", token))
@@ -314,3 +321,14 @@ def test_root_entry_stays_bounded() -> None:
     assert len((ROOT / "AGENTS.md").read_text().splitlines()) <= 120, (
         "AGENTS.md exceeds 120 lines; move detail to the single owning manual."
     )
+
+
+def test_package_assets_and_root_dotfiles_are_source_references(tmp_path: Path) -> None:
+    package = tmp_path / "src/evallab/data"
+    package.mkdir(parents=True)
+    (package / "present.json").touch()
+    page = package / "AGENTS.md"
+    page.write_text("Use `present.json`, `missing.json`, and `.ignore`.\n", encoding="utf-8")
+    assert drift_findings(tmp_path, page, {}, set()) == [
+        (1, "path", ".ignore"), (1, "path", "missing.json"),
+    ]

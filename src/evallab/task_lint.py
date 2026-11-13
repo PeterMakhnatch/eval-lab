@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 import re
 import shlex
+import shutil
+import subprocess
 import tomllib
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
@@ -134,6 +136,68 @@ def _lint_dockerfile(dockerfile: Path) -> list[Finding]:
     return findings
 
 
+_SOURCE_PARSERS: tuple[tuple[str, frozenset[str]], ...] = (
+    ("solution", frozenset({".sh", ".py"})),
+    ("controls", frozenset({".sh"})),
+    ("tests", frozenset({".sh", ".py", ".json"})),
+)
+
+
+def _one_line(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _parse_source(path: Path, bash: str | None) -> str | None:
+    """Return the parser message for one source file, or None when it parses."""
+    if path.suffix == ".sh":
+        if bash is None:
+            return None
+        result = subprocess.run(
+            [bash, "-n", str(path)],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            check=False,
+        )
+        # bash 4 and newer report an unterminated heredoc as a warning on stderr
+        # while still exiting 0, so a diagnostic alone is enough to fail.
+        if result.returncode != 0 or result.stderr.strip():
+            detail = _one_line(result.stderr) or f"exit {result.returncode}"
+            return f"bash -n: {detail}"
+        return None
+    label = "compile" if path.suffix == ".py" else "json.loads"
+    try:
+        if path.suffix == ".py":
+            compile(path.read_bytes(), str(path), "exec")
+        else:
+            json.loads(path.read_bytes())
+    except (SyntaxError, ValueError) as error:
+        if isinstance(error, SyntaxError):
+            line = f" (line {error.lineno})" if error.lineno is not None else ""
+            return f"{label}: {_one_line(error.msg)}{line}"
+        return f"{label}: {_one_line(str(error))}"
+    return None
+
+
+def _bash_parser() -> str | None:
+    """The bash that parses shell sources, or None when bash is not on PATH."""
+    return shutil.which("bash")
+
+
+def _lint_sources(task_dir: Path) -> list[Finding]:
+    """Parse task sources statically; nothing here executes or writes task content."""
+    bash = _bash_parser()
+    findings: list[Finding] = []
+    for directory, suffixes in _SOURCE_PARSERS:
+        for path in sorted((task_dir / directory).rglob("*")):
+            if not path.is_file() or path.suffix not in suffixes:
+                continue
+            message = _parse_source(path, bash)
+            if message is not None:
+                findings.append(Finding("sources-parse", "error", str(path), message))
+    return findings
+
+
 def lint_task(task_dir: Path) -> list[Finding]:
     """Inspect one task without executing or modifying any task content."""
     findings: list[Finding] = []
@@ -189,6 +253,7 @@ def lint_task(task_dir: Path) -> list[Finding]:
                     "in its first 20 lines",
                 )
             )
+    findings.extend(_lint_sources(task_dir))
     return findings
 
 

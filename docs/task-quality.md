@@ -585,6 +585,13 @@ that names `tests` or `solution` but leaves that context, follows a symlink out 
 it, or matches nothing inside it is an error. It reports unsupported syntax instead
 of silently accepting unreadable instructions.
 
+It also parses task sources without executing or writing them, and reports a
+`sources-parse` error that names the file and the parser message: `bash -n` on
+every `*.sh` under `solution/`, `controls/` and `tests/`, the builtin `compile()`
+on every `*.py` under `tests/` and `solution/`, and `json.loads` on every `*.json`
+under `tests/`. Any `bash -n` diagnostic is an error, including a warning without
+a failing exit. When `bash` is not on `PATH`, shell files get no finding.
+
 ## Retained packet and receipt readers
 
 Registry continues to validate historical `certification.json` packets against exact package hashes.

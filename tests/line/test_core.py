@@ -196,7 +196,6 @@ def test_cli_run_check_scoreboard_and_failure_exit(
 ) -> None:
     from evallab import cli
 
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     assert (
         cli.run_cli(["line", "run", str(fixture_spec), "--json"], workspace=fixture_spec.parent)
         == 0
@@ -313,7 +312,6 @@ def test_fast_check_exits_three_and_leaves_the_verified_artifacts(
 ) -> None:
     from evallab import cli
 
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     batch = core.run_line(fixture_spec, fixture_spec.parent)
     before = {name: digest(batch / name) for name in ("check.json", "scoreboard.json")}
     code = cli.run_cli(
@@ -400,7 +398,6 @@ def test_line_cli_resolves_core_functions_per_call(
     """
     from evallab import cli
 
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     module_key = "evallab.line.cli"
     saved = sys.modules.pop(module_key, None)
     try:

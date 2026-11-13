@@ -54,9 +54,6 @@ from evallab.runner import (
     run_matrix,
 )
 from evallab.storage.paths import DERIVED_ROOT_ENV, derived_root_from_environment
-from evallab.tracing import (
-    instrument_openinference,
-)
 
 
 def repo_root() -> Path:
@@ -1599,17 +1596,6 @@ def parser() -> argparse.ArgumentParser:
 
     register_production_parser(commands)
 
-    native_run_atlas_atlas = commands.add_parser("atlas", help="Run Atlas: clusters and scorecards")
-    native_run_atlas_actions = native_run_atlas_atlas.add_subparsers(dest="atlas_command", required=True)
-    from evallab.production.run_atlas_score import add_score_parser
-
-    add_score_parser(native_run_atlas_actions)
-    from evallab.production.run_atlas_clusters import add_clusters_parser
-
-    add_clusters_parser(native_run_atlas_actions)
-    from evallab.production.qa_data import register_parser as register_qa_data_parser
-
-    register_qa_data_parser(commands)
     from evallab.production.run_health import register_parser as register_run_health_parser
 
     register_run_health_parser(commands)
@@ -1768,7 +1754,6 @@ def run_cli(
     root = workspace if workspace is not None else repo_root()
     load_local_env(root / ".env")
     args = parser().parse_args(_normalize_review_argv(argv))
-    instrument_openinference()
     try:
         handler: Callable[..., int] | None = getattr(args, "func", None)
         if handler is None:

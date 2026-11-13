@@ -1659,7 +1659,6 @@ def test_selected_cli_tick_leaves_other_approved_work_untouched(
         ),
         launch_agents=LaunchAgentAudit(checked=0),
     )
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     monkeypatch.setattr(cli.Executor, "from_repo", lambda *args, **kwargs: service)
     monkeypatch.setattr(
         cli, "HeadlessDoctor", lambda *args, **kwargs: SimpleNamespace(run=lambda: report)

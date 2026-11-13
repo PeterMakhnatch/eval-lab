@@ -71,7 +71,6 @@ def test_dev_gate_checks_label_files_of_an_existing_batch(fixture_spec: Path) ->
 def test_check_never_leaves_a_stale_pass_after_a_crash(
     fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     batch = core.run_line(fixture_spec, fixture_spec.parent)
     assert read_json(batch / "check.json")["passed"]
     spec = read_json(batch / "spec.json")

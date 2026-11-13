@@ -58,7 +58,6 @@ class RecordingConnection:
 @pytest.fixture
 def catalog_statements(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, Any]]:
     statements: list[tuple[str, Any]] = []
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     monkeypatch.setattr(
         database.psycopg,
         "connect",
@@ -418,7 +417,6 @@ def test_submit_prints_the_bare_spec_id_approve_wants(
     from evallab.queue import DirectoryQueue
     from evallab.queue import database as queue_database
 
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     # `Executor.submit` refuses to admit anything it cannot cost-check, so it
     # probes the catalog for today's spend and the recent harness-failure run.
     # Neither is what this test is about, and a runner without Postgres would

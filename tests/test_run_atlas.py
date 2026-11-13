@@ -14,7 +14,6 @@ from typing import Any
 
 import pytest
 
-from evallab import cli
 from evallab.production import run_atlas as atlas
 
 ROUTE = "openai-codex/atlas-test-model"
@@ -820,19 +819,6 @@ def test_extract_runs_logs_failures_without_writing_facets(
     }
     assert len(logs) == 1 and "fake unavailable" in logs[0]
     _assert_requests_blind(transport, atlas_run)
-
-
-def test_atlas_help_does_not_open_database_or_gateway(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(cli, "load_local_env", lambda _path: None)
-    monkeypatch.setattr(cli, "instrument_openinference", _forbidden)
-    monkeypatch.setattr(atlas, "connect_readonly", _forbidden)
-    monkeypatch.setattr(sqlite3, "connect", _forbidden)
-    with pytest.raises(SystemExit) as stopped:
-        cli.run_cli(("atlas", "--help"), workspace=tmp_path)
-    assert stopped.value.code == 0
-    assert not any(tmp_path.iterdir())
 
 
 def test_source_redaction_opus_preserves_audio_extension_and_codecs() -> None:

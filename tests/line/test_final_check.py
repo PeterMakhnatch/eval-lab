@@ -38,7 +38,6 @@ def _failed(batch: Path, root: Path) -> dict[str, str]:
 
 
 def _cli(monkeypatch: pytest.MonkeyPatch, root: Path, *argv: str) -> int:
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     return cli.run_cli(["line", *argv], workspace=root)
 
 

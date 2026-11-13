@@ -247,11 +247,8 @@ trace. Admission and writes share one snapshot; an optional `allowed_task_ids`
 list only narrows admission, never grants it. `source` (`dataset_id`),
 `split` and `outcome` (`pass` if reward ≥ 1,
 `fail` if ≤ 0, otherwise `unknown`) are copied from the database; the receipt
-counts disagreements and refusals by reason. `evallab prod import-run-facets
---cloud-database <db> --jsonl <facets-v1.jsonl>` imports the interim append-only
-JSONL with retrieval's own admission; the last fully valid record wins. Refused
-replacements cannot discard a valid prefix, and a torn UTF-8/JSON append is counted
-without losing the complete preceding records.
+counts disagreements and refusals by reason. Refused replacements cannot discard a valid prefix,
+and a torn UTF-8/JSON append is counted without losing the complete preceding records.
 
 Cluster ingestion stores the **final contiguous build** of the producer's cluster
 stream, as the Run Atlas reader selects it. An incomplete build (a level not yet
@@ -343,45 +340,17 @@ projections and 4500 rendered characters, not full instructions, reproducer
 scripts, or CAS objects. Receipt-status filtering is not independent evidence
 verification, and exact-ID exclusion is not task-family deduplication.
 
-**Blinded DEV-only run exports.** `evallab prod export-runs` reads a local SQLite
-store without opening a production queue, running workers, or uploading data.
-It applies `admitted_cloud_task_ids` with `CorpusRegistry` to identity-only rows
-before reading any trace body; a DB `dev` label alone does not admit a task.
-Exports use stable SHA-256-derived `run-<hex>` identities and redact original
-task, item, dataset, trace, model and run identifiers, source benchmark text and
-CAS references. `harbor` writes `<blind>/agent/trajectory.json` and
-`<blind>/result.json`; `atif` writes `<blind>.json`; `scout` writes
-`transcripts.jsonl`. Native ATIF uses one-based step IDs and no internal audit
-metadata; empty or all-annotation traces are refused. Only agent-authored rows
-create tool calls, and standalone recorded observations have no invented call
-reference. For example, from the repository root:
+**Retained DEV exports.** The native CI inventory still exercises these commands:
 
 ```bash
-uv run evallab prod export-runs \
-  --source-database derived/production/cloud-trace-db.sqlite \
-  --output-directory /private/tmp/blinded-runs \
-  --format harbor \
-  --manifest /private/tmp/blinded-runs.manifest.json
+uv run evallab prod export-runs --help
+uv run evallab prod export-cheatbench-runs --help
+uv run evallab prod export-cluster-scope --help
 ```
 
-Repeat `--trace-id` to restrict selection, and use `--limit` to cap admitted
-exports. The command prints a JSON receipt with admission/export/refusal counts
-and the manifest SHA-256. The required manifest is a **sealed join file outside
-the export directory**, mapping each blind ID to its original `trace_id`,
-`step_origin` list of database step indices in projected ATIF step order, and
-`reward`. Rewards exist only in that sealed manifest; blinded Harbor results
-always contain a null reward. Keep the manifest separate from reviewer-facing
-exports. Existing output directories or manifest paths are refused, never
-overwritten.
-
-Scout JSONL contains one `inspect_scout.Transcript`-shaped object per line:
-`transcript_id` is the blind ID, `metadata` is only `{"item_id": "<blind>"}`,
-and messages use Inspect roles/content and function tool calls. The optional
-`inspect_scout` dependency is not required to export; when absent, the receipt
-discloses `inspect_scout_installed=false`, `format=jsonl`, and
-`loader=Transcript.model_validate_json`. After installing `inspect_scout`, use
-`Transcript.model_validate_json(line)` for each line; do not assume Scout's
-`transcripts_from` reads arbitrary JSONL.
+The exporters retain their admission checks, blinding, and separate sealed manifests.
+QA-data, actor-bundle projection, and the production import commands are retired.
+Stored databases, facets, findings, clusters, and CAS objects remain unchanged.
 
 `S3CompatibleCAS` stores exact bytes locally under `cas://sha256/<digest>`.
 It verifies the SHA-256 digest before returning bytes.
@@ -391,200 +360,6 @@ Pass `local_directory=` to select the local CAS.
 Remote S3/R2/Tigris upload and retrieval are no longer supported.
 CAS references do not assert that the corresponding object has been ingested.
 
-**Blinded CheatBench runs (not in the cloud database).** CheatBench facet run ids are
-answer-key registry item ids (`cheatbench-actions-v1:<hash>`); the trajectories live
-under `eval-lab-results/<trial_ref>/agent/trajectory.json`, so `export-runs` cannot
-reach them. `evallab prod export-cheatbench-runs --format harbor|atif|scout
---output-directory D --manifest M [--run-id ID ...] [--limit N] [--view full|actions_only]`
-resolves each id through the registry and writes the same blinded formats. Admission
-is per item, because CheatBench items share task names across splits: the item's
-effective split must be DEV, `assignments.csv` must say DEV for it, no assignment key
-may mark the item or its task TEST, and its id must not be sealed. TEST, sealed,
-cross-key-locked and unknown ids are refused with no output. The trajectory must match
-the registry's pinned sha256 (`trajectory_sha256`, or `actions_only_sha256` for
-`--view actions_only`), else the export fails whole. The default `full` view is what the
-facets were produced from. Annotation steps are dropped in any letter case, and an
-annotation marker embedded anywhere else fails the export. Each trajectory then goes
-through `blind_atif` and an explicit native-ATIF projection (`extra`, model names,
-timestamps and metrics are dropped; any other unknown step, tool-call or observation
-field refuses the export rather than being dropped or passed through; registry
-answer-key names such as `expected_*` as tool-argument names refuse it too). Identities
-(item, task and benchmark names, trial ids, `trial_ref` path segments, source names)
-are redacted in text, argument values and argument names; a case-folded registry
-identity (for example an uppercase spelling of a non-ASCII name) left in the output
-refuses the export. Role enums are left alone, tool calls get blind per-step ids
-(`call-<step>-<n>`) and each observation points at its call, or at none when the
-recorded id named no call (native ATIF requires pairing). Step ids are renumbered from
-1 and only `ATIF-v<major>.<minor>` schema versions are published. The sealed manifest,
-outside the export and mode 0600, holds per blind id: run id, `trial_ref`, observed
-digest, step origins, `reward: null` and the registry's `expected_*` fields for
-scoring. Blind readers must not receive it. The receipt counts canonical candidates
-(aliases of one id count once) and reports no timing, which would time lookups of
-refused ids.
-
-**Metadata-only cluster scope.** `evallab prod export-cluster-scope --cluster-id ID
---manifest PATH [--source-database DB]` (default: the live store) writes one new
-JSON file, never replacing one, for a stored Run Atlas cluster. It reads only
-`run_clusters`, `agent_traces`, `run_facets` and task identity columns, through a
-read-only connection: no step, label, reward, issue, facet text or cluster name is
-written. A member's facet record is screened like `qa-data runs` screens it, in the
-same snapshot; one that names a sealed identity is not served, so that row's
-`facet_producer_revision` and `facet_served_model` are null, as for an unfaceted run.
-Each row is a member run that `admitted_cloud_task_ids` + `CorpusRegistry` admit as
-DEV (this includes the cross-key TEST check in `assignments.csv`): `trace_id`,
-`task_id`, `native_task_id` (the stored native name, or null),
-`canonical_task_id` (`CorpusRegistry.task_name`), `assignments_sha256`,
-`admission`, `facet_build_id` (the cluster build that covers the facets),
-`facet_producer_revision` (`run-facets/v1`) and `facet_served_model`. Members that
-are not admitted get no row; `counts.refused_by_reason` gives only totals
-(`db_non_dev_split`, `registry_cross_key_or_sealed`, `unstored_run`). Without a
-loaded `assignments.csv` it refuses rather than certify. The ids themselves may
-carry source names, so the file scopes orchestration; it is not a blinded-reader input.
-
-**QA data access (`evallab qa-data`).** One JSON document per call over the admitted
-DEV cloud trace store, sized for an agent's context. The store is opened
-**read-only** (`CloudTraceDatabase(read_only=True)`: SQLite `mode=ro`, no
-migration, index or rebuild; PostgreSQL in a read-only session). Every call decides
-registry admission (`CorpusRegistry`, cross-key `assignments.csv`, seals) afresh
-**in the same read snapshot** as the rows it returns, and a missing, held-out,
-sealed or cross-key-locked identity gives the **identical** refusal
-(`not available: not an admitted DEV task or run`) with no counts, names or
-partial data. All calls take `--budget N` (default 4000, minimum 200); `meta`
-reports `tokens_est` (ceil(chars/4) of the whole reply), `latency_ms`, `omitted_items` and
-`truncated`. Sections omit whole items and count them rather than cut records; a
-reply that cannot fit becomes a bounded refusal, never an over-budget document.
-
-```bash
-uv run evallab qa-data inventory [--ids-out FILE]                 # admitted task/run counts by dataset, outcome, model
-uv run evallab qa-data traces --task cad-model --outcome pass       # admitted runs, faceted or not (task id: bare or full)
-uv run evallab qa-data traces --sort alarms --limit 10           # the admitted runs most detectors alarm on (stored trace_findings); --alarmed-by DETECTOR
-uv run evallab qa-data task TASK_ID [--file REL] [--variant N --kind repaired_package]   # instruction, packages, issues, runs
-uv run evallab qa-data runs --facet outcome=pass --facet tests=modified,deleted,replaced --limit 10
-uv run evallab qa-data runs --cluster CLUSTER_ID | --like RUN_ID | --query "words" | --task TASK_ID
-uv run evallab qa-data window RUN_ID --around 12 --radius 3      # or --first A --last B
-uv run evallab qa-data history TASK_ID [--flag git_history_peek] # past issues, similar issues, playbook cards
-uv run evallab qa-data findings [--run RUN_ID | --task TASK_ID]  # Scout / Laminar / Docent leads, or per-tool totals
-uv run evallab qa-data trace-card RUN_ID [--no-ledgers]            # one card (<= 1.5k tokens): every stored detector verdict, flags, playbook
-uv run evallab qa-data recount                                    # facets interim JSONL vs database
-uv run evallab qa-data split task TASK_ID | split item KEY_ID ITEM_ID   # DEV for an admitted id; any other id is refused
-uv run evallab qa-data export --facet answer_material_accessed=true --limit 5 --out DIR   # blinded, with step map
-uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministic Scout text scanners, no model call
-```
-
-- Task ids: every call taking a task accepts the full namespaced id or the bare name
-  cohort and ledger files use (`cad-model` for `terminal-bench/cad-model`). An exact
-  admitted id wins; otherwise only a bare input (no `/` or `@`) falls back to
-  the one admitted task with that bare name, several matches list a few admitted
-  candidates, and a qualified id never lands on a namesake.
-- `task` returns the instruction, every variant's original and repaired package file
-  list (read from the local content-addressed store, hash-verified, never the
-  network), the retained issues without reproducer scripts or trust tiers, and run counts (total,
-  faceted, suspicion >= 2). `--file REL [--variant N --kind repaired_package]` returns
-  that file's text. Tasks without a CAS package use the registry's digest-matched
-  locator (Dockerfile, test and grader files in priority order, within budget);
-  Goodfire and CheatBench-derived tasks have none and say so. `solution/` and
-  scoring-key-named files (answer keys, `expected_verdict`, `exposures`, scorer-only
-  keys) are listed by name under `withheld`, never read; ordinary DEV test content,
-  including expected values inside tests, is returned.
-- Start-up: `evallab qa-data` runs through `evallab.entry`, which builds only the `qa-data`
-  parser instead of the whole CLI (about 0.2 s instead of 1.2 s of CPU before the first
-  query on the live store); every other command still goes to `evallab.cli`. Importing
-  one `evallab.production.*` module no longer imports the worker stack either.
-- `recount` counts the same runs as `runs` (facets naming a sealed identity are left out of
-  both the database and the JSONL counts), so their totals agree.
-- `inventory`, `traces`, `recount` and `findings` (no argument) are
-  aggregate and list views over admitted runs; only source-wide totals (ledger rows,
-  JSONL lines) are not admission-restricted, and they carry no identities or values.
-  `clusters` never returns cluster names or hidden-membership counts; the file view
-  binds every answer to its build id and splits members into cloud runs and
-  registry-only DEV items (CheatBench), excluding any id that exists as a cloud trace
-  but is not admitted.
-- `split` answers `{"split": "DEV"}` for an admitted DEV task or (key, item) pair and refuses
-  every other id (missing, TEST, held out, sealed, cross-key locked) with the refusal and token
-  size `task` gives, so it is not a ledger-membership oracle (VF-21, CE-20). A refusal
-  carries no `with_outcomes` flag, so every refusal has one size. A Verifier who needs the
-  ledger's own word runs the local script, which reads only the safe ledger columns and
-  prints `DEV`, `TEST` or `UNKNOWN` (TEST under any key or sealed wins; `UNKNOWN` never
-  authorizes access):
-  `uv run python -m evallab.production.ledger_split task TASK_ID | item KEY_ID ITEM_ID`.
-  Never hand its output to a QA agent. `export` writes a blinded export of admitted runs chosen by facets, ids or an
-  ids file (any non-admitted id fails the whole call and writes nothing), with the
-  sealed manifest beside it. `scan` runs the four deterministic Scout text scanners over a
-  scout export (re-executing under the scout-watch runtime when this environment
-  lacks Scout); its refusals (more than 200 transcripts, not a file) never repeat the file's
-  size or the path given. No call makes a model call.
-- Export output and its sibling manifest must both be new, including dangling
-  symlinks. Refusal preserves existing entries' contents, identities, permissions
-  and mutation timestamps. Read-only admission and path probes can still advance
-  filesystem access timestamps (`atime`); those are not evidence of a write.
-- Every export manifest entry (cloud and CheatBench) carries `actor_inputs_available`: true
-  when some agent-authored step has message text or a tool call. False marks runs with no
-  model actor behind them (native replay receipts, retained event journals, differential
-  receipts); a monitor reading them has nothing to scan, so the answer is unknown, not clean.
-  It is derived from the exported structure, never from a label. `qa-data export` prints it
-  per run.
-- `qa-data export` reports `evidence_steps_original`/`evidence_steps_blinded` only from
-  facet records that `runs` serves; a record withheld for naming a sealed identity cites
-  nothing, exactly like a run with no facet.
-- `trace-card RUN_ID`: the `trace_findings` table holds every detector's `trace-findings/v1`
-  record (`run_id`, `detector`, `detector_version`, `reader_model`, `verdict`
-  alarm|clear|abstain|unknown, `score`, `kind`, `evidence_steps`, `summary` of at most 40
-  words, tokens, cost, latency, `produced_at`). It is keyed by run, detector, version and
-  reader, so re-importing a file stores the same rows, the newest `produced_at` of a key
-  wins, and a cited step must be a stored (original) step of the run. The write path admits
-  only registry-admitted DEV runs and recomputes `actor_inputs_available` from the stored
-  steps: a run with no actor transcript cannot be recorded `clear`. Import:
-  `uv run evallab prod import-trace-findings --cloud-database DB --jsonl FILE` (a write: use a
-  copy for tests). The card (`evallab.production.qa_data_card.build_card`) lists each stored
-  finding (alarms first), the Run Atlas facet leads, the deterministic trace flags with their
-  first stored step, the trace playbook cards they trigger, and the per-reader row and flag
-  counts of the trace-tool ledgers. It stays within 1,500 tokens (whole items dropped and
-  counted in `omitted`), carries no outcome, reward, model, dataset or split field, and a
-  store without the table gives an empty `detectors` list. No finding is not a clean verdict.
-- `--pretty` indents any reply for readers that clip long lines; `--budget` and `tokens_est`
-  describe the compact form (pretty text is about 30% larger). Store or path errors reply
-  with the same JSON envelope (exit 2), never a traceback.
-- `prod export-runs --strict` fails before publishing when any requested id is
-  missing or not admitted; `--trace-ids-file` takes ids from a file. The default
-  `export-runs` still exits 0 with `refused` counted.
-- `runs` lists every run (not one per task) from stored Run Atlas facets, ranked by
-  facet similarity to `--like`, then query words found in goal/approach/shortcut,
-  then suspicion. Records omit `source`/`split`/model and give only a cluster id
-  and level: cluster names are model-written from stored samples that may include
-  runs the caller cannot see, so they are never returned.
-- Malformed numeric `--facet` values return the normal JSON error envelope, including
-  superscript digits, repeated signs and oversized integer spellings. An undecodable
-  run id gets the uniform unavailable refusal. Neither error starts an export.
-- `window` returns recorded non-user steps (`step_index`, role, tool, command,
-  content, observation preview), without evaluator flags or CAS pointers.
-- `history` returns the task's own confirmed/provisional issues (refuted ones are
-  counted), similar issues elsewhere with `issue:<id>` pointers, and the matching
-  playbook cards (issue defect classes and `--flag` values are the triggers).
-- **Label-free by default (CE-19).** A default `task`, `history`, `runs`, `window` or
-  `findings` reply has no dataset, source, split, reward or label-tier field. That is a
-  statement about fields: recorded step text is served as recorded, so the 582 native
-  replay runs (565 MiMo, 17 TB4) show their replay `"reward"` inside the text of a
-  `window` step, and `window` text can name a benchmark. Hand a reader that must stay
-  blind an `export`, never `window`/`task` output. Decided per field: `dataset` is dropped from `task` and no opaque family tag replaces
-  it (a QA reader needs the task, not the benchmark it came from, and no QA job reads
-  it; the package summary key that said `source` is now `stored_in`). `trust_tier`
-  (on own and similar issues, in `task` and `history`) and the `differential`
-  `[original_reward, repaired_reward]` of an issue are outcome labels: they are returned
-  only with `--with-outcomes` on `task` or `history`, which is off by default and echoed
-  as `meta.with_outcomes` on every reply of those two calls, refusals included. Kept on
-  purpose: an issue's `status` (the review state of the thing under QA), the facet
-  `outcome` and the reward-derived `outcome` of a listed run (the same field `runs`
-  returns), and the `dataset_id` that `inventory` and `traces` print because they select
-  by it; those two are operator listings and their records must not go to a blind reader. Identifiers are not
-  changed: a run id can embed its dataset (`qa-trace-sft-v0:tb4:…`, `goodfire-reward-hack-data/…`)
-  in every call, `runs` included, and a task id can be namespaced; only a blinded export
-  renames them.
-- `findings` joins the local trace-tool ledgers to run ids that equal the store's
-  trace ids, and returns the tools' own leads (not verdicts) with sealed-identity
-  screening. No finding means the tool did not scan the run or found nothing.
-
-Measured tokens and latency per call type on the live store are in
-`research/evidence/runs/ce14-qa-data-20261028/`.
 
 ### Retained causal descriptions
 

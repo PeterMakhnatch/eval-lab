@@ -12,52 +12,9 @@ from evallab.line import core
 from evallab.line.io import read_json
 from evallab.line.replay import replay
 from evallab.line.scoreboard import build_scoreboard, render_scoreboard
-from evallab.line.watch import check_state, install_stop_signals, run_watch, watchdog
+from evallab.line.watch import check_state, install_stop_signals, run_watch
 from evallab.line.watch_rollup import cumulative_scoreboard
 from evallab.line.watch_state import State
-
-
-def build_line_parser(subparsers: Any) -> None:
-    parser = subparsers.add_parser("line", help="Run and audit the DEV assembly line")
-    commands = parser.add_subparsers(dest="line_command", required=True)
-    for name in ("run", "check", "scoreboard", "replay"):
-        command = commands.add_parser(name)
-        command.add_argument(
-            "path",
-            type=Path,
-            help=(
-                "spec JSON"
-                if name in ("run", "replay")
-                else "batch directory, or a live state directory"
-            ),
-        )
-        command.add_argument("--json", action="store_true")
-        if name == "replay":
-            command.add_argument("--baseline", type=Path, required=True)
-            command.add_argument("--write-baseline", action="store_true")
-        if name == "check":
-            command.add_argument(
-                "--fast",
-                action="store_true",
-                help="skip the determinism recompute; the result says determinism is not "
-                "verified, exits 3 at best, and leaves check.json and the scoreboard untouched",
-            )
-        command.set_defaults(func=_command)
-    watch = commands.add_parser(
-        "watch",
-        help="Process finished DEV runs as they arrive (live mode, one owner per state dir)",
-    )
-    watch.add_argument("config", type=Path, help="evallab.line_watch/v1 JSON")
-    watch.add_argument("--state-dir", type=Path, required=True)
-    watch.add_argument("--once", action="store_true", help="one cycle, then exit")
-    watch.add_argument("--max-cycles", type=int, default=None)
-    watch.add_argument("--json", action="store_true")
-    watch.set_defaults(func=_command)
-    dog = commands.add_parser("watchdog", help="ok / stalled / failed verdict for a live state dir")
-    dog.add_argument("path", type=Path, help="live state directory")
-    dog.add_argument("--max-age", type=float, default=None, help="seconds without progress")
-    dog.add_argument("--json", action="store_true")
-    dog.set_defaults(func=_command)
 
 
 def _batch(given: Path) -> Path:
@@ -127,9 +84,6 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 stop=stop,
             )
             code = 2 if "error" in value else 0
-        elif args.line_command == "watchdog":
-            value = watchdog(args.path, max_age=args.max_age)
-            code = 0 if value["status"] == "ok" else 2
         else:
             live = State.locate(args.path.expanduser().resolve())
             value = (
@@ -138,9 +92,7 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 else build_scoreboard(_batch(args.path), root)
             )
             code = 0
-        if args.line_command == "watchdog":  # one line per run: launchd appends them to a log
-            print(json.dumps(value, sort_keys=True))
-        elif args.json:
+        if args.json:
             print(json.dumps(value, indent=2, sort_keys=True))
         elif args.line_command == "scoreboard":
             print(render_scoreboard(value))

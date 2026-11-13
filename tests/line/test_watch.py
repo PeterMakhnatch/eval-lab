@@ -1304,41 +1304,7 @@ def test_cached_autoreview_is_written_per_increment_from_the_validated_cache(wor
     assert world.check()["passed"]
 
 
-# ---------------------------------------------------------------- watchdog and lag
-
-
-def test_watchdog_reports_failures_stalls_and_progress(world: World) -> None:
-    assert watch.watchdog(world.tmp / "nothing")["status"] == "failed"
-    world.add_job("job-1", STAGE_ONE)
-    world.run()
-    state, now = world.state, world.clock.now
-    assert watch.watchdog(world.state_dir, now=now + 5)["status"] == "stalled"  # nobody owns it
-    status = read_json(state.status_path)
-    with owner_lock(state):
-        write_json(state.status_path, {**status, "phase": "idle"})
-        assert watch.watchdog(world.state_dir, now=now + 5)["status"] == "ok"
-        assert watch.watchdog(world.state_dir, now=now + 500)["status"] == "stalled"
-        write_json(
-            state.status_path, {**status, "phase": "processing"}
-        )  # progress inside the open one
-        state.inc(7).mkdir(parents=True)
-        os.utime(state.inc(7), (now + 1000, now + 1000))
-        assert watch.watchdog(world.state_dir, now=now + 1010)["status"] == "ok"
-        assert watch.watchdog(world.state_dir, now=now + 1100)["status"] == "stalled"
-        write_json(state.status_path, {**status, "phase": "failed", "last_error": {"class": "X"}})
-        assert watch.watchdog(world.state_dir, now=now + 5)["status"] == "failed"
-    verdict = read_json(state.watchdog_path)
-    assert verdict["status"] == "failed" and verdict["schema"] == watch.WATCHDOG_SCHEMA
-
-
-def test_the_watchdog_reports_two_open_increments_instead_of_crashing(world: World) -> None:
-    world.add_job("job-1", STAGE_ONE)
-    world.run()
-    world.state.inc(2).mkdir()
-    world.state.inc(3).mkdir()
-    verdict = watch.watchdog(world.state_dir, now=world.clock.now + 5)
-    assert verdict["status"] == "failed" and "more than one open" in verdict["reason"]
-    assert read_json(world.state.watchdog_path)["reason"] == verdict["reason"]
+# ---------------------------------------------------------------- lag
 
 
 def test_lag_is_measured_from_recorded_times_only() -> None:
@@ -2144,18 +2110,6 @@ def test_a_manifest_reward_reaches_the_line_as_written(world: World) -> None:
     expected = {r["run_id"]: r["reward"] for r in read_rows(batch / "runs.jsonl")}
     assert expected == {r["run_id"]: r["reward"] for r in read_rows(world.child() / "runs.jsonl")}
     assert set(expected.values()) == {0.5}
-
-
-@pytest.mark.parametrize("limit", ["corrupted", True, -5, 0, None, [1], {"a": 1}])
-def test_the_watchdog_never_crashes_on_a_corrupt_age_limit(world: World, limit: Any) -> None:
-    world.add_job("job-1", STAGE_ONE)
-    world.run()
-    stored = read_json(world.state.watch_json)
-    stored["config"]["watch"]["watchdog_max_age_seconds"] = limit
-    write_json(world.state.watch_json, stored)
-    verdict = watch.watchdog(world.state_dir)
-    assert verdict["status"] == "failed" and "watchdog_max_age_seconds" in verdict["reason"]
-    assert read_json(world.state.watchdog_path)["status"] == "failed"
 
 
 @pytest.mark.parametrize(

@@ -1875,35 +1875,6 @@ inspection to version 6's contribution-only cheat label and `blind_atif` workspa
 
 Results and caveats: `research/experiments/qa-trace/README.md`.
 
-## Read-only task dossier (HAR-186)
-
-
-This joins existing task evidence without another store: the HAR-172/177
-health/solve/verdict classifiers and lineage records, ledger, HAR-161 exploit
-observations, optional static flags, HAR-179 `failing_tests.csv`, and every
-matching trial in the HAR-178 `trials` view. It does not limit membership to the
-viewer's trusted-job cohort. Controls and exploit attempts remain in the trial
-list; `solve:*` retains the separate model-history denominator and source epoch.
-
-Reader aliases are joined through the published copy's native job/trial identity,
-not similar directory names. Missing or ambiguous publication does not remove
-available native copy-check/RewardKit evidence. Conflicting reader identities
-stay explicit; absent judgments are null, never a clean verdict. Harbor
-`reward_hacking` is a different check from Laminar `copied`, not a consensus vote.
-
-
-For task `000792`, the current recorded leak is affirmative despite the old
-census-era `none_found` channel. Its `strip-future-history@1` artifact has a repair
-digest but is still **candidate**, not validated; the dossier never upgrades it.
-The HAR-168 a1 pass is copied and gated to zero; a2 has raw/gated reward zero.
-All source judgments remain separate, including the analyzer's non-hacking
-judgment on a1. Missing-evidence tasks return null facets and an empty selected
-trial list. A never-run model-history label may coexist with recorded nop trials.
-
-OMP agents can load `.omp/skills/task-dossier/SKILL.md` and call
-`from evallab.task_dossier import task_dossier; task_dossier(task_id)` in the
-checkout's Python environment. No MCP daemon or global OMP configuration is installed.
-
 ## Filter historical jobs by task health
 
 ```bash

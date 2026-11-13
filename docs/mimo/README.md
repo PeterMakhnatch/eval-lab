@@ -34,7 +34,7 @@ permissions to another:
   were executed and that have no open supported finding. "Clean" means those
   controls on those bytes, not semantic certification or training admission.
 
-Build the v6 packages with `uv run python research/experiments/mimo-v6-full-fleet/build_fleet.py`.
+The v6 package build driver is archived. See [the research archive](../../research/ARCHIVE.md#round-8-stale-dispatch-and-exclusive-research-consumers).
 The 2,698-task `mimo-clean-v6` manifest (`research/experiments/mimo-clean-v6/manifest.csv`:
 2,666 built, 32 skipped) and the v5 manifest remain
 available for historical comparisons. The v5 #848 snapshot-hook update changed

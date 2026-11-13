@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import json
-import shutil
 from pathlib import Path
 
 from evallab.evidence.atif import project_trial
-from evallab.evidence.facts import write_analysis_review
 from evallab.explorer import (
     redact_mapping,
 )
@@ -16,7 +13,6 @@ from evallab.status import build_status_snapshot
 
 FIXTURES = Path(__file__).parent / "fixtures" / "explorer"
 JOBS = FIXTURES / "jobs"
-ANALYSES = FIXTURES / "analyses"
 
 
 def test_the_fixture_records_exit_codes_where_the_validated_shape_puts_them():
@@ -55,22 +51,6 @@ def test_secret_shaped_config_values_are_redacted(tmp_path: Path):
     assert "nested-secret" not in str(nested)
 
 
-def test_review_writer_persists_disposition(tmp_path: Path):
-    """The review writer persists the supplied decision beside the sidecar."""
-    analyses = tmp_path / "analyses"
-    shutil.copytree(ANALYSES / "valid", analyses / "11111111-1111-4111-8111-111111111111")
-    sidecar_path = analyses / "11111111-1111-4111-8111-111111111111" / "analysis.json"
-    review_path, review = write_analysis_review(
-        sidecar_path,
-        disposition="accepted",
-        rationale="reviewed during the M009 flight",
-        reviewer="operator-fixes",
-    )
-    assert review_path.is_file()  # the review really is next to the sidecar
-
-    saved = json.loads(review_path.read_text())
-    assert saved["analysis_id"] == str(review.analysis_id)
-    assert saved["disposition"] == "accepted"
 
 
 def test_status_snapshot_preserves_agent_exit_error():

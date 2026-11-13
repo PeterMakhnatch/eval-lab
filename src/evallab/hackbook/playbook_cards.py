@@ -2,13 +2,12 @@
 
 Cards are diagnostic leads, not cheating verdicts. The packaged catalog contains
 only the twelve compact cards, never source traces, private paths or audit data.
-The formatter emits cards only; callers prepend their observed feature index.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from functools import cache
 from importlib.resources import files
 from typing import Literal, TypedDict, cast
@@ -35,11 +34,6 @@ def _catalog() -> tuple[PlaybookCard, ...]:
 
 def _copy_card(card: PlaybookCard) -> PlaybookCard:
     return {**card, "trigger_flags": card["trigger_flags"].copy()}
-
-
-def list_playbook_cards() -> list[PlaybookCard]:
-    """Return the twelve cards in catalog order, without exposing cached mutable data."""
-    return [_copy_card(card) for card in _catalog()]
 
 
 def match_playbook_cards(
@@ -73,13 +67,3 @@ def match_playbook_cards(
     ranked = [(score, card) for score, card in ranked if score]
     ranked.sort(key=lambda row: (-row[0], row[1]["card_id"]))
     return [_copy_card(card) for _, card in ranked[:max_cards]]
-
-
-def format_playbook_cards(cards: Sequence[PlaybookCard]) -> str:
-    """Join only the selected cards as compact JSON; return empty text for no hits.
-
-    These v1 card payloads measure 70–90 o200k_base tokens each, including keys.
-    The previously measured ~211-token median bundle also included a trace-feature
-    index; this function neither invents that index nor claims a tokenizer cap.
-    """
-    return "\n".join(json.dumps(card, ensure_ascii=False, separators=(",", ":")) for card in cards)

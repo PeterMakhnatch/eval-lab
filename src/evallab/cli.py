@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shlex
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
@@ -13,12 +12,10 @@ from pathlib import Path
 from evallab import __version__, database
 from evallab import queue as queue_module
 from evallab.automation import (
-    GuardedTick,
     HeadlessDoctor,
     audit_launch_agents,
     sync_primary_status,
 )
-from evallab.canary import CanaryEnqueuer, load_canary_suite
 from evallab.evidence.atif import check_projection_invariant, ingest_and_project
 from evallab.fetch import (
     HarborBackend,
@@ -26,25 +23,14 @@ from evallab.fetch import (
 from evallab.gc import (
     doctor_disk_line,
 )
-from evallab.modal_ops import stop_selfhosted_app_if_drained
 from evallab.preflight import build_preflight_report, render_preflight
 from evallab.queue import (
     DirectoryQueue,
-    DispatchCapacity,
     Executor,
-    lab_threshold_reached,
     load_policy,
     new_ulid,
     provider_reported_exhaustion,
-    read_spec,
     record_projection_failures,
-    render_headroom_notice,
-)
-from evallab.quota import (
-    Headroom,
-    default_roots,
-    load_quota_report,
-    provider_subscription_description,
 )
 from evallab.results import JobRecord, load_job, load_jobs
 from evallab.runner import (
@@ -663,257 +649,6 @@ def _process_job_command(
 # Declarative CLI Parser Construction
 # ---------------------------------------------------------------------------
 
-
-def _headroom_for(root: Path, *, agent: str) -> Headroom:
-    """Read only the allowance evidence belonging to ``agent``."""
-    try:
-        return load_quota_report(
-            default_roots(root),
-            now=datetime.now(UTC),
-            paid_agents=frozenset({agent}),
-        ).headroom
-    except (OSError, ValueError) as exc:
-        return Headroom(
-            availability="unavailable",
-            reason=f"the quota scan failed ({type(exc).__name__}: {exc})",
-        )
-
-def _submit_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    spec = read_spec(_resolve(root, args.path))
-    executor = Executor.from_repo(root)
-    path, decision = executor.submit(spec)
-    # `approve`, `reject`, and the catalog's `experiment_id` column all
-    # want the bare ULID. Printing the queue state directory as if it
-    # were a label made the operator copy a word that no command takes
-    # (M009 F-09). Read the id back off the artifact that was written.
-    submitted = executor.queue.load(path)
-    print(f"spec_id: {submitted.spec_id}")
-    print(f"state: {path.parent.name}")
-    print(f"path: {path}")
-    print(decision.message)
-    # A paid-authorization refusal already spells out both commands with
-    # this spec's real id; repeating one of them here reads as noise.
-    if path.parent.name == "waiting" and "evallab approve" not in decision.message:
-        print(f"next: uv run evallab approve {shlex.quote(str(submitted.spec_id))} --actor <you>")
-    return 0
-
-def _tick_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    if args.spec_id and args.canary_suite:
-        raise ValueError("--spec-id cannot be combined with --canary-suite")
-    # A selected run still uses all dispatch gates, without an unrelated account-wide report.
-    if not args.spec_id:
-        print(
-            render_preflight(
-                build_preflight_report(
-                    root,
-                    now=datetime.now(UTC),
-                    refusal=provider_reported_exhaustion,
-                    refuse_at_used_percent=_configured_quota_ceiling(root),
-                )
-            )
-        )
-    agent_caps: dict[str, int] = {}
-    for raw in args.agent_capacity:
-        agent, separator, value = raw.partition("=")
-        if not separator or not agent or not value.isdigit() or int(value) < 1:
-            print(f"invalid --agent-capacity value: {raw!r}", file=sys.stderr)
-            return 2
-        agent_caps[agent] = int(value)
-    capacity = None
-    if args.max_specs is not None or args.max_active_trials is not None or agent_caps:
-        capacity = DispatchCapacity(
-            max_specs_per_tick=args.max_specs,
-            max_active_trials=args.max_active_trials,
-            per_agent_active_trials=agent_caps or None,
-        )
-    executor = Executor.from_repo(
-        root,
-        parallel=getattr(args, "parallel", None),
-        progress=print,
-        capacity=capacity,
-        modal_teardown=stop_selfhosted_app_if_drained,
-        selfhosted_warmup_seconds=float(getattr(args, "selfhosted_warmup_seconds", 600.0)),
-        smoke_gate_enabled=not bool(getattr(args, "no_smoke_gate", False)),
-    )
-    for spec_id in args.spec_id:
-        selected_path = executor.queue.locate(spec_id)
-        selected = executor.queue.load(selected_path)
-        if selected.spec_id != spec_id:
-            raise ValueError("--spec-id requires an exact queued spec ID")
-        if selected_path.parent.name != "approved":
-            raise ValueError(
-                f"{spec_id} is {selected_path.parent.name}, not approved; "
-                "inspect or explicitly approve this spec before dispatch"
-            )
-        print(
-            f"selected: {spec_id} {selected.name} — {selected.agent} / "
-            f"{selected.model or 'control'} / {selected.environment}"
-        )
-    canary_enqueuer = None
-    if getattr(args, "canary_suite", None) is not None:
-        suite_path = _resolve(root, args.canary_suite)
-        try:
-            suite = load_canary_suite(suite_path)
-        except (OSError, ValueError) as exc:
-            print(f"canary suite invalid: {exc}", file=sys.stderr)
-            return 1
-        canary_enqueuer = CanaryEnqueuer(
-            repo_root=root,
-            executor=executor,
-            suite=suite,
-        )
-    result = GuardedTick(
-        doctor=HeadlessDoctor(root, executor=executor),
-        executor=executor,
-        canary_enqueuer=canary_enqueuer.enqueue_due if canary_enqueuer is not None else None,
-    ).run(spec_ids=args.spec_id or None)
-    is_quarantined = not result.report.healthy or result.quarantined
-    print(f"dispatched {result.dispatched} experiment(s)")
-    if result.enqueued:
-        print(f"enqueued {result.enqueued} canary experiment(s)")
-    print(f"quarantined: {'yes' if is_quarantined else 'no'}")
-    if result.quarantine_reason:
-        print(f"quarantine reason: {result.quarantine_reason}", file=sys.stderr)
-    if executor.last_tick_reason:
-        print(f"dispatch reason: {executor.last_tick_reason}")
-    selected_incomplete = False
-    for spec_id in args.spec_id:
-        selected_path = executor.queue.locate(spec_id)
-        selected = executor.queue.load(selected_path)
-        state = selected_path.parent.name
-        print(f"spec: {spec_id} state: {state}")
-        selected_incomplete |= state != "done"
-        if state != "done":
-            reasons = sorted(executor.queue.reasons_dir.glob(f"{spec_id}-*.json"))
-            if reasons:
-                reason = json.loads(reasons[-1].read_text())
-                print(f"reason: {reason['code']}: {reason['message']}")
-        job_path = Path(selected.jobs_dir) / selected.name
-        if (root / job_path).is_dir():
-            print(f"evidence: {job_path.as_posix()}")
-            print(f"inspect: uv run evallab summarize {shlex.quote(job_path.as_posix())}")
-    return 1 if is_quarantined or selected_incomplete else 0
-
-def _approve_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    queue = DirectoryQueue(root / "queue")
-    path = queue.approve(
-        args.spec_id,
-        actor=args.actor,
-        quota_override=args.despite_quota,
-    )
-    authorized = queue.load(path)
-    print(f"authorized: {authorized.spec_id}")
-    print(f"actor: {args.actor}")
-    print(f"path: {path}")
-    if authorized.billable:
-        print(
-            f"spend: {authorized.agent} x {authorized.attempts} attempt(s), "
-            f"estimated {authorized.est_cost_usd:.2f} USD per job; cost/account basis: "
-            f"{provider_subscription_description(authorized.agent, authorized.model)}"
-        )
-        # The dollar figure is an API-list-price equivalent; the provider
-        # allowance or policy state is the binding account-side signal.
-        headroom = _headroom_for(root, agent=authorized.agent)
-        print(render_headroom_notice(headroom, agent=authorized.agent, model=authorized.model))
-        # The threshold is policy, not code: `refuse_billable_at_used_percent`
-        # in `policy/standing-approvals.yaml` governs it (currently 80%, raised
-        # from the original 60% baseline). Load the configured value inline.
-        ceiling = load_policy(
-            root / "policy/standing-approvals.yaml"
-        ).refuse_billable_at_used_percent
-        blocked = provider_reported_exhaustion(headroom) or lab_threshold_reached(
-            headroom, threshold=ceiling
-        )
-        if blocked and not args.despite_quota:
-            print(
-                f"WARNING: dispatch will refuse this spec — {blocked}. "
-                "Re-approve with --despite-quota only if you have reason "
-                "to believe the reading is wrong."
-            )
-        elif args.despite_quota and not blocked:
-            print(
-                "note: --despite-quota was recorded, but the reading "
-                "reports no exhaustion, so it overrode nothing."
-            )
-    if authorized.campaign_ledger is not None:
-        from evallab.campaigns import CAMPAIGN_STATE_ROOT
-
-        manifest_path = CAMPAIGN_STATE_ROOT / authorized.campaign_ledger.ledger_id / "manifest.json"
-        print(f"next: uv run evallab campaign resume {manifest_path.as_posix()}")
-    else:
-        print(f"next: uv run evallab tick --spec-id {shlex.quote(str(authorized.spec_id))}")
-    return 0
-
-def _tasks_prepare_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.task_prepare import prepare_task
-
-    prepared = prepare_task(
-        root,
-        _resolve(root, args.source),
-        name=args.name,
-        agent=args.agent,
-        model=args.model,
-        environment=args.environment,
-        timeout_seconds=args.timeout_seconds,
-        cost_limit_usd=args.cost_limit_usd,
-        est_cost_usd=args.estimated_cost_usd,
-        max_requests=args.max_requests,
-        max_input_tokens=args.max_input_tokens,
-        max_output_tokens=args.max_output_tokens,
-        max_total_tokens=args.max_total_tokens,
-        harness_tree_path=args.harness_tree,
-        harness_tree_sha256=args.harness_tree_sha256,
-        output=args.output,
-        submitted_by=args.submitted_by,
-        linear_card=args.linear_card,
-    )
-    spec_path = prepared.spec_path.relative_to(root.resolve()).as_posix()
-    next_command = f"uv run evallab submit {shlex.quote(spec_path)}"
-    payload = {
-        "spec_path": spec_path,
-        "spec": prepared.spec.model_dump(mode="json"),
-        "source": str(prepared.source),
-        "task_path": prepared.task_path.relative_to(root.resolve()).as_posix(),
-        "resources": prepared.resources,
-        "task_timeout_seconds": prepared.task_timeout_seconds,
-        "warnings": list(prepared.warnings),
-        "next_command": next_command,
-        "submitted": False,
-    }
-    if args.json:
-        print(json.dumps(payload, indent=2))
-        return 0
-    spec = prepared.spec
-    print(f"prepared: {spec_path}")
-    print(f"task: {spec.task} @ {spec.task_version or 'unversioned'}")
-    print(f"package: {spec.task_package_digest}")
-    print(f"run: {spec.agent} / {spec.model or 'control'} / {spec.environment}")
-    if spec.linear_card is not None:
-        print(f"card: {spec.linear_card} (explicit provenance)")
-    if spec.harness_tree_sha256 is not None:
-        print(f"harness: {spec.harness_tree_sha256} ({spec.harness_tree_path})")
-    print(f"resources: {json.dumps(prepared.resources, sort_keys=True)}")
-    print(f"timeout: {spec.timeout_seconds}s (task: {prepared.task_timeout_seconds}s)")
-    if spec.cost_limit_usd is not None:
-        print(
-            f"model ceilings: ${spec.cost_limit_usd:g}, {spec.max_requests} requests, "
-            f"{spec.max_input_tokens} input / {spec.max_output_tokens} output / "
-            f"{spec.max_total_tokens} total tokens"
-        )
-    print(f"estimated total cost: ${spec.est_cost_usd:g} (not an infrastructure spending cap)")
-    for warning in prepared.warnings:
-        print(f"warning: {warning}")
-    print("Not submitted or authorized; no model or sandbox was started.")
-    print(f"next: {next_command}")
-    return 0
 
 
 def parser() -> argparse.ArgumentParser:
@@ -1607,126 +1342,6 @@ def parser() -> argparse.ArgumentParser:
 
     register_ship_parser(commands)
 
-    submit = commands.add_parser("submit", help="Validate and submit one experiment spec")
-    submit.add_argument("path", type=Path)
-    submit.set_defaults(func=_submit_command)
-    tick = commands.add_parser("tick", help="Reconcile and drain the approved experiment queue")
-    tick.add_argument(
-        "--spec-id",
-        action="append",
-        default=[],
-        metavar="ID",
-        help="Dispatch only these approved specs, leaving other queued work untouched (repeatable)",
-    )
-    tick.add_argument(
-        "--parallel",
-        type=int,
-        default=None,
-        metavar="N",
-        help="Dispatch workers (default: approved campaign execution cap, otherwise 1)",
-    )
-    tick.add_argument(
-        "--max-specs",
-        type=int,
-        help="Maximum specs admitted to this dispatch batch",
-    )
-    tick.add_argument(
-        "--max-active-trials",
-        type=int,
-        help="Maximum sum of Harbor-internal concurrent trial slots",
-    )
-    tick.add_argument(
-        "--agent-capacity",
-        action="append",
-        default=[],
-        metavar="AGENT=N",
-        help="Per-agent concurrent trial slots (repeatable)",
-    )
-    tick.add_argument(
-        "--canary-suite",
-        type=Path,
-        default=None,
-        metavar="PATH",
-        help="Optional path to a CanarySuite YAML for opt-in replenishment before dispatch",
-    )
-    tick.add_argument(
-        "--no-smoke-gate",
-        action="store_true",
-        help=(
-            "Disable the default smoke-trial gate for multi-model batches "
-            "(the opt-out is recorded in queue/events.jsonl)"
-        ),
-    )
-    tick.add_argument(
-        "--selfhosted-warmup-seconds",
-        type=float,
-        default=600.0,
-        metavar="SECONDS",
-        help="Bounded warm-up wait for a cold self-hosted endpoint (default: 600)",
-    )
-    tick.set_defaults(func=_tick_command)
-    approve = commands.add_parser(
-        "approve",
-        help="Authorize one queued experiment; required before any billable agent runs",
-    )
-    approve.add_argument("spec_id")
-    approve.add_argument(
-        "--actor",
-        required=True,
-        help="who is authorizing; recorded in queue/events.jsonl and never defaulted",
-    )
-    approve.add_argument(
-        "--despite-quota",
-        action="store_true",
-        help=(
-            "authorize even though the provider reports the subscription "
-            "exhausted; recorded on the authorisation event and overrides "
-            "nothing else"
-        ),
-    )
-    approve.set_defaults(func=_approve_command)
-    tasks_prepare = tasks_commands.add_parser(
-        "prepare", help="Snapshot one local Harbor task and write a bounded run spec; no execution"
-    )
-    tasks_prepare.add_argument("source", type=Path, help="Local Harbor task directory")
-    tasks_prepare.add_argument("--name", required=True, help="Unique run name")
-    tasks_prepare.add_argument("--linear-card", help="Explicit spend/provenance card, e.g. HAR-126")
-    tasks_prepare.add_argument("--agent", default="mini-swe-agent")
-    tasks_prepare.add_argument("--model", help="Exact model selector; required for a paid harness")
-    tasks_prepare.add_argument("--environment", default="docker")
-    tasks_prepare.add_argument(
-        "--timeout-seconds",
-        type=int,
-        help="Explicit execution limit; defaults to the task's declared agent timeout",
-    )
-    tasks_prepare.add_argument(
-        "--cost-limit-usd",
-        type=float,
-        help="Per-trial model cost ceiling; required for metered harnesses",
-    )
-    tasks_prepare.add_argument(
-        "--estimated-cost-usd",
-        type=float,
-        help="Total job estimate including cloud compute/build/verifier; required for remote runs",
-    )
-    tasks_prepare.add_argument("--max-requests", type=int, default=200)
-    tasks_prepare.add_argument("--max-input-tokens", type=int, default=5_000_000)
-    tasks_prepare.add_argument("--max-output-tokens", type=int, default=131_072)
-    tasks_prepare.add_argument(
-        "--max-total-tokens", type=int, help="Defaults to input plus output token ceilings"
-    )
-    tasks_prepare.add_argument(
-        "--harness-tree",
-        type=Path,
-        help="Pin the directory containing terminus/ and terminus-commands/",
-    )
-    tasks_prepare.add_argument(
-        "--harness-tree-sha256", help="Require this source tree digest before freezing it"
-    )
-    tasks_prepare.add_argument("--submitted-by", default="operator")
-    tasks_prepare.add_argument("--output", type=Path, help="Repo-relative spec output path")
-    tasks_prepare.add_argument("--json", action="store_true")
-    tasks_prepare.set_defaults(func=_tasks_prepare_command)
     return root
 
 

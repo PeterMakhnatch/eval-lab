@@ -7,9 +7,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
-from evallab.canary import load_canary_suite
 from evallab.queue import DirectoryQueue, Executor, PaidRunAuthorization, PolicyGate
 from evallab.registry import (
     TaskCertificationError,
@@ -742,14 +742,14 @@ def test_executor_tick_end_to_end_dispatch_and_provenance(tmp_path: Path) -> Non
 
 def test_canaries_remain_independent_under_own_policy(tmp_path: Path) -> None:
     real_repo = Path(__file__).resolve().parents[1]
-    suite = load_canary_suite(real_repo / "policy/canary-suite.yaml")
-    assert len(suite.members) == 3
+    suite = yaml.safe_load((real_repo / "policy/canary-suite.yaml").read_text())
+    assert len(suite["members"]) == 3
 
-    for member in suite.members:
-        task_path = real_repo / member.task_path
+    for member in suite["members"]:
+        task_path = real_repo / member["task_path"]
         assert task_path.is_dir()
         digests = compute_task_digests(task_path)
-        assert digests.package == member.task_digest
+        assert digests.package == member["task_digest"]
 
 
 def test_audit_reports_malformed_queue_specs_without_swallowing_errors(tmp_path: Path) -> None:

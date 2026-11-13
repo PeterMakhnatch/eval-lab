@@ -25,11 +25,7 @@ from typing import Any
 
 from evallab import database
 from evallab import profiles as profiles_module
-from evallab.queue import (
-    DirectoryQueue,
-    Executor,
-    new_ulid,
-)
+from evallab.queue import Executor
 from evallab.runner import database_url_from_environment, subscription_environment
 from evallab.schemas import (
     BrokenLaunchAgent,
@@ -37,7 +33,6 @@ from evallab.schemas import (
     HeadlessDoctorReport,
     LaunchAgentAudit,
     LaunchAgentPathKind,
-    QueueEvent,
 )
 
 MIN_FREE_DISK_BYTES = 5 * 1024**3
@@ -879,150 +874,3 @@ class HeadlessDoctor:
         usage = shutil.disk_usage(self.repo_root)
         required = max(MIN_FREE_DISK_BYTES, int(usage.total * MIN_FREE_DISK_FRACTION))
         return usage.free >= required
-
-
-def failed_health_checks(report: HeadlessDoctorReport) -> list[str]:
-    return [name for name, succeeded in report.checks.model_dump().items() if not succeeded]
-
-
-def blocking_health_failures(report: HeadlessDoctorReport) -> list[str]:
-    """Failures that justify quarantining the cycle.
-
-    Infrastructure failures always block. Credentials block only when *no*
-    credential is available; a single missing credential merely defers the
-    specs that need it (see Executor.tick).
-    """
-    checks = report.checks
-    blocking = [
-        name
-        for name in ("docker_reachable", "postgres_reachable", "disk_headroom")
-        if not getattr(checks, name)
-    ]
-    return blocking
-
-
-def record_quarantine(
-    queue: DirectoryQueue,
-    *,
-    event: str,
-    report: HeadlessDoctorReport,
-    actor: str,
-) -> None:
-    failed = blocking_health_failures(report) or failed_health_checks(report)
-    queue.append_event(
-        QueueEvent(
-            event_id=new_ulid(),
-            spec_id=f"system-{new_ulid()}",
-            occurred_at=date_time_now(),
-            event=event,
-            actor=actor,
-            reason_code="headless_doctor_failed:" + ",".join(failed),
-        )
-    )
-
-
-def date_time_now() -> datetime:
-    # Kept as one seam so tests can validate event shape without patching datetime.
-    return datetime.now(UTC)
-
-
-@dataclass(frozen=True)
-class GuardedTickResult:
-    report: HeadlessDoctorReport
-    dispatched: int
-    enqueued: int = 0
-    quarantined: bool = False
-    quarantine_reason: str | None = None
-
-
-class GuardedTick:
-    def __init__(
-        self,
-        *,
-        doctor: HeadlessDoctor,
-        executor: Executor,
-        canary_enqueuer: Callable[[], int] | None = None,
-    ) -> None:
-        self.doctor = doctor
-        self.executor = executor
-        self.canary_enqueuer = canary_enqueuer
-
-    def run(self, spec_ids: Sequence[str] | None = None) -> GuardedTickResult:
-        report = self.doctor.run()
-        if not report.healthy:
-            record_quarantine(
-                self.executor.queue,
-                event="tick_quarantined",
-                report=report,
-                actor="scheduled-tick",
-            )
-            return GuardedTickResult(
-                report=report,
-                dispatched=0,
-                enqueued=0,
-                quarantined=True,
-                quarantine_reason="unhealthy_preflight",
-            )
-        enqueued = 0
-        if self.canary_enqueuer is not None:
-            try:
-                enqueued = self.canary_enqueuer()
-            except (OSError, RuntimeError, ValueError) as exc:
-                reason = f"canary_enqueue_failed:{type(exc).__name__}"
-                self.executor.queue.append_event(
-                    QueueEvent(
-                        event_id=new_ulid(),
-                        spec_id=f"system-{new_ulid()}",
-                        occurred_at=date_time_now(),
-                        event="tick_quarantined",
-                        actor="scheduled-tick",
-                        reason_code=reason,
-                    )
-                )
-                return GuardedTickResult(
-                    report=report,
-                    dispatched=0,
-                    enqueued=0,
-                    quarantined=True,
-                    quarantine_reason=f"{reason}: {exc}",
-                )
-        dispatched = self.executor.tick(spec_ids=spec_ids)
-        if dispatched:
-            event = "tick_dispatched"
-            reason = f"dispatched:{dispatched}"
-        elif self.executor.last_tick_reason is not None:
-            event = "tick_deferred"
-            reason = self.executor.last_tick_reason
-        elif self.executor.queue.stop_path.exists():
-            event = "tick_deferred"
-            reason = "stop_file_present"
-        else:
-            approved = self.executor.queue.list_specs("approved")
-            if spec_ids is not None:
-                allowed = frozenset(spec_ids)
-                approved = [(path, spec) for path, spec in approved if spec.spec_id in allowed]
-            if approved:
-                event = "tick_deferred"
-                reason = "approved_specs_deferred"
-            else:
-                event = "tick_deferred"
-                reason = "no_approved_specs"
-        self.executor.queue.append_event(
-            QueueEvent(
-                event_id=new_ulid(),
-                spec_id=f"system-{new_ulid()}",
-                occurred_at=date_time_now(),
-                event=event,
-                actor="scheduled-tick",
-                reason_code=reason,
-            )
-        )
-        return GuardedTickResult(
-            report=report,
-            dispatched=dispatched,
-            enqueued=enqueued,
-            quarantined=False,
-            quarantine_reason=None,
-        )
-
-

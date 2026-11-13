@@ -7,7 +7,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID, uuid4
 
 import psycopg
@@ -26,10 +26,8 @@ from evallab.evidence.atif import (
 )
 from evallab.results import JobRecord, TrialRecord, duration_seconds, sha256_file
 from evallab.schemas import (
-    ANALYSIS_REVIEWS_DIRNAME,
     ANALYSIS_SIDECAR_FILENAME,
     AnalysisProvenance,
-    AnalysisReview,
     AnalysisSourceDigests,
     TrialAnalysisOutput,
     TrialAnalysisSidecar,
@@ -43,7 +41,6 @@ from evallab.state_events import (
 )
 
 JsonObject = dict[str, Any]
-ReviewDisposition = Literal["accepted", "needs_revision", "rejected", "superseded"]
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -119,11 +116,6 @@ def _exception_phase(exception_class: str | None) -> str | None:
     if "environment" in lowered or "docker" in lowered or "sandbox" in lowered:
         return "environment"
     return "unknown"
-
-
-def exception_phase_for(exception_class: str | None) -> str | None:
-    """Public alias of the phase classifier (reused by task qualification)."""
-    return _exception_phase(exception_class)
 
 
 #: Harbor environment wrappers that run on Daytona even when the resolved
@@ -1501,56 +1493,3 @@ def run_trial_analysis(
     sidecar_path = sidecar_dir / ANALYSIS_SIDECAR_FILENAME
     sidecar_path.write_text(sidecar.model_dump_json(indent=2) + "\n")
     return sidecar_path, sidecar
-
-
-def write_analysis_review(
-    sidecar_path: Path,
-    *,
-    disposition: ReviewDisposition,
-    rationale: str,
-    reviewer: str,
-    superseded_by: UUID | None = None,
-    reviewed_at: datetime | None = None,
-) -> tuple[Path, AnalysisReview]:
-    sidecar = TrialAnalysisSidecar.model_validate_json(sidecar_path.read_text())
-    review = AnalysisReview(
-        review_id=uuid4(),
-        analysis_id=sidecar.analysis_id,
-        disposition=disposition,
-        rationale=rationale,
-        reviewer=reviewer,
-        reviewed_at=reviewed_at or datetime.now(UTC),
-        superseded_by=superseded_by,
-    )
-    reviews_dir = sidecar_path.parent / ANALYSIS_REVIEWS_DIRNAME
-    reviews_dir.mkdir(exist_ok=True)
-    review_path = reviews_dir / f"{review.review_id}.json"
-    with review_path.open("x") as handle:
-        handle.write(review.model_dump_json(indent=2) + "\n")
-    return review_path, review
-
-
-def validate_queue_authorization(
-    authorization_path: Path,
-    *,
-    repo_root: Path,
-    source_trial_id: str,
-) -> JsonObject:
-    resolved = authorization_path.resolve()
-    running = (repo_root / "queue/running").resolve()
-    if resolved.parent != running:
-        raise ValueError("live analysis requires an authorization in queue/running")
-    payload = json.loads(resolved.read_text())
-    if not isinstance(payload, dict):
-        raise ValueError("queue authorization must be an object")
-    required = {
-        "kind": "researcher-followup",
-        "policy_rule": "researcher-followups",
-        "source_trial_id": source_trial_id,
-    }
-    for field, expected in required.items():
-        if payload.get(field) != expected:
-            raise ValueError(f"queue authorization {field} must be {expected!r}")
-    if payload.get("max_model_calls") != 2:
-        raise ValueError("queue authorization must cap max_model_calls at 2")
-    return payload

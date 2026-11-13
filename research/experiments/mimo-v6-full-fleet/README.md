@@ -25,20 +25,12 @@ are preserved, including one rejected `env-keep-build-outputs@1` ancestor on
 `002696`; this is not a rejected canonical edge or permission to call the new
 package verified. New records remain candidates until separately qualified.
 
-## Reproduce the packages and register their real lineage
+## Historical package build and lineage
 
-The pinned source snapshot and the Python ledger's existing run packages must
-already be in the shared task store. From the repository root:
-
-```bash
-uv run python research/experiments/mimo-v6-full-fleet/build_fleet.py --workers 8
-```
-
-This command vendors and hash-checks all 567 indexed references, applies the two
-source recoveries below, derives the real ntfy environment repair, writes
-`release-ledger.csv`, and invokes the authoritative `evallab mimo-clean build`
-consumer. It refuses incomplete membership or skipped packages. It performs no
-container execution, paid allocation, model call, or native qualification.
+The fleet build, reference preparation, and environment repair drivers are archived.
+See [the research archive](../../ARCHIVE.md#round-8-stale-dispatch-and-exclusive-research-consumers) for their source revision.
+The retained outputs below remain immutable. `census.py` remains a supported reader.
+These build measurements do not authorize new execution or transfer old qualification to changed bytes.
 
 Outputs:
 

@@ -88,14 +88,12 @@ packages = ["src/evallab"]
 
 [tool.pytest.ini_options]
 addopts = "-q -n 4 --dist loadscope --strict-markers"
-pythonpath = ["research/analysis/harness-mechanics"]
 markers = [
     "docs_consumer: reads repository documents; supports focused local checks",
 ]
 testpaths = [
     "tests",
     "research/analysis/tests",
-    "research/experiments/tests",
     "research/experiments/ov1104-detbench/test_length_metrics.py",
 ]
 
@@ -104,7 +102,7 @@ line-length = 100
 target-version = "py312"
 extend-exclude = [
     "library/adapters/*/generated",
-    "library/tasks/terminal-bench-html-js-filter", "library/curated",
+    "library/tasks/terminal-bench-html-js-filter",
     # Verbatim task verifiers are pinned by matrix verifier_digest; preserve their bytes.
     "library/tasks/release-branch-rescue",
     "library/tasks/experimental",
@@ -116,9 +114,6 @@ extend-exclude = [
     # digests are pinned in each bundle's PROMOTION.json, so linting or
     # reformatting it would falsify the record rather than improve it.
     "research/evidence/runs",
-    # Vendored upstream tools are pinned by commit in each vendor PIN file;
-    # linting or reformatting them would desync the copy from its source.
-    "research/external/harbor-ecosystem/vendor",
 ]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
@@ -129,7 +124,6 @@ ignore = ["E501"]
     # HAR-169 integrity core + its in-image payload run on task-image interpreters
     # back to 3.7, so typing.* annotation forms stay (UP006/UP035/UP045).
     "src/evallab/integrity_reward_core.py" = ["UP006", "UP035", "UP045"]
-    "src/evallab/integrity_reward_files/**/*.py" = ["UP006", "UP035", "UP045"]
     "src/evallab/heldout_verifier.py" = ["UP032"]
 
 [tool.ty.rules]

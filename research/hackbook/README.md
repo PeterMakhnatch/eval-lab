@@ -3,7 +3,7 @@
 **Hackbook v0** (`evallab.hackbook.entry/v0`) is Eval Lab's versioned catalog of known task-side benchmark defects (`TS01`–`TS11`) and run-side reward-hacking / evaluation failure modes (`RS01`–`RS08`). Each entry records:
 
 - **`mechanism`**: How the task defect or run-side behavior produces an unearned pass (`false_pass`) or undeserved failure (`false_fail`).
-- **`signatures`**: File globs, file regexes, trajectory command regexes, diff regexes, and canonical `structural_signals` used by internal matcher consumers.
+- **`signatures`**: File globs, file regexes, trajectory command regexes, diff regexes, and canonical `structural_signals` retained as catalog metadata.
 - **`detection_recipe`**: Concrete `static_check`, `tripwire_rule`, or `probe_test` recipe aligned with the 11 canonical `detection_method_ids` (`reference_mutation`, `differential_tests`, `reward_seeker`, `static_review`, `failure_clustering`, `trace_judge`, `tripwires`, `fixed_task_rerun`, `controls`, `equivalent_rewrite`, `grader_fuzz`).
 - **`exploit_template`**: Preconditions, probe steps, illustrative snippet, and differential verdict (`original_grader` vs `fixed_grader`) for reward-seeker / control verification.
 - **`fix_pattern`**: Target fix location (`grader`, `environment`, `instruction`, `answer key / reference`, `task`), summary, verification checklist (`reference passes 3/3`, `nop fails 3/3`, `witness fails 3/3`), and example diff or rule.
@@ -38,28 +38,22 @@
 
 To prevent data leakage into held-out evaluation, **zero** of the 41 `tb4-audit-v1` `test`-split task names or 152 `test`-split item IDs may appear anywhere in `research/hackbook/`, `src/evallab/hackbook/`, `.omp/skills/hackbook/SKILL.md`, or `tests/test_hackbook.py`. Both `python research/hackbook/build.py --check` and `pytest tests/test_hackbook.py` enforce this boundary.
 
-## CLI and Python Usage
-
-```bash
-# Inspect catalog coverage and defensive playbook cards
-evallab hackbook coverage
-evallab hackbook cards
-```
+## Retained Python APIs
 
 ```python
-from pathlib import Path
 from evallab.hackbook.models import load_hackbook
-from evallab.hackbook.matcher import match_task
+from evallab.hackbook.playbook_cards import match_playbook_cards
 from evallab.tripwires import scan_trace
 
 entries = load_hackbook()
-task_hits = match_task(Path("path/to/task"), entries)
-trace_evidence = scan_trace(agent_steps, steps=all_steps)  # ATIF step dictionaries
+cards = match_playbook_cards(fired_flags, kind="trace", max_cards=2)
+trace_evidence = scan_trace(agent_steps, steps=all_steps)
 ```
 
-The standalone `match`, `calibrate`, and `qc` commands are retired.
-Internal task consumers use private task metadata retrieval.
-All trace consumers use `evallab.tripwires`; weighted trace scores and outcome gates are retired.
+The catalog loader, leak guard, card matcher, and tripwire engine remain supported.
+The Hackbook CLI, private task matcher, coverage helpers, and card formatter are retired.
+See [the research archive](../ARCHIVE.md#round-8-stale-dispatch-and-exclusive-research-consumers) for the retired source revision.
+The measurements below remain historical evidence, not current API instructions.
 The existing tripwire rules retain step evidence, catalog entry IDs, and diagnostic eligibility.
 Recorded QC reports and pure scoring functions remain diagnostic; they cannot change runtime eligibility.
 The historical measurements below describe the retired matcher, not the current trace contract.
@@ -108,10 +102,9 @@ and on generic trace regexes:
 | `cheatbench-actions-v1` test (75+75) | strong-tier recall / false alarms | 70 / 47 | 63 / 15 |
 | `tb4-audit-v1` dev (86 findings) | category 1-to-1 recall, predictions | 59 (125) | 56 (113) |
 
-Strong tier means trace `score >= 0.5`. Static task-side matching still does not separate
-weak-test tasks from the rest of MiMo: strong TS01 (`weak_check`) hits occur on 22 percent of the
+The historical strong tier means trace `score >= 0.5`. Task matching did not separate
+weak-test tasks from the rest of MiMo: strong TS01 (`weak_check`) hits occurred on 22 percent of the
 129 audited weak-check tasks and 19 percent of the 431 tasks with no audited finding (lift 1.1).
-Run `calibrate` before treating a hit rate as evidence.
 
 ## Matching Precision (v0.3): trace matching on full trajectories
 

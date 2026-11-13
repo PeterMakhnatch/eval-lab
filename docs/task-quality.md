@@ -2088,11 +2088,10 @@ For suite tasks with $k \ge 3$ execution attempts:
 
 ### Uncertainty and Power Contracts
 
-- All estimates carry **TRUTH bootstrap 95% confidence intervals** computed across task
-  evidence units via `evallab.cohort.bootstrap_mean_interval`.
-- **Underpowered Cohorts**: When $n_{\text{tasks}} < 2$ or bootstrap intervals are unavailable,
-  the report explicitly renders `"not distinguishable"` (`NOT_COMPARABLE`) rather than
-  presenting misleading point estimates.
+- Historical estimates use task-unit bootstrap 95% confidence intervals.
+  Their archived implementation is `evallab.cohort.bootstrap_mean_interval`; see [the research archive](../research/ARCHIVE.md#round-8-stale-dispatch-and-exclusive-research-consumers).
+- Historical reports render `"not distinguishable"` when task evidence cannot support an interval.
+  The retained preflight API still uses `minimum_detectable_effect` and `pass_at_k_probability`.
 
 ---
 
@@ -2147,13 +2146,12 @@ What it is: a versioned, machine-readable catalog of ways agents cheat and
 tasks break — mechanism, signatures, a detection recipe, a probe template,
 a fix pattern, and examples labelled `executed` / `observed` / `claimed`.
 
-- Inputs/outputs: the private task matcher takes a task package or exported
-  view and emits task metadata leads. Trace tools use `evallab.tripwires.scan_trace`
-  for step-level evidence, not a weighted catalog score.
+- Inputs/outputs: `load_hackbook` returns validated catalog entries. The private task matcher is retired.
+  Trace tools use `evallab.tripwires.scan_trace` for step-level evidence, not a weighted catalog score.
   Data: `research/hackbook/entries.jsonl`.
 - Models/lanes: no model is needed for catalog lookup or tripwire evidence.
 - Measured: 57 entries over 18 classes (#1126, #1131, later #1148/#1158/#1160);
-  `coverage` on merged main reports 57 entries (48 task-side, 9 run-side),
+  Historical `coverage` output reports 57 entries (48 task-side, 9 run-side),
   39/57 with executed evidence, 211 examples (74 executed / 2 observed /
   135 claimed). On the `tb4-audit-v1` DEV split (25 tasks, 86 findings),
   strict 1-to-1 category recall 68.6% (59/86), precision 48.4%, F1 0.567.
@@ -2171,23 +2169,20 @@ This static mechanism library complements the Cloud Trace DB's compact
 evidence-instance cards; it does not replace their provenance or expansion.
 
 ```python
-from evallab.hackbook.playbook_cards import match_playbook_cards, format_playbook_cards
+from evallab.hackbook.playbook_cards import match_playbook_cards
 
 fired = [name for name, state in flags["features"].items() if state["fired"]]
 cards = match_playbook_cards(fired, kind="trace", max_cards=2)
-card_text = format_playbook_cards(cards)
 ```
 
 Matching ranks distinct fired-flag overlap, then card ID; unknown flags
 produce no fallback. Pass fired names, not a state mapping with false keys.
-`kind="task"` selects both Task QA and Reward Seeker. The default is at most
-two matched cards; `list_playbook_cards()` explicitly returns the full catalog.
-
-The formatter joins compact card JSON only (empty text for no matches).
-Prepend the existing observed trace-feature index separately: the measured
-~211-token median progressive-disclosure bundle included that index, not just
-the cards. Each complete v1 card measured 70–90 `o200k_base` tokens using
-`tiktoken==0.12.0`; runtime adds no tokenizer dependency or universal token cap.
+`kind="task"` selects Task QA and Reward Seeker. The default is at most 2 matched cards.
+The catalog loader, card matcher, and mutation isolation remain supported.
+The full-catalog listing helper and card formatter are retired.
+The historical ~211-token median bundle included an observed trace-feature index, not only the cards.
+Each complete v1 card measured 70–90 `o200k_base` tokens with `tiktoken==0.12.0`.
+Runtime adds no tokenizer dependency or universal token cap.
 Fetch cited step windows only on demand, using the same observed prefix and
 zero-based supplied-sequence positions as the index.
 

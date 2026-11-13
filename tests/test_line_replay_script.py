@@ -13,6 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from line_test_support import isolated_admission_ancestors as isolated_admission_ancestors
 
 ROOT = Path(__file__).resolve().parents[1]
 ROUTE = "google-antigravity/gemini-3.8-flash"

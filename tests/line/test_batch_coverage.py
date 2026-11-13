@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from line_test_support import isolated_admission_ancestors as isolated_admission_ancestors
 
 from evallab import hack_drop as hd
 from evallab.line import core

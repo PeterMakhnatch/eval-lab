@@ -44,8 +44,6 @@ from evallab.trajectory_error_taxonomy import (
 PhaseType = Literal["setup", "prompt", "work", "verifier", "unknown"]
 AvailabilityStatus = Literal["featured", "accounted_unavailable"]
 
-CONTROL_AGENTS = frozenset({"oracle", "nop"})
-
 #: Re-exported from :mod:`evallab.edit_signals` (single source of truth);
 #: kept here so existing ``evallab.traj.EDIT_*`` references keep working.
 

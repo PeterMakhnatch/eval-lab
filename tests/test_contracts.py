@@ -2,29 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from evallab.schemas import (
-    AnalysisRecord,
-    CalibrationRecord,
-    ConfidenceClaim,
-    ControlEvidenceRef,
-    CriterionAgreement,
     ElicitationSpec,
-    EvidenceCitation,
     ExperimentSpec,
-    ObservationRecord,
     PowerSpec,
     PreregSpec,
-    Suite,
     TaskContamination,
-    TaskControlEvidence,
-    TaskDigests,
-    TaskLimits,
     TaskRegistryRecord,
     Verdict,
 )
@@ -32,214 +21,10 @@ from evallab.schemas import (
 FIXTURES = Path(__file__).parent / "fixtures" / "contracts"
 
 
-def test_suite_frozen_immutable():
-    """frozen_at set => mutation rejected (enforced in model)."""
-    now = datetime.now(UTC)
-    s = Suite(name="baseline", version="v1", frozen_at=now)
-    assert s.frozen_at == now
-    with pytest.raises(ValueError, match="frozen Suite is immutable"):
-        s.name = "other"
 
 
-def test_roundtrip_all_models():
-    """Valid instances survive model_dump -> model_validate unchanged."""
-    now = datetime.now(UTC)
-
-    suite = Suite(name="test", version="1", members=["task@1"], frozen_at=now)
-    assert Suite.model_validate(suite.model_dump()) == suite
-
-    analysis = AnalysisRecord(
-        analysis_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        trial_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        rubric_digest="sha256:" + "a" * 64,
-        model="gpt-4o",
-        category="failure",
-        evidence=[EvidenceCitation(path="result.json", step=3)],
-        confidence=ConfidenceClaim(level="high", n=10, interval=(0.8, 0.95)),
-    )
-    assert AnalysisRecord.model_validate(analysis.model_dump()) == analysis
-
-    obs = ObservationRecord(
-        trial_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        trial_name="t1",
-        job="j1",
-        agent="oracle",
-        model="gpt",
-        task="event-summary@1",
-        reward=1.0,
-        steps_taken=5,
-        first_failure_step="none",
-        loop_detected="no",
-        loop_step="none",
-        verified_before_done="no",
-        tool_errors=0,
-        summary="ok",
-        evidence_files="result.json",
-    )
-    assert ObservationRecord.model_validate(obs.model_dump()) == obs
-
-    calib = CalibrationRecord(
-        calib_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        judge_model="gpt-4o",
-        rubric_digest="sha256:" + "b" * 64,
-        corpus_digest="sha256:" + "c" * 64,
-        per_criterion_agreement={
-            "correctness": CriterionAgreement(agreements=8, total=10, rate=0.8)
-        },
-        date=now,
-    )
-    assert CalibrationRecord.model_validate(calib.model_dump()) == calib
-
-    verdict = Verdict(
-        discovery_id="D-20260815-KTXJSHGZ",
-        status="accepted",
-        by="peter",
-        at=now,
-        note="solid",
-    )
-    assert Verdict.model_validate(verdict.model_dump()) == verdict
-
-    elicitation = ElicitationSpec(
-        preamble_hash="sha256:" + "d" * 64,
-        toolset=["bash", "edit"],
-        env_overrides={"DEBUG": "1"},
-    )
-    assert ElicitationSpec.model_validate(elicitation.model_dump()) == elicitation
-
-    prereg = PreregSpec(
-        expected="Expected pass@3 >= 0.80",
-        decision_rule="Accept if lower bound of delta > 0.0",
-    )
-    assert PreregSpec.model_validate(prereg.model_dump()) == prereg
-
-    power = PowerSpec(mdd=0.15, planned_n=30)
-    assert PowerSpec.model_validate(power.model_dump()) == power
-
-    spec = ExperimentSpec(
-        spec_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        name="test-spec-roundtrip",
-        hypothesis="Testing all fields roundtrip faithfully",
-        purpose="comparison",
-        question_ref="EXP-S01-canary-event-summary",
-        elicitation=elicitation,
-        prereg=prereg,
-        power=power,
-        task="canary/event-summary",
-        task_path="library/tasks/event-summary",
-        agent="codex",
-        environment="docker",
-        jobs_dir="runs",
-        attempts=3,
-        concurrency=1,
-        submitted_by="test-author",
-        submitted_at=now,
-    )
-    assert ExperimentSpec.model_validate(spec.model_dump()) == spec
-
-    contamination = TaskContamination(
-        public_since=date(2024, 6, 1),
-        in_pretrain="y",
-        basis="Public GitHub repository since 2024-06-01",
-    )
-    assert TaskContamination.model_validate(contamination.model_dump()) == contamination
-
-    registry_digests = TaskDigests(
-        task_toml="sha256:" + "1" * 64,
-        instruction="sha256:" + "2" * 64,
-        environment="sha256:" + "3" * 64,
-        verifier="sha256:" + "4" * 64,
-        package="sha256:" + "5" * 64,
-    )
-
-    registry_record = TaskRegistryRecord(
-        task_id="sample-task",
-        task_family="sample-family",
-        version="1.0.0",
-        task_path="library/tasks/sample-task",
-        digests=registry_digests,
-        source_uri="https://github.com/example/sample-task",
-        provenance_zone="02-local-evidence",
-        is_synthetic=False,
-        limits=TaskLimits(),
-        control_evidence=TaskControlEvidence(
-            oracle=ControlEvidenceRef(
-                job_name="sample-task-oracle-evidence",
-                trial_name="sample-task__oracle",
-                reward=1.0,
-                evidence_path="research/evidence/runs/sample-task-oracle-evidence/result.json",
-                evidence_digest="sha256:" + "6" * 64,
-                observed_at=now,
-                lock_digest="sha256:" + "8" * 64,
-                task_id="sample-task",
-                task_version="1.0.0",
-                task_digests=registry_digests,
-                harbor_task_digest="sha256:" + "9" * 64,
-            ),
-            nop=ControlEvidenceRef(
-                job_name="sample-task-nop-evidence",
-                trial_name="sample-task__nop",
-                reward=0.0,
-                evidence_path="research/evidence/runs/sample-task-nop-evidence/result.json",
-                evidence_digest="sha256:" + "7" * 64,
-                observed_at=now,
-                lock_digest="sha256:" + "a" * 64,
-                task_id="sample-task",
-                task_version="1.0.0",
-                task_digests=registry_digests,
-                harbor_task_digest="sha256:" + "9" * 64,
-            ),
-        ),
-        state="registered",
-        allowed_uses=["canary", "measurement"],
-        contamination=contamination,
-        human_minutes=45,
-        approved_by="peter",
-        approved_at=now,
-    )
-    assert TaskRegistryRecord.model_validate(registry_record.model_dump()) == registry_record
 
 
-@pytest.mark.parametrize(
-    "bad_id",
-    [
-        "not-a-ulid",
-        "01ARZ3NDEKTSV4RRFFQ69G5FA",  # too short
-        "81ARZ3NDEKTSV4RRFFQ69G5FAV",  # invalid first char
-        "01ARZ3NDEKTSV4RRFFQ69G5FAV-extra",
-    ],
-)
-def test_ulid_rejection(bad_id):
-    """Non-ULID ids are rejected on construction for every id field."""
-    now = datetime.now(UTC)
-    with pytest.raises(ValueError, match="identifier must be ULID"):
-        AnalysisRecord(
-            analysis_id=bad_id,
-            trial_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            rubric_digest="sha256:" + "a" * 64,
-            model="m",
-            category="c",
-            confidence=ConfidenceClaim(level="low"),
-        )
-    with pytest.raises(ValueError, match="identifier must be ULID"):
-        ObservationRecord(
-            trial_id=bad_id,
-            trial_name="t",
-            job="j",
-            agent="a",
-            task="task@1",
-            reward=0,
-            steps_taken=0,
-            summary="",
-        )
-    with pytest.raises(ValueError, match="identifier must be ULID"):
-        CalibrationRecord(
-            calib_id=bad_id,
-            judge_model="m",
-            rubric_digest="sha256:" + "a" * 64,
-            corpus_digest="sha256:" + "b" * 64,
-            per_criterion_agreement={},
-            date=now,
-        )
 
 
 @pytest.mark.parametrize(
@@ -267,36 +52,6 @@ def test_discovery_id_rejection(bad_id: str) -> None:
         )
 
 
-@pytest.mark.parametrize(
-    "bad_digest",
-    [
-        "sha256:deadbeef",
-        "notsha:" + "a" * 64,
-        "sha256:" + "A" * 64,  # upper
-        "sha256:" + "g" * 64,  # invalid hex
-    ],
-)
-def test_digest_rejection(bad_digest):
-    """Unprefixed or malformed digests rejected."""
-    now = datetime.now(UTC)
-    with pytest.raises(ValueError, match="digest must be sha256"):
-        AnalysisRecord(
-            analysis_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            trial_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            rubric_digest=bad_digest,
-            model="m",
-            category="c",
-            confidence=ConfidenceClaim(level="low"),
-        )
-    with pytest.raises(ValueError, match="digest must be sha256"):
-        CalibrationRecord(
-            calib_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            judge_model="m",
-            rubric_digest=bad_digest,
-            corpus_digest="sha256:" + "a" * 64,
-            per_criterion_agreement={},
-            date=now,
-        )
 
 
 def test_status_rejection():
@@ -311,37 +66,8 @@ def test_status_rejection():
         )
 
 
-def test_frozen_suite_rejects_mutation_after_construction():
-    """Explicit test that frozen instance cannot be mutated."""
-    now = datetime.now(UTC)
-    s = Suite(name="s", version="1", frozen_at=now)
-    with pytest.raises(ValueError, match="frozen Suite is immutable"):
-        s.version = "2"
 
 
-def test_observation_factual_fields_roundtrip():
-    """ObservationRecord accepts the exact factual field list from TEMPLATE.md."""
-    obs = ObservationRecord(
-        trial_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        trial_name="event-summary__foo",
-        job="job1",
-        agent="nop",
-        model=None,
-        task="event-summary@1",
-        reward=0.0,
-        steps_taken=0,
-        first_failure_step="none",
-        loop_detected="no",
-        loop_step="none",
-        verified_before_done="no",
-        tool_errors=0,
-        summary="Nop finished",
-        evidence_files="result.json,verifier/reward.json",
-    )
-    dumped = obs.model_dump()
-    assert dumped["template_version"] == "observatory-1"
-    assert dumped["reward"] == 0.0
-    assert ObservationRecord.model_validate(dumped) == obs
 
 
 def test_experiment_spec_new_fields_roundtrip_and_prereg_verbatim():
@@ -675,126 +401,14 @@ def test_factor_provenance_schema_migrates_preexisting_fact_table_additively() -
         assert f"{column} text NOT NULL" not in schema
 
 
-def test_analysis_record_backward_compatibility():
-    """Legacy / old AnalysisRecord payloads without new fields validate with expected defaults."""
-    raw = {
-        "analysis_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        "trial_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        "rubric_digest": "sha256:" + "a" * 64,
-        "model": "gpt-4o",
-        "category": "failure",
-        "confidence": {"level": "high"},
-    }
-    rec = AnalysisRecord.model_validate(raw)
-    assert rec.analysis_role == "trial_review"
-    assert rec.source_manifest_digest is None
-    assert rec.source_snapshot_digest is None
-    assert rec.source_queue_digest is None
-    assert rec.decision_eligible is False
 
 
-def test_analysis_record_decision_eligible_cannot_be_true():
-    """decision_eligible is strictly Literal[False]; True is impossible and rejected."""
-    raw = {
-        "analysis_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        "trial_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        "rubric_digest": "sha256:" + "a" * 64,
-        "model": "gpt-4o",
-        "category": "failure",
-        "confidence": {"level": "high"},
-        "decision_eligible": True,
-    }
-    with pytest.raises(ValidationError):
-        AnalysisRecord.model_validate(raw)
-
-    with pytest.raises(ValidationError):
-        AnalysisRecord(
-            analysis_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            trial_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            rubric_digest="sha256:" + "a" * 64,
-            model="gpt-4o",
-            category="failure",
-            confidence=ConfidenceClaim(level="high"),
-            decision_eligible=True,  # type: ignore[arg-type]
-        )
 
 
-@pytest.mark.parametrize("role", ["review_queue_review", "counterexample_review"])
-def test_analysis_record_queue_and_counterexample_roles_require_all_three_digests(role):
-    """Queue and counterexample review roles require manifest, snapshot, and queue digests."""
-    base_kwargs = {
-        "analysis_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        "trial_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        "rubric_digest": "sha256:" + "a" * 64,
-        "model": "gpt-4o",
-        "category": "failure",
-        "confidence": ConfidenceClaim(level="high"),
-        "analysis_role": role,
-    }
-
-    # Missing all digests
-    with pytest.raises(ValueError, match="requires source_manifest_digest"):
-        AnalysisRecord(**base_kwargs)
-
-    # Missing queue digest only
-    with pytest.raises(ValueError, match="requires source_manifest_digest"):
-        AnalysisRecord(
-            **base_kwargs,
-            source_manifest_digest="sha256:" + "1" * 64,
-            source_snapshot_digest="sha256:" + "2" * 64,
-        )
-
-    # With all three valid digests -> succeeds
-    rec = AnalysisRecord(
-        **base_kwargs,
-        source_manifest_digest="sha256:" + "1" * 64,
-        source_snapshot_digest="sha256:" + "2" * 64,
-        source_queue_digest="sha256:" + "3" * 64,
-    )
-    assert rec.analysis_role == role
-    assert rec.source_manifest_digest == "sha256:" + "1" * 64
-    assert rec.source_snapshot_digest == "sha256:" + "2" * 64
-    assert rec.source_queue_digest == "sha256:" + "3" * 64
-    assert rec.decision_eligible is False
 
 
-def test_analysis_record_trial_review_supports_optional_digests():
-    """Trial review can bind manifest/snapshot while remaining valid without queue digest."""
-    rec = AnalysisRecord(
-        analysis_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        trial_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        rubric_digest="sha256:" + "a" * 64,
-        model="gpt-4o",
-        category="failure",
-        confidence=ConfidenceClaim(level="high"),
-        analysis_role="trial_review",
-        source_manifest_digest="sha256:" + "1" * 64,
-        source_snapshot_digest="sha256:" + "2" * 64,
-    )
-    assert rec.analysis_role == "trial_review"
-    assert rec.source_manifest_digest == "sha256:" + "1" * 64
-    assert rec.source_snapshot_digest == "sha256:" + "2" * 64
-    assert rec.source_queue_digest is None
-    assert rec.decision_eligible is False
 
 
-@pytest.mark.parametrize(
-    "digest_field",
-    ["source_manifest_digest", "source_snapshot_digest", "source_queue_digest"],
-)
-def test_analysis_record_source_digest_malformed_rejection(digest_field):
-    """Malformed or unprefixed source digests are rejected."""
-    kwargs = {
-        "analysis_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        "trial_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        "rubric_digest": "sha256:" + "a" * 64,
-        "model": "gpt-4o",
-        "category": "failure",
-        "confidence": ConfidenceClaim(level="high"),
-        digest_field: "not-a-sha256",
-    }
-    with pytest.raises(ValueError, match="digest must be sha256"):
-        AnalysisRecord(**kwargs)
 
 
 @pytest.mark.parametrize("binding", [

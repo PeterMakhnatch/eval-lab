@@ -407,11 +407,6 @@ def archive_evidence(
     )
 
 
-@contextmanager
-def open_archive(store_root: Path, uri: str) -> Iterator[BinaryIO]:
-    """Open a CAS archive while retaining no-follow directory descriptors."""
-    with _open_archive_file(store_root, uri) as source:
-        yield source
 
 
 def read_archive(store_root: Path, uri: str) -> bytes:

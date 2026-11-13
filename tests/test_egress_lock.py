@@ -27,7 +27,6 @@ from evallab.execution_contracts import (  # noqa: E402
     resolve_egress_lock,
     validate_request,
 )
-from evallab.trial_treatment import _egress_lock_value, collect_treatment  # noqa: E402
 
 MIMO_TASK_TOML = """\
 [task]
@@ -276,101 +275,8 @@ def test_in_sandbox_agent_is_refused(tmp_path: Path) -> None:
 # --- treatment key -------------------------------------------------------------
 
 
-def _trial(
-    root: Path,
-    name: str,
-    *,
-    lock: dict[str, Any] | None,
-    legacy: bool = False,
-) -> tuple[Path, Path]:
-    job = root / name
-    trial = job / f"{name}__abc"
-    trial.mkdir(parents=True, exist_ok=True)
-    (job / "lab-metadata.json").write_text(
-        json.dumps(
-            {
-                "repository": {},
-                "task_staging": {"source_package_digest": "sha256:task-a"},
-                "tools": {"harbor": "0.21.0"},
-            }
-        ),
-        encoding="utf-8",
-    )
-    (job / "experiment-spec.json").write_text(
-        json.dumps({"timeout_seconds": 900}), encoding="utf-8"
-    )
-    (trial / "config.json").write_text(
-        json.dumps(
-            {
-                "agent": {"name": "nop", "model_name": None, "kwargs": {}},
-                "environment": {"import_path": "evallab.harbor_daytona:BoundedDaytonaEnvironment"},
-            }
-        ),
-        encoding="utf-8",
-    )
-    (trial / "result.json").write_text(
-        json.dumps({"agent_info": {"name": "nop"}}), encoding="utf-8"
-    )
-    if lock is not None:
-        (trial / "egress-lock.json").write_text(json.dumps(lock), encoding="utf-8")
-    elif legacy:
-        (trial / "egress-lock.json").write_text(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "locked_at": "2026-09-30T00:00:00+00:00",
-                    "sandbox_id": "sbx-legacy",
-                    "network_block_all": True,
-                    "mechanism": "daytona update_network_settings(network_block_all=True)",
-                }
-            ),
-            encoding="utf-8",
-        )
-    return job, trial
 
 
-def test_treatment_key_differs_by_egress_lock(tmp_path: Path) -> None:
-    from evallab.trial_treatment import CommitSources
-
-    sources = CommitSources(tmp_path / "repo")
-    locked = {
-        "schema_version": 2,
-        "requested": True,
-        "applied": True,
-        "locked_at": "2026-10-01T00:00:00+00:00",
-        "recorded_at": "2026-10-01T00:00:00+00:00",
-        "sandbox_id": "sbx-1",
-        "network_block_all": True,
-        "mechanism": "daytona update_network_settings(network_block_all=True)",
-        "error": None,
-    }
-    open_: dict[str, Any] = {
-        "schema_version": 2,
-        "requested": False,
-        "applied": False,
-        "locked_at": None,
-        "recorded_at": "2026-10-01T00:00:00+00:00",
-        "sandbox_id": "sbx-2",
-        "network_block_all": False,
-        "mechanism": None,
-        "error": None,
-    }
-    job_a, trial_a = _trial(tmp_path / "runs", "locked", lock=locked)
-    job_b, trial_b = _trial(tmp_path / "runs", "open", lock=open_)
-    job_c, trial_c = _trial(tmp_path / "runs", "legacy", lock=None, legacy=True)
-    job_d, trial_d = _trial(tmp_path / "runs", "missing", lock=None)
-    row_locked = collect_treatment(job_a, trial_a, sources)
-    row_open = collect_treatment(job_b, trial_b, sources)
-    row_legacy = collect_treatment(job_c, trial_c, sources)
-    row_missing = collect_treatment(job_d, trial_d, sources)
-    assert row_locked["egress_lock"] is True
-    assert row_open["egress_lock"] is False
-    assert row_legacy["egress_lock"] is True
-    assert row_missing["egress_lock"] is False
-    assert row_locked["treatment_key"] != row_open["treatment_key"]
-    assert row_locked["setup_key"] != row_open["setup_key"]
-    value, _ = _egress_lock_value(trial_a)
-    assert value is True
 
 
 

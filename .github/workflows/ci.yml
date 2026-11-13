@@ -181,7 +181,10 @@ jobs:
           # aggregate count cannot show that a gated file really ran.
           # loadscope keeps the worker module serial even with multiple workers.
           # Item-level scheduling splits its isolated native subprocess cases.
-          uv run --no-sync pytest --shard ${{ matrix.shard }} -n 2 --dist load -rA \
+          # xdist `load` sends consecutive tests in chunks of about a quarter of a
+          # worker's share, so the 32 slow worker cases landed on one process.
+          # A chunk of 2 alternates them between both processes.
+          uv run --no-sync pytest --shard ${{ matrix.shard }} -n 2 --dist load --maxschedchunk 2 -rA \
             --junitxml=harbor-native.xml \
             tests/test_job_diff.py tests/test_regrade.py \
             tests/test_harbor_laminar.py tests/test_mimoagent_worker.py \

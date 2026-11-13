@@ -208,8 +208,9 @@ Completion also requires the local branch, remote branch, and topic worktree to 
 
 ## Verification
 
-`uv run pytest tests/test_ship.py` uses a fake GitHub CLI and real disposable Git repositories.
+`uv run pytest tests/test_ship.py tests/test_ship_publish.py` uses a fake GitHub CLI and real disposable Git repositories.
 It covers main advancement without rebasing, retargets, stale merge evidence, head movement, checks, gates, recovery, and unsafe cleanup.
+The publication module covers complete PR text, comments, unchanged patches, and explicit dependency exceptions.
 A process-kill scenario proves smoke recovery removes the resumed checkout without merging twice.
 No test requires network access or host authentication.
 The earlier F4 Temporal prototype remains research evidence under `research/experiments/on-mergetrain-workflow-20261102/`.

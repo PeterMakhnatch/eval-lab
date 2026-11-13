@@ -230,10 +230,7 @@ __all__ = [
     "validate_request",
     "TRIAL_NATIVE_TRAJECTORY_PATH",
     "TRIAL_ATIF_TRAJECTORY_PATH",
-    "TRIAL_RESULT_PATH",
-    "TRIAL_VERIFIER_DIR",
     "JOB_METADATA_PATH",
-    "JOB_RESULT_PATH",
 ]
 HARBOR_COMPOSE_CONFIG_LABEL = "com.docker.compose.project.config_files"
 HARBOR_COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
@@ -283,10 +280,7 @@ _RUNTIME_ROOT = Path(__file__).resolve().parents[2]
 
 TRIAL_NATIVE_TRAJECTORY_PATH = Path("agent/trajectory.json")
 TRIAL_ATIF_TRAJECTORY_PATH = Path("trajectory.json")
-TRIAL_RESULT_PATH = Path("result.json")
-TRIAL_VERIFIER_DIR = Path("verifier")
 JOB_METADATA_PATH = Path("lab-metadata.json")
-JOB_RESULT_PATH = Path("result.json")
 
 
 def _run_text_command(

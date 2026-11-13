@@ -446,12 +446,49 @@ class _ModuleDurations:
     def __init__(self) -> None:
         self.seconds: dict[str, float] = {}
         self.tests: dict[str, int] = {}
+        self.failed_modules: set[str] = set()
+        self.collection_errors: set[str] = set()
 
     def pytest_runtest_logreport(self, report: pytest.TestReport) -> None:
         module = report.nodeid.split("::", 1)[0]
         self.seconds[module] = self.seconds.get(module, 0.0) + report.duration
         if report.when == "setup":
             self.tests[module] = self.tests.get(module, 0) + 1
+        if report.failed:
+            self.failed_modules.add(module)
+
+    def pytest_collectreport(self, report: pytest.CollectReport) -> None:
+        if report.failed:
+            self.collection_errors.add(report.nodeid)
+
+    def pytest_sessionfinish(self, session: pytest.Session, exitstatus: int) -> None:
+        config = session.config
+        xmlpath = config.getoption("xmlpath", default=None)
+        if not xmlpath or hasattr(config, "workerinput"):
+            return
+        import platform
+
+        receipt = {
+            "schema_version": 1,
+            "run_id": os.environ.get("GITHUB_RUN_ID"),
+            "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+            "tested_sha": os.environ.get("GITHUB_SHA"),
+            "job": os.environ.get("GITHUB_JOB"),
+            "python_version": platform.python_version(),
+            "shard": config.getoption("shard", default=None),
+            "phase": Path(xmlpath).stem,
+            "exitstatus": int(exitstatus),
+            "testscollected": session.testscollected,
+            "failed_modules": sorted(self.failed_modules),
+            "collection_errors": sorted(self.collection_errors),
+            "modules": {
+                module: {"seconds": seconds, "tests": self.tests.get(module, 0)}
+                for module, seconds in sorted(self.seconds.items())
+            },
+        }
+        output = Path(xmlpath).with_suffix(".modules.json")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(receipt) + "\n")
 
     def pytest_terminal_summary(self, terminalreporter: pytest.TerminalReporter) -> None:
         if not self.seconds:

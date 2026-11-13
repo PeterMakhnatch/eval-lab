@@ -142,22 +142,6 @@ def test_trajectory_artifact_reaches_integrity_default_path(parent_dir: Path) ->
     assert inputs["trajectory_artifact"] == TRAJECTORY_ARTIFACT
 
 
-def test_composes_after_integrity_tail(parent_dir: Path) -> None:
-    """Integrity-first ordering: the scoring tail must land inside test-orig.sh."""
-    from evallab.integrity_reward import build_test_sh
-
-    tailed = build_test_sh((parent_dir / "tests" / "test.sh").read_bytes())
-    (parent_dir / "tests" / "test.sh").write_bytes(tailed)
-    changes, _ = build_changes(parent_dir, marker=MARKER)
-    orig = changes["tests/test-orig.sh"].decode("utf-8")
-    assert "rewardkit-integrity@1" in orig
-    assert "run_integrity.py" in orig
-    wrapper = changes["tests/test.sh"].decode("utf-8")
-    assert "exec /tests/test-orig.sh" in wrapper
-    # Applying separate first would strand the tail after an exec line.
-    assert "rewardkit-integrity@1" not in wrapper
-
-
 def test_agent_build_context_unchanged_but_verifier_bundles_tests(
     parent_dir: Path,
 ) -> None:

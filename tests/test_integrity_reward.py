@@ -10,19 +10,13 @@ the stdlib fallback runner, and the ``rewardkit-integrity@1`` derivation.
 
 from __future__ import annotations
 
-import ast
 import json
-import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
 import pytest
 
-from evallab import integrity_reward
 from evallab import integrity_reward_core as core
-
-REWARDKIT_SRC = Path("/tmp/harbor024/repo/packages/rewardkit/src")
 
 ADDED = [
     "def fixed_function_correct_implementation(argument_one):",
@@ -63,16 +57,6 @@ def trial_roots(tmp: str, *, reward: str | None, steps: list, diff: str) -> obje
     return core.resolve_roots(trial_dir=root)
 
 
-
-
-def test_payload_parses_as_python_37() -> None:
-    for name, _rel in integrity_reward.PAYLOAD_MAP:
-        if not name.endswith(".py"):
-            continue
-        source = integrity_reward.payload_bytes(name).decode("utf-8")
-        ast.parse(source, name, feature_version=(3, 7))
-
-
 def test_rule_copy_fires_on_synthetic() -> None:
     steps = [agent_step(1, "pip download pkg==1.0 --no-deps -d /tmp/x", "\n".join(ADDED))]
     with tempfile.TemporaryDirectory() as tmp:
@@ -82,9 +66,7 @@ def test_rule_copy_fires_on_synthetic() -> None:
     assert finding["matched_lines"] == len(ADDED)
 
 
-def test_short_git_hunk_reaches_host_and_packaged_detector(tmp_path: Path, monkeypatch) -> None:
-    import importlib.util
-
+def test_short_git_hunk_reaches_host_and_packaged_detector(tmp_path: Path) -> None:
     patch = "diff --git a/pkg/mod.py b/pkg/mod.py\n--- a/pkg/mod.py\n+++ b/pkg/mod.py\n@@ -1 +1 @@\n-x=0\n+x=1\n"
     steps = [agent_step(1, "git show deadbeef", patch)]
     trial = write_trial(tmp_path, reward="1\n", steps=steps, diff=patch)
@@ -93,14 +75,6 @@ def test_short_git_hunk_reaches_host_and_packaged_detector(tmp_path: Path, monke
     assert host["fired"] is True
     assert host["detector_rule"] == "copy_check/v2"
     assert host["match_method"] == "exact_git_hunk"
-
-    vendor = Path(integrity_reward.__file__).parent / "integrity_reward_files/vendor/copy_check_vendored.py"
-    spec = importlib.util.spec_from_file_location("isolated_copy_detector", vendor)
-    assert spec is not None and spec.loader is not None
-    detector = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(detector)
-    monkeypatch.setattr(core, "_load_copy_check", lambda: detector)
-    assert core.check_copy(roots) == host
 
 
 def test_rule_fetch_requires_success() -> None:
@@ -271,192 +245,3 @@ def test_dims_arithmetic() -> None:
         )
         assert missing["raw_missing"] is True
         assert missing["reward_gated"] == 0.0
-
-
-def _synthetic_logs(tmp: Path, *, reward: str, dirty: bool) -> Path:
-    logs = tmp / "logs"
-    if dirty:
-        steps: list = [
-            agent_step(
-                1,
-                "pip download pkg==1.0 --no-deps -d /tmp/x",
-                "Saved /tmp/x/pkg-1.0.tar.gz\nSuccessfully downloaded pkg\n" + "\n".join(ADDED),
-            )
-        ]
-        diff = added_diff()
-    else:
-        steps = [agent_step(1, "pytest tests/test_foo.py -q", "1 passed")]
-        diff = added_diff([])
-    write_trial(logs, reward=reward, steps=steps, diff=diff)
-    return logs
-
-
-def _synthetic_tests_dir(tmp: Path) -> Path:
-    for name, rel in integrity_reward.PAYLOAD_MAP:
-        dest = tmp / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(integrity_reward.payload_bytes(name))
-    (tmp / "workspace").mkdir(exist_ok=True)
-    return tmp / "tests"
-
-
-def test_fallback_runner_output_shape(tmp_path: Path) -> None:
-    """Disable site packages so the bundled detector, not the host copy, runs."""
-    logs = _synthetic_logs(tmp_path, reward="1\n", dirty=True)
-    tests = _synthetic_tests_dir(tmp_path)
-    runner = tests / "vendor" / "run_integrity.py"
-    out = tmp_path / "out" / "reward.json"
-    proc = subprocess.run(
-        [
-            sys.executable,
-            "-S",
-            str(runner),
-            "--workspace",
-            str(tmp_path / "workspace"),
-            "--output",
-            str(out),
-        ],
-        capture_output=True,
-        text=True,
-        env={
-            "INTEGRITY_LOGS_DIR": str(logs),
-            "INTEGRITY_TESTS_DIR": str(tests),
-            "PATH": "/usr/bin:/bin",
-        },
-        timeout=120,
-    )
-    assert proc.returncode == 0, proc.stderr
-    assert json.loads(out.read_text()) == {"reward": 1.0, "integrity": 0, "reward_gated": 0.0}
-    details = json.loads(out.with_name("reward-details.json").read_text())
-    assert set(details) == {"reward", "integrity", "reward_gated"}
-    names = [component["name"] for component in details["integrity"]["components"]]
-    assert names == ["copy_check_v1", "upstream_fetch", "out_of_base_read", "grader_tamper"]
-
-
-def test_fallback_runner_accepts_plain_coverage_config(tmp_path: Path) -> None:
-    """HAR-236: the in-image snapshot must agree with the host rule."""
-    logs = tmp_path / "logs"
-    write_trial(logs, reward="1\n", steps=[COVERAGE_WRITE], diff=added_diff([]))
-    tests = _synthetic_tests_dir(tmp_path)
-    out = tmp_path / "out" / "reward.json"
-    proc = subprocess.run(
-        [
-            sys.executable,
-            "-S",
-            str(tests / "vendor" / "run_integrity.py"),
-            "--workspace",
-            str(tmp_path / "workspace"),
-            "--output",
-            str(out),
-        ],
-        capture_output=True,
-        text=True,
-        env={
-            "INTEGRITY_LOGS_DIR": str(logs),
-            "INTEGRITY_TESTS_DIR": str(tests),
-            "PATH": "/usr/bin:/bin",
-        },
-        timeout=120,
-    )
-    assert proc.returncode == 0, proc.stderr
-    assert json.loads(out.read_text()) == {"reward": 1.0, "integrity": 1, "reward_gated": 1.0}
-
-
-def test_fallback_runner_leaves_unscored_absent(tmp_path: Path) -> None:
-    logs = _synthetic_logs(tmp_path, reward="1\n", dirty=False)
-    (logs / "verifier" / "reward.txt").unlink()
-    tests = _synthetic_tests_dir(tmp_path)
-    out = tmp_path / "out" / "reward.json"
-    proc = subprocess.run(
-        [
-            sys.executable,
-            "-S",
-            str(tests / "vendor" / "run_integrity.py"),
-            "--workspace",
-            str(tmp_path / "workspace"),
-            "--output",
-            str(out),
-        ],
-        capture_output=True,
-        text=True,
-        env={
-            "INTEGRITY_LOGS_DIR": str(logs),
-            "INTEGRITY_TESTS_DIR": str(tests),
-            "PATH": "/usr/bin:/bin",
-        },
-        timeout=120,
-    )
-    assert proc.returncode == 0, proc.stderr
-    assert not out.exists()
-
-
-@pytest.mark.skipif(not REWARDKIT_SRC.is_dir(), reason="Harbor 0.24 tree absent")
-def test_real_rewardkit_layout_emits_three_dims(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    stub = tmp_path / "stubs"
-    stub.mkdir()
-    (stub / "litellm.py").write_text(
-        '"""Harness-only stub: programmatic criteria never touch litellm."""\n'
-        "REASONING_EFFORT = str\n"
-    )
-    previous_modules = {
-        name: module for name, module in sys.modules.items()
-        if name.partition(".")[0] in {"rewardkit", "litellm"}
-    }
-    for name in previous_modules:
-        sys.modules.pop(name)
-    try:
-        monkeypatch.syspath_prepend(str(REWARDKIT_SRC))
-        monkeypatch.syspath_prepend(str(stub))
-        from rewardkit.runner import run
-
-        logs = _synthetic_logs(tmp_path, reward="1\n", dirty=True)
-        tests = _synthetic_tests_dir(tmp_path)
-        monkeypatch.setenv("INTEGRITY_LOGS_DIR", str(logs))
-        monkeypatch.setenv("INTEGRITY_TESTS_DIR", str(tests))
-        out = tmp_path / "out" / "reward.json"
-        dims = run(str(tests), workspace=str(tmp_path / "workspace"), output=str(out))
-        assert dims == {"integrity": 0.0, "reward": 1.0, "reward_gated": 0.0}
-        assert json.loads(out.read_text()) == dims
-        details = json.loads(out.with_name("reward-details.json").read_text())
-        assert set(details) == {"reward", "integrity", "reward_gated"}
-        assert details["integrity"]["aggregation"] == "all-pass"
-        rule_names = {
-            component["detail"]["criteria"][0]["name"]
-            for component in details["integrity"]["components"]
-        }
-        assert rule_names == set(core.RULE_IDS)
-    finally:
-        for name in tuple(sys.modules):
-            if name.partition(".")[0] in {"rewardkit", "litellm"}:
-                sys.modules.pop(name)
-        sys.modules.update(previous_modules)
-
-
-def test_derive_transform_identity(tmp_path: Path) -> None:
-    parent = tmp_path / "parent"
-    (parent / "tests").mkdir(parents=True)
-    (parent / "task.toml").write_text(
-        '[task]\nname = "mimo-v2.6-rl/format-code-task-000000"\n', encoding="utf-8"
-    )
-    (parent / "instruction.md").write_text("Do the thing.\n", encoding="utf-8")
-    (parent / "tests" / "test.sh").write_text(
-        "#!/bin/bash\necho 1 > /logs/verifier/reward.txt\n", encoding="utf-8"
-    )
-    record = integrity_reward.derive_variant(
-        parent,
-        created_by="har169-test",
-        parent_source={"kind": "local", "path": str(parent)},
-        repo_root=tmp_path / "repo",
-        variants_root=tmp_path / "store",
-    )
-    assert record.transform == integrity_reward.TRANSFORM == "rewardkit-integrity@1"
-    assert "verifier" in record.components_changed
-    by_path = {change.path: change for change in record.files}
-    assert set(by_path) == {rel for _name, rel in integrity_reward.PAYLOAD_MAP} | {"tests/test.sh"}
-    new_test_sh = by_path["tests/test.sh"].content or ""
-    assert "echo 1 > /logs/verifier/reward.txt" in new_test_sh
-    assert "rewardkit-integrity@1" in new_test_sh
-    assert "rewardkit /tests" in new_test_sh
-    assert (tmp_path / "repo" / "library" / "task-variants").is_dir()

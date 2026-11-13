@@ -760,7 +760,7 @@ Rationale (preserves the two invariants that existed before the outage):
 
 This change was made because a single throttled codeload path made every job unrunnable even when the rest of the pipeline was healthy. The PyPI path is a different CDN and has never exhibited the same 429/502/503 cascade in our runs. The PR that introduced it will itself run the modified workflows; a green result on that PR is the verification that the jobs remain executable.
 
-The workflows moved back to `setup-python` (v6 SHA) because a single release asset made every 3.12 job unrunnable even while the sibling 3.14 asset served normally. The runner image already ships the provisioned versions in its toolcache, so the common path performs no network download at all. HAR-330 repaired `ci.yml` and `typecheck.yml`; HAR-339 moved the ten auxiliary workflows onto the same pin and aligned the two remaining v5 uses (`loca-lean.yml`, `tau-knowledge.yml`).
+The workflows moved back to `setup-python` (v6 SHA) because a single release asset made every 3.12 job unrunnable even while the sibling 3.14 asset served normally. The runner image already ships the provisioned versions in its toolcache, so the common path performs no network download at all. HAR-330 repaired `ci.yml` and `typecheck.yml`; HAR-339 moved the ten auxiliary workflows onto the same pin and aligned the two remaining v5 uses (the now-archived `loca-lean.yml` and `tau-knowledge.yml`).
 
 ## CI: uv package cache and bounded download retries (HAR-252)
 

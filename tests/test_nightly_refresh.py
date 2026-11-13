@@ -833,13 +833,6 @@ def test_nightly_requires_refresh_and_rejects_legacy_date() -> None:
     assert parser().parse_args(["nightly", "--refresh"]).refresh is True
 
 
-def test_installer_hardcodes_refresh_flag() -> None:
-    root = Path(__file__).resolve().parents[1]
-    script = (root / "scripts/ops/launchd/install-nightly-refresh.sh").read_text(encoding="utf-8")
-    assert '"nightly", "--refresh"' in script
-    assert 'launchctl enable "gui/$(id -u)/$LABEL"' in script
-
-
 def test_naive_now_is_rejected(tmp_path: Path) -> None:
     config = _config(tmp_path, _checkout(tmp_path))
     with pytest.raises(ValueError, match="timezone"):

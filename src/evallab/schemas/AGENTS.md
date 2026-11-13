@@ -12,3 +12,9 @@ Dependency-light shared Pydantic contracts, currently in `__init__.py`.
 - Preserve actual persisted/wire contracts unless the change includes explicit versioning/migration. Do not add speculative fallback aliases or unused compatibility paths.
 - No runtime DB connections, model execution, or side-effectful application imports.
 
+
+## Tests or checks
+Use validation, serialization, and persisted-contract tests for the changed schema.
+
+## What not to add here
+No runtime I/O, model execution, speculative aliases, or unused compatibility paths.

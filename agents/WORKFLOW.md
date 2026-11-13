@@ -4,17 +4,11 @@
 
 ## Worktree and scope
 
-Keep the primary checkout on `main`, preserving user/other-writer state. A sync timer fast-forwards it to `origin/main` only when the tree is clean, HEAD is on `main`, and local `main` is an ancestor of `origin/main`; it never resets, stashes, cleans, or switches branches. Substantive code work uses an owned topic branch and native `git worktree add`; launch the session with `omp --cwd <owned-worktree>`. `.worktrees/` is conventional; temporary scratch may use `/tmp`, but a persistent repository chat must not start at bare `/tmp`.
-
-```bash
-cd ~/Developer/eval-lab
-/usr/bin/git fetch origin
-/usr/bin/git worktree add -b <topic> /private/tmp/eval-lab-<topic> origin/main
-cd /private/tmp/eval-lab-<topic>
-uv sync --locked
-```
-
-Use the worktree's own isolated environment and absolute owned runtime/job roots; do not copy the primary directory to create an isolated checkout (a copied tree can carry an environment pointing at the original interpreter). Do not reset a dirty primary, blindly pull, force-remove a worktree, or smoke-test by draining a shared/paid queue. Harbor jobs belong in that worktree's `runs/`, never in another worker's runtime.
+`AGENTS.md` owns the ordered worktree and delivery commands. Keep a persistent repository chat out of bare `/tmp`.
+Use each worktree's isolated environment and owned runtime/job roots.
+Do not copy an environment from another checkout or drain a shared queue as a smoke.
+Harbor jobs belong in the owned worktree's ignored run directory.
+The primary sync timer only fast-forwards a clean `main`; it never resets, stashes, cleans, or switches branches.
 
 ## Intake and parallel work
 
@@ -49,25 +43,14 @@ issue. An old plan/cap does not authorize new spend or revive a missing worktree
 
 `python -m evallab.governance check` validates claim fields, claim uniqueness,
 linked live handoffs, governance documents, and the tracked root freeze.
-`scripts/fleet-status.sh` displays Git state and the actual pickup counter;
-it does not grant ownership or authorize deletion.
 
 ## Delivery
 
-The author follows CHECKS through PR, CI fixes, protected merge, and bounded merged-revision verification. Do not add a separate reviewer/integrator gate. `lin review` records final delivery evidence; open PRs stay author-owned work. Code merge, runtime adoption, and Research-Harbor scientific acceptance are distinct outcomes.
-
-Guarded merge uses the head-commit guard to prevent racing pushes:
-
-```bash
-gh pr merge <PR_NUMBER> --squash --delete-branch --match-head-commit <EXACT_HEAD_SHA>
-```
-
-Never pass `--admin` to bypass required checks or branch protections. Native auto-merge is optional: enable it under the conditions in [Keep CI cycles low](CHECKS.md#keep-ci-cycles-low), never for a draft or an explicit operator-held PR. A changed head, or a retarget to another base branch, requires fresh combined evidence before merging. New commits on `main` do not: do not rebase for them unless GitHub reports a conflict.
-
-`evallab ship <PR_NUMBER>` automates exact-head checks, configured path gates,
-guarded merge, main ancestry proof, optional smoke, and conservative retirement.
-Run it from a stable checkout outside the topic worktree.
-See [the ship runbook](../docs/ship.md) for receipts, recovery, and cleanup holds.
+The author follows the root change path through the checks in `agents/CHECKS.md`.
+No independent reviewer or integration steward is a routine prerequisite.
+The delivery manual, `docs/ship.md`, owns guarded merge, recovery, and retirement.
+Record final evidence in the existing work item. Open PRs remain author-owned work.
+Code merge, runtime adoption, and scientific acceptance are distinct outcomes.
 
 Merged source code and deployed runtime environments remain distinct. Runtime adoption preserves all user and owner state. A merge does not authorize deployment, shared-service disruption, model calls, or paid queue drains.
 
@@ -75,12 +58,9 @@ Dispatcher wake/presence follows current configuration (`dispatch.wake` is prese
 
 ## Retirement
 
-Follow `docs/GENERATED-CACHE-POLICY.md`: prove inactive ownership/processes, merged/current refs, clean state, recoverable commits, and survival of unique ignored evidence. Preserve local refs or a verified archive when publication is not authorized; do not push all unpushed branches by default. Use native no-force removal after the owned PR is complete, and keep unknown/dirty/in-use trees intact.
-
-For routine estate reduction, prefer conservative hygiene sweeps
-over ad-hoc removals: preserve every commit (unpushed branches are pushed before their worktree
-is removed), hold trees carrying ignored `runs/` job evidence for the evidence lifecycle instead
-of deleting them, and record dispositions.
+`docs/GENERATED-CACHE-POLICY.md` owns worktree retirement and evidence retention.
+Use native removal without force after delivery. Preserve unknown, dirty, active, or evidence-bearing trees.
+Do not publish unrelated local branches merely to remove their worktrees.
 
 ## Optional bulk-change sequencing
 

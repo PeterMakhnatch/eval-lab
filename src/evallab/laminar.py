@@ -1,4 +1,4 @@
-"""Laminar trace identity, Signals configuration, and verdict comparison."""
+"""Laminar trace identity and Signals configuration."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from urllib.request import Request, urlopen
 
 from evallab.trace_store.laminar_quarantine import (
     assert_not_signal_selectable,
-    skip_quarantined,
 )
 
 LAMINAR_ENDPOINT = "https://api.lmnr.ai"
@@ -311,109 +310,6 @@ def _sql(query: str, parameters: dict[str, Any], **call: Any) -> list[dict[str, 
     return list((data or {}).get("data") or [])
 
 
-def our_verdicts(job_dir: Path, trial_dir: Path, status: dict[str, Any]) -> dict[str, bool | None]:
-    """Eval Lab's deterministic answer to each Signal's question for one finished trial."""
-    rules = {alert["rule"] for alert in status.get("open_alerts") or []}
-    processed = job_dir / "processed" / f"trial-{trial_dir.name}.json"
-    try:
-        counts = json.loads(processed.read_text(encoding="utf-8")).get("counts") or {}
-    except (OSError, ValueError):
-        counts = {}
-    reasons = {str(r) for r in counts.get("reasons") or []}
-    try:
-        result = json.loads((trial_dir / "result.json").read_text(encoding="utf-8"))
-        rewards = (result.get("verifier_result") or {}).get("rewards") or {}
-        reward = rewards.get("reward")
-    except (OSError, ValueError, AttributeError):
-        reward = None
-    return {
-        "copied_upstream_fix": "copy_acquired" in rules or "copied_fix" in reasons,
-        "stuck_loop": bool(rules & {"repetition", "completion_loop"}),
-        "false_completion_claim": None
-        if reward is None
-        else bool(status.get("completions")) and reward == 0,
-        "infra_not_model": bool(rules & {"infra_error", "proxy_errors"}) or "infra" in reasons,
-    }
-
-
-def compare_signals(
-    *,
-    runs_dirs: list[Path],
-    out_dir: Path,
-    api_key: str,
-    endpoint: str = LAMINAR_ENDPOINT,
-    opener: Callable[..., Any] = urlopen,
-    skipped: list[str] | None = None,
-) -> list[dict[str, Any]]:
-    """Per trial: Eval Lab's verdict vs each Signal (``True``/``False``/``None`` = not run).
-
-    Quarantined Laminar copies are skipped; their trial names are appended to ``skipped``.
-    """
-    from evallab.live_watch import discover_trials, run_watch
-
-    call = {"api_key": api_key, "endpoint": endpoint, "opener": opener}
-    summary = run_watch(runs_dirs=runs_dirs, out_dir=out_dir)
-    by_trial = {status["trial"]: status for status in summary["statuses"]}
-    names = {
-        s["id"]: s["name"]
-        for s in (_json_call("GET", "/v1/signals", **call) or {}).get("signals", [])
-        if s["name"] in {d["name"] for d in SIGNALS}
-    }
-    trials = [(job, trial) for job, trial in discover_trials(runs_dirs) if trial.name in by_trial]
-    trials, quarantined = skip_quarantined(trials, lambda item: _trial_cloud_trace_uuid(item[1]))
-    if skipped is not None:
-        skipped.extend(trial.name for _, trial in quarantined)
-    ids = [_trial_cloud_trace_uuid(trial) for _, trial in trials]
-    params = {"ids": [trace for trace in ids if trace is not None], "signals": list(names)}
-    fired = {
-        (str(row["trace_id"]), names.get(str(row["signal_id"]))): row.get("payload")
-        for row in _sql(
-            "SELECT trace_id, signal_id, payload FROM signal_events"
-            " WHERE trace_id IN {ids:Array(UUID)} AND signal_id IN {signals:Array(UUID)}",
-            params,
-            **call,
-        )
-    }
-    ran = {
-        (str(row["trace_id"]), names.get(str(row["signal_id"])))
-        for row in _sql(
-            "SELECT trace_id, signal_id FROM signal_runs"
-            " WHERE trace_id IN {ids:Array(UUID)} AND signal_id IN {signals:Array(UUID)}"
-            " AND status = 'COMPLETED'",
-            params,
-            **call,
-        )
-    }
-    rows = []
-    for (job_dir, trial_dir), trace in zip(trials, ids, strict=True):
-        ours = our_verdicts(job_dir, trial_dir, by_trial[trial_dir.name])
-        row: dict[str, Any] = {"trial": trial_dir.name, "trace_id": trace}
-        for name in (d["name"] for d in SIGNALS):
-            signal = True if (trace, name) in fired else (False if (trace, name) in ran else None)
-            row[name] = {"ours": ours[name], "signal": signal, "payload": fired.get((trace, name))}
-        rows.append(row)
-    return rows
-
-
-def format_comparison(rows: list[dict[str, Any]]) -> str:
-    """Markdown table: ``ours/signal`` per Signal, ``Y``/``N``/``–`` (not run or unknown)."""
-    mark = {True: "Y", False: "N", None: "–"}
-    names = [d["name"] for d in SIGNALS]
-    lines = ["| trial | " + " | ".join(names) + " |", "|---" * (len(names) + 1) + "|"]
-    agree = dict.fromkeys(names, 0)
-    scored = dict.fromkeys(names, 0)
-    for row in rows:
-        cells = []
-        for name in names:
-            ours, signal = row[name]["ours"], row[name]["signal"]
-            if ours is not None and signal is not None:
-                scored[name] += 1
-                agree[name] += ours == signal
-            cells.append(f"{mark[ours]}/{mark[signal]}")
-        lines.append(f"| {row['trial']} | " + " | ".join(cells) + " |")
-    lines.append("| agreement | " + " | ".join(f"{agree[n]}/{scored[n]}" for n in names) + " |")
-    return "\n".join(lines)
-
 
 def _laminar_command(args: Any, root: Path, *, harbor: Any | None = None) -> int:
     del harbor
@@ -424,34 +320,19 @@ def _laminar_command(args: Any, root: Path, *, harbor: Any | None = None) -> int
         print(f"laminar: {LAMINAR_KEY_ENV} is not set (use `keys run --`)", file=sys.stderr)
         return 2
     endpoint = os.environ.get(LAMINAR_ENDPOINT_ENV, "").strip() or LAMINAR_ENDPOINT
-    if args.laminar_action == "signals":
-        try:
-            profile = None
-            if args.byok_zai:
-                zai_key = os.environ.get(ZAI_KEY_ENV, "").strip()
-                if not zai_key:
-                    print(f"laminar: --byok-zai needs {ZAI_KEY_ENV}", file=sys.stderr)
-                    return 2
-                profile = ensure_zai_profile(api_key=key, zai_key=zai_key, endpoint=endpoint)
-            applied = apply_signals(api_key=key, endpoint=endpoint, llm_profile_id=profile)
-        except RuntimeError as exc:
-            # Without --byok-zai, Laminar Cloud only accepts patches to Signals made in the UI.
-            print(f"laminar: {exc}", file=sys.stderr)
-            return 1
-        for signal in applied:
-            print(f"signal {signal['name']}: id {signal['id']} version {signal['version']}")
-        return 0
-    runs = [p if p.is_absolute() else (root / p).resolve() for p in args.runs_dir]
-    out = args.out if args.out.is_absolute() else (root / args.out).resolve()
-    quarantined: list[str] = []
-    rows = compare_signals(
-        runs_dirs=runs, out_dir=out, api_key=key, endpoint=endpoint, skipped=quarantined
-    )
-    if quarantined:
-        print(f"laminar: skipped {len(quarantined)} quarantined trial(s)", file=sys.stderr)
-    table = format_comparison(rows)
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "signals-vs-evallab.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
-    (out / "signals-vs-evallab.md").write_text(table + "\n", encoding="utf-8")
-    print(table)
+    try:
+        profile = None
+        if args.byok_zai:
+            zai_key = os.environ.get(ZAI_KEY_ENV, "").strip()
+            if not zai_key:
+                print(f"laminar: --byok-zai needs {ZAI_KEY_ENV}", file=sys.stderr)
+                return 2
+            profile = ensure_zai_profile(api_key=key, zai_key=zai_key, endpoint=endpoint)
+        applied = apply_signals(api_key=key, endpoint=endpoint, llm_profile_id=profile)
+    except RuntimeError as exc:
+        # Without --byok-zai, Laminar Cloud only accepts patches to Signals made in the UI.
+        print(f"laminar: {exc}", file=sys.stderr)
+        return 1
+    for signal in applied:
+        print(f"signal {signal['name']}: id {signal['id']} version {signal['version']}")
     return 0

@@ -1128,12 +1128,9 @@ def parser() -> argparse.ArgumentParser:
 
     trace_parser = commands.add_parser(
         "trace",
-        help="Trace harness (run/card/score detectors) and the ATIF->OTel Phoenix shipper (otel)",
+        help="Trace anatomy and AutoReview",
     )
     trace_actions = trace_parser.add_subparsers(dest="trace_command", required=True)
-    from evallab.production.trace_harness import register_subcommands as register_trace_harness
-
-    register_trace_harness(trace_actions)
     from evallab.trace_anatomy import register_subcommands as register_trace_anatomy
 
     register_trace_anatomy(trace_actions)

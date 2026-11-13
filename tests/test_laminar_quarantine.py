@@ -18,12 +18,8 @@ from evallab.laminar import (
     SIGNAL_OPT_IN_FILTER,
     SIGNALS,
     apply_signals,
-    compare_signals,
     laminar_trace_uuid,
 )
-from evallab.production import trace_harness_own as own
-from evallab.production import trace_harness_tools as tools
-from evallab.production.trace_harness import HarnessOptions, HarnessRun
 from evallab.readers import laminar_signals
 from evallab.trace_store import laminar_quarantine as quarantine
 from evallab.trace_store.core import trace_uuid
@@ -143,47 +139,3 @@ def test_signal_reader_collect_skips_quarantined_trials(
     assert hosted.asked and all(ids == [laminar_trace_uuid("trial-ok")] for ids in hosted.asked)
 
 
-def test_signal_comparison_skips_quarantined_trials(
-    tmp_path: Path, quarantine_ids: Callable[..., None],
-) -> None:
-    quarantine_ids(laminar_trace_uuid("task-q__aaa"))
-    runs = tmp_path / "runs"
-    write_trial(runs, "task-q__aaa")
-    write_trial(runs, "task-ok__bbb")
-    skipped: list[str] = []
-    rows = compare_signals(
-        runs_dirs=[runs], out_dir=tmp_path / "out", api_key="k", opener=Signals(), skipped=skipped,
-    )
-    assert [row["trial"] for row in rows] == ["task-ok__bbb"] and skipped == ["task-q__aaa"]
-
-
-# --- harness adapters over stored ledgers ----------------------------------------------------
-
-
-def ledger_row(run_id: str, signal: str) -> dict[str, Any]:
-    return {
-        "schema": "evallab.trace_tool_result/v1", "run_id": run_id, "source": "t", "tool": "laminar",
-        "detector": signal, "detector_version": tools.LAMINAR_VERSION, "flag": False,
-        "value": {"observations": [{"flag": False}], "conflicting": False},
-        "evidence_steps": [], "scan": "scan_id=s1", "at": "2026-10-27T10:00:00+00:00",
-    }
-
-
-def harness_run(run_id: str) -> HarnessRun:
-    steps = ({"step_id": 0, "source": "agent", "message": "x"},)
-    return HarnessRun(run_id, "test", "DEV", "unknown", steps, True)
-
-
-@pytest.mark.parametrize(("cls", "signal"), [
-    (tools.LaminarDetector, "stuck_loop"),
-    (own.LaminarCopyDetector, "copied_upstream_fix"),
-])
-def test_harness_adapters_skip_and_count_quarantined_runs(
-    tmp_path: Path, quarantine_ids: Callable[..., None], cls: Any, signal: str,
-) -> None:
-    quarantine_ids(laminar_trace_uuid("run-q"))
-    path = tmp_path / "ledger.jsonl"
-    path.write_text("".join(json.dumps(ledger_row(name, signal)) + "\n" for name in ("run-q", "run-ok")))
-    detector = cls(HarnessOptions(database=tmp_path / "missing.sqlite", repo_root=tmp_path), results=path)
-    found = [record["run_id"] for record in detector.detect([harness_run("run-q"), harness_run("run-ok")])]
-    assert found == ["run-ok"] and detector.quarantined_skipped == 1

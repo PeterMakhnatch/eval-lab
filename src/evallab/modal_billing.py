@@ -7,9 +7,6 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 
-import psycopg
-from psycopg.types.json import Jsonb
-
 #: Catalog table holding fetched Modal billing rows. Also applied through
 #: ``sql/schema.sql``; created here too so direct users get the same shape.
 BILLING_TABLE_DDL = """
@@ -89,41 +86,6 @@ def normalize_report_rows(payload: Any, *, resolution: str) -> list[BillingRow]:
     return rows
 
 
-def store_billing_rows(database_url: str, rows: list[BillingRow], *, resolution: str) -> int:
-    """Upsert fetched rows into the catalog. Returns the row count.
-
-    Pure upsert: inserts new rows and updates existing rows on conflict,
-    never deleting existing rows so older partial fetches cannot erase newer data.
-    Tags merge by key: reported values replace known values, while absent keys
-    (including all keys in legacy untagged reports) retain their stored labels.
-    """
-    with psycopg.connect(database_url) as connection:
-        connection.execute(BILLING_TABLE_DDL)
-        for row in rows:
-            connection.execute(
-                """
-                INSERT INTO modal_billing_rows
-                    (object_id, description, environment, interval_start,
-                     resource, cost_usd, resolution, tags)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (object_id, interval_start, resource)
-                DO UPDATE SET cost_usd = EXCLUDED.cost_usd,
-                              resolution = EXCLUDED.resolution,
-                              reported_at = now(),
-                              tags = modal_billing_rows.tags || EXCLUDED.tags
-                """,
-                (
-                    row.object_id,
-                    row.description,
-                    row.environment,
-                    row.interval_start,
-                    row.resource,
-                    row.cost_usd,
-                    resolution,
-                    Jsonb(row.tags),
-                ),
-            )
-    return len(rows)
 
 
 def fetch_modal_billing_report(

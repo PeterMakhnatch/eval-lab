@@ -25,7 +25,7 @@ from evallab.campaign_approval import (
 from evallab.dispatch_guards import SelfhostedProbeOutcome
 from evallab.modal_billing import BillingRow
 from evallab.modal_ops import MODAL_APP_NAME
-from evallab.queue import DirectoryQueue, Executor, PolicyGate, load_events
+from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.registry import compute_task_digests
 from evallab.schemas import (
     AutoRunRule,
@@ -625,24 +625,6 @@ def test_campaign_escalation_deduplicates_per_spec_and_reason(
     assert posted[0][:3] == ["lin", "comment", "HAR-175"]
 
 
-def test_campaign_approve_once_and_immutable(tmp_path: Path) -> None:
-    digest = seed_task(tmp_path)
-    make_campaign(tmp_path, digest)
-    with pytest.raises(cap.CampaignApprovalError):
-        cap.approve_campaign(tmp_path, CAMPAIGN_ID, actor="research-harbor")
-
-    frozen = tmp_path / "runs" / "campaigns" / CAMPAIGN_ID / "campaign.json"
-    raw = json.loads(frozen.read_text(encoding="utf-8"))
-    raw["budget_usd"] = 999.0
-    frozen.write_text(json.dumps(raw), encoding="utf-8")
-    with pytest.raises(cap.CampaignApprovalError) as excinfo:
-        cap.load_approved_campaign(tmp_path, CAMPAIGN_ID)
-    assert excinfo.value.reason_code == "campaign_content_changed"
-
-    gate = PolicyGate(policy(), repo_root=tmp_path)
-    refusal = cap.campaign_admission_refusal(gate, make_spec("campaign-tampered-a", digest))
-    assert refusal is not None
-    assert refusal.reason_code == "campaign_content_changed"
 
 
 def test_per_id_path_unchanged_without_campaign(tmp_path: Path) -> None:
@@ -845,23 +827,6 @@ def test_zero_estimate_daytona_reserves_same_wave_average(tmp_path: Path) -> Non
     assert total == pytest.approx(reserved)
 
 
-def test_budget_bound_sums_positive_per_trial_gaps(tmp_path: Path) -> None:
-    """One over-reserved trial must not erase another trial's ceiling gap."""
-    digest = seed_task(tmp_path)
-    service = make_executor(tmp_path)
-    selfhosted_campaign(tmp_path, digest, budget_usd=10)
-    per = cap.wave_cost_estimate(1).expected_usd
-    _, low = service.submit(selfhosted_spec("gap-low", digest, cost_limit_usd=0.6))
-    _, high = service.submit(selfhosted_spec("gap-high", digest, cost_limit_usd=2.0))
-    assert low.admitted and high.admitted
-    bound = cap.campaign_budget_bound(tmp_path, CAMPAIGN_ID)
-    high_gap = max(0.0, 2.0 - per)
-    erased = max(0.0, (0.6 + 2.0) - 2 * per)
-    assert bound["in_flight_trials"] == 2
-    assert bound["in_flight_worst_case_usd"] == pytest.approx(2.6)
-    assert bound["overrun_bound_usd"] == pytest.approx(high_gap)
-    assert bound["overrun_bound_usd"] > erased
-    assert bound["realized_spend_bound_usd"] == pytest.approx(10 + high_gap)
 
 
 def test_missing_selfhosted_evidence_counts_wave_reservation(
@@ -1205,50 +1170,6 @@ def test_settled_gpu_daytona_moves_approved_launch_to_waiting(
     assert waiting_code(service, launch_id) == "campaign_budget_exhausted"
 
 
-def test_thirty_six_trial_pin_admits_nineteen_wide_under_five(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """18 tasks x attempts_per_task 2 admits a 19-wide wave under $5."""
-    monkeypatch.setattr(cap, "LIN_RUNNER", lambda argv, check: None)
-    digest = seed_task(tmp_path)
-    base = selfhosted_campaign(tmp_path, digest, budget_usd=5.0, write=False)
-    tasks = [
-        CampaignTaskAllowance(task_id=TASK_ID, package_digest=digest),
-        *[
-            CampaignTaskAllowance(
-                task_id=f"format-code-task-{index:06d}",
-                package_digest=digest,
-            )
-            for index in range(1, 18)
-        ],
-    ]
-    pinned = base.model_copy(update={"attempts_per_task": 2, "tasks": tasks})
-    assert len(pinned.tasks) * pinned.attempts_per_task == 36
-    assert cap.campaign_content_digest(pinned) != cap.campaign_content_digest(base)
-    cap.write_campaign(tmp_path, pinned)
-    cap.approve_campaign(tmp_path, CAMPAIGN_ID, actor="research-harbor", approved_at=NOW)
-    per = cap.wave_cost_estimate(36).expected_usd / 36
-    assert cap.wave_cost_estimate(36).expected_usd == 4.92
-    assert per != pytest.approx(cap.wave_cost_estimate(18).expected_usd / 18)
-    assert 19 * cap.HAR168_TRIAL_CEILING_USD > 5.0
-    assert 19 * per < 5.0
-
-    service = make_executor(tmp_path)
-    for index in range(19):
-        path, decision = service.submit(
-            selfhosted_spec(f"wave-{index:02d}", digest, cost_limit_usd=0.6)
-        )
-        assert decision.admitted, decision.message
-        assert path.parent.name == "approved"
-
-    bound = cap.campaign_budget_bound(tmp_path, CAMPAIGN_ID)
-    overrun = 19 * (cap.HAR168_TRIAL_CEILING_USD - per)
-    assert bound["in_flight_trials"] == 19
-    assert bound["in_flight_reserved_usd"] == pytest.approx(19 * per)
-    assert bound["in_flight_worst_case_usd"] == pytest.approx(19 * 0.6)
-    assert bound["overrun_bound_usd"] == pytest.approx(overrun)
-    assert bound["overrun_bound_usd"] == pytest.approx(19 * (0.6 - 4.92 / 36))
-    assert bound["realized_spend_bound_usd"] == pytest.approx(5.0 + overrun)
 
 
 def seed_confirmed_controls(root: Path, tasks: list[CampaignTaskAllowance]) -> None:

@@ -21,7 +21,7 @@ queries, and reviewed, immutable evidence bundles.
 - Analysis denominator: Metrics and rates are computed only over the featured analysis corpus (`status = 'featured'`) with explicit denominators (cited in `docs/NOW.md`).
 
 ## Tests or checks
-- `uv run pytest tests/test_cards.py`
+- `uv run pytest tests/test_playbook_cards.py`
 - `uv run pytest tests/test_campaigns.py`
 - `uv run pytest tests/test_external_corpus.py`
 
@@ -48,7 +48,7 @@ The canonical parent envelope (`mimo.phase2-envelope/v1`) admits `approved_usd` 
 
 ## Fresh repaired-data native generation
 
-`experiments/repaired-data-sft-v2/control_admission.py` audits typed native controls and immutable candidate records. Its campaign profile admits fresh generation only: no fabricated ledger ancestry, candidate-status promotion or global admission-policy change.
+`experiments/repaired-data-sft-v2/fresh_native_admission.py` audits typed native controls and immutable candidate records. Its campaign profile admits fresh generation only: no fabricated ledger ancestry, candidate-status promotion or global admission-policy change.
 
 For the bounded 2026-10-18 campaign, `native_generation.py plan --config <settings> --out runs/<campaign>` materializes nineteen exact repaired train packages and seventy-six distinct base cells. Run `admit --plan <plan> --envelope <budget>` before paid `run`, which also requires a hash-bound authenticated serving receipt and time for both sandbox TTLs.
 

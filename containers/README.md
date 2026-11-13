@@ -7,7 +7,7 @@ streaming for evaluable workloads.
 
 ## What lives here / entry points
 - `containers/state-journal/`: Event producer and watch runtime for state journaling (`containers/state-journal/Dockerfile`, `containers/state-journal/producer.py`, `containers/state-journal/watch.py`).
-- `containers/continuous-operator/`: Runtime definitions for continuous operator loops (`containers/continuous-operator/Dockerfile`, `containers/continuous-operator/compose.yaml`).
+- `containers/host-isolation/`: Host-isolation nftables builder for local Docker sandboxes (`containers/host-isolation/Dockerfile`).
 - `containers/deepseek-v4-flash-secret.compose.yaml`: Secret proxy overlay for DeepSeek workloads.
 - `containers/deepseek_secret_proxy.py`: Credential proxy runtime for DeepSeek workloads.
 - `containers/zai-secret.compose.yaml`: Secret proxy overlay for ZAI workloads.
@@ -16,10 +16,10 @@ streaming for evaluable workloads.
 ## Invariants or rules
 - Committed runtime definitions: Service container sources are committed, reviewed Platform definitions, not generated state (cited in `agents/STRUCTURE.md`).
 - Hidden verifier inputs: Do not place secret credentials, test suites, or solutions in an evaluated agent's environment image (cited in `AGENTS.md`).
-- Network isolation: Secret proxies isolate credentials across workbench internal networks (cited in `docs/architecture.md`).
+- Network isolation: Secret proxies isolate credentials across internal networks (cited in `docs/execution-tiers.md`).
 
 ## Tests or checks
-- `uv run pytest tests/test_continuous_operator.py`
+- `uv run pytest tests/test_harbor_host_isolation.py`
 - `uv run pytest tests/test_state_events.py`
 - `uv run pytest tests/test_harbor_deepseek.py`
 

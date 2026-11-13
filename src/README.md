@@ -15,7 +15,7 @@ analytical state machines.
 ## Invariants or rules
 - Python-first repository: All application code, adapters, and verifiers must be Python (cited in `AGENTS.md`).
 - Frozen module layout: Module locations in `src/evallab/` are frozen; no reorganizations without explicit approval (cited in `docs/NOW.md`).
-- Dual TrajectoryIR invariant: Do not merge or delete the two TrajectoryIR modules (`src/evallab/trajectory_ir.py` and `src/evallab/interpretation/trajectory_ir.py`) (cited in `docs/NOW.md`).
+- TrajectoryIR contract: `src/evallab/trajectory_ir.py` owns the retained TrajectoryIR contract.
 - Reserved packages: `src/evallab/cli/` and `src/evallab/execution/` are empty reserved directories; CLI logic lives in `src/evallab/cli.py` (cited in `docs/NOW.md`).
 
 ## Tests or checks

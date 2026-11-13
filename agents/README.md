@@ -13,8 +13,7 @@ work is planned, executed in isolated worktrees, handed off, and verified.
 
 ## Invariants or rules
 - Root freeze authority: `agents/STRUCTURE.md` is the single source of truth for allowed root entries (cited in `agents/STRUCTURE.md`).
-- Live-only handoffs: `agents/handoffs/` holds active missions only; finished ones move to `agents/archive/` (cited in `agents/STRUCTURE.md`).
-- Immutable archives: After archival, handoff records are never edited or deleted (cited in `agents/STRUCTURE.md`).
+- Live-only handoffs: `agents/handoffs/` holds active missions only (cited in `agents/STRUCTURE.md`).
 - Safe execution: All work happens in isolated worktrees, never directly on main (cited in `agents/WORKFLOW.md` and `AGENTS.md`).
 
 ## Tests or checks
@@ -23,5 +22,5 @@ work is planned, executed in isolated worktrees, handed off, and verified.
 
 ## What not to add here
 - Do not store research findings, benchmark definitions, or application code here.
-- Do not add finished handoff files here without moving them to `agents/archive/`.
+- Do not leave finished handoff files in `agents/handoffs/`.
 - Do not duplicate rules from `AGENTS.md` or create unapproved coordination frameworks.

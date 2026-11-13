@@ -14,7 +14,7 @@ Status: normative design. Owner: DATA-STRATEGY. Date: 2026-08-15.
 This architecture keeps evidence, imported corpora, generated tasks, and
 training-ready distillations distinguishable even when they share a Parquet
 schema. A row's shape never establishes its evidential status; its zone and
-`ProvenanceMetadata` sidecar do.
+`provenance.json` sidecar do.
 
 ## The four zones
 
@@ -32,9 +32,7 @@ select from Zones 01 and 02, but it must retain every selected parent's digest.
 ## Storage boundaries
 
 ```text
-library/benchmarks/_trajectories/    Zone 01 immutable snapshots
 runs/ and research/evidence/runs/    Zone 02 immutable raw jobs
-library/synthetic/                   Zone 03 generated task sources
 derived/parquet/external/            Zone 01 query projection
 derived/parquet/external/task_catalog/  Zone 01 pinned task catalog (task_sources,
                                       task_versions, task_findings, task_lineage,
@@ -47,8 +45,6 @@ derived/parquet/job_id=*/            Zone 02 query projection
 library/task-variants/                Zone 03 lineage records for derived task variants
 derived/task-store/variants/          Zone 03 materialized task variants (rebuildable from lineage records)
 derived/captures/<name>/             Zone 02 independent model-call record (calls.jsonl + manifest + digest)
-derived/synthetic/                   Zone 03 generated projections
-derived/curated/                     Zone 04 exports
 ```
 
 `derived/` is rebuildable and ignored by Git. Raw snapshots and raw jobs are
@@ -60,28 +56,6 @@ must name both roots and select a `zone`, preventing a broad glob from silently
 mixing published external runs with locally reproduced evidence.
 
 For daily partition consolidation under `derived/parquet/compact/`, see [compaction](#parquet-compaction).
-For instruction and trajectory search in `derived/lance/`, see [lexical vector search](#lexical-vector-search).
-
-## Provenance contract
-
-Every dataset-sized item has a JSON sidecar validated by
-`evallab.schemas.ProvenanceMetadata`:
-
-- `item_id`: stable, human-readable identifier;
-- `zone`: one of the four exact zone labels above;
-- `source_uri`: public URI or repository-relative local source;
-- `revision`: immutable upstream pin, required for Zone 01;
-- `material_digest`: SHA-256 of the acquired or produced bytes;
-- `license`: upstream or output license when known;
-- `created_at` and `created_by`: UTC timestamp and producer identity;
-- `transform`: `name@version` for machine-produced Zones 03 and 04;
-- `parent_digests`: content-addressed lineage, required for Zone 04;
-- `notes`: bounded human context, never a substitute for a structured field.
-
-The schema rejects unknown fields. That makes migrations explicit: extend the
-model and its tests, or increment `schema_version`; do not hide new semantics in
-an ad hoc sidecar key.
-
 For task origin taxonomy and classification rules, see [task quality](task-quality.md#task-provenance).
 
 ## Zone admission gates
@@ -114,7 +88,7 @@ as "we ran" or "we observed".
 2. Run schema validation and static policy checks.
 3. For Harbor tasks, require an oracle pass and nop score of zero before use.
 4. Keep generation prompts, source diffs, and rejection reasons as lineage.
-5. Never place an agent-authored task directly in `registered/`.
+5. Never place an agent-authored task directly in `library/registry/`.
 
 Certification promotes confidence in an item; it does not rewrite its zone or
 erase its synthetic origin.
@@ -219,14 +193,10 @@ These storage zones differ from the 4 provenance categories above.
 
 | Storage zone | Source | Contract |
 |---|---|---|
-| z1 | Immutable raw jobs and evidence CAS | Direct evidence authority; not a DuckDB replacement for raw bytes. |
 | z2 | PostgreSQL catalog through `postgres_scanner` | Expose canonical entities and the examined database identity. |
 | z3 | Parquet projections | Read hot and compact layouts with `union_by_name=true`. |
 | z4 | Markdown metadata | `path`, `title`, `status`, `audience`, `generated_by` from all `docs/**/*.md`. |
-| z5 | Coordination records | Derived records, not execution evidence. |
 
-```sh
-```
 
 ```python
 from evallab.storage.attach import attach
@@ -241,7 +211,6 @@ finally:
 An unavailable zone reports its reason and examined source.
 It does not become a successful empty query.
 An unavailable PostgreSQL connection does not prevent local z3/z4 reads.
-`--zones` fails only when no zone attaches.
 Exported SQL and an open connection retain the same published treatment/capture generation.
 
 ### Markdown metadata parser
@@ -307,13 +276,10 @@ Neither a failed read nor a missing table establishes zero consumption.
 The join spine is `spec_id → job_id → trial_id → {trajectory, analysis, observation}`.
 Task/version binds CRAFT and suite membership. Agent identity binds its profile.
 `v_spine` keeps trials without analysis through LEFT JOINs.
-`uv run python -m evallab.spine check` reports each orphan edge and fails on orphans.
 Do not repair a broken join by silently removing its row from the denominator.
 
 ## Lineage
 
-```sh
-```
 
 Each generated artifact declares direct `inputs` as `path` or `id` plus a `sha256:` digest.
 Markdown uses YAML front-matter. JSON and Parquet use their metadata or companion sidecar.
@@ -323,8 +289,7 @@ It never infers an edge from a filename, timestamp, or nearby directory.
 
 Missing inputs report `unrecorded`. A changed source reports `digest_mismatch`.
 An ancestor reference reports `cycle`. The default traversal depth is 32.
-Exit 0 requires every branch to resolve to matching z1 evidence.
-Missing, mismatched, cyclic, or unrecorded lineage exits 1.
+`evallab.lineage.resolve_lineage` checks provenance in Python without mutating source files.
 
 For up to 100 resolved partition files, record each sorted path and content digest.
 For larger sets, use the canonical glob with the composite digest of sorted member digests.
@@ -333,129 +298,10 @@ Do not record an unexpanded glob as if it were a regular file.
 
 ## Parquet compaction
 
-`storage.parquet_compaction` owns planning, primary keys, and validated publication.
+`storage.parquet_compaction` owns `PRIMARY_KEYS` for compact layouts.
 The source uses job-level `jobs.parquet` and trial-level fact/ATIF tables.
 Daily compaction produces the same tables under `compact/dt=YYYY-MM-DD/`.
 Readers accept supported historical compact layouts through the storage path helpers.
 
-```sh
-uv run python -m evallab.storage.parquet_compaction compact --dry-run
-uv run python -m evallab.storage.parquet_compaction compact --target-date YYYY-MM-DD --no-prune
-```
-
-Compaction covers jobs, trajectories, steps, calls, observations, trial facts,
-reward facts, artifact facts, and tool usage.
-Deduplication uses each table's declared primary key and deterministic ordering.
-UTC partition dates use step timestamps, raw job dates, configured catalog dates, then filesystem time.
-The last source is a fallback, not observed execution time.
-
-The writer validates exact Arrow schema and expected row count before atomic replacement.
-A failed validation never prunes granular partitions.
-Only closed UTC days qualify for normal compaction.
-The default granular retention is 7 days; `--no-prune` keeps those projections.
-Projection cleanup never removes raw jobs or CAS evidence.
 Use the [retention policy](GENERATED-CACHE-POLICY.md) before any cleanup.
 
-## Lexical vector search
-
-LanceDB is an opt-in `lance` dependency group beside DuckDB.
-Its `tasks`, `trials`, and `steps` tables live under the configured Lance root.
-Task instructions come from the library. Trial metadata comes through the attach surface.
-Raw step text comes from retained ATIF under explicitly resolved run roots.
-Missing trajectories are reported by path, not invented.
-
-```sh
-uv run python -m evallab.lance build --table all
-uv run python -m evallab.lance search 'quick brown' --table tasks --k 5
-```
-
-The default `HashingEmbedder` uses 256 L2-normalized lexical buckets.
-Its distance is lexical overlap, not semantic similarity.
-Trial text uses bounded first/last messages; step text retains its ATIF source.
-An ANN index requires at least 1,000 rows. Smaller tables use exact search.
-`--runs-root` or `EVALLAB_RUNS_ROOT` selects explicit raw evidence roots.
-Repeated builds preserve identity rather than duplicate rows.
-
-## Historical field-to-evidence matrix
-
-The following matrix preserves the PR #187 mapping and its original scientific values.
-“Current” in this retained matrix refers to that validation, not a new corpus census.
-
-Validation basis: current origin/main after PR #187, `research/experiments/manifests/terminal-bench-v3-k1-gemini-low-{campaign-manifest,machine-analysis-inventory}.json`, central `derived/evidence-cas`, merged Quality Ledger, current raw-shape/storage audits, and research-context calibration freeze.
-
-## CampaignAnalysisManifest mapping
-
-| Contract field | Real source | Current evidence / normalization |
-|---|---|---|
-| campaign/source commit/actor | PR #185 campaign manifest | `terminal-bench-v3-k1-gemini-low-screen`, execution commit `a1897ee…`, Peter |
-| source campaign manifest digest | bytes of merged PR #185 JSON | manifest builder computes SHA-256; not copied from prose |
-| attempted entries | PR #187 inventory | 7 entries: 5 cohort trials, 1 quarantined auth attempt, 1 free control |
-| source role | inventory `role` | preserve `infrastructure_retry_1`, `spec_2`…; never overload as cohort membership |
-| cohort inclusion | inventory cohort array membership | five true; control/quarantine false |
-| attempt role | normalized source role | successful bun retry=`retry`; spec_2…5=`primary`; free control=`control`; auth attempt=`quarantined_attempt` |
-| task/verifier digest | inventory | nullable for free control where source says `n/a`; unknown reason recorded |
-| CAS URI | inventory | all seven use `cas://sha256/<64hex>` |
-| quality | inventory + Quality Ledger | cohort: four `warn`, one `pass`; quarantine/control preserve `quarantine|no_atif` |
-| accounting | inventory `accounting` | planned 5, executed 7, cohort 5, retry 1, control 1, quarantine 1, unresolved 0 |
-
-Schema correction from this mapping: trial role is split into `source_role`, `cohort_included`, and `attempt_role`; quality accepts the complete ledger enum; nullable control digests are explicit unknowns.
-
-## TrajectoryIR mapping
-
-| IR group | Authoritative source | Required handling |
-|---|---|---|
-| experiment/spec/job/trial | manifest + raw result/lab metadata | exact strings; no names parsed into IDs |
-| document/session/trajectory/steps | raw ATIF restored from CAS | preserve ATIF `step_id`, `tool_call_id`, `source_call_id`; multiple calls per step retained |
-| source bytes and CAS | CAS record/blob | every result/lock/ATIF/verifier/state source carries relative path, bytes, SHA-256, CAS URI |
-| task/verifier/environment/scaffold/model | lock/result/config/lab metadata | null + unknown reason when absent; never infer from filename |
-| outcome/reward/exception | trial `result.json` and verifier outputs | null reward is unknown/verifier unavailable, not zero |
-| quality | merged Quality Ledger loader | missing report=`quality_not_evaluated`; fail/quarantine not model-callable |
-| unpaired calls | quality findings + ATIF link audit | current four warning TB3 trials retain exact unlinked count; linkage-dependent labels unavailable |
-| action/program/skeleton | deterministic parser with version/config digest | profile-dependent exit meaning is unknown without pinned semantics profile |
-| state/verifier edges | explicit state journal/check refs only | no temporal-adjacency causality |
-| opportunity | benchmark/profile contract citations | absent authority => unavailable; adjacency after error is not recovery opportunity |
-
-Observed current TB3 cohort boundary: four trials contain repeated `ATIF_UNPAIRED_TOOL_CALL` warnings; `ico-path-patch` is quality pass with only two steps and reward zero. The IR must represent both without inventing observations, recovery, or capability conclusions.
-
-## EvidencePack mapping
-
-| Pack group | IR/raw source | Gate |
-|---|---|---|
-| header/contracts/outcome/coverage | deterministic IR + cited task/verifier bytes | mandatory budget reserve |
-| selected evidence | exact CAS-hydrated CitationHandles | whole windows only; redacted content hash separate from raw source hash |
-| episode index | deterministic IR boundaries | summaries `advisory_only=true` |
-| omitted ranges | every unselected IR event | bounds/counts/type counts/ordered digest/reopen citations mandatory |
-| pair evidence | valid AlignmentRecord | no pair window when counterpart confounded/unavailable |
-| token accounting | frozen tokenizer + complete serialized pack | mandatory overflow => tier/reopen/abstain; pack cannot reach model |
-
-Current campaign production smoke must start from the five PR #187 CAS URIs. `.worktrees/tbench3-screen` trial directories are stale development evidence and cannot satisfy campaign acceptance.
-
-## Judgment / decision / calibration mapping
-
-| Contract | Current source | Status |
-|---|---|---|
-| MachineJudgment v1 | merged Platform runtime PR #193 plus frozen Track B ontology/prompt | main emits deterministic abstentions; model output remains closed to the frozen ontology |
-| AcceptanceDecision v1 | merged Platform runtime PR #193 | pure Platform gate; automatic acceptance disabled |
-| CalibrationReport v1 | research-context `306b720`: genuine Gemini 3.7 Flash High, 14/14 valid rows, no fallback | `experimental_hold`; accepted 0, coverage 0, no class enabled |
-| human baseline | source audit `01ee5d6` plus frozen v1.1 protocol | no eligible existing corpus; require author raw-label release or new offline three-qualified-rater calibration |
-| citation entailment | deterministic resolution plus Track B strict-support scoring | resolution/completeness 1.0 but strict support 0.379; semantic pass cannot open acceptance |
-
-## Benchmark-specific evidence checks
-
-| Family | Durable evidence observed | Required system disposition now |
-|---|---|---|
-| Gemini TB3 | five CAS-backed cohort trials + retry/control/quarantine accounting | build IR/pack; preserve warning coverage; judgments remain calibration-gated |
-| AgentAbstain | readiness contract `e090a05`: 0 admitted, 1 verified HOLD, 130 pending single-delta audit, 132 informational exclusions; free control has no ATIF | admit no production pair; pending candidates require pinned-byte `SingleDeltaAdmissionGate` plus nine controls; existing control abstains `source_missing|pair_unavailable` |
-| DeepPlanning | no reopenable local Harbor/CAS identity found | unavailable; do not fabricate six trials from an opinion note |
-| LOCA | task/materializer pins but no durable Harbor trial/ATIF/quality/CAS in audited corpus | unavailable; task folders are not trajectories |
-
-## Contract validation cases
-
-1. The five Eval Lab runtime/input definitions compile under the combined JSON Schema; the sixth interface, CalibrationReport v1, is validated by its Synthetic Research-owned external schema and pinned SHA-256 rather than duplicated.
-2. PR #187 records map without dropping any attempted entry or converting `n/a` to a digest.
-3. Wrong/missing CAS, source, content, redaction, task, verifier, or quality digest fails closed.
-4. A warning TB3 item with unpaired calls can build IR/pack but cannot auto-accept a linkage-dependent class.
-5. Missing ATIF/reward/pair produces explicit unknowns and deterministic abstention.
-6. Mandatory-window overflow produces no model-callable pack.
-7. A class gate is copied from one exact frozen CalibrationReport row; v1 report/class enable flags are false and cannot be overridden by AcceptanceDecision.
-8. Rebuilding PostgreSQL/Parquet from CAS sidecars preserves artifact digests and decisions.

@@ -9,12 +9,12 @@ from pathlib import Path
 
 import pytest
 
+from evallab.command_parsers import build_certify_gold_parser
 from evallab.gold_certifier import (
     GOLD_CONTRACT_TEST_NAME,
     GoldMatrixSummary,
     TaskCertificationResult,
     _certify_gold_command,
-    build_certify_gold_parser,
     build_synthesis_prompt,
     extract_code_block,
     format_supplementary_hook,

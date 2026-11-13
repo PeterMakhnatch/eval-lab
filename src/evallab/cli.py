@@ -5,40 +5,15 @@ import json
 import os
 import sys
 from collections.abc import Callable, Sequence
-from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from evallab import __version__, database
-from evallab import queue as queue_module
-from evallab.automation import (
-    HeadlessDoctor,
-    audit_launch_agents,
-    sync_primary_status,
-)
-from evallab.evidence.atif import check_projection_invariant, ingest_and_project
-from evallab.fetch import (
-    HarborBackend,
-)
-from evallab.gc import (
-    doctor_disk_line,
-)
-from evallab.preflight import build_preflight_report, render_preflight
-from evallab.queue import (
-    DirectoryQueue,
-    Executor,
-    load_policy,
-    new_ulid,
-    provider_reported_exhaustion,
-    record_projection_failures,
-)
-from evallab.results import JobRecord, load_job, load_jobs
-from evallab.runner import (
-    RunRequest,
-    database_url_from_environment,
-    load_matrix,
-    run_matrix,
-)
+from evallab import __version__
+
+if TYPE_CHECKING:
+    from evallab.fetch import HarborBackend
+    from evallab.results import JobRecord
 from evallab.storage.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 
 
@@ -55,6 +30,9 @@ def _configured_quota_ceiling(root: Path) -> float | None:
     2026-10-13 overnight subscription-agent work. The legacy module constant
     is consulted only if the policy has no configured ceiling.
     """
+    from evallab import queue as queue_module
+    from evallab.queue import load_policy
+
     configured = getattr(
         load_policy(root / "policy/standing-approvals.yaml"),
         "refuse_billable_at_used_percent",
@@ -122,6 +100,13 @@ def _print_summary(jobs: Sequence[JobRecord]) -> None:
 def _doctor(
     root: Path, *, home: Path | None = None, clock: Callable[[], datetime] | None = None
 ) -> int:
+    from evallab import database
+    from evallab.automation import audit_launch_agents, sync_primary_status
+    from evallab.evidence.atif import check_projection_invariant
+    from evallab.gc import doctor_disk_line
+    from evallab.queue import Executor
+    from evallab.runner import database_url_from_environment
+
     checks = Executor.from_repo(root).local_runtime_checks()
 
     database_url = database_url_from_environment()
@@ -187,6 +172,9 @@ def _doctor(
 def _doctor_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    from evallab.automation import HeadlessDoctor
+    from evallab.queue import Executor
+
     if args.headless:
         executor = Executor.from_repo(root)
         report = HeadlessDoctor(root, executor=executor).run()
@@ -216,9 +204,12 @@ def _preflight_command(
     approved. Needs no Daytona or Modal; `--root` points the task paths,
     ledger, and serve config at another checkout (read-only).
     """
+    from evallab.preflight import build_preflight_report, render_preflight
+    from evallab.queue import provider_reported_exhaustion
+
+
     if getattr(args, "spec", None):
         from evallab.setup_fingerprint import render_spec_preflight
-
         checkout = Path(args.preflight_root) if args.preflight_root else root
         ok = True
         for spec_path in args.spec:
@@ -282,6 +273,10 @@ def _nightly_command(
 def _run_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    from evallab.queue import Executor
+    from evallab.results import load_job
+    from evallab.runner import RunRequest
+
     request = RunRequest(
         task=_resolve(root, args.task),
         agent=args.agent,
@@ -304,6 +299,8 @@ def _run_command(
 def _matrix_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    from evallab.runner import load_matrix, run_matrix
+
     matrix_path = _resolve(root, args.path)
     matrix = load_matrix(matrix_path)
     execution = run_matrix(matrix, root=root, reuse_existing=args.reuse_existing, harbor=harbor)
@@ -316,6 +313,8 @@ def _matrix_command(
 def _summarize_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    from evallab.results import load_jobs
+
     jobs = load_jobs([_resolve(root, path) for path in args.paths])
     if not jobs:
         print("No completed Harbor jobs found.", file=sys.stderr)
@@ -327,6 +326,11 @@ def _summarize_command(
 def _ingest_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    from evallab.evidence.atif import ingest_and_project
+    from evallab.queue import DirectoryQueue, new_ulid, record_projection_failures
+    from evallab.results import load_jobs
+    from evallab.runner import database_url_from_environment
+
     jobs = load_jobs([_resolve(root, path) for path in args.paths])
     if not jobs:
         print("No completed Harbor jobs found.", file=sys.stderr)
@@ -379,6 +383,9 @@ def _ingest_command(
 def _db_init_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    from evallab import database
+    from evallab.runner import database_url_from_environment
+
     url = database_url_from_environment(args.database_url)
     database.initialize(url)
     print("database schema is current")
@@ -426,6 +433,8 @@ def _harden_command(
 def _tasks_lint_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    from dataclasses import asdict
+
     from evallab.task_lint import discover_tasks, lint_task
 
     tasks = discover_tasks([_resolve(root, path) for path in args.paths])
@@ -863,10 +872,10 @@ def parser() -> argparse.ArgumentParser:
         help="Trace anatomy and AutoReview",
     )
     trace_actions = trace_parser.add_subparsers(dest="trace_command", required=True)
-    from evallab.trace_anatomy import register_subcommands as register_trace_anatomy
+    from evallab.trace_parser import register_anatomy as register_trace_anatomy
 
     register_trace_anatomy(trace_actions)
-    from evallab.autoreview_monitor import register_subcommands as register_autoreview
+    from evallab.trace_parser import register_autoreview
 
     register_autoreview(trace_actions)
 
@@ -1133,214 +1142,10 @@ def parser() -> argparse.ArgumentParser:
     )
 
 
-    # Live trial monitoring (Traces lane). The command function lives in
-    # evallab.live_watch; this block only wires arguments, so the other
-    # builder editing cli.py keeps a clean merge.
+    from evallab.runtime_parser import register_runtime_commands
 
-    import evallab.live_watch as native_live_watch
-    """Register the ``evallab watch`` subcommand (one self-contained block)."""
-    native_live_watch_watch = commands.add_parser("watch", help="Live-monitor in-progress Harbor trials")
-    native_live_watch_watch.add_argument(
-        "--runs-dir",
-        action="append",
-        type=native_live_watch.Path,
-        default=[],
-        help="Runs root or job directory to watch (repeatable)",
-    )
-    native_live_watch_watch.add_argument("--out", type=native_live_watch.Path, default=None, help="State directory")
-    native_live_watch_watch.add_argument("--once", action="store_true", help="Single pass and exit")
-    native_live_watch_watch.add_argument(
-        "--interval",
-        type=float,
-        default=0,
-        help="Seconds between passes; loops until interrupted (default: single pass)",
-    )
-    native_live_watch_watch.add_argument(
-        "--limits-from-config",
-        action="store_true",
-        help="Read token limits from trial/job config instead of defaults",
-    )
-    native_live_watch_watch.add_argument(
-        "--spend-cap-usd",
-        type=float,
-        default=None,
-        help="Fleet spend cap in USD for running trials (alerts at 80%% and 100%%)",
-    )
-    native_live_watch_watch.set_defaults(func=native_live_watch._watch_command)
+    register_runtime_commands(commands)
 
-    from evallab import reward_hack
-
-    hack = commands.add_parser(
-        "hack",
-        help="Reward-hacking audit: static V1-V8 ledger, exploit replay, verifier mutation "
-        "testing (local, free)",
-    )
-    hack_commands = hack.add_subparsers(dest="hack_command", required=True)
-    scan = hack_commands.add_parser(
-        "scan", help="Deterministic V1-V8 flaw ledger for one task package; offline, no execution"
-    )
-    scan.add_argument("package", type=Path)
-    scan.add_argument("--json", action="store_true")
-    scan.add_argument("--output", type=Path, help="Write the scan JSON to this path")
-    scan.set_defaults(func=reward_hack._hack_scan_command)
-    run = hack_commands.add_parser(
-        "run",
-        help="Plan (default) or replay exploit scripts through the task's own verifier",
-    )
-    run.add_argument("package", type=Path)
-    run.add_argument(
-        "--script",
-        type=Path,
-        action="append",
-        default=[],
-        help="Exploit script to replay; repeatable (default: <package>/controls/*.sh)",
-    )
-    run.add_argument("--execute", action="store_true", help="Run the local control matrix")
-    run.add_argument("--timeout-seconds", type=int, default=1_800)
-    run.add_argument("--output-dir", type=Path)
-    run.add_argument("--json", action="store_true")
-    run.set_defaults(func=reward_hack._hack_run_command)
-    reward_hack.add_mutate_parser(hack_commands)
-    from evallab.mutant_auditor import build_audit_mutants_parser
-
-    build_audit_mutants_parser(commands)
-    from evallab.gold_certifier import build_certify_gold_parser
-
-    build_certify_gold_parser(commands)
-
-
-    import evallab.line.cli as native_cli
-    native_cli_parser = commands.add_parser("line", help="Run and audit the DEV assembly line")
-    native_cli_commands = native_cli_parser.add_subparsers(dest="line_command", required=True)
-    for native_cli_name in ('run', 'check', 'replay'):
-        native_cli_command = native_cli_commands.add_parser(native_cli_name)
-        native_cli_command.add_argument(
-            "path",
-            type=native_cli.Path,
-            help=(
-                "spec JSON"
-                if native_cli_name in ("run", "replay")
-                else "batch directory, or a live state directory"
-            ),
-        )
-        native_cli_command.add_argument("--json", action="store_true")
-        if native_cli_name == "replay":
-            native_cli_command.add_argument("--baseline", type=native_cli.Path, required=True)
-            native_cli_command.add_argument("--write-baseline", action="store_true")
-        if native_cli_name == "check":
-            native_cli_command.add_argument(
-                "--fast",
-                action="store_true",
-                help="skip the determinism recompute; the result says determinism is not "
-                "verified, exits 3 at best, and leaves check.json and the scoreboard untouched",
-            )
-        native_cli_command.set_defaults(func=native_cli._command)
-    native_cli_watch = native_cli_commands.add_parser(
-        "watch",
-        help="Process finished DEV runs as they arrive (live mode, one owner per state dir)",
-    )
-    native_cli_watch.add_argument("config", type=native_cli.Path, help="evallab.line_watch/v1 JSON")
-    native_cli_watch.add_argument("--state-dir", type=native_cli.Path, required=True)
-    native_cli_watch.add_argument("--once", action="store_true", help="one cycle, then exit")
-    native_cli_watch.add_argument("--max-cycles", type=int, default=None)
-    native_cli_watch.add_argument("--json", action="store_true")
-    native_cli_watch.set_defaults(func=native_cli._command)
-    from evallab.score.cli import build_score_parser
-
-    build_score_parser(commands)
-    from evallab import laminar
-
-    laminar_parser = commands.add_parser("laminar", help="Laminar Signals as code")
-    laminar_actions = laminar_parser.add_subparsers(dest="laminar_action", required=True)
-    laminar_signals = laminar_actions.add_parser("signals", help="Create or update the four HAR-166 Signals by name")
-    laminar_signals.add_argument(
-        "--byok-zai",
-        action="store_true",
-        help=f"Run the Signals on Z.ai {laminar.ZAI_SIGNAL_MODEL} through a workspace LLM profile "
-        f"(needs {laminar.ZAI_KEY_ENV}; required to create Signals through the Cloud API)",
-    )
-    laminar_parser.set_defaults(func=laminar._laminar_command)
-
-    from evallab.harbor_view import build_view_parser as _build_view_parser
-
-    _build_view_parser(commands)
-    from evallab.results_viewer import build_results_viewer_parser
-
-    build_results_viewer_parser(commands)
-
-    import evallab.detectors as native_detectors
-    from evallab.results_home import results_root
-
-    native_detectors_parser = commands.add_parser(
-        "detectors",
-        help="Score cheat detectors on a labelled trace corpus (cached, $0 to re-score)",
-        description="``evallab detectors``: score cheat detectors on a labelled, versioned trace corpus.",
-    )
-    native_detectors_sub = native_detectors_parser.add_subparsers(dest="detectors_cmd", required=True)
-    native_detectors_p = native_detectors_sub.add_parser("verify", help="Check the corpus and cache checksums")
-    native_detectors_p.add_argument("--corpus", default="detectors-v1")
-    native_detectors_p.set_defaults(func=native_detectors._cmd)
-    native_detectors_p = native_detectors_sub.add_parser(
-        "score", help="Recall / false positives from cached verdicts (no model calls)"
-    )
-    native_detectors_p.add_argument("--corpus", default="detectors-v1")
-    native_detectors_p.add_argument("--detector", action="append", help="repeatable; default: every cached detector")
-    native_detectors_p.add_argument("--check", help="label to score against (default: the detector's own)")
-    native_detectors_p.add_argument(
-        "--calibrate-on",
-        default=native_detectors.DEFAULT_CALIBRATION_SOURCE,
-        help="source whose negatives set score cuts",
-    )
-    native_detectors_p.add_argument("--families", action="store_true", help="also print per-family recall")
-    native_detectors_p.add_argument("--json", action="store_true")
-    native_detectors_p.set_defaults(func=native_detectors._cmd)
-    native_detectors_p = native_detectors_sub.add_parser(
-        "run", help="Judge uncached corpus traces with a detector and cache the verdicts"
-    )
-    native_detectors_p.add_argument("--corpus", default="detectors-v1")
-    native_detectors_p.add_argument("--detector", required=True, choices=sorted(native_detectors.REGISTRY))
-    native_detectors_p.add_argument("--source", action="append", help="only rows from this source (repeatable)")
-    native_detectors_p.add_argument(
-        "--tw-root", type=native_detectors.Path, help="materialized Terminal Wrench trials: <root>/<source>/<tw_id>"
-    )
-    native_detectors_p.add_argument(
-        "--cb-root", type=native_detectors.Path, help="materialized CheatBench trials: <root>/<source>/<cb_id>"
-    )
-    native_detectors_p.add_argument(
-        "--rl-root", type=native_detectors.Path, help="materialized RL rollout trials: <root>/<source>/<rl_id>"
-    )
-    native_detectors_p.add_argument("--results-root", type=native_detectors.Path, default=results_root())
-    native_detectors_p.add_argument("--limit", type=int)
-    native_detectors_p.add_argument("--ids", type=native_detectors.Path, help="only these row ids (JSON list or one per line)")
-    native_detectors_p.add_argument("--refresh", action="store_true", help="re-judge rows already in the cache")
-    native_detectors_p.add_argument("--allow-paid", action="store_true")
-    native_detectors_p.set_defaults(func=native_detectors._cmd)
-    from evallab.cheat import build_cheat_parser
-
-    build_cheat_parser(commands)
-    from evallab.qa.cli import build_qa_parser
-
-    build_qa_parser(commands)
-    from evallab.failure_library.cli import build_failures_parser
-
-    build_failures_parser(commands)
-    from evallab.docker_lock import build_docker_lock_parser
-
-    build_docker_lock_parser(commands)
-    from evallab.production.cli import register_parser as register_production_parser
-
-    register_production_parser(commands)
-
-    from evallab.production.run_health import register_parser as register_run_health_parser
-
-    register_run_health_parser(commands)
-    from evallab.production.judge_station import register_parser as register_judge_parser
-
-    register_judge_parser(commands)
-
-    from evallab.ship import register_parser as register_ship_parser
-
-    register_ship_parser(commands)
 
     return root
 

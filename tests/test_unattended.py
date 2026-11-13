@@ -10,11 +10,13 @@ import pytest
 
 import evallab.automation as automation_module
 import evallab.cli as cli_module
+from evallab import database
 from evallab.automation import (
     HeadlessDoctor,
     audit_launch_agents,
 )
 from evallab.digest import DigestRenderer, DigestTrial
+from evallab.evidence import atif
 from evallab.queue import DirectoryQueue, Executor
 from evallab.schemas import (
     AutoRunRule,
@@ -212,10 +214,10 @@ def test_doctor_lists_a_broken_evallab_launch_agent(
     task = tmp_path / "library/tasks/event-summary/task.toml"
     task.parent.mkdir(parents=True)
     task.write_text("version = 1\n")
-    monkeypatch.setattr(cli_module.Executor, "from_repo", lambda root: RuntimeChecks())
-    monkeypatch.setattr(cli_module.database, "ping", lambda url: "PostgreSQL 16")
+    monkeypatch.setattr(Executor, "from_repo", lambda root: RuntimeChecks())
+    monkeypatch.setattr(database, "ping", lambda url: "PostgreSQL 16")
     monkeypatch.setattr(
-        cli_module,
+        atif,
         "check_projection_invariant",
         lambda *args: ProjectionInvariant(
             catalog_job_ids=frozenset({"job"}),

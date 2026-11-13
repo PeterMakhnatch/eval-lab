@@ -10,7 +10,7 @@ import math
 import sys
 import tempfile
 from collections import defaultdict
-from datetime import UTC, date, datetime
+from datetime import date
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Literal
@@ -771,18 +771,3 @@ def _suite_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     return 0
 
 
-def add_suite_command(commands: argparse._SubParsersAction) -> None:
-    suite = commands.add_parser("suite", help="Compare retained versions on every frozen answer-key split ($0)")
-    suite.add_argument(
-        "--agent", choices=tuple(_AGENT_LABELS), action="append", required=True,
-        help="QA agent kind; repeat to put several agents' versions in one report",
-    )
-    suite.add_argument(
-        "--version", action="append", required=True,
-        help="Exact versioned producer identity of one requested agent; repeat to compare versions",
-    )
-    suite.add_argument("--runs", type=Path, help="JSON runs manifest; paths are relative to its directory")
-    suite.add_argument("--date", default=datetime.now(UTC).date().isoformat(), help="Report date (YYYY-MM-DD, UTC)")
-    suite.add_argument("--output", type=Path, help="Atomic report destination (default: research/qa-scoreboard/suite-YYYYMMDD.md)")
-    suite.add_argument("--json", action="store_true", help="Also print the full comparison and source custody as JSON")
-    suite.set_defaults(func=_suite_command)

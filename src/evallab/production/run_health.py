@@ -930,23 +930,3 @@ def _command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     return 0
 
 
-def register_parser(commands: Any) -> None:
-    """``evallab run-health``; registration opens no database."""
-    parser = commands.add_parser(
-        "run-health", help="Run Health: deterministic loop/runaway/latency/infra features and findings",
-    )
-    actions = parser.add_subparsers(dest="run_health_command", required=True)
-    for name, text in (("features", "per-run deterministic features (JSONL)"),
-                       ("detect", "trace-findings/v1 records for the four run_health detectors (JSONL)"),
-                       ("triggers", "cheap live triggers per run, for the Live Supervisor (JSONL)")):
-        sub = actions.add_parser(name, help=text)
-        source = sub.add_mutually_exclusive_group(required=True)
-        source.add_argument("--db", type=Path, help="cloud trace DB (read-only; admitted DEV runs only)")
-        source.add_argument("--trial-dir", type=Path, action="append", help="Harbor trial dir (repeatable)")
-        sub.add_argument("--dataset", action="append", help="with --db: only this dataset id (repeatable)")
-        sub.add_argument("--trace-id", action="append", help="with --db: only this trace id (repeatable)")
-        sub.add_argument("--out", type=Path, help="output JSONL (default stdout)")
-        if name == "triggers":
-            sub.add_argument("--now", default="now",
-                             help="clock for silence and live wall time: 'now' (default), epoch seconds or ISO")
-        sub.set_defaults(func=_command)

@@ -884,44 +884,6 @@ def _write_certification_json(path: Path, value: Any) -> None:
 # --------------------------------------------------------------------------- CLI Parser
 
 
-def build_certify_gold_parser(subparsers: Any) -> None:
-    parser = subparsers.add_parser(
-        "certify-gold",
-        help="Certify a task with behavioral tests, separate-verifier hardening and seven gates",
-    )
-    parser.add_argument("--package", type=Path, required=True, help="Base task package directory")
-    parser.add_argument("--reference-patch", type=Path, required=True, help="Reference patch file")
-    parser.add_argument("--out", type=Path, help="Output directory for hardened package")
-    parser.add_argument("--task-id", type=str, help="Task identifier (e.g. format-code-task-000079)")
-    parser.add_argument("--approval", help="Recorded approval text for Modal execution")
-    parser.add_argument("--max-usd", type=float, help="Required explicit Modal cap in USD")
-    parser.add_argument("--per-execution-usd", type=float, default=0.005)
-    parser.add_argument("--ledger", type=Path, help="Persisted spend ledger (defaults beside --out)")
-    parser.add_argument("--app-name", default="gold-certifier")
-    parser.add_argument("--alt-solution", action="append", type=Path, default=[],
-                        help="Independent correct patch; repeat for Gate 7")
-    parser.add_argument("--witness", action="append", type=Path, default=[],
-                        help="Contained witness script; requires --injection-controls")
-    parser.add_argument("--injection-controls", action="store_true",
-                        help="Explicitly run integrity controls through the fixed native Modal runner")
-    parser.add_argument("--contract-test", type=Path, help="Use an operator-supplied unittest instead of synthesis")
-    parser.add_argument("--hook-command", help="Override supplementary test interpreter command")
-    parser.add_argument("--python-version", default="3", choices=("3", "2.7"))
-    parser.add_argument("--expected-tests", type=int, help="Reference test count for strict L3 hardening")
-    parser.add_argument("--limit", type=int, default=8, help="Max mutants to enumerate")
-    parser.add_argument(
-        "--model",
-        type=str,
-        default="google-antigravity/gemini-3.8-flash",
-        help="Model identifier for synthesis",
-    )
-    parser.add_argument(
-        "--plan",
-        action="store_true",
-        help="Offline planning: show parameters and Python targets without executing or synthesizing",
-    )
-    parser.add_argument("--json", action="store_true", help="Output summary as JSON")
-    parser.set_defaults(func=_certify_gold_command)
 
 
 def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:

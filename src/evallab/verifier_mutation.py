@@ -1717,39 +1717,3 @@ def _mutate_command(args: argparse.Namespace, root: Path, *, harbor: Any | None 
     return 0
 
 
-def add_mutate_parser(hack_commands: Any) -> None:
-    mutate = hack_commands.add_parser(
-        "mutate",
-        help=(
-            "Verifier mutation testing: grade small behavioural edits of the reference "
-            "solution's output with the task's own verifier (local, free)"
-        ),
-    )
-    mutate.add_argument("package", type=Path)
-    mutate.add_argument(
-        "--target",
-        action="append",
-        default=[],
-        help="Absolute container path to capture and mutate; repeatable "
-        "(default: the task's declared artifacts)",
-    )
-    mutate.add_argument("--max-mutants", type=int, default=24)
-    mutate.add_argument("--seed", default="", help="Changes which mutants are sampled")
-    mutate.add_argument(
-        "--mutant",
-        action="append",
-        default=[],
-        help="Run exactly this mutant id from a previous report (repeatable); ids are stable "
-        "for the same reference output",
-    )
-    mutate.add_argument("--workers", type=int, default=1, choices=range(1, MAX_WORKERS + 1))
-    mutate.add_argument("--execute", action="store_true", help="Run the local control matrices")
-    mutate.add_argument("--timeout-seconds", type=int, default=1_800)
-    mutate.add_argument("--output-dir", type=Path)
-    mutate.add_argument(
-        "--no-coverage",
-        action="store_true",
-        help="Skip the instrumented reference run and mutate every line (one fewer trial)",
-    )
-    mutate.add_argument("--json", action="store_true")
-    mutate.set_defaults(func=_mutate_command)

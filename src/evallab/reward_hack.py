@@ -37,7 +37,6 @@ from evallab.execution_contracts import new_ulid
 from evallab.registry import compute_task_digests, harbor_task_digest
 from evallab.runner import run_matrix
 from evallab.schemas import ContractModel, ExperimentMatrix, MatrixRun
-from evallab.verifier_mutation import add_mutate_parser as add_mutate_parser
 
 #: Hits recorded per pattern rule; the ledger stays bounded and reviews the first
 #: occurrences, not every matching byte of a large verifier.

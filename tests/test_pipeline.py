@@ -254,7 +254,7 @@ def test_zero_trial_catalog_job_is_projected_by_job_marker(tmp_path: Path) -> No
 def test_doctor_fails_when_catalog_projection_invariant_is_broken(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
-    from evallab import cli
+    from evallab.evidence import atif
 
     task = tmp_path / "library/tasks/event-summary/task.toml"
     task.parent.mkdir(parents=True)
@@ -267,10 +267,10 @@ def test_doctor_fails_when_catalog_projection_invariant_is_broken(
             ("docker-daemon", True, "ok"),
         ]
     )
-    monkeypatch.setattr(cli.Executor, "from_repo", lambda root: runtime)
-    monkeypatch.setattr(cli.database, "ping", lambda url: "ok")
+    monkeypatch.setattr(Executor, "from_repo", lambda root: runtime)
+    monkeypatch.setattr(database, "ping", lambda url: "ok")
     monkeypatch.setattr(
-        cli,
+        atif,
         "check_projection_invariant",
         lambda url, output, events: ProjectionInvariant(
             catalog_job_ids=frozenset({"job"}),

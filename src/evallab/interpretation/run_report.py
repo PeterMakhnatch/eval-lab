@@ -829,7 +829,6 @@ _EXIT_PREFIX_RE = re.compile(r"^\s*exit (-?\d+)\b")
 _REEF_NATIVE_TOOLS = frozenset({"execute", "run_bash", "write_file", "read_file"})
 _REEF_TIMEOUT_LEAD_RE = re.compile(r"^timed out after \d+s")
 _REEF_REFUSED_LEAD_RE = re.compile(r"^refused:")
-_COMPACTION_MIN_PROMPT = 8_000
 
 
 # --------------------------------------------------------------------------- #

@@ -17,6 +17,7 @@ and are not committed.
 | `mimo-defect-map-v1/` | Source-bound MiMo defect/repair lineage, exact-package Hackbook coverage and bounded screening-pool counts; static candidates are not semantic-clean certification or training admission |
 | `library-ladder-coverage/` | Regenerated package x ladder-generation matrix (`coverage.csv`) over committed library ladder evidence; `--check` makes missing/stale cells mechanical and a globbed `research/evidence/ladder-v*/cells.json` joins without editing the builder (HAR-243, HAR-254) |
 | `query-optimize-runtime-margin/` | Regenerated per-trial golden/solution medians and ratio for every published `query-optimize` trial, measured against the task's 1.05 runtime check; `--check` fails on drift (HAR-423) |
+| `library-verifier-headroom/` | Regenerated `trials.csv` and per-package `headroom.csv` for the 12 library package names: verifier phase, pytest runtime and timeout exceptions against `[verifier] timeout_sec`; `--check` fails on drift (HAR-428) |
 
 Validate the current ledger and its known-bad regression fixtures with:
 

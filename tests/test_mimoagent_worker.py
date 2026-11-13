@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+from mimoagent_worker_host import NativeWorkers
 
 from evallab.execution_contracts import MIMO_SELFHOSTED_CONTEXT_TOKENS
 from evallab.mimoagent_worker import (
@@ -23,6 +24,21 @@ from evallab.mimoagent_worker import (
 ROOT = Path(__file__).resolve().parents[1]
 NATIVE_PYTHON = ROOT / "tools/mimoagent-harbor/.venv/bin/python"
 WORKER = ROOT / "src/evallab/mimoagent_worker.py"
+_worker_process = subprocess.run
+
+
+@pytest.fixture(scope="module", autouse=True)
+def native_workers(tmp_path_factory):
+    if not NATIVE_PYTHON.is_file():
+        yield
+        return
+    workers = NativeWorkers(NATIVE_PYTHON, ROOT, tmp_path_factory.mktemp("native-workers"))
+    try:
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setitem(globals(), "_worker_process", workers.run)
+            yield
+    finally:
+        workers.close()
 
 
 def _answer(content="native answer", *, tool_calls=None):
@@ -143,7 +159,7 @@ def _run_worker(
             bootstrap += "import mimoagent.run.utils.save as save; save.save_traj=fail; "
     bootstrap += "n['main']()"
     try:
-        process = subprocess.run(
+        process = _worker_process(
             [str(NATIVE_PYTHON), "-I", "-c", bootstrap, str(WORKER), str(budget)],
             input=json.dumps(initial) + "\n",
             text=True,

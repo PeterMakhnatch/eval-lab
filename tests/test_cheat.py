@@ -143,6 +143,15 @@ def _build_harbor_stubs() -> dict[str, types.ModuleType]:
     }
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _isolate_nested_pytest():
+    """Synthetic child suites need pytest core, not the host's plugin set."""
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("PYTEST_DISABLE_PLUGIN_AUTOLOAD", "1")
+        patch.delenv("PYTEST_ADDOPTS", raising=False)
+        yield
+
+
 @pytest.fixture(scope="module")
 def harbor_cheat():
     """Import evallab.harbor_cheat against scoped Harbor stubs (with teardown)."""

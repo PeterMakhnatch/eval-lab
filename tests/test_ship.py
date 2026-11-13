@@ -18,20 +18,28 @@ import pytest
 from evallab.ship import Ship, cleanup, run_command
 
 
-@pytest.fixture
-def delivery(tmp_path, monkeypatch):
-    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
-    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
-    monkeypatch.setenv("GIT_AUTHOR_DATE", "2026-11-13T00:00:00Z")
-    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-11-13T00:00:00Z")
-    root = tmp_path / "repo"
+@pytest.fixture(scope="module")
+def _delivery_seed(tmp_path_factory):
+    """Build the immutable history once; delivery always copies private repos."""
+    seed = tmp_path_factory.mktemp("ship-seed")
+    root = seed / "repo"
     root.mkdir()
-    origin = tmp_path / "origin.git"
+    origin = seed / "origin.git"
+    template = seed / "empty-template"
+    (template / "info").mkdir(parents=True)
+    env = {
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_DATE": "2026-11-13T00:00:00Z",
+        "GIT_COMMITTER_DATE": "2026-11-13T00:00:00Z",
+    }
+
     def git(*args, cwd=root):
-        return subprocess.check_output(["git", *args], cwd=cwd, text=True).strip()
-    git("init", "--bare", str(origin))
-    git("init", "-b", "main")
-    monkeypatch.setattr(cleanup, "sys", SimpleNamespace(platform="darwin"))
+        return subprocess.check_output(["git", *args], cwd=cwd, env=env, text=True).strip()
+
+    git("init", "--bare", f"--template={template}", str(origin))
+    git("init", "-b", "main", f"--template={template}")
     git("config", "user.email", "test@example.invalid")
     git("config", "user.name", "Ship test")
     (root / "agents").mkdir()
@@ -43,13 +51,36 @@ def delivery(tmp_path, monkeypatch):
     base = git("rev-parse", "HEAD")
     git("remote", "add", "origin", str(origin))
     git("push", "-u", "origin", "main")
-    tree = tmp_path / "topic"
-    git("worktree", "add", "-b", "topic", str(tree))
-    (tree / "consumer.txt").write_text("change\n")
-    git("commit", "-am", "change", cwd=tree)
-    head = git("rev-parse", "HEAD", cwd=tree)
+    git("checkout", "-b", "topic")
+    (root / "consumer.txt").write_text("change\n")
+    git("commit", "-am", "change")
+    head = git("rev-parse", "HEAD")
     git("push", "-u", "origin", "topic")
     git("update-ref", "refs/pull/42/head", head, cwd=origin)
+    git("checkout", "main")
+    return seed, base, head
+
+
+@pytest.fixture
+def delivery(tmp_path, monkeypatch, _delivery_seed):
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_AUTHOR_DATE", "2026-11-13T00:00:00Z")
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-11-13T00:00:00Z")
+    monkeypatch.setattr(cleanup, "sys", SimpleNamespace(platform="darwin"))
+    seed, base, head = _delivery_seed
+    root = tmp_path / "repo"
+    origin = tmp_path / "origin.git"
+    shutil.copytree(seed / "repo", root)
+    shutil.copytree(seed / "origin.git", origin)
+    config = root / ".git/config"
+    config.write_text(config.read_text().replace(str(seed / "origin.git"), str(origin)))
+
+    def git(*args, cwd=root):
+        return subprocess.check_output(["git", *args], cwd=cwd, text=True).strip()
+
+    tree = tmp_path / "topic"
+    git("worktree", "add", str(tree), "topic")
     state = tmp_path / "github.json"
     state.write_text(json.dumps({"root": str(root), "pr": {
         "number": 42, "state": "OPEN", "headRefOid": head, "headRefName": "topic",
@@ -64,7 +95,8 @@ def delivery(tmp_path, monkeypatch):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     fake = Path(__file__).parent / "fixtures/ship_fake_gh.py"
-    (bin_dir / "gh").write_text(f"#!{sys.executable}\n" + fake.read_text().split("\n", 1)[1])
+    # The fake uses only stdlib; do not load unrelated site customizations.
+    (bin_dir / "gh").write_text(f"#!{sys.executable} -S\n" + fake.read_text().split("\n", 1)[1])
     (bin_dir / "lsof").write_text("#!/bin/sh\nexit 1\n")
     (bin_dir / "launchctl").write_text("#!/bin/sh\nprintf 'no references\\n'\n")
     for executable in bin_dir.iterdir():

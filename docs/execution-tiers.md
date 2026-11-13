@@ -598,7 +598,7 @@ semantics, including the fail-closed cases, are in `docs/operations.md`,
 Every self-hosted launch requires a fresh authenticated
 `POST /v1/chat/completions` readiness probe; a prior success is never cached
 for another launch. Cold endpoints wait with backoff inside
-`--selfhosted-warmup-seconds` (default 600 seconds). A still-cold or rejected
+`selfhosted_warmup_seconds` (default 600 seconds). A still-cold or rejected
 endpoint defers the spec rather than launching a trial into that failure.
 
 For an unqualified batch with multiple model-backed specs, the first selected
@@ -616,7 +616,7 @@ sets `queue/STOP` **before** any further launch or smoke-block event recording.
 All remaining specs, including free controls, stay queued across later ticks
 and fresh executors. Running trials are not killed or changed. Resolve the
 retry is implied. Controls-only and intentionally selected single-model
-dispatches do not become smoke batches. `--no-smoke-gate` is an explicit,
+dispatches do not become smoke batches. `smoke_gate_enabled=False` is an explicit,
 recorded opt-out, not the default or a substitute for paid authorisation.
 
 Campaign failure classification uses the terminal transition into `failed`,
@@ -687,7 +687,7 @@ Qualification requires a completed, exception-free, finitely graded trial
 setup fingerprint. When **every** model-running member matches the same
 approved qualification, tick defaults to the campaign's concurrency and
 records `smoke_gate_campaign_qualified`; no full trial runs alone first.
-Explicit `--parallel` can lower, not exceed, that campaign cap.
+Explicit `parallel` can lower, not exceed, that campaign cap.
 Mixed/unqualified batches retain the old smoke gate. Missing, modified or
 drifted evidence cannot waive it; context/parser/server-source/deploy-knob,
 backend/lock and budget changes require new matching evidence.
@@ -698,7 +698,7 @@ readiness, task/reference/credential gates, existing Daytona quota clamps,
 and HAR-175 replacements still apply. **HAR-189's physical-spend fence is a
 separate required dependency before paid activation**; this change supplies
 neither settled provider charges nor a replacement budget mechanism.
-This does not use `--no-smoke-gate` as an approval shortcut. HAR-168's old
+This does not use `smoke_gate_enabled=False` as an approval shortcut. HAR-168's old
 65,536/`mimo` runs do not qualify 262,144/`qwen3_coder` or the new backend.
 
 Deploy once per approved campaign, not once per trial. Both serving variants
@@ -1060,7 +1060,8 @@ Construct an `ExperimentSpec` (`src/evallab/schemas/__init__.py`) and use
 `evallab.queue` (`Executor.submit`, `DirectoryQueue.approve`, `Executor.tick`).
 Direct `evallab run` remains control-only; it does not replace the paid queue.
 
-The spec pins package and verifier digests. Task-declared CPU, memory,
+Set `task_package_digest` and `verifier_digest` to pin package and verifier digests.
+Task-declared CPU, memory,
 storage, GPU, network, and separate-verifier requirements remain task inputs.
 The existing eight-hour Lab deadline limit still applies; larger declared
 deadlines refuse rather than being silently shortened. An explicit shorter
@@ -1254,12 +1255,13 @@ balances are recorded as observations, not a live credit cap or permission to
 The task-preparation and queue CLI frontends are removed.
 Construct an `ExperimentSpec` (`src/evallab/schemas/__init__.py`) for the local
 Harbor package with `timeout_seconds=3600` and dispatch it through the approved `evallab.queue` API.
-Staging neither admits a task to the registry nor approves a run.
+Constructing the spec neither admits a task to the registry nor approves a run.
 Use `linear_card` with the exact authorized Linear card to preserve
 explicit spend provenance; it does not grant spending permission.
 
-The spec preserves the task's declared **agent**
+Set `timeout_seconds` explicitly from the task's declared **agent**
 deadline. Build and verifier deadlines are not added to that agent deadline.
+The schema default is 1,800 seconds; it does not establish the task's declared deadline.
 Missing deadlines require an explicit value; deadlines above the Lab's eight-hour
 limit are never silently truncated. This example's one-hour override is a
 diagnostic run, **not the full eight-hour TB4 protocol**.
@@ -1269,13 +1271,13 @@ The spec carries explicit request, input, output, total-token, and model-cost ce
 is an estimate, not an infrastructure dollar meter. Unmetered harnesses are not
 given fictitious enforced token/cost limits.
 
-After reviewing the generated spec and obtaining the exact run's approval:
-
-Use `Executor.submit`, `DirectoryQueue.approve`, and `Executor.tick(spec_ids=[...])`.
+Submit the reviewed spec with `Executor.submit`.
+After obtaining the exact run's approval, record it with `DirectoryQueue.approve(spec_id, actor=...)`.
+Dispatch only that spec with `Executor.tick(spec_ids=[spec_id])`.
 Inspect the retained results with:
 
 ```bash
-uv run evallab summarize runs/tb4-finance-daytona
+uv run evallab summarize runs/<job-name>
 ```
 
 `Executor.tick` retains all existing health, credential, policy and quota gates.
@@ -1286,7 +1288,7 @@ remains control-only; paid agents use the queue above.
 
 Export `DAYTONA_API_KEY` and `ZAI_OPENAPI_API_KEY` into the invoking shell before
 dispatch (for example, start a new shell after configuring your existing exports).
-Preparation does not need them; no credential values are written into the spec.
+Constructing the spec does not need them; no credential values are written into the spec.
 
 The launcher requires `DAYTONA_API_KEY` and the standard-API
 `ZAI_OPENAPI_API_KEY`. The scoped Daytona environment stages the existing proxy

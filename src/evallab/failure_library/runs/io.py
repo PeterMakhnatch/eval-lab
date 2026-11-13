@@ -1,17 +1,11 @@
-"""Immutable raw custody and bounded native-row iteration."""
+"""Immutable raw custody, digest verification, and source health."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import os
-import urllib.parse
-import urllib.request
-from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
-
-import pyarrow.parquet as pq
 
 from evallab.failure_library.runs.cached import (
     CHEATBENCH_REVISION,
@@ -45,11 +39,6 @@ RETAINED_BUNDLE_SHA256 = {
 }
 
 
-def download_bytes(url: str, *, user_agent: str, timeout: int) -> bytes:
-    """Read anonymous source bytes; callers retain their pins and digest checks."""
-    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
-        return response.read()
 
 
 def digest(path: Path) -> str:
@@ -126,20 +115,8 @@ def retained_source_health(
     )
 
 
-def reference(path: Path, index: int, *, jsonl: bool = False, field: str | None = None) -> str:
-    locator = f"line={index + 1}" if jsonl else f"row={index}"
-    if field:
-        locator += "&field=" + urllib.parse.quote(field, safe="[].,_")
-    return path.resolve().as_uri() + "#" + locator
 
 
-def parquet_rows(path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
-    index = 0
-    # Long Terminus episodes can be several MB each; never materialize a full shard.
-    for batch in pq.ParquetFile(path).iter_batches(batch_size=32):
-        for row in batch.to_pylist():
-            yield index, row
-            index += 1
 
 
 def _source_files(collection: str, filename: str) -> bool:

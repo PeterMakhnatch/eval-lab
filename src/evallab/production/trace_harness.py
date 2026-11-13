@@ -1,21 +1,18 @@
-"""Shared trace-findings contracts and store for retained Gold and online readers."""
+"""Shared trace-findings contracts for retained Gold and online readers."""
 
 from __future__ import annotations
 
-import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from evallab.production.cloud_trace_db import TRACE_FINDING_VERDICTS
 from evallab.production.run_atlas import (
     DEFAULT_DATABASE,
     STATE_ROOT,
     AtlasRun,
     BlindRun,
-    append_jsonl,
     blind_run,
 )
 from evallab.production.trace_findings import (
@@ -25,9 +22,7 @@ from evallab.production.trace_findings import (
     _finding,
 )
 
-VERDICTS = TRACE_FINDING_VERDICTS
 HARNESS_ROOT = STATE_ROOT / "trace-harness"
-DEFAULT_FINDINGS = HARNESS_ROOT / "findings-v1.jsonl"
 FINDING_FIELDS = (
     "run_id", "detector", "detector_version", "reader_model", "verdict", "score", "kind",
     "evidence_steps", "summary", "input_tokens", "output_tokens", "cost_usd", "latency_ms",
@@ -35,10 +30,6 @@ FINDING_FIELDS = (
 )
 SUMMARY_WORDS = MAX_SUMMARY_WORDS
 SUMMARY_CHARS = MAX_SUMMARY_CHARS
-NO_ACTOR_SUMMARY = "no actor transcript (actor_inputs_available=false); verdict unknown, not clear"
-
-
-Key = tuple[str, str, str, str | None]
 
 
 # --------------------------------------------------------------------------- #
@@ -115,8 +106,8 @@ def finding(
 ) -> dict[str, Any]:
     """Build one validated ``trace-findings/v1`` record.
 
-    The summary is trimmed and the cited steps are capped (lowest ids first) to the
-    cloud DB importer's limits, so every stored record is importable.
+    Trim the summary and cap cited steps (lowest ids first) to the shared
+    ``trace_findings._finding`` contract.
     """
     record = {
         "run_id": run_id, "detector": detector, "detector_version": detector_version,
@@ -136,9 +127,8 @@ def finding(
 def validate_finding(record: Mapping[str, Any]) -> list[str]:
     """Reasons a record breaks ``trace-findings/v1``; empty when valid.
 
-    The value rules are the cloud DB importer's own (``trace_findings._finding``), so
-    the harness never stores a record that table would refuse. The harness adds an
-    exact field set and a ``provider/id`` reader.
+    ``trace_findings._finding`` supplies the shared value rules.
+    The harness also requires an exact field set and a ``provider/id`` reader.
     """
     errors = [f"missing field {name}" for name in FINDING_FIELDS if name not in record]
     errors += [f"unexpected field {name}" for name in sorted(set(record) - set(FINDING_FIELDS))]
@@ -155,54 +145,6 @@ def validate_finding(record: Mapping[str, Any]) -> list[str]:
     except (TypeError, ValueError) as error:
         errors.append(str(error))
     return errors
-
-
-def cache_key(record: Mapping[str, Any]) -> Key:
-    return (record["run_id"], record["detector"], record["detector_version"], record["reader_model"])
-
-
-def apply_actor_rule(record: dict[str, Any], run: HarnessRun) -> dict[str, Any]:
-    """A run without an actor transcript is never ``clear``: it is ``unknown``."""
-    if run.actor_inputs_available or record["verdict"] != "clear":
-        return record
-    return {**record, "verdict": "unknown", "score": None, "summary": trim_words(NO_ACTOR_SUMMARY)}
-
-
-class FindingStore:
-    """Interim append-only JSONL store; the latest line per cache key wins."""
-
-    def __init__(self, path: Path = DEFAULT_FINDINGS) -> None:
-        self.path = path
-
-    def records(self) -> dict[Key, dict[str, Any]]:
-        latest: dict[Key, dict[str, Any]] = {}
-        if not self.path.is_file():
-            return latest
-        with self.path.open(encoding="utf-8") as handle:
-            for number, line in enumerate(handle, 1):
-                if not line.strip():
-                    continue
-                record = json.loads(line)
-                errors = validate_finding(record)
-                if errors:
-                    raise ValueError(f"{self.path}:{number}: {errors}")
-                latest[cache_key(record)] = record
-        return latest
-
-    def for_run(self, run_id: str) -> list[dict[str, Any]]:
-        return sorted(
-            (record for key, record in self.records().items() if key[0] == run_id),
-            key=lambda record: (record["detector"], record["detector_version"], record["reader_model"] or ""),
-        )
-
-    def append(self, records: Sequence[Mapping[str, Any]]) -> None:
-        for record in records:
-            errors = validate_finding(record)
-            if errors:
-                raise ValueError(f"refusing invalid finding {record.get('run_id')}: {errors}")
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        append_jsonl(self.path, records)
-
 
 
 # --------------------------------------------------------------------------- #

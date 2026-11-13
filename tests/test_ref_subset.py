@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import os
@@ -33,12 +32,10 @@ from evallab.ref_subset import (
     file_change,
     modal_execution_bound,
     mutation_pass,
-    patch_code_blocks,
     probe_task,
     summarize,
     unified_patch,
 )
-from evallab.regrade import SpendCapReached
 
 _NUMBERED = [f"line{i}\n" for i in range(40)]
 
@@ -559,160 +556,20 @@ diff --git a/src/c.go b/src/c.go
 """
 
 
-def test_patch_code_blocks_counts_only_code_runs() -> None:
-    # Two separated runs in a.py + one in c.go; docs, a comment-only run and a reset test excluded.
-    assert patch_code_blocks(_PATCH, {"tests/test_a.py"}) == 3
-    # Without the reset list the test file's edit is ordinary code.
-    assert patch_code_blocks(_PATCH) == 4
-    assert patch_code_blocks("") == 0
-
-
-
-def _ref_args(*arguments: str) -> argparse.Namespace:
-    from evallab.reward_hack import build_reward_hack_parser
-
-    parser = argparse.ArgumentParser()
-    build_reward_hack_parser(parser.add_subparsers(required=True))
-    return parser.parse_args(["hack", "ref-subset", *arguments])
-
-
 def _forbid_execution(monkeypatch: pytest.MonkeyPatch) -> None:
     def forbidden(*args: Any, **kwargs: Any) -> Any:
-        raise AssertionError("a local plan must not construct a backend or execute anything")
+        raise AssertionError("must not construct a backend or execute anything")
 
     for name in (
         "Sandbox",
         "SeparateSandbox",
         "_docker",
-        "probe_task",
         "lab_harbor_problem",
     ):
         monkeypatch.setattr(ref_subset, name, forbidden)
     monkeypatch.setitem(
         sys.modules, "evallab.ref_subset_modal", SimpleNamespace(ModalSandbox=forbidden)
     )
-
-
-@pytest.mark.parametrize("environment", ["docker", "modal"])
-@pytest.mark.parametrize("separate", [False, True])
-def test_cli_plan_is_zero_execution_and_keeps_package_bytes_immutable(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    environment: str,
-    separate: bool,
-) -> None:
-    package = (
-        _separate_package(tmp_path / "package") if separate else _mimo_package(tmp_path / "package")
-    )
-    patch = tmp_path / "reference.patch"
-    patch.write_text(_PATCH)
-    output = tmp_path / "must-not-be-created"
-    arguments = [
-        "run",
-        str(package),
-        "--output-dir",
-        str(output),
-        "--plan",
-        "--environment",
-        environment,
-        "--max-usd",
-        "0",
-        "--usd-per-execution",
-        "0.05",
-    ]
-    if not separate:
-        arguments += ["--patch", str(patch)]
-    before = {p.relative_to(package): p.read_bytes() for p in package.rglob("*") if p.is_file()}
-    _forbid_execution(monkeypatch)
-    args = _ref_args(*arguments)
-    assert args.func(args, tmp_path) == 0
-    plan = json.loads(capsys.readouterr().out)
-    assert plan["plan_cost_usd"] == 0 and plan["executed"] is False
-    assert plan["backend"] == environment
-    assert len(plan["tasks"]) == 1 and plan["tasks"][0]["task_id"] == "package"
-    assert plan["tasks"][0]["package_digest"]
-    bound = modal_execution_bound(separate=separate) if environment == "modal" else 0
-    assert plan["reservation_units_upper_bound"] == bound
-    assert plan["estimated_reservation_usd"] == bound * 0.05
-    assert plan["fits_cap"] is (environment == "docker")
-    assert plan["execution_refused"] is (environment == "modal")
-    assert not output.exists()
-    assert before == {
-        p.relative_to(package): p.read_bytes() for p in package.rglob("*") if p.is_file()
-    }
-
-
-@pytest.mark.parametrize(
-    ("rate", "cap_delta"), [(0.0001255, 0.0), (0.000101, -2e-8)]
-)
-def test_modal_cli_subcent_plan_cap_matches_unrounded_gate(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    rate: float,
-    cap_delta: float,
-) -> None:
-    package = _separate_package(tmp_path / "package")
-    units = modal_execution_bound(max_grades=4)
-    exposure = units * rate
-    cap = exposure + cap_delta
-    _forbid_execution(monkeypatch)
-    args = _ref_args(
-        "run",
-        str(package),
-        "--output-dir",
-        str(tmp_path / "out"),
-        "--environment",
-        "modal",
-        "--max-grades",
-        "4",
-        "--max-usd",
-        str(cap),
-        "--usd-per-execution",
-        str(rate),
-        "--approve",
-        "inert sub-cent boundary",
-        "--plan",
-    )
-    assert args.func(args, tmp_path) == 0
-    plan = json.loads(capsys.readouterr().out)
-    fits = cap_delta == 0
-    assert 0 < plan["estimated_reservation_usd"] < 0.01
-    assert plan["estimated_reservation_usd"] == exposure
-    assert plan["fits_cap"] is fits and plan["execution_refused"] is not fits
-    gate = ref_subset._command_spend_gate(args)
-    assert gate is not None
-    for _ in range(units if fits else units - 1):
-        gate.charge()
-    with pytest.raises(SpendCapReached):
-        gate.charge()
-
-
-@pytest.mark.parametrize("estimate", ["0", "-1", "nan", "inf", "-inf"])
-def test_cli_rejects_nonpositive_or_nonfinite_reservation_estimates(estimate: str) -> None:
-    with pytest.raises(SystemExit) as exc:
-        _ref_args("run", "unused", "--output-dir", "unused", "--usd-per-execution", estimate)
-    assert exc.value.code == 2
-
-
-def test_real_modal_requires_approval_before_backend_construction(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _forbid_execution(monkeypatch)
-    args = _ref_args(
-        "run",
-        "unused",
-        "--output-dir",
-        str(tmp_path / "out"),
-        "--environment",
-        "modal",
-        "--max-usd",
-        "1",
-    )
-    assert args.func(args, tmp_path) == 2
-    assert "--approve" in capsys.readouterr().err
-    assert not (tmp_path / "out").exists()
 
 
 def test_modal_api_refuses_missing_gate_or_unpinned_harbor_before_any_output(
@@ -771,7 +628,6 @@ def test_modal_reservation_bound_counts_preparation_and_both_native_attempts() -
 def test_modal_unsupported_shapes_refuse_plans_and_execution_before_provider_work(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
     shape: str,
     reason: str,
 ) -> None:
@@ -794,28 +650,6 @@ def test_modal_unsupported_shapes_refuse_plans_and_execution_before_provider_wor
     patch = tmp_path / "reference.patch"
     patch.write_text(_PATCH)
     _forbid_execution(monkeypatch)
-    args = _ref_args(
-        "run",
-        str(package),
-        "--patch",
-        str(patch),
-        "--output-dir",
-        str(tmp_path / "plan-must-not-write"),
-        "--environment",
-        "modal",
-        "--max-usd",
-        "100",
-        "--approve",
-        "inert admission",
-        "--plan",
-    )
-    assert args.func(args, tmp_path) == 0
-    plan = json.loads(capsys.readouterr().out)
-    assert plan["execution_refused"] is True
-    assert plan["tasks"][0]["action"] == "refused"
-    assert reason in plan["tasks"][0]["reason"]
-    assert plan["reservation_units_upper_bound"] == 0
-    assert not (tmp_path / "plan-must-not-write").exists()
     monkeypatch.setattr(ref_subset, "lab_harbor_problem", lambda: None)
     gate = CloudSpendGate("inert execution", 100, 0.05)
     report = probe_task(
@@ -1195,28 +1029,31 @@ def test_native_shared_resource_refusal_never_lowers_task_ram_or_starts_transpor
     assert report["grades"][0]["native"]["resources"]["required_memory_mb"] == 8192
 
 
-@pytest.mark.parametrize("targets", [[], ["/app/m.py"], ["/app/../m.py"], ["/logs/reward.txt"]])
-def test_native_shared_plan_covers_explicit_files_and_refuses_unsupported_paths_without_execution(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], targets: list[str],
+@pytest.mark.parametrize(
+    ("targets", "reason"),
+    [
+        ([], "declares no artifacts"),
+        (["/app/../m.py"], "normalized absolute"),
+        (["/logs/reward.txt"], "harness/runtime"),
+    ],
+)
+def test_native_shared_refuses_unsupported_paths_without_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, targets: list[str], reason: str,
 ) -> None:
+    from evallab import docker_lock, runner
+
     package = _shared_package(tmp_path / "package")
     with pytest.raises(ValueError):
-        Package.load(package)  # Legacy consumers must not mistake shared tasks for raw MiMo.
+        Package.load(package)  # Shared tasks are not raw MiMo packages.
     _forbid_execution(monkeypatch)
-    arguments = ["run", str(package), "--output-dir", str(tmp_path / "out"), "--plan"]
-    for target in targets:
-        arguments += ["--target", target]
-    args = _ref_args(*arguments)
-    assert args.func(args, tmp_path) == 0
-    plan = json.loads(capsys.readouterr().out)
-    item = plan["tasks"][0]
-    assert item["package_type"] == "native-shared" and not (tmp_path / "out").exists()
-    if targets == ["/app/m.py"]:
-        assert not plan["execution_refused"] and item["targets"] == targets
-        assert item["required_controls"] == {"oracle": 1, "nop": 0, "full": 1}
-        assert item["effective_agent_timeout_sec"] == 900 and item["agent_timeout_multiplier"] == 1.0
-    else:
-        assert plan["execution_refused"] and item["action"] == "refused"
+    monkeypatch.setattr(docker_lock, "docker_slot", lambda *a, **k: pytest.fail("must not admit"))
+    monkeypatch.setattr(runner, "run_matrix", lambda *a, **k: pytest.fail("must not run"))
+    report = probe_task(
+        package, None, tmp_path / "out", targets=targets, repo_root=tmp_path, log=lambda _: None,
+    )
+    assert report["status"] == "not_applicable"
+    assert report["verdict"] == "unknown"
+    assert reason in report["reason"]
 
 
 @pytest.mark.parametrize(
@@ -1226,17 +1063,21 @@ def test_native_shared_plan_covers_explicit_files_and_refuses_unsupported_paths_
         ("compose", "Compose"),
         ("gpu", "GPU"),
         ("fractional-timeout", "integral"),
-        ("external-patch", "own oracle"),
+        ("external-patch", "oracle"),
         ("modal", "require Docker"),
     ],
 )
-def test_native_shared_unsupported_shapes_refuse_zero_execution_plans(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+def test_native_shared_refuses_unsupported_shapes_without_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     shape: str, reason: str,
 ) -> None:
+    from evallab import docker_lock, runner
+    from evallab.regrade import CloudSpendGate
+
     package = _shared_package(tmp_path / "package")
     config = package / "task.toml"
-    arguments = ["run", str(package), "--target", "/app/m.py", "--output-dir", str(tmp_path / "out"), "--plan"]
+    patch = None
+    environment = "docker"
     if shape == "steps":
         config.write_text('steps = [{name = "unsupported"}]\n' + config.read_text())
     elif shape == "compose":
@@ -1248,31 +1089,20 @@ def test_native_shared_unsupported_shapes_refuse_zero_execution_plans(
     elif shape == "external-patch":
         patch = tmp_path / "external.patch"
         patch.write_text(_PATCH)
-        arguments += ["--patch", str(patch)]
     else:
-        arguments += ["--environment", "modal"]
+        environment = "modal"
     original = {p.relative_to(package): p.read_bytes() for p in package.rglob("*") if p.is_file()}
     _forbid_execution(monkeypatch)
-    args = _ref_args(*arguments)
-    assert args.func(args, tmp_path) == 0
-    plan = json.loads(capsys.readouterr().out)
-    assert plan["execution_refused"] and plan["reservation_units_upper_bound"] == 0
-    assert reason in plan["tasks"][0]["reason"] and not (tmp_path / "out").exists()
+    monkeypatch.setattr(docker_lock, "docker_slot", lambda *a, **k: pytest.fail("must not admit"))
+    monkeypatch.setattr(runner, "run_matrix", lambda *a, **k: pytest.fail("must not run"))
+    monkeypatch.setattr(ref_subset, "lab_harbor_problem", lambda: None)
+    report = probe_task(
+        package, patch, tmp_path / "out", targets=["/app/m.py"], environment=environment,
+        spend_gate=CloudSpendGate("inert refusal check", 100, 0.05) if environment == "modal" else None,
+        repo_root=tmp_path, log=lambda _: None,
+    )
+    assert report["status"] == "not_applicable"
+    assert reason in report["reason"]
     assert original == {p.relative_to(package): p.read_bytes() for p in package.rglob("*") if p.is_file()}
 
 
-def test_native_shared_plan_accepts_repeated_targets_and_frozen_mutation_seed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    package = _shared_package(tmp_path / "package")
-    _forbid_execution(monkeypatch)
-    args = _ref_args(
-        "run", str(package), "--target", "/app/main.py", "--target", "/app/new.sh",
-        "--seed", "tb21-weak-tests-v1", "--mutants", "8", "--max-grades", "24",
-        "--output-dir", str(tmp_path / "out"), "--plan",
-    )
-    assert args.func(args, tmp_path) == 0
-    plan = json.loads(capsys.readouterr().out)
-    assert not plan["execution_refused"]
-    assert plan["tasks"][0]["targets"] == ["/app/main.py", "/app/new.sh"]
-    assert plan["tasks"][0]["mutation_seed"] == "tb21-weak-tests-v1"

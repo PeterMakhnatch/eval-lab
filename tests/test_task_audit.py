@@ -18,7 +18,6 @@ from evallab.dataset_audit_contracts import (
 from evallab.storage.paths import task_audit_path
 from evallab.storage.task_audit import (
     AUDIT_SCHEMA,
-    read_audit_records,
     read_audit_table,
 )
 from evallab.storage.trials import connect_trials
@@ -90,13 +89,6 @@ def _write_projection(records, path: Path, *, dataset) -> None:
     pq.write_table(pa.Table.from_pylist(rows, schema=schema), path)
 
 
-def test_roundtrip_preserves_complete_record(tmp_path: Path) -> None:
-    path = tmp_path / "audit.parquet"
-    task, other = _task(), _task("other/task", package=DIGEST_B, harbor=HARBOR_B)
-    _write_projection([_record(task), _record(other)], path, dataset=_dataset(task, other))
-
-    assert read_audit_records(path) == [_record(task), _record(other)]
-
 
 def test_read_preserves_distinct_package_versions(tmp_path: Path) -> None:
     path = tmp_path / "audit.parquet"
@@ -127,8 +119,9 @@ def test_stage_facts_are_columns_not_rows(tmp_path: Path) -> None:
 
 def test_missing_file_gives_typed_empty_relation(tmp_path: Path) -> None:
     path = tmp_path / "absent" / "audit.parquet"
-    assert read_audit_records(path) == []
-    assert read_audit_table(path).schema.equals(AUDIT_SCHEMA, check_metadata=False)
+    table = read_audit_table(path)
+    assert table.num_rows == 0
+    assert table.schema.equals(AUDIT_SCHEMA, check_metadata=False)
     assert not (tmp_path / "absent").exists()
 
 
@@ -136,7 +129,7 @@ def test_corrupt_file_is_a_visible_error(tmp_path: Path) -> None:
     path = tmp_path / "audit.parquet"
     path.write_bytes(b"not parquet")
     with pytest.raises(ValueError, match="invalid audit projection"):
-        read_audit_records(path)
+        read_audit_table(path)
 
 
 def test_audit_queryable_without_any_native_trial(tmp_path: Path) -> None:

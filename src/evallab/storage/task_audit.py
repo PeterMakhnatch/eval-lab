@@ -105,11 +105,3 @@ def read_audit_table(path: Path) -> pa.Table:
         return table
     except (OSError, ValueError, KeyError, TypeError, pa.ArrowException) as exc:
         raise ValueError(f"invalid audit projection {path}: {exc}") from exc
-
-
-def read_audit_records(path: Path) -> list[AuditRecord]:
-    """Restore complete frozen contracts without collapsing task versions."""
-    return [AuditRecord.model_validate_json(value)
-            for value in read_audit_table(path).column("record_json").to_pylist()]
-
-

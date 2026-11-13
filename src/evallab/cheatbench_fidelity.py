@@ -1,7 +1,7 @@
 """Consumer-fidelity and blinding audit for external CheatBench traces.
 
-The CheatBench converter in :mod:`evallab.cheatbench` intentionally produces
-lossy detector ATIF and a separate viewer annotation.  This module answers a
+The retired CheatBench converter produces lossy detector ATIF and a separate
+viewer annotation. This retained audit answers a
 different question: when a downstream consumer (a QA-trace investigator, a
 detector, or a critic-training exporter) reads a derived artifact, is the
 externally labelled evidence still present, and is the answer itself absent?

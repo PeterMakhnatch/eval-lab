@@ -15,8 +15,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path, PurePosixPath
-from typing import IO, BinaryIO
+from pathlib import Path
+from typing import IO
 
 
 @dataclass(frozen=True)
@@ -177,15 +177,6 @@ def _open_regular(
     return descriptor
 
 
-def _read_descriptor(descriptor: int) -> bytes:
-    chunks: list[bytes] = []
-    while True:
-        chunk = os.read(descriptor, 1024 * 1024)
-        if not chunk:
-            return b"".join(chunks)
-        chunks.append(chunk)
-
-
 def _hash_descriptor(descriptor: int) -> str:
     digest = hashlib.sha256()
     while True:
@@ -299,36 +290,6 @@ def _deterministic_archive(root: Path, files: list[Path]) -> Path:
         Path(raw_name).unlink(missing_ok=True)
 
 
-def _validate_uri(uri: str) -> str:
-    prefix = "cas://sha256/"
-    if not uri.startswith(prefix):
-        raise ValueError(f"unsupported evidence URI: {uri}")
-    digest = uri.removeprefix(prefix)
-    if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
-        raise ValueError("invalid content-addressed evidence URI")
-    return digest
-
-
-@contextmanager
-def _open_archive_file(store_root: Path, uri: str) -> Iterator[BinaryIO]:
-    digest = _validate_uri(uri)
-    try:
-        with (
-            _open_directory_chain(store_root, create=False) as root_descriptor,
-            _open_nested_directory(
-                root_descriptor,
-                ("blobs", "sha256", digest[:2]),
-                create=False,
-            ) as blob_directory,
-        ):
-            descriptor = _open_regular(blob_directory, f"{digest}.tar.gz")
-            assert descriptor is not None
-            with os.fdopen(descriptor, "rb", closefd=True) as source:
-                yield source
-    except FileNotFoundError as exc:
-        raise FileNotFoundError(f"evidence blob is missing: {uri}") from exc
-
-
 def archive_evidence(
     source: Path,
     store_root: Path,
@@ -407,51 +368,6 @@ def archive_evidence(
     )
 
 
-
-
-def read_archive(store_root: Path, uri: str) -> bytes:
-    """Read a CAS archive without following store or blob symlinks."""
-    with _open_archive_file(store_root, uri) as source:
-        return source.read()
-
-
-def restore_evidence(store_root: Path, uri: str, destination: Path) -> Path:
-    expected_digest = f"sha256:{_validate_uri(uri)}"
-    destination = _absolute(destination)
-    with (
-        _open_directory_chain(destination, create=True) as destination_descriptor,
-        _open_archive_file(store_root, uri) as blob,
-        tarfile.open(fileobj=blob, mode="r:gz") as archive,
-    ):
-        for member in archive.getmembers():
-            member_path = PurePosixPath(member.name)
-            if member_path.is_absolute() or not member_path.parts:
-                raise ValueError(
-                    f"evidence archive path escapes destination: {member.name}"
-                )
-            parts = tuple(_component(part) for part in member_path.parts)
-            if not member.isfile():
-                raise ValueError(
-                    f"evidence archive contains non-file member: {member.name}"
-                )
-            source = archive.extractfile(member)
-            if source is None:
-                raise ValueError(f"cannot read evidence member: {member.name}")
-            with source, _open_nested_directory(
-                destination_descriptor,
-                parts[:-1],
-                create=True,
-            ) as target_directory:
-                _atomic_write(target_directory, parts[-1], source=source)
-    restored_files = _inventory(destination)
-    actual_digest = _content_digest(destination, restored_files)
-    if actual_digest != expected_digest:
-        raise ValueError(
-            f"restored evidence digest mismatch: expected {expected_digest}, got {actual_digest}"
-        )
-    return destination
-
-
 def store_blob(store_root: Path, content: bytes | str) -> str:
     """Store raw payload bytes/text in content-addressed storage."""
     raw_bytes = content.encode("utf-8") if isinstance(content, str) else content
@@ -482,26 +398,3 @@ def store_blob(store_root: Path, content: bytes | str) -> str:
     return uri
 
 
-def read_record(store_root: Path, *, kind: str, record_id: str) -> bytes:
-    """Read one CAS record without following nested directory or file symlinks."""
-    kind = _component(kind, label="record kind")
-    record_id = _component(record_id, label="record id")
-    try:
-        with (
-            _open_directory_chain(store_root, create=False) as root_descriptor,
-            _open_nested_directory(
-                root_descriptor,
-                ("records", kind),
-                create=False,
-            ) as record_directory,
-        ):
-            descriptor = _open_regular(record_directory, f"{record_id}.json")
-            assert descriptor is not None
-            try:
-                return _read_descriptor(descriptor)
-            finally:
-                os.close(descriptor)
-    except FileNotFoundError as exc:
-        raise FileNotFoundError(
-            f"evidence record is missing: {kind}/{record_id}"
-        ) from exc

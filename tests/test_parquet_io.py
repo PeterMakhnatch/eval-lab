@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -69,120 +70,35 @@ def _publish_pair(
     treatment: list[dict[str, str]],
     capture: list[dict[str, str]],
 ) -> dict[str, Path]:
-    schema = _pair_schema()
-    return parquet_io.write_parquet_snapshot(
-        root,
-        {
-            "trial_capture.parquet": (capture, schema),
-            "trial_treatment.parquet": (treatment, schema),
-        },
+    generations = root / "generations"
+    number = len(list(generations.iterdir())) + 1 if generations.exists() else 1
+    generation = f"{number:032x}"
+    directory = generations / generation
+    directory.mkdir(parents=True)
+    paths = {}
+    entries = []
+    for name, rows in (("trial_capture.parquet", capture), ("trial_treatment.parquet", treatment)):
+        path = directory / name
+        parquet_io.write_table_atomic(path, rows, _pair_schema())
+        paths[name] = path
+        entries.append(
+            {
+                "name": name,
+                "sha256": "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest(),
+                "rows": len(rows),
+            }
+        )
+    (root / "current.json").write_text(
+        json.dumps(
+            {"schema": "evallab.parquet-snapshot/v1", "generation": generation, "files": entries}
+        ),
+        encoding="utf-8",
     )
-
-
-def test_two_table_snapshot_is_one_consistent_generation(tmp_path: Path) -> None:
-    root = tmp_path / "snap"
-    treatment = [{"job_name": "job", "trial_name": "t", "produced_at": "1"}]
-    capture = [
-        {"job_name": "job", "trial_name": "t", "produced_at": "1"},
-        {"job_name": "job", "trial_name": "u", "produced_at": "1"},
-    ]
-
-    published = _publish_pair(root, treatment, capture)
-    resolved = parquet_io.parquet_snapshot_paths(root)
-    manifest = json.loads((root / "current.json").read_text(encoding="utf-8"))
-
-    assert resolved == published
-    assert set(published) == {"trial_capture.parquet", "trial_treatment.parquet"}
-    assert published["trial_capture.parquet"].parent == published["trial_treatment.parquet"].parent
-    assert published["trial_treatment.parquet"].parent.name == manifest["generation"]
-    assert pq.read_table(published["trial_treatment.parquet"]).to_pylist() == treatment
-    assert pq.read_table(published["trial_capture.parquet"]).to_pylist() == capture
-    assert {item["name"]: item["rows"] for item in manifest["files"]} == {
-        "trial_capture.parquet": 2,
-        "trial_treatment.parquet": 1,
-    }
-    assert not (root / ".current.json.tmp").exists()
-
-
-def test_invalid_second_table_preserves_prior_snapshot(tmp_path: Path) -> None:
-    root = tmp_path / "snap"
-    prior_rows = [{"job_name": "job", "trial_name": "old", "produced_at": "1"}]
-    prior = _publish_pair(root, prior_rows, prior_rows)
-    prior_bytes = {name: path.read_bytes() for name, path in prior.items()}
-    pointer = (root / "current.json").read_bytes()
-    schema = _pair_schema()
-    invalid = pa.schema([pa.field("continuation_split", pa.bool_())])
-
-    with pytest.raises(pa.ArrowInvalid):
-        parquet_io.write_parquet_snapshot(
-            root,
-            {
-                "alpha.parquet": (prior_rows, schema),
-                "beta.parquet": ([{"continuation_split": {"used": 1}}], invalid),
-            },
-        )
-
-    assert (root / "current.json").read_bytes() == pointer
-    assert parquet_io.parquet_snapshot_paths(root) == prior
-    assert {name: path.read_bytes() for name, path in prior.items()} == prior_bytes
-    assert not any((root / "generations").glob("*.staging"))
-
-
-def test_failed_first_publication_leaves_no_snapshot(tmp_path: Path) -> None:
-    root = tmp_path / "snap"
-    schema = _pair_schema()
-    invalid = pa.schema([pa.field("continuation_split", pa.bool_())])
-
-    with pytest.raises(ValueError):
-        parquet_io.write_parquet_snapshot(root, {})
-    with pytest.raises(pa.ArrowInvalid):
-        parquet_io.write_parquet_snapshot(
-            root,
-            {
-                "alpha.parquet": (
-                    [{"job_name": "j", "trial_name": "t", "produced_at": "1"}],
-                    schema,
-                ),
-                "beta.parquet": ([{"continuation_split": {"used": 1}}], invalid),
-            },
-        )
-
-    assert parquet_io.parquet_snapshot_paths(root) is None
-    assert parquet_io.parquet_snapshot_paths(tmp_path / "missing") is None
-    assert not (root / "current.json").exists()
-    assert not (root / ".current.json.tmp").exists()
-    assert not any((root / "generations").glob("*.staging"))
-
-
-def test_interrupted_pointer_publication_preserves_prior_snapshot(
-    tmp_path: Path, monkeypatch
-) -> None:
-    root = tmp_path / "snap"
-    prior_rows = [{"job_name": "job", "trial_name": "old", "produced_at": "1"}]
-    prior = _publish_pair(root, prior_rows, prior_rows)
-    prior_bytes = {name: path.read_bytes() for name, path in prior.items()}
-    pointer = (root / "current.json").read_bytes()
-    original = parquet_io.durable_replace
-
-    def fail_pointer(source: Path, destination: Path) -> None:
-        if destination.name == "current.json":
-            raise OSError("pointer publication interrupted")
-        original(source, destination)
-
-    monkeypatch.setattr(parquet_io, "durable_replace", fail_pointer)
-    new_rows = [{"job_name": "job", "trial_name": "new", "produced_at": "2"}]
-    with pytest.raises(OSError):
-        _publish_pair(root, new_rows, new_rows)
-
-    resolved = parquet_io.parquet_snapshot_paths(root)
-    assert resolved == prior
-    assert (root / "current.json").read_bytes() == pointer
-    assert {name: path.read_bytes() for name, path in prior.items()} == prior_bytes
-    assert pq.read_table(resolved["trial_treatment.parquet"]).to_pylist() == prior_rows
-    assert not (root / ".current.json.tmp").exists()
+    return paths
 
 
 def test_snapshot_refuses_missing_or_hash_mismatched_files(tmp_path: Path) -> None:
+    assert parquet_io.parquet_snapshot_paths(tmp_path / "absent") is None
     missing_root = tmp_path / "missing"
     missing = _publish_pair(
         missing_root,

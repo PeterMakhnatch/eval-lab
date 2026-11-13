@@ -1004,78 +1004,29 @@ Do not pool incompatible source profiles or silently count missing labels as neg
 
 ## Run Atlas
 
-Atlas schema helpers, the DEV label loader, and stored facet records remain available to kept library consumers.
-The Atlas CLI and its autonomous watch producer are retired.
+Run Atlas keeps read-only run projection, identity blinding, and source redaction.
+The Atlas CLI, facet extractor, and autonomous watch producer are retired.
+Stored facet records and their database reader contracts remain unchanged.
 
 Logic: `src/evallab/production/run_atlas.py`. Tests: `tests/test_run_atlas.py`.
-Contract: `run-facets/v1` (one record per rollout), defined in the Wave 6
-bridge contract and enforced by `validate_record`.
+`CloudTraceDatabase.upsert_run_facets` validates stored `run-facets/v1` records.
 
 The retired facet producer used a subscription model to read each admitted DEV run
 blinded and fill a fixed form. Stored facet records and historical cluster and
 scorecard outputs remain untouched.
 
-## What the model sees
+## Retained run views
 
-- `cloud_doc` rebuilds an ATIF-shaped document from `trace_steps`. From
-  `flags_json` it reads only `reasoning_content`, `tool_call_id` and the
-  structural `on_final_parent_path`; publisher judge flags, passages and
-  labels in that column are never read. Resampled nodes off the final parent
-  path are not part of the run and are dropped. Tool rows attach to the agent
-  step that called them, so step ids stay the original `step_index` values
-  (Goodfire passage labels use the same index).
-- `blind_run` keeps only `steps`, applies `blind_atif` (annotation steps and
-  per-step `extra` removed, steps renumbered) and fails closed if
-  `find_forbidden_json` still finds evaluator fields. Run ids, source, split,
-  rewards and labels are never in the prompt; known source names are replaced
-  by `[source]` in rendered text. The pattern also covers a bare family token
-  inside a task filename (`mimo_build_env.tar.gz.b64`), while a longer dataset
-  id such as `mimo-defect-map-v1` still matches whole so no fragment survives.
-- Agent reasoning and messages are never cut. Tool-call arguments (4,000
-  chars) and observations (2,500 chars) are bounded head and tail with an
-  explicit `[... N characters elided ...]` mark; task/system text is bounded at
-  12,000.
-- Runs longer than one chunk (160,000 rendered chars) are read in contiguous
-  parts. Each part yields notes with cited steps (map); the notes fill the
-  form (reduce). A step longer than a chunk is split into consecutive parts.
+- `cloud_doc` reconstructs an ATIF document from stored trace steps.
+  It preserves original step ids and attaches tool results to their agent calls.
+  It excludes publisher labels and nodes outside the final parent path.
+- `blind_run` keeps only steps and removes annotations, metadata, and evaluator fields.
+  It maps blind step ids to original step ids and fails closed on leaked fields.
+- `redact_sources` removes source names and split provenance from reader text.
+  It preserves device paths, development text, and audio file extensions.
+- Native run loaders remain available to Gold, judge, anatomy, and run-health consumers.
 
-## Record and validation
-
-`run_id` is the rollout identity: the cloud DB `trace_id`, or the answer-key
-`item_id`. (The DB `run_id` column names a whole campaign.) `run_id`, `source`,
-`split` and `outcome` (`reward >= 1` pass, `<= 0` fail, otherwise unknown) are
-copied from the store, never from the model.
-
-Every reply is checked before it is stored: enums, booleans, `suspicion` 0-3,
-word limits (goal 20, approach 30, shortcut 8), at most five
-`evidence_steps`, each a step of the run, and evidence required when
-`suspicion >= 2`. An invalid reply gets one repair turn; otherwise the run
-fails and nothing is written for it. Model-cited blind step numbers are mapped
-back to original ids, and the stored record is validated again against the
-run's original ids.
-
-## Routes, accounting and storage
-
-- Calls go only through `omp auth-gateway stdio` to subscription providers
-  (`anthropic/`, `openai-codex/`, `xai-oauth/`, `google-antigravity/`,
-  `kimi-code/`); other routes are refused before a request is sent. A reply
-  from any model other than the requested one fails the call.
-- `RoutePool` runs at most `per_route` runs per route (max 8) and benches a
-  route that reports quota exhaustion for 30 minutes, moving its work to the
-  others. All calls of one run use one route; `facet_model` is that route.
-- Interim store (until the cloud DB atlas tables land):
-  `~/.local/state/evallab-prod-live/run-atlas/facets-v1.jsonl`, append-only,
-  last line per `run_id` wins. Every call is receipted in
-  `facet-calls-v1.jsonl` (requested/served model, tokens, latency, prompt and
-  response SHA-256, prompt version, `cost_usd: 0.0`, billing `subscription`),
-  plus one terminal line per run with its status and error.
-
-
-## Retired background extraction
-
-The autonomous Atlas watch producer and its service template are retired.
-The explicit Atlas reader, stored facets, and source-native loaders remain.
-The native watcher core is `live_watch`, `auto_watch`, and the causal monitor.
+The native watcher uses `live_watch`, `auto_watch`, and the causal monitor.
 This source change does not stop installed services or remove their stored state.
 
 
@@ -1147,11 +1098,9 @@ Checked against code or files unless marked **[not verified]**.
    22:32). CM-12's committed JSON holds hashed selections and aggregate counts; whether
    any committed file holds per-run v8 decisions is **[not verified]**. The harness
    snapshots them.
-4. **The facets store is last-wins by `run_id`** (`run_atlas.load_facets`). In the live
-   file (mtime 14:00 ET) 4,282 lines cover 2,704 runs and 1,434 runs have lines from
-   more than one reader; all 103 Kimi lines are superseded, so none survives as a latest
-   record. A reader comparison overwrites itself unless run on a copy. The harness
-   keys findings by reader, which avoids this.
+4. **Historical facet snapshots use last-record selection by `run_id`.**
+   The former JSONL loader and facet producer are retired.
+   Existing snapshots and reader-comparison evidence remain unchanged.
 5. **METR and harbor analyze share a GLM route, with separate transports.** Both
    default to `openai/glm-5.3-flash`; `scout_metr.py` goes through an Inspect model on the
    Z.ai chat-completions endpoint, `harbor_analyze` through Harbor's own readers. The live

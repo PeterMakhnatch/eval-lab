@@ -1,10 +1,8 @@
-"""Stored qualification table names, trial package resolution, and cost estimates."""
+"""Stored qualification table names and resource cost estimates."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any
 
 TABLE_FILENAME = "task_qualification.parquet"
 
@@ -59,32 +57,3 @@ def estimate_cost_usd(
     return sandbox_seconds / 3600.0 * hourly
 
 
-def _read_json(path: Path) -> dict[str, Any]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
-
-
-def task_dir_for_trial(trial_dir: Path) -> Path | None:
-    """The task directory a trial ran, even after the queue removed its stage.
-
-    Harbor's lock points at the executor's staged copy
-    (``<jobs>/.exec-stage/<job>``), which the queue deletes once the run
-    finishes. The job's ``experiment-spec.json`` keeps the source task path
-    (checkout-relative, e.g. ``derived/task-store/...``); it is resolved
-    against the checkout that owns the jobs directory.
-    """
-    lock = _read_json(trial_dir / "lock.json")
-    task = lock.get("task")
-    staged = task.get("path") if isinstance(task, dict) else None
-    if isinstance(staged, str) and staged and (Path(staged) / "task.toml").is_file():
-        return Path(staged)
-    job_dir = trial_dir.parent
-    source = _read_json(job_dir / "experiment-spec.json").get("task")
-    if not isinstance(source, str) or not source:
-        return None
-    path = Path(source)
-    candidates = [path] if path.is_absolute() else [job_dir.parent.parent / path, job_dir.parent / path]
-    return next((c for c in candidates if (c / "task.toml").is_file()), None)

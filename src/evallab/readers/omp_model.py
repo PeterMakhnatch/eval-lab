@@ -11,10 +11,9 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Never
+from typing import Any
 
 KIMI_MODEL = "kimi-code/k3.1-pro-highspeed"
 INSPECT_MODEL = f"omp/{KIMI_MODEL}"
@@ -29,21 +28,6 @@ _REFUSAL = re.compile(
 
 class OmpRouteError(RuntimeError):
     """An unattested, refused, incomplete or failed subscription response."""
-
-
-class OmpTransportSealedError(OmpRouteError):
-    """Live native OMP transport is disabled because read-only isolation is unproven."""
-
-
-def require_native_omp_transport() -> Never:
-    """Deny every live native OMP request without inspecting inputs or environment."""
-    raise OmpTransportSealedError(
-        "Native OMP CLI transport is sealed: a separate user-derived reader executed "
-        "a built-in mutating tool despite frozen --no-tools/--no-skills/--no-extensions "
-        "flags, so read-only isolation is not established. Live calls and Inspect "
-        "provider registration are disabled with no override or SDK fallback; "
-        "historical parsing remains available."
-    )
 
 
 @dataclass(frozen=True)
@@ -143,57 +127,3 @@ def parse_omp_stream(stdout: str, requested_model: str = KIMI_MODEL) -> OmpReply
         cache_write_tokens=_tokens(usage, "cacheWrite"),
         reasoning_tokens=_tokens(usage, "reasoningTokens"),
     )
-
-
-def render_prompt(messages: Sequence[Mapping[str, Any]]) -> tuple[str, str]:
-    """Preserve text turns without importing Inspect or silently dropping media/tools."""
-    system: list[str] = []
-    turns: list[tuple[str, str]] = []
-    for message in messages:
-        role = message.get("role")
-        if role not in {"system", "user", "assistant"} or message.get("tool_calls"):
-            raise ValueError("OMP provider accepts text messages only (no tools)")
-        content = message.get("content")
-        if isinstance(content, list):
-            if any(
-                not isinstance(part, dict)
-                or part.get("type") != "text"
-                or not isinstance(part.get("text"), str)
-                for part in content
-            ):
-                raise ValueError("OMP provider accepts text content only")
-            content = "".join(part["text"] for part in content)
-        if not isinstance(content, str):
-            raise ValueError("OMP provider requires textual content")
-        if role == "system":
-            if turns:
-                raise ValueError("system messages must precede conversation turns")
-            system.append(content)
-        else:
-            turns.append((role, content))
-    if not turns:
-        raise ValueError("OMP provider requires a conversation turn")
-    prompt = (
-        turns[0][1]
-        if len(turns) == 1 and turns[0][0] == "user"
-        else "\n\n".join(f"[{role}]\n{text}" for role, text in turns)
-    )
-    return "\n\n".join(system), prompt
-
-
-def call_omp(
-    system: str,
-    prompt: str,
-    *,
-    model: str = KIMI_MODEL,
-    timeout: float = 240,
-    receipt_path: Path | None = None,
-    halt_path: Path | None = None,
-) -> OmpReply:
-    """Reject live calls before subprocesses, credentials or filesystem access."""
-    require_native_omp_transport()
-
-
-def register_omp_provider() -> Never:
-    """Reject registration before importing Inspect or consulting a provider cache."""
-    require_native_omp_transport()

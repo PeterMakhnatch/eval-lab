@@ -356,8 +356,11 @@ class _FakeDeepSeek(BaseHTTPRequestHandler):
 
 
 def _serve(handler: type[BaseHTTPRequestHandler]) -> tuple[ThreadingHTTPServer, str]:
+    """Keep real HTTP while avoiding the default 0.5 s idle shutdown wait."""
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     host, port = server.server_address[:2]
     return server, f"http://{host}:{port}"
@@ -378,7 +381,9 @@ def test_proxy_authenticates_upstream_without_exposing_key_to_agent(
 
     proxy_module = _load_proxy_module()
     proxy = proxy_module.serve(host="127.0.0.1", port=0)
-    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=proxy.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     try:
         request = urllib.request.Request(
@@ -694,7 +699,9 @@ def test_proxy_rejects_attacks_without_upstream_spend(
     usage_path = Path(os.environ["EVALLAB_DEEPSEEK_USAGE_FILE"])
     proxy_module = _load_proxy_module()
     proxy = proxy_module.serve(host="127.0.0.1", port=0)
-    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=proxy.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     base = f"http://127.0.0.1:{proxy.server_address[1]}"
 
@@ -826,7 +833,9 @@ def _proxy_client(
     capability = _trial_proxy_env(monkeypatch)
     proxy_module = _load_proxy_module()
     proxy = proxy_module.serve(host="127.0.0.1", port=0)
-    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=proxy.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     return proxy, upstream, capability
 
@@ -1054,7 +1063,9 @@ def test_proxy_refuses_symlink_secret(tmp_path: Path, monkeypatch: pytest.Monkey
     capability = _trial_proxy_env(monkeypatch)
     proxy_module = _load_proxy_module()
     proxy = proxy_module.serve(host="127.0.0.1", port=0)
-    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=proxy.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     try:
         request = urllib.request.Request(
@@ -1114,7 +1125,9 @@ def test_proxy_forwards_clamped_max_tokens_not_original_body(
     )
     proxy_module = _load_proxy_module()
     proxy = proxy_module.serve(host="127.0.0.1", port=0)
-    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=proxy.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     base = f"http://127.0.0.1:{proxy.server_address[1]}"
 

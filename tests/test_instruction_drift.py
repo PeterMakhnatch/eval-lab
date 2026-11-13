@@ -18,63 +18,32 @@ pytestmark = pytest.mark.docs_consumer
 ROOT = Path(__file__).resolve().parents[1]
 # A retired generated snapshot, not a maintained instruction manual.
 HISTORICAL = {"docs/STATUS.md"}
-# Other lanes own these manuals. Each exception names one confirmed reference,
-# not a whole manual. See the golden lane coordination receipt for the findings.
+# Exact external/runtime names only. Keep each reason specific to this manual.
 EXCEPTIONS = {
-    # Unowned checkpoint example; replace its literal filename with a placeholder.
-    "agents/CHECKS.md": {("path", "tests/test_foo.py")},
-    # Unowned retained manual still names a retired frontend.
-    "docs/data-architecture.md": {("route", "evallab trials")},
-    # Unowned backend manual: retired queue routes and external task examples.
-    "docs/execution-tiers.md": {
-        ("make", "test"), ("path", "batch.py"), ("path", "conftest.py"),
-        ("path", "terminus/AGENTS.md"), ("path", "trace_agents.py"),
-        ("path", "trace_verify.py"), ("path", "trace_workspace.py"),
-        ("route", "evallab approve"), ("route", "evallab submit"),
-        ("route", "evallab tasks prepare"), ("route", "evallab tick"),
+    "agents/CHECKS.md": {
+        ("path", "tests/test_foo.py"): "Literal pytest selector example in the CI manual, not a repository test.",
     },
-    # Unowned manual uses a source-package prefix for generated station inputs.
     "docs/line.md": {
-        ("path", "evidence/station-inputs/"),
-        ("path", "evidence/station-inputs/*.jsonl"),
+        ("path", "evidence/station-inputs/"): "Generated Station snapshot directory inside a line batch.",
+        ("path", "evidence/station-inputs/*.jsonl"): "Generated Station snapshots inside a line batch.",
     },
-    # Unowned manual: retired tools, external adapters, and literal task examples.
-    "docs/live-watch.md": {
-        ("path", "harbor_atif2otel/ids.py"), ("path", "library/tasks/my-task"),
-        ("path", "library/tasks/my-task-hardened"),
-        ("path", "library/tasks/my-task/reference.patch"),
-        ("path", "readers/scout_clouddb.py"),
-        ("path", "scorecards/ra3-FULL-dev-20261028.md"),
-        ("path", "scout_metr.py"), ("path", "tt1-scorecard.md"),
-        ("route", "evallab atlas"), ("route", "evallab qa-data"),
-        ("route", "evallab tick"),
-    },
-    # Unowned MiMo study manuals: paths inside external task source trees.
     "docs/mimo/node-build-leak.md": {
-        ("path", "../node-build-leak-class/"), ("path", "../src"),
-        ("path", "./babel-plugin-idx"),
+        ("path", "./babel-plugin-idx"): "Literal JS require target inside external MiMo task 000919.",
+        ("path", "../src"): "Literal JS import target inside external MiMo task 000928.",
     },
     "docs/mimo/separate-verifier.md": {
-        ("path", ".solve.sh"), ("path", "conftest.py"),
-        ("path", "mimo_test_command.sh"), ("path", "test.sh"),
-        ("path", "research-context/analysis/2026-10-14-own-runs-env-flaw-scan.md"),
-        ("path", "research-context/bridge/2026-10-29-ds-squad/raw/TQ-2/report.md"),
+        ("path", ".solve.sh"): "Filename suffix of the external HAR-207 probe scripts.",
+        ("path", "conftest.py"): "Pytest auto-load filename removed from evaluated task-container diffs.",
     },
-    # Unowned task manual: archived source and task-image/example paths.
     "docs/task-quality.md": {
-        ("path", "burnman/classes/solution.py"), ("path", "checks/validate.py"),
-        ("path", "conftest.py"),
-        ("path", "research/experiments/har105-exploration/setup_payload.py"),
-        ("path", "research/qa-scoreboard/suite-YYYYMMDD.md"),
-        ("path", "scripts/fix.py"), ("path", "semantic-apply.sh"),
-        ("path", "setup.py"), ("path", "src/test_runner.py"),
-        ("path", "tests/grade.py"), ("path", "tests/test_core.py"),
-        ("path", "tests/wheels/*.whl"), ("route", "evallab audit"),
-    },
-    # Unowned tool inventory still names removed tools.
-    "docs/third-party.md": {
-        ("path", "cost_inventory.py"), ("path", "sft_tinker.py"),
-        ("path", "tools/tinker-sft/"),
+        ("path", "burnman/classes/solution.py"): "Production module inside the external burnman task repository.",
+        ("path", "checks/validate.py"): "Illustrative unrecognized grader path inside an evaluated task.",
+        ("path", "conftest.py"): "Pytest auto-load filename inside evaluated task workspaces.",
+        ("path", "scripts/fix.py"): "Illustrative agent helper script inside an evaluated task.",
+        ("path", "semantic-apply.sh"): "Generated candidate custody script retained with its patch and sidecar.",
+        ("path", "setup.py"): "Task-workspace packaging configuration matched by L0.",
+        ("path", "src/test_runner.py"): "Illustrative task production path in the recorded L0 false-drop limit.",
+        ("path", "tests/test_core.py"): "Illustrative protected test path inside an evaluated task.",
     },
 }
 
@@ -137,6 +106,13 @@ def code_units(text: str) -> list[tuple[int, str, bool]]:
             prose.append(line)
     outside = "".join(prose)
     for match in _SPAN.finditer(outside):
+        # A linked filename belongs to its external source, not this checkout.
+        if (
+            _PATH.fullmatch(match[2])
+            and outside[match.start() - 1:match.start()] == "["
+            and re.match(r"\]\(https?://[^\s)]+\)", outside[match.end():])
+        ):
+            continue
         units.append((outside.count("\n", 0, match.start()) + 1, match[2], True))
     return sorted(units)
 
@@ -182,7 +158,8 @@ def _missing_route(words: list[str], routes: dict) -> str | None:
 
 def _repository_reference(token: str, *, package_instruction: bool) -> bool:
     first = token.split("/", 1)[0]
-    if token.startswith(("/", "~/", "$")) or first in _RUNTIME_ROOTS or token in _REPORT_NAMES or token in _TASK_LAYOUT:
+    task_layout = any(token == entry or (entry.endswith("/") and token.startswith(entry)) for entry in _TASK_LAYOUT)
+    if token.startswith(("/", "~/", "$")) or first in _RUNTIME_ROOTS or token in _REPORT_NAMES or task_layout:
         return False
     if first in _REPO_ROOTS or first in _PACKAGE_ROOTS or token.startswith(("./", "../")):
         return True
@@ -247,13 +224,22 @@ def test_instruction_references_resolve() -> None:
 
     routes = route_tree(parser())
     targets = set(re.findall(r"^([A-Za-z][\w-]*)\s*:", (ROOT / "Makefile").read_text(), re.MULTILINE))
+    exemptions = {(page, kind, name) for page, entries in EXCEPTIONS.items() for kind, name in entries}
+    assert len(exemptions) <= 15, "Instruction drift exemptions exceed 15; correct references instead of expanding the list."
+    assert all(reason.strip() for entries in EXCEPTIONS.values() for reason in entries.values()), (
+        "Every instruction drift exemption needs a specific external/runtime reason."
+    )
+    used_exemptions = set()
     failures = []
     for page in instruction_pages(ROOT):
         relative = page.relative_to(ROOT).as_posix()
         for line, kind, name in drift_findings(ROOT, page, routes, targets):
-            if (kind, name) not in EXCEPTIONS.get(relative, set()):
+            if (kind, name) in EXCEPTIONS.get(relative, {}):
+                used_exemptions.add((relative, kind, name))
+            else:
                 failures.append(f"{relative}:{line}: missing {kind}: {name}")
     assert not failures, "Instruction drift; correct the reference, do not restore a retired command:\n" + "\n".join(failures)
+    assert not (exemptions - used_exemptions), f"Remove stale instruction drift exemptions: {sorted(exemptions - used_exemptions)}"
 
 
 def test_missing_references_report_original_lines(tmp_path: Path) -> None:
@@ -332,3 +318,26 @@ def test_package_assets_and_root_dotfiles_are_source_references(tmp_path: Path) 
     assert drift_findings(tmp_path, page, {}, set()) == [
         (1, "path", ".ignore"), (1, "path", "missing.json"),
     ]
+
+
+def test_external_source_links_do_not_hide_local_references(tmp_path: Path) -> None:
+    page = tmp_path / "AGENTS.md"
+    page.write_text(
+        "[`batch.py`](https://example.org/upstream/batch.py)\n"
+        "`batch.py`\n"
+        "[`scripts/missing.py`](scripts/missing.py)\n",
+        encoding="utf-8",
+    )
+    assert drift_findings(tmp_path, page, {}, set()) == [
+        (2, "path", "batch.py"), (3, "path", "scripts/missing.py"),
+    ]
+
+
+def test_task_wheel_paths_do_not_hide_repository_tests(tmp_path: Path) -> None:
+    page = tmp_path / "AGENTS.md"
+    page.write_text(
+        "Task wheels: `tests/wheels/*.whl` and `tests/wheels/package.whl`.\n"
+        "Repository test: `tests/missing.py`.\n",
+        encoding="utf-8",
+    )
+    assert drift_findings(tmp_path, page, {}, set()) == [(2, "path", "tests/missing.py")]

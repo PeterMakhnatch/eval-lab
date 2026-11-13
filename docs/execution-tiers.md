@@ -584,16 +584,14 @@ subscription or API quota, which a local dollar ceiling does not itself measure.
 a spec is refused by the policy gate with `paid_run_unauthorized` and parked in
 `queue/waiting/` until a human records an authorisation for that exact spec:
 
-```bash
-uv run evallab submit <spec.json>              # -> waiting, prints why
-uv run evallab approve <spec-id> --actor peter # the recorded authorisation
-uv run evallab tick --spec-id <spec-id>        # only this approved spec
-```
+The queue CLI frontends are removed. Use the retained `evallab.queue` API:
+`Executor.submit` submits the spec, `DirectoryQueue.approve` records human
+authorization, and `Executor.tick(spec_ids=[...])` selects its dispatch.
 
 `policy/standing-approvals.yaml` cannot grant this. `auto_run` is not consulted
 for a billable spec at all, so listing a paid agent there changes nothing. Full
 semantics, including the fail-closed cases, are in `docs/operations.md`,
-"Paid execution requires a recorded authorisation".
+"Queue and authorization contracts".
 
 ### Batch launch safety (HAR-163, repaired by HAR-164)
 
@@ -1057,30 +1055,20 @@ A historical local route, `ollama_chat/qwen2.5:7b`, used an explicitly selected
 local Ollama service. Local generative-model inference is not permitted on
 Peter's laptop; do not start, point at, or qualify a local Ollama service.
 
-Prepare any local Harbor task package; no task-ID allowlist or new registry
-admission is needed:
+The task-preparation and queue CLI frontends are removed.
+Construct an `ExperimentSpec` (`src/evallab/schemas/__init__.py`) and use
+`evallab.queue` (`Executor.submit`, `DirectoryQueue.approve`, `Executor.tick`).
+Direct `evallab run` remains control-only; it does not replace the paid queue.
 
-```bash
-uv run evallab tasks prepare /absolute/path/to/harbor-task \
-  --name terminus-example \
-  --agent terminus-2 --model zai/glm-5.3-flash \
-  --environment docker --cost-limit-usd 0.40
-uv run evallab submit derived/prepared/terminus-example.json
-# Review the spec and authorize its printed ID:
-uv run evallab approve <spec-id> --actor peter
-uv run evallab tick --spec-id <spec-id>
-```
-
-Preparation freezes the package and verifier digests. Task-declared CPU, memory,
+The spec pins package and verifier digests. Task-declared CPU, memory,
 storage, GPU, network, and separate-verifier requirements remain task inputs.
 The existing eight-hour Lab deadline limit still applies; larger declared
 deadlines refuse rather than being silently shortened. An explicit shorter
-`--timeout-seconds` denotes a diagnostic run, not the original benchmark protocol.
+`timeout_seconds` denotes a diagnostic run, not the original benchmark protocol.
 
-Select a backend that supports those requirements. Preparation accepts `docker`,
-`daytona`, `modal`, and `beam`; remote specs also require
-`--estimated-cost-usd` for model plus infrastructure. GPU tasks require a
-compatible remote backend, and Terminus requires a Linux terminal with tmux.
+Select a backend that supports those requirements: `docker`, `daytona`, or `modal`.
+`ExperimentSpec.est_cost_usd` estimates model plus infrastructure cost.
+GPU tasks require a compatible remote backend, and Terminus requires a Linux terminal with tmux.
 Terminus on locked Docker (`"environment": "docker", "egress_lock": true`) is
 admitted with one preparation-time precondition the dispatcher cannot verify:
 the task image must already provide tmux (and asciinema for terminal
@@ -1179,14 +1167,13 @@ equate ATIF step count with physical requests. See
 [the analysis loop](analysis-loop.md) for evidence validity and interpretation.
 #### Pinned settings, rules, and skills
 
-`--harness-tree` freezes a directory with this layout:
+`ExperimentSpec.harness_tree_path` selects a pinned directory with this layout:
 
 ```text
-harness/
-  terminus/config.json
-  terminus/AGENTS.md
-  terminus/skills/<skill>/SKILL.md
-  terminus-commands/<command>/SKILL.md
+<harness-tree>/terminus/config.json
+<harness-tree>/terminus/AGENTS.md
+<harness-tree>/terminus/skills/<skill>/SKILL.md
+<harness-tree>/terminus-commands/<command>/SKILL.md
 ```
 
 The optional config object accepts `enable_summarize`, `interleaved_thinking`,
@@ -1199,9 +1186,9 @@ an enforced cumulative output cap. Model/transport/credential overrides,
 unknown knobs, `terminus/context` code extensions, symlinks, special files,
 and digest drift refuse before execution. Tree bytes are not rewritten.
 
-Preparation records `harness_tree_path` and `harness_tree_sha256`, using the
+The spec records `harness_tree_path` and `harness_tree_sha256`, using the
 existing evidence-tree digest over sorted relative paths and file bytes.
-It freezes an independent copy under `runs/.prepared-harnesses/`. Execution
+Execution stages an independent copy under `runs/.harness-staging/`. Execution
 rechecks the pin and retains `harness-tree/`, exact rendered arguments, base
 settings, and `experiment-spec.json` in the ordinary job directory. A retained
 run can therefore be inspected or replayed after temporary staging is removed.
@@ -1211,8 +1198,8 @@ Local-model execution via Ollama is not permitted on Peter's laptop: do not
 start a local Ollama service, point the lab at one, or run a local-baseline
 recipe. Use an explicitly authorized hosted route instead. To compare a changed
 candidate harness against a retained baseline spec, prepare a new spec with
-`--harness-tree /absolute/path/to/candidate-harness`, submit it, approve the
-printed `spec_id`, and run `uv run evallab tick --spec-id <candidate-spec-id>`.
+`harness_tree_path` and `harness_tree_sha256`, submit it, approve the
+spec's `spec_id`, and dispatch it with `Executor.tick(spec_ids=[...])`.
 
 Set `declared_variable` to `harness_tree_sha256` in a normal comparison spec
 so tree bytes participate alongside native kwargs, rules, and skill locks before
@@ -1264,53 +1251,37 @@ balances are recorded as observations, not a live credit cap or permission to
 
 ### GLM mini-SWE on Daytona
 
-Prepare an ordinary spec without a Python launcher, credentials, or cloud calls:
-
-```bash
-uv run evallab tasks prepare \
-  ~/Developer/lab-extras/data/agent-evals/terminal-bench-4/tasks/fin-saccr-rwa \
-  --name tb4-finance-daytona \
-  --agent mini-swe-agent --model zai/glm-5.3-flash \
-  --environment daytona --timeout-seconds 3600 \
-  --cost-limit-usd 1 --estimated-cost-usd 1.25
-```
-
-This copies exactly one local Harbor task into `runs/.prepared-tasks/`, pins its
-package/verifier digests, and writes `derived/prepared/tb4-finance-daytona.json`.
-It neither admits a task to the registry nor submits or approves a run. The task
-can come from any local Harbor package; there is no TB4-only launcher.
-`--json` emits the spec, resources, warnings and next command.
-Use `--linear-card HAR-NNN` with the exact authorized Linear card to preserve
+The task-preparation and queue CLI frontends are removed.
+Construct an `ExperimentSpec` (`src/evallab/schemas/__init__.py`) for the local
+Harbor package with `timeout_seconds=3600` and dispatch it through the approved `evallab.queue` API.
+Staging neither admits a task to the registry nor approves a run.
+Use `linear_card` with the exact authorized Linear card to preserve
 explicit spend provenance; it does not grant spending permission.
-Repeated identical preparation reuses the snapshot/spec; source edits cannot
-mutate the snapshot, and collisions or drift refuse rather than overwrite.
 
-Without `--timeout-seconds`, preparation preserves the task's declared **agent**
+The spec preserves the task's declared **agent**
 deadline. Build and verifier deadlines are not added to that agent deadline.
 Missing deadlines require an explicit value; deadlines above the Lab's eight-hour
 limit are never silently truncated. This example's one-hour override is a
 diagnostic run, **not the full eight-hour TB4 protocol**.
 
-The printed model ceilings default to 200 requests, 5,000,000 input tokens,
-131,072 output tokens and their sum; each is overridable. Model cost is explicit.
-`--estimated-cost-usd` includes model plus sandbox/build/verifier overhead, but
+The spec carries explicit request, input, output, total-token, and model-cost ceilings.
+`est_cost_usd` includes model plus sandbox/build/verifier overhead, but
 is an estimate, not an infrastructure dollar meter. Unmetered harnesses are not
 given fictitious enforced token/cost limits.
 
 After reviewing the generated spec and obtaining the exact run's approval:
 
+Use `Executor.submit`, `DirectoryQueue.approve`, and `Executor.tick(spec_ids=[...])`.
+Inspect the retained results with:
+
 ```bash
-uv run evallab submit derived/prepared/tb4-finance-daytona.json
-# Copy the spec_id printed by submit into the next two commands:
-uv run evallab approve <spec-id> --actor peter
-uv run evallab tick --spec-id <spec-id>
 uv run evallab summarize runs/tb4-finance-daytona
 ```
 
-`tick --spec-id` retains all existing health, credential, policy and quota gates.
-It leaves other approved work untouched, prints the selected spec's final state
-and failure/defer reason, and returns nonzero if the selected work did not finish.
-Do not use an unfiltered `tick` merely to launch one trial. Direct `evallab run`
+`Executor.tick` retains all existing health, credential, policy and quota gates.
+Selecting `spec_ids` leaves other approved work untouched.
+Inspect queue state and refusal reasons after dispatch.
+Do not use an unfiltered `Executor.tick` merely to launch one trial. Direct `evallab run`
 remains control-only; paid agents use the queue above.
 
 Export `DAYTONA_API_KEY` and `ZAI_OPENAPI_API_KEY` into the invoking shell before
@@ -1360,13 +1331,13 @@ Account authentication is working; it is not proof of sandbox capacity, a remain
 credit balance, or a qualified model transport. Check account metadata without
 allocating compute using `modal profile list` and `modal token info`.
 
-`tasks prepare --environment modal` refuses unimplemented container-side
+`evallab.execution_contracts.validate_request` refuses unimplemented container-side
 metered-proxy combinations such as GLM mini-SWE before launch. Adding credits
 cannot fix that transport gap. Terminus 2's host-side model transport does not
 need that container-side bridge; it uses the native Modal task backend with its
 actual capability and credential requirements. All remote controls and model
 runs still use an explicitly prepared/submitted/approved spec and selected
-`tick`; do not bypass the queue with a direct Harbor sweep.
+`Executor.tick(spec_ids=[...])`; do not bypass the queue with a direct Harbor sweep.
 
 ## What agents should take from this
 
@@ -1401,7 +1372,7 @@ Every cooperating process and worktree uses the same default `docker` queue.
 Direct Docker starts do not participate.
 
 ```sh
-uv run --no-sync evallab docker-lock run --timeout 60 inspection -- make test
+uv run --no-sync evallab docker-lock run --timeout 60 inspection -- uv run evallab --version
 ```
 
 `run LABEL -- CMD ...` inherits stdio and returns the child's exit code.
@@ -1662,7 +1633,7 @@ It holds 6552 rows with labels, sealed by `MANIFEST.sha256`:
 - **`aria`, `olmo`, `ht`:** 300 hacks + 300 matched clean single-answer coding
   rollouts each. `aria` and `olmo` are hacks a model learned during RL training
   (Qwen3-4B on LeetCode overriding `run_tests()`; OLMo-3.1-32B on CodeContests
-  with `os._exit`, always-equal and `conftest.py`); `ht` is the prompted
+  with `os._exit`, always-equal and `<rollout-workdir>/conftest.py`); `ht` is the prompted
   control (HackTrace, Qwen3-8B told to shortcut). Rows live in `rl_subset.json`.
   Results: `research/experiments/kev-hack-detector/README.md` ("Learned vs prompted hacks").
 
@@ -1698,7 +1669,7 @@ assertion while extending a test file -- assertion-removal is kept as a
 tamper signal because it also catches real suite-weakening, at this measured
 cost.
 
-On the RL rollout sources the rules catch 12/13 OLMo `conftest.py` writes and
+On the RL rollout sources the rules catch 12/13 OLMo `<rollout-workdir>/conftest.py` writes and
 nothing else (0/300 aria, 0/300 ht, 12/300 olmo, 0 false positives): those hacks
 live inside the submitted code, which no command or file-write rule sees.
 
@@ -1733,7 +1704,7 @@ uv run evallab detectors run --detector qa_trace --allow-paid --refresh --ids FI
 ```
 
 Was this run's reward real, and why did it fail (`qa-trace/7`: `src/evallab/qa/trace.py`
-orchestrates; `trace_workspace.py`, `trace_agents.py`, `trace_verify.py` hold B0, T1
+orchestrates; `qa/trace_workspace.py`, `qa/trace_agents.py`, `qa/trace_verify.py` hold B0, T1
 and T3). Version 7 adds evidence-based silent-fault routing and trace-only contribution
 inspection to version 6's contribution-only cheat label and `blind_atif` workspaces:
 

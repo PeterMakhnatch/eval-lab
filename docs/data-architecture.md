@@ -231,7 +231,7 @@ Lineage uses the same front-matter parser.
 
 ## Local trial census and trace queries
 
-The `evallab trials` command is retired. Python readers use `evallab.storage.trials.connect_trials`.
+The trial census has no CLI frontend. Python readers use `evallab.storage.trials.connect_trials`.
 
 The census is a transient DuckDB view, not another stored database.
 Discovery includes primary/worktree run roots, reviewed evidence, and an explicit `EVALLAB_RUNS_ROOT`.

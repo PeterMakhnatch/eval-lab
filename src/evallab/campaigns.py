@@ -13,8 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from collections.abc import Callable, Mapping, Sequence
-from datetime import datetime
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -36,40 +35,19 @@ from evallab.execution_contracts import (
     is_openrouter_model,
     is_tinker_terminus_model,
 )
-from evallab.queue import (
-    Executor,
-)
 from evallab.schemas import ContractModel, ExperimentSpec
 
 CampaignLedger = CampaignCalibrationLedger | CampaignMeasurementLedger
 
 
 _SCHEMA_MANIFEST = "campaign-manifest/v3"
-_SCHEMA_EVENT = "campaign-event/v1"
-_SCHEMA_STATUS = "campaign-status/v1"
 CAMPAIGN_STATE_ROOT = Path("runs/campaigns")
-_TRANSIENT_PREFIX = "transient_harness:"
 _SPEC_DIGEST_EXCLUDES = {
     "submitted_at",
     "policy_rule",
     "campaign_manifest_digest",
     "campaign_spec_digest",
 }
-_CREDENTIAL_NAMES = (
-    "DEEPSEEK_API_KEY",
-    "MSWEA_API_KEY",
-    "ZAI_OPENAPI_API_KEY",
-)
-
-
-class CampaignError(RuntimeError):
-    """Base campaign orchestration failure."""
-
-
-
-
-
-
 
 
 def _canonical_json(value: Any) -> str:
@@ -438,28 +416,3 @@ def _analysis_cell_holds(
         if len(cell_attempts) < 2 or len(seeds) != len(set(seeds)):
             holds.append(f"analysis_cell_repeats_insufficient:{min(cell_ids)}")
     return tuple(sorted(set(holds)))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-ArchiveHook = Callable[[CampaignManifest, CampaignAttempt, Path], Mapping[str, Any]]
-BackfillHook = Callable[[CampaignManifest, CampaignAttempt, Path], Mapping[str, Any] | None]
-DispatchHook = Callable[[Executor, Sequence[str]], int]
-Clock = Callable[[], datetime]
-CredentialProbe = Callable[[], frozenset[str]]
-
-
-
-
-
-

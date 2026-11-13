@@ -997,7 +997,9 @@ def test_proxy_live_e2e_real_socket(tmp_path: Path, monkeypatch: pytest.MonkeyPa
             pass
 
     upstream = ThreadingHTTPServer(("127.0.0.1", 0), _FakeUpstream)
-    u_thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+    u_thread = threading.Thread(
+        target=upstream.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     u_thread.start()
 
     u_port = upstream.server_address[1]
@@ -1020,7 +1022,9 @@ def test_proxy_live_e2e_real_socket(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_MAX_COST_MICROS", "1000000")
 
     proxy = serve(host="127.0.0.1", port=0, live_dir=live_dir)
-    p_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    p_thread = threading.Thread(
+        target=proxy.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     p_thread.start()
     p_port = proxy.server_address[1]
 

@@ -35,6 +35,11 @@ from evallab.docker_lock import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_hostname(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(socket, "gethostname", lambda: "docker-lock-test-host")
+
+
 def _cli_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="evallab")
     commands = parser.add_subparsers(dest="command_name", required=True)

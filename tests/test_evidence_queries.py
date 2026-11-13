@@ -16,18 +16,28 @@ from evallab.cohort import wilson_interval
 from evallab.lessons import DEFAULT_POWER_THRESHOLD
 
 repo_root_for_check = Path(__file__).resolve().parents[1]
-_explicit_derived = os.environ.get("EVALLAB_DERIVED_ROOT")
-if _explicit_derived:
-    derived_for_check = Path(_explicit_derived).resolve()
-else:
-    derived_for_check = repo_root_for_check / "derived" / "parquet"
 
-try:
-    real_corpus_present = derived_for_check.exists() and bool(
-        list(derived_for_check.glob("job_id=*"))
+
+@pytest.fixture
+def derived_for_check() -> Path:
+    """Inspect corpus availability during execution, not import."""
+    explicit = os.environ.get("EVALLAB_DERIVED_ROOT")
+    root = Path(explicit).resolve() if explicit else repo_root_for_check / "derived" / "parquet"
+    if not root.exists() or not any(root.glob("job_id=*")):
+        pytest.skip(f"real corpus at {root} absent (gitignored; use fixture)")
+    return root
+
+
+@pytest.fixture(autouse=True)
+def _isolate_unused_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Parquet queries do not need PostgreSQL or a downloaded DuckDB extension."""
+    monkeypatch.setattr(
+        evallab.storage.attach,
+        "_attach_z2",
+        lambda _connection, _dsn: evallab.storage.attach.ZoneStatus(
+            "z2", False, reason="isolated parquet test"
+        ),
     )
-except Exception:
-    real_corpus_present = False
 
 #: The corpus size observed on 2026-08-18, before the gym-v0 control battery ran.
 #: Used as a FLOOR, never as an equality: evidence must never silently disappear,
@@ -206,7 +216,7 @@ def test_full_corpus_derived_parquet_coverage(
         pq.write_table(tbl, trial_dir / "trial_facts.parquet")
 
     monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(fixture_root))
-    attach_result = evallab.storage.attach.attach()
+    attach_result = evallab.storage.attach.attach(repo_root=tmp_path)
     try:
         con = attach_result.connection
         sql = Path("sql/evidence_queries.sql").read_text()
@@ -250,11 +260,7 @@ def test_full_corpus_derived_parquet_coverage(
         attach_result.connection.close()
 
 
-@pytest.mark.skipif(
-    not real_corpus_present,
-    reason=f"real corpus at {derived_for_check} absent (gitignored; use fixture)",
-)
-def test_full_corpus_derived_parquet_coverage_real() -> None:
+def test_full_corpus_derived_parquet_coverage_real(derived_for_check: Path) -> None:
     """The real corpus satisfies the coverage invariants (skipped when absent).
 
     This test used to pin a frozen snapshot of live data: `total_trials == 92`,

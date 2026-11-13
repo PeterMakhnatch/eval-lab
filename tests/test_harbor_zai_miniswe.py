@@ -364,7 +364,9 @@ class _MockZaiUpstream(BaseHTTPRequestHandler):
 def test_proxy_lifecycle_and_accounting(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # 1. Start mock upstream
     upstream = ThreadingHTTPServer(("127.0.0.1", 0), _MockZaiUpstream)
-    upstream_thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+    upstream_thread = threading.Thread(
+        target=upstream.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     upstream_thread.start()
     u_host, u_port = upstream.server_address
 
@@ -393,7 +395,9 @@ def test_proxy_lifecycle_and_accounting(tmp_path: Path, monkeypatch: pytest.Monk
     module_spec.loader.exec_module(module)
 
     proxy = module.serve(host="127.0.0.1", port=0)
-    proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    proxy_thread = threading.Thread(
+        target=proxy.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     proxy_thread.start()
     p_host, p_port = proxy.server_address
     proxy_url = f"http://127.0.0.1:{p_port}"

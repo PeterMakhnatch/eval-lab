@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import contextlib
 import importlib.util
@@ -897,3 +898,203 @@ def test_model_cli_guard_allows_fake_cli_in_tmp_path_through_each_launcher(
         assert os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]) == 0
 
     assert marker.read_text() == "launched\n"
+
+
+# Temporary exceptions outside this lane's ownership. Each permits only 1 exact site,
+# not a whole file. Remove the entry when its owner scopes the operation.
+_HOST_STATE_EXCEPTIONS = {
+    ("tests/test_laminar_tracing.py", "server-poll", "threading.Thread(target=server.serve_forever, daemon=True)"),
+    ("tests/test_attach.py", "import-database", "_catalog_reachable()"),
+    (
+        "research/experiments/ov1104-detbench/test_length_metrics.py",
+        "import-path",
+        "sys.path.insert(0, str(Path(__file__).resolve().parent))",
+    ),
+}
+
+
+def _host_state_violations(source: str) -> list[tuple[int, str, str, str]]:
+    """Inspect syntax only; never import a candidate or contact its database."""
+    tree = ast.parse(source)
+    aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for name in node.names:
+                aliases[name.asname or name.name.split(".")[0]] = name.name if name.asname else name.name.split(".")[0]
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            for name in node.names:
+                aliases[name.asname or name.name] = f"{node.module}.{name.name}"
+
+    def name(node: ast.AST) -> str:
+        if isinstance(node, ast.Name):
+            return aliases.get(node.id, node.id)
+        if isinstance(node, ast.Attribute):
+            return f"{name(node.value)}.{node.attr}"
+        return ""
+
+    def connects(call: ast.Call) -> bool:
+        target = name(call.func)
+        return target in {
+            "psycopg.connect", "psycopg2.connect", "sqlite3.connect",
+            "duckdb.connect", "sqlcipher3.connect", "sqlalchemy.create_engine",
+            "evallab.database.initialize", "evallab.storage.attach.attach",
+        }
+
+    # Follow local wrappers to a fixed point: decorators often call a reachability
+    # helper rather than the database library directly.
+    functions = {
+        node.name: node for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    database_helpers: set[str] = set()
+    while True:
+        discovered = {
+            function for function, body in functions.items()
+            if any(
+                isinstance(node, ast.Call)
+                and (connects(node) or name(node.func) in database_helpers)
+                for statement in body.body for node in ast.walk(statement)
+            )
+        }
+        if discovered <= database_helpers:
+            break
+        database_helpers.update(discovered)
+
+    violations: list[tuple[int, str, str, str]] = []
+
+    def report(node: ast.AST, rule: str, fix: str) -> None:
+        violations.append((node.lineno, rule, fix, ast.unparse(node)))
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or name(node.func).split(".")[-1] != "Thread":
+            continue
+        keywords = {keyword.arg: keyword.value for keyword in node.keywords}
+        target = keywords.get("target", node.args[1] if len(node.args) > 1 else None)
+        if not isinstance(target, ast.Attribute) or target.attr != "serve_forever":
+            continue
+        kwargs = keywords.get("kwargs")
+        explicit = (
+            isinstance(kwargs, ast.Dict)
+            and any(isinstance(key, ast.Constant) and key.value == "poll_interval" for key in kwargs.keys)
+        ) or (
+            isinstance(kwargs, ast.Call) and name(kwargs.func) == "dict"
+            and any(keyword.arg == "poll_interval" for keyword in kwargs.keywords)
+        )
+        if not explicit:
+            report(node, "server-poll", 'add kwargs={"poll_interval": 0.01} to Thread(...)')
+
+    class ImportTime(ast.NodeVisitor):
+        def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+            for expression in [
+                *node.decorator_list, *node.args.defaults,
+                *(value for value in node.args.kw_defaults if value is not None),
+            ]:
+                self.visit(expression)
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_Lambda(self, node: ast.Lambda) -> None:
+            for expression in [
+                *node.args.defaults,
+                *(value for value in node.args.kw_defaults if value is not None),
+            ]:
+                self.visit(expression)
+
+        def visit_Call(self, node: ast.Call) -> None:
+            target = name(node.func)
+            if target == "sys.path.insert":
+                report(node, "import-path", "use pytest.MonkeyPatch.context() and syspath_prepend(...)")
+            if connects(node) or target in database_helpers:
+                report(node, "import-database", "move the connection into an explicit fixture gated by EVALLAB_RUN_POSTGRES_TESTS=1")
+            self.generic_visit(node)
+
+        def visit_Subscript(self, node: ast.Subscript) -> None:
+            if isinstance(node.ctx, ast.Store) and name(node.value) == "os.environ":
+                report(node, "import-environment", "use monkeypatch.setenv(...) in a fixture")
+            self.generic_visit(node)
+
+    ImportTime().visit(tree)
+    return violations
+
+
+def _assert_scoped_host_state(root: Path) -> None:
+    with (root / "pyproject.toml").open("rb") as stream:
+        options = tomllib.load(stream)["tool"]["pytest"]["ini_options"]
+    files: set[Path] = set()
+    for entry in options["testpaths"]:
+        path = root / entry
+        candidates = [path] if path.is_file() else path.rglob("*.py")
+        files.update(
+            candidate for candidate in candidates
+            if candidate.name == "conftest.py"
+            or any(fnmatch(candidate.name, pattern) for pattern in options.get("python_files", ("test_*.py", "*_test.py")))
+        )
+    exceptions = set(_HOST_STATE_EXCEPTIONS)
+    failures = []
+    for path in sorted(files):
+        relative = path.relative_to(root).as_posix()
+        for line, rule, fix, signature in _host_state_violations(path.read_text(encoding="utf-8")):
+            exception = (relative, rule, signature)
+            if exception in exceptions:
+                exceptions.remove(exception)
+            else:
+                failures.append(f"{relative}:{line}: {rule}: {fix}")
+    assert not failures, "\n".join(failures)
+
+
+def test_test_files_do_not_use_unscoped_host_state() -> None:
+    _assert_scoped_host_state(Path(__file__).resolve().parents[1])
+
+
+@pytest.mark.parametrize(
+    ("source", "rule", "fix"),
+    [
+        ("Thread(target=server.serve_forever)", "server-poll", 'kwargs={"poll_interval": 0.01}'),
+        ("import sys as s\ns.path.insert(0, 'host')", "import-path", "syspath_prepend"),
+        ("import os\nif True:\n    os.environ['DATABASE_URL'] = 'host'", "import-environment", "monkeypatch.setenv"),
+        (
+            "import psycopg as pg\nconnection = lambda *, db=pg.connect('host'): None",
+            "import-database",
+            "explicit fixture",
+        ),
+        (
+            "from psycopg import connect\n"
+            "def reachable():\n    return connect('host')\n"
+            "def available():\n    return reachable()\n"
+            "@pytest.mark.skipif(not available())\ndef test_case(): pass",
+            "import-database",
+            "EVALLAB_RUN_POSTGRES_TESTS=1",
+        ),
+    ],
+)
+def test_host_state_guard_rejects_seeded_violations(
+    source: str, rule: str, fix: str, tmp_path: Path
+) -> None:
+    violations = _host_state_violations(source)
+    assert len(violations) == 1
+    line, actual_rule, message, _signature = violations[0]
+    assert line == len(source.splitlines()) - (1 if "test_case" in source else 0)
+    assert actual_rule == rule
+    assert fix in message
+    _write_hygiene_tree(tmp_path, ["tests/test_seed.py"], testpaths=["tests"])
+    (tmp_path / "tests/test_seed.py").write_text(source, encoding="utf-8")
+    with pytest.raises(AssertionError) as caught:
+        _assert_scoped_host_state(tmp_path)
+    assert f"tests/test_seed.py:{line}: {rule}:" in str(caught.value)
+    assert fix in str(caught.value)
+
+
+def test_host_state_guard_keeps_scoped_fixtures_and_explicit_server_polling() -> None:
+    source = """
+import os
+import psycopg
+import sys
+@pytest.fixture
+def isolated(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "fixture")
+    monkeypatch.syspath_prepend("adapter")
+    return psycopg.connect("fixture")
+thread = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+text = "os.environ['DATABASE_URL'] = 'not executed'"
+"""
+    assert _host_state_violations(source) == []

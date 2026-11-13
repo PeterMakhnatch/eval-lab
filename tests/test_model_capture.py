@@ -136,7 +136,9 @@ class _StubUpstream(BaseHTTPRequestHandler):
 def upstream() -> Any:
     _StubUpstream.received = []
     server = ThreadingHTTPServer(("127.0.0.1", 0), _StubUpstream)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     yield server
     server.shutdown()
@@ -540,7 +542,9 @@ def test_zai_secret_proxy_chain_forwards_chat_with_provider_auth(
 
     _StubUpstream.received = []
     stub = ThreadingHTTPServer(("127.0.0.1", 0), _StubUpstream)
-    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    threading.Thread(
+        target=stub.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    ).start()
     provider_key = "zai-provider-key-sentinel-987654321"
     secret_file = tmp_path / "zai-key"
     secret_file.write_text(provider_key + "\n")
@@ -565,7 +569,9 @@ def test_zai_secret_proxy_chain_forwards_chat_with_provider_auth(
     monkeypatch.setitem(sys.modules, spec.name, module)
     spec.loader.exec_module(module)
     proxy = module.serve(host="127.0.0.1", port=0)
-    proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    proxy_thread = threading.Thread(
+        target=proxy.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     proxy_thread.start()
     try:
         request = urllib.request.Request(
@@ -695,7 +701,9 @@ def test_mimo_secret_proxy_stamps_token_and_stays_byte_identical(
 
     _RecordingStub.received = []
     stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
-    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    threading.Thread(
+        target=stub.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    ).start()
     provider_key = "mimo-provider-key-sentinel-135792468"
     secret_file = tmp_path / "mimo-key"
     secret_file.write_text(provider_key + "\n")
@@ -732,7 +740,9 @@ def test_mimo_secret_proxy_stamps_token_and_stays_byte_identical(
         "http://127.0.0.1:9/v1/chat/completions"
     )
     proxy = module.serve(host="127.0.0.1", port=0)
-    proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    proxy_thread = threading.Thread(
+        target=proxy.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     proxy_thread.start()
     try:
 

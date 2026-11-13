@@ -1111,11 +1111,9 @@ At most 5 remains quiet. The scan can receive a different explicit threshold.
 Each alarm retains its count, threshold, time bounds, jobs, specs, severity, and recommended action.
 An alarm recommends review; it cannot change approval or spend policy.
 
-`status_generator.py` writes the idempotent `research/experiments/STATUS.md` snapshot.
-It shows yesterday's measured trials, running and pending specs, storms, program decisions, and system health.
-`generate_status_markdown(repo_root)` renders without writing.
-`update_status_file(repo_root)` publishes the generated snapshot.
-The generated status is historical output, not a mission context input.
+The former nightly status writer is retired. Existing
+`research/experiments/STATUS.md` snapshots remain stored as historical output.
+They do not supply mission context.
 
 ## Run Health
 

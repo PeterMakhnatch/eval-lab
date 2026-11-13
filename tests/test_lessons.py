@@ -28,7 +28,6 @@ from evallab.lessons import (
     collect_lessons_inputs,
     compare_lesson_rows,
     execute_lessons_views,
-    generate_lessons_file,
     load_analysis_sidecars,
     load_craft_records,
     load_observation_records,
@@ -855,7 +854,7 @@ def test_empty_views_render_insufficient_n_never_silent() -> None:
     assert md.count("insufficient n") >= 3
 
 
-def test_build_lessons_on_repository_root(tmp_path: Path) -> None:
+def test_build_lessons_on_repository_root() -> None:
     """Test full build_lessons execution over repository evidence."""
     repo_root = Path(__file__).resolve().parents[1]
     result = build_lessons(repo_root)
@@ -864,15 +863,7 @@ def test_build_lessons_on_repository_root(tmp_path: Path) -> None:
     assert "v_loop_rate_by_env" in result.lessons_by_view
     assert "v_failure_by_facet" in result.lessons_by_view
 
-    # The writer is exercised against a scratch target, never the committed
-    # `research/lessons.md`: a test that rewrites a tracked generated artifact
-    # leaves every checkout dirty and invites an accidental `git add -A` from
-    # committing test-derived findings over the real corpus.
-    target = tmp_path / "research" / "lessons.md"
-    lessons_path = generate_lessons_file(repo_root, output_path=target)
-    assert lessons_path == target
-    assert lessons_path.is_file()
-    content = lessons_path.read_text(encoding="utf-8")
+    content = render_lessons_markdown(result)
     assert GENERATED_HEADER in content
     assert "Statistical Lessons & Aggregation Views" in content
 
@@ -904,10 +895,10 @@ def test_lessons_generation_convergence_two_consecutive_runs(tmp_path: Path) -> 
     root = _sample_lessons_fixture_tree(tmp_path)
     target = root / "research" / "lessons.md"
     fixed_time = datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
-    first_path = generate_lessons_file(root, output_path=target, generated_at=fixed_time)
-    first_content = first_path.read_text(encoding="utf-8")
-    second_path = generate_lessons_file(root, output_path=target, generated_at=fixed_time)
-    second_content = second_path.read_text(encoding="utf-8")
+    first_content = render_lessons_markdown(build_lessons(root, generated_at=fixed_time))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(first_content, encoding="utf-8")
+    second_content = render_lessons_markdown(build_lessons(root, generated_at=fixed_time))
     assert first_content == second_content
 
 
@@ -934,7 +925,9 @@ def test_lessons_recorded_digests_match_actual_file_digests(tmp_path: Path) -> N
 def test_lineage_resolution_on_generated_lessons(tmp_path: Path) -> None:
     root = _sample_lessons_fixture_tree(tmp_path)
     target = root / "research" / "lessons.md"
-    generate_lessons_file(root, output_path=target)
+    markdown = render_lessons_markdown(build_lessons(root))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(markdown, encoding="utf-8")
 
     node = resolve_lineage("research/lessons.md", repo_root=root)
     assert node.status == "resolved"

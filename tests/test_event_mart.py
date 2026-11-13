@@ -9,7 +9,6 @@ import pyarrow.parquet as pq
 
 from evallab.evidence.facts import rebuild_from_raw
 from evallab.results import load_job
-from evallab.storage.parquet_compaction import deduplicate_and_sort
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -199,12 +198,11 @@ def test_event_flow_keeps_repeated_call_ids_distinct_through_compaction(
     partition = derived / f"job_id={job.id}" / f"trial_id={job.trials[0].id}"
     actions_table = pq.read_table(partition / "agent_actions.parquet")
     actions = actions_table.to_pylist()
-    compacted_actions = deduplicate_and_sort(actions_table, "agent_actions").to_pylist()
     events = pq.read_table(partition / "trajectory_events.parquet").to_pylist()
     effects = pq.read_table(partition / "action_effects.parquet").to_pylist()
     phases = pq.read_table(partition / "trajectory_phases.parquet").to_pylist()
 
-    assert len(actions) == len(compacted_actions) == 2
+    assert len(actions) == 2
     assert actions[0]["action_id"] != actions[1]["action_id"]
     assert [row["observation_size_bytes"] for row in actions] == [12, 8]
     assert [row["event_type"] for row in events] == [

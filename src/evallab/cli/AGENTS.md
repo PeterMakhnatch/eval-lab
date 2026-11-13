@@ -12,7 +12,7 @@ This directory is reserved. Production CLI lives in `src/evallab/cli.py`; do not
 - Preserve deterministic registration/dispatch and the public command contract.
 
 ## Tests or checks
-Relevant existing tests: `tests/test_cli_registry.py`, `tests/test_cli_startup.py`, and `tests/test_prod_cli.py`. The assigned verifier uses focused checks; see `agents/CHECKS.md` for delivery.
+Relevant existing tests: `tests/test_cli_registry.py` and `tests/test_cli_startup.py`. The assigned verifier uses focused checks; see `agents/CHECKS.md` for delivery.
 
 ## What not to add here
 No parallel CLI implementation or incidental package-layout migration.

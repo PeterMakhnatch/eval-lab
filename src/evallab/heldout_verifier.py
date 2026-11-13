@@ -1,68 +1,20 @@
-"""Stdlib-only, Python 3.5-compatible payload for a native separate verifier.
-
-This is not an OS sandbox. The parent supplies CPU/no-network containment and
-immutable inputs. Apply the recorded patch on its base, restore trusted tests,
-and score only complete observed test outcomes. Errors and skips stay unscored.
-"""
+"""Path-safety and captured agent-diff guards for retained verifier workflows."""
 
 import os
 import re
 
-#: Expected ``schema_version`` of the verifier config file.
-CONFIG_SCHEMA_VERSION = "heldout-run/v1"
-#: Expected ``schema_version`` of the embedded suite object.
-SUITE_SCHEMA_VERSION = "heldout-suite/v1"
-#: ``schema_version`` written into ``heldout-result.json``.
-RESULT_SCHEMA_VERSION = "heldout-result/v1"
-#: Provenance marker identifying this payload in result reports.
-HELDOUT_VERIFIER_VERSION = "heldout-verifier/v1"
-
-#: Supported test frameworks.
-FRAMEWORKS = ("pytest", "unittest")
-
-#: Upper bound for the configured test command timeout (seconds).
-MAX_TIMEOUT_SEC = 3600
-#: Timeout for each individual git plumbing call (seconds).
-GIT_TIMEOUT_SEC = 300
-#: Bytes of each captured test stream kept on disk (tail is kept).
-MAX_LOG_BYTES = 131072
 #: Refuse to scan an agent diff larger than this (bytes).
 MAX_DIFF_BYTES = 256 * 1024 * 1024
 #: Refuse an agent diff touching more distinct targets than this.
 MAX_DIFF_TARGETS = 200000
-#: Bytes of a process stderr tail embedded in error strings.
-ERROR_TAIL_CHARS = 2000
-
-#: Full git SHAs accepted for base/fix commits (SHA-1 or SHA-256 hex).
-_HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
-_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 #: Drive-letter prefixed paths (defense on any platform).
 _DRIVE_RE = re.compile(r"^[A-Za-z]:")
-#: Error text marking a pytest/unittest collection or import failure.
-_COLLECTION_ERROR_RE = re.compile(
-    r"error collecting|collection error|cannot import|no module named|"
-    r"ModuleNotFoundError|ImportError|SyntaxError",
-    re.IGNORECASE,
-)
 #: Tokens of a ``diff --git`` header line (handles C-style quoting).
 _DIFF_TOKEN_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\S+')
 #: Gitlinks need another repository's bytes; ordinary symlinks are captured fully.
 _LINK_MODE_RE = re.compile(
     r"^(?:(?:new file|deleted file|old|new) mode 160000|index \S+ 160000)$"
 )
-#: Dotted Python label (unittest target).
-_LABEL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
-#: Qualname shape (``test_x`` or ``Class.test_x``).
-_QUALNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
-#: Safe environment variable name.
-_ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-#: Bare interpreter basename for unittest command prefixes.
-_PYTHON_BIN_RE = re.compile(r"^python[\d.]*$")
-
-#: Child environment allowlist: non-secret process basics only. The pinned
-#: config ``env`` (e.g. ``PYTHONPATH``) is layered on top. Host secrets are
-#: never sourced: nothing else is inherited.
-_CHILD_ENV_ALLOW = ("PATH", "HOME", "LANG", "LC_ALL", "LANGUAGE", "TZ", "TMPDIR")
 
 
 def relpath_error(path):

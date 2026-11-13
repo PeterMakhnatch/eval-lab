@@ -57,9 +57,9 @@ inspect = [
 ]
 dev = [
     # Pinned resolver pip is the immutable wheel-download engine for FastMCP
-    # wheelhouse staging (see scripts/mcp_funcdag/ensure_wheelhouse.py). Its
-    # wheel hash is committed in uv.lock; workflows sync --locked so the exact
-    # executable resolver runs instead of a live `uv run --with pip` resolution.
+    # wheelhouse staging. Its wheel hash is committed in uv.lock; workflows sync
+    # --locked so the exact executable resolver runs instead of a live
+    # `uv run --with pip` resolution.
     "pip==26.1.2",
     "harbor-atif2otel>=0.1.0",
     "lmnr==0.7.64",
@@ -88,7 +88,7 @@ packages = ["src/evallab"]
 
 [tool.pytest.ini_options]
 addopts = "-q -n 4 --dist loadscope --strict-markers"
-pythonpath = ["research/analysis/harness-mechanics", "library/adapters/reef_gate/src"]
+pythonpath = ["research/analysis/harness-mechanics"]
 markers = [
     "docs_consumer: reads repository documents; supports focused local checks",
 ]
@@ -130,7 +130,6 @@ ignore = ["E501"]
     # back to 3.7, so typing.* annotation forms stay (UP006/UP035/UP045).
     "src/evallab/integrity_reward_core.py" = ["UP006", "UP035", "UP045"]
     "src/evallab/integrity_reward_files/**/*.py" = ["UP006", "UP035", "UP045"]
-    # This verifier is copied into Python 3.5 task images; f-strings cannot parse there.
     "src/evallab/heldout_verifier.py" = ["UP032"]
 
 [tool.ty.rules]

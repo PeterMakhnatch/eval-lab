@@ -1379,7 +1379,7 @@ def _serve(args: argparse.Namespace, root: Path, **_: Any) -> int:
         print(f"judge: {error}")
         return 2
     if not queues:
-        print("judge: no queue found. Run `evallab judge build-packet`, or pass --queue FILE.")
+        print("judge: no queue found. Pass --queue FILE.")
         return 2
     station = Station(
         source,

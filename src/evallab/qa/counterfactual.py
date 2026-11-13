@@ -67,6 +67,7 @@ ENVIRONMENTS = ("docker", "daytona", "modal")
 #: resource/lifecycle estimate, cross-checked against metered app CPU/memory.
 #: $0.01 is >50% above that mean, not a bound on observed tails or provider bills.
 #: Slow/larger workloads and other providers need their own explicit estimate.
+CLOUD_USD_PER_EXECUTION = 0.01
 
 
 def check_backend(environment: str, spend_gate: CloudSpendGate | None) -> None:

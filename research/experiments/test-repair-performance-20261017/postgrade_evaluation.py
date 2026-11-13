@@ -10,6 +10,8 @@ The default is local preparation only. Paid dispatch additionally requires
 --approval PARENT_APPROVAL --global-ledger EXISTING_GLOBAL_LEDGER. The ledger's
 native_evaluation_correction_grade reservation must name that exact gate. Neither
 the global $4 authority nor any prior reservation is reset or replaced here.
+The fixed reservation must meet qa.counterfactual.CLOUD_USD_PER_EXECUTION.
+That floor covers a logical replay, not one provider allocation or an invoice.
 
 Only the new correction's retained textual patch is replayed, once, through
 public native cf.replay and the real run_matrix callback. The request's ACTUAL

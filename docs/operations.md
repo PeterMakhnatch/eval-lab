@@ -822,8 +822,10 @@ The jobs keep separate writer keys and rerun every check after a cache hit.
 
 ## CI: native test scheduling
 
-The native inventory uses 2 pytest workers with `--dist load`.
+The native inventory uses 2 pytest workers with `--dist load --maxschedchunk 2`.
 This distributes individual tests, including the isolated native worker cases.
+Without the chunk limit, xdist sends about 26 consecutive tests to 1 worker, so the 32 slow worker cases ran on 1 process.
+In each shard log, compare the native pytest wall time with the `Module durations` total: a ratio near 1 means the 2 workers did not overlap.
 The default `loadscope` scheduler keeps that module on 1 worker, even with more workers.
 The base suite keeps its existing scheduler.
 Each native shard retains its full file inventory, JUnit report, and Harbor skip census.

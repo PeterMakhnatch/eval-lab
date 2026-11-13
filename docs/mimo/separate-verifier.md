@@ -14,7 +14,7 @@ Canonical active transform is `separate-verifier@10` (`src/evallab/separate_veri
 `src/evallab/separate_verifier.py`; tests in
 `tests/test_separate_verifier.py`) closes the three holes Traces proved
 on canonical `@8` packages in the own-runs scan
-(`research-context/analysis/2026-10-14-own-runs-env-flaw-scan.md` §1).
+(`~/Developer/research-context/analysis/2026-10-14-own-runs-env-flaw-scan.md` §1).
 No `@2`–`@9` symbol or template byte changes. It ships as the
 `mimo-clean-v6` chain slot (`PYTHON_CHAIN_V6`/`NONPYTHON_CHAIN_V6`);
 adopting it fleet-wide is a rebuild + re-verification decision, not a
@@ -113,16 +113,16 @@ their banked digests (incl. 001431 on `@9`).
 
 ### Root cause (traced through the verifier container)
 
-Harbor's `RepeatVerifier` (`--verifier evallab.harbor_repeat_verifier:RepeatVerifier --verifier-kwarg repeat_n=3`) runs `test.sh`
+Harbor's `RepeatVerifier` (`--verifier evallab.harbor_repeat_verifier:RepeatVerifier --verifier-kwarg repeat_n=3`) runs `tests/test.sh`
 three times in the **same** verifier container. The agent runs in a
 different container: its diff reaches the verifier only as
-`/var/tmp/mimo-separate/workspace.tgz`, which each `test.sh`
+`/var/tmp/mimo-separate/workspace.tgz`, which each `tests/test.sh`
 invocation re-extracts to `/tmp/agentcopy` and re-diffs — the agent
 diff never lives in the verifier workdir between runs. What does
 persist is the verifier workdir itself, plus the ready-gated setup
 (`[ -f "$M/ready" ] && exit 0`), so runs 1–2 do not reset anything.
 Run 0 applies `/tests/test.patch`, creating
-`mimo_build_env.tar.gz.b64` and `mimo_test_command.sh` (plus whatever
+`mimo_build_env.tar.gz.b64` and `<verifier-workdir>/mimo_test_command.sh` (plus whatever
 their execution leaves, e.g. run markers and `__pycache__`), and
 leaves them in the workdir. On `repeat/1`, `@9` captured `PRISTINE`
 with `git add -A -f .` over that dirty tree, so the "pristine" tree
@@ -153,7 +153,7 @@ contained the patch files; the test-file revert then kept them and
 
 - Unit/shell: the shipped `@10` script runs 3× in one workdir on an
   opaque-wrapper fixture (hidden patch creates
-  `mimo_build_env.tar.gz.b64` + `mimo_test_command.sh`, the command
+  `mimo_build_env.tar.gz.b64` + `<verifier-workdir>/mimo_test_command.sh`, the command
   leaves a run marker): oracle ×3 = `[1, 1, 1]`, nop ×3 =
   `[0, 0, 0]`, no `already exists` in any repeat `apply.log`. The
   same fixture under `@9` passes run 0 and fails repeat/1 with
@@ -164,7 +164,7 @@ contained the patch files; the test-file revert then kept them and
 
 ## Start-up hooks: why grading is a separate container (2026-10-30)
 
-TQ-2 (`research-context/bridge/2026-10-29-ds-squad/raw/TQ-2/report.md`)
+TQ-2 (`~/Developer/research-context/bridge/2026-10-29-ds-squad/raw/TQ-2/report.md`)
 measured the one attack family that survives a same-container reset: a
 `.pth` file written into the interpreter's writable site directory runs
 before any test code, and can end the interpreter (`os._exit(0)`, also

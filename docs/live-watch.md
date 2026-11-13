@@ -255,7 +255,7 @@ that no file was accessed. Infra owns enabling it for an approved campaign:
 
 ```bash
 EVALLAB_FILE_ACCESS=1 EVALLAB_STATE_JOURNAL=off \
-  uv run --extra laminar evallab tick --spec-id <approved-spec-id>
+  uv run --extra laminar evallab run --task <task-root> --agent nop --name <job-name>
 ```
 
 The new sensor runs ordinary `inotifywait -m -r` **inside the existing agent
@@ -816,7 +816,7 @@ it:
 
 - **Embedded subagents.** ATIF v1.7 subagent trajectories share their parent's
   `session_id` and are disambiguated by `trajectory_id`
-  (`harbor_atif2otel/ids.py:45-55`). `evallab.evidence.atif._flatten_payloads` writes one
+  (`<site-packages>/harbor_atif2otel/ids.py:45-55`). `evallab.evidence.atif._flatten_payloads` writes one
   `trajectory_documents` row per embedded payload, so one multi-agent trial
   legitimately yields several rows with the same `session_id`. A
   `UNIQUE (session_id)` constraint does not deduplicate that — it **aborts the
@@ -1055,14 +1055,14 @@ The Atlas CLI, QA-data CLI, and Scout cloud-database bridge below are also retir
 |---|---|---|---|---|---|---|
 | Stage 1: tripwires, incremental monitor, command cues (`tripwires.py` RULES_VERSION 3, `production/monitor_worker.py`, `production/command_prefilter.py`) | no CLI; library calls (`scan_trace`, `scan_prefix`, `MisalignmentLiveWorker`) | agent steps of one run (observed prefix) | nothing; cards are in memory. Frozen results: `trace-tools/cascade-stage1-goodfire-dev.jsonl` | window cascade; `atlas clusters build --replay-rules`; tool scorecard (Stage-1 baseline) | "any card" on GF-200: 60/80 enacted, 32/70 clean (TT-4 README). HB-169: 105 alarmed; exact gold command 9/169 = 5.3% (CM-11) | none, deterministic |
 | Window cascade v4 / v7 / v8 (`production/window_cascade.py`, `CASCADE_VERSION = window-cascade/v8`; `PASS_THROUGH_RULES = {grader_tamper}`) | no CLI; run inside `monitor_worker` | Stage-1 cards, then the card step plus a window of neighbouring steps | judged-window cache in local state | atlas score (frozen v4 file only); tool scorecard baseline; harness cascade adapters | v8: GF-200 10/80 = 12.5% recall, 2/70 = 2.9% false alarm; CB-150 19/75 = 25.3%, 0/75 (CM-12). Frozen v4: 12/80, 2/70; 20/75, 5/75. HB-169: v7 = v8 = 7 alarmed, 2 exact (1.2%) (CM-15) | Stage-2 judge `kimi-code/k3.1-pro-highspeed` (CM-15, CM-11); v4 judge not re-checked |
-| Run Atlas (`production/run_atlas*.py`): facets, clusters | `evallab atlas clusters build\|clusters show\|score` | blinded runs from the cloud DB or CheatBench answer-key items | `run-atlas/facets-v1.jsonl` (+ `facet-calls-v1.jsonl`), `clusters-v1.jsonl` | clusters, score | facets `suspicion >= 2`: GF-200 7/80 = 8.8%, 1/70 = 1.4%; CB-150 30/75 = 40.0%, 4/75 = 5.3% (CM-12; `scorecards/ra3-FULL-dev-20261028.md`). HB-169 natural: 20/41 exact commands (48.8%) (CM-11) | GF-200 mixed: Haiku 161, Kimi 16, luna 12, grok 11 of 200. CB-150: Haiku 148/150 |
+| Run Atlas (`production/run_atlas*.py`): facets, clusters | retired Atlas CLI | blinded runs from the cloud DB or CheatBench answer-key items | `run-atlas/facets-v1.jsonl` (+ `facet-calls-v1.jsonl`), `clusters-v1.jsonl` | clusters, score | facets `suspicion >= 2`: GF-200 7/80 = 8.8%, 1/70 = 1.4%; CB-150 30/75 = 40.0%, 4/75 = 5.3% (CM-12; `~/.local/state/evallab-prod-live/run-atlas/scorecards/ra3-FULL-dev-20261028.md`). HB-169 natural: 20/41 exact commands (48.8%) (CM-11) | GF-200 mixed: Haiku 161, Kimi 16, luna 12, grok 11 of 200. CB-150: Haiku 148/150 |
 | Trace feature flags (`production/trace_feature_flags.py`) | no CLI; `compute_trace_feature_flags(steps)` | agent commands and text only | nothing (pure function) | retriever cards (`cloud_trace_db._with_feature_flags`), `modal_cloud`, playbook cards, harness card | none: routing hints, not verdicts; no recall measured | none |
 | Playbook cards (`hackbook/playbook_cards.py`, 12 cards in `playbook_cards_v1.json`) | no CLI; library calls | fired flag names | nothing | `qa-data history`, Task QA | none: advice text, not a detector | none |
-| Inspect Scout scan, four text scanners (`readers/scout_clouddb.py`) | `evallab qa-data scan` | blinded DEV transcripts (actor-v2 projection) | `trace-tools/results-v1.jsonl` (45,169 rows; 41,823 are Scout) | tool scorecard; `qa-data findings` | any flag, tool scorecard: Goodfire DEV 131/1,636 = 8.0% recall, 107/752 = 14.2% false alarm; CB-150 19/75 = 25.3%, 34/75 = 45.3% (`tt1-scorecard.md`). Noisy | none, deterministic |
-| METR reward-hacking scanner (`metr-scanners 0.1.11`; `readers/scout_metr.py` is the older GLM path; `research/evidence/runs/trace-tools-tt4-20261027/`, #1378; #1388 open) | `evallab detectors` (`metr_reward_hacking`) | blinded GF-200 (actor-v2) | `results-v1.jsonl` (`scout_metr`, 1,800 rows, 3 arms) | tool scorecard | Kimi arm, GF-200: 37 of 200 scored (163 not run, quota stop), at >=5: 3/13 recall, 0/12 false alarm (TT-4). Not a full-cohort number | Kimi `k3.1-pro-highspeed` (current), Grok 4.3 arm (8 scored), GLM 5.3 flash (`scout_metr.py` constant). OpenRouter Gemini arm: zero calls |
+| Inspect Scout scan, four text scanners (retired Scout CloudDB reader) | retired QA-data scan CLI | blinded DEV transcripts (actor-v2 projection) | `trace-tools/results-v1.jsonl` (45,169 rows; 41,823 are Scout) | tool scorecard; QA-data findings | any flag, tool scorecard: Goodfire DEV 131/1,636 = 8.0% recall, 107/752 = 14.2% false alarm; CB-150 19/75 = 25.3%, 34/75 = 45.3% (`~/.local/state/evallab-prod-live/trace-tools/tt1-scorecard.md`). Noisy | none, deterministic |
+| METR reward-hacking scanner (`metr-scanners 0.1.11`; `readers/scout_metr.py` is the older GLM path; `research/evidence/runs/trace-tools-tt4-20261027/`, #1378; #1388 open) | `evallab detectors` (`metr_reward_hacking`) | blinded GF-200 (actor-v2) | `results-v1.jsonl` (`scout_metr`, 1,800 rows, 3 arms) | tool scorecard | Kimi arm, GF-200: 37 of 200 scored (163 not run, quota stop), at >=5: 3/13 recall, 0/12 false alarm (TT-4). Not a full-cohort number | Kimi `k3.1-pro-highspeed` (current), Grok 4.3 arm (8 scored), GLM 5.3 flash (`readers/scout_metr.py` constant). OpenRouter Gemini arm: zero calls |
 | Laminar and Docent readers (`readers/laminar_*`, `readers/docent_*`; #1317 #1334 #1365 #1381) | retained read-only source readers; remote replica writers are retired | admitted DEV traces (HackBench and CheatBench excluded by design) | `results-v1.jsonl` (Docent 769, Laminar 608 retained rows) | tool scorecard; `qa-data findings` | Docent any flag, GF-200: 3/42 scored hacks flagged, 0/27 clean; 38 of 80 hacks abstained (`tt1-scorecard.json`). Laminar: no scored DEV rows | Docent `openai/gpt-5.4-mini`; historical Laminar Signal model not recorded here |
 | Harbor analyze reader (`readers/harbor_analyze.py`) | `evallab detectors` (`harbor_analyze`: `reward_hacking`, `task_specification`) | Harbor trial copies | verdict files under `~/Library/Application Support/evallab/readers` | task pages, `evallab detectors` | none on DEV cohorts; only the small `detectors-v1` sets (not quoted: different corpus) | `openai/glm-5.3-flash` (Z.ai) |
-| `evallab qa-data` (#1335; 12 calls) | `evallab qa-data <call> --help` | admitted DEV store only; one identical refusal for TEST, cross-key, unknown ids | nothing | read-only QA agents | not a detector. CE-21: 26 of 27 agent answers right (9 Haiku agents, 3 rounds) | none |
+| QA-data (retired CLI; #1335; 12 calls) | no supported CLI | admitted DEV store only; one identical refusal for TEST, cross-key, unknown ids | nothing | read-only QA agents | not a detector. CE-21: 26 of 27 agent answers right (9 Haiku agents, 3 rounds) | none |
 
 Laminar quarantine (`trace_store/laminar_quarantine.py`): `is_quarantined` accepts a Laminar trace ID, a cloud-DB trace ID, or a Harbor trial name. `laminar_signals` skips and counts these IDs; signal filters require the opt-in tag, and `laminar signals` refuses if a quarantined copy carries that tag.
 
@@ -1102,14 +1102,14 @@ Checked against code or files unless marked **[not verified]**.
    The former JSONL loader and facet producer are retired.
    Existing snapshots and reader-comparison evidence remain unchanged.
 5. **METR and harbor analyze share a GLM route, with separate transports.** Both
-   default to `openai/glm-5.3-flash`; `scout_metr.py` goes through an Inspect model on the
+   default to `openai/glm-5.3-flash`; `readers/scout_metr.py` goes through an Inspect model on the
    Z.ai chat-completions endpoint, `harbor_analyze` through Harbor's own readers. The live
    METR arms do not use GLM at all (Kimi, Grok through OMP).
 6. **The tool scorecard does not record the METR model, and mixes arms.** It keys on
    `(tool, detector)` and drops `detector_version`, where the model name lives. In
    `results-v1.jsonl` the latest row per run is now the Kimi actor-v2 arm (200 rows: 3
    alarms, 34 clear, 163 null); the Grok arm's 8 scored runs are overwritten, 7 of them by
-   nulls. `tt1-scorecard.md` (METR 1/3 recall, 0/5 false alarms) was built before those
+   nulls. `~/.local/state/evallab-prod-live/trace-tools/tt1-scorecard.md` (METR 1/3 recall, 0/5 false alarms) was built before those
    rows landed **[inferred from its paired counts of 3 and 5]**; rerunning it would
    silently change arm.
 7. **Facet readers disagree with each other.** Cross-reader kappa 0.42-0.47 on
@@ -1135,7 +1135,7 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
 1. **Step 1: Run static package anatomy:**
    Check container boundary posture, baked files, reset lists, hook vectors, and test assertions:
    ```bash
-   evallab tasks anatomy library/tasks/my-task --reference-patch library/tasks/my-task/reference.patch --json
+   evallab tasks anatomy <task-root> --reference-patch <task-root>/reference.patch --json
    ```
    *Expected result:* Exit 0. Examine `exploit_grader_gap`, `grader_tamperable`, and `weak_check` hypotheses. As a heuristic, if `AR-TESTS-IN-IMAGE` (score 85/92) or `GT-AUTOLOAD-WRITABLE` (score 80) fires (which flags almost every legacy single-container package — 31/35 in receipt packages), container hardening is recommended.
 
@@ -1143,8 +1143,8 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    Generate AST mutations of the reference patch and test whether the original grader accepts them:
    ```bash
    evallab audit-mutants \
-     --package library/tasks/my-task \
-     --reference-patch library/tasks/my-task/reference.patch \
+     --package <task-root> \
+     --reference-patch <task-root>/reference.patch \
      --out results/audit-my-task \
      --ledger results/audit-my-task-ledger.json \
      --max-usd 0.50 \
@@ -1155,7 +1155,7 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
 3. **Step 3: Harden container boundaries with L1–L4 separation:**
    Apply deterministic container re-wiring (L1 auto-load reset, L2 pristine workdir, L3 report gating, L4 separate verifier container):
    ```bash
-   evallab harden library/tasks/my-task --expected-tests 1 --out library/tasks/my-task-hardened
+   evallab harden <task-root> --expected-tests 1 --out <task-root>-hardened
    ```
    *Expected result:* Outputs hardened package directory with separate verifier architecture (`transform: full-hardening@1`). Note: `--expected-tests <N>` is required for pytest packages.
 
@@ -1167,8 +1167,8 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    Preview the parameters and Python mutation targets offline ($0):
    ```bash
    evallab certify-gold \
-     --package library/tasks/my-task \
-     --reference-patch library/tasks/my-task/reference.patch \
+     --package <task-root> \
+     --reference-patch <task-root>/reference.patch \
      --plan --json
    ```
    The preview does not execute containers, enumerate mutants, or synthesize tests.

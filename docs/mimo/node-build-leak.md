@@ -103,7 +103,7 @@ rebuild path fires once for 5 nested candidates, regenerates, verified.
 
 Raw: `~/Developer/eval-lab-results/2026-10-11/node-build-leak/`
 (`v5_probe_summary.json`, per-task `stage-v5`/`out-v5`), class baselines in
-`../node-build-leak-class/`. Pattern tweak during validation (bare
+`~/Developer/eval-lab-results/2026-10-11/node-build-leak-class/`. Pattern tweak during validation (bare
 `require('lib')` coverage) is strictly fail-closed-ward; verdicts rechecked
 unaffected (000919 has zero tracked lib refs; all rebuild outcomes only
 reinforced).

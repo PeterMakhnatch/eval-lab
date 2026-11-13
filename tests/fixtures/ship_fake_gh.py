@@ -38,6 +38,19 @@ elif args[0] == "api":
         output = json.dumps({**state["tested_commits"][short], **state.get("commit_override", {})})
     else:
         output = json.dumps({"contexts": ["quality-required", "typecheck-required"]})
+elif args[:2] == ["pr", "list"]:
+    branch = args[args.index("--head") + 1]
+    rows = state.get("open_prs", [state["pr"]])
+    output = json.dumps([row for row in rows if row["state"] == "OPEN" and row["headRefName"] == branch])
+elif args[:2] == ["pr", "create"]:
+    state["created"] = {"title": args[args.index("--title") + 1],
+                        "body": Path(args[args.index("--body-file") + 1]).read_text()}
+    state["open_prs"] = [state["pr"]]
+    output = "https://github.com/test/lab/pull/42"
+elif args[:2] == ["pr", "comment"]:
+    state.setdefault("comments", []).append({
+        "pr": args[2], "body": Path(args[args.index("--body-file") + 1]).read_text()})
+    output = "https://github.com/test/lab/pull/42#issuecomment-1"
 elif args[:2] == ["pr", "view"]:
     state["views"] = state.get("views", 0) + 1
     if state.get("move") and state["views"] >= 3:

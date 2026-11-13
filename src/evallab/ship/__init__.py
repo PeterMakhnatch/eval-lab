@@ -379,6 +379,14 @@ class Ship:
 
 
 def run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
+    if isinstance(args.pr, str):
+        from evallab.ship.publish import run_publish
+
+        return run_publish(args, root)
+    if any(getattr(args, name, None) is not None
+           for name in ("target", "title_file", "body_file", "needs_base", "reason")):
+        print("ship blocked: publication arguments require open, comment, or check-push.", flush=True)
+        return 1
     ship = Ship(args.repo_root or root, args.pr, args.state_dir, poll=args.poll,
                 timeout=args.timeout, rerun=args.rerun_failed_once, smoke=args.smoke)
     preflight_only = getattr(args, "preflight_only", False)
@@ -400,9 +408,26 @@ def run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     return 0
 
 
+def delivery_target(value: str) -> int | str:
+    if value in {"open", "comment", "check-push"}:
+        return value
+    try:
+        number = int(value)
+        if number > 0:
+            return number
+    except ValueError:
+        pass
+    raise argparse.ArgumentTypeError("use a positive PR number, open, comment, or check-push")
+
+
 def register_parser(commands: Any) -> None:
     parser = commands.add_parser("ship", help="Merge exact-head green CI and safely retire its worktree")
-    parser.add_argument("pr", type=int)
+    parser.add_argument("pr", type=delivery_target, metavar="PR|open|comment|check-push")
+    parser.add_argument("target", type=int, nargs="?", metavar="PR", help="PR for comment or check-push")
+    parser.add_argument("--title-file", type=Path, help="Complete final PR title for open")
+    parser.add_argument("--body-file", type=Path, help="Complete PR body for open, or later comment evidence")
+    parser.add_argument("--needs-base", help="Required base commit SHA for an explicit same-patch exception")
+    parser.add_argument("--reason", help="Reason for requiring that base commit")
     parser.add_argument("--repo-root", type=Path)
     parser.add_argument("--state-dir", type=Path, default=Path.home() / ".local/state/evallab-wf/ship")
     parser.add_argument("--poll", type=float, default=15)

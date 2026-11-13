@@ -12,6 +12,56 @@ It does not rebase, resolve conflicts, enable auto-merge, bypass protection, or 
 It uses Git, GitHub CLI authentication, `lsof`, and macOS `launchctl`.
 Fork PRs and bases other than `main` stop without a merge.
 
+## Publish without extra CI cycles
+
+Create the PR once, with its complete title and body in UTF-8 files:
+
+```bash
+uv run evallab ship open --title-file "$TITLE_FILE" --body-file "$BODY_FILE"
+```
+
+The helper uses the current origin topic branch and targets `main`.
+Push the intended head first. The helper checks the live remote head.
+It refuses an empty title, an empty body, a placeholder body, or an existing open PR.
+Headings, HTML comments, and unchecked template items do not count as a complete body.
+The helper never edits an existing PR title or body.
+
+Add later evidence with a comment, including after merge:
+
+```bash
+uv run evallab ship comment 123 --body-file "$EVIDENCE_FILE"
+```
+
+Before each later push, check whether the patch changes:
+
+```bash
+uv run evallab ship check-push 123
+```
+
+Omit the PR number to find the open PR for the current origin branch.
+No open PR passes. Ambiguous PRs and GitHub errors stop the check.
+The helper fetches current `main` and the exact PR head.
+It compares each aggregate merge-base-to-head diff with `git patch-id --stable`.
+An unchanged patch stops the push check, including an unnecessary rebase onto newer `main`.
+A changed patch passes. The helper does not push.
+
+Only a real conflict or a needed commit justifies an explicit exception:
+
+```bash
+uv run evallab ship check-push 123 --needs-base "$BASE_SHA" --reason "The change needs the new base API."
+```
+
+The SHA must name a commit reachable from local HEAD and fetched `main`.
+The reason must contain text. An identical local and PR head still fails.
+Stable patch IDs ignore whitespace, including Python indentation on changed lines.
+Use the explicit exception for a needed indentation change, with its relevant base SHA and reason.
+This behavior follows Git's stable patch-ID contract; it is not a semantic code comparison.
+
+Direct `gh` and `git push` commands can bypass these helpers.
+The helpers do not change workflow triggers or branch protection.
+Run `check-push` explicitly until the local prepush checkpoint includes the coordinated hook.
+
+
 ## Run
 
 Run from a stable checkout and runtime outside the worktree you want to remove.

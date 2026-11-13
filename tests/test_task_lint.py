@@ -31,6 +31,9 @@ def task(tmp_path: Path) -> Path:
     (task / "task.toml").write_text(
         'artifacts = ["/app/result.json"]\n[verifier]\nenvironment_mode = "separate"\n'
     )
+    (task / "instruction.md").write_text("Write the result to /app/result.json.\n")
+    (task / "tests").mkdir()
+    (task / "tests/verify.py").write_text('RESULT = "/app/result.json"\n')
     return task
 
 
@@ -62,6 +65,70 @@ def test_separate_verifier_requires_artifacts(task: Path, capsys) -> None:
     finding, = json.loads(capsys.readouterr().out)
     assert (finding["rule"], finding["severity"]) == ("artifacts-declared", "error")
     assert finding["path"] == str(task / "task.toml")
+
+
+def test_separate_instruction_must_name_a_declared_artifact(task: Path) -> None:
+    (task / "instruction.md").write_text("Write /app/elsewhere.json.\n")
+    (task / "tests/verify.py").write_text('RESULT = "/app/result.json"\n')
+
+    (finding,) = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "artifacts-instructed",
+        "warning",
+        str(task / "instruction.md"),
+    )
+
+
+def test_separate_tests_must_name_a_declared_artifact(task: Path) -> None:
+    (task / "instruction.md").write_text("Write /app/result.json.\n")
+    (task / "tests/verify.py").write_text('print("checked")\n')
+
+    (finding,) = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "artifacts-verified",
+        "warning",
+        str(task / "tests"),
+    )
+
+
+def test_separate_verifier_cannot_read_an_undeclared_path(task: Path) -> None:
+    (task / "instruction.md").write_text("Write /app/result.json.\n")
+    (task / "tests/verify.py").write_text(
+        'RESULT = "/app/result.json"\nOTHER = "/app/other.json"\n'
+    )
+
+    (finding,) = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "verifier-reads-undeclared",
+        "warning",
+        str(task / "tests/verify.py"),
+    )
+    assert "/app/other.json" in finding.message
+
+
+def test_artifact_contract_accepts_declared_mentions(task: Path) -> None:
+    (task / "instruction.md").write_text("Write /app/result.json.\n")
+    (task / "tests/verify.py").write_text('RESULT = "/app/result.json"\n')
+
+    assert lint_task(task) == []
+    assert cli.run_cli(["tasks", "lint", str(task)], workspace=task.parent) == 0
+
+
+def test_artifact_contract_accepts_a_parent_directory_mention(task: Path) -> None:
+    (task / "instruction.md").write_text("Write the result in /app.\n")
+    (task / "tests/verify.py").write_text('ROOT = "/app"\n')
+
+    assert lint_task(task) == []
+
+
+def test_shared_mode_skips_the_artifact_contract(task: Path) -> None:
+    (task / "task.toml").write_text(
+        'artifacts = ["/app/result.json"]\n[verifier]\nenvironment_mode = "shared"\n'
+    )
+    (task / "instruction.md").write_text("Write the result.\n")
+    (task / "tests/verify.py").write_text('OTHER = "/app/other.json"\n')
+
+    assert [finding.rule for finding in lint_task(task)] == ["verifier-isolation"]
 
 
 @pytest.mark.parametrize(
@@ -104,14 +171,14 @@ def test_copy_of_existing_environment_tests_directory_is_agent_visible(task: Pat
     ],
 )
 def test_copy_sources_outside_the_build_context_still_flag(task: Path, instruction: str) -> None:
-    (task / "tests").mkdir()
+    (task / "tests").mkdir(exist_ok=True)
     (task / "environment/Dockerfile").write_text(f"FROM python:3.12\n{instruction}\n")
     finding, = lint_task(task)
     assert (finding.rule, finding.severity) == ("hidden-inputs-not-baked", "error")
 
 
 def test_environment_symlink_to_hidden_tests_dir_still_flags(task: Path) -> None:
-    (task / "tests").mkdir()
+    (task / "tests").mkdir(exist_ok=True)
     (task / "environment/tests").symlink_to(task / "tests")
     (task / "environment/Dockerfile").write_text(
         "FROM python:3.12\nCOPY tests /app/tests\n"
@@ -264,6 +331,7 @@ def test_discovery_reports_a_nested_package_error_from_the_root(
     (nested / "solution").mkdir(parents=True)
     (nested / "solution/solve.sh").write_text("#!/bin/sh\nexit 0\n")
     (nested / "tests").mkdir()
+    (nested / "tests/verify.py").write_text('RESULT = "/app/result.json"\n')
     (nested / "environment").mkdir()
     (nested / "environment/Dockerfile").write_text("FROM python:3.12\nCOPY tests /private\n")
     (nested / "task.toml").write_text(
@@ -385,7 +453,7 @@ def test_shell_files_are_skipped_when_bash_is_unavailable(
 
 
 def test_python_syntax_error_under_tests_is_reported(task: Path) -> None:
-    (task / "tests").mkdir()
+    (task / "tests").mkdir(exist_ok=True)
     module = task / "tests/test_broken.py"
     module.write_text("def broken(:\n")
 
@@ -396,7 +464,7 @@ def test_python_syntax_error_under_tests_is_reported(task: Path) -> None:
 
 
 def test_invalid_json_under_tests_is_reported(task: Path) -> None:
-    (task / "tests").mkdir()
+    (task / "tests").mkdir(exist_ok=True)
     cases = task / "tests/cases.json"
     cases.write_text('{"a": 1,}\n')
 
@@ -409,7 +477,7 @@ def test_invalid_json_under_tests_is_reported(task: Path) -> None:
 def test_well_formed_sources_report_nothing_and_write_nothing(task: Path) -> None:
     (task / "controls").mkdir()
     (task / "controls/positive.sh").write_text("#!/bin/sh\n# expect: 1\nexit 0\n")
-    (task / "tests").mkdir()
+    (task / "tests").mkdir(exist_ok=True)
     (task / "tests/conftest.py").write_text("import json\n")
     (task / "tests/cases.json").write_text('{"a": 1}\n')
     (task / "solution/helper.py").write_text("def collect():\n    return 1\n")

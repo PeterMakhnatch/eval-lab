@@ -25,7 +25,7 @@ from evallab.campaign_approval import (
 from evallab.dispatch_guards import SelfhostedProbeOutcome
 from evallab.modal_billing import BillingRow
 from evallab.modal_ops import MODAL_APP_NAME
-from evallab.queue import DirectoryQueue, Executor, load_events
+from evallab.queue import DirectoryQueue, Executor, PolicyGate, load_events
 from evallab.registry import compute_task_digests
 from evallab.schemas import (
     AutoRunRule,
@@ -625,6 +625,22 @@ def test_campaign_escalation_deduplicates_per_spec_and_reason(
     assert posted[0][:3] == ["lin", "comment", "HAR-175"]
 
 
+def test_campaign_immutable_after_approval(tmp_path: Path) -> None:
+    digest = seed_task(tmp_path)
+    make_campaign(tmp_path, digest)
+
+    frozen = tmp_path / "runs" / "campaigns" / CAMPAIGN_ID / "campaign.json"
+    raw = json.loads(frozen.read_text(encoding="utf-8"))
+    raw["budget_usd"] = 999.0
+    frozen.write_text(json.dumps(raw), encoding="utf-8")
+    with pytest.raises(cap.CampaignApprovalError) as excinfo:
+        cap.load_approved_campaign(tmp_path, CAMPAIGN_ID)
+    assert excinfo.value.reason_code == "campaign_content_changed"
+
+    gate = PolicyGate(policy(), repo_root=tmp_path)
+    refusal = cap.campaign_admission_refusal(gate, make_spec("campaign-tampered-a", digest))
+    assert refusal is not None
+    assert refusal.reason_code == "campaign_content_changed"
 
 
 def test_per_id_path_unchanged_without_campaign(tmp_path: Path) -> None:

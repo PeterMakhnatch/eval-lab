@@ -25,6 +25,7 @@ import pytest
 from evallab.spend_day import (
     day_to_window,
     session_spend_for_job,
+    sibling_worktree_roots,
     trial_daytona_resources,
     window_overlap_seconds,
 )
@@ -154,6 +155,48 @@ def test_trial_daytona_resources_resolution() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_sibling_worktree_roots_discovers_from_linked_worktree(tmp_path: Path) -> None:
+    """Linked worktrees must discover siblings through git common-dir (HAR-122)."""
+    import subprocess
+
+    primary = tmp_path / "repo-primary"
+    primary.mkdir()
+    subprocess.run(["git", "init", "-b", "main", str(primary)], check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(primary),
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@e",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "init",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    linked = tmp_path / "repo-worktree-a"
+    sibling = tmp_path / "repo-worktree-b"
+    subprocess.run(
+        ["git", "-C", str(primary), "worktree", "add", "-b", "branch-a", str(linked)],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(primary), "worktree", "add", "-b", "branch-b", str(sibling)],
+        check=True,
+        capture_output=True,
+    )
+
+    # Discovery from the LINKED worktree must find the sibling
+    roots = sibling_worktree_roots(linked)
+    assert sibling.resolve() in [r.resolve() for r in roots]
+    assert primary.resolve() in [r.resolve() for r in roots]
+    assert linked.resolve() not in [r.resolve() for r in roots]
 
 
 

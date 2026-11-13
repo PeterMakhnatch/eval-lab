@@ -26,7 +26,7 @@ from evallab.execution_contracts import (
     DispatchCapacity,
     RunRequest,
 )
-from evallab.profiles import DEEPSEEK_API_CREDENTIAL
+from evallab.profiles import DEEPSEEK_API_CREDENTIAL, ZAI_OPENAPI_API_CREDENTIAL
 from evallab.queue import DirectoryQueue, Executor, load_events, load_policy
 from evallab.registry import compute_task_digests
 from evallab.schemas import (
@@ -391,6 +391,45 @@ def _stage_manifest(root: Path, manifest: CampaignManifest, executor: Executor) 
     return manifest_path
 
 
+@pytest.mark.parametrize(
+    ("agent", "model", "credential"),
+    [
+        ("mini-swe-agent", DEEPSEEK_MODEL_SELECTOR, DEEPSEEK_API_CREDENTIAL),
+        ("terminus-2", "zai/glm-5.3-flash", ZAI_OPENAPI_API_CREDENTIAL),
+    ],
+)
+def test_billable_campaign_waits_for_approval_and_bare_tick_refuses(
+    tmp_path: Path,
+    agent: str,
+    model: str,
+    credential: str,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = _manifest(root, agent=agent, model=model)
+    calls: list[str] = []
+
+    def runner(request: RunRequest) -> Path:
+        calls.append(request.name)
+        return _write_job(request, cost=0.25, input_tokens=40, output_tokens=20)
+
+    executor = _executor(
+        root,
+        runner,
+        credentials=frozenset({credential}),
+    )
+    _stage_manifest(root, manifest, executor)
+
+    assert len(executor.queue.list_specs("waiting")) == 1
+    assert executor.queue.list_specs("approved") == []
+    assert executor.tick() == 0
+    assert calls == []
+
+    executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
+    assert len(executor.queue.list_specs("approved")) == 1
+    assert executor.tick() == 0
+    assert executor.last_tick_reason == "campaign_specs_require_campaign_resume"
+    assert calls == []
+    assert len(executor.queue.list_specs("approved")) == 1
 
 
 

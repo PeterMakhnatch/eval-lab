@@ -6,8 +6,6 @@ import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-import pytest
-
 from evallab.digest import DigestRenderer, DigestTrial, PendingDiscovery
 from evallab.preflight import build_preflight_report, render_preflight
 from evallab.queue import DirectoryQueue, provider_reported_exhaustion
@@ -17,7 +15,6 @@ from evallab.schemas import (
     QueueEvent,
     StandingApprovalsPolicy,
 )
-from evallab.status_generator import TrialSummary, generate_status_markdown
 from evallab.storm import StormAlarm
 
 #: Fixed instant. Every clock the renderers accept is this value.
@@ -360,30 +357,8 @@ def build_workspace(root: Path) -> DirectoryQueue:
     trial = make_paid_trial(root)
     add_quota_snapshot(trial, observed_at=NOW - timedelta(hours=2))
     queue = DirectoryQueue(root / "queue")
-    add_program_experiments(root)
     populate_queue(queue)
     return queue
-def add_program_experiments(root: Path) -> None:
-    program_path = root / "research/experiments/PROGRAM.json"
-    write_json(
-        program_path,
-        {
-            "experiments": [
-                {
-                    "id": "EXP-S01-canary-codex-k3",
-                    "research_question": (
-                        "Does Codex pass@3 on event-summary remain above baseline?"
-                    ),
-                    "status": "designed",
-                    "blocker": "none",
-                    "next_action": "Submit treatment spec",
-                    "notes": "Decision pending human review",
-                }
-            ]
-        },
-    )
-
-
 
 
 def frozen_preflight(root: Path):
@@ -443,29 +418,6 @@ def render_digest_text(root: Path, queue: DirectoryQueue) -> str:
 
 def render_preflight_text(root: Path) -> str:
     return normalize_rendered(render_preflight(frozen_preflight(root)), root)
-def render_status_text(root: Path) -> str:
-    rendered = generate_status_markdown(
-        root,
-        target_date=REPORT_DATE,
-        storm_loader=lambda day: [],
-        trial_loader=lambda day: [
-            TrialSummary(
-                job_name=t.job_name,
-                task_name=t.task_name,
-                agent_name=t.agent_name,
-                model_name=t.model_name,
-                reward=t.reward,
-                exception_type=t.exception_type,
-                cost_usd=t.cost_usd,
-                finished_at=t.finished_at,
-            )
-            for t in period_trials()
-        ]
-        if day == PERIOD_DATE
-        else [],
-    )
-    return normalize_rendered(rendered, root)
-
 
 
 def test_digest_rendering_is_stable_across_two_regenerations(tmp_path: Path) -> None:
@@ -482,39 +434,45 @@ def test_preflight_rendering_is_stable_across_two_regenerations(tmp_path: Path) 
     assert first == second
 
 
-def test_status_rendering_is_stable_across_two_regenerations(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    build_workspace(tmp_path)
-    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(tmp_path / "derived/parquet"))
-    first = render_status_text(tmp_path)
-    second = render_status_text(tmp_path)
-    assert "Submit treatment spec" in first
-    assert "Decision pending human review" in first
-    assert first == second
+def test_digest_storm_quiet_vs_active_vs_unavailable(tmp_path: Path) -> None:
+    queue = build_workspace(tmp_path)
 
-
-def test_status_rendering_storm_quiet_vs_active_vs_unavailable(tmp_path: Path) -> None:
-    build_workspace(tmp_path)
     # 1. Quiet state
-    quiet_md = generate_status_markdown(
-        tmp_path, target_date=REPORT_DATE, storm_loader=lambda d: []
+    renderer_quiet = DigestRenderer(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        trial_loader=trial_loader,
+        drift_loader=drift_on,
+        preflight_loader=lambda: frozen_preflight(tmp_path),
+        storm_loader=lambda _day: [],
+        discoveries_loader=lambda: [],
     )
-    assert "- Active storm alarms: 0 (quiet: no alarms in window)" in quiet_md
-    assert "STORM ALARM ACTIVE" not in quiet_md
+    quiet_md = renderer_quiet.write(report_date=REPORT_DATE).read_text()
+    assert "## Storm alarms" in quiet_md
+    assert "- Status: quiet (no reason_code storm detected in 1h window)" in quiet_md
 
     # 2. Unavailable state (loader raises)
-    def broken_loader(d: date) -> list[StormAlarm]:
+    def broken_loader(_day: date) -> list[StormAlarm]:
         raise RuntimeError("queue event scan timeout")
 
-    unavail_md = generate_status_markdown(
-        tmp_path, target_date=REPORT_DATE, storm_loader=broken_loader
+    renderer_unavail = DigestRenderer(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        trial_loader=trial_loader,
+        drift_loader=drift_on,
+        preflight_loader=lambda: frozen_preflight(tmp_path),
+        storm_loader=broken_loader,
+        discoveries_loader=lambda: [],
     )
+    unavail_md = renderer_unavail.write(report_date=REPORT_DATE).read_text()
+    assert "## Storm alarms" in unavail_md
     assert (
-        "- Active storm alarms: unavailable (RuntimeError: queue event scan timeout)"
-        in unavail_md
-    )
-    assert "STORM ALARM ACTIVE" not in unavail_md
+        "- Unavailable: storm alarms could not be evaluated "
+        "(RuntimeError: queue event scan timeout). "
+        "That is not a statement that no event storm occurred."
+    ) in unavail_md
 
     # 3. Active alarms state
     alarm = StormAlarm(
@@ -529,11 +487,19 @@ def test_status_rendering_storm_quiet_vs_active_vs_unavailable(tmp_path: Path) -
         last_occurred_at=datetime(2026, 8, 15, 12, 45, 0, tzinfo=UTC),
         recommended_action="Provider reports subscription allowance exhausted.",
     )
-    active_md = generate_status_markdown(
-        tmp_path, target_date=REPORT_DATE, storm_loader=lambda d: [alarm]
+    renderer_active = DigestRenderer(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        trial_loader=trial_loader,
+        drift_loader=drift_on,
+        preflight_loader=lambda: frozen_preflight(tmp_path),
+        storm_loader=lambda _day: [alarm],
+        discoveries_loader=lambda: [],
     )
-    assert "STORM ALARM ACTIVE" in active_md
-    assert "- Active storm alarms: 1 (active)" in active_md
+    active_md = renderer_active.write(report_date=REPORT_DATE).read_text()
+    assert "## Storm alarms" in active_md
+    assert "| CRITICAL | `subscription_quota_exhausted` | 8 (threshold > 5) |" in active_md
 
 
 def test_digest_discoveries_quiet_vs_loaded_vs_unavailable(tmp_path: Path) -> None:

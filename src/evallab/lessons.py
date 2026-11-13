@@ -1254,28 +1254,6 @@ def render_lessons_markdown(result: LessonsResult) -> str:
     return "\n".join(lines)
 
 
-def generate_lessons_file(
-    root: Path,
-    output_path: Path | None = None,
-    *,
-    power_threshold: int = DEFAULT_POWER_THRESHOLD,
-    sql_path: Path | None = None,
-    generated_at: datetime | None = None,
-) -> Path:
-    """Generate research/lessons.md from repository evidence."""
-    target = output_path if output_path is not None else root / "research/lessons.md"
-    result = build_lessons(
-        root,
-        power_threshold=power_threshold,
-        sql_path=sql_path,
-        generated_at=generated_at,
-    )
-    markdown = render_lessons_markdown(result)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(markdown, encoding="utf-8")
-    return target
-
-
 def check_lessons_freshness(root: Path, target: Path | None = None) -> bool:
     """Return whether committed lessons exactly match current source inputs."""
     lessons_path = target if target is not None else root / "research/lessons.md"

@@ -381,28 +381,6 @@ def detect_storm_alarms(
     return alarms
 
 
-def render_storm_banner(alarms: Sequence[StormAlarm]) -> str:
-    """Render a visible Markdown alert banner for active storm alarms."""
-    if not alarms:
-        return ""
-
-    lines: list[str] = [
-        "> ⚠️ **STORM ALARM ACTIVE** — Multiple event storms detected in queue log (>N/hour):",
-        ">",
-    ]
-    for alarm in alarms:
-        level_icon = "🚨" if alarm.is_critical else "⚠️"
-        lines.extend(
-            [
-                f"> {level_icon} **{alarm.alarm_level.upper()}**: `{alarm.reason_code}` — "
-                f"**{alarm.count}** events within 1h window (threshold > {alarm.threshold}).",
-                f">   *Recommended Action:* {alarm.recommended_action}",
-                ">",
-            ]
-        )
-    return "\n".join(lines).rstrip() + "\n"
-
-
 def digest_storm_section(alarms: Sequence[StormAlarm]) -> list[str]:
     """Generate Markdown lines for embedding storm alarm checks in nightly digests."""
     if not alarms:

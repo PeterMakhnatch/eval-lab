@@ -500,60 +500,6 @@ def plan_gc(
     return plan
 
 
-def format_plan(plan: GcPlan) -> str:
-    lines = [
-        f"gc plan: {len(plan.actions)} action(s), "
-        f"{len(plan.skipped)} skipped, reclaim={plan.reclaim_bytes} bytes"
-    ]
-    if plan.empty_reason:
-        lines.append(f"empty: {plan.empty_reason}")
-    for action in plan.actions:
-        lines.append(
-            f"  {action.action:8} {action.job_name}  id={action.job_id}  "
-            f"age={action.age_days:.1f}d  bytes={action.size_bytes}  {action.reason}"
-        )
-    for skip in plan.skipped:
-        lines.append(f"  skip     {skip.job_name}  {skip.reason}")
-    return "\n".join(lines)
-
-
-def append_gc_plan_to_digest(digest_path: Path, plan: GcPlan) -> None:
-    section = [
-        "",
-        "## GC would reclaim",
-        "",
-        "Nightly runs `evallab gc` in plan-only mode. Apply stays human-triggered.",
-        "",
-        f"- Actions: {len(plan.actions)}",
-        f"- Skipped: {len(plan.skipped)}",
-        f"- Would reclaim: {plan.reclaim_bytes} bytes",
-    ]
-    if plan.empty_reason:
-        section.append(f"- {plan.empty_reason}")
-    for action in plan.actions:
-        section.append(
-            f"- WOULD {action.action} `{action.job_name}` "
-            f"({action.age_days:.1f}d, {action.size_bytes} bytes) — {action.why}"
-        )
-    section.append("")
-    existing = digest_path.read_text() if digest_path.is_file() else ""
-    if "## GC would reclaim" in existing:
-        prefix = existing.split("## GC would reclaim", 1)[0].rstrip() + "\n"
-        digest_path.write_text(prefix + "\n".join(section[1:]))
-        return
-    digest_path.write_text(existing.rstrip() + "\n" + "\n".join(section))
-
-
-def nightly_gc_plan(
-    repo_root: Path,
-    *,
-    clock: Clock = utcnow,
-    catalog: CatalogStore | None = None,
-    runs_dir: Path | None = None,
-) -> GcPlan:
-    return plan_gc(repo_root=repo_root, runs_dir=runs_dir, clock=clock, catalog=catalog)
-
-
 def doctor_disk_line(
     repo_root: Path,
     *,

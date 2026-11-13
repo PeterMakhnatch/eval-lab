@@ -59,7 +59,7 @@ from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from evallab.campaign_execution import CampaignExecutionPolicy, validate_qualification
+from evallab.campaign_execution import CampaignExecutionPolicy
 from evallab.results import JobRecord, TrialRecord, load_job
 from evallab.schemas import (
     ContractModel,
@@ -387,19 +387,6 @@ def campaigns_root(repo_root: Path) -> Path:
     return repo_root.resolve() / CAMPAIGN_STATE_ROOT
 
 
-def write_campaign(repo_root: Path, campaign: ExperimentCampaign) -> Path:
-    """Freeze a draft campaign file. Refused once the campaign is approved."""
-    target_dir = campaign_dir(repo_root, campaign.campaign_id)
-    approvals_path = target_dir / APPROVALS_FILENAME
-    if approvals_path.is_file() and approvals_path.stat().st_size > 0:
-        raise CampaignApprovalError(
-            REASON_CONTENT_CHANGED,
-            f"campaign {campaign.campaign_id} is already approved; its content is immutable",
-        )
-    target_dir.mkdir(parents=True, exist_ok=True)
-    path = target_dir / CAMPAIGN_FILENAME
-    path.write_text(campaign.model_dump_json(indent=2) + "\n", encoding="utf-8")
-    return path
 
 
 def load_campaign(repo_root: Path, campaign_id: str) -> ExperimentCampaign:
@@ -435,42 +422,6 @@ def read_approvals(repo_root: Path, campaign_id: str) -> list[CampaignApprovalRe
     return records
 
 
-def approve_campaign(
-    repo_root: Path,
-    campaign_id: str,
-    *,
-    actor: str,
-    approved_at: datetime | None = None,
-) -> CampaignApprovalRecord:
-    """Record the once-approval by a named delegate (Research-Harbor).
-
-    The approval binds the content digest: later content changes invalidate
-    it. A second approval is refused; approval is once per campaign.
-    """
-    if not actor.strip():
-        raise CampaignApprovalError(
-            REASON_CONTENT_CHANGED, "approval actor is required and never defaulted"
-        )
-    campaign = load_campaign(repo_root, campaign_id)
-    if campaign.execution is not None and campaign.execution.qualification is not None:
-        validate_qualification(campaign.execution.qualification, repo_root=repo_root)
-    existing = read_approvals(repo_root, campaign_id)
-    if existing:
-        raise CampaignApprovalError(
-            REASON_CONTENT_CHANGED,
-            f"campaign {campaign_id} was already approved by {existing[0].actor} "
-            f"at {existing[0].approved_at.isoformat()}; approval is once per campaign",
-        )
-    record = CampaignApprovalRecord(
-        campaign_id=campaign.campaign_id,
-        content_digest=campaign_content_digest(campaign),
-        actor=actor,
-        approved_at=approved_at or datetime.now(UTC),
-    )
-    path = campaign_dir(repo_root, campaign_id) / APPROVALS_FILENAME
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(record.model_dump_json() + "\n")
-    return record
 
 
 def load_approved_campaign(
@@ -1125,43 +1076,6 @@ def _reservation_usd(raw: Mapping[str, Any], campaign: ExperimentCampaign) -> fl
     return estimate
 
 
-def campaign_budget_bound(
-    repo_root: Path,
-    campaign_id: str,
-    *,
-    campaign: ExperimentCampaign | None = None,
-) -> dict[str, float | int]:
-    """Printable overrun for reservations below the per-trial worst ceiling.
-
-    In-flight reservations use expected wave cost so concurrency is not
-    throttled. Conditional on trials settling within HAR-168's $0.60 resource
-    envelope (or a larger declared ceiling), the extra exposure is the sum of
-    positive ``worst_ceiling - reservation`` gaps for all in-flight trials.
-    """
-    loaded = campaign if campaign is not None else load_campaign(repo_root, campaign_id)
-    if loaded.campaign_id != campaign_id:
-        raise ValueError("campaign draft does not match campaign_id")
-    specs = _queue_meter_specs(repo_root.resolve())
-    trials = 0
-    reserved = worst = gap = 0.0
-    for state, raw in specs:
-        if raw.get("campaign_id") != campaign_id or state not in RESERVED_STATES:
-            continue
-        attempts = raw.get("attempts", 1)
-        count = attempts if isinstance(attempts, int) and attempts > 0 else 1
-        trials += count
-        hold = _reservation_usd(raw, loaded)
-        ceiling = count * max(HAR168_TRIAL_CEILING_USD, _usd(raw.get("cost_limit_usd")) or 0.0)
-        reserved += hold
-        worst += ceiling
-        gap += max(0.0, ceiling - hold)
-    return {
-        "in_flight_trials": int(trials),
-        "in_flight_reserved_usd": reserved,
-        "in_flight_worst_case_usd": worst,
-        "overrun_bound_usd": gap,
-        "realized_spend_bound_usd": loaded.budget_usd + gap,
-    }
 
 
 def _read_meter_json(path: Path) -> dict[str, Any]:
@@ -1815,74 +1729,5 @@ def _job_has_infra_excluded_trial(repo_root: Path, spec: ExperimentSpec) -> bool
     return any(trial_is_infra_excluded(trial.result, trial.rewards) for trial in job.trials)
 
 
-def validate_floor_against_reference(repo_root: Path, campaign: ExperimentCampaign) -> list[str]:
-    """Backstop check: the floor must not bind before the reference limits.
-
-    Reuses the HAR-156 ceiling comparison (same references, same direction):
-    a floor below a sourced reference budget is an error, not a deviation.
-    """
-    from evallab.setup_fingerprint import (
-        CEILING_REFERENCES,
-        _reference_value,
-        load_reference_profile,
-    )
-
-    profile = load_reference_profile(repo_root, campaign.reference_profile)
-    errors: list[str] = []
-    floor_map = {
-        "budgets.max_requests": campaign.ceiling_floor.max_requests,
-        "budgets.max_input_tokens": campaign.ceiling_floor.max_input_tokens,
-        "budgets.max_output_tokens": campaign.ceiling_floor.max_output_tokens,
-        "budgets.max_total_tokens": campaign.ceiling_floor.max_total_tokens,
-        "budgets.cost_limit_usd": campaign.ceiling_floor.cost_limit_usd,
-    }
-    for field, reference_field in CEILING_REFERENCES.items():
-        floor_value = floor_map[field]
-        if floor_value is None:
-            continue
-        expected, sourced, source = _reference_value(profile, reference_field)
-        if not sourced or expected is None:
-            continue
-        if floor_value < expected:
-            errors.append(
-                f"{field}: campaign floor {floor_value!r} binds before reference "
-                f"{expected!r} (source: {source})"
-            )
-    return errors
 
 
-def validate_campaign_content(repo_root: Path, campaign: ExperimentCampaign) -> list[str]:
-    """Every static defect in a campaign file, for validate/preflight.
-
-    Checks the reference profile exists, the pinned sampling matches the
-    pinned model, the queue cwd exists, and the backstop floor against the
-    reference (HAR-156 comparison). Admission itself is checked per spec.
-    """
-    errors: list[str] = []
-    manifest_error = _serving_manifest_error(campaign, repo_root)
-    if manifest_error:
-        errors.append(manifest_error)
-    try:
-        from evallab.setup_fingerprint import load_reference_profile
-
-        load_reference_profile(repo_root, campaign.reference_profile)
-    except (OSError, ValueError, KeyError) as exc:
-        errors.append(f"reference_profile {campaign.reference_profile!r}: {exc}")
-    if intended_sampling(campaign.agent, campaign.model) != campaign.sampling:
-        errors.append(
-            f"sampling {campaign.sampling.model_dump(mode='json')} does not match "
-            f"agent {campaign.agent!r} model {campaign.model!r} "
-            "(pin what that agent+model actually sends)"
-        )
-    if not Path(campaign.queue_cwd).is_dir():
-        errors.append(f"queue_cwd {campaign.queue_cwd!r} is not a directory")
-    try:
-        errors.extend(validate_floor_against_reference(repo_root, campaign))
-    except (OSError, ValueError, KeyError) as exc:
-        errors.append(f"ceiling floor comparison failed: {exc}")
-    if campaign.execution is not None and campaign.execution.qualification is not None:
-        try:
-            validate_qualification(campaign.execution.qualification, repo_root=repo_root)
-        except (OSError, ValueError, TypeError, KeyError) as exc:
-            errors.append(f"setup qualification: {exc}")
-    return errors

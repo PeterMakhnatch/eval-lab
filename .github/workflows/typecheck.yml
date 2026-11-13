@@ -63,7 +63,7 @@ jobs:
         with:
           path: ~/.cache/uv
           key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-ty-${{ hashFiles('uv.lock', '.github/workflows/typecheck.yml') }}
-          restore-keys: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-test-${{ hashFiles('uv.lock', '.github/workflows/ci.yml') }}
+          restore-keys: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-test-${{ hashFiles('uv.lock', 'tools/mimoagent-harbor/uv.lock', '.github/workflows/ci.yml') }}
       - run: uv sync --locked
 
       - name: ty check

@@ -66,7 +66,7 @@ trigger and dependency handling fail closed, including merge-group support.
 | Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |
 | Lessons freshness | `uv run python -m evallab.lessons` | locked; statistical lessons lineage |
 | Tests | `uv run pytest` (CI: `--shard ${{ matrix.shard }}`) | locked pytest; four-shard matrix on Python 3.12 for pull requests (`test (3.12, 1/4)` to `test (3.12, 4/4)`); two-shard matrix on Python 3.12 and 3.14 (`test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)`) on push, merge-group and manual runs. `tests/test_quality_gates.py` proves that each shard list is a complete partition. |
-| Native Harbor verification | After the base suite, each shard installs the locked `laminar` extra, checks `harbor.job_diff`, and syncs `tools/mimoagent-harbor` with Python 3.12. It prepares pinned Harbor source for RewardKit, then runs the native file inventory. Its JUnit census rejects Harbor-named skips. The inventory coverage gate remains until full native discovery is safe. | Python 3.12 on pull requests; Python 3.12 and 3.14 on push, merge-group and manual runs; every shard |
+| Native Harbor verification | After the base suite, each shard installs the locked `laminar` extra, checks `harbor.job_diff`, and syncs `tools/mimoagent-harbor` with Python 3.12. It prepares pinned Harbor source for RewardKit, then runs the native file inventory with `-n 2 --dist load`. Item-level scheduling splits the isolated native worker cases across 2 processes; the base suite keeps its existing scheduler. Its JUnit census rejects Harbor-named skips. The inventory coverage gate remains until full native discovery is safe. | Python 3.12 on pull requests; Python 3.12 and 3.14 on push, merge-group and manual runs; every shard |
 | Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate (runs before tests in premerge) |
 
 The full suite writes `full-suite.xml`; its census reports skips without rejecting
@@ -88,7 +88,8 @@ Python, uv version, dependency profile, lock digest and defining workflow.
 Separate writer keys prevent the smaller lint install from occupying an
 immutable test-cache entry; workflow hashes also bind dependency groups and the
 pinned typechecker. Lint and typecheck may seed a miss from the matching test
-cache, but save only to their own keys. No project `.venv` is cached. Locked
+cache, but save only to their own keys. Both fallback digests include the worker
+lockfile, matching the test cache writer. No project `.venv` is cached. Locked
 sync, all checks and every test shard still run on a cache hit. Cache-transfer
 segments abort after two minutes; existing job caps are unchanged. On
 cancellation, inspect setup and checker/test durations separately before

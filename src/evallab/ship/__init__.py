@@ -88,7 +88,7 @@ class Ship:
         return pr
 
     def guard(self, pr: dict[str, Any]) -> None:
-        for key in ("headRefOid", "baseRefName", "baseRefOid"):
+        for key in ("headRefOid", "baseRefName"):
             if pr[key] != self.data["pr"][key]:
                 raise Blocked(f"PR {key} moved: {self.data['pr'][key]} -> {pr[key]}; start a new head receipt")
         if pr["state"] != "OPEN" or pr["isDraft"] or pr["mergeable"] != "MERGEABLE":
@@ -135,14 +135,17 @@ class Ship:
             self.save("checkout-removed", active_checkout=None)
 
     def gates(self, pr: dict[str, Any]) -> None:
-        if self.data.get("gates_head") == pr["headRefOid"]:
+        self.run(["git", "fetch", "origin", pr["baseRefName"]])
+        base = self.run(["git", "rev-parse", f"origin/{pr['baseRefName']}"]).stdout.strip()
+        inputs = {"head": pr["headRefOid"], "base": base}
+        if self.data.get("gates_inputs") == inputs:
             return
-        # Read gate policy from the base so a PR cannot remove its own gate.
-        present = self.run(["git", "ls-tree", "--name-only", f"origin/{pr['baseRefName']}",
+        # Pin policy and replay inputs to current main, not the PR's baseRefOid.
+        present = self.run(["git", "ls-tree", "--name-only", base,
                             "--", "agents/ship-gates.toml"]).stdout.strip()
         gates: list[dict[str, Any]] = []
         if present:
-            config = self.run(["git", "show", f"origin/{pr['baseRefName']}:agents/ship-gates.toml"])
+            config = self.run(["git", "show", f"{base}:agents/ship-gates.toml"])
             gates = tomllib.loads(config.stdout).get("gate", [])
         # New gates apply to their registration PR too. Candidate policy can
         # only add names; the base definition always wins for existing gates.
@@ -160,13 +163,68 @@ class Ship:
             with self.checkout(pr["headRefOid"], "gate") as tree:
                 for gate in selected:
                     env = {**os.environ, "EVALLAB_SHIP_HEAD": pr["headRefOid"],
-                           "EVALLAB_SHIP_BASE": pr["baseRefOid"], "EVALLAB_SHIP_PR": str(self.pr)}
+                           "EVALLAB_SHIP_BASE": base, "EVALLAB_SHIP_PR": str(self.pr)}
                     result = self.run(gate["command"], cwd=tree, env=env, check=False,
                                       timeout=self.timeout)
                     if result.returncode:
                         raise Blocked(f"gate {gate['name']}: {'blocked' if result.returncode == 1 else 'error'} "
                                       f"(exit {result.returncode})\n{result.stdout[-2000:]}")
-        self.save("gates-passed", gates_head=pr["headRefOid"], gates=[g["name"] for g in selected])
+        self.save("gates-passed", gates_inputs=inputs, gates=[g["name"] for g in selected])
+
+    def retarget(self) -> str | None:
+        owner, name = self.repo.split("/")
+        result = json.loads(self.gh("api", "graphql", "-f", "query="
+            "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){"
+            "pullRequest(number:$number){timelineItems(last:1,itemTypes:[BASE_REF_CHANGED_EVENT]){"
+            "nodes{... on BaseRefChangedEvent{createdAt}}}}}}",
+            "-f", f"owner={owner}", "-f", f"name={name}", "-F", f"number={self.pr}").stdout)
+        events = result["data"]["repository"]["pullRequest"]["timelineItems"]["nodes"]
+        return events[0]["createdAt"] if events else None
+
+    def verify_run(self, run_id: str, pr: dict[str, Any], retarget: str | None) -> dict[str, Any]:
+        run = json.loads(self.gh("api", f"repos/{self.repo}/actions/runs/{run_id}").stdout)
+        if (run["head_sha"] != pr["headRefOid"] or run["event"] != "pull_request"
+                or run["head_branch"] != pr["headRefName"]):
+            raise Blocked("CI run does not prove this pull-request head")
+        if run["status"] != "completed" or run["conclusion"] != "success":
+            raise Blocked("CI workflow is not complete and successful")
+        # Rerunning an old workflow does not create a new retarget event payload.
+        if retarget and run["created_at"] <= retarget:
+            raise Blocked("CI run predates the latest PR base retarget")
+        associations = [row for row in run["pull_requests"] if row["number"] == self.pr
+                        and row["head"]["sha"] == pr["headRefOid"]
+                        and row["base"]["ref"] == pr["baseRefName"]
+                        and row["base"]["repo"]["url"] == f"https://api.github.com/repos/{self.repo}"
+                        and row["head"]["repo"]["url"] == f"https://api.github.com/repos/{self.repo}"]
+        if not associations:
+            raise Blocked("CI run does not prove this PR and target base branch")
+        tested: set[tuple[str, str, str]] = set()
+        checkout_attempts = []
+        # A failed-jobs rerun can execute only a gate, without another checkout.
+        # Earlier attempts share this exact head and PR event, not a new retarget.
+        for attempt in range(1, run["run_attempt"] + 1):
+            logs = self.gh("run", "view", run_id, "--repo", self.repo,
+                           "--attempt", str(attempt), "--log").stdout
+            checkouts = re.findall(
+                r"HEAD is now at ([0-9a-f]+) Merge ([0-9a-f]{40}) into ([0-9a-f]{40})(?:\r?\n|$)", logs)
+            if checkouts:
+                checkout_attempts.append(attempt)
+                tested.update(checkouts)
+        if not tested:
+            raise Blocked("CI run has no tested PR merge checkout evidence")
+        merges = []
+        for short, head, base in sorted(tested):
+            if head != pr["headRefOid"]:
+                raise Blocked("CI tested merge has a stale PR head")
+            commit = json.loads(self.gh("api", f"repos/{self.repo}/commits/{short}").stdout)
+            if not commit["sha"].startswith(short) or [p["sha"] for p in commit["parents"]] != [base, head]:
+                raise Blocked("CI tested merge does not combine the recorded base and head")
+            self.run(["git", "fetch", "origin", base])
+            self.run(["git", "merge-base", "--is-ancestor", base, f"origin/{pr['baseRefName']}"])
+            merges.append({"commit": commit["sha"], "head": head, "base": base})
+        run["checkout_attempts"] = checkout_attempts
+        run["tested_merges"] = merges
+        return run
 
     def checks(self, required: set[str]) -> None:
         deadline = time.monotonic() + self.timeout
@@ -223,6 +281,7 @@ class Ship:
                             raise Blocked("Rerun did not start before timeout")
                         time.sleep(self.poll)
             elif not missing and not pending:
+                retarget = self.retarget()
                 runs = {}
                 for row in checks:
                     match = re.search(r"/actions/runs/(\d+)", row.get("detailsUrl", ""))
@@ -231,15 +290,9 @@ class Ship:
                         raise Blocked(f"Required check {name} has no GitHub Actions PR run")
                     if not match or match[1] in runs:
                         continue
-                    run = json.loads(self.gh("run", "view", match[1], "--repo", self.repo,
-                        "--json", "headSha,event,headBranch,status,conclusion,jobs,url,attempt").stdout)
-                    if run["headSha"] != pr["headRefOid"] or run["event"] != "pull_request":
-                        raise Blocked("CI run does not prove this pull-request head")
-                    if run["status"] != "completed" or run["conclusion"] != "success":
-                        raise Blocked("CI workflow is not complete and successful")
-                    runs[match[1]] = run
+                    runs[match[1]] = self.verify_run(match[1], pr, retarget)
                 self.save("ci-runs-verified", ci_runs=runs)
-                self.save("checks-passed", checked_head=pr["headRefOid"], checks=checks)
+                self.save("checks-passed", checked_head=pr["headRefOid"], checked_retarget=retarget, checks=checks)
                 print("successful checks: " + ", ".join(sorted(passed)), flush=True)
                 return
             else:
@@ -277,14 +330,23 @@ class Ship:
             self.guard(pr)
             pr["files"] = self.data["pr"]["files"]
             self.run(["git", "fetch", "origin", f"pull/{self.pr}/head"])
-            self.run(["git", "merge-base", "--is-ancestor", pr["baseRefOid"], pr["headRefOid"]])
-            self.gates(pr)
             self.checks(self.required(pr["baseRefName"]))
+            self.gates(pr)
             self.guard(self.view())
             # A dirty/in-use tree must not lose even its remote branch.
             plan = inspect_cleanup(self, pr)
             self.save("cleanup-preflight", cleanup_plan=plan)
-            self.guard(self.view())
+            latest = self.view()
+            self.guard(latest)
+            if (sorted(json.dumps(row, sort_keys=True) for row in latest.get("statusCheckRollup") or [])
+                    != sorted(json.dumps(row, sort_keys=True) for row in self.data["checks"])):
+                raise Blocked("Reported checks changed after CI verification; repeat ship")
+            self.run(["git", "fetch", "origin", pr["baseRefName"]])
+            base = self.run(["git", "rev-parse", f"origin/{pr['baseRefName']}"]).stdout.strip()
+            if base != self.data["gates_inputs"]["base"]:
+                raise Blocked("Gate base moved; repeat ship to refresh current-base gates without rebasing")
+            if self.retarget() != self.data["checked_retarget"]:
+                raise Blocked("PR base retargeted after CI verification")
             self.save("merge-requested", merge_attempted=True)
             self.gh("pr", "merge", str(self.pr), "--repo", self.repo, "--squash", "--delete-branch",
                     "--match-head-commit", pr["headRefOid"], check=False)

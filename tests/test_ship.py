@@ -15,13 +15,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from evallab.ship import cleanup, run_command
+from evallab.ship import Ship, cleanup, run_command
 
 
 @pytest.fixture
 def delivery(tmp_path, monkeypatch):
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_AUTHOR_DATE", "2026-11-13T00:00:00Z")
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-11-13T00:00:00Z")
     root = tmp_path / "repo"
     root.mkdir()
     origin = tmp_path / "origin.git"
@@ -342,3 +344,168 @@ def test_killed_smoke_resumes_its_checkout_without_remerging(delivery):
     assert json.loads(state.read_text())["merges"] == 1
     assert not checkout.exists()
     assert "detached" not in git("worktree", "list", "--porcelain")
+
+
+@pytest.mark.parametrize("tested_current_base", [False, True])
+def test_main_advancement_needs_no_rebase_or_new_ci(delivery, tested_current_base):
+    args, root, tree, state, git, change = delivery
+    pr = json.loads(state.read_text())["pr"]
+    head, old_base = pr["headRefOid"], pr["baseRefOid"]
+    (root / "other.txt").write_text("main moves independently\n")
+    git("add", "other.txt")
+    git("commit", "-m", "advance main")
+    git("push", "origin", "main")
+    current = git("rev-parse", "main")
+    pr["baseRefOid"] = current
+    change(pr=pr, tested_base=current if tested_current_base else old_base, event_base=old_base)
+    assert run_command(args, root) == 0
+    receipt = json.loads((args.state_dir / "42.json").read_text())
+    assert receipt["checked_head"] == head
+    assert receipt["ci_runs"]["123"]["tested_merges"][0]["base"] == (
+        current if tested_current_base else old_base)
+    assert receipt["gates_inputs"] == {"head": head, "base": current}
+    assert not tree.exists()
+    assert not any(call[:2] == ["run", "rerun"] for call in json.loads(state.read_text())["calls"])
+
+
+@pytest.mark.parametrize("hazard", [
+    "head", "event", "branch", "base", "association", "retarget", "merge_head", "merge_missing", "merge_base",
+    "merge_parents",
+])
+def test_stale_or_wrong_combined_evidence_never_merges(delivery, hazard):
+    args, root, tree, state, git, change = delivery
+    pr = json.loads(state.read_text())["pr"]
+    if hazard == "head":
+        change(run_override={"head_sha": "b" * 40})
+    elif hazard == "event":
+        change(run_override={"event": "workflow_dispatch"})
+    elif hazard == "branch":
+        change(run_override={"head_branch": "other-topic"})
+    elif hazard in {"base", "association"}:
+        repo = {"url": "https://api.github.com/repos/test/lab"}
+        change(run_override={"pull_requests": [{
+            "number": 43 if hazard == "association" else 42,
+            "head": {"sha": pr["headRefOid"], "repo": repo},
+            "base": {"ref": "stack" if hazard == "base" else "main", "sha": pr["baseRefOid"], "repo": repo},
+        }]})
+    elif hazard == "retarget":
+        # Retargeting away and back invalidates an old run, including a rerun.
+        change(retarget="2026-11-13T12:01:00Z", attempt=2)
+    elif hazard == "merge_head":
+        change(tested_head=pr["baseRefOid"])
+    elif hazard == "merge_missing":
+        change(run_log="no merge checkout evidence\n")
+    elif hazard == "merge_parents":
+        change(commit_override={"parents": [{"sha": pr["headRefOid"]}, {"sha": pr["baseRefOid"]}]})
+    else:
+        git("checkout", "-b", "other-base")
+        git("commit", "--allow-empty", "-m", "unrelated base advancement")
+        base = git("rev-parse", "HEAD")
+        git("push", "origin", "other-base")
+        change(tested_base=base)
+    assert run_command(args, root) == 1
+    assert not json.loads(state.read_text()).get("merges")
+    assert tree.exists()
+
+
+def test_base_retarget_during_delivery_never_merges(delivery, monkeypatch):
+    args, root, tree, state, _, _ = delivery
+    original = Ship.view
+    views = []
+    def view(ship):
+        pr = original(ship)
+        views.append(pr)
+        if len(views) >= 2:
+            pr["baseRefName"] = "stack"
+        return pr
+    monkeypatch.setattr(Ship, "view", view)
+    assert run_command(args, root) == 1
+    assert "baseRefName moved" in json.loads((args.state_dir / "42.json").read_text())["error"]
+    assert not json.loads(state.read_text()).get("merges")
+    assert tree.exists()
+
+
+@pytest.mark.parametrize("block_changed_base", [False, True])
+def test_gate_restart_reuses_only_unchanged_current_base(delivery, block_changed_base):
+    args, root, tree, state, git, _ = delivery
+    counter = state.parent / "gate-bases.txt"
+    command = [sys.executable, "-c",
+               f"import os, sys; from pathlib import Path; p=Path({str(counter)!r}); "
+               "previous=p.read_text().splitlines() if p.exists() else []; "
+               "base=os.environ['EVALLAB_SHIP_BASE']; p.open('a').write(base+'\\n'); "
+               f"sys.exit(int(bool(previous) and previous[0] != base and {block_changed_base!r}))"]
+    (root / "agents/ship-gates.toml").write_text(
+        '[[gate]]\nname = "consumer"\npaths = ["consumer.*"]\n'
+        f"command = {json.dumps(command)}\n")
+    git("commit", "-am", "current base gate")
+    git("push", "origin", "main")
+    first_base = git("rev-parse", "main")
+    blocker = tree / "untracked.txt"
+    blocker.write_text("preserve work\n")
+    assert run_command(args, root) == 1
+    assert counter.read_text().splitlines() == [first_base]
+    assert run_command(args, root) == 1
+    assert counter.read_text().splitlines() == [first_base]
+    git("commit", "--allow-empty", "-m", "new replay base")
+    git("push", "origin", "main")
+    current = git("rev-parse", "main")
+    blocker.unlink()
+    assert run_command(args, root) == (1 if block_changed_base else 0)
+    assert counter.read_text().splitlines() == [first_base, current]
+    assert json.loads(state.read_text()).get("merges", 0) == (0 if block_changed_base else 1)
+    assert tree.exists() == block_changed_base
+
+
+def test_base_movement_after_gate_blocks_then_recovers_without_rebase(delivery, monkeypatch):
+    args, root, tree, state, git, _ = delivery
+    original = Ship.gates
+    moved = []
+    def gates(ship, pr):
+        original(ship, pr)
+        if not moved:
+            git("commit", "--allow-empty", "-m", "main advances during gate")
+            git("push", "origin", "main")
+            moved.append(True)
+    monkeypatch.setattr(Ship, "gates", gates)
+    assert run_command(args, root) == 1
+    assert "Gate base moved" in json.loads((args.state_dir / "42.json").read_text())["error"]
+    assert not json.loads(state.read_text()).get("merges")
+    assert tree.exists()
+    assert run_command(args, root) == 0
+    assert json.loads(state.read_text())["merges"] == 1
+
+
+@pytest.mark.parametrize("hazard", ["retarget", "pending"])
+def test_new_remote_evidence_after_gate_blocks_merge(delivery, monkeypatch, hazard):
+    args, root, tree, state, _, change = delivery
+    original = Ship.gates
+    def gates(ship, pr):
+        original(ship, pr)
+        if hazard == "retarget":
+            change(retarget="2026-11-13T12:01:00Z")
+        else:
+            current = json.loads(state.read_text())["pr"]
+            current["statusCheckRollup"].append({"name": "new-check", "status": "IN_PROGRESS"})
+            change(pr=current)
+    monkeypatch.setattr(Ship, "gates", gates)
+    assert run_command(args, root) == 1
+    assert not json.loads(state.read_text()).get("merges")
+    assert tree.exists()
+
+
+def test_gate_only_ci_rerun_keeps_exact_event_checkout_evidence(delivery):
+    args, root, _, state, _, change = delivery
+    change(attempt=2, attempt_logs={"2": "quality-required succeeded; no checkout job reran\n"})
+    assert run_command(args, root) == 0
+    receipt = json.loads((args.state_dir / "42.json").read_text())
+    run = receipt["ci_runs"]["123"]
+    assert run["checkout_attempts"] == [1]
+    assert run["tested_merges"][0]["head"] == receipt["pr"]["headRefOid"]
+    assert json.loads(state.read_text())["merges"] == 1
+
+
+def test_fresh_ci_after_retarget_can_merge(delivery):
+    args, root, _, state, _, change = delivery
+    change(retarget="2026-11-13T12:01:00Z", run_override={"created_at": "2026-11-13T12:01:01Z"})
+    assert run_command(args, root) == 0
+    assert json.loads(state.read_text())["merges"] == 1

@@ -582,8 +582,18 @@ This command checks verifier separation, declared artifacts, solution presence,
 control expectation headers, and hidden inputs in Docker `COPY`/`ADD` operands.
 Operands are resolved against the task's `environment/` build context: a source
 that names `tests` or `solution` but leaves that context, follows a symlink out of
-it, or matches nothing inside it is an error. It reports unsupported syntax instead
-of silently accepting unreadable instructions.
+it, or matches nothing inside it is an error. It reports unsupported syntax
+instead of silently accepting unreadable instructions.
+
+Every Dockerfile under `environment/` (including nested build contexts such as
+`environment/runtime-server/`) and under `tests/` also gets two reproducibility
+warnings. `unpinned-image` fires when a `FROM` names no `@sha256:` digest, because
+a tag can move to other image bytes. `unpinned-clone` fires when a `RUN` contains
+`git clone` without a full 40-hex commit, because a branch or tag head can move.
+`FROM scratch` and a reference to an earlier stage name do not warn. A base image
+named by a build argument resolves only during the build, so that `FROM` warns and
+says it cannot be checked. Backslash continuations are joined before matching, and
+both warnings leave the exit code at 0.
 
 It also parses task sources without executing or writing them, and reports a
 `sources-parse` error that names the file and the parser message: `bash -n` on

@@ -83,11 +83,6 @@ It does not change an existing `review` or `drop` action.
 Setting both `task_action` and a different `task_policy.weak` is refused. Missing
 evidence is reported as `uncertified`, not promoted to certified.
 
-**Peter's decision, 2026-11-04:**
-
-> Peter 2026-11-04: keep #1830. It is a correct parsing fix. 32 of the 33 cheats were caught only because the parser failed, which is not detection. 46/80 Goodfire cheat labels have no executed shortcut in the tool calls (ov1104 judges audit). Goodfire runs on uncertified tasks go to review until an action-reading judge is in the line.
-
-> Peter 2026-11-05: keep main at 9/332 DEV cheat keeps and 63/358 honest keeps after #1890; do not revert #1825. The 6 residual cheat keeps are AutoReview-clean misses.
 
 The [ov1104 judges audit](../research/experiments/ov1104-judges/README.md)
 reports zero flagged tool-call passages for those 46 runs. This does not prove
@@ -200,7 +195,7 @@ Live J3 uses `{"mode": "live"}` without a cache path.
 It starts only `omp --config PATH auth-gateway stdio`.
 `PATH` uses `PI_CONFIG_FILES` when provided, otherwise `/private/tmp/ev1105/shared/nofallback.yml`.
 The configuration must disable model fallback. No paid API client or alternate route is used.
-The subprocess also sets `PI_CONFIG_FILES` to the same path because OMP 18.14.2 ignores the stdio CLI overlay.
+The subprocess also sets `PI_CONFIG_FILES` to the same path so the stdio CLI overlay applies.
 An absent or different served route stops subsequent J3 calls in the batch.
 The affected run and remaining eligible runs require review.
 Trace windows retain token counts, latency, prompt hashes, route attestation, and `$0` subscription cost.
@@ -604,10 +599,7 @@ left, exactly:
 
 ## Known gaps
 
-Found by the verify review of #1834 (`gates`, `behaviour`, `adversarial`, `tests_docs` ids as
-in `/tmp/nov2-line/review/1834-verify3/REVIEW.md`) and classified against `main`: none of these
-is worse than main (main has no such check, or the same hole), and none is fixed yet. Each is
-a follow-up.
+Open pre-existing and new-path gaps tracked against `main`:
 
 | Review id | Gap | Class |
 |---|---|---|
@@ -623,14 +615,7 @@ a follow-up.
 | adversarial 4, gates 4 | Station rows: a TEST identity or answer-key path in a row, and a torn last line, are not refused (the Station reads them the same way) | pre-existing |
 | adversarial 5 | `autoreview.cache` is not read when the mode is `off`, so a sealed hard link there is not noticed; a cache folder's files are not compared with the other declared inputs by `load_spec` (`run_line` compares them with the labels) | new-path gap |
 | behaviour (case) | `verifier/agent.diff` is recognised by admission but never scored (the loader reads `final.diff` only) | pre-existing |
-| behaviour nit | `line scoreboard` prints metrics in insertion order, `SCOREBOARD.md` in sorted order; `core.snapshot_station` is dead code | nit |
 
-Fixed in the same round because they were worse than main: a refused `line check` no longer
-stays `PENDING`, `Final.diff`/`.JSON` and other upper-case names are matched like their
-lower-case forms, steps inside `traces[]` of a raw bundle are exempt from the label check like
-top-level steps, a folder of trials with a link in it is refused before a batch exists, and
-`line check` never rewrites `SCOREBOARD.md` of a batch whose saved view differs from its
-scoreboard. An honest symlinked declared input is refused by design (main follows it).
 
 ## Reading the scoreboard
 
@@ -880,27 +865,7 @@ baseline and provenance under `baseline-history/<UTC timestamp>/`, run the expli
 record the authorizer, reason, merged code revision, replay batch and baseline, spec and
 manifest hashes in `baseline-provenance.json`, and update `replay_sets.json` in the same
 PR with the new hashes and code revision. The PR description states the reason and
-authorization. The initial baseline
-was written explicitly on 2026-11-02 from merged main `d711f652e` (#1815): keep /
-drop / review 100 / 252 / 338, 302 of 332 cheats dropped or reviewed, 40 of 358
-honest runs dropped. Only 250 of those 302 are real detections; 52 reach review
-because L0 cannot read their run format. Changed inputs, cohorts, labels or
-policies need a new replay-set version, not an in-place edit.
-
-**Dated sequencing exception, authorized by Peter on 2026-11-04:** Peter requests
-one PR for Part A (keep #1830, add the Goodfire review floor, refresh the baseline)
-and one PR for Part B (ship #1825 and refresh again). Part A must merge before
-Part B begins. Only for these 2 PRs, refresh from a clean, committed candidate
-instead of waiting for that candidate to merge to main. Record the exact
-candidate revision and its clean state in provenance. State that it is an
-unmerged candidate; never describe it as merged main. Merge the same candidate
-policy or normaliser implementation and its replay pin together in the respective
-PR. If that implementation changes, repeat the comparison and refresh from a
-clean, committed candidate. Preserve the prior baseline and provenance first.
-The authorizer, reason, replay batch and hashes remain required, as do every
-quality check, pin validation and exact-head CI gate. This exception changes
-only refresh sequencing, not validation or frozen inputs. The normal
-clean-merged-main refresh rule remains in force for every other refresh.
+authorization. Changed inputs, cohorts, labels, or policies need a new replay-set version, not an in-place edit.
 
 ## Live mode: finished runs flow through the line by themselves
 
@@ -1004,10 +969,8 @@ The result adds a `children` entry for the line's own checks. `line check` write
 `line check --fast` takes one batch folder (a child under `increments/` works) and refuses a
 state directory with a plain message.
 
-**Cumulative view.** Nothing derived is stored. `line scoreboard DIR` builds the cumulative view
-on demand in a scratch folder from the committed children only; the ordinary scoreboard builder
-runs on it, so counts are summed and every Wilson interval is computed on the totals. There is
-no `cumulative/` folder to edit; one planted there is never read.
+**Cumulative view.** Nothing derived is stored; `scoreboard.json` totals across committed
+children are computed on demand without a `cumulative/` directory.
 
 **Judge Station queue.** The queue named by `judge.queue` (default `judge-queue.jsonl` in the
 state directory) belongs to this watcher. It is written only after an increment's checks pass,
@@ -1020,12 +983,6 @@ defaults to an empty file in the state directory, never the real Station state.
 belongs to one configuration; only the `watch` tuning may change. Killing the watcher at any
 point and restarting gives the same decisions, queue and scoreboard as an uninterrupted run.
 
-**Watchdog and lag.** `line watchdog DIR` writes `watchdog.json` and answers in the live
-supervisor's words, as one JSON line with an `at` time: `ok` (idle, or making progress),
-`stalled` (no process owns the directory, it was stopped, or nothing moved for
-`watchdog_max_age_seconds`), `failed` (status missing, state damaged, or the watcher stopped on
-an error). It never crashes on damaged state. Lag is measured from recorded times only and
-reported in `status.json`.
 
 ### Known gaps of live mode
 
@@ -1048,8 +1005,6 @@ already write inside the state directory.
 
 Launchd templates `scripts/ops/launchd/com.petermakhnatch.evallab.line-watch.plist` and
 `...line-watch-watchdog.plist` are provided but not installed by any script.
-`live_supervisor_services.KNOWN_STATUS_FILES` maps the watchdog file under the default state
-directory `~/.local/state/evallab-prod-live/line-watch`.
 
 Not built on purpose: a second detector, queue format, label loader or task-status system; model
 calls; running Harbor; reading TEST evidence; service installation.

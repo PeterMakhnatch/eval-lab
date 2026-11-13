@@ -63,9 +63,6 @@ the app when not in use; use the owned absolute window below for a capped run.
 uv run --project tools/modal-mimo-serve --locked modal run tools/modal-mimo-serve/serve.py::download_weights
 # deploy (prints the server URL)
 uv run --project tools/modal-mimo-serve --locked modal deploy tools/modal-mimo-serve/serve.py
-# smoke: cold start, reasoning split, a Terminus-shaped JSON turn, TTFT and decode tok/s at 1 and 8 streams
-EVALLAB_MIMO_SELFHOSTED_UPSTREAM=<url> MIMO_SELFHOSTED_API_KEY=<key> \
-  uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/smoke.py --out runs/har90-modal-smoke/smoke.json
 # request stop; verify stopped state AND zero active containers before closing accounting
 uv run --project tools/modal-mimo-serve --locked modal app stop evallab-mimo-v26-9b
 ```
@@ -293,12 +290,6 @@ generated text, so reconstruction cannot prove live equivalence or recover
 calls lost by the original parser. HAR-168 recorded zero parse-error alerts;
 that absence is not live qualification of `qwen3_coder`.
 
-```bash
-# Explicit approval required: five native tools requests plus one plain chat.
-keys run -- uv run --project tools/modal-mimo-serve --locked \
-  python tools/modal-mimo-serve/smoke.py --tools-only \
-  --tool-definitions <native-tools.json> --out <smoke.json>
-```
 
 The native controller requires its isolated pinned runtime:
 `uv sync --project tools/mimoagent-harbor --locked`. Qualify the server with an
@@ -355,70 +346,6 @@ pool pressure can add queueing or retraction/recompute time. That additional
 billed time and its cost are unmeasured: no deployment or paid requests were
 made for this alignment. An unchanged rate is not a claim of unchanged
 per-trial spend.
-
-## Credential bridge native OTLP adapter (HAR-181)
-
-`credential_bridge.py` adopts the existing credential-relay role into committed
-source, backed by `evallab.credential_bridge.create_bridge_app`. It keeps the
-same app name, 0.25 CPU / 512 MiB, scale-to-zero (maximum two containers),
-readiness behavior and single-forward non-streaming model relay. Historical
-paid campaign helpers and their frozen runtime are not modified.
-
-The bridge additionally accepts native OTLP/HTTP `/v1/metrics`, `/v1/traces`
-and `/v1/logs`. Metrics become bound observation spans/events in the existing
-Laminar trace store; traces/logs retain their native IDs. There is no new
-collector backend, durable queue or second store. Inputs support protobuf
-and OTLP JSON, identity/gzip encoding and a 2 MiB decompressed limit.
-Metric conversion batches source points before export rather than expanding
-one ordinary provider batch into an oversized frame.
-
-Configuration is supplied to the **trusted bridge**, not the model/sandbox:
-
-| Setting | Meaning |
-|---|---|
-| `HAR157_BRIDGE_CAPABILITY` | Existing model-chat/readiness bearer capability |
-| `HAR157_MODEL_UPSTREAM` | Existing owned SGLang upstream base URL |
-| `evallab-mimo-v26-9b-api-key` | Existing Modal secret containing `SGLANG_API_KEY` |
-| `EVALLAB_NATIVE_TELEMETRY_SECRET` | Optional name of a Modal secret containing the next two keys; omission disables native ingestion |
-| `EVALLAB_NATIVE_TELEMETRY_CAPABILITY` | Separate native-ingestion bearer capability; must differ from chat capability |
-| `LMNR_PROJECT_API_KEY` | Existing Laminar project key, available only to the trusted exporter |
-| `EVALLAB_NATIVE_MODEL_SESSIONS` | JSON array of actual shared app/session parent bindings; default `[]` does not guess model attribution |
-
-An admitted provider collector uses this bridge's base URL and the distinct
-native bearer capability in its authorization header. It never receives the
-Laminar project key or the chat capability. Organization/workspace collector
-changes are outside the source-only approval.
-
-Each model binding has `app_id`, integer `started_at_ns`, optional integer
-`ended_at_ns`, and `parent`: real SDK `trace_id` (32 hex), `span_id` (16 hex),
-`session_id`, optional `model_session`, **no exclusive `trial_id`**. Times and
-IDs must come from the actual admitted model session, not examples, billing
-windows, reconstructed wall-clock gaps or a trial's phase/root. Native Modal
-points must match exactly one app/window; otherwise the OTLP acknowledgment
-reports rejected points. App/container/function labels stay in native output.
-
-For Daytona, the Harbor plugin merges actual open trial-root context into
-startup `DAYTONA_SANDBOX_OTEL_EXTRA_LABELS`, preserving unrelated labels/env.
-The native sandbox `service.instance.id` supplies its UUID. Closed, ambiguous,
-unbound and conflicting identities cannot create guessed Laminar roots.
-Model metrics stay shared; the converter does not charge them to each trial.
-
-The native exporter uses a separate capability and canonical redaction. It
-does not acknowledge success before Laminar accepts all frames; exporter
-failure returns non-success and partial rejection counts remain explicit.
-There is no added paid-answer retry. Inspect metrics in Laminar **Tree** view,
-then **Span Output / Attributes / Events**; DEFAULT observations are omitted
-from Transcript and do not become Laminar metric charts.
-
-Provider configuration contracts:
-[Daytona organization OTLP](https://www.daytona.io/docs/en/observability/otel-collection.md),
-[Modal workspace OTLP](https://modal.com/docs/guide/otel-integration).
-Both affect other resources in their organization/workspace. Source and
-synthetic protocol/Cloud readback do **not** authorize deployment, changing
-those settings or starting compute. Genuine CPU/RAM and native cold/queue/GPU
-adoption requires separate current admission. All HAR-168 a3/a4 specs remain
-held; native observations do not alter grades, accounting or invoice actuals.
-See [observability](../../docs/live-watch.md#native-provider-metrics-in-laminar-har-181).
 
 ## Context sizing (HAR-188 source alignment)
 
@@ -490,10 +417,7 @@ Production is a separate app and is never touched.
 ```bash
 EVALLAB_MIMO_LORAS=<name>=<run>/adapter[,<name>=<run>/adapter...] \
   uv run --project tools/modal-mimo-serve --locked modal deploy tools/modal-mimo-serve/serve_lora.py
-# parity and validity: the LoRA server's two names against production, temperature 0, inside Modal
-uv run --project tools/modal-mimo-serve --locked modal run tools/modal-mimo-serve/lora_smoke.py \
-  --prompts <prompts.json> --lora-url <lora url> --prod-url <prod url> --adapter <name> --out raw.json
-uv run python research/experiments/har129-lora/smoke_parity.py score raw.json scored.json
+# stop the LoRA server when finished:
 uv run --project tools/modal-mimo-serve --locked modal app stop -y evallab-mimo-v26-9b-lora
 ```
 

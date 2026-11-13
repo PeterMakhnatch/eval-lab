@@ -8,7 +8,7 @@ garbage collection plans.
 ## What lives here / entry points
 - `digests/2026-09-05.md`: Example daily digest report for operator review.
 - `digests/DISCOVERIES.md`: Curated registry of verified research findings and evidence links.
-- Render command: `uv run evallab digest` (renders today's digest).
+- Renderer: `src/evallab/digest.py` (invoked by `uv run evallab nightly --help`).
 
 ## Invariants or rules
 - Committed one-pager: Daily digests are committed derived reports curated for human review (cited in `agents/STRUCTURE.md` and `AGENTS.md`).
@@ -16,7 +16,6 @@ garbage collection plans.
 - Garbage collection integration: Daily digests append the nightly garbage collection plan (cited in `src/evallab/cli.py` and `tests/test_gc.py`).
 
 ## Tests or checks
-- `uv run evallab digest`
 - `uv run pytest tests/test_digest.py`
 - `uv run pytest tests/test_unattended.py`
 

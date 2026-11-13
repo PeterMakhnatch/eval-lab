@@ -52,8 +52,7 @@ See [Line](line.md), [watch](live-watch.md), [task quality](task-quality.md), an
 
 Do not introduce runtime database side effects into contract modules.
 Do not move the CLI into the reserved `cli/` namespace without an assigned migration.
-The top-level and interpretation TrajectoryIR modules have different persisted consumers.
-Do not replace either with a facade.
+`src/evallab/trajectory_ir.py` owns the retained TrajectoryIR contract (`interpretation/trajectory_ir.py` is retired).
 
 ## Terminology
 
@@ -71,29 +70,22 @@ Do not replace either with a facade.
 | Manifest | A qualified index: campaign analysis, evidence, compaction, task, export, or dependency manifest. |
 
 Use qualified status names: execution state, quality status, readiness disposition, or contract status.
-`TrajectoryQualityReport.is_analysis_ready`, `TrialReadinessRecord.is_analysis_ready`, and projected coverage are different carriers.
+`TrajectoryQualityReport.is_analysis_ready` and projected coverage are different carriers.
 Do not use `TrialBundle` as a Python type. Use `TrialRecord` or “durable evidence directory”.
-The `analyze batch` inventory argument takes a campaign analysis manifest.
 Qualify “frozen”: immutable model, locked schema, blocked execution, pinned protocol, or frozen calibration labels.
 None of these states implies another.
 
 ## Shared contracts
 
 `schemas/` owns strict Pydantic contracts. Unknown fields fail validation.
-`Suite` uses `(name, version)` identity. Once frozen, it rejects mutation.
-The database also protects frozen suite membership against direct SQL and concurrent edits.
-
-`AnalysisRecord` binds a trial, rubric digest, model, category, evidence citations, and confidence claim.
-`ObservationRecord` follows `research/observations/TEMPLATE.md`.
-`CalibrationRecord` records agreements, totals, rates, and corpus/rubric identity.
+The database protects frozen `suites` membership against direct SQL and concurrent edits (`sql/schema.sql`).
+`TrialAnalysisSidecar` (`src/evallab/schemas/__init__.py`) binds trial analysis outputs and evidence citations.
+Observations follow `research/observations/TEMPLATE.md`.
+`JudgeCalibrationRecord` records judge agreement and calibration identity (`src/evallab/schemas/__init__.py`).
 Human verdicts require an attributed actor and append history rather than replace it.
 See [the judge guide](judge-guide.md).
 
 `TaskRegistryRecord` carries task path, version/digests, controls, allowed uses, and contamination provenance.
-`CapabilityCurveSpec` and its report require task-block pairing and a preregistered primary contrast.
-A byte-identical comparison can still fail scientific compatibility.
-Missing metrics, incompatible treatment identity, or incomplete pairs prevent a rankable primary contrast.
-Descriptive outcomes remain available with the refusal.
 
 ### Experiment purpose
 
@@ -118,11 +110,11 @@ The standalone entry is supported; there is no `evallab craft` root command.
 uv run python -m evallab.craft scan --tb3
 uv run python -m evallab.craft scan --tb4
 uv run python -m evallab.craft scan path/to/corpus --json
-uv run python -m evallab.craft plan --tb4 --tb4-root /absolute/path/to/v4
+uv run python -m evallab.craft plan --tb4-root /absolute/path/to/v4
 uv run python -m evallab.craft compile --tb4-root /absolute/path/to/v4
 ```
 
-Use `--tb3-root` / `EVALLAB_TB3_ROOT`, `--tb4-root` / `EVALLAB_TB4_ROOT`, and `--out` for explicit roots.
+Use `--tb3-root` / `EVALLAB_TB3_ROOT`, `--tb4-root` / `EVALLAB_TB4_ROOT`, and `--out` (on `scan` and `compile`) for explicit roots.
 The scanner refuses an output root inside a scanned corpus.
 TB3 retains its `terminal-bench/terminal-bench` identity.
 TB4 uses `terminal-bench/terminal-bench@4.0.0`, pinned to `v4.0.0`, commit `452bf30`.

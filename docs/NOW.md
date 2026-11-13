@@ -84,7 +84,7 @@ Metadata describes a document. It does not grant authority or execution permissi
 
 Keep `cli.py`, the native runner, and the queue in their current locations.
 The reserved `cli/` and `execution/` namespaces do not authorize a package migration.
-The 2 TrajectoryIR modules have different contracts. Do not merge them incidentally.
+`src/evallab/trajectory_ir.py` owns the retained TrajectoryIR contract (`interpretation/trajectory_ir.py` is retired).
 Use an owned worktree. Preserve another writer's changes and unique ignored evidence.
 Follow `agents/WORKFLOW.md` and `agents/CHECKS.md` for exact-head delivery.
 Current MiMo study navigation remains in [mimo/README.md](mimo/README.md).

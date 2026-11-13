@@ -113,146 +113,6 @@ length-interrupted calls are absent from native token totals. Neither zero
 declared calls nor missing usage proves zero actual consumption. The proxy's
 conservative uncached accounting is not an invoice.
 
-### Per-run report
-
-renders one deterministic report per trial (schema `evallab.run_report/v1`) and,
-for a job directory, a rollup (`evallab.job_report/v1`). The Markdown is rendered
-from the JSON, so people and models read the same facts. It never writes into
-the run directory; `--output-dir` writes `<trial>.run_report.{json,md}` and
-`job.run_report.{json,md}`. Sections: outcome, Harbor phase timing and gaps
-between agent steps, tokens and cost, tools, revisits, subagents, context
-events, errors, an optional benchmark domain section (`## Domain: <name>`,
-absent as `domain: null` when no plugin detects the trial), a bounded
-timeline (`--full-timeline` lists every step), and data-quality notes.
-
-The native report owns domain readers, baseline facts, evidence coverage, and custom feature eligibility.
-`interpretation/features.py` owns the shared quote-aware command parser. Semantic IR and settlement compliance remain separate.
-
-`evallab.run_report/v1` is additive: a `domain` section appears when a
-`src/evallab/interpretation/run_report.py` reader detects the trial, else `domain`
-is `None`. The CEO-Bench plugin (`ceo_bench`) reads the `ceo_bench/*.json`
-sidecars written by the `ceo_bench` adapter package
-(`library/adapters/ceo_bench/ceo_bench/bridge.py`), which converts one
-CEO-Bench harness run (`bash_agent_runs/run_<id>/`) into a Harbor-shaped trial
-dir (`result.json` with honest nulls, one trajectory step per tool call, plus
-the sidecars). Operator path (the adapter is an independent uv project so
-`sqlcipher3` never becomes an evallab core dependency):
-`uv run --project library/adapters/ceo_bench python -m ceo_bench <run_dir>`
-(prints the trial dir; `--out` overrides the `<run_dir>.trial` default),
-needs the published SQLCipher key (`NMDB_KEY`, else `--ceobench-src`
-`<checkout>`); without either it degrades to timing fallbacks with a reason.
-The section reports cash-by-sim-day, bankruptcy (cash below $0),
-forecast error of the agent's cash predictions, no-op weeks, and
-simulator-LLM spend metered separately from agent spend (never merged
-into agent cost).
-
-Definitions the report applies:
-
-- Step numbers are 1-based positions in the stitched trajectory (continuations
-  included, copied context excluded), not native ATIF `step_id`s.
-- Tokens and cost follow the precedence above, field by field, then step sums;
-  each total names its source. Cost from partial step sums is flagged as a lower
-  bound, and missing cost is `null` with a data-quality note, never zero.
-- When the harness recorded no cost anywhere, the report may still show a cost
-  figure labelled `(estimate)` with source `price_table_estimate`: token counts
-  priced at the pinned Standard-tier list rates in
-  `src/evallab/interpretation/price_table.py` (per-model source URL and
-  retrieval date recorded in `cost.price_table`). Matching is exact after
-  stripping a known provider prefix; unknown models and missing token counts
-  stay `null` with a reason. Estimates never enter the job rollup's harness
-  totals (`total_cost_usd`, `cost_per_pass_usd`); they roll up separately as
-  `estimated_cost_usd` / `trials_with_estimated_cost` and are marked `(est)`.
-- Tool status is `ok`, `error`, or `unknown`. `evidence` names the channel:
-  exit code, mini-swe-agent envelope, Codex code-mode script status, harness
-  error flag, structured payload status, leading harness rejection text,
-  strong output-text patterns (`output_text`, inferred), or — for Reef native
-  tools (`execute`/`run_bash`/`write_file`/`read_file`) only — a leading
-  `timed out after 60s` (`timeout`) or `refused: …` line (same `output_text`
-  channel; the exact strings those tools return with no exit code or flag).
-  Failure words deeper in such an output are data the agent read, not a
-  rejection, so successful runs that merely mention errors stay `unknown`.
-  Codex code-mode `exec` calls are reported as the inner tool
-  (`exec_command`, `apply_patch`). OpenCode non-MCP tools (bash/read/write)
-  carry no per-call channel, so their failures surface only through the
-  strong patterns (for example shell `command not found`) and their successes
-  stay `unknown`; MCP-backed calls are still judged by structured payload
-  status (`isError`/`status`/`ok`).
-- An action's signature is its tool plus normalized command or arguments.
-  A repeated action reuses an earlier signature; it is a *return* when other
-  actions came between and an *immediate repeat* otherwise. An *exact revisit*
-  also got an identical normalized result (volatile wall-time lines removed):
-  the agent was back at the same spot and nothing had changed. Empty-input
-  polls are excluded.
-- Subagents come from ATIF subagent references (embedded or file), Claude Code
-  sidechain steps, and delegation tool calls. For codex trials the report also
-  re-reads the retained native rollouts under `agent/sessions/**/rollout-*.jsonl`:
-  Harbor's codex converter keeps only the newest rollout and never links child
-  threads, so sibling rollouts surface as `evidence: "codex_native_rollout"` items
-  (per-child tokens from cumulative `token_count` snapshots, cost left `null`
-  because rollouts carry none). A sibling counts as a child only when its
-  `session_meta` source is a `thread_spawn` record naming this trial's parent
-  thread (`parent_thread_id` edge); the `spawn_agent`-call link is kept only
-  for V1 `{"agent_id": ...}` outputs, so V2 children keep no spawn step rather
-  than a guess. Any other extra rollout (retries, review/compact threads) is
-  listed under `other_threads`, never as delegated spend. Child tokens are
-  never merged into run totals. Rollouts present with no children stay
-  `none_observed`; absent or unreadable rollouts are `unavailable` with a
-  reason. `none_observed` is not proof of absence for harnesses whose converters
-  drop child threads. No retained codex trial has yet spawned a subagent (27
-  retained trials hold single `exec`-source rollouts), so multi-child behavior is
-  pinned by format-faithful fixtures verified against the codex source, not
-  production evidence.
-  Sidechain steps group by per-step agent id when present; anonymous steps
-  rejoin to the retained native session (`<trial>/agent/sessions/…`) through
-  two exact keys the converter preserves: the raw `tool_use` block id (ATIF
-  `tool_call_id`) first, then the step timestamp (attributed only when it
-  names exactly one agent; normalized to ms, UTC). Steps with no joined key
-  (text-only turns on a timestamp two agents share, or with no session
-  retained) fall back to labeled contiguous runs, which may conflate
-  interleaved parallel subagents. Proven on a real local session converted
-  with the installed Harbor 0.21 converter (2 subagents, 46 sidechain steps
-  → 46 keyed by real `agentId`, `count` 2, 0 fallback runs) and pinned by
-  `tests/fixtures/claude-sidechain/` (real converter output over a synthetic
-  raw session with the real key layout: `agent-a` × 3 incl. one timestamp
-  join, `agent-b` × 1, plus one 2-step fallback run for a shared timestamp).
-  No real Claude Code trial exists in retained evidence; the producing spec
-  is `research/experiments/specs/04-claude-code-canary/event-summary.json`
-  (billable — needs approval before running).
-- The trajectory is parsed once: windows, revisits, loop suspicion, and the
-  context-growth curve all derive from that single pass, so build cost stays
-  roughly flat per step on long runs (measured ~2k–10k steps). Loop suspicion
-  is the outline's own heuristic (`traj._analyze_loop_suspicion`), called on
-  per-step facts from the shared `traj.extract_loop_step` source instead of a
-  second outline parse; it is `null` when the continuation chain is
-  incomplete or steps are malformed.
-- The timeline has two windowings of runs with at least 20 steps: tenths of
-  the run by step ordinal, and equal-duration wall-clock windows over the
-  span between the first and last timestamped step (steps without timestamps
-  are counted, not placed). Each window row carries the context growth
-  curve: `peak_prompt_tokens` and `compactions` — inferred compactions reuse
-  the context-drop heuristic (input tokens falling below 60% of the previous
-  agent step once past 8,000). Time windows are an explicit
-  `{"status": "unavailable", "reason": ...}` when timestamps are missing or
-  degenerate, never a fabricated bucketing.
-- `revisits.revisits_started` names when looping began: the first
-  step-window whose repeat rate (repeated non-poll actions over counted
-  non-poll actions in that window, rounded to four decimals) strictly
-  exceeds the median of the window rates (windows without actions have no
-  rate and cannot be the onset). `no_repeats` when nothing repeats, `flat`
-  when no window exceeds the median, omitted entirely below 20 steps.
-- Domain sections use the native readers in `src/evallab/interpretation/run_report.py`.
-  The explicit `PLUGINS` registry reads verifier outputs in a deterministic order
-  from the trial directory. `synthetic_hospital` reports reward/steps/submitted
-  from `verifier/reward.json` plus redundant chart-section re-reads from the
-  trajectory's tool calls (native EHR tools and `sh-agent call` wrappers, keyed
-  by the finest chart address named). `atlas_finance` reports the gandalf
-  rubric from `verifier/grader/info.json`: per-section pass/fail with section
-  gates (criterion-level `failed_gate_indices` never fail a section), penalties,
-  and downstream required-criteria loss attributed to the first failed gate.
-  Malformed verifier output yields `status: unreadable` with a reason, never a
-  fabricated zero or an exception. Counts over an unavailable input are `null`
-  with a reason (`Chart reads: unavailable (...)`), never zero.
-
 ### Archived CLI reference: deterministic trajectory analysis
 
 This analyzer is archived in `archive/pre-round3-2026-11-12`.
@@ -261,42 +121,6 @@ Restore it before using the historical command below:
 ```bash
 git checkout archive/pre-round3-2026-11-12 -- research/analysis/harness-mechanics
 ```
-
-```bash
-uv run python research/analysis/harness-mechanics/analyze.py \
-  --trajectory <raw ATIF path> \
-  --repo-root . \
-  --output <new derived directory> \
-  --evidence-kind historical
-```
-
-Parameters and options:
-
-- `--trajectory <path>`: Repeatable argument pointing to one or more raw native ATIF trajectory JSON files.
-- `--manifest <path>`: Mutually exclusive alternative to `--trajectory`. The manifest JSON object must contain `"evidence_kind"` (`"historical"`, `"fixture"`, or `"model-run"`) and `"trajectories": ["<path>", ...]`.
-- `--repo-root <path>`: Path to repository root used for relative trajectory path resolution and safety checks (relative paths must resolve inside the repo root).
-- `--output <path>`: Path to a non-existent target directory. The tool refuses to overwrite existing directories or symlinks, publishing all outputs atomically.
-- `--evidence-kind`: User-declared provenance (`"historical"`, `"fixture"`, or `"model-run"`). Defaults to `"historical"` when omitting `--manifest`.
-
-Inputs and supported formats:
-
-- Input trajectories must be raw native ATIF JSON structures. Normalized flat IR files (such as converted step tables or intermediate schemas) are not valid raw native ATIF input.
-- Controls (e.g. `oracle` or `nop` runs) and non-trajectory records are classified as `unsupported`.
-
-Produced artifacts:
-
-- `report.json`: Machine-readable diagnostics containing source hashes, raw-source `locator` JSON pointers, recorded `step_id` and `tool_call_id`, identity metadata, and summaries across stopping, clipping, and shell behavior.
-- `report.txt`: Human-readable summary table of evaluated records, observed facts, and diagnostic counts.
-- `ablation-plan.json`: Single-variable proposals linked to substantive evidence, or an empty proposal list when evidence is insufficient. `execution_authorized` remains false; this artifact is neither an approval nor an executable queue specification.
-
-Execution and interpretation semantics:
-
-- Exit codes: Returns `0` when all provided trajectories are supported and valid; returns `2` on invalid CLI usage, bad shapes, errors, or when any trajectory record is classified as `unsupported`.
-- Atomic writing: Writes outputs to a temporary sibling directory and moves it into place. Refuses to overwrite an existing directory or symlink.
-- Observational discipline: Outputs record observed facts, hypotheses, and unknowns. They distinguish factual runtime observations from diagnostic hypotheses and record `unknown` when evidence is incomplete.
-- No model/tool execution: Analysis is entirely deterministic and static over the provided files.
-- Descriptive, not causal: Diagnostic facts characterize mechanics in the observed sample. They do not infer causal capability claims, benchmark rankings, or harness superiority.
-
 ## Stage 3: define a cohort
 
 Never aggregate “all runs” without saying why they are comparable. A cohort
@@ -369,19 +193,6 @@ ratio unavailable; zero solved tasks also makes it unavailable. An explicit
 local no-API-charge zero is valid cost evidence. Provider estimates remain
 estimates, not invoices. This accounting does not turn a small or invalid
 comparison into evidence of an improvement.
-
-The separate Reef publication gate (`library/adapters/reef_gate`) is a
-per-candidate selection rule, not a replacement for task-paired capability
-analysis. Its exact sign test drops ties and invalid pairs, applies a minimum
-valid-pair requirement, and vetoes regressions on tasks the current harness
-passed on every repeat. A/A calibration reports its measured false-publish
-rate with Wilson uncertainty against the gate-table prediction; the prediction
-assumes independent binary episode outcomes and is not itself a measurement.
-A known-effect control reports power separately. Repeated candidate selection
-does not acquire a family-wise error guarantee from the per-candidate alpha.
-Missing scores, failed evaluations and missing decision costs/timings remain
-explicit unknowns or refusals, never silent zero-valued successes.
-
 
 
 ## Stage 5: model-assisted trial analysis
@@ -547,16 +358,9 @@ These are more valuable initially than a general-purpose “AI scientist” agen
 
 ## Trial features
 
-directories (same discovery rule as `evallab watch`: a path is either a job
-dir whose children are `<task>__<id>` trials, or a runs root whose children
-are job dirs) and writes `<stem>.parquet` plus a `<stem>.csv` sibling for
-humans. The module (`evallab.interpretation.features`) implements no new
-detection logic; every signal comes from an existing deterministic detector
-(see trust notes).
-
-```bash
-```
-
+`evallab.interpretation.features` (`trial_features`, `write_features`) extracts deterministic
+per-trial tables (`<stem>.parquet` and `<stem>.csv`) during `evallab process-job` and `evallab trials`,
+combining existing deterministic detectors without new detection logic (see trust notes).
 ## Column dictionary
 
 | column | source | meaning |
@@ -568,7 +372,7 @@ detection logic; every signal comes from an existing deterministic detector
 | `wall_time_s` | `result.json` | `agent_execution` finish−start, else trial finish−start |
 | `input_tokens`, `output_tokens` | step metrics | sums over agent steps (`live_watch`) |
 | `mean_input_per_call`, `mean_output_per_call` | derived | totals / `n_agent_calls` (null when 0) |
-| `tools_used` | tool calls | sorted unique verbs: bash verbs via `outside_fetch` quote-aware `_segments`/`_program` (lowercased); non-bash tools as `@name` |
+| `tools_used` | tool calls | sorted unique verbs: bash verbs via `interpretation/features.py` quote-aware `_segments`/`_program` (lowercased); non-bash tools as `@name` |
 | `tool_counts_json` | derived | verb → count JSON |
 | `first_edit_step`, `first_edit_paths` | `live_watch.first_repo_edit` | first repo edit via the shared `token_flow` detectors (quoted reads excluded) |
 | `n_test_runs`, `test_runs_passed/failed`, `last_test_step` | observations | agent-side pytest only: a step counts when its command invokes `pytest` or its observation has a pytest `===` summary bar; counts from `N passed/failed` tokens (nulls when no runs) |
@@ -596,42 +400,6 @@ detection logic; every signal comes from an existing deterministic detector
   failed fetch is an attempt; ceiling mapping) plus a 3-trial hand
   spot-check recorded in the HAR-159 receipt.
 
-## Durable analyst records
-
-An explicit `--model` selects a model-backed call and requires current approval.
-No model selector or credentials means no provider execution.
-`analyst list` and `analyst show <analysis-id> --json` inspect stored results.
-
-The conclusion is an `AnalysisRecord` with trial/rubric/model identity,
-category, cited evidence, and confidence with sample and provenance.
-Empty evidence fails before publication.
-Records under `research/analysis/<analysis-id>.json` retain explicit input digests.
-Their companion `.trajectory.json` records the analyst's reasoning steps.
-Repeated analyses create new IDs. Disagreement never overwrites earlier conclusions.
-`sql/analyst.sql` exposes conclusions, trajectories, and their joined view.
-Use [the attach and lineage contract](data-architecture.md) for queries and source verification.
-
-### Frozen-window trajectory judging
-
-`run_trajectory_judge(analyzer, windows, rubric=..., repeats=3)` runs triage,
-inspection, then final synthesis over one frozen, post-redaction window pool.
-This API uses transient `EvidenceCitation.path` values `W1`, `W2`, ... in full
-input order, not file paths or copied SHA-256 strings. Handles remain stable
-across stages and repeats; inspection can cite only its selected visible subset,
-while final synthesis can revisit the full pool for counterevidence.
-
-The host resolves an exact visible handle to its authoritative window digest,
-trial ID and step range. Returned stage/run records retain canonical citations,
-hash rules and deterministic-context bindings; the handles are not substituted
-for persisted source identity. Unknown handles, full-digest paths, brackets and
-whitespace variants are rejected rather than guessed. Existing bounded citation
-repair remains in effect.
-
-Final synthesis requires reported supporting and contradicting citations plus an
-alternative explanation. That structural requirement does not verify semantic
-support or turn disagreement into a decision: returned records remain
-`decision_eligible=False`.
-
 ## Behavioral queries
 
 `sql/behavior.sql` owns the summary, effort, efficiency, struggle, step-shape, and token-economics views.
@@ -646,11 +414,6 @@ An all-zero instrument column does not prove absence of the behavior.
 Sparse usage requires its own denominator rather than silently averaging only populated rows.
 The historical 17-of-92 token census refers to August 15–16, 2026, not the current corpus.
 
-`behavior_episodes` stores multi-label step-bounded interpretations without changing ATIF.
-The v1 dimensions remain `tool_error`, `unchanged_retry`, `recovered_progress`, and `verification_gap`.
-`unresolved_error` is a right-censored recovery state, not another calibrated dimension.
-`effect_loop_candidate` remains experimental and requires complete no-state-change evidence.
-Missing observation, relevance, or state coverage remains unknown.
 Definitions and calibration remain in `research/behavior/catalog-v1.yaml`.
 Human ground-truth absence never becomes a negative label.
 The Phoenix publisher is retired. ATIF and the evidence store remain canonical.
@@ -689,24 +452,6 @@ It is not the final paired G5 result.
 The full atlas can contain held-out evidence. Do not send it to a proposer.
 Reflection needs a separately authorized training payload with task/package and exclusion bindings.
 
-## Receipt-bound program reports
-
-Start with `--index-only --output-dir <new-directory>`.
-`facts.json` preserves every number-bearing physical line with content-bound IDs and source location.
-`checks.json` records missing receipts, unmatched numbers, arithmetic, and receipt hashes.
-The checker cannot establish semantic support. Its status is `receipt_bound_unchecked`.
-Receipts above 256 KiB remain unchecked; provide a bounded extract.
-Arithmetic disagreement blocks a draft even when a receipt repeats the same wrong percentage.
-
-The default draft uses every fact. Missing support retains a rejection record, not a successful report.
-`--select ID` creates an editorial selection while preserving the complete index.
-`--citations bindings.json` binds an exact quoted line to explicit receipt paths.
-Selection does not make a refuted number true.
-Use a new output directory; existing output is never overwritten.
-The optional `--bridge` publishes to `research-context`, commits, and pushes.
-It requires current publication authority and a new destination.
-Google Docs publication is not part of this command.
-
 ## Research scope
 
 Trust the instrument before ranking a model.
@@ -716,205 +461,3 @@ Trial evidence includes trajectory, environment/verifier outputs, judgment prove
 Subscription CLI agents do not expose model internals for these analyses.
 Old generator blueprints and historical ecosystem reviews do not create supported runtime routes.
 
-## Explorer data contracts
-
-`explorer.py` retains read-only evidence indexing and citation checks.
-The former Streamlit explorer frontend is retired; use `evallab view` and native reports.
-Index construction does not modify evidence.
-Fields distinguish `observed`, `derived`, `draft`, `withheld`, and `unavailable`.
-A withheld citation can resolve while its content remains unreadable.
-Retain its byte count and source digest instead of showing it as present text.
-
-Citation checks require a trial-relative existing artifact, valid step, and exact tool-call membership.
-Duplicate source IDs or ambiguous publication leave the analysis unlinked with a reason.
-Path traversal, absolute artifact paths, and task `tests/` or `solution/` access fail.
-Key-shaped mapping fields redact before rendering.
-Missing/malformed roots and sidecars remain named unavailable states.
-A scored timeout retains its verifier outcome and separate agent exit.
-The explorer does not rank incomparable cohorts or execute the next action it displays.
-
-## Historical literature and source corrections
-
-The following dated research notes retain their source claims and corrections.
-They do not set attempts, thresholds, or approval policy.
-Use the current experiment spec and frozen protocol for each measurement.
-
-## 0. Citation correction (read first)
-
-The mission brief cited "The Scaffold Effect in Coding Agents (arXiv:2502.12151)".
-**That ID resolves to "VoLUT: Efficient Volumetric streaming enhanced by
-LUT-based super-resolution" — a video-compression paper.** No paper titled "The
-Scaffold Effect in Coding Agents" exists on arXiv under that ID; the citation
-appears to be a confabulated reference. The *phenomenon* it names is real and
-well studied under other titles. This survey covers the actual literature:
-
-| Paper | ID | What it contributes |
-|---|---|---|
-| On Randomness in Agentic Evals | arXiv:2602.07150 | Quantifies run-to-run variance; the strongest "scaffold effect" numbers |
-| Building Effective AI Coding Agents for the Terminal (OpenDev) | arXiv:2603.05344 | Engineering catalog of harness variables |
-| Inside the Scaffold: A Source-Code Taxonomy of Coding Agent Architectures | arXiv:2604.03515 | Taxonomy of scaffold architectures from source |
-| Can Generalist Agents Automate Data Curation? | arXiv:2606.04261 | Light-vs-heavy scaffold effect on outcome variance |
-| From QA to Task Completion: Survey on Agent System and Harness Design | arXiv:2606.20683 | Minimal-scaffold-with-good-primitives finding |
-| Beyond the Leaderboard: Synthesis of Tool-Use, Planning, Reasoning Failures | arXiv:2607.05775 | Six-cluster failure taxonomy |
-| Agentic Harness Engineering | arXiv:2604.25850 | Automated harness evolution from observability data |
-
-## 1. The scaffold effect, quantified
-
-**Headline numbers (arXiv:2602.07150; 60,000 trajectories, SWE-bench-Verified,
-3 open models × 2 scaffolds × 10 runs, 25.58B tokens, 1.88M tool calls):**
-
-- Single-run pass@1 ranges span **2.2–6.0 percentage points** across identical
-  configurations; σ > **1.5pp even at temperature 0**.
-- Detecting a 2pp improvement needs **~9 independent runs**; a 1pp improvement
-  needs **~36 runs** (σ=1.5pp, p<0.05, 80% power).
-- Gap between optimistic pass@k and pessimistic pass^k bounds reaches
-  **24.9pp**.
-- The same model shows *different variance profiles under different scaffolds*
-  (nano-agent vs R2E-Gym) — scaffold choice changes not just the mean but the
-  distribution.
-
-Corroboration: arXiv:2606.04261 finds light scaffolds **reduce outcome
-variance without improving the best outcome**, while heavy scaffolds shift
-outcomes substantially in either direction. arXiv:2606.20683 concludes scaffold
-effectiveness depends on **interface design more than feature count** — minimal
-scaffolds with well-chosen primitives approach full-framework performance.
-
-**Harness variables that move results** (arXiv:2603.05344, engineering report —
-directional, no effect sizes published):
-
-1. **Prompt composition** — modular, priority-ordered system-prompt sections;
-   provider-conditional sections for cache efficiency.
-2. **Error feedback timing** — event-driven reminders injected at decision
-   points to counteract "instruction fade-out" in long sessions (vs
-   front-loading everything in the system prompt).
-3. **Edit/diff format** — a 9-pass fuzzy-match pipeline for file edits;
-   robustness of the edit tool is itself a capability variable.
-4. **Context management** — five-stage progressive compaction; episodic vs
-   working memory separation.
-5. **Tool surface** — lazy tool discovery (MCP) to keep tool descriptions from
-   consuming the prompt budget.
-
-**Takeaways for eval-lab:**
-
-- **T1.** Single-attempt cohort comparisons cannot detect <3pp differences.
-  The lab's experiment specs (`schemas.ExperimentSpec.attempts`) should default
-  to ≥5 attempts for any claim of harness improvement, and cohort reports must
-  carry σ, not just means. (Directly implementable in `cohort.py` reporting.)
-- **T2.** "Agent" must be recorded as (adapter, version, model, prompt digest) —
-  the scaffold is a first-class experimental variable, never a constant. The
-  reproducibility contract in `docs/architecture.md` already lists this; the
-  Parquet projection must carry it per-trajectory so cross-scaffold queries are
-  possible (see P4 queries).
-- **T3.** Temperature 0 does not buy determinism. Never treat two runs as
-  A/A-identical; store per-run variance explicitly.
-
-## 2. Benchmark contracts: Terminal-Bench 2/3 and SWE-bench
-
-**Version correction (2026-08-28):** the 2026-08-15 note below was correct
-*then* — there was no Terminal-Bench 4.0 — but Terminal-Bench 4.0 **was
-released 2026-08-26/28** (release tag `v4.0.0`, commit `452bf30`). The lineage
-is TB1 → TB2 (89 tasks) → TB2.1 → **TB3** (74 tasks) → **TB4** (66 tasks), all
-under the same `terminal-bench/terminal-bench` dataset with semantic
-versioning. TB4 is a maintenance release (not a re-built sequel): it removes 8
-saturated/contaminated tasks, fixes 19, and sets a flat 8-hour agent timeout on
-every task. **TB3 and TB4 scores are not comparable** — TB4 is a semver
-x-increment requiring a full re-run, so a TB3 cohort must never be mixed with
-or compared against a TB4 cohort.
-
-The machine-readable migration record (8 removed, 19 fixed, pin/license/schema
-status, expected 66-task inventory) lives at
-`src/evallab/data/terminal-bench-4-migration.json`; `python -m evallab.craft
-plan --tb4` reports the live inventory and 74→66 delta against a pinned v4
-checkout.
-
-### TB2 → TB3: what changed and why (verified against local clones)
-
-This lab holds first-hand evidence: `~/Developer/lab-extras/data/agent-evals/frontier-bench@3d694e91`
-(audited in the fin-saccr-rwa study) and the curated library's 19 re-verified
-tasks (`library/curated/README.md`).
-
-| Contract element | TB2 | TB3 / Frontier-Bench |
-|---|---|---|
-| Verifier location | agent's container (shared) | **separate container** built from `tests/`, artifacts explicitly declared (`environment_mode = "separate"`) |
-| Verifier network | runtime `curl`/`uv` downloads | **forbidden at trial time**; deps baked into tests/Dockerfile (`checks/check-trial-network-fetch.sh`) |
-| Anti-gaming | none systematic | cheating-agent CI runs, canary GUIDs in every text file, 23 static checks |
-| Timeouts | shorter | agent 1.5–8h (`timeout_sec` 5400–28800 across 74 tasks), verifier ≤600s typical |
-| Resources | modest | 45/74 tasks ≤8GB; 24 heavier; 4 GPU-only (this lab's `docs/execution-tiers.md`) |
-| Reward | binary `reward.txt` | binary, plus per-test CTRF sidecar |
-
-The forcing event: Berkeley RDI showed a fake `curl` wrapper scored **89/89 on
-TB2 with zero tasks solved** (82/89 tasks fetched `uv` at verification time).
-Terminal Wrench (arXiv:2604.17596) generalized this: 331 demonstrably hackable
-environments, 3,632 exploit trajectories; >15% of surveyed verifiers bypassable.
-
-### SWE-bench family contract
-
-Task = repo snapshot + issue text; verification = FAIL_TO_PASS + PASS_TO_PASS
-test sets executed post-patch; reward binary. Weaknesses (motivating Pro/Live
-variants): training-set contamination of popular repos, saturation (~75% on
-Verified), and solution leakage in issue threads. SWE-bench Pro answers with
-copyleft/commercial held-out repos; SWE-bench-Live/LiveCodeBench answer with
-post-cutoff continuous refresh — the only *structural* contamination defense.
-
-**Takeaways for eval-lab:**
-
-- **T4.** The lab's synthetic-task gate (P5) must adopt TB3's full contract:
-  separate verifier, no trial-time network in tests, declared artifacts,
-  cheating-agent pass, canary strings. This is now the documented floor, not
-  best practice.
-- **T5.** Timeout is a *task-schema field with analytical value*: TB3 timeouts
-  span 1.5–8h and timeout-vs-solve interacts with model strength (Harbor-Index
-  found open-weight models time out 3–4× more often than frontier models).
-  Timeouts must be first-class in the Parquet projection.
-- **T6.** Binary rewards hide diagnosis. TB3's CTRF per-test sidecar is the
-  model: keep the headline binary, store the full check vector (the lab's
-  Postgres `rewards` table + verifier stdout already do this — preserve it in
-  the Parquet layer too).
-
-## 3. Context degradation and long-horizon failure
-
-**Established results:**
-
-- **Context rot** (Chroma, 18 frontier models): every model tested degrades as
-  input length grows, on tasks whose difficulty is otherwise constant.
-- **Long-horizon cliff** (METR time-horizon work): near-100% success on tasks
-  taking skilled humans <4 minutes; <10% on tasks taking >4 hours.
-- **Embedding effect**: web-agent tasks solvable at 40–50% in short-horizon
-  form drop **below 10%** when embedded in a longer interaction history — even
-  with all relevant information still in context.
-- **Coding agents maximize context rot** by construction: accumulative tool
-  output, high distractor density from code search, 15–60min+ horizons.
-- **Mitigation magnitudes** (Anthropic evals): context editing alone +29%;
-  editing + memory tool +39%.
-- **Failure synthesis** (arXiv:2607.05775, six clusters): tool
-  invocation/parameter errors; planning & constraint-satisfaction failures;
-  long-horizon degradation from context accumulation; multi-agent coordination
-  failures; safety/security under adversarial or underspecified conditions;
-  measurement-validity problems. Failures **compound nonlinearly with task
-  length**; sub-task competence does not compose into end-to-end success.
-
-**Takeaways for eval-lab:**
-
-- **T7.** Context growth is a measurable trajectory property, not an anecdote.
-  The Parquet projection must support computing **tokens-in-context per step**
-  so Context Bloat Velocity (P4) is a queryable fact.
-- **T8.** The six-cluster taxonomy from arXiv:2607.05775 is the peer-reviewed
-  anchor for this lab's failure buckets; P4's operational buckets (Flaky
-  Verifier, Tool Hallucination, Timeout, Surrender) map into clusters 1, 3, and
-  6 and should be documented as such rather than invented ad hoc.
-- **T9.** Because failures compound nonlinearly, *where* in a trajectory a
-  failure occurs matters as much as whether one occurs. Step index and
-  cumulative-token position belong on every extracted failure fact.
-
-## 4. What this survey changes about lab priorities (judgment)
-
-1. Variance-aware reporting (T1/T3) is cheap and immediately raises the
-   evidential standard of every cohort comparison the lab produces.
-2. The scaffold is the lab's most promising *independent variable*: the
-   literature says harness deltas of several pp are common, and the lab is
-   uniquely instrumented (one harness, many adapters, ATIF everywhere) to
-   measure them honestly.
-3. Long-horizon/context metrics are underserved publicly (no benchmark measures
-   multi-session work; TB3 tasks are single-goal). The lab's trajectory
-   intelligence layer (P4) can produce novel, publishable measurements from
-   data it already generates.

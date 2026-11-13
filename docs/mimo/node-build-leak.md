@@ -75,10 +75,7 @@ lookup; one grouped rebuild per scope+script), `TRANSFORM_ID_V5`,
 `BUILD_OUTPUT_DIRS_V5`, `shell_block_v5` (@4 bytes + new node section),
 `build_setup_sh_v5`, `build_changes_v5`, `derive_purge_build_caches_v5`.
 @1–@4 untouched and byte-identical (verified: zero removed lines).
-`src/evallab/purge_build_caches.py` owns the transform. `tests/…`: 12 fixture tests
-(nested delete, nested rebuild, no-script fail-closed, tracked-untouched,
-no-package.json no-op, orphan scope, self-link + cjs entry, nested runtime
-asset ref, bare-dir require).
+`src/evallab/purge_build_caches.py` owns the transform (`tests/test_purge_build_caches.py` holds 11 `@5` tests covering nested delete, nested rebuild, no-script fail-closed, tracked-untouched, no-package.json no-op, orphan scope, self-link + cjs entry, and nested runtime asset ref).
 
 The current builder is `mimo-clean-v6`, with `separate-verifier@10`.
 The `mimo-clean` and `mimo-census` CLI producers are retired.
@@ -111,12 +108,3 @@ Raw: `~/Developer/eval-lab-results/2026-10-11/node-build-leak/`
 unaffected (000919 has zero tracked lib refs; all rebuild outcomes only
 reinforced).
 
-## Recommendation to V5Finish
-
-Fold @5 into v5 for **000919** (validated end-to-end), **000435 + 000170**
-(probe-clean under @5; re-run oracle/nop as the fold gate — grading flows
-through `src`, dist is grading-neutral, but not directly executed). Keep @4
-for the sampled-clean/no-op tasks (no leak to fix). **000928 needs the pnpm
-leg owner first** (setup fails at `@2 found … references in the pnpm store`
-before reaching node handling; node section proven in isolation). 21
-at-risk tasks above stay `unverified:node-build-leak` until image-checked.

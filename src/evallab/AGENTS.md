@@ -6,7 +6,7 @@ The package owns CLI dispatch, policy-controlled execution, immutable evidence i
 
 - Shared Pydantic contracts: `schemas/`. Storage paths/attachments/compaction: `storage/`. Deterministic extraction: `evidence/`. Bounded monitor evidence and judgments: `interpretation/`. The former `recovery/` implementation is removed; its directory is reserved.
 - `cli/` and `execution/` are currently reserved namespaces. CLI remains `cli.py`; execution remains the existing top-level runner, queue, quota, contracts, and preflight modules. Do not create parallel implementations because a reserved folder exists.
-- `trajectory_ir.py` and `interpretation/trajectory_ir.py` have different contracts. Keep both unless the assigned migration explicitly covers their semantics and persisted consumers; no facade re-export or incidental deletion.
+- `trajectory_ir.py` owns the retained TrajectoryIR contract (`interpretation/trajectory_ir.py` is retired).
 - Subjective machine judgments are not acceptance. Model execution does not belong in evidence extraction or interpretation.
 - Keep CLI registration and dispatch deterministic. Do not add runtime DB/import side effects to contract modules.
 

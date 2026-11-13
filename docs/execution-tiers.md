@@ -26,7 +26,7 @@ Cloud runs still require explicit approval under `policy/standing-approvals.yaml
 |---|---|---|
 | Docker Desktop VM | **24 GiB RAM / 16 CPUs** (23.4 GiB usable; raised from 7.7 GiB on 2026-08-14) | `docker info` after restart; compose services self-healed via `restart: unless-stopped` |
 | Host | 64 GB RAM, Apple Silicon (arm64) | `sysctl hw.memsize` |
-| Harbor CLI | `harbor[modal]==0.21.0` (global uv tool; version pinned during reinstall) | `harbor --version`; `modal 1.5.4` imports in the tool env |
+| Harbor CLI | `harbor[modal]==0.24.0` (global uv tool; version pinned during reinstall) | `harbor --version`; `modal 1.6.2` imports in the tool env |
 | Modal CLI | present at `~/.local/share/uv/tools/harbor/bin/modal` | — |
 | Modal account | `p-makhnatch` authenticated, verified 2026-09-22 | `modal profile list`, `modal token info`; read-only billing API reports $0 usage for September, not a remaining credit balance |
 
@@ -60,8 +60,7 @@ Read `task.toml` and `environment/Dockerfile`; no execution needed:
 
 The heaviest non-GPU tasks now inside local capacity: `takens-embedding-lean`
 (16 GB, 8 h), `live-database-cutover` (16 GB), `medical-claims-processing`
-(10 GB). The library's curated‑19 (`library/curated/README.md`) remains the
-canary set; this table is about *capability*, not what should run nightly.
+(10 GB).
 
 Harbor-Index (82 tasks distilled from 29 benchmarks) is published on Harbor
 Hub with all 1,476 baseline trials; its tasks follow the same classification
@@ -156,7 +155,7 @@ the source package and caller inputs remain immutable.
 
 ```python
 from pathlib import Path
-from evallab.candidate_runner import run_candidate, run_candidates
+from evallab.candidate_runner import run_candidate
 
 result = run_candidate(
     Path("/data/native-task"),
@@ -256,14 +255,6 @@ Recipes that run generator programs/subprocesses, load code
 (`importlib`, RNG-based synthesis), fetch external URLs, or need a
 With-block tempdir workflow stay refused.
 
-`run_candidates(requests, max_concurrency=2, output_dir=fresh_batch, **policy)`
-returns one ordered outcome per request. Atomic `candidate.json`,
-`outcomes/INDEX.json` and `batch.json` receipts preserve completed work if the
-driver stops. Docker/auto trials serialize so separated roles cannot exceed
-two owned local containers; Modal work is bounded by the requested concurrency
-and the **same** native campaign reservation ledger. Supply one approval,
-`max_usd`, `spend_ledger`, billing tag and owned app for the entire paid run;
-individual requests cannot replace that policy.
 
 Results retain native reward, per-test evidence, agent/verifier log paths,
 errors and infrastructure cost estimates. Infrastructure failure is unmeasured,
@@ -273,10 +264,6 @@ GA hosted-judge package refuses before allocation without implying all MiMo
 packages need that API. Ordinary native MiMo code packages use the upstream
 route. Images retain native content-based caching; source-context digests and
 observed image IDs are reported separately, with no invented cache-hit claim.
-
-The module CLI supports `--files-dir`, `--files-json`, `--patch-file`,
-`--solution-bundle`, `--request` and `--batch`; `--plan` performs local planning
-without provider/daemon calls, evidence staging or ledger mutation.
 
 ## Modal Sandbox controls
 
@@ -309,18 +296,6 @@ egress; missing or delayed billing is not settled zero. A funded campaign must
 still account for those costs and other live allocations within its approved
 cap. See the [MiMo v6 readiness receipt](../research/experiments/mimo-clean-v6/README.md#modal-x1-continuation-2026-10-15-not-run)
 for the deliberately unlaunched hard-cap case.
-
-The native repair qualifier
-`research/experiments/test-repair-performance-20261017/qualify.py` is archived
-in `archive/pre-round3-2026-11-12`. Its historical interface requires explicit
-`--approval` and `--modal-app-name` arguments. Those arguments do not authorize execution.
-Its persisted gate refuses a changed approval, cap, or per-execution reservation;
-reopening the same gate preserves prior charges, including failed controls.
-The current EnvCheck v7 CLI ceiling is $6 across both phases, not a standing
-spending grant. Planning omits `--execute` and charges nothing; actual controls
-still require the separately recorded current authorization.
-The qualifier also isolates its derived Parquet projections beneath `--out`,
-keeping private control evidence out of tracked or shared default projections.
 
 ### Setup and task Python are separate runtime boundaries
 
@@ -536,9 +511,9 @@ headers/bodies. Bridge checks send no credentials: messages must answer 401 and
 The optional public check is a credential-free HTTPS HEAD of the npm registry.
 No model call is needed to qualify connectivity. Check
 `omp usage -p anthropic --json` first; when either the 5-hour or 7-day window
-exceeds the approved 60% threshold, retain connectivity/refusal evidence and make
-no Claude calls. Oracle/nop controls establish isolation/harness behavior, not
-model capability.
+exceeds the `policy/standing-approvals.yaml` threshold (80%), retain
+connectivity/refusal evidence and make no Claude calls. Oracle/nop controls
+establish isolation/harness behavior, not model capability.
 
 ## Harbor-native reuse and local regrade (HAR-171)
 
@@ -593,98 +568,6 @@ re-ingest old trials as new observations. Partial dispatch retains the normal
 approval, lease, readiness, capacity and spend gates and passes `--diff` to
 the existing guarded Harbor subprocess. Regrade-only work does not warm a
 model; a cloud verifier still requires the existing paid authorization.
-
-For a stored job and a current separate-verifier task:
-
-```bash
-  --name verifier-replay --dry-run
-  --name verifier-replay --json
-```
-
-The job-level command runs Harbor's verifier-only regrade on **local Docker
-only**, with no model call or cloud opt-in. It requires recorded `agent/` and
-`artifacts/manifest.json`; a vanished staged task path requires an explicit
-`--task`. Task names and multi-task coverage must match. Source evidence is
-never overwritten or resumed in place. The new `runs/<name>/<trial>` outputs
-retain native locks/manifests plus `regrade-job-receipt.json` and per-trial
-receipts, separating recorded rewards from new dimensions and deltas.
-Partial/refused scoring exits nonzero. The Python trial-level receipt API
-remains available; the CLI uses the job as its reproducible unit.
-
-MiMo's `reward`, `integrity`, and `reward_gated` dimensions come from the
-separate-verifier variant (HAR-169), not from this replay wrapper. Compose
-`rewardkit-integrity@1` **before** `separate-verifier@1`. The source must have
-successfully collected the declared workspace and `/logs/agent/trajectory.json`;
-a failed or missing required artifact is not reconstructed from pristine task
-files. The [separate-verifier evidence](../research/experiments/har169-separate-verifier/results.md)
-records the supported layout and controls. A successful local replay proves
-verifier operation, not task validity or model improvement.
-
-### Additional upstream tests (`--held-out`, HAR-197)
-
-checks a separate, digest-bound upstream-test suite against the recorded source.
-The preview reads files only: it does not probe Docker, build an image, create
-an output job, or execute task code. `runnable` means input eligibility, not
-runtime availability or research approval.
-
-Extract a suite from a **locally retained** repository with
-`python -m evallab.heldout_tests extract --help`. Supply the actual base and
-upstream fix commits, the task's hidden patch, pinned image, and workdir.
-Extraction reads the original Git store without mutation or transport access;
-hidden postimages use a temporary Git index/object store. Added or modified
-Python test definitions are compared with normalized hidden/base ASTs.
-Comments, docstrings, and renamed copies do not create extra tests.
-Unavailable inputs are distinct from completed `no_extra_tests` subtraction.
-The output includes exact test/support bytes, selected nodes, exclusions, and
-provenance—not the production fix.
-
-An example bundle, with paths relative to the bundle's directory:
-
-```json
-{
-  "schema_version": "heldout-regrade/v1",
-  "tasks": [{
-    "task_name": "org/task",
-    "suite": "suite.json",
-    "framework": "pytest",
-    "command": ["python", "-m", "pytest", "-q"]
-  }]
-}
-```
-
-Use the interpreter and environment belonging to that task. The `unittest`
-adapter takes an interpreter prefix and optionally a config-relative
-`bootstrap` Python file; bootstrap and test collection share one interpreter,
-so initialization such as Django settings persists. Explicit `env` values and
-`timeout_sec` are bound with the other inputs.
-
-Without `--dry-run`, this starts **local, CPU-only, no-network verifier
-containers** through the existing native trial-regrade API. The source task,
-kernel-probe, and native egress-control images must already be cached; missing
-prerequisites are refused, not downloaded. Generated Compose disables the
-verifier's network and image pulls, and no source-task healthcheck or Compose
-configuration is inherited. Runs are sequential, with no model invocation.
-**A zero-dollar operation does not grant a card-specific sandbox approval.**
-
-Only the original `reward == 1` selects a trial; `integrity` and `reward_gated`
-remain separate observations. The pre-hidden-test `verifier/agent.diff` is
-applied on its pinned base, then authoritative test files replace agent edits.
-Unrecoverable binary placeholders are refused, not silently stripped. A patch
-does not recover ignored files, installed dependencies, or other runtime state.
-
-Complete observed test results produce only `holdout_pass: 1.0` or `0.0`.
-Missing inputs/reports, collection or runtime errors, skipped or unexecuted
-selected tests, and timeouts stay **unscored**. Neither refusal nor missing
-coverage is a zero. Original trial bytes and reward dimensions remain unchanged.
-The new output groups native trial directories with the existing per-trial and
-`regrade-job-receipt.json` receipts; it does not fabricate a native job invocation.
-
-“Held-out” here means additional to the task grader, **not secret from an agent
-that could read the leaked history**. AST novelty is not semantic independence
-or a cheating verdict. Qualify candidate suites with correct-fix/honest controls
-and deliberately hollow patches before reporting recall or false-positive rates;
-report unavailable corpus and runtime coverage separately.
-
 
 ## Retained capture limits
 
@@ -834,107 +717,6 @@ policies skips the Modal teardown hook; a mixed window still calls it, and the
 hook keeps waiting until no self-hosted work remains. Runpod Pod termination/storage cleanup is part of A's
 explicitly admitted operator lifecycle, not a new automatic provider launcher.
 
-#### Two candidate designs and conditional costs
-
-Prices below are the 2026-10-07 public snapshots, not invoices or guarantees
-of available capacity: [Runpod](https://www.runpod.io/pricing),
-[Modal](https://modal.com/pricing), [Daytona](https://www.daytona.io/pricing),
-[Hetzner CCX63 rates](https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/)
-and [hourly rounding](https://docs.hetzner.com/cloud/billing/faq/).
-CCX63 is 48 dedicated vCPU/192 GB/960 GB NVMe; verify stock and the actual
-tax-inclusive quote before admission. Twenty 2-vCPU/8-GiB limits can fit its
-published envelope; twenty 4-vCPU limits cannot.
-
-For **100 tasks × 2 = 200 trials**, assume 20 minutes per trial, 149 seconds
-of startup once, prompt resource cleanup and no slowdown at the stated
-concurrency. Modal GPU+4 physical CPU+16 GiB is $2.814912/h. Runpod A100-80
-plus 50 GB running disk is $1.596849/h. CCX63+IPv4 is $1.6148/h, rounded to
-four hours including ten minutes of preparation. Image preparation,
-unpriced transfers, extra storage/tails and taxes must be added when present.
-
-| Configuration | Per trial | 200 trials | Material condition |
-|---|---:|---:|---|
-| Historical HAR-168 all-in upper / 24 | ~$0.654 | ~$130.80 extrapolated | Mixed startup/idle; not an invoice or C20 forecast |
-| Historical fresh four-trial upper | ~$0.320 | ~$64.02 extrapolated | Measured-time upper, not C20 throughput |
-| Current Modal + current Daytona envelope, C19 | $0.1293 | $25.87 | Eleven hypothetical 20-minute waves |
-| **A: Runpod A100-80 + Daytona 4 GiB, C20** | **$0.0825** | **$16.50** | Requires justified resource change and C20 admission |
-| A without downsizing or lifting current C19 clamp | $0.1068 | $21.35 | Uses current $0.23148/sandbox-h envelope |
-| **B: Modal A100 + CCX63 Docker, C20** | **$0.0798** | **$15.96** | Preserve task limits; host fit, lock and makespan unqualified |
-| Modal A100 + Modal Sandbox, true 2 vCPU/4 GiB, C20 | ~$0.1268 | ~$25.36 | Sandbox tariff is not Function tariff |
-
-For managed sandboxes, compute
-`GPU_rate × (ceil(N/C) × trial_hours + startup_hours) + N × trial_hours × sandbox_rate`.
-For B, replace the per-sandbox term with rounded shared-host hours. At 30
-minutes/trial, B rises to about $23.87/$0.1194: occupancy and makespan matter
-more than a small hourly price difference. All denominators must include
-failed work when costing completed valid trials.
-
-Actual frozen evidence is distinct from those assumptions. The selected
-12 a1 records under `har164/runs/har168-native-selected12-6da15fc1d06c` plus
-the twelve original a2 result records contain 919 recorded requests,
-28,075,949 cumulative input tokens and 539,495 output tokens; median native
-trial wall is 765.56 seconds and nearest-rank p95 is 2,657.67 seconds.
-The selected a1 set includes the `002391-a1-infra` record; filtering original
-job names by `-a1` silently changes the cohort. These are selected native
-records, not 24 scientifically accepted passes. The fresh four a2 jobs
-(001109/000792/001985/001198) span **834.671114 seconds**, about 17.25 physical
-trials/hour, with 113,562 output tokens across that wall. This is not GPU-only
-decode throughput. Dividing their $1.28 upper by hourly rates does **not**
-recover measured wall time: that upper already includes startup/tail.
-
-The supplied prompt median/p95 (29k/61k) and historical ~745k KV pool remain
-planning inputs; the latter is inferred from old telemetry, not a measured
-current startup pool. At 32 KiB/token, 40×61k consumes 74.46 GiB of KV before
-17.5 GiB weights and workspace, so C40 is not a defensible default.
-**[INFERENCE]** L40S has room for the weights plus one full window, but its
-actual runtime workspace, shared KV capacity and throughput remain unqualified.
-A lower hourly price does not establish cheaper completed trials. A10 cannot
-fit the unchanged BF16 weights plus a full 262k window. No model/context
-clipping or quantization is used to reach the target.
-
-A uses the existing host-side authenticated model transport. **Do not use
-Runpod's ordinary HTTP proxy:** its [100-second timeout](https://docs.runpod.io/pods/configuration/expose-ports)
-would change the native 3600-second read contract. Use an authenticated SSH
-tunnel over direct TCP to a loopback endpoint, preserving the SGLang key,
-checkpoint, dtype, sampling and native tool semantics. Nothing is exposed
-to the task container and no egress exception is added.
-
-#### One combined paid comparison screen: at most $2, NOT RUN
-
-This is a short rejection/readiness screen, not two $2 budgets or a full
-trial/performance qualification. It needs a separate explicit approval.
-Prebuilt images/weights, quote availability, account lock capability and
-HAR-189 reservations are prerequisites; their preparation is not silently free.
-If current inclusive quotes cannot fit the cap, do not create resources.
-
-| Hard allocation envelope, including startup and deletion | Nominal cost |
-|---|---:|
-| One CCX63+IPv4, delete both within the first billed hour | $1.61480 |
-| One owned Modal A100 window, at most 4 paid minutes | $0.18766 |
-| One Runpod A100-80+50 GB running disk, at most 4 paid minutes | $0.10646 |
-| Daytona: at most 855 aggregate sandbox-seconds at the unchanged rate (19×45 seconds) | $0.05498 |
-| **Subtotal / remaining allowance to $2** | **$1.96389 / $0.03611** |
-
-Prepare the host before either GPU window. Keep three separate results:
-(1) simultaneous sandbox occupancy and declared-resource/tool/verifier fit;
-(2) root-level DNS/HTTP/TLS/direct-IP/IPv6/metadata/host/sibling/Docker-API
-denial, with a reachable positive control and working host exec/file copies;
-(3) makespan/TTFT/usage/queued requests for **20 concurrent authenticated
-controller-side model probes** using representative 29k/61k contexts and
-an explicitly probe-only small output cap. Do not reduce real trial limits.
-Run each GPU burst only after readiness and only if time remains before its
-allocation deadline; incomplete bursts are failed/incomplete screens, not
-permission to extend time. Include stop/absence checks in the paid windows.
-
-Docker can request C20 only when observed host headroom permits. Daytona
-must keep its existing clamp (currently C19 on an idle account), so A's
-sandbox result cannot certify C20 until separate capacity admission permits
-it; model C20 and sandbox C20 are different observations. Stop rather than
-buy a second VM hour or hide cleanup/idle time. A fresh full-context/native
-tools qualification and actual completed-trial duration tails remain unproven
-if they do not fit this small screen. No held campaign is released by the plan.
-
-
 ### Z.ai OpenCode on Docker Desktop
 
 The default `zai-opencode` profile selects `zai-coding-plan/glm-5.3-flash`.
@@ -964,7 +746,7 @@ Live Laminar tracing is an independent host-side opt-in, not a new harness
 treatment. Install the host with `uv sync --locked --extra laminar` and inherit
 the central `LMNR_PROJECT_API_KEY` through `keys run --` for an already
 authorized launch. Preserve that extra in subsequent `uv run --locked`
-commands: traced native launches use this checkout's pinned Harbor `0.21.0`,
+commands: traced native launches use this checkout's pinned Harbor `0.24.0`,
 not an unrelated globally installed CLI. The host and isolated native graphs
 both pin `lmnr==0.7.64`; SDK initialization precedes the native OpenAI client.
 The key never enters the task image, native worker or model traffic.
@@ -1366,22 +1148,8 @@ projections by the queue. Inspect them without calling another model:
 
 ```bash
 uv run evallab summarize runs/terminus-example
-# Metrics/navigation without step bodies:
-# A known inclusive logical range, or the first error-marked action directly:
-# Rebuild derived records from retained native evidence when needed:
 uv run evallab ingest runs/terminus-example
 ```
-
-Bounded outline readouts retain full-trajectory metrics and source-file citations;
-`step_selection` records the selection and omitted-step count. Step rows keep
-their original `source_path`, `source_sha256`, and `source_step_id`, including
-continuations. `--first-error` selects the first `is_error` step in outline order,
-or an empty step list if none exists; it does not diagnose the first causal failure
-or prove success. A summary is a navigation aid, not evidence that omitted actions
-were absent. Reopen the native source for command observations and causal claims.
-Without a selection flag, JSON still contains all step bodies; `--verbose` does
-the same for text highlights. Selection flags are mutually exclusive.
-
 
 Two Terminus-specific knobs:
 
@@ -1392,23 +1160,10 @@ Two Terminus-specific knobs:
   `research/experiments/har81-mimo-sft/harness/` does; runs meant for
   evaluation or trace analysis keep the defaults. `raw_content` writes no
   `tool_calls` and `linear_history` splits a summarized run into
-  `trajectory.cont-N.json` files. For trials already recorded that way, the
-  ATIF projection, `traj outline`/`card` and `report run` read the calls
-  the harness accepted from `extra.step_layers`
-  (`step_layers.effective_tool_calls`), in stock Terminus-2 shape
-  (`bash_command`, `mark_task_complete`).
-  only the model (e.g. base to checkpoint), keeping the retained task,
-  harness, and ceilings; the printed cost estimate must be re-checked before
-  submitting. Prior approval is never inherited.
-
-Independent model-call capture (same placement as the z.ai lane) chains the
-completeness verdicts; see [the capture recipe](#independent-model-call-capture):
-
-```bash
-  --out derived/captures/<name>
-ENDPOINT=$(python -c "import json; print(json.load(open('derived/captures/<name>/capture.json'))['endpoint'])")
-EVALLAB_TINKER_UPSTREAM="$ENDPOINT" EVALLAB_MODEL_CAPTURE=1 EVALLAB_MODEL_CAPTURE_DIR=derived/captures/<name> uv run evallab tick ...
-```
+  `trajectory.cont-N.json` files. For trials already recorded that way,
+  `extra.step_layers` (`step_layers.effective_tool_calls`) records the calls
+  the harness accepted, in stock Terminus-2 shape (`bash_command`,
+  `mark_task_complete`).
 
 The trial's `agent/` directory retains `trajectory.json`, `recording.cast`,
 `terminus_2.pane`, and any summarization/continuation trajectories. Native
@@ -1422,13 +1177,6 @@ uses conservative uncached pricing, not a provider invoice. Some upstream
 length-interrupted responses can be absent from native usage totals; do not
 equate ATIF step count with physical requests. See
 [the analysis loop](analysis-loop.md) for evidence validity and interpretation.
-
-Verification on September 24 used the real native Terminus/Docker/queue path
-with a **scripted loopback provider and isolated catalog**: terminal execution,
-parse-error recovery, native grading, ATIF/recording capture, and ingestion.
-This is CPU protocol proof, not a live GLM capability result or remote/GPU
-qualification. All 66 pinned TB4 task selections also compile without execution.
-
 #### Pinned settings, rules, and skills
 
 `--harness-tree` freezes a directory with this layout:
@@ -1462,128 +1210,19 @@ This mirrors Reef's tree layout without importing Reef.
 Local-model execution via Ollama is not permitted on Peter's laptop: do not
 start a local Ollama service, point the lab at one, or run a local-baseline
 recipe. Use an explicitly authorized hosted route instead. To compare a changed
-candidate harness against a retained baseline spec:
+candidate harness against a retained baseline spec, prepare a new spec with
+`--harness-tree /absolute/path/to/candidate-harness`, submit it, approve the
+printed `spec_id`, and run `uv run evallab tick --spec-id <candidate-spec-id>`.
 
-```bash
-# Change only the candidate harness; reuse the executed task/model/limits.
-  --name local-candidate --harness-tree /absolute/path/to/candidate-harness
-uv run evallab submit derived/prepared/local-candidate.json
-uv run evallab approve <candidate-spec-id> --actor peter
-uv run evallab tick --spec-id <candidate-spec-id>
-```
-
-Local qualification reads Ollama's installed-model inventory, rejects cloud
-models, and records the weight digest and endpoint. The controller uses an
-8,192-token context budget. Native token counts remain observed telemetry;
-zero provider API charge is recorded explicitly, not used to fill missing
-usage. No provider-proxy request/token/cost ceilings are claimed for this
-route. Task deadlines and native harness settings still apply, and every
-non-control spec still requires recorded approval. Replay never inherits an
-old approval or changes the retained task; task drift refuses.
-
-Set `declared_variable` to `harness_tree_sha256` in a normal comparison spec,
-tree bytes against native kwargs, rules, and skill locks before treating them
-as one treatment. Non-tree model/tool settings remain consequential. Full
-base execution settings must match within each paired task, even when
-different tasks have different limits. Cost per solved task uses all selected
-attempt costs and reports missing-cost counts; no solved tasks or incomplete
-cost evidence yields **unavailable**, never a fabricated zero. Native provider
-estimates are not invoices, and zero local API charge is not a hardware-cost
-estimate.
-
-
-### Reef-process publication gate and local calibration
-
-`library/adapters/reef_gate/` is a separate Python package with its own
-`pyproject.toml` and lock. It is **not** an `evallab` runtime dependency.
-`evallab_reef_gate.plugin:Factory` imports Reef only inside the Reef process;
-the Lab application never imports Reef or mixes its Harbor dependency into
-the Lab environment.
-
-Select the factory with Reef's `evolution.selection` and configure it through
-`EVALLAB_REEF_GATE_CONFIG`, a JSON file with these fields:
-
-```json
-{
-  "alpha": 0.05,
-  "min_valid_pairs": 5,
-  "pass_threshold": 1.0,
-  "regression_failure_threshold": 1,
-  "record_dir": "/absolute/owned/run/gate-decisions",
-  "reef_commit": "818997d76412f0eead7d0b4b343da701d6ce2c20"
-}
-```
-
-The gate delegates episode evaluation to Reef's `BackendEvaluateMixin`.
-It drops and counts a positional pair if either score is missing or invalid.
-Ties remain valid evidence but leave the sign-test sample. Selection requires
-the exact one-sided sign-test probability to be **strictly below** `alpha`,
-at least `min_valid_pairs`, and no protected-task regression. A task is
-protected only when the current harness passed every repeat; its valid
-candidate failures must stay below `regression_failure_threshold` **within
-that task**, not pooled across tasks. Missing scores are never fabricated
-failures or wins.
-
-Every candidate gets an exclusive JSON decision record with pairs, counts,
-probability, per-task vetoes, configuration, Reef revision and timings.
-Evaluation exceptions become rejections with no observed evaluation sides;
-they cannot clear the current failure history by inventing successful
-observations. If recording the decision fails, publication is refused.
-
-The calibration command copies the existing `04_gate_aa.py` experiment into
-the owned package; it does not edit the original script or its work directories.
-Use the already-installed Reef interpreter read-only, an explicitly authorized
-API proxy (local Ollama inference is not permitted on Peter's laptop), and a
-fresh owned output directory:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
-PYTHONPATH="$PWD/library/adapters/reef_gate/src" \
-~/Developer/lab-extras/upstream/reef/.venv/bin/python -m evallab_reef_gate.calibrate \
-  --reef-root ~/Developer/lab-extras/upstream/reef --work-dir "$PWD/runs/reef-gate-aa" \
-  --api-proxy-url http://127.0.0.1:<port> --model <provider-model-id> \
-  --condition aa --trials 30 --repeats 5 --port 18972
-```
-
-The driver refuses nonempty output directories and output inside the Reef
-checkout. It checks a unique installed GGUF's digest/size, rejects cloud
-model routes, URL credentials and redirects, and neither downloads weights
-nor forwards ambient provider credentials/proxies into episodes. All Reef
-storage, recipes, step records and decision records stay under `--work-dir`.
-
-For the known-effect control, use a separate fresh directory with
-`--condition known-effect --trials 5 --repeats 5`. All trial scenarios are
-created before the first proposal: each forks the deliberately degraded
-answer-style skill before any publication can advance Reef's shared head.
-Each trial then proposes the original tutorial skill. This measures publication
-power; it is not A/A and does not inject reference answers into the harness.
-
-Use `--analyze-only --work-dir <existing-owned-run>` to recompute the report
-without starting a service. Task identities come from the retained served
-recipe; contradictory metadata is refused. Reports retain attempted/settled/
-invalid counts, the publish denominator, Wilson 95% uncertainty, the original
-gate-table prediction and missing episodes. Evaluator errors, insufficient-
-evidence holds and rows with no usable pair do not become resolved negative
-trials. Valid partial-pair comparisons retain their missing episode counts.
-With no publications, published-tree identity is unavailable, not vacuously
-true. Prediction assumptions and the additional regression veto are explicit.
-`decision_seconds` measures decision computation, excluding record persistence;
-evaluation time and full trial wall time are reported separately. Missing
-timings remain unavailable and have separate counts, never imputed zeros.
-
-An explicitly authorized API campaign can instead use
-`--api-proxy-url http://127.0.0.1:<port> --model <provider-model-id>`.
-This is mutually exclusive with `--ollama-url`; the proxy model is required,
-and no Ollama inventory request is made. `EVALLAB_REEF_PROXY_TOKEN` supplies
-only the proxy capability (rename the variable with `--api-proxy-token-env`),
-not the provider key. Use an existing supervised credential proxy with explicit
-request/token/cost ceilings and current conservative pricing. API provenance
-records the route and model, with no fabricated local-weight digest. Retain
-proxy usage separately and never pool calibration cohorts across model changes.
-The native Reef process is not an OS sandbox: an owner-only provider-key file
-outside its work directory does not isolate that key from same-user tool code.
-Reef may retain the resolved proxy capability in its own runtime configuration;
-keep that configuration private and terminate the proxy when the campaign ends.
+Set `declared_variable` to `harness_tree_sha256` in a normal comparison spec
+so tree bytes participate alongside native kwargs, rules, and skill locks before
+treating runs as one treatment. Non-tree model/tool settings remain
+consequential. Full base execution settings must match within each paired task,
+even when different tasks have different limits. Cost per solved task uses all
+selected attempt costs and reports missing-cost counts; no solved tasks or
+incomplete cost evidence yields **unavailable**, never a fabricated zero. Native
+provider estimates are not invoices, and zero local API charge is not a
+hardware-cost estimate.
 
 ### Shared Daytona capacity admission (HAR-144)
 
@@ -1622,10 +1261,6 @@ Old trials without records never acquire fabricated zero usage.
 
 The billing wallet/tier API returned 401 for this key; dated dashboard wallet
 balances are recorded as observations, not a live credit cap or permission to
-spend. Capacity admission does not replace financial approval. Peter's
-2026-10-01 dashboard evidence confirms usage-limit loss of G5 wave-3 stock
-sandboxes `001241`, `001626`, and `001765`, superseding the earlier unknown/audit
-403 diagnosis for those three; the frozen run record itself is not rewritten.
 
 ### GLM mini-SWE on Daytona
 
@@ -1695,7 +1330,6 @@ provider-side destruction deadline of the explicit execution timeout plus ten
 minutes (rounded up), sixteen-minute inactivity stop, and immediate deletion after
 stop. The stop covers the longest idle gap — one full model call (the proxy's
 600 s upstream timeout) plus the bounded 503 wait (360 s default), rounded up
-(`DAYTONA_AUTO_STOP_INTERVAL_MINS` in `execution_contracts.py`); G5 lost 3
 sandboxes after 255-281 s model stalls under the old 5-minute stop while the
 proxy was still inside its 503 wait. These lifecycle limits are not an infrastructure dollar meter: budget the
 agent sandbox, separate verifier, and builds independently of model tokens.
@@ -1793,101 +1427,18 @@ Release remains idempotent.
 
 Use an approved hosted upstream. Never run local model inference on Peter's laptop.
 
-Harness trajectories are agent-controlled: installed agents write them inside
-the container (`/logs/agent`), a root agent can delete them, and
-timeouts/cancels can skip conversion (Harbor 0.21 `trial.py`; the opencode
-converter silently returns empty on failure). The lab's existing container
-proxies (`containers/*_secret_proxy.py`) record usage only, never bodies.
-
-in a host process outside the agent's reach, so a missing, incomplete, or
-tampered trajectory is detectable after the run.
-
-## Commands
-
-```bash
-# Record: forward to the real backend, append one JSON record per call.
-# Default binds an OS-assigned free port per server; read the bound endpoint
-# from <dir>/capture.json after the bind (never probe the port first).
-  [--port PORT] [--bind 127.0.0.1] [--upstream-key-env NAME]
-ENDPOINT=$(python -c "import json; print(json.load(open('<dir>/capture.json'))['endpoint'])")
-
-# Attribute + judge: match calls to trials, write Parquet, print verdicts.
-
-# Surface: `report run` gains an "Independent capture" section when linked.
-```
-
-sends one real provider call through the secret proxy and capture server, so
-the usual execution and spend authorization applies. The smoke drains its
-request handler before validating `calls.jsonl`: receiving a complete HTTP body
-alone does not prove that the capture journal has finished writing. Its bound
-socket closes on success or failure; the long-running `serve` relay is unchanged.
-
-`serve` forwards OpenAI-compatible (`/v1/chat/completions`, `/v1/completions`,
-`/v1/responses`) and Anthropic (`/v1/messages`) requests, including streaming
-SSE, and appends one record per call to `<dir>/calls.jsonl` (append + flush per
-record): sequence number, start/end timestamps, method/path, optional route
-token from a `/t/<token>/` path prefix (stripped before forwarding), selected
-request headers with auth redacted, full request body, response status, full
-response body (raw SSE plus the reassembled message/tool calls), usage,
-upstream latency, and errors (upstream down, client disconnect). A
-`capture.json` manifest (upstream, bound bind/port/endpoint, start time,
-eval-lab commit, proxy version) is written only after the bind succeeds; a
-`ProvenanceMetadata`-compatible digest (`provenance.json`) is written at
-close — stop with SIGINT/SIGTERM, not SIGKILL, so the close path runs.
-
-Normalized `usage` is a complete
-`{"prompt_tokens": int, "completion_tokens": int}` pair or `null`, not a
-quota or billing record. `prompt_tokens` includes all observed input:
-
-- OpenAI Chat/Responses totals already include cached input; cache-detail
-  counters are subsets and are not added again.
-- Anthropic totals are `input_tokens + cache_read_input_tokens +
-  cache_creation_input_tokens`. Nested cache-creation TTL counters are
-  subsets, not additional input.
-
-Counters must be explicit nonnegative integers, not booleans. Missing or
-invalid Anthropic cache counters leave the normalized pair unknown; absence
-is not zero. For Anthropic SSE, a `message_delta` output counter must be
-observed: the provisional `message_start` output does not establish final
-usage. Cumulative updates replace earlier values rather than being summed;
-an explicit final zero remains a valid zero. The retained response body
-preserves the original provider breakdown.
-
-This normalization applies to newly extracted responses. Existing capture
-records are immutable: `link` projects their stored `usage` and does not
-re-extract it. Correcting historical metrics requires a separately identified
-derived extraction from the retained source bodies, not overwriting capture
-records or simply rerunning `link`.
-
-Ports: concurrent servers each bind their own free port by default
-(`--port 0`). An explicit `--port` pins one port and fails with `EADDRINUSE`
-before any round dispatch when taken, writing no manifest and no `calls.jsonl`.
-Never check-then-bind (no `lsof`/connect probe before `serve`): bind, then
-read the endpoint from `capture.json` and verify `/healthz`.
-Upstream path joining is prefix-aware: `--upstream .../v1` serves both
-`/v1/chat/completions` clients (raw OpenAI) and `/chat/completions` clients
-(litellm posts the bare path to its `api_base`).
-
-Keys: with `--upstream-key-env NAME` the key is injected upstream and never
-recorded; `Authorization`/`x-api-key`-shaped headers are scrubbed from every
-record and every log line. Without it the proxy is transparent to client auth
-(what the client sent is what the upstream gets, minus hop-by-hop headers).
-
-`link` attribution priority per call: route token → `X-Session-ID`-style
-session header → conversation reconstruction (message-prefix chaining: the
-first user message matches the trial's instruction and timestamps fall inside
-the trial's `agent_execution` window from `result.json`). The instruction
-anchor is embedding-tolerant: agents wrap `instruction.md` in a prompt
-template, so containment either way anchors (64-char guard). Output, under the
-resolved derived root: `derived/parquet/job_id=*/model_calls.parquet`,
-`trial_capture.parquet`, and a `capture_link.json` receipt.
-
-Auto-link: when a round sets `EVALLAB_MODEL_CAPTURE=1` plus
+`src/evallab/model_capture.py` (`attribute_calls`, `judge_trial`, `link_capture`)
+links host-side capture records (`calls.jsonl` + `capture.json`) to trials.
+When a round sets `EVALLAB_MODEL_CAPTURE=1` and
 `EVALLAB_MODEL_CAPTURE_DIR=<capture_dir>` alongside the loopback upstream,
-the runner stamps each job's attempt id as the route token, records the
+the runner stamps each job's attempt id as the route token and records the
 capture directory, endpoint, and bound manifest in `lab-metadata.json`
-(`model_capture`), and links the job to its own file at completion
-(best-effort; the round's final per-job `capture link` stays the backstop).
+(`model_capture`).
+
+`SecretSafeTerminus2` (`evallab.harbor_terminus`) rejects `api_base` overrides:
+model transport is bound by the trial proxy. Forward `EVALLAB_ZAI_OPENAPI_UPSTREAM`
+or `EVALLAB_TINKER_UPSTREAM` on the dispatching command when routing through a
+host-side capture proxy.
 
 Per-trial completeness verdicts:
 
@@ -1900,101 +1451,7 @@ Per-trial completeness verdicts:
 | `ambiguous` | Attribution matched more than one trial; calls left unassigned |
 
 Turn comparison is rendering-robust: besides verbatim containment it compares
-lowercased alphanumeric skeletons, because harnesses store parsed renderings
-(Terminus keeps `Analysis: …` while the model emitted fenced
-`{"analysis": "…"}`). The both-absent corner reads `capture_missing` with a
-pointer at the `agent_execution` window: an idle control agent is
-indistinguishable from a full bypass.
-
-## Eval Lab Terminus lane (HAR-81)
-
-`SecretSafeTerminus2` (`evallab.harbor_terminus`) rejects `api_base` overrides:
-model transport is bound by the trial proxy. Capture fits around that binding
-instead of overriding it.
-### Z.ai lane: secret proxy → capture → z.ai
-
-Chain the metered proxy (injects the real key) into capture (records), with
-capture as the secret proxy's upstream:
-
-```bash
-  --out derived/captures/<name>
-ENDPOINT=$(python -c "import json; print(json.load(open('derived/captures/<name>/capture.json'))['endpoint'])")
-# The runner forwards this variable to the per-trial secret proxy (runner.py
-# `EVALLAB_ZAI_OPENAPI_UPSTREAM`), so set it on the dispatching command:
-EVALLAB_ZAI_OPENAPI_UPSTREAM="$ENDPOINT" EVALLAB_MODEL_CAPTURE=1 EVALLAB_MODEL_CAPTURE_DIR=derived/captures/<name> uv run evallab tick ...
-```
-
-The secret proxy appends `/api/paas/v4/chat/completions` itself; capture
-records that path as `chat` kind and reassembles the OpenAI-format bodies.
-The injected `Authorization: Bearer <real key>` is forwarded upstream but
-never recorded (auth headers are scrubbed from every record). Proven
-in-process: secret proxy → capture → stub upstream returns the stub's answer,
-the capture record holds the reassembled text, and the provider key appears
-nowhere in `calls.jsonl`.
-
-## Wiring recipes
-
-Run the proxy on the host (`--bind 127.0.0.1`; port assigned by the OS unless
-`--port` pins one), then point the agent at the bound endpoint from
-`<out>/capture.json`. In-container agents must reach the host via
-`http://host.docker.internal:<bound-port>`.
-
-### Terminus-2 (host loop — covers remote sandboxes too)
-
-Verified in Harbor 0.21 source (`harbor/agents/terminus_2/terminus_2.py`):
-`Terminus2.run()` builds a host-side `Chat(LiteLLM(api_base=...))` and the
-episode loop (`_run_agent_loop`) calls litellm from the Harbor host process;
-the sandbox is only touched for terminal I/O. So a host proxy sees every
-model call even when the sandbox is remote (Daytona/Modal) — point `api_base`
-at the host proxy:
-
-```yaml
-agents:
-  - name: terminus-2
-    model_name: openai/qwen2.5:7b
-    kwargs:
-      api_base: http://127.0.0.1:<bound-port>  # endpoint from <out>/capture.json
-      model_info: {max_input_tokens: 32768, max_output_tokens: 8192,
-                   input_cost_per_token: 0.0, output_cost_per_token: 0.0}
-```
-
-(`model_info` registers the custom model with litellm so token counting does
-not fail.) Observed: Harbor does not pass a session id to Terminus-2, so no
-`X-Session-ID` arrives and attribution uses conversation chaining.
-
-### mini-swe-agent (in-container)
-
-The agent runs inside the container and reads its endpoint from
-`OPENAI_BASE_URL`/`OPENAI_API_BASE` (passthrough env;
-`harbor/agents/installed/mini_swe_agent.py`). Model names are
-`provider/model`. When Harbor sets a session id the agent sends it as
-`X-Session-ID` (`model.model_kwargs.extra_headers`), which the proxy records
-for session attribution. Set the job env to the host proxy:
-
-```bash
-OPENAI_BASE_URL=http://host.docker.internal:<bound-port>  # host proxy's bound port
-```
-
-### OpenCode (in-container)
-
-Provider endpoints come from the generated `~/.config/opencode/opencode.json`:
-for `openai`/`anthropic` providers Harbor writes
-`provider.options.baseURL` from the model connection's configured base URL
-(`harbor/agents/installed/opencode.py`, `_build_register_config_command`),
-deep-merged with job-level `opencode_config` kwargs. Point the connection (or
-the override) at `http://host.docker.internal:<port>`.
-
-## Limits
-
-- Ollama native `/api/chat` (single JSON and streaming NDJSON) is recorded as
-  `ollama_chat` kind; other `/api/*` endpoints are forwarded but recorded as
-  `unknown`.
-- Route-token and session attribution need agent cooperation (path prefix,
-  header); otherwise chaining needs `instruction.md` resolvable from the trial
-  config and clocks inside the execution window.
-- The proxy is a diagnostic tap, not a meter: for spend accounting keep the
-  container secret proxies.
-
+lowercased alphanumeric skeletons, because harnesses store parsed renderings.
 ## Trial treatment keys and capture records
 
 A pass rate or a learnability call may only pool trials that ran under the same setup. `evallab.trial_treatment` makes that check mechanical. It gives every trial:
@@ -2002,13 +1459,7 @@ A pass rate or a learnability call may only pool trials that ran under the same 
 - a **treatment key**: a hash of every setting that changes behaviour;
 - a **capture record**: which evidence the trial left behind, and how complete it is.
 
-Both are paired catalog tables, with catalog root `derived/parquet/external/task_catalog/`:
-
-| Table | One row per | Written by |
-|---|---|---|
-| `trial_capture.parquet` | trial | the same command |
-
-`treatment-collect` merges into the existing pair, replacing rows for trials it has seen before without duplicating them. The trial identity is `(job_name, trial_name)`. `evallab attach` exposes both tables as top-level and `z3` views.
+Both are paired catalog tables (`trial_treatment.parquet` and `trial_capture.parquet`), with catalog root `derived/parquet/external/task_catalog/`.
 ## Setup fingerprints (HAR-149)
 
 On 2026-10-01 every MiMo trial ran with the sandbox network open and nobody
@@ -2047,54 +1498,11 @@ Serialization failure or process termination before that commit leaves the
 previous pair readable, or no published pair on the first collection.
 
 Consumers resolve `evallab.trial_treatment.table_paths(catalog)` once for the
-pair; the CLI prints those immutable file paths. Do not scan all generations
-or hardcode the old catalog-root filenames. Readers check file integrity and
-matching trial identities and `produced_at` values before using either table.
-An attached DuckDB connection and its exported SQL keep their original
-generation even when another collector publishes a newer one.
-
-Recovery does **not** rerun the agent, provider, or verifier:
-
-```sh
-```
-
-- **Before the first snapshot:** a complete, consistent legacy pair of
-  catalog-root files can be read and migrated. A missing companion, missing
-  trial, or stale collection timestamp refuses reads. Recollect every
-  affected source job to repair it; replaying only some missing rows cannot
-  silently drop the others.
-- **After snapshot publication:** corrupt manifests, missing files, and digest
-  mismatches are errors, never reasons to fall back to a legacy pair. Preserve
-  the damaged catalog for diagnosis and rebuild from all retained source jobs
-  into a fresh `--catalog-dir`; inspect that new catalog with `pool-check
-  --catalog-dir` before using it.
-- **Retention:** old generations and legacy files remain unchanged because
-  already-attached readers may still reference them. There is no automatic
-  generation pruning. Stop those readers before removing obsolete projection
-  files; never delete the retained source jobs as part of catalog repair.
-
-This is engineering data quality: consistent, recoverable evidence, not a
-claim that a trial is scientifically valid or poolable. Missing provenance
-remains unknown after successful collection.
-
-
-## Pool check
-
-```
-```
-
-The command exits 0 and prints `POOLABLE` only when every setup field agrees. Otherwise it exits 1, prints `REFUSED`, and lists each differing field with the trials behind each value.
-
-- **Unknowns refuse the pool.** A field is unknown when the trial's files cannot establish it. `--accept-unknown` lets unknowns count as equal to each other, and they are still reported. A known value never equals an unknown one.
-- **Tasks don't split the pool by default.** A cohort of different tasks run under one setup passes; the compared fields are `setup_key`'s. `--same-task` also requires a single task version.
-
-## Values
-
+pair.
 - **Unknown is not zero.** A value the trial's files cannot establish is `null`, and its name is listed in `unknown_fields`. `complete` is true only when that list is empty.
 - `"n/a"` marks a setting that does not apply. A nop or oracle agent has no model, sampling, parser or request ceilings. The queue also sizes its wall ceiling per task, so its time limits are `"n/a"` too.
 - `"default"` marks a sampling parameter the harness did not send, so the provider's default applied.
 - `treatment_key` hashes all key fields. `setup_key` hashes all of them except the task fields `task_version_digest` and `agent_timeout_seconds`.
-- Key-field columns store JSON text, so a number, `"n/a"` and `"default"` fit one column. `read_treatments()` decodes them. `field_sources` records where each value came from, and `harness_config` holds the hashed harness settings.
 
 ## Key fields and their sources
 
@@ -2123,50 +1531,6 @@ The command exits 0 and prints `POOLABLE` only when every setup field agrees. Ot
   - `harbor_terminus.py` also writes the trajectory, so it is deliberately not hashed.
 - **Limitation:** a behaviour change in `harbor_terminus.py`'s MiMo wiring outside `mimo_tool_calls.py` would not split the parser digest. Keep MiMo response handling in `mimo_tool_calls.py`.
 
-## Capture record
-
-| Column | Meaning |
-|---|---|
-| `trajectory_head` | `agent/trajectory.json` exists |
-| `trajectory_session_ids` | distinct top-level `session_id` values across the head and continuations (subagent sessions excluded) |
-| `continuation_indices`, `continuation_count` | which `trajectory.cont-N.json` files exist |
-| `continuation_step_ranges` | per-file `[first, last]` step ids, as JSON (`{"head": [...], "cont": {index: [...]}}`) |
-| `continuation_full_copy` | every continuation starts at step 1: the trial never split, so index gaps are failed summarization attempts, not lost files. Null with no continuations. |
-| `continuation_split` | a continuation starts past step 1 or runs under a different session than the head: Harbor actually compacted the context |
-| `summarization_count` | `result.json` `agent_result.metadata.summarization_count`, or null. Harbor increments it on every attempt, so it should equal `overflow_cycles`. |
-| `trial_log_present`, `trial_log_lines` | the trial left a `trial.log` |
-| `overflow_reactive_cycles` | `trial.log` "Context length exceeded" lines: reactive fallback runs |
-| `overflow_proactive_attempts`, `overflow_proactive_errors` | `trial.log` "Proactively summarizing" / "Error in proactively summarizing" lines |
-| `overflow_cycles` | reactive plus proactive. The evidence for how many chances the context handling had. |
-| `summary_full_succeeded/failed`, `summary_short_succeeded/failed` | `trial.log` full/short summary outcomes |
-| `fallback_chat_failed/succeeded` | `trial.log` fallback-chat outcomes |
-| `summary_subagent_saves`, `questions_subagent_saves` | `trial.log` subagent-trajectory save lines |
-| `history_context_diverged` | the log unwound the chat without any split: the stored steps are complete, but the model never saw them as one context. Null without a log. |
-| `summarization_files` | `trajectory.summarization-*.json` files |
-| `n_episodes`, `trajectory_steps`, `trajectory_steps_unmetered` | Harbor's episode count, and the unique steps across head and continuations. Identical steps repeated in several files count once. Unmetered steps are agent steps without `metrics`. |
-| `verifier_stdout`, `verifier_reward_file`, `recording_cast` | files present |
-| `rollout_details` | length of `agent_result.rollout_details`. It is null when the key is absent; 0 means Harbor wrote an empty list. |
-| `proxy_ledger`, `proxy_calls`, `proxy_calls_shaped`, `proxy_unresolved_requests` | from the proxy's per-call ledger (`lab-metadata.json` `provider_usage`), or null without one |
-| `result_*_tokens` | `agent_result.n_input_tokens` / `n_output_tokens` |
-| `trajectory_*_tokens` | sum of per-step `metrics` over unique main-trajectory steps plus summarization trajectories |
-| `proxy_*_tokens` | ledger *used* totals: settled actuals only (reconciled + exceeded calls). Reservations of never-reconciled calls are excluded — on schema-v1 ledgers they are derived out of the `calls` list (the `attempted` reservation block lives on in `lab-metadata.json` and the catalog, not in this table) |
-| `input_tokens_unattributed` | ledger input minus trajectory-attributed input |
-| `ledger_orphan_{truncated,final,other}_calls`, `ledger_orphan_input_tokens` | ledger calls no recorded step accounts for (matched on `input_tokens` = step `prompt_tokens`), by shape: `truncated` hit the reserved `max_tokens`, was discarded and retried; `final` is the last call of a trial whose agent phase ended in an exception, cut off before a step was written; `other` is anything else |
-| `token_gap_basis` | what the gap is: orphan calls by shape and how much of the gap they cover, overflow cycles, unresolved ledger requests — calls that failed or were never recorded, not missing files |
-
-## Example (HAR-90, 2026-09-29)
-
-The six `har90-mimo-0036*` trials are refused as a pool. They ran under four parser treatments:
-
-- 0036 and 0036-b: dirty trees, so the parser digest is unknown;
-- 0036-c and 0036-d: the #512 branch at 864d4555;
-- 0036-e: e2d9a935, the Qwen3-Coder XML fix;
-- 0036-f: #515 at a6a78026.
-
-They also differ in `max_tokens`, the summarization threshold and the request and token ceilings.
-
-Neither `har90-mimo-0758-b` nor `0758-c` ever split. Both continuations reuse the main session and start at step 1 (`continuation_full_copy`, with the head's first steps byte-identical in 0758-c), so the index gaps count failed attempts: 0758-c ran 31 reactive fallback cycles (full summary failed every time, short summary succeeded, fallback chat failed 30 times and the 31st ended in the final dump), and 0758-b ran 9 proactive attempts (all errored, 2 summary saves) plus 2 fallback cycles. `history_context_diverged` is set on both: the stored steps are complete, but the model never saw them as one context. The ledger-vs-trajectory gaps (3.6M on 0758-b, 20.6M on 0758-c) are failed or unrecorded calls — `token_gap_basis` cites the cycle counts and the unresolved ledger requests instead of missing files.
-
 ## Harbor results viewer and source-bound readers
 
 The following native viewer contracts include dated reader comparisons.
@@ -2185,7 +1549,9 @@ evallab view <roots...> --merge g5-all='HAR-126-ovn-g5-*'   # fold many jobs int
 matched jobs are consumed into the merged viewer job. `--arm-regex` (a regex
 with a named `(?P<arm>...)` group, defaulting to G5 `stock|tuned|gepa`
 suffixes) labels each source job's arm; jobs without a hit keep their full
-job name as the arm.
+job name as the arm. Because `-stock` vs `-gepa` share agent, model, provider,
+and task, differing only in agent kwargs, the merge labels each overlay trial's
+`source` with its arm (preserving a non-null source as `<source>+<arm>`).
 
 The repository pins Harbor 0.24. When a stale environment has an older version,
 the viewer is launched via `uv tool run --from harbor==0.24.0 harbor view …`,
@@ -2290,19 +1656,15 @@ It holds 6552 rows with labels, sealed by `MANIFEST.sha256`:
 - **`ours`:** our 11 copied passes and 13 HAR-168 clean passes.
 - **`cb`:** 4268 convertible CheatBench traces (MIT, pinned HF revision in
   `corpus.json`): 844 cheating + 41 attempt positives, 3383 benign. Rows live
-  in `cb_subset.json`; trace bodies materialize outside git with
-  `python -m evallab.cheatbench fetch/materialize` under `<cb-root>/cb/<cb_id>`.
+  in `cb_subset.json`; trace bodies live under `<cb-root>/cb/<cb_id>`.
 - **`g6`:** the 60 G5 runs with the two raters' agreed loop and infra labels
   (HAR-166).
 - **`aria`, `olmo`, `ht`:** 300 hacks + 300 matched clean single-answer coding
   rollouts each. `aria` and `olmo` are hacks a model learned during RL training
   (Qwen3-4B on LeetCode overriding `run_tests()`; OLMo-3.1-32B on CodeContests
   with `os._exit`, always-equal and `conftest.py`); `ht` is the prompted
-  control (HackTrace, Qwen3-8B told to shortcut). Rows live in
-  `rl_subset.json`; trace bodies materialize with
-  `python -m evallab.rl_rollouts fetch/materialize` under
-  `<rl-root>/<source>/<rl_id>`. Results:
-  `research/experiments/kev-hack-detector/README.md` ("Learned vs prompted hacks").
+  control (HackTrace, Qwen3-8B told to shortcut). Rows live in `rl_subset.json`.
+  Results: `research/experiments/kev-hack-detector/README.md` ("Learned vs prompted hacks").
 
 Every judge output already paid for sits in `cache/<detector>/<id>.json`,
 sealed by `CACHE.sha256`, so `score` never calls a model.
@@ -2462,8 +1824,8 @@ inspection to version 6's contribution-only cheat label and `blind_atif` workspa
     a newly run, cited command. Revising the answer to `no` refutes the
     question; retracting claims while keeping `yes` withdraws them, so the
     conclusion is no longer verified, but it still stands.
-  - Executed counterfactuals (opt-in, `--regrade`): the newer-grader replay
-    below and, for a low-reward eval-fault claim, `--minimal-grader-change`: a
+  - Executed counterfactuals (opt-in, `TraceConfig.regrade=True`): the newer-grader replay
+    below and, for a low-reward eval-fault claim, `minimal_grader_change`: a
     proposed test-only grader patch replayed under the same nop = 0 /
     reference = 1 controls. A decisive controlled execution outranks the
     model verdicts: a minimal-grader-change replay verifies or refutes the
@@ -2474,7 +1836,7 @@ inspection to version 6's contribution-only cheat label and `blind_atif` workspa
 
   T3 and the batch command below use one replay
   engine (`src/evallab/qa/counterfactual.py`). Graders are the task's built
-  `mimo-clean-v6` manifest row, or the selected `--grader-manifest`, plus
+  `mimo-clean-v6` manifest row, or the selected `grader_manifest`, plus
   test-repaired `verifier-repair@*` variants. Every package must still hash to
   its manifest/lineage digest. A repair derived from a raw grader gets
   `separate-verifier@10` composed over it; this is labeled separately and is
@@ -2501,104 +1863,14 @@ inspection to version 6's contribution-only cheat label and `blind_atif` workspa
     never verifies an intentional reward-shortcut mechanism. The refuter sees
     only path-free canonical grader identities and alias labels, measured scores,
     and refusal codes; manifest, package, record and source-trial paths stay out.
-- **`regrade`** runs that same counterfactual over an answer key (`--key`) or a
-  JSONL list (`--passes`: `item_id`, `task`, `trial_path`, any labels; `group`
-  becomes the table row). Relative trial paths resolve beneath the immutable
-  results home. Generated lineage records are never committed, so repairs from
-  another checkout enter through repeatable `--repairs`; a new full v6 build
-  enters through `--grader-manifest`. Outcomes are `flips`, `stays`, `loosened`,
-  `not_a_pass`, `refused` (with reason), or `no_newer_grader`. Unvalidated graders
-  have separate rows, and `expected` (`trace-paired-v1`'s `expected_regrade`) gets
-  an expected-vs-observed table only for validated graders. The JSON summary is
-  always written; exit 3 means incomplete/refused/unvalidated observations.
-  - **Physical graders, not selection labels.** After resolving the manifest,
-    repair records and any `separate-verifier@10` composition, execution identity
-    is `(task_name, full final package digest)`. A manifest selection and repair
-    selection of the same package share one nop/reference pair and one replay
-    per retained source. Different full packages stay independent even if their
-    transforms or verifier-only digests match. Each subject gets one observation
-    per physical grader, not one measurement per alias. `grader_identity` carries
-    that full identity; `grader_source.aliases` preserves every selection's
-    resolved transform/label/digest, package path, manifest row/source and record
-    references in deterministic order. A composed raw repair also retains its
-    original selection under the alias's `source`. Repeated record inputs remain
-    repeated provenance, not extra executions. Equivalent package copies are
-    allowed only after checking every copy's actual bytes. Conflicting path/record
-    claims, conflicting manifest rows, and missing or mutated selected packages
-    raise before controls, spend reservations or provider execution. Historical
-    receipts, including refusals, remain immutable.
-    Content-addressed replay scripts are published atomically, so independent
-    graders sharing the same script cannot truncate a sibling's executing input.
-  - **Counterfactual `/4` consumer contract.** Bind observations and controls by
-    `grader_identity.task_name` plus the **full**
-    `grader_identity.variant_digest`, and cross-check the resolved package bytes
-    and `grader_source`. Controls carry that identity, engine, reference checksum,
-    scalar nop/reference scores and the underlying native `rows`; they are not
-    keyed by a selection label. The representative `grader`/`transform` is not the
-    only selected route: qualification must inspect `grader_source.aliases` and
-    validate each selected route's manifest/repair ancestry. There is no separate
-    top-level `grader_digest` in `/4`. Two aliases of one package are one physical
-    observation, not two independently pinned v6/repair graders. Do not relax
-    source custody, engine matching, or distinct-package scientific requirements
-    when migrating a label-based consumer.
-    Engine `/4` invalidates `/3` observations and controls rather than reusing
-    caches that may have replayed newline-normalized input; retained evidence
-    is not rewritten.
-  - `--environment docker` (default): each native execution holds the
-    host-wide [Docker FIFO lock](#docker-fifo-lock); executions are
-    serialized, even with multiple queued workers. Harbor 0.24 (the `laminar`
-    extra) is required. `--environment daytona|modal` skip the host lock and run
-    workers concurrently in the cloud (paid). Daytona's MiMo egress lock refuses
-    every `mimo-clean-v6` package (they declare phase network policies), so
-    Modal is the cloud path for v6; it needs Modal credentials. Each row records
-    its `environment`; cloud refusals stay refusals, never rejections. The cache
-    identity omits the backend, so a backend smoke test needs items with no
-    cached controls or replays.
-  - **Cloud spend gate.** `--plan` writes `OUT/plan.json` and runs nothing: the
-    executions a run would still start (uncached nop/reference controls plus
-    uncached replays) and the estimate at `--usd-per-execution` (default
-    $0.01 **per logical replay**, not per native allocation/preparation unit).
-    The October 17 Modal sample has 169 paired replay jobs / 338 2-CPU/8-GiB
-    native allocations: the mean resource/lifecycle estimate is `$0.006446`
-    per pair, giving a **55.1% mean-based safety margin**. This is not a
-    per-replay bill or a bound on long tails; other workloads/providers need
-    their own explicit estimate. A cloud run
-    requires `--max-usd` and `--approve "<recorded approval>"`, refuses up front
-    when the plan's estimate exceeds the cap, and reserves the estimate before
-    every execution. An execution that would pass the cap is a
-    `spend_cap_reached` refusal, not a run. `summary.json` records the plan and
-    the gate (approval, cap, executions, reserved USD).
-    Cap checks use unrounded exposure and the gate's `1e-9` tolerance, so a
-    sub-cent plan cannot round itself into approval and fail later in bookkeeping.
-  - Cloud runs refuse any `harbor` on PATH other than the lab's pinned version
-    (`uv sync --extra laminar`, then run under `uv run`). Harbor 0.21 starts a
-    Modal separate verifier from the agent's prebuilt image, which has no
-    `/tests`, so every control comes back `infra`.
-  - Retained snapshots (separate-verifier trials without `verifier/agent.diff`,
-    e.g. rollout trials) regrade through `harbor trial regrade`: local Docker,
-    or Modal via `evallab.harbor_modal:RegradeModalEnvironment`. That class
-    carries the Modal PATH pin and a one-hour sandbox lifetime, because
-    `trial regrade` takes no environment kwargs and Harbor's default lifetime
-    is a billable 24 hours. Daytona snapshot regrades are refused.
-  - Native patch jobs use the discoverable `runs/<qa-replay-ULID>/` root,
-    matrix receipts use `runs/.executor/`, and scripts use
-    `runs/qa-trace-regrade/scripts/`. Reports go to `OUT/summary.json` and
-    `OUT/items/`. Shared controls/cache use `derived/qa-trace/counterfactual/`.
-    Controls, replay caches, work directories and plans use the same canonical
-    identity, including the full package digest (never a digest prefix or
-    verifier-only digest). Cache identity also binds source bytes and the replay
-    engine; reference bytes invalidate controls independently of replay results.
-    Identical source/grader inputs execute once per batch; current population
-    labels and selection provenance are refreshed rather than borrowed from a
-    cached cohort. The canonical-identity engine generation does not reuse older
-    label-keyed controls or replay caches; retained older evidence is not rewritten.
+  `qa.trace.regrade_passes` runs counterfactual regrades in Python without modifying retained source evidence.
 - **T4**: one `qa.finding/v1` per question ([shared QA contract](task-quality.md#shared-qa-findings-and-frozen-comparisons))
   plus `verdict.json` with each question's answer, taxonomy, who raised it, the
   verification outcome, the analyst revision and the executed counterfactual. A
   raised question fails unless T3 refutes it. Skipped or unusable questions are
   `unknown` (`not_run` / `ran_without_usable_result`), never `pass`. Stages
   resume from their stored JSON by content key; T4 is deterministic. Runs live
-  under `derived/qa-trace/qa-trace-5/`; earlier pipeline versions' bundles are
+  under `derived/qa-trace/`; earlier pipeline versions' bundles are
   refused, never reused.
 
 Results and caveats: `research/experiments/qa-trace/README.md`.
@@ -2635,10 +1907,6 @@ checkout's Python environment. No MCP daemon or global OMP configuration is inst
 ## Filter historical jobs by task health
 
 ```bash
-evallab tasks health-tags \
-  --variants-root derived/task-health/variants \
-  --view-root derived/task-health/view \
-  --output derived/task-health/manifest.json
 evallab view ~/Developer/eval-lab-results/2026-10-02/HAR-157-har157-mimo-base-* \
   --task-health derived/task-health/manifest.json \
   --tag health:sound --tag solve:never-run
@@ -2723,7 +1991,7 @@ Integrity rules are deterministic only (HAR-024 contract, no LLM judge):
 |---|---|---|
 | `evallab.copy_check` | `copy_check/v2` (`copy_check.RULE`) | `evallab.copy_check.copy_check`. Its outside-source matcher already subsumes the "build/lib / site-packages / out-of-base git read followed by matching lines" source rule. |
 | `evallab.upstream_fetch` | `confirmed_fetch` (the strict evidence predicate) | `assess_upstream_fetch` + `confirmed_fetch`: attempts without confirmed acquisition evidence never fire. |
-| `evallab.grader_tamper` | `v1` (new as a reward rule here) | `evallab.live_watch._grader_tamper_hits` (imported, not edited). |
+| `evallab.grader_tamper` | `v1` (new as a reward rule here) | `evallab.tripwires.grader_tamper_hits` (imported, not edited). |
 | `evallab.declared_red_team` | `v1` | `counts.declared_red_team`: declared cheat controls are excluded without asserting that any attack succeeded. |
 
 For Git object reads, copy evidence also includes an exact match of a submitted
@@ -2772,80 +2040,6 @@ self-hosted trials (the route bills by server time, not tokens; the processed
 the cost Pareto axis is honestly empty. Baseline v1 trials failed before any
 model call (all `verifier_result` null), so there is nothing real to fill
 from the proxy ledger or processed records, and no zeros are invented.
-
-## Proof: G5 + Baseline v1 (`/private/tmp/har170-view`)
-
-Build: 78 jobs (60 G5 + 18 baseline), 78 trials, 55 scored (all overlay,
-0 native), 23 unscored, 6 with integrity 0. API sweep over all 78 jobs:
-every scored trial's `chart-trials` evals are exactly
-`{reward, integrity, reward_gated}` with `reward_gated == reward * integrity`;
-every unscored trial has empty evals. Six trials have integrity 0, all on
-reward-0.0 trials, so no gated outcome changed.
-
-Integrity counts per job (rule in parentheses):
-
-- `HAR-126-ovn-g5-000169-stock`: 1 (`evallab.grader_tamper`)
-- `HAR-126-ovn-g5-000842-tuned`: 1 (`evallab.grader_tamper`)
-- `HAR-126-ovn-g5-001797-gepa`: 1 (`evallab.grader_tamper`)
-- `HAR-126-ovn-g5-001833-stock`: 1 (`evallab.grader_tamper`)
-- `HAR-126-ovn-g5-001833-tuned`: 1 (`evallab.grader_tamper`)
-- `HAR-126-ovn-g5-002302-gepa`: 1 (`evallab.grader_tamper`)
-- All other 72 jobs: 0. No `evallab.copy_check` or `evallab.upstream_fetch`
-  fires anywhere in G5 or Baseline v1.
-
-The 5 unscored G5 trials are infra failures with no verifier output
-(`DaytonaNotFoundError` ×3, `ServiceUnavailableError` ×2); the 18 Baseline
-v1 trials are `RuntimeError` / 503 failures before scoring.
-
-## Merged viewer jobs (`/private/tmp/har170-merge`)
-
-One Harbor job per trial makes per-job Outcomes/Pareto useless (one cell,
-one point), so `--merge` folds many source jobs into one viewer job whose
-trials are all their trials:
-
-```bash
-evallab view <G5 jobs...> <blv1 jobs...> --out /private/tmp/har170-merge --no-launch \
-  --merge 'g5-all=HAR-126-ovn-g5-*' --merge 'blv1-base=har157-mimo-base-*'
-```
-
-Build: 2 jobs (`g5-all`: 60 trials, `blv1-base`: 18), same 55 scored /
-23 unscored / 6 integrity-0 totals. `chart-trials` on `g5-all` returns 60
-trials with `source` split exactly 20/20/20 across the arms.
-
-Job-level files are synthesized from the real overlay trial docs, never
-invented: `config.json` is the first source job's config with the merged
-`job_name` and unioned `agents`/`datasets`/`tasks` (so the jobs list shows
-both `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` and the `:har129` model);
-`result.json` aggregates `n_total_trials`, completed/error counts, per
-`agent__model__dataset` reward/exception tallies, and token sums exactly as
-`JobStats.increment` does. Job-level metric means are left empty (the
-runner's means are not recomputed; trial-level evals are complete).
-Every merged trial records `.evallab-source.json` (source job + arm), and
-the manifest maps every trial to its arm.
-
-### Arm grouping key: `source` (the dataset dimension)
-
-Outcomes offers task / dataset / model / agent / reasoning-effort / provider
-grouping (`waffleGroups`); Pareto groups by `agent__model__source`
-(`trialGroupKey`). Of these, only `source` varies per arm without touching
-`reward` or misstating the model: `-tuned` is already separable by model
-(`...:har129`), but `-stock` vs `-gepa` share agent, model,
-provider, and task, differing only in agent kwargs (prompt). So the merge
-labels each overlay trial's `source` with its arm (a pre-existing non-null
-source is preserved as `<source>+<arm>`), documented here and in
-`reward-details.json` / `.evallab-source.json`. `reasoning effort` was
-rejected (would misstate effort); task-name tricks were rejected (not a
-viewer grouping key).
-## Empty states and their causes
-
-1. Pareto COST axis on G5: "No evaluations have complete cost data and a
-   numeric value for this reward." Cause: `cost_usd` is null on self-hosted
-   trials. TOKENS and TIME axes populate normally.
-2. Baseline v1 Pareto (any axis): same empty shape. Cause: `verifier_result`
-   is null (503s before scoring), so there is no numeric reward; tokens are
-   also null (no model call ever ran). Nothing to fabricate.
-3. Baseline v1 Outcomes: renders with an Error cell, COLOR BY REWARD only
-   (no integrity option, correctly: there are no dims). Cause: same as (2).
 
 ## Viewer limitations found
 

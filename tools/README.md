@@ -10,8 +10,8 @@ subdirectory pins its own dependencies with its own committed `uv.lock`.
 
 - `modal-mimo-serve/` — the Modal client (`modal==1.5.5`) plus the HAR-90
   SGLang server app for `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`: `serve.py`
-  (the deploy and weight-download targets), `smoke.py` (a stdlib latency and
-  reasoning-split probe) and a README covering deploy, stop and cost. It is
+  (the deploy and weight-download targets), `serving_window.py` (serving
+  window CLI) and a README covering deploy, stop and cost. It is
   invoked only as `uv run --project tools/modal-mimo-serve --locked modal ...`;
   the lab reaches the server through the `mimo_selfhosted` proxy provider.
 - `mimoagent-harbor/` — Xiaomi's pinned native controller (Python 3.12,
@@ -32,7 +32,7 @@ subdirectory pins its own dependencies with its own committed `uv.lock`.
 ## Tests or checks
 
 - `uv run --project tools/modal-mimo-serve --locked python
-  tools/modal-mimo-serve/smoke.py --help` is the offline check for the
+  tools/modal-mimo-serve/serving_window.py --help` is the offline check for the
   Modal toolchain. A live smoke needs a deployed server and spends GPU time.
 
 ## What not to add here

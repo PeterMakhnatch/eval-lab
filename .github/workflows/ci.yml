@@ -59,7 +59,7 @@ jobs:
         with:
           path: ~/.cache/uv
           key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-lint-${{ hashFiles('uv.lock', '.github/workflows/ci.yml') }}
-          restore-keys: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-test-${{ hashFiles('uv.lock', '.github/workflows/ci.yml') }}
+          restore-keys: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-test-${{ hashFiles('uv.lock', 'tools/mimoagent-harbor/uv.lock', '.github/workflows/ci.yml') }}
       - run: uv sync --locked --no-group observability
       - run: uv run --no-sync ruff check .
       - name: Governance contracts and frozen root
@@ -179,7 +179,9 @@ jobs:
           # absent, so the main pytest step cannot exercise it. `-rA`
           # puts every test's PASSED/SKIPPED status in the log: dots plus one
           # aggregate count cannot show that a gated file really ran.
-          uv run --no-sync pytest --shard ${{ matrix.shard }} -n 0 -rA \
+          # loadscope keeps the worker module serial even with multiple workers.
+          # Item-level scheduling splits its isolated native subprocess cases.
+          uv run --no-sync pytest --shard ${{ matrix.shard }} -n 2 --dist load -rA \
             --junitxml=harbor-native.xml \
             tests/test_job_diff.py tests/test_regrade.py \
             tests/test_harbor_laminar.py tests/test_mimoagent_worker.py \

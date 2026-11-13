@@ -816,6 +816,19 @@ request is scoped to that pull request, so `main` restores only entries created 
 `main` or by its own runs. This adds no new third-party trust root beyond the
 SHA-pinned `actions/cache` the quality and typecheck jobs already used.
 
+The core lint and typecheck fallback keys include `tools/mimoagent-harbor/uv.lock`.
+They must match the test cache writer's complete digest.
+The jobs keep separate writer keys and rerun every check after a cache hit.
+
+## CI: native test scheduling
+
+The native inventory uses 2 pytest workers with `--dist load`.
+This distributes individual tests, including the isolated native worker cases.
+The default `loadscope` scheduler keeps that module on 1 worker, even with more workers.
+The base suite keeps its existing scheduler.
+Each native shard retains its full file inventory, JUnit report, and Harbor skip census.
+The interpreter matrix, dependency profiles, pinned source preparation, and required gates do not change.
+
 ## Agent profiles and model routes
 
 `profiles.py` owns immutable adapter/model identity and qualification evidence.

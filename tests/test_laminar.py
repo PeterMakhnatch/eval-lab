@@ -13,7 +13,6 @@ import pytest
 
 from evallab import laminar as laminar_module
 from evallab.laminar import (
-    LAMINAR_ENDPOINT,
     LAMINAR_ENDPOINT_ENV,
     LAMINAR_KEY_ENV,
     SIGNALS,
@@ -24,58 +23,8 @@ from evallab.laminar import (
     _json_call,
     _laminar_command,
     apply_signals,
-    compare_signals,
     ensure_zai_profile,
-    format_comparison,
-    our_verdicts,
 )
-
-TRIAL = "task-1__abc"
-
-COPY = (
-    "pip download pkg==2.0 --no-deps -d /tmp/p && cd /tmp/p && unzip -o pkg-2.0-py3-none-any.whl\n"
-)
-
-
-def _step(step_id: int, command: str, output: str) -> dict[str, Any]:
-    return {
-        "step_id": str(step_id),
-        "timestamp": f"2026-10-05T10:00:{step_id:02d}+00:00",
-        "source": "agent",
-        "model_name": "m",
-        "message": f"turn {step_id}",
-        "tool_calls": [
-            {
-                "tool_call_id": f"c{step_id}",
-                "function_name": "bash_command",
-                "arguments": {"keystrokes": command},
-            }
-        ],
-        "observation": {"results": [{"source_call_id": f"c{step_id}", "content": output}]},
-        "metrics": {"prompt_tokens": 100, "completion_tokens": 10},
-    }
-
-
-STEPS = [
-    {
-        "step_id": "1",
-        "timestamp": "2026-10-05T10:00:00+00:00",
-        "source": "user",
-        "message": "Fix it",
-    },
-    _step(2, "ls\n", "a.py"),
-    _step(3, COPY, "Successfully downloaded pkg\n  inflating: /tmp/p/pkg/core.py\n"),
-    _step(4, "cat /tmp/p/pkg/core.py\n", "def fixed(): ...\n"),
-]
-
-
-def _write(runs: Path, steps: list[dict], result: dict | None = None) -> Path:
-    trial = runs / "job" / TRIAL
-    (trial / "agent").mkdir(parents=True, exist_ok=True)
-    (trial / "agent" / "trajectory.json").write_text(json.dumps({"steps": steps}))
-    if result is not None:
-        (trial / "result.json").write_text(json.dumps(result))
-    return trial
 
 
 def test_apply_signals_creates_missing_and_patches_existing() -> None:
@@ -113,39 +62,6 @@ def test_apply_signals_creates_missing_and_patches_existing() -> None:
             "the API rejects schemas without required"
         )
 
-
-def test_signal_comparison_reads_runs_of_the_actual_sdk_trace(tmp_path: Path) -> None:
-    runs, out = tmp_path / "runs", tmp_path / "out"
-    trial = _write(runs, STEPS, {"finished_at": "2026-10-05T10:01:00+00:00"})
-    trace = "c12b7448-5585-42d9-918b-2c3fe3b373f0"
-    (trial / "laminar-trace.json").write_text(json.dumps({"trace_id": trace, "trial_name": TRIAL}))
-
-    def opener(request: Any, timeout: float) -> Any:
-        if request.get_method() == "GET":
-            reply = {"signals": [{"id": "fixture-copy", "name": "copied_upstream_fix"}]}
-        else:
-            query = json.loads(request.data)
-            selected = trace in query["parameters"]["ids"]
-            events = "FROM signal_events" in query["query"]
-            reply = {
-                "data": [
-                    {
-                        "trace_id": trace,
-                        "signal_id": "fixture-copy",
-                        **({"payload": {"value": True}} if events else {}),
-                    }
-                ]
-                if selected
-                else []
-            }
-        return io.BytesIO(json.dumps(reply).encode())
-
-    rows = compare_signals(runs_dirs=[runs], out_dir=out, api_key="fixture", opener=opener)
-    assert rows[0]["copied_upstream_fix"]["signal"] is True
-    (trial / "laminar-trace.json").write_text('{"trace_id": null}')
-    rows = compare_signals(runs_dirs=[runs], out_dir=out, api_key="fixture", opener=opener)
-    assert rows[0]["trace_id"] is None
-    assert all(rows[0][definition["name"]]["signal"] is None for definition in SIGNALS)
 
 
 def test_byok_route_is_sent_with_every_signal() -> None:
@@ -222,34 +138,6 @@ def test_ensure_zai_profile_creates_the_custom_zai_route_once() -> None:
         }
     ]
 
-
-def test_verdicts_report_unknown_false_completion_without_reward_data(tmp_path: Path) -> None:
-    job = tmp_path / "job"
-    trial = job / TRIAL
-    trial.mkdir(parents=True)
-    status = {"open_alerts": [{"rule": "infra_error"}], "completions": [{"step": 1}]}
-    verdicts = our_verdicts(job, trial, status)
-    assert verdicts["false_completion_claim"] is None
-    assert verdicts["infra_not_model"] is True
-    (trial / "result.json").write_text("[]")
-    assert our_verdicts(job, trial, status)["false_completion_claim"] is None
-
-
-def test_comparison_markdown_marks_agreement_and_not_run_cells() -> None:
-    names = [definition["name"] for definition in SIGNALS]
-    assert len(names) == 4
-    rows = [
-        {**{"trial": "t-1"}, **{name: {"ours": True, "signal": True} for name in names}},
-        {**{"trial": "t-2"}, **{name: {"ours": False, "signal": True} for name in names}},
-    ]
-    rows[1][names[0]] = {"ours": None, "signal": True}
-    rows[1][names[1]] = {"ours": True, "signal": None}
-    lines = format_comparison(rows).splitlines()
-    assert lines[0] == "| trial | " + " | ".join(names) + " |"
-    assert lines[1] == "|---" * (len(names) + 1) + "|"
-    assert lines[2] == "| t-1 | " + " | ".join("Y/Y" for _ in names) + " |"
-    assert lines[3] == "| t-2 | –/Y | Y/– | N/Y | N/Y |"
-    assert lines[4] == "| agreement | 1/1 | 1/1 | 1/2 | 1/2 |"
 
 
 def test_laminar_command_requires_the_project_key(
@@ -331,47 +219,3 @@ def test_laminar_signals_applies_with_the_endpoint_and_byok_profile(
     assert capsys.readouterr().out == "signal stuck_loop: id s-1 version 2\n"
 
 
-@pytest.mark.parametrize("skipped_names", [(), ("t-quarantined",)])
-def test_laminar_compare_writes_the_table_and_resolves_paths(
-    skipped_names: tuple[str, ...],
-    no_laminar_credentials: None,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setenv(LAMINAR_KEY_ENV, "project-key")
-    rows = [
-        {
-            "trial": "t-1",
-            **{d["name"]: {"ours": True, "signal": True, "payload": None} for d in SIGNALS},
-        }
-    ]
-    seen: dict[str, Any] = {}
-
-    def fake_compare(**kwargs: Any) -> list[dict[str, Any]]:
-        seen.update(kwargs)
-        kwargs["skipped"].extend(skipped_names)
-        return rows
-
-    monkeypatch.setattr(laminar_module, "compare_signals", fake_compare)
-    args = SimpleNamespace(
-        laminar_action="compare",
-        runs_dir=[Path("runs"), tmp_path / "absolute-runs"],
-        out=Path("tables"),
-    )
-    assert _laminar_command(args, tmp_path) == 0
-    assert seen["runs_dirs"] == [tmp_path / "runs", tmp_path / "absolute-runs"]
-    assert seen["out_dir"] == tmp_path / "tables"
-    assert seen["api_key"] == "project-key" and seen["endpoint"] == LAMINAR_ENDPOINT
-    captured = capsys.readouterr()
-    out = tmp_path / "tables"
-    assert (out / "signals-vs-evallab.json").read_text(encoding="utf-8") == json.dumps(
-        rows, indent=2
-    )
-    table = format_comparison(rows)
-    assert (out / "signals-vs-evallab.md").read_text(encoding="utf-8") == table + "\n"
-    assert captured.out == table + "\n"
-    if skipped_names:
-        assert "skipped 1 quarantined trial(s)" in captured.err
-    else:
-        assert "quarantined" not in captured.err

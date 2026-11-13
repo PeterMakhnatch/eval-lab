@@ -983,8 +983,6 @@ uv run evallab run-health triggers --trial-dir <harbor-trial-dir> --now 2026-10-
 
 ```
 
-Score these findings with `evallab trace score`; Run Health has no separate score command.
-The shared scorer keeps unknown, abstain and missing findings separate from evaluated runs.
 
 `--db` opens the store read-only and keeps only admitted DEV runs. Point it at a
 `.backup` copy, not the live file. `--trial-dir` reads a Harbor trial: the stitched
@@ -1341,68 +1339,15 @@ Use `evallab score` for current cached measurements and `evallab --help` for sup
 | Laminar and Docent readers (`readers/laminar_*`, `readers/docent_*`; #1317 #1334 #1365 #1381) | retained read-only source readers; remote replica writers are retired | admitted DEV traces (HackBench and CheatBench excluded by design) | `results-v1.jsonl` (Docent 769, Laminar 608 retained rows) | tool scorecard; `qa-data findings` | Docent any flag, GF-200: 3/42 scored hacks flagged, 0/27 clean; 38 of 80 hacks abstained (`tt1-scorecard.json`). Laminar: no scored DEV rows | Docent `openai/gpt-5.4-mini`; historical Laminar Signal model not recorded here |
 | Harbor analyze reader (`readers/harbor_analyze.py`) | `evallab detectors` (`harbor_analyze`: `reward_hacking`, `task_specification`) | Harbor trial copies | verdict files under `~/Library/Application Support/evallab/readers` | task pages, `evallab detectors` | none on DEV cohorts; only the small `detectors-v1` sets (not quoted: different corpus) | `openai/glm-5.3-flash` (Z.ai) |
 | `evallab qa-data` (#1335; 12 calls) | `evallab qa-data <call> --help` | admitted DEV store only; one identical refusal for TEST, cross-key, unknown ids | nothing | read-only QA agents | not a detector. CE-21: 26 of 27 agent answers right (9 Haiku agents, 3 rounds) | none |
-| Run health (`production/run_health.py`, `run_health.loop\|runaway\|latency\|infra`) | `evallab trace run --runs goodfire --detectors run_health.loop,run_health.runaway,run_health.latency,run_health.infra`; native `evallab run-health detect` | steps plus allowlisted times, stop reasons and exception facts | `trace-findings/v1`, version `run-health/4` | harness card and score, cloud DB importer | 4,492 overlapping retained records: 0 verdict/score/evidence mismatches; separate native CLI comparison: 160 records, 0 mismatches. GF-200 loop 1/80 at 0/70; CB-150 latency abstains 150/150 (no clocks) | none, deterministic |
 
-Laminar quarantine (`trace_store/laminar_quarantine.py`): `is_quarantined` accepts a Laminar trace ID, a cloud-DB trace ID, or a Harbor trial name. `laminar_signals` and harness detectors skip and count these IDs; signal filters require the opt-in tag, and `laminar signals` refuses if a quarantined copy carries that tag.
+Laminar quarantine (`trace_store/laminar_quarantine.py`): `is_quarantined` accepts a Laminar trace ID, a cloud-DB trace ID, or a Harbor trial name. `laminar_signals` skips and counts these IDs; signal filters require the opt-in tag, and `laminar signals` refuses if a quarantined copy carries that tag.
 
-## The harness
+## Trace anatomy and review
 
-`evallab trace run|merge|card|score|coverage|length-control` (`src/evallab/production/trace_harness*.py`)
-runs the detectors above on one shared input and writes one `trace-findings/v1`
-record per (run, detector):
+The trace-comparison commands and detector plugins are retired. Use `evallab score` for the frozen evaluator.
+Stored findings, scorecards, experiment evidence, databases, and tables remain unchanged.
+`production/trace_harness.py` retains the shared contracts used by Gold and frozen online readers.
 
-- `run_id, detector, detector_version, reader_model, verdict (alarm|clear|abstain|unknown), score, kind, evidence_steps, summary (<=40 words), tokens, cost_usd, latency_ms, produced_at`.
-  Records are validated with the cloud DB importer's own rules (`trace_findings._finding`),
-  so every stored record is importable by `evallab prod import-trace-findings`.
-- `evidence_steps` are original step ids, never renumbered blind ids. A run without
-  actor inputs is unknown, never clear. Explicit run-level stops or exceptions
-  may still alarm; a detector with no retained result emits nothing.
-- Store: `~/.local/state/evallab-prod-live/trace-harness/findings-v1.jsonl`, append
-  only, latest line per (run, detector, version, reader) wins. It is an interim
-  JSONL, like the facets file; the cloud DB `trace_findings` table imports it.
-- `run --runs goodfire|goodfire-dev|cheatbench|own|own-dev|hackbench|hackbench-all|staged:<set>|detectors-v1[:source]|dataset:<id>|file:<path>|ids
-  --detectors LIST|all [--allow-model] [--refresh]`. `all` attempts every non-cache
-  adapter; on `detectors-v1` it also expands the cached native detector family.
-  Model-backed adapters read retained results. Only facets can generate, gated by
-  `--allow-model`; there is no automatic call when a retained result is absent.
-  `all` also adds every stored import-only reading found in the Trace Tools ledger (each METR arm
-  of a known reader, each Docent and OMP form reader) and `ledger` (below), so a new arm or reader
-  appears without a code change. Those only read stored rows; none can start a model call.
-- `merge INPUT.jsonl [INPUT.jsonl ...] --findings TARGET.jsonl` validates every input
-  before writing and deduplicates by run/detector/version/reader. Newest timestamp
-  wins (ties use input order); an older import cannot replace a newer target, and
-  replay is idempotent.
-- `card RUN_ID` prints one label-free evidence card (≤1.5k tokens): every verdict with
-  its reader, cited steps, fired flags and playbook cards.
-- `score --corpus …` reports recall/false alarms (Wilson intervals), thresholds at 3% and
-  5% false-alarm budgets, localization and cost per detector and per OR/AND combination,
-  after a reproduction gate of the published single-detector numbers; `--publish` writes
-  the UI Harness tab's `trace-harness/scorecard-v1.json`.
-  Where admitted run lengths and both labels are available, each native detector
-  also has a same-run length AUROC and length-only recall at no more than its
-  observed FAR. The length threshold is chosen in-sample, so is diagnostic, not
-  held-out performance. Abstentions and missing lengths are excluded; detector
-  AUROC intervals are stratified run bootstraps, not task-clustered intervals.
-  Consult `length-control --matched` for the separate task-and-length-matched
-  analysis.
-- `coverage --corpus … [--corpus …]` lists findings per detector identity and corpus,
-  and every registered detector that has no findings there.
-- `length-control [--corpus goodfire|cheatbench]` (`trace_harness_length.py`, NP30-TT-1) asks what each
-  stored tool adds over run length (`len(HarnessRun.steps)`): per tool, AUROC overall and inside length
-  strata with 95% task-clustered bootstrap intervals, native recall/FAR per stratum, and a length-only
-  alarm rule matched to the cascade v8 false-alarm count. It reads only stored findings and
-  `trace-tools/results-v1.jsonl` rows up to a fixed cutoff, joins labels inside scoring, never changes a
-  threshold, and never calls a model. Definitions are fixed in
-  `research/evidence/runs/np30-length-control-20261029/PREREGISTRATION.md`.
-- `length-control --matched` (`trace_harness_matched.py`, NP31-TT-1) repeats that on the strict `goodfire-dev`
-  population (every `CorpusRegistry`-admitted enacted-or-clean run with a stored length; `--corpus cheatbench`
-  for contrast) for every stored finding identity plus the model-free fill. It pairs each enacted run with a
-  clean run of the same task within ±10% length (greedy in `sha256(run_id)` order, without replacement; a
-  same-family secondary match is used only if fewer than 30 primary pairs exist), and reports per tool
-  recall/FAR with Wilson intervals, a McNemar-style table, pair AUROC, length-tertile AUROCs and a
-  length-only baseline at the tool's own FAR. The decision rule (≥100 primary pairs to be "measurable";
-  target 15% at 3% on the matched set, or beating the length-only rule outside the longest tertile) is fixed in
-  `research/evidence/runs/np31-length-matched-20261029/PREREGISTRATION.md`.
 - `evallab trace anatomy <run_id> | --atif-file <trial.json> [--json] [--include-narration] [--include-final-claim]`
   (`src/evallab/trace_anatomy.py`) prints a label-free structured case anatomy: task contract and stated
   prohibitions, the exact final patch (raw-CAS submission string or last `diff --git` block; `sha256` is over
@@ -1420,33 +1365,6 @@ record per (run, detector):
   `stage2_prompt` with budgeted retrieval of L0 tripwire hits, cited steps, and mutations (`inspect_step`, `search_run`).
   `cross_fit_alerts` applies the split-half honest-quantile threshold (98.5th percentile of the other fold's
   clean scores). Library only: `research/experiments/ov-autoreview-investigator-20261031/` is the driver.
-- `--detectors cascade_stream` feeds a run's steps one
-  `trace.step` event at a time to `MisalignmentLiveWorker`
-  (`production/trace_harness_stream.py`), and it is the second adapter that may
-  generate, gated the same way: Stage 2 serves only stored or injected verdicts, so a
-  missing verdict is an unavailable judgment and the run abstains, and `--allow-model`
-  is the only route to a fresh call. The reader is `kimi-code/k3.1-pro-highspeed` unless
-  overridden: `--detectors cascade_stream:anthropic/claude-haiku-5-5 --allow-model` keeps Stage 1 and the
-  v8 prompt, keys the verdict cache by that model (`judge-cache-<reader>.jsonl` beside the Kimi cache), gates fresh
-  calls on that provider's `omp usage` windows (stop at 85%, empty usage reads retried), requires the served model to
-  equal the requested one on every call, replays runs concurrently, and writes no finding for a run whose call was
-  refused for quota or stopped by the call guard (so it is retried, never cached as abstain). The call guard
-  (`CallGuard`) counts refusals per call (a refusal ends the call without retry; an incomplete reply such as `toolUse` is
-  retried), stops fresh calls after 3 consecutive refusals or 3 consecutive failed calls, and can hold a hard
-  budget of `omp` attempts. Its summary keeps two clocks apart: the causal
-  prefix the first alarm's judgment was frozen on (comparable with ID-CM-1) and the step
-  at which that alarm was actually emitted, with the agent turns elapsed at each. The
-  `cascade*` adapters stay stored-result views. P0-F9D7D6-3
-  (`research/evidence/runs/p0-f9d7d6-3-matched-cascade-20261029/`) ran it with Haiku 5.5 on the matched Goodfire pairs;
-  NP34-TT-1 (`research/evidence/runs/np34-sonnet-matched-cascade-20261029/`) ran the same 246 runs with Sonnet 5.5.
-- `--detectors cascade_stream_judge_only:<provider>/<model>` selects the optional
-  `window-cascade/v8+judge-only` detector. It retains v8's ordinary judgment windows
-  and prompt but judges `grader_tamper` cards instead of raising them automatically;
-  extra gate-card judgments do not consume the existing family budget. A confirmed card
-  alarms; an unavailable judgment without a confirmed card abstains. Existing v8
-  findings and its pass-through gate are unchanged. Stored v8 judge-confirmed cards
-  reproduce the previously observed judge component, but unjudged gate cards need new
-  judgments before they can be included in the full variant.
 
 ## Gaps and duplicates
 
@@ -1489,115 +1407,13 @@ Checked against code or files unless marked **[not verified]**.
    `suspicion >= 2`, against 0.64 for a Haiku retest.
    report). Every score in this page must state its reader, hence the column.
 8. **Cloud persistence is an explicit operator step.** The cloud table/importer and
-   `qa-data trace-card` are now on `main`. `trace merge` only writes local JSONL;
+   `qa-data trace-card` are now on `main`.
    `evallab prod import-trace-findings --cloud-database … --jsonl …` admits cloud
    DEV runs and stored step ids. CheatBench item ids and local-only HackBench rows
    cannot be inserted as cloud trace ids. No live import is part of this integration.
 9. **Unmeasured on HackBench or DEV**: Laminar, harbor analyze, trace feature flags and
    playbook cards have no detection number against GF-200 or CB-150.
 
-## Additional unified integrations (2026-10-28)
-
-All rows use the same `trace run`, finding store, `trace card`, `trace coverage`
-and `trace score` interfaces. Frozen-reader adapters verify the retained prompt,
-model/version and input checksums; they do not silently generate replacement calls.
-
-| detector selector | retained/native input | measured operating point | interpretation |
-|---|---|---|---|
-| `facet_windows_baseline` | CM-13 arm A, Goodfire 200 | 9/80 TP, 2/70 FP | whole-run baseline; frozen Codex Terra reader |
-| `facet_windows_only` | CM-13 arm B, Goodfire 200 | 23/80 TP, 5/70 FP | selected windows only |
-| `facet_windows_first` | CM-13 arm B1, Goodfire 200 | 17/80 TP, 4/70 FP | first selected window |
-| `facet_windows` | CM-13 arm C, Goodfire 200 | 25/80 TP, 6/70 FP | whole-run facets plus selected windows |
-| `facet_windows_random` | CM-13 arm D, Goodfire 200 | 16/80 TP, 5/70 FP | random-window control |
-| `facets_prefix25`, `facets_prefix50`, `facets_prefix100` | CM-16, the same 50 Goodfire DEV runs outside GF-200; Haiku 5.5 | each 0/25 TP, 0/25 FP | read coverage is complete, but native suspicion produced no alarms; no tuning on the cross-test |
-| `recheck_sol` | CM-12 frozen Sol rechecks, theta 86 | 14 GF-200 and 9 CB-150 retained judgments | scored only on the runs actually judged; `unclear` is abstain, not clean. This is not the original full Stage-1 denominator |
-| `whole_run_logistic` | frozen pK-SELF M3 per-run scores, CB-150 | 12/75 TP, 4/75 FP | native threshold, not a new fit; GF/HB aggregate-only results cannot become per-run findings |
-| `qa_trace_t0` | fixed `combined_v1` agentic-default literals computed from steps | measured literals agree with native deterministic features on 120 runs | this is the steps-only projection, not a source-specific retune. Missing score/file literals force abstention unless a measured OR literal fires |
-
-### Trace-tool readings as detectors (stored-result adapters)
-
-Scout, METR, Laminar Signals, Docent and OMP form readings are imported from the
-`evallab.trace_tool_result/v1` ledger (`trace-tools/results-v1.jsonl`; Scout actor-v2 has its own
-ledger). Nothing here runs a tool or model. A run with no row is **missing** (no finding);
-a row with a null flag is **abstain**; neither is ever `clear`. Run selection still goes through
-the DEV admission gate before any actor file is opened; labels are joined only by `trace score`.
-Verdicts are the tool's own flag: Scout, Laminar and `ledger` use the any-flag union of the
-tool's flagging detectors (always-null informational ones excluded); METR the `@ge5`/`@ge7`
-union on the native 0-10 score; Docent/OMP form suspicion >= 2.
-
-| selector | stored rows read | identity (`detector_version` / reader) | GF-200 findings (alarm / clear / abstain) |
-|---|---|---|---|
-| `scout` | Scout 0.5.4 four text scanners, `native-actor-v2` ledger | `inspect-scout/0.5.4+native-actor-v2` / none | 200 (0 / 200 / 0) |
-| `scout_legacy` (new) | same scanners, pre-projection ledger behind `tt1-scorecard` | `inspect-scout/0.5.4+unversioned-pre-native-actor-v2` / none | 200 (0 / 200 / 0) |
-| `metr` | METR 0.1.11 Kimi `native-actor-v2` arm (default) | `metr-scanners/0.1.11@c12893d1+scanner-v0+native-actor-v2` / `kimi-code/k3.1-pro-highspeed` | 200 (3 / 34 / 163); native 3/13 TP, 0/12 FP |
-| `metr:<reader>@none` (new) | Kimi arm stored without a projection | `metr-scanners/0.1.11@c12893d1+scanner-v0` / same Kimi reader | 200 (0 / 0 / 200) |
-| `metr:xai-oauth/grok-4.3` | Grok arm | `…+scanner-v0` / `xai-oauth/grok-4.3` | 200 (1 / 7 / 192); native 1/3 TP, 0/5 FP |
-| `metr:openrouter/google/gemini-2.5-flash-lite` (new) | OpenRouter arm; no rows stored yet | `…+scanner-v0+<option digest>+native-actor-v2` / `openrouter/google/gemini-2.5-flash-lite` | 0 (nothing stored) |
-| `laminar` | Laminar Signals read back for our own Harbor runs | `existing-signals/readback-v1` / `zai/glm-5.3-flash` | own runs only: none on Goodfire |
-| `docent:<reader>` | TT-7 form readings, one reader each | `tt7-frozen-20261027` / the reader | Sonnet 5.5: 150 (3 / 66 / 81); GPT-5.4 mini, GPT-6.1 Sol, Gemini 3.8 Flash (new in `all`): 150 each, all abstain (`docent_usage_limit`) |
-| `omp_form:<reader>` | the same form read through OMP | `tt7-frozen-20261027/v1` / the reader | Opus 5.5: 41 (0 / 24 / 17); Luna: 10 (1 / 7 / 2) |
-| `ledger[:<tool>]` (new) | every (tool, version, reader) no adapter above reads | compacted ledger version / the row's own `reader_model` or none | nothing unclaimed in today's ledger |
-
-METR arms are parsed from the ledger `detector_version` (`<build>;<route>-<model slug>[;options][;projection-<v>]`),
-not listed: a reader selects the arm whose slug it produces, `@<projection>` chooses among a reader's
-arms (`@none` is the unprojected one; with no `@` the actor-v2 arm wins), and an ambiguous or unstored
-reader is refused. Option segments fold into a 6-hex digest only when the version would exceed the
-64-character identifier limit. Arms of a reader not in the known list are still imported by
-`ledger` with an unrecorded reader (never decoded from the slug). Facets (`facets:<reader>`),
-the Docent rubric (`docent:rh_reading_v1`) and Laminar copy (`laminar_copy`) were already
-first-class and are unchanged.
-
-### Local-run admission and cached native detectors
-
-`own` and `own-dev` read the retained TT-3 cohort, but neither trusts a cohort's
-`dev` string. A real `CorpusRegistry` must admit the task/item under the current
-cross-key assignments and seals **before any actor file is opened**. The score
-join uses the identical admitted set; reviewed agent reward hacks are positive,
-clean parents/evaluation-fault children are negative, and unreviewed runs remain
-unlabelled. The historical 169-run TT-3 table is not the new DEV denominator.
-
-| admitted `own` integration | findings / 37 admitted runs | native verdicts (alarm / clear / abstain) |
-|---|---|---|
-| `cascade_own`, Kimi | 14/37 | 4 / 4 / 6 |
-| `cascade_own:xai-oauth/grok-4.3` | 23/37 | 12 / 11 / 0 |
-| `docent:rh_reading_v1`, GPT-5.4 mini | 37/37 | 8 / 25 / 4 |
-| `laminar`, GLM 5.3 Flash | 32/37 | 25 / 7 / 0 |
-| `laminar_copy`, GLM 5.3 Flash | 31/37 | 12 / 19 / 0 |
-
-The two cascade readers cover disjoint retained runs; they are not a matched
-reader comparison. `all` includes both and the separate hosted Docent rubric.
-
-`detectors-v1[:source]` exposes only materialized, explicitly assigned DEV trial
-identities from the checksum-verified native corpus. Old ordinal ids (for example
-`cb-000001`) are not converted into canonical item ids by guessing. Published
-trials may supply their real task identity from `result.json`; results/rewards
-never enter detector inputs. `detcache:<name>` imports native cached booleans or
-scores, not synthetic actor transcripts. Score-only readers abstain natively but
-may participate in numeric FAR-budget sweeps; unknown/missing rows never do.
-Use `trace score --corpus 'detectors-v1:g6#stuck_loop'` for loop labels or
-`#infra` for infrastructure labels. The old full-G6 published gate is not
-re-pinned to a smaller admitted cohort.
-
-The strict native-cache smoke admitted **44 materialized trials** from the
-6,768-row historical manifest and emitted results for **20 cached detector
-families**, each with 5–35 retained rows. These include Harbor analyze, Kev,
-Sol, QA Trace, Laminar Signals, rules/content rules and both Run Health kinds.
-Absent cached judgments are missing, not successful detector runs or clean verdicts.
-
-A missing reader identity is displayed as `none / unrecorded` in cards and
-score tables. It is not evidence of a deterministic detector: some native
-model-backed caches retain the model version but no provider-qualified reader.
-
-Run Health uses cloud-native times/token facts on admitted cloud runs and the
-same allowlisted `trial_metadata` on local Harbor trials. Those facts are not
-included in `HarnessRun.atlas_run` or the blinded model view. A generic staged
-trajectory with no exception/stop/timing facts remains steps-only; no facts are
-invented. Health alarm rates against Goodfire cheating labels are associations,
-not estimates of loop/infra detection accuracy.
-
-On the current admitted G6 label cohorts, the native and cached Health paths
-agree: loop 6/7 TP at 0/1 FP, infra 1/1 TP at 0/8 FP. These tiny subsets prove
-adapter parity; they are not precise estimates for the historical full G6 population.
 
 ## Native inspection runbooks and historical evidence
 

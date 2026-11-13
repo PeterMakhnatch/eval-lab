@@ -138,15 +138,17 @@ jobs:
         with:
           path: ~/.cache/uv
           key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python-version }}-test-${{ hashFiles('uv.lock', 'tools/mimoagent-harbor/uv.lock', '.github/workflows/ci.yml') }}
-      - name: Sync with benchmark and inspect test dependencies (fastmcp, cryptography, inspect-ai)
-        run: uv sync --locked --no-group observability --group benchmarks --group inspect
+      - name: Sync benchmark, inspect and native Harbor test dependencies
+        run: uv sync --locked --no-group observability --group benchmarks --group inspect --extra laminar
       - name: Initialise live catalog schema
         # Beyond the fixtures' throwaway databases, some live tests (attach, verdicts,
         # dashboard queries) read the default catalog database, which is empty on a
         # fresh service container.
         env:
           DATABASE_URL: postgresql://evallab:local-development-only@localhost:54329/evallab
-        run: uv run --no-sync evallab db init
+        # Apply the same schema in one transaction without importing the application CLI.
+        # No test connects to this fresh service until initialization finishes.
+        run: psql -X --single-transaction --set ON_ERROR_STOP=1 --dbname "$DATABASE_URL" --file sql/schema.sql
       - name: Expose the runner PostgreSQL server binaries
         # The ubuntu runner image ships PostgreSQL under /usr/lib/postgresql/<major>/bin
         # but not on PATH, so the corpus-queue tests that need initdb and pg_ctl skip.
@@ -165,7 +167,8 @@ jobs:
         run: uv run --no-sync python -m evallab.smoke --docker-free
       - name: Native Harbor diff, regrade and observability contracts
         run: |
-          uv sync --locked --no-group observability --group benchmarks --extra laminar
+          # The initial locked sync already installs every native dependency.
+          # Keep inspect installed rather than removing it between pytest sessions.
           uv run --no-sync python -c 'import harbor.job_diff'
           # HAR-271: tools/mimoagent-harbor needs a 3.12 interpreter even on the
           # 3.14 matrix row; the worker tests spawn tools/mimoagent-harbor/.venv.

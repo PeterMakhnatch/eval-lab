@@ -831,6 +831,20 @@ The base suite keeps its existing scheduler.
 Each native shard retains its full file inventory, JUnit report, and Harbor skip census.
 The interpreter matrix, dependency profiles, pinned source preparation, and required gates do not change.
 
+## CI: one dependency install and direct schema setup
+
+Each test job installs benchmarks, inspect, and the Laminar extra in 1 locked root sync.
+The native phase reuses that environment. It keeps the separate Python 3.12 worker sync.
+The default `dev` group already includes Laminar, so the former second root sync added no dependency.
+It only removed inspect packages before the native session.
+
+The fresh PostgreSQL service receives `sql/schema.sql` through the runner's `psql`.
+`-X` ignores user startup files. `--single-transaction` preserves atomic schema application.
+`--set ON_ERROR_STOP=1` fails the setup step on any SQL error.
+This avoids importing the application CLI before the tests.
+The database service, both pytest sessions, both JUnit files, and both skip censuses remain unchanged.
+
+
 ## Agent profiles and model routes
 
 `profiles.py` owns immutable adapter/model identity and qualification evidence.

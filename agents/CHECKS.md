@@ -60,13 +60,13 @@ trigger and dependency handling fail closed, including merge-group support.
 
 | Gate | Command | Version / interpreter |
 |---|---|---|
-| Locked install | `uv sync --locked --no-group observability --group benchmarks --group inspect` (native phase adds `--extra laminar`) | uv 0.9.24; Python 3.12 and 3.14; `observability` stays opt-in |
+| Locked install | `uv sync --locked --no-group observability --group benchmarks --group inspect --extra laminar` once per test job | uv 0.9.24; Python 3.12 and 3.14; `observability` stays opt-in |
 | Lint | `uv run ruff check .` | locked Ruff; Python 3.12 |
 | Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze, sealed paths matched by root `.ignore` |
 | Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |
 | Lessons freshness | `uv run python -m evallab.lessons` | locked; statistical lessons lineage |
 | Tests | `uv run pytest` (CI: `--shard ${{ matrix.shard }}`) | locked pytest; four-shard matrix on Python 3.12 for pull requests (`test (3.12, 1/4)` to `test (3.12, 4/4)`); two-shard matrix on Python 3.12 and 3.14 (`test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)`) on push, merge-group and manual runs. `tests/test_quality_gates.py` proves that each shard list is a complete partition. |
-| Native Harbor verification | After the base suite, each shard installs the locked `laminar` extra, checks `harbor.job_diff`, and syncs `tools/mimoagent-harbor` with Python 3.12. It prepares pinned Harbor source for RewardKit, then runs the native file inventory with `-n 2 --dist load --maxschedchunk 2`. Item-level scheduling in chunks of 2 splits the isolated native worker cases across 2 processes; the base suite keeps its existing scheduler. Its JUnit census rejects Harbor-named skips. The inventory coverage gate remains until full native discovery is safe. | Python 3.12 on pull requests; Python 3.12 and 3.14 on push, merge-group and manual runs; every shard |
+| Native Harbor verification | Each shard installs the union of base and native dependencies once, before either suite. After the base suite, it checks `harbor.job_diff` and syncs `tools/mimoagent-harbor` with Python 3.12. It prepares pinned Harbor source for RewardKit, then runs the native file inventory with `-n 2 --dist load --maxschedchunk 2`. Item-level scheduling in chunks of 2 splits the isolated native worker cases across 2 processes; the base suite keeps its existing scheduler. Its JUnit census rejects Harbor-named skips. The inventory coverage gate remains until full native discovery is safe. | Python 3.12 on pull requests; Python 3.12 and 3.14 on push, merge-group and manual runs; every shard |
 | Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate (runs before tests in premerge) |
 
 The full suite writes `full-suite.xml`; its census reports skips without rejecting
@@ -77,6 +77,14 @@ The native inventory now includes `tests/test_integrity_reward.py` without an ex
 Each pytest session log ends with a `Module durations` table: the 15 test modules
 with the largest setup, call and teardown total. Use it to find slow modules and to
 balance shards; the per-test list shows only call phases of 1 s or more.
+
+Each test job initializes its fresh PostgreSQL service directly from `sql/schema.sql`.
+`psql -X --single-transaction --set ON_ERROR_STOP=1` ignores user startup files,
+applies the complete schema atomically, and fails the job on any SQL error.
+This setup does not import the application CLI. CLI behavior remains covered by tests.
+The test job retains inspect dependencies during the native phase.
+The default `dev` group already includes the pinned Laminar dependency;
+the explicit `--extra laminar` records the native requirement without a second root sync.
 
 Full native discovery remains blocked by environment-dependent ATIF validation in
 `src/evallab/evidence/atif.py` and the native worker fixture contract. Preserve that

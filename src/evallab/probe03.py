@@ -417,10 +417,6 @@ def obs_content(step: dict) -> str | None:
     return "\n".join(parts) if parts else None
 
 
-def step_ref(docname: str, step: dict) -> str:
-    return f"{docname}#{step.get('step_id')}"
-
-
 # ---------------------------------------------------------------------------
 # Failure rules (every id documented in README.md).
 # ---------------------------------------------------------------------------
@@ -867,9 +863,6 @@ ENV_WRESTLE_RE = re.compile(
 GUARD_REJECT_RE = re.compile(r"anti_hack_guard:\s*REJECT\s*(\S+)")
 IMPORT_ERROR_RE = re.compile(
     r"ModuleNotFoundError|No module named|ImportError|cannot import name"
-)
-PIP_INSTALL_RE = re.compile(
-    r"pip3?\s+install\s+((?:-[^\s]+\s+)*)([A-Za-z0-9_.\-\[\]]+)"
 )
 # "ModuleNotFoundError: No module named 'x'" must capture x, not "No": the
 # bare-exception branch only applies when "No module named" does not follow.

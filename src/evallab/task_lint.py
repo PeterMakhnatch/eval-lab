@@ -18,6 +18,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 from evallab.control_expect import declared_expectation
+from evallab.task_install_lint import lint_installs
 
 
 @dataclass(frozen=True)
@@ -437,6 +438,7 @@ def lint_task(task_dir: Path) -> list[Finding]:
                 )
             )
     findings.extend(_lint_sources(task_dir))
+    findings.extend(lint_installs(task_dir))
     findings.extend(artifact_findings)
     return findings
 

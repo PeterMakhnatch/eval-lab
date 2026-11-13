@@ -37,6 +37,7 @@ _ALLOWED_LIBRARY_WARNINGS = {
         "library/tasks/query-optimize",
         "library/tasks/tau3-retail-1",
     },
+    "verifier-runtime-install": {"library/tasks/query-optimize"},
 }
 
 
@@ -561,6 +562,9 @@ def test_committed_task_library_lints_without_error_findings() -> None:
 
     findings = [(task, finding) for task in tasks for finding in lint_task(task)]
     assert [finding for _, finding in findings if finding.severity == "error"] == []
+    assert [
+        finding for _, finding in findings if finding.rule == "unpinned-python-dependency"
+    ] == []
     warnings: dict[str, set[str]] = {}
     for task, finding in findings:
         if finding.severity == "warning":
@@ -570,7 +574,7 @@ def test_committed_task_library_lints_without_error_findings() -> None:
     assert warnings == _ALLOWED_LIBRARY_WARNINGS
     # One finding per Dockerfile that breaks a rule, so a second unpinned
     # Dockerfile inside an already-listed package cannot hide.
-    assert sum(finding.severity == "warning" for _, finding in findings) == 19
+    assert sum(finding.severity == "warning" for _, finding in findings) == 20
     assert cli.run_cli(
         ["tasks", "lint", str(REPO_ROOT / "library/tasks")], workspace=REPO_ROOT
     ) == 0

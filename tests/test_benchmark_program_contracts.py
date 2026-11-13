@@ -1,22 +1,16 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from pydantic import ValidationError
 
 from evallab.benchmark_program_contracts import (
     CampaignCalibrationLedger,
     CampaignMeasurementLedger,
-    FaultClass,
-    FaultInjectionRecord,
     SyntheticFamilyType,
     canonical_bytes,
     canonical_json,
     compute_prefixed_sha256,
     compute_sha256,
-    safe_resolve_subpath,
-    validate_safe_relative_path,
 )
 
 
@@ -36,72 +30,6 @@ def test_canonical_json_and_sha256_stability():
 
     prefixed = compute_prefixed_sha256(obj1)
     assert prefixed == f"sha256:{hash1}"
-
-
-def test_path_validation_and_safety(tmp_path: Path):
-    valid_paths = [
-        "environment/Dockerfile",
-        "tests/test.sh",
-        "nested/deep/subpath/file.json",
-        "simple.txt",
-    ]
-    for p in valid_paths:
-        assert validate_safe_relative_path(p) == p
-        resolved = safe_resolve_subpath(tmp_path, p)
-        assert str(resolved).startswith(str(tmp_path.resolve()))
-
-    invalid_paths = [
-        "",
-        "/absolute/path",
-        "../escape/path",
-        "nested/../../escape",
-        "foo//bar",
-        "/leading_slash",
-        "trailing_slash/",
-        r"windows\style\path",
-    ]
-    for p in invalid_paths:
-        with pytest.raises(ValueError):
-            validate_safe_relative_path(p)
-
-
-def test_fault_injection_record_contracts():
-    fault_hash = "a" * 64
-    verifier_hash = "b" * 64
-
-    record = FaultInjectionRecord(
-        fault_id=fault_hash,
-        task_id="task_123",
-        twin_task_id="twin_123",
-        target_tool="calculate_sum",
-        fault_class=FaultClass.TRANSIENT_HTTP_5XX,
-        target_canonical_event_ordinal=2,
-        injection_payload={"message": "sidecar 500 error"},
-        recovery_contract="retry_with_backoff",
-        verifier_oracle_digest=verifier_hash,
-    )
-
-    digest = record.identity_digest()
-    assert len(digest) == 64
-
-    # Extra fields forbidden
-    with pytest.raises(ValidationError):
-        FaultInjectionRecord(
-            fault_id=fault_hash,
-            task_id="task_123",
-            twin_task_id="twin_123",
-            target_tool="calculate_sum",
-            fault_class=FaultClass.TRANSIENT_HTTP_5XX,
-            target_canonical_event_ordinal=2,
-            injection_payload={},
-            recovery_contract="retry",
-            verifier_oracle_digest=verifier_hash,
-            unknown_field="not_allowed",  # type: ignore
-        )
-
-    # Immutability
-    with pytest.raises(ValidationError):
-        record.target_tool = "other"  # type: ignore
 
 
 

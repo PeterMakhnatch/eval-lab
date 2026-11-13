@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.governance_growth import LEDGER, growth_issues
+from evallab.governance_growth import BUDGET_METRICS, BUDGETS, LEDGER, growth_issues
 
 
 def git(root: Path, *args: str) -> str:
@@ -219,3 +219,171 @@ def test_unborn_repository_enforces_staged_file_limit(repo: Path) -> None:
     assert growth_issues(unborn) == []
     put(unborn, "tests/new.py", "# line\n" * 601)
     assert "new-file: tests/new.py has 601 lines" in growth_issues(unborn)[0]
+
+
+def budgets(root: Path, overrides: dict[str, int], *, metadata: bool = True) -> None:
+    rows = ["[budgets]"]
+    for key in BUDGET_METRICS:
+        fields = f"limit = {overrides.get(key, 1000000)}"
+        if metadata:
+            fields += ', reason = "Required consumer behavior", raised_by = "Fixture PR"'
+        rows.append(f'{json.dumps(key)} = {{ {fields} }}')
+    put(root, BUDGETS, "\n".join(rows) + "\n")
+
+
+@pytest.mark.parametrize(
+    ("key", "path", "initial", "added", "cap", "total"),
+    [
+        ("python-lines:src/evallab", "src/evallab/a.py", "", "# a\n# final", 1, 2),
+        ("python-lines:tests", "tests/a.py", "", "# a\n# b\n", 1, 2),
+        ("python-lines:research", "research/a.py", "", "# a\n# b\n", 1, 2),
+        ("python-lines:library", "library/a.py", "", "# a\n# b\n", 1, 2),
+        ("markdown-files:docs", "docs/a.md", "", "# A\n", 0, 1),
+        ("markdown-files:agents", "agents/a.md", "", "# A\n", 0, 1),
+        ("experiment-directories:research/experiments", "research/experiments/a/result.json", "", "{}\n", 0, 1),
+        ("large-python-files:src/evallab", "src/evallab/a.py", "# a\n" * 800, "# a\n" * 801, 0, 1),
+        ("large-python-files:tests", "tests/a.py", "# a\n" * 800, "# a\n" * 801, 0, 1),
+    ],
+)
+def test_each_total_budget_pass_message_and_exact_raise(
+    repo: Path, key: str, path: str, initial: str, added: str, cap: int, total: int,
+) -> None:
+    budgets(repo, {key: cap})
+    if initial:
+        put(repo, path, initial)
+    baseline = commit(repo)
+    assert growth_issues(repo, baseline) == []
+    put(repo, path, added)
+    name, unit = BUDGET_METRICS[key]
+    delta = 1 if initial else total
+    replacement = (
+        f'{json.dumps(key)} = {{ limit = {total}, reason = "State the concrete need", '
+        'raised_by = "Your name or PR" }'
+    )
+    assert growth_issues(repo, baseline) == [
+        f"total-budget: {name} has {total} {unit}; budget {cap}; "
+        f"this PR contributes {delta:+d}; remove {total - cap} {unit}, "
+        f"or replace its line in {BUDGETS}: {replacement} (replace both placeholders)"
+    ]
+    rows = (repo / BUDGETS).read_text().splitlines()
+    rows = [replacement if row.startswith(json.dumps(key)) else row for row in rows]
+    fixed = "\n".join(rows).replace("State the concrete need", "Required API contract")
+    put(repo, BUDGETS, fixed.replace("Your name or PR", "Fixture PR") + "\n")
+    assert growth_issues(repo, baseline) == []
+
+
+def test_budget_raise_needs_reason_and_author_but_lowering_does_not(repo: Path) -> None:
+    budgets(repo, {"python-lines:tests": 3})
+    baseline = commit(repo)
+    budgets(repo, {"python-lines:tests": 4}, metadata=False)
+    issues = growth_issues(repo, baseline)
+    assert len(issues) == 1
+    assert "raise for python-lines:tests from 3 to 4 requires a concrete reason and raised_by" in issues[0]
+    budgets(repo, {"python-lines:tests": 2}, metadata=False)
+    assert growth_issues(repo, baseline) == []
+
+
+@pytest.mark.parametrize("field", ["reason", "raised_by"])
+def test_each_raise_attribution_field_is_required(repo: Path, field: str) -> None:
+    budgets(repo, {"python-lines:tests": 1})
+    baseline = commit(repo)
+    budgets(repo, {"python-lines:tests": 2})
+    text = (repo / BUDGETS).read_text()
+    value = "Required consumer behavior" if field == "reason" else "Fixture PR"
+    put(repo, BUDGETS, text.replace(f'{field} = "{value}"', f'{field} = ""'))
+    assert "requires a concrete reason and raised_by" in growth_issues(repo, baseline)[0]
+
+
+@pytest.mark.parametrize("content", ["[budgets\n", "[other]\n", '[budgets]\n"python-lines:tests" = {limit = true}\n'])
+def test_malformed_or_missing_caps_fail_closed(repo: Path, content: str) -> None:
+    budgets(repo, {})
+    baseline = commit(repo)
+    put(repo, BUDGETS, content)
+    issues = growth_issues(repo, baseline)
+    assert any(BUDGETS in issue for issue in issues)
+    assert any("invalid or missing" in issue or "nonnegative integer limit" in issue for issue in issues)
+    (repo / BUDGETS).unlink()
+    assert growth_issues(repo, baseline) == [
+        f"{BUDGETS}: budget file removed; restore all total-size budgets"
+    ]
+
+
+def test_push_reports_budget_excess_without_failing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    budgets(repo, {"python-lines:tests": 1})
+    baseline = commit(repo)
+    put(repo, "tests/a.py", "# a\n# b\n")
+    commit(repo)
+    event = repo / "event.json"
+    event.write_text(json.dumps({"before": baseline}))
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+    assert growth_issues(repo) == []
+    report = capsys.readouterr().out
+    assert "report-only: total-budget: tests has 2 Python lines; budget 1; this PR contributes +2" in report
+    put(repo, BUDGETS, "[invalid\n")
+    assert growth_issues(repo) == []
+    assert "report-only:" in capsys.readouterr().out
+
+
+def test_over_budget_shrinking_and_untouched_roots_always_pass(
+    repo: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    budgets(repo, {"python-lines:tests": 1})
+    put(repo, "tests/a.py", "# a\n" * 3)
+    baseline = commit(repo)
+    put(repo, "tests/a.py", "# a\n" * 2)
+    assert growth_issues(repo, baseline) == []
+    assert "budget 1; this PR contributes -1" in capsys.readouterr().out
+    put(repo, "tests/a.py", "# a\n" * 3)
+    put(repo, "src/evallab/a.py", "# new\n")
+    assert growth_issues(repo, baseline) == []
+    assert "budget 1; this PR contributes +0" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("key", "directory", "suffix"),
+    [
+        ("python-lines:tests", "tests", ".py"),
+        ("markdown-files:docs", "docs", ".md"),
+        ("experiment-directories:research/experiments", "research/experiments", "/result.json"),
+    ],
+)
+def test_two_prs_fit_alone_but_later_growing_merge_fails(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, key: str, directory: str, suffix: str,
+) -> None:
+    budgets(repo, {key: 2})
+    put(repo, f"{directory}/seed{suffix}", "# seed\n")
+    baseline = commit(repo)
+    git(repo, "branch", "-f", "main", baseline)
+    put(repo, f"{directory}/a{suffix}", "# A\n")
+    head_a = commit(repo)
+    assert growth_issues(repo, baseline) == []
+    git(repo, "branch", "-f", "main", head_a)
+    git(repo, "checkout", "-qb", "second", baseline)
+    put(repo, f"{directory}/b{suffix}", "# B\n")
+    head_b = commit(repo)
+    assert growth_issues(repo, baseline) == []
+    git(repo, "merge", "--no-ff", "-qm", "tested merge", "main")
+    event = repo / "event.json"
+    event.write_text(json.dumps({"pull_request": {
+        "head": {"sha": head_b}, "base": {"sha": head_a},
+    }}))
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+    issues = growth_issues(repo)
+    assert len(issues) == 1
+    assert f"{BUDGET_METRICS[key][0]} has 3 {BUDGET_METRICS[key][1]}; budget 2; this PR contributes +1" in issues[0]
+
+
+def test_existing_experiment_and_untracked_files_do_not_consume_count_slack(repo: Path) -> None:
+    key = "experiment-directories:research/experiments"
+    budgets(repo, {key: 1, "markdown-files:docs": 0})
+    put(repo, "research/experiments/a/seed.json", "{}\n")
+    baseline = commit(repo)
+    put(repo, "research/experiments/a/nested/new.json", "{}\n")
+    put(repo, "research/experiments/README.md", "# Experiments\n")
+    (repo / "docs").mkdir()
+    (repo / "docs/scratch.md").write_text("# Scratch\n")
+    assert growth_issues(repo, baseline) == []

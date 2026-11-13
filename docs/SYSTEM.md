@@ -7,7 +7,7 @@ audience: [builder, runner, operator, analyst]
 
 Eval Lab keeps 5 functions and 1 measurement: run, gold, detect, watch, certify, and score.
 The minimum delivery tooling supports those functions.
-[The router](NOW.md) selects the manual for each task.
+The domain table in `AGENTS.md` selects 1 manual for a code change.
 This map describes code and evidence boundaries. It does not report live service health.
 
 ## Execution and evidence flow
@@ -48,11 +48,11 @@ See [Line](line.md), [watch](live-watch.md), [task quality](task-quality.md), an
 | Durable evidence CAS | `derived/evidence-cas/`; never a disposable cache |
 | Projections | Configured Parquet root; resolve it with `storage.paths` |
 | Tests and fixtures | `tests/`, `tests/fixtures/` |
-| Maintained manuals | The 14 routes in [NOW](NOW.md) |
+| Maintained manuals | The domain router in `AGENTS.md`; `docs/NOW.md` gives product orientation |
 
 Do not introduce runtime database side effects into contract modules.
 Do not move the CLI into the reserved `cli/` namespace without an assigned migration.
-`src/evallab/trajectory_ir.py` owns the retained TrajectoryIR contract (`interpretation/trajectory_ir.py` is retired).
+`src/evallab/trajectory_ir.py` owns the retained TrajectoryIR contract.
 
 ## Terminology
 
@@ -104,7 +104,7 @@ A deliberate contract change updates the specific affected contract and its reje
 `craft.py` performs a deterministic, read-only scan of task directories.
 It writes `CraftRecord` rows under the configured `craft/` Parquet root.
 `sql/craft_views.sql` exposes the resulting facets.
-The standalone entry is supported; there is no `evallab craft` root command.
+The standalone module entry is supported; CRAFT has no root CLI route.
 
 ```sh
 uv run python -m evallab.craft scan --tb3
@@ -168,6 +168,26 @@ Use [the exact-head checks](../agents/CHECKS.md) for lint, types, tests, and del
 Measure performance against a named, fixed corpus. Do not loosen a limit because the live corpus grows.
 Keep catalog/network time distinct from CPU projection time and task execution.
 A passing synthetic smoke does not prove model capability, private Cloud ingestion, or scientific acceptance.
+
+### Evidence and comparison rules
+
+- Preserve raw jobs, task versions, source hashes, and exposure records.
+- Keep missing rewards and unavailable measurements distinct from zero.
+- Use the `status = 'featured'` slice for feature-based analysis rates.
+- Name the corpus, source revision, query, denominator, and unavailable sources with each result.
+- Keep Terminal-Bench and Tau-Bench evidence separate. TB3 and TB4 scores are not interchangeable.
+- Hint-based minimax regret does not certify a grader or remove reward hacking.
+- Require independent held-out verification, negative controls, and contamination separation for validity claims.
+- A catalog snapshot in `docs/STATUS.md` is not current runtime evidence.
+
+### Documentation metadata
+
+Manuals use YAML front-matter with `status: living` and an `audience` list.
+Audience values are `builder`, `analyst`, `runner`, and `operator`.
+Historical artifacts can use `status: historical`; untagged documents remain `unclassified`.
+Metadata describes a document. It grants no authority or execution permission.
+The retired context compiler has no replacement compiler, alias, or context-pack command.
+The storage attachment parser still scans Markdown under `docs/` for metadata and lineage.
 
 PostgreSQL owns the catalog. DuckDB reads local analytical projections.
 Object storage, Kubernetes, another workflow engine, and ClickHouse require a named measured bottleneck.

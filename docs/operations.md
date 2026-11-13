@@ -24,278 +24,95 @@ uv run evallab db init
 `docker compose down` stops PostgreSQL and preserves the named volume. Deleting
 the volume is intentionally not part of a Make target.
 
-## Standing-policy queue
+## Queue and authorization contracts
 
-The committed policy in `policy/standing-approvals.yaml` says which **free**
-work the unattended executor may run on its own; billable work is never
-covered by it (see "Paid execution requires a recorded authorisation" below).
-Only Peter changes that file. Agents submit a Pydantic-validated experiment
-spec; the policy gate moves it atomically to `approved/` or `waiting/` and
-records every transition in ignored local `queue/events.jsonl`.
+The former queue submission, approval, and tick frontends are removed.
+Do not restore them from an old command example.
+The retained Python queue and executor still own the contracts below.
+Read [execution tiers](execution-tiers.md) before any trial.
+Code merge, credentials, and an old run cap do not authorize execution.
 
-Example control spec:
+Only Peter changes `policy/standing-approvals.yaml`.
+Its standing rules admit eligible free `oracle` and `nop` controls, never billable work.
+Other work needs current approval for the specific spec.
+An agent must not forge an approval event or supply Peter's identity to grant itself permission.
+The spec cannot authorize itself.
 
-```json
-{
-  "schema_version": 1,
-  "name": "event-summary-oracle-queue-1",
-  "hypothesis": "The reference solution remains accepted.",
-  "task": "library/tasks/event-summary",
-  "agent": "oracle",
-  "submitted_by": "peter",
-  "priority": 100,
-  "est_cost_usd": 0
-}
-```
+The queue validates experiment specs and records transitions in its ignored append-only event ledger.
+The internal approval record binds the actor, spec identity, submission time, and permitted work.
+The current policy gate enforces these fail-closed states:
 
-Submit and drain:
+| Condition | Result |
+|---|---|
+| A billable spec has no approval | `paid_run_unauthorized` |
+| The authorization ledger cannot be read | `authorization_ledger_unreadable`; no dispatch, including free controls |
+| Approval precedes submission | `paid_run_authorization_stale` |
+| Approval names a different spec | `paid_run_authorization_mismatch` |
 
-```bash
-uv run evallab submit /path/to/spec.json
-uv run evallab tick
-```
+Approval never overrides cost ceilings, quiet-failure breakers, registry checks, or credentials.
+Every billable attempt reserves estimated cost before launch.
+Retained reservations and catalog cost share the UTC budget day, beginning at 00:00 UTC.
+Researcher reservations use the same day and resample time before each attempt and retry.
+Task registration and external publication remain separate Peter-owned decisions.
 
-`submit` prints the `spec_id` on its own labelled line. That bare ULID is the
-value `approve` and the catalog's `experiment_id` column take;
-the `state:` and `path:` lines beside it are context, not identifiers.
+### Quota gates
 
-Out-of-policy work waits for an explicit decision:
+`src/evallab/quota.py` reads provider evidence. It does not make a model call or read a credential.
+Codex observations come from retained native trial rollouts and sanitized sidecars.
+Claude uses a fresh bounded `omp usage -p anthropic --json -r` lookup.
+Provider quota is account-wide; it does not measure the lab's share.
 
-```bash
-uv run evallab approve <spec-id> --actor peter
-```
+Each decision records used and remaining percentage, reset time, hard-stop state, observation age, and source.
+Unavailable remains unavailable, never zero or an invented balance.
+`subscription_quota_exhausted` reports the provider's own lockout.
+`subscription_quota_ceiling` reports the lab's separate policy ceiling.
+Read the current ceiling from the Peter-owned policy rather than a copied number.
+Never change a job to an API to avoid a rate limit. Wait for the recorded reset.
 
-An approval does not override the hard per-job or daily cost ceiling. A restart reconciles
-`queue/running/` against completed immutable Harbor jobs before starting new
-work. Self-hosted-model specs probe the upstream first: a cold endpoint waits
-up to `--selfhosted-warmup-seconds` (default 600) for a 200 and otherwise
-defers the spec approved. Daytona batches are clamped up front to the memory
-cap, and multi-model batches run one smoke trial first unless passed
-`--no-smoke-gate` (recorded in `queue/events.jsonl`).
-The cost-policy day is UTC: both catalog spend and durable attempt reservations cross the daily
-ceiling boundary at 00:00 UTC, regardless of the host or PostgreSQL session
-timezone. The researcher call ledger uses that same UTC budget day before it
-combines attributed researcher reservations with catalog spend, and resamples
-the clock before every role attempt and retry so a long pass cannot carry the
-prior day's budget across midnight.
+The Codex artifact reader can lack a reading before its first approved trial.
+It reports UNKNOWN to the named decision-maker; an unavailable or stale observation never silently permits paid work.
+Age alone does not refuse artifact-based Codex work, because only an approved trial can refresh it.
+A reading whose reset time has passed describes an expired window.
+An explicit human quota override covers quota exhaustion and ceiling reasons only.
+It never bypasses the authorization ledger, cost ceiling, quiet-failure breaker, or registry checks.
 
-The legacy `run` and `matrix` commands are restricted to Oracle/no-op controls.
-All real-model work must pass through the queue and standing policy.
+Claude's refreshable lookup has a stricter contract.
+Both the 5-hour and 7-day windows must validate.
+The 7-day window uses the policy ceiling; the 5-hour window gates at provider exhaustion.
+Missing, malformed, failed, timed-out, or expired observations pause dispatch with `subscription_quota_unavailable`.
+A quota override does not bypass that refusal.
+Free controls require no model credential or quota reading.
 
-## Paid execution requires a recorded authorisation
+### Queue admission and recovery
 
-**Nothing billable runs unless Peter authorises that specific spec.** A spec is
-billable when its agent is anything other than `oracle` or `nop`. Paid work in
-this lab is dispatched against Peter's ChatGPT subscription
-(`~/.codex/auth.json`, `src/evallab/runner.py`), so no dollar ceiling in this
-repository measures what it actually consumes; the human decision is the only
-control that does.
+Restart reconciliation checks completed immutable Harbor jobs before new work starts.
+An unfinished job does not become a terminal result.
+Unresolved running specs block new dispatch rather than permit overlapping work outside the budget day.
+Self-hosted specs wait for upstream readiness within the configured bound; a cold endpoint defers the spec.
+Daytona batches obey the declared memory cap.
+Multi-model batches retain their first-trial smoke gate and recorded opt-out.
+These mechanisms do not authorize remote execution or spend.
 
-Which classes need authorisation:
+### Read-only preflight
 
-| Class | Agents | Runs unattended? |
-|---|---|---|
-| `local-controls` | `oracle`, `nop` | yes — no authorisation, no ceremony |
-| everything else | `codex`, `claude-code`, any future paid adapter | no — one recorded authorisation per spec |
-
-For the DeepSeek credential contract and native runner configuration, see [`docs/third-party.md`](third-party.md).
-
-How it is enforced, in order:
-
-1. `PolicyGate.decide` refuses a billable spec that carries no authorisation
-   with `paid_run_unauthorized`, **before** any `auto_run` rule is consulted.
-2. `standing_rule_admits` returns `False` for every billable spec, so a
-   standing rule cannot cover paid work even if one names a paid agent. Editing
-   `policy/standing-approvals.yaml` therefore cannot re-open unattended spend.
-3. The authorisation itself is the `human_approved` record in append-only
-   `queue/events.jsonl`, written by `evallab approve`; the automation that
-   submits paid work does not write that ledger entry.
-
-It fails closed. If `queue/events.jsonl` cannot be read, the whole tick stops
-with `authorization_ledger_unreadable` and dispatches nothing, free controls
-included. An authorisation recorded before its spec was submitted is
-`paid_run_authorization_stale`, so reusing a spec id does not inherit consent.
-An authorisation naming another spec is `paid_run_authorization_mismatch`.
-
-### Authorising a paid run
-
-```bash
-uv run evallab submit queue/specs/my-codex-run.json
-#   -> state: waiting, reason paid_run_unauthorized, with both commands printed
-uv run evallab approve <spec-id> --actor peter
-#   -> prints the agent, attempt count, estimated cost, and the quota state
-uv run evallab tick
-```
-
-`--actor` is required on `approve`; it is never defaulted, because the recorded
-name is the whole point of the record.
-
-Authorisation does not lift a ceiling, the quiet-failure breaker, the registry
-checks, or the credential requirement — those still refuse an authorised spec.
-
-## What the quota gate does and does not decide
-
-Authorising a paid run used to say nothing about what it would cost, because
-the only figure available was a dollar equivalent that never moves. The
-measurement in `src/evallab/quota.py` closes that: the agent CLI writes the
-provider's own `rate_limits` block into every trial's session rollout, Harbor
-copies it out, and the gate reads it. No network call, no credential store, no
-API key.
-
-Every billable decision — the `paid_run_unauthorized` refusal at `submit`, the
-`approve` output, and the admission at `tick` — now carries `used_percent`,
-`remaining_percent`, `resets_at`, `hard_stop`, the age of the reading, and the
-rollout it came from. The scope line is load-bearing: the percentage is
-**account-wide**, and the lab's share of it is structurally unknowable, so
-"8% remaining" is not "8% remaining for the lab".
-
-### Quota refusals, and back-off on a rate limit
-
-`subscription_quota_exhausted` refuses a billable dispatch when the provider
-reports `rate_limit_reached_type`, or `used_percent` at or above 100. That is
-the provider's own account of its allowance, not a threshold this lab invented,
-which is why it needs no judgement call. With `hard_stop` true — no overflow
-credits, balance `"0"` — reaching 100% is a lockout for every paid agent until
-the window resets, not an extra charge.
-
-`subscription_quota_ceiling` refuses a billable dispatch when the lab's own
-threshold is reached: `refuse_billable_at_used_percent` in
-`policy/standing-approvals.yaml` governs the ceiling, currently committed at
-**80%**, raised from the original **60%** baseline introduced for the 2026-10-13
-overnight subscription-agent work on the shared account. The two codes stay
-distinct so a lab policy is never recorded in `queue/reasons/` as the provider's
-statement. Lower the number to tighten; raising it or returning it to `null` is
-Peter's spend decision.
-
-Back-off on a rate-limit response is explicit: stop launching billable work,
-record the provider-stated `resets_at` from the refusal message, and resume
-only after it. Never switch the job to an API to route around the window.
-
-Claude Code uses a fresh, free `omp usage -p anthropic --json -r` reading at
-dispatch rather than relying on its transcripts. The committed ceiling applies
-to its **7-day** window (currently at or above 80%); its **5-hour** window
-gates only at 100% exhaustion. Both windows, reset times, status, and fetch
-time are recorded.
-`subscription_quota_unavailable` pauses Claude dispatch when either window is
-missing, malformed, or expired, including a failed or timed-out probe. The
-historical Codex bootstrap and stale-reading behavior described below applies
-to artifact-based Codex readings; Claude's free live probe needs no paid call
-to recover. See [quota measurement](#quota-measurement-and-portable-sidecars)
-for dispatch sidecars and deterministic tests. `--despite-quota` does not
-override `subscription_quota_unavailable`.
-
-### Unavailable is not "plenty left"
-
-A checkout with no paid Codex trials has no Codex reading. The gate reports that as
-`UNKNOWN [unavailable]` with its reason, and never as a number. It refuses
-nothing on an unavailable reading — refusing would be a bootstrap deadlock,
-because only a paid trial can produce a reading — but it never permits
-silently either: the UNKNOWN banner reaches the named human who is being asked
-to authorise, and unattended automation cannot authorise paid work at all.
-A reader that throws is also `unavailable`, with the exception in the reason.
-
-### Stale readings warn; they never refuse
-
-The artifact-based Codex reading is only as fresh as the last paid trial. The recorded reading was
-5h18m old. Both failure modes are real, and they point in opposite directions:
-
-- **Refusing on age deadlocks the lab.** Freshness is produced *by* paid runs,
-  so after any quiet period every reading is stale and the first paid run
-  becomes impossible — permanently, not until some timer expires.
-- **Trusting a stale reading silently is how a lockout arrives unannounced.**
-  This repository has measured the drift: the historical quota receipt records
-  the account moving 71% → 91% in roughly five hours of ordinary interactive
-  use, none of it the lab's. A five-hour-old figure has a demonstrated capacity
-  to be twenty points wrong.
-
-The resolution is that the gate is not the right actor to decide. It cannot
-make a stale reading fresh, and a refusal would not have prevented that drift.
-What it can do is refuse to present an old number as a current one: the age is
-printed next to every figure, in the same block, always. The judgement stays
-with the named human that #65 already requires — who can, unlike this gate,
-look at the provider directly.
-
-One consequence needs its own escape hatch. A reading that says *exhausted* can
-itself be stale, and a paid trial that recorded 100% just before the window
-rolled over would otherwise lock the lab out forever. Two things prevent that:
-a reading whose `resets_at` has already passed describes a window that no
-longer exists and refuses nothing; and
-
-```bash
-uv run evallab approve <spec-id> --actor peter --despite-quota
-```
-
-records the override on the `human_approved` event as
-`reason_code: quota_override`. It lives in the event log, not the spec file,
-for the same reason the authorisation does — the automation writes the spec
-file. It overrides `subscription_quota_exhausted` and
-`subscription_quota_ceiling` and **nothing else**: every ceiling, the
-quiet-failure breaker, and all four of #65's fail-closed states still fire
-against it.
-
-Free `oracle` and `nop` controls spend no allowance and are untouched by all of
-this — no quota is read on their behalf and no quota state can hold them.
-
-## Preflight: is it safe and sensible to run right now
-
-```bash
+```sh
 uv run evallab preflight
-```
-
-One read-only surface answering the question you actually have before starting
-work, from evidence already on disk. It costs nothing and blocks on nothing: no
-paid call, no provider request, no `gh`, no database, no subprocess, no socket.
-`tests/test_preflight.py` proves that by making `subprocess` and `socket` raise
-and rendering anyway. It exits `1` when a provider's own reading refuses
-billable work, so `evallab preflight && evallab tick` stops before it spends.
-
-It prints three things.
-
-**Remaining quota, per provider.** `codex` and `claude-code` are two separate
-subscriptions, so they get two separate readings built from two separate scans
-— one account's headroom is never attributed to the other. Each reading carries
-`used_percent`, `remaining_percent`, `resets_at`, `credits_balance`,
-`hard_stop`, the age of the observation, and the rollout it came from, with
-`[observed]` / `[unavailable]` exactly as `approve` prints them. All figures in
-a block come from one snapshot, so the block carries one `staleness` line
-rather than repeating the same age on each row. A provider with no reading
-prints `UNKNOWN [unavailable]`, its reason, and the sentence saying UNKNOWN is
-not "plenty left" — never a number, and never a blank.
-
-**The queue, grouped by purpose,** over the unfinished states (`proposed`,
-`pending`, `approved`, `waiting`, `running`). Finished states are history: they
-cannot spend and cannot be under-powered. A spec file this build cannot validate
-is listed by name with its error — under-reporting the queue is the one thing this surface must
-not do. It reads the state directories directly instead of through
-`DirectoryQueue`, which creates them, because reporting that there is no queue
-must not create one.
-
-**Power warnings, for queued comparisons only.** Computed with
-`cohort.minimum_detectable_effect`, the estimator used in every comparison report.
-With no comparison queued it says so; it does not
-manufacture a warning. It warns when a comparison cannot reach a task-paired
-interval at all — fewer than two distinct tasks, or no detectable per-attempt
-difference at the declared `attempts` — and when no arm declares an
-`expected_reward`, because then the detectable effect cannot be computed
-*before* the money is spent.
-
-Two honesty limits are printed with the numbers rather than left implicit. The
-queue carries no field linking two specs into one comparison, so every queued
-comparison spec is pooled into a single cohort; pooling can only overstate
-`n_tasks`, so a warning at the pooled `n` holds for any finer partition, while
-a clean bill of health at the pooled `n` does not. And no threshold for
-"useful" is committed — a spend judgement, like the quota ceiling was before
-its original 60% baseline (now raised to 80% in
-`policy/standing-approvals.yaml`). Supply one per invocation:
-
-```bash
 uv run evallab preflight --useful-effect 0.15
 ```
 
-and a comparison whose smallest detectable difference exceeds it becomes a
-warning.
+Preflight reads local evidence only. It makes no model call, provider request, database connection, or subprocess.
+`tests/test_preflight.py` covers that boundary.
+A provider refusal returns exit 1. The command does not dispatch work.
+It reports separate provider readings, unfinished queue states, and power warnings for queued comparisons.
+An invalid spec stays visible with its validation error.
+Reporting an absent queue must not create it.
 
-The operator-facing `evallab tick` prints the same block before it builds an executor.
+Comparison warnings use the existing estimator, not an invented usefulness threshold.
+The queue does not link specs into pairs, so the report pools comparison specs.
+Pooling can overstate the task count. A clean pooled result does not prove each comparison has enough power.
+Each quota block comes from 1 observation, with its age and unavailable reason.
+The read-only report does not grant authorization.
+
 
 ## CORE tool health
 
@@ -416,9 +233,7 @@ never changes doctor's exit code or the headless `ready` field.
   Exit status: `0` means all sources and backup health pass (also `status: locked`, when another refresh holds the lock). `1` means a source fails, a backup attempt fails, or the verified backup remains missing or stale. This applies to a `noop` result too. `2` means the whole refresh fails.
   Unchanged evidence does not replay projections or advance their high-water state. If backup health or source failures changed, the digest health lines are still republished so a successful backup or retired-source recovery cannot leave yesterday's failure visible.
 
-```bash
-uv run evallab tick --canary-suite policy/canary-suite.yaml
-```
+Canary enrollment remains an internal executor contract, not a supported queue CLI command.
 
 The suite's `interval_seconds` controls enrollment slots, independently of the
 scheduler's polling interval. It defaults to 86400 (daily) and accepts 1–86400
@@ -742,27 +557,9 @@ write a small report with digests and a durable artifact URI once object storage
 is configured.
 ## Local checks
 
-Run `make prepush` before each push. This checkpoint does not prove CI green.
-It runs locked sync, Ruff, governance, registry audit, and the pinned typechecker.
-Both focused forms leave the lessons lineage check to full static checks and CI.
-
-- `make prepush` checks collection across the full test tree, then runs the automatic branch selection.
-  Selection includes committed branch changes, local edits, deleted paths, both rename sides, and repository contracts.
-  It selects direct module and asset consumers, not all transitive or dynamic dependencies.
-  Runtime Python assets select their loader consumers. Nested fixture changes select descendant tests.
-  Both devloop modes discover individually declared test files. Read errors stop selection instead of omitting consumers.
-  Inspect it with `uv run evallab registry devloop --since origin/main --checkpoint --json`.
-- `make prepush TESTS='tests/test_devloop.py [pytest args]'` replaces automatic test selection with explicit selectors.
-  It does not run the automatic collection check or repository contracts unless you select them.
-  It keeps the same focused static gates and uses a single pytest process.
-- `make check` runs all static gates, including lessons. It runs no tests or runtime smoke.
-- `make premerge` runs all static gates, the full Python 3.12 suite, and the Docker-free runtime smoke.
-  Hosted CI still provides the separate native phase and supported Python matrix.
-
-The typechecker uses a unique private file under `/tmp`, outside the checkout.
-The script prints its complete output and removes that file on exit, including checker failure.
-It does not write `runs/_premerge/ty.txt`. Existing receipts remain subject to the evidence retention policy.
-Static, selection, collection, and test failures return a nonzero status.
+`agents/CHECKS.md` owns local checkpoints, explicit test selection, and hosted CI requirements.
+Follow the ordered change path in `AGENTS.md`. Do not copy gate semantics into this manual.
+Existing check receipts remain subject to the evidence retention policy.
 
 ## CI: pinned uv via PyPI, not marketplace action
 
@@ -829,12 +626,29 @@ In each shard log, compare the native pytest wall time with the `Module duration
 The default `loadscope` scheduler keeps that module on 1 worker, even with more workers.
 The base suite keeps its existing scheduler.
 Each native shard retains its full file inventory, JUnit report, and Harbor skip census.
-The interpreter matrix, dependency profiles, pinned source preparation, and required gates do not change.
+The interpreter matrix, dependency profiles, and required gates do not change.
+
+## CI: one dependency install and direct schema setup
+
+Each test job installs benchmarks, inspect, and the Laminar extra in 1 locked root sync.
+The native phase reuses that environment. It keeps the separate Python 3.12 worker sync.
+The default `dev` group already includes Laminar, so the former second root sync added no dependency.
+It only removed inspect packages before the native session.
+
+The fresh PostgreSQL service receives `sql/schema.sql` through the runner's `psql`.
+`-X` ignores user startup files. `--single-transaction` preserves atomic schema application.
+`--set ON_ERROR_STOP=1` fails the setup step on any SQL error.
+This avoids importing the application CLI before the tests.
+The database service, both pytest sessions, both JUnit files, and both skip censuses remain unchanged.
+
+Both phases use the locked Harbor wheel. The RewardKit tests use local fixtures.
+No test consumes the former `/tmp/harbor024/repo` checkout, so CI no longer fetches it.
+
 
 ## Agent profiles and model routes
 
 `profiles.py` owns immutable adapter/model identity and qualification evidence.
-There is no dedicated `evallab profiles` command.
+Profiles have no dedicated root CLI route.
 Controls have no model credential. Billable profiles require a pinned model and a declared secret source.
 Secret sources contain identifiers, never token values.
 The subscription environment uses an allowlist and removes key-shaped names.
@@ -934,7 +748,7 @@ Do not deploy or stop shared apps as a repository smoke.
 
 ## Retained rollout accounting
 
-The `evallab rollout` frontend is retired.
+The rollout frontend is retired.
 Its retained result files remain historical evidence with the following accounting limits.
 
 `results.jsonl` publishes each terminal task/attempt atomically.

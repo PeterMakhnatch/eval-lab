@@ -1,11 +1,9 @@
 """Harbor adapter for the Z.ai Coding Plan via OpenCode.
 
-Provides two execution lanes:
-1. ``ZaiOpenCodeAgent``: Trusted-task-only mount-based adapter (links auth.json).
-2. ``SecretSafeZaiOpenCodeAgent``: Proxy-grade credential isolation adapter.
-   Untrusted task/agent containers talk only to the internal credential broker
-   (``zai-secret-proxy``) and receive a placeholder capability token, never
-   the real provider secret.
+``SecretSafeZaiOpenCodeAgent`` provides proxy-grade credential isolation.
+Untrusted task/agent containers talk only to the internal credential broker
+(``zai-secret-proxy``) and receive a placeholder capability token, never
+the real provider secret.
 """
 
 from __future__ import annotations
@@ -43,19 +41,11 @@ PINNED_OPENCODE_VERSION = "1.18.25"
 #: The only accepted provider prefix; the Z.ai credential is scoped to it.
 REQUIRED_MODEL_PREFIX = "zai-coding-plan/"
 
-#: Read-only mount of the filtered, Z.ai-only OpenCode auth document (trusted lane).
-AUTH_SECRET_MOUNT = "/run/secrets/evallab_zai_opencode_auth.json"
-
 #: OpenCode reads ``$XDG_DATA_HOME/opencode/auth.json``; Harbor's pinned
 #: OpenCode ``run()`` exports ``XDG_DATA_HOME=/logs/agent/opencode/xdg-data``.
 AUTH_LINK_DIR = "/logs/agent/opencode/xdg-data/opencode"
 AUTH_LINK_PATH = f"{AUTH_LINK_DIR}/auth.json"
 
-#: The only commands the trusted-lane adapter executes for auth mounting.
-CREATE_AUTH_LINK_COMMAND = (
-    f"mkdir -p {AUTH_LINK_DIR} && ln -sfn {AUTH_SECRET_MOUNT} {AUTH_LINK_PATH}"
-)
-REMOVE_AUTH_LINK_COMMAND = f"rm -f {AUTH_LINK_PATH}"
 
 # --------------------------------------------------------------------------
 # Proxy lane constants
@@ -145,41 +135,6 @@ def _scrubbed_connection_env(connection: ResolvedModelConnection) -> dict[str, s
     env["OPENAI_BASE_URL"] = ZAI_PROXY_URL
     env["OPENAI_API_BASE"] = ZAI_PROXY_URL
     return env
-
-
-class ZaiOpenCodeAgent(OpenCode):
-    """Pinned, model-guarded OpenCode agent for trusted Z.ai Coding Plan tasks.
-
-    Trusted-task-only: see the module docstring for the exact security
-    boundary (readable read-only credential mount, no proxy isolation).
-    """
-
-    def __init__(
-        self,
-        *args: Any,
-        version: str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(*args, version=version or PINNED_OPENCODE_VERSION, **kwargs)
-        # Harbor may pass the model selector at construction; when it does,
-        # refuse a non-Z.ai provider before any install or exec happens.
-        model_name = getattr(self, "model_name", None)
-        if model_name is not None:
-            validate_model_name(model_name)
-
-    async def run(self, instruction, environment, context) -> None:  # type: ignore[no-untyped-def]
-        # Re-check at run time: Harbor can also assign the model after
-        # construction, and ``run`` must fail closed before the auth link is
-        # created rather than after.
-        validate_model_name(self.model_name)
-        await self.exec_as_agent(environment, command=CREATE_AUTH_LINK_COMMAND)
-        try:
-            await super().run(instruction, environment, context)
-        finally:
-            # Remove the link even when the agent run raises. Cleanup errors
-            # are suppressed so the original agent error is never masked.
-            with contextlib.suppress(Exception):
-                await self.exec_as_agent(environment, command=REMOVE_AUTH_LINK_COMMAND)
 
 
 class SecretSafeZaiOpenCodeAgent(OpenCode):

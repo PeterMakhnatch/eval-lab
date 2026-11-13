@@ -77,50 +77,7 @@ class GradeResult:
 
 
 #: Grades one submission with the task's verifier: ``(package, submission)``.
-#: Production calls go through ``grade_submission``. The default is free local
-#: Docker and no model; Modal requires a CloudSpendGate. Tests inject fakes.
 GradeFn = Callable[[str | Path, Submission], GradeResult]
-
-
-def grade_submission(
-    package: str | Path,
-    submission: Submission,
-    *,
-    repo_root: str | Path,
-    run_dir: str | Path,
-    timeout_seconds: int = 1_800,
-    environment: str = "docker",
-    docker_platform: str | None = None,
-    spend_gate: object | None = None,
-    prelude: str = "",
-    modal_app_name: str | None = None,
-    modal_resource_policy: Literal["limit"] | None = None,
-    modal_sandbox_timeout_seconds: int | None = None,
-    modal_sandbox_create_max_attempts: Literal[1] | None = None,
-) -> GradeResult:
-    """Grade one submission with the task's own verifier (re-export).
-
-    The implementation lives in :mod:`evallab.verifier_mutation` next to the
-    solution-override machinery it reuses; this lazy re-export keeps the
-    ``evallab.vcheck`` surface complete without a module-level import cycle.
-    """
-    from evallab.verifier_mutation import grade_submission as _grade
-
-    return _grade(
-        package,
-        submission,
-        repo_root=repo_root,
-        run_dir=run_dir,
-        timeout_seconds=timeout_seconds,
-        environment=environment,
-        docker_platform=docker_platform,
-        spend_gate=spend_gate,
-        prelude=prelude,
-        modal_app_name=modal_app_name,
-        modal_resource_policy=modal_resource_policy,
-        modal_sandbox_timeout_seconds=modal_sandbox_timeout_seconds,
-        modal_sandbox_create_max_attempts=modal_sandbox_create_max_attempts,
-    )
 
 
 # --------------------------------------------------------------------------- #
@@ -206,5 +163,3 @@ def run_controls(
 
 #: Per-task red audit: ``(task_id, broadcast_hints) -> hypotheses``. The
 #: factory closes over whatever the agent needs (client, budget, grade_fn).
-
-

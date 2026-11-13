@@ -35,6 +35,8 @@ agent.kept.diff whose complete pre-hidden custody evaluation_corrections proves;
 it does NOT recover an original workspace, snapshot, artifact manifest, or
 trajectory. The failed historical 772a78ad native regrade remains a refusal.
 Reservations are conservative fences, not provider invoices.
+--reserve-usd must meet qa.counterfactual.CLOUD_USD_PER_EXECUTION. That shared
+floor covers a logical replay, not one provider allocation or an invoice.
 """
 
 from __future__ import annotations

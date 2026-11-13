@@ -15,7 +15,7 @@ Its compact view is [SCOREBOARD.md](../research/evidence/ev1110-score-1/SCOREBOA
 Run this command from current main. The output directory must not exist.
 
 ```sh
-uv run evallab score --freeze ~/Developer/eval-lab-results/score/current/freeze.json --out ~/Developer/eval-lab-results/score/current/recheck
+uv run evallab score --freeze ~/Developer/eval-lab-results/score/current/freeze.json --out ~/Developer/eval-lab-results/score/current-recheck
 ```
 
 The published directory contains the freeze, `scoreboard.json`, `SCOREBOARD.md`, `items.jsonl`, `qa-links.jsonl`, and `summary.json`.
@@ -51,6 +51,28 @@ with (p / "current-refreshed-freeze.json").open("x") as out:
 
 Use the new freeze with `evallab score --freeze` and a new `--out` directory.
 Never refresh a data hash to bypass a refusal. Preserve and investigate changed input bytes.
+
+## Publish a verified bundle
+
+Never replace `current/freeze.json` alone. Publish the freeze and its completed score output together.
+Use an existing verified replay when available. Do not recalculate scores only to repair publication metadata.
+Before publication, compare every scoreboard value with the previous authority.
+Only approved freeze identities and measured timing fields may differ. Scientific values must match exactly.
+The timing fields are `/score_cpu_seconds`, `/score_wall_seconds`, and `/online/rows/*/cpu_seconds`.
+Per-item receipt differences may contain measured `cpu_seconds` changes only.
+
+Preserve the complete previous directory in a new unique backup directory. Record every file's SHA-256 before publication.
+Stage only the verified bundle files. Preserve existing historical freezes; do not add unrelated lane files.
+Check `freeze_file_sha256` against the exact freeze bytes and `freeze_sha256` with `evallab.score.inputs.identity`.
+Verify `SCOREBOARD.md` with `evallab.score.board.render` against the saved scoreboard.
+Generate `summary.json` with `evallab.score.board.summary` and receipt hashes for the final published paths.
+Use an atomic directory swap when available. Verify the published identities, generated reports, and every receipt hash.
+Regenerate the 2 tracked compact reports' receipt metadata. Never edit scientific values or commit full private receipts.
+
+The SCORE-IDENTITY repair uses the completed verify-3 replay. It changes 2 freeze identities and 16 scoreboard timing values.
+All scientific values match. The immutable publication receipt records the complete pre/post comparison and backup path:
+`~/Developer/eval-lab-results/score/prior-repair8-score-20261113T074237Z-raqovhpw/publication.json`.
+Receipt SHA-256: `637ebf184f7d351c2ba6494c7e49061acfafb3acd66a06228edc9ce01ab67068`.
 
 ## Measurement boundaries
 

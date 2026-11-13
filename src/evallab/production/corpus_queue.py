@@ -105,11 +105,6 @@ class CorpusRegistry:
     only tighten a local row's split, never turn TEST back into DEV. The TEST lock
     follows task names/digests across corpus records as well as individual ids.
 
-    ``register_external`` admits records from genuinely external public datasets
-    under their own dataset ids. It never writes the canonical dataset ids, and
-    canonical TEST seals still pin the effective split: an external record naming
-    a sealed item id, task name, or task digest resolves as TEST regardless of
-    any DEV label the export declares.
     Only the four canonical corpus keys feed that global lock: assignments under
     secondary key ids tighten solely their own ``(key_id, item_id)`` rows.
     """
@@ -127,7 +122,6 @@ class CorpusRegistry:
         self._sealed_names: set[str] = set()
         self._sealed_digests: set[str] = set()
         self._sealed_ids: set[str] = set()
-        self._external: set[tuple[str, str]] = set()
         self._assignment_names: dict[tuple[str, str], str] = {}
         self._assigned_test_names: set[str] = set()
         self._assigned_test_ids: set[str] = set()
@@ -405,49 +399,5 @@ class CorpusRegistry:
             )
         return item
 
-    def register_external(self, item: CorpusItem) -> CorpusItem:
-        """Register a normalized record from a non-canonical public dataset.
-
-        External datasets keep their own ids; the canonical ``DATASETS`` are
-        immutable here, so this refuses canonical dataset ids and any identity
-        already registered. Re-registering an external id with the same declared
-        identity is idempotent; a conflicting redeclaration raises ``ValueError``.
-        Sealed canonical item ids, task names, and task digests keep the
-        effective split at TEST through :meth:`admit`, so external records can
-        never launder sealed work under a new id.
-        """
-        dataset_id = _text(item.dataset_id, "dataset_id")
-        item_id = _text(item.item_id, "item_id")
-        if _identity(dataset_id) in DATASETS:
-            raise ValueError(f"external registration cannot write canonical dataset {dataset_id}")
-        split = _split(item.split)
-        task_id = None if item.task_id is None else _text(item.task_id, "task_id")
-        digest = None if item.task_digest is None else _text(item.task_digest, "task_digest")
-        key = _identity(dataset_id), _identity(item_id)
-        existing = self._items.get(key)
-        if existing is not None:
-            if (
-                key in self._external
-                and existing.split == split
-                and existing.task_id == task_id
-                and existing.task_digest == digest
-            ):
-                return self.get(dataset_id, item_id)
-            raise ValueError(
-                f"external corpus id {dataset_id}/{item_id} is already registered "
-                "with a different identity"
-            )
-        self._items[key] = CorpusItem(
-            dataset_id,
-            item_id,
-            split,
-            task_id,
-            digest,
-            Path(item.source_path),
-            dict(item.metadata),
-            item.source_record_sha256,
-        )
-        self._external.add(key)
-        return self.get(dataset_id, item_id)
 
 

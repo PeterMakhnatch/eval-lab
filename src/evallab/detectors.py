@@ -797,14 +797,6 @@ def render_families(sc: Score) -> str:
 def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
     del root
     corpus = Corpus.load(args.corpus) if getattr(args, "corpus", None) else None
-    if args.detectors_cmd == "list":
-        cached = set(corpus.detectors_cached()) if corpus else set()
-        for name, cls in sorted(REGISTRY.items()):
-            mark = " [cached]" if name in cached else ""
-            print(
-                f"{name:26} check={cls.check:15} {'paid' if cls.paid else '$0  '} {cls.description}{mark}"
-            )
-        return 0
     assert corpus is not None
     if args.detectors_cmd == "verify":
         problems = corpus.verify()
@@ -880,53 +872,3 @@ def _read_ids(path: Path) -> set[str]:
     return {line.strip() for line in text.splitlines() if line.strip()}
 
 
-def build_detectors_parser(commands: argparse._SubParsersAction) -> None:
-    from evallab.results_home import results_root
-
-    parser = commands.add_parser(
-        "detectors",
-        help="Score cheat detectors on a labelled trace corpus (cached, $0 to re-score)",
-        description=__doc__.split("\n\n")[0],
-    )
-    sub = parser.add_subparsers(dest="detectors_cmd", required=True)
-    p = sub.add_parser("list", help="Registered detectors (and which are cached in --corpus)")
-    p.add_argument("--corpus")
-    p.set_defaults(func=_cmd)
-    p = sub.add_parser("verify", help="Check the corpus and cache checksums")
-    p.add_argument("--corpus", default="detectors-v1")
-    p.set_defaults(func=_cmd)
-    p = sub.add_parser(
-        "score", help="Recall / false positives from cached verdicts (no model calls)"
-    )
-    p.add_argument("--corpus", default="detectors-v1")
-    p.add_argument("--detector", action="append", help="repeatable; default: every cached detector")
-    p.add_argument("--check", help="label to score against (default: the detector's own)")
-    p.add_argument(
-        "--calibrate-on",
-        default=DEFAULT_CALIBRATION_SOURCE,
-        help="source whose negatives set score cuts",
-    )
-    p.add_argument("--families", action="store_true", help="also print per-family recall")
-    p.add_argument("--json", action="store_true")
-    p.set_defaults(func=_cmd)
-    p = sub.add_parser(
-        "run", help="Judge uncached corpus traces with a detector and cache the verdicts"
-    )
-    p.add_argument("--corpus", default="detectors-v1")
-    p.add_argument("--detector", required=True, choices=sorted(REGISTRY))
-    p.add_argument("--source", action="append", help="only rows from this source (repeatable)")
-    p.add_argument(
-        "--tw-root", type=Path, help="materialized Terminal Wrench trials: <root>/<source>/<tw_id>"
-    )
-    p.add_argument(
-        "--cb-root", type=Path, help="materialized CheatBench trials: <root>/<source>/<cb_id>"
-    )
-    p.add_argument(
-        "--rl-root", type=Path, help="materialized RL rollout trials: <root>/<source>/<rl_id>"
-    )
-    p.add_argument("--results-root", type=Path, default=results_root())
-    p.add_argument("--limit", type=int)
-    p.add_argument("--ids", type=Path, help="only these row ids (JSON list or one per line)")
-    p.add_argument("--refresh", action="store_true", help="re-judge rows already in the cache")
-    p.add_argument("--allow-paid", action="store_true")
-    p.set_defaults(func=_cmd)

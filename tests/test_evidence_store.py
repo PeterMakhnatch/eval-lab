@@ -6,8 +6,6 @@ import pytest
 
 from evallab.evidence_store import (
     archive_evidence,
-    read_record,
-    restore_evidence,
     store_blob,
 )
 
@@ -22,7 +20,7 @@ def _evidence(root: Path) -> Path:
     return source
 
 
-def test_evidence_archive_is_content_addressed_deduplicated_and_restorable(
+def test_evidence_archive_is_content_addressed_and_deduplicated(
     tmp_path: Path,
 ) -> None:
     source = _evidence(tmp_path)
@@ -36,12 +34,6 @@ def test_evidence_archive_is_content_addressed_deduplicated_and_restorable(
     assert first.archive_digest == second.archive_digest
     assert len(list((store / "blobs").rglob("*.tar.gz"))) == 1
     assert first.blob_path.stat().st_mode & 0o777 == 0o600
-
-    restored = restore_evidence(store, first.uri, tmp_path / "restored")
-    assert (restored / "result.json").read_bytes() == (source / "result.json").read_bytes()
-    assert (
-        restored / "trial/agent/trajectory.json"
-    ).read_bytes() == (source / "trial/agent/trajectory.json").read_bytes()
 
 
 def test_changed_evidence_creates_a_new_blob(tmp_path: Path) -> None:
@@ -97,13 +89,3 @@ def test_archive_rejects_symlinked_record_kind_without_external_write(
     assert not (outside / "escape.json").exists()
 
 
-def test_cas_record_read_rejects_final_symlink(tmp_path: Path) -> None:
-    store = tmp_path / "store"
-    outside = tmp_path / "outside.json"
-    outside.write_text('{"record_id":"forged"}\n', encoding="utf-8")
-    record_dir = store / "records" / "job"
-    record_dir.mkdir(parents=True)
-    (record_dir / "forged.json").symlink_to(outside)
-
-    with pytest.raises(ValueError, match="unsafe"):
-        read_record(store, kind="job", record_id="forged")

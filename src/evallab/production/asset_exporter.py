@@ -55,7 +55,7 @@ must agree with the qualification record that cites it.
 candidate's ``(dataset_id, item_id)`` through the queue's ``CorpusRegistry`` —
 which applies the scoped canonical TEST lock (TB4 TEST names/digests, sealed
 item ids, and the MiMo permanent heldouts seal matching aliases across the
-canonical and ``register_external`` corpora; secondary key ids seal only their
+canonical corpus records; secondary key ids seal only their
 own rows) — and rejects sealed, unregistered, or conflicting identities
 regardless of any caller-supplied split label. No frozen-evaluation token
 exists on this path. Recognized identity/provenance fields inside candidate

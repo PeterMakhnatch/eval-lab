@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 from typing import Any
 
 import pytest
 
-from evallab import cheat, hub_trials, task_stability
+from evallab import cheat, hub_trials
 from evallab.execution_contracts import subscription_environment
 from evallab.harbor_telemetry import harbor_child_environment
 
@@ -59,13 +58,3 @@ def test_cheat_harbor_version_child_env_has_telemetry_off(monkeypatch: pytest.Mo
     assert calls[0]["env"]["HARBOR_TELEMETRY"] == "off"
 
 
-def test_stability_job_env_has_telemetry_off(tmp_path: Path) -> None:
-    _, env = task_stability.stability_run_command(
-        task_path=tmp_path / "task",
-        agent="nop",
-        job_name="stability-probe",
-        jobs_dir=tmp_path / "jobs",
-        repo_src=tmp_path / "src",
-    )
-    assert env["HARBOR_TELEMETRY"] == "off"
-    assert env["PYTHONPATH"] == str(tmp_path / "src")

@@ -16,7 +16,6 @@ import pytest
 from evallab.production.cloud_trace_db import (
     CloudTraceDatabase,
     CloudTraceRetriever,
-    import_run_facets,
 )
 from evallab.production.corpus_queue import CorpusRegistry
 
@@ -69,27 +68,20 @@ def facet(run_id: str = "dev-task/pass", **changes: Any) -> dict[str, Any]:
     }
 
 
-def write_jsonl(path: Path, *lines: Any) -> Path:
-    path.write_text("".join((line if isinstance(line, str) else json.dumps(line)) + "\n" for line in lines))
-    return path
-
-
 def stored(db: CloudTraceDatabase) -> dict[str, dict[str, Any]]:
     return {row["run_id"]: row for row in db._rows("SELECT * FROM run_facets")}
 
 
-def test_import_stores_admitted_runs_with_database_identity_and_supersedes_by_run(
-    db: CloudTraceDatabase, tmp_path: Path,
+def test_upsert_stores_admitted_runs_with_database_identity_and_supersedes_by_run(
+    db: CloudTraceDatabase,
 ) -> None:
-    path = write_jsonl(
-        tmp_path / "facets.jsonl",
+    records = [
         facet(suspicion=1),
         facet("dev-task/fail", outcome="pass", evidence_steps=[]),
         facet("dev-task/open", unexpected_extra="dropped"),
-        facet(suspicion=3),  # a later line for the same run supersedes the first
-    )
-    receipt = import_run_facets(db, path, registry=SyntheticRegistry())
-    assert receipt["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+        facet(suspicion=3),  # a later record for the same run supersedes the first
+    ]
+    receipt = db.upsert_run_facets(records, registry=SyntheticRegistry())
     assert (receipt["records"], receipt["runs"], receipt["stored"], receipt["refused"]) == (4, 3, 3, 0)
     # source and split always disagree with the record's guesses; the open run's and fail run's outcomes too.
     assert receipt["database_overrides"] == {"source": 3, "split": 3, "outcome": 2}
@@ -103,7 +95,7 @@ def test_import_stores_admitted_runs_with_database_identity_and_supersedes_by_ru
     assert rows["dev-task/open"]["outcome"] == "unknown"
     assert "unexpected_extra" not in rows["dev-task/open"]
 
-    again = import_run_facets(db, path, registry=SyntheticRegistry())
+    again = db.upsert_run_facets(records, registry=SyntheticRegistry())
     assert again["stored"] == 3
     assert stored(db) == rows
 
@@ -123,35 +115,35 @@ def test_import_stores_admitted_runs_with_database_identity_and_supersedes_by_ru
     ({key: value for key, value in facet().items() if key != "shortcut"}, "missing fields: shortcut"),
 ])
 def test_refused_records_are_counted_by_reason_and_never_stored(
-    db: CloudTraceDatabase, tmp_path: Path, record: dict[str, Any], reason: str,
+    db: CloudTraceDatabase, record: dict[str, Any], reason: str,
 ) -> None:
-    path = write_jsonl(tmp_path / "facets.jsonl", record, "{not json", facet("dev-task/fail"))
-    receipt = import_run_facets(db, path, registry=SyntheticRegistry())
-    assert receipt["invalid_json_lines"] == 1
+    receipt = db.upsert_run_facets(
+        [record, facet("dev-task/fail")], registry=SyntheticRegistry(),
+    )
     assert receipt["refused_by_reason"] == {reason: 1}
     assert receipt["refused_examples"] == [{"run_id": record.get("run_id"), "reason": reason}]
     assert set(stored(db)) == {"dev-task/fail"}
 
 
-def test_evidence_steps_must_be_stored_in_the_cited_run_itself(db: CloudTraceDatabase, tmp_path: Path) -> None:
+def test_evidence_steps_must_be_stored_in_the_cited_run_itself(db: CloudTraceDatabase) -> None:
     db.upsert_trace({
         "trace_id": "dev-task/short", "run_id": "batch-1", "task_id": "dev-task",
         "model_id": "synthetic-model", "reward": 0.0,
     }, steps=[{"step_index": 0, "role": "assistant"}])
-    path = write_jsonl(
-        tmp_path / "facets.jsonl", facet(evidence_steps=[3]), facet("dev-task/short", evidence_steps=[0, 3]),
+    receipt = db.upsert_run_facets(
+        [facet(evidence_steps=[3]), facet("dev-task/short", evidence_steps=[0, 3])],
+        registry=SyntheticRegistry(),
     )
-    receipt = import_run_facets(db, path, registry=SyntheticRegistry())
     assert receipt["refused_examples"] == [
         {"run_id": "dev-task/short", "reason": "evidence_steps must name stored steps of the run"},
     ]
     assert set(stored(db)) == {"dev-task/pass"}
 
 
-def test_without_split_authority_nothing_is_stored(db: CloudTraceDatabase, tmp_path: Path) -> None:
+def test_without_split_authority_nothing_is_stored(db: CloudTraceDatabase) -> None:
     unloaded = SyntheticRegistry()
     unloaded.split_assignments_digest = None
-    receipt = import_run_facets(db, write_jsonl(tmp_path / "facets.jsonl", facet()), registry=unloaded)
+    receipt = db.upsert_run_facets([facet()], registry=unloaded)
     assert (receipt["admitted_tasks"], receipt["stored"]) == (0, 0)
     assert receipt["refused_by_reason"] == {"task is not admitted DEV": 1}
     assert stored(db) == {}
@@ -188,46 +180,31 @@ def test_writer_uses_current_task_identity_not_an_earlier_allowlist(db: CloudTra
     assert stored(db) == {}
 
 
-def test_invalid_replacement_cannot_make_full_import_differ_from_valid_prefix(
-    db: CloudTraceDatabase, tmp_path: Path,
+def test_invalid_replacement_cannot_make_batch_differ_from_valid_prefix(
+    db: CloudTraceDatabase,
 ) -> None:
-    path = tmp_path / "facets.jsonl"
     valid = facet(suspicion=1)
     invalid = facet(evidence_steps=[99])
-    write_jsonl(path, valid, invalid)
-    fresh = import_run_facets(db, path, registry=SyntheticRegistry())
+    fresh = db.upsert_run_facets([valid, invalid], registry=SyntheticRegistry())
     assert (fresh["stored"], fresh["refused"]) == (1, 1)
     fresh_rows = stored(db)
     assert fresh_rows["dev-task/pass"]["suspicion"] == 1
 
     db._execute("DELETE FROM run_facets")
-    write_jsonl(path, valid)
-    import_run_facets(db, path, registry=SyntheticRegistry())
-    write_jsonl(path, valid, invalid)
-    import_run_facets(db, path, registry=SyntheticRegistry())
+    db.upsert_run_facets([valid], registry=SyntheticRegistry())
+    db.upsert_run_facets([valid, invalid], registry=SyntheticRegistry())
     assert stored(db) == fresh_rows
-
-
-def test_jsonl_preserves_unicode_line_separators_and_imports_before_a_torn_utf8_tail(
-    db: CloudTraceDatabase, tmp_path: Path,
-) -> None:
-    path = tmp_path / "facets.jsonl"
-    valid = facet(goal="Fix\u2028parser\u0085behavior")
-    path.write_bytes(json.dumps(valid, ensure_ascii=False).encode("utf-8") + b'\n{"goal":"torn \xe2\x82')
-    receipt = import_run_facets(db, path, registry=SyntheticRegistry())
-    assert (receipt["stored"], receipt["invalid_json_lines"]) == (1, 1)
-    assert stored(db)["dev-task/pass"]["goal"] == valid["goal"]
 
 
 @pytest.mark.parametrize("split", [" DEV ", "\tDeV\n"])
 def test_facet_split_preserves_the_admitted_database_spelling(
-    db: CloudTraceDatabase, tmp_path: Path, split: str,
+    db: CloudTraceDatabase, split: str,
 ) -> None:
     db.upsert_task({
         "task_id": "dev-task", "dataset_id": "synthetic-corpus", "split": split,
         "instruction_text": "synthetic task",
     })
-    receipt = import_run_facets(db, write_jsonl(tmp_path / "facets.jsonl", facet()), registry=SyntheticRegistry())
+    receipt = db.upsert_run_facets([facet()], registry=SyntheticRegistry())
     assert receipt["stored"] == 1
     assert stored(db)["dev-task/pass"]["split"] == split
 

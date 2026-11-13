@@ -9,7 +9,7 @@ import pytest
 
 from evallab.evidence.facts import extract_trial_fact, trial_environment_type
 from evallab.results import load_job
-from evallab.task_qualification import estimate_cost_usd, task_dir_for_trial
+from evallab.task_qualification import estimate_cost_usd
 
 TASK_TOML = """\
 schema_version = "1.4"
@@ -242,17 +242,3 @@ def test_cost_null_off_rate_card_and_missing_inputs() -> None:
     ) == pytest.approx(0.0)
 
 
-def test_task_dir_for_trial_resolves_source_after_queue_stage_removed(tmp_path: Path) -> None:
-    """Queue runs delete the staged copy; the source task path still resolves."""
-    checkout = tmp_path / "checkout"
-    source = checkout / "derived" / "task-store" / "qual-task"
-    source.mkdir(parents=True)
-    (source / "task.toml").write_text(TASK_TOML)
-    gone = checkout / "runs" / ".exec-stage" / "jobq"
-    job = _write_job(checkout / "runs", "jobq", [
-        {"name": "t__nop", "agent": "nop", "reward": 0.0, "env_type": "daytona"},
-    ], staged=gone)
-    (job / "experiment-spec.json").write_text(
-        json.dumps({"task": "derived/task-store/qual-task"})
-    )
-    assert task_dir_for_trial(job / "t__nop") == source

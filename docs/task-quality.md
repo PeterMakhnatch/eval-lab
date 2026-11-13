@@ -500,13 +500,6 @@ separate `--stages exploit` probe is requested.
   Limits: Python targets only; a verifier that runs the code in an interpreter
   the prologue did not find, or replaces `sys.settrace` (pytest-cov on <3.12),
   falls back to unguided.
-  hollow-program battery (Bohrin battery 2, `src/evallab/verifier_battery.py`):
-  after the reference solution, every function it changed in each target Python
-  file is replaced by five fakes that do no work (each must score 0) and three
-  meaning-preserving rewrites (comments dropped, `ast.unparse` layout, renamed
-  locals; each must score 1, like the oracle). Verdicts `clean` /
-  `fake_rewarded` / `control_rejected` / `no_probes` / `task_broken` /
-  `unscored`; receipts in `runs/.envcheck/battery-<slug>-<nonce>/`.
 
   Native matrix validation replays digest-checked reference and nop first;
   failed controls stop before spending time on survivors. Task admission needs
@@ -953,8 +946,8 @@ return code, observed from the verifier's exec calls), and
 
 ## `diff_replay` recipe (offline reruns, no container retained)
 
-Implemented only as a documented recipe (see `task_stability.py`
-`STATE_PRESERVATION["diff_replay"]` for the recorded string):
+This is a manual recipe, not a supported collection driver.
+`task_stability.py` keeps only the stored table name for catalog readers.
 
 1. `docker run` the task's pinned image (amd64).
 2. Replay the one-time setup from the task's `[environment.healthcheck]`
@@ -981,7 +974,7 @@ digest-bound admission record (`evallab.task_admission/v1`, gate
 | 2 | `oracle` (stability-job path, repeat 3) | every trial reward is exactly 1.0 — via the shipped `solution/solve.sh`, or via the HAR-191 reference (see below); `unproven` when neither exists |
 | 3 | `nop` (stability-job path, repeat 3) | every trial reward is exactly 0.0 |
 | 4–17 | `cheat:<attack>` (one single-trial cheat job per attack, full 14-attack ladder) | reward < 1.0 (the lane rule: cracked iff reward >= 1.0) |
-| 18 | `battery` (`verifier_battery`: 5 hollow fakes + 3 rewrite controls per changed Python file) | every fake scores 0 and every rewrite control scores 1 (see below) |
+| 18 | `battery` (retired hollow-program checks) | every fake scores 0 and every rewrite control scores 1 |
 | 19 | `mutation` (`hack mutate` audit, `--max-mutants` 12) | every scored mutant is killed (see below) |
 
 Each executed step records command, job dir, reward(s), duration, and
@@ -993,29 +986,13 @@ an auto-flip), `not_admitted` (infrastructure broke before proof either
 way — fail closed), `unproven` (no oracle reference covers the task, so
 solvability cannot be shown — distinct from infra).
 
-## Hollow-program battery (Bohrin battery 2)
+## Retired hollow-program battery
 
-Ported from [Bohrin](https://github.com/prabhu-gopal/bohrin) @ `f030425`
-(Apache-2.0) into `src/evallab/verifier_battery.py`. On the same staged
-package and targets as the mutation step, after the reference solution
-runs, every function the reference changed in each target Python file is
-rewritten at once:
-
-* five **fakes** that do no work by construction: `pass`, a constant of
-  the return type, `raise NotImplementedError`, `raise SystemExit(0)`, an
-  object equal to everything. Any fake with reward > 0 → step `fail`, gate
-  `rejected` (the hidden tests never need the fixed functions to work).
-* four **known-good controls** that keep the reference's meaning: the
-  oracle itself (the capture run), comments dropped, `ast.unparse`
-  re-layout, and renamed locals in the changed functions (skipped for
-  functions with nested scopes or scope-sensitive constructs). A control
-  that loses reward → step `review`: the verifier is stricter than the
-  task's meaning or reads source text.
-
-No changed Python function in the targets → `no_probes`, step `pass`
-(not applicable; recorded in the detail). Receipts:
-`battery-report.{json,md}` and `inputs/<id>/<id>.patch` under the
-battery run dir.
+The battery implementation and its launch route are retired.
+The existing admission records and battery receipts remain unchanged.
+Those records distinguish fake-program rewards from rejected reference rewrites.
+They do not authorize a new run.
+The archive tag `archive/pre-round3-2026-11-12` preserves the former implementation.
 
 ## Oracle reference (HAR-191 path, no new store)
 

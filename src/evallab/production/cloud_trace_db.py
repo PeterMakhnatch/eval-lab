@@ -2802,27 +2802,3 @@ class CloudTraceRetriever:
         )
 
 
-def import_run_facets(
-    database: CloudTraceDatabase, path: str | Path, *, registry: CorpusRegistry | None = None,
-) -> dict[str, Any]:
-    """Import the interim Run Atlas JSONL, one ``run-facets/v1`` object per line.
-
-    The file is append-only and keyed by ``run_id``: the last fully valid record
-    wins. Admission is retrieval's own (registry-admitted DEV tasks minus
-    sealed identities); without a loadable split authority nothing is stored.
-    Re-importing the same file stores the same rows.
-    """
-    data = Path(path).read_bytes()
-    records: list[Any] = []
-    invalid = 0
-    for line in data.split(b"\n"):
-        if line.strip():
-            try:
-                records.append(json.loads(line))
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                invalid += 1
-    return {
-        "schema": "evallab.run_facets_import/v1", "path": str(path),
-        "sha256": hashlib.sha256(data).hexdigest(), "invalid_json_lines": invalid,
-        **database.upsert_run_facets(records, registry=registry),
-    }

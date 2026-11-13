@@ -29,7 +29,7 @@ Harbor tasks instead use native, host-isolated one-worker matrices with their
 unchanged manifest and explicit ``--target`` files (or declared artifacts).
 Every candidate applies only the complete selected-file mapping to fresh base,
 without replaying the reference. An independently passing full-target
-reconstruction is required. ``--plan`` constructs no backend.
+reconstruction is required. The QA task route owns plan-only reporting.
 
 QA Agent - Trace, T0: ``trace`` compares a passing trial's
 ``verifier/agent.diff`` with the task report. A pass whose diff leaves every
@@ -39,7 +39,6 @@ partial fix (``false_positive``, unverified until someone runs stronger tests).
 
 from __future__ import annotations
 
-import argparse
 import ast
 import difflib
 import hashlib
@@ -49,7 +48,6 @@ import math
 import re
 import shlex
 import subprocess
-import sys
 import tarfile
 import tempfile
 import time
@@ -63,7 +61,6 @@ from typing import Any, Literal
 
 from evallab.execution_contracts import MODAL_PATH_PIN
 from evallab.regrade import (
-    MODAL_USD_PER_ALLOCATION_UNIT,
     CloudSpendGate,
     SpendCapReached,
     lab_harbor_problem,
@@ -1979,45 +1976,6 @@ def _package_digest(path: Path) -> str | None:
 # Sweep over a reference-fix index
 
 
-@dataclass(frozen=True)
-class Job:
-    task_id: str
-    package: Path
-    patch: Path | None
-    image: str
-
-
-def patch_code_blocks(patch: str, tests: Iterable[str] = ()) -> int:
-    """Code change runs in a patch (docs, comments and reset test files excluded); no Docker."""
-    skip = set(tests)
-    count, path = 0, ""
-    removed: list[str] = []
-    added: list[str] = []
-
-    def close() -> None:
-        nonlocal count
-        if (removed or added) and block_kind(path, removed, added, skip) == "code":
-            count += 1
-        removed.clear()
-        added.clear()
-
-    for raw in patch.splitlines():
-        if raw.startswith("diff --git "):
-            close()
-            match = re.match(r"diff --git a/(.+?) b/(.+)$", raw)
-            path = match.group(2) if match else ""
-        elif raw.startswith(("--- ", "+++ ")):
-            continue
-        elif raw.startswith("-"):
-            removed.append(raw[1:])
-        elif raw.startswith("+"):
-            added.append(raw[1:])
-        elif not raw.startswith("\\"):
-            close()
-    close()
-    return count
-
-
 def _write_skipped(
     task_id: str,
     package: Path,
@@ -2041,211 +1999,3 @@ def _write_skipped(
         json.dumps(finding(report, out_dir), indent=1, sort_keys=True) + "\n"
     )
     return report
-
-
-# ---------------------------------------------------------------------------
-# CLI
-
-
-def _reservation_estimate(value: str) -> float:
-    number = float(value)
-    if not math.isfinite(number) or number <= 0:
-        raise argparse.ArgumentTypeError("reservation estimate must be positive and finite")
-    return number
-
-
-def _spend_cap(value: str) -> float:
-    number = float(value)
-    if not math.isfinite(number) or number < 0:
-        raise argparse.ArgumentTypeError("USD cap must be nonnegative and finite")
-    return number
-
-
-def _add_environment_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--environment", choices=("docker", "modal"), default="docker")
-    parser.add_argument("--plan", action="store_true", help="$0 local plan; construct no backend")
-    parser.add_argument(
-        "--max-usd", type=_spend_cap, help="Modal reservation cap, not a provider billing hard kill"
-    )
-    parser.add_argument(
-        "--approve", help="Recorded approval text; required for real Modal execution"
-    )
-    parser.add_argument(
-        "--usd-per-execution",
-        type=_reservation_estimate,
-        default=MODAL_USD_PER_ALLOCATION_UNIT,
-        help="Positive finite reservation estimate per image work/native creation attempt "
-        "(default: %(default)s)",
-    )
-
-
-def _command_spend_gate(args: argparse.Namespace) -> CloudSpendGate | None:
-    maximum = 16 if args.environment == "modal" else 2
-    if not 1 <= getattr(args, "lanes", 1) <= maximum:
-        raise ValueError(f"{args.environment} ref-subset lanes must be between 1 and {maximum}")
-    if args.environment == "docker":
-        return None
-    if args.mutants < 0:
-        raise ValueError("Modal mutant count must be nonnegative")
-    if not args.approve or not args.approve.strip() or args.max_usd is None:
-        raise ValueError("real Modal execution requires --approve TEXT and --max-usd USD")
-    return CloudSpendGate(args.approve, args.max_usd, args.usd_per_execution)
-
-
-def _plan_command(args: argparse.Namespace, jobs: list[Job], *, sweep_mode: bool) -> int:
-    """Read only local package/index/report bytes. No runtime/backend construction."""
-    tasks: list[dict[str, Any]] = []
-    refusals: list[str] = []
-    maximum = 16 if args.environment == "modal" else 2
-    lanes = getattr(args, "lanes", 1)
-    if not 1 <= lanes <= maximum:
-        refusals.append(f"{args.environment} lanes must be between 1 and {maximum}")
-    if args.environment == "modal" and args.mutants < 0:
-        refusals.append("Modal mutant count must be nonnegative")
-    for job in jobs:
-        item: dict[str, Any] = {
-            "task_id": job.task_id,
-            "package": str(job.package),
-            "package_digest": _package_digest(job.package),
-            "reservation_units_upper_bound": 0,
-        }
-        try:
-            shared = _shared_config(job.package)
-            if shared is not None:
-                item["package_type"] = "native-shared"
-                if sweep_mode:
-                    raise UnsupportedTask("native shared tasks use run with per-task --target files, not the legacy index sweep")
-                if job.patch is not None or args.environment != "docker":
-                    raise UnsupportedTask("native shared tasks require Docker and their own oracle, not --patch")
-                item["targets"] = _shared_targets(job.package, shared, getattr(args, "target", ()))
-                if args.max_grades < 4 or args.mutants < 0:
-                    raise UnsupportedTask("native ref-subset needs max_grades >= 4 and mutants >= 0")
-                item.update(
-                    reference={"oracle": "solution/solve.sh"},
-                    action="probe", matrix_workers=1, shared_docker_slots=2,
-                    effective_agent_timeout_sec=int(shared["agent"]["timeout_sec"]),
-                    declared_agent_timeout_sec=shared["agent"]["timeout_sec"],
-                    agent_timeout_multiplier=1.0,
-                    requested_legacy_limits={"memory": args.memory, "oracle_timeout_s": args.oracle_timeout},
-                    candidate_state="fresh base; selected files only; no reference replay",
-                    required_controls={"oracle": 1, "nop": 0, "full": 1},
-                    resources=(shared.get("environment") or {}),
-                    live_resource_eligibility="unmeasured; checked under shared admission before each native matrix",
-                    mutation_seed=(
-                        str((shared.get("task") or {}).get("name") or job.package.name)
-                        if getattr(args, "seed", None) is None else args.seed
-                    ),
-                )
-                tasks.append(item)
-                continue
-            if getattr(args, "target", ()):
-                raise UnsupportedTask("--target is only supported for native shared-verifier tasks")
-            package = Package.load(job.package)
-            item["package_type"] = "separate-verifier" if package.separate else "raw-mimo"
-            if package.separate == (job.patch is not None):
-                raise ValueError(
-                    "separate-verifier reference comes from its oracle, not --patch"
-                    if package.separate
-                    else "raw MiMo package requires --patch"
-                )
-            if job.patch is not None:
-                raw = job.patch.read_bytes()
-                item["reference"] = {
-                    "path": str(job.patch),
-                    "sha256": hashlib.sha256(raw).hexdigest(),
-                }
-            else:
-                item["reference"] = {"oracle": "solution/solve.sh"}
-            if args.environment == "modal":
-                problem = modal_resource_blocker(job.package)
-                if problem is not None:
-                    raise ValueError(problem)
-            resumed = sweep_mode and (args.output_dir / job.task_id / "report.json").is_file()
-            blocks = (
-                patch_code_blocks(raw.decode(errors="replace"), package.tests)
-                if sweep_mode and job.patch is not None
-                else None
-            )
-            skip = resumed or (blocks is not None and blocks < 2 and not args.mutants)
-            item["action"] = "resume_skip" if resumed else "not_applicable" if skip else "probe"
-            if not skip and args.environment == "modal":
-                item["reservation_units_upper_bound"] = modal_execution_bound(
-                    max_grades=args.max_grades, mutants=args.mutants, separate=package.separate
-                )
-        except (OSError, ValueError) as exc:
-            item.update(action="refused", reason=str(exc))
-            refusals.append(f"{job.task_id}: {exc}")
-        tasks.append(item)
-    units = sum(item["reservation_units_upper_bound"] for item in tasks)
-    estimate = units * args.usd_per_execution
-    fits = args.max_usd is None or estimate <= args.max_usd + 1e-9
-    if args.environment == "modal":
-        if args.max_usd is None:
-            refusals.append("real Modal execution requires --max-usd")
-        elif not fits:
-            refusals.append(
-                "conservative reservation estimate exceeds --max-usd; execution would stop at the gate"
-            )
-        if not args.approve or not args.approve.strip():
-            refusals.append("real Modal execution requires recorded --approve text")
-    plan = {
-        "schema": "evallab.ref_subset.plan/v1",
-        "backend": args.environment,
-        "plan_only": True,
-        "plan_cost_usd": 0.0,
-        "executed": False,
-        "lanes": lanes,
-        "tasks": tasks,
-        "reservation_units_upper_bound": units,
-        "usd_per_execution": args.usd_per_execution,
-        "estimated_reservation_usd": estimate,
-        "max_usd": args.max_usd,
-        "fits_cap": fits if args.max_usd is not None else None,
-        "approval": args.approve,
-        "execution_refused": bool(refusals),
-        "refusals": refusals,
-        "reservation_policy": "includes image work and both potential native creation attempts; estimates, not a provider billing hard kill",
-    }
-    print(json.dumps(plan, indent=1, sort_keys=True))
-    return 0
-
-
-def _run_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
-    del harbor
-    if args.plan:
-        return _plan_command(
-            args, [Job(args.package.name, args.package, args.patch, "")], sweep_mode=False
-        )
-    try:
-        spend_gate = _command_spend_gate(args)
-    except ValueError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-    report = probe_task(
-        args.package,
-        args.patch,
-        args.output_dir,
-        max_grades=args.max_grades,
-        memory=args.memory,
-        oracle_timeout=args.oracle_timeout,
-        mutants=args.mutants,
-        environment=args.environment,
-        spend_gate=spend_gate,
-        targets=args.target,
-        repo_root=root,
-        mutation_seed=args.seed,
-    )
-    print(
-        json.dumps(
-            {
-                k: report.get(k)
-                for k in ("task_id", "status", "verdict", "severity", "kept_fraction", "reason")
-            }
-        )
-    )
-    return int(
-        report["status"] == "unavailable"
-        or (args.environment == "modal" and report["status"] == "budget_exhausted")
-    )
-
-

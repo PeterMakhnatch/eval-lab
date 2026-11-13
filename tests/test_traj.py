@@ -19,7 +19,6 @@ from evallab.traj import (
     StepOutline,
     _analyze_loop_suspicion,
     _build_phases,
-    extract_features,
     outline_trajectory,
 )
 
@@ -525,14 +524,18 @@ def test_attach_surface_exposes_trajectory_features(repo_root: Path) -> None:
     """The shared DuckDB attach surface can query the projected feature table."""
     from evallab.storage.attach import attach
 
-    trial = repo_root / "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__h2D9f6f"
     with tempfile.TemporaryDirectory() as tmpdir:
         derived = Path(tmpdir) / "derived"
         output = derived / "traj_features" / "traj_features.parquet"
         output.parent.mkdir(parents=True)
-        features = extract_features(outline_trajectory(trial, repo_root=repo_root))
+        defaults = {pa.string(): "", pa.int64(): 0, pa.float64(): 0.0, pa.bool_(): False}
+        record = {
+            field.name: None if field.nullable else defaults[field.type]
+            for field in TRAJ_FEATURES_PARQUET_SCHEMA
+        }
+        record.update(trial_id="synthetic-trial", status="featured", source_sha256="a" * 64)
         pq.write_table(
-            pa.Table.from_pylist([features.to_dict()], schema=TRAJ_FEATURES_PARQUET_SCHEMA),
+            pa.Table.from_pylist([record], schema=TRAJ_FEATURES_PARQUET_SCHEMA),
             output,
         )
         attached = attach(repo_root=repo_root, explicit_derived=derived)

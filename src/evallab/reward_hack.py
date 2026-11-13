@@ -32,13 +32,12 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from evallab import ref_subset
 from evallab.control_expect import declared_expectation
 from evallab.execution_contracts import new_ulid
 from evallab.registry import compute_task_digests, harbor_task_digest
 from evallab.runner import run_matrix
 from evallab.schemas import ContractModel, ExperimentMatrix, MatrixRun
-from evallab.verifier_mutation import add_mutate_parser
+from evallab.verifier_mutation import add_mutate_parser as add_mutate_parser
 
 #: Hits recorded per pattern rule; the ledger stays bounded and reviews the first
 #: occurrences, not every matching byte of a large verifier.
@@ -861,67 +860,3 @@ def _hack_run_command(args: argparse.Namespace, root: Path, *, harbor: Any | Non
     return 0
 
 
-def build_reward_hack_parser(subparsers: Any) -> None:
-    hack = subparsers.add_parser(
-        "hack",
-        help="Reward-hacking audit: static V1-V8 ledger, exploit replay, verifier mutation "
-        "testing (local, free)",
-    )
-    hack_commands = hack.add_subparsers(dest="hack_command", required=True)
-    scan = hack_commands.add_parser(
-        "scan", help="Deterministic V1-V8 flaw ledger for one task package; offline, no execution"
-    )
-    scan.add_argument("package", type=Path)
-    scan.add_argument("--json", action="store_true")
-    scan.add_argument("--output", type=Path, help="Write the scan JSON to this path")
-    scan.set_defaults(func=_hack_scan_command)
-    run = hack_commands.add_parser(
-        "run",
-        help="Plan (default) or replay exploit scripts through the task's own verifier",
-    )
-    run.add_argument("package", type=Path)
-    run.add_argument(
-        "--script",
-        type=Path,
-        action="append",
-        default=[],
-        help="Exploit script to replay; repeatable (default: <package>/controls/*.sh)",
-    )
-    run.add_argument("--execute", action="store_true", help="Run the local control matrix")
-    run.add_argument("--timeout-seconds", type=int, default=1_800)
-    run.add_argument("--output-dir", type=Path)
-    run.add_argument("--json", action="store_true")
-    run.set_defaults(func=_hack_run_command)
-    add_mutate_parser(hack_commands)
-    parser = hack_commands.add_parser(
-        "ref-subset",
-        help="Weak-test probe: the smallest part of a reference fix that still passes the hidden "
-        "tests (Docker by default; explicitly approved Modal)",
-    )
-    commands = parser.add_subparsers(dest="ref_subset_command", required=True)
-    run = commands.add_parser(
-        "run",
-        help="Probe raw MiMo against --patch, separate-verifier oracle artifacts, or an unchanged "
-        "shared Harbor task through native matrices with --target files",
-    )
-    run.add_argument("package", type=Path)
-    run.add_argument("--patch", type=Path, help="Reference patch (MiMo packages only)")
-    run.add_argument("--target", action="append", default=[], help="Absolute native shared target FILE; repeat per file")
-    run.add_argument("--seed", help="Deterministic line-mutant selection seed (default: task id)")
-    run.add_argument("--output-dir", type=Path, required=True)
-    run.add_argument("--max-grades", type=int, default=ref_subset.DEFAULT_MAX_GRADES)
-    run.add_argument("--memory", default="4g")
-    run.add_argument(
-        "--mutants",
-        type=int,
-        default=0,
-        help="Line-level pass: grade up to N one-edit mutants of the lines the reference wrote",
-    )
-    run.add_argument(
-        "--oracle-timeout",
-        type=float,
-        default=3_600,
-        help="Seconds for solution/solve.sh; also lowers Modal image/setup timeout below 1800s",
-    )
-    ref_subset._add_environment_options(run)
-    run.set_defaults(func=ref_subset._run_command)

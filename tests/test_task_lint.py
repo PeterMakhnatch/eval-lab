@@ -916,17 +916,17 @@ def test_other_package_shell_files_are_scanned(task: Path) -> None:
     assert "dependencies: requests;" in finding.message
 
 
-def test_install_line_helpers_keep_unfinished_tails_and_fall_back_on_bad_quotes(
-    task: Path,
-) -> None:
-    assert list(task_lint._logical_lines("# ignored\n\npip install \\\n# ignored\nrequests \\")) == [
-        (3, "pip install  requests  ")
-    ]
+def test_install_scan_joins_continuations_and_tolerates_bad_quotes(task: Path) -> None:
+    script = task / "solution/solve.sh"
+    script.write_text("#!/bin/sh\npip install \\\n# pin me\n  requests\n")
     dockerfile = task / "environment/Dockerfile"
     dockerfile.write_text(_dockerfile('RUN pip install "requests'))
 
-    finding, = lint_task(task)
-    assert (finding.rule, finding.severity, finding.path) == (
-        "unpinned-python-dependency", "warning", str(dockerfile)
-    )
-    assert 'dependencies: "requests;' in finding.message
+    findings = lint_task(task)
+    assert [(finding.severity, finding.rule, finding.path) for finding in findings] == [
+        ("warning", "unpinned-python-dependency", str(dockerfile)),
+        ("warning", "unpinned-python-dependency", str(script)),
+    ]
+    assert 'dependencies: "requests;' in findings[0].message
+    assert "line 2: pip install" in findings[1].message
+    assert "dependencies: requests;" in findings[1].message

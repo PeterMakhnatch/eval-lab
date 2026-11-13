@@ -17,10 +17,10 @@ Fork PRs and bases other than `main` stop without a merge.
 Run from a stable checkout and runtime outside the worktree you want to remove.
 A running process in that worktree blocks cleanup, including the ship process itself.
 The ship entry point avoids the analysis stack and works from an installed wheel.
-Ship requires the base commit recorded on the PR (`baseRefOid`) in the head's ancestry.
-GitHub records that commit when the PR opens; it does not follow later `main` commits.
-Branch from fresh `origin/main`, or rebase onto it once, before you open the PR.
-Do not rebase again because `main` moved.
+Ship does not require the current `main` commit in the PR head's ancestry.
+New commits on `main` do not require a rebase or another PR CI cycle.
+Rebase only for a real conflict or a required dependency.
+Ship still requires GitHub to report the exact head as mergeable.
 
 ```bash
 uv run evallab ship 123 --smoke 'uv run --locked evallab --version'
@@ -45,6 +45,15 @@ It reads required names from branch protection through `gh api`.
 If protection is unavailable, it reads the required-check table in `agents/CHECKS.md` on the base.
 Every reported check must succeed, not just the required checks.
 Skipped, neutral, cancelled, and unknown results block delivery.
+Ship binds each Actions run to the exact PR, head branch, and target base branch.
+A retarget, including a retarget away and back, requires a new PR event run.
+Rerunning an older workflow does not refresh its event evidence.
+Run creation must follow the latest retarget timestamp. Ambiguous same-second evidence blocks delivery.
+Ship records the tested merge commit from checkout logs and verifies its parents.
+The tested base must remain an ancestor of current `main`; it need not equal current `main`.
+Missing run association or tested merge evidence blocks delivery.
+Failed-jobs reruns can reuse checkout evidence from earlier attempts of the same exact-head PR event.
+Ship checks every recorded merge checkout, not only the latest attempt.
 Failed checks include failing workflow logs and test names when GitHub supplies them.
 The command reruns failed workflow jobs once per head by default.
 Use `--no-rerun-failed-once` to stop on the first failure.
@@ -68,8 +77,9 @@ command = ["make", "line-gate"]
 Ship runs each selected gate in a detached checkout of the exact PR head.
 It sets `EVALLAB_SHIP_HEAD`, `EVALLAB_SHIP_BASE`, and `EVALLAB_SHIP_PR`.
 Exit `0` passes. Exit `1` blocks. Other exit codes report an error and block.
-A head or base change invalidates the delivery attempt.
-The author must refresh combined evidence before a new attempt.
+Gate receipts bind the exact head and fetched current `main`, not only the head.
+Main advancement invalidates local gate receipts, but does not invalidate same-base PR CI.
+Main movement during the final gate attempt blocks merge. Repeat ship without rebasing.
 
 The registered `line` gate runs `make line-gate` for decision-sensitive paths.
 Its scope includes L0 scanners, normalization, task policy, replay inputs, and gate controls.
@@ -91,6 +101,9 @@ If GitHub still reports the same PR open, ship refreshes CI evidence before anot
 GitHub permits only one merge for a PR. A late response cannot create a second merge.
 A moved head requires a fresh receipt directory after the author checks the new diff.
 A second failed CI attempt stops. Repeating the command does not grant another rerun.
+Ship always refreshes remote CI evidence for an open PR.
+A passed local gate can resume only when its exact head and current base remain unchanged.
+Older head-only gate receipts do not qualify for reuse.
 Gate and smoke checkouts use stable paths beside the receipt.
 After interruption, ship reuses a clean, inactive checkout with the recorded commit.
 It preserves dirty, changed, unknown, or active checkouts instead of deleting them.
@@ -117,7 +130,7 @@ Completion also requires the local branch, remote branch, and topic worktree to 
 ## Verification
 
 `uv run pytest tests/test_ship.py` uses a fake GitHub CLI and real disposable Git repositories.
-It covers head movement, failing test names, one rerun, pending checks, gate exits, remote merge reconciliation, resume, and unsafe cleanup.
+It covers main advancement without rebasing, retargets, stale merge evidence, head movement, checks, gates, recovery, and unsafe cleanup.
 A process-kill scenario proves smoke recovery removes the resumed checkout without merging twice.
 No test requires network access or host authentication.
 The earlier F4 Temporal prototype remains research evidence under `research/experiments/on-mergetrain-workflow-20261102/`.

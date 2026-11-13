@@ -632,35 +632,6 @@ alternative explanation. That structural requirement does not verify semantic
 support or turn disagreement into a decision: returned records remain
 `decision_eligible=False`.
 
-## Guarded post-trial analysis worker
-
-`analysis_worker.py` stages 1 request per trial using frozen `sha256(job_id:trial_id)[:16]` identity.
-It freezes result, trajectory, task, verifier, rubric, prompt, and profile digests.
-Changed evidence quarantines the request. Changed profile identity defers it.
-Transitions and invocation attempts remain append-only and durable.
-
-Admission checks STOP, evidence integrity, profile identity, policy, qualification,
-cost ceilings, service health, and an actual wired adapter before invocation.
-The calibration check fails closed until its required floor is met.
-Default composition with no adapter defers `adapter_not_wired` without arming an invocation.
-An exception without usable reward remains a harness deferral.
-A measured reward remains eligible while its agent exception stays separate.
-
-An existing durable sidecar is adopted without another call.
-An invocation marker without a sidecar becomes
-`ambiguous_invocation_requires_operator_resolution`.
-No automatic retry can repeat a possibly paid call.
-Per-request kernel locks serialize execution and preserve another owner's lease path.
-
-```sh
-```
-
-Resolution records an attributed disposition. `--action retry` acknowledges possible prior spend.
-It still grants no new spend and bypasses no admission check.
-Nightly staging can discover requests but cannot invoke a model.
-Sidecars retain citation validation errors, source/model/schema digests, and measured usage.
-Source trial bytes remain unchanged.
-
 ## Behavioral queries
 
 `sql/behavior.sql` owns the summary, effort, efficiency, struggle, step-shape, and token-economics views.

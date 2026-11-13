@@ -27,8 +27,6 @@ from typing import Any
 
 import pytest
 
-from evallab.interpretation.run_report import CeoBenchPlugin
-
 RUN_ID = "ab12cd34"
 STAMP = "2026-09-20T10:00:00Z"
 ROOT = Path(__file__).parents[1]
@@ -494,76 +492,6 @@ def test_malformed_inputs_degrade_honestly(tmp_path: Path) -> None:
         raise AssertionError("missing config.json must raise CeoBenchBridgeError")
 
 
-def _bridged_trial(tmp_path: Path) -> Path:
-    timing = [
-        _llm_call(0, 1, 10000, 1500),
-        _day_summary(7, 999500.0),
-        _day_summary(14, 999000.0),
-    ]
-    run = _run_dir(tmp_path, tools=_standard_tools(), timing=timing, db=_standard_db())
-    trial = tmp_path / "trial"
-    bridge_ceo_bench_run(run, trial)
-    return trial
-
-
-def test_domain_plugin_detects_builds_and_renders(tmp_path: Path) -> None:
-    from evallab.interpretation.run_report import (
-        CeoBenchPlugin,
-    )
-
-    trial = _bridged_trial(tmp_path)
-    result = json.loads((trial / "result.json").read_text(encoding="utf-8"))
-    plugin = CeoBenchPlugin()
-
-    assert plugin.detect(trial, result) is True
-    section = CeoBenchPlugin().build(trial, result)
-    assert section is not None
-    assert section["plugin"] == "ceo_bench"
-    assert section["version"] == "1"
-    assert section["sources"] == [
-        "ceo_bench/meta.json",
-        "ceo_bench/cash_daily.json",
-        "ceo_bench/spend.json",
-        "ceo_bench/forecasts.json",
-        "ceo_bench/weeks.json",
-    ]
-    assert section["bankruptcy"] == {"bankrupt": False, "day": None}
-    assert section["cash"]["final"] == 999500.0
-    assert section["cash"]["source"] == "ledger"
-    assert section["spend"]["agent"]["cost_usd"] == pytest.approx(0.13)
-    assert section["spend"]["simulator"]["cost_usd"] == pytest.approx(0.34)
-    assert section["forecasts"]["n_scored"] == 1
-    assert section["weeks"]["noop_weeks"] == [1]
-
-    markdown = "\n".join(CeoBenchPlugin().render_markdown(section))
-    assert "No bankruptcy" in markdown
-    assert "never merged into agent cost" in markdown
-
-
-def test_domain_plugin_ignores_non_ceo_trials(tmp_path: Path) -> None:
-    from evallab.interpretation.run_report import CeoBenchPlugin
-
-    trial = tmp_path / "plain"
-    trial.mkdir()
-    (trial / "result.json").write_text(json.dumps({"trial_name": "plain"}), encoding="utf-8")
-
-    assert CeoBenchPlugin().detect(trial, {"trial_name": "plain"}) is False
-
-
-def test_domain_plugin_malformed_sidecar_is_unreadable(tmp_path: Path) -> None:
-    from evallab.interpretation.run_report import CeoBenchPlugin
-
-    trial = _bridged_trial(tmp_path)
-    (trial / "ceo_bench" / "spend.json").write_text("{broken", encoding="utf-8")
-    result = json.loads((trial / "result.json").read_text(encoding="utf-8"))
-
-    assert CeoBenchPlugin().detect(trial, result) is True
-    section = CeoBenchPlugin().build(trial, result)
-    assert section is not None
-    assert section["plugin"] == "ceo_bench"
-    assert section["status"] == "unreadable"
-    assert "spend.json" in section["reason"]
-
 
 def test_cli_exits_nonzero_with_message_on_unbridgeable_run(tmp_path: Path) -> None:
     import subprocess
@@ -704,7 +632,7 @@ def test_encrypted_db_degrades_without_key(
     assert "wrong key" in meta2["world_nmdb"]["reason"]
 
 
-def test_unreadable_ledger_spend_carries_exact_reason_to_report(
+def test_unreadable_ledger_spend_carries_exact_reason_to_sidecars(
     tmp_path: Path,
 ) -> None:
     # No sqlcipher needed: garbage bytes take the same unavailable path as a
@@ -726,16 +654,9 @@ def test_unreadable_ledger_spend_carries_exact_reason_to_report(
     assert spend["simulator"]["reason"] == exact
     assert _sidecar(trial, "forecasts.json")["reason"] == exact
 
-    report = CeoBenchPlugin().build(trial, json.loads((trial / "result.json").read_text()))
-    assert report["spend"]["agent"]["reason"] == exact
-    assert report["spend"]["simulator"]["reason"] == exact
-    section = "\n".join(CeoBenchPlugin().render_markdown(report))
-    assert "Agent spend unavailable:" in section
-    assert "simulator spend unavailable:" in section
-    assert "None" not in section
 
 
-def test_encrypted_no_key_reason_reaches_report(
+def test_encrypted_no_key_reason_reaches_sidecar(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     pytest.importorskip("sqlcipher3")
@@ -751,11 +672,4 @@ def test_encrypted_no_key_reason_reaches_report(
 
     exact = _sidecar(trial, "meta.json")["world_nmdb"]["reason"]
     assert "NMDB_KEY" in exact
-    report = CeoBenchPlugin().build(trial, json.loads((trial / "result.json").read_text()))
-    assert report["spend"]["agent"]["reason"] == exact
-    assert report["spend"]["simulator"]["reason"] == exact
-    assert report["forecasts"]["reason"] == exact
-    section = "\n".join(CeoBenchPlugin().render_markdown(report))
-    assert "Agent spend unavailable:" in section
-    assert "None" not in section
 

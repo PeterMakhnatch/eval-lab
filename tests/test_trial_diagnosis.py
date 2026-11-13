@@ -739,3 +739,20 @@ def test_is_edit_call_detects_real_redirects_and_sql() -> None:
     ]
     for tool, cmd in real_edits:
         assert _is_edit_call(tool, cmd), f"Real edit missed: {tool} {cmd}"
+
+
+def test_diagnosis_retains_heuristic_label_precedence(tmp_path: Path) -> None:
+    edit = _agent_step("write", command="touch app.py", output="ok")
+    error = _agent_step("test", command="pytest", output="failed", returncode=1)
+    cases = [
+        ([_agent_step("done")], 1.0, "clean_success"),
+        ([_agent_step("done")], 0.0, "failed_verification"),
+        ([{"source": "user", "message": "Fix the bug"}], 0.0, "setup_failure"),
+        ([_agent_step("inspect", command="ls", output="files")], 0.0, "planning_no_edit"),
+        ([edit, error], 0.0, "unrecovered_error"),
+        ([error, edit], 1.0, "recovered_success"),
+        ([error] * 5, 0.0, "tool_use_loop"),
+    ]
+    for index, (steps, reward, label) in enumerate(cases):
+        trial = _write_trial(tmp_path / str(index), steps, reward=reward)
+        assert diagnose_trial(trial).heuristic_label == label

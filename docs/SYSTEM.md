@@ -19,7 +19,7 @@ This map describes code and evidence boundaries. It does not report live service
 | Capture | `model_capture.py`, provider sidecars | Preserve actual requests, responses, usage, capture manifests, and job links when enabled. Credential isolation does not imply complete capture. |
 | Trial | Harbor, `evidence/atif.py` | Keep the original job, trajectory, verifier output, errors, and `result.json`. A catalog row does not replace raw evidence. |
 | Processing | `process_job.py`, `evidence/`, `storage/` | Ingest and project completed evidence. Processing does not rerun a trial or replace its reward. |
-| Counts and reports | `counts.py`, `trial_decision.py`, `interpretation/run_report.py` | Counts owns `counted_pass`, `counted_fail`, and `excluded`. Keep detector opinions separate from native rewards. |
+| Counts and reports | `counts.py`, `trial_decision.py`, `process_job.py` | Counts owns `counted_pass`, `counted_fail`, and `excluded`. Keep detector opinions separate from native rewards. |
 | Publication | `results_home.py` | Completed reports live under `~/Developer/eval-lab-results/<date>/<card>-<job>/`. Retain source revision, dirty provenance, and collision identity. |
 | Gold and measurement | `gold/`, `score/` | Preserve registry labels, action coordinates, split/exposure records, frozen cohorts, thresholds, and receipt hashes. |
 

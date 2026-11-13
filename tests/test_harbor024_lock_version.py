@@ -16,7 +16,6 @@ from typing import Any
 
 import pytest
 
-from evallab.analysis_worker import AdmissionContext, AnalysisRequest, RequestStore, admit
 from evallab.evidence.facts import (
     lock_harbor_version,
     lock_version_change_reason,
@@ -44,82 +43,6 @@ def test_lock_version_change_reason_declares_upgrade_only() -> None:
     assert lock_version_change_reason("0.24.0", "0.24.0") is None
     assert lock_version_change_reason(None, None) is None
     assert lock_version_change_reason(None, "0.24.0") == "harbor_version_change:unknown->0.24.0"
-
-
-def _sha(path: Path) -> str:
-    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def _request_body(root: Path, trial_dir: Path, **overrides: Any) -> dict[str, Any]:
-    body: dict[str, Any] = {
-        "request_id": "a" * 16,
-        "created_at": datetime(2026, 10, 5, tzinfo=UTC),
-        "experiment_id": None,
-        "job_id": "job-x",
-        "trial_id": "trial-1",
-        "job_name": "job-x",
-        "trial_name": "trial-1",
-        "trial_path": trial_dir.relative_to(root).as_posix(),
-        "profile_id": "p",
-        "adapter": "oracle",
-        "model": "",
-        "result_sha256": _sha(trial_dir / "result.json"),
-        "trajectory_sha256": _sha(trial_dir / "agent" / "trajectory.json"),
-        "lock_sha256": _sha(trial_dir / "lock.json"),
-        "lock_harbor_version": "0.21.0",
-        "task_digest": None,
-        "verifier_digest": None,
-        "rubric_sha256": "sha256:" + "0" * 64,
-        "prompt_sha256": "sha256:" + "0" * 64,
-        "profile_digest": "sha256:" + "0" * 64,
-    }
-    body.update(overrides)
-    return body
-
-
-def _context() -> AdmissionContext:
-    return AdmissionContext(
-        stop_present=lambda: False,
-        policy=None,  # type: ignore[arg-type]
-        profile=None,  # type: ignore[arg-type]
-        probe=None,
-        spent_today_usd=lambda: 0.0,
-        est_call_cost_usd=0.01,
-        services_healthy=lambda: True,
-        requirement_checks={},
-    )
-
-
-def _trial_tree(root: Path) -> Path:
-    trial_dir = root / "jobs" / "job-x" / "trial-1"
-    (trial_dir / "agent").mkdir(parents=True)
-    (trial_dir / "result.json").write_text(json.dumps({"id": "trial-1"}))
-    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps({"steps": []}))
-    (trial_dir / "lock.json").write_text(json.dumps({"task": {"digest": "sha256:abc"}}))
-    (trial_dir.parent / "lock.json").write_text(json.dumps({"harbor": {"version": "0.21.0"}}))
-    return trial_dir
-
-
-def test_admit_declares_harbor_upgrade_not_tampering(tmp_path: Path) -> None:
-    trial_dir = _trial_tree(tmp_path)
-    request = AnalysisRequest.model_validate(_request_body(tmp_path, trial_dir))
-    # Harbor 0.24 rewrites the lock bytes and stamps its own version.
-    (trial_dir / "lock.json").write_text(json.dumps({"task": {"digest": "sha256:abc"}, "v": 2}))
-    (trial_dir.parent / "lock.json").write_text(json.dumps({"harbor": {"version": "0.24.0"}}))
-    store = RequestStore(tmp_path / "store")
-    decision = admit(request, store, _context(), tmp_path)
-    assert decision.kind == "defer"
-    assert decision.reason == "harbor_version_change:0.21.0->0.24.0"
-
-
-def test_admit_same_version_content_change_still_quarantines(tmp_path: Path) -> None:
-    trial_dir = _trial_tree(tmp_path)
-    request = AnalysisRequest.model_validate(_request_body(tmp_path, trial_dir))
-    (trial_dir / "lock.json").write_text(json.dumps({"task": {"digest": "sha256:def"}}))
-    store = RequestStore(tmp_path / "store")
-    decision = admit(request, store, _context(), tmp_path)
-    assert decision.kind == "quarantine"
-    assert decision.reason == "evidence_tampered:lock.json"
 
 
 def _write_version_case(

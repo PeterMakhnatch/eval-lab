@@ -9,8 +9,6 @@ Guarantees:
 - Raw jobs and trials are cataloged before quality disposition.
 - Malformed or infrastructure-failed trials remain catalog-visible but are
   marked `is_analysis_ready = False`.
-- AnalysisWorker fails closed if quality is missing (`quality_not_evaluated`),
-  failed, or quarantined.
 - Re-ingestion and quality evaluation are deterministic and idempotent.
 """
 
@@ -523,39 +521,4 @@ def persist_quality_ledger(
     pq.write_table(find_table, findings_path)
 
     return reports_path, findings_path
-
-
-def load_quality_report_for_trial(
-    trial_id: str, derived_root: Path
-) -> TrajectoryQualityReport | None:
-    """Load the quality report for a specific trial if it exists in the ledger."""
-    reports_path = Path(derived_root).resolve() / f"{QUALITY_REPORT_TABLE}.parquet"
-    if not reports_path.is_file():
-        return None
-    try:
-        table = pq.read_table(reports_path, filters=[("trial_id", "=", trial_id)])
-        rows = table.to_pylist()
-        if not rows:
-            return None
-        r = rows[0]
-        return TrajectoryQualityReport(
-            job_id=r["job_id"],
-            trial_id=r["trial_id"],
-            document_id=r["document_id"],
-            raw_atif_digest=r["raw_atif_digest"] or None,
-            raw_result_digest=r["raw_result_digest"] or None,
-            check_version=r["check_version"],
-            check_digest=r["check_digest"],
-            status=QualityStatus(r["status"]),
-            is_ingestable=r["is_ingestable"],
-            is_analysis_ready=r["is_analysis_ready"],
-            quarantine_reason=r["quarantine_reason"] or None,
-            findings_count=r["findings_count"],
-            warnings_count=r["warnings_count"],
-            errors_count=r["errors_count"],
-            evaluated_at=r["evaluated_at"],
-        )
-    except Exception:
-        return None
-
 

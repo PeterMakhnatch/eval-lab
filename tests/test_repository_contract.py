@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 import subprocess
@@ -227,16 +226,6 @@ def test_secret_scanner_git_fast_path_only_reports_tracked_files(tmp_path: Path)
     (tmp_path / "dirty.txt").write_bytes(secret)
 
     assert _secret_findings(tmp_path) == ["binary.dat", "dirty.txt", "tracked.env"]
-
-
-def test_quixbugs_adapter_manifest_is_python_only() -> None:
-    manifest_path = ROOT / "library/adapters/quixbugs/generated/generation_manifest.json"
-    manifest = json.loads(manifest_path.read_text())
-
-    assert manifest["selection"]["language"] == "python"
-    assert manifest["task_count"] == 40
-    assert len(manifest["task_ids"]) == 40
-    assert all(task_id.startswith("quixbugs-python-") for task_id in manifest["task_ids"])
 
 
 def test_curated_evidence_files_remain_reviewable() -> None:

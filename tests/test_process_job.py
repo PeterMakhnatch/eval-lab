@@ -585,3 +585,34 @@ def test_process_job_records_each_detector_failure_and_still_writes_reports(
     assert saved_job["schema"] == "process_job/v1"
     assert len(saved_job["trials"]) == 2
     assert (out / "job.md").is_file()
+
+
+def test_daytona_report_uses_latest_evidence_without_inventing_capacity() -> None:
+    from evallab.process_job import render_daytona_usage_lines
+
+    lines = render_daytona_usage_lines(
+        {
+            "admission": {"limits": {"cpu": 100}},
+            "last_observation": {"limits": {"cpu": 50}},
+            "disappearance": {
+                "current_usage": {
+                    "limits": {"cpu": 10, "gpu": True},
+                    "used": {"cpu": 8},
+                    "at_or_near_limit": ["cpu"],
+                },
+                "cause": "usage_limit_pressure",
+                "pressure_source": "current_usage",
+            },
+        }
+    )
+
+    assert "snapshot: disappearance current usage" in lines[2]
+    assert [line.split(" | ")[0] for line in lines[5:10]] == [
+        "| cpu", "| memory_gib", "| disk_gib", "| gpu", "| concurrent_sandboxes"
+    ]
+    assert lines[5] == "| cpu | 10 | 8 | 8 | unavailable | unavailable |"
+    assert lines[8] == "| gpu | unavailable | unavailable | unavailable | unavailable | unavailable |"
+    assert "- Live sandboxes in provider inventory: unavailable." in lines
+    assert "not a confirmed provider deletion cause" in lines[-2]
+    assert "current at/near limit: cpu" in lines[-1]
+    assert render_daytona_usage_lines(None) == []

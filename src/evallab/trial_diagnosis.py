@@ -91,7 +91,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES, blank_quoted_and_heredocs
-from evallab.labels import propose_heuristic_label
 from evallab.step_layers import (
     STEP_LAYERS_KEY,
     classify_stop_reason,
@@ -1038,6 +1037,24 @@ def _stop_note(trial_dir: Path, steps: Sequence[dict[str, Any]]) -> str | None:
     return f"stop reason: {reason} ({detail})" if reason else None
 
 
+def _propose_heuristic_label(outline: TrajectoryOutline) -> str:
+    if outline.status != "featured":
+        return "missing_data"
+    if outline.loop_suspicion.detected:
+        return "tool_use_loop"
+    if outline.agent_steps == 0:
+        return "setup_failure"
+    if outline.step_to_first_edit is None and outline.total_tool_calls > 0:
+        return "planning_no_edit"
+    if outline.total_errors > 0 and outline.recovery_count > 0 and outline.primary_reward == 1.0:
+        return "recovered_success"
+    if outline.total_errors > 0 and outline.primary_reward == 0.0:
+        return "unrecovered_error"
+    if outline.primary_reward == 1.0:
+        return "clean_success"
+    return "failed_verification"
+
+
 def diagnose_trial(
     trial_dir: str | Path,
     *,
@@ -1110,10 +1127,10 @@ def diagnose_trial(
     if outline.status != "featured":
         notices.append(f"no agent trajectory ({outline.unavailable_reason}); no modes proposed")
     elif outline.primary_reward >= PASS_THRESHOLD:
-        heuristic_label = propose_heuristic_label(outline).label
+        heuristic_label = _propose_heuristic_label(outline)
         notices.append("scored pass; no failure modes proposed")
     else:
-        heuristic_label = propose_heuristic_label(outline).label
+        heuristic_label = _propose_heuristic_label(outline)
         views = _step_views(raw_steps)
         if not views:
             notices.append("trajectory steps unreadable; no modes proposed")

@@ -12,7 +12,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from evallab.interpretation.trajectory_hydration import RedactionPolicy
 from evallab.results import JobRecord, TrialRecord, sha256_file
 
 _NAME = re.compile(r"^llm_request\.(\d+)\.jsonl$")
@@ -21,6 +20,17 @@ _MISSING = re.compile(r"Missing credentials|Please pass an [`'\"]?api_key|OPENAI
 _INTERNAL = re.compile(r"litellm\.InternalServerError", re.I)
 _RUNTIME = re.compile(r"runtime.{0,40}(?:error|failed)", re.I | re.S)
 _USAGE = ("prompt_tokens", "completion_tokens", "cached_tokens")
+_DEFAULT_SECRET_PATTERNS = (
+    re.compile(r"sk-(?:proj-)?[A-Za-z0-9_\-]{20,}"),
+    re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}"),
+    re.compile(r"ghp_[A-Za-z0-9]{20,}"),
+    re.compile(r"Bearer\s+[A-Za-z0-9_\-\.]{20,}", re.IGNORECASE),
+    re.compile(
+        r"(?:api_key|token|password|secret|authorization)\s*[:=]\s*[\"']?([A-Za-z0-9_\-\.]{12,})[\"']?",
+        re.IGNORECASE,
+    ),
+    re.compile(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]+?-----END [A-Z ]+ PRIVATE KEY-----"),
+)
 
 
 class LlmRequestProjectionError(ValueError):
@@ -59,7 +69,7 @@ def _id(*parts: object) -> str:
 
 def _safe(value: str, label: str) -> str:
     if not _SAFE.fullmatch(value) or any(
-        pattern.search(value) for pattern in RedactionPolicy().secret_patterns
+        pattern.search(value) for pattern in _DEFAULT_SECRET_PATTERNS
     ):
         raise LlmRequestProjectionError(f"unsafe {label} in llm_request evidence")
     return value

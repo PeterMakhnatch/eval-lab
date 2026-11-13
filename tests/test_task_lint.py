@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
 
+import evallab.task_lint as task_lint
 from evallab import cli
 from evallab.control_expect import declared_expectation
 from evallab.task_lint import discover_tasks, lint_task
@@ -320,5 +322,101 @@ def test_committed_task_library_lints_without_error_findings() -> None:
     assert cli.run_cli(
         ["tasks", "lint", str(REPO_ROOT / "library/tasks")], workspace=REPO_ROOT
     ) == 0
+
+
+def test_unclosed_quote_in_solution_is_reported(task: Path) -> None:
+    script = task / "solution/solve.sh"
+    script.write_text('#!/bin/sh\necho "unclosed\n')
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity) == ("sources-parse", "error")
+    assert finding.path == str(script)
+    assert "unexpected EOF" in finding.message
+
+
+def test_unterminated_heredoc_in_control_script_is_reported(task: Path) -> None:
+    (task / "controls").mkdir()
+    control = task / "controls/positive.sh"
+    control.write_text("#!/bin/sh\n# expect: 1\ncheck() {\n  cat <<EOF\n  body\n}\n")
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity) == ("sources-parse", "error")
+    assert finding.path == str(control)
+    assert "end of file" in finding.message
+
+
+def test_shell_parser_warning_without_a_failing_exit_is_reported(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """bash 4 and newer warn about a heredoc that reaches end of file and exit 0.
+
+    macOS ships bash 3.2, which accepts that shape without any diagnostic, so
+    this test supplies the parser message of the bash that Harbor images run.
+    """
+    (task / "controls").mkdir()
+    control = task / "controls/positive.sh"
+    control.write_text("#!/bin/sh\n# expect: 1\ncat <<EOF\nunterminated\n")
+    stub = tmp_path / "bin" / "bash"
+    stub.parent.mkdir()
+    stub.write_text(
+        "#!/bin/sh\n"
+        'case "$2" in\n'
+        '  */positive.sh) printf "%s\\n" '
+        '"warning: here-document at line 3 delimited by end-of-file" >&2 ;;\n'
+        "esac\n"
+        "exit 0\n"
+    )
+    stub.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{stub.parent}{os.pathsep}{os.environ['PATH']}")
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity) == ("sources-parse", "error")
+    assert finding.path == str(control)
+    assert "here-document" in finding.message
+
+
+def test_shell_files_are_skipped_when_bash_is_unavailable(
+    task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (task / "solution/solve.sh").write_text('#!/bin/sh\necho "unclosed\n')
+    monkeypatch.setattr(task_lint, "_bash_parser", lambda: None)
+
+    assert lint_task(task) == []
+
+
+def test_python_syntax_error_under_tests_is_reported(task: Path) -> None:
+    (task / "tests").mkdir()
+    module = task / "tests/test_broken.py"
+    module.write_text("def broken(:\n")
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity) == ("sources-parse", "error")
+    assert finding.path == str(module)
+    assert "invalid syntax" in finding.message
+
+
+def test_invalid_json_under_tests_is_reported(task: Path) -> None:
+    (task / "tests").mkdir()
+    cases = task / "tests/cases.json"
+    cases.write_text('{"a": 1,}\n')
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity) == ("sources-parse", "error")
+    assert finding.path == str(cases)
+    assert "Expecting property name" in finding.message
+
+
+def test_well_formed_sources_report_nothing_and_write_nothing(task: Path) -> None:
+    (task / "controls").mkdir()
+    (task / "controls/positive.sh").write_text("#!/bin/sh\n# expect: 1\nexit 0\n")
+    (task / "tests").mkdir()
+    (task / "tests/conftest.py").write_text("import json\n")
+    (task / "tests/cases.json").write_text('{"a": 1}\n')
+    (task / "solution/helper.py").write_text("def collect():\n    return 1\n")
+    before = {path: path.read_bytes() for path in task.rglob("*") if path.is_file()}
+
+    assert lint_task(task) == []
+    assert {path: path.read_bytes() for path in task.rglob("*") if path.is_file()} == before
+    assert list(task.rglob("__pycache__")) == []
 
 

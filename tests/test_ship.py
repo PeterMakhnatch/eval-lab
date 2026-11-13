@@ -412,8 +412,8 @@ def test_base_retarget_during_delivery_never_merges(delivery, monkeypatch):
     args, root, tree, state, _, _ = delivery
     original = Ship.view
     views = []
-    def view(ship):
-        pr = original(ship)
+    def view(ship, **kwargs):
+        pr = original(ship, **kwargs)
         views.append(pr)
         if len(views) >= 2:
             pr["baseRefName"] = "stack"
@@ -509,3 +509,159 @@ def test_fresh_ci_after_retarget_can_merge(delivery):
     change(retarget="2026-11-13T12:01:00Z", run_override={"created_at": "2026-11-13T12:01:01Z"})
     assert run_command(args, root) == 0
     assert json.loads(state.read_text())["merges"] == 1
+
+
+def test_preflight_only_passes_without_wait_or_merge(delivery, monkeypatch):
+    args, root, tree, state, git, change = delivery
+    (root / "unrelated.txt").write_text("unrelated delivery commit\n")
+    git("add", "unrelated.txt")
+    git("commit", "-m", "unrelated local commit")
+    args.preflight_only = True
+    change(unknown_views=100, pending=True)
+    monkeypatch.setattr("evallab.ship.time", SimpleNamespace(
+        sleep=lambda _: pytest.fail("preflight must not wait")))
+    assert run_command(args, root) == 0
+    remote = json.loads(state.read_text())
+    assert remote["views"] == 1
+    assert not any(call[0] == "run" or call[:2] == ["pr", "merge"] for call in remote["calls"])
+    assert tree.exists()
+    assert json.loads((args.state_dir / "42-preflight.json").read_text())["step"] == "delivery-preflight-passed"
+    assert not (args.state_dir / "42.json").exists()
+
+
+@pytest.mark.parametrize("preflight_only", [False, True])
+def test_preflight_refuses_cwd_before_ci_with_exact_fix(delivery, preflight_only):
+    args, root, tree, state, _, _ = delivery
+    args.preflight_only = preflight_only
+    (state.parent / "bin/lsof").write_text(
+        f"#!/bin/sh\nprintf 'COMMAND PID USER FD TYPE NAME\\npython 4321 owner cwd DIR {tree}\\n'\n")
+    assert run_command(args, root) == 1
+    receipt = args.state_dir / ("42-preflight.json" if preflight_only else "42.json")
+    error = json.loads(receipt.read_text())["error"]
+    assert error == (
+        f"Delivery preflight refused: process 4321 (python) uses {tree}; start ship outside the topic: "
+        f"cd {args.state_dir.parent} && uv run --directory {root} --no-sync evallab ship 42 "
+        f"--state-dir {args.state_dir} --no-rerun-failed-once --smoke 'test -f consumer.txt'"
+        + (" --preflight-only" if preflight_only else "")
+    )
+    assert json.loads(state.read_text())["views"] == 1
+    assert not json.loads(state.read_text()).get("merges")
+
+
+@pytest.mark.parametrize(("path", "preflight_only"), [
+    ("src/evallab/ship/stale.py", False), ("agents/ship-gates.toml", True),
+])
+def test_preflight_refuses_stale_delivery_inputs(delivery, path, preflight_only):
+    args, root, tree, state, git, _ = delivery
+    args.preflight_only = preflight_only
+    source = root / path
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("stale delivery input\n")
+    git("add", path)
+    git("commit", "-m", "local stale input")
+    assert run_command(args, root) == 1
+    receipt = args.state_dir / ("42-preflight.json" if preflight_only else "42.json")
+    error = json.loads(receipt.read_text())["error"]
+    prefix = f"Delivery preflight refused: delivery inputs differ from origin/main: {path}; use a fresh delivery checkout: "
+    repair = (
+        f"mkdir -p {args.state_dir.parent} && "
+        f"delivery=$(mktemp -d {args.state_dir.parent}/delivery.XXXXXX) && "
+        f'git -C {root} worktree add --detach "$delivery" origin/main && '
+        'uv sync --directory "$delivery" --locked --no-group observability --group benchmarks --group inspect && '
+        f'cd {args.state_dir.parent} && uv run --directory "$delivery" --no-sync '
+        f"evallab ship 42 --state-dir {args.state_dir} --no-rerun-failed-once --smoke 'test -f consumer.txt'"
+    )
+    if preflight_only:
+        repair += " --preflight-only"
+    assert error == prefix + repair
+    # Execute the exact repair through setup. The final ship is preflight-only
+    # to prove that the repaired checkout passes without merging the fixture PR.
+    setup = repair.split(" && uv sync", 1)[0]
+    subprocess.run(["/bin/sh", "-c", setup], check=True, cwd=state.parent)
+    fresh = next(args.state_dir.parent.glob("delivery.*"))
+    args.repo_root = fresh
+    args.preflight_only = True
+    assert run_command(args, fresh) == 0
+    assert tree.exists()
+    assert not json.loads(state.read_text()).get("merges")
+
+
+@pytest.mark.parametrize("name", ["private/evidence", "tools/mimoagent-harbor/.venv/local-source.py"])
+def test_preflight_preserves_ignored_bytes_with_executable_fix(delivery, name):
+    args, root, tree, state, git, _ = delivery
+    exclude = root / git("rev-parse", "--git-common-dir") / "info/exclude"
+    exclude.write_text("private/\ntools/mimoagent-harbor/.venv/\n")
+    source = tree / name
+    source.parent.mkdir(parents=True)
+    source.write_text("unique evidence\n")
+    move_path = "tools/mimoagent-harbor/.venv" if name.startswith("tools/") else name
+    if name.startswith("tools/"):
+        (source.parent / "second.py").write_text("second unique source\n")
+        (source.parent / "__pycache__").mkdir()
+        (source.parent / "__pycache__/cache.pyc").write_bytes(b"cache")
+    assert run_command(args, root) == 1
+    error = json.loads((args.state_dir / "42.json").read_text())["error"]
+    known = (" (includes locked tool environment tools/mimoagent-harbor/.venv; preserve unverified local bytes)"
+             if name.startswith("tools/") else "")
+    names = f"{name}, tools/mimoagent-harbor/.venv/second.py" if name.startswith("tools/") else name
+    prefix = f"Delivery preflight refused: ignored files in {tree}: {names}{known}; preserve them: "
+    repair = (
+        f"backup=$(mktemp -d {args.state_dir}/preserved.XXXXXX) && "
+        f'mkdir -p "$backup"/{Path(move_path).parent} && mv {tree / move_path} "$backup"/{move_path}'
+    )
+    assert error == prefix + repair
+    subprocess.run(["/bin/sh", "-c", repair], check=True)
+    preserved = next(args.state_dir.glob("preserved.*")) / name
+    assert preserved.read_text() == "unique evidence\n"
+    if name.startswith("tools/"):
+        assert (preserved.parent / "second.py").read_text() == "second unique source\n"
+        assert (preserved.parent / "__pycache__/cache.pyc").read_bytes() == b"cache"
+    args.preflight_only = True
+    assert run_command(args, root) == 0
+    assert not json.loads(state.read_text()).get("merges")
+
+
+@pytest.mark.parametrize("location", ["cwd", "root", "receipts"])
+def test_preflight_refuses_own_topic_paths(delivery, monkeypatch, location):
+    args, root, tree, state, _, _ = delivery
+    monkeypatch.setenv("HOME", str(state.parent / "home"))
+    expected_root = root
+    expected_state = args.state_dir
+    if location == "cwd":
+        monkeypatch.chdir(tree)
+        label = "ship working directory"
+    elif location == "root":
+        args.repo_root = tree
+        expected_root = tree
+        label = "delivery checkout"
+    else:
+        args.state_dir = tree / "receipts"
+        expected_state = Path.home() / ".local/state/evallab-wf/ship"
+        label = "receipt directory"
+    assert run_command(args, root) == 1
+    error = json.loads((args.state_dir / "42.json").read_text())["error"]
+    assert error == (
+        f"Delivery preflight refused: {label} uses {tree}; start ship outside the topic: "
+        f"mkdir -p {expected_state.parent} && "
+        f"delivery=$(mktemp -d {expected_state.parent}/delivery.XXXXXX) && "
+        f'git -C {expected_root} worktree add --detach "$delivery" origin/main && '
+        'uv sync --directory "$delivery" --locked --no-group observability --group benchmarks --group inspect && '
+        f'cd {expected_state.parent} && uv run --directory "$delivery" --no-sync '
+        f"evallab ship 42 --state-dir {expected_state} --no-rerun-failed-once --smoke 'test -f consumer.txt'"
+    )
+    assert json.loads(state.read_text())["views"] == 1
+    assert not json.loads(state.read_text()).get("merges")
+
+
+def test_preflight_does_not_freeze_head_or_replace_delivery_receipt(delivery):
+    args, root, _, state, _, change = delivery
+    args.state_dir.mkdir()
+    committed = args.state_dir / "42.json"
+    committed.write_text(json.dumps({"step": "complete", "merge_commit": "a" * 40}))
+    args.preflight_only = True
+    assert run_command(args, root) == 0
+    pr = json.loads(state.read_text())["pr"]
+    pr["headRefOid"] = "b" * 40
+    change(pr=pr)
+    assert run_command(args, root) == 0
+    assert json.loads(committed.read_text()) == {"step": "complete", "merge_commit": "a" * 40}

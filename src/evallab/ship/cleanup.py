@@ -14,6 +14,17 @@ CACHE_ROOTS = {".venv", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".hypothe
 NESTED_CACHES = {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".hypothesis"}
 
 
+def unknown_ignored(ship: Ship, tree: Path) -> list[str]:
+    ignored = ship.run(["git", "ls-files", "--others", "--ignored", "--exclude-standard", "-z"], cwd=tree).stdout
+    return [name for name in ignored.split("\0") if name and not (
+        Path(name).parts[0] in CACHE_ROOTS or NESTED_CACHES.intersection(Path(name).parts[:-1])
+        or name in {".coverage", ".DS_Store"})]
+
+
+def process_probe(ship: Ship, tree: Path) -> Any:
+    return ship.run(["lsof", "+D", str(tree)], check=False)
+
+
 def inspect_tree(ship: Ship, tree: Path, head: str) -> None:
     from evallab.ship import Blocked
 
@@ -27,13 +38,10 @@ def inspect_tree(ship: Ship, tree: Path, head: str) -> None:
         path = ship.run(["git", "rev-parse", "--git-path", operation], cwd=tree).stdout.strip()
         if (tree / path).exists():
             raise Blocked(f"Cleanup refused: Git operation {operation} in {tree}")
-    ignored = ship.run(["git", "ls-files", "--others", "--ignored", "--exclude-standard", "-z"], cwd=tree).stdout
-    unknown = [name for name in ignored.split("\0") if name and not (
-        Path(name).parts[0] in CACHE_ROOTS or NESTED_CACHES.intersection(Path(name).parts[:-1])
-        or name in {".coverage", ".DS_Store"})]
+    unknown = unknown_ignored(ship, tree)
     if unknown:
         raise Blocked(f"Cleanup refused: unique ignored files in {tree}: {unknown[:20]}")
-    processes = ship.run(["lsof", "+D", str(tree)], check=False)
+    processes = process_probe(ship, tree)
     if processes.returncode != 1 or processes.stdout.strip() or processes.stderr.strip():
         raise Blocked(f"Cleanup refused: running process or failed lsof probe for {tree}\n{processes.stdout}")
     if sys.platform == "darwin":
@@ -44,22 +52,24 @@ def inspect_tree(ship: Ship, tree: Path, head: str) -> None:
             raise Blocked(f"Cleanup refused: loaded launchd reference or failed probe for {tree}")
 
 
+def topic_worktrees(ship: Ship, branch: str) -> list[dict[str, str]]:
+    inventory = ship.run(["git", "worktree", "list", "--porcelain", "-z"]).stdout
+    targets = []
+    for block in inventory.split("\0\0"):
+        fields = dict(row.partition(" ")[::2] for row in block.split("\0") if row)
+        if fields.get("branch") == f"refs/heads/{branch}":
+            targets.append(fields)
+    return targets
+
+
 def inspect_cleanup(ship: Ship, pr: dict[str, Any]) -> list[str]:
     from evallab.ship import Blocked
 
     branch, head = pr["headRefName"], pr["headRefOid"]
     if branch in {"main", "master"} or branch.startswith("integrate/"):
         raise Blocked("Refusing to retire an integration branch")
-    inventory = ship.run(["git", "worktree", "list", "--porcelain", "-z"]).stdout
     targets = []
-    for block in inventory.split("\0\0"):
-        fields = {}
-        for row in block.split("\0"):
-            if row:
-                key, _, value = row.partition(" ")
-                fields[key] = value
-        if fields.get("branch") != f"refs/heads/{branch}":
-            continue
+    for fields in topic_worktrees(ship, branch):
         tree = Path(fields["worktree"])
         if "locked" in fields or "prunable" in fields:
             raise Blocked(f"Cleanup refused: locked/prunable worktree {tree}")

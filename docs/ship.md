@@ -26,6 +26,35 @@ Ship still requires GitHub to report the exact head as mergeable.
 uv run evallab ship 123 --smoke 'uv run --locked evallab --version'
 ```
 
+Run preflight immediately after creating a PR:
+
+```bash
+uv run evallab ship 123 --preflight-only
+```
+
+Preflight exits `0` when delivery inputs and cleanup prerequisites pass.
+Preflight writes a separate `<pr>-preflight.json` receipt.
+It does not bind a later delivery to the current PR head or replace a delivery receipt.
+Repair commands retain `--preflight-only` when the original command uses it.
+It exits `1` with a repair command when a prerequisite fails.
+It does not wait for CI, run gates, merge, or remove worktrees.
+Normal ship runs the same preflight before its CI wait.
+The final cleanup checks remain in place.
+
+Preflight checks active topic processes and every unknown ignored path.
+It preserves unknown ignored bytes with explicit move commands, not deletion.
+The generated `$TOPIC/tools/mimoagent-harbor/.venv` environment is not automatically disposable.
+Here, `$TOPIC` is the topic worktree path.
+A lockfile cannot prove that its local source or installed files contain no unique bytes.
+Move that environment outside the worktree when preflight names it.
+
+The delivery checkout must match fetched `origin/main` for ship code and gate controls:
+`src/evallab/ship`, `src/evallab/entry.py`, `agents/ship-gates.toml`, and `agents/CHECKS.md`.
+Ship also checks runtime source bytes, including an installed package from another checkout.
+Unrelated commits do not make the delivery checkout stale.
+A stale checkout refusal gives a fresh detached-checkout command.
+That command preserves local changes instead of resetting them.
+
 `--timeout` bounds the CI wait and each gate or smoke command separately.
 Its default is `1800` seconds. Ordinary Git and GitHub commands retain a `300`-second limit.
 Use a larger verification budget for a full DEV replay. Every gate must still pass.

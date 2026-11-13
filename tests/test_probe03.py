@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from evallab import probe03
 
 MESSAGE = json.dumps(
@@ -559,6 +561,91 @@ def test_malformed_ctrf_rows_are_unknown_not_successfully_empty(tmp_path: Path) 
         probe03._verifier_passage(trial, include_test_records=True)["test_records_complete"]
         is False
     )
+
+
+@pytest.mark.parametrize(
+    ("payload", "error"),
+    [
+        ([], AttributeError),
+        (None, AttributeError),
+        ("bad", AttributeError),
+        ({"results": "bad"}, AttributeError),
+        ({"results": [1, 2]}, AttributeError),
+        ({"results": {"tests": 5}}, TypeError),
+    ],
+)
+def test_ctrf_count_and_audit_callers_preserve_malformed_errors(
+    tmp_path: Path, payload: object, error: type[Exception]
+) -> None:
+    trial = _write_stdout_trial(tmp_path, "malformed-counts", stdout="ERROR at setup of test_a\n")
+    (trial / "verifier" / "ctrf.json").write_text(json.dumps(payload))
+    with pytest.raises(error):
+        probe03.suspect_grader_evidence(trial, None)
+    with pytest.raises(error):
+        probe03.progress_block([], {}, {}, trial)
+    with pytest.raises(error):
+        probe03.source_text_assertion(trial)
+
+
+@pytest.mark.parametrize("tests", [{"a": 1, "b": 2}, "abc"])
+def test_ctrf_sized_non_list_fields_keep_counts_without_stdout_fallback(
+    tmp_path: Path, tests: object
+) -> None:
+    trial = _write_stdout_trial(
+        tmp_path, "sized-counts", stdout="ERROR at setup of test_a\n1 failed, 9 passed\n"
+    )
+    (trial / "verifier" / "ctrf.json").write_text(json.dumps({"results": {"tests": tests}}))
+    grader = probe03.suspect_grader_evidence(trial, None)
+    assert grader is not None
+    assert grader["total_tests"] == len(tests)
+    progress = probe03.progress_block([], {}, {}, trial)
+    assert (progress["verifier_passes"], progress["verifier_total"]) == (0, len(tests))
+    assert probe03.source_text_assertion(trial) is None
+    # These separate readers historically validate the CTRF list shape.
+    passage = probe03._verifier_passage(trial)
+    assert (passage["passes"], passage["total"]) == (9, 10)
+
+
+@pytest.mark.parametrize("sid", [None, "s1"])
+@pytest.mark.parametrize(
+    "cause",
+    ["today_normalizer_accepts", "unknown_function:foo", "extra_param:description", None],
+)
+def test_outcome_rejection_preserves_malformed_step_id_error(
+    tmp_path: Path, sid: object, cause: str | None
+) -> None:
+    steps = [("head", {"step_id": sid, "message": "x"}), ("head", {"step_id": 2, "message": "y"})]
+    info = {
+        ("head", step_id): {
+            "harness_accepted": "false",
+            "rejection_cause": cause,
+            "native_signature": False,
+        }
+        for step_id in (sid, 2)
+    }
+    with pytest.raises(TypeError, match="'>=' not supported"):
+        probe03.compute_outcome_failure(steps, info, False, 0.0, False, [], [], tmp_path)
+
+
+@pytest.mark.parametrize("payload", [[], None, "bad"])
+def test_confirmed_completion_preserves_non_object_verifier_result_error(
+    tmp_path: Path, payload: object
+) -> None:
+    (tmp_path / "verifier").mkdir()
+    (tmp_path / "verifier" / "result.json").write_text(json.dumps(payload))
+    with pytest.raises(AttributeError):
+        probe03.compute_outcome_failure(
+            [("head", {"step_id": 1, "message": "x"})],
+            {},
+            True,
+            0.0,
+            False,
+            [],
+            [],
+            tmp_path,
+            stop_reason="task_complete_confirmed",
+            completion_refs=["head#1"],
+        )
 
 
 def test_shared_reward_and_agent_exit_across_consumers(tmp_path: Path) -> None:

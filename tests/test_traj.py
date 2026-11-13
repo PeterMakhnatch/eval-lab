@@ -4,6 +4,7 @@ Trajectory analysis, mechanical features, loop detection, and review queue.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 from pathlib import Path
@@ -110,6 +111,57 @@ def test_missing_trajectory_file_accounting(repo_root: Path) -> None:
         assert outline.total_steps == 0
         assert outline.total_tool_calls == 0
         assert outline.total_errors == 0
+
+
+@pytest.mark.parametrize("remove_after_read", [False, True])
+def test_result_citation_observes_file_after_metadata_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, remove_after_read: bool
+) -> None:
+    trial = tmp_path / "trial"
+    trial.mkdir()
+    result_path = trial / "result.json"
+    result_path.write_text('{"id": "original"}')
+    replacement = b'{"id": "replacement"}'
+    read_text = Path.read_text
+
+    def read_then_change(path: Path, *args, **kwargs) -> str:
+        text = read_text(path, *args, **kwargs)
+        if path == result_path:
+            if remove_after_read:
+                path.unlink()
+            else:
+                path.write_bytes(replacement)
+        return text
+
+    monkeypatch.setattr(Path, "read_text", read_then_change)
+    outline = outline_trajectory(trial, repo_root=tmp_path)
+    assert outline.trial_id == "original"
+    assert outline.unavailable_reason == "missing_trajectory_file"
+    if remove_after_read:
+        assert outline.citations == ()
+    else:
+        assert [(c.kind, c.sha256) for c in outline.citations] == [
+            ("result", hashlib.sha256(replacement).hexdigest())
+        ]
+
+
+def test_result_metadata_error_precedes_hash_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab import traj
+
+    trial = tmp_path / "trial"
+    trial.mkdir()
+    (trial / "result.json").write_text(
+        json.dumps({"verifier_result": {"rewards": {"reward": 10**400}}})
+    )
+
+    def unreadable_hash(path: Path) -> str:
+        raise PermissionError(str(path))
+
+    monkeypatch.setattr(traj, "sha256_file", unreadable_hash)
+    with pytest.raises(OverflowError):
+        outline_trajectory(trial, repo_root=tmp_path)
 
 
 def test_unparseable_trajectory_json_accounting() -> None:

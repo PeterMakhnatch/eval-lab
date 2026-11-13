@@ -1601,17 +1601,18 @@ def _parse_unittest_sessions(text: str) -> tuple[list[dict], bool] | None:
     return records, complete
 
 
-def _ctrf_tests(trial_dir: Path, *, default_empty: bool = False) -> list | None:
+def _ctrf_tests(trial_dir: Path, *, default_empty: bool = False) -> Any:
+    """Read CTRF tests, preserving unvalidated fields for count/audit callers."""
     try:
         ctrf = json.loads((trial_dir / "verifier" / "ctrf.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+    if default_empty:
+        return ((ctrf.get("results") or {}).get("tests")) or []
     results = ctrf.get("results") if isinstance(ctrf, dict) else None
     tests = results.get("tests") if isinstance(results, dict) else None
     if isinstance(tests, list):
         return tests
-    if default_empty and isinstance(ctrf, dict) and not tests and (not results or isinstance(results, dict)):
-        return []
     return None
 
 
@@ -2413,6 +2414,12 @@ def _tool_rejection_outcome(
     **extra: Any,
 ) -> dict[str, Any]:
     cause = cell.get("rejection_cause")
+    # Outcome attribution historically evaluates these counts before any rule.
+    normalizer_counts = (
+        _session_normalizer_counts(agent_seq, info, doc, sid)
+        if detailed_r_tool_03
+        else None
+    )
     if cause in ("today_normalizer_accepts", "unmapped_native_function:command"):
         note = (
             "bare native <function=command> with a plain command body; "
@@ -2437,7 +2444,9 @@ def _tool_rejection_outcome(
         )
     if cause and cause.startswith(("unknown_function:", "extra_param:", "malformed_native:")):
         if cause.startswith("extra_param:") and cell.get("native_signature"):
-            head_ok, same_doc_after = _session_normalizer_counts(agent_seq, info, doc, sid)
+            head_ok, same_doc_after = normalizer_counts or _session_normalizer_counts(
+                agent_seq, info, doc, sid
+            )
             if head_ok >= 10 and same_doc_after >= 10:
                 if detailed_r_tool_03:
                     out = _step_outcome(
@@ -2825,7 +2834,14 @@ def compute_outcome_failure(
 
     # Confirmed task_complete with reward 0 (passes return earlier).
     if stop_reason == "task_complete_confirmed" and completion_refs:
-        verifier_message = str(_read_json(trial_dir / "verifier" / "result.json").get("message") or "")
+        verifier_message = ""
+        try:
+            verifier_result = json.loads(
+                (trial_dir / "verifier" / "result.json").read_text(encoding="utf-8")
+            )
+            verifier_message = str(verifier_result.get("message") or "")
+        except (OSError, ValueError):
+            pass
         passage = _verifier_passage(trial_dir)
         grader_note = completion_grader_check(trial_dir, verifier_message)
         first_claim = completion_refs[0]
@@ -3089,7 +3105,7 @@ def source_text_assertion(trial_dir: Path) -> str | None:
     whether that literal appears in instruction.md (a pinned implementation
     the instruction never states). Detected from the ctrf trace; recorded
     for Data's verifier audit, NOT R-ENV-02."""
-    for test in _ctrf_tests(trial_dir) or []:
+    for test in _ctrf_tests(trial_dir, default_empty=True) or []:
         if not isinstance(test, dict) or test.get("status") == "passed":
             continue
         trace = str(test.get("trace") or "") + str(test.get("message") or "")

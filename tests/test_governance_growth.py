@@ -15,6 +15,7 @@ def put(root: Path, path: str, content: str) -> None:
     target = root / path
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
+    git(root, "add", "--", path)
 
 
 def commit(root: Path) -> str:
@@ -91,13 +92,14 @@ def test_old_ledger_entry_cannot_authorize_later_growth(repo: Path) -> None:
     assert growth_issues(repo, baseline) == []
 
 
-def test_local_scope_counts_committed_staged_unstaged_and_untracked(repo: Path) -> None:
+def test_local_scope_counts_committed_staged_and_unstaged_but_not_scratch(repo: Path) -> None:
     put(repo, "tests/committed.py", "# line\n" * 300)
     commit(repo)
     put(repo, "tests/staged.py", "# line\n" * 300)
-    git(repo, "add", "tests/staged.py")
-    put(repo, "tests/committed.py", "# line\n" * 400)
-    put(repo, "tests/untracked.py", "# line\n" * 301)
+    (repo / "tests/committed.py").write_text("# line\n" * 400)
+    (repo / "tests/untracked.py").write_text("# line\n" * 301)
+    assert growth_issues(repo) == []
+    git(repo, "add", "tests/untracked.py")
     issues = growth_issues(repo)
     assert len(issues) == 1
     assert "root-growth: tests has 1001 net lines; limit 1000; remove 1 net lines" in issues[0]
@@ -209,7 +211,7 @@ def test_invalid_utf8_is_a_ledger_error_not_a_history_error(repo: Path) -> None:
     assert "git fetch" not in issues[0]
 
 
-def test_unborn_repository_enforces_untracked_file_limit(repo: Path) -> None:
+def test_unborn_repository_enforces_staged_file_limit(repo: Path) -> None:
     unborn = repo / "unborn"
     unborn.mkdir()
     git(unborn, "init", "-q", "-b", "main")

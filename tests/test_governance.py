@@ -301,6 +301,7 @@ def test_check_and_cli_base_enforce_growth_on_real_tree(
     )
     assert check(tmp_path, "HEAD") == []
     (tmp_path / "tests/new.py").write_text("# line\n" * 601)
+    subprocess.run(["git", "add", "--", "tests/new.py"], cwd=tmp_path, check=True)
     issues = check(tmp_path, "HEAD")
     assert len(issues) == 1
     assert "new-file: tests/new.py has 601 lines; limit 600" in issues[0]

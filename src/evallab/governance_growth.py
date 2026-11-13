@@ -126,11 +126,6 @@ def growth_issues(root: Path, base: str | None = None) -> list[str]:
                 _git(root, "diff", "--name-only", "-z", "--no-renames", ancestor,
                      *([candidate] if candidate else []), "--", *PYTHON_PATHS).decode().split("\0")
             )
-        if candidate is None:
-            changed.update(
-                _git(root, "ls-files", "--others", "--exclude-standard", "-z", "--", *PYTHON_PATHS)
-                .decode().split("\0")
-            )
         paths = sorted(
             path for path in changed
             if path.endswith(".py") and any(path.startswith(f"{name}/") for name in ROOT_LIMITS)

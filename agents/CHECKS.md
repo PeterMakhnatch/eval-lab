@@ -60,7 +60,7 @@ trigger and dependency handling fail closed, including merge-group support.
 
 | Gate | Command | Version / interpreter |
 |---|---|---|
-| Locked install | `uv sync --locked --no-group observability --group benchmarks --group lance --group inspect` (native phase adds `--extra laminar`) | uv 0.9.24; Python 3.12 and 3.14; `observability` stays opt-in |
+| Locked install | `uv sync --locked --no-group observability --group benchmarks --group inspect` (native phase adds `--extra laminar`) | uv 0.9.24; Python 3.12 and 3.14; `observability` stays opt-in |
 | Lint | `uv run ruff check .` | locked Ruff; Python 3.12 |
 | Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze, sealed paths matched by root `.ignore` |
 | Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |

@@ -30,7 +30,7 @@ import re
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 #: Generation shared by the native agent and SDK-independent census reuse.
 CHEAT_AGENT_VERSION = "1.4.0"
@@ -939,7 +939,8 @@ async def _apply_rows_to_db(
     return f"guided fix applied: {len(rows)} expected rows written to {table} in {db}"
 
 
-_EvalResult = tuple[str, str, dict[str, Any] | None]
+if TYPE_CHECKING:
+    _EvalResult = tuple[str, str, dict[str, Any] | None]
 
 
 @dataclass(frozen=True)

@@ -10,7 +10,6 @@ license = "Apache-2.0"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "boto3>=1.43,<2",
     "daytona>=0.210.0",
     # 2.0 rewrites the Python API and writes a one-way storage format that the
     # 1.5 checkouts still in use cannot read; migrate deliberately, not via lock refresh.
@@ -31,9 +30,6 @@ dependencies = [
 [project.optional-dependencies]
 laminar = [
     "lmnr==0.7.64",
-]
-verifier = [
-    "llm-verifier>=0.2.0",
 ]
 
 [project.scripts]
@@ -70,9 +66,6 @@ dev = [
     "pytest>=8.4,<10",
     "pytest-xdist>=3.8,<4",
     "ruff>=0.12,<1",
-]
-lance = [
-    "lancedb>=0.37,<1",
 ]
 observability = [
     "harbor-atif2otel>=0.1.0",
@@ -138,7 +131,7 @@ ignore = ["E501"]
     "src/evallab/heldout_verifier.py" = ["UP032"]
 
 [tool.ty.rules]
-# Optional dependency groups (lance, observability) are absent in some checked
+# Optional dependency groups (observability) are absent in some checked
 # environments and present in others; their import ignores are used only where
 # the package is missing.
 unused-ignore-comment = "ignore"

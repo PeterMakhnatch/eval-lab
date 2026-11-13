@@ -54,7 +54,7 @@ fi
 export UV_PYTHON="${PYTHON_FLOOR}"
 
 # Match the static CI profile before running the same static gates locally.
-uv sync --locked --no-group observability --group benchmarks --group lance --group inspect
+uv sync --locked --no-group observability --group benchmarks --group inspect
 uv run --no-sync ruff check .
 uv run --no-sync python -m evallab.governance check
 uv run --no-sync evallab registry audit --json

@@ -1294,7 +1294,7 @@ def test_full_suite_sync_step_installs_the_inspect_group() -> None:
 def test_full_suite_inspect_gate_rejects_dropping_the_group() -> None:
     """Dropping --group inspect from the effective sync reddens the gate."""
     dropped = [
-        {"run": "uv sync --locked --no-group observability --group benchmarks --group lance"},
+        {"run": "uv sync --locked --no-group observability --group benchmarks"},
         {"name": "Full test suite", "run": "uv run --no-sync pytest"},
     ]
     assert _full_suite_inspect_problems(dropped) == [

@@ -65,16 +65,12 @@ from evallab.line.watch_state import (
     fsync_directory,
     init_state,
     now_iso,
-    owner_alive,
     owner_lock,
     parse_config,
     parse_time,
 )
 
 STATUS_SCHEMA = "evallab.line_watch_status/v1"
-WATCHDOG_SCHEMA = "evallab.line_watch_watchdog/v1"
-#: Phases in which the watcher is expected to be making progress.
-BUSY_PHASES = frozenset({"recovering", "discovering", "processing", "publishing", "committing"})
 
 
 # ---------------------------------------------------------------- lag
@@ -582,82 +578,3 @@ def check_state(state_dir: Path, repo_root: Path, *, deep: bool = True) -> dict[
     Read-only: nothing is written into the state directory.
     """
     return verify(State(state_dir), repo_root, deep=deep)
-
-
-def watchdog(
-    state_dir: Path, *, max_age: float | None = None, now: float | None = None
-) -> dict[str, Any]:
-    """Read-only liveness verdict in the live supervisor's vocabulary: ok / stalled / failed.
-
-    Healthy idle polling is ``ok``. While an increment runs, progress means a new status phase
-    or a new file in the open increment's folder (receipts appear stage by stage); a heartbeat
-    alone never counts, so a wedged ``run_line`` cannot look alive. Damaged state files make
-    the verdict ``failed``; the verdict is always written to ``watchdog.json``.
-    """
-    state = State(state_dir)
-    moment = time.time() if now is None else now
-    stamp = now_iso(moment)
-    result: dict[str, Any] = {"schema": WATCHDOG_SCHEMA, "checked_at": stamp, "at": stamp}
-
-    def finish(status: str, reason: str, **extra: Any) -> dict[str, Any]:
-        value = {**result, "status": status, "reason": reason, **extra}
-        if state.root.is_dir():
-            write_json(state.watchdog_path, value)
-        return value
-
-    if not state.watch_json.is_file():
-        return finish("failed", "no live state here")
-    try:
-        status = read_json(state.status_path)
-        limit = (
-            max_age if max_age is not None else state.config()["watch"]["watchdog_max_age_seconds"]
-        )
-        if (
-            isinstance(limit, bool)
-            or not isinstance(limit, int | float)
-            or not 0 < limit < math.inf
-        ):
-            result["max_age_seconds"] = None
-            return finish("failed", f"watchdog_max_age_seconds is not a positive number: {limit!r}")
-    except (OSError, ValueError, KeyError, TypeError, RecursionError):
-        return finish("failed", "status file missing or unreadable")
-    result["max_age_seconds"] = limit
-    try:
-        if status.get("phase") == "failed":
-            return finish("failed", f"watcher failed: {status.get('last_error')}")
-        activity = parse_time(status.get("last_activity_at")) or 0.0
-        open_folders = state.open_folders()
-        if len(open_folders) > 1:
-            return finish(
-                "failed", f"more than one open increment: {[p.name for p in open_folders]}"
-            )
-        for folder in open_folders:
-            for path in (folder, *folder.rglob("*")):
-                activity = max(activity, path.stat().st_mtime)
-        age = moment - activity
-        extra = {
-            "phase": status.get("phase"),
-            "age_seconds": round(age, 1),
-            "increments": status.get("increments"),
-            "open_increment": open_folders[0].name if open_folders else None,
-        }
-        alive = owner_alive(state)
-    except (
-        OSError,
-        ValueError,
-        KeyError,
-        TypeError,
-        AttributeError,
-        RecursionError,
-        WatchError,
-    ) as error:
-        return finish("failed", f"damaged live state: {type(error).__name__}: {error}")
-    if not alive:
-        return finish("stalled", "no process owns this state directory", **extra)
-    if status.get("phase") == "stopped":
-        return finish("stalled", "watcher stopped", **extra)
-    if age > limit:
-        return finish("stalled", "no progress within the allowed age", **extra)
-    return finish(
-        "ok", "making progress" if status.get("phase") in BUSY_PHASES else "idle", **extra
-    )

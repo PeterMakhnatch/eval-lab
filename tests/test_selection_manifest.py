@@ -154,6 +154,28 @@ def test_analyzer_never_prices_missing_or_failed_sessions_as_zero() -> None:
     policy = result["policies"]["checkpoint+environment"]
     assert policy["module_recall"] is None
     assert len(policy["collection_errors_without_module_attribution"]) == 2
+    collection = observation(5)
+    collection["receipts"][0]["exitstatus"] = 2
+    collection["receipts"][0]["collection_errors"] = ["tests/conftest.py"]
+    result = module.analyze([collection])
+    assert result["policies"]["checkpoint"]["escape_proxy"] is None
+    assert result["policies"]["checkpoint"]["escape_proxy_upper_bound"] == 1
+
+
+def test_analyzer_reports_manifest_errors_and_rejects_wrong_selector(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = analyzer()
+    metadata = {"event": "pull_request", "name": "quality", "status": "completed"}
+    monkeypatch.setattr(module, "gh", lambda *args: json.dumps(metadata))
+    path = tmp_path / "selection-manifest.json"
+    path.write_text(json.dumps({"schema_version": 1, "status": "error", "error": "base unavailable"}))
+    with pytest.raises(ValueError, match="manifest error: base unavailable"):
+        module.load_run("owner/repo", 123, tmp_path)
+    manifest = {"schema_version": 1, "status": "ok", "tested_sha": "a" * 40,
+                "base_sha": "b" * 40, "merge_base_sha": "c" * 40,
+                "selector_revision": "d" * 40, "selector_sha256": "e" * 64}
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="selector revision differs"):
+        module.load_run("owner/repo", 123, tmp_path)
 
 
 def test_duration_receipt_includes_fixture_time_and_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

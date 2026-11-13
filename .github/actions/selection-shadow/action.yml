@@ -1,0 +1,42 @@
+name: Observe test selection
+description: Record base-selector policies without changing the full required test gate.
+inputs:
+  head:
+    description: Immutable pull request head SHA
+    required: true
+  base:
+    description: Immutable pull request base SHA
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Build observation manifest
+      id: manifest
+      continue-on-error: true
+      shell: bash
+      env:
+        SHADOW_HEAD: ${{ inputs.head }}
+        SHADOW_BASE: ${{ inputs.base }}
+      run: |
+        python3 -I "$GITHUB_ACTION_PATH/../../../src/evallab/selection_manifest.py" \
+          --root "$GITHUB_WORKSPACE" --head "$SHADOW_HEAD" --base "$SHADOW_BASE" \
+          --tested "$GITHUB_SHA" \
+          --output "$RUNNER_TEMP/selection-shadow/selection-manifest.json"
+    - name: Upload observation manifest
+      id: upload
+      if: always()
+      continue-on-error: true
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: selection-shadow
+        path: ${{ runner.temp }}/selection-shadow/selection-manifest.json
+        if-no-files-found: error
+        retention-days: 3
+        overwrite: true
+    - name: Report observation errors
+      if: always() && (steps.manifest.outcome != 'success' || steps.upload.outcome != 'success')
+      shell: bash
+      run: |
+        echo '::error::Selection observation or artifact upload failed. This observation is non-gating; no selection or cost claim is available.'
+        echo '**ERROR: Selection observation or artifact upload failed (non-gating). The full required gate remains unchanged.**' >> "$GITHUB_STEP_SUMMARY"
+        exit 1

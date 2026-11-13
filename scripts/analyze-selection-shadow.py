@@ -5,6 +5,16 @@ Example: uv run python scripts/analyze-selection-shadow.py --runs 123 456
 Failure recall measures observed failed modules, not proven diff causality or
 counterfactual execution. Cost shares use complete base and native sessions only.
 Repeated runs do not create independent heads or failure modules.
+
+The PR lint job uploads ``selection-shadow``. Every test shard uploads
+``test-observation-*`` with complete module receipts and both JUnit reports.
+Artifacts expire after 3 days. Download and analyze them before that limit.
+These observations are deliberately non-gating. Missing artifacts or sessions
+are unknown evidence, not a passing selector. No policy changes CI execution.
+
+Use ``--output /path/to/report.json`` to keep the aggregate. The report separates
+observed failure recall, omitted-failure PRs, environment fallback, and complete
+run cost shares (median, mean, p90). Failures still require a causality review.
 """
 
 from __future__ import annotations
@@ -39,11 +49,15 @@ def load_run(repo: str, run_id: int, directory: Path) -> dict[str, Any]:
     manifest = json.loads(manifests[0].read_text())
     if manifest.get("schema_version") != 1:
         raise ValueError(f"run {run_id}: unsupported manifest schema")
-    tested = manifest.get("tested_sha")
-    if not isinstance(tested, str) or len(tested) != 40 or any(char not in "0123456789abcdef" for char in tested):
-        raise ValueError(f"run {run_id}: missing or invalid tested commit")
     if manifest["status"] != "ok":
         raise ValueError(f"run {run_id}: manifest error: {manifest.get('error')}")
+    for field, length in (("tested_sha", 40), ("base_sha", 40), ("merge_base_sha", 40),
+                          ("selector_revision", 40), ("selector_sha256", 64)):
+        value = manifest.get(field)
+        if not isinstance(value, str) or len(value) != length or any(char not in "0123456789abcdef" for char in value):
+            raise ValueError(f"run {run_id}: missing or invalid {field}")
+    if manifest["selector_revision"] != manifest["base_sha"]:
+        raise ValueError(f"run {run_id}: selector revision differs from the declared base")
     if manifest["head_sha"] != metadata["head_sha"]:
         raise ValueError(f"run {run_id}: manifest head differs from the run head")
     expected = (str(run_id), str(metadata["run_attempt"]))
@@ -81,6 +95,9 @@ def session_issues(row: dict[str, Any]) -> list[str]:
     for receipt in row["receipts"]:
         if receipt["exitstatus"] != 0 and not (receipt["failed_modules"] or receipt["collection_errors"]):
             issues.append(f"unattributed exit {receipt['exitstatus']}: {receipt['shard']} {receipt['phase']}")
+        for node in receipt["collection_errors"]:
+            if node.partition("::")[0] not in row["manifest"]["inventory"]:
+                issues.append(f"collection error without module attribution: {node!r}")
     return issues
 
 

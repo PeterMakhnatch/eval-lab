@@ -317,11 +317,14 @@ class _MimoUpstream(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def mimo_upstream() -> Any:
+    """Use fresh real HTTP state without the default 0.5 s idle shutdown wait."""
     _MimoUpstream.seen = []
     _MimoUpstream.errors = []
     _MimoUpstream.context_tokens = None
     server = ThreadingHTTPServer(("127.0.0.1", 0), _MimoUpstream)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     try:
         yield server

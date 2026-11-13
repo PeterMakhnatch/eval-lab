@@ -166,8 +166,11 @@ def _load_proxy_module() -> ModuleType:
 
 
 def _serve(handler: type[BaseHTTPRequestHandler]) -> tuple[ThreadingHTTPServer, str]:
+    """Keep real HTTP while avoiding the default 0.5 s idle shutdown wait."""
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     host, port = server.server_address[:2]
     return server, f"http://{host}:{port}"
@@ -288,7 +291,9 @@ def _setup_proxy(
         proxy_module.REQUEST_TIMEOUT_SECONDS = request_timeout
         proxy_module.Handler.timeout = request_timeout
     proxy = proxy_module.serve(host="127.0.0.1", port=0, max_workers=max_workers)
-    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=proxy.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
 
     base_url = f"http://127.0.0.1:{proxy.server_address[1]}"

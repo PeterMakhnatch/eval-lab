@@ -119,6 +119,13 @@ def _read_json(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _read_text(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
 def normalize_reward(value: Any) -> tuple[float | None, bool]:
     """Normalize a raw verifier value without conflating it with agent exit."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -307,24 +314,23 @@ def assemble_trial(trial_dir: Path) -> tuple[dict, list[tuple[str, dict]]]:
     """
     agent_dir = trial_dir / "agent"
     docs: list[tuple[str, dict | None, str | None]] = []  # (docname, doc, session)
+    def _load_doc(docname: str, path: Path) -> tuple[str, dict | None, str | None]:
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            return (docname, doc, doc.get("session_id") if isinstance(doc, dict) else None)
+        except (OSError, ValueError):
+            return (docname, None, None)
+
     head_path = agent_dir / "trajectory.json"
     if head_path.is_file():
-        try:
-            doc = json.loads(head_path.read_text(encoding="utf-8"))
-            docs.append(("head", doc, doc.get("session_id") if isinstance(doc, dict) else None))
-        except (OSError, ValueError):
-            docs.append(("head", None, None))
+        docs.append(_load_doc("head", head_path))
     cont_paths: list[tuple[int, Path]] = []
     for path in agent_dir.glob("trajectory.cont-*.json"):
         match = CONT_RE.search(path.name)
         if match:
             cont_paths.append((int(match.group(1)), path))
     for _number, path in sorted(cont_paths):
-        try:
-            doc = json.loads(path.read_text(encoding="utf-8"))
-            docs.append((path.name, doc, doc.get("session_id") if isinstance(doc, dict) else None))
-        except (OSError, ValueError):
-            docs.append((path.name, None, None))
+        docs.append(_load_doc(path.name, path))
     summarization_files = sorted(
         path.name for path in agent_dir.glob("trajectory.summarization-*.json")
     )
@@ -1087,14 +1093,9 @@ def _ref(doc: str, sid: Any) -> str:
     return f"{doc}#{sid}"
 
 
-def _session_normalizer_loss(
-    agent_seq: list[tuple[str, dict]], info: dict, doc: str, sid: Any, cell: dict
-) -> bool:
-    """R-TOOL-03 gate: native signature accepted >=10 turns in OTHER
-    documents, then rejected >=10 turns from `sid` in THIS document after
-    a summarization/new-session boundary (0758-d)."""
-    if not cell.get("native_signature"):
-        return False
+def _session_normalizer_counts(
+    agent_seq: list[tuple[str, dict]], info: dict, doc: str, sid: Any
+) -> tuple[int, int]:
     head_ok = sum(
         1
         for d2, s2 in agent_seq
@@ -1111,6 +1112,18 @@ def _session_normalizer_loss(
         and info.get((d2, s2.get("step_id")), {}).get("native_signature")
         and info.get((d2, s2.get("step_id")), {}).get("harness_accepted") == "false"
     )
+    return head_ok, same_doc_after
+
+
+def _session_normalizer_loss(
+    agent_seq: list[tuple[str, dict]], info: dict, doc: str, sid: Any, cell: dict
+) -> bool:
+    """R-TOOL-03 gate: native signature accepted >=10 turns in OTHER
+    documents, then rejected >=10 turns from `sid` in THIS document after
+    a summarization/new-session boundary (0758-d)."""
+    if not cell.get("native_signature"):
+        return False
+    head_ok, same_doc_after = _session_normalizer_counts(agent_seq, info, doc, sid)
     return head_ok >= 10 and same_doc_after >= 10
 
 
@@ -1120,15 +1133,12 @@ def context_livelock(trial_dir: Path) -> dict | None:
     lines 192-437: 'Remaining messages: 364' every cycle; 0758-b 776-800).
     Returns {cycles, log_lines} or None."""
     log = trial_dir / "trial.log"
-    if not log.is_file():
-        return None
-    try:
-        lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
+    text = _read_text(log) if log.is_file() else None
+    if text is None:
         return None
     hits = [
         index + 1
-        for index, line in enumerate(lines)
+        for index, line in enumerate(text.splitlines())
         if "Context length exceeded. Using fallback summarization." in line
     ]
     if len(hits) < 2:
@@ -1591,6 +1601,35 @@ def _parse_unittest_sessions(text: str) -> tuple[list[dict], bool] | None:
     return records, complete
 
 
+def _ctrf_tests(trial_dir: Path, *, default_empty: bool = False) -> list | None:
+    try:
+        ctrf = json.loads((trial_dir / "verifier" / "ctrf.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    results = ctrf.get("results") if isinstance(ctrf, dict) else None
+    tests = results.get("tests") if isinstance(results, dict) else None
+    if isinstance(tests, list):
+        return tests
+    if default_empty and isinstance(ctrf, dict) and not tests and (not results or isinstance(results, dict)):
+        return []
+    return None
+
+
+def _stdout_test_counts(stdout: str) -> tuple[int | None, int | None]:
+    match = re.search(r"(\d+) failed, (\d+) passed", stdout)
+    if match:
+        passes = int(match.group(2))
+        return passes, passes + int(match.group(1))
+    match = re.search(r"(\d+) failed", stdout)
+    if match:
+        return 0, int(match.group(1))
+    match = re.search(r"(\d+) passed", stdout)
+    if match:
+        total = int(match.group(1))
+        return total, total
+    return None, None
+
+
 def _trial_test_records(trial_dir: Path) -> tuple[list[dict] | None, str, bool]:
     """Opt-in HAR-179 test-record recovery for :func:`_verifier_passage`.
 
@@ -1599,43 +1638,37 @@ def _trial_test_records(trial_dir: Path) -> tuple[list[dict] | None, str, bool]:
     ``verifier/test_output.log`` (``<file>.pytest`` / ``<file>.unittest``).
     ``missing`` when no source yields a session. Never writes CTRF and never
     labels a stdout recovery as CTRF."""
-    try:
-        ctrf = json.loads((trial_dir / "verifier" / "ctrf.json").read_text(encoding="utf-8"))
-        results = ctrf.get("results") if isinstance(ctrf, dict) else None
-        tests = results.get("tests") if isinstance(results, dict) else None
-        if isinstance(tests, list) and tests:
-            records = []
-            complete = True
-            for test in tests:
-                if (
-                    not isinstance(test, dict)
-                    or not isinstance(test.get("name"), str)
-                    or not test["name"]
-                    or not isinstance(test.get("status"), str)
-                ):
-                    complete = False
-                    continue
-                status = test.get("status")
-                trace = str(test.get("trace") or "") + str(test.get("message") or "")
-                records.append(
-                    {
-                        "name": str(test.get("name")),
-                        "status": status,
-                        "session": 1,
-                        "trace": trace if trace and status != "passed" else None,
-                        "filePath": test.get("filePath"),
-                    }
-                )
-            return records, "ctrf", complete
-    except (OSError, ValueError):
-        pass
+    tests = _ctrf_tests(trial_dir)
+    if tests:
+        records = []
+        complete = True
+        for test in tests:
+            if (
+                not isinstance(test, dict)
+                or not isinstance(test.get("name"), str)
+                or not test["name"]
+                or not isinstance(test.get("status"), str)
+            ):
+                complete = False
+                continue
+            status = test.get("status")
+            trace = str(test.get("trace") or "") + str(test.get("message") or "")
+            records.append(
+                {
+                    "name": str(test.get("name")),
+                    "status": status,
+                    "session": 1,
+                    "trace": trace if trace and status != "passed" else None,
+                    "filePath": test.get("filePath"),
+                }
+            )
+        return records, "ctrf", complete
     for filename, stem in (
         ("test-stdout.txt", "test-stdout"),
         ("test_output.log", "test_output"),
     ):
-        try:
-            text = (trial_dir / "verifier" / filename).read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        text = _read_text(trial_dir / "verifier" / filename)
+        if text is None:
             continue
         pytest = _parse_pytest_sessions(text)
         unittest = _parse_unittest_sessions(text)
@@ -1667,12 +1700,8 @@ def _verifier_passage(
     passes = total = None
     failing: list[str] = []
     stdout = ""
-    try:
-        ctrf = json.loads((trial_dir / "verifier" / "ctrf.json").read_text(encoding="utf-8"))
-        results = ctrf.get("results") if isinstance(ctrf, dict) else None
-        tests = results.get("tests") if isinstance(results, dict) else None
-        if not isinstance(tests, list):
-            raise ValueError("CTRF results.tests is not a list")
+    tests = _ctrf_tests(trial_dir)
+    if tests is not None:
         total = len(tests)
         passes = sum(
             1 for test in tests if isinstance(test, dict) and test.get("status") == "passed"
@@ -1684,28 +1713,9 @@ def _verifier_passage(
         ]
         if failing_test_limit is not None:
             failing = failing[:failing_test_limit]
-    except (OSError, ValueError):
-        pass
-    try:
-        stdout = (trial_dir / "verifier" / "test-stdout.txt").read_text(
-            encoding="utf-8", errors="replace"
-        )
-    except OSError:
-        stdout = ""
+    stdout = _read_text(trial_dir / "verifier" / "test-stdout.txt") or ""
     if total is None:
-        match = re.search(r"(\d+) failed, (\d+) passed", stdout)
-        if match:
-            failed = int(match.group(1))
-            passes = int(match.group(2))
-            total = passes + failed
-        else:
-            match = re.search(r"(\d+) failed", stdout)
-            if match:
-                passes, total = 0, int(match.group(1))
-            else:
-                match = re.search(r"(\d+) passed", stdout)
-                if match:
-                    passes = total = int(match.group(1))
+        passes, total = _stdout_test_counts(stdout)
     fails = (total - passes) if (total is not None and passes is not None) else None
     guard_match = GUARD_REJECT_RE.search(stdout)
     setup_error = bool(
@@ -1840,11 +1850,8 @@ def suspect_grader_evidence(
     a same-task nop/qual trial under --nop-runs-dir by task_name; without
     the flag (or the trial) the verdict is 'unknown'."""
     stdout_path = trial_dir / "verifier" / "test-stdout.txt"
-    if not stdout_path.is_file():
-        return None
-    try:
-        stdout = stdout_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    stdout = _read_text(stdout_path) if stdout_path.is_file() else None
+    if stdout is None:
         return None
     setup_tests = sorted(set(SETUP_ERROR_RE.findall(stdout)))
     package_broken = (
@@ -1852,14 +1859,8 @@ def suspect_grader_evidence(
         or "importlib.metadata" in stdout
         or "ERROR at setup of" in stdout
     )
-    total_tests = None
-    ctrf_path = trial_dir / "verifier" / "ctrf.json"
-    try:
-        ctrf = json.loads(ctrf_path.read_text(encoding="utf-8"))
-        tests = ((ctrf.get("results") or {}).get("tests")) or []
-        total_tests = len(tests)
-    except (OSError, ValueError):
-        tests = []
+    tests = _ctrf_tests(trial_dir, default_empty=True)
+    total_tests = len(tests) if tests is not None else None
     nop_trial, nop_text = _resolve_nop_trial(trial_dir, nop_runs_dir)
     if setup_tests or package_broken:
         nop_confirm: str = "unknown"
@@ -1928,11 +1929,7 @@ def _resolve_nop_trial(
     task_name): (trial path str or None, verifier test-stdout text or None)."""
     if not nop_runs_dir:
         return None, None
-    try:
-        result = _read_json(trial_dir / "result.json")
-    except (OSError, ValueError):
-        return None, None
-    task_name = result.get("task_name")
+    task_name = _read_json(trial_dir / "result.json").get("task_name")
     root = Path(nop_runs_dir)
     if not task_name or not root.is_dir():
         return None, None
@@ -1943,19 +1940,13 @@ def _resolve_nop_trial(
         if "nop" not in lname and "qual" not in lname:
             continue
         for candidate in _find_trials(job):
-            try:
-                cand_result = _read_json(candidate / "result.json")
-            except (OSError, ValueError):
-                continue
-            if cand_result.get("task_name") != task_name:
+            if _read_json(candidate / "result.json").get("task_name") != task_name:
                 continue
             nop_stdout = candidate / "verifier" / "test-stdout.txt"
-            if not nop_stdout.is_file():
-                continue
-            try:
-                return str(candidate), nop_stdout.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
+            if nop_stdout.is_file():
+                text = _read_text(nop_stdout)
+                if text is not None:
+                    return str(candidate), text
     return None, None
 
 
@@ -2249,44 +2240,24 @@ def progress_block(
             task_files.update(_task_targets(text))
         if keystrokes and keystrokes == prev_keystrokes and run_start is not None:
             keystroke_runs[-1] = (run_start, pos)
+        elif keystrokes:
+            run_start = pos
+            keystroke_runs.append((pos, pos))
         else:
-            run_start = pos if keystrokes else None
-            if keystrokes:
-                keystroke_runs.append((pos, pos))
-        prev_keystrokes = keystrokes if keystrokes else None
-        if not keystrokes:
             run_start = None
+        prev_keystrokes = keystrokes or None
     longest_keys = max(keystroke_runs, key=lambda run: run[1] - run[0]) if keystroke_runs else None
     passes = total = None
-    try:
-        ctrf = json.loads((trial_dir / "verifier" / "ctrf.json").read_text(encoding="utf-8"))
-        tests = ((ctrf.get("results") or {}).get("tests")) or []
+    tests = _ctrf_tests(trial_dir, default_empty=True)
+    if tests is not None:
         total = len(tests)
         passes = sum(
             1 for test in tests if isinstance(test, dict) and test.get("status") == "passed"
         )
-    except (OSError, ValueError):
-        pass
     if total is None:
-        try:
-            stdout = (trial_dir / "verifier" / "test-stdout.txt").read_text(
-                encoding="utf-8", errors="replace"
-            )
-            match = re.search(r"(\d+) failed, (\d+) passed", stdout)
-            if match:
-                failed = int(match.group(1))
-                passes = int(match.group(2))
-                total = passes + failed
-            else:
-                match = re.search(r"(\d+) failed", stdout)
-                if match:
-                    passes, total = 0, int(match.group(1))
-                else:
-                    match = re.search(r"(\d+) passed", stdout)
-                    if match:
-                        passes = total = int(match.group(1))
-        except OSError:
-            pass
+        stdout = _read_text(trial_dir / "verifier" / "test-stdout.txt")
+        if stdout is not None:
+            passes, total = _stdout_test_counts(stdout)
     runs = identical_runs(model_seq)
     longest = max(runs, key=lambda run: run["length"]) if runs else None
     coverage_files = sum(
@@ -2323,6 +2294,211 @@ def progress_block(
     }
 
 
+def _outcome(
+    rule_id: str,
+    tag: str,
+    attribution: str,
+    note: str,
+    *,
+    step_id: Any = None,
+    step_ref: str | None = None,
+    evidence_step_refs: list[str] | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    return {
+        "step_id": step_id,
+        "step_ref": step_ref,
+        "tag": tag,
+        "attribution": attribution,
+        "rule_id": rule_id,
+        "evidence_step_refs": [] if evidence_step_refs is None else list(evidence_step_refs),
+        "note": note,
+        **extra,
+    }
+
+
+def _step_outcome(
+    doc: str,
+    sid: Any,
+    rule_id: str,
+    tag: str,
+    attribution: str,
+    note: str,
+    **extra: Any,
+) -> dict[str, Any]:
+    ref = _ref(doc, sid)
+    return _outcome(
+        rule_id,
+        tag,
+        attribution,
+        note,
+        step_id=sid,
+        step_ref=ref,
+        evidence_step_refs=[ref],
+        **extra,
+    )
+
+
+def _attach_secondary_run(
+    out: dict[str, Any], longest: dict | None, *, unclear: bool = False
+) -> None:
+    if not longest:
+        return
+    start_ref = _ref(longest["start_doc"], longest["start"])
+    end_ref = _ref(longest["end_doc"], longest["end"])
+    if unclear:
+        out["secondary"] = (
+            f"error_recovery/unclear secondary: {longest['length']} identical "
+            f"retries {start_ref}-{end_ref} (feedback never named the cause)"
+        )
+    else:
+        out["secondary"] = f"error_recovery/model secondary: identical run {start_ref}-{end_ref}"
+    out["evidence_step_refs"] += [start_ref, end_ref]
+
+
+def _find_step_id(agent_seq: list[tuple[str, dict]], target_ref: str | None) -> Any:
+    if not target_ref:
+        return None
+    for doc, step in agent_seq:
+        if _ref(doc, step.get("step_id")) == target_ref:
+            return step.get("step_id")
+    return None
+
+
+def _contract_fields(contract: dict | None = None) -> dict[str, Any]:
+    if contract is None:
+        return {
+            "contract_seen": None,
+            "attempted_repro": False,
+            "attempted_repro_ref": None,
+            "poc_reproduced": None,
+            "submitted": False,
+        }
+    return {
+        "contract_seen": contract["contract_seen"],
+        "attempted_repro": bool(contract["attempted_repro"]),
+        "attempted_repro_ref": contract["attempted_repro"],
+        "poc_reproduced": contract["poc_reproduced"],
+        "submitted": bool(contract["submitted"]),
+    }
+
+
+def _contract_note(contract: dict) -> str:
+    if contract["poc_reproduced"]:
+        return f"reproduced but never submitted (crash reproduced at {contract['poc_reproduced']})"
+    if contract["attempted_repro"]:
+        return (
+            f"attempted reproduction but never reproduced it "
+            f"(attempt at {contract['attempted_repro']}) and never submitted"
+        )
+    return f"knew the deliverable (contract seen at {contract['contract_seen']}) but never reproduced or submitted"
+
+
+def _attach_source_assertion(out: dict[str, Any], trial_dir: Path) -> None:
+    grader = source_text_assertion(trial_dir)
+    if grader:
+        out["grader_note"] = grader
+
+
+def _tool_rejection_outcome(
+    agent_seq: list[tuple[str, dict]],
+    info: dict,
+    doc: str,
+    sid: Any,
+    cell: dict,
+    *,
+    check_prose: bool = False,
+    detailed_r_tool_03: bool = False,
+    longest: dict | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    cause = cell.get("rejection_cause")
+    if cause in ("today_normalizer_accepts", "unmapped_native_function:command"):
+        note = (
+            "bare native <function=command> with a plain command body; "
+            "the parser maps only {exec_command, bash, exec}, so the "
+            "unambiguous call is rejected as unmapped (harness gap; "
+            "today's normalizer still declines)"
+            if cause == "unmapped_native_function:command"
+            else "rejected turn that today's normalizer accepts -- harness gap, since fixed by mimo_tool_calls.py (#512)"
+        )
+        out = _step_outcome(doc, sid, "R-TOOL-01", "tool_use", "harness", note, **extra)
+        _attach_secondary_run(out, longest)
+        return out
+    if check_prose and cause == "prose_no_call":
+        return _step_outcome(
+            doc,
+            sid,
+            "R-COMP-01",
+            "completion",
+            "harness",
+            "prose final answer with no call rejected as a parse error; Terminus has no prose completion path (A-PROSE-HARNESS)",
+            **extra,
+        )
+    if cause and cause.startswith(("unknown_function:", "extra_param:", "malformed_native:")):
+        if cause.startswith("extra_param:") and cell.get("native_signature"):
+            head_ok, same_doc_after = _session_normalizer_counts(agent_seq, info, doc, sid)
+            if head_ok >= 10 and same_doc_after >= 10:
+                if detailed_r_tool_03:
+                    out = _step_outcome(
+                        doc,
+                        sid,
+                        "R-TOOL-03",
+                        "tool_use",
+                        "harness",
+                        (
+                            f"native signature accepted {head_ok}x before the "
+                            f"summarization/new-session boundary, then rejected "
+                            f"{same_doc_after}x from this step (cause {cause}); stock "
+                            f"feedback only says 'No valid JSON found', never naming the "
+                            f"parameter, so the model could not self-correct"
+                        ),
+                        engineering_flag=(
+                            "normalizer allowlist (mimo_tool_calls.py:154, args <= "
+                            "{command|keystrokes, duration}) rejects the extra `description` "
+                            "param after summarization handoff while the same shape was "
+                            "accepted before; feedback is uninformative"
+                        ),
+                        **extra,
+                    )
+                    _attach_secondary_run(out, longest, unclear=True)
+                    return out
+                return _step_outcome(
+                    doc,
+                    sid,
+                    "R-TOOL-03",
+                    "tool_use",
+                    "harness",
+                    (
+                        f"same native signature accepted earlier, then rejected "
+                        f"from this step (cause {cause}) after the summarization/"
+                        f"new-session boundary; feedback never named the parameter"
+                    ),
+                    **extra,
+                )
+        out = _step_outcome(
+            doc,
+            sid,
+            "R-TOOL-02",
+            "tool_use",
+            "model",
+            f"model-emitted surface the normalizer declines ({cause}); A-NON-NATIVE-MODEL",
+            **extra,
+        )
+        _attach_feedback(out, cell)
+        _attach_secondary_run(out, longest)
+        return out
+    return _step_outcome(
+        doc,
+        sid,
+        "R-TOOL-01U",
+        "tool_use",
+        "unclear",
+        f"rejected turn, cause {cause or 'unknown'}; attribution unclear",
+        **extra,
+    )
+
+
 def compute_first_failure(
     agent_seq: list[tuple[str, dict]], info: dict, grader_ev: dict | None = None
 ) -> dict | None:
@@ -2336,37 +2512,28 @@ def compute_first_failure(
     separately) -- the hand key nulls first_failure for contract, planning
     and false-claim trials whose outcome explains the trial."""
     if not agent_seq:
-        return {
-            "step_id": None,
-            "step_ref": None,
-            "tag": "environment",
-            "attribution": "unclear",
-            "rule_id": "R-ENV-01",
-            "evidence_step_refs": [],
-            "recovered": False,
-            "note": "no model turns; infra-only failure, nothing to attribute to the model",
-        }
+        return _outcome(
+            "R-ENV-01",
+            "environment",
+            "unclear",
+            "no model turns; infra-only failure, nothing to attribute to the model",
+            recovered=False,
+        )
     if grader_ev:
         for doc, step in agent_seq:
-            if IMPORT_ERROR_RE.search(str(obs_content(step) or "")):
-                module_match = MISSING_MODULE_RE.search(str(obs_content(step) or ""))
-                module = None
-                if module_match:
-                    module = module_match.group(1) or module_match.group(2)
-                return {
-                    "step_id": step.get("step_id"),
-                    "step_ref": _ref(doc, step.get("step_id")),
-                    "tag": "environment",
-                    "attribution": "harness",
-                    "rule_id": "R-ENV-02",
-                    "evidence_step_refs": [_ref(doc, step.get("step_id"))],
-                    "recovered": False,
-                    "note": (
-                        f"model command surfaced the broken environment "
-                        f"({module or 'missing dependency'}); suspect grader, "
-                        f"nothing to attribute to the model"
-                    ),
-                }
+            obs = str(obs_content(step) or "")
+            if IMPORT_ERROR_RE.search(obs):
+                module_match = MISSING_MODULE_RE.search(obs)
+                module = (module_match.group(1) or module_match.group(2)) if module_match else None
+                return _step_outcome(
+                    doc,
+                    step.get("step_id"),
+                    "R-ENV-02",
+                    "environment",
+                    "harness",
+                    f"model command surfaced the broken environment ({module or 'missing dependency'}); suspect grader, nothing to attribute to the model",
+                    recovered=False,
+                )
     concat = next(
         (
             (index, doc, step.get("step_id"))
@@ -2383,114 +2550,24 @@ def compute_first_failure(
         ),
         None,
     )
-    choice = None
-    if concat is not None and (reject is None or concat[0] <= reject[0]):
-        choice = concat
-    elif reject is not None:
-        choice = reject
+    choice = concat if concat is not None and (reject is None or concat[0] <= reject[0]) else reject
     if choice is not None:
         _pos, doc, sid = choice
         cell = info.get((doc, sid), {})
         recovered = _recovered(agent_seq, info, doc, sid)
-        cause = cell.get("rejection_cause")
         if cell.get("concat_warning"):
-            return {
-                "step_id": sid,
-                "step_ref": _ref(doc, sid),
-                "tag": "tool_use",
-                "attribution": "unclear",
-                "rule_id": "R-TOOL-00",
-                "evidence_step_refs": [_ref(doc, sid)],
-                "recovered": recovered,
-                "note": (
-                    "Terminus JSON executed, but keystrokes lacked the protocol's "
-                    "trailing newline, so commands concatenated (warning notice + "
-                    "garbage terminal); attribution unclear per A-CONCAT-UNCLEAR"
-                ),
-            }
-        if cause in ("today_normalizer_accepts", "unmapped_native_function:command"):
-            if cause == "unmapped_native_function:command":
-                note = (
-                    "bare native <function=command> with a plain command body; "
-                    "the parser maps only {exec_command, bash, exec}, so the "
-                    "unambiguous call is rejected as unmapped (harness gap; "
-                    "today's normalizer still declines)"
-                )
-            else:
-                note = (
-                    "rejected turn that today's normalizer accepts -- harness gap, "
-                    "since fixed by mimo_tool_calls.py (#512)"
-                )
-            return {
-                "step_id": sid,
-                "step_ref": _ref(doc, sid),
-                "tag": "tool_use",
-                "attribution": "harness",
-                "rule_id": "R-TOOL-01",
-                "evidence_step_refs": [_ref(doc, sid)],
-                "recovered": recovered,
-                "note": note,
-            }
-        if cause == "prose_no_call":
-            return {
-                "step_id": sid,
-                "step_ref": _ref(doc, sid),
-                "tag": "completion",
-                "attribution": "harness",
-                "rule_id": "R-COMP-01",
-                "evidence_step_refs": [_ref(doc, sid)],
-                "recovered": recovered,
-                "note": (
-                    "prose final answer with no call rejected as a parse error; "
-                    "Terminus has no prose completion path (A-PROSE-HARNESS)"
-                ),
-            }
-        if cause and (
-            cause.startswith("unknown_function:")
-            or cause.startswith("extra_param:")
-            or cause.startswith("malformed_native:")
-        ):
-            if cause.startswith("extra_param:") and _session_normalizer_loss(
-                agent_seq, info, doc, sid, cell
-            ):
-                return {
-                    "step_id": sid,
-                    "step_ref": _ref(doc, sid),
-                    "tag": "tool_use",
-                    "attribution": "harness",
-                    "rule_id": "R-TOOL-03",
-                    "evidence_step_refs": [_ref(doc, sid)],
-                    "recovered": recovered,
-                    "note": (
-                        f"same native signature accepted earlier, then rejected "
-                        f"from this step (cause {cause}) after the summarization/"
-                        f"new-session boundary; feedback never named the parameter"
-                    ),
-                }
-            failure = {
-                "step_id": sid,
-                "step_ref": _ref(doc, sid),
-                "tag": "tool_use",
-                "attribution": "model",
-                "rule_id": "R-TOOL-02",
-                "evidence_step_refs": [_ref(doc, sid)],
-                "recovered": recovered,
-                "note": (
-                    f"model-emitted surface the normalizer declines ({cause}); A-NON-NATIVE-MODEL"
-                ),
-            }
-            _attach_feedback(failure, cell)
-            return failure
-        return {
-            "step_id": sid,
-            "step_ref": _ref(doc, sid),
-            "tag": "tool_use",
-            "attribution": "unclear",
-            "rule_id": "R-TOOL-01U",
-            "evidence_step_refs": [_ref(doc, sid)],
-            "recovered": recovered,
-            "note": f"rejected turn, cause {cause or 'unknown'}; attribution unclear",
-        }
+            return _step_outcome(
+                doc,
+                sid,
+                "R-TOOL-00",
+                "tool_use",
+                "unclear",
+                "Terminus JSON executed, but keystrokes lacked the protocol's trailing newline, so commands concatenated (warning notice + garbage terminal); attribution unclear per A-CONCAT-UNCLEAR",
+                recovered=recovered,
+            )
+        return _tool_rejection_outcome(
+            agent_seq, info, doc, sid, cell, check_prose=True, recovered=recovered
+        )
     # No rejection and no concat warning: the execution is mechanically
     # clean. Identical loops belong to the outcome (R-REC-01 secondary), not
     # to first_failure -- return None per the hand-key convention.
@@ -2516,73 +2593,63 @@ def compute_outcome_failure(
     R-TOOL-01, R-TOOL-01U, R-TOOL-02, R-TOOL-03, R-REC-01; the caller resolves
     the legacy collection-error R-ENV-02 / R-NONE-01 / R-UNC-01."""
     if not agent_seq:
-        return {
-            "step_id": None,
-            "step_ref": None,
-            "tag": "environment",
-            "attribution": "unclear",
-            "rule_id": "R-ENV-01",
-            "evidence_step_refs": [],
-            "note": "no model turns; infra-only failure, nothing to attribute to the model",
-        }
+        return _outcome(
+            "R-ENV-01",
+            "environment",
+            "unclear",
+            "no model turns; infra-only failure, nothing to attribute to the model",
+        )
     longest = max(runs, key=lambda run: run["length"]) if runs else None
     if scored and (reward or 0) >= 1.0 and timed_out:
         for run in trailing:
             cell = info.get((run["start_doc"], run["start"]), {})
             if cell.get("shape") == "prose" and cell.get("harness_accepted") == "false":
-                return {
-                    "step_id": run["start"],
-                    "step_ref": _ref(run["start_doc"], run["start"]),
-                    "tag": "completion",
-                    "attribution": "harness",
-                    "rule_id": "R-COMP-01",
-                    "evidence_step_refs": [
-                        _ref(run["start_doc"], run["start"]),
-                        _ref(run["end_doc"], run["end"]),
-                    ],
-                    "note": (
-                        f"solved (reward 1.0) at or before step {run['start'] - 1}; "
-                        f"prose final answer re-prompted as a parse error for steps "
-                        f"{run['start']}-{run['end']} until the timeout"
-                    ),
-                }
+                start_ref = _ref(run["start_doc"], run["start"])
+                return _outcome(
+                    "R-COMP-01",
+                    "completion",
+                    "harness",
+                    f"solved (reward 1.0) at or before step {run['start'] - 1}; prose final answer re-prompted as a parse error for steps {run['start']}-{run['end']} until the timeout",
+                    step_id=run["start"],
+                    step_ref=start_ref,
+                    evidence_step_refs=[start_ref, _ref(run["end_doc"], run["end"])],
+                )
     # R-ENV-02 suspect grader (setup-error evidence): the verifier fails at
     # setup/collection, so no agent behavior can explain the outcome. Fires
     # only on setup-error evidence (absent on all HAR-90 trials); the legacy
     # collection/import patterns stay resolved late from R-UNC-01 only.
     if grader_ev:
-        import_sid = None
-        import_ref = None
+        import_sid = import_ref = None
         for doc, step in agent_seq:
             if IMPORT_ERROR_RE.search(str(obs_content(step) or "")):
                 import_sid = step.get("step_id")
                 import_ref = _ref(doc, import_sid)
                 break
-        out = {
-            "step_id": import_sid,
-            "step_ref": import_ref,
-            "tag": "environment",
-            "attribution": "harness",
-            "rule_id": "R-ENV-02",
-            "evidence_step_refs": [import_ref] if import_ref else [],
-            "note": grader_ev["note"],
-            "setup_error_tests": grader_ev.get("setup_error_tests"),
-            "verifier_total_tests": grader_ev.get("total_tests"),
-            "nop_control_confirms": grader_ev.get("nop_control_confirms"),
-            "nop_trial": grader_ev.get("nop_trial"),
-        }
+        out = _outcome(
+            "R-ENV-02",
+            "environment",
+            "harness",
+            grader_ev["note"],
+            step_id=import_sid,
+            step_ref=import_ref,
+            evidence_step_refs=[import_ref] if import_ref else [],
+            setup_error_tests=grader_ev.get("setup_error_tests"),
+            verifier_total_tests=grader_ev.get("total_tests"),
+            nop_control_confirms=grader_ev.get("nop_control_confirms"),
+            nop_trial=grader_ev.get("nop_trial"),
+        )
         span = env_wrestling_span(agent_seq, info)
         if span:
             targets = span["targets"]
-            if not targets or all(PACKAGING_PATH_RE.search(target) for target in targets):
-                edit_claim = "no target-file edits"
-            else:
-                edit_claim = f"file targets {targets}"
+            edit_claim = (
+                "no target-file edits"
+                if not targets or all(PACKAGING_PATH_RE.search(target) for target in targets)
+                else f"file targets {targets}"
+            )
             out["secondary"] = (
                 f"environment wrestling: model steps "
                 f"{_ref(span['start_doc'], span['start'])}-"
-                f"{_ref(span['end_doc'], span['end'])} ({span['steps']} steps; "
-                f"{edit_claim})"
+                f"{_ref(span['end_doc'], span['end'])} ({span['steps']} steps; {edit_claim})"
             )
         guard_writes = protected_file_writes(agent_seq, grader_ev.get("guard_reject"))
         if grader_ev.get("guard_reject"):
@@ -2599,35 +2666,12 @@ def compute_outcome_failure(
     # pass-plus-timeout handled above). Transient rejections, if any, are
     # covered by first_failure; a longest identical run stays secondary.
     if scored and (reward or 0) >= 1.0:
-        out = {
-            "step_id": None,
-            "step_ref": None,
-            "tag": "none",
-            "attribution": "n/a",
-            "rule_id": "R-NONE-01",
-            "evidence_step_refs": [],
-            "note": "scored pass with no outcome-relevant failure",
-        }
-        if longest:
-            out["secondary"] = (
-                f"error_recovery/model secondary: identical run "
-                f"{_ref(longest['start_doc'], longest['start'])}-"
-                f"{_ref(longest['end_doc'], longest['end'])}"
-            )
-            out["evidence_step_refs"] += [
-                _ref(longest["start_doc"], longest["start"]),
-                _ref(longest["end_doc"], longest["end"]),
-            ]
+        out = _outcome("R-NONE-01", "none", "n/a", "scored pass with no outcome-relevant failure")
+        _attach_secondary_run(out, longest)
         return out
     # R-COMP-03 gate (b): reward 0 on a submit-contract (cyber) trial with
     # contract engagement (attempted repro, reproduced crash, or seen
     # contract) -- the ceiling trials that explore without ever submitting.
-    # No completion claim is required: pure exploration to budget with no
-    # deliverable still fails on the submit contract. Attribution:
-    # reproduced-and-not-submitted -> model; attempted-but-not-reproduced
-    # -> model (understood the goal as reproduction and failed at it);
-    # contract-seen-only -> model (knew the deliverable); never engaged
-    # -> not this gate. Submitted-but-unscored -> unclear (mismatch).
     contract = contract_evidence(agent_seq, info)
     engaged = contract["attempted_repro"] or contract["poc_reproduced"] or contract["contract_seen"]
     claim_signal = list(completion_refs or [])
@@ -2635,123 +2679,52 @@ def compute_outcome_failure(
         if contract["submitted"]:
             attribution = "unclear"
             contract_note = (
-                f"submit.sh invoked at {contract['submitted']} but the "
-                f"verifier reports not submitted"
+                f"submit.sh invoked at {contract['submitted']} but the verifier reports not submitted"
             )
         else:
             attribution = "model"
-            if contract["poc_reproduced"]:
-                contract_note = (
-                    f"reproduced but never submitted (crash reproduced at "
-                    f"{contract['poc_reproduced']})"
-                )
-            elif contract["attempted_repro"]:
-                contract_note = (
-                    f"attempted reproduction but never reproduced it "
-                    f"(attempt at {contract['attempted_repro']}) and never submitted"
-                )
-            else:
-                contract_note = (
-                    f"knew the deliverable (contract seen at "
-                    f"{contract['contract_seen']}) but never reproduced or submitted"
-                )
-        poc_sid = None
-        if contract["poc_reproduced"]:
-            for doc, step in agent_seq:
-                if _ref(doc, step.get("step_id")) == contract["poc_reproduced"]:
-                    poc_sid = step.get("step_id")
-                    break
+            contract_note = _contract_note(contract)
         engagement_refs = [
             ref
             for ref in (
                 claim_signal
-                + [
-                    contract["contract_seen"],
-                    contract["attempted_repro"],
-                    contract["poc_reproduced"],
-                ]
+                + [contract["contract_seen"], contract["attempted_repro"], contract["poc_reproduced"]]
             )
             if ref
         ]
-        out = {
-            "step_id": poc_sid,
-            "step_ref": contract["poc_reproduced"],
-            "tag": "completion",
-            "attribution": attribution,
-            "rule_id": "R-COMP-03",
-            "evidence_step_refs": list(dict.fromkeys(engagement_refs))[:8],
-            "note": (f"verifier score is {reward} (scored={scored}); {contract_note}"),
-            "contract_seen": contract["contract_seen"],
-            "attempted_repro": bool(contract["attempted_repro"]),
-            "attempted_repro_ref": contract["attempted_repro"],
-            "poc_reproduced": contract["poc_reproduced"],
-            "submitted": bool(contract["submitted"]),
-        }
-        if longest:
-            out["secondary"] = (
-                f"error_recovery/model secondary: identical run "
-                f"{_ref(longest['start_doc'], longest['start'])}-"
-                f"{_ref(longest['end_doc'], longest['end'])}"
-            )
-            out["evidence_step_refs"] += [
-                _ref(longest["start_doc"], longest["start"]),
-                _ref(longest["end_doc"], longest["end"]),
-            ]
+        out = _outcome(
+            "R-COMP-03",
+            "completion",
+            attribution,
+            f"verifier score is {reward} (scored={scored}); {contract_note}",
+            step_id=_find_step_id(agent_seq, contract["poc_reproduced"]),
+            step_ref=contract["poc_reproduced"],
+            evidence_step_refs=list(dict.fromkeys(engagement_refs))[:8],
+            **_contract_fields(contract),
+        )
+        _attach_secondary_run(out, longest)
         return out
-    # R-COMP-03 gate (c): a submit-contract verifier (verifier/result.json
-    # carries `submitted`) reports nothing submitted, and the model never
-    # engaged the contract (no repro attempt, contract never opened) and
-    # never confirmed completion (that path is handled below). The
-    # instruction does not state the deliverable, so attribution is
-    # `unclear` (57589: source reading + identical grep loop to budget).
+    # R-COMP-03 gate (c): a submit-contract verifier reports nothing submitted,
+    # and the model never engaged the contract and never confirmed completion.
     if scored and (reward or 0) < 1.0 and not engaged and stop_reason != "task_complete_confirmed":
-        try:
-            submit_verdict = json.loads(
-                (trial_dir / "verifier" / "result.json").read_text(encoding="utf-8")
-            )
-        except (OSError, ValueError):
-            submit_verdict = None
-        if isinstance(submit_verdict, dict) and submit_verdict.get("submitted") is False:
+        submit_verdict = _read_json(trial_dir / "verifier" / "result.json")
+        if submit_verdict.get("submitted") is False:
             message = str(submit_verdict.get("message") or "")
-            out = {
-                "step_id": None,
-                "step_ref": None,
-                "tag": "completion",
-                "attribution": "unclear",
-                "rule_id": "R-COMP-03",
-                "evidence_step_refs": [],
-                "note": (
-                    f"verifier score is {reward}; {message!r}; the model never "
-                    f"engaged the submit contract (no reproduction attempt, "
-                    f"submit.sh never opened)"
-                ),
-                "contract_seen": None,
-                "attempted_repro": False,
-                "attempted_repro_ref": None,
-                "poc_reproduced": None,
-                "submitted": False,
-            }
+            out = _outcome(
+                "R-COMP-03",
+                "completion",
+                "unclear",
+                f"verifier score is {reward}; {message!r}; the model never engaged the submit contract (no reproduction attempt, submit.sh never opened)",
+                **_contract_fields(),
+            )
             grader_note = completion_grader_check(trial_dir, message)
             if grader_note:
                 out["grader_note"] = grader_note
-            if longest:
-                out["secondary"] = (
-                    f"error_recovery/model secondary: identical run "
-                    f"{_ref(longest['start_doc'], longest['start'])}-"
-                    f"{_ref(longest['end_doc'], longest['end'])}"
-                )
-                out["evidence_step_refs"] += [
-                    _ref(longest["start_doc"], longest["start"]),
-                    _ref(longest["end_doc"], longest["end"]),
-                ]
+            _attach_secondary_run(out, longest)
             return out
 
     stopped_by_limit = timed_out or limit_stop
     stop_word = "timeout" if timed_out else ("the stop" if limit_stop else "timeout")
-    # A completion claim is a CC-CLAIM message OR a turn the harness recorded
-    # as task_complete (a3-000240 head#35 "The implementation is complete";
-    # a4-1634 head#21 "The repair is complete"): one definition for every
-    # R-COMP-02 branch below.
     recorded_claims = set(completion_refs or [])
 
     def is_claim(doc: str, step: dict) -> bool:
@@ -2774,85 +2747,53 @@ def compute_outcome_failure(
                     if (_d, _s.get("step_id")) == (run["start_doc"], run["start"])
                 )
                 # COMP-CLAIM-ONSET: the FIRST claim step whose window to the
-                # loop end stays >=50% claim-matching (0036-f: head#44, with
-                # wrap-up tool steps interleaved before the head#55-172 loop).
-                claim_start = run["start"]
-                claim_doc = run["start_doc"]
+                # loop end stays >=50% claim-matching.
+                claim_start, claim_doc = run["start"], run["start_doc"]
                 window = agent_seq[: run_end_pos + 1]
                 for pos in range(0, run_start_pos + 1):
                     _d, step_c = window[pos]
                     if not is_claim(_d, step_c):
                         continue
-                    claims_here = sum(
-                        1 for _d2, step2 in window[pos:] if is_claim(_d2, step2)
-                    )
+                    claims_here = sum(1 for _d2, step2 in window[pos:] if is_claim(_d2, step2))
                     if claims_here * 2 >= len(window) - pos:
-                        claim_start = step_c.get("step_id")
-                        claim_doc = _d
+                        claim_start, claim_doc = step_c.get("step_id"), _d
                         break
-                out = {
-                    "step_id": claim_start,
-                    "step_ref": _ref(claim_doc, claim_start),
-                    "tag": "completion",
-                    "attribution": "model",
-                    "rule_id": "R-COMP-02",
-                    "evidence_step_refs": [
-                        _ref(claim_doc, claim_start),
+                claim_ref = _ref(claim_doc, claim_start)
+                out = _outcome(
+                    "R-COMP-02",
+                    "completion",
+                    "model",
+                    f"false completion claim from step {claim_start} while the verifier score is {reward} (scored={scored}); identical loop {run['start']}-{run['end']} until {stop_reason or stop_word}; the claim, not the harness, is wrong",
+                    step_id=claim_start,
+                    step_ref=claim_ref,
+                    evidence_step_refs=[
+                        claim_ref,
                         _ref(run["start_doc"], run["start"]),
                         _ref(run["end_doc"], run["end"]),
                     ],
-                    "note": (
-                        f"false completion claim from step {claim_start} while the "
-                        f"verifier score is {reward} (scored={scored}); identical "
-                        f"loop {run['start']}-{run['end']} until "
-                        f"{stop_reason or stop_word}; the claim, not the harness, "
-                        f"is wrong"
-                    ),
-                }
-                grader = source_text_assertion(trial_dir)
-                if grader:
-                    out["grader_note"] = grader
+                )
+                _attach_source_assertion(out, trial_dir)
                 return out
-        # Branch (b): no trailing identical claim run, but a trailing claim
-        # regime (format-code: alternating prose_completion/calls
-        # confirmation cycle, never 10 consecutive identical messages).
+        # Branch (b): trailing claim regime without a 10-step identical claim run.
         regime = claim_regime(agent_seq)
         if regime and regime["steps"] >= LOOP_MIN_RUN:
-            out = {
-                "step_id": regime["start"],
-                "step_ref": _ref(regime["start_doc"], regime["start"]),
-                "tag": "completion",
-                "attribution": "model",
-                "rule_id": "R-COMP-02",
-                "evidence_step_refs": [
-                    _ref(regime["start_doc"], regime["start"]),
-                    _ref(regime["end_doc"], regime["end"]),
-                ],
-                "note": (
-                    f"false completion claim from step {regime['start']} while "
-                    f"the verifier score is {reward} (scored={scored}); claim "
-                    f"regime of {regime['steps']} steps to "
-                    f"{_ref(regime['end_doc'], regime['end'])} until "
-                    f"{stop_reason or stop_word}; the claim, not the harness, "
-                    f"is wrong"
-                ),
-            }
-            grader = source_text_assertion(trial_dir)
-            if grader:
-                out["grader_note"] = grader
+            start_ref = _ref(regime["start_doc"], regime["start"])
+            end_ref = _ref(regime["end_doc"], regime["end"])
+            out = _outcome(
+                "R-COMP-02",
+                "completion",
+                "model",
+                f"false completion claim from step {regime['start']} while the verifier score is {reward} (scored={scored}); claim regime of {regime['steps']} steps to {end_ref} until {stop_reason or stop_word}; the claim, not the harness, is wrong",
+                step_id=regime["start"],
+                step_ref=start_ref,
+                evidence_step_refs=[start_ref, end_ref],
+            )
+            _attach_source_assertion(out, trial_dir)
             return out
-        # Branch (c): no trailing regime either, but the model DID claim
-        # completion (is_claim above) and the verifier contradicts it with
-        # failing tests (000434: "The fix is complete" at head#31, then a
-        # verification loop to the ceiling while 1 test fails; a4-1634
-        # head#21, then edits until the timeout without confirming). The
-        # later work reads as checking the claim, not new progress, so the
-        # claim is the outcome-relevant failure.
+        # Branch (c): earlier completion claim contradicted by failing tests.
         claim_positions = [(doc, step) for doc, step in agent_seq if is_claim(doc, step)]
         if claim_positions:
             claim_passage = _verifier_passage(trial_dir)
-            # Mocha-style numbered failures ("  1) produces YAML ...") when
-            # the stdout parser yields no ctrf/test counts (000434).
             mocha_fails = [
                 name.strip()[:100]
                 for name in re.findall(
@@ -2868,173 +2809,83 @@ def compute_outcome_failure(
                 claim_fails = mocha_fails
             if claim_fails:
                 claim_doc, claim_step = claim_positions[0]
-                out = {
-                    "step_id": claim_step.get("step_id"),
-                    "step_ref": _ref(claim_doc, claim_step.get("step_id")),
-                    "tag": "completion",
-                    "attribution": "model",
-                    "rule_id": "R-COMP-02",
-                    "evidence_step_refs": [
-                        _ref(claim_doc, claim_step.get("step_id")),
-                    ],
-                    "note": (
-                        f"false completion claim at "
-                        f"{_ref(claim_doc, claim_step.get('step_id'))} while "
-                        f"{len(claim_fails)} verifier test(s) fail "
-                        f"({', '.join(claim_fails[:3])}); the claim, not the "
-                        f"harness, is wrong"
-                    ),
-                }
-                grader = source_text_assertion(trial_dir)
-                if grader:
-                    out["grader_note"] = grader
+                claim_sid = claim_step.get("step_id")
+                claim_ref = _ref(claim_doc, claim_sid)
+                out = _outcome(
+                    "R-COMP-02",
+                    "completion",
+                    "model",
+                    f"false completion claim at {claim_ref} while {len(claim_fails)} verifier test(s) fail ({', '.join(claim_fails[:3])}); the claim, not the harness, is wrong",
+                    step_id=claim_sid,
+                    step_ref=claim_ref,
+                    evidence_step_refs=[claim_ref],
+                )
+                _attach_source_assertion(out, trial_dir)
                 return out
 
-    # Confirmed task_complete with reward 0 (passes return earlier): the
-    # claim is either contradicted by failing tests -> R-COMP-02 (false
-    # claim: 1634 broke a pinned signature with 5/6 passing, 000434), or a
-    # submit-contract / deliverable matter -> R-COMP-03 with the gate-(b)
-    # attribution (contract engagement first, then instruction coverage).
+    # Confirmed task_complete with reward 0 (passes return earlier).
     if stop_reason == "task_complete_confirmed" and completion_refs:
-        verifier_message = ""
-        try:
-            verifier_result = json.loads(
-                (trial_dir / "verifier" / "result.json").read_text(encoding="utf-8")
-            )
-            verifier_message = str(verifier_result.get("message") or "")
-        except (OSError, ValueError):
-            verifier_message = ""
+        verifier_message = str(_read_json(trial_dir / "verifier" / "result.json").get("message") or "")
         passage = _verifier_passage(trial_dir)
         grader_note = completion_grader_check(trial_dir, verifier_message)
-        engaged = (
-            contract["attempted_repro"]
-            or contract["poc_reproduced"]
-            or contract["contract_seen"]
-        )
         first_claim = completion_refs[0]
-        first_sid = None
-        for doc, step in agent_seq:
-            if _ref(doc, step.get("step_id")) == first_claim:
-                first_sid = step.get("step_id")
-                break
+        first_sid = _find_step_id(agent_seq, first_claim)
+        msg_suffix = f": {verifier_message[:160]}" if verifier_message else ""
         if engaged and not contract["submitted"]:
-            if contract["poc_reproduced"]:
-                attribution = "model"
-                contract_note = (
-                    f"reproduced but never submitted (crash reproduced at "
-                    f"{contract['poc_reproduced']})"
-                )
-            elif contract["attempted_repro"]:
-                attribution = "model"
-                contract_note = (
-                    f"attempted reproduction but never reproduced it "
-                    f"(attempt at {contract['attempted_repro']}) and never submitted"
-                )
-            else:
-                attribution = "model"
-                contract_note = (
-                    f"knew the deliverable (contract seen at "
-                    f"{contract['contract_seen']}) but never reproduced or submitted"
-                )
-            out = {
-                "step_id": first_sid,
-                "step_ref": first_claim,
-                "tag": "completion",
-                "attribution": attribution,
-                "rule_id": "R-COMP-03",
-                "evidence_step_refs": list(completion_refs),
-                "note": (
-                    f"harness-confirmed task_complete at "
-                    f"{', '.join(completion_refs)} with no exception, yet the "
-                    f"verifier score is {reward} (scored={scored})"
-                    + (f": {verifier_message[:160]}" if verifier_message else "")
-                    + f"; {contract_note}"
-                ),
-                "contract_seen": contract["contract_seen"],
-                "attempted_repro": bool(contract["attempted_repro"]),
-                "attempted_repro_ref": contract["attempted_repro"],
-                "poc_reproduced": contract["poc_reproduced"],
-                "submitted": bool(contract["submitted"]),
-            }
-            if grader_note:
-                out["grader_note"] = grader_note
-            return out
-        if contract["submitted"]:
-            out = {
-                "step_id": first_sid,
-                "step_ref": first_claim,
-                "tag": "completion",
-                "attribution": "unclear",
-                "rule_id": "R-COMP-03",
-                "evidence_step_refs": list(completion_refs),
-                "note": (
-                    f"harness-confirmed task_complete, yet the verifier score "
-                    f"is {reward}; submit.sh invoked at "
-                    f"{contract['submitted']} but the verifier reports not "
-                    f"submitted"
-                ),
-                "contract_seen": contract["contract_seen"],
-                "attempted_repro": bool(contract["attempted_repro"]),
-                "attempted_repro_ref": contract["attempted_repro"],
-                "poc_reproduced": contract["poc_reproduced"],
-                "submitted": bool(contract["submitted"]),
-            }
-            if grader_note:
-                out["grader_note"] = grader_note
-            return out
-        if (passage["fails"] or 0) > 0:
-            out = {
-                "step_id": first_sid,
-                "step_ref": first_claim,
-                "tag": "completion",
-                "attribution": "model",
-                "rule_id": "R-COMP-02",
-                "evidence_step_refs": list(completion_refs),
-                "note": (
-                    f"harness-confirmed task_complete at "
-                    f"{', '.join(completion_refs)}, but the verifier contradicts "
-                    f"the claim ({passage['passes']}/{passage['total']} tests pass"
-                    + (
-                        f": failing {', '.join(passage['failing_tests'])}"
-                        if passage["failing_tests"]
-                        else ""
-                    )
-                    + ")"
-                ),
-            }
-            notes = [
-                note for note in (grader_note, source_text_assertion(trial_dir)) if note
-            ]
+            out = _outcome(
+                "R-COMP-03",
+                "completion",
+                "model",
+                f"harness-confirmed task_complete at {', '.join(completion_refs)} with no exception, yet the verifier score is {reward} (scored={scored}){msg_suffix}; {_contract_note(contract)}",
+                step_id=first_sid,
+                step_ref=first_claim,
+                evidence_step_refs=completion_refs,
+                **_contract_fields(contract),
+            )
+        elif contract["submitted"]:
+            out = _outcome(
+                "R-COMP-03",
+                "completion",
+                "unclear",
+                f"harness-confirmed task_complete, yet the verifier score is {reward}; submit.sh invoked at {contract['submitted']} but the verifier reports not submitted",
+                step_id=first_sid,
+                step_ref=first_claim,
+                evidence_step_refs=completion_refs,
+                **_contract_fields(contract),
+            )
+        elif (passage["fails"] or 0) > 0:
+            failing_detail = (
+                f": failing {', '.join(passage['failing_tests'])}" if passage["failing_tests"] else ""
+            )
+            out = _outcome(
+                "R-COMP-02",
+                "completion",
+                "model",
+                f"harness-confirmed task_complete at {', '.join(completion_refs)}, but the verifier contradicts the claim ({passage['passes']}/{passage['total']} tests pass{failing_detail})",
+                step_id=first_sid,
+                step_ref=first_claim,
+                evidence_step_refs=completion_refs,
+            )
+            notes = [n for n in (grader_note, source_text_assertion(trial_dir)) if n]
             if notes:
                 out["grader_note"] = "; ".join(notes)
             return out
-        attribution = "model" if grader_note is None else "unclear"
-        out = {
-            "step_id": first_sid,
-            "step_ref": first_claim,
-            "tag": "completion",
-            "attribution": attribution,
-            "rule_id": "R-COMP-03",
-            "evidence_step_refs": list(completion_refs),
-            "note": (
-                f"harness-confirmed task_complete at "
-                f"{', '.join(completion_refs)} with no exception, yet the "
-                f"verifier score is {reward} (scored={scored})"
-                + (f": {verifier_message[:160]}" if verifier_message else "")
-            ),
-            "contract_seen": contract["contract_seen"],
-            "attempted_repro": bool(contract["attempted_repro"]),
-            "attempted_repro_ref": contract["attempted_repro"],
-            "poc_reproduced": contract["poc_reproduced"],
-            "submitted": bool(contract["submitted"]),
-        }
+        else:
+            out = _outcome(
+                "R-COMP-03",
+                "completion",
+                "model" if grader_note is None else "unclear",
+                f"harness-confirmed task_complete at {', '.join(completion_refs)} with no exception, yet the verifier score is {reward} (scored={scored}){msg_suffix}",
+                step_id=first_sid,
+                step_ref=first_claim,
+                evidence_step_refs=completion_refs,
+                **_contract_fields(contract),
+            )
         if grader_note:
             out["grader_note"] = grader_note
         return out
     # A rejected turn explains the outcome only as a rejection storm (>=10
-    # rejected turns: 0036-b/0036-d/0758-b/c/d) or when nothing after it
-    # was accepted. A lone recovered rejection (1048 head#39, one malformed
-    # duration) is a first_failure, not the reason the run failed.
+    # rejected turns) or when nothing after it was accepted.
     rejected_positions = [
         index
         for index, (doc, step) in enumerate(agent_seq)
@@ -3052,155 +2903,24 @@ def compute_outcome_failure(
             rejected = (doc, step.get("step_id"))
     if rejected is not None:
         doc, sid = rejected
-        cell = info.get((doc, sid), {})
-        cause = cell.get("rejection_cause")
-        # R-TOOL-03: session-scoped normalizer loss -- the same native
-        # signature accepted in earlier documents is rejected here
-        # (0758-d: head 56/56 accepted; cont-1 177/178 extra_param:description).
-        head_ok = sum(
-            1
-            for d2, s2 in agent_seq
-            if d2 != doc
-            and info.get((d2, s2.get("step_id")), {}).get("native_signature")
-            and info.get((d2, s2.get("step_id")), {}).get("harness_accepted") == "true"
+        return _tool_rejection_outcome(
+            agent_seq,
+            info,
+            doc,
+            sid,
+            info.get((doc, sid), {}),
+            detailed_r_tool_03=True,
+            longest=longest,
         )
-        same_doc_after = sum(
-            1
-            for d2, s2 in agent_seq
-            if d2 == doc
-            and isinstance(s2.get("step_id"), int)
-            and s2["step_id"] >= sid
-            and info.get((d2, s2.get("step_id")), {}).get("native_signature")
-            and info.get((d2, s2.get("step_id")), {}).get("harness_accepted") == "false"
-        )
-        if (
-            cell.get("native_signature")
-            and head_ok >= 10
-            and same_doc_after >= 10
-            and cause
-            and cause.startswith("extra_param:")
-        ):
-            out = {
-                "step_id": sid,
-                "step_ref": _ref(doc, sid),
-                "tag": "tool_use",
-                "attribution": "harness",
-                "rule_id": "R-TOOL-03",
-                "evidence_step_refs": [_ref(doc, sid)],
-                "note": (
-                    f"native signature accepted {head_ok}x before the "
-                    f"summarization/new-session boundary, then rejected "
-                    f"{same_doc_after}x from this step (cause {cause}); stock "
-                    f"feedback only says 'No valid JSON found', never naming the "
-                    f"parameter, so the model could not self-correct"
-                ),
-                "engineering_flag": (
-                    "normalizer allowlist (mimo_tool_calls.py:154, args <= "
-                    "{command|keystrokes, duration}) rejects the extra `description` "
-                    "param after summarization handoff while the same shape was "
-                    "accepted before; feedback is uninformative"
-                ),
-            }
-            if longest:
-                out["secondary"] = (
-                    f"error_recovery/unclear secondary: {longest['length']} identical "
-                    f"retries {_ref(longest['start_doc'], longest['start'])}-"
-                    f"{_ref(longest['end_doc'], longest['end'])} (feedback never "
-                    f"named the cause)"
-                )
-                out["evidence_step_refs"] += [
-                    _ref(longest["start_doc"], longest["start"]),
-                    _ref(longest["end_doc"], longest["end"]),
-                ]
-            return out
-        if cause in ("today_normalizer_accepts", "unmapped_native_function:command"):
-            if cause == "unmapped_native_function:command":
-                note = (
-                    "bare native <function=command> with a plain command body; "
-                    "the parser maps only {exec_command, bash, exec}, so the "
-                    "unambiguous call is rejected as unmapped (harness gap; "
-                    "today's normalizer still declines)"
-                )
-            else:
-                note = (
-                    "rejected turn that today's normalizer accepts -- harness gap, "
-                    "since fixed by mimo_tool_calls.py (#512)"
-                )
-            out = {
-                "step_id": sid,
-                "step_ref": _ref(doc, sid),
-                "tag": "tool_use",
-                "attribution": "harness",
-                "rule_id": "R-TOOL-01",
-                "evidence_step_refs": [_ref(doc, sid)],
-                "note": note,
-            }
-            if longest:
-                out["secondary"] = (
-                    f"error_recovery/model secondary: identical run "
-                    f"{_ref(longest['start_doc'], longest['start'])}-"
-                    f"{_ref(longest['end_doc'], longest['end'])}"
-                )
-                out["evidence_step_refs"] += [
-                    _ref(longest["start_doc"], longest["start"]),
-                    _ref(longest["end_doc"], longest["end"]),
-                ]
-            return out
-        if cause and (
-            cause.startswith("unknown_function:")
-            or cause.startswith("extra_param:")
-            or cause.startswith("malformed_native:")
-        ):
-            out = {
-                "step_id": sid,
-                "step_ref": _ref(doc, sid),
-                "tag": "tool_use",
-                "attribution": "model",
-                "rule_id": "R-TOOL-02",
-                "evidence_step_refs": [_ref(doc, sid)],
-                "note": (
-                    f"model-emitted surface the normalizer declines ({cause}); A-NON-NATIVE-MODEL"
-                ),
-            }
-            _attach_feedback(out, cell)
-            if longest:
-                out["secondary"] = (
-                    f"error_recovery/model secondary: identical run "
-                    f"{_ref(longest['start_doc'], longest['start'])}-"
-                    f"{_ref(longest['end_doc'], longest['end'])}"
-                )
-                out["evidence_step_refs"] += [
-                    _ref(longest["start_doc"], longest["start"]),
-                    _ref(longest["end_doc"], longest["end"]),
-                ]
-            return out
-        return {
-            "step_id": sid,
-            "step_ref": _ref(doc, sid),
-            "tag": "tool_use",
-            "attribution": "unclear",
-            "rule_id": "R-TOOL-01U",
-            "evidence_step_refs": [_ref(doc, sid)],
-            "note": f"rejected turn, cause {cause or 'unknown'}; attribution unclear",
-        }
-    # R-PLAN-01: ceiling/timeout stop, not a pass, no R-ENV/R-COMP rule
-    # fired (by position: rejections return above), and ZERO executed
-    # file-changing ops on task paths (/tmp, /dev/null, bare redirects and
-    # heredocs-to-/tmp excluded) -- 'no task edit before budget ran out'.
-    # Identical loops stay secondary R-REC-01. The outcome tag records WHAT
-    # failed deterministically; the WHY (wrong localization, API break)
-    # lives in `mechanism`, hand-only.
+    # R-PLAN-01: ceiling/timeout stop, not a pass, no R-ENV/R-COMP/R-TOOL rule,
+    # and zero executed file-changing ops on task paths.
     if limit_stop and not (scored and (reward or 0) >= 1.0):
-        task_edits = []
-        for doc, step in agent_seq:
-            text = _step_command_text(doc, step, info)
-            if any(pattern.search(text) for pattern in FILE_CHANGE_RES) and _task_targets(
-                text
-            ):
-                task_edits.append(_ref(doc, step.get("step_id")))
-        if not task_edits:
-            # An absence claim cites the span it scanned, so every outcome
-            # tag carries step refs (HAR-91 acceptance).
+        has_task_edit = any(
+            any(pattern.search(text) for pattern in FILE_CHANGE_RES) and _task_targets(text)
+            for doc, step in agent_seq
+            for text in (_step_command_text(doc, step, info),)
+        )
+        if not has_task_edit:
             scanned = (
                 [
                     _ref(agent_seq[0][0], agent_seq[0][1].get("step_id")),
@@ -3209,82 +2929,42 @@ def compute_outcome_failure(
                 if agent_seq
                 else []
             )
-            out = {
-                "step_id": None,
-                "step_ref": None,
-                "tag": "planning",
-                "attribution": "model",
-                "rule_id": "R-PLAN-01",
-                "evidence_step_refs": [],
-                "note": (
-                    "no task edit before budget ran out (zero executed "
-                    "file-changing ops on task paths"
-                    + (f"; scanned {scanned[0]}-{scanned[1]})" if scanned else ")")
-                ),
-                "scanned_step_refs": scanned,
-                "task_file_edits": 0,
-            }
-            if longest:
-                out["secondary"] = (
-                    f"error_recovery/model secondary: identical run "
-                    f"{_ref(longest['start_doc'], longest['start'])}-"
-                    f"{_ref(longest['end_doc'], longest['end'])}"
-                )
-                out["evidence_step_refs"] += [
-                    _ref(longest["start_doc"], longest["start"]),
-                    _ref(longest["end_doc"], longest["end"]),
-                ]
+            out = _outcome(
+                "R-PLAN-01",
+                "planning",
+                "model",
+                "no task edit before budget ran out (zero executed file-changing ops on task paths"
+                + (f"; scanned {scanned[0]}-{scanned[1]})" if scanned else ")"),
+                scanned_step_refs=scanned,
+                task_file_edits=0,
+            )
+            _attach_secondary_run(out, longest)
             if not out["evidence_step_refs"]:
                 out["evidence_step_refs"] = list(scanned)
             return out
-    if runs and longest and _unsubmitted_keystroke_loop(longest, agent_seq, info):
-        # A-CONCAT-UNCLEAR applied to the loop itself (0036 head#17-121): each
-        # turn sends one command WITHOUT a trailing newline, the terminal
-        # echoes it fused onto the previous copy (`head -40grep -rn ...`), so
-        # nothing ever executes. The model saw the fusion and did not add the
-        # newline; the harness sent known-bad keystrokes verbatim.
-        return {
-            "step_id": longest["start"],
-            "step_ref": _ref(longest["start_doc"], longest["start"]),
-            "tag": "tool_use",
-            "attribution": "unclear",
-            "rule_id": "R-TOOL-00",
-            "evidence_step_refs": [
-                _ref(longest["start_doc"], longest["start"]),
-                _ref(longest["end_doc"], longest["end"]),
-            ],
-            "note": (
-                f"identical turns {longest['start']}-{longest['end']} each send a "
-                f"command without a trailing newline; the terminal echo shows it "
-                f"fused onto the previous copy, so it never executed "
-                f"(A-CONCAT-UNCLEAR: model omitted the newline, harness sent it verbatim)"
-            ),
-        }
     if runs and longest:
-        return {
-            "step_id": longest["start"],
-            "step_ref": _ref(longest["start_doc"], longest["start"]),
-            "tag": "error_recovery",
-            "attribution": "model",
-            "rule_id": "R-REC-01",
-            "evidence_step_refs": [
-                _ref(longest["start_doc"], longest["start"]),
-                _ref(longest["end_doc"], longest["end"]),
-            ],
-            "note": (
-                f"identical message repeated steps "
-                f"{longest['start']}-{longest['end']} with no change after errors"
-            ),
-        }
-    return {
-        "step_id": None,
-        "step_ref": None,
-        "tag": "unclear",
-        "attribution": "unclear",
-        "rule_id": "R-UNC-01",
-        "evidence_step_refs": [],
-        "note": "no rule fired; needs hand reading",
-    }
+        start_ref = _ref(longest["start_doc"], longest["start"])
+        end_ref = _ref(longest["end_doc"], longest["end"])
+        if _unsubmitted_keystroke_loop(longest, agent_seq, info):
+            return _outcome(
+                "R-TOOL-00",
+                "tool_use",
+                "unclear",
+                f"identical turns {longest['start']}-{longest['end']} each send a command without a trailing newline; the terminal echo shows it fused onto the previous copy, so it never executed (A-CONCAT-UNCLEAR: model omitted the newline, harness sent it verbatim)",
+                step_id=longest["start"],
+                step_ref=start_ref,
+                evidence_step_refs=[start_ref, end_ref],
+            )
+        return _outcome(
+            "R-REC-01",
+            "error_recovery",
+            "model",
+            f"identical message repeated steps {longest['start']}-{longest['end']} with no change after errors",
+            step_id=longest["start"],
+            step_ref=start_ref,
+            evidence_step_refs=[start_ref, end_ref],
+        )
+    return _outcome("R-UNC-01", "unclear", "unclear", "no rule fired; needs hand reading")
 
 
 # The failing pytest line of a membership assertion: `>   assert "<lit>" in x`.
@@ -3409,15 +3089,7 @@ def source_text_assertion(trial_dir: Path) -> str | None:
     whether that literal appears in instruction.md (a pinned implementation
     the instruction never states). Detected from the ctrf trace; recorded
     for Data's verifier audit, NOT R-ENV-02."""
-    path = trial_dir / "verifier" / "ctrf.json"
-    if not path.is_file():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    tests = ((data.get("results") or {}).get("tests")) or []
-    for test in tests:
+    for test in _ctrf_tests(trial_dir) or []:
         if not isinstance(test, dict) or test.get("status") == "passed":
             continue
         trace = str(test.get("trace") or "") + str(test.get("message") or "")
@@ -3443,12 +3115,10 @@ def grader_collection_error(trial_dir: Path) -> str | None:
     """R-ENV-02: grader failing at collection/import (HAR-81 suspect-grader
     rule). Returns evidence text or None."""
     stdout_path = trial_dir / "verifier" / "test-stdout.txt"
-    if not stdout_path.is_file():
+    text = _read_text(stdout_path) if stdout_path.is_file() else None
+    if text is None:
         return None
-    try:
-        haystack = stdout_path.read_text(encoding="utf-8", errors="replace")[:6000]
-    except OSError:
-        return None
+    haystack = text[:6000]
     for pattern in (
         "ModuleNotFoundError",
         "ImportError",
@@ -3467,6 +3137,19 @@ EXCEPTION_STOP = {
     "RateLimitError": "trial_budget_exhausted",
     "AuthenticationError": "model_auth_error",
 }
+
+
+def _extract_exception(exception: Any) -> tuple[str | None, str]:
+    if isinstance(exception, dict):
+        exc_type = (
+            exception.get("className")
+            or exception.get("exception_type")
+            or exception.get("type")
+        )
+        return exc_type, str(exception.get("exception_message") or "")[:300]
+    if exception is None:
+        return None, ""
+    return str(exception)[:80], str(exception)[:300]
 
 
 def analyze_trial_core(
@@ -3490,25 +3173,11 @@ def analyze_trial_core(
     job_dir = Path(job_dir)
     result = _read_json(trial_dir / "result.json")
     reward, scored, reward_source = read_reward(trial_dir)
-    exception = result.get("exception_info")
-    if isinstance(exception, dict):
-        exc_type = (
-            exception.get("className")
-            or exception.get("exception_type")
-            or exception.get("type")
-        )
-        exc_message = str(exception.get("exception_message") or "")[:300]
-    elif exception is None:
-        exc_type, exc_message = None, ""
-    else:
-        exc_type, exc_message = str(exception)[:80], str(exception)[:300]
-
-    agent_result = result.get("agent_result") or {}
-    if not isinstance(agent_result, dict):
-        agent_result = {}
-    metadata = agent_result.get("metadata") or {}
-    if not isinstance(metadata, dict):
-        metadata = {}
+    exc_type, exc_message = _extract_exception(result.get("exception_info"))
+    raw_ar = result.get("agent_result")
+    agent_result = raw_ar if isinstance(raw_ar, dict) else {}
+    raw_md = agent_result.get("metadata")
+    metadata = raw_md if isinstance(raw_md, dict) else {}
     n_episodes = metadata.get("n_episodes")
     summarization_count = metadata.get("summarization_count")
     timed_out = exc_type == "AgentTimeoutError"
@@ -3686,14 +3355,11 @@ def analyze_trial_core(
     # infra/grader outcome (R-ENV-*) is kept.
     if livelock and outcome["rule_id"] not in ("R-COMP-01", "R-ENV-01", "R-ENV-02"):
         boundary = _ref(trailing[0]["start_doc"], trailing[0]["start"]) if trailing else None
-        outcome = {
-            "step_id": None,
-            "step_ref": boundary,
-            "tag": "context",
-            "attribution": "harness",
-            "rule_id": "R-CTX-01",
-            "evidence_step_refs": [boundary] if boundary else [],
-            "note": (
+        outcome = _outcome(
+            "R-CTX-01",
+            "context",
+            "harness",
+            (
                 f"context livelock: trial.log lines {livelock['log_lines']} repeat "
                 f"'Context length exceeded -> full summary failed -> short summary "
                 f"succeeded -> Even fallback chat failed' ({livelock['cycles']} "
@@ -3701,39 +3367,25 @@ def analyze_trial_core(
                 f"after the first cycle were produced under degraded context and "
                 f"are not attributed to the model (incl. harness stand-ins)"
             ),
-            "secondary": (
+            step_ref=boundary,
+            evidence_step_refs=[boundary] if boundary else [],
+            secondary=(
                 f"pre-livelock failure kept as first_failure: "
                 f"{(first or {}).get('rule_id')} at {(first or {}).get('step_ref')}"
             ),
-            "engineering_flag": (
+            engineering_flag=(
                 "old config (max_tokens 8192) summarization livelock: full summary "
                 "and fallback chat fail, short summary succeeds but context "
                 "immediately overflows again; loop of summarizations never "
                 "terminates until timeout"
             ),
-        }
+        )
     if outcome["rule_id"] == "R-UNC-01":
         grader_hit = grader_collection_error(trial_dir)
         if grader_hit:
-            outcome = {
-                "step_id": None,
-                "step_ref": None,
-                "tag": "environment",
-                "attribution": "harness",
-                "rule_id": "R-ENV-02",
-                "evidence_step_refs": [],
-                "note": f"suspect grader: {grader_hit}",
-            }
+            outcome = _outcome("R-ENV-02", "environment", "harness", f"suspect grader: {grader_hit}")
         elif scored and (reward or 0) >= 1.0:
-            outcome = {
-                "step_id": None,
-                "step_ref": None,
-                "tag": "none",
-                "attribution": "n/a",
-                "rule_id": "R-NONE-01",
-                "evidence_step_refs": [],
-                "note": "passed cleanly",
-            }
+            outcome = _outcome("R-NONE-01", "none", "n/a", "passed cleanly")
     # Secondary patterns never replace the outcome rule.
     secondary = []
     if outcome["rule_id"] == "R-COMP-02":
@@ -3786,37 +3438,30 @@ def analyze_trial_core(
         and "progress" not in outcome
     ):
         first["progress"] = progress_block(model_seq, info, metadata, trial_dir)
-    for failure in [f for f in (first, outcome) if f]:
-        if failure.get("rule_id") in ("R-COMP-01", "R-COMP-02"):
-            refs = failure["evidence_step_refs"]
+    for failure in (first, outcome):
+        if not failure or failure.get("rule_id") not in ("R-COMP-01", "R-COMP-02"):
+            continue
+        refs = failure["evidence_step_refs"]
+        if len(refs) < 2:
+            continue
+        try:
+            start_doc, start_n = refs[0].split("#")[0], int(refs[0].split("#")[1])
+            end_doc, end_n = refs[-1].split("#")[0], int(refs[-1].split("#")[1])
             loop_prompt = loop_completion = 0
-            if len(refs) >= 2:
-                try:
-                    start_doc = refs[0].split("#")[0]
-                    start_n = int(refs[0].split("#")[1])
-                    end_doc = refs[-1].split("#")[0]
-                    end_n = int(refs[-1].split("#")[1])
-                    for doc, step in agent_seq:
-                        sid = step.get("step_id")
-                        if (
-                            doc == start_doc == end_doc
-                            and isinstance(sid, int)
-                            and start_n <= sid <= end_n
-                        ):
-                            step_metrics = step.get("metrics") or {}
-                            if isinstance(step_metrics, dict):
-                                prompt = step_metrics.get("prompt_tokens")
-                                completion = step_metrics.get("completion_tokens")
-                                if isinstance(prompt, (int, float)):
-                                    loop_prompt += int(prompt)
-                                if isinstance(completion, (int, float)):
-                                    loop_completion += int(completion)
-                    failure["loop_token_cost"] = {
-                        "prompt": loop_prompt,
-                        "completion": loop_completion,
-                    }
-                except (ValueError, IndexError):
-                    pass
+            for doc, step in agent_seq:
+                sid = step.get("step_id")
+                if doc == start_doc == end_doc and isinstance(sid, int) and start_n <= sid <= end_n:
+                    step_metrics = step.get("metrics")
+                    if isinstance(step_metrics, dict):
+                        prompt = step_metrics.get("prompt_tokens")
+                        completion = step_metrics.get("completion_tokens")
+                        if isinstance(prompt, (int, float)):
+                            loop_prompt += int(prompt)
+                        if isinstance(completion, (int, float)):
+                            loop_completion += int(completion)
+            failure["loop_token_cost"] = {"prompt": loop_prompt, "completion": loop_completion}
+        except (ValueError, IndexError):
+            pass
 
     loop_cost = loop_token_cost(model_seq, runs, loop, tokens_result)
     handshake = completion_handshake(model_seq, stop_reason)

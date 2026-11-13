@@ -592,6 +592,19 @@ on every `*.py` under `tests/` and `solution/`, and `json.loads` on every `*.jso
 under `tests/`. Any `bash -n` diagnostic is an error, including a warning without
 a failing exit. When `bash` is not on `PATH`, shell files get no finding.
 
+Two warning rules cover dependency drift. `unpinned-python-dependency` checks
+every `RUN` instruction in the task's `environment/Dockerfile` and
+`tests/Dockerfile`, and every shell file in the package. It covers `pip install`,
+`pip3 install`, `python -m pip install`, `uv pip install`, `uv tool install`, and
+the `uvx --with` or `-w` values. It warns when an installed requirement has no
+`==` pin and no URL that names a 40-hex commit or a `sha256` digest. It stays
+silent for a `-r` requirement file, a local path, and a `${VAR}` path.
+`verifier-runtime-install` warns once per shell file under `tests/` that installs
+software while grading: it detects `apt-get`, a Python package install, `uvx`, and
+`curl` or `wget` piped into a shell. Put those installs in `tests/Dockerfile`
+instead. Both rules are warnings, so the exit code stays 0 unless an error rule
+fires.
+
 Only tasks with `environment_mode = "separate"` and declared artifacts receive
 these warnings: `artifacts-instructed` when `instruction.md` is missing or does
 not name each declared artifact path as its own path; `artifacts-verified` when

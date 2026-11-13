@@ -13,10 +13,11 @@ from evallab.task_lint import discover_tasks, lint_task
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# A shared verifier is a known, allowed warning on these two packages. The
-# hidden-inputs rule must keep every other library package error-free.
-_ALLOWED_VERIFIER_ISOLATION_WARNINGS = {
+# These known library warnings remain explicit so new warnings cannot pass unnoticed.
+# Every library package must remain free of error findings and unpinned dependencies.
+_ALLOWED_LIBRARY_WARNINGS = {
     ("library/tasks/query-optimize/task.toml", "verifier-isolation"),
+    ("library/tasks/query-optimize/tests/test.sh", "verifier-runtime-install"),
     ("library/tasks/tau3-retail-1/task.toml", "verifier-isolation"),
 }
 
@@ -445,12 +446,13 @@ def test_committed_task_library_lints_without_error_findings() -> None:
 
     findings = [finding for task in tasks for finding in lint_task(task)]
     assert [finding for finding in findings if finding.severity == "error"] == []
+    assert [f for f in findings if f.rule == "unpinned-python-dependency"] == []
     warnings = {
         (Path(finding.path).relative_to(REPO_ROOT).as_posix(), finding.rule)
         for finding in findings
         if finding.severity == "warning"
     }
-    assert warnings == _ALLOWED_VERIFIER_ISOLATION_WARNINGS
+    assert warnings == _ALLOWED_LIBRARY_WARNINGS
     assert cli.run_cli(
         ["tasks", "lint", str(REPO_ROOT / "library/tasks")], workspace=REPO_ROOT
     ) == 0
@@ -555,3 +557,256 @@ def test_well_formed_sources_report_nothing_and_write_nothing(task: Path) -> Non
     assert list(task.rglob("__pycache__")) == []
 
 
+def test_unpinned_dockerfile_dependency_warns(task: Path) -> None:
+    dockerfile = task / "environment/Dockerfile"
+    dockerfile.write_text("FROM python:3.12\nRUN pip install requests\n")
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "unpinned-python-dependency", "warning", str(dockerfile)
+    )
+    assert "line 2: pip install" in finding.message
+    assert "dependencies: requests; pin each with ==" in finding.message
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "pip3 install requests",
+        "python -m pip install requests",
+        "uv pip install requests",
+        "uv tool install requests",
+        "uvx --with requests pytest",
+    ],
+)
+def test_python_install_forms_warn(task: Path, command: str) -> None:
+    dockerfile = task / "environment/Dockerfile"
+    dockerfile.write_text(f"FROM python:3.12\nRUN {command}\n")
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "unpinned-python-dependency", "warning", str(dockerfile)
+    )
+    assert "line 2:" in finding.message
+    assert "dependencies: requests; pin each with ==" in finding.message
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "pip install requests==2.32.3",
+        "pip install requests===2.32.3",
+        "pip install -r requirements.txt",
+        "pip install ./dist/pkg-1.0-py3-none-any.whl",
+        'pip install "${PKG_ROOT}[knowledge]"',
+        f'pip install "pkg @ https://example.com/repo/archive/{"a" * 40}.zip"',
+        f'pip install "pkg @ https://example.com/pkg.tar.gz#sha256={"b" * 64}"',
+        "pip install dist/pkg-1.0.whl vendor/pkg /opt/pkg ~/pkg file:///opt/pkg",
+        f"pip install git+https://example.com/repo.git@{'c' * 40}",
+        "uvx -p 3.13 -w pytest==8.4.1 pytest",
+        "uvx --with=pytest==8.4.1 pytest",
+        "uvx pytest",
+        'uv tool install --from "pkg==1.0" mycmd',
+    ],
+)
+def test_pinned_and_local_python_dependencies_are_allowed(task: Path, command: str) -> None:
+    (task / "solution/solve.sh").write_text(f"#!/bin/sh\n{command}\n")
+
+    assert lint_task(task) == []
+
+
+def test_uv_tool_from_pins_the_package_not_the_command(task: Path) -> None:
+    (task / "solution/solve.sh").write_text(
+        '#!/bin/sh\nuv tool install --from "pkg>=1.0" mycmd\n'
+    )
+
+    finding, = lint_task(task)
+    assert "dependencies: pkg>=1.0;" in finding.message
+    assert "mycmd" not in finding.message
+
+
+def test_unpinned_solution_dependency_warns(task: Path) -> None:
+    script = task / "solution/solve.sh"
+    script.write_text("#!/bin/sh\npip install fastmcp>=3.0\n")
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "unpinned-python-dependency", "warning", str(script)
+    )
+    assert "line 2:" in finding.message
+    assert "fastmcp>=3.0; pin each with ==" in finding.message
+
+
+def test_verifier_runtime_installs_warn_once_per_file(task: Path) -> None:
+    script = task / "tests/test.sh"
+    script.write_text(
+        "#!/bin/sh\n# Install the verifier tools\n\n"
+        "apt-get update\ncurl -LsSf https://example.com/i.sh | sh\n"
+        "uvx --with pytest==8.4.1 pytest\n"
+    )
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "verifier-runtime-install", "warning", str(script)
+    )
+    assert "line 4:" in finding.message
+    assert "bake them into tests/Dockerfile" in finding.message
+    assert "mirror failure cannot turn a correct answer into 0" in finding.message
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "apt-get install -y curl",
+        "pip install pytest==8.4.1",
+        "uv pip install pytest==8.4.1",
+        "uvx pytest",
+        "curl -LsSf https://example.com/i.sh | sh",
+        "wget -qO- https://example.com/i.sh | bash",
+        "pip3 install pytest==8.4.1",
+        "python -m pip install pytest==8.4.1",
+        "uv tool install pytest==8.4.1",
+        "curl -LsSf https://example.com/i.sh | sudo /bin/dash",
+    ],
+)
+def test_verifier_runtime_install_forms_warn(task: Path, command: str) -> None:
+    script = task / "tests/test.sh"
+    script.write_text(f"#!/bin/sh\n{command}\n")
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "verifier-runtime-install", "warning", str(script)
+    )
+    assert "line 2:" in finding.message
+    assert "bake them into tests/Dockerfile" in finding.message
+
+
+def test_build_and_solution_installs_are_not_verifier_runtime_installs(task: Path) -> None:
+    (task / "tests/Dockerfile").write_text(
+        "FROM python:3.12\nRUN pip install pytest==8.4.1\n"
+    )
+    (task / "solution/solve.sh").write_text("#!/bin/sh\npip install pytest==8.4.1\n")
+
+    assert lint_task(task) == []
+
+
+def test_verifier_pytest_execution_is_not_an_install(task: Path) -> None:
+    (task / "tests/test.sh").write_text("#!/bin/sh\npython -m pytest\n")
+
+    assert lint_task(task) == []
+
+
+@pytest.mark.parametrize(
+    "option",
+    [
+        "-r requirements.txt", "--requirement=requirements.txt",
+        "-c constraints.txt", "-e editable-package", "-i https://example.com/simple",
+        "-p 3.12", "--python python3", "--index-url https://example.com/simple",
+        "--extra-index-url=https://example.com/simple", "-f wheels", "-t target",
+    ],
+)
+def test_python_install_option_values_are_not_requirements(task: Path, option: str) -> None:
+    script = task / "solution/solve.sh"
+    script.write_text(f"#!/bin/sh\npip install {option} requests\n")
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "unpinned-python-dependency", "warning", str(script)
+    )
+    assert "dependencies: requests; pin each with ==" in finding.message
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "RUN TOKEN=value sudo env OTHER=value command exec /usr/bin/pip3 install requests",
+        'RUN ["pip", "install", "requests"]',
+        "RUN true && pip install requests || true ; echo ok | cat |& cat & true ;; true",
+        "RUN pip install \\\n# Ignore this comment\n\n requests",
+    ],
+)
+def test_install_command_parsing_retains_the_first_line(task: Path, instruction: str) -> None:
+    dockerfile = task / "environment/Dockerfile"
+    dockerfile.write_text(f"FROM python:3.12\n{instruction}\n")
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "unpinned-python-dependency", "warning", str(dockerfile)
+    )
+    assert "line 2:" in finding.message
+    assert "dependencies: requests;" in finding.message
+
+
+def test_multiple_installs_on_one_logical_line_warn_once(task: Path) -> None:
+    dockerfile = task / "tests/Dockerfile"
+    dockerfile.write_text(
+        "FROM python:3.12\nRUN pip install requests && uv tool install fastmcp>=3.0\n"
+    )
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "unpinned-python-dependency", "warning", str(dockerfile)
+    )
+    assert "line 2:" in finding.message
+    assert "dependencies: requests, fastmcp>=3.0;" in finding.message
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "https://example.com/pkg.tar.gz",
+        "pkg @ https://example.com/pkg.tar.gz",
+        "git+https://example.com/repo.git@main",
+        f"https://example.com/{'a' * 41}.zip",
+        f"https://example.com/pkg.tar.gz#sha256={'a' * 63}",
+    ],
+)
+def test_unpinned_urls_warn(task: Path, spec: str) -> None:
+    script = task / "solution/solve.sh"
+    script.write_text(f'#!/bin/sh\npip install "{spec}"\n')
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "unpinned-python-dependency", "warning", str(script)
+    )
+    assert f"dependencies: {spec}; pin each with ==" in finding.message
+
+
+def test_nested_helper_dockerfiles_and_hidden_scripts_are_not_scanned(task: Path) -> None:
+    helper = task / "environment/runtime-server"
+    helper.mkdir()
+    (helper / "Dockerfile").write_text("FROM python:3.12\nRUN pip install requests\n")
+    hidden = task / ".hidden"
+    hidden.mkdir()
+    (hidden / "install.sh").write_text("pip install requests\n")
+    (task / "solution/.install.sh").write_text("pip install requests\n")
+
+    assert lint_task(task) == []
+
+
+def test_other_package_shell_files_are_scanned(task: Path) -> None:
+    script = task / "environment/setup.sh"
+    script.write_text("#!/bin/sh\nuvx -w requests pytest\n")
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "unpinned-python-dependency", "warning", str(script)
+    )
+    assert "line 2: uvx --with" in finding.message
+    assert "dependencies: requests;" in finding.message
+
+
+def test_install_line_helpers_keep_unfinished_tails_and_fall_back_on_bad_quotes(
+    task: Path,
+) -> None:
+    assert list(task_lint._logical_lines("# ignored\n\npip install \\\n# ignored\nrequests \\")) == [
+        (3, "pip install  requests  ")
+    ]
+    dockerfile = task / "environment/Dockerfile"
+    dockerfile.write_text('FROM python:3.12\nRUN pip install "requests\n')
+
+    finding, = lint_task(task)
+    assert (finding.rule, finding.severity, finding.path) == (
+        "unpinned-python-dependency", "warning", str(dockerfile)
+    )
+    assert 'dependencies: "requests;' in finding.message

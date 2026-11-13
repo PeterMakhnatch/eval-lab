@@ -1299,9 +1299,6 @@ def _extract_trial_metadata(
     result_data: dict[str, Any] = {}
     citations: list[SourceCitation] = []
     if result_path and result_path.is_file():
-        citations.append(
-            SourceCitation(path=str(result_path), sha256=sha256_file(result_path), kind="result")
-        )
         try:
             loaded = json.loads(result_path.read_text(encoding="utf-8"))
             if isinstance(loaded, dict):
@@ -1343,6 +1340,10 @@ def _extract_trial_metadata(
         "primary_reward": primary_reward,
         "exception_class": exception_class,
     }
+    if result_path and result_path.is_file():
+        citations.append(
+            SourceCitation(path=str(result_path), sha256=sha256_file(result_path), kind="result")
+        )
     return meta, agent_cfg, citations
 
 

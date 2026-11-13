@@ -257,6 +257,22 @@ Recorded actions, shape classification, prediction opinions, and countability re
 Frozen-loop accuracy requires valid agreeing raters and an unambiguous cohort.
 See `sql/README.md` for the detailed query contract.
 
+### Trial reader edge contracts
+
+`traj.outline_trajectory` reads and extracts `result.json` metadata before hashing the result citation.
+It checks file existence again before hashing. A removed result has no citation.
+Invalid JSON uses empty metadata; a hash read error still propagates.
+These separate reads do not provide an atomic snapshot if the source changes.
+
+`probe03` preserves each CTRF caller's original malformed-field contract.
+The passage and test-record readers validate list shape and can use stdout recovery.
+The grader, progress, and source-assertion readers use unvalidated fields.
+Non-object roots and truthy non-object results raise `AttributeError`; truthy integer test fields raise `TypeError`.
+Sized non-list test fields retain their length-based counts without stdout fallback.
+Outcome rejection attribution evaluates normalizer counts before selecting a rule.
+Mixed malformed step IDs can therefore raise `TypeError`, including for unrelated rejection causes.
+
+
 ## Catalog entities and joins
 
 `sql/schema.sql` owns catalog DDL. Do not duplicate its schema in another writer.

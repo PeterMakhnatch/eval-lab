@@ -78,14 +78,9 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Any, Literal
 
-from evallab.mimo_tool_calls import (
-    HARBOR_FALLBACK_RESPONSE,
-    executed_keystrokes,
-    normalize_mimo_tool_calls,
-    prose_completion,
-)
+from evallab.mimo_tool_calls import HARBOR_FALLBACK_RESPONSE
 
 __all__ = [
     "CEILING_STOP_PREFIX",
@@ -95,7 +90,6 @@ __all__ = [
     "TIMEOUT_TEMPLATE_RE",
     "ReplayedCommand",
     "ReplayedParse",
-    "ParserFn",
     "TrajectoryPart",
     "StitchStats",
     "accepted_layer",
@@ -109,19 +103,15 @@ __all__ = [
     "effective_tool_calls",
     "executed_layer",
     "executed_output",
-    "execution_problems",
     "feedback_error_text",
     "limit_hit_summary",
     "observed_layer",
     "parse_observed_output",
     "proposed_layer",
-    "reconstruct_layers",
     "segment_fingerprint",
     "stitch_steps",
     "stop_category",
-    "summarize_layers",
     "synthesize_atif_calls",
-    "verifier_outcome",
     "wrap_layers",
 ]
 
@@ -195,12 +185,6 @@ class ReplayedParse:
     error: str | None
     commands: tuple[ReplayedCommand, ...] = ()
     task_complete: bool = False
-
-
-class ParserFn(Protocol):
-    """Stock Terminus parse of one response text (Harbor-backed in prod)."""
-
-    def __call__(self, text: str) -> ReplayedParse: ...
 
 
 @dataclass
@@ -483,120 +467,6 @@ def copied_layers() -> dict[str, Any]:
     )
 
 
-def reconstruct_layers(step: Mapping[str, Any], *, parse: ParserFn) -> dict[str, Any] | None:
-    """Rebuild the four layers for one raw ATIF step, labeled ``reconstructed``.
-
-    Returns ``None`` for non-agent steps (layers are per agent turn). Steps
-    that already carry recorded layers are returned as-is; copied-context
-    steps yield null layers (see :func:`copied_layers`).
-    """
-    if step.get("source") != "agent":
-        return None
-    extra = step.get("extra")
-    extra = extra if isinstance(extra, Mapping) else {}
-    stored = extra.get(STEP_LAYERS_KEY)
-    if isinstance(stored, Mapping) and stored.get("schema") == STEP_LAYERS_SCHEMA:
-        return dict(stored)
-    if step.get("is_copied_context"):
-        return copied_layers()
-    message = step.get("message")
-    text = message if isinstance(message, str) else ""
-    proposed = proposed_layer(
-        message,
-        step.get("reasoning_content"),
-        reason=None if isinstance(message, str) else "step carries no message text",
-    )
-    prose_flag = extra.get("prose_completion") is True
-    if prose_flag:
-        # The runtime prose rule fired and mapped this turn to task_complete;
-        # the flag is the recorded evidence, so no finish_reason is assumed.
-        accepted = accepted_layer(
-            "prose_completion",
-            calls=[{"task_complete": True}],
-            task_complete=True,
-            prose_shaped=True,
-        )
-        calls: list[dict[str, Any]] | None = []
-    else:
-        feedback = feedback_error_text(_observation_text(step))
-        normalized = normalize_mimo_tool_calls(text)
-        replayed = parse(normalized if normalized is not None else text)
-        if feedback is not None:
-            # The harness rejected this turn under the parser treatment that
-            # ran (its verdict is recorded in the observation), so nothing
-            # executed — whatever today's parser says about the shape. This
-            # is treatment drift, not a replay disagreement: 0758-c's tail
-            # shape predates the normalizer rule that now accepts it.
-            calls = None
-            accepted = accepted_layer(
-                "parse_error",
-                parse_error=feedback,
-                prose_shaped=False,
-                reason="observation carries the harness's parse-error feedback",
-            )
-        elif not replayed.error:
-            calls = [
-                {"keystrokes": cmd.keystrokes, "duration_sec": cmd.duration_sec}
-                for cmd in replayed.commands
-            ]
-            if replayed.task_complete:
-                calls.append({"task_complete": True})
-            accepted = accepted_layer(
-                "calls",
-                calls=calls or None,
-                task_complete=replayed.task_complete or None,
-                prose_shaped=False,
-            )
-        else:
-            calls = None
-            shaped = prose_completion(text) is not None
-            accepted = accepted_layer(
-                "parse_error",
-                parse_error=replayed.error or None,
-                prose_shaped=shaped,
-                reason=(
-                    "finish_reason was not recorded pre-HAR-92: a prose-shaped "
-                    "turn with finish_reason=stop would have mapped to "
-                    "task_complete instead"
-                    if shaped
-                    else None
-                ),
-            )
-    command_calls = [call for call in (calls or []) if isinstance(call.get("keystrokes"), str)]
-    if calls is None:
-        executed = executed_layer(None, None, reason="parse_error: nothing executed")
-    else:
-        sent: list[str] = []
-        durations: list[float | None] = []
-        for call in command_calls:
-            text = call.get("keystrokes")
-            if not isinstance(text, str):
-                continue
-            sent.append(executed_keystrokes(text))
-            duration = call.get("duration_sec")
-            durations.append(duration if isinstance(duration, (int, float)) else None)
-        executed = executed_layer(
-            sent,
-            durations,
-            reason="pre-HAR-92: batch timestamp and timeout flag not recorded"
-            if command_calls
-            else "task_complete turn sent no keystrokes",
-        )
-        if command_calls:
-            executed["sent_at"] = None
-            executed["timeout"] = None
-        else:
-            executed["timeout"] = False
-    observed = parse_observed_output(_observation_text(step))
-    if observed["output"] is None:
-        observed["reason"] = "step carries no observation results"
-    elif observed["timeout_template"]:
-        executed = dict(executed)
-        executed["timeout"] = True
-        executed["reason"] = None
-    return wrap_layers("reconstructed", proposed, accepted, executed, observed)
-
-
 def synthesize_atif_calls(
     step: Mapping[str, Any], layers: Mapping[str, Any] | None
 ) -> list[dict[str, Any]]:
@@ -668,75 +538,6 @@ def effective_tool_calls(
         stored = extra.get(STEP_LAYERS_KEY) if isinstance(extra, Mapping) else None
         layers = stored if isinstance(stored, Mapping) else None
     return synthesize_atif_calls(step, layers)
-
-
-def summarize_layers(
-    steps: Sequence[Any],
-    layers_by_index: Mapping[int, Any],
-    *,
-    layers_missing_why: str | None = None,
-) -> dict[str, Any]:
-    """Count layer outcomes over raw steps for execution-problem reporting.
-
-    Provenance counts (recorded, reconstructed, copied, missing) are always
-    exact. The outcome counts (parse errors, prose completions, executed
-    calls, task-complete turns) are only exact when every live agent step has
-    layers: with any step missing, a partial count would read as a total, so
-    those fields are ``None`` with ``layers_unknown_reason`` carrying why.
-    Copied-context steps are context replay, not live turns: without layers
-    they count as copied, never missing.
-    """
-    summary: dict[str, Any] = {
-        "agent_steps": 0,
-        "recorded": 0,
-        "reconstructed": 0,
-        "copied": 0,
-        "missing": 0,
-        "parse_errors": 0,
-        "prose_completions": 0,
-        "executed_calls": 0,
-        "task_complete_turns": 0,
-        "layers_unknown_reason": None,
-    }
-    for index, step in enumerate(steps):
-        if not isinstance(step, Mapping) or step.get("source") != "agent":
-            continue
-        summary["agent_steps"] += 1
-        layers = layers_by_index.get(index)
-        if not isinstance(layers, Mapping):
-            if step.get("is_copied_context"):
-                summary["copied"] += 1
-            else:
-                summary["missing"] += 1
-            continue
-        provenance = layers.get("provenance")
-        if provenance in ("recorded", "reconstructed", "copied"):
-            summary[provenance] += 1
-        else:
-            summary["missing"] += 1
-        accepted = layers.get("accepted")
-        if not isinstance(accepted, Mapping):
-            continue
-        if accepted.get("kind") == "parse_error":
-            summary["parse_errors"] += 1
-        if accepted.get("kind") == "prose_completion":
-            summary["prose_completions"] += 1
-        for call in accepted.get("calls") or []:
-            if isinstance(call, Mapping) and "keystrokes" in call:
-                summary["executed_calls"] += 1
-        if accepted.get("task_complete"):
-            summary["task_complete_turns"] += 1
-    if summary["missing"]:
-        why = layers_missing_why or "no recorded step_layers and no reconstructed layers"
-        summary["layers_unknown_reason"] = (
-            f"layers missing for {summary['missing']} of {summary['agent_steps']} "
-            f"agent steps: {why}"
-        )
-        summary["parse_errors"] = None
-        summary["prose_completions"] = None
-        summary["executed_calls"] = None
-        summary["task_complete_turns"] = None
-    return summary
 
 
 # --------------------------------------------------------------------------- #
@@ -1013,16 +814,6 @@ def coverage_record(
 # --------------------------------------------------------------------------- #
 
 
-def verifier_outcome(rewards: Mapping[str, Any]) -> VerifierOutcome:
-    """Interpret the primary verifier reward independently of agent exit."""
-    from evallab.probe03 import normalize_reward
-
-    reward, scored = normalize_reward(rewards.get("reward"))
-    if not scored or reward is None:
-        return "none"
-    return "pass" if reward >= 1.0 else "fail"
-
-
 def _exception_type(exception_info: Any) -> str | None:
     if not isinstance(exception_info, Mapping):
         return None
@@ -1156,78 +947,3 @@ def limit_hit_summary(reasons: Iterable[str | None]) -> dict[str, Any]:
     }
 
 
-def _provider_400s(provider_usage: Any) -> tuple[int | None, int | None]:
-    if not isinstance(provider_usage, Mapping):
-        return None, None
-    calls = provider_usage.get("calls")
-    if not isinstance(calls, list):
-        return None, None
-    bad = 0
-    for call in calls:
-        if not isinstance(call, Mapping):
-            continue
-        status = call.get("status")
-        state = call.get("state")
-        error = call.get("error")
-        reason = call.get("reason")
-        unreconciled = state != "reconciled"
-        text_400 = any(isinstance(value, str) and "400" in value for value in (error, reason))
-        if (status == 400 or text_400) and unreconciled:
-            bad += 1
-    unresolved = provider_usage.get("unresolved_requests")
-    unresolved = (
-        int(unresolved)
-        if isinstance(unresolved, int) and not isinstance(unresolved, bool)
-        else None
-    )
-    return bad, unresolved
-
-
-def _ledger_unreconciled(provider_usage: Any) -> bool | None:
-    """Whether the proxy ledger shows unreconciled work, or ``None`` without one.
-
-    ``True`` when any call's ``state`` is not ``"reconciled"`` or
-    ``unresolved_requests`` is positive; ``False`` when a ledger is present
-    and every call reconciled with nothing unresolved.
-    """
-    if not isinstance(provider_usage, Mapping):
-        return None
-    calls = provider_usage.get("calls")
-    if not isinstance(calls, list):
-        return None
-    for call in calls:
-        if isinstance(call, Mapping) and call.get("state") != "reconciled":
-            return True
-    unresolved = provider_usage.get("unresolved_requests")
-    return isinstance(unresolved, int) and not isinstance(unresolved, bool) and unresolved > 0
-
-
-def execution_problems(
-    *,
-    layer_summary: Mapping[str, Any] | None = None,
-    lab_metadata: Mapping[str, Any] | None = None,
-    proxy_usage_unreconciled: bool | None = None,
-) -> dict[str, Any]:
-    """Execution problems, kept separate from the verifier outcome."""
-    summary = layer_summary if isinstance(layer_summary, Mapping) else {}
-    metadata = lab_metadata if isinstance(lab_metadata, Mapping) else {}
-    http_400, unresolved = _provider_400s(metadata.get("provider_usage"))
-    unreconciled = proxy_usage_unreconciled
-    if unreconciled is None:
-        failure = metadata.get("failure_reason") or metadata.get("proxy_failure")
-        if isinstance(failure, str) and "unreconciled" in failure:
-            unreconciled = True
-    if unreconciled is None:
-        # A present ledger answers the question itself: ``None`` then means
-        # "no ledger", never "looked and found nothing".
-        unreconciled = _ledger_unreconciled(metadata.get("provider_usage"))
-    problems: dict[str, Any] = {
-        "parse_errors": summary.get("parse_errors"),
-        "prose_completions": summary.get("prose_completions"),
-        "http_400_no_usage": http_400,
-        "proxy_unresolved_requests": unresolved,
-        "proxy_usage_unreconciled": unreconciled,
-    }
-    missing = sorted(key for key, value in problems.items() if value is None)
-    problems["coverage"] = "complete" if not missing else f"unknown: {', '.join(missing)}"
-    return problems

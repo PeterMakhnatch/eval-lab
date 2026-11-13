@@ -49,6 +49,10 @@ benchmarks = [
 # install for the same reason as `benchmarks`; the CI test matrix syncs this
 # group so the Inspect-gated tests run instead of skipping (HAR-287).
 inspect = [
+    # tests/test_html_js_filter_verifier.py imports the shipped html-js-filter
+    # verifier and its solution from tmp_path copies; both parse HTML with
+    # BeautifulSoup. Out of the base install for the same reason as inspect-ai.
+    "beautifulsoup4>=4.13,<5",
     "inspect-ai==0.3.276",
 ]
 dev = [

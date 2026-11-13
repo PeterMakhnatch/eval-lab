@@ -1190,6 +1190,7 @@ dev = [
     { name = "ruff" },
 ]
 inspect = [
+    { name = "beautifulsoup4" },
     { name = "inspect-ai" },
 ]
 observability = [
@@ -1236,7 +1237,10 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.8,<4" },
     { name = "ruff", specifier = ">=0.12,<1" },
 ]
-inspect = [{ name = "inspect-ai", specifier = "==0.3.276" }]
+inspect = [
+    { name = "beautifulsoup4", specifier = ">=4.13,<5" },
+    { name = "inspect-ai", specifier = "==0.3.276" },
+]
 observability = [
     { name = "harbor-atif2otel", specifier = ">=0.1.0" },
     { name = "lmnr", specifier = "==0.7.64" },

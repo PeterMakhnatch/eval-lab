@@ -385,7 +385,7 @@ def test_runs_arriving_in_stages_become_checked_increments_covering_each_run_onc
     assert world.run()["committed"] == []  # nothing new: no run is processed twice
     result = world.check()
     assert result["passed"], result
-    assert [c["name"] for c in result["checks"]] == list(watch_rollup.LIVE_CHECK_NAMES)
+    assert [c["name"] for c in result["checks"]] == ["children", "conservation", "cumulative", "spend"]
     records = world.state.committed()
     assert [r["n"] for r in records] == [1, 2]
     ids = [row["run_id"] for n in (1, 2) for row in read_rows(world.child(n) / "runs.jsonl")]
@@ -1046,7 +1046,7 @@ def test_the_cli_watches_checks_and_scores_a_state_directory(
     for target in (world.state_dir,):
         assert cli.run_cli(["line", "check", str(target), "--json"], workspace=world.tmp) == 0
         reported = json.loads(capsys.readouterr().out)
-        assert [c["name"] for c in reported["checks"]] == list(watch_rollup.LIVE_CHECK_NAMES)
+        assert [c["name"] for c in reported["checks"]] == ["children", "conservation", "cumulative", "spend"]
 
 
 # ---------------------------------------------------------------- line check: read-only, never stale
@@ -1083,7 +1083,7 @@ def test_a_state_directory_without_watch_json_fails_the_live_check(
     world.state.watch_json.unlink()
     assert cli.run_cli(["line", "check", str(world.state_dir), "--json"], workspace=world.tmp) == 2
     reported = json.loads(capsys.readouterr().out)
-    assert [c["name"] for c in reported["checks"]] == list(watch_rollup.LIVE_CHECK_NAMES)
+    assert [c["name"] for c in reported["checks"]] == ["children", "conservation", "cumulative", "spend"]
     assert not (world.state_dir / "check.json").exists()  # not treated as a batch folder
 
 

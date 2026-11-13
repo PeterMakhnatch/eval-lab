@@ -30,7 +30,6 @@ from evallab.line.scoreboard import build_scoreboard
 from evallab.line.watch_queue import read_queue_rows
 from evallab.line.watch_state import (
     COMMIT_SCHEMA,
-    INCREMENT_NAME,
     STATE_SCHEMA,
     State,
     WatchError,
@@ -39,7 +38,6 @@ from evallab.line.watch_state import (
     owner_alive,
 )
 
-LIVE_CHECK_NAMES = ("children", "conservation", "cumulative", "spend")
 MONEY_EPSILON = 1e-9
 
 
@@ -390,13 +388,3 @@ def _verify(state: State, repo_root: Path, *, deep: bool) -> dict[str, Any]:
         "runs": sum(len(r["runs"]) for r in records if isinstance(r.get("runs"), dict)),
     }
 
-
-__all__ = [
-    "INCREMENT_NAME",
-    "LIVE_CHECK_NAMES",
-    "batch_name",
-    "child_dir",
-    "child_path",
-    "cumulative_scoreboard",
-    "verify",
-]

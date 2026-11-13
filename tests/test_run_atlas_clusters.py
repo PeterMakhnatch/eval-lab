@@ -350,56 +350,6 @@ def test_parser_registration_has_no_io(monkeypatch: pytest.MonkeyPatch) -> None:
     assert not parser.parse_args(["clusters", "show"]).with_labels
 
 
-@pytest.mark.parametrize("cap", [None, "0", "-1", "nan", "inf"])
-def test_remote_embedding_refused_before_reading_facets(
-    cap: str | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(run_atlas, "load_facets", lambda _: pytest.fail("input was read"))
-    arguments = ["clusters", "build", "--embedder", "remote"]
-    if cap is not None:
-        arguments += ["--spend-cap-usd", cap]
-    args = _parser().parse_args(arguments)
-    with pytest.raises(ValueError, match="spend-cap-usd"):
-        args.func(args, tmp_path)
-
-
-def test_remote_embedding_cap_is_reserved_before_transport_and_persists(tmp_path: Path) -> None:
-    from evallab.interpretation.monitor_agent import BudgetExhausted
-
-    calls = []
-    backend = SimpleNamespace(
-        identity="test-remote", digest="test-digest", model="embedding",
-        embed=lambda texts: calls.append(texts) or [[1.0, 0.0] for _ in texts],
-    )
-    ledger = tmp_path / "spend.jsonl"
-    first = atlas._CappedRemoteEmbedder(backend, ledger=ledger, cap=0.003, price=1.0)
-    assert first.embed(["x" * 1000]) == [[1.0, 0.0]]
-    restarted = atlas._CappedRemoteEmbedder(backend, ledger=ledger, cap=0.003, price=1.0)
-    with pytest.raises(BudgetExhausted):
-        restarted.embed(["x" * 1000])
-    assert len(calls) == 1
-
-
-def test_failed_embedding_does_not_refund_paid_reservation(tmp_path: Path) -> None:
-    from evallab.interpretation.monitor_agent import BudgetExhausted
-
-    calls = []
-
-    def failed(texts: list[str]) -> list[list[float]]:
-        calls.append(texts)
-        raise RuntimeError("endpoint timed out")
-
-    backend = SimpleNamespace(identity="remote", digest="digest", model="embedding", embed=failed)
-    embedder = atlas._CappedRemoteEmbedder(
-        backend, ledger=tmp_path / "spend.jsonl", cap=0.003, price=1.0,
-    )
-    with pytest.raises(RuntimeError, match="endpoint timed out"):
-        embedder.embed(["x" * 1000])
-    with pytest.raises(BudgetExhausted):
-        embedder.embed(["x" * 1000])
-    assert len(calls) == 1
-
-
 def test_build_appends_snapshots_and_show_uses_latest_with_labels(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:

@@ -6,7 +6,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from evallab import database
-from evallab.cli import _doctor
 from evallab.evidence import facts as facts_module
 from evallab.evidence.atif import (
     JOB_PROJECTION_FILE,
@@ -17,6 +16,7 @@ from evallab.evidence.atif import (
     check_projection_invariant,
     ingest_and_project,
 )
+from evallab.operations_parser import _doctor
 from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.schemas import (
     AutoRunRule,

@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 
 import evallab.automation as automation_module
-import evallab.cli as cli_module
 from evallab import database
+from evallab import operations_parser as operations
 from evallab.automation import (
     HeadlessDoctor,
     audit_launch_agents,
@@ -228,13 +228,13 @@ def test_doctor_lists_a_broken_evallab_launch_agent(
         ),
     )
 
-    assert cli_module._doctor(tmp_path, home=home) == 1
+    assert operations._doctor(tmp_path, home=home) == 1
     assert (
         f"FAIL  launchagent    com.petermakhnatch.evallab.tick: "
         f"interpreter {dead} missing" in capsys.readouterr().out
     )
 
-    assert cli_module._doctor(tmp_path, home=tmp_path / "empty-home") == 0
+    assert operations._doctor(tmp_path, home=tmp_path / "empty-home") == 0
     assert "ok    launchagent    0 evallab LaunchAgents intact" in capsys.readouterr().out
 
 

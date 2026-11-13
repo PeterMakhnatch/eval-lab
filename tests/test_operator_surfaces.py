@@ -16,7 +16,8 @@ from typing import Any
 
 import pytest
 
-from evallab import cli, database
+from evallab import database
+from evallab import operations_parser as operations
 from evallab.evidence import atif
 from evallab.evidence.facts import AnalyzerCallResult, run_trial_analysis
 from evallab.queue import Executor
@@ -140,7 +141,7 @@ def test_doctor_names_the_catalog_it_inspected_without_credentials(
         ),
     )
 
-    assert cli._doctor(tmp_path, home=tmp_path / "home") == 0
+    assert operations._doctor(tmp_path, home=tmp_path / "home") == 0
 
     out = capsys.readouterr().out
     catalog_line = next(line for line in out.splitlines() if "catalog-parquet" in line)
@@ -168,7 +169,7 @@ def test_doctor_names_the_catalog_even_when_postgres_is_unreachable(
 
     monkeypatch.setattr(database, "ping", refuse)
 
-    assert cli._doctor(tmp_path, home=tmp_path / "home") == 1
+    assert operations._doctor(tmp_path, home=tmp_path / "home") == 1
 
     out = capsys.readouterr().out
     catalog_line = next(line for line in out.splitlines() if "catalog-parquet" in line)
@@ -391,7 +392,7 @@ def test_doctor_prints_the_sync_primary_row_and_keeps_it_advisory(
     )
 
     # FAIL is reported, but sync-primary is not in doctor's required set.
-    assert cli._doctor(tmp_path, home=home, clock=lambda: FIXED) == 0
+    assert operations._doctor(tmp_path, home=home, clock=lambda: FIXED) == 0
     line = next(
         row for row in capsys.readouterr().out.splitlines() if "sync-primary" in row
     )
@@ -400,7 +401,7 @@ def test_doctor_prints_the_sync_primary_row_and_keeps_it_advisory(
 
     _write_sync_status(home)
 
-    assert cli._doctor(tmp_path, home=home, clock=lambda: FIXED) == 0
+    assert operations._doctor(tmp_path, home=home, clock=lambda: FIXED) == 0
     line = next(
         row for row in capsys.readouterr().out.splitlines() if "sync-primary" in row
     )

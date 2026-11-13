@@ -71,3 +71,10 @@ def register_autoreview(actions: Any) -> None:
     parser.add_argument("--with-l0-cascade", action="store_true", help="Include L0 tripwire scan and report cascade/union alerts")
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     parser.set_defaults(func=_autoreview_command)
+
+
+def register_parser(commands: argparse._SubParsersAction) -> None:
+    trace = commands.add_parser("trace", help="Trace anatomy and AutoReview")
+    actions = trace.add_subparsers(dest="trace_command", required=True)
+    register_anatomy(actions)
+    register_autoreview(actions)

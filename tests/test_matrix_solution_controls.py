@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from evallab.cli import _matrix_command
+from evallab.execution_parser import _matrix_command
 from evallab.fetch import ControlCall, DatasetListing, FetchError
 from evallab.registry import compute_task_digests
 from evallab.schemas import MatrixRun

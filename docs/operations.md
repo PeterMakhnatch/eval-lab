@@ -829,7 +829,7 @@ In each shard log, compare the native pytest wall time with the `Module duration
 The default `loadscope` scheduler keeps that module on 1 worker, even with more workers.
 The base suite keeps its existing scheduler.
 Each native shard retains its full file inventory, JUnit report, and Harbor skip census.
-The interpreter matrix, dependency profiles, pinned source preparation, and required gates do not change.
+The interpreter matrix, dependency profiles, and required gates do not change.
 
 ## CI: one dependency install and direct schema setup
 
@@ -843,6 +843,9 @@ The fresh PostgreSQL service receives `sql/schema.sql` through the runner's `psq
 `--set ON_ERROR_STOP=1` fails the setup step on any SQL error.
 This avoids importing the application CLI before the tests.
 The database service, both pytest sessions, both JUnit files, and both skip censuses remain unchanged.
+
+Both phases use the locked Harbor wheel. The RewardKit tests use local fixtures.
+No test consumes the former `/tmp/harbor024/repo` checkout, so CI no longer fetches it.
 
 
 ## Agent profiles and model routes

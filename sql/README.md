@@ -12,7 +12,7 @@ and analytical features.
 - `sql/traj_benchmark_views.sql`: Analytical views for benchmark trajectory programs.
 - `sql/craft_views.sql`: Analytical views for CRAFT benchmark facets.
 - `sql/trace_queries.sql`: Ten canonical analytical views over the transient in-memory trace surface (`v_trace_trials` and `v_trace_steps`), plus private interpretation views and typed JSON macros.
-- `sql/trials.sql`: The transient `trials` census view used by `evallab trials`, joining the existing local fact/features projections with recorded posture; exact setup legitimacy is separate from reward and copy quality.
+- `sql/trials.sql`: The transient `trials` census view used by `evallab.storage.trials.connect_trials`, joining the existing local fact/features projections with recorded posture; exact setup legitimacy is separate from reward and copy quality.
 - `sql/trace-queries/`: Runnable saved-query handles (`SELECT * FROM` the canonical view), not duplicate definitions.
 ## Invariants or rules
 - Idempotent schema additions: Add schema changes idempotently to `sql/schema.sql` (cited in `AGENTS.md`).

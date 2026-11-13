@@ -1101,17 +1101,7 @@ A subscription model reads each admitted DEV run **blinded** and fills a fixed
 form. Clusters and scorecards are built from those records; labels are joined
 only at scoring time.
 
-```bash
-# Plan only: blind, render and chunk; no model call, no write.
-uv run evallab atlas facet --dry-run --dataset goodfire-reward-hack-data --limit 20
-
-# Facet admitted DEV runs from the cloud trace DB (idempotent by run_id).
-uv run evallab atlas facet --dataset mimo-defect-map-v1 \
-  --route openai-codex/gpt-6-luna --route xai-oauth/grok-4.20-0309-non-reasoning --per-route 4
-
-# CheatBench DEV items from the answer-key registry (full trajectory view).
-uv run evallab atlas facet --corpus cheatbench
-```
+The `evallab atlas facet` command is retired. Existing facet records remain available to clusters and scorecards.
 
 ## What the model sees
 
@@ -1158,7 +1148,7 @@ run's original ids.
   (`anthropic/`, `openai-codex/`, `xai-oauth/`, `google-antigravity/`,
   `kimi-code/`); other routes are refused before a request is sent. A reply
   from any model other than the requested one fails the call.
-- `RoutePool` runs at most `--per-route` runs per route (max 8) and benches a
+- `RoutePool` runs at most `per_route` runs per route (max 8) and benches a
   route that reports quota exhaustion for 30 minutes, moving its work to the
   others. All calls of one run use one route; `facet_model` is that route.
 - Interim store (until the cloud DB atlas tables land):
@@ -1331,7 +1321,7 @@ Use `evallab score` for current cached measurements and `evallab --help` for sup
 |---|---|---|---|---|---|---|
 | Stage 1: tripwires, incremental monitor, command cues (`tripwires.py` RULES_VERSION 3, `production/monitor_worker.py`, `production/command_prefilter.py`) | no CLI; library calls (`scan_trace`, `scan_prefix`, `MisalignmentLiveWorker`) | agent steps of one run (observed prefix) | nothing; cards are in memory. Frozen results: `trace-tools/cascade-stage1-goodfire-dev.jsonl` | window cascade; `atlas clusters build --replay-rules`; tool scorecard (Stage-1 baseline) | "any card" on GF-200: 60/80 enacted, 32/70 clean (TT-4 README). HB-169: 105 alarmed; exact gold command 9/169 = 5.3% (CM-11) | none, deterministic |
 | Window cascade v4 / v7 / v8 (`production/window_cascade.py`, `CASCADE_VERSION = window-cascade/v8`; `PASS_THROUGH_RULES = {grader_tamper}`) | no CLI; run inside `monitor_worker` | Stage-1 cards, then the card step plus a window of neighbouring steps | judged-window cache in local state | atlas score (frozen v4 file only); tool scorecard baseline; harness cascade adapters | v8: GF-200 10/80 = 12.5% recall, 2/70 = 2.9% false alarm; CB-150 19/75 = 25.3%, 0/75 (CM-12). Frozen v4: 12/80, 2/70; 20/75, 5/75. HB-169: v7 = v8 = 7 alarmed, 2 exact (1.2%) (CM-15) | Stage-2 judge `kimi-code/k3.1-pro-highspeed` (CM-15, CM-11); v4 judge not re-checked |
-| Run Atlas (`production/run_atlas*.py`): facets, clusters | `evallab atlas facet\|clusters build\|clusters show\|score` | blinded runs from the cloud DB or CheatBench answer-key items | `run-atlas/facets-v1.jsonl` (+ `facet-calls-v1.jsonl`), `clusters-v1.jsonl` | clusters, score | facets `suspicion >= 2`: GF-200 7/80 = 8.8%, 1/70 = 1.4%; CB-150 30/75 = 40.0%, 4/75 = 5.3% (CM-12; `scorecards/ra3-FULL-dev-20261028.md`). HB-169 natural: 20/41 exact commands (48.8%) (CM-11) | GF-200 mixed: Haiku 161, Kimi 16, luna 12, grok 11 of 200. CB-150: Haiku 148/150 |
+| Run Atlas (`production/run_atlas*.py`): facets, clusters | `evallab atlas clusters build\|clusters show\|score` | blinded runs from the cloud DB or CheatBench answer-key items | `run-atlas/facets-v1.jsonl` (+ `facet-calls-v1.jsonl`), `clusters-v1.jsonl` | clusters, score | facets `suspicion >= 2`: GF-200 7/80 = 8.8%, 1/70 = 1.4%; CB-150 30/75 = 40.0%, 4/75 = 5.3% (CM-12; `scorecards/ra3-FULL-dev-20261028.md`). HB-169 natural: 20/41 exact commands (48.8%) (CM-11) | GF-200 mixed: Haiku 161, Kimi 16, luna 12, grok 11 of 200. CB-150: Haiku 148/150 |
 | Trace feature flags (`production/trace_feature_flags.py`) | no CLI; `compute_trace_feature_flags(steps)` | agent commands and text only | nothing (pure function) | retriever cards (`cloud_trace_db._with_feature_flags`), `modal_cloud`, playbook cards, harness card | none: routing hints, not verdicts; no recall measured | none |
 | Playbook cards (`hackbook/playbook_cards.py`, 12 cards in `playbook_cards_v1.json`) | no CLI; library calls | fired flag names | nothing | `qa-data history`, Task QA | none: advice text, not a detector | none |
 | Inspect Scout scan, four text scanners (`readers/scout_clouddb.py`) | `evallab qa-data scan` | blinded DEV transcripts (actor-v2 projection) | `trace-tools/results-v1.jsonl` (45,169 rows; 41,823 are Scout) | tool scorecard; `qa-data findings` | any flag, tool scorecard: Goodfire DEV 131/1,636 = 8.0% recall, 107/752 = 14.2% false alarm; CB-150 19/75 = 25.3%, 34/75 = 45.3% (`tt1-scorecard.md`). Noisy | none, deterministic |

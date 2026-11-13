@@ -19,7 +19,6 @@ served model is checked against the requested one and receipted.
 
 from __future__ import annotations
 
-import argparse
 import fcntl
 import hashlib
 import json
@@ -76,7 +75,6 @@ MAX_EVIDENCE_STEPS = 5
 SUBSCRIPTION_PROVIDERS = (
     "anthropic/", "openai-codex/", "xai-oauth/", "google-antigravity/", "kimi-code/",
 )
-DEFAULT_ROUTES = ("openai-codex/gpt-6-luna", "anthropic/claude-haiku-5-5", "xai-oauth/grok-4.7")
 
 CHUNK_CHARS = 160_000
 ACTION_CHARS = 4_000
@@ -86,8 +84,7 @@ CONTEXT_CHARS = 12_000
 MAP_OUTPUT_TOKENS = 6_000
 FORM_OUTPUT_TOKENS = 6_000
 # Source and benchmark names are replaced in rendered text so the reader cannot
-# infer the benchmark (and with it the base rate) from paths or prompts. The CLI
-# adds every dataset id in the trace DB at run time (``source_pattern``).
+# infer the benchmark (and with it the base rate) from paths or prompts.
 SOURCE_TERMS = (
     r"good[-_ ]?fire", r"cheat[-_ ]?bench", r"impossible[-_ ]?bench", r"hack[-_ ]?bench",
     r"hack[-_ ]?trace", r"reward[-_]hack[-_]data", r"terminal[-_ ]?wrench",
@@ -1182,30 +1179,6 @@ def _record(outcome: ExtractOutcome, summary: dict[str, Any], lock: threading.Lo
             f"model={record['facet_model']} tokens={record['input_tokens']}+{record['output_tokens']}")
 
 
-# --------------------------------------------------------------------------- #
-# CLI
-# --------------------------------------------------------------------------- #
-
-
-def _run_ids(args: argparse.Namespace) -> list[str] | None:
-    ids = list(args.run_ids or [])
-    if args.run_ids_file is not None:
-        ids += [line.strip() for line in args.run_ids_file.read_text().splitlines() if line.strip()]
-    return ids or None
-
-
-def _runs(args: argparse.Namespace, root: Path, skip: Iterable[str]) -> Iterator[AtlasRun]:
-    from evallab.production.corpus_queue import CorpusRegistry
-    from evallab.results_home import results_root
-
-    registry = CorpusRegistry(root)
-    if args.corpus == "cheatbench":
-        return cheatbench_runs(registry, args.results_root or results_root(),
-                               item_ids=_run_ids(args), skip=skip)
-    return cloud_runs(args.database, registry=registry, dataset_ids=args.dataset_ids,
-                      trust_tiers=args.trust_tiers, trace_ids=_run_ids(args), skip=skip)
-
-
 def database_source_pattern(database: Path) -> re.Pattern[str]:
     """Redaction pattern with every dataset id present in the trace DB."""
     if not database.is_file():
@@ -1217,44 +1190,4 @@ def database_source_pattern(database: Path) -> re.Pattern[str]:
         connection.close()
     return source_pattern(ids)
 
-
-def _facet_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
-    del harbor
-    if not 1 <= args.per_route <= 8:
-        raise ValueError("--per-route must be between 1 and 8")
-    routes = args.routes or list(DEFAULT_ROUTES)
-    for route in routes:
-        require_subscription_route(route)
-    pattern = database_source_pattern(args.database)
-    if args.dry_run:
-        plans: list[dict[str, Any]] = []
-        total_chunks = total_chars = 0
-        for run in _runs(args, root, ()):
-            blind = blind_run(run)
-            segments = render_segments(blind, chunk_chars=args.chunk_chars, pattern=pattern)
-            chunks = plan_chunks(segments, chunk_chars=args.chunk_chars)
-            chars = sum(len(s.text) for s in segments)
-            total_chunks += len(chunks)
-            total_chars += chars
-            plans.append({"run_id": run.run_id, "steps": len(blind.steps), "chars": chars,
-                          "chunks": len(chunks)})
-            if args.limit is not None and len(plans) >= args.limit:
-                break
-        print(json.dumps({"runs": len(plans), "chunks": total_chunks, "chars": total_chars,
-                          "plans": plans}, indent=1))
-        return 0
-    done = load_facets(args.facets)
-    transport = GatewayTransport()
-    try:
-        summary = extract_runs(
-            _runs(args, root, done),
-            extractor=FacetExtractor(transport, chunk_chars=args.chunk_chars, pattern=pattern),
-            pool=RoutePool(routes, per_route=args.per_route), facets_path=args.facets,
-            calls_path=args.calls, limit=args.limit,
-        )
-    finally:
-        transport.close()
-    summary["already_faceted"] = len(done)
-    print(json.dumps(summary, indent=1, sort_keys=True))
-    return 0 if summary["failed"] == 0 else 1
 

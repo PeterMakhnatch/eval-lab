@@ -359,7 +359,7 @@ These are more valuable initially than a general-purpose “AI scientist” agen
 ## Trial features
 
 `evallab.interpretation.features` (`trial_features`, `write_features`) extracts deterministic
-per-trial tables (`<stem>.parquet` and `<stem>.csv`) during `evallab process-job` and `evallab trials`,
+per-trial tables (`<stem>.parquet` and `<stem>.csv`) during `evallab process-job`,
 combining existing deterministic detectors without new detection logic (see trust notes).
 ## Column dictionary
 

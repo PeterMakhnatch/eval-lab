@@ -11,7 +11,7 @@ agent pass and writes ``research/calibration/contamination-audit/labels.jsonl``
 - ``audit_run`` / ``audited_at``: which audit run produced the label.
 
 The labels never change a counts verdict. Readers attach them so reports can
-filter: ``evallab trials --sql`` exposes a ``contamination`` relation (join on
+filter: ``evallab.storage.trials.connect_trials`` exposes a ``contamination`` relation (join on
 ``trial``) and the Integrity dashboard counts ``cheat`` labels as cheats.
 """
 

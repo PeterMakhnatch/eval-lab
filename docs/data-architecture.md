@@ -231,11 +231,7 @@ Lineage uses the same front-matter parser.
 
 ## Local trial census and trace queries
 
-```sh
-uv run evallab trials
-uv run evallab trials --runs-dir /absolute/path/to/job
-uv run evallab trials --sql 'SELECT campaign, legit, count(*) FROM trials GROUP BY campaign, legit'
-```
+The `evallab trials` command is retired. Python readers use `evallab.storage.trials.connect_trials`.
 
 The census is a transient DuckDB view, not another stored database.
 Discovery includes primary/worktree run roots, reviewed evidence, and an explicit `EVALLAB_RUNS_ROOT`.

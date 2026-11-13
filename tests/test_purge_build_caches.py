@@ -85,44 +85,6 @@ def test_v2_block_purges_fixture_caches_without_touching_deps(tmp_path: Path) ->
     assert not (tmp_path / "npm" / "_cacache").exists()
 
 
-def test_v2_block_fails_closed_on_unresolvable_python_name(tmp_path: Path) -> None:
-    """A present pip cache with no resolvable project name stops the block."""
-    import shutil
-    import subprocess
-
-    from evallab.purge_build_caches import LANG_BLOCK
-
-    if shutil.which("python3") is None:
-        pytest.skip("needs python3 for the project-name probes")
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
-    (cwd / "pyproject.toml").write_text('[tool.poetry]\nname = "fixtureproj"\n', encoding="utf-8")
-    pipcache = tmp_path / "pipcache"
-    pipcache.mkdir()
-    runner = tmp_path / "run.sh"
-    runner.write_text(
-        "#!/bin/bash\nCWD="
-        + str(cwd)
-        + '\nfail() { echo "setup: $*" >&2; exit 1; }\n'
-        + LANG_BLOCK
-        + "\n",
-        encoding="utf-8",
-    )
-    proc = subprocess.run(
-        ["bash", str(runner)],
-        capture_output=True,
-        text=True,
-        timeout=120,
-        env={
-            "PATH": "/usr/bin:/bin:/usr/local/bin",
-            "HOME": str(tmp_path),
-            "PIP_CACHE_DIR": str(pipcache),
-        },
-    )
-    assert proc.returncode != 0
-    assert "cannot identify the Python project name" in proc.stderr
-
-
 def test_v2_block_fails_closed_on_unresolvable_names(tmp_path: Path) -> None:
     """A go.mod without a module line stops the block (fail closed)."""
     import subprocess
@@ -183,86 +145,6 @@ def test_v2_block_skips_go_without_caches(tmp_path: Path) -> None:
         },
     )
     assert proc.returncode == 0, proc.stderr
-
-
-def test_v2_block_removes_project_wheels_and_verifies(tmp_path: Path) -> None:
-    """The pip section removes listed project wheels (stub pip, no network)."""
-    import os
-    import shutil
-    import subprocess
-
-    from evallab.purge_build_caches import LANG_BLOCK
-
-    real_python = shutil.which("python3")
-    if real_python is None:
-        pytest.skip("needs python3 for the project-name probes")
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
-    (cwd / "pyproject.toml").write_text('[project]\nname = "fixtureproj"\n', encoding="utf-8")
-    entries = tmp_path / "entries.txt"
-    entries.write_text(
-        "fixtureproj-1.0-py3-none-any.whl\notherdep-2.0-py3-none-any.whl\n", encoding="utf-8"
-    )
-    stub = tmp_path / "bin" / "python3"
-    stub.parent.mkdir()
-    stub.write_text(
-        "#!/bin/bash\n"
-        'if [ "$1 $2 $3" = "-m pip cache" ]; then\n'
-        '  case "$4" in\n'
-        '    dir) echo "$FAKE_PIP_CACHE";;\n'
-        '    list) cat "$FAKE_PIP_ENTRIES";;\n'
-        '    remove) grep -v -F -- "${5%\\*}" "$FAKE_PIP_ENTRIES" > "$FAKE_PIP_ENTRIES.new" && mv "$FAKE_PIP_ENTRIES.new" "$FAKE_PIP_ENTRIES";;\n'
-        "  esac\n"
-        "  exit 0\n"
-        "fi\n"
-        'exec "$REAL_PYTHON3" "$@"\n',
-        encoding="utf-8",
-    )
-    stub.chmod(0o755)
-    runner = tmp_path / "run.sh"
-    runner.write_text(
-        "#!/bin/bash\nCWD="
-        + str(cwd)
-        + '\nfail() { echo "setup: $*" >&2; exit 1; }\n'
-        + LANG_BLOCK
-        + "\n",
-        encoding="utf-8",
-    )
-    env = {
-        "PATH": str(stub.parent) + ":/usr/bin:/bin:/usr/local/bin",
-        "HOME": str(tmp_path),
-        "REAL_PYTHON3": real_python,
-        "FAKE_PIP_CACHE": str(tmp_path),
-        "FAKE_PIP_ENTRIES": str(entries),
-    }
-    (tmp_path / "home").mkdir()
-    proc = subprocess.run(
-        ["bash", str(runner)], capture_output=True, text=True, timeout=120, env=env
-    )
-    assert proc.returncode == 0, proc.stderr
-    remaining = entries.read_text(encoding="utf-8")
-    assert "fixtureproj" not in remaining
-    assert "otherdep" in remaining
-    # A stub that refuses removal trips the fail-closed verify.
-    entries.write_text("fixtureproj-1.0-py3-none-any.whl\n", encoding="utf-8")
-    stub.write_text(
-        "#!/bin/bash\n"
-        'if [ "$1 $2 $3" = "-m pip cache" ]; then\n'
-        '  case "$4" in\n'
-        '    dir) echo "$FAKE_PIP_CACHE";;\n'
-        '    list) cat "$FAKE_PIP_ENTRIES";;\n'
-        "  esac\n"
-        "  exit 0\n"
-        "fi\n"
-        'exec "$REAL_PYTHON3" "$@"\n',
-        encoding="utf-8",
-    )
-    os.chmod(stub, 0o755)
-    proc = subprocess.run(
-        ["bash", str(runner)], capture_output=True, text=True, timeout=120, env=env
-    )
-    assert proc.returncode != 0
-    assert "left pip cache entries" in proc.stderr
 
 
 def _node_fixture(

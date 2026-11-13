@@ -403,7 +403,10 @@ def test_invalid_json_under_tests_is_reported(task: Path) -> None:
     finding, = lint_task(task)
     assert (finding.rule, finding.severity) == ("sources-parse", "error")
     assert finding.path == str(cases)
-    assert "Expecting property name" in finding.message
+    # Decoder wording differs between Python 3.12 and 3.14; the rule contract is
+    # the parser label plus the reported position.
+    assert finding.message.startswith("json.loads: ")
+    assert "line 1 column" in finding.message
 
 
 def test_well_formed_sources_report_nothing_and_write_nothing(task: Path) -> None:

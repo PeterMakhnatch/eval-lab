@@ -15,3 +15,9 @@ Deterministic ATIF parsing, facts, event-mart projections, Parquet IO, and reque
 - Identical input bytes and schema/version produce reproducible facts, digests, and query results. Intentional contract changes need explicit migration/version handling.
 - Do not execute models or add subjective judgments here; preserve immutable input bytes and provenance.
 
+
+## Tests or checks
+Use the changed consumer's tests through the root checkpoint.
+
+## What not to add here
+No model execution, subjective judgments, or mutable source evidence.

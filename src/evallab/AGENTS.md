@@ -1,19 +1,17 @@
 # Eval Lab core
 
-The package owns CLI dispatch, policy-controlled execution, immutable evidence ingestion, storage projections, interpretation, and recovery. Preserve existing module/import locations unless the assigned change includes a migration and updates every caller.
+Read the root change path and 1 domain manual. Package overrides add local rules.
 
 ## Boundaries
 
-- Shared Pydantic contracts: `schemas/`. Storage paths/attachments/compaction: `storage/`. Deterministic extraction: `evidence/`. Bounded monitor evidence and judgments: `interpretation/`. The former `recovery/` implementation is removed; its directory is reserved.
-- `cli/` and `execution/` are currently reserved namespaces. CLI remains `cli.py`; execution remains the existing top-level runner, queue, quota, contracts, and preflight modules. Do not create parallel implementations because a reserved folder exists.
-- `trajectory_ir.py` owns the retained TrajectoryIR contract (`interpretation/trajectory_ir.py` is retired).
+- `docs/SYSTEM.md` owns module placement and reserved namespaces. Preserve current imports unless the assigned change includes a migration.
+- Keep CLI registration and dispatch deterministic. Contract modules have no runtime database or import side effects.
 - Subjective machine judgments are not acceptance. Model execution does not belong in evidence extraction or interpretation.
-- Keep CLI registration and dispatch deterministic. Do not add runtime DB/import side effects to contract modules.
-
-## Where to look
-
-Use existing modules for the requested surface: `cli.py`, `runner.py`, `queue.py`, `quota.py`, `execution_contracts.py`, `preflight.py`, `evidence_store.py`, `state_events.py`, `trajectory_ir.py`, `interpretation/features.py`, and the relevant package.
+- Pin the task version, agent/model, Harbor revision, and changed variable for a comparison.
+- `sql/schema.sql` and tested parsers own derived contracts. Ingestion is deterministic and idempotent.
 
 ## Verification
 
-Update tests and persisted/CLI documentation for the touched contract. The assigned verifier runs focused checks through the repo environment (`uv run pytest <affected-tests>`); full matrices and merge gates are defined once in `agents/CHECKS.md`. Workers skip checks unless the assignment explicitly delegates verification.
+Use focused consumer tests through the root checkpoint. `agents/CHECKS.md` owns deterministic-test rules and exact-head gates.
+Update persisted-contract and CLI documentation when their behavior changes.
+Workers skip checks unless the assignment explicitly delegates verification.

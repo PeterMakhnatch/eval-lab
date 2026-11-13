@@ -49,7 +49,6 @@ eval-lab/
 ├── .omp/                      project-native OMP capabilities; scoped,
 │                              on-demand skills rather than sticky policy
 ├── .claude/                   checked-in Claude command configuration
-├── .githooks/                 checked-in repository hook implementations
 ├── .env.example               environment-variable template
 ├── .gitignore                 generated/local path exclusions
 ├── .ignore                    search exclusions (archive directories, sealed material)
@@ -113,7 +112,7 @@ lines and use these five sections in order:
 5. What not to add here
 
 Exemptions from this requirement:
-- Dot-directories (`.github`, `.githooks`, `.omp`, `.claude`, and gitignored dot roots)
+- Dot-directories (`.github`, `.omp`, `.claude`, and gitignored dot roots)
 - Runtime or ignored roots (`derived`, `runs`, `queue`, `backups`, `exports`, `logs`)
 - `docs/`
 

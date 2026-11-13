@@ -432,6 +432,46 @@ def _slow_test_budget_seconds() -> float:
         return DEFAULT_SLOW_TEST_BUDGET_SECONDS
 
 
+class _ModuleDurations:
+    """Sum setup, call and teardown seconds per test module for the session log.
+
+    The per-test list in `pytest_terminal_summary` shows only call phases of 1 s
+    or more. Fixture setup and many sub-second cases never appear there, yet they
+    decide which shard is slowest. The xdist controller receives every worker
+    report, so one table covers the whole shard.
+    """
+
+    TOP = 15
+
+    def __init__(self) -> None:
+        self.seconds: dict[str, float] = {}
+        self.tests: dict[str, int] = {}
+
+    def pytest_runtest_logreport(self, report: pytest.TestReport) -> None:
+        module = report.nodeid.split("::", 1)[0]
+        self.seconds[module] = self.seconds.get(module, 0.0) + report.duration
+        if report.when == "setup":
+            self.tests[module] = self.tests.get(module, 0) + 1
+
+    def pytest_terminal_summary(self, terminalreporter: pytest.TerminalReporter) -> None:
+        if not self.seconds:
+            return
+        ranked = sorted(self.seconds.items(), key=lambda item: item[1], reverse=True)
+        terminalreporter.section(
+            f"Module durations (setup+call+teardown; top {min(self.TOP, len(ranked))} "
+            f"of {len(ranked)}; total {sum(self.seconds.values()):.1f}s)"
+        )
+        for module, seconds in ranked[: self.TOP]:
+            terminalreporter.write_line(
+                f"{module}: {seconds:.2f}s ({self.tests.get(module, 0)} tests)"
+            )
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    session.config.pluginmanager.register(_ModuleDurations(), "evallab-module-durations")
+
+
+
 @pytest.hookimpl(trylast=True, wrapper=True)
 def pytest_runtest_makereport(
     item: pytest.Item, call: pytest.CallInfo[None]

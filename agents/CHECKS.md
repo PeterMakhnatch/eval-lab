@@ -74,6 +74,9 @@ Harbor-named reasons. The native phase writes `harbor-native.xml`; its census re
 Harbor-named skips. CI prepares Harbor v0.24.0 source at `/tmp/harbor024/repo`,
 commit `b53b8134e1241686dca7759af188f987ecc48e8b`, for the real RewardKit fixture.
 The native inventory now includes `tests/test_integrity_reward.py` without an exemption.
+Each pytest session log ends with a `Module durations` table: the 15 test modules
+with the largest setup, call and teardown total. Use it to find slow modules and to
+balance shards; the per-test list shows only call phases of 1 s or more.
 
 Full native discovery remains blocked by environment-dependent ATIF validation in
 `src/evallab/evidence/atif.py` and the native worker fixture contract. Preserve that

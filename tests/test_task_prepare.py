@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from evallab.execution_contracts import RunRequest, build_command
 from evallab.task_import import package_digest
-from evallab.task_prepare import prepare_task, replay_task
+from evallab.task_prepare import prepare_task
 from evallab.terminus_harness import load_harness_tree
 
 ORACLE_KWARGS: dict[str, object] = {
@@ -266,56 +265,3 @@ def test_local_harness_snapshot_survives_source_drift_without_fake_caps(tmp_path
             spec.max_total_tokens, spec.cost_limit_usd) == (None, None, None, None, None)
     assert spec.timeout_seconds == 120
     assert spec.billable  # Local non-control execution still needs recorded authorization.
-
-
-def test_harness_replay_preserves_controls_but_never_inherits_approval(tmp_path: Path) -> None:
-    repo = _repo(tmp_path)
-    prepared = prepare_task(
-        repo, _task(tmp_path / "external"), name="pinned-baseline",
-        agent="terminus-2", model="zai/glm-5.3-flash", environment="docker",
-        cost_limit_usd=0.4, max_requests=9, max_input_tokens=8000,
-        max_output_tokens=2000, max_total_tokens=10000,
-        harness_tree_path=_harness(tmp_path / "baseline-tree", "Baseline rules.\n"),
-    )
-    base = prepared.spec.model_copy(update={
-        "spec_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        "submitted_at": datetime(2026, 1, 2, tzinfo=UTC),
-        "policy_rule": "prior-human-approval",
-        "grid_point": {"point_id": "fixed-task-model"},
-    })
-    retained = repo / "retained-spec.json"
-    retained.write_text(base.model_dump_json(), encoding="utf-8")
-    original = retained.read_bytes()
-    replayed, _ = replay_task(
-        repo, retained, name="pinned-candidate",
-        harness_tree_path=_harness(tmp_path / "candidate-tree", "Candidate rules.\n"),
-    )
-    controls = (
-        "task_package_digest", "verifier_digest", "task_path", "agent", "model",
-        "environment", "attempts", "concurrency", "timeout_seconds", "grid_point",
-        "max_requests", "max_input_tokens", "max_output_tokens", "max_total_tokens",
-        "cost_limit_usd", "est_cost_usd",
-    )
-    assert {key: getattr(replayed, key) for key in controls} == {
-        key: getattr(base, key) for key in controls
-    }
-    assert replayed.harness_tree_sha256 != base.harness_tree_sha256
-    assert (replayed.spec_id, replayed.submitted_at, replayed.policy_rule) == (None, None, None)
-    assert retained.read_bytes() == original
-    assert replayed.billable
-
-
-def test_harness_replay_refuses_changed_task_before_publishing_candidate(tmp_path: Path) -> None:
-    repo = _repo(tmp_path)
-    prepared = prepare_task(
-        repo, _task(tmp_path / "external"), name="local-baseline",
-        agent="terminus-2", model="ollama_chat/qwen2.5:7b", environment="docker",
-        harness_tree_path=_harness(tmp_path / "baseline-tree", "Baseline rules.\n"),
-    )
-    (prepared.task_path / "instruction.md").write_text("A different task.\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="task_package_digest"):
-        replay_task(
-            repo, prepared.spec_path, name="local-candidate",
-            harness_tree_path=_harness(tmp_path / "candidate-tree", "Candidate rules.\n"),
-        )
-    assert not (repo / "derived/prepared/local-candidate.json").exists()

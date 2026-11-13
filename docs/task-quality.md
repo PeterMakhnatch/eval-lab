@@ -1187,11 +1187,11 @@ Implemented only as a documented recipe (see `task_stability.py`
 3. For code tasks: restore the agent's end state with the trial's saved
    `verifier/agent.diff` (`git apply` in the workdir), then run
    `tests/test.sh` k times and record each `reward.txt`.
-## Task admission
+## Legacy task admission records
 
-Admission remains the existing gate. This merge changes no steps, limits, status precedence, or scientific criteria.
+The admission writer is retired. Stored admission records and task evidence remain unchanged.
 
-One fail-closed gate over a task package directory: offline static scan,
+The retired gate checked a task package directory with an offline static scan,
 $0 oracle/nop controls, then the full 14-attack cheat ladder, then the
 hollow-program battery, then a coverage-guided verifier-mutation probe —
 in that order, stopping at the first non-passing step, always writing a
@@ -2083,7 +2083,7 @@ The filter executes across three sequential stages per rollout:
 ```
 
 #### Stage 1: TASK (Task Certification)
-- Reads `certified_tasks` manifest (produced by `evallab.task_status`).
+- Reads the stored `certified_tasks` manifest.
 - If status is `weak` or `exploitable`: assigns decision `review` by default (configurable to `drop` via `task_policy`).
 - If status is `gold`, `hardened` or `certified`: passes to the next stage with `TASK_GOLD`, `TASK_HARDENED` or `TASK_CERTIFIED`.
 - If status is `provisional` or `uncertified` (or any status not defined above): passes with `TASK_PROVISIONAL` or `TASK_UNCERTIFIED`. Only a task missing from the manifest reports `TASK_STATUS_UNKNOWN`.
@@ -2176,7 +2176,7 @@ In strict adherence to Third-Party Data Policy, output manifests contain **ident
 
 #### Certified Tasks Schema
 
-`evallab.task_status` builds an evidence-backed DEV manifest from `evallab.task_admission/v1` AdmissionRecords and Gold `TaskCertificationResult` receipts without reading rollout outcomes or labels (alternative-solution counts accept only full task-side `TaskCertificationResult` receipts with Gate 7 counts, not a submission inventory or a real-run replay report).
+The manifest builder is retired. Stored DEV manifests and the `hack_drop.load_certified_tasks` reader remain unchanged.
 
 The manifest is `evallab.task_status/v1`, with `built_at`, `code_rev`,
 `inputs[].path/sha256/kind`, and `tasks`:

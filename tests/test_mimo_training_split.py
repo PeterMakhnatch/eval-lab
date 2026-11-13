@@ -20,6 +20,54 @@ DRIVER = (
 TRAIN_ONLY = "format-code-task-009999"
 PREFIX = "mimo-v2.6-rl/"
 
+# Only path-independent package bytes and variant identities are reused. Manifests
+# and control fingerprints are rebuilt against each test's private directory.
+_SUCCESSOR_BASELINE = pytest.StashKey[tuple[Path, dict[str, Any], dict[str, Any]]]()
+
+
+def _successor_ancestry(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    from evallab.task_variants import derive_task
+
+    repo, variants = root / "repo", root / "packages" / "variants"
+    originals, records = {}, {}
+    membership = json.loads(DRIVER.with_name("heldout.json").read_text())["heldout"]
+    for task_id in membership:
+        base = root / "sources" / task_id
+        for relative, content in {
+            "task.toml": f'schema_version = "1.4"\n[task]\nname = "{PREFIX}{task_id}"\n',
+            "instruction.md": f"Implement the requested behavior for {task_id}.\n",
+            "environment/Dockerfile": "FROM ubuntu:24.04\n",
+            "environment/setup/setup.sh": "#!/bin/sh\npython -V\n",
+            "solution/solve.sh": "#!/bin/sh\nprintf 'reference implementation\\n'\n",
+            "tests/test.sh": "#!/bin/sh\npython -c 'assert 2 + 2 == 4'\n",
+            "tests/test.patch": (
+                (Path(__file__).parent / "fixtures/mimo_runtime_repair_001246.patch").read_text()
+                if task_id == "format-code-task-001246" else
+                "diff --git a/test_existing.py b/test_existing.py\nnew file mode 100644\n"
+                "--- /dev/null\n+++ b/test_existing.py\n@@ -0,0 +1,2 @@\n"
+                "+def test_existing():\n+    assert 2 + 2 == 4\n"
+            ),
+            "tests/test_command.sh": "#!/bin/sh\npython -m pytest test_existing.py\n",
+        }.items():
+            path = base / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+        original = derive_task(
+            base, changes={"environment/setup/setup.sh": b"#!/bin/sh\npython3 -V\n"},
+            transform="leak-close-pypi@1", rationale="scratch ancestry", created_by="pytest",
+            repo_root=repo, variants_root=variants,
+        )
+        original_path = variants / original.task_slug / original.digest12
+        records[task_id] = derive_task(
+            original_path,
+            changes={"task.toml": (original_path / "task.toml").read_bytes() + b"\n[environment]\nallow_network = false\nworkdir = '/testbed'\n"},
+            transform="agent-network-none@1", rationale="scratch frozen endpoint", created_by="pytest",
+            parent_source={"kind": "variant", "record": str(original.record_relpath())},
+            repo_root=repo, variants_root=variants,
+        )
+        originals[task_id] = original
+    return originals, records
+
 
 @pytest.fixture
 def driver(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
@@ -564,10 +612,24 @@ def native_control_fixture(
 
 
 @pytest.fixture
-def successor_case(driver, tmp_path: Path):
-    """Real scratch packages/variant records; no runner, mocks, or shared store."""
+def successor_case(driver, tmp_path: Path, tmp_path_factory: pytest.TempPathFactory, request: pytest.FixtureRequest):
+    """Real scratch packages/variant records; private copies of real derivations."""
     from evallab.registry import compute_task_digests
     from evallab.task_variants import derive_task
+
+    if _SUCCESSOR_BASELINE not in request.config.stash:
+        baseline = tmp_path_factory.mktemp("mimo-successor-baseline")
+        originals, records = _successor_ancestry(baseline)
+        request.config.stash[_SUCCESSOR_BASELINE] = baseline, originals, records
+    baseline, originals, baseline_records = request.config.stash[_SUCCESSOR_BASELINE]
+    for directory in ("repo", "packages", "sources"):
+        shutil.copytree(baseline / directory, tmp_path / directory)
+    # Local source paths are the only absolute paths in the copied ancestry.
+    # Bind them to the private source copies, never to the shared baseline.
+    for task_id, original in originals.items():
+        payload = original.model_dump(mode="json", by_alias=True)
+        payload["parent"]["source"]["path"] = str((tmp_path / "sources" / task_id).resolve())
+        (tmp_path / "repo" / original.record_relpath()).write_text(json.dumps(payload))
 
     repo, packages, frozen = tmp_path / "repo", tmp_path / "packages", tmp_path / "frozen33"
     variants = packages / "variants"
@@ -593,39 +655,9 @@ def successor_case(driver, tmp_path: Path):
     }
     rows, records, package_paths = [], {}, {}
     for task_id in membership:
-        base = tmp_path / "sources" / task_id
-        for relative, content in {
-            "task.toml": f'schema_version = "1.4"\n[task]\nname = "{PREFIX}{task_id}"\n',
-            "instruction.md": f"Implement the requested behavior for {task_id}.\n",
-            "environment/Dockerfile": "FROM ubuntu:24.04\n",
-            "environment/setup/setup.sh": "#!/bin/sh\npython -V\n",
-            "solution/solve.sh": "#!/bin/sh\nprintf 'reference implementation\\n'\n",
-            "tests/test.sh": "#!/bin/sh\npython -c 'assert 2 + 2 == 4'\n",
-            "tests/test.patch": (
-                (Path(__file__).parent / "fixtures/mimo_runtime_repair_001246.patch").read_text()
-                if task_id == "format-code-task-001246" else
-                "diff --git a/test_existing.py b/test_existing.py\nnew file mode 100644\n"
-                "--- /dev/null\n+++ b/test_existing.py\n@@ -0,0 +1,2 @@\n"
-                "+def test_existing():\n+    assert 2 + 2 == 4\n"
-            ),
-            "tests/test_command.sh": "#!/bin/sh\npython -m pytest test_existing.py\n",
-        }.items():
-            path = base / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content)
-        original = derive_task(
-            base, changes={"environment/setup/setup.sh": b"#!/bin/sh\npython3 -V\n"},
-            transform="leak-close-pypi@1", rationale="scratch ancestry", created_by="pytest",
-            repo_root=repo, variants_root=variants,
-        )
+        original = originals[task_id]
         original_path = variants / original.task_slug / original.digest12
-        record = derive_task(
-            original_path,
-            changes={"task.toml": (original_path / "task.toml").read_bytes() + b"\n[environment]\nallow_network = false\nworkdir = '/testbed'\n"},
-            transform="agent-network-none@1", rationale="scratch frozen endpoint", created_by="pytest",
-            parent_source={"kind": "variant", "record": str(original.record_relpath())},
-            repo_root=repo, variants_root=variants,
-        )
+        record = baseline_records[task_id].model_copy(deep=True)
         package = variants / record.task_slug / record.digest12
         records[task_id], package_paths[task_id] = record, package
         row = dict.fromkeys(driver["PAIR_COLUMNS"], "")

@@ -166,21 +166,24 @@ DEEPSEEK_ALLOWED_MODEL = "deepseek-flash"
 DEEPSEEK_REASONING_EFFORT_TIERS: Mapping[str, int] = MappingProxyType(
     {"low": 50, "high": 75, "max": 100}
 )
+_PROXY_BUDGET_ENV_SUFFIXES = (
+    "PROXY_CAPABILITY",
+    "ATTEMPT_ID",
+    "USAGE_DIR",
+    "USAGE_FILE",
+    "MAX_REQUESTS",
+    "MAX_INPUT_TOKENS",
+    "MAX_OUTPUT_TOKENS",
+    "MAX_TOTAL_TOKENS",
+    "MAX_COST_MICROS",
+    "INPUT_COST_MICROS_PER_MILLION",
+    "OUTPUT_COST_MICROS_PER_MILLION",
+    "CAPABILITY_EXPIRES_AT",
+)
 DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     {
-        DEEPSEEK_PROXY_CAPABILITY_ENV,
+        *(f"EVALLAB_DEEPSEEK_{suffix}" for suffix in _PROXY_BUDGET_ENV_SUFFIXES),
         DEEPSEEK_ALLOWED_MODEL_ENV,
-        DEEPSEEK_PROXY_ATTEMPT_ID_ENV,
-        DEEPSEEK_PROXY_USAGE_DIR_ENV,
-        DEEPSEEK_PROXY_USAGE_FILE_ENV,
-        "EVALLAB_DEEPSEEK_MAX_REQUESTS",
-        "EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS",
-        "EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS",
-        "EVALLAB_DEEPSEEK_MAX_COST_MICROS",
-        "EVALLAB_DEEPSEEK_MAX_TOTAL_TOKENS",
-        "EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT",
-        "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
-        "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
         DEEPSEEK_PROXY_UID_ENV,
         DEEPSEEK_PROXY_GID_ENV,
     }
@@ -293,18 +296,7 @@ ZAI_INPUT_COST_MICROS_PER_MILLION = 1_400_000
 ZAI_OUTPUT_COST_MICROS_PER_MILLION = 4_400_000
 ZAI_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     {
-        ZAI_PROXY_CAPABILITY_ENV,
-        ZAI_PROXY_ATTEMPT_ID_ENV,
-        ZAI_PROXY_USAGE_DIR_ENV,
-        ZAI_PROXY_USAGE_FILE_ENV,
-        "EVALLAB_ZAI_MAX_REQUESTS",
-        "EVALLAB_ZAI_MAX_INPUT_TOKENS",
-        "EVALLAB_ZAI_MAX_OUTPUT_TOKENS",
-        "EVALLAB_ZAI_MAX_TOTAL_TOKENS",
-        "EVALLAB_ZAI_MAX_COST_MICROS",
-        "EVALLAB_ZAI_INPUT_COST_MICROS_PER_MILLION",
-        "EVALLAB_ZAI_OUTPUT_COST_MICROS_PER_MILLION",
-        ZAI_CAPABILITY_EXPIRES_AT_ENV,
+        *(f"EVALLAB_ZAI_{suffix}" for suffix in _PROXY_BUDGET_ENV_SUFFIXES),
         ZAI_PROXY_UID_ENV,
         ZAI_PROXY_GID_ENV,
     }
@@ -342,19 +334,8 @@ PROXY_LIVE_DIR_ENV = "EVALLAB_PROXY_LIVE_DIR"
 PROXY_LIVE_DIR_NAME = "proxy-live"
 ZAI_OPENAPI_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     {
-        ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
-        ZAI_OPENAPI_PROXY_ATTEMPT_ID_ENV,
-        ZAI_OPENAPI_PROXY_USAGE_DIR_ENV,
-        ZAI_OPENAPI_PROXY_USAGE_FILE_ENV,
+        *(f"EVALLAB_ZAI_OPENAPI_{suffix}" for suffix in _PROXY_BUDGET_ENV_SUFFIXES),
         ZAI_OPENAPI_ALLOWED_MODEL_ENV,
-        "EVALLAB_ZAI_OPENAPI_MAX_REQUESTS",
-        "EVALLAB_ZAI_OPENAPI_MAX_INPUT_TOKENS",
-        "EVALLAB_ZAI_OPENAPI_MAX_OUTPUT_TOKENS",
-        "EVALLAB_ZAI_OPENAPI_MAX_TOTAL_TOKENS",
-        "EVALLAB_ZAI_OPENAPI_MAX_COST_MICROS",
-        "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
-        "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
-        ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV,
         ZAI_OPENAPI_PROXY_UID_ENV,
         ZAI_OPENAPI_PROXY_GID_ENV,
     }
@@ -1931,10 +1912,11 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
         request.cost_limit_usd,
     )
     metered = uses_provider_proxy(request.agent, request.model)
+    missing_ceiling = any(value is None for value in proxy_limits)
     if any(value is not None for value in proxy_limits):
         if not metered:
             raise ValueError("this agent cannot enforce provider request/cost/token ceilings")
-        if any(value is None for value in proxy_limits):
+        if missing_ceiling:
             raise ValueError(f"{request.agent} requires every provider ceiling")
         if (
             request.max_requests is None
@@ -1959,7 +1941,7 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
         if request.max_total_tokens > request.max_input_tokens + request.max_output_tokens:
             raise ValueError("total-token ceiling exceeds input plus output ceilings")
     if metered:
-        if any(value is None for value in proxy_limits):
+        if missing_ceiling:
             raise ValueError(f"{request.agent} requires explicit provider ceilings")
         if request.attempts != 1 or request.concurrency != 1:
             raise ValueError(f"{request.agent} capabilities bind exactly one trial")
@@ -2290,6 +2272,67 @@ def _resolve_task_chain(digest: str, *, repo_root: Path | None) -> str | None:
     return None
 
 
+def _append_miniswe_kwargs(
+    command: list[str],
+    request: RunRequest,
+    harbor_model: str | None,
+) -> None:
+    """Append mini-swe-agent concurrency and per-model budget/token kwargs."""
+    is_glm = bool(harbor_model and harbor_model.startswith(("glm-selfhosted/", "glm-ft/")))
+    if harbor_model not in (DEEPSEEK_MODEL_SELECTOR, ZAI_OPENAPI_MODEL_SELECTOR) and not is_glm:
+        raise ValueError(
+            f"mini-swe-agent requires model {DEEPSEEK_MODEL_SELECTOR} or {ZAI_OPENAPI_MODEL_SELECTOR}"
+        )
+
+    cost_limit = request.cost_limit_usd if request.cost_limit_usd is not None else 2.5
+    max_tokens = request.max_output_tokens if request.max_output_tokens is not None else 8192
+    settings = request.inference_settings
+    reasoning_effort: str | int | None = None
+
+    if harbor_model == ZAI_OPENAPI_MODEL_SELECTOR:
+        if (
+            request.cost_limit_usd is None
+            and request.max_input_tokens is not None
+            and request.max_output_tokens is not None
+        ):
+            cost_limit = round(
+                (
+                    request.max_input_tokens * ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION
+                    + request.max_output_tokens * ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION
+                )
+                / 1_000_000,
+                4,
+            )
+        # The proxy's output allowance is cumulative across the trial.
+        # Do not request that entire allowance in each model completion.
+        completion_limit = (
+            settings.max_tokens if settings and settings.max_tokens is not None else 8192
+        )
+        max_tokens = min(completion_limit, request.max_output_tokens or completion_limit)
+    elif is_glm:
+        if request.max_output_tokens is None and settings and settings.max_tokens is not None:
+            max_tokens = settings.max_tokens
+        if settings and settings.effort is not None:
+            reasoning_effort = settings.effort
+
+    command.extend(
+        [
+            "--n-concurrent-agents",
+            "1",
+            "--n-tasks",
+            "1",
+            "--max-retries",
+            "0",
+            "--agent-kwarg",
+            f"cost_limit={cost_limit}",
+            "--agent-kwarg",
+            f"max_tokens={max_tokens}",
+        ]
+    )
+    if reasoning_effort is not None:
+        command.extend(["--agent-kwarg", f"reasoning_effort={reasoning_effort}"])
+
+
 def build_command(
     request: RunRequest,
     *,
@@ -2300,25 +2343,21 @@ def build_command(
     from evallab.setup_fingerprint import lock_setup_fingerprint
 
     environment = request.environment
-    zai_daytona = (
-        environment == "daytona"
-        and request.agent == "mini-swe-agent"
-        and request.model == ZAI_OPENAPI_MODEL_SELECTOR
-    )
-    if zai_daytona:
-        environment = "evallab.harbor_daytona:SecretSafeDaytonaEnvironment"
-    elif environment == "daytona":
-        environment = BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
-    elif environment == "docker" and resolve_egress_lock(request):
-        environment = LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH
-    elif environment == "modal" and resolve_egress_lock(request):
-        # The wrapper records the policy Modal actually applies into
+    if environment == "daytona":
+        if request.agent == "mini-swe-agent" and request.model == ZAI_OPENAPI_MODEL_SELECTOR:
+            environment = "evallab.harbor_daytona:SecretSafeDaytonaEnvironment"
+        else:
+            environment = BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
+    elif environment in ("docker", "modal"):
+        environment_paths = {
+            ("docker", True): LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH,
+            ("docker", False): HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH,
+            ("modal", True): LOCKED_MODAL_ENVIRONMENT_IMPORT_PATH,
+            ("modal", False): MODAL_ENVIRONMENT_IMPORT_PATH,
+        }
+        # The Modal wrapper records the policy Modal actually applies into
         # egress-lock.json; stock Modal leaves no runtime lock record.
-        environment = LOCKED_MODAL_ENVIRONMENT_IMPORT_PATH
-    elif environment == "modal":
-        environment = MODAL_ENVIRONMENT_IMPORT_PATH
-    elif environment == "docker":
-        environment = HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH
+        environment = environment_paths[(environment, resolve_egress_lock(request))]
     command = [
         "harbor",
         "run",
@@ -2416,97 +2455,7 @@ def build_command(
     if agent_timeout_multiplier is not None:
         command.extend(["--agent-timeout-multiplier", agent_timeout_multiplier])
     if request.agent == "mini-swe-agent":
-        if harbor_model == DEEPSEEK_MODEL_SELECTOR:
-            cost_limit = request.cost_limit_usd if request.cost_limit_usd is not None else 2.5
-            max_tokens = (
-                request.max_output_tokens if request.max_output_tokens is not None else 8192
-            )
-            command.extend(
-                [
-                    "--n-concurrent-agents",
-                    "1",
-                    "--n-tasks",
-                    "1",
-                    "--max-retries",
-                    "0",
-                    "--agent-kwarg",
-                    f"cost_limit={cost_limit}",
-                    "--agent-kwarg",
-                    f"max_tokens={max_tokens}",
-                ]
-            )
-        elif harbor_model == ZAI_OPENAPI_MODEL_SELECTOR:
-            if request.cost_limit_usd is not None:
-                cost_limit = request.cost_limit_usd
-            elif request.max_input_tokens is not None and request.max_output_tokens is not None:
-                cost_limit = round(
-                    (
-                        request.max_input_tokens * ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION
-                        + request.max_output_tokens * ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION
-                    )
-                    / 1_000_000,
-                    4,
-                )
-            else:
-                cost_limit = 2.5
-            # The proxy's output allowance is cumulative across the trial.
-            # Do not request that entire allowance in each model completion.
-            completion_limit = (
-                request.inference_settings.max_tokens
-                if request.inference_settings and request.inference_settings.max_tokens is not None
-                else 8192
-            )
-            max_tokens = min(completion_limit, request.max_output_tokens or completion_limit)
-            command.extend(
-                [
-                    "--n-concurrent-agents",
-                    "1",
-                    "--n-tasks",
-                    "1",
-                    "--max-retries",
-                    "0",
-                    "--agent-kwarg",
-                    f"cost_limit={cost_limit}",
-                    "--agent-kwarg",
-                    f"max_tokens={max_tokens}",
-                ]
-            )
-        elif harbor_model and (
-            harbor_model.startswith("glm-selfhosted/") or harbor_model.startswith("glm-ft/")
-        ):
-            cost_limit = request.cost_limit_usd if request.cost_limit_usd is not None else 2.5
-            max_tokens = (
-                request.max_output_tokens
-                if request.max_output_tokens is not None
-                else (
-                    request.inference_settings.max_tokens
-                    if request.inference_settings
-                    and request.inference_settings.max_tokens is not None
-                    else 8192
-                )
-            )
-            command.extend(
-                [
-                    "--n-concurrent-agents",
-                    "1",
-                    "--n-tasks",
-                    "1",
-                    "--max-retries",
-                    "0",
-                    "--agent-kwarg",
-                    f"cost_limit={cost_limit}",
-                    "--agent-kwarg",
-                    f"max_tokens={max_tokens}",
-                ]
-            )
-            if request.inference_settings and request.inference_settings.effort is not None:
-                command.extend(
-                    ["--agent-kwarg", f"reasoning_effort={request.inference_settings.effort}"]
-                )
-        else:
-            raise ValueError(
-                f"mini-swe-agent requires model {DEEPSEEK_MODEL_SELECTOR} or {ZAI_OPENAPI_MODEL_SELECTOR}"
-            )
+        _append_miniswe_kwargs(command, request, harbor_model)
     if request.agent == ZAI_OPENCODE_AGENT:
         if harbor_model not in ZAI_OPENCODE_MODEL_SELECTORS:
             raise ValueError(
@@ -2595,23 +2544,37 @@ def subscription_command(
         if not wrapper.is_file():
             raise RuntimeError(f"Claude subscription wrapper is missing: {wrapper}")
         return [str(wrapper), *harbor_command]
-    if request.agent == "mini-swe-agent":
-        if request.model == DEEPSEEK_MODEL_SELECTOR:
-            overlay = (repo_root / DEEPSEEK_SECRET_COMPOSE).resolve()
-            proxy = (repo_root / DEEPSEEK_PROXY_SCRIPT).resolve()
+    if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
+        overlays = {
+            ("mini-swe-agent", DEEPSEEK_MODEL_SELECTOR): (
+                DEEPSEEK_SECRET_COMPOSE,
+                DEEPSEEK_PROXY_SCRIPT,
+                "DeepSeek",
+            ),
+            ("mini-swe-agent", ZAI_OPENAPI_MODEL_SELECTOR): (
+                ZAI_OPENAPI_SECRET_COMPOSE,
+                ZAI_OPENAPI_PROXY_SCRIPT,
+                "Z.ai OpenAPI",
+            ),
+            **{
+                (ZAI_OPENCODE_AGENT, model): (ZAI_SECRET_COMPOSE, ZAI_PROXY_SCRIPT, "Z.ai")
+                for model in ZAI_OPENCODE_MODEL_SELECTORS
+            },
+        }
+        if spec := overlays.get((request.agent, request.model)):
+            compose_path, proxy_path, label = spec
+            overlay = (repo_root / compose_path).resolve()
+            proxy = (repo_root / proxy_path).resolve()
             if not overlay.is_file():
-                raise RuntimeError(f"DeepSeek secret overlay is missing: {overlay}")
+                raise RuntimeError(f"{label} secret overlay is missing: {overlay}")
             if not proxy.is_file():
-                raise RuntimeError(f"DeepSeek secret proxy is missing: {proxy}")
+                raise RuntimeError(f"{label} secret proxy is missing: {proxy}")
             return [*harbor_command, "--extra-docker-compose", str(overlay)]
-        if request.model == ZAI_OPENAPI_MODEL_SELECTOR:
-            overlay = (repo_root / ZAI_OPENAPI_SECRET_COMPOSE).resolve()
-            proxy = (repo_root / ZAI_OPENAPI_PROXY_SCRIPT).resolve()
-            if not overlay.is_file():
-                raise RuntimeError(f"Z.ai OpenAPI secret overlay is missing: {overlay}")
-            if not proxy.is_file():
-                raise RuntimeError(f"Z.ai OpenAPI secret proxy is missing: {proxy}")
-            return [*harbor_command, "--extra-docker-compose", str(overlay)]
+        if request.agent == ZAI_OPENCODE_AGENT:
+            raise RuntimeError(
+                "the zai-opencode execution lane requires one of the exact models "
+                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+            )
         if request.model and (
             request.model.startswith("glm-selfhosted/") or request.model.startswith("glm-ft/")
         ):
@@ -2627,19 +2590,6 @@ def subscription_command(
         raise RuntimeError(
             f"the mini-swe-agent execution lane requires model {DEEPSEEK_MODEL_SELECTOR} or {ZAI_OPENAPI_MODEL_SELECTOR}"
         )
-    if request.agent == ZAI_OPENCODE_AGENT:
-        if request.model not in ZAI_OPENCODE_MODEL_SELECTORS:
-            raise RuntimeError(
-                "the zai-opencode execution lane requires one of the exact models "
-                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
-            )
-        overlay = (repo_root / ZAI_SECRET_COMPOSE).resolve()
-        proxy = (repo_root / ZAI_PROXY_SCRIPT).resolve()
-        if not overlay.is_file():
-            raise RuntimeError(f"Z.ai secret overlay is missing: {overlay}")
-        if not proxy.is_file():
-            raise RuntimeError(f"Z.ai secret proxy is missing: {proxy}")
-        return [*harbor_command, "--extra-docker-compose", str(overlay)]
     return harbor_command
 
 

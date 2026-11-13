@@ -108,7 +108,7 @@ is made.
 `@10` also fixes the repeat-3 oracle failure measured on the
 opaque-wrapper tasks `000245` (TypeScript) and `000048` (Go), and
 folds those two rows onto `@10` in `mimo-clean-v5`
-(`SEPARATE_V10_TASKS` in `src/evallab/mimo_clean.py`) while keeping the other 2,696 v5 rows on
+while keeping the other 2,696 v5 rows on
 their banked digests (incl. 001431 on `@9`).
 
 ### Root cause (traced through the verifier container)

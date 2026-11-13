@@ -79,9 +79,6 @@ CLEAN_SET_VERSION = "mimo-clean-v4"
 #: Who the builder blames in lineage records.
 CREATED_BY = "mimo-clean-v4"
 
-#: Tracked manifest path (repo-relative). v1/v2/v3 stay as history untouched.
-MANIFEST_REL = Path("research/experiments/mimo-clean-v4/manifest.csv")
-
 #: Manifest columns (contract: at least task_id, domain, language, chain,
 #: final_digest, package_path, reference_fix, status, reason; ``verify`` is
 #: the fleet-census grade, ``unverified`` until the census runs).
@@ -106,9 +103,6 @@ VERIFY_UNVERIFIED = "unverified"
 #: Statuses a manifest row can carry.
 STATUS_BUILT = "built"
 STATUS_SKIPPED = "skipped"
-
-#: Ledger verdicts selected into the clean set.
-SELECTED_VERDICTS = frozenset({"keep", "fix"})
 
 
 #: Active mtime-normalize generation. ``@2`` (Modal lazy-layer
@@ -247,32 +241,9 @@ NODE_FOLD_AT_RISK = frozenset(
 )
 NODE_FOLD_TASKS = NODE_FOLD_REAL | NODE_FOLD_AT_RISK
 
-#: Tasks folded onto ``separate-verifier@9`` inside mimo-clean-v5 (per-row
-#: chain records @9 honestly; everything else stays @8 for digest-stability:
-#: a uniform @9 rebuild churns every test.sh and would invalidate all banked
-#: census cells). 001431's working reference fix grades 0 under @8 (G5:
-#: class-level collection error recorded with a raw-nodeid classname, no
-#: file attr). @9 only ever clears fail-to-pass (never sets it), so folded
-#: rows keep every @8 guarantee. A future rebuild with budget for full
-#: re-verification can go uniform @9.
-SEPARATE_V9_TASKS = frozenset({"format-code-task-001431"})
-
-#: Tasks folded onto ``separate-verifier@10`` inside mimo-clean-v5 (per-row
-#: chain records @10 honestly; everything else stays @8/@9 for
-#: digest-stability). 000245 (TS) and 000048 (Go) are opaque-wrapper tasks
-#: whose hidden patch creates mimo_build_env.tar.gz.b64 /
-#: mimo_test_command.sh in the workdir; under RepeatVerifier (repeat_n=3,
-#: same verifier container) @9 recaptured those leftovers as PRISTINE and
-#: the repeat apply failed "already exists". @10 anchors the first
-#: pristine tree and resets to it on every invocation, keeping every @9
-#: grading rule (incl. 001431, which stays on @9). A future rebuild with
-#: budget for full re-verification can go uniform @10.
-SEPARATE_V10_TASKS = frozenset({"format-code-task-000245", "format-code-task-000048"})
-
 #: Chain generations by clean-set version id (v4 stays the default until
 #: the v5 census completes; NB: never mix generations in one manifest).
 CLEAN_SET_VERSION_V5 = "mimo-clean-v5"
-MANIFEST_V5_REL = Path("research/experiments/mimo-clean-v5/manifest.csv")
 CLEAN_SET_VERSION_V6 = "mimo-clean-v6"
 MANIFEST_V6_REL = Path("research/experiments/mimo-clean-v6/manifest.csv")
 CHAIN_VERSIONS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
@@ -314,7 +285,6 @@ EXCLUDED_FROM_TRAINING: dict[str, str] = {
 #: Ledger layout constants (mirrors :mod:`evallab.exploit_probe`, kept local
 #: so this module stays importable without the probe's heavy deps).
 LEDGER_REL = Path("research/experiments/python-task-ledger/ledger.csv")
-SWEEP_REL = Path("research/experiments/python-task-ledger/oracle_sweep.csv")
 #: Reference-fix index (preferred when present; falls back to the sweep).
 REFERENCE_INDEX_REL = Path("research/experiments/mimo-reference-fixes/index.csv")
 SNAPSHOT_REL = Path("derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6")
@@ -1351,11 +1321,6 @@ def write_lineage_index(results: Collection[ChainResult], manifest_path: Path) -
 def load_manifest(path: Path) -> list[dict[str, str]]:
     """Read a manifest back (row dicts keyed by MANIFEST_COLUMNS)."""
     return read_csv_rows(path)
-
-
-# --------------------------------------------------------------------------- #
-# CLI: ``evallab mimo-clean build|verify-local``
-# --------------------------------------------------------------------------- #
 
 
 def _resolve(root: Path, value: Path) -> Path:

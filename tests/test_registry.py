@@ -1539,7 +1539,7 @@ def test_cli_registry_promote_and_register_e2e(
 ) -> None:
     import argparse
 
-    from evallab.cli import (
+    from evallab.registry_parser import (
         _registry_audit_command,
         _registry_promote_command,
         _registry_register_command,
@@ -1607,7 +1607,7 @@ def test_cli_registry_promote_refuses_missing_durable_evidence(
 ) -> None:
     import argparse
 
-    from evallab.cli import _registry_promote_command
+    from evallab.registry_parser import _registry_promote_command
 
     _make_dummy_task(tmp_path, "library/tasks/missing-evidence")
     promote_args = argparse.Namespace(

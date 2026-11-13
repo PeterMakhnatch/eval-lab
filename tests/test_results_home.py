@@ -178,7 +178,7 @@ def test_failed_republish_preserves_publication_and_indexes(
             if failure == "copy":
                 raise OSError("copy failed")
 
-        monkeypatch.setattr("evallab.results_home.shutil.copyfile", fail_copy)
+        monkeypatch.setattr("shutil.copyfile", fail_copy)
     with pytest.raises(OSError):
         publish_job(job, root=home)
     assert {p.relative_to(home): p.read_bytes() for p in home.rglob("*") if p.is_file()} == before

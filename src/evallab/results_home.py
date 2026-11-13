@@ -27,18 +27,14 @@ from __future__ import annotations
 
 import datetime as _datetime
 import fcntl
-import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
-import tempfile
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
-from glob import escape as glob_escape
 from pathlib import Path
 from typing import Any
 
@@ -135,6 +131,8 @@ def capture_repository(root: Path) -> dict[str, Any]:
     the part publish cannot reconstruct later, so they are saved into the job
     directory alongside this record.
     """
+    import hashlib
+
     record: dict[str, Any] = {
         "remote": None,
         "worktree": str(root.resolve()) if root.exists() else str(root),
@@ -197,6 +195,8 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 
 
 def _sha256_text(text: str) -> str:
+    import hashlib
+
     return "sha256:" + hashlib.sha256(text.encode()).hexdigest()
 
 
@@ -382,6 +382,9 @@ def build_provenance(
 
 def _copy_file(source: Path, dest: Path) -> None:
     """Copy and verify bytes without sharing the source inode."""
+    import hashlib
+    import shutil
+
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, dest)
     with source.open("rb") as original, dest.open("rb") as copied:
@@ -493,6 +496,10 @@ def publish_job(
     a publish costs the same whether the home holds ten jobs or ten thousand,
     and the files it writes are byte-identical to a full ``write_index``.
     """
+    import shutil
+    import tempfile
+    from glob import escape as glob_escape
+
     source = Path(job_dir).resolve()
     if not source.is_dir():
         raise ValueError(f"Not a job directory: {job_dir}")

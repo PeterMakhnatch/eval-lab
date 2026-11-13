@@ -219,13 +219,13 @@ def test_existing_output_is_never_overwritten(tmp_path):
 
 
 def cli_args(tmp_path, *extra):
-    from evallab.command_parsers import build_certify_gold_parser
+    from evallab.reward_hack_parser import register_parser as register_reward_hack
 
     base = package_at(tmp_path / "base")
     patch = tmp_path / "ref.patch"
     patch.write_text(PATCH)
     parser = argparse.ArgumentParser()
-    build_certify_gold_parser(parser.add_subparsers())
+    register_reward_hack(parser.add_subparsers())
     return parser.parse_args(["certify-gold", "--package", str(base), "--reference-patch", str(patch),
                               "--out", str(tmp_path / "out"), *extra])
 

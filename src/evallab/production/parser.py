@@ -254,3 +254,9 @@ def register_judge_parser(commands: Any) -> None:
         "--show-order", action="store_true", help="Print the stratum of every position"
     )
     plan.set_defaults(func=_plan)
+
+
+def register_parser(commands: argparse._SubParsersAction) -> None:
+    register_production_parser(commands)
+    register_run_health_parser(commands)
+    register_judge_parser(commands)

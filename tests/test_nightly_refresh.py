@@ -764,7 +764,7 @@ def test_real_process_job_writes_under_state_not_source(
 def test_nightly_refresh_command_never_constructs_executor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from evallab import cli
+    from evallab import operations_parser as operations
     from evallab.queue import Executor
 
     def explode(*_args: object, **_kwargs: object) -> None:
@@ -794,7 +794,7 @@ def test_nightly_refresh_command_never_constructs_executor(
         verdict_root=data,
     )
 
-    assert cli._nightly_command(args, runtime) == 0
+    assert operations._nightly_command(args, runtime) == 0
 
     printed = json.loads(capsys.readouterr().out)
     assert printed == {"high_water_mark": 7, "jobs": 0, "status": "noop"}
@@ -815,7 +815,7 @@ def test_nightly_refresh_command_never_constructs_executor(
         readers_store=None,
         data_root=None,
     )
-    assert cli._nightly_command(absent, runtime) == 0
+    assert operations._nightly_command(absent, runtime) == 0
     assert seen[1].data_root is None
     assert seen[1].facts_root is None
     assert seen[1].readers_store is None

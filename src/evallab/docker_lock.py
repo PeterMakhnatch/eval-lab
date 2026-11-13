@@ -20,7 +20,6 @@ import fcntl
 import json
 import os
 import signal
-import socket
 import subprocess
 import sys
 import threading
@@ -190,6 +189,8 @@ class DockerLock:
         pid: int | None = None,
         cwd: str | None = None,
     ) -> None:
+        import socket
+
         resolved_slots = default_slots() if slots is None else slots
         if resolved_slots < 1:
             raise ValueError("slots must be >= 1")

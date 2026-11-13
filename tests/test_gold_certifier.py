@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-from evallab.command_parsers import build_certify_gold_parser
 from evallab.gold_certifier import (
     GOLD_CONTRACT_TEST_NAME,
     GoldMatrixSummary,
@@ -28,6 +27,7 @@ from evallab.gold_certifier import (
     wilson_interval,
 )
 from evallab.mutant_auditor import Mutant
+from evallab.reward_hack_parser import register_parser as register_reward_hack
 from evallab.separate_verifier import supplementary_test_blocks
 
 
@@ -286,7 +286,7 @@ def test_cli_plan_offline(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     patch.write_text("--- a/foo.py\n+++ b/foo.py\n@@ -0,0 +1 @@\n+x = 1\n")
 
     top = argparse.ArgumentParser()
-    build_certify_gold_parser(top.add_subparsers())
+    register_reward_hack(top.add_subparsers())
     args = top.parse_args(
         [
             "certify-gold",
@@ -315,7 +315,7 @@ def _cli_args(tmp_path: Path, *extra: str) -> argparse.Namespace:
     patch = tmp_path / "ref.patch"
     patch.write_text("--- a/foo.py\n+++ b/foo.py\n@@ -0,0 +1 @@\n+x = 1\n")
     top = argparse.ArgumentParser()
-    build_certify_gold_parser(top.add_subparsers())
+    register_reward_hack(top.add_subparsers())
     return top.parse_args(
         ["certify-gold", "--package", str(pkg), "--reference-patch", str(patch), *extra]
     )
